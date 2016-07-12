@@ -352,10 +352,16 @@ def install_fedora(args, workspace):
                "--disablerepo=*",
                "--enablerepo=fedora",
                "--enablerepo=updates",
+               "--setopt=install_weak_deps=0"]
+
+    if not args.with_docs:
+        cmdline.append("--setopt=tsflags=nodocs")
+
+    cmdline.extend([
                "install",
                "systemd",
                "fedora-release",
-               "passwd" ]
+               "passwd"])
 
     if not args.packages is None:
         cmdline.extend(args.packages)
@@ -630,6 +636,7 @@ def parse_args():
     parser.add_argument("--esp-size", help='Set size of ESP volume')
     parser.add_argument("--swap-size", help='Set size of swap volume')
     parser.add_argument("--package", action='append', dest='packages', help='Add an additional package to the OS image')
+    parser.add_argument("--with-docs", action='store_true', help='Install documentation')
     parser.add_argument("--settings", help='Add in .spawn settings file')
     parser.add_argument("--compress", action='store_true', help='Enable compression in file system (only btrfs)')
     parser.add_argument("--xz", action='store_true', help='Compress resulting image with xz (only raw and btrfs, implicit on tar)')
