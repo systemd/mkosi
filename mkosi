@@ -881,6 +881,10 @@ def main():
     if args.bootable and args.esp_size is None:
         args.esp_size = 256*1024*1024
 
+    if os.getuid() != 0:
+        sys.stderr.write("Must be invoked as root.\n")
+        sys.exit(1)
+
     unlink_output(args)
 
     for f in (args.output,
