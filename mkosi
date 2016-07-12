@@ -272,6 +272,9 @@ def mount_image(args, workspace, loopdev):
     mount_bind("/dev", os.path.join(workspace, "root", "dev"))
     mount_bind("/sys", os.path.join(workspace, "root", "sys"))
 
+    if not args.cache_path is None:
+        mount_bind(args.cache_path, os.path.join(workspace, "root", "var/cache/dnf"))
+
     print_step("Mounting image completed.");
 
 def umount(where):
@@ -291,6 +294,7 @@ def umount_image(args, workspace, loopdev):
     umount(os.path.join(workspace, "root", "proc"))
     umount(os.path.join(workspace, "root", "sys"))
     umount(os.path.join(workspace, "root", "dev"))
+    umount(os.path.join(workspace, "root", "var/cache/dnf"))
     umount(os.path.join(workspace, "root"))
 
     print_step("Unmounting image completed.");
@@ -352,6 +356,7 @@ def install_fedora(args, workspace):
                "--disablerepo=*",
                "--enablerepo=fedora",
                "--enablerepo=updates",
+               "--setopt=keepcache=1",
                "--setopt=install_weak_deps=0"]
 
     if not args.with_docs:
@@ -620,6 +625,23 @@ def print_output_size(args):
         st = os.stat(args.output)
         print_step("Resulting image size is " + format_bytes(st.st_size) + ", consumes " + format_bytes(st.st_blocks * 512) + ".")
 
+def setup_cache(args):
+
+    if args.distribution != Distribution.fedora:
+        return None
+
+    print_step("Setting up package cache...")
+
+    if args.cache_path is None:
+        d = tempfile.TemporaryDirectory(dir = os.path.dirname(args.output))
+        args.cache_path = d.name
+    else:
+        os.makedirs(args.cache_path, 0o700, True)
+        d = None
+
+    print_step("Setting up package cache " + args.cache_path + " completed.")
+    return d
+
 def parse_args():
     parser = argparse.ArgumentParser(description='Build Legacy-Free OS Images')
 
@@ -640,6 +662,7 @@ def parse_args():
     group = parser.add_argument_group("Package Selection")
     group.add_argument("--package", action='append', dest='packages', help='Add an additional package to the OS image', metavar='PACKAGE')
     group.add_argument("--with-docs", action='store_true', help='Install documentation (only fedora)')
+    group.add_argument("--cache", dest='cache_path', help='Package cache path (only fedora)', metavar='PATH')
 
     group = parser.add_argument_group("Partition Configuration")
     group.add_argument("--root-size", help='Set size of root partition (only raw_gpt, raw_btrfs)', metavar='BYTES')
@@ -819,6 +842,7 @@ def main():
 
     init_namespace(args)
 
+    cache = setup_cache(args)
     workspace = setup_workspace(args)
     raw = create_image(args, workspace.name)
     loopdev = attach_image_loopback(args, raw)
