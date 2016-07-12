@@ -503,7 +503,7 @@ def make_read_only(args, workspace):
 
     btrfs_subvol_make_ro(os.path.join(workspace, "root"))
 
-    print_step("Marking root subvolume read-only done.")
+    print_step("Marking root subvolume read-only completed.")
 
 def make_tar(args, workspace):
 
@@ -977,7 +977,7 @@ def load_defaults(args):
 
         for key in config[section]:
             if not process_setting(args, section, key, config[section][key]):
-                sys.stderr.write("Unknown key in section [{}] in {}, ignoring: {}\n".format(section, fname, key))
+                sys.stderr.write("Unknown key in section [{}] in {}, ignoring: {}=\n".format(section, fname, key))
 
 def find_nspawn_settings(args):
 
