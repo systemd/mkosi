@@ -805,7 +805,7 @@ def main():
             continue
 
         if os.path.exists(f):
-            sys.stderr.write("Output file " + f + " exists already.\n")
+            sys.stderr.write("Output file " + f + " exists already. (Consider invocation with --force.)\n")
             sys.exit(1)
 
     init_namespace(args)
