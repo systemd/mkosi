@@ -232,9 +232,15 @@ def prepare_srv(args, loopdev):
 
     print_step("Formatted server data partition.");
 
-def mount_loop(loopdev, partno, where):
+def mount_loop(args, loopdev, partno, where):
     os.makedirs(where, 0o755, True)
-    subprocess.run(["mount", "-n", partition(loopdev, partno), where, "-odiscard"], check=True)
+
+    options = "-odiscard"
+
+    if args.compress and args.output_format == OutputFormat.raw_btrfs:
+        options += ",compress"
+
+    subprocess.run(["mount", "-n", partition(loopdev, partno), where, options], check=True)
 
 def mount_bind(what, where):
     os.makedirs(where, 0o755, True)
@@ -247,16 +253,16 @@ def mount_image(args, workspace, loopdev):
 
     print_step("Mounting image...");
 
-    mount_loop(loopdev, args.root_partno, os.path.join(workspace, "root"))
+    mount_loop(args, loopdev, args.root_partno, os.path.join(workspace, "root"))
 
     if not args.home_partno is None:
-        mount_loop(loopdev, args.home_partno, os.path.join(workspace, "root", "home"))
+        mount_loop(args, loopdev, args.home_partno, os.path.join(workspace, "root", "home"))
 
     if not args.srv_partno is None:
-        mount_loop(loopdev, args.srv_partno, os.path.join(workspace, "root", "srv"))
+        mount_loop(args, loopdev, args.srv_partno, os.path.join(workspace, "root", "srv"))
 
     if not args.esp_partno is None:
-        mount_loop(loopdev, args.esp_partno, os.path.join(workspace, "root", "boot/efi"))
+        mount_loop(args, loopdev, args.esp_partno, os.path.join(workspace, "root", "boot/efi"))
 
     mount_bind("/proc", os.path.join(workspace, "root", "proc"))
     mount_bind("/dev", os.path.join(workspace, "root", "dev"))
@@ -455,12 +461,12 @@ def make_tar(args, workspace):
 
     return f
 
-def compress_output(args, raw):
+def xz_output(args, raw):
 
     if not args.output_format in (OutputFormat.raw_btrfs, OutputFormat.raw_gpt):
         return raw
 
-    if not args.compress:
+    if not args.xz:
         return raw
 
     print_step("Compressing image file...")
@@ -573,7 +579,8 @@ def parse_args():
     parser.add_argument("--swap-size", help='Set size of swap volume')
     parser.add_argument("--package", action='append', dest='packages', help='Add an additional package to the OS image')
     parser.add_argument("--settings", help='Add in .spawn settings file')
-    parser.add_argument("--compress", action='store_true', help='Compress (only raw and btrfs, implicit on tar)')
+    parser.add_argument("--compress", action='store_true', help='Enable compression in file system (only btrfs)')
+    parser.add_argument("--xz", action='store_true', help='Compress resulting image with xz (only raw and btrfs, implicit on tar)')
     parser.add_argument("--checksum", action='store_true', help='Write SHA256SUM file')
     parser.add_argument("--sign", action='store_true', help='Write and sign SHA256SUM file')
 
@@ -691,7 +698,7 @@ def main():
 
     if args.output is None:
         if args.output_format in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs):
-            if args.compress:
+            if args.xz:
                 args.output = "image.raw.xz"
             else:
                 args.output = "image.raw"
@@ -752,7 +759,7 @@ def main():
     finally:
         detach_image_loopback(args, loopdev)
 
-    raw = compress_output(args, raw)
+    raw = xz_output(args, raw)
     checksum = calculate_sha256sum(args, raw, tar)
 
     link_output(args,
