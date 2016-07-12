@@ -7,11 +7,8 @@ import argparse, sys, os, unshare, subprocess, uuid, platform, tempfile, shutil,
 # - Make unshare work
 # - squashfs root
 # - volatile images
-# - read-only
 # - fix archlinux
 # - make debian/ubuntu images bootable
-# - hash
-# - sign
 # - .nspawn support
 # - work on device nodes
 
