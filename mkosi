@@ -940,6 +940,14 @@ def load_defaults(args):
             if not process_setting(args, section, key, config[section][key]):
                 sys.stderr.write("Unknown key in section [{}] in {}, ignoring: {}\n".format(section, fname, key))
 
+def find_nspawn_settings(args):
+
+    if not args.nspawn_settings is None:
+        return
+
+    if os.path.exists("mkosi.nspawn"):
+        args.nspawn_settings = "mkosi.nspawn"
+
 def build_nspawn_settings_path(path):
     t = path
     while True:
@@ -958,6 +966,7 @@ def load_args():
 
     args = parse_args()
     load_defaults(args)
+    find_nspawn_settings(args)
 
     if not args.output_format is None:
         args.output_format = OutputFormat[args.output_format]
