@@ -283,7 +283,7 @@ def umount_image(args, workspace, loopdev):
     umount(os.path.join(workspace, "root", "dev"))
     umount(os.path.join(workspace, "root"))
 
-    print_step("Unmounting image completed...");
+    print_step("Unmounting image completed.");
 
 def prepare_tree(args, workspace):
 
