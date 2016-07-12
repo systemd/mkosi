@@ -43,7 +43,7 @@ def init_namespace(args):
 
     print_step("Detaching namespace...")
 
-    os.umask(0o000)
+    args.original_umask = os.umask(0o000)
     unshare.unshare(unshare.CLONE_NEWNS)
     subprocess.run(["mount", "--make-rslave", "/"], check=True)
 
@@ -591,8 +591,10 @@ def link_output(args, workspace, raw, tar):
     if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
         os.rename(os.path.join(workspace, "root"), args.output)
     elif args.output_format in (OutputFormat.raw_btrfs, OutputFormat.raw_gpt):
+        os.chmod(raw, 0o666 & ~args.original_umask)
         os.link(raw, args.output)
     else:
+        os.chmod(raw, 0o666 & ~args.original_umask)
         os.link(tar, args.output)
 
     print_step("Successfully linked " + args.output + ".")
@@ -604,6 +606,7 @@ def link_output_nspawn_settings(args, path):
 
     print_step("Linking nspawn settings file...")
 
+    os.chmod(path, 0o666 & ~args.original_umask)
     os.link(path, args.output_nspawn_settings)
 
     print_step("Successfully linked " + args.output_nspawn_settings + ".")
@@ -615,6 +618,7 @@ def link_output_checksum(args, checksum):
 
     print_step("Linking SHA256SUM file...")
 
+    os.chmod(checksum, 0o666 & ~args.original_umask)
     os.link(checksum, args.output_checksum)
 
     print_step("Successfully linked " + args.output_checksum + ".")
@@ -626,6 +630,7 @@ def link_output_signature(args, signature):
 
     print_step("Linking SHA256SUM.gpg file...")
 
+    os.chmod(signature, 0o666 & ~args.original_umask)
     os.link(signature, args.output_signature)
 
     print_step("Successfully linked " + args.output_signature + ".")
