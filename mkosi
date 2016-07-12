@@ -8,7 +8,6 @@ import argparse, sys, os, unshare, subprocess, uuid, platform, tempfile, shutil,
 # - volatile images
 # - fix archlinux
 # - make debian/ubuntu images bootable
-# - .nspawn support
 # - work on device nodes
 
 class OutputFormat(Enum):
@@ -506,6 +505,26 @@ def xz_output(args, raw):
 
     return f
 
+def copy_nspawn_settings(args):
+
+    if args.nspawn_settings is None:
+        return None
+
+    print_step("Copying nspawn settings file...")
+
+    f = tempfile.NamedTemporaryFile(mode = "w+b", dir = os.path.dirname(args.output_nspawn_settings))
+
+    with open(args.nspawn_settings, "rb") as c:
+
+        bs = 65536
+        buf = c.read(bs)
+        while len(buf) > 0:
+            f.write(buf)
+            buf = c.read(bs)
+
+    print_step("Copying nspawn settings file completed.")
+    return f
+
 def hash_file(of, sf, fname):
 
     bs = 65536
@@ -513,13 +532,13 @@ def hash_file(of, sf, fname):
 
     sf.seek(0)
     buf = sf.read(bs)
-    while (len(buf) > 0):
+    while len(buf) > 0:
         h.update(buf)
         buf = sf.read(bs)
 
     of.write(h.hexdigest() + " *" + fname + "\n")
 
-def calculate_sha256sum(args, raw, tar):
+def calculate_sha256sum(args, raw, tar, nspawn_settings):
 
     if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
         return None
@@ -535,6 +554,8 @@ def calculate_sha256sum(args, raw, tar):
         hash_file(f, raw, os.path.basename(args.output))
     if not tar is None:
         hash_file(f, tar, os.path.basename(args.output))
+    if not nspawn_settings is None:
+        hash_file(f, nspawn_settings, os.path.basename(args.output_nspawn_settings))
 
     print_step("Calculating SHA256SUM complete.")
     return f
@@ -575,6 +596,17 @@ def link_output(args, workspace, raw, tar):
         os.link(tar, args.output)
 
     print_step("Successfully linked " + args.output + ".")
+
+def link_output_nspawn_settings(args, path):
+
+    if path is None:
+        return
+
+    print_step("Linking nspawn settings file...")
+
+    os.link(path, args.output_nspawn_settings)
+
+    print_step("Successfully linked " + args.output_nspawn_settings + ".")
 
 def link_output_checksum(args, checksum):
 
@@ -657,7 +689,7 @@ def parse_args():
     group.add_argument("--read-only", action='store_true', help='Make root volume read-only (only raw_btrfs, subvolume)')
     group.add_argument("--compress", action='store_true', help='Enable compression in file system (only raw_btrfs, subvolume)')
     group.add_argument("--xz", action='store_true', help='Compress resulting image with xz (only raw_gpt, raw_btrfs, implied on tar)')
-    group.add_argument("--settings", help='Add in .spawn settings file', metavar='PATH')
+    group.add_argument("--settings", dest='nspawn_settings', help='Add in .spawn settings file', metavar='PATH')
 
     group = parser.add_argument_group("Package Selection")
     group.add_argument("--package", action='append', dest='packages', help='Add an additional package to the OS image', metavar='PACKAGE')
@@ -732,36 +764,51 @@ def detect_distribution():
 
     return d, version_id
 
+def unlink_try_hard(path):
+
+    try:
+        os.unlink(path)
+    except:
+        pass
+
+    try:
+        btrfs_subvol_delete(path)
+    except:
+        pass
+
+    try:
+        shutil.rmtree(path)
+    except:
+        pass
+
 def unlink_output(args):
     if not args.force:
         return
 
-    try:
-        os.unlink(args.output)
-    except:
-        pass
-
-    try:
-        btrfs_subvol_delete(args.output)
-    except:
-        pass
-
-    try:
-        shutil.rmtree(args.output)
-    except:
-        pass
+    unlink_try_hard(args.output)
 
     if args.checksum:
-        try:
-            os.unlink(args.output_checksum)
-        except:
-            pass
+        unlink_try_hard(args.output_checksum)
 
     if args.sign:
-        try:
-            os.unlink(args.output_signature)
-        except:
-            pass
+        unlink_try_hard(args.output_signature)
+
+    if not args.nspawn_settings is None:
+        unlink_try_hard(args.output_nspawn_settings)
+
+def build_nspawn_settings_path(path):
+    t = path
+    while True:
+        if t.endswith(".xz"):
+            t = t[:-3]
+        elif t.endswith(".raw"):
+            t = t[:-4]
+        elif t.endswith(".tar"):
+            t = t[:-4]
+        else:
+            break
+
+    return t + ".nspawn"
 
 def main():
     args = parse_args()
@@ -814,6 +861,8 @@ def main():
         args.output_checksum = os.path.join(os.path.dirname(args.output), "SHA256SUM")
     if args.sign:
         args.output_signature = os.path.join(os.path.dirname(args.output), "SHA256SUM.gpg")
+    if not args.nspawn_settings is None:
+        args.output_nspawn_settings = build_nspawn_settings_path(args.output)
 
     args.root_size = parse_bytes(args.root_size)
     args.home_size = parse_bytes(args.home_size)
@@ -831,7 +880,8 @@ def main():
 
     for f in (args.output,
               args.output_checksum if args.checksum else None,
-              args.output_signature if args.sign else None):
+              args.output_signature if args.sign else None,
+              args.output_nspawn_settings if not args.nspawn_settings is None else None):
 
         if f is None:
             continue
@@ -868,7 +918,8 @@ def main():
         detach_image_loopback(args, loopdev)
 
     raw = xz_output(args, raw)
-    checksum = calculate_sha256sum(args, raw, tar)
+    settings = copy_nspawn_settings(args)
+    checksum = calculate_sha256sum(args, raw, tar, settings)
     signature = calculate_signature(args, checksum)
 
     link_output(args,
@@ -881,6 +932,9 @@ def main():
 
     link_output_signature(args,
                           None if signature is None else signature.name)
+
+    link_output_nspawn_settings(args,
+                                None if settings is None else settings.name)
 
     print_output_size(args)
 
