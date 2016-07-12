@@ -1,0 +1,708 @@
+#!/usr/bin/python3
+
+from enum import Enum
+import argparse, sys, os, unshare, subprocess, uuid, platform, tempfile, shutil, time
+
+# TODO
+# - Make unshare work
+# - squashfs root
+# - volatile images
+# - read-only
+# - fix archlinux
+# - make debian/ubuntu images bootable
+# - hash
+# - sign
+# - .nspawn support
+# - work on device nodes
+
+class OutputFormat(Enum):
+    raw_gpt = 1
+    raw_btrfs = 2
+    directory = 3
+    subvolume = 4
+    tar = 5
+
+class Distribution(Enum):
+    fedora = 1
+    debian = 2
+    ubuntu = 3
+    arch = 4
+
+GPT_ROOT_X86    = uuid.UUID("44479540f29741b29af7d131d5f0458a")
+GPT_ROOT_X86_64 = uuid.UUID("4f68bce3e8cd4db196e7fbcaf984b709")
+GPT_ROOT_ARM    = uuid.UUID("69dad7102ce44e3cb16c21a1d49abed3")
+GPT_ROOT_ARM_64 = uuid.UUID("b921b0451df041c3af444c6f280d3fae")
+GPT_ROOT_IA64   = uuid.UUID("993d8d3df80e4225855a9daf8ed7ea97")
+GPT_ESP         = uuid.UUID("c12a7328f81f11d2ba4b00a0c93ec93b")
+GPT_SWAP        = uuid.UUID("0657fd6da4ab43c484e50933c84b4f4f")
+GPT_HOME        = uuid.UUID("933ac7e12eb44f13b8440e14e2aef915")
+GPT_SRV         = uuid.UUID("3b8f842520e04f3b907f1a25a76f98e8")
+
+if platform.machine() == "x86_64":
+    GPT_ROOT_NATIVE = GPT_ROOT_X86_64
+else:
+    sys.stderr.write("Don't known the native architecture.")
+    sys.exit(1)
+
+def init_namespace(args):
+
+    os.umask(0o000)
+    unshare.unshare(unshare.CLONE_FS)
+
+def print_step(text):
+    sys.stderr.write("‣ \033[0;1;39m" + text + "\033[0m\n")
+
+def setup_workspace(args):
+
+    print_step("Setting up temporary workspace.")
+
+    if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
+        d = tempfile.TemporaryDirectory(dir = os.path.dirname(args.output))
+    else:
+        d = tempfile.TemporaryDirectory(dir = '/var/tmp')
+
+    print_step("Temporary workspace in " + d.name + " is now set up.")
+    return d
+
+def btrfs_subvol_create(path, mode=0o755):
+    m = os.umask(~mode & 0o7777)
+    subprocess.run(["btrfs", "subvol", "create", path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+    os.umask(m)
+
+def btrfs_subvol_delete(path, mode=0o755):
+    subprocess.run(["btrfs", "subvol", "delete", path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+
+def image_size(args):
+    size = args.root_size
+
+    if not args.home_size is None:
+        size += args.home_size
+    if not args.srv_size is None:
+        size += args.srv_size
+    if args.bootable:
+        size += args.esp_size
+    if not args.swap_size is None:
+        size += args.swap_size
+
+    return size
+
+def create_image(args, workspace):
+    if not args.output_format in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs):
+        return None
+
+    print_step("Creating partition table...")
+
+    f = tempfile.NamedTemporaryFile(dir = os.path.dirname(args.output))
+    f.truncate(image_size(args))
+
+    pn = 1
+    table = "label: gpt\n"
+
+    if args.bootable:
+        table += 'size={}, type={}, name="ESP System Partition"\n'.format(str(int(args.esp_size / 512)), GPT_ESP)
+        args.esp_partno = pn
+        pn += 1
+    else:
+        args.esp_partno = None
+
+    if not args.swap_size is None:
+        table += 'size={}, type={}, name="Swap Partition"\n'.format(str(int(args.swap_size / 512)), GPT_SWAP)
+        args.swap_partno = pn
+        pn += 1
+    else:
+        args.swap_partno = None
+
+    args.home_partno = None
+    args.srv_partno = None
+
+    if args.output_format != OutputFormat.raw_btrfs:
+        if not args.home_size is None:
+            table += 'size={}, type={}, name="Home Partition"\n'.format(str(int(args.home_size / 512)), GPT_HOME)
+            args.home_partno = pn
+            pn += 1
+        if not args.srv_size is None:
+            table += 'size={}, type={}, name="Server Data Partition"\n'.format(str(int(args.srv_size / 512)), GPT_SRV)
+            args.srv_partno = pn
+            pn += 1
+
+    table += 'type={}, name="Root Partition"\n'.format(GPT_ROOT_NATIVE)
+    args.root_partno = pn
+    pn += 1
+
+    subprocess.run(["sfdisk", "--color=never", f.name], input=table.encode("utf-8"), check=True)
+
+    print_step("Created partition table as " + f.name + ".")
+
+    return f
+
+def attach_image_loopback(args, raw):
+
+    if raw is None:
+        return
+
+    print_step("Attaching image file...")
+
+    c = subprocess.run(["losetup", "--find", "--show", "--partscan", raw.name], stdout=subprocess.PIPE, check=True)
+    n = c.stdout.decode("utf-8").strip()
+
+    print_step("Attached image file as " + n + ".")
+
+    return n
+
+def detach_image_loopback(args, loopdev):
+    if loopdev is None:
+        return
+
+    print_step("Detaching image file...");
+
+    subprocess.run(["losetup", "--detach", loopdev], check=True)
+
+    print_step("Detaching image file completed.");
+
+def partition(loopdev, partno):
+    return loopdev + "p" + str(partno)
+
+def prepare_swap(args, loopdev):
+    if loopdev is None:
+        return
+
+    if args.swap_partno is None:
+        return
+
+    print_step("Formatting swap partition...");
+
+    subprocess.run(["mkswap", "-Lswap", partition(loopdev, args.swap_partno)], check=True)
+
+    print_step("Formatting swap partition completed.");
+
+def prepare_esp(args, loopdev):
+    if loopdev is None:
+        return
+    if args.esp_partno is None:
+        return
+
+    print_step("Formatting ESP partition...");
+
+    subprocess.run(["mkfs.fat", "-nEFI", "-F32", partition(loopdev, args.esp_partno)], check=True)
+
+    print_step("Formatting ESP partition completed.");
+
+def mkfs_ext4(label, mount, loopdev, partno):
+    subprocess.run(["mkfs.ext4", "-L" + label, "-M" + mount, partition(loopdev, partno)], check=True)
+
+def prepare_root(args, loopdev):
+
+    if loopdev is None:
+        return
+    if args.root_partno is None:
+        return
+
+    print_step("Formatting root partition...");
+
+    if args.output_format == OutputFormat.raw_btrfs:
+        subprocess.run(["mkfs.btrfs", "-Lroot", partition(loopdev, args.root_partno)], check=True)
+    else:
+        mkfs_ext4("root", "/", loopdev, args.root_partno)
+
+    print_step("Formatting root partition completed.");
+
+def prepare_home(args, loopdev):
+
+    if loopdev is None:
+        return
+    if args.home_partno is None:
+        return
+
+    print_step("Formatting home partition...");
+
+    mkfs_ext4("home", "/home", loopdev, args.home_partno)
+
+    print_step("Formatting home partition completed.");
+
+def prepare_srv(args, loopdev):
+
+    if loopdev is None:
+        return
+    if args.srv_partno is None:
+        return
+
+    print_step("Formatting server data partition...");
+
+    mkfs_ext4("srv", "/srv", loopdev, args.srv_partno)
+
+    print_step("Formatted server data partition.");
+
+def mount_loop(loopdev, partno, where):
+    os.makedirs(where, 0o755, True)
+    subprocess.run(["mount", "-n", partition(loopdev, partno), where, "-odiscard"], check=True)
+
+def mount_bind(what, where):
+    os.makedirs(where, 0o755, True)
+    subprocess.run(["mount", "--bind", what, where], check=True)
+
+def mount_image(args, workspace, loopdev):
+
+    if loopdev is None:
+        return
+
+    print_step("Mounting image...");
+
+    mount_loop(loopdev, args.root_partno, os.path.join(workspace, "root"))
+
+    if not args.home_partno is None:
+        mount_loop(loopdev, args.home_partno, os.path.join(workspace, "root", "home"))
+
+    if not args.srv_partno is None:
+        mount_loop(loopdev, args.srv_partno, os.path.join(workspace, "root", "srv"))
+
+    if not args.esp_partno is None:
+        mount_loop(loopdev, args.esp_partno, os.path.join(workspace, "root", "boot/efi"))
+
+    mount_bind("/proc", os.path.join(workspace, "root", "proc"))
+    mount_bind("/dev", os.path.join(workspace, "root", "dev"))
+    mount_bind("/sys", os.path.join(workspace, "root", "sys"))
+
+    print_step("Mounting image completed.");
+
+def umount(where):
+    # Ignore failures and error messages
+    subprocess.run(["umount", "-n", where], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+def umount_image(args, workspace, loopdev):
+
+    if loopdev is None:
+        return
+
+    print_step("Unmounting image...");
+
+    umount(os.path.join(workspace, "root", "home"))
+    umount(os.path.join(workspace, "root", "srv"))
+    umount(os.path.join(workspace, "root", "boot/efi"))
+    umount(os.path.join(workspace, "root", "proc"))
+    umount(os.path.join(workspace, "root", "sys"))
+    umount(os.path.join(workspace, "root", "dev"))
+    umount(os.path.join(workspace, "root"))
+
+    print_step("Unmounting image completed...");
+
+def prepare_tree(args, workspace):
+
+    print_step("Setting up basic OS tree...");
+
+    if args.output_format == OutputFormat.subvolume:
+        btrfs_subvol_create(os.path.join(workspace, "root"))
+    else:
+        try:
+            os.mkdir(os.path.join(workspace, "root"))
+        except FileExistsError:
+            pass
+
+    if args.output_format in (OutputFormat.subvolume, OutputFormat.raw_btrfs):
+        btrfs_subvol_create(os.path.join(workspace, "root", "home"))
+        btrfs_subvol_create(os.path.join(workspace, "root", "srv"))
+        btrfs_subvol_create(os.path.join(workspace, "root", "var"))
+        btrfs_subvol_create(os.path.join(workspace, "root", "var/tmp"), 0o1777)
+        os.mkdir(os.path.join(workspace, "root", "var/lib"))
+        btrfs_subvol_create(os.path.join(workspace, "root", "var/lib/machines"), 0o700)
+
+    if args.bootable:
+
+        # We need an initialized machine ID for the boot logic to work
+        mid = uuid.uuid4().hex
+        os.mkdir(os.path.join(workspace, "root", "etc"), 0o755)
+        open(os.path.join(workspace, "root", "etc/machine-id"), "w").write(mid + "\n")
+
+        # For now, let's stay compatible with traditional Linux ESP mounts
+        os.mkdir(os.path.join(workspace, "root", "boot/efi/EFI"), 0o700)
+        os.mkdir(os.path.join(workspace, "root", "boot/efi/EFI/BOOT"), 0o700)
+        os.mkdir(os.path.join(workspace, "root", "boot/efi/EFI/systemd"), 0o700)
+        os.mkdir(os.path.join(workspace, "root", "boot/efi/loader"), 0o700)
+        os.mkdir(os.path.join(workspace, "root", "boot/efi/loader/entries"), 0o700)
+        os.mkdir(os.path.join(workspace, "root", "boot/efi", mid), 0o700)
+
+        os.symlink("efi/loader", os.path.join(workspace, "root", "boot/loader"))
+        os.symlink("efi/" + mid, os.path.join(workspace, "root", "boot", mid))
+
+        os.mkdir(os.path.join(workspace, "root", "etc/kernel"), 0o755)
+        open(os.path.join(workspace, "root", "etc/kernel/cmdline"), "w").write("ro rhgb quiet selinux=0 audit=0\n")
+
+    print_step("Setting up basic OS tree completed.");
+
+def install_fedora(args, workspace):
+
+    if args.release is None:
+        args.release = "24"
+
+    print_step("Installing Fedora...")
+
+    cmdline = ["dnf",
+               "-y",
+               "--releasever=" + args.release,
+               "--installroot=" + workspace + "/root",
+               "--disablerepo=*",
+               "--enablerepo=fedora",
+               "--enablerepo=updates",
+               "install",
+               "systemd",
+               "fedora-release",
+               "passwd" ]
+
+    if not args.packages is None:
+        cmdline.extend(args.packages)
+
+    if args.bootable:
+        cmdline.extend(["kernel", "systemd-udev"])
+
+    subprocess.run(cmdline, check=True)
+
+    print_step("Installing Fedora completed.")
+
+def install_debian_or_ubuntu(args, workspace, mirror):
+
+    cmdline = ["debootstrap",
+               "--verbose",
+               "--variant=minbase",
+               "--include=systemd",
+               "--exclude=sysv-rc,initscripts,startpar,lsb-base,insserv",
+               args.release,
+               workspace + "/root",
+               mirror]
+
+    if not args.packages is None:
+        cmdline[3] += "," + ",".join(args.packages)
+
+    subprocess.run(cmdline, check=True)
+
+def install_debian(args, workspace):
+
+    if args.release is None:
+        args.release = "unstable"
+
+    print_step("Installing Debian...")
+
+    install_debian_or_ubuntu(args, workspace, "http://httpredir.debian.org/debian/")
+
+    print_step("Installing Debian completed.")
+
+def install_ubuntu(args, workspace):
+
+    if args.release is None:
+        args.release = "yakkety"
+
+    print_step("Installing Ubuntu...")
+
+    install_debian_or_ubuntu(args, workspace, "http://archive.ubuntu.com/ubuntu/")
+
+    print_step("Installing Ubuntu completed.")
+
+def install_arch(args, workspace):
+
+    if not args.release is None:
+        sys.stderr.write("Distribution release specification is not supported for ArchLinux, ignoring.")
+
+    print_step("Installing ArchLinux...")
+
+    subprocess.run(["pacman-key", "--init"], check=True)
+    subprocess.run(["pacman-key", "--populate", "archlinux"], check=True)
+
+    cmdline = ["pacstrap",
+               "-c",
+               "-d",
+               "-i",
+               workspace + "/root",
+               "base"]
+
+    subprocess.run(cmdline, check=True)
+
+    print_step("Installing ArchLinux complete.")
+
+def install_distribution(args, workspace):
+    install = {
+        Distribution.fedora : install_fedora,
+        Distribution.debian : install_debian,
+        Distribution.ubuntu : install_ubuntu,
+        Distribution.arch : install_arch,
+    }
+
+    install[args.distribution](args, workspace)
+
+def install_boot_loader(args, workspace):
+
+    if not args.bootable:
+        return
+
+    print_step("Installing boot loader...")
+
+    shutil.copyfile(os.path.join(workspace, "root", "usr/lib/systemd/boot/efi/systemd-bootx64.efi"),
+                    os.path.join(workspace, "root", "boot/efi/EFI/systemd/systemd-bootx64.efi"))
+
+    shutil.copyfile(os.path.join(workspace, "root", "usr/lib/systemd/boot/efi/systemd-bootx64.efi"),
+                    os.path.join(workspace, "root", "boot/efi/EFI/BOOT/bootx64.efi"))
+
+    print_step("Installing boot loader completed...")
+
+def make_tar(args, workspace):
+
+    if args.output_format != OutputFormat.tar:
+        return None
+
+    print_step("Creating archive...")
+
+    f = tempfile.NamedTemporaryFile(dir = os.path.dirname(args.output))
+    subprocess.run(["tar", "-C", os.path.join(workspace, "root"), "-c", "-J", "--xattrs", "--xattrs-include=*", "."], stdout=f, check=True)
+
+    print_step("Creating archive completed.")
+
+    return f
+
+def compress_output(args, raw):
+
+    if not args.output_format in (OutputFormat.raw_btrfs, OutputFormat.raw_gpt):
+        return raw
+
+    if not args.compress:
+        return raw
+
+    print_step("Compressing image file...")
+
+    f = tempfile.NamedTemporaryFile(dir = os.path.dirname(args.output))
+    subprocess.run(["xz", "-c", raw.name], stdout=f, check=True)
+
+    print_step("Compressing image file complete.")
+
+    return f
+
+def link_output(args, workspace, raw, tar):
+
+    print_step("Linking image file...")
+
+    if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
+        os.rename(os.path.join(workspace, "root"), args.output)
+    elif args.output_format in (OutputFormat.raw_btrfs, OutputFormat.raw_gpt):
+        os.link(raw, args.output)
+    else:
+        os.link(tar, args.output)
+
+    print_step("Successfully created " + args.output + ".")
+
+def format_bytes(bytes):
+    if bytes >= 1024*1024*1024:
+        return "{:0.1f}G".format(float(bytes) / 1024/1024/1024)
+    if bytes >= 1024*1024:
+        return "{:0.1f}M".format(float(bytes) / 1024/1024)
+    if bytes >= 1024:
+        return "{:0.1f}K".format(float(bytes) / 1024)
+
+    return "{}B".format(bytes)
+
+def dir_size(path):
+    sum = 0
+    for entry in os.scandir(path):
+        if entry.is_file():
+            sum += entry.stat().st_blocks * 512
+        elif entry.is_dir():
+            sum += dir_size(entry.path)
+    return sum
+
+def print_output_size(args):
+
+    if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
+        print_step("Resulting image size is " + format_bytes(dir_size(args.output)) + ".")
+    else:
+        st = os.stat(args.output)
+        print_step("Resulting image size is " + format_bytes(st.st_size) + ", consumes " + format_bytes(st.st_blocks * 512) + ".")
+
+def parse_args():
+    parser = argparse.ArgumentParser(description='Build Legacy-Free OS Images')
+
+    parser.add_argument('-F', "--format", choices=OutputFormat.__members__, default='raw_gpt', help='Output Format')
+    parser.add_argument('-d', "--distribution", choices=Distribution.__members__, default=None, help='Distribution')
+    parser.add_argument('-r', "--release", help='Distribution release')
+    parser.add_argument('-o', "--output", help='Output image path')
+    parser.add_argument('-f', "--force", action='store_true', help='Remove existing image file before operation')
+    parser.add_argument("--read-only", action='store_true', help='Make root volume read-only (only btrfs)')
+    parser.add_argument('-b', "--bootable", action='store_true', help='Make image bootable on EFI')
+    parser.add_argument("--root-size", help='Set size of root volume')
+    parser.add_argument("--home-size", help='Set size of /home volume')
+    parser.add_argument("--srv-size", help='Set size of /srv volume')
+    parser.add_argument("--esp-size", help='Set size of ESP volume')
+    parser.add_argument("--swap-size", help='Set size of swap volume')
+    parser.add_argument("--package", action='append', dest='packages', help='Add an additional package to the OS image')
+    parser.add_argument("--settings", help='Add in .spawn settings file')
+    parser.add_argument("--compress", action='store_true', help='Compress (only raw and btrfs, implicit on tar)')
+    parser.add_argument("--checksum", action='store_true', help='Write SHA256SUM file')
+    parser.add_argument("--sign", action='store_true', help='Write and sign SHA256SUM file')
+
+    return parser.parse_args()
+
+def parse_bytes(bytes):
+
+    if bytes is None:
+        return bytes
+
+    if bytes.endswith('G'):
+        factor = 1024*1024*1024
+    elif bytes.endswith('M'):
+        factor = 1024*1024
+    elif bytes.endswith('K'):
+        factor = 1024
+    else:
+        factor = 1
+
+    if factor > 1:
+        bytes = bytes[:-1]
+
+    result = int(bytes) * factor
+    if result <= 0:
+        raise ValueError("Size out of range")
+
+    if result % 512 != 0:
+        raise ValueError("Size not a multiple of 512")
+
+    return result
+
+def detect_distribution():
+
+    try:
+        f = open("/etc/os-release")
+    except IOError:
+        try:
+            f = open("/usr/lib/os-release")
+        except IOError:
+            return None, None
+
+    id = None
+    version_id = None
+
+    for ln in f:
+        if ln.startswith("ID="):
+            id = ln[3:].strip()
+        if ln.startswith("VERSION_ID="):
+            version_id = ln[11:].strip()
+
+    d = None
+    if not id is None:
+        try:
+            d = Distribution[id]
+        except KeyError:
+            pass
+
+    return d, version_id
+
+def unlink_output(args):
+    if not args.force:
+        return
+
+    try:
+        os.unlink(args.output)
+    except:
+        pass
+
+    try:
+        btrfs_subvol_delete(args.output)
+    except:
+        pass
+
+    try:
+        shutil.rmtree(args.output)
+    except:
+        pass
+
+def main():
+    args = parse_args()
+
+    args.output_format = OutputFormat[args.format]
+
+    if not args.distribution is None:
+        args.distribution = Distribution[args.distribution]
+
+    if args.distribution is None or args.release is None:
+        d, r = detect_distribution()
+
+        if args.distribution is None:
+            args.distribution = d
+
+        if args.distribution == d and args.release is None:
+            args.release = r
+
+    if args.distribution is None:
+        sys.stderr.write("Couldn't detect distribution.\n")
+        sys.exit(1)
+
+    if args.bootable:
+
+        if args.distribution != Distribution.fedora:
+            sys.stderr.write("Bootable images are currently supported only on Fedora.\n")
+            sys.exit(1)
+
+        if not args.output_format in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs):
+            sys.stderr.write("Directory, subvolume and tar images cannot be booted.\n")
+            sys.exit(1)
+
+    if args.output is None:
+        if args.output_format in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs):
+            if args.compress:
+                args.output = "image.raw.xz"
+            else:
+                args.output = "image.raw"
+        elif args.output_format == OutputFormat.tar:
+            args.output = "image.tar.xz"
+        else:
+            args.output = "image"
+
+    args.output = os.path.abspath(args.output)
+
+    args.root_size = parse_bytes(args.root_size)
+    args.home_size = parse_bytes(args.home_size)
+    args.srv_size = parse_bytes(args.srv_size)
+    args.esp_size = parse_bytes(args.esp_size)
+    args.swap_size = parse_bytes(args.swap_size)
+
+    if args.output_format in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs) and args.root_size is None:
+        args.root_size = 1024*1024*1024
+
+    if args.bootable and args.esp_size is None:
+        args.esp_size = 256*1024*1024
+
+    unlink_output(args)
+
+    if os.path.exists(args.output):
+        sys.stderr.write("Output file " + args.output + " exists already.\n")
+        sys.exit(1)
+
+    init_namespace(args)
+
+    workspace = setup_workspace(args)
+    raw = create_image(args, workspace.name)
+    loopdev = attach_image_loopback(args, raw)
+
+    try:
+        prepare_swap(args, loopdev)
+        prepare_esp(args, loopdev)
+        prepare_root(args, loopdev)
+        prepare_home(args, loopdev)
+        prepare_srv(args, loopdev)
+
+        mount_image(args, workspace.name, loopdev)
+        try:
+            prepare_tree(args, workspace.name)
+            install_distribution(args, workspace.name)
+            install_boot_loader(args, workspace.name)
+            tar = make_tar(args, workspace.name)
+        finally:
+            umount_image(args, workspace.name, loopdev)
+
+    finally:
+        detach_image_loopback(args, loopdev)
+
+    raw = compress_output(args, raw)
+
+    link_output(args,
+                workspace.name,
+                None if raw is None else raw.name,
+                None if tar is None else tar.name)
+
+    print_output_size(args)
+
+if __name__ == "__main__":
+    main()
