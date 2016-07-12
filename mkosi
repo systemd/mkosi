@@ -460,7 +460,37 @@ def install_boot_loader(args, workspace):
     shutil.copyfile(os.path.join(workspace, "root", "usr/lib/systemd/boot/efi/systemd-bootx64.efi"),
                     os.path.join(workspace, "root", "boot/efi/EFI/BOOT/bootx64.efi"))
 
-    print_step("Installing boot loader completed...")
+    print_step("Installing boot loader completed.")
+
+def enumerate_and_copy(source, dest, suffix = ""):
+
+    for entry in os.scandir(source + suffix):
+
+        dest_path = dest + suffix + "/" + entry.name
+
+        if entry.is_dir():
+            try:
+                os.mkdir(dest_path, entry.stat(follow_symlinks=False).st_mode & 0o7777)
+            except FileExistsError:
+                pass
+
+            enumerate_and_copy(source, dest, suffix + "/" + entry.name)
+        else:
+            shutil.copy(entry.path, dest_path, follow_symlinks=False)
+
+        shutil.copystat(entry.path, dest_path, follow_symlinks=False)
+
+def install_extra_trees(args, workspace):
+
+    if args.extra_trees is None:
+        return
+
+    print_step("Copying in extra file trees...")
+
+    for d in args.extra_trees:
+        enumerate_and_copy(d, os.path.join(workspace, "root"))
+
+    print_step("Copying in extra file trees completed.")
 
 def make_read_only(args, workspace):
     if not args.read_only:
@@ -701,6 +731,7 @@ def parse_args():
     group.add_argument("--package", action='append', dest='packages', help='Add an additional package to the OS image', metavar='PACKAGE')
     group.add_argument("--with-docs", action='store_true', help='Install documentation (only fedora)')
     group.add_argument("--cache", dest='cache_path', help='Package cache path (only fedora)', metavar='PATH')
+    group.add_argument("--extra-tree", action='append', dest='extra_trees', help='Copy an extra tree on top of image', metavar='PATH')
 
     group = parser.add_argument_group("Partitions")
     group.add_argument("--root-size", help='Set size of root partition (only raw_gpt, raw_btrfs)', metavar='BYTES')
@@ -864,13 +895,21 @@ def process_setting(args, section, key, value):
     elif section == "Packages":
 
         if key == "Packages":
-            args.packages.extend(value.split(','))
+            if args.packages is None:
+                args.packages = value.split()
+            else:
+                args.packages.extend(value.split())
         elif key == "WithDocs":
             if not args.with_docs:
                 args.with_docs = parse_boolean(value)
         elif key == "Cache":
             if args.cache_path is None:
                 args.cache_path = value
+        elif key == "ExtraTrees":
+            if args.extra_trees is None:
+                args.extra_trees = value.split()
+            else:
+                args.extra_trees.extend(value.split())
         elif key is None:
             return True
         else:
@@ -1066,6 +1105,7 @@ def build_stuff(args):
             prepare_tree(args, workspace.name)
             install_distribution(args, workspace.name)
             install_boot_loader(args, workspace.name)
+            install_extra_trees(args, workspace.name)
             make_read_only(args, workspace.name)
             tar = make_tar(args, workspace.name)
         finally:
