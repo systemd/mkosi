@@ -816,7 +816,8 @@ def build_nspawn_settings_path(path):
 
     return t + ".nspawn"
 
-def main():
+def load_args():
+
     args = parse_args()
 
     args.output_format = OutputFormat[args.format]
@@ -882,11 +883,9 @@ def main():
     if args.bootable and args.esp_size is None:
         args.esp_size = 256*1024*1024
 
-    if os.getuid() != 0:
-        sys.stderr.write("Must be invoked as root.\n")
-        sys.exit(1)
+    return args
 
-    unlink_output(args)
+def check_output(args):
 
     for f in (args.output,
               args.output_checksum if args.checksum else None,
@@ -900,8 +899,7 @@ def main():
             sys.stderr.write("Output file " + f + " exists already. (Consider invocation with --force.)\n")
             sys.exit(1)
 
-    init_namespace(args)
-
+def build_stuff(args):
     cache = setup_cache(args)
     workspace = setup_workspace(args)
     raw = create_image(args, workspace.name)
@@ -945,6 +943,19 @@ def main():
 
     link_output_nspawn_settings(args,
                                 None if settings is None else settings.name)
+
+def main():
+    args = load_args()
+
+    if os.getuid() != 0:
+        sys.stderr.write("Must be invoked as root.\n")
+        sys.exit(1)
+
+    unlink_output(args)
+    check_output(args)
+
+    init_namespace(args)
+    build_stuff(args)
 
     print_output_size(args)
 
