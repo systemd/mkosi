@@ -267,12 +267,13 @@ def mount_image(args, workspace, loopdev):
     if not args.esp_partno is None:
         mount_loop(args, loopdev, args.esp_partno, os.path.join(workspace, "root", "boot/efi"))
 
-    mount_bind("/proc", os.path.join(workspace, "root", "proc"))
-    mount_bind("/dev", os.path.join(workspace, "root", "dev"))
-    mount_bind("/sys", os.path.join(workspace, "root", "sys"))
+    if args.distribution == Distribution.fedora:
+        mount_bind("/proc", os.path.join(workspace, "root", "proc"))
+        mount_bind("/dev", os.path.join(workspace, "root", "dev"))
+        mount_bind("/sys", os.path.join(workspace, "root", "sys"))
 
-    if not args.cache_path is None:
-        mount_bind(args.cache_path, os.path.join(workspace, "root", "var/cache/dnf"))
+        if not args.cache_path is None:
+            mount_bind(args.cache_path, os.path.join(workspace, "root", "var/cache/dnf"))
 
     print_step("Mounting image completed.");
 
