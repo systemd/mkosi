@@ -72,6 +72,9 @@ def btrfs_subvol_create(path, mode=0o755):
 def btrfs_subvol_delete(path, mode=0o755):
     subprocess.run(["btrfs", "subvol", "delete", path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
 
+def btrfs_subvol_make_ro(path, b=True):
+    subprocess.run(["btrfs", "property", "set", path, "ro", "true" if b else "false"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+
 def image_size(args):
     size = args.root_size
 
@@ -447,6 +450,19 @@ def install_boot_loader(args, workspace):
 
     print_step("Installing boot loader completed...")
 
+def make_read_only(args, workspace):
+    if not args.read_only:
+        return
+
+    if not args.output_format in (OutputFormat.raw_btrfs, OutputFormat.subvolume):
+        return
+
+    print_step("Marking root subvolume read-only...")
+
+    btrfs_subvol_make_ro(os.path.join(workspace, "root"))
+
+    print_step("Marking root subvolume read-only done.")
+
 def make_tar(args, workspace):
 
     if args.output_format != OutputFormat.tar:
@@ -752,6 +768,7 @@ def main():
             prepare_tree(args, workspace.name)
             install_distribution(args, workspace.name)
             install_boot_loader(args, workspace.name)
+            make_read_only(args, workspace.name)
             tar = make_tar(args, workspace.name)
         finally:
             umount_image(args, workspace.name, loopdev)
