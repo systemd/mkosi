@@ -517,7 +517,7 @@ def calculate_sha256sum(args, raw, tar):
 
     print_step("Calculating SHA256SUM...")
 
-    f = tempfile.NamedTemporaryFile(mode = "w", dir = os.path.dirname(args.output_checksum), encoding = "utf-8")
+    f = tempfile.NamedTemporaryFile(mode = "w+", dir = os.path.dirname(args.output_checksum), encoding = "utf-8")
 
     if not raw is None:
         hash_file(f, raw, os.path.basename(args.output))
@@ -525,6 +525,30 @@ def calculate_sha256sum(args, raw, tar):
         hash_file(f, tar, os.path.basename(args.output))
 
     print_step("Calculating SHA256SUM complete.")
+    return f
+
+def calculate_signature(args, checksum):
+
+    if not args.sign:
+        return None
+
+    if checksum is None:
+        return None
+
+    print_step("Signing SHA256SUM...")
+
+    f = tempfile.NamedTemporaryFile(mode = "wb", dir = os.path.dirname(args.output_signature))
+
+    cmdline = ["gpg", "--detach-sign"]
+
+    if not args.key is None:
+        cmdline.extend(["--default-key", args.key])
+
+    checksum.seek(0)
+    subprocess.run(cmdline, stdin=checksum, stdout=f, check=True)
+
+    print_step("Signing SHA256SUM complete.")
+
     return f
 
 def link_output(args, workspace, raw, tar):
@@ -550,6 +574,17 @@ def link_output_checksum(args, checksum):
     os.link(checksum, args.output_checksum)
 
     print_step("Successfully linked " + args.output_checksum + ".")
+
+def link_output_signature(args, signature):
+
+    if signature is None:
+        return
+
+    print_step("Linking SHA256SUM.gpg file...")
+
+    os.link(signature, args.output_signature)
+
+    print_step("Successfully linked " + args.output_signature + ".")
 
 def format_bytes(bytes):
     if bytes >= 1024*1024*1024:
@@ -599,6 +634,7 @@ def parse_args():
     parser.add_argument("--xz", action='store_true', help='Compress resulting image with xz (only raw and btrfs, implicit on tar)')
     parser.add_argument("--checksum", action='store_true', help='Write SHA256SUM file')
     parser.add_argument("--sign", action='store_true', help='Write and sign SHA256SUM file')
+    parser.add_argument("--key", help='GPG key to use for signing')
 
     return parser.parse_args()
 
@@ -681,6 +717,12 @@ def unlink_output(args):
         except:
             pass
 
+    if args.sign:
+        try:
+            os.unlink(args.output_signature)
+        except:
+            pass
+
 def main():
     args = parse_args()
 
@@ -712,6 +754,9 @@ def main():
             sys.stderr.write("Directory, subvolume and tar images cannot be booted.\n")
             sys.exit(1)
 
+    if args.sign:
+        args.checksum = True
+
     if args.output is None:
         if args.output_format in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs):
             if args.xz:
@@ -727,6 +772,8 @@ def main():
 
     if args.checksum:
         args.output_checksum = os.path.join(os.path.dirname(args.output), "SHA256SUM")
+    if args.sign:
+        args.output_signature = os.path.join(os.path.dirname(args.output), "SHA256SUM.gpg")
 
     args.root_size = parse_bytes(args.root_size)
     args.home_size = parse_bytes(args.home_size)
@@ -742,13 +789,16 @@ def main():
 
     unlink_output(args)
 
-    if os.path.exists(args.output):
-        sys.stderr.write("Output file " + args.output + " exists already.\n")
-        sys.exit(1)
+    for f in (args.output,
+              args.output_checksum if args.checksum else None,
+              args.output_signature if args.sign else None):
 
-    if args.checksum and os.path.exists(args.output_checksum):
-        sys.stderr.write("Output file " + args.output_checksum + " exists already.\n")
-        sys.exit(1)
+        if f is None:
+            continue
+
+        if os.path.exists(f):
+            sys.stderr.write("Output file " + f + " exists already.\n")
+            sys.exit(1)
 
     init_namespace(args)
 
@@ -778,6 +828,7 @@ def main():
 
     raw = xz_output(args, raw)
     checksum = calculate_sha256sum(args, raw, tar)
+    signature = calculate_signature(args, checksum)
 
     link_output(args,
                 workspace.name,
@@ -786,6 +837,9 @@ def main():
 
     link_output_checksum(args,
                          None if checksum is None else checksum.name)
+
+    link_output_signature(args,
+                          None if signature is None else signature.name)
 
     print_output_size(args)
 
