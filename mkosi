@@ -4,7 +4,6 @@ from enum import Enum
 import argparse, sys, os, unshare, subprocess, uuid, platform, tempfile, shutil, time, hashlib
 
 # TODO
-# - Make unshare work
 # - squashfs root
 # - volatile images
 # - fix archlinux
@@ -43,8 +42,13 @@ else:
 
 def init_namespace(args):
 
+    print_step("Detaching namespace...")
+
     os.umask(0o000)
-    unshare.unshare(unshare.CLONE_FS)
+    unshare.unshare(unshare.CLONE_NEWNS)
+    subprocess.run(["mount", "--make-rslave", "/"], check=True)
+
+    print_step("Detaching namespace complete.")
 
 def print_step(text):
     sys.stderr.write("‣ \033[0;1;39m" + text + "\033[0m\n")
