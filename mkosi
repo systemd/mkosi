@@ -730,7 +730,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Build Legacy-Free OS Images', add_help=False)
 
     group = parser.add_argument_group("Commands")
-    group.add_argument("verb", choices=("build", "clean", "help"), nargs='?', default="build", help='Operation to execute')
+    group.add_argument("verb", choices=("build", "clean", "help", "summary"), nargs='?', default="build", help='Operation to execute')
     group.add_argument('-h', '--help', action='help', help="Show this help")
 
     group = parser.add_argument_group("Distribution")
@@ -1244,15 +1244,18 @@ def main():
         sys.stderr.write("Must be invoked as root.\n")
         sys.exit(1)
 
-    unlink_output(args)
+    if args.verb in ("build", "clean"):
+        unlink_output(args)
 
     if args.verb == "build":
         check_output(args)
 
+    if args.verb in ("build", "summary"):
         print_summary(args)
+
+    if args.verb == "build":
         init_namespace(args)
         build_stuff(args)
-
         print_output_size(args)
 
 if __name__ == "__main__":
