@@ -1071,12 +1071,20 @@ def load_args():
 
     args.output = os.path.abspath(args.output)
 
+    if args.output_format == OutputFormat.tar:
+        args.xz = True
+
     if args.checksum:
         args.output_checksum = os.path.join(os.path.dirname(args.output), "SHA256SUM")
     if args.sign:
         args.output_signature = os.path.join(os.path.dirname(args.output), "SHA256SUM.gpg")
     if not args.nspawn_settings is None:
+        args.nspawn_settings = os.path.abspath(args.nspawn_settings)
         args.output_nspawn_settings = build_nspawn_settings_path(args.output)
+
+    if not args.extra_trees is None:
+        for i in range(len(args.extra_trees)):
+            args.extra_trees[i] = os.path.abspath(args.extra_trees[i])
 
     args.root_size = parse_bytes(args.root_size)
     args.home_size = parse_bytes(args.home_size)
