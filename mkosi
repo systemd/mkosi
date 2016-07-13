@@ -272,10 +272,18 @@ def mount_image(args, workspace, loopdev):
         mount_bind("/dev", os.path.join(workspace, "root", "dev"))
         mount_bind("/sys", os.path.join(workspace, "root", "sys"))
 
-        if not args.cache_path is None:
-            mount_bind(args.cache_path, os.path.join(workspace, "root", "var/cache/dnf"))
-
     print_step("Mounting image completed.");
+
+def mount_cache(args, workspace):
+
+    if args.distribution != Distribution.fedora:
+        return
+
+    if args.cache_path is None:
+        return
+
+    # We can't do this in mount_image() yet, as /var itself might have to be created as a subvolume first
+    mount_bind(args.cache_path, os.path.join(workspace, "root", "var/cache/dnf"))
 
 def umount(where):
     # Ignore failures and error messages
@@ -1190,6 +1198,7 @@ def build_stuff(args):
         mount_image(args, workspace.name, loopdev)
         try:
             prepare_tree(args, workspace.name)
+            mount_cache(args, workspace.name)
             install_distribution(args, workspace.name)
             install_boot_loader(args, workspace.name)
             install_extra_trees(args, workspace.name)
