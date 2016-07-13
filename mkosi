@@ -718,6 +718,14 @@ def setup_cache(args):
     print_step("Setting up package cache " + args.cache_path + " completed.")
     return d
 
+class PackageAction(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        l = getattr(namespace, self.dest)
+        if l is None:
+            l = []
+        l.extend(values.split(","))
+        setattr(namespace, self.dest, l)
+
 def parse_args():
     parser = argparse.ArgumentParser(description='Build Legacy-Free OS Images', add_help=False)
 
@@ -739,7 +747,7 @@ def parse_args():
     group.add_argument("--xz", action='store_true', help='Compress resulting image with xz (only raw_gpt, raw_btrfs, implied on tar)')
 
     group = parser.add_argument_group("Packages")
-    group.add_argument("--package", action='append', dest='packages', help='Add an additional package to the OS image', metavar='PACKAGE')
+    group.add_argument('-p', "--package", action=PackageAction, dest='packages', help='Add an additional package to the OS image', metavar='PACKAGE')
     group.add_argument("--with-docs", action='store_true', help='Install documentation (only fedora)')
     group.add_argument("--cache", dest='cache_path', help='Package cache path (only fedora)', metavar='PATH')
     group.add_argument("--extra-tree", action='append', dest='extra_trees', help='Copy an extra tree on top of image', metavar='PATH')
