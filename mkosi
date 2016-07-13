@@ -711,9 +711,11 @@ def setup_cache(args):
     return d
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='Build Legacy-Free OS Images')
+    parser = argparse.ArgumentParser(description='Build Legacy-Free OS Images', add_help=False)
 
-    parser.add_argument("verb", choices=("build", "clean", "help"), nargs='?', default="build", help='Operation to execute')
+    group = parser.add_argument_group("Commands")
+    group.add_argument("verb", choices=("build", "clean", "help"), nargs='?', default="build", help='Operation to execute')
+    group.add_argument('-h', '--help', action='help', help="Show this help")
 
     group = parser.add_argument_group("Distribution")
     group.add_argument('-d', "--distribution", choices=Distribution.__members__, help='Distribution to install')
