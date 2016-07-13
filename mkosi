@@ -1179,7 +1179,7 @@ def print_summary(args):
         sys.stderr.write("\nPARTITIONS:\n")
         sys.stderr.write("              Bootable: " + yes_no(args.bootable) + "\n")
         sys.stderr.write("        Root Partition: " + format_bytes(args.root_size) + "\n")
-        sys.stderr.write("        Swap Partition: " + format_bytes_or_disabled(args.root_size) + "\n")
+        sys.stderr.write("        Swap Partition: " + format_bytes_or_disabled(args.swap_size) + "\n")
         sys.stderr.write("                   ESP: " + format_bytes_or_disabled(args.esp_size) + "\n")
         sys.stderr.write("       /home Partition: " + format_bytes_or_disabled(args.home_size) + "\n")
         sys.stderr.write("        /srv Partition: " + format_bytes_or_disabled(args.srv_size) + "\n")
