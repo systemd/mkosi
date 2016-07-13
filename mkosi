@@ -729,13 +729,13 @@ def parse_args():
     group.add_argument("--read-only", action='store_true', help='Make root volume read-only (only raw_btrfs, subvolume)')
     group.add_argument("--compress", action='store_true', help='Enable compression in file system (only raw_btrfs, subvolume)')
     group.add_argument("--xz", action='store_true', help='Compress resulting image with xz (only raw_gpt, raw_btrfs, implied on tar)')
-    group.add_argument("--settings", dest='nspawn_settings', help='Add in .spawn settings file', metavar='PATH')
 
     group = parser.add_argument_group("Packages")
     group.add_argument("--package", action='append', dest='packages', help='Add an additional package to the OS image', metavar='PACKAGE')
     group.add_argument("--with-docs", action='store_true', help='Install documentation (only fedora)')
     group.add_argument("--cache", dest='cache_path', help='Package cache path (only fedora)', metavar='PATH')
     group.add_argument("--extra-tree", action='append', dest='extra_trees', help='Copy an extra tree on top of image', metavar='PATH')
+    group.add_argument("--settings", dest='nspawn_settings', help='Add in .spawn settings file', metavar='PATH')
 
     group = parser.add_argument_group("Partitions")
     group.add_argument("--root-size", help='Set size of root partition (only raw_gpt, raw_btrfs)', metavar='BYTES')
@@ -894,9 +894,6 @@ def process_setting(args, section, key, value):
         elif key == "XZ":
             if not args.xz:
                 args.xz = parse_boolean(value)
-        elif key == "NSpawnSettings":
-            if not args.nspawn_settings is None:
-                args.nspawn_settings = value
         elif key is None:
             return True
         else:
@@ -920,6 +917,9 @@ def process_setting(args, section, key, value):
                 args.extra_trees = value.split()
             else:
                 args.extra_trees.extend(value.split())
+        elif key == "NSpawnSettings":
+            if not args.nspawn_settings is None:
+                args.nspawn_settings = value
         elif key is None:
             return True
         else:
