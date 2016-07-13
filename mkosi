@@ -57,9 +57,9 @@ def setup_workspace(args):
     print_step("Setting up temporary workspace.")
 
     if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
-        d = tempfile.TemporaryDirectory(dir = os.path.dirname(args.output))
+        d = tempfile.TemporaryDirectory(dir = os.path.dirname(args.output), prefix='.mkosi-')
     else:
-        d = tempfile.TemporaryDirectory(dir = '/var/tmp')
+        d = tempfile.TemporaryDirectory(dir = '/var/tmp', prefix='mkosi-')
 
     print_step("Temporary workspace in " + d.name + " is now set up.")
     return d
@@ -95,7 +95,7 @@ def create_image(args, workspace):
 
     print_step("Creating partition table...")
 
-    f = tempfile.NamedTemporaryFile(dir = os.path.dirname(args.output))
+    f = tempfile.NamedTemporaryFile(dir = os.path.dirname(args.output), prefix='.mkosi-')
     f.truncate(image_size(args))
 
     pn = 1
@@ -350,7 +350,7 @@ def prepare_tree(args, workspace):
 
     print_step("Setting up basic OS tree completed.");
 
-def install_fedora(args, workspace):
+def install_fedora(args, workspace, run_build_script):
 
     if args.release is None:
         args.release = "24"
@@ -359,6 +359,8 @@ def install_fedora(args, workspace):
 
     cmdline = ["dnf",
                "-y",
+               "--best",
+               "--allowerasing",
                "--releasever=" + args.release,
                "--installroot=" + workspace + "/root",
                "--disablerepo=*",
@@ -367,7 +369,8 @@ def install_fedora(args, workspace):
                "--setopt=keepcache=1",
                "--setopt=install_weak_deps=0"]
 
-    if not args.with_docs:
+    # Turn off docs, but not during the development build, as dnf currently has problems with that
+    if not args.with_docs and not run_build_script:
         cmdline.append("--setopt=tsflags=nodocs")
 
     cmdline.extend([
@@ -379,6 +382,9 @@ def install_fedora(args, workspace):
     if not args.packages is None:
         cmdline.extend(args.packages)
 
+    if run_build_script and not args.build_packages is None:
+        cmdline.extend(args.build_packages)
+
     if args.bootable:
         cmdline.extend(["kernel", "systemd-udev"])
 
@@ -386,7 +392,7 @@ def install_fedora(args, workspace):
 
     print_step("Installing Fedora completed.")
 
-def install_debian_or_ubuntu(args, workspace, mirror):
+def install_debian_or_ubuntu(args, workspace, run_build_script, mirror):
 
     cmdline = ["debootstrap",
                "--verbose",
@@ -400,20 +406,23 @@ def install_debian_or_ubuntu(args, workspace, mirror):
     if not args.packages is None:
         cmdline[3] += "," + ",".join(args.packages)
 
+    if run_build_script and not args.build_packages is None:
+        cmdline[3] += "," + ",".join(args.build_packages)
+
     subprocess.run(cmdline, check=True)
 
-def install_debian(args, workspace):
+def install_debian(args, workspace, run_build_script):
 
     if args.release is None:
         args.release = "unstable"
 
     print_step("Installing Debian...")
 
-    install_debian_or_ubuntu(args, workspace, "http://httpredir.debian.org/debian/")
+    install_debian_or_ubuntu(args, workspace, run_build_script, "http://httpredir.debian.org/debian/")
 
     print_step("Installing Debian completed.")
 
-def install_ubuntu(args, workspace):
+def install_ubuntu(args, workspace, run_build_script):
 
     if args.release is None:
         args.release = "yakkety"
@@ -424,7 +433,7 @@ def install_ubuntu(args, workspace):
 
     print_step("Installing Ubuntu completed.")
 
-def install_arch(args, workspace):
+def install_arch(args, workspace, run_build_script):
 
     if not args.release is None:
         sys.stderr.write("Distribution release specification is not supported for ArchLinux, ignoring.")
@@ -445,7 +454,7 @@ def install_arch(args, workspace):
 
     print_step("Installing ArchLinux complete.")
 
-def install_distribution(args, workspace):
+def install_distribution(args, workspace, run_build_script):
     install = {
         Distribution.fedora : install_fedora,
         Distribution.debian : install_debian,
@@ -453,7 +462,7 @@ def install_distribution(args, workspace):
         Distribution.arch : install_arch,
     }
 
-    install[args.distribution](args, workspace)
+    install[args.distribution](args, workspace, run_build_script)
 
 def install_boot_loader(args, workspace):
 
@@ -484,6 +493,11 @@ def enumerate_and_copy(source, dest, suffix = ""):
 
             enumerate_and_copy(source, dest, suffix + "/" + entry.name)
         else:
+            try:
+                os.unlink(dest_path)
+            except:
+                pass
+
             shutil.copy(entry.path, dest_path, follow_symlinks=False)
 
         shutil.copystat(entry.path, dest_path, follow_symlinks=False)
@@ -499,6 +513,36 @@ def install_extra_trees(args, workspace):
         enumerate_and_copy(d, os.path.join(workspace, "root"))
 
     print_step("Copying in extra file trees completed.")
+
+def install_build_src(args, workspace, run_build_script):
+    if not run_build_script:
+        return
+
+    if args.build_script is None:
+        return
+
+    print_step("Copying in build script and sources...")
+
+    shutil.copy(args.build_script, os.path.join(workspace, "root", "root", os.path.basename(args.build_script)))
+
+    if not args.build_sources is None:
+        shutil.copytree(args.build_sources, os.path.join(workspace, "root", "root/src"), symlinks=True, ignore=shutil.ignore_patterns('.mkosi-*'))
+
+    print_step("Copying in build script and sources completed.")
+
+def install_build_dest(args, workspace, run_build_script):
+
+    if run_build_script:
+        return
+
+    if args.build_script is None:
+        return
+
+    print_step("Copying in build tree...")
+
+    enumerate_and_copy(os.path.join(workspace, "dest"), os.path.join(workspace, "root"))
+
+    print_step("Copying in build tree completed.")
 
 def make_read_only(args, workspace):
     if not args.read_only:
@@ -520,7 +564,7 @@ def make_tar(args, workspace):
 
     print_step("Creating archive...")
 
-    f = tempfile.NamedTemporaryFile(dir = os.path.dirname(args.output))
+    f = tempfile.NamedTemporaryFile(dir = os.path.dirname(args.output), prefix=".mkosi-")
     subprocess.run(["tar", "-C", os.path.join(workspace, "root"), "-c", "-J", "--xattrs", "--xattrs-include=*", "."], stdout=f, check=True)
 
     print_step("Creating archive completed.")
@@ -537,7 +581,7 @@ def xz_output(args, raw):
 
     print_step("Compressing image file...")
 
-    f = tempfile.NamedTemporaryFile(dir = os.path.dirname(args.output))
+    f = tempfile.NamedTemporaryFile(dir = os.path.dirname(args.output), prefix=".mkosi-")
     subprocess.run(["xz", "-c", raw.name], stdout=f, check=True)
 
     print_step("Compressing image file complete.")
@@ -551,7 +595,7 @@ def copy_nspawn_settings(args):
 
     print_step("Copying nspawn settings file...")
 
-    f = tempfile.NamedTemporaryFile(mode = "w+b", dir = os.path.dirname(args.output_nspawn_settings))
+    f = tempfile.NamedTemporaryFile(mode = "w+b", dir = os.path.dirname(args.output_nspawn_settings), prefix=".mkosi-")
 
     with open(args.nspawn_settings, "rb") as c:
 
@@ -587,7 +631,7 @@ def calculate_sha256sum(args, raw, tar, nspawn_settings):
 
     print_step("Calculating SHA256SUM...")
 
-    f = tempfile.NamedTemporaryFile(mode = "w+", dir = os.path.dirname(args.output_checksum), encoding = "utf-8")
+    f = tempfile.NamedTemporaryFile(mode = "w+", dir = os.path.dirname(args.output_checksum), prefix=".mkosi-", encoding = "utf-8")
 
     if not raw is None:
         hash_file(f, raw, os.path.basename(args.output))
@@ -609,7 +653,7 @@ def calculate_signature(args, checksum):
 
     print_step("Signing SHA256SUM...")
 
-    f = tempfile.NamedTemporaryFile(mode = "wb", dir = os.path.dirname(args.output_signature))
+    f = tempfile.NamedTemporaryFile(mode = "wb", prefix=".mkosi-", dir = os.path.dirname(args.output_signature))
 
     cmdline = ["gpg", "--detach-sign"]
 
@@ -709,7 +753,7 @@ def setup_cache(args):
     print_step("Setting up package cache...")
 
     if args.cache_path is None:
-        d = tempfile.TemporaryDirectory(dir = os.path.dirname(args.output))
+        d = tempfile.TemporaryDirectory(dir = os.path.dirname(args.output), prefix=".mkosi-")
         args.cache_path = d.name
     else:
         os.makedirs(args.cache_path, 0o700, True)
@@ -751,6 +795,9 @@ def parse_args():
     group.add_argument("--with-docs", action='store_true', help='Install documentation (only fedora)')
     group.add_argument("--cache", dest='cache_path', help='Package cache path (only fedora)', metavar='PATH')
     group.add_argument("--extra-tree", action='append', dest='extra_trees', help='Copy an extra tree on top of image', metavar='PATH')
+    group.add_argument("--build-script", dest='build_script', help='Build script', metavar='PATH')
+    group.add_argument("--build-sources", dest='build_sources', help='Path for sources to build', metavar='PATH')
+    group.add_argument("--build-package", action=PackageAction, dest='build_packages', help='Additional packages needed for build script', metavar='PACKAGE')
     group.add_argument("--settings", dest='nspawn_settings', help='Add in .spawn settings file', metavar='PATH')
 
     group = parser.add_argument_group("Partitions")
@@ -865,10 +912,10 @@ def unlink_output(args):
 def parse_boolean(s):
 
     if s in ("1", "true", "yes"):
-        return true
+        return True
 
     if s in ("0", "false", "no"):
-        return false
+        return False
 
     return KeyError("Unknown setting")
 
@@ -933,6 +980,17 @@ def process_setting(args, section, key, value):
                 args.extra_trees = value.split()
             else:
                 args.extra_trees.extend(value.split())
+        elif key == "BuildScript":
+            if not args.build_script is None:
+                args.build_script = value
+        elif key == "BuildSources":
+            if not args.build_sources is None:
+                args.build_sources = value
+        elif key == "BuildPackages":
+            if args.build_packages is None:
+                args.build_packages = value.split()
+            else:
+                args.build_packages.extend(value.split())
         elif key == "NSpawnSettings":
             if not args.nspawn_settings is None:
                 args.nspawn_settings = value
@@ -1021,6 +1079,21 @@ def find_extra(args):
         else:
             args.extra_trees.append("mkosi.extra")
 
+def find_build_script(args):
+
+    if not args.build_script is None:
+        return
+
+    if os.path.exists("mkosi.build"):
+        args.build_script = "mkosi.build"
+
+def find_build_sources(args):
+
+    if not args.build_sources is None:
+        return
+
+    args.build_sources = os.getcwd()
+
 def build_nspawn_settings_path(path):
     t = path
     while True:
@@ -1041,6 +1114,8 @@ def load_args():
     load_defaults(args)
     find_nspawn_settings(args)
     find_extra(args)
+    find_build_script(args)
+    find_build_sources(args)
 
     if args.output_format is None:
         args.output_format = OutputFormat.raw_gpt
@@ -1100,6 +1175,12 @@ def load_args():
         args.nspawn_settings = os.path.abspath(args.nspawn_settings)
         args.output_nspawn_settings = build_nspawn_settings_path(args.output)
 
+    if not args.build_script is None:
+        args.build_script = os.path.abspath(args.build_script)
+
+    if not args.build_sources is None:
+        args.build_sources = os.path.abspath(args.build_sources)
+
     if not args.extra_trees is None:
         for i in range(len(args.extra_trees)):
             args.extra_trees[i] = os.path.abspath(args.extra_trees[i])
@@ -1148,6 +1229,13 @@ def none_to_na(s):
 def none_to_none(s):
     return "none" if s is None else s
 
+def line_join_list(l):
+
+    if l is None:
+        return "none"
+
+    return "\n                        ".join(l)
+
 def print_summary(args):
 
     sys.stderr.write("DISTRIBUTION:\n")
@@ -1168,13 +1256,18 @@ def print_summary(args):
         sys.stderr.write("        XZ Compression: " + yes_no(args.xz) + "\n")
 
     sys.stderr.write("\nPACKAGES:\n")
-    sys.stderr.write("              Packages: " + ("none" if args.packages is None else "\n                        ".join(args.packages)) + "\n")
+    sys.stderr.write("              Packages: " + line_join_list(args.packages) + "\n")
 
     if args.distribution == Distribution.fedora:
         sys.stderr.write("    With Documentation: " + yes_no(args.with_docs) + "\n")
         sys.stderr.write("         Package Cache: " + none_to_none(args.cache_path) + "\n")
 
-    sys.stderr.write("           Extra Trees: " + ("none" if args.extra_trees is None else "\n                        ".join(args.extra_trees)) + "\n")
+    sys.stderr.write("           Extra Trees: " + line_join_list(args.extra_trees) + "\n")
+
+    sys.stderr.write("          Build Script: " + none_to_none(args.build_script) + "\n")
+    sys.stderr.write("         Build Sources: " + none_to_none(args.build_sources) + "\n")
+    sys.stderr.write("        Build Packages: " + line_join_list(args.build_packages) + "\n")
+
     sys.stderr.write("       nspawn Settings: " + none_to_none(args.nspawn_settings) + "\n")
 
     if args.output_format in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs):
@@ -1192,9 +1285,15 @@ def print_summary(args):
         sys.stderr.write("                  Sign: " + yes_no(args.sign) + "\n")
         sys.stderr.write("               GPG Key: " + ("default" if args.key is None else args.key) + "\n")
 
-def build_stuff(args):
-    cache = setup_cache(args)
-    workspace = setup_workspace(args)
+def build_image(args, workspace, run_build_script):
+
+    # If there's no build script set, there's no point in executing
+    # the build script iteration. Let's quite early.
+    if args.build_script is None and run_build_script:
+        return
+
+    tar = None
+
     raw = create_image(args, workspace.name)
     loopdev = attach_image_loopback(args, raw)
 
@@ -1209,16 +1308,68 @@ def build_stuff(args):
         try:
             prepare_tree(args, workspace.name)
             mount_cache(args, workspace.name)
-            install_distribution(args, workspace.name)
+            install_distribution(args, workspace.name, run_build_script)
             install_boot_loader(args, workspace.name)
             install_extra_trees(args, workspace.name)
-            make_read_only(args, workspace.name)
-            tar = make_tar(args, workspace.name)
+            install_build_src(args, workspace.name, run_build_script)
+            install_build_dest(args, workspace.name, run_build_script)
+
+            if not run_build_script:
+                make_read_only(args, workspace.name)
+                tar = make_tar(args, workspace.name)
         finally:
             umount_image(args, workspace.name, loopdev)
 
     finally:
         detach_image_loopback(args, loopdev)
+
+    return raw, tar
+
+def run_build_script(args, workspace, raw):
+
+    if args.build_script is None:
+        return
+
+    print_step("Running build script...")
+
+    dest = os.path.join(workspace, "dest")
+    os.mkdir(dest, 0o755)
+
+    cmdline = ["systemd-nspawn",
+               "--directory=" + os.path.join(workspace, "root") if raw is None else "--image=" + raw.name,
+               "--as-pid2",
+               "--private-network",
+               "--register=no",
+               "--bind=" + dest + ":/root/dest",
+               "--setenv=WITH_DOCS=" + ("1" if args.with_docs else "0"),
+               "--setenv=DESTDIR=/root/dest"]
+
+    if not args.build_sources is None:
+        cmdline.append("--setenv=SRCDIR=/root/src")
+
+    cmdline.append("/root/" + os.path.basename(args.build_script))
+
+    print(cmdline)
+    subprocess.run(cmdline, check=True)
+
+    print_step("Running build script completed.")
+
+def build_stuff(args):
+
+    cache = setup_cache(args)
+    workspace = setup_workspace(args)
+
+    # Run the image builder twice, once for running the build script and once for the final build
+    (raw, tar) = build_image(args, workspace, run_build_script=True)
+
+    run_build_script(args, workspace.name, raw)
+
+    if not raw is None:
+        del raw
+    if not tar is None:
+        del tar
+
+    (raw, tar) = build_image(args, workspace, run_build_script=False)
 
     raw = xz_output(args, raw)
     settings = copy_nspawn_settings(args)
