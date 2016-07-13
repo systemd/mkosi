@@ -987,6 +987,14 @@ def find_nspawn_settings(args):
     if os.path.exists("mkosi.nspawn"):
         args.nspawn_settings = "mkosi.nspawn"
 
+def find_extra(args):
+
+    if os.path.exists("mkosi.extra"):
+        if args.extra_trees is None:
+            args.extra_trees = ["mkosi.extra"]
+        else:
+            args.extra_trees.append("mkosi.extra")
+
 def build_nspawn_settings_path(path):
     t = path
     while True:
@@ -1006,6 +1014,7 @@ def load_args():
     args = parse_args()
     load_defaults(args)
     find_nspawn_settings(args)
+    find_extra(args)
 
     if not args.output_format is None:
         args.output_format = OutputFormat[args.output_format]
