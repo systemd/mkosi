@@ -713,6 +713,8 @@ def setup_cache(args):
 def parse_args():
     parser = argparse.ArgumentParser(description='Build Legacy-Free OS Images')
 
+    parser.add_argument("verb", choices=("build", "clean", "help"), nargs='?', default="build", help='Operation to execute')
+
     group = parser.add_argument_group("Distribution")
     group.add_argument('-d', "--distribution", choices=Distribution.__members__, help='Distribution to install')
     group.add_argument('-r', "--release", help='Distribution release to install')
@@ -748,7 +750,13 @@ def parse_args():
     group = parser.add_argument_group("Additional Configuration")
     group.add_argument("--default", dest='default_path', help='Read configuration data from file', metavar='PATH')
 
-    return parser.parse_args()
+    args = parser.parse_args()
+
+    if args.verb == "help":
+        parser.print_help()
+        sys.exit(0)
+
+    return args
 
 def parse_bytes(bytes):
 
@@ -822,7 +830,7 @@ def unlink_try_hard(path):
         pass
 
 def unlink_output(args):
-    if not args.force:
+    if not args.force and args.verb != "clean":
         return
 
     unlink_try_hard(args.output)
@@ -1150,12 +1158,14 @@ def main():
         sys.exit(1)
 
     unlink_output(args)
-    check_output(args)
 
-    init_namespace(args)
-    build_stuff(args)
+    if args.verb == "build":
+        check_output(args)
 
-    print_output_size(args)
+        init_namespace(args)
+        build_stuff(args)
+
+        print_output_size(args)
 
 if __name__ == "__main__":
     main()
