@@ -795,7 +795,7 @@ def parse_args():
     group.add_argument("--with-docs", action='store_true', help='Install documentation (only fedora)')
     group.add_argument("--cache", dest='cache_path', help='Package cache path (only fedora)', metavar='PATH')
     group.add_argument("--extra-tree", action='append', dest='extra_trees', help='Copy an extra tree on top of image', metavar='PATH')
-    group.add_argument("--build-script", dest='build_script', help='Build script', metavar='PATH')
+    group.add_argument("--build-script", dest='build_script', help='Build script to run inside image', metavar='PATH')
     group.add_argument("--build-sources", dest='build_sources', help='Path for sources to build', metavar='PATH')
     group.add_argument("--build-package", action=PackageAction, dest='build_packages', help='Additional packages needed for build script', metavar='PACKAGE')
     group.add_argument("--settings", dest='nspawn_settings', help='Add in .spawn settings file', metavar='PATH')
@@ -813,6 +813,7 @@ def parse_args():
     group.add_argument("--key", help='GPG key to use for signing')
 
     group = parser.add_argument_group("Additional Configuration")
+    group.add_argument('-C', "--directory", help='Change to specified directory before doing anything', metavar='PATH')
     group.add_argument("--default", dest='default_path', help='Read configuration data from file', metavar='PATH')
 
     args = parser.parse_args()
@@ -1111,6 +1112,10 @@ def build_nspawn_settings_path(path):
 def load_args():
 
     args = parse_args()
+
+    if not args.directory is None:
+        os.chdir(args.directory)
+
     load_defaults(args)
     find_nspawn_settings(args)
     find_extra(args)
