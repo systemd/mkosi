@@ -1114,6 +1114,66 @@ def check_output(args):
             sys.stderr.write("Output file " + f + " exists already. (Consider invocation with --force.)\n")
             sys.exit(1)
 
+def yes_no(b):
+    return "yes" if b else "no"
+
+def format_bytes_or_disabled(sz):
+
+    if sz is None:
+        return "(disabled)"
+
+    return format_bytes(sz)
+
+def none_to_na(s):
+    return "n/a" if s is None else s
+
+def none_to_none(s):
+    return "none" if s is None else s
+
+def print_summary(args):
+
+    sys.stderr.write("DISTRIBUTION:\n")
+    sys.stderr.write("          Distribution: " + args.distribution.name + "\n")
+    sys.stderr.write("               Release: " + args.release + "\n")
+    sys.stderr.write("\nOUTPUT:\n")
+    sys.stderr.write("         Output Format: " + args.output_format.name + "\n")
+    sys.stderr.write("                Output: " + args.output + "\n")
+    sys.stderr.write("       Output Checksum: " + none_to_na(args.output_checksum if args.checksum else None) + "\n")
+    sys.stderr.write("      Output Signature: " + none_to_na(args.output_signature if args.sign else None) + "\n")
+    sys.stderr.write("Output nspawn Settings: " + none_to_na(args.output_nspawn_settings if args.nspawn_settings is not None else None) + "\n")
+
+    if args.output_format in (OutputFormat.raw_btrfs, OutputFormat.subvolume):
+        sys.stderr.write("             Read-only: " + yes_no(args.read_only) + "\n")
+        sys.stderr.write("        FS Compression: " + yes_no(args.compress) + "\n")
+
+    if args.output_format in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs, OutputFormat.tar):
+        sys.stderr.write("        XZ Compression: " + yes_no(args.xz) + "\n")
+
+    sys.stderr.write("\nPACKAGES:\n")
+    sys.stderr.write("              Packages: " + ("none" if args.packages is None else "\n                        ".join(args.packages)) + "\n")
+
+    if args.distribution == Distribution.fedora:
+        sys.stderr.write("    With Documentation: " + yes_no(args.with_docs) + "\n")
+        sys.stderr.write("         Package Cache: " + none_to_none(args.cache_path) + "\n")
+
+    sys.stderr.write("           Extra Trees: " + ("none" if args.extra_trees is None else "\n                        ".join(args.extra_trees)) + "\n")
+    sys.stderr.write("       nspawn Settings: " + none_to_none(args.nspawn_settings) + "\n")
+
+    if args.output_format in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs):
+        sys.stderr.write("\nPARTITIONS:\n")
+        sys.stderr.write("              Bootable: " + yes_no(args.bootable) + "\n")
+        sys.stderr.write("        Root Partition: " + format_bytes(args.root_size) + "\n")
+        sys.stderr.write("        Swap Partition: " + format_bytes_or_disabled(args.root_size) + "\n")
+        sys.stderr.write("                   ESP: " + format_bytes_or_disabled(args.esp_size) + "\n")
+        sys.stderr.write("       /home Partition: " + format_bytes_or_disabled(args.home_size) + "\n")
+        sys.stderr.write("        /srv Partition: " + format_bytes_or_disabled(args.srv_size) + "\n")
+
+    if args.output_format in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs, OutputFormat.tar):
+        sys.stderr.write("\nVALIDATION:\n")
+        sys.stderr.write("              Checksum: " + yes_no(args.checksum) + "\n")
+        sys.stderr.write("                  Sign: " + yes_no(args.sign) + "\n")
+        sys.stderr.write("               GPG Key: " + ("default" if args.key is None else args.key) + "\n")
+
 def build_stuff(args):
     cache = setup_cache(args)
     workspace = setup_workspace(args)
@@ -1172,6 +1232,7 @@ def main():
     if args.verb == "build":
         check_output(args)
 
+        print_summary(args)
         init_namespace(args)
         build_stuff(args)
 
