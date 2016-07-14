@@ -1351,6 +1351,9 @@ def run_build_script(args, workspace, raw):
 
     if not args.build_sources is None:
         cmdline.append("--setenv=SRCDIR=/root/src")
+        cmdline.append("--chdir=/root/src")
+    else:
+        cmdline.append("--chdir=/root")
 
     cmdline.append("/root/" + os.path.basename(args.build_script))
 
