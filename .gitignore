@@ -1,6 +1,11 @@
+/SHA256SUM
+/SHA256SUM.gpg
 /__pycache__
-image.raw
-image.raw.xz
-image.tar.xz
-image
-SHA256SUM
+/image
+/image.raw
+/image.raw.xz
+/image.tar.xz
+/mkosi.build
+/mkosi.default
+/mkosi.extra
+/mkosi.nspawn
