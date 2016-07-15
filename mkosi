@@ -355,7 +355,7 @@ def prepare_tree(args, workspace):
         os.symlink("efi/" + mid, os.path.join(workspace, "root", "boot", mid))
 
         os.mkdir(os.path.join(workspace, "root", "etc/kernel"), 0o755)
-        open(os.path.join(workspace, "root", "etc/kernel/cmdline"), "w").write("ro rhgb quiet selinux=0 audit=0\n")
+        open(os.path.join(workspace, "root", "etc/kernel/cmdline"), "w").write("rhgb quiet selinux=0 audit=0\n")
 
     print_step("Setting up basic OS tree completed.");
 
