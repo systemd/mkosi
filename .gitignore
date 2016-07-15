@@ -1,6 +1,9 @@
 /SHA256SUM
 /SHA256SUM.gpg
 /__pycache__
+/mkosi.egg-info
+/build
+/dist
 /image
 /image.raw
 /image.raw.xz
