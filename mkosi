@@ -1304,7 +1304,7 @@ def build_image(args, workspace, run_build_script):
     # If there's no build script set, there's no point in executing
     # the build script iteration. Let's quite early.
     if args.build_script is None and run_build_script:
-        return
+        return (None, None)
 
     tar = None
 
