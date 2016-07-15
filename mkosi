@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
 from enum import Enum
-import argparse, sys, os, unshare, subprocess, uuid, platform, tempfile, shutil, time, hashlib, configparser
+import argparse, sys, os, subprocess, uuid, platform, tempfile, shutil, time, hashlib, configparser, ctypes, ctypes.util
 
 # TODO
 # - squashfs root
@@ -39,12 +39,21 @@ else:
     sys.stderr.write("Don't known the native architecture.")
     sys.exit(1)
 
+CLONE_NEWNS = 0x00020000
+
+def unshare(flags):
+    libc = ctypes.CDLL(ctypes.util.find_library("c"), use_errno=True)
+    if libc.unshare(ctypes.c_int(flags)) != 0:
+        e = ctypes.get_errno()
+        raise OSError(e, os.strerror(e))
+
 def init_namespace(args):
 
     print_step("Detaching namespace...")
 
     args.original_umask = os.umask(0o000)
-    unshare.unshare(unshare.CLONE_NEWNS)
+    unshare(CLONE_NEWNS)
+
     subprocess.run(["mount", "--make-rslave", "/"], check=True)
 
     print_step("Detaching namespace complete.")
