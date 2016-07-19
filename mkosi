@@ -1254,7 +1254,7 @@ def print_summary(args):
 
     sys.stderr.write("DISTRIBUTION:\n")
     sys.stderr.write("          Distribution: " + args.distribution.name + "\n")
-    sys.stderr.write("               Release: " + args.release + "\n")
+    sys.stderr.write("               Release: " + none_to_na(args.release) + "\n")
     sys.stderr.write("\nOUTPUT:\n")
     sys.stderr.write("         Output Format: " + args.output_format.name + "\n")
     sys.stderr.write("                Output: " + args.output + "\n")
