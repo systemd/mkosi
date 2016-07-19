@@ -143,6 +143,8 @@ def create_image(args, workspace):
 
     subprocess.run(["sfdisk", "--color=never", f.name], input=table.encode("utf-8"), check=True)
 
+    subprocess.run(["sync"])
+
     print_step("Created partition table as " + f.name + ".")
 
     return f
