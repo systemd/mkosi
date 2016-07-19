@@ -365,9 +365,6 @@ def prepare_tree(args, workspace):
 
 def install_fedora(args, workspace, run_build_script):
 
-    if args.release is None:
-        args.release = "24"
-
     print_step("Installing Fedora...")
 
     cmdline = ["dnf",
@@ -426,9 +423,6 @@ def install_debian_or_ubuntu(args, workspace, run_build_script, mirror):
 
 def install_debian(args, workspace, run_build_script):
 
-    if args.release is None:
-        args.release = "unstable"
-
     print_step("Installing Debian...")
 
     install_debian_or_ubuntu(args, workspace, run_build_script, "http://httpredir.debian.org/debian/")
@@ -436,9 +430,6 @@ def install_debian(args, workspace, run_build_script):
     print_step("Installing Debian completed.")
 
 def install_ubuntu(args, workspace, run_build_script):
-
-    if args.release is None:
-        args.release = "yakkety"
 
     print_step("Installing Ubuntu...")
 
@@ -1155,6 +1146,14 @@ def load_args():
     if args.distribution is None:
         sys.stderr.write("Couldn't detect distribution.\n")
         sys.exit(1)
+
+    if args.release is None:
+        if args.distribution == Distribution.fedora:
+            args.release = "24"
+        elif args.distribution == Distribution.debian:
+            args.release = "unstable"
+        elif args.distribution == Distribution.ubuntu:
+            args.release = "yakkety"
 
     if args.bootable:
 
