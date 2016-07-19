@@ -9,6 +9,8 @@ import argparse, sys, os, subprocess, uuid, platform, tempfile, shutil, time, ha
 # - fix archlinux
 # - make debian/ubuntu images bootable
 # - work on device nodes
+# - allow passing env vars
+# - rework cache management to use mkosi.cache by default in the project dir
 
 class OutputFormat(Enum):
     raw_gpt = 1
