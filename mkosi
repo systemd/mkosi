@@ -357,6 +357,18 @@ def prepare_tree(args, workspace):
 
     print_step("Setting up basic OS tree completed.");
 
+def patch_file(filepath, line_rewriter):
+    temp_new_filepath = filepath + ".tmp.new"
+
+    with open(filepath, "r") as old:
+        with open(temp_new_filepath, "w") as new:
+            for line in old:
+                new.write(line_rewriter(line))
+
+    shutil.copystat(filepath, temp_new_filepath)
+    os.remove(filepath)
+    shutil.move(temp_new_filepath, filepath)
+
 def install_fedora(args, workspace, run_build_script):
     print_step("Installing Fedora...")
 
@@ -457,6 +469,20 @@ def install_distribution(args, workspace, run_build_script):
 
     install[args.distribution](args, workspace, run_build_script)
 
+def install_boot_loader_arch(args, workspace):
+    patch_file(os.path.join(workspace, "root", "etc/mkinitcpio.conf"),
+               lambda line: "HOOKS=\"systemd modconf block filesystems fsck\"\n" if line.startswith("HOOKS=") else line)
+
+    kernel_version = next(filter(lambda x: x[0].isdigit(), os.listdir(os.path.join(workspace, "root", "lib/modules"))))
+
+    subprocess.run(["systemd-nspawn",
+                    "--directory=" + os.path.join(workspace, "root"),
+                    "--as-pid2",
+                    "--private-network",
+                    "--register=no",
+                    "/usr/bin/kernel-install", "add", kernel_version, "/boot/vmlinuz-linux"],
+                   check=True)
+
 def install_boot_loader(args, workspace):
     if not args.bootable:
         return
@@ -468,6 +494,9 @@ def install_boot_loader(args, workspace):
 
     shutil.copyfile(os.path.join(workspace, "root", "usr/lib/systemd/boot/efi/systemd-bootx64.efi"),
                     os.path.join(workspace, "root", "boot/efi/EFI/BOOT/bootx64.efi"))
+
+    if args.distribution == Distribution.arch:
+        install_boot_loader_arch(args, workspace)
 
     print_step("Installing boot loader completed.")
 
@@ -1107,8 +1136,8 @@ def load_args():
             args.release = "yakkety"
 
     if args.bootable:
-        if args.distribution != Distribution.fedora:
-            sys.stderr.write("Bootable images are currently supported only on Fedora.\n")
+        if args.distribution not in (Distribution.fedora, Distribution.arch):
+            sys.stderr.write("Bootable images are currently supported only on Fedora and ArchLinux.\n")
             sys.exit(1)
 
         if not args.output_format in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs):
