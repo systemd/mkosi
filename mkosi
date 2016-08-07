@@ -470,9 +470,41 @@ def install_arch(args, workspace, run_build_script):
     cmdline = ["pacstrap",
                "-c",
                "-d",
-               "-i",
-               workspace + "/root",
-               "base"]
+               workspace + "/root"]
+
+    c = subprocess.run(["pacman", "-Sg", "base"], stdout=subprocess.PIPE, universal_newlines=True, check=True)
+    packages = set(c.stdout.split())
+    packages.remove("base")
+
+    packages -= {"cryptsetup",
+                 "device-mapper",
+                 "dhcpcd",
+                 "e2fsprogs",
+                 "jfsutils",
+                 "lvm2",
+                 "mdadm",
+                 "netctl",
+                 "pcmciautils",
+                 "reiserfsprogs",
+                 "xfsprogs"}
+
+    if args.bootable:
+        if args.output_format == OutputFormat.raw_gpt:
+            packages.add("e2fsprogs")
+        elif args.output_format == OutputFormat.raw_btrfs:
+            packages.add("btrfs-progs")
+    else:
+        packages.remove("linux")
+
+    if args.packages is not None:
+        packages |= set(args.packages)
+
+    if run_build_script and args.build_packages is not None:
+        packages |= set(args.build_packages)
+
+    cmdline.extend(list(packages))
+
+    cmdline.extend(["--hookdir", "/no_hook"])
 
     subprocess.run(cmdline, check=True)
 
