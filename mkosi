@@ -6,7 +6,6 @@ import argparse, sys, os, subprocess, uuid, platform, tempfile, shutil, time, ha
 # TODO
 # - squashfs root
 # - volatile images
-# - fix archlinux
 # - make debian/ubuntu images bootable
 # - work on device nodes
 # - allow passing env vars
@@ -467,12 +466,22 @@ def install_arch(args, workspace, run_build_script):
     subprocess.run(["pacman-key", "--init"], check=True)
     subprocess.run(["pacman-key", "--populate", "archlinux"], check=True)
 
-    cmdline = ["pacstrap",
-               "-c",
-               "-d",
-               workspace + "/root"]
+    with open(os.path.join(workspace, "pacman.conf"), "w") as f:
+        f.write("[options]\n")
+        f.write("HookDir     = /no_hook/\n")
+        f.write("HoldPkg     = pacman glibc\n")
+        f.write("Architecture = auto\n")
+        f.write("CheckSpace\n")
+        f.write("SigLevel    = Required DatabaseOptional\n")
+        f.write("\n")
+        f.write("[core]\n")
+        f.write("Server = https://mirrors.kernel.org/archlinux/$repo/os/$arch\n")
+        f.write("\n")
+        f.write("[extra]\n")
+        f.write("Server = https://mirrors.kernel.org/archlinux/$repo/os/$arch\n")
 
-    c = subprocess.run(["pacman", "-Sg", "base"], stdout=subprocess.PIPE, universal_newlines=True, check=True)
+    subprocess.run(["pacman", "--config", os.path.join(workspace, "pacman.conf"), "-Sy"], check=True)
+    c = subprocess.run(["pacman", "--config", os.path.join(workspace, "pacman.conf"), "-Sg", "base"], stdout=subprocess.PIPE, universal_newlines=True, check=True)
     packages = set(c.stdout.split())
     packages.remove("base")
 
@@ -502,9 +511,12 @@ def install_arch(args, workspace, run_build_script):
     if run_build_script and args.build_packages is not None:
         packages |= set(args.build_packages)
 
-    cmdline.extend(list(packages))
-
-    cmdline.extend(["--hookdir", "/no_hook"])
+    cmdline = ["pacstrap",
+               "-C", os.path.join(workspace, "pacman.conf"),
+               "-c",
+               "-d",
+               workspace + "/root"] + \
+               list(packages)
 
     subprocess.run(cmdline, check=True)
 
