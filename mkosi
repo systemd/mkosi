@@ -369,6 +369,25 @@ def patch_file(filepath, line_rewriter):
     os.remove(filepath)
     shutil.move(temp_new_filepath, filepath)
 
+def enable_networkd(workspace):
+    subprocess.run(["systemctl",
+                    "--root", os.path.join(workspace, "root"),
+                    "enable", "systemd-networkd", "systemd-resolved"],
+                   check=True)
+
+    os.remove(os.path.join(workspace, "root", "etc/resolv.conf"))
+    os.symlink("../usr/lib/systemd/resolv.conf", os.path.join(workspace, "root", "etc/resolv.conf"))
+
+    patch_file(os.path.join(workspace, "root", "etc/nsswitch.conf"),
+               lambda line: " ".join(["resolve" if w == "dns" else w for w in line.split(" ")]) if line.startswith("hosts:") else line)
+
+    with open(os.path.join(workspace, "root", "etc/systemd/network/all-ethernet.network"), "w") as f:
+        f.write("[Match]\n")
+        f.write("Type=ether\n")
+        f.write("\n")
+        f.write("[Network]\n")
+        f.write("DHCP=yes\n")
+
 def install_fedora(args, workspace, run_build_script):
     print_step("Installing Fedora...")
 
@@ -456,6 +475,8 @@ def install_arch(args, workspace, run_build_script):
                "base"]
 
     subprocess.run(cmdline, check=True)
+
+    enable_networkd(workspace)
 
     print_step("Installing ArchLinux complete.")
 
