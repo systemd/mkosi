@@ -45,12 +45,12 @@ CLONE_NEWNS = 0x00020000
 
 def unshare(flags):
     libc = ctypes.CDLL(ctypes.util.find_library("c"), use_errno=True)
+
     if libc.unshare(ctypes.c_int(flags)) != 0:
         e = ctypes.get_errno()
         raise OSError(e, os.strerror(e))
 
 def init_namespace(args):
-
     print_step("Detaching namespace...")
 
     args.original_umask = os.umask(0o000)
@@ -64,7 +64,6 @@ def print_step(text):
     sys.stderr.write("‣ \033[0;1;39m" + text + "\033[0m\n")
 
 def setup_workspace(args):
-
     print_step("Setting up temporary workspace.")
 
     if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
@@ -134,17 +133,19 @@ def create_image(args, workspace):
             table += 'size={}, type={}, name="Home Partition"\n'.format(str(int(args.home_size / 512)), GPT_HOME)
             args.home_partno = pn
             pn += 1
+
         if not args.srv_size is None:
             table += 'size={}, type={}, name="Server Data Partition"\n'.format(str(int(args.srv_size / 512)), GPT_SRV)
             args.srv_partno = pn
             pn += 1
 
     table += 'type={}, name="Root Partition"\n'.format(GPT_ROOT_NATIVE)
+
     args.root_partno = pn
+
     pn += 1
 
     subprocess.run(["sfdisk", "--color=never", f.name], input=table.encode("utf-8"), check=True)
-
     subprocess.run(["sync"])
 
     print_step("Created partition table as " + f.name + ".")
@@ -152,7 +153,6 @@ def create_image(args, workspace):
     return f
 
 def attach_image_loopback(args, raw):
-
     if raw is None:
         return
 
@@ -207,7 +207,6 @@ def mkfs_ext4(label, mount, loopdev, partno):
     subprocess.run(["mkfs.ext4", "-L" + label, "-M" + mount, partition(loopdev, partno)], check=True)
 
 def prepare_root(args, loopdev):
-
     if loopdev is None:
         return
     if args.root_partno is None:
@@ -223,7 +222,6 @@ def prepare_root(args, loopdev):
     print_step("Formatting root partition completed.");
 
 def prepare_home(args, loopdev):
-
     if loopdev is None:
         return
     if args.home_partno is None:
@@ -236,7 +234,6 @@ def prepare_home(args, loopdev):
     print_step("Formatting home partition completed.");
 
 def prepare_srv(args, loopdev):
-
     if loopdev is None:
         return
     if args.srv_partno is None:
@@ -263,7 +260,6 @@ def mount_bind(what, where):
     subprocess.run(["mount", "--bind", what, where], check=True)
 
 def mount_image(args, workspace, loopdev):
-
     if loopdev is None:
         return
 
@@ -288,7 +284,6 @@ def mount_image(args, workspace, loopdev):
     print_step("Mounting image completed.");
 
 def mount_cache(args, workspace):
-
     if args.distribution != Distribution.fedora:
         return
 
@@ -303,7 +298,6 @@ def umount(where):
     subprocess.run(["umount", "-n", where], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 def umount_image(args, workspace, loopdev):
-
     if loopdev is None:
         return
 
@@ -321,7 +315,6 @@ def umount_image(args, workspace, loopdev):
     print_step("Unmounting image completed.");
 
 def prepare_tree(args, workspace):
-
     print_step("Setting up basic OS tree...");
 
     if args.output_format == OutputFormat.subvolume:
@@ -341,7 +334,6 @@ def prepare_tree(args, workspace):
         btrfs_subvol_create(os.path.join(workspace, "root", "var/lib/machines"), 0o700)
 
     if args.bootable:
-
         # We need an initialized machine ID for the boot logic to work
         mid = uuid.uuid4().hex
         os.mkdir(os.path.join(workspace, "root", "etc"), 0o755)
@@ -359,12 +351,12 @@ def prepare_tree(args, workspace):
         os.symlink("efi/" + mid, os.path.join(workspace, "root", "boot", mid))
 
         os.mkdir(os.path.join(workspace, "root", "etc/kernel"), 0o755)
+
         open(os.path.join(workspace, "root", "etc/kernel/cmdline"), "w").write("rhgb quiet selinux=0 audit=0 rw\n")
 
     print_step("Setting up basic OS tree completed.");
 
 def install_fedora(args, workspace, run_build_script):
-
     print_step("Installing Fedora...")
 
     cmdline = ["dnf",
@@ -403,7 +395,6 @@ def install_fedora(args, workspace, run_build_script):
     print_step("Installing Fedora completed.")
 
 def install_debian_or_ubuntu(args, workspace, run_build_script, mirror):
-
     cmdline = ["debootstrap",
                "--verbose",
                "--variant=minbase",
@@ -422,7 +413,6 @@ def install_debian_or_ubuntu(args, workspace, run_build_script, mirror):
     subprocess.run(cmdline, check=True)
 
 def install_debian(args, workspace, run_build_script):
-
     print_step("Installing Debian...")
 
     install_debian_or_ubuntu(args, workspace, run_build_script, "http://httpredir.debian.org/debian/")
@@ -430,7 +420,6 @@ def install_debian(args, workspace, run_build_script):
     print_step("Installing Debian completed.")
 
 def install_ubuntu(args, workspace, run_build_script):
-
     print_step("Installing Ubuntu...")
 
     install_debian_or_ubuntu(args, workspace, "http://archive.ubuntu.com/ubuntu/")
@@ -438,7 +427,6 @@ def install_ubuntu(args, workspace, run_build_script):
     print_step("Installing Ubuntu completed.")
 
 def install_arch(args, workspace, run_build_script):
-
     if not args.release is None:
         sys.stderr.write("Distribution release specification is not supported for ArchLinux, ignoring.")
 
@@ -469,7 +457,6 @@ def install_distribution(args, workspace, run_build_script):
     install[args.distribution](args, workspace, run_build_script)
 
 def install_boot_loader(args, workspace):
-
     if not args.bootable:
         return
 
@@ -484,9 +471,7 @@ def install_boot_loader(args, workspace):
     print_step("Installing boot loader completed.")
 
 def enumerate_and_copy(source, dest, suffix = ""):
-
     for entry in os.scandir(source + suffix):
-
         dest_path = dest + suffix + "/" + entry.name
 
         if entry.is_dir():
@@ -507,7 +492,6 @@ def enumerate_and_copy(source, dest, suffix = ""):
         shutil.copystat(entry.path, dest_path, follow_symlinks=False)
 
 def install_extra_trees(args, workspace):
-
     if args.extra_trees is None:
         return
 
@@ -535,7 +519,6 @@ def install_build_src(args, workspace, run_build_script):
     print_step("Copying in build script and sources completed.")
 
 def install_build_dest(args, workspace, run_build_script):
-
     if run_build_script:
         return
 
@@ -562,7 +545,6 @@ def make_read_only(args, workspace):
     print_step("Marking root subvolume read-only completed.")
 
 def make_tar(args, workspace):
-
     if args.output_format != OutputFormat.tar:
         return None
 
@@ -576,7 +558,6 @@ def make_tar(args, workspace):
     return f
 
 def xz_output(args, raw):
-
     if not args.output_format in (OutputFormat.raw_btrfs, OutputFormat.raw_gpt):
         return raw
 
@@ -593,7 +574,6 @@ def xz_output(args, raw):
     return f
 
 def copy_nspawn_settings(args):
-
     if args.nspawn_settings is None:
         return None
 
@@ -613,7 +593,6 @@ def copy_nspawn_settings(args):
     return f
 
 def hash_file(of, sf, fname):
-
     bs = 65536
     h = hashlib.sha256()
 
@@ -626,7 +605,6 @@ def hash_file(of, sf, fname):
     of.write(h.hexdigest() + " *" + fname + "\n")
 
 def calculate_sha256sum(args, raw, tar, nspawn_settings):
-
     if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
         return None
 
@@ -648,7 +626,6 @@ def calculate_sha256sum(args, raw, tar, nspawn_settings):
     return f
 
 def calculate_signature(args, checksum):
-
     if not args.sign:
         return None
 
@@ -672,7 +649,6 @@ def calculate_signature(args, checksum):
     return f
 
 def link_output(args, workspace, raw, tar):
-
     print_step("Linking image file...")
 
     if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
@@ -687,7 +663,6 @@ def link_output(args, workspace, raw, tar):
     print_step("Successfully linked " + args.output + ".")
 
 def link_output_nspawn_settings(args, path):
-
     if path is None:
         return
 
@@ -699,7 +674,6 @@ def link_output_nspawn_settings(args, path):
     print_step("Successfully linked " + args.output_nspawn_settings + ".")
 
 def link_output_checksum(args, checksum):
-
     if checksum is None:
         return
 
@@ -711,7 +685,6 @@ def link_output_checksum(args, checksum):
     print_step("Successfully linked " + args.output_checksum + ".")
 
 def link_output_signature(args, signature):
-
     if signature is None:
         return
 
@@ -742,7 +715,6 @@ def dir_size(path):
     return sum
 
 def print_output_size(args):
-
     if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
         print_step("Resulting image size is " + format_bytes(dir_size(args.output)) + ".")
     else:
@@ -750,7 +722,6 @@ def print_output_size(args):
         print_step("Resulting image size is " + format_bytes(st.st_size) + ", consumes " + format_bytes(st.st_blocks * 512) + ".")
 
 def setup_cache(args):
-
     if args.distribution != Distribution.fedora:
         return None
 
@@ -829,7 +800,6 @@ def parse_args():
     return args
 
 def parse_bytes(bytes):
-
     if bytes is None:
         return bytes
 
@@ -855,7 +825,6 @@ def parse_bytes(bytes):
     return result
 
 def detect_distribution():
-
     try:
         f = open("/etc/os-release")
     except IOError:
@@ -883,7 +852,6 @@ def detect_distribution():
     return d, version_id
 
 def unlink_try_hard(path):
-
     try:
         os.unlink(path)
     except:
@@ -915,7 +883,6 @@ def unlink_output(args):
         unlink_try_hard(args.output_nspawn_settings)
 
 def parse_boolean(s):
-
     if s in ("1", "true", "yes"):
         return True
 
@@ -925,9 +892,7 @@ def parse_boolean(s):
     return KeyError("Unknown setting")
 
 def process_setting(args, section, key, value):
-
     if section == "Distribution":
-
         if key == "Distribution":
             if args.distribution is None:
                 args.distribution = value
@@ -938,9 +903,7 @@ def process_setting(args, section, key, value):
             return True
         else:
             return False
-
     elif section == "Output":
-
         if key == "Format":
             if args.output_format is None:
                 args.output_format = value
@@ -966,9 +929,7 @@ def process_setting(args, section, key, value):
             return True
         else:
             return False
-
     elif section == "Packages":
-
         if key == "Packages":
             if args.packages is None:
                 args.packages = value.split()
@@ -1003,9 +964,7 @@ def process_setting(args, section, key, value):
             return True
         else:
             return False
-
     elif section == "Partitions":
-
         if key == "RootSize":
             if args.root_size is None:
                 args.root_size = value
@@ -1025,9 +984,7 @@ def process_setting(args, section, key, value):
             return True
         else:
             return False
-
     elif section == "Validation":
-
         if key == "CheckSum":
             if not args.check_sum:
                 args.check_sum = parse_boolean(value)
@@ -1047,7 +1004,6 @@ def process_setting(args, section, key, value):
     return True
 
 def load_defaults(args):
-
     fname = "mkosi.default" if args.default_path is None else args.default_path
 
     try:
@@ -1060,7 +1016,6 @@ def load_defaults(args):
     config.read_file(f)
 
     for section in config.sections():
-
         if not process_setting(args, section, None, None):
             sys.stderr.write("Unknown section in {}, ignoring: [{}]\n".format(fname, section))
 
@@ -1069,7 +1024,6 @@ def load_defaults(args):
                 sys.stderr.write("Unknown key in section [{}] in {}, ignoring: {}=\n".format(section, fname, key))
 
 def find_nspawn_settings(args):
-
     if not args.nspawn_settings is None:
         return
 
@@ -1077,7 +1031,6 @@ def find_nspawn_settings(args):
         args.nspawn_settings = "mkosi.nspawn"
 
 def find_extra(args):
-
     if os.path.exists("mkosi.extra"):
         if args.extra_trees is None:
             args.extra_trees = ["mkosi.extra"]
@@ -1085,7 +1038,6 @@ def find_extra(args):
             args.extra_trees.append("mkosi.extra")
 
 def find_build_script(args):
-
     if not args.build_script is None:
         return
 
@@ -1093,7 +1045,6 @@ def find_build_script(args):
         args.build_script = "mkosi.build"
 
 def find_build_sources(args):
-
     if not args.build_sources is None:
         return
 
@@ -1114,7 +1065,6 @@ def build_nspawn_settings_path(path):
     return t + ".nspawn"
 
 def load_args():
-
     args = parse_args()
 
     if not args.directory is None:
@@ -1156,7 +1106,6 @@ def load_args():
             args.release = "yakkety"
 
     if args.bootable:
-
         if args.distribution != Distribution.fedora:
             sys.stderr.write("Bootable images are currently supported only on Fedora.\n")
             sys.exit(1)
@@ -1186,8 +1135,10 @@ def load_args():
 
     if args.checksum:
         args.output_checksum = os.path.join(os.path.dirname(args.output), "SHA256SUM")
+
     if args.sign:
         args.output_signature = os.path.join(os.path.dirname(args.output), "SHA256SUM.gpg")
+
     if not args.nspawn_settings is None:
         args.nspawn_settings = os.path.abspath(args.nspawn_settings)
         args.output_nspawn_settings = build_nspawn_settings_path(args.output)
@@ -1217,7 +1168,6 @@ def load_args():
     return args
 
 def check_output(args):
-
     for f in (args.output,
               args.output_checksum if args.checksum else None,
               args.output_signature if args.sign else None,
@@ -1234,7 +1184,6 @@ def yes_no(b):
     return "yes" if b else "no"
 
 def format_bytes_or_disabled(sz):
-
     if sz is None:
         return "(disabled)"
 
@@ -1254,7 +1203,6 @@ def line_join_list(l):
     return "\n                        ".join(l)
 
 def print_summary(args):
-
     sys.stderr.write("DISTRIBUTION:\n")
     sys.stderr.write("          Distribution: " + args.distribution.name + "\n")
     sys.stderr.write("               Release: " + none_to_na(args.release) + "\n")
@@ -1280,11 +1228,9 @@ def print_summary(args):
         sys.stderr.write("         Package Cache: " + none_to_none(args.cache_path) + "\n")
 
     sys.stderr.write("           Extra Trees: " + line_join_list(args.extra_trees) + "\n")
-
     sys.stderr.write("          Build Script: " + none_to_none(args.build_script) + "\n")
     sys.stderr.write("         Build Sources: " + none_to_none(args.build_sources) + "\n")
     sys.stderr.write("        Build Packages: " + line_join_list(args.build_packages) + "\n")
-
     sys.stderr.write("       nspawn Settings: " + none_to_none(args.nspawn_settings) + "\n")
 
     if args.output_format in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs):
@@ -1303,7 +1249,6 @@ def print_summary(args):
         sys.stderr.write("               GPG Key: " + ("default" if args.key is None else args.key) + "\n")
 
 def build_image(args, workspace, run_build_script):
-
     # If there's no build script set, there's no point in executing
     # the build script iteration. Let's quite early.
     if args.build_script is None and run_build_script:
@@ -1322,6 +1267,7 @@ def build_image(args, workspace, run_build_script):
         prepare_srv(args, loopdev)
 
         mount_image(args, workspace.name, loopdev)
+
         try:
             prepare_tree(args, workspace.name)
             mount_cache(args, workspace.name)
@@ -1343,7 +1289,6 @@ def build_image(args, workspace, run_build_script):
     return raw, tar
 
 def run_build_script(args, workspace, raw):
-
     if args.build_script is None:
         return
 
@@ -1375,7 +1320,6 @@ def run_build_script(args, workspace, raw):
     print_step("Running build script completed.")
 
 def build_stuff(args):
-
     cache = setup_cache(args)
     workspace = setup_workspace(args)
 
@@ -1386,6 +1330,7 @@ def build_stuff(args):
 
     if not raw is None:
         del raw
+
     if not tar is None:
         del tar
 
