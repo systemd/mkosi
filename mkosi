@@ -6,7 +6,6 @@ import argparse, sys, os, subprocess, uuid, platform, tempfile, shutil, time, ha
 # TODO
 # - squashfs root
 # - volatile images
-# - fix archlinux
 # - make debian/ubuntu images bootable
 # - work on device nodes
 # - allow passing env vars
@@ -106,6 +105,7 @@ def create_image(args, workspace):
     print_step("Creating partition table...")
 
     f = tempfile.NamedTemporaryFile(dir = os.path.dirname(args.output), prefix='.mkosi-')
+    subprocess.run(["chattr", "+C", f.name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
     f.truncate(image_size(args))
 
     pn = 1
@@ -356,6 +356,37 @@ def prepare_tree(args, workspace):
 
     print_step("Setting up basic OS tree completed.");
 
+def patch_file(filepath, line_rewriter):
+    temp_new_filepath = filepath + ".tmp.new"
+
+    with open(filepath, "r") as old:
+        with open(temp_new_filepath, "w") as new:
+            for line in old:
+                new.write(line_rewriter(line))
+
+    shutil.copystat(filepath, temp_new_filepath)
+    os.remove(filepath)
+    shutil.move(temp_new_filepath, filepath)
+
+def enable_networkd(workspace):
+    subprocess.run(["systemctl",
+                    "--root", os.path.join(workspace, "root"),
+                    "enable", "systemd-networkd", "systemd-resolved"],
+                   check=True)
+
+    os.remove(os.path.join(workspace, "root", "etc/resolv.conf"))
+    os.symlink("../usr/lib/systemd/resolv.conf", os.path.join(workspace, "root", "etc/resolv.conf"))
+
+    patch_file(os.path.join(workspace, "root", "etc/nsswitch.conf"),
+               lambda line: " ".join(["resolve" if w == "dns" else w for w in line.split(" ")]) if line.startswith("hosts:") else line)
+
+    with open(os.path.join(workspace, "root", "etc/systemd/network/all-ethernet.network"), "w") as f:
+        f.write("[Match]\n")
+        f.write("Type=ether\n")
+        f.write("\n")
+        f.write("[Network]\n")
+        f.write("DHCP=yes\n")
+
 def install_fedora(args, workspace, run_build_script):
     print_step("Installing Fedora...")
 
@@ -435,14 +466,61 @@ def install_arch(args, workspace, run_build_script):
     subprocess.run(["pacman-key", "--init"], check=True)
     subprocess.run(["pacman-key", "--populate", "archlinux"], check=True)
 
+    with open(os.path.join(workspace, "pacman.conf"), "w") as f:
+        f.write("[options]\n")
+        f.write("HookDir     = /no_hook/\n")
+        f.write("HoldPkg     = pacman glibc\n")
+        f.write("Architecture = auto\n")
+        f.write("CheckSpace\n")
+        f.write("SigLevel    = Required DatabaseOptional\n")
+        f.write("\n")
+        f.write("[core]\n")
+        f.write("Server = https://mirrors.kernel.org/archlinux/$repo/os/$arch\n")
+        f.write("\n")
+        f.write("[extra]\n")
+        f.write("Server = https://mirrors.kernel.org/archlinux/$repo/os/$arch\n")
+
+    subprocess.run(["pacman", "--config", os.path.join(workspace, "pacman.conf"), "-Sy"], check=True)
+    c = subprocess.run(["pacman", "--config", os.path.join(workspace, "pacman.conf"), "-Sg", "base"], stdout=subprocess.PIPE, universal_newlines=True, check=True)
+    packages = set(c.stdout.split())
+    packages.remove("base")
+
+    packages -= {"cryptsetup",
+                 "device-mapper",
+                 "dhcpcd",
+                 "e2fsprogs",
+                 "jfsutils",
+                 "lvm2",
+                 "mdadm",
+                 "netctl",
+                 "pcmciautils",
+                 "reiserfsprogs",
+                 "xfsprogs"}
+
+    if args.bootable:
+        if args.output_format == OutputFormat.raw_gpt:
+            packages.add("e2fsprogs")
+        elif args.output_format == OutputFormat.raw_btrfs:
+            packages.add("btrfs-progs")
+    else:
+        packages.remove("linux")
+
+    if args.packages is not None:
+        packages |= set(args.packages)
+
+    if run_build_script and args.build_packages is not None:
+        packages |= set(args.build_packages)
+
     cmdline = ["pacstrap",
+               "-C", os.path.join(workspace, "pacman.conf"),
                "-c",
                "-d",
-               "-i",
-               workspace + "/root",
-               "base"]
+               workspace + "/root"] + \
+               list(packages)
 
     subprocess.run(cmdline, check=True)
+
+    enable_networkd(workspace)
 
     print_step("Installing ArchLinux complete.")
 
@@ -456,6 +534,20 @@ def install_distribution(args, workspace, run_build_script):
 
     install[args.distribution](args, workspace, run_build_script)
 
+def install_boot_loader_arch(args, workspace):
+    patch_file(os.path.join(workspace, "root", "etc/mkinitcpio.conf"),
+               lambda line: "HOOKS=\"systemd modconf block filesystems fsck\"\n" if line.startswith("HOOKS=") else line)
+
+    kernel_version = next(filter(lambda x: x[0].isdigit(), os.listdir(os.path.join(workspace, "root", "lib/modules"))))
+
+    subprocess.run(["systemd-nspawn",
+                    "--directory=" + os.path.join(workspace, "root"),
+                    "--as-pid2",
+                    "--private-network",
+                    "--register=no",
+                    "/usr/bin/kernel-install", "add", kernel_version, "/boot/vmlinuz-linux"],
+                   check=True)
+
 def install_boot_loader(args, workspace):
     if not args.bootable:
         return
@@ -467,6 +559,9 @@ def install_boot_loader(args, workspace):
 
     shutil.copyfile(os.path.join(workspace, "root", "usr/lib/systemd/boot/efi/systemd-bootx64.efi"),
                     os.path.join(workspace, "root", "boot/efi/EFI/BOOT/bootx64.efi"))
+
+    if args.distribution == Distribution.arch:
+        install_boot_loader_arch(args, workspace)
 
     print_step("Installing boot loader completed.")
 
@@ -1106,8 +1201,8 @@ def load_args():
             args.release = "yakkety"
 
     if args.bootable:
-        if args.distribution != Distribution.fedora:
-            sys.stderr.write("Bootable images are currently supported only on Fedora.\n")
+        if args.distribution not in (Distribution.fedora, Distribution.arch):
+            sys.stderr.write("Bootable images are currently supported only on Fedora and ArchLinux.\n")
             sys.exit(1)
 
         if not args.output_format in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs):
