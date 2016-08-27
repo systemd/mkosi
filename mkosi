@@ -445,7 +445,31 @@ def install_debian_or_ubuntu(args, workspace, run_build_script, mirror):
     if run_build_script and not args.build_packages is None:
         cmdline[3] += "," + ",".join(args.build_packages)
 
+    if args.bootable and args.output_format == OutputFormat.raw_btrfs:
+        cmdline[3] += ",btrfs-tools"
+
     subprocess.run(cmdline, check=True)
+
+    # Work around debian bug #835628
+    os.makedirs(os.path.join(workspace, "root/etc/dracut.conf.d"))
+    with open(os.path.join(workspace, "root/etc/dracut.conf.d/99-generic.conf"), "w") as f:
+        f.write("hostonly=no")
+
+    # We cannot install this directly in the debootstrap phase.
+    # linux-image prefers initramfs-tools over dracut, and debootstrap is not smart enough
+    # to realize the solution when installing linux-image-amd64 + dracut is to not install
+    # initramfs-tools...
+    if args.bootable:
+        subprocess.run(["systemd-nspawn",
+                    "--directory=" + os.path.join(workspace, "root"),
+                    "--as-pid2",
+                    "--register=no",
+                    "/usr/bin/apt-get", "--assume-yes", "--no-install-recommends", "install",
+                    "linux-image-amd64",
+                    "dracut",
+                    "systemd-sysv",
+                    ],
+                   check=True)
 
 def install_debian(args, workspace, run_build_script):
     print_step("Installing Debian...")
@@ -552,6 +576,18 @@ def install_boot_loader_arch(args, workspace):
                     "/usr/bin/kernel-install", "add", kernel_version, "/boot/vmlinuz-linux"],
                    check=True)
 
+def install_boot_loader_debian(args, workspace):
+    kernel_version = next(filter(lambda x: x[0].isdigit(), os.listdir(os.path.join(workspace, "root", "lib/modules"))))
+
+    subprocess.run(["systemd-nspawn",
+                    "--directory=" + os.path.join(workspace, "root"),
+                    "--as-pid2",
+                    "--private-network",
+                    "--register=no",
+                    "/usr/bin/kernel-install", "add", kernel_version, "/boot/vmlinuz-" + kernel_version],
+                   check=True)
+
+
 def install_boot_loader(args, workspace):
     if not args.bootable:
         return
@@ -566,6 +602,9 @@ def install_boot_loader(args, workspace):
 
     if args.distribution == Distribution.arch:
         install_boot_loader_arch(args, workspace)
+
+    if args.distribution == Distribution.debian:
+        install_boot_loader_debian(args, workspace)
 
     print_step("Installing boot loader completed.")
 
@@ -1205,8 +1244,8 @@ def load_args():
             args.release = "yakkety"
 
     if args.bootable:
-        if args.distribution not in (Distribution.fedora, Distribution.arch):
-            sys.stderr.write("Bootable images are currently supported only on Fedora and ArchLinux.\n")
+        if args.distribution not in (Distribution.fedora, Distribution.arch, Distribution.debian):
+            sys.stderr.write("Bootable images are currently supported only on Debian, Fedora and ArchLinux.\n")
             sys.exit(1)
 
         if not args.output_format in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs):
