@@ -183,7 +183,7 @@ Create and run a raw *GPT* image with *ext4*, as `image.raw`:
 Create and run a bootable btrfs *GPT* image, as `foobar.raw`:
 
 ```bash
-# mkosi -F raw_btrfs --bootable -o foobar.raw
+# mkosi -t raw_btrfs --bootable -o foobar.raw
 # systemd-nspawn -b -i foobar.raw
 # qemu-kvm -m 512 -smp 2 -bios /usr/share/edk2/ovmf/OVMF_CODE.fd -hda foobar.raw
 ```
@@ -191,7 +191,7 @@ Create and run a bootable btrfs *GPT* image, as `foobar.raw`:
 Create and run a *Fedora* image into a plain directory:
 
 ```bash
-# mkosi -F directory -o quux
+# mkosi -t directory -o quux
 # systemd-nspawn -b quux
 ```
 
@@ -199,7 +199,7 @@ Create a compressed tar ball `image.raw.xz` and add a checksum
 file, and install *SSH* into it:
 
 ```bash
-# mkosi -d fedora -F tar --checksum --compress --package=openssh-clients
+# mkosi -d fedora -t tar --checksum --compress --package=openssh-clients
 ```
 
 Inside the source directory of an `automake`-based project,
