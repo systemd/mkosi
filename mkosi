@@ -481,7 +481,7 @@ def install_debian(args, workspace, run_build_script):
 def install_ubuntu(args, workspace, run_build_script):
     print_step("Installing Ubuntu...")
 
-    install_debian_or_ubuntu(args, workspace, "http://archive.ubuntu.com/ubuntu/")
+    install_debian_or_ubuntu(args, workspace, run_build_script, "http://archive.ubuntu.com/ubuntu/")
 
     print_step("Installing Ubuntu completed.")
 
