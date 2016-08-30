@@ -76,7 +76,7 @@ systemd-nspawn -bD image
 * Optionally, build a local project's *source* tree in the image
   and add the result to the generated image (see below).
 
-* Optionally, share *RPM* package cache between multiple runs,
+* Optionally, share *RPM*/*DEB* package cache between multiple runs,
   in order to optimize build speeds.
 
 * Optionally, the resulting image may be compressed with *XZ*.

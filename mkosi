@@ -284,14 +284,17 @@ def mount_image(args, workspace, loopdev):
     print_step("Mounting image completed.");
 
 def mount_cache(args, workspace):
-    if args.distribution != Distribution.fedora:
+    if not args.distribution in (Distribution.fedora, Distribution.debian, Distribution.ubuntu):
         return
 
     if args.cache_path is None:
         return
 
     # We can't do this in mount_image() yet, as /var itself might have to be created as a subvolume first
-    mount_bind(args.cache_path, os.path.join(workspace, "root", "var/cache/dnf"))
+    if args.distribution == Distribution.fedora:
+        mount_bind(args.cache_path, os.path.join(workspace, "root", "var/cache/dnf"))
+    elif args.distribution in (Distribution.debian, Distribution.ubuntu):
+        mount_bind(args.cache_path, os.path.join(workspace, "root", "var/cache/apt/archives"))
 
 def umount(where):
     # Ignore failures and error messages
@@ -310,6 +313,7 @@ def umount_image(args, workspace, loopdev):
     umount(os.path.join(workspace, "root", "sys"))
     umount(os.path.join(workspace, "root", "dev"))
     umount(os.path.join(workspace, "root", "var/cache/dnf"))
+    umount(os.path.join(workspace, "root", "var/cache/apt/archives"))
     umount(os.path.join(workspace, "root"))
 
     print_step("Unmounting image completed.");
@@ -429,7 +433,7 @@ def install_debian_or_ubuntu(args, workspace, run_build_script, mirror):
     cmdline = ["debootstrap",
                "--verbose",
                "--variant=minbase",
-               "--include=systemd",
+               "--include=systemd,usrmerge",
                "--exclude=sysv-rc,initscripts,startpar,lsb-base,insserv",
                args.release,
                workspace + "/root",
@@ -441,7 +445,31 @@ def install_debian_or_ubuntu(args, workspace, run_build_script, mirror):
     if run_build_script and not args.build_packages is None:
         cmdline[3] += "," + ",".join(args.build_packages)
 
+    if args.bootable and args.output_format == OutputFormat.raw_btrfs:
+        cmdline[3] += ",btrfs-tools"
+
     subprocess.run(cmdline, check=True)
+
+    # Work around debian bug #835628
+    os.makedirs(os.path.join(workspace, "root/etc/dracut.conf.d"))
+    with open(os.path.join(workspace, "root/etc/dracut.conf.d/99-generic.conf"), "w") as f:
+        f.write("hostonly=no")
+
+    # We cannot install this directly in the debootstrap phase.
+    # linux-image prefers initramfs-tools over dracut, and debootstrap is not smart enough
+    # to realize the solution when installing linux-image-amd64 + dracut is to not install
+    # initramfs-tools...
+    if args.bootable:
+        subprocess.run(["systemd-nspawn",
+                    "--directory=" + os.path.join(workspace, "root"),
+                    "--as-pid2",
+                    "--register=no",
+                    "/usr/bin/apt-get", "--assume-yes", "--no-install-recommends", "install",
+                    "linux-image-amd64",
+                    "dracut",
+                    "systemd-sysv",
+                    ],
+                   check=True)
 
 def install_debian(args, workspace, run_build_script):
     print_step("Installing Debian...")
@@ -548,6 +576,18 @@ def install_boot_loader_arch(args, workspace):
                     "/usr/bin/kernel-install", "add", kernel_version, "/boot/vmlinuz-linux"],
                    check=True)
 
+def install_boot_loader_debian(args, workspace):
+    kernel_version = next(filter(lambda x: x[0].isdigit(), os.listdir(os.path.join(workspace, "root", "lib/modules"))))
+
+    subprocess.run(["systemd-nspawn",
+                    "--directory=" + os.path.join(workspace, "root"),
+                    "--as-pid2",
+                    "--private-network",
+                    "--register=no",
+                    "/usr/bin/kernel-install", "add", kernel_version, "/boot/vmlinuz-" + kernel_version],
+                   check=True)
+
+
 def install_boot_loader(args, workspace):
     if not args.bootable:
         return
@@ -562,6 +602,9 @@ def install_boot_loader(args, workspace):
 
     if args.distribution == Distribution.arch:
         install_boot_loader_arch(args, workspace)
+
+    if args.distribution == Distribution.debian:
+        install_boot_loader_debian(args, workspace)
 
     print_step("Installing boot loader completed.")
 
@@ -817,7 +860,7 @@ def print_output_size(args):
         print_step("Resulting image size is " + format_bytes(st.st_size) + ", consumes " + format_bytes(st.st_blocks * 512) + ".")
 
 def setup_cache(args):
-    if args.distribution != Distribution.fedora:
+    if not args.distribution in (Distribution.fedora, Distribution.debian, Distribution.ubuntu):
         return None
 
     print_step("Setting up package cache...")
@@ -863,7 +906,7 @@ def parse_args():
     group = parser.add_argument_group("Packages")
     group.add_argument('-p', "--package", action=PackageAction, dest='packages', help='Add an additional package to the OS image', metavar='PACKAGE')
     group.add_argument("--with-docs", action='store_true', help='Install documentation (only fedora)')
-    group.add_argument("--cache", dest='cache_path', help='Package cache path (only fedora)', metavar='PATH')
+    group.add_argument("--cache", dest='cache_path', help='Package cache path (only fedora, debian, ubuntu)', metavar='PATH')
     group.add_argument("--extra-tree", action='append', dest='extra_trees', help='Copy an extra tree on top of image', metavar='PATH')
     group.add_argument("--build-script", dest='build_script', help='Build script to run inside image', metavar='PATH')
     group.add_argument("--build-sources", dest='build_sources', help='Path for sources to build', metavar='PATH')
@@ -1201,8 +1244,8 @@ def load_args():
             args.release = "yakkety"
 
     if args.bootable:
-        if args.distribution not in (Distribution.fedora, Distribution.arch):
-            sys.stderr.write("Bootable images are currently supported only on Fedora and ArchLinux.\n")
+        if args.distribution not in (Distribution.fedora, Distribution.arch, Distribution.debian):
+            sys.stderr.write("Bootable images are currently supported only on Debian, Fedora and ArchLinux.\n")
             sys.exit(1)
 
         if not args.output_format in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs):
