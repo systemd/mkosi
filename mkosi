@@ -507,6 +507,9 @@ def install_arch(args, workspace, run_build_script):
         f.write("\n")
         f.write("[extra]\n")
         f.write("Server = https://mirrors.kernel.org/archlinux/$repo/os/$arch\n")
+        f.write("\n")
+        f.write("[community]\n")
+        f.write("Server = https://mirrors.kernel.org/archlinux/$repo/os/$arch\n")
 
     subprocess.run(["pacman", "--config", os.path.join(workspace, "pacman.conf"), "-Sy"], check=True)
     c = subprocess.run(["pacman", "--config", os.path.join(workspace, "pacman.conf"), "-Sg", "base"], stdout=subprocess.PIPE, universal_newlines=True, check=True)
