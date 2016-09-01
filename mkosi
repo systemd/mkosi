@@ -394,6 +394,12 @@ def enable_networkd(workspace):
 def install_fedora(args, workspace, run_build_script):
     print_step("Installing Fedora...")
 
+    gpg_key = "/etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-%s-x86_64" % args.release
+    if os.path.exists(gpg_key):
+        gpg_key = "file://%s" % gpg_key
+    else:
+        gpg_key = "https://getfedora.org/static/81B46521.txt"
+
     with open(os.path.join(workspace, "dnf.conf"), "w") as f:
         f.write("[main]\n")
         f.write("gpgcheck=1\n")
@@ -401,12 +407,12 @@ def install_fedora(args, workspace, run_build_script):
         f.write("[fedora]\n")
         f.write("name=Fedora %s - base\n" % args.release)
         f.write("baseurl=%s/releases/%s/Everything/x86_64/os/\n" % (args.mirror, args.release))
-        f.write("gpgkey=https://getfedora.org/static/81B46521.txt\n")
+        f.write("gpgkey=%s\n" % gpg_key)
         f.write("\n")
         f.write("[updates]\n")
         f.write("name=Fedora %s - updates\n" % args.release)
         f.write("baseurl=%s/updates/%s/x86_64/\n" % (args.mirror, args.release))
-        f.write("gpgkey=https://getfedora.org/static/81B46521.txt\n")
+        f.write("gpgkey=%s\n" % gpg_key)
 
     cmdline = ["dnf",
                "-y",
