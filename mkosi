@@ -400,12 +400,12 @@ def install_fedora(args, workspace, run_build_script):
         f.write("\n")
         f.write("[fedora]\n")
         f.write("name=Fedora %s - base\n" % args.release)
-        f.write("baseurl=https://mirrors.kernel.org/fedora/releases/%s/Everything/x86_64/os/\n" % args.release)
+        f.write("baseurl=%s/releases/%s/Everything/x86_64/os/\n" % (args.mirror, args.release))
         f.write("gpgkey=https://getfedora.org/static/81B46521.txt\n")
         f.write("\n")
         f.write("[updates]\n")
         f.write("name=Fedora %s - updates\n" % args.release)
-        f.write("baseurl=https://mirrors.kernel.org/fedora/updates/%s/x86_64/\n" % args.release)
+        f.write("baseurl=%s/updates/%s/x86_64/\n" % (args.mirror, args.release))
         f.write("gpgkey=https://getfedora.org/static/81B46521.txt\n")
 
     cmdline = ["dnf",
@@ -489,14 +489,14 @@ def install_debian_or_ubuntu(args, workspace, run_build_script, mirror):
 def install_debian(args, workspace, run_build_script):
     print_step("Installing Debian...")
 
-    install_debian_or_ubuntu(args, workspace, run_build_script, "http://httpredir.debian.org/debian/")
+    install_debian_or_ubuntu(args, workspace, run_build_script, args.mirror)
 
     print_step("Installing Debian completed.")
 
 def install_ubuntu(args, workspace, run_build_script):
     print_step("Installing Ubuntu...")
 
-    install_debian_or_ubuntu(args, workspace, run_build_script, "http://archive.ubuntu.com/ubuntu/")
+    install_debian_or_ubuntu(args, workspace, run_build_script, args.mirror)
 
     print_step("Installing Ubuntu completed.")
 
@@ -518,13 +518,13 @@ def install_arch(args, workspace, run_build_script):
         f.write("SigLevel    = Required DatabaseOptional\n")
         f.write("\n")
         f.write("[core]\n")
-        f.write("Server = https://mirrors.kernel.org/archlinux/$repo/os/$arch\n")
+        f.write("Server = %s/$repo/os/$arch\n" % args.mirror)
         f.write("\n")
         f.write("[extra]\n")
-        f.write("Server = https://mirrors.kernel.org/archlinux/$repo/os/$arch\n")
+        f.write("Server = %s/$repo/os/$arch\n" % args.mirror)
         f.write("\n")
         f.write("[community]\n")
-        f.write("Server = https://mirrors.kernel.org/archlinux/$repo/os/$arch\n")
+        f.write("Server = %s/$repo/os/$arch\n" % args.mirror)
 
     subprocess.run(["pacman", "--config", os.path.join(workspace, "pacman.conf"), "-Sy"], check=True)
     c = subprocess.run(["pacman", "--config", os.path.join(workspace, "pacman.conf"), "-Sg", "base"], stdout=subprocess.PIPE, universal_newlines=True, check=True)
@@ -911,6 +911,7 @@ def parse_args():
     group = parser.add_argument_group("Distribution")
     group.add_argument('-d', "--distribution", choices=Distribution.__members__, help='Distribution to install')
     group.add_argument('-r', "--release", help='Distribution release to install')
+    group.add_argument('-m', "--mirror", help='Distribution mirror to use')
 
     group = parser.add_argument_group("Output")
     group.add_argument('-t', "--format", dest='output_format', choices=OutputFormat.__members__, help='Output Format')
@@ -1261,6 +1262,16 @@ def load_args():
         elif args.distribution == Distribution.ubuntu:
             args.release = "yakkety"
 
+    if args.mirror is None:
+        if args.distribution == Distribution.fedora:
+            args.mirror = "https://mirrors.kernel.org/fedora"
+        elif args.distribution == Distribution.debian:
+            args.mirror = "http://httpredir.debian.org/debian"
+        elif args.distribution == Distribution.ubuntu:
+            args.mirror = "http://archive.ubuntu.com/ubuntu"
+        elif Distribution.arch:
+            args.mirror = "https://mirrors.kernel.org/archlinux"
+
     if args.bootable:
         if args.distribution not in (Distribution.fedora, Distribution.arch, Distribution.debian):
             sys.stderr.write("Bootable images are currently supported only on Debian, Fedora and ArchLinux.\n")
@@ -1362,6 +1373,7 @@ def print_summary(args):
     sys.stderr.write("DISTRIBUTION:\n")
     sys.stderr.write("          Distribution: " + args.distribution.name + "\n")
     sys.stderr.write("               Release: " + none_to_na(args.release) + "\n")
+    sys.stderr.write("                Mirror: " + args.mirror + "\n")
     sys.stderr.write("\nOUTPUT:\n")
     sys.stderr.write("         Output Format: " + args.output_format.name + "\n")
     sys.stderr.write("                Output: " + args.output + "\n")
