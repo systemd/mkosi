@@ -1275,7 +1275,7 @@ def load_args():
             args.mirror = "http://httpredir.debian.org/debian"
         elif args.distribution == Distribution.ubuntu:
             args.mirror = "http://archive.ubuntu.com/ubuntu"
-        elif Distribution.arch:
+        elif args.distribution == Distribution.arch:
             args.mirror = "https://mirrors.kernel.org/archlinux"
 
     if args.bootable:
