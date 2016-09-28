@@ -472,7 +472,7 @@ def install_debian_or_ubuntu(args, workspace, run_build_script, mirror):
     subprocess.run(cmdline, check=True)
 
     # Work around debian bug #835628
-    os.makedirs(os.path.join(workspace, "root/etc/dracut.conf.d"))
+    os.makedirs(os.path.join(workspace, "root/etc/dracut.conf.d"), exist_ok=True)
     with open(os.path.join(workspace, "root/etc/dracut.conf.d/99-generic.conf"), "w") as f:
         f.write("hostonly=no")
 
