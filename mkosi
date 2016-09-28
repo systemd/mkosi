@@ -356,7 +356,9 @@ def prepare_tree(args, workspace):
 
         os.mkdir(os.path.join(workspace, "root", "etc/kernel"), 0o755)
 
-        open(os.path.join(workspace, "root", "etc/kernel/cmdline"), "w").write("rhgb quiet selinux=0 audit=0 rw\n")
+        with open(os.path.join(workspace, "root", "etc/kernel/cmdline"), "w") as cmdline:
+            cmdline.write(args.kernel_commandline)
+            cmdline.write("\n")
 
     print_step("Setting up basic OS tree completed.");
 
@@ -953,6 +955,7 @@ def parse_args():
     group = parser.add_argument_group("Additional Configuration")
     group.add_argument('-C', "--directory", help='Change to specified directory before doing anything', metavar='PATH')
     group.add_argument("--default", dest='default_path', help='Read configuration data from file', metavar='PATH')
+    group.add_argument("--kernel-commandline", help='Set the kernel command line (only bootable images)')
 
     args = parser.parse_args()
 
@@ -1337,6 +1340,9 @@ def load_args():
 
     if args.bootable and args.esp_size is None:
         args.esp_size = 256*1024*1024
+
+    if args.bootable and args.kernel_commandline is None:
+        args.kernel_commandline = "rhgb quiet selinux=0 audit=0 rw"
 
     return args
 
