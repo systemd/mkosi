@@ -456,7 +456,7 @@ def install_debian_or_ubuntu(args, workspace, run_build_script, mirror):
     cmdline = ["debootstrap",
                "--verbose",
                "--variant=minbase",
-               "--include=systemd",
+               "--include=systemd,dbus,libpam-systemd",
                "--exclude=sysv-rc,initscripts,startpar,lsb-base,insserv",
                args.release,
                workspace + "/root",
