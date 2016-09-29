@@ -97,13 +97,13 @@ def btrfs_subvol_make_ro(path, b=True):
 def image_size(args):
     size = args.root_size
 
-    if not args.home_size is None:
+    if args.home_size is not None:
         size += args.home_size
-    if not args.srv_size is None:
+    if args.srv_size is not None:
         size += args.srv_size
     if args.bootable:
         size += args.esp_size
-    if not args.swap_size is None:
+    if args.swap_size is not None:
         size += args.swap_size
 
     return size
@@ -128,7 +128,7 @@ def create_image(args, workspace):
     else:
         args.esp_partno = None
 
-    if not args.swap_size is None:
+    if args.swap_size is not None:
         table += 'size={}, type={}, name="Swap Partition"\n'.format(str(int(args.swap_size / 512)), GPT_SWAP)
         args.swap_partno = pn
         pn += 1
@@ -139,12 +139,12 @@ def create_image(args, workspace):
     args.srv_partno = None
 
     if args.output_format != OutputFormat.raw_btrfs:
-        if not args.home_size is None:
+        if args.home_size is not None:
             table += 'size={}, type={}, name="Home Partition"\n'.format(str(int(args.home_size / 512)), GPT_HOME)
             args.home_partno = pn
             pn += 1
 
-        if not args.srv_size is None:
+        if args.srv_size is not None:
             table += 'size={}, type={}, name="Server Data Partition"\n'.format(str(int(args.srv_size / 512)), GPT_SRV)
             args.srv_partno = pn
             pn += 1
@@ -277,13 +277,13 @@ def mount_image(args, workspace, loopdev):
 
     mount_loop(args, loopdev, args.root_partno, os.path.join(workspace, "root"))
 
-    if not args.home_partno is None:
+    if args.home_partno is not None:
         mount_loop(args, loopdev, args.home_partno, os.path.join(workspace, "root", "home"))
 
-    if not args.srv_partno is None:
+    if args.srv_partno is not None:
         mount_loop(args, loopdev, args.srv_partno, os.path.join(workspace, "root", "srv"))
 
-    if not args.esp_partno is None:
+    if args.esp_partno is not None:
         mount_loop(args, loopdev, args.esp_partno, os.path.join(workspace, "root", "boot/efi"))
 
     if args.distribution == Distribution.fedora:
@@ -449,10 +449,10 @@ def install_fedora(args, workspace, run_build_script):
                "fedora-release",
                "passwd"])
 
-    if not args.packages is None:
+    if args.packages is not None:
         cmdline.extend(args.packages)
 
-    if run_build_script and not args.build_packages is None:
+    if run_build_script and args.build_packages is not None:
         cmdline.extend(args.build_packages)
 
     if args.bootable:
@@ -472,10 +472,10 @@ def install_debian_or_ubuntu(args, workspace, run_build_script, mirror):
                workspace + "/root",
                mirror]
 
-    if not args.packages is None:
+    if args.packages is not None:
         cmdline[3] += "," + ",".join(args.packages)
 
-    if run_build_script and not args.build_packages is None:
+    if run_build_script and args.build_packages is not None:
         cmdline[3] += "," + ",".join(args.build_packages)
 
     if args.bootable and args.output_format == OutputFormat.raw_btrfs:
@@ -519,7 +519,7 @@ def install_ubuntu(args, workspace, run_build_script):
     print_step("Installing Ubuntu completed.")
 
 def install_arch(args, workspace, run_build_script):
-    if not args.release is None:
+    if args.release is not None:
         sys.stderr.write("Distribution release specification is not supported for ArchLinux, ignoring.")
 
     print_step("Installing ArchLinux...")
@@ -685,7 +685,7 @@ def install_build_src(args, workspace, run_build_script):
 
     shutil.copy(args.build_script, os.path.join(workspace, "root", "root", os.path.basename(args.build_script)))
 
-    if not args.build_sources is None:
+    if args.build_sources is not None:
         shutil.copytree(args.build_sources, os.path.join(workspace, "root", "root/src"), symlinks=True, ignore=shutil.ignore_patterns('.mkosi-*'))
 
     print_step("Copying in build script and sources completed.")
@@ -786,11 +786,11 @@ def calculate_sha256sum(args, raw, tar, nspawn_settings):
 
     f = tempfile.NamedTemporaryFile(mode="w+", dir=os.path.dirname(args.output_checksum), prefix=".mkosi-", encoding="utf-8")
 
-    if not raw is None:
+    if raw is not None:
         hash_file(f, raw, os.path.basename(args.output))
-    if not tar is None:
+    if tar is not None:
         hash_file(f, tar, os.path.basename(args.output))
-    if not nspawn_settings is None:
+    if nspawn_settings is not None:
         hash_file(f, nspawn_settings, os.path.basename(args.output_nspawn_settings))
 
     print_step("Calculating SHA256SUM complete.")
@@ -809,7 +809,7 @@ def calculate_signature(args, checksum):
 
     cmdline = ["gpg", "--detach-sign"]
 
-    if not args.key is None:
+    if args.key is not None:
         cmdline.extend(["--default-key", args.key])
 
     checksum.seek(0)
@@ -1046,7 +1046,7 @@ def unlink_output(args):
     if args.sign:
         unlink_try_hard(args.output_signature)
 
-    if not args.nspawn_settings is None:
+    if args.nspawn_settings is not None:
         unlink_try_hard(args.output_nspawn_settings)
 
 def parse_boolean(s):
@@ -1114,10 +1114,10 @@ def process_setting(args, section, key, value):
             else:
                 args.extra_trees.extend(value.split())
         elif key == "BuildScript":
-            if not args.build_script is None:
+            if args.build_script is not None:
                 args.build_script = value
         elif key == "BuildSources":
-            if not args.build_sources is None:
+            if args.build_sources is not None:
                 args.build_sources = value
         elif key == "BuildPackages":
             if args.build_packages is None:
@@ -1125,7 +1125,7 @@ def process_setting(args, section, key, value):
             else:
                 args.build_packages.extend(value.split())
         elif key == "NSpawnSettings":
-            if not args.nspawn_settings is None:
+            if args.nspawn_settings is not None:
                 args.nspawn_settings = value
         elif key is None:
             return True
@@ -1191,7 +1191,7 @@ def load_defaults(args):
                 sys.stderr.write("Unknown key in section [{}] in {}, ignoring: {}=\n".format(section, fname, key))
 
 def find_nspawn_settings(args):
-    if not args.nspawn_settings is None:
+    if args.nspawn_settings is not None:
         return
 
     if os.path.exists("mkosi.nspawn"):
@@ -1205,14 +1205,14 @@ def find_extra(args):
             args.extra_trees.append("mkosi.extra")
 
 def find_build_script(args):
-    if not args.build_script is None:
+    if args.build_script is not None:
         return
 
     if os.path.exists("mkosi.build"):
         args.build_script = "mkosi.build"
 
 def find_build_sources(args):
-    if not args.build_sources is None:
+    if args.build_sources is not None:
         return
 
     args.build_sources = os.getcwd()
@@ -1234,7 +1234,7 @@ def build_nspawn_settings_path(path):
 def load_args():
     args = parse_args()
 
-    if not args.directory is None:
+    if args.directory is not None:
         os.chdir(args.directory)
 
     load_defaults(args)
@@ -1248,7 +1248,7 @@ def load_args():
     else:
         args.output_format = OutputFormat[args.output_format]
 
-    if not args.distribution is None:
+    if args.distribution is not None:
         args.distribution = Distribution[args.distribution]
 
     if args.distribution is None or args.release is None:
@@ -1316,17 +1316,17 @@ def load_args():
     if args.sign:
         args.output_signature = os.path.join(os.path.dirname(args.output), "SHA256SUM.gpg")
 
-    if not args.nspawn_settings is None:
+    if args.nspawn_settings is not None:
         args.nspawn_settings = os.path.abspath(args.nspawn_settings)
         args.output_nspawn_settings = build_nspawn_settings_path(args.output)
 
-    if not args.build_script is None:
+    if args.build_script is not None:
         args.build_script = os.path.abspath(args.build_script)
 
-    if not args.build_sources is None:
+    if args.build_sources is not None:
         args.build_sources = os.path.abspath(args.build_sources)
 
-    if not args.extra_trees is None:
+    if args.extra_trees is not None:
         for i in range(len(args.extra_trees)):
             args.extra_trees[i] = os.path.abspath(args.extra_trees[i])
 
@@ -1351,7 +1351,7 @@ def check_output(args):
     for f in (args.output,
               args.output_checksum if args.checksum else None,
               args.output_signature if args.sign else None,
-              args.output_nspawn_settings if not args.nspawn_settings is None else None):
+              args.output_nspawn_settings if args.nspawn_settings is not None else None):
 
         if f is None:
             continue
@@ -1487,7 +1487,7 @@ def run_build_script(args, workspace, raw):
                "--setenv=WITH_DOCS=" + ("1" if args.with_docs else "0"),
                "--setenv=DESTDIR=/root/dest"]
 
-    if not args.build_sources is None:
+    if args.build_sources is not None:
         cmdline.append("--setenv=SRCDIR=/root/src")
         cmdline.append("--chdir=/root/src")
     else:
@@ -1509,10 +1509,10 @@ def build_stuff(args):
 
     run_build_script(args, workspace.name, raw)
 
-    if not raw is None:
+    if raw is not None:
         del raw
 
-    if not tar is None:
+    if tar is not None:
         del tar
 
     raw, tar = build_image(args, workspace, run_build_script=False)
@@ -1524,17 +1524,18 @@ def build_stuff(args):
 
     link_output(args,
                 workspace.name,
-                None if raw is None else raw.name,
-                None if tar is None else tar.name)
+                raw.name if raw is not None else None,
+                tar.name if tar is not None else None)
 
     link_output_checksum(args,
-                         None if checksum is None else checksum.name)
+                         checksum.name if checksum is not None else None)
 
     link_output_signature(args,
-                          None if signature is None else signature.name)
+                          signature.name if signature is not None else None)
 
     link_output_nspawn_settings(args,
-                                None if settings is None else settings.name)
+                                settings.name if settings is not None else None)
+
 
 def main():
     args = load_args()
