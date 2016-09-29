@@ -1,7 +1,18 @@
 #!/usr/bin/python3
 
+import argparse
+import configparser
+import ctypes, ctypes.util
+import hashlib
+import os
+import platform
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+import uuid
 from enum import Enum
-import argparse, sys, os, subprocess, uuid, platform, tempfile, shutil, time, hashlib, configparser, ctypes, ctypes.util
 
 # TODO
 # - squashfs root
@@ -64,11 +75,10 @@ def print_step(text):
 
 def setup_workspace(args):
     print_step("Setting up temporary workspace.")
-
     if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
-        d = tempfile.TemporaryDirectory(dir = os.path.dirname(args.output), prefix='.mkosi-')
+        d = tempfile.TemporaryDirectory(dir=os.path.dirname(args.output), prefix='.mkosi-')
     else:
-        d = tempfile.TemporaryDirectory(dir = '/var/tmp', prefix='mkosi-')
+        d = tempfile.TemporaryDirectory(dir='/var/tmp', prefix='mkosi-')
 
     print_step("Temporary workspace in " + d.name + " is now set up.")
     return d
@@ -204,7 +214,7 @@ def prepare_esp(args, loopdev):
     print_step("Formatting ESP partition completed.");
 
 def mkfs_ext4(label, mount, loopdev, partno):
-    subprocess.run(["mkfs.ext4", "-L" + label, "-M" + mount, partition(loopdev, partno)], check=True)
+    subprocess.run(["mkfs.ext4", "-L", label, "-M", mount, partition(loopdev, partno)], check=True)
 
 def prepare_root(args, loopdev):
     if loopdev is None:
@@ -484,15 +494,15 @@ def install_debian_or_ubuntu(args, workspace, run_build_script, mirror):
     # initramfs-tools...
     if args.bootable:
         subprocess.run(["systemd-nspawn",
-                    "--directory=" + os.path.join(workspace, "root"),
-                    "--as-pid2",
-                    "--register=no",
-                    "/usr/bin/apt-get", "--assume-yes", "--no-install-recommends", "install",
-                    "linux-image-amd64",
-                    "dracut",
-                    "systemd-sysv",
-                    ],
-                   check=True)
+                        "--directory", os.path.join(workspace, "root"),
+                        "--as-pid2",
+                        "--register=no",
+                        "/usr/bin/apt-get", "--assume-yes", "--no-install-recommends", "install",
+                        "linux-image-amd64",
+                        "dracut",
+                        "systemd-sysv",
+                       ],
+                       check=True)
 
 def install_debian(args, workspace, run_build_script):
     print_step("Installing Debian...")
@@ -595,7 +605,7 @@ def install_boot_loader_arch(args, workspace):
     kernel_version = next(filter(lambda x: x[0].isdigit(), os.listdir(os.path.join(workspace, "root", "lib/modules"))))
 
     subprocess.run(["systemd-nspawn",
-                    "--directory=" + os.path.join(workspace, "root"),
+                    "--directory", os.path.join(workspace, "root"),
                     "--as-pid2",
                     "--private-network",
                     "--register=no",
@@ -606,7 +616,7 @@ def install_boot_loader_debian(args, workspace):
     kernel_version = next(filter(lambda x: x[0].isdigit(), os.listdir(os.path.join(workspace, "root", "lib/modules"))))
 
     subprocess.run(["systemd-nspawn",
-                    "--directory=" + os.path.join(workspace, "root"),
+                    "--directory", os.path.join(workspace, "root"),
                     "--as-pid2",
                     "--private-network",
                     "--register=no",
@@ -639,11 +649,9 @@ def enumerate_and_copy(source, dest, suffix = ""):
         dest_path = dest + suffix + "/" + entry.name
 
         if entry.is_dir():
-            try:
-                os.mkdir(dest_path, entry.stat(follow_symlinks=False).st_mode & 0o7777)
-            except FileExistsError:
-                pass
-
+            os.makedirs(dest_path,
+                        mode=entry.stat(follow_symlinks=False).st_mode & 0o7777,
+                        exist_ok=True)
             enumerate_and_copy(source, dest, suffix + "/" + entry.name)
         else:
             try:
@@ -746,7 +754,6 @@ def copy_nspawn_settings(args):
     f = tempfile.NamedTemporaryFile(mode = "w+b", dir = os.path.dirname(args.output_nspawn_settings), prefix=".mkosi-")
 
     with open(args.nspawn_settings, "rb") as c:
-
         bs = 65536
         buf = c.read(bs)
         while len(buf) > 0:
@@ -777,7 +784,7 @@ def calculate_sha256sum(args, raw, tar, nspawn_settings):
 
     print_step("Calculating SHA256SUM...")
 
-    f = tempfile.NamedTemporaryFile(mode = "w+", dir = os.path.dirname(args.output_checksum), prefix=".mkosi-", encoding = "utf-8")
+    f = tempfile.NamedTemporaryFile(mode="w+", dir=os.path.dirname(args.output_checksum), prefix=".mkosi-", encoding="utf-8")
 
     if not raw is None:
         hash_file(f, raw, os.path.basename(args.output))
@@ -798,7 +805,7 @@ def calculate_signature(args, checksum):
 
     print_step("Signing SHA256SUM...")
 
-    f = tempfile.NamedTemporaryFile(mode = "wb", prefix=".mkosi-", dir = os.path.dirname(args.output_signature))
+    f = tempfile.NamedTemporaryFile(mode="wb", prefix=".mkosi-", dir=os.path.dirname(args.output_signature))
 
     cmdline = ["gpg", "--detach-sign"]
 
@@ -861,11 +868,11 @@ def link_output_signature(args, signature):
 
 def format_bytes(bytes):
     if bytes >= 1024*1024*1024:
-        return "{:0.1f}G".format(float(bytes) / 1024/1024/1024)
+        return "{:0.1f}G".format(bytes / 1024**3)
     if bytes >= 1024*1024:
-        return "{:0.1f}M".format(float(bytes) / 1024/1024)
+        return "{:0.1f}M".format(bytes / 1024**2)
     if bytes >= 1024:
-        return "{:0.1f}K".format(float(bytes) / 1024)
+        return "{:0.1f}K".format(bytes / 1024)
 
     return "{}B".format(bytes)
 
@@ -892,7 +899,7 @@ def setup_cache(args):
     print_step("Setting up package cache...")
 
     if args.cache_path is None:
-        d = tempfile.TemporaryDirectory(dir = os.path.dirname(args.output), prefix=".mkosi-")
+        d = tempfile.TemporaryDirectory(dir=os.path.dirname(args.output), prefix=".mkosi-")
         args.cache_path = d.name
     else:
         os.makedirs(args.cache_path, 0o700, True)
@@ -970,9 +977,9 @@ def parse_bytes(bytes):
         return bytes
 
     if bytes.endswith('G'):
-        factor = 1024*1024*1024
+        factor = 1024**3
     elif bytes.endswith('M'):
-        factor = 1024*1024
+        factor = 1024**2
     elif bytes.endswith('K'):
         factor = 1024
     else:
@@ -1008,13 +1015,7 @@ def detect_distribution():
         if ln.startswith("VERSION_ID="):
             version_id = ln[11:].strip()
 
-    d = None
-    if not id is None:
-        try:
-            d = Distribution[id]
-        except KeyError:
-            pass
-
+    d = Distribution.__members__.get(id, None)
     return d, version_id
 
 def unlink_try_hard(path):
@@ -1049,10 +1050,10 @@ def unlink_output(args):
         unlink_try_hard(args.output_nspawn_settings)
 
 def parse_boolean(s):
-    if s in ("1", "true", "yes"):
+    if s in {"1", "true", "yes"}:
         return True
 
-    if s in ("0", "false", "no"):
+    if s in {"0", "false", "no"}:
         return False
 
     return KeyError("Unknown setting")
@@ -1482,7 +1483,7 @@ def run_build_script(args, workspace, raw):
                "--as-pid2",
                "--private-network",
                "--register=no",
-               "--bind=" + dest + ":/root/dest",
+               "--bind", dest + ":/root/dest",
                "--setenv=WITH_DOCS=" + ("1" if args.with_docs else "0"),
                "--setenv=DESTDIR=/root/dest"]
 
@@ -1504,7 +1505,7 @@ def build_stuff(args):
     workspace = setup_workspace(args)
 
     # Run the image builder twice, once for running the build script and once for the final build
-    (raw, tar) = build_image(args, workspace, run_build_script=True)
+    raw, tar = build_image(args, workspace, run_build_script=True)
 
     run_build_script(args, workspace.name, raw)
 
@@ -1514,7 +1515,7 @@ def build_stuff(args):
     if not tar is None:
         del tar
 
-    (raw, tar) = build_image(args, workspace, run_build_script=False)
+    raw, tar = build_image(args, workspace, run_build_script=False)
 
     raw = xz_output(args, raw)
     settings = copy_nspawn_settings(args)
