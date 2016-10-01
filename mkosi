@@ -872,7 +872,12 @@ def format_bytes(bytes):
 def dir_size(path):
     sum = 0
     for entry in os.scandir(path):
-        if entry.is_file():
+        if entry.is_symlink():
+            # We can ignore symlinks because they either point into our tree,
+            # in which case we'll include the size of target directory anyway,
+            # or outside, in which case we don't need to.
+            continue
+        elif entry.is_file():
             sum += entry.stat().st_blocks * 512
         elif entry.is_dir():
             sum += dir_size(entry.path)
