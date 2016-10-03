@@ -524,8 +524,8 @@ def install_arch(args, workspace, run_build_script):
 
     print_step("Installing ArchLinux...")
 
-    subprocess.run(["pacman-key", "--init"], check=True)
-    subprocess.run(["pacman-key", "--populate", "archlinux"], check=True)
+    subprocess.run(["pacman-key", "--nocolor", "--init"], check=True)
+    subprocess.run(["pacman-key", "--nocolor", "--populate", "archlinux"], check=True)
 
     with open(os.path.join(workspace, "pacman.conf"), "w") as f:
         f.write("[options]\n")
@@ -544,8 +544,8 @@ def install_arch(args, workspace, run_build_script):
         f.write("[community]\n")
         f.write("Server = %s/$repo/os/$arch\n" % args.mirror)
 
-    subprocess.run(["pacman", "--config", os.path.join(workspace, "pacman.conf"), "-Sy"], check=True)
-    c = subprocess.run(["pacman", "--config", os.path.join(workspace, "pacman.conf"), "-Sg", "base"], stdout=subprocess.PIPE, universal_newlines=True, check=True)
+    subprocess.run(["pacman", "--color", "never", "--config", os.path.join(workspace, "pacman.conf"), "-Sy"], check=True)
+    c = subprocess.run(["pacman", "--color", "never", "--config", os.path.join(workspace, "pacman.conf"), "-Sg", "base"], stdout=subprocess.PIPE, universal_newlines=True, check=True)
     packages = set(c.stdout.split())
     packages.remove("base")
 
