@@ -416,6 +416,15 @@ def install_fedora(args, workspace, run_build_script):
     else:
         gpg_key = "https://getfedora.org/static/81B46521.txt"
 
+    if args.mirror:
+        release_url = "baseurl={.mirror}/releases/{.release}/Everything/x86_64/os/".format(args)
+        updates_url = "baseurl={.mirror}/updates/{.release}/x86_64/".format(args)
+    else:
+        release_url = ("metalink=https://mirrors.fedoraproject.org/metalink?" +
+                       "repo=fedora-{.release}&arch=x86_64".format(args))
+        updates_url = ("metalink=https://mirrors.fedoraproject.org/metalink?" +
+                       "repo=updates-released-f{.release}&arch=x86_64".format(args))
+
     with open(os.path.join(workspace, "dnf.conf"), "w") as f:
         f.write("""\
 [main]
@@ -423,14 +432,17 @@ gpgcheck=1
 
 [fedora]
 name=Fedora {args.release} - base
-baseurl={args.mirror}/releases/{args.release}/Everything/x86_64/os/
+{release_url}
 gpgkey={gpg_key}
 
 [updates]
 name=Fedora {args.release} - updates
-baseurl={args.mirror}/updates/{args.release}/x86_64/
+{updates_url}
 gpgkey={gpg_key}
-""".format(args=args, gpg_key=gpg_key))
+""".format(args=args,
+           gpg_key=gpg_key,
+           release_url=release_url,
+           updates_url=updates_url))
 
     cmdline = ["dnf",
                "-y",
@@ -1299,7 +1311,7 @@ def load_args():
 
     if args.mirror is None:
         if args.distribution == Distribution.fedora:
-            args.mirror = "https://mirrors.kernel.org/fedora"
+            args.mirror = None
         elif args.distribution == Distribution.debian:
             args.mirror = "http://httpredir.debian.org/debian"
         elif args.distribution == Distribution.ubuntu:
@@ -1413,7 +1425,8 @@ def print_summary(args):
     sys.stderr.write("DISTRIBUTION:\n")
     sys.stderr.write("          Distribution: " + args.distribution.name + "\n")
     sys.stderr.write("               Release: " + none_to_na(args.release) + "\n")
-    sys.stderr.write("                Mirror: " + args.mirror + "\n")
+    if args.mirror is not None:
+        sys.stderr.write("                Mirror: " + args.mirror + "\n")
     sys.stderr.write("\nOUTPUT:\n")
     sys.stderr.write("         Output Format: " + args.output_format.name + "\n")
     sys.stderr.write("                Output: " + args.output + "\n")
