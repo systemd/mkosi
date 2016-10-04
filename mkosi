@@ -706,6 +706,22 @@ def install_extra_trees(args, workspace):
 
     print_step("Copying in extra file trees completed.")
 
+def git_files_ignore():
+    "Creates a function to be used as a ignore callable argument for copytree"
+    c = subprocess.run(['git', 'ls-files', '-z', '--others', '--cached',
+                        '--exclude-standard', '--exclude', '/.mkosi-*'],
+                       stdout=subprocess.PIPE,
+                       universal_newlines=False,
+                       check=True)
+    files = {x.decode("utf-8") for x in c.stdout.split(b'\0')}
+    del c
+
+    def ignore(src, names):
+        return [name for name in names
+                if (os.path.relpath(os.path.join(src, name)) not in files
+                    and not os.path.isdir(os.path.join(src, name)))]
+    return ignore
+
 def install_build_src(args, workspace, run_build_script):
     if not run_build_script:
         return
@@ -718,7 +734,16 @@ def install_build_src(args, workspace, run_build_script):
     shutil.copy(args.build_script, os.path.join(workspace, "root", "root", os.path.basename(args.build_script)))
 
     if args.build_sources is not None:
-        shutil.copytree(args.build_sources, os.path.join(workspace, "root", "root/src"), symlinks=True, ignore=shutil.ignore_patterns('.mkosi-*'))
+        target = os.path.join(workspace, "root", "root/src")
+        use_git = args.use_git_files
+        if use_git is None:
+            use_git = os.path.exists('.git')
+
+        if use_git:
+            ignore = git_files_ignore()
+        else:
+            ignore = shutil.ignore_patterns('.mkosi-*', '.git')
+        shutil.copytree(args.build_sources, target, symlinks=True, ignore=ignore)
 
     print_step("Copying in build script and sources completed.")
 
@@ -982,6 +1007,8 @@ def parse_args():
     group.add_argument("--build-script", dest='build_script', help='Build script to run inside image', metavar='PATH')
     group.add_argument("--build-sources", dest='build_sources', help='Path for sources to build', metavar='PATH')
     group.add_argument("--build-package", action=PackageAction, dest='build_packages', help='Additional packages needed for build script', metavar='PACKAGE')
+    group.add_argument('--use-git-files', type=bool,
+                       help='Ignore any files that git itself ignores (default: guess)')
     group.add_argument("--settings", dest='nspawn_settings', help='Add in .spawn settings file', metavar='PATH')
 
     group = parser.add_argument_group("Partitions")
