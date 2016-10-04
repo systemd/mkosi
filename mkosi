@@ -399,11 +399,13 @@ def enable_networkd(workspace):
                lambda line: " ".join(["resolve" if w == "dns" else w for w in line.split(" ")]) if line.startswith("hosts:") else line)
 
     with open(os.path.join(workspace, "root", "etc/systemd/network/all-ethernet.network"), "w") as f:
-        f.write("[Match]\n")
-        f.write("Type=ether\n")
-        f.write("\n")
-        f.write("[Network]\n")
-        f.write("DHCP=yes\n")
+        f.write("""\
+[Match]
+Type=ether
+
+[Network]
+DHCP=yes
+""")
 
 def install_fedora(args, workspace, run_build_script):
     print_step("Installing Fedora...")
@@ -415,18 +417,20 @@ def install_fedora(args, workspace, run_build_script):
         gpg_key = "https://getfedora.org/static/81B46521.txt"
 
     with open(os.path.join(workspace, "dnf.conf"), "w") as f:
-        f.write("[main]\n")
-        f.write("gpgcheck=1\n")
-        f.write("\n")
-        f.write("[fedora]\n")
-        f.write("name=Fedora %s - base\n" % args.release)
-        f.write("baseurl=%s/releases/%s/Everything/x86_64/os/\n" % (args.mirror, args.release))
-        f.write("gpgkey=%s\n" % gpg_key)
-        f.write("\n")
-        f.write("[updates]\n")
-        f.write("name=Fedora %s - updates\n" % args.release)
-        f.write("baseurl=%s/updates/%s/x86_64/\n" % (args.mirror, args.release))
-        f.write("gpgkey=%s\n" % gpg_key)
+        f.write("""\
+[main]
+gpgcheck=1
+
+[fedora]
+name=Fedora {args.release} - base
+baseurl={args.mirror}/releases/{args.release}/Everything/x86_64/os/
+gpgkey={gpg_key}
+
+[updates]
+name=Fedora {args.release} - updates
+baseurl={args.mirror}/updates/{args.release}/x86_64/
+gpgkey={gpg_key}
+""".format(args=args, gpg_key=gpg_key))
 
     cmdline = ["dnf",
                "-y",
@@ -534,27 +538,30 @@ def install_arch(args, workspace, run_build_script):
     subprocess.run(["pacman-key", "--nocolor", "--init"], check=True)
     subprocess.run(["pacman-key", "--nocolor", "--populate", keyring], check=True)
 
-    server = "Server = %s/$repo/os/$arch\n"
 
     if platform.machine() == "aarch64":
-        server = "Server = %s/$arch/$repo\n"
+        server = "Server = {}/$arch/$repo".format(args.mirror)
+    else:
+        server = "Server = {}/$repo/os/$arch".format(args.mirror)
 
     with open(os.path.join(workspace, "pacman.conf"), "w") as f:
-        f.write("[options]\n")
-        f.write("HookDir     = /no_hook/\n")
-        f.write("HoldPkg     = pacman glibc\n")
-        f.write("Architecture = auto\n")
-        f.write("CheckSpace\n")
-        f.write("SigLevel    = Required DatabaseOptional\n")
-        f.write("\n")
-        f.write("[core]\n")
-        f.write(server % args.mirror)
-        f.write("\n")
-        f.write("[extra]\n")
-        f.write(server % args.mirror)
-        f.write("\n")
-        f.write("[community]\n")
-        f.write(server % args.mirror)
+        f.write("""\
+[options]
+HookDir     = /no_hook/
+HoldPkg     = pacman glibc
+Architecture = auto
+CheckSpace
+SigLevel    = Required DatabaseOptional
+
+[core]
+{server}
+
+[extra]
+{server}
+
+[community]
+{server}
+""".format(args=args, server=server))
 
     subprocess.run(["pacman", "--color", "never", "--config", os.path.join(workspace, "pacman.conf"), "-Sy"], check=True)
     c = subprocess.run(["pacman", "--color", "never", "--config", os.path.join(workspace, "pacman.conf"), "-Sg", "base"], stdout=subprocess.PIPE, universal_newlines=True, check=True)
