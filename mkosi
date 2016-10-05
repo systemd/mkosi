@@ -1007,8 +1007,8 @@ def parse_args():
     group.add_argument("--with-docs", action='store_true', help='Install documentation (only fedora)')
     group.add_argument("--cache", dest='cache_path', help='Package cache path (only fedora, debian, ubuntu)', metavar='PATH')
     group.add_argument("--extra-tree", action='append', dest='extra_trees', help='Copy an extra tree on top of image', metavar='PATH')
-    group.add_argument("--build-script", dest='build_script', help='Build script to run inside image', metavar='PATH')
-    group.add_argument("--build-sources", dest='build_sources', help='Path for sources to build', metavar='PATH')
+    group.add_argument("--build-script", help='Build script to run inside image', metavar='PATH')
+    group.add_argument("--build-sources", help='Path for sources to build', metavar='PATH')
     group.add_argument("--build-package", action=PackageAction, dest='build_packages', help='Additional packages needed for build script', metavar='PACKAGE')
     group.add_argument('--use-git-files', type=bool,
                        help='Ignore any files that git itself ignores (default: guess)')
