@@ -512,6 +512,7 @@ def install_debian_or_ubuntu(args, workspace, run_build_script, mirror):
     # initramfs-tools...
     if args.bootable:
         subprocess.run(["systemd-nspawn",
+                        '--quiet',
                         "--directory", os.path.join(workspace, "root"),
                         "--as-pid2",
                         "--register=no",
@@ -637,6 +638,7 @@ def install_boot_loader_arch(args, workspace):
     kernel_version = next(filter(lambda x: x[0].isdigit(), os.listdir(os.path.join(workspace, "root", "lib/modules"))))
 
     subprocess.run(["systemd-nspawn",
+                    '--quiet',
                     "--directory", os.path.join(workspace, "root"),
                     "--as-pid2",
                     "--private-network",
@@ -648,6 +650,7 @@ def install_boot_loader_debian(args, workspace):
     kernel_version = next(filter(lambda x: x[0].isdigit(), os.listdir(os.path.join(workspace, "root", "lib/modules"))))
 
     subprocess.run(["systemd-nspawn",
+                    '--quiet',
                     "--directory", os.path.join(workspace, "root"),
                     "--as-pid2",
                     "--private-network",
@@ -1546,6 +1549,7 @@ def run_build_script(args, workspace, raw):
     os.mkdir(dest, 0o755)
 
     cmdline = ["systemd-nspawn",
+               '--quiet',
                "--directory=" + os.path.join(workspace, "root") if raw is None else "--image=" + raw.name,
                "--as-pid2",
                "--private-network",
