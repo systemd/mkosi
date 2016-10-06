@@ -268,29 +268,48 @@ def mount_bind(what, where):
     os.makedirs(where, 0o755, True)
     subprocess.run(["mount", "--bind", what, where], check=True)
 
+@contextlib.contextmanager
 def mount_image(args, workspace, loopdev):
     if loopdev is None:
+        yield None
         return
 
     print_step("Mounting image...");
 
-    mount_loop(args, loopdev, args.root_partno, os.path.join(workspace, "root"))
+    root = os.path.join(workspace, "root")
+    mount_loop(args, loopdev, args.root_partno, root)
 
     if args.home_partno is not None:
-        mount_loop(args, loopdev, args.home_partno, os.path.join(workspace, "root", "home"))
+        mount_loop(args, loopdev, args.home_partno, os.path.join(root, "home"))
 
     if args.srv_partno is not None:
-        mount_loop(args, loopdev, args.srv_partno, os.path.join(workspace, "root", "srv"))
+        mount_loop(args, loopdev, args.srv_partno, os.path.join(root, "srv"))
 
     if args.esp_partno is not None:
-        mount_loop(args, loopdev, args.esp_partno, os.path.join(workspace, "root", "boot/efi"))
+        mount_loop(args, loopdev, args.esp_partno, os.path.join(root, "boot/efi"))
 
     if args.distribution == Distribution.fedora:
-        mount_bind("/proc", os.path.join(workspace, "root", "proc"))
-        mount_bind("/dev", os.path.join(workspace, "root", "dev"))
-        mount_bind("/sys", os.path.join(workspace, "root", "sys"))
+        mount_bind("/proc", os.path.join(root, "proc"))
+        mount_bind("/dev", os.path.join(root, "dev"))
+        mount_bind("/sys", os.path.join(root, "sys"))
 
     print_step("Mounting image completed.");
+    try:
+        yield
+    finally:
+        print_step("Unmounting image...");
+
+        umount(os.path.join(root, "home"))
+        umount(os.path.join(root, "srv"))
+        umount(os.path.join(root, "boot/efi"))
+        umount(os.path.join(root, "proc"))
+        umount(os.path.join(root, "sys"))
+        umount(os.path.join(root, "dev"))
+        umount(os.path.join(root, "var/cache/dnf"))
+        umount(os.path.join(root, "var/cache/apt/archives"))
+        umount(os.path.join(root))
+
+        print_step("Unmounting image completed.");
 
 def mount_cache(args, workspace):
     if not args.distribution in (Distribution.fedora, Distribution.debian, Distribution.ubuntu):
@@ -308,24 +327,6 @@ def mount_cache(args, workspace):
 def umount(where):
     # Ignore failures and error messages
     subprocess.run(["umount", "-n", where], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-def umount_image(args, workspace, loopdev):
-    if loopdev is None:
-        return
-
-    print_step("Unmounting image...");
-
-    umount(os.path.join(workspace, "root", "home"))
-    umount(os.path.join(workspace, "root", "srv"))
-    umount(os.path.join(workspace, "root", "boot/efi"))
-    umount(os.path.join(workspace, "root", "proc"))
-    umount(os.path.join(workspace, "root", "sys"))
-    umount(os.path.join(workspace, "root", "dev"))
-    umount(os.path.join(workspace, "root", "var/cache/dnf"))
-    umount(os.path.join(workspace, "root", "var/cache/apt/archives"))
-    umount(os.path.join(workspace, "root"))
-
-    print_step("Unmounting image completed.");
 
 def prepare_tree(args, workspace):
     print_step("Setting up basic OS tree...");
@@ -1512,9 +1513,7 @@ def build_image(args, workspace, run_build_script):
         prepare_home(args, loopdev)
         prepare_srv(args, loopdev)
 
-        mount_image(args, workspace.name, loopdev)
-
-        try:
+        with mount_image(args, workspace.name, loopdev):
             prepare_tree(args, workspace.name)
             mount_cache(args, workspace.name)
             install_distribution(args, workspace.name, run_build_script)
@@ -1526,8 +1525,6 @@ def build_image(args, workspace, run_build_script):
             if not run_build_script:
                 make_read_only(args, workspace.name)
                 tar = make_tar(args, workspace.name)
-        finally:
-            umount_image(args, workspace.name, loopdev)
 
     return raw, tar
 
