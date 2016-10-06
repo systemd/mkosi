@@ -405,6 +405,16 @@ Type=ether
 DHCP=yes
 """)
 
+def run_workspace_command(workspace, *cmd):
+    subprocess.run(["systemd-nspawn",
+                    '--quiet',
+                    "--directory", os.path.join(workspace, "root"),
+                    "--as-pid2",
+                    "--private-network",
+                    "--register=no",
+                    *cmd],
+                   check=True)
+
 def install_fedora(args, workspace, run_build_script):
     print_step("Installing Fedora...")
 
@@ -509,17 +519,11 @@ def install_debian_or_ubuntu(args, workspace, run_build_script, mirror):
     # to realize the solution when installing linux-image-amd64 + dracut is to not install
     # initramfs-tools...
     if args.bootable:
-        subprocess.run(["systemd-nspawn",
-                        '--quiet',
-                        "--directory", os.path.join(workspace, "root"),
-                        "--as-pid2",
-                        "--register=no",
-                        "/usr/bin/apt-get", "--assume-yes", "--no-install-recommends", "install",
-                        "linux-image-amd64",
-                        "dracut",
-                        "systemd-sysv",
-                       ],
-                       check=True)
+        run_workspace_command(workspace,
+                              "/usr/bin/apt-get", "--assume-yes", "--no-install-recommends", "install",
+                              "linux-image-amd64",
+                              "dracut",
+                              "systemd-sysv")
 
 def install_debian(args, workspace, run_build_script):
     print_step("Installing Debian...")
@@ -635,27 +639,14 @@ def install_boot_loader_arch(args, workspace):
 
     kernel_version = next(filter(lambda x: x[0].isdigit(), os.listdir(os.path.join(workspace, "root", "lib/modules"))))
 
-    subprocess.run(["systemd-nspawn",
-                    '--quiet',
-                    "--directory", os.path.join(workspace, "root"),
-                    "--as-pid2",
-                    "--private-network",
-                    "--register=no",
-                    "/usr/bin/kernel-install", "add", kernel_version, "/boot/vmlinuz-linux"],
-                   check=True)
+    run_workspace_cmd(workspace,
+                      "/usr/bin/kernel-install", "add", kernel_version, "/boot/vmlinuz-linux")
 
 def install_boot_loader_debian(args, workspace):
     kernel_version = next(filter(lambda x: x[0].isdigit(), os.listdir(os.path.join(workspace, "root", "lib/modules"))))
 
-    subprocess.run(["systemd-nspawn",
-                    '--quiet',
-                    "--directory", os.path.join(workspace, "root"),
-                    "--as-pid2",
-                    "--private-network",
-                    "--register=no",
-                    "/usr/bin/kernel-install", "add", kernel_version, "/boot/vmlinuz-" + kernel_version],
-                   check=True)
-
+    run_workspace_cmd(workspace,
+                    "/usr/bin/kernel-install", "add", kernel_version, "/boot/vmlinuz-" + kernel_version)
 
 def install_boot_loader(args, workspace):
     if not args.bootable:
