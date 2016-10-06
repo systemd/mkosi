@@ -2,6 +2,7 @@
 
 import argparse
 import configparser
+import contextlib
 import ctypes, ctypes.util
 import hashlib
 import os
@@ -164,28 +165,24 @@ def create_image(args, workspace):
 
     return f
 
+@contextlib.contextmanager
 def attach_image_loopback(args, raw):
     if raw is None:
+        yield None
         return
 
     print_step("Attaching image file...")
+    c = subprocess.run(["losetup", "--find", "--show", "--partscan", raw.name],
+                       stdout=subprocess.PIPE, check=True)
+    loopdev = c.stdout.decode("utf-8").strip()
+    print_step("Attached image file as " + loopdev + ".")
 
-    c = subprocess.run(["losetup", "--find", "--show", "--partscan", raw.name], stdout=subprocess.PIPE, check=True)
-    n = c.stdout.decode("utf-8").strip()
-
-    print_step("Attached image file as " + n + ".")
-
-    return n
-
-def detach_image_loopback(args, loopdev):
-    if loopdev is None:
-        return
-
-    print_step("Detaching image file...");
-
-    subprocess.run(["losetup", "--detach", loopdev], check=True)
-
-    print_step("Detaching image file completed.");
+    try:
+        yield loopdev
+    finally:
+        print_step("Detaching image file...");
+        subprocess.run(["losetup", "--detach", loopdev], check=True)
+        print_step("Detaching image file completed.");
 
 def partition(loopdev, partno):
     return loopdev + "p" + str(partno)
@@ -271,29 +268,48 @@ def mount_bind(what, where):
     os.makedirs(where, 0o755, True)
     subprocess.run(["mount", "--bind", what, where], check=True)
 
+@contextlib.contextmanager
 def mount_image(args, workspace, loopdev):
     if loopdev is None:
+        yield None
         return
 
     print_step("Mounting image...");
 
-    mount_loop(args, loopdev, args.root_partno, os.path.join(workspace, "root"))
+    root = os.path.join(workspace, "root")
+    mount_loop(args, loopdev, args.root_partno, root)
 
     if args.home_partno is not None:
-        mount_loop(args, loopdev, args.home_partno, os.path.join(workspace, "root", "home"))
+        mount_loop(args, loopdev, args.home_partno, os.path.join(root, "home"))
 
     if args.srv_partno is not None:
-        mount_loop(args, loopdev, args.srv_partno, os.path.join(workspace, "root", "srv"))
+        mount_loop(args, loopdev, args.srv_partno, os.path.join(root, "srv"))
 
     if args.esp_partno is not None:
-        mount_loop(args, loopdev, args.esp_partno, os.path.join(workspace, "root", "boot/efi"))
+        mount_loop(args, loopdev, args.esp_partno, os.path.join(root, "boot/efi"))
 
     if args.distribution == Distribution.fedora:
-        mount_bind("/proc", os.path.join(workspace, "root", "proc"))
-        mount_bind("/dev", os.path.join(workspace, "root", "dev"))
-        mount_bind("/sys", os.path.join(workspace, "root", "sys"))
+        mount_bind("/proc", os.path.join(root, "proc"))
+        mount_bind("/dev", os.path.join(root, "dev"))
+        mount_bind("/sys", os.path.join(root, "sys"))
 
     print_step("Mounting image completed.");
+    try:
+        yield
+    finally:
+        print_step("Unmounting image...");
+
+        umount(os.path.join(root, "home"))
+        umount(os.path.join(root, "srv"))
+        umount(os.path.join(root, "boot/efi"))
+        umount(os.path.join(root, "proc"))
+        umount(os.path.join(root, "sys"))
+        umount(os.path.join(root, "dev"))
+        umount(os.path.join(root, "var/cache/dnf"))
+        umount(os.path.join(root, "var/cache/apt/archives"))
+        umount(os.path.join(root))
+
+        print_step("Unmounting image completed.");
 
 def mount_cache(args, workspace):
     if not args.distribution in (Distribution.fedora, Distribution.debian, Distribution.ubuntu):
@@ -311,24 +327,6 @@ def mount_cache(args, workspace):
 def umount(where):
     # Ignore failures and error messages
     subprocess.run(["umount", "-n", where], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-def umount_image(args, workspace, loopdev):
-    if loopdev is None:
-        return
-
-    print_step("Unmounting image...");
-
-    umount(os.path.join(workspace, "root", "home"))
-    umount(os.path.join(workspace, "root", "srv"))
-    umount(os.path.join(workspace, "root", "boot/efi"))
-    umount(os.path.join(workspace, "root", "proc"))
-    umount(os.path.join(workspace, "root", "sys"))
-    umount(os.path.join(workspace, "root", "dev"))
-    umount(os.path.join(workspace, "root", "var/cache/dnf"))
-    umount(os.path.join(workspace, "root", "var/cache/apt/archives"))
-    umount(os.path.join(workspace, "root"))
-
-    print_step("Unmounting image completed.");
 
 def prepare_tree(args, workspace):
     print_step("Setting up basic OS tree...");
@@ -399,11 +397,23 @@ def enable_networkd(workspace):
                lambda line: " ".join(["resolve" if w == "dns" else w for w in line.split(" ")]) if line.startswith("hosts:") else line)
 
     with open(os.path.join(workspace, "root", "etc/systemd/network/all-ethernet.network"), "w") as f:
-        f.write("[Match]\n")
-        f.write("Type=ether\n")
-        f.write("\n")
-        f.write("[Network]\n")
-        f.write("DHCP=yes\n")
+        f.write("""\
+[Match]
+Type=ether
+
+[Network]
+DHCP=yes
+""")
+
+def run_workspace_command(workspace, *cmd):
+    subprocess.run(["systemd-nspawn",
+                    '--quiet',
+                    "--directory", os.path.join(workspace, "root"),
+                    "--as-pid2",
+                    "--private-network",
+                    "--register=no",
+                    *cmd],
+                   check=True)
 
 def install_fedora(args, workspace, run_build_script):
     print_step("Installing Fedora...")
@@ -414,19 +424,33 @@ def install_fedora(args, workspace, run_build_script):
     else:
         gpg_key = "https://getfedora.org/static/81B46521.txt"
 
+    if args.mirror:
+        release_url = "baseurl={.mirror}/releases/{.release}/Everything/x86_64/os/".format(args)
+        updates_url = "baseurl={.mirror}/updates/{.release}/x86_64/".format(args)
+    else:
+        release_url = ("metalink=https://mirrors.fedoraproject.org/metalink?" +
+                       "repo=fedora-{.release}&arch=x86_64".format(args))
+        updates_url = ("metalink=https://mirrors.fedoraproject.org/metalink?" +
+                       "repo=updates-released-f{.release}&arch=x86_64".format(args))
+
     with open(os.path.join(workspace, "dnf.conf"), "w") as f:
-        f.write("[main]\n")
-        f.write("gpgcheck=1\n")
-        f.write("\n")
-        f.write("[fedora]\n")
-        f.write("name=Fedora %s - base\n" % args.release)
-        f.write("baseurl=%s/releases/%s/Everything/x86_64/os/\n" % (args.mirror, args.release))
-        f.write("gpgkey=%s\n" % gpg_key)
-        f.write("\n")
-        f.write("[updates]\n")
-        f.write("name=Fedora %s - updates\n" % args.release)
-        f.write("baseurl=%s/updates/%s/x86_64/\n" % (args.mirror, args.release))
-        f.write("gpgkey=%s\n" % gpg_key)
+        f.write("""\
+[main]
+gpgcheck=1
+
+[fedora]
+name=Fedora {args.release} - base
+{release_url}
+gpgkey={gpg_key}
+
+[updates]
+name=Fedora {args.release} - updates
+{updates_url}
+gpgkey={gpg_key}
+""".format(args=args,
+           gpg_key=gpg_key,
+           release_url=release_url,
+           updates_url=updates_url))
 
     cmdline = ["dnf",
                "-y",
@@ -495,16 +519,11 @@ def install_debian_or_ubuntu(args, workspace, run_build_script, mirror):
     # to realize the solution when installing linux-image-amd64 + dracut is to not install
     # initramfs-tools...
     if args.bootable:
-        subprocess.run(["systemd-nspawn",
-                        "--directory", os.path.join(workspace, "root"),
-                        "--as-pid2",
-                        "--register=no",
-                        "/usr/bin/apt-get", "--assume-yes", "--no-install-recommends", "install",
-                        "linux-image-amd64",
-                        "dracut",
-                        "systemd-sysv",
-                       ],
-                       check=True)
+        run_workspace_command(workspace,
+                              "/usr/bin/apt-get", "--assume-yes", "--no-install-recommends", "install",
+                              "linux-image-amd64",
+                              "dracut",
+                              "systemd-sysv")
 
 def install_debian(args, workspace, run_build_script):
     print_step("Installing Debian...")
@@ -534,27 +553,30 @@ def install_arch(args, workspace, run_build_script):
     subprocess.run(["pacman-key", "--nocolor", "--init"], check=True)
     subprocess.run(["pacman-key", "--nocolor", "--populate", keyring], check=True)
 
-    server = "Server = %s/$repo/os/$arch\n"
 
     if platform.machine() == "aarch64":
-        server = "Server = %s/$arch/$repo\n"
+        server = "Server = {}/$arch/$repo".format(args.mirror)
+    else:
+        server = "Server = {}/$repo/os/$arch".format(args.mirror)
 
     with open(os.path.join(workspace, "pacman.conf"), "w") as f:
-        f.write("[options]\n")
-        f.write("HookDir     = /no_hook/\n")
-        f.write("HoldPkg     = pacman glibc\n")
-        f.write("Architecture = auto\n")
-        f.write("CheckSpace\n")
-        f.write("SigLevel    = Required DatabaseOptional\n")
-        f.write("\n")
-        f.write("[core]\n")
-        f.write(server % args.mirror)
-        f.write("\n")
-        f.write("[extra]\n")
-        f.write(server % args.mirror)
-        f.write("\n")
-        f.write("[community]\n")
-        f.write(server % args.mirror)
+        f.write("""\
+[options]
+HookDir     = /no_hook/
+HoldPkg     = pacman glibc
+Architecture = auto
+CheckSpace
+SigLevel    = Required DatabaseOptional
+
+[core]
+{server}
+
+[extra]
+{server}
+
+[community]
+{server}
+""".format(args=args, server=server))
 
     subprocess.run(["pacman", "--color", "never", "--config", os.path.join(workspace, "pacman.conf"), "-Sy"], check=True)
     c = subprocess.run(["pacman", "--color", "never", "--config", os.path.join(workspace, "pacman.conf"), "-Sg", "base"], stdout=subprocess.PIPE, universal_newlines=True, check=True)
@@ -617,25 +639,14 @@ def install_boot_loader_arch(args, workspace):
 
     kernel_version = next(filter(lambda x: x[0].isdigit(), os.listdir(os.path.join(workspace, "root", "lib/modules"))))
 
-    subprocess.run(["systemd-nspawn",
-                    "--directory", os.path.join(workspace, "root"),
-                    "--as-pid2",
-                    "--private-network",
-                    "--register=no",
-                    "/usr/bin/kernel-install", "add", kernel_version, "/boot/vmlinuz-linux"],
-                   check=True)
+    run_workspace_cmd(workspace,
+                      "/usr/bin/kernel-install", "add", kernel_version, "/boot/vmlinuz-linux")
 
 def install_boot_loader_debian(args, workspace):
     kernel_version = next(filter(lambda x: x[0].isdigit(), os.listdir(os.path.join(workspace, "root", "lib/modules"))))
 
-    subprocess.run(["systemd-nspawn",
-                    "--directory", os.path.join(workspace, "root"),
-                    "--as-pid2",
-                    "--private-network",
-                    "--register=no",
-                    "/usr/bin/kernel-install", "add", kernel_version, "/boot/vmlinuz-" + kernel_version],
-                   check=True)
-
+    run_workspace_cmd(workspace,
+                    "/usr/bin/kernel-install", "add", kernel_version, "/boot/vmlinuz-" + kernel_version)
 
 def install_boot_loader(args, workspace):
     if not args.bootable:
@@ -687,6 +698,22 @@ def install_extra_trees(args, workspace):
 
     print_step("Copying in extra file trees completed.")
 
+def git_files_ignore():
+    "Creates a function to be used as a ignore callable argument for copytree"
+    c = subprocess.run(['git', 'ls-files', '-z', '--others', '--cached',
+                        '--exclude-standard', '--exclude', '/.mkosi-*'],
+                       stdout=subprocess.PIPE,
+                       universal_newlines=False,
+                       check=True)
+    files = {x.decode("utf-8") for x in c.stdout.split(b'\0')}
+    del c
+
+    def ignore(src, names):
+        return [name for name in names
+                if (os.path.relpath(os.path.join(src, name)) not in files
+                    and not os.path.isdir(os.path.join(src, name)))]
+    return ignore
+
 def install_build_src(args, workspace, run_build_script):
     if not run_build_script:
         return
@@ -699,7 +726,16 @@ def install_build_src(args, workspace, run_build_script):
     shutil.copy(args.build_script, os.path.join(workspace, "root", "root", os.path.basename(args.build_script)))
 
     if args.build_sources is not None:
-        shutil.copytree(args.build_sources, os.path.join(workspace, "root", "root/src"), symlinks=True, ignore=shutil.ignore_patterns('.mkosi-*'))
+        target = os.path.join(workspace, "root", "root/src")
+        use_git = args.use_git_files
+        if use_git is None:
+            use_git = os.path.exists('.git')
+
+        if use_git:
+            ignore = git_files_ignore()
+        else:
+            ignore = shutil.ignore_patterns('.mkosi-*', '.git')
+        shutil.copytree(args.build_sources, target, symlinks=True, ignore=ignore)
 
     print_step("Copying in build script and sources completed.")
 
@@ -960,9 +996,11 @@ def parse_args():
     group.add_argument("--with-docs", action='store_true', help='Install documentation (only fedora)')
     group.add_argument("--cache", dest='cache_path', help='Package cache path (only fedora, debian, ubuntu)', metavar='PATH')
     group.add_argument("--extra-tree", action='append', dest='extra_trees', help='Copy an extra tree on top of image', metavar='PATH')
-    group.add_argument("--build-script", dest='build_script', help='Build script to run inside image', metavar='PATH')
-    group.add_argument("--build-sources", dest='build_sources', help='Path for sources to build', metavar='PATH')
+    group.add_argument("--build-script", help='Build script to run inside image', metavar='PATH')
+    group.add_argument("--build-sources", help='Path for sources to build', metavar='PATH')
     group.add_argument("--build-package", action=PackageAction, dest='build_packages', help='Additional packages needed for build script', metavar='PACKAGE')
+    group.add_argument('--use-git-files', type=bool,
+                       help='Ignore any files that git itself ignores (default: guess)')
     group.add_argument("--settings", dest='nspawn_settings', help='Add in .spawn settings file', metavar='PATH')
 
     group = parser.add_argument_group("Partitions")
@@ -1292,7 +1330,7 @@ def load_args():
 
     if args.mirror is None:
         if args.distribution == Distribution.fedora:
-            args.mirror = "https://mirrors.kernel.org/fedora"
+            args.mirror = None
         elif args.distribution == Distribution.debian:
             args.mirror = "http://httpredir.debian.org/debian"
         elif args.distribution == Distribution.ubuntu:
@@ -1406,7 +1444,8 @@ def print_summary(args):
     sys.stderr.write("DISTRIBUTION:\n")
     sys.stderr.write("          Distribution: " + args.distribution.name + "\n")
     sys.stderr.write("               Release: " + none_to_na(args.release) + "\n")
-    sys.stderr.write("                Mirror: " + args.mirror + "\n")
+    if args.mirror is not None:
+        sys.stderr.write("                Mirror: " + args.mirror + "\n")
     sys.stderr.write("\nOUTPUT:\n")
     sys.stderr.write("         Output Format: " + args.output_format.name + "\n")
     sys.stderr.write("                Output: " + args.output + "\n")
@@ -1458,18 +1497,14 @@ def build_image(args, workspace, run_build_script):
     tar = None
 
     raw = create_image(args, workspace.name)
-    loopdev = attach_image_loopback(args, raw)
-
-    try:
+    with attach_image_loopback(args, raw) as loopdev:
         prepare_swap(args, loopdev)
         prepare_esp(args, loopdev)
         prepare_root(args, loopdev)
         prepare_home(args, loopdev)
         prepare_srv(args, loopdev)
 
-        mount_image(args, workspace.name, loopdev)
-
-        try:
+        with mount_image(args, workspace.name, loopdev):
             prepare_tree(args, workspace.name)
             mount_cache(args, workspace.name)
             install_distribution(args, workspace.name, run_build_script)
@@ -1481,11 +1516,6 @@ def build_image(args, workspace, run_build_script):
             if not run_build_script:
                 make_read_only(args, workspace.name)
                 tar = make_tar(args, workspace.name)
-        finally:
-            umount_image(args, workspace.name, loopdev)
-
-    finally:
-        detach_image_loopback(args, loopdev)
 
     return raw, tar
 
@@ -1499,6 +1529,7 @@ def run_build_script(args, workspace, raw):
     os.mkdir(dest, 0o755)
 
     cmdline = ["systemd-nspawn",
+               '--quiet',
                "--directory=" + os.path.join(workspace, "root") if raw is None else "--image=" + raw.name,
                "--as-pid2",
                "--private-network",
