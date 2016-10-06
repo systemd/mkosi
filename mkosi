@@ -2,6 +2,7 @@
 
 import argparse
 import configparser
+import contextlib
 import ctypes, ctypes.util
 import hashlib
 import os
@@ -164,28 +165,24 @@ def create_image(args, workspace):
 
     return f
 
+@contextlib.contextmanager
 def attach_image_loopback(args, raw):
     if raw is None:
+        yield None
         return
 
     print_step("Attaching image file...")
+    c = subprocess.run(["losetup", "--find", "--show", "--partscan", raw.name],
+                       stdout=subprocess.PIPE, check=True)
+    loopdev = c.stdout.decode("utf-8").strip()
+    print_step("Attached image file as " + loopdev + ".")
 
-    c = subprocess.run(["losetup", "--find", "--show", "--partscan", raw.name], stdout=subprocess.PIPE, check=True)
-    n = c.stdout.decode("utf-8").strip()
-
-    print_step("Attached image file as " + n + ".")
-
-    return n
-
-def detach_image_loopback(args, loopdev):
-    if loopdev is None:
-        return
-
-    print_step("Detaching image file...");
-
-    subprocess.run(["losetup", "--detach", loopdev], check=True)
-
-    print_step("Detaching image file completed.");
+    try:
+        yield loopdev
+    finally:
+        print_step("Detaching image file...");
+        subprocess.run(["losetup", "--detach", loopdev], check=True)
+        print_step("Detaching image file completed.");
 
 def partition(loopdev, partno):
     return loopdev + "p" + str(partno)
@@ -1508,9 +1505,7 @@ def build_image(args, workspace, run_build_script):
     tar = None
 
     raw = create_image(args, workspace.name)
-    loopdev = attach_image_loopback(args, raw)
-
-    try:
+    with attach_image_loopback(args, raw) as loopdev:
         prepare_swap(args, loopdev)
         prepare_esp(args, loopdev)
         prepare_root(args, loopdev)
@@ -1533,9 +1528,6 @@ def build_image(args, workspace, run_build_script):
                 tar = make_tar(args, workspace.name)
         finally:
             umount_image(args, workspace.name, loopdev)
-
-    finally:
-        detach_image_loopback(args, loopdev)
 
     return raw, tar
 
