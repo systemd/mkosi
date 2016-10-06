@@ -47,8 +47,10 @@ GPT_SRV         = uuid.UUID("3b8f842520e04f3b907f1a25a76f98e8")
 
 if platform.machine() == "x86_64":
     GPT_ROOT_NATIVE = GPT_ROOT_X86_64
+elif platform.machine() == "aarch64":
+    GPT_ROOT_NATIVE = GPT_ROOT_ARM_64
 else:
-    sys.stderr.write("Don't known the native architecture.")
+    sys.stderr.write("Don't known the %s architecture.\n" % platform.machine())
     sys.exit(1)
 
 CLONE_NEWNS = 0x00020000
@@ -524,8 +526,18 @@ def install_arch(args, workspace, run_build_script):
 
     print_step("Installing ArchLinux...")
 
+    keyring = "archlinux"
+
+    if platform.machine() == "aarch64":
+        keyring += "arm"
+
     subprocess.run(["pacman-key", "--nocolor", "--init"], check=True)
-    subprocess.run(["pacman-key", "--nocolor", "--populate", "archlinux"], check=True)
+    subprocess.run(["pacman-key", "--nocolor", "--populate", keyring], check=True)
+
+    server = "Server = %s/$repo/os/$arch\n"
+
+    if platform.machine() == "aarch64":
+        server = "Server = %s/$arch/$repo\n"
 
     with open(os.path.join(workspace, "pacman.conf"), "w") as f:
         f.write("[options]\n")
@@ -536,13 +548,13 @@ def install_arch(args, workspace, run_build_script):
         f.write("SigLevel    = Required DatabaseOptional\n")
         f.write("\n")
         f.write("[core]\n")
-        f.write("Server = %s/$repo/os/$arch\n" % args.mirror)
+        f.write(server % args.mirror)
         f.write("\n")
         f.write("[extra]\n")
-        f.write("Server = %s/$repo/os/$arch\n" % args.mirror)
+        f.write(server % args.mirror)
         f.write("\n")
         f.write("[community]\n")
-        f.write("Server = %s/$repo/os/$arch\n" % args.mirror)
+        f.write(server % args.mirror)
 
     subprocess.run(["pacman", "--color", "never", "--config", os.path.join(workspace, "pacman.conf"), "-Sy"], check=True)
     c = subprocess.run(["pacman", "--color", "never", "--config", os.path.join(workspace, "pacman.conf"), "-Sg", "base"], stdout=subprocess.PIPE, universal_newlines=True, check=True)
@@ -567,7 +579,8 @@ def install_arch(args, workspace, run_build_script):
         elif args.output_format == OutputFormat.raw_btrfs:
             packages.add("btrfs-progs")
     else:
-        packages.remove("linux")
+        if "linux" in packages:
+            packages.remove("linux")
 
     if args.packages is not None:
         packages |= set(args.packages)
@@ -1286,6 +1299,8 @@ def load_args():
             args.mirror = "http://archive.ubuntu.com/ubuntu"
         elif args.distribution == Distribution.arch:
             args.mirror = "https://mirrors.kernel.org/archlinux"
+            if platform.machine() == "aarch64":
+                args.mirror = "http://mirror.archlinuxarm.org"
 
     if args.bootable:
         if args.distribution not in (Distribution.fedora, Distribution.arch, Distribution.debian):
