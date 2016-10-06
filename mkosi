@@ -4,6 +4,7 @@ import argparse
 import configparser
 import contextlib
 import ctypes, ctypes.util
+import crypt
 import hashlib
 import os
 import platform
@@ -633,6 +634,20 @@ def install_distribution(args, workspace, run_build_script):
 
     install[args.distribution](args, workspace, run_build_script)
 
+def set_root_password(args, workspace):
+    "Set the root account password, or just delete it so it's easy to log in"
+    if args.password == '':
+        print_step("Deleting root password...")
+        jj = lambda line: (':'.join(['root', ''] + line.split(':')[2:])
+                           if line.startswith('root:') else line)
+        patch_file(os.path.join(workspace, 'root', 'etc/passwd'), jj)
+    elif args.password:
+        print_step("Setting root password...")
+        password = crypt.crypt(args.password, crypt.mksalt(crypt.METHOD_SHA512))
+        jj = lambda line: (':'.join(['root', password] + line.split(':')[2:])
+                           if line.startswith('root:') else line)
+        patch_file(os.path.join(workspace, 'root', 'etc/shadow'), jj)
+
 def install_boot_loader_arch(args, workspace):
     patch_file(os.path.join(workspace, "root", "etc/mkinitcpio.conf"),
                lambda line: "HOOKS=\"systemd modconf block filesystems fsck\"\n" if line.startswith("HOOKS=") else line)
@@ -1014,6 +1029,7 @@ def parse_args():
     group.add_argument("--checksum", action='store_true', help='Write SHA256SUM file')
     group.add_argument("--sign", action='store_true', help='Write and sign SHA256SUM file')
     group.add_argument("--key", help='GPG key to use for signing')
+    group.add_argument("--password", help='Set the root password')
 
     group = parser.add_argument_group("Additional Configuration")
     group.add_argument('-C', "--directory", help='Change to specified directory before doing anything', metavar='PATH')
@@ -1514,6 +1530,7 @@ def build_image(args, workspace, run_build_script):
             install_build_dest(args, workspace.name, run_build_script)
 
             if not run_build_script:
+                set_root_password(args, workspace.name)
                 make_read_only(args, workspace.name)
                 tar = make_tar(args, workspace.name)
 
