@@ -453,13 +453,14 @@ gpgkey={gpg_key}
            release_url=release_url,
            updates_url=updates_url))
 
+    root = os.path.join(workspace, "root")
     cmdline = ["dnf",
                "-y",
                "--config=" + os.path.join(workspace, "dnf.conf"),
                "--best",
                "--allowerasing",
                "--releasever=" + args.release,
-               "--installroot=" + workspace + "/root",
+               "--installroot=" + root,
                "--disablerepo=*",
                "--enablerepo=fedora",
                "--enablerepo=updates",
@@ -484,6 +485,7 @@ gpgkey={gpg_key}
 
     if args.bootable:
         cmdline.extend(["kernel", "systemd-udev"])
+        os.makedirs(os.path.join(root, 'efi'), exist_ok=True)
 
     subprocess.run(cmdline, check=True)
 
