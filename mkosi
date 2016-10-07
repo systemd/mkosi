@@ -654,13 +654,13 @@ def install_boot_loader_arch(args, workspace):
 
     kernel_version = next(filter(lambda x: x[0].isdigit(), os.listdir(os.path.join(workspace, "root", "lib/modules"))))
 
-    run_workspace_cmd(workspace,
+    run_workspace_command(workspace,
                       "/usr/bin/kernel-install", "add", kernel_version, "/boot/vmlinuz-linux")
 
 def install_boot_loader_debian(args, workspace):
     kernel_version = next(filter(lambda x: x[0].isdigit(), os.listdir(os.path.join(workspace, "root", "lib/modules"))))
 
-    run_workspace_cmd(workspace,
+    run_workspace_command(workspace,
                     "/usr/bin/kernel-install", "add", kernel_version, "/boot/vmlinuz-" + kernel_version)
 
 def install_boot_loader(args, workspace):
