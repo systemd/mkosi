@@ -453,13 +453,14 @@ gpgkey={gpg_key}
            release_url=release_url,
            updates_url=updates_url))
 
+    root = os.path.join(workspace, "root")
     cmdline = ["dnf",
                "-y",
                "--config=" + os.path.join(workspace, "dnf.conf"),
                "--best",
                "--allowerasing",
                "--releasever=" + args.release,
-               "--installroot=" + workspace + "/root",
+               "--installroot=" + root,
                "--disablerepo=*",
                "--enablerepo=fedora",
                "--enablerepo=updates",
@@ -484,6 +485,7 @@ gpgkey={gpg_key}
 
     if args.bootable:
         cmdline.extend(["kernel", "systemd-udev"])
+        os.makedirs(os.path.join(root, 'efi'), exist_ok=True)
 
     subprocess.run(cmdline, check=True)
 
@@ -1001,7 +1003,8 @@ def parse_args():
     group.add_argument('-t', "--format", dest='output_format', choices=OutputFormat.__members__, help='Output Format')
     group.add_argument('-o', "--output", help='Output image path', metavar='PATH')
     group.add_argument('-f', "--force", action='store_true', help='Remove existing image file before operation')
-    group.add_argument('-b', "--bootable", action='store_true', help='Make image bootable on EFI (only raw_gpt, raw_btrfs)')
+    group.add_argument('-b', "--bootable", type=parse_boolean, nargs='?', const=True,
+                       help='Make image bootable on EFI (only raw_gpt, raw_btrfs)')
     group.add_argument("--read-only", action='store_true', help='Make root volume read-only (only raw_btrfs, subvolume)')
     group.add_argument("--compress", action='store_true', help='Enable compression in file system (only raw_btrfs, subvolume)')
     group.add_argument("--xz", action='store_true', help='Compress resulting image with xz (only raw_gpt, raw_btrfs, implied on tar)')
@@ -1014,7 +1017,7 @@ def parse_args():
     group.add_argument("--build-script", help='Build script to run inside image', metavar='PATH')
     group.add_argument("--build-sources", help='Path for sources to build', metavar='PATH')
     group.add_argument("--build-package", action=PackageAction, dest='build_packages', help='Additional packages needed for build script', metavar='PACKAGE')
-    group.add_argument('--use-git-files', type=bool,
+    group.add_argument('--use-git-files', type=parse_boolean,
                        help='Ignore any files that git itself ignores (default: guess)')
     group.add_argument("--settings", dest='nspawn_settings', help='Add in .spawn settings file', metavar='PATH')
 
@@ -1128,7 +1131,7 @@ def parse_boolean(s):
     if s in {"0", "false", "no"}:
         return False
 
-    return KeyError("Unknown setting")
+    raise ValueError("invalid literal for bool(): {!r}".format(s))
 
 def process_setting(args, section, key, value):
     if section == "Distribution":

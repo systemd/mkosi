@@ -50,7 +50,7 @@ Additionally, bootable *GPT* disk images (as created with the
 example in *KVM* via:
 
 ```bash
-qemu-kvm -m 512 -smp 2 -bios /usr/share/edk2/ovmf/OVMF_CODE.fd -hda image.raw
+qemu-kvm -m 512 -smp 2 -bios /usr/share/edk2/ovmf/OVMF_CODE.fd -drive format=raw,file=image.raw
 ```
 
 *EFI* bootable *GPT* images are larger than plain *GPT* images, as
@@ -185,7 +185,7 @@ Create and run a bootable btrfs *GPT* image, as `foobar.raw`:
 ```bash
 # mkosi -t raw_btrfs --bootable -o foobar.raw
 # systemd-nspawn -b -i foobar.raw
-# qemu-kvm -m 512 -smp 2 -bios /usr/share/edk2/ovmf/OVMF_CODE.fd -hda foobar.raw
+# qemu-kvm -m 512 -smp 2 -bios /usr/share/edk2/ovmf/OVMF_CODE.fd -drive format=raw,file=foobar.raw
 ```
 
 Create and run a *Fedora* image into a plain directory:
@@ -239,7 +239,7 @@ EOF
 To use this on *Fedora*, you need:
 
 ```bash
-dnf install python3 debootstrap arch-install-scripts xz btrfs-progs dosfstools
+dnf install python3 debootstrap arch-install-scripts xz btrfs-progs dosfstools edk2-ovmf
 ```
 
 This should work on other distributions too, as long as the
