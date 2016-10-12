@@ -495,38 +495,41 @@ def install_debian_or_ubuntu(args, workspace, run_build_script, mirror):
     cmdline = ["debootstrap",
                "--verbose",
                "--variant=minbase",
-               "--include=systemd,dbus,libpam-systemd",
+               "--include=systemd-sysv",
                "--exclude=sysv-rc,initscripts,startpar,lsb-base,insserv",
                args.release,
                workspace + "/root",
                mirror]
-
-    if args.packages is not None:
-        cmdline[3] += "," + ",".join(args.packages)
-
-    if run_build_script and args.build_packages is not None:
-        cmdline[3] += "," + ",".join(args.build_packages)
-
     if args.bootable and args.output_format == OutputFormat.raw_btrfs:
         cmdline[3] += ",btrfs-tools"
 
     subprocess.run(cmdline, check=True)
+
+
+    # Debootstrap is not smart enough to deal correctly with alternative dependencies
+    # Installing libpam-systemd via debootstrap results in systemd-shim being installed
+    # Therefore, prefer to install via apt from inside the container
+    extra_packages = [ 'dbus', 'libpam-systemd']
+
+    # Also install extra packages via the secondary APT run, because it is smarter and
+    # can deal better with any conflicts
+    if args.packages is not None:
+        extra_packages += args.packages
+
+    if run_build_script and args.build_packages is not None:
+        extra_packages += args.build_packages
 
     # Work around debian bug #835628
     os.makedirs(os.path.join(workspace, "root/etc/dracut.conf.d"), exist_ok=True)
     with open(os.path.join(workspace, "root/etc/dracut.conf.d/99-generic.conf"), "w") as f:
         f.write("hostonly=no")
 
-    # We cannot install this directly in the debootstrap phase.
-    # linux-image prefers initramfs-tools over dracut, and debootstrap is not smart enough
-    # to realize the solution when installing linux-image-amd64 + dracut is to not install
-    # initramfs-tools...
     if args.bootable:
-        run_workspace_command(workspace,
-                              "/usr/bin/apt-get", "--assume-yes", "--no-install-recommends", "install",
-                              "linux-image-amd64",
-                              "dracut",
-                              "systemd-sysv")
+        extra_packages += ["linux-image-amd64", "dracut"]
+
+    if extra_packages:
+        cmdline = ["/usr/bin/apt-get", "--assume-yes", "--no-install-recommends", "install"] + extra_packages
+        run_workspace_command(workspace, *cmdline)
 
 def install_debian(args, workspace, run_build_script):
     print_step("Installing Debian...")
