@@ -528,8 +528,20 @@ def install_debian_or_ubuntu(args, workspace, run_build_script, mirror):
         extra_packages += ["linux-image-amd64", "dracut"]
 
     if extra_packages:
+        # Debian policy is to start daemons by default.
+        # The policy-rc.d script can be used choose which ones to start
+        # Let's install one that denies all daemon startups
+        # See https://people.debian.org/~hmh/invokerc.d-policyrc.d-specification.txt
+        # Note: despite writing in /usr/sbin, this file is not shipped by the OS
+        # and instead should be managed by the admin.
+        policyrcd = os.path.join(workspace, "root/usr/sbin/policy-rc.d")
+        with open(policyrcd, "w") as f:
+            f.write("#!/bin/sh\n")
+            f.write("exit 101")
+        os.chmod(policyrcd, 0o755)
         cmdline = ["/usr/bin/apt-get", "--assume-yes", "--no-install-recommends", "install"] + extra_packages
         run_workspace_command(workspace, *cmdline)
+        os.unlink(policyrcd)
 
 def install_debian(args, workspace, run_build_script):
     print_step("Installing Debian...")
