@@ -406,15 +406,17 @@ Type=ether
 DHCP=yes
 """)
 
-def run_workspace_command(workspace, *cmd):
-    subprocess.run(["systemd-nspawn",
+def run_workspace_command(workspace, *cmd, network=False):
+    cmdline = ["systemd-nspawn",
                     '--quiet',
                     "--directory", os.path.join(workspace, "root"),
                     "--as-pid2",
-                    "--private-network",
-                    "--register=no",
-                    *cmd],
-                   check=True)
+                    "--register=no"]
+    if not network:
+        cmdline += ["--private-network"]
+
+    cmdline += ['--', *cmd]
+    subprocess.run(cmdline, check=True)
 
 def install_fedora(args, workspace, run_build_script):
     print_step("Installing Fedora...")
@@ -540,7 +542,7 @@ def install_debian_or_ubuntu(args, workspace, run_build_script, mirror):
             f.write("exit 101")
         os.chmod(policyrcd, 0o755)
         cmdline = ["/usr/bin/apt-get", "--assume-yes", "--no-install-recommends", "install"] + extra_packages
-        run_workspace_command(workspace, *cmdline)
+        run_workspace_command(workspace, network=True, *cmdline)
         os.unlink(policyrcd)
 
 def install_debian(args, workspace, run_build_script):
