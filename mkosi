@@ -1253,6 +1253,9 @@ def process_setting(args, section, key, value):
         elif key == "Key":
             if args.key is None:
                 args.key = value
+        elif key == "Password":
+            if args.password is None:
+                args.password = value
         elif key is None:
             return True
         else:
@@ -1523,6 +1526,7 @@ def print_summary(args):
         sys.stderr.write("              Checksum: " + yes_no(args.checksum) + "\n")
         sys.stderr.write("                  Sign: " + yes_no(args.sign) + "\n")
         sys.stderr.write("               GPG Key: " + ("default" if args.key is None else args.key) + "\n")
+        sys.stderr.write("              Password: " + ("default" if args.password is None else args.password) + "\n")
 
 def build_image(args, workspace, run_build_script):
     # If there's no build script set, there's no point in executing
