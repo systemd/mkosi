@@ -1180,7 +1180,7 @@ def process_setting(args, section, key, value):
                 args.read_only = parse_boolean(value)
         elif key == "Compress":
             if not args.compress:
-                args.read_only = parse_boolean(value)
+                args.compress = parse_boolean(value)
         elif key == "XZ":
             if not args.xz:
                 args.xz = parse_boolean(value)
@@ -1245,8 +1245,8 @@ def process_setting(args, section, key, value):
             return False
     elif section == "Validation":
         if key == "CheckSum":
-            if not args.check_sum:
-                args.check_sum = parse_boolean(value)
+            if not args.checksum:
+                args.checksum = parse_boolean(value)
         elif key == "Sign":
             if not args.sign:
                 args.sign = parse_boolean(value)
@@ -1504,6 +1504,7 @@ def print_summary(args):
 
     if args.distribution == Distribution.fedora:
         sys.stderr.write("    With Documentation: " + yes_no(args.with_docs) + "\n")
+    if args.distribution in (Distribution.fedora, Distribution.debian, Distribution.ubuntu):
         sys.stderr.write("         Package Cache: " + none_to_none(args.cache_path) + "\n")
 
     sys.stderr.write("           Extra Trees: " + line_join_list(args.extra_trees) + "\n")
