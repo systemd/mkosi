@@ -191,7 +191,7 @@ Create and run a bootable btrfs *GPT* image, as `foobar.raw`:
 Create and run a *Fedora* image into a plain directory:
 
 ```bash
-# mkosi -t directory -o quux
+# mkosi -d fedora -t directory -o quux
 # systemd-nspawn -b quux
 ```
 
