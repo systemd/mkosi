@@ -9,6 +9,6 @@ setup(
     url="https://github.com/systemd/mkosi",
     author="Lennart Poettering",
     author_email="lennart@poettering.net",
-    license="LICENSE",
+    license="LGPLv2+",
     scripts=["mkosi"],
 )
