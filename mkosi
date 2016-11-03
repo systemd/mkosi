@@ -16,6 +16,8 @@ import time
 import uuid
 from enum import Enum
 
+__version__ = '1'
+
 # TODO
 # - squashfs root
 # - volatile images
