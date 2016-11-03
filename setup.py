@@ -7,8 +7,8 @@ setup(
     version="1",
     description="Create legacy-free OS images",
     url="https://github.com/systemd/mkosi",
-    author="Lennart Poettering",
-    author_email="lennart@poettering.net",
+    maintainer="mkosi contributors",
+    maintainer_email="systemd-devel@lists.freedesktop.org",
     license="LGPLv2+",
     scripts=["mkosi"],
 )
