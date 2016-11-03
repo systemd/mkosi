@@ -236,11 +236,11 @@ EOF
 
 # Requirements
 
-To use this on *Fedora*, you need:
+mkosi is packaged for various distributions: Debian, Ubuntu, Arch (in AUR), Fedora.
+It is usually easiest to use the distribution package.
+
+When not using distribution packages, for example, on *Fedora* you need:
 
 ```bash
 dnf install python3 debootstrap arch-install-scripts xz btrfs-progs dosfstools edk2-ovmf
 ```
-
-This should work on other distributions too, as long as the
-same dependencies are available, but it's untested.
