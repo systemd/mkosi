@@ -1012,6 +1012,7 @@ def parse_args():
     group = parser.add_argument_group("Commands")
     group.add_argument("verb", choices=("build", "clean", "help", "summary"), nargs='?', default="build", help='Operation to execute')
     group.add_argument('-h', '--help', action='help', help="Show this help")
+    group.add_argument('--version', action='version', version='%(prog)s ' + __version__)
 
     group = parser.add_argument_group("Distribution")
     group.add_argument('-d', "--distribution", choices=Distribution.__members__, help='Distribution to install')
