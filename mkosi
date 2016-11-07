@@ -13,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.request
 import uuid
 from enum import Enum
 
@@ -58,6 +59,13 @@ else:
     sys.exit(1)
 
 CLONE_NEWNS = 0x00020000
+
+FEDORA_KEYS_MAP = {
+  "23": "34EC9CBA",
+  "24": "81B46521",
+  "25": "FDB19C98",
+  "26": "64DAB85D",
+}
 
 def unshare(flags):
     libc = ctypes.CDLL(ctypes.util.find_library("c"), use_errno=True)
@@ -420,6 +428,14 @@ def run_workspace_command(workspace, *cmd, network=False):
     cmdline += ['--', *cmd]
     subprocess.run(cmdline, check=True)
 
+def check_if_url_exists(url):
+    req = urllib.request.Request(url, method="HEAD")
+    try:
+        if urllib.request.urlopen(req):
+            return True
+    except:
+        return False
+
 def install_fedora(args, workspace, run_build_script):
     print_step("Installing Fedora...")
 
@@ -427,16 +443,20 @@ def install_fedora(args, workspace, run_build_script):
     if os.path.exists(gpg_key):
         gpg_key = "file://%s" % gpg_key
     else:
-        gpg_key = "https://getfedora.org/static/81B46521.txt"
+        gpg_key = "https://getfedora.org/static/%s.txt" % FEDORA_KEYS_MAP[args.release]
 
     if args.mirror:
-        release_url = "baseurl={.mirror}/releases/{.release}/Everything/x86_64/os/".format(args)
-        updates_url = "baseurl={.mirror}/updates/{.release}/x86_64/".format(args)
+        baseurl = "{args.mirror}/releases/{args.release}/Everything/x86_64/os/".format(args=args)
+        if not check_if_url_exists("%s/media.repo" % baseurl):
+            baseurl = "{args.mirror}/development/{args.release}/Everything/x86_64/os/".format(args=args)
+
+        release_url = "baseurl=%s" % baseurl
+        updates_url = "baseurl={args.mirror}/updates/{args.release}/x86_64/".format(args=args)
     else:
         release_url = ("metalink=https://mirrors.fedoraproject.org/metalink?" +
-                       "repo=fedora-{.release}&arch=x86_64".format(args))
+                       "repo=fedora-{args.release}&arch=x86_64".format(args=args))
         updates_url = ("metalink=https://mirrors.fedoraproject.org/metalink?" +
-                       "repo=updates-released-f{.release}&arch=x86_64".format(args))
+                       "repo=updates-released-f{args.release}&arch=x86_64".format(args=args))
 
     with open(os.path.join(workspace, "dnf.conf"), "w") as f:
         f.write("""\
