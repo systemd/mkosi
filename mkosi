@@ -1633,14 +1633,17 @@ def build_stuff(args):
                                 settings.name if settings is not None else None)
 
 
-def main():
-    args = load_args()
-
+def check_root():
     if os.getuid() != 0:
         sys.stderr.write("Must be invoked as root.\n")
         sys.exit(1)
 
+
+def main():
+    args = load_args()
+
     if args.verb in ("build", "clean"):
+        check_root()
         unlink_output(args)
 
     if args.verb == "build":
@@ -1650,6 +1653,7 @@ def main():
         print_summary(args)
 
     if args.verb == "build":
+        check_root()
         init_namespace(args)
         build_stuff(args)
         print_output_size(args)
