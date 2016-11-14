@@ -129,7 +129,8 @@ def create_image(args, workspace):
     print_step("Creating partition table...")
 
     f = tempfile.NamedTemporaryFile(dir = os.path.dirname(args.output), prefix='.mkosi-')
-    subprocess.run(["chattr", "+C", f.name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+    # disable copy-on-write if applicable on filesystem
+    subprocess.run(["chattr", "+C", f.name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
     f.truncate(image_size(args))
 
     pn = 1
