@@ -12,6 +12,8 @@ The following output formats are supported:
 
 * Raw *GPT* disk image, with btrfs as root (*raw_btrfs*)
 
+* Raw *GPT* disk image, with squashfs as read-only root (*raw_squashfs*)
+
 * Plain directory, containing the *OS* tree (*directory*)
 
 * btrfs subvolume, with separate subvolumes for `/var`, `/home`,
@@ -245,5 +247,5 @@ It is usually easiest to use the distribution package.
 When not using distribution packages, for example, on *Fedora* you need:
 
 ```bash
-dnf install python3 debootstrap arch-install-scripts xz btrfs-progs dosfstools edk2-ovmf
+dnf install arch-install-scripts btrfs-progs debootstrap dosfstools edk2-ovmf squashfs-tools gnupg python3 tar xz
 ```

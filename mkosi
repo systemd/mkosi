@@ -30,9 +30,10 @@ __version__ = '1'
 class OutputFormat(Enum):
     raw_gpt = 1
     raw_btrfs = 2
-    directory = 3
-    subvolume = 4
-    tar = 5
+    raw_squashfs = 3
+    directory = 4
+    subvolume = 5
+    tar = 6
 
 class Distribution(Enum):
     fedora = 1
@@ -67,12 +68,30 @@ FEDORA_KEYS_MAP = {
   "26": "64DAB85D",
 }
 
+# 1 MB at the beginning of the disk for the GPT disk label, and
+# another MB at the end (this is actually more than needed.)
+GPT_HEADER_SIZE = 1024*1024
+GPT_FOOTER_SIZE = 1024*1024
+
 def unshare(flags):
     libc = ctypes.CDLL(ctypes.util.find_library("c"), use_errno=True)
 
     if libc.unshare(ctypes.c_int(flags)) != 0:
         e = ctypes.get_errno()
         raise OSError(e, os.strerror(e))
+
+def format_bytes(bytes):
+    if bytes >= 1024*1024*1024:
+        return "{:0.1f}G".format(bytes / 1024**3)
+    if bytes >= 1024*1024:
+        return "{:0.1f}M".format(bytes / 1024**2)
+    if bytes >= 1024:
+        return "{:0.1f}K".format(bytes / 1024)
+
+    return "{}B".format(bytes)
+
+def roundup512(x):
+    return (x + 511) & ~511
 
 def init_namespace(args):
     print_step("Detaching namespace...")
@@ -109,8 +128,10 @@ def btrfs_subvol_make_ro(path, b=True):
     subprocess.run(["btrfs", "property", "set", path, "ro", "true" if b else "false"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
 
 def image_size(args):
-    size = args.root_size
+    size = GPT_HEADER_SIZE + GPT_FOOTER_SIZE
 
+    if args.root_size is not None:
+        size += args.root_size
     if args.home_size is not None:
         size += args.home_size
     if args.srv_size is not None:
@@ -123,7 +144,7 @@ def image_size(args):
     return size
 
 def create_image(args, workspace):
-    if not args.output_format in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs):
+    if not args.output_format in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs, OutputFormat.raw_squashfs):
         return None
 
     print_step("Creating partition table...")
@@ -135,11 +156,13 @@ def create_image(args, workspace):
 
     pn = 1
     table = "label: gpt\n"
+    run_sfdisk = False
 
     if args.bootable:
         table += 'size={}, type={}, name="ESP System Partition"\n'.format(str(int(args.esp_size / 512)), GPT_ESP)
         args.esp_partno = pn
         pn += 1
+        run_sfdisk = True
     else:
         args.esp_partno = None
 
@@ -147,6 +170,7 @@ def create_image(args, workspace):
         table += 'size={}, type={}, name="Swap Partition"\n'.format(str(int(args.swap_size / 512)), GPT_SWAP)
         args.swap_partno = pn
         pn += 1
+        run_sfdisk = True
     else:
         args.swap_partno = None
 
@@ -158,20 +182,24 @@ def create_image(args, workspace):
             table += 'size={}, type={}, name="Home Partition"\n'.format(str(int(args.home_size / 512)), GPT_HOME)
             args.home_partno = pn
             pn += 1
+            run_sfdisk = True
 
         if args.srv_size is not None:
             table += 'size={}, type={}, name="Server Data Partition"\n'.format(str(int(args.srv_size / 512)), GPT_SRV)
             args.srv_partno = pn
             pn += 1
+            run_sfdisk = True
 
-    table += 'type={}, name="Root Partition"\n'.format(GPT_ROOT_NATIVE)
+    if args.output_format != OutputFormat.raw_squashfs:
+        table += 'type={}, name="Root Partition"\n'.format(GPT_ROOT_NATIVE)
+        run_sfdisk = True
 
     args.root_partno = pn
-
     pn += 1
 
-    subprocess.run(["sfdisk", "--color=never", f.name], input=table.encode("utf-8"), check=True)
-    subprocess.run(["sync"])
+    if run_sfdisk:
+        subprocess.run(["sfdisk", "--color=never", f.name], input=table.encode("utf-8"), check=True)
+        subprocess.run(["sync"])
 
     print_step("Created partition table as " + f.name + ".")
 
@@ -231,6 +259,8 @@ def prepare_root(args, loopdev):
     if loopdev is None:
         return
     if args.root_partno is None:
+        return
+    if args.output_format == OutputFormat.raw_squashfs:
         return
 
     print_step("Formatting root partition...");
@@ -293,7 +323,9 @@ def mount_image(args, workspace, loopdev):
     print_step("Mounting image...");
 
     root = os.path.join(workspace, "root")
-    mount_loop(args, loopdev, args.root_partno, root)
+
+    if args.output_format != OutputFormat.raw_squashfs:
+        mount_loop(args, loopdev, args.root_partno, root)
 
     if args.home_partno is not None:
         mount_loop(args, loopdev, args.home_partno, os.path.join(root, "home"))
@@ -873,8 +905,98 @@ def make_tar(args, workspace):
 
     return f
 
+def make_squashfs(args, workspace):
+    if args.output_format != OutputFormat.raw_squashfs:
+        return None
+
+    print_step("Creating squashfs file system...")
+
+    f = tempfile.NamedTemporaryFile(dir = os.path.dirname(args.output), prefix=".mkosi-squashfs")
+    subprocess.run(["mksquashfs", os.path.join(workspace, "root"), f.name, "-comp", "lz4", "-noappend"], check=True)
+
+    print_step("Creating squashfs file system completed.")
+
+    return f
+
+def read_partition_table(loopdev):
+
+    table = []
+    last_sector = 0
+
+    c = subprocess.run(["sfdisk", "--dump", loopdev], stdout=subprocess.PIPE, check=True)
+
+    in_body = False
+    for line in c.stdout.decode("utf-8").split('\n'):
+        stripped = line.strip()
+
+        if stripped == "": # empty line is where the body begins
+            in_body = True
+            continue
+        if not in_body:
+            continue
+
+        table.append(stripped)
+
+        name, rest = stripped.split(":")
+        fields = rest.split(",")
+
+        start = None
+        size = None
+
+        for field in fields:
+            f = field.strip()
+
+            if f.startswith("start="):
+                start = int(f[6:])
+            if f.startswith("size="):
+                size = int(f[5:])
+
+        if start is not None and size is not None:
+            end = start + size
+            if end > last_sector:
+                last_sector = end
+
+    return table, last_sector * 512
+
+def insert_squashfs(args, workspace, raw, loopdev, squashfs):
+    if args.output_format != OutputFormat.raw_squashfs:
+        return
+
+    if args.home_partno is None and args.srv_partno is None and args.swap_partno is None and args.esp_partno is None:
+        # No partition table yet? Then let's fake one...
+        old_table = []
+        last_partition_sector = GPT_HEADER_SIZE
+    else:
+        old_table, last_partition_sector = read_partition_table(loopdev)
+
+    args.root_size = roundup512(os.stat(squashfs.name).st_size)
+    new_size = last_partition_sector + args.root_size + GPT_FOOTER_SIZE
+
+    print_step("Resizing disk image to {}...".format(format_bytes(new_size)))
+
+    os.truncate(raw.name, new_size)
+    subprocess.run(["losetup", "--set-capacity", loopdev], check=True)
+
+    print_step("Inserting squashfs root file system of {}...".format(format_bytes(args.root_size)))
+
+    table = "label: gpt\n"
+
+    for t in old_table:
+        table += t + "\n"
+
+    table += 'size={}, type={}, name="Root Partition"\n'.format(str(int(args.root_size / 512)), GPT_ROOT_NATIVE)
+
+    subprocess.run(["sfdisk", "--color=never", loopdev], input=table.encode("utf-8"), check=True)
+    subprocess.run(["sync"])
+
+    print_step("Writing squashfs root file system...")
+
+    subprocess.run(["dd", "if=" + squashfs.name, "of=" + partition(loopdev, args.root_partno)], check=True)
+
+    print_step("Inserting squashfs file system completed.")
+
 def xz_output(args, raw):
-    if not args.output_format in (OutputFormat.raw_btrfs, OutputFormat.raw_gpt):
+    if not args.output_format in (OutputFormat.raw_btrfs, OutputFormat.raw_gpt, OutputFormat.raw_squashfs):
         return raw
 
     if not args.xz:
@@ -968,7 +1090,7 @@ def link_output(args, workspace, raw, tar):
 
     if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
         os.rename(os.path.join(workspace, "root"), args.output)
-    elif args.output_format in (OutputFormat.raw_btrfs, OutputFormat.raw_gpt):
+    elif args.output_format in (OutputFormat.raw_btrfs, OutputFormat.raw_gpt, OutputFormat.raw_squashfs):
         os.chmod(raw, 0o666 & ~args.original_umask)
         os.link(raw, args.output)
     else:
@@ -1009,16 +1131,6 @@ def link_output_signature(args, signature):
     os.link(signature, args.output_signature)
 
     print_step("Successfully linked " + args.output_signature + ".")
-
-def format_bytes(bytes):
-    if bytes >= 1024*1024*1024:
-        return "{:0.1f}G".format(bytes / 1024**3)
-    if bytes >= 1024*1024:
-        return "{:0.1f}M".format(bytes / 1024**2)
-    if bytes >= 1024:
-        return "{:0.1f}K".format(bytes / 1024)
-
-    return "{}B".format(bytes)
 
 def dir_size(path):
     sum = 0
@@ -1084,10 +1196,10 @@ def parse_args():
     group.add_argument('-o', "--output", help='Output image path', metavar='PATH')
     group.add_argument('-f', "--force", action='store_true', help='Remove existing image file before operation')
     group.add_argument('-b', "--bootable", type=parse_boolean, nargs='?', const=True,
-                       help='Make image bootable on EFI (only raw_gpt, raw_btrfs)')
+                       help='Make image bootable on EFI (only raw_gpt, raw_btrfs, raw_squashfs)')
     group.add_argument("--read-only", action='store_true', help='Make root volume read-only (only raw_btrfs, subvolume)')
     group.add_argument("--compress", action='store_true', help='Enable compression in file system (only raw_btrfs, subvolume)')
-    group.add_argument("--xz", action='store_true', help='Compress resulting image with xz (only raw_gpt, raw_btrfs, implied on tar)')
+    group.add_argument("--xz", action='store_true', help='Compress resulting image with xz (only raw_gpt, raw_btrfs, raw_squashfs, implied on tar)')
 
     group = parser.add_argument_group("Packages")
     group.add_argument('-p', "--package", action=PackageAction, dest='packages', help='Add an additional package to the OS image', metavar='PACKAGE')
@@ -1103,12 +1215,12 @@ def parse_args():
 
     group = parser.add_argument_group("Partitions")
     group.add_argument("--root-size", help='Set size of root partition (only raw_gpt, raw_btrfs)', metavar='BYTES')
-    group.add_argument("--esp-size", help='Set size of EFI system partition (only raw_gpt, raw_btrfs)', metavar='BYTES')
-    group.add_argument("--swap-size", help='Set size of swap partition (only raw_gpt, raw_btrfs)', metavar='BYTES')
-    group.add_argument("--home-size", help='Set size of /home partition (only raw_gpt)', metavar='BYTES')
-    group.add_argument("--srv-size", help='Set size of /srv partition (only raw_gpt)', metavar='BYTES')
+    group.add_argument("--esp-size", help='Set size of EFI system partition (only raw_gpt, raw_btrfs, raw_squashfs)', metavar='BYTES')
+    group.add_argument("--swap-size", help='Set size of swap partition (only raw_gpt, raw_btrfs, raw_squashfs)', metavar='BYTES')
+    group.add_argument("--home-size", help='Set size of /home partition (only raw_gpt, raw_squashfs)', metavar='BYTES')
+    group.add_argument("--srv-size", help='Set size of /srv partition (only raw_gpt, raw_squashfs)', metavar='BYTES')
 
-    group = parser.add_argument_group("Validation (only raw_gpt, raw_btrfs, tar)")
+    group = parser.add_argument_group("Validation (only raw_gpt, raw_btrfs, raw_squashfs, tar)")
     group.add_argument("--checksum", action='store_true', help='Write SHA256SUM file')
     group.add_argument("--sign", action='store_true', help='Write and sign SHA256SUM file')
     group.add_argument("--key", help='GPG key to use for signing')
@@ -1487,7 +1599,7 @@ def load_args():
             sys.stderr.write("Bootable images are currently supported only on Debian, Fedora and ArchLinux.\n")
             sys.exit(1)
 
-        if not args.output_format in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs):
+        if not args.output_format in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs, OutputFormat.raw_squashfs):
             sys.stderr.write("Directory, subvolume and tar images cannot be booted.\n")
             sys.exit(1)
 
@@ -1495,7 +1607,7 @@ def load_args():
         args.checksum = True
 
     if args.output is None:
-        if args.output_format in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs):
+        if args.output_format in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs, OutputFormat.raw_squashfs):
             if args.xz:
                 args.output = "image.raw.xz"
             else:
@@ -1509,6 +1621,11 @@ def load_args():
 
     if args.output_format == OutputFormat.tar:
         args.xz = True
+
+    if args.output_format == OutputFormat.raw_squashfs:
+        args.read_only = True
+        args.compress = True
+        args.root_size = None
 
     if args.checksum:
         args.output_checksum = os.path.join(os.path.dirname(args.output), "SHA256SUM")
@@ -1569,6 +1686,12 @@ def format_bytes_or_disabled(sz):
 
     return format_bytes(sz)
 
+def format_bytes_or_auto(sz):
+    if sz is None:
+        return "(automatic)"
+
+    return format_bytes(sz)
+
 def none_to_na(s):
     return "n/a" if s is None else s
 
@@ -1599,7 +1722,7 @@ def print_summary(args):
         sys.stderr.write("             Read-only: " + yes_no(args.read_only) + "\n")
         sys.stderr.write("        FS Compression: " + yes_no(args.compress) + "\n")
 
-    if args.output_format in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs, OutputFormat.tar):
+    if args.output_format in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs, OutputFormat.raw_squashfs, OutputFormat.tar):
         sys.stderr.write("        XZ Compression: " + yes_no(args.xz) + "\n")
 
     sys.stderr.write("\nPACKAGES:\n")
@@ -1616,16 +1739,16 @@ def print_summary(args):
     sys.stderr.write("        Build Packages: " + line_join_list(args.build_packages) + "\n")
     sys.stderr.write("       nspawn Settings: " + none_to_none(args.nspawn_settings) + "\n")
 
-    if args.output_format in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs):
+    if args.output_format in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs, OutputFormat.raw_squashfs):
         sys.stderr.write("\nPARTITIONS:\n")
         sys.stderr.write("              Bootable: " + yes_no(args.bootable) + "\n")
-        sys.stderr.write("        Root Partition: " + format_bytes(args.root_size) + "\n")
+        sys.stderr.write("        Root Partition: " + format_bytes_or_auto(args.root_size) + "\n")
         sys.stderr.write("        Swap Partition: " + format_bytes_or_disabled(args.swap_size) + "\n")
         sys.stderr.write("                   ESP: " + format_bytes_or_disabled(args.esp_size) + "\n")
         sys.stderr.write("       /home Partition: " + format_bytes_or_disabled(args.home_size) + "\n")
         sys.stderr.write("        /srv Partition: " + format_bytes_or_disabled(args.srv_size) + "\n")
 
-    if args.output_format in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs, OutputFormat.tar):
+    if args.output_format in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs, OutputFormat.raw_squashfs, OutputFormat.tar):
         sys.stderr.write("\nVALIDATION:\n")
         sys.stderr.write("              Checksum: " + yes_no(args.checksum) + "\n")
         sys.stderr.write("                  Sign: " + yes_no(args.sign) + "\n")
@@ -1659,8 +1782,14 @@ def build_image(args, workspace, run_build_script):
 
             if not run_build_script:
                 set_root_password(args, workspace.name)
-                make_read_only(args, workspace.name)
-                tar = make_tar(args, workspace.name)
+
+            make_read_only(args, workspace.name)
+
+        squashfs = make_squashfs(args, workspace.name)
+        insert_squashfs(args, workspace.name, raw, loopdev, squashfs)
+
+    if not run_build_script:
+        tar = make_tar(args, workspace.name)
 
     return raw, tar
 
