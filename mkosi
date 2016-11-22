@@ -280,6 +280,10 @@ def mount_bind(what, where):
     os.makedirs(where, 0o755, True)
     subprocess.run(["mount", "--bind", what, where], check=True)
 
+def mount_tmpfs(where):
+    os.makedirs(where, 0o755, True)
+    subprocess.run(["mount", "tmpfs", "-t", "tmpfs", where], check=True)
+
 @contextlib.contextmanager
 def mount_image(args, workspace, loopdev):
     if loopdev is None:
@@ -305,6 +309,10 @@ def mount_image(args, workspace, loopdev):
         mount_bind("/dev", os.path.join(root, "dev"))
         mount_bind("/sys", os.path.join(root, "sys"))
 
+    # Make sure /tmp and /run are not part of the image
+    mount_tmpfs(os.path.join(root, "run"))
+    mount_tmpfs(os.path.join(root, "tmp"))
+
     print_step("Mounting image completed.");
     try:
         yield
@@ -319,6 +327,8 @@ def mount_image(args, workspace, loopdev):
         umount(os.path.join(root, "dev"))
         umount(os.path.join(root, "var/cache/dnf"))
         umount(os.path.join(root, "var/cache/apt/archives"))
+        umount(os.path.join(root, "run"))
+        umount(os.path.join(root, "tmp"))
         umount(os.path.join(root))
 
         print_step("Unmounting image completed.");
