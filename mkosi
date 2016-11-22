@@ -968,7 +968,7 @@ def link_output(args, workspace, raw, tar):
         os.chmod(raw, 0o666 & ~args.original_umask)
         os.link(raw, args.output)
     else:
-        os.chmod(raw, 0o666 & ~args.original_umask)
+        os.chmod(tar, 0o666 & ~args.original_umask)
         os.link(tar, args.output)
 
     print_step("Successfully linked " + args.output + ".")
