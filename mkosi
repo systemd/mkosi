@@ -350,7 +350,7 @@ def umount(where):
     # Ignore failures and error messages
     subprocess.run(["umount", "-n", where], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-def prepare_tree(args, workspace):
+def prepare_tree(args, workspace, run_build_script):
     print_step("Setting up basic OS tree...");
 
     if args.output_format == OutputFormat.subvolume:
@@ -391,6 +391,10 @@ def prepare_tree(args, workspace):
         with open(os.path.join(workspace, "root", "etc/kernel/cmdline"), "w") as cmdline:
             cmdline.write(args.kernel_commandline)
             cmdline.write("\n")
+
+    if run_build_script:
+        os.mkdir(os.path.join(workspace, "root", "root"))
+        os.mkdir(os.path.join(workspace, "root", "root/dest"))
 
     print_step("Setting up basic OS tree completed.");
 
@@ -1645,7 +1649,7 @@ def build_image(args, workspace, run_build_script):
         prepare_srv(args, loopdev)
 
         with mount_image(args, workspace.name, loopdev):
-            prepare_tree(args, workspace.name)
+            prepare_tree(args, workspace.name, run_build_script)
             mount_cache(args, workspace.name)
             install_distribution(args, workspace.name, run_build_script)
             install_boot_loader(args, workspace.name)
