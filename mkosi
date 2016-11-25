@@ -1398,6 +1398,8 @@ def load_args():
             args.mirror = "http://httpredir.debian.org/debian"
         elif args.distribution == Distribution.ubuntu:
             args.mirror = "http://archive.ubuntu.com/ubuntu"
+            if platform.machine() == "aarch64":
+                args.mirror = "http://ports.ubuntu.com/"
         elif args.distribution == Distribution.arch:
             args.mirror = "https://mirrors.kernel.org/archlinux"
             if platform.machine() == "aarch64":
