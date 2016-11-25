@@ -417,7 +417,7 @@ Type=ether
 DHCP=yes
 """)
 
-def run_workspace_command(workspace, *cmd, network=False):
+def run_workspace_command(workspace, *cmd, network=False, env={}):
     cmdline = ["systemd-nspawn",
                     '--quiet',
                     "--directory", os.path.join(workspace, "root"),
@@ -425,6 +425,8 @@ def run_workspace_command(workspace, *cmd, network=False):
                     "--register=no"]
     if not network:
         cmdline += ["--private-network"]
+
+    cmdline += [ "--setenv={}={}".format(k,v) for k,v in env.items() ]
 
     cmdline += ['--', *cmd]
     subprocess.run(cmdline, check=True)
@@ -587,7 +589,7 @@ def install_debian_or_ubuntu(args, workspace, run_build_script, mirror):
                 ])
 
         cmdline = ["/usr/bin/apt-get", "--assume-yes", "--no-install-recommends", "install"] + extra_packages
-        run_workspace_command(workspace, network=True, *cmdline)
+        run_workspace_command(workspace, network=True, env={'DEBIAN_FRONTEND': 'noninteractive', 'DEBCONF_NONINTERACTIVE_SEEN': 'true'}, *cmdline)
         os.unlink(policyrcd)
 
 def install_debian(args, workspace, run_build_script):
