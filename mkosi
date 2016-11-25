@@ -564,6 +564,20 @@ def install_debian_or_ubuntu(args, workspace, run_build_script, mirror):
             f.write("#!/bin/sh\n")
             f.write("exit 101")
         os.chmod(policyrcd, 0o755)
+        if not args.with_docs:
+            # Create dpkg.cfg to ingore documentation
+            dpkg_conf = os.path.join(workspace, "root/etc/dpkg/dpkg.cfg.d/01_nodoc")
+            with open(dpkg_conf, "w") as f:
+                f.writelines([
+                    'path-exclude /usr/share/locale/*\n',
+                    'path-exclude /usr/share/doc/*\n',
+                    'path-exclude /usr/share/man/*\n',
+                    'path-exclude /usr/share/groff/*\n',
+                    'path-exclude /usr/share/info/*\n',
+                    'path-exclude /usr/share/lintian/*\n',
+                    'path-exclude /usr/share/linda/*\n',
+                ])
+
         cmdline = ["/usr/bin/apt-get", "--assume-yes", "--no-install-recommends", "install"] + extra_packages
         run_workspace_command(workspace, network=True, *cmdline)
         os.unlink(policyrcd)
