@@ -477,6 +477,10 @@ gpgkey={gpg_key}
            gpg_key=gpg_key,
            release_url=release_url,
            updates_url=updates_url))
+    if args.repositories:
+        repos = ["--enablerepo=" + repo for repo in args.repositories]
+    else:
+        repos = ["--enablerepo=fedora", "--enablerepo=updates"]
 
     root = os.path.join(workspace, "root")
     cmdline = ["dnf",
@@ -487,8 +491,7 @@ gpgkey={gpg_key}
                "--releasever=" + args.release,
                "--installroot=" + root,
                "--disablerepo=*",
-               "--enablerepo=fedora",
-               "--enablerepo=updates",
+               *repos,
                "--setopt=keepcache=1",
                "--setopt=install_weak_deps=0"]
 
@@ -517,11 +520,16 @@ gpgkey={gpg_key}
     print_step("Installing Fedora completed.")
 
 def install_debian_or_ubuntu(args, workspace, run_build_script, mirror):
+    if args.repositories:
+        components = ','.join(args.repositories)
+    else:
+        components = 'main'
     cmdline = ["debootstrap",
                "--verbose",
                "--variant=minbase",
                "--include=systemd-sysv",
                "--exclude=sysv-rc,initscripts,startpar,lsb-base,insserv",
+               "--components=" + components,
                args.release,
                workspace + "/root",
                mirror]
@@ -1053,6 +1061,7 @@ def parse_args():
     group.add_argument('-d', "--distribution", choices=Distribution.__members__, help='Distribution to install')
     group.add_argument('-r', "--release", help='Distribution release to install')
     group.add_argument('-m', "--mirror", help='Distribution mirror to use')
+    group.add_argument("--repositories", action=PackageAction, dest='repositories', help='Repositories to use', metavar='REPOS')
 
     group = parser.add_argument_group("Output")
     group.add_argument('-t', "--format", dest='output_format', choices=OutputFormat.__members__, help='Output Format')
@@ -1196,6 +1205,12 @@ def process_setting(args, section, key, value):
         elif key == "Release":
             if args.release is None:
                 args.release = value
+        elif key == "Repositories":
+            list_value = value if type(value) == list else value.split()
+            if args.repositories is None:
+                args.repositories = list_value
+            else:
+                args.repositories.extend(list_value)
         elif key is None:
             return True
         else:
