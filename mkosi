@@ -417,7 +417,7 @@ Type=ether
 DHCP=yes
 """)
 
-def run_workspace_command(workspace, *cmd, network=False):
+def run_workspace_command(workspace, *cmd, network=False, env={}):
     cmdline = ["systemd-nspawn",
                     '--quiet',
                     "--directory", os.path.join(workspace, "root"),
@@ -425,6 +425,8 @@ def run_workspace_command(workspace, *cmd, network=False):
                     "--register=no"]
     if not network:
         cmdline += ["--private-network"]
+
+    cmdline += [ "--setenv={}={}".format(k,v) for k,v in env.items() ]
 
     cmdline += ['--', *cmd]
     subprocess.run(cmdline, check=True)
@@ -477,6 +479,10 @@ gpgkey={gpg_key}
            gpg_key=gpg_key,
            release_url=release_url,
            updates_url=updates_url))
+    if args.repositories:
+        repos = ["--enablerepo=" + repo for repo in args.repositories]
+    else:
+        repos = ["--enablerepo=fedora", "--enablerepo=updates"]
 
     root = os.path.join(workspace, "root")
     cmdline = ["dnf",
@@ -487,8 +493,7 @@ gpgkey={gpg_key}
                "--releasever=" + args.release,
                "--installroot=" + root,
                "--disablerepo=*",
-               "--enablerepo=fedora",
-               "--enablerepo=updates",
+               *repos,
                "--setopt=keepcache=1",
                "--setopt=install_weak_deps=0"]
 
@@ -517,11 +522,16 @@ gpgkey={gpg_key}
     print_step("Installing Fedora completed.")
 
 def install_debian_or_ubuntu(args, workspace, run_build_script, mirror):
+    if args.repositories:
+        components = ','.join(args.repositories)
+    else:
+        components = 'main'
     cmdline = ["debootstrap",
                "--verbose",
                "--variant=minbase",
                "--include=systemd-sysv",
                "--exclude=sysv-rc,initscripts,startpar,lsb-base,insserv",
+               "--components=" + components,
                args.release,
                workspace + "/root",
                mirror]
@@ -564,8 +574,22 @@ def install_debian_or_ubuntu(args, workspace, run_build_script, mirror):
             f.write("#!/bin/sh\n")
             f.write("exit 101")
         os.chmod(policyrcd, 0o755)
+        if not args.with_docs:
+            # Create dpkg.cfg to ingore documentation
+            dpkg_conf = os.path.join(workspace, "root/etc/dpkg/dpkg.cfg.d/01_nodoc")
+            with open(dpkg_conf, "w") as f:
+                f.writelines([
+                    'path-exclude /usr/share/locale/*\n',
+                    'path-exclude /usr/share/doc/*\n',
+                    'path-exclude /usr/share/man/*\n',
+                    'path-exclude /usr/share/groff/*\n',
+                    'path-exclude /usr/share/info/*\n',
+                    'path-exclude /usr/share/lintian/*\n',
+                    'path-exclude /usr/share/linda/*\n',
+                ])
+
         cmdline = ["/usr/bin/apt-get", "--assume-yes", "--no-install-recommends", "install"] + extra_packages
-        run_workspace_command(workspace, network=True, *cmdline)
+        run_workspace_command(workspace, network=True, env={'DEBIAN_FRONTEND': 'noninteractive', 'DEBCONF_NONINTERACTIVE_SEEN': 'true'}, *cmdline)
         os.unlink(policyrcd)
 
 def install_debian(args, workspace, run_build_script):
@@ -1039,6 +1063,7 @@ def parse_args():
     group.add_argument('-d', "--distribution", choices=Distribution.__members__, help='Distribution to install')
     group.add_argument('-r', "--release", help='Distribution release to install')
     group.add_argument('-m', "--mirror", help='Distribution mirror to use')
+    group.add_argument("--repositories", action=PackageAction, dest='repositories', help='Repositories to use', metavar='REPOS')
 
     group = parser.add_argument_group("Output")
     group.add_argument('-t', "--format", dest='output_format', choices=OutputFormat.__members__, help='Output Format')
@@ -1182,6 +1207,12 @@ def process_setting(args, section, key, value):
         elif key == "Release":
             if args.release is None:
                 args.release = value
+        elif key == "Repositories":
+            list_value = value if type(value) == list else value.split()
+            if args.repositories is None:
+                args.repositories = list_value
+            else:
+                args.repositories.extend(list_value)
         elif key is None:
             return True
         else:
@@ -1214,10 +1245,11 @@ def process_setting(args, section, key, value):
             return False
     elif section == "Packages":
         if key == "Packages":
+            list_value = value if type(value) == list else value.split()
             if args.packages is None:
-                args.packages = value.split()
+                args.packages = list_value
             else:
-                args.packages.extend(value.split())
+                args.packages.extend(list_value)
         elif key == "WithDocs":
             if not args.with_docs:
                 args.with_docs = parse_boolean(value)
@@ -1225,10 +1257,11 @@ def process_setting(args, section, key, value):
             if args.cache_path is None:
                 args.cache_path = value
         elif key == "ExtraTrees":
+            list_value = value if type(value) == list else value.split()
             if args.extra_trees is None:
-                args.extra_trees = value.split()
+                args.extra_trees = list_value
             else:
-                args.extra_trees.extend(value.split())
+                args.extra_trees.extend(list_value)
         elif key == "BuildScript":
             if args.build_script is not None:
                 args.build_script = value
@@ -1236,10 +1269,11 @@ def process_setting(args, section, key, value):
             if args.build_sources is not None:
                 args.build_sources = value
         elif key == "BuildPackages":
+            list_value = value if type(value) == list else value.split()
             if args.build_packages is None:
-                args.build_packages = value.split()
+                args.build_packages = list_value
             else:
-                args.build_packages.extend(value.split())
+                args.build_packages.extend(list_value)
         elif key == "NSpawnSettings":
             if args.nspawn_settings is not None:
                 args.nspawn_settings = value
@@ -1289,9 +1323,7 @@ def process_setting(args, section, key, value):
 
     return True
 
-def load_defaults(args):
-    fname = "mkosi.default" if args.default_path is None else args.default_path
-
+def load_defaults_file(fname, options):
     try:
         f = open(fname, "r")
     except FileNotFoundError:
@@ -1301,13 +1333,44 @@ def load_defaults(args):
     config.optionxform = str
     config.read_file(f)
 
+    # this is used only for validation
+    args = parse_args()
+
     for section in config.sections():
         if not process_setting(args, section, None, None):
             sys.stderr.write("Unknown section in {}, ignoring: [{}]\n".format(fname, section))
-
+            continue
+        if section not in options:
+            options[section] = {}
         for key in config[section]:
             if not process_setting(args, section, key, config[section][key]):
                 sys.stderr.write("Unknown key in section [{}] in {}, ignoring: {}=\n".format(section, fname, key))
+                continue
+            if section == "Packages" and key in ["Packages", "ExtraTrees", "BuildPackages"]:
+                if key in options[section]:
+                    options[section][key].extend(config[section][key].split())
+                else:
+                    options[section][key] = config[section][key].split()
+            else:
+                options[section][key] = config[section][key]
+    return options
+
+def load_defaults(args):
+    fname = "mkosi.default" if args.default_path is None else args.default_path
+
+    config = {}
+    load_defaults_file(fname, config)
+
+    defaults_dir = fname + '.d'
+    if os.path.isdir(defaults_dir):
+        for defaults_file in sorted(os.listdir(defaults_dir)):
+            defaults_path = os.path.join(defaults_dir, defaults_file)
+            if os.path.isfile(defaults_path):
+                load_defaults_file(defaults_path, config)
+
+    for section in config.keys():
+        for key in config[section]:
+            process_setting(args, section, key, config[section][key])
 
 def find_nspawn_settings(args):
     if args.nspawn_settings is not None:
@@ -1398,6 +1461,8 @@ def load_args():
             args.mirror = "http://httpredir.debian.org/debian"
         elif args.distribution == Distribution.ubuntu:
             args.mirror = "http://archive.ubuntu.com/ubuntu"
+            if platform.machine() == "aarch64":
+                args.mirror = "http://ports.ubuntu.com/"
         elif args.distribution == Distribution.arch:
             args.mirror = "https://mirrors.kernel.org/archlinux"
             if platform.machine() == "aarch64":

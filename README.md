@@ -132,6 +132,9 @@ they exist in the local directory:
   hence little more than a way to make sure simply typing
   `mkosi` without further parameters in your *source* tree is
   enough to get the right image of your choice set up.
+  Additionally if a `mkosi.default.d` directory exists, each file in it
+  is loaded in the same manner adding/overriding the values specified in
+  `mkosi.default`.
 
 * `mkosi.extra` may be a directory. If this exists all files
   contained in it are copied over the directory tree of the
