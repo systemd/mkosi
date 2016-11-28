@@ -1385,7 +1385,7 @@ def load_args():
 
     if args.release is None:
         if args.distribution == Distribution.fedora:
-            args.release = "24"
+            args.release = "25"
         elif args.distribution == Distribution.debian:
             args.release = "unstable"
         elif args.distribution == Distribution.ubuntu:
