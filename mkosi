@@ -266,7 +266,7 @@ def prepare_srv(args, loopdev):
 
     print_step("Formatted server data partition.");
 
-def mount_loop(args, loopdev, partno, where):
+def mount_loop(args, loopdev, partno, where, ptype):
     os.makedirs(where, 0o755, True)
 
     options = "-odiscard"
@@ -274,7 +274,8 @@ def mount_loop(args, loopdev, partno, where):
     if args.compress and args.output_format == OutputFormat.raw_btrfs:
         options += ",compress"
 
-    subprocess.run(["mount", "-n", partition(loopdev, partno), where, options], check=True)
+    subprocess.run(["modprobe", ptype], check=True)
+    subprocess.run(["mount", "-n", partition(loopdev, partno), where, options, "-t", ptype], check=True)
 
 def mount_bind(what, where):
     os.makedirs(where, 0o755, True)
@@ -289,16 +290,20 @@ def mount_image(args, workspace, loopdev):
     print_step("Mounting image...");
 
     root = os.path.join(workspace, "root")
-    mount_loop(args, loopdev, args.root_partno, root)
+    if args.output_format == OutputFormat.raw_btrfs:
+        ptype = "btrfs"
+    else:
+        ptype = "ext4"
+    mount_loop(args, loopdev, args.root_partno, root, ptype)
 
     if args.home_partno is not None:
-        mount_loop(args, loopdev, args.home_partno, os.path.join(root, "home"))
+        mount_loop(args, loopdev, args.home_partno, os.path.join(root, "home"), ptype)
 
     if args.srv_partno is not None:
-        mount_loop(args, loopdev, args.srv_partno, os.path.join(root, "srv"))
+        mount_loop(args, loopdev, args.srv_partno, os.path.join(root, "srv"), ptype)
 
     if args.esp_partno is not None:
-        mount_loop(args, loopdev, args.esp_partno, os.path.join(root, "boot/efi"))
+        mount_loop(args, loopdev, args.esp_partno, os.path.join(root, "boot/efi"), "vfat")
 
     if args.distribution == Distribution.fedora:
         mount_bind("/proc", os.path.join(root, "proc"))
