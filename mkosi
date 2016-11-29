@@ -117,14 +117,14 @@ def setup_workspace(args):
 
 def btrfs_subvol_create(path, mode=0o755):
     m = os.umask(~mode & 0o7777)
-    subprocess.run(["btrfs", "subvol", "create", path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+    subprocess.run(["btrfs", "subvol", "create", path], check=True)
     os.umask(m)
 
-def btrfs_subvol_delete(path, mode=0o755):
+def btrfs_subvol_delete(path):
     subprocess.run(["btrfs", "subvol", "delete", path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
 
 def btrfs_subvol_make_ro(path, b=True):
-    subprocess.run(["btrfs", "property", "set", path, "ro", "true" if b else "false"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+    subprocess.run(["btrfs", "property", "set", path, "ro", "true" if b else "false"], check=True)
 
 def image_size(args):
     size = GPT_HEADER_SIZE + GPT_FOOTER_SIZE
