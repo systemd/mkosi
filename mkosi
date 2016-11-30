@@ -585,7 +585,6 @@ def install_debian_or_ubuntu(args, workspace, run_build_script, mirror):
 
     subprocess.run(cmdline, check=True)
 
-
     # Debootstrap is not smart enough to deal correctly with alternative dependencies
     # Installing libpam-systemd via debootstrap results in systemd-shim being installed
     # Therefore, prefer to install via apt from inside the container
