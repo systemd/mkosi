@@ -1827,6 +1827,9 @@ def run_build_script(args, workspace, raw):
     if args.build_sources is not None:
         cmdline.append("--setenv=SRCDIR=/root/src")
         cmdline.append("--chdir=/root/src")
+
+        if args.read_only:
+            cmdline.append("--overlay=+/root/src::/root/src")
     else:
         cmdline.append("--chdir=/root")
 
