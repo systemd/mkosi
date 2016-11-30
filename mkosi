@@ -25,7 +25,6 @@ __version__ = '1'
 # - make debian/ubuntu images bootable
 # - work on device nodes
 # - allow passing env vars
-# - rework cache management to use mkosi.cache by default in the project dir
 
 class OutputFormat(Enum):
     raw_gpt = 1
@@ -1512,6 +1511,14 @@ def find_extra(args):
         else:
             args.extra_trees.append("mkosi.extra")
 
+def find_cache(args):
+
+    if args.cache_path is not None:
+        return
+
+    if os.path.exists("mkosi.cache/"):
+        args.cache_path = "mkosi.cache/" + args.distribution.name + "~" + args.release
+
 def find_build_script(args):
     if args.build_script is not None:
         return
@@ -1579,6 +1586,8 @@ def load_args():
             args.release = "unstable"
         elif args.distribution == Distribution.ubuntu:
             args.release = "yakkety"
+
+    find_cache(args)
 
     if args.mirror is None:
         if args.distribution == Distribution.fedora:

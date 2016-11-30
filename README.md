@@ -169,6 +169,9 @@ they exist in the local directory:
   next to image files it boots, for additional container
   runtime settings.
 
+* `mkosi.cache` may be a directory. If so, it is automatically used as
+  package download cache, in order to speed repeated runs of the tool.
+
 All these files are optional.
 
 Note that the location of all these files may also be
