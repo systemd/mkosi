@@ -5,16 +5,19 @@ import configparser
 import contextlib
 import ctypes, ctypes.util
 import crypt
+import getpass
 import hashlib
 import os
 import platform
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
 import time
 import urllib.request
 import uuid
+
 from enum import Enum
 
 __version__ = '1'
@@ -268,10 +271,84 @@ def prepare_esp(args, loopdev):
 
     print_step("Formatting ESP partition completed.");
 
-def mkfs_ext4(label, mount, loopdev, partno):
-    subprocess.run(["mkfs.ext4", "-L", label, "-M", mount, partition(loopdev, partno)], check=True)
+def mkfs_ext4(label, mount, dev):
+    subprocess.run(["mkfs.ext4", "-L", label, "-M", mount, dev], check=True)
 
-def prepare_root(args, loopdev):
+def prepare_luks(args):
+
+    print_step("LUKS setup")
+    passphrase = luks_read_passphrase()
+
+    keys = {}
+    if args.luks_encryption == "all":
+        keys["root"] = passphrase
+        keys["home"] = passphrase
+        keys["srv"] = passphrase
+    elif args.luks_encryption == "data":
+        keys["home"] = passphrase
+        keys["srv"] = passphrase
+
+    return keys
+
+def luks_read_passphrase():
+    try:
+        passphrase_mode = os.stat('mkosi.passphrase').st_mode & (stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
+        if (passphrase_mode & stat.S_IRWXU > 0o600) or (passphrase_mode & (stat.S_IRWXG | stat.S_IRWXO) > 0):
+            print_step("WARNING: mkosi.passphrase permissions '{}' are too open. It's recommended that it's only accessible by its owner. Aborting.".format(oct(passphrase_mode)))
+            sys.exit(2)
+
+        return { 'type': 'file', 'content': 'mkosi.passphrase'}
+
+    except FileNotFoundError:
+        while True:
+            passphrase = getpass.getpass("Please enter passphrase:")
+            passphrase_confirmation = getpass.getpass("Passphrase confirmation:")
+            if passphrase == passphrase_confirmation:
+                return {'type': 'stdin', 'content': passphrase}
+            else:
+                print("Passphrase doesn't match confirmation. Please try again.")
+
+def luks_format(dev, luks_key):
+    print("formtating luks...")
+    if luks_key['type'] == 'stdio':
+        luks_key = ((luks_key['content'] + "\n")*2).encode("utf-8")
+        subprocess.run(["cryptsetup", "luksFormat", dev], input=luks_key, check=True)
+    elif luks_key['type'] == 'file':
+        subprocess.run(["cryptsetup", "luksFormat", dev, luks_key['content']], input="YES\n".encode("utf-8"), check=True)
+
+
+def luks_open(dev, luks_key):
+    print("opening luks...")
+    luks_name = str(uuid.uuid4())
+    if luks_key['type'] == 'stdio':
+        luks_key = (luks_key+"\n").encode("utf-8")
+        subprocess.run(["cryptsetup", "open", "--type", "luks", dev, luks_name], input=luks_key, check=True)
+    elif luks_key['type'] == 'file':
+        subprocess.run(["cryptsetup", "--key-file", luks_key["content"], "open", "--type", "luks", dev, luks_name], check=True)
+
+    return os.path.join("/dev/mapper", luks_name)
+
+@contextlib.contextmanager
+def luks_try_format(loopdev_part, part_name, luks_keys):
+    luks_key = luks_keys.get(part_name, None)
+    if luks_key:
+        print_step("Setting up LUKS encryption on {} partition...".format(part_name))
+        luks_format(loopdev_part, luks_key)
+        dev = luks_open(loopdev_part, luks_key)
+    else:
+        dev = loopdev_part
+
+    try:
+        yield dev
+    finally:
+        if luks_key:
+            print_step("Closing {} LUKS partition.".format(part_name))
+            luks_close(dev)
+
+def luks_close(dev):
+    subprocess.run(["cryptsetup", "luksClose", dev], check=True)
+
+def prepare_root(args, loopdev, luks_keys):
     if loopdev is None:
         return
     if args.root_partno is None:
@@ -279,40 +356,41 @@ def prepare_root(args, loopdev):
     if args.output_format == OutputFormat.raw_squashfs:
         return
 
-    print_step("Formatting root partition...");
-
     if args.output_format == OutputFormat.raw_btrfs:
+        print_step("Formatting root partition...");
         subprocess.run(["mkfs.btrfs", "-Lroot", partition(loopdev, args.root_partno)], check=True)
     else:
-        mkfs_ext4("root", "/", loopdev, args.root_partno)
+        loopdev_part = partition(loopdev, args.root_partno)
+        with luks_try_format(loopdev_part, "root", luks_keys) as dev:
+            print_step("Formatting root partition...");
+            mkfs_ext4("root", "/", dev)
+            print_step("Formatting root partition completed.");
 
-    print_step("Formatting root partition completed.");
-
-def prepare_home(args, loopdev):
+def prepare_home(args, loopdev, luks_keys):
     if loopdev is None:
         return
     if args.home_partno is None:
         return
 
-    print_step("Formatting home partition...");
+    loopdev_part = partition(loopdev, args.home_partno)
+    with luks_try_format(loopdev_part, "home", luks_keys) as dev:
+        print_step("Formatting home partition...");
+        mkfs_ext4("home", "/home", dev)
+        print_step("Formatting home partition completed.");
 
-    mkfs_ext4("home", "/home", loopdev, args.home_partno)
-
-    print_step("Formatting home partition completed.");
-
-def prepare_srv(args, loopdev):
+def prepare_srv(args, loopdev, luks_keys):
     if loopdev is None:
         return
     if args.srv_partno is None:
         return
 
-    print_step("Formatting server data partition...");
+    loopdev_part = partition(loopdev, args.srv_partno)
+    with luks_try_format(loopdev_part, "srv", luks_keys) as dev:
+        print_step("Formatting server data partition...");
+        mkfs_ext4("srv", "/srv", dev)
+        print_step("Formatted server data partition.");
 
-    mkfs_ext4("srv", "/srv", loopdev, args.srv_partno)
-
-    print_step("Formatted server data partition.");
-
-def mount_loop(args, loopdev, partno, where):
+def mount_loop(args, dev, where):
     os.makedirs(where, 0o755, True)
 
     options = "-odiscard"
@@ -320,7 +398,7 @@ def mount_loop(args, loopdev, partno, where):
     if args.compress and args.output_format == OutputFormat.raw_btrfs:
         options += ",compress"
 
-    subprocess.run(["mount", "-n", partition(loopdev, partno), where, options], check=True)
+    subprocess.run(["mount", "-n", dev, where, options], check=True)
 
 def mount_bind(what, where):
     os.makedirs(where, 0o755, True)
@@ -331,7 +409,7 @@ def mount_tmpfs(where):
     subprocess.run(["mount", "tmpfs", "-t", "tmpfs", where], check=True)
 
 @contextlib.contextmanager
-def mount_image(args, workspace, loopdev):
+def mount_image(args, workspace, loopdev, luks_keys):
     if loopdev is None:
         yield None
         return
@@ -341,16 +419,26 @@ def mount_image(args, workspace, loopdev):
     root = os.path.join(workspace, "root")
 
     if args.output_format != OutputFormat.raw_squashfs:
-        mount_loop(args, loopdev, args.root_partno, root)
+        root_dev = partition(loopdev, args.root_partno)
+
+        if "root" in luks_keys:
+            root_dev = luks_open(root_dev, luks_keys["root"])
+        mount_loop(args, root_dev, root)
 
     if args.home_partno is not None:
-        mount_loop(args, loopdev, args.home_partno, os.path.join(root, "home"))
+        home_dev = partition(loopdev, args.home_partno)
+        if "home" in luks_keys:
+            home_dev = luks_open(home_dev, luks_keys["home"])
+        mount_loop(args, home_dev, os.path.join(root, "home"))
 
     if args.srv_partno is not None:
-        mount_loop(args, loopdev, args.srv_partno, os.path.join(root, "srv"))
+        srv_dev = partition(loopdev, args.srv_partno)
+        if "srv" in luks_keys:
+            srv_dev = luks_open(srv_dev, luks_keys["srv"])
+        mount_loop(args, srv_dev, os.path.join(root, "srv"))
 
     if args.esp_partno is not None:
-        mount_loop(args, loopdev, args.esp_partno, os.path.join(root, "boot/efi"))
+        mount_loop(args, partition(loopdev, args.esp_partno), os.path.join(root, "boot/efi"))
 
     if args.distribution == Distribution.fedora:
         mount_bind("/proc", os.path.join(root, "proc"))
@@ -380,6 +468,19 @@ def mount_image(args, workspace, loopdev):
         umount(os.path.join(root))
 
         print_step("Unmounting image completed.");
+        if args.luks_encryption is not None:
+
+            if args.home_partno is not None:
+                print_step("Closing LUKS home");
+                luks_close(home_dev)
+
+            if args.srv_partno is not None:
+                print_step("Closing LUKS srv");
+                luks_close(srv_dev)
+
+            if args.luks_encryption == 'all':
+                print_step("Closing LUKS root");
+                luks_close(root_dev)
 
 def mount_cache(args, workspace):
     if not args.distribution in (Distribution.fedora, Distribution.debian, Distribution.ubuntu):
@@ -711,8 +812,10 @@ SigLevel    = Required DatabaseOptional
     packages = set(c.stdout.split())
     packages.remove("base")
 
-    packages -= {"cryptsetup",
-                 "device-mapper",
+    if args.luks_encryption is None:
+        packages.remove("cryptsetup")
+
+    packages -= {"device-mapper",
                  "dhcpcd",
                  "e2fsprogs",
                  "jfsutils",
@@ -791,9 +894,21 @@ def set_root_password(args, workspace):
                            if line.startswith('root:') else line)
         patch_file(os.path.join(workspace, 'root', 'etc/shadow'), jj)
 
-def install_boot_loader_arch(args, workspace):
+def install_boot_loader_arch(args, workspace, loopdev):
+    if args.luks_encryption == 'all':
+        c = subprocess.run(["lsblk", "-n", "--output", "UUID", partition(loopdev, args.root_partno)],
+                       stdout=subprocess.PIPE, check=True)
+        root_uuid = c.stdout.decode("utf-8").split()[0]
+        args.kernel_commandline += " luks.uuid={} luks.name={}=root root=/dev/mapper/root".format(root_uuid, root_uuid)
+        with open(os.path.join(workspace, "root", "etc/kernel/cmdline"), "w") as cmdline:
+            cmdline.write(args.kernel_commandline)
+            cmdline.write("\n")
+        hooks = "HOOKS=\"systemd modconf block keyboard sd-encrypt filesystems fsck\"\n"
+    else:
+        hooks = "HOOKS=\"systemd modconf block filesystems fsck\"\n"
+
     patch_file(os.path.join(workspace, "root", "etc/mkinitcpio.conf"),
-               lambda line: "HOOKS=\"systemd modconf block filesystems fsck\"\n" if line.startswith("HOOKS=") else line)
+               lambda line: hooks if line.startswith("HOOKS=") else line)
 
     kernel_version = next(filter(lambda x: x[0].isdigit(), os.listdir(os.path.join(workspace, "root", "lib/modules"))))
 
@@ -806,7 +921,7 @@ def install_boot_loader_debian(args, workspace):
     run_workspace_command(workspace,
                     "/usr/bin/kernel-install", "add", kernel_version, "/boot/vmlinuz-" + kernel_version)
 
-def install_boot_loader(args, workspace):
+def install_boot_loader(args, workspace, loopdev):
     if not args.bootable:
         return
 
@@ -819,7 +934,7 @@ def install_boot_loader(args, workspace):
                     os.path.join(workspace, "root", "boot/efi/EFI/BOOT/bootx64.efi"))
 
     if args.distribution == Distribution.arch:
-        install_boot_loader_arch(args, workspace)
+        install_boot_loader_arch(args, workspace, loopdev)
 
     if args.distribution == Distribution.debian:
         install_boot_loader_debian(args, workspace)
@@ -1316,6 +1431,7 @@ def parse_args():
                        help='Make image bootable on EFI (only raw_gpt, raw_btrfs, raw_squashfs)')
     group.add_argument("--read-only", action='store_true', help='Make root volume read-only (only raw_btrfs, subvolume)')
     group.add_argument("--verity", action='store_true', help='Add integrity partition (implies --read-only)')
+    group.add_argument("--luks-encryption", choices=("all", "data"), help='Encrypt evrything except: esp (all) or esp and root (data)')
     group.add_argument("--compress", action='store_true', help='Enable compression in file system (only raw_btrfs, subvolume)')
     group.add_argument("--xz", action='store_true', help='Compress resulting image with xz (only raw_gpt, raw_btrfs, raw_squashfs, implied on tar)')
 
@@ -1339,6 +1455,7 @@ def parse_args():
     group.add_argument("--srv-size", help='Set size of /srv partition (only raw_gpt, raw_squashfs)', metavar='BYTES')
 
     group = parser.add_argument_group("Validation (only raw_gpt, raw_btrfs, raw_squashfs, tar)")
+
     group.add_argument("--checksum", action='store_true', help='Write SHA256SUM file')
     group.add_argument("--sign", action='store_true', help='Write and sign SHA256SUM file')
     group.add_argument("--key", help='GPG key to use for signing')
@@ -1527,6 +1644,14 @@ def process_setting(args, section, key, value):
         elif key == "NSpawnSettings":
             if args.nspawn_settings is not None:
                 args.nspawn_settings = value
+        elif key is None:
+            return True
+        else:
+            return False
+    elif section == "LUKS":
+        if key == "Encryption":
+            if args.luks_encryption is None:
+                args.luks_encryption = value
         elif key is None:
             return True
         else:
@@ -1873,6 +1998,7 @@ def print_summary(args):
         sys.stderr.write("        XZ Compression: " + yes_no(args.xz) + "\n")
 
     sys.stderr.write("                Verity: " + yes_no(args.verity) + "\n")
+    sys.stderr.write("              Encryption: " + none_to_na(args.luks_encryption if args.luks_encryption is not None else None) + "\n")
 
     sys.stderr.write("\nPACKAGES:\n")
     sys.stderr.write("              Packages: " + line_join_list(args.packages) + "\n")
@@ -1911,21 +2037,26 @@ def build_image(args, workspace, run_build_script):
         return None, None, None
 
     tar = None
+    luks_keys = {}
+
+    if args.luks_encryption is not None:
+        luks_keys = prepare_luks(args)
+
     raw = create_image(args, workspace.name)
 
     with attach_image_loopback(args, raw) as loopdev:
         prepare_swap(args, loopdev)
         prepare_esp(args, loopdev)
-        prepare_root(args, loopdev)
-        prepare_home(args, loopdev)
-        prepare_srv(args, loopdev)
+        prepare_root(args, loopdev, luks_keys)
+        prepare_home(args, loopdev, luks_keys)
+        prepare_srv(args, loopdev, luks_keys)
 
-        with mount_image(args, workspace.name, loopdev):
+        with mount_image(args, workspace.name, loopdev, luks_keys):
             prepare_tree(args, workspace.name, run_build_script)
             mount_cache(args, workspace.name)
             install_distribution(args, workspace.name, run_build_script)
             reset_machine_id(args, workspace.name)
-            install_boot_loader(args, workspace.name)
+            install_boot_loader(args, workspace.name, loopdev)
             install_extra_trees(args, workspace.name)
             install_build_src(args, workspace.name, run_build_script)
             install_build_dest(args, workspace.name, run_build_script)
