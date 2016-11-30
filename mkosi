@@ -1770,8 +1770,8 @@ def build_image(args, workspace, run_build_script):
         return (None, None)
 
     tar = None
-
     raw = create_image(args, workspace.name)
+
     with attach_image_loopback(args, raw) as loopdev:
         prepare_swap(args, loopdev)
         prepare_esp(args, loopdev)
@@ -1798,6 +1798,10 @@ def build_image(args, workspace, run_build_script):
 
     if not run_build_script:
         tar = make_tar(args, workspace.name)
+
+    # Remove the root directory again, if this is the build script build
+    if run_build_script:
+        unlink_try_hard(os.path.join(workspace.name, "root"))
 
     return raw, tar
 
