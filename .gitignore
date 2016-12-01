@@ -9,6 +9,6 @@
 /image.raw.xz
 /image.tar.xz
 /mkosi.build
-/mkosi.default
 /mkosi.extra
 /mkosi.nspawn
+/mkosi.cache
