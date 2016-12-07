@@ -199,7 +199,7 @@ def create_image(args, workspace):
             run_sfdisk = True
 
     if args.output_format != OutputFormat.raw_squashfs:
-        table += 'type={}, name="Root Partition"\n'.format(GPT_ROOT_NATIVE)
+        table += 'type={}, name="Root Partition", attrs="{}"\n'.format(GPT_ROOT_NATIVE, "GUID:60" if args.read_only and args.output_format == OutputFormat.raw_gpt else "")
         run_sfdisk = True
 
     args.root_partno = pn
