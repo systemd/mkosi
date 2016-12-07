@@ -761,6 +761,22 @@ def install_distribution(args, workspace, run_build_script):
 
     install[args.distribution](args, workspace, run_build_script)
 
+def reset_machine_id(args, workspace):
+
+    # Make /etc/machine-id an empty file. This way, on the next boot
+    # is either initialized and commited (if /etc is writable) or the
+    # image runs with a transient machine ID, that changes on each
+    # boot (if the image is read-only).
+
+    print_step("Resetting machine ID...")
+
+    machine_id = os.path.join(workspace, 'root', 'etc/machine-id')
+
+    os.unlink(machine_id)
+    open(machine_id, "w+b").close()
+
+    print_step("Resetting machine ID completed.")
+
 def set_root_password(args, workspace):
     "Set the root account password, or just delete it so it's easy to log in"
     if args.password == '':
@@ -1908,6 +1924,7 @@ def build_image(args, workspace, run_build_script):
             prepare_tree(args, workspace.name, run_build_script)
             mount_cache(args, workspace.name)
             install_distribution(args, workspace.name, run_build_script)
+            reset_machine_id(args, workspace.name)
             install_boot_loader(args, workspace.name)
             install_extra_trees(args, workspace.name)
             install_build_src(args, workspace.name, run_build_script)
