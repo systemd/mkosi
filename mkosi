@@ -1963,7 +1963,6 @@ def run_build_script(args, workspace, raw):
 
     cmdline.append("/root/" + os.path.basename(args.build_script))
 
-    print(cmdline)
     subprocess.run(cmdline, check=True)
 
     print_step("Running build script completed.")
