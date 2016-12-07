@@ -40,20 +40,27 @@ class Distribution(Enum):
     ubuntu = 3
     arch = 4
 
-GPT_ROOT_X86    = uuid.UUID("44479540f29741b29af7d131d5f0458a")
-GPT_ROOT_X86_64 = uuid.UUID("4f68bce3e8cd4db196e7fbcaf984b709")
-GPT_ROOT_ARM    = uuid.UUID("69dad7102ce44e3cb16c21a1d49abed3")
-GPT_ROOT_ARM_64 = uuid.UUID("b921b0451df041c3af444c6f280d3fae")
-GPT_ROOT_IA64   = uuid.UUID("993d8d3df80e4225855a9daf8ed7ea97")
-GPT_ESP         = uuid.UUID("c12a7328f81f11d2ba4b00a0c93ec93b")
-GPT_SWAP        = uuid.UUID("0657fd6da4ab43c484e50933c84b4f4f")
-GPT_HOME        = uuid.UUID("933ac7e12eb44f13b8440e14e2aef915")
-GPT_SRV         = uuid.UUID("3b8f842520e04f3b907f1a25a76f98e8")
+GPT_ROOT_X86           = uuid.UUID("44479540f29741b29af7d131d5f0458a")
+GPT_ROOT_X86_64        = uuid.UUID("4f68bce3e8cd4db196e7fbcaf984b709")
+GPT_ROOT_ARM           = uuid.UUID("69dad7102ce44e3cb16c21a1d49abed3")
+GPT_ROOT_ARM_64        = uuid.UUID("b921b0451df041c3af444c6f280d3fae")
+GPT_ROOT_IA64          = uuid.UUID("993d8d3df80e4225855a9daf8ed7ea97")
+GPT_ESP                = uuid.UUID("c12a7328f81f11d2ba4b00a0c93ec93b")
+GPT_SWAP               = uuid.UUID("0657fd6da4ab43c484e50933c84b4f4f")
+GPT_HOME               = uuid.UUID("933ac7e12eb44f13b8440e14e2aef915")
+GPT_SRV                = uuid.UUID("3b8f842520e04f3b907f1a25a76f98e8")
+GPT_ROOT_X86_VERITY    = uuid.UUID("d13c5d3bb5d1422ab29f9454fdc89d76")
+GPT_ROOT_X86_64_VERITY = uuid.UUID("2c7357edebd246d9aec123d437ec2bf5")
+GPT_ROOT_ARM_VERITY    = uuid.UUID("7386cdf2203c47a9a498f2ecce45a2d6")
+GPT_ROOT_ARM_64_VERITY = uuid.UUID("df3300ced69f4c92978c9bfb0f38d820")
+GPT_ROOT_IA64_VERITY   = uuid.UUID("86ed10d5b60745bb8957d350f23d0571")
 
 if platform.machine() == "x86_64":
     GPT_ROOT_NATIVE = GPT_ROOT_X86_64
+    GPT_ROOT_NATIVE_VERITY = GPT_ROOT_X86_64_VERITY
 elif platform.machine() == "aarch64":
     GPT_ROOT_NATIVE = GPT_ROOT_ARM_64
+    GPT_ROOT_NATIVE_VERITY = GPT_ROOT_ARM_64_VERITY
 else:
     sys.stderr.write("Don't known the %s architecture.\n" % platform.machine())
     sys.exit(1)
@@ -139,6 +146,8 @@ def image_size(args):
         size += args.esp_size
     if args.swap_size is not None:
         size += args.swap_size
+    if args.verity_size is not None:
+        size += args.verity_size
 
     return size
 
@@ -196,9 +205,17 @@ def create_image(args, workspace):
     args.root_partno = pn
     pn += 1
 
+    if args.verity:
+        args.verity_partno = pn
+        pn += 1
+    else:
+        args.verity_partno = None
+
     if run_sfdisk:
         subprocess.run(["sfdisk", "--color=never", f.name], input=table.encode("utf-8"), check=True)
         subprocess.run(["sync"])
+
+    args.ran_sfdisk = run_sfdisk
 
     print_step("Created partition table as " + f.name + ".")
 
@@ -956,42 +973,102 @@ def read_partition_table(loopdev):
 
     return table, last_sector * 512
 
-def insert_squashfs(args, workspace, raw, loopdev, squashfs):
-    if args.output_format != OutputFormat.raw_squashfs:
-        return
+def insert_partition(args, workspace, raw, loopdev, partno, blob, name, type_uuid, uuid = None):
 
-    if args.home_partno is None and args.srv_partno is None and args.swap_partno is None and args.esp_partno is None:
+    if args.ran_sfdisk:
+        old_table, last_partition_sector = read_partition_table(loopdev)
+    else:
         # No partition table yet? Then let's fake one...
         old_table = []
         last_partition_sector = GPT_HEADER_SIZE
-    else:
-        old_table, last_partition_sector = read_partition_table(loopdev)
 
-    args.root_size = roundup512(os.stat(squashfs.name).st_size)
-    new_size = last_partition_sector + args.root_size + GPT_FOOTER_SIZE
+    blob_size = roundup512(os.stat(blob.name).st_size)
+    new_size = last_partition_sector + blob_size + GPT_FOOTER_SIZE
 
     print_step("Resizing disk image to {}...".format(format_bytes(new_size)))
 
     os.truncate(raw.name, new_size)
     subprocess.run(["losetup", "--set-capacity", loopdev], check=True)
 
-    print_step("Inserting squashfs root file system of {}...".format(format_bytes(args.root_size)))
+    print_step("Inserting partition of {}...".format(format_bytes(blob_size)))
 
     table = "label: gpt\n"
 
     for t in old_table:
         table += t + "\n"
 
-    table += 'size={}, type={}, name="Root Partition"\n'.format(str(int(args.root_size / 512)), GPT_ROOT_NATIVE)
+    if uuid is not None:
+        table += "uuid=" + str(uuid) + ", "
+
+    table += 'size={}, type={}, name="{}", attrs="GUID:60"\n'.format(str(int(blob_size / 512)), type_uuid, name)
+
+    print(table)
 
     subprocess.run(["sfdisk", "--color=never", loopdev], input=table.encode("utf-8"), check=True)
     subprocess.run(["sync"])
 
-    print_step("Writing squashfs root file system...")
+    print_step("Writing partition...")
 
-    subprocess.run(["dd", "if=" + squashfs.name, "of=" + partition(loopdev, args.root_partno)], check=True)
+    subprocess.run(["dd", "if=" + blob.name, "of=" + partition(loopdev, partno)], check=True)
 
-    print_step("Inserting squashfs file system completed.")
+    args.ran_sfdisk = True
+
+    return blob_size
+
+def insert_squashfs(args, workspace, raw, loopdev, squashfs):
+    if args.output_format != OutputFormat.raw_squashfs:
+        return
+
+    print_step("Inserting squashfs root partition...")
+    args.root_size = insert_partition(args, workspace, raw, loopdev, args.root_partno, squashfs, "Root Partition", GPT_ROOT_NATIVE)
+    print_step("Inserting squashfs root partition completed.")
+
+def make_verity(args, workspace, loopdev, run_build_script):
+
+    if run_build_script or not args.verity:
+        return None, None
+
+    print_step("Generating verity hashes...")
+
+    f = tempfile.NamedTemporaryFile(dir = os.path.dirname(args.output), prefix=".mkosi-")
+    c = subprocess.run(["veritysetup", "format", partition(loopdev, args.root_partno), f.name], stdout=subprocess.PIPE, check=True)
+
+    root_hash = None
+
+    for line in c.stdout.decode("utf-8").split('\n'):
+        if line.startswith("Root hash:"):
+            root_hash = line[10:].strip()
+
+    assert root_hash is not None
+
+    print_step("Generating verity hashes completed.")
+
+    return f, root_hash
+
+def insert_verity(args, workspace, raw, loopdev, verity, root_hash):
+
+    if verity is None:
+        return
+
+    # Use the final 128 bit of the root hash as partition UUID of the verity partition
+    u = uuid.UUID(root_hash[-32:])
+
+    print_step("Inserting verity partition...")
+    insert_partition(args, workspace, raw, loopdev, args.verity_partno, verity, "Verity Partition", GPT_ROOT_NATIVE_VERITY, u)
+    print_step("Inserting verity partition completed.")
+
+def patch_root_uuid(args, loopdev, root_hash):
+
+    if root_hash is None:
+        return
+
+    # Use the first 128bit of the root hash as partition UUID of the root partition
+    u = uuid.UUID(root_hash[:32])
+
+    print_step("Patching root partition UUID...")
+    subprocess.run(["sfdisk", "--part-uuid", loopdev, str(args.root_partno), str(u)], check=True)
+
+    print_step("Patching root partition UUID completed.")
 
 def xz_output(args, raw):
     if not args.output_format in (OutputFormat.raw_btrfs, OutputFormat.raw_gpt, OutputFormat.raw_squashfs):
@@ -1006,6 +1083,19 @@ def xz_output(args, raw):
     subprocess.run(["xz", "-c", raw.name], stdout=f, check=True)
 
     print_step("Compressing image file complete.")
+
+    return f
+
+def write_root_hash_file(args, root_hash):
+    if root_hash is None:
+        return None
+
+    print_step("Writing .roothash file...")
+
+    f = tempfile.NamedTemporaryFile(mode='w+b', dir=os.path.dirname(args.output_root_hash_file), prefix='.mkosi')
+    f.write((root_hash + "\n").encode())
+
+    print_step("Writing .roothash file complete.")
 
     return f
 
@@ -1039,7 +1129,7 @@ def hash_file(of, sf, fname):
 
     of.write(h.hexdigest() + " *" + fname + "\n")
 
-def calculate_sha256sum(args, raw, tar, nspawn_settings):
+def calculate_sha256sum(args, raw, tar, root_hash_file, nspawn_settings):
     if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
         return None
 
@@ -1054,6 +1144,8 @@ def calculate_sha256sum(args, raw, tar, nspawn_settings):
         hash_file(f, raw, os.path.basename(args.output))
     if tar is not None:
         hash_file(f, tar, os.path.basename(args.output))
+    if root_hash_file is not None:
+        hash_file(f, root_hash_file, os.path.basename(args.output_root_hash_file))
     if nspawn_settings is not None:
         hash_file(f, nspawn_settings, os.path.basename(args.output_nspawn_settings))
 
@@ -1118,6 +1210,17 @@ def link_output_checksum(args, checksum):
     os.link(checksum, args.output_checksum)
 
     print_step("Successfully linked " + args.output_checksum + ".")
+
+def link_output_root_hash_file(args, root_hash_file):
+    if root_hash_file is None:
+        return
+
+    print_step("Linking .roothash file...")
+
+    os.chmod(root_hash_file, 0o666 & ~args.original_umask)
+    os.link(root_hash_file, args.output_root_hash_file)
+
+    print_step("Successfully linked " + args.output_root_hash_file + ".")
 
 def link_output_signature(args, signature):
     if signature is None:
@@ -1196,6 +1299,7 @@ def parse_args():
     group.add_argument('-b', "--bootable", type=parse_boolean, nargs='?', const=True,
                        help='Make image bootable on EFI (only raw_gpt, raw_btrfs, raw_squashfs)')
     group.add_argument("--read-only", action='store_true', help='Make root volume read-only (only raw_btrfs, subvolume)')
+    group.add_argument("--verity", action='store_true', help='Add integrity partition (implies --read-only)')
     group.add_argument("--compress", action='store_true', help='Enable compression in file system (only raw_btrfs, subvolume)')
     group.add_argument("--xz", action='store_true', help='Compress resulting image with xz (only raw_gpt, raw_btrfs, raw_squashfs, implied on tar)')
 
@@ -1308,6 +1412,9 @@ def unlink_output(args):
     if args.checksum:
         unlink_try_hard(args.output_checksum)
 
+    if args.verity:
+        unlink_try_hard(args.output_root_hash_file)
+
     if args.sign:
         unlink_try_hard(args.output_signature)
 
@@ -1357,6 +1464,9 @@ def process_setting(args, section, key, value):
         elif key == "ReadOnly":
             if not args.read_only:
                 args.read_only = parse_boolean(value)
+        elif key == "Verity":
+            if not args.verity:
+                args.verity = parse_boolean(value)
         elif key == "Compress":
             if not args.compress:
                 args.compress = parse_boolean(value)
@@ -1531,7 +1641,7 @@ def find_build_sources(args):
 
     args.build_sources = os.getcwd()
 
-def build_nspawn_settings_path(path):
+def strip_suffixes(path):
     t = path
     while True:
         if t.endswith(".xz"):
@@ -1543,7 +1653,13 @@ def build_nspawn_settings_path(path):
         else:
             break
 
-    return t + ".nspawn"
+    return t
+
+def build_nspawn_settings_path(path):
+    return strip_suffixes(path) + ".nspawn"
+
+def build_root_hash_file_path(path):
+    return strip_suffixes(path) + ".roothash"
 
 def load_args():
     args = parse_args()
@@ -1635,6 +1751,10 @@ def load_args():
         args.compress = True
         args.root_size = None
 
+    if args.verity:
+        args.read_only = True
+        args.output_root_hash_file = build_root_hash_file_path(args.output)
+
     if args.checksum:
         args.output_checksum = os.path.join(os.path.dirname(args.output), "SHA256SUM")
 
@@ -1667,6 +1787,8 @@ def load_args():
     if args.bootable and args.esp_size is None:
         args.esp_size = 256*1024*1024
 
+    args.verity_size = None
+
     if args.bootable and args.kernel_commandline is None:
         args.kernel_commandline = "rhgb quiet selinux=0 audit=0 rw"
 
@@ -1676,7 +1798,8 @@ def check_output(args):
     for f in (args.output,
               args.output_checksum if args.checksum else None,
               args.output_signature if args.sign else None,
-              args.output_nspawn_settings if args.nspawn_settings is not None else None):
+              args.output_nspawn_settings if args.nspawn_settings is not None else None,
+              args.output_root_hash_file if args.verity else None):
 
         if f is None:
             continue
@@ -1733,6 +1856,8 @@ def print_summary(args):
     if args.output_format in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs, OutputFormat.raw_squashfs, OutputFormat.tar):
         sys.stderr.write("        XZ Compression: " + yes_no(args.xz) + "\n")
 
+    sys.stderr.write("                Verity: " + yes_no(args.verity) + "\n")
+
     sys.stderr.write("\nPACKAGES:\n")
     sys.stderr.write("              Packages: " + line_join_list(args.packages) + "\n")
 
@@ -1767,7 +1892,7 @@ def build_image(args, workspace, run_build_script):
     # If there's no build script set, there's no point in executing
     # the build script iteration. Let's quite early.
     if args.build_script is None and run_build_script:
-        return (None, None)
+        return None, None, None
 
     tar = None
     raw = create_image(args, workspace.name)
@@ -1795,6 +1920,9 @@ def build_image(args, workspace, run_build_script):
 
         squashfs = make_squashfs(args, workspace.name)
         insert_squashfs(args, workspace.name, raw, loopdev, squashfs)
+        verity, root_hash = make_verity(args, workspace.name, loopdev, run_build_script)
+        patch_root_uuid(args, loopdev, root_hash)
+        insert_verity(args, workspace.name, raw, loopdev, verity, root_hash)
 
     if not run_build_script:
         tar = make_tar(args, workspace.name)
@@ -1803,7 +1931,7 @@ def build_image(args, workspace, run_build_script):
     if run_build_script:
         unlink_try_hard(os.path.join(workspace.name, "root"))
 
-    return raw, tar
+    return raw, tar, root_hash
 
 def run_build_script(args, workspace, raw):
     if args.build_script is None:
@@ -1845,7 +1973,7 @@ def build_stuff(args):
     workspace = setup_workspace(args)
 
     # Run the image builder twice, once for running the build script and once for the final build
-    raw, tar = build_image(args, workspace, run_build_script=True)
+    raw, tar, root_hash = build_image(args, workspace, run_build_script=True)
 
     run_build_script(args, workspace.name, raw)
 
@@ -1855,17 +1983,20 @@ def build_stuff(args):
     if tar is not None:
         del tar
 
-    raw, tar = build_image(args, workspace, run_build_script=False)
+    raw, tar, root_hash = build_image(args, workspace, run_build_script=False)
 
     raw = xz_output(args, raw)
+    root_hash_file = write_root_hash_file(args, root_hash)
     settings = copy_nspawn_settings(args)
-    checksum = calculate_sha256sum(args, raw, tar, settings)
+    checksum = calculate_sha256sum(args, raw, tar, root_hash_file, settings)
     signature = calculate_signature(args, checksum)
 
     link_output(args,
                 workspace.name,
                 raw.name if raw is not None else None,
                 tar.name if tar is not None else None)
+
+    link_output_root_hash_file(args, root_hash_file.name if root_hash_file is not None else None)
 
     link_output_checksum(args,
                          checksum.name if checksum is not None else None)
@@ -1876,6 +2007,8 @@ def build_stuff(args):
     link_output_nspawn_settings(args,
                                 settings.name if settings is not None else None)
 
+    if root_hash is not None:
+        print_step("Root hash is {}.".format(root_hash))
 
 def check_root():
     if os.getuid() != 0:

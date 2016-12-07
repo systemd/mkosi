@@ -19,3 +19,4 @@ Packages=
         gnupg
         squashfs-tools
         tar
+        veritysetup

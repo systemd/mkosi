@@ -30,6 +30,9 @@ options are available:
 
 * Separate partitions for `/srv` and `/home` may be added in
 
+* A dm-verity partition may be added in that adds runtime integrity
+  data for the root partition
+
 # Compatibility
 
 Generated images are *legacy-free*. This means only *GPT* disk
@@ -250,5 +253,5 @@ It is usually easiest to use the distribution package.
 When not using distribution packages, for example, on *Fedora* you need:
 
 ```bash
-dnf install arch-install-scripts btrfs-progs debootstrap dosfstools edk2-ovmf squashfs-tools gnupg python3 tar xz
+dnf install arch-install-scripts btrfs-progs debootstrap dosfstools edk2-ovmf squashfs-tools gnupg python3 tar veritysetup xz
 ```
