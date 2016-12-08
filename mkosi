@@ -171,7 +171,7 @@ def create_image(args, workspace):
     run_sfdisk = False
 
     if args.bootable:
-        table += 'size={}, type={}, name="ESP System Partition"\n'.format(str(int(args.esp_size / 512)), GPT_ESP)
+        table += 'size={}, type={}, name="ESP System Partition"\n'.format(args.esp_size // 512, GPT_ESP)
         args.esp_partno = pn
         pn += 1
         run_sfdisk = True
@@ -179,7 +179,7 @@ def create_image(args, workspace):
         args.esp_partno = None
 
     if args.swap_size is not None:
-        table += 'size={}, type={}, name="Swap Partition"\n'.format(str(int(args.swap_size / 512)), GPT_SWAP)
+        table += 'size={}, type={}, name="Swap Partition"\n'.format(args.swap_size // 512, GPT_SWAP)
         args.swap_partno = pn
         pn += 1
         run_sfdisk = True
@@ -191,13 +191,13 @@ def create_image(args, workspace):
 
     if args.output_format != OutputFormat.raw_btrfs:
         if args.home_size is not None:
-            table += 'size={}, type={}, name="Home Partition"\n'.format(str(int(args.home_size / 512)), GPT_HOME)
+            table += 'size={}, type={}, name="Home Partition"\n'.format(args.home_size // 512, GPT_HOME)
             args.home_partno = pn
             pn += 1
             run_sfdisk = True
 
         if args.srv_size is not None:
-            table += 'size={}, type={}, name="Server Data Partition"\n'.format(str(int(args.srv_size / 512)), GPT_SRV)
+            table += 'size={}, type={}, name="Server Data Partition"\n'.format(args.srv_size // 512, GPT_SRV)
             args.srv_partno = pn
             pn += 1
             run_sfdisk = True
@@ -969,7 +969,7 @@ def insert_partition(args, workspace, raw, loopdev, partno, blob, name, type_uui
     if uuid is not None:
         table += "uuid=" + str(uuid) + ", "
 
-    table += 'size={}, type={}, name="{}", attrs="GUID:60"\n'.format(str(int(blob_size / 512)), type_uuid, name)
+    table += 'size={}, type={}, name="{}", attrs="GUID:60"\n'.format(blob_size // 512, type_uuid, name)
 
     print(table)
 
