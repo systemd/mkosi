@@ -8,6 +8,7 @@
 /image.raw
 /image.raw.xz
 /image.tar.xz
+/image.roothash
 /mkosi.build
 /mkosi.extra
 /mkosi.nspawn
