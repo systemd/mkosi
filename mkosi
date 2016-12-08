@@ -1069,11 +1069,7 @@ def copy_nspawn_settings(args):
                                         dir=os.path.dirname(args.output_nspawn_settings))
 
         with open(args.nspawn_settings, "rb") as c:
-            bs = 65536
-            buf = c.read(bs)
-            while len(buf) > 0:
-                f.write(buf)
-                buf = c.read(bs)
+            f.write(c.read())
 
     return f
 
