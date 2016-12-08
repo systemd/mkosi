@@ -103,11 +103,13 @@ def print_step(text):
     sys.stderr.write("‣ \033[0;1;39m" + text + "\033[0m\n")
 
 @contextlib.contextmanager
-def complete_step(text):
+def complete_step(text, text2=None):
     print_step(text + '...')
-    yield
-    print_step(text + ' complete.')
-
+    args = []
+    yield args
+    if text2 is None:
+        text2 = text + ' complete'
+    print_step(text2.format(*args) + '.')
 
 @complete_step('Detaching namespace')
 def init_namespace(args):
@@ -158,70 +160,70 @@ def create_image(args, workspace):
     if not args.output_format in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs, OutputFormat.raw_squashfs):
         return None
 
-    print_step("Creating partition table...")
+    with complete_step('Creating partition table',
+                       'Created partition table as {.name}') as output:
 
-    f = tempfile.NamedTemporaryFile(dir = os.path.dirname(args.output), prefix='.mkosi-')
-    # disable copy-on-write if applicable on filesystem
-    subprocess.run(["chattr", "+C", f.name],
-                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
-    f.truncate(image_size(args))
+        f = tempfile.NamedTemporaryFile(dir = os.path.dirname(args.output), prefix='.mkosi-')
+        output.append(f)
+        # disable copy-on-write if applicable on filesystem
+        subprocess.run(["chattr", "+C", f.name],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+        f.truncate(image_size(args))
 
-    pn = 1
-    table = "label: gpt\n"
-    run_sfdisk = False
+        pn = 1
+        table = "label: gpt\n"
+        run_sfdisk = False
 
-    if args.bootable:
-        table += 'size={}, type={}, name="ESP System Partition"\n'.format(args.esp_size // 512, GPT_ESP)
-        args.esp_partno = pn
-        pn += 1
-        run_sfdisk = True
-    else:
-        args.esp_partno = None
-
-    if args.swap_size is not None:
-        table += 'size={}, type={}, name="Swap Partition"\n'.format(args.swap_size // 512, GPT_SWAP)
-        args.swap_partno = pn
-        pn += 1
-        run_sfdisk = True
-    else:
-        args.swap_partno = None
-
-    args.home_partno = None
-    args.srv_partno = None
-
-    if args.output_format != OutputFormat.raw_btrfs:
-        if args.home_size is not None:
-            table += 'size={}, type={}, name="Home Partition"\n'.format(args.home_size // 512, GPT_HOME)
-            args.home_partno = pn
+        if args.bootable:
+            table += 'size={}, type={}, name="ESP System Partition"\n'.format(args.esp_size // 512, GPT_ESP)
+            args.esp_partno = pn
             pn += 1
             run_sfdisk = True
+        else:
+            args.esp_partno = None
 
-        if args.srv_size is not None:
-            table += 'size={}, type={}, name="Server Data Partition"\n'.format(args.srv_size // 512, GPT_SRV)
-            args.srv_partno = pn
+        if args.swap_size is not None:
+            table += 'size={}, type={}, name="Swap Partition"\n'.format(args.swap_size // 512, GPT_SWAP)
+            args.swap_partno = pn
             pn += 1
             run_sfdisk = True
+        else:
+            args.swap_partno = None
 
-    if args.output_format != OutputFormat.raw_squashfs:
-        table += 'type={}, name="Root Partition", attrs="{}"\n'.format(GPT_ROOT_NATIVE, "GUID:60" if args.read_only and args.output_format == OutputFormat.raw_gpt else "")
-        run_sfdisk = True
+        args.home_partno = None
+        args.srv_partno = None
 
-    args.root_partno = pn
-    pn += 1
+        if args.output_format != OutputFormat.raw_btrfs:
+            if args.home_size is not None:
+                table += 'size={}, type={}, name="Home Partition"\n'.format(args.home_size // 512, GPT_HOME)
+                args.home_partno = pn
+                pn += 1
+                run_sfdisk = True
 
-    if args.verity:
-        args.verity_partno = pn
+            if args.srv_size is not None:
+                table += 'size={}, type={}, name="Server Data Partition"\n'.format(args.srv_size // 512, GPT_SRV)
+                args.srv_partno = pn
+                pn += 1
+                run_sfdisk = True
+
+        if args.output_format != OutputFormat.raw_squashfs:
+            table += 'type={}, name="Root Partition", attrs="{}"\n'.format(GPT_ROOT_NATIVE, "GUID:60" if args.read_only and args.output_format == OutputFormat.raw_gpt else "")
+            run_sfdisk = True
+
+        args.root_partno = pn
         pn += 1
-    else:
-        args.verity_partno = None
 
-    if run_sfdisk:
-        subprocess.run(["sfdisk", "--color=never", f.name], input=table.encode("utf-8"), check=True)
-        subprocess.run(["sync"])
+        if args.verity:
+            args.verity_partno = pn
+            pn += 1
+        else:
+            args.verity_partno = None
 
-    args.ran_sfdisk = run_sfdisk
+        if run_sfdisk:
+            subprocess.run(["sfdisk", "--color=never", f.name], input=table.encode("utf-8"), check=True)
+            subprocess.run(["sync"])
 
-    print_step("Created partition table as " + f.name + ".")
+        args.ran_sfdisk = run_sfdisk
 
     return f
 
@@ -231,11 +233,12 @@ def attach_image_loopback(args, raw):
         yield None
         return
 
-    print_step("Attaching image file...")
-    c = subprocess.run(["losetup", "--find", "--show", "--partscan", raw.name],
-                       stdout=subprocess.PIPE, check=True)
-    loopdev = c.stdout.decode("utf-8").strip()
-    print_step("Attached image file as " + loopdev + ".")
+    with complete_step('Attaching image file',
+                       'Attached image file as {}') as output:
+        c = subprocess.run(["losetup", "--find", "--show", "--partscan", raw.name],
+                           stdout=subprocess.PIPE, check=True)
+        loopdev = c.stdout.decode("utf-8").strip()
+        output.append(loopdev)
 
     try:
         yield loopdev
@@ -1130,62 +1133,52 @@ def calculate_signature(args, checksum):
     return f
 
 def link_output(args, workspace, raw, tar):
-    print_step("Linking image file...")
-
-    if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
-        os.rename(os.path.join(workspace, "root"), args.output)
-    elif args.output_format in (OutputFormat.raw_btrfs, OutputFormat.raw_gpt, OutputFormat.raw_squashfs):
-        os.chmod(raw, 0o666 & ~args.original_umask)
-        os.link(raw, args.output)
-    else:
-        os.chmod(tar, 0o666 & ~args.original_umask)
-        os.link(tar, args.output)
-
-    print_step("Successfully linked " + args.output + ".")
+    with complete_step('Linking image file',
+                       'Successfully linked ' + args.output):
+        if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
+            os.rename(os.path.join(workspace, "root"), args.output)
+        elif args.output_format in (OutputFormat.raw_btrfs, OutputFormat.raw_gpt, OutputFormat.raw_squashfs):
+            os.chmod(raw, 0o666 & ~args.original_umask)
+            os.link(raw, args.output)
+        else:
+            os.chmod(tar, 0o666 & ~args.original_umask)
+            os.link(tar, args.output)
 
 def link_output_nspawn_settings(args, path):
     if path is None:
         return
 
-    print_step("Linking nspawn settings file...")
-
-    os.chmod(path, 0o666 & ~args.original_umask)
-    os.link(path, args.output_nspawn_settings)
-
-    print_step("Successfully linked " + args.output_nspawn_settings + ".")
+    with complete_step('Linking nspawn settings file',
+                       'Successfully linked ' + args.output_nspawn_settings):
+        os.chmod(path, 0o666 & ~args.original_umask)
+        os.link(path, args.output_nspawn_settings)
 
 def link_output_checksum(args, checksum):
     if checksum is None:
         return
 
-    print_step("Linking SHA256SUM file...")
-
-    os.chmod(checksum, 0o666 & ~args.original_umask)
-    os.link(checksum, args.output_checksum)
-
-    print_step("Successfully linked " + args.output_checksum + ".")
+    with complete_step('Linking SHA256SUM file',
+                       'Successfully linked ' + args.output_checksum):
+        os.chmod(checksum, 0o666 & ~args.original_umask)
+        os.link(checksum, args.output_checksum)
 
 def link_output_root_hash_file(args, root_hash_file):
     if root_hash_file is None:
         return
 
-    print_step("Linking .roothash file...")
-
-    os.chmod(root_hash_file, 0o666 & ~args.original_umask)
-    os.link(root_hash_file, args.output_root_hash_file)
-
-    print_step("Successfully linked " + args.output_root_hash_file + ".")
+    with complete_step('Linking .roothash file',
+                       'Successfully linked ' + args.output_root_hash_file):
+        os.chmod(root_hash_file, 0o666 & ~args.original_umask)
+        os.link(root_hash_file, args.output_root_hash_file)
 
 def link_output_signature(args, signature):
     if signature is None:
         return
 
-    print_step("Linking SHA256SUM.gpg file...")
-
-    os.chmod(signature, 0o666 & ~args.original_umask)
-    os.link(signature, args.output_signature)
-
-    print_step("Successfully linked " + args.output_signature + ".")
+    with complete_step('Linking SHA256SUM.gpg file',
+                       'Successfully linked ' + args.output_signature):
+        os.chmod(signature, 0o666 & ~args.original_umask)
+        os.link(signature, args.output_signature)
 
 def dir_size(path):
     sum = 0
@@ -1212,16 +1205,16 @@ def setup_cache(args):
     if not args.distribution in (Distribution.fedora, Distribution.debian, Distribution.ubuntu):
         return None
 
-    print_step("Setting up package cache...")
+    with complete_step('Setting up package cache',
+                       'Setting up package cache {} complete') as output:
+        if args.cache_path is None:
+            d = tempfile.TemporaryDirectory(dir=os.path.dirname(args.output), prefix=".mkosi-")
+            args.cache_path = d.name
+        else:
+            os.makedirs(args.cache_path, 0o700, True)
+            d = None
+        output.append(args.cache_path)
 
-    if args.cache_path is None:
-        d = tempfile.TemporaryDirectory(dir=os.path.dirname(args.output), prefix=".mkosi-")
-        args.cache_path = d.name
-    else:
-        os.makedirs(args.cache_path, 0o700, True)
-        d = None
-
-    print_step("Setting up package cache " + args.cache_path + " completed.")
     return d
 
 class PackageAction(argparse.Action):
