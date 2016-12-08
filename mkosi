@@ -1074,7 +1074,7 @@ def copy_nspawn_settings(args):
     return f
 
 def hash_file(of, sf, fname):
-    bs = 65536
+    bs = 16*1024**2
     h = hashlib.sha256()
 
     sf.seek(0)
