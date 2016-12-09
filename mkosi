@@ -476,11 +476,12 @@ DHCP=yes
 
 def run_workspace_command(args, workspace, *cmd, network=False, env={}):
     cmdline = ["systemd-nspawn",
-                    '--quiet',
-                    "--directory=" + os.path.join(workspace, "root"),
-                    "--uuid=" + args.machine_id,
-                    "--as-pid2",
-                    "--register=no"]
+               '--quiet',
+               "--directory=" + os.path.join(workspace, "root"),
+               "--uuid=" + args.machine_id,
+               "--as-pid2",
+               "--register=no"]
+
     if not network:
         cmdline += ["--private-network"]
 
@@ -778,6 +779,24 @@ def set_root_password(args, workspace, run_build_script):
         jj = lambda line: (':'.join(['root', password] + line.split(':')[2:])
                            if line.startswith('root:') else line)
         patch_file(os.path.join(workspace, 'root', 'etc/shadow'), jj)
+
+def run_postinst_script(args, workspace, run_build_script):
+
+    if args.postinst_script is None:
+        return
+
+    with complete_step('Running post installation script'):
+
+        # We copy the postinst script into the build tree. We'd prefer
+        # mounting it into the tree, but for that we'd need a good
+        # place to mount it to. But if we create that we might as well
+        # just copy the file anyway.
+
+        shutil.copy2(args.postinst_script,
+                     os.path.join(workspace, "root", "root/postinst"))
+
+        run_workspace_command(args, workspace, "/root/postinst", "build" if run_build_script else "final")
+        os.unlink(os.path.join(workspace, "root", "root/postinst"))
 
 def install_boot_loader_arch(args, workspace):
     patch_file(os.path.join(workspace, "root", "etc/mkinitcpio.conf"),
@@ -1272,6 +1291,7 @@ def parse_args():
     group.add_argument("--build-script", help='Build script to run inside image', metavar='PATH')
     group.add_argument("--build-sources", help='Path for sources to build', metavar='PATH')
     group.add_argument("--build-package", action=PackageAction, dest='build_packages', help='Additional packages needed for build script', metavar='PACKAGE')
+    group.add_argument("--postinst-script", help='Post installation script to run inside image', metavar='PATH')
     group.add_argument('--use-git-files', type=parse_boolean,
                        help='Ignore any files that git itself ignores (default: guess)')
     group.add_argument("--settings", dest='nspawn_settings', help='Add in .spawn settings file', metavar='PATH')
@@ -1602,6 +1622,13 @@ def find_build_sources(args):
 
     args.build_sources = os.getcwd()
 
+def find_postinst_script(args):
+    if args.postinst_script is not None:
+        return
+
+    if os.path.exists("mkosi.postinst"):
+        args.postinst_script = "mkosi.postinst"
+
 def strip_suffixes(path):
     t = path
     while True:
@@ -1633,6 +1660,7 @@ def load_args():
     find_extra(args)
     find_build_script(args)
     find_build_sources(args)
+    find_postinst_script(args)
 
     if args.output_format is None:
         args.output_format = OutputFormat.raw_gpt
@@ -1731,6 +1759,9 @@ def load_args():
 
     if args.build_sources is not None:
         args.build_sources = os.path.abspath(args.build_sources)
+
+    if args.postinst_script is not None:
+        args.postinst_script = os.path.abspath(args.postinst_script)
 
     if args.extra_trees is not None:
         for i in range(len(args.extra_trees)):
@@ -1831,6 +1862,7 @@ def print_summary(args):
     sys.stderr.write("          Build Script: " + none_to_none(args.build_script) + "\n")
     sys.stderr.write("         Build Sources: " + none_to_none(args.build_sources) + "\n")
     sys.stderr.write("        Build Packages: " + line_join_list(args.build_packages) + "\n")
+    sys.stderr.write("     Post Inst. Script: " + none_to_none(args.postinst_script) + "\n")
     sys.stderr.write("       nspawn Settings: " + none_to_none(args.nspawn_settings) + "\n")
 
     if args.output_format in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs, OutputFormat.raw_squashfs):
@@ -1874,6 +1906,7 @@ def build_image(args, workspace, run_build_script):
             install_build_src(args, workspace.name, run_build_script)
             install_build_dest(args, workspace.name, run_build_script)
             set_root_password(args, workspace.name, run_build_script)
+            run_postinst_script(args, workspace.name, run_build_script)
             make_read_only(args, workspace.name)
 
         squashfs = make_squashfs(args, workspace.name)
