@@ -346,11 +346,6 @@ def mount_image(args, workspace, loopdev):
         if args.esp_partno is not None:
             mount_loop(args, loopdev, args.esp_partno, os.path.join(root, "efi"))
 
-        if args.distribution == Distribution.fedora:
-            mount_bind("/proc", os.path.join(root, "proc"))
-            mount_bind("/dev", os.path.join(root, "dev"))
-            mount_bind("/sys", os.path.join(root, "sys"))
-
         # Make sure /tmp and /run are not part of the image
         mount_tmpfs(os.path.join(root, "run"))
         mount_tmpfs(os.path.join(root, "tmp"))
@@ -362,14 +357,26 @@ def mount_image(args, workspace, loopdev):
             umount(os.path.join(root, "home"))
             umount(os.path.join(root, "srv"))
             umount(os.path.join(root, "efi"))
-            umount(os.path.join(root, "proc"))
-            umount(os.path.join(root, "sys"))
-            umount(os.path.join(root, "dev"))
             umount(os.path.join(root, "var/cache/dnf"))
             umount(os.path.join(root, "var/cache/apt/archives"))
             umount(os.path.join(root, "run"))
             umount(os.path.join(root, "tmp"))
             umount(os.path.join(root))
+
+@contextlib.contextmanager
+def mount_api_vfs(args, workspace):
+    paths = ('/proc', '/dev', '/sys')
+    root = os.path.join(workspace, "root")
+
+    with complete_step('Mounting API VFS'):
+        for d in paths:
+            mount_bind(d, root + d)
+    try:
+        yield
+    finally:
+        with complete_step('Unmounting API VFS'):
+            for d in paths:
+                umount(root + d)
 
 def mount_cache(args, workspace):
     if not args.distribution in (Distribution.fedora, Distribution.debian, Distribution.ubuntu):
@@ -567,7 +574,8 @@ gpgkey={gpg_key}
     if args.bootable:
         cmdline.extend(["kernel", "systemd-udev"])
 
-    subprocess.run(cmdline, check=True)
+    with mount_api_vfs(args, workspace):
+        subprocess.run(cmdline, check=True)
 
 def install_debian_or_ubuntu(args, workspace, run_build_script, mirror):
     if args.repositories:
