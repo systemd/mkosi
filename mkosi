@@ -409,9 +409,8 @@ def prepare_tree(args, workspace, run_build_script):
 
     if args.bootable:
         # We need an initialized machine ID for the boot logic to work
-        mid = uuid.uuid4().hex
         os.mkdir(os.path.join(workspace, "root", "etc"), 0o755)
-        open(os.path.join(workspace, "root", "etc/machine-id"), "w").write(mid + "\n")
+        open(os.path.join(workspace, "root", "etc/machine-id"), "w").write(args.machine_id + "\n")
 
         # For now, let's stay compatible with traditional Linux ESP mounts
         os.mkdir(os.path.join(workspace, "root", "boot/efi/EFI"), 0o700)
@@ -419,10 +418,10 @@ def prepare_tree(args, workspace, run_build_script):
         os.mkdir(os.path.join(workspace, "root", "boot/efi/EFI/systemd"), 0o700)
         os.mkdir(os.path.join(workspace, "root", "boot/efi/loader"), 0o700)
         os.mkdir(os.path.join(workspace, "root", "boot/efi/loader/entries"), 0o700)
-        os.mkdir(os.path.join(workspace, "root", "boot/efi", mid), 0o700)
+        os.mkdir(os.path.join(workspace, "root", "boot/efi", args.machine_id), 0o700)
 
         os.symlink("efi/loader", os.path.join(workspace, "root", "boot/loader"))
-        os.symlink("efi/" + mid, os.path.join(workspace, "root", "boot", mid))
+        os.symlink("efi/" + args.machine_id, os.path.join(workspace, "root", "boot", args.machine_id))
 
         os.mkdir(os.path.join(workspace, "root", "etc/kernel"), 0o755)
 
@@ -467,10 +466,11 @@ Type=ether
 DHCP=yes
 """)
 
-def run_workspace_command(workspace, *cmd, network=False, env={}):
+def run_workspace_command(args, workspace, *cmd, network=False, env={}):
     cmdline = ["systemd-nspawn",
                     '--quiet',
-                    "--directory", os.path.join(workspace, "root"),
+                    "--directory=" + os.path.join(workspace, "root"),
+                    "--uuid=" + args.machine_id,
                     "--as-pid2",
                     "--register=no"]
     if not network:
@@ -636,7 +636,7 @@ def install_debian_or_ubuntu(args, workspace, run_build_script, mirror):
                 ])
 
         cmdline = ["/usr/bin/apt-get", "--assume-yes", "--no-install-recommends", "install"] + extra_packages
-        run_workspace_command(workspace, network=True, env={'DEBIAN_FRONTEND': 'noninteractive', 'DEBCONF_NONINTERACTIVE_SEEN': 'true'}, *cmdline)
+        run_workspace_command(args, workspace, network=True, env={'DEBIAN_FRONTEND': 'noninteractive', 'DEBCONF_NONINTERACTIVE_SEEN': 'true'}, *cmdline)
         os.unlink(policyrcd)
 
 @complete_step('Installing Debian')
@@ -778,13 +778,13 @@ def install_boot_loader_arch(args, workspace):
 
     kernel_version = next(filter(lambda x: x[0].isdigit(), os.listdir(os.path.join(workspace, "root", "lib/modules"))))
 
-    run_workspace_command(workspace,
+    run_workspace_command(args, workspace,
                       "/usr/bin/kernel-install", "add", kernel_version, "/boot/vmlinuz-linux")
 
 def install_boot_loader_debian(args, workspace):
     kernel_version = next(filter(lambda x: x[0].isdigit(), os.listdir(os.path.join(workspace, "root", "lib/modules"))))
 
-    run_workspace_command(workspace,
+    run_workspace_command(args, workspace,
                     "/usr/bin/kernel-install", "add", kernel_version, "/boot/vmlinuz-" + kernel_version)
 
 def install_boot_loader(args, workspace):
@@ -1896,6 +1896,7 @@ def run_build_script(args, workspace, raw):
         cmdline = ["systemd-nspawn",
                    '--quiet',
                    target,
+                   "--uuid=" + args.machine_id,
                    "--as-pid2",
                    "--private-network",
                    "--register=no",
@@ -1913,10 +1914,16 @@ def run_build_script(args, workspace, raw):
             cmdline.append("--chdir=/root")
 
         cmdline.append("/root/" + os.path.basename(args.build_script))
-
         subprocess.run(cmdline, check=True)
 
 def build_stuff(args):
+
+    # Let's define a fixed machine ID for all our build-time
+    # runs. We'll strip it off the final image, but some build-time
+    # tools (dracut...) want a fixed one, hence provide one, and
+    # always the same
+    args.machine_id = uuid.uuid4().hex
+
     cache = setup_cache(args)
     workspace = setup_workspace(args)
 
