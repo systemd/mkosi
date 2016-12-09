@@ -668,7 +668,6 @@ def install_arch(args, workspace, run_build_script):
     subprocess.run(["pacman-key", "--nocolor", "--init"], check=True)
     subprocess.run(["pacman-key", "--nocolor", "--populate", keyring], check=True)
 
-
     if platform.machine() == "aarch64":
         server = "Server = {}/$arch/$repo".format(args.mirror)
     else:
