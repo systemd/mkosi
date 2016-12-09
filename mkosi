@@ -354,14 +354,11 @@ def mount_image(args, workspace, loopdev):
         yield
     finally:
         with complete_step('Unmounting image'):
-            umount(os.path.join(root, "home"))
-            umount(os.path.join(root, "srv"))
-            umount(os.path.join(root, "efi"))
-            umount(os.path.join(root, "var/cache/dnf"))
-            umount(os.path.join(root, "var/cache/apt/archives"))
-            umount(os.path.join(root, "run"))
-            umount(os.path.join(root, "tmp"))
-            umount(os.path.join(root))
+
+            for d in ("home", "srv", "efi", "var/cache/dnf", "var/cache/apt/archives", "run", "tmp"):
+                umount(os.path.join(root, d))
+
+            umount(root)
 
 @contextlib.contextmanager
 def mount_api_vfs(args, workspace):
