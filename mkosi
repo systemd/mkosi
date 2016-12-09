@@ -99,18 +99,23 @@ def format_bytes(bytes):
 def roundup512(x):
     return (x + 511) & ~511
 
-def init_namespace(args):
-    print_step("Detaching namespace...")
-
-    args.original_umask = os.umask(0o000)
-    unshare(CLONE_NEWNS)
-
-    subprocess.run(["mount", "--make-rslave", "/"], check=True)
-
-    print_step("Detaching namespace complete.")
-
 def print_step(text):
     sys.stderr.write("‣ \033[0;1;39m" + text + "\033[0m\n")
+
+@contextlib.contextmanager
+def complete_step(text, text2=None):
+    print_step(text + '...')
+    args = []
+    yield args
+    if text2 is None:
+        text2 = text + ' complete'
+    print_step(text2.format(*args) + '.')
+
+@complete_step('Detaching namespace')
+def init_namespace(args):
+    args.original_umask = os.umask(0o000)
+    unshare(CLONE_NEWNS)
+    subprocess.run(["mount", "--make-rslave", "/"], check=True)
 
 def setup_workspace(args):
     print_step("Setting up temporary workspace.")
@@ -155,69 +160,70 @@ def create_image(args, workspace):
     if not args.output_format in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs, OutputFormat.raw_squashfs):
         return None
 
-    print_step("Creating partition table...")
+    with complete_step('Creating partition table',
+                       'Created partition table as {.name}') as output:
 
-    f = tempfile.NamedTemporaryFile(dir = os.path.dirname(args.output), prefix='.mkosi-')
-    # disable copy-on-write if applicable on filesystem
-    subprocess.run(["chattr", "+C", f.name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
-    f.truncate(image_size(args))
+        f = tempfile.NamedTemporaryFile(dir = os.path.dirname(args.output), prefix='.mkosi-')
+        output.append(f)
+        # disable copy-on-write if applicable on filesystem
+        subprocess.run(["chattr", "+C", f.name],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+        f.truncate(image_size(args))
 
-    pn = 1
-    table = "label: gpt\n"
-    run_sfdisk = False
+        pn = 1
+        table = "label: gpt\n"
+        run_sfdisk = False
 
-    if args.bootable:
-        table += 'size={}, type={}, name="ESP System Partition"\n'.format(str(int(args.esp_size / 512)), GPT_ESP)
-        args.esp_partno = pn
-        pn += 1
-        run_sfdisk = True
-    else:
-        args.esp_partno = None
-
-    if args.swap_size is not None:
-        table += 'size={}, type={}, name="Swap Partition"\n'.format(str(int(args.swap_size / 512)), GPT_SWAP)
-        args.swap_partno = pn
-        pn += 1
-        run_sfdisk = True
-    else:
-        args.swap_partno = None
-
-    args.home_partno = None
-    args.srv_partno = None
-
-    if args.output_format != OutputFormat.raw_btrfs:
-        if args.home_size is not None:
-            table += 'size={}, type={}, name="Home Partition"\n'.format(str(int(args.home_size / 512)), GPT_HOME)
-            args.home_partno = pn
+        if args.bootable:
+            table += 'size={}, type={}, name="ESP System Partition"\n'.format(args.esp_size // 512, GPT_ESP)
+            args.esp_partno = pn
             pn += 1
             run_sfdisk = True
+        else:
+            args.esp_partno = None
 
-        if args.srv_size is not None:
-            table += 'size={}, type={}, name="Server Data Partition"\n'.format(str(int(args.srv_size / 512)), GPT_SRV)
-            args.srv_partno = pn
+        if args.swap_size is not None:
+            table += 'size={}, type={}, name="Swap Partition"\n'.format(args.swap_size // 512, GPT_SWAP)
+            args.swap_partno = pn
             pn += 1
             run_sfdisk = True
+        else:
+            args.swap_partno = None
 
-    if args.output_format != OutputFormat.raw_squashfs:
-        table += 'type={}, name="Root Partition", attrs="{}"\n'.format(GPT_ROOT_NATIVE, "GUID:60" if args.read_only and args.output_format == OutputFormat.raw_gpt else "")
-        run_sfdisk = True
+        args.home_partno = None
+        args.srv_partno = None
 
-    args.root_partno = pn
-    pn += 1
+        if args.output_format != OutputFormat.raw_btrfs:
+            if args.home_size is not None:
+                table += 'size={}, type={}, name="Home Partition"\n'.format(args.home_size // 512, GPT_HOME)
+                args.home_partno = pn
+                pn += 1
+                run_sfdisk = True
 
-    if args.verity:
-        args.verity_partno = pn
+            if args.srv_size is not None:
+                table += 'size={}, type={}, name="Server Data Partition"\n'.format(args.srv_size // 512, GPT_SRV)
+                args.srv_partno = pn
+                pn += 1
+                run_sfdisk = True
+
+        if args.output_format != OutputFormat.raw_squashfs:
+            table += 'type={}, name="Root Partition", attrs="{}"\n'.format(GPT_ROOT_NATIVE, "GUID:60" if args.read_only and args.output_format == OutputFormat.raw_gpt else "")
+            run_sfdisk = True
+
+        args.root_partno = pn
         pn += 1
-    else:
-        args.verity_partno = None
 
-    if run_sfdisk:
-        subprocess.run(["sfdisk", "--color=never", f.name], input=table.encode("utf-8"), check=True)
-        subprocess.run(["sync"])
+        if args.verity:
+            args.verity_partno = pn
+            pn += 1
+        else:
+            args.verity_partno = None
 
-    args.ran_sfdisk = run_sfdisk
+        if run_sfdisk:
+            subprocess.run(["sfdisk", "--color=never", f.name], input=table.encode("utf-8"), check=True)
+            subprocess.run(["sync"])
 
-    print_step("Created partition table as " + f.name + ".")
+        args.ran_sfdisk = run_sfdisk
 
     return f
 
@@ -227,18 +233,18 @@ def attach_image_loopback(args, raw):
         yield None
         return
 
-    print_step("Attaching image file...")
-    c = subprocess.run(["losetup", "--find", "--show", "--partscan", raw.name],
-                       stdout=subprocess.PIPE, check=True)
-    loopdev = c.stdout.decode("utf-8").strip()
-    print_step("Attached image file as " + loopdev + ".")
+    with complete_step('Attaching image file',
+                       'Attached image file as {}') as output:
+        c = subprocess.run(["losetup", "--find", "--show", "--partscan", raw.name],
+                           stdout=subprocess.PIPE, check=True)
+        loopdev = c.stdout.decode("utf-8").strip()
+        output.append(loopdev)
 
     try:
         yield loopdev
     finally:
-        print_step("Detaching image file...");
-        subprocess.run(["losetup", "--detach", loopdev], check=True)
-        print_step("Detaching image file completed.");
+        with complete_step('Detaching image file'):
+            subprocess.run(["losetup", "--detach", loopdev], check=True)
 
 def partition(loopdev, partno):
     return loopdev + "p" + str(partno)
@@ -250,11 +256,9 @@ def prepare_swap(args, loopdev):
     if args.swap_partno is None:
         return
 
-    print_step("Formatting swap partition...");
-
-    subprocess.run(["mkswap", "-Lswap", partition(loopdev, args.swap_partno)], check=True)
-
-    print_step("Formatting swap partition completed.");
+    with complete_step('Formatting swap partition'):
+        subprocess.run(["mkswap", "-Lswap", partition(loopdev, args.swap_partno)],
+                       check=True)
 
 def prepare_esp(args, loopdev):
     if loopdev is None:
@@ -262,14 +266,13 @@ def prepare_esp(args, loopdev):
     if args.esp_partno is None:
         return
 
-    print_step("Formatting ESP partition...");
-
-    subprocess.run(["mkfs.fat", "-nEFI", "-F32", partition(loopdev, args.esp_partno)], check=True)
-
-    print_step("Formatting ESP partition completed.");
+    with complete_step('Formatting ESP partition'):
+        subprocess.run(["mkfs.fat", "-nEFI", "-F32", partition(loopdev, args.esp_partno)],
+                       check=True)
 
 def mkfs_ext4(label, mount, loopdev, partno):
-    subprocess.run(["mkfs.ext4", "-L", label, "-M", mount, partition(loopdev, partno)], check=True)
+    subprocess.run(["mkfs.ext4", "-L", label, "-M", mount, partition(loopdev, partno)],
+                   check=True)
 
 def prepare_root(args, loopdev):
     if loopdev is None:
@@ -279,14 +282,12 @@ def prepare_root(args, loopdev):
     if args.output_format == OutputFormat.raw_squashfs:
         return
 
-    print_step("Formatting root partition...");
-
-    if args.output_format == OutputFormat.raw_btrfs:
-        subprocess.run(["mkfs.btrfs", "-Lroot", partition(loopdev, args.root_partno)], check=True)
-    else:
-        mkfs_ext4("root", "/", loopdev, args.root_partno)
-
-    print_step("Formatting root partition completed.");
+    with complete_step('Formatting root partition'):
+        if args.output_format == OutputFormat.raw_btrfs:
+            subprocess.run(["mkfs.btrfs", "-Lroot", partition(loopdev, args.root_partno)],
+                           check=True)
+        else:
+            mkfs_ext4("root", "/", loopdev, args.root_partno)
 
 def prepare_home(args, loopdev):
     if loopdev is None:
@@ -294,11 +295,8 @@ def prepare_home(args, loopdev):
     if args.home_partno is None:
         return
 
-    print_step("Formatting home partition...");
-
-    mkfs_ext4("home", "/home", loopdev, args.home_partno)
-
-    print_step("Formatting home partition completed.");
+    with complete_step('Formatting home partition'):
+        mkfs_ext4("home", "/home", loopdev, args.home_partno)
 
 def prepare_srv(args, loopdev):
     if loopdev is None:
@@ -306,11 +304,8 @@ def prepare_srv(args, loopdev):
     if args.srv_partno is None:
         return
 
-    print_step("Formatting server data partition...");
-
-    mkfs_ext4("srv", "/srv", loopdev, args.srv_partno)
-
-    print_step("Formatted server data partition.");
+    with complete_step('Formatting server data partition'):
+        mkfs_ext4("srv", "/srv", loopdev, args.srv_partno)
 
 def mount_loop(args, loopdev, partno, where):
     os.makedirs(where, 0o755, True)
@@ -336,50 +331,45 @@ def mount_image(args, workspace, loopdev):
         yield None
         return
 
-    print_step("Mounting image...");
+    with complete_step('Mounting image'):
+        root = os.path.join(workspace, "root")
 
-    root = os.path.join(workspace, "root")
+        if args.output_format != OutputFormat.raw_squashfs:
+            mount_loop(args, loopdev, args.root_partno, root)
 
-    if args.output_format != OutputFormat.raw_squashfs:
-        mount_loop(args, loopdev, args.root_partno, root)
+        if args.home_partno is not None:
+            mount_loop(args, loopdev, args.home_partno, os.path.join(root, "home"))
 
-    if args.home_partno is not None:
-        mount_loop(args, loopdev, args.home_partno, os.path.join(root, "home"))
+        if args.srv_partno is not None:
+            mount_loop(args, loopdev, args.srv_partno, os.path.join(root, "srv"))
 
-    if args.srv_partno is not None:
-        mount_loop(args, loopdev, args.srv_partno, os.path.join(root, "srv"))
+        if args.esp_partno is not None:
+            mount_loop(args, loopdev, args.esp_partno, os.path.join(root, "boot/efi"))
 
-    if args.esp_partno is not None:
-        mount_loop(args, loopdev, args.esp_partno, os.path.join(root, "boot/efi"))
+        if args.distribution == Distribution.fedora:
+            mount_bind("/proc", os.path.join(root, "proc"))
+            mount_bind("/dev", os.path.join(root, "dev"))
+            mount_bind("/sys", os.path.join(root, "sys"))
 
-    if args.distribution == Distribution.fedora:
-        mount_bind("/proc", os.path.join(root, "proc"))
-        mount_bind("/dev", os.path.join(root, "dev"))
-        mount_bind("/sys", os.path.join(root, "sys"))
+        # Make sure /tmp and /run are not part of the image
+        mount_tmpfs(os.path.join(root, "run"))
+        mount_tmpfs(os.path.join(root, "tmp"))
 
-    # Make sure /tmp and /run are not part of the image
-    mount_tmpfs(os.path.join(root, "run"))
-    mount_tmpfs(os.path.join(root, "tmp"))
-
-    print_step("Mounting image completed.");
     try:
         yield
     finally:
-        print_step("Unmounting image...");
-
-        umount(os.path.join(root, "home"))
-        umount(os.path.join(root, "srv"))
-        umount(os.path.join(root, "boot/efi"))
-        umount(os.path.join(root, "proc"))
-        umount(os.path.join(root, "sys"))
-        umount(os.path.join(root, "dev"))
-        umount(os.path.join(root, "var/cache/dnf"))
-        umount(os.path.join(root, "var/cache/apt/archives"))
-        umount(os.path.join(root, "run"))
-        umount(os.path.join(root, "tmp"))
-        umount(os.path.join(root))
-
-        print_step("Unmounting image completed.");
+        with complete_step('Unmounting image'):
+            umount(os.path.join(root, "home"))
+            umount(os.path.join(root, "srv"))
+            umount(os.path.join(root, "boot/efi"))
+            umount(os.path.join(root, "proc"))
+            umount(os.path.join(root, "sys"))
+            umount(os.path.join(root, "dev"))
+            umount(os.path.join(root, "var/cache/dnf"))
+            umount(os.path.join(root, "var/cache/apt/archives"))
+            umount(os.path.join(root, "run"))
+            umount(os.path.join(root, "tmp"))
+            umount(os.path.join(root))
 
 def mount_cache(args, workspace):
     if not args.distribution in (Distribution.fedora, Distribution.debian, Distribution.ubuntu):
@@ -398,8 +388,8 @@ def umount(where):
     # Ignore failures and error messages
     subprocess.run(["umount", "-n", where], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
+@complete_step('Setting up basic OS tree')
 def prepare_tree(args, workspace, run_build_script):
-    print_step("Setting up basic OS tree...");
 
     if args.output_format == OutputFormat.subvolume:
         btrfs_subvol_create(os.path.join(workspace, "root"))
@@ -443,8 +433,6 @@ def prepare_tree(args, workspace, run_build_script):
     if run_build_script:
         os.mkdir(os.path.join(workspace, "root", "root"))
         os.mkdir(os.path.join(workspace, "root", "root/dest"))
-
-    print_step("Setting up basic OS tree completed.");
 
 def patch_file(filepath, line_rewriter):
     temp_new_filepath = filepath + ".tmp.new"
@@ -501,8 +489,8 @@ def check_if_url_exists(url):
     except:
         return False
 
+@complete_step('Installing Fedora')
 def install_fedora(args, workspace, run_build_script):
-    print_step("Installing Fedora...")
 
     gpg_key = "/etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-%s-x86_64" % args.release
     if os.path.exists(gpg_key):
@@ -581,8 +569,6 @@ gpgkey={gpg_key}
 
     subprocess.run(cmdline, check=True)
 
-    print_step("Installing Fedora completed.")
-
 def install_debian_or_ubuntu(args, workspace, run_build_script, mirror):
     if args.repositories:
         components = ','.join(args.repositories)
@@ -653,25 +639,18 @@ def install_debian_or_ubuntu(args, workspace, run_build_script, mirror):
         run_workspace_command(workspace, network=True, env={'DEBIAN_FRONTEND': 'noninteractive', 'DEBCONF_NONINTERACTIVE_SEEN': 'true'}, *cmdline)
         os.unlink(policyrcd)
 
+@complete_step('Installing Debian')
 def install_debian(args, workspace, run_build_script):
-    print_step("Installing Debian...")
-
     install_debian_or_ubuntu(args, workspace, run_build_script, args.mirror)
 
-    print_step("Installing Debian completed.")
-
+@complete_step('Installing Ubuntu')
 def install_ubuntu(args, workspace, run_build_script):
-    print_step("Installing Ubuntu...")
-
     install_debian_or_ubuntu(args, workspace, run_build_script, args.mirror)
 
-    print_step("Installing Ubuntu completed.")
-
+@complete_step('Installing ArchLinux')
 def install_arch(args, workspace, run_build_script):
     if args.release is not None:
         sys.stderr.write("Distribution release specification is not supported for ArchLinux, ignoring.")
-
-    print_step("Installing ArchLinux...")
 
     keyring = "archlinux"
 
@@ -749,8 +728,6 @@ SigLevel    = Required DatabaseOptional
 
     enable_networkd(workspace)
 
-    print_step("Installing ArchLinux complete.")
-
 def install_distribution(args, workspace, run_build_script):
     install = {
         Distribution.fedora : install_fedora,
@@ -761,21 +738,17 @@ def install_distribution(args, workspace, run_build_script):
 
     install[args.distribution](args, workspace, run_build_script)
 
+@complete_step('Resetting machine ID')
 def reset_machine_id(args, workspace):
+    """Make /etc/machine-id an empty file.
 
-    # Make /etc/machine-id an empty file. This way, on the next boot
-    # is either initialized and commited (if /etc is writable) or the
-    # image runs with a transient machine ID, that changes on each
-    # boot (if the image is read-only).
-
-    print_step("Resetting machine ID...")
-
+    This way, on the next boot is either initialized and commited (if /etc is
+    writable) or the image runs with a transient machine ID, that changes on
+    each boot (if the image is read-only).
+    """
     machine_id = os.path.join(workspace, 'root', 'etc/machine-id')
-
     os.unlink(machine_id)
     open(machine_id, "w+b").close()
-
-    print_step("Resetting machine ID completed.")
 
 def set_root_password(args, workspace):
     "Set the root account password, or just delete it so it's easy to log in"
@@ -810,21 +783,18 @@ def install_boot_loader(args, workspace):
     if not args.bootable:
         return
 
-    print_step("Installing boot loader...")
+    with complete_step("Installing boot loader"):
+        shutil.copyfile(os.path.join(workspace, "root", "usr/lib/systemd/boot/efi/systemd-bootx64.efi"),
+                        os.path.join(workspace, "root", "boot/efi/EFI/systemd/systemd-bootx64.efi"))
 
-    shutil.copyfile(os.path.join(workspace, "root", "usr/lib/systemd/boot/efi/systemd-bootx64.efi"),
-                    os.path.join(workspace, "root", "boot/efi/EFI/systemd/systemd-bootx64.efi"))
+        shutil.copyfile(os.path.join(workspace, "root", "usr/lib/systemd/boot/efi/systemd-bootx64.efi"),
+                        os.path.join(workspace, "root", "boot/efi/EFI/BOOT/bootx64.efi"))
 
-    shutil.copyfile(os.path.join(workspace, "root", "usr/lib/systemd/boot/efi/systemd-bootx64.efi"),
-                    os.path.join(workspace, "root", "boot/efi/EFI/BOOT/bootx64.efi"))
+        if args.distribution == Distribution.arch:
+            install_boot_loader_arch(args, workspace)
 
-    if args.distribution == Distribution.arch:
-        install_boot_loader_arch(args, workspace)
-
-    if args.distribution == Distribution.debian:
-        install_boot_loader_debian(args, workspace)
-
-    print_step("Installing boot loader completed.")
+        if args.distribution == Distribution.debian:
+            install_boot_loader_debian(args, workspace)
 
 def enumerate_and_copy(source, dest, suffix = ""):
     for entry in os.scandir(source + suffix):
@@ -849,12 +819,9 @@ def install_extra_trees(args, workspace):
     if args.extra_trees is None:
         return
 
-    print_step("Copying in extra file trees...")
-
-    for d in args.extra_trees:
-        enumerate_and_copy(d, os.path.join(workspace, "root"))
-
-    print_step("Copying in extra file trees completed.")
+    with complete_step('Copying in extra file trees'):
+        for d in args.extra_trees:
+            enumerate_and_copy(d, os.path.join(workspace, "root"))
 
 def git_files_ignore():
     "Creates a function to be used as a ignore callable argument for copytree"
@@ -879,23 +846,21 @@ def install_build_src(args, workspace, run_build_script):
     if args.build_script is None:
         return
 
-    print_step("Copying in build script and sources...")
+    with complete_step('Copying in build script and sources'):
+        shutil.copy(args.build_script,
+                    os.path.join(workspace, "root", "root", os.path.basename(args.build_script)))
 
-    shutil.copy(args.build_script, os.path.join(workspace, "root", "root", os.path.basename(args.build_script)))
+        if args.build_sources is not None:
+            target = os.path.join(workspace, "root", "root/src")
+            use_git = args.use_git_files
+            if use_git is None:
+                use_git = os.path.exists('.git')
 
-    if args.build_sources is not None:
-        target = os.path.join(workspace, "root", "root/src")
-        use_git = args.use_git_files
-        if use_git is None:
-            use_git = os.path.exists('.git')
-
-        if use_git:
-            ignore = git_files_ignore()
-        else:
-            ignore = shutil.ignore_patterns('.mkosi-*', '.git')
-        shutil.copytree(args.build_sources, target, symlinks=True, ignore=ignore)
-
-    print_step("Copying in build script and sources completed.")
+            if use_git:
+                ignore = git_files_ignore()
+            else:
+                ignore = shutil.ignore_patterns('.mkosi-*', '.git')
+            shutil.copytree(args.build_sources, target, symlinks=True, ignore=ignore)
 
 def install_build_dest(args, workspace, run_build_script):
     if run_build_script:
@@ -904,11 +869,8 @@ def install_build_dest(args, workspace, run_build_script):
     if args.build_script is None:
         return
 
-    print_step("Copying in build tree...")
-
-    enumerate_and_copy(os.path.join(workspace, "dest"), os.path.join(workspace, "root"))
-
-    print_step("Copying in build tree completed.")
+    with complete_step('Copying in build tree'):
+        enumerate_and_copy(os.path.join(workspace, "dest"), os.path.join(workspace, "root"))
 
 def make_read_only(args, workspace):
     if not args.read_only:
@@ -917,22 +879,18 @@ def make_read_only(args, workspace):
     if not args.output_format in (OutputFormat.raw_btrfs, OutputFormat.subvolume):
         return
 
-    print_step("Marking root subvolume read-only...")
-
-    btrfs_subvol_make_ro(os.path.join(workspace, "root"))
-
-    print_step("Marking root subvolume read-only completed.")
+    with complete_step('Marking root subvolume read-only'):
+        btrfs_subvol_make_ro(os.path.join(workspace, "root"))
 
 def make_tar(args, workspace):
     if args.output_format != OutputFormat.tar:
         return None
 
-    print_step("Creating archive...")
-
-    f = tempfile.NamedTemporaryFile(dir = os.path.dirname(args.output), prefix=".mkosi-")
-    subprocess.run(["tar", "-C", os.path.join(workspace, "root"), "-c", "-J", "--xattrs", "--xattrs-include=*", "."], stdout=f, check=True)
-
-    print_step("Creating archive completed.")
+    with complete_step('Creating archive'):
+        f = tempfile.NamedTemporaryFile(dir=os.path.dirname(args.output), prefix=".mkosi-")
+        subprocess.run(["tar", "-C", os.path.join(workspace, "root"),
+                        "-c", "-J", "--xattrs", "--xattrs-include=*", "."],
+                       stdout=f, check=True)
 
     return f
 
@@ -940,12 +898,10 @@ def make_squashfs(args, workspace):
     if args.output_format != OutputFormat.raw_squashfs:
         return None
 
-    print_step("Creating squashfs file system...")
-
-    f = tempfile.NamedTemporaryFile(dir = os.path.dirname(args.output), prefix=".mkosi-squashfs")
-    subprocess.run(["mksquashfs", os.path.join(workspace, "root"), f.name, "-comp", "lz4", "-noappend"], check=True)
-
-    print_step("Creating squashfs file system completed.")
+    with complete_step('Creating squashfs file system'):
+        f = tempfile.NamedTemporaryFile(dir=os.path.dirname(args.output), prefix=".mkosi-squashfs")
+        subprocess.run(["mksquashfs", os.path.join(workspace, "root"), f.name, "-comp", "lz4", "-noappend"],
+                       check=True)
 
     return f
 
@@ -1016,7 +972,7 @@ def insert_partition(args, workspace, raw, loopdev, partno, blob, name, type_uui
     if uuid is not None:
         table += "uuid=" + str(uuid) + ", "
 
-    table += 'size={}, type={}, name="{}", attrs="GUID:60"\n'.format(str(int(blob_size / 512)), type_uuid, name)
+    table += 'size={}, type={}, name="{}", attrs="GUID:60"\n'.format(blob_size // 512, type_uuid, name)
 
     print(table)
 
@@ -1035,31 +991,26 @@ def insert_squashfs(args, workspace, raw, loopdev, squashfs):
     if args.output_format != OutputFormat.raw_squashfs:
         return
 
-    print_step("Inserting squashfs root partition...")
-    args.root_size = insert_partition(args, workspace, raw, loopdev, args.root_partno, squashfs, "Root Partition", GPT_ROOT_NATIVE)
-    print_step("Inserting squashfs root partition completed.")
+    with complete_step('Inserting squashfs root partition'):
+        args.root_size = insert_partition(args, workspace, raw, loopdev, args.root_partno, squashfs,
+                                          "Root Partition", GPT_ROOT_NATIVE)
 
 def make_verity(args, workspace, loopdev, run_build_script):
 
     if run_build_script or not args.verity:
         return None, None
 
-    print_step("Generating verity hashes...")
+    with complete_step('Generating verity hashes'):
+        f = tempfile.NamedTemporaryFile(dir=os.path.dirname(args.output), prefix=".mkosi-")
+        c = subprocess.run(["veritysetup", "format", partition(loopdev, args.root_partno), f.name],
+                           stdout=subprocess.PIPE, check=True)
 
-    f = tempfile.NamedTemporaryFile(dir = os.path.dirname(args.output), prefix=".mkosi-")
-    c = subprocess.run(["veritysetup", "format", partition(loopdev, args.root_partno), f.name], stdout=subprocess.PIPE, check=True)
+        for line in c.stdout.decode("utf-8").split('\n'):
+            if line.startswith("Root hash:"):
+                root_hash = line[10:].strip()
+                return f, root_hash
 
-    root_hash = None
-
-    for line in c.stdout.decode("utf-8").split('\n'):
-        if line.startswith("Root hash:"):
-            root_hash = line[10:].strip()
-
-    assert root_hash is not None
-
-    print_step("Generating verity hashes completed.")
-
-    return f, root_hash
+        raise ValueError('Root hash not found')
 
 def insert_verity(args, workspace, raw, loopdev, verity, root_hash):
 
@@ -1069,9 +1020,9 @@ def insert_verity(args, workspace, raw, loopdev, verity, root_hash):
     # Use the final 128 bit of the root hash as partition UUID of the verity partition
     u = uuid.UUID(root_hash[-32:])
 
-    print_step("Inserting verity partition...")
-    insert_partition(args, workspace, raw, loopdev, args.verity_partno, verity, "Verity Partition", GPT_ROOT_NATIVE_VERITY, u)
-    print_step("Inserting verity partition completed.")
+    with complete_step('Inserting verity partition'):
+        insert_partition(args, workspace, raw, loopdev, args.verity_partno, verity,
+                         "Verity Partition", GPT_ROOT_NATIVE_VERITY, u)
 
 def patch_root_uuid(args, loopdev, root_hash):
 
@@ -1081,10 +1032,9 @@ def patch_root_uuid(args, loopdev, root_hash):
     # Use the first 128bit of the root hash as partition UUID of the root partition
     u = uuid.UUID(root_hash[:32])
 
-    print_step("Patching root partition UUID...")
-    subprocess.run(["sfdisk", "--part-uuid", loopdev, str(args.root_partno), str(u)], check=True)
-
-    print_step("Patching root partition UUID completed.")
+    with complete_step('Patching root partition UUID'):
+        subprocess.run(["sfdisk", "--part-uuid", loopdev, str(args.root_partno), str(u)],
+                       check=True)
 
 def xz_output(args, raw):
     if not args.output_format in (OutputFormat.raw_btrfs, OutputFormat.raw_gpt, OutputFormat.raw_squashfs):
@@ -1093,12 +1043,9 @@ def xz_output(args, raw):
     if not args.xz:
         return raw
 
-    print_step("Compressing image file...")
-
-    f = tempfile.NamedTemporaryFile(dir = os.path.dirname(args.output), prefix=".mkosi-")
-    subprocess.run(["xz", "-c", raw.name], stdout=f, check=True)
-
-    print_step("Compressing image file complete.")
+    with complete_step('Compressing image file'):
+        f = tempfile.NamedTemporaryFile(prefix=".mkosi-", dir=os.path.dirname(args.output))
+        subprocess.run(["xz", "-c", raw.name], stdout=f, check=True)
 
     return f
 
@@ -1106,12 +1053,10 @@ def write_root_hash_file(args, root_hash):
     if root_hash is None:
         return None
 
-    print_step("Writing .roothash file...")
-
-    f = tempfile.NamedTemporaryFile(mode='w+b', dir=os.path.dirname(args.output_root_hash_file), prefix='.mkosi')
-    f.write((root_hash + "\n").encode())
-
-    print_step("Writing .roothash file complete.")
+    with complete_step('Writing .roothash file'):
+        f = tempfile.NamedTemporaryFile(mode='w+b', prefix='.mkosi',
+                                        dir=os.path.dirname(args.output_root_hash_file))
+        f.write((root_hash + "\n").encode())
 
     return f
 
@@ -1119,22 +1064,17 @@ def copy_nspawn_settings(args):
     if args.nspawn_settings is None:
         return None
 
-    print_step("Copying nspawn settings file...")
+    with complete_step('Copying nspawn settings file'):
+        f = tempfile.NamedTemporaryFile(mode="w+b", prefix=".mkosi-",
+                                        dir=os.path.dirname(args.output_nspawn_settings))
 
-    f = tempfile.NamedTemporaryFile(mode = "w+b", dir = os.path.dirname(args.output_nspawn_settings), prefix=".mkosi-")
+        with open(args.nspawn_settings, "rb") as c:
+            f.write(c.read())
 
-    with open(args.nspawn_settings, "rb") as c:
-        bs = 65536
-        buf = c.read(bs)
-        while len(buf) > 0:
-            f.write(buf)
-            buf = c.read(bs)
-
-    print_step("Copying nspawn settings file completed.")
     return f
 
 def hash_file(of, sf, fname):
-    bs = 65536
+    bs = 16*1024**2
     h = hashlib.sha256()
 
     sf.seek(0)
@@ -1152,20 +1092,19 @@ def calculate_sha256sum(args, raw, tar, root_hash_file, nspawn_settings):
     if not args.checksum:
         return None
 
-    print_step("Calculating SHA256SUM...")
+    with complete_step('Calculating SHA256SUM'):
+        f = tempfile.NamedTemporaryFile(mode="w+", prefix=".mkosi-", encoding="utf-8",
+                                        dir=os.path.dirname(args.output_checksum))
 
-    f = tempfile.NamedTemporaryFile(mode="w+", dir=os.path.dirname(args.output_checksum), prefix=".mkosi-", encoding="utf-8")
+        if raw is not None:
+            hash_file(f, raw, os.path.basename(args.output))
+        if tar is not None:
+            hash_file(f, tar, os.path.basename(args.output))
+        if root_hash_file is not None:
+            hash_file(f, root_hash_file, os.path.basename(args.output_root_hash_file))
+        if nspawn_settings is not None:
+            hash_file(f, nspawn_settings, os.path.basename(args.output_nspawn_settings))
 
-    if raw is not None:
-        hash_file(f, raw, os.path.basename(args.output))
-    if tar is not None:
-        hash_file(f, tar, os.path.basename(args.output))
-    if root_hash_file is not None:
-        hash_file(f, root_hash_file, os.path.basename(args.output_root_hash_file))
-    if nspawn_settings is not None:
-        hash_file(f, nspawn_settings, os.path.basename(args.output_nspawn_settings))
-
-    print_step("Calculating SHA256SUM complete.")
     return f
 
 def calculate_signature(args, checksum):
@@ -1175,79 +1114,67 @@ def calculate_signature(args, checksum):
     if checksum is None:
         return None
 
-    print_step("Signing SHA256SUM...")
+    with complete_step('Signing SHA256SUM'):
+        f = tempfile.NamedTemporaryFile(mode="wb", prefix=".mkosi-",
+                                        dir=os.path.dirname(args.output_signature))
 
-    f = tempfile.NamedTemporaryFile(mode="wb", prefix=".mkosi-", dir=os.path.dirname(args.output_signature))
+        cmdline = ["gpg", "--detach-sign"]
 
-    cmdline = ["gpg", "--detach-sign"]
+        if args.key is not None:
+            cmdline += ["--default-key", args.key]
 
-    if args.key is not None:
-        cmdline.extend(["--default-key", args.key])
-
-    checksum.seek(0)
-    subprocess.run(cmdline, stdin=checksum, stdout=f, check=True)
-
-    print_step("Signing SHA256SUM complete.")
+        checksum.seek(0)
+        subprocess.run(cmdline, stdin=checksum, stdout=f, check=True)
 
     return f
 
 def link_output(args, workspace, raw, tar):
-    print_step("Linking image file...")
-
-    if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
-        os.rename(os.path.join(workspace, "root"), args.output)
-    elif args.output_format in (OutputFormat.raw_btrfs, OutputFormat.raw_gpt, OutputFormat.raw_squashfs):
-        os.chmod(raw, 0o666 & ~args.original_umask)
-        os.link(raw, args.output)
-    else:
-        os.chmod(tar, 0o666 & ~args.original_umask)
-        os.link(tar, args.output)
-
-    print_step("Successfully linked " + args.output + ".")
+    with complete_step('Linking image file',
+                       'Successfully linked ' + args.output):
+        if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
+            os.rename(os.path.join(workspace, "root"), args.output)
+        elif args.output_format in (OutputFormat.raw_btrfs, OutputFormat.raw_gpt, OutputFormat.raw_squashfs):
+            os.chmod(raw, 0o666 & ~args.original_umask)
+            os.link(raw, args.output)
+        else:
+            os.chmod(tar, 0o666 & ~args.original_umask)
+            os.link(tar, args.output)
 
 def link_output_nspawn_settings(args, path):
     if path is None:
         return
 
-    print_step("Linking nspawn settings file...")
-
-    os.chmod(path, 0o666 & ~args.original_umask)
-    os.link(path, args.output_nspawn_settings)
-
-    print_step("Successfully linked " + args.output_nspawn_settings + ".")
+    with complete_step('Linking nspawn settings file',
+                       'Successfully linked ' + args.output_nspawn_settings):
+        os.chmod(path, 0o666 & ~args.original_umask)
+        os.link(path, args.output_nspawn_settings)
 
 def link_output_checksum(args, checksum):
     if checksum is None:
         return
 
-    print_step("Linking SHA256SUM file...")
-
-    os.chmod(checksum, 0o666 & ~args.original_umask)
-    os.link(checksum, args.output_checksum)
-
-    print_step("Successfully linked " + args.output_checksum + ".")
+    with complete_step('Linking SHA256SUM file',
+                       'Successfully linked ' + args.output_checksum):
+        os.chmod(checksum, 0o666 & ~args.original_umask)
+        os.link(checksum, args.output_checksum)
 
 def link_output_root_hash_file(args, root_hash_file):
     if root_hash_file is None:
         return
 
-    print_step("Linking .roothash file...")
-
-    os.chmod(root_hash_file, 0o666 & ~args.original_umask)
-    os.link(root_hash_file, args.output_root_hash_file)
-
-    print_step("Successfully linked " + args.output_root_hash_file + ".")
+    with complete_step('Linking .roothash file',
+                       'Successfully linked ' + args.output_root_hash_file):
+        os.chmod(root_hash_file, 0o666 & ~args.original_umask)
+        os.link(root_hash_file, args.output_root_hash_file)
 
 def link_output_signature(args, signature):
     if signature is None:
         return
 
-    print_step("Linking SHA256SUM.gpg file...")
-
-    os.chmod(signature, 0o666 & ~args.original_umask)
-    os.link(signature, args.output_signature)
-
-    print_step("Successfully linked " + args.output_signature + ".")
+    with complete_step('Linking SHA256SUM.gpg file',
+                       'Successfully linked ' + args.output_signature):
+        os.chmod(signature, 0o666 & ~args.original_umask)
+        os.link(signature, args.output_signature)
 
 def dir_size(path):
     sum = 0
@@ -1274,16 +1201,16 @@ def setup_cache(args):
     if not args.distribution in (Distribution.fedora, Distribution.debian, Distribution.ubuntu):
         return None
 
-    print_step("Setting up package cache...")
+    with complete_step('Setting up package cache',
+                       'Setting up package cache {} complete') as output:
+        if args.cache_path is None:
+            d = tempfile.TemporaryDirectory(dir=os.path.dirname(args.output), prefix=".mkosi-")
+            args.cache_path = d.name
+        else:
+            os.makedirs(args.cache_path, 0o700, True)
+            d = None
+        output.append(args.cache_path)
 
-    if args.cache_path is None:
-        d = tempfile.TemporaryDirectory(dir=os.path.dirname(args.output), prefix=".mkosi-")
-        args.cache_path = d.name
-    else:
-        os.makedirs(args.cache_path, 0o700, True)
-        d = None
-
-    print_step("Setting up package cache " + args.cache_path + " completed.")
     return d
 
 class PackageAction(argparse.Action):
@@ -1954,35 +1881,33 @@ def run_build_script(args, workspace, raw):
     if args.build_script is None:
         return
 
-    print_step("Running build script...")
+    with complete_step('Running build script'):
+        dest = os.path.join(workspace, "dest")
+        os.mkdir(dest, 0o755)
 
-    dest = os.path.join(workspace, "dest")
-    os.mkdir(dest, 0o755)
+        directory = os.path.join(workspace, "root") if raw is None else "--image=" + raw.name
+        cmdline = ["systemd-nspawn",
+                   '--quiet',
+                   "--directory", directory,
+                   "--as-pid2",
+                   "--private-network",
+                   "--register=no",
+                   "--bind", dest + ":/root/dest",
+                   "--setenv=WITH_DOCS=" + ("1" if args.with_docs else "0"),
+                   "--setenv=DESTDIR=/root/dest"]
 
-    cmdline = ["systemd-nspawn",
-               '--quiet',
-               "--directory=" + os.path.join(workspace, "root") if raw is None else "--image=" + raw.name,
-               "--as-pid2",
-               "--private-network",
-               "--register=no",
-               "--bind", dest + ":/root/dest",
-               "--setenv=WITH_DOCS=" + ("1" if args.with_docs else "0"),
-               "--setenv=DESTDIR=/root/dest"]
+        if args.build_sources is not None:
+            cmdline.append("--setenv=SRCDIR=/root/src")
+            cmdline.append("--chdir=/root/src")
 
-    if args.build_sources is not None:
-        cmdline.append("--setenv=SRCDIR=/root/src")
-        cmdline.append("--chdir=/root/src")
+            if args.read_only:
+                cmdline.append("--overlay=+/root/src::/root/src")
+        else:
+            cmdline.append("--chdir=/root")
 
-        if args.read_only:
-            cmdline.append("--overlay=+/root/src::/root/src")
-    else:
-        cmdline.append("--chdir=/root")
+        cmdline.append("/root/" + os.path.basename(args.build_script))
 
-    cmdline.append("/root/" + os.path.basename(args.build_script))
-
-    subprocess.run(cmdline, check=True)
-
-    print_step("Running build script completed.")
+        subprocess.run(cmdline, check=True)
 
 def build_stuff(args):
     cache = setup_cache(args)
