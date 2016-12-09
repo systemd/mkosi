@@ -738,20 +738,28 @@ def install_distribution(args, workspace, run_build_script):
 
     install[args.distribution](args, workspace, run_build_script)
 
-@complete_step('Resetting machine ID')
-def reset_machine_id(args, workspace):
+def reset_machine_id(args, workspace, run_build_script):
     """Make /etc/machine-id an empty file.
 
     This way, on the next boot is either initialized and commited (if /etc is
     writable) or the image runs with a transient machine ID, that changes on
     each boot (if the image is read-only).
     """
-    machine_id = os.path.join(workspace, 'root', 'etc/machine-id')
-    os.unlink(machine_id)
-    open(machine_id, "w+b").close()
 
-def set_root_password(args, workspace):
+    if run_build_script:
+        return
+
+    with complete_step('Resetting machine ID'):
+        machine_id = os.path.join(workspace, 'root', 'etc/machine-id')
+        os.unlink(machine_id)
+        open(machine_id, "w+b").close()
+
+def set_root_password(args, workspace, run_build_script):
     "Set the root account password, or just delete it so it's easy to log in"
+
+    if run_build_script:
+        return
+
     if args.password == '':
         print_step("Deleting root password...")
         jj = lambda line: (':'.join(['root', ''] + line.split(':')[2:])
@@ -882,7 +890,10 @@ def make_read_only(args, workspace):
     with complete_step('Marking root subvolume read-only'):
         btrfs_subvol_make_ro(os.path.join(workspace, "root"))
 
-def make_tar(args, workspace):
+def make_tar(args, workspace, run_build_script):
+    if run_build_script:
+        return None
+
     if args.output_format != OutputFormat.tar:
         return None
 
@@ -1837,7 +1848,6 @@ def build_image(args, workspace, run_build_script):
     if args.build_script is None and run_build_script:
         return None, None, None
 
-    tar = None
     raw = create_image(args, workspace.name)
 
     with attach_image_loopback(args, raw) as loopdev:
@@ -1851,15 +1861,12 @@ def build_image(args, workspace, run_build_script):
             prepare_tree(args, workspace.name, run_build_script)
             mount_cache(args, workspace.name)
             install_distribution(args, workspace.name, run_build_script)
-            reset_machine_id(args, workspace.name)
+            reset_machine_id(args, workspace.name, run_build_script)
             install_boot_loader(args, workspace.name)
             install_extra_trees(args, workspace.name)
             install_build_src(args, workspace.name, run_build_script)
             install_build_dest(args, workspace.name, run_build_script)
-
-            if not run_build_script:
-                set_root_password(args, workspace.name)
-
+            set_root_password(args, workspace.name, run_build_script)
             make_read_only(args, workspace.name)
 
         squashfs = make_squashfs(args, workspace.name)
@@ -1868,8 +1875,7 @@ def build_image(args, workspace, run_build_script):
         patch_root_uuid(args, loopdev, root_hash)
         insert_verity(args, workspace.name, raw, loopdev, verity, root_hash)
 
-    if not run_build_script:
-        tar = make_tar(args, workspace.name)
+    tar = make_tar(args, workspace.name, run_build_script)
 
     # Remove the root directory again, if this is the build script build
     if run_build_script:
