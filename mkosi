@@ -1891,10 +1891,11 @@ def run_build_script(args, workspace, raw):
         dest = os.path.join(workspace, "dest")
         os.mkdir(dest, 0o755)
 
-        directory = os.path.join(workspace, "root") if raw is None else "--image=" + raw.name
+        target = "--directory=" + os.path.join(workspace, "root") if raw is None else "--image=" + raw.name
+
         cmdline = ["systemd-nspawn",
                    '--quiet',
-                   "--directory", directory,
+                   target,
                    "--as-pid2",
                    "--private-network",
                    "--register=no",
