@@ -344,7 +344,7 @@ def mount_image(args, workspace, loopdev):
             mount_loop(args, loopdev, args.srv_partno, os.path.join(root, "srv"))
 
         if args.esp_partno is not None:
-            mount_loop(args, loopdev, args.esp_partno, os.path.join(root, "boot/efi"))
+            mount_loop(args, loopdev, args.esp_partno, os.path.join(root, "efi"))
 
         if args.distribution == Distribution.fedora:
             mount_bind("/proc", os.path.join(root, "proc"))
@@ -361,7 +361,7 @@ def mount_image(args, workspace, loopdev):
         with complete_step('Unmounting image'):
             umount(os.path.join(root, "home"))
             umount(os.path.join(root, "srv"))
-            umount(os.path.join(root, "boot/efi"))
+            umount(os.path.join(root, "efi"))
             umount(os.path.join(root, "proc"))
             umount(os.path.join(root, "sys"))
             umount(os.path.join(root, "dev"))
@@ -412,14 +412,15 @@ def prepare_tree(args, workspace, run_build_script):
         os.mkdir(os.path.join(workspace, "root", "etc"), 0o755)
         open(os.path.join(workspace, "root", "etc/machine-id"), "w").write(args.machine_id + "\n")
 
-        # For now, let's stay compatible with traditional Linux ESP mounts
-        os.mkdir(os.path.join(workspace, "root", "boot/efi/EFI"), 0o700)
-        os.mkdir(os.path.join(workspace, "root", "boot/efi/EFI/BOOT"), 0o700)
-        os.mkdir(os.path.join(workspace, "root", "boot/efi/EFI/systemd"), 0o700)
-        os.mkdir(os.path.join(workspace, "root", "boot/efi/loader"), 0o700)
-        os.mkdir(os.path.join(workspace, "root", "boot/efi/loader/entries"), 0o700)
-        os.mkdir(os.path.join(workspace, "root", "boot/efi", args.machine_id), 0o700)
+        os.mkdir(os.path.join(workspace, "root", "efi/EFI"), 0o700)
+        os.mkdir(os.path.join(workspace, "root", "efi/EFI/BOOT"), 0o700)
+        os.mkdir(os.path.join(workspace, "root", "efi/EFI/systemd"), 0o700)
+        os.mkdir(os.path.join(workspace, "root", "efi/loader"), 0o700)
+        os.mkdir(os.path.join(workspace, "root", "efi/loader/entries"), 0o700)
+        os.mkdir(os.path.join(workspace, "root", "efi", args.machine_id), 0o700)
 
+        os.mkdir(os.path.join(workspace, "root", "boot"), 0o700)
+        os.symlink("../efi", os.path.join(workspace, "root", "boot/efi"))
         os.symlink("efi/loader", os.path.join(workspace, "root", "boot/loader"))
         os.symlink("efi/" + args.machine_id, os.path.join(workspace, "root", "boot", args.machine_id))
 
@@ -565,7 +566,6 @@ gpgkey={gpg_key}
 
     if args.bootable:
         cmdline.extend(["kernel", "systemd-udev"])
-        os.makedirs(os.path.join(root, 'efi'), exist_ok=True)
 
     subprocess.run(cmdline, check=True)
 
