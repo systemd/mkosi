@@ -1399,22 +1399,22 @@ def process_setting(args, section, key, value):
             if args.output is None:
                 args.output = value
         elif key == "Force":
-            if not args.force:
+            if args.force is None:
                 args.force = parse_boolean(value)
         elif key == "Bootable":
-            if not args.bootable:
+            if args.bootable is None:
                 args.bootable = parse_boolean(value)
         elif key == "ReadOnly":
-            if not args.read_only:
+            if args.read_only is None:
                 args.read_only = parse_boolean(value)
         elif key == "Verity":
-            if not args.verity:
+            if args.verity is None:
                 args.verity = parse_boolean(value)
         elif key == "Compress":
-            if not args.compress:
+            if args.compress is None:
                 args.compress = parse_boolean(value)
         elif key == "XZ":
-            if not args.xz:
+            if args.xz is None:
                 args.xz = parse_boolean(value)
         elif key is None:
             return True
@@ -1428,7 +1428,7 @@ def process_setting(args, section, key, value):
             else:
                 args.packages.extend(list_value)
         elif key == "WithDocs":
-            if not args.with_docs:
+            if args.with_docs is None:
                 args.with_docs = parse_boolean(value)
         elif key == "Cache":
             if args.cache_path is None:
@@ -1480,10 +1480,10 @@ def process_setting(args, section, key, value):
             return False
     elif section == "Validation":
         if key == "CheckSum":
-            if not args.checksum:
+            if args.checksum is None:
                 args.checksum = parse_boolean(value)
         elif key == "Sign":
-            if not args.sign:
+            if args.sign is None:
                 args.sign = parse_boolean(value)
         elif key == "Key":
             if args.key is None:
