@@ -1207,7 +1207,7 @@ def setup_cache(args):
             d = tempfile.TemporaryDirectory(dir=os.path.dirname(args.output), prefix=".mkosi-")
             args.cache_path = d.name
         else:
-            os.makedirs(args.cache_path, 0o700, True)
+            os.makedirs(args.cache_path, 0o755, exist_ok=True)
             d = None
         output.append(args.cache_path)
 
