@@ -344,12 +344,7 @@ def mount_image(args, workspace, loopdev):
             mount_loop(args, loopdev, args.srv_partno, os.path.join(root, "srv"))
 
         if args.esp_partno is not None:
-            mount_loop(args, loopdev, args.esp_partno, os.path.join(root, "boot/efi"))
-
-        if args.distribution == Distribution.fedora:
-            mount_bind("/proc", os.path.join(root, "proc"))
-            mount_bind("/dev", os.path.join(root, "dev"))
-            mount_bind("/sys", os.path.join(root, "sys"))
+            mount_loop(args, loopdev, args.esp_partno, os.path.join(root, "efi"))
 
         # Make sure /tmp and /run are not part of the image
         mount_tmpfs(os.path.join(root, "run"))
@@ -359,17 +354,26 @@ def mount_image(args, workspace, loopdev):
         yield
     finally:
         with complete_step('Unmounting image'):
-            umount(os.path.join(root, "home"))
-            umount(os.path.join(root, "srv"))
-            umount(os.path.join(root, "boot/efi"))
-            umount(os.path.join(root, "proc"))
-            umount(os.path.join(root, "sys"))
-            umount(os.path.join(root, "dev"))
-            umount(os.path.join(root, "var/cache/dnf"))
-            umount(os.path.join(root, "var/cache/apt/archives"))
-            umount(os.path.join(root, "run"))
-            umount(os.path.join(root, "tmp"))
-            umount(os.path.join(root))
+
+            for d in ("home", "srv", "efi", "var/cache/dnf", "var/cache/apt/archives", "run", "tmp"):
+                umount(os.path.join(root, d))
+
+            umount(root)
+
+@contextlib.contextmanager
+def mount_api_vfs(args, workspace):
+    paths = ('/proc', '/dev', '/sys')
+    root = os.path.join(workspace, "root")
+
+    with complete_step('Mounting API VFS'):
+        for d in paths:
+            mount_bind(d, root + d)
+    try:
+        yield
+    finally:
+        with complete_step('Unmounting API VFS'):
+            for d in paths:
+                umount(root + d)
 
 def mount_cache(args, workspace):
     if not args.distribution in (Distribution.fedora, Distribution.debian, Distribution.ubuntu):
@@ -409,20 +413,20 @@ def prepare_tree(args, workspace, run_build_script):
 
     if args.bootable:
         # We need an initialized machine ID for the boot logic to work
-        mid = uuid.uuid4().hex
         os.mkdir(os.path.join(workspace, "root", "etc"), 0o755)
-        open(os.path.join(workspace, "root", "etc/machine-id"), "w").write(mid + "\n")
+        open(os.path.join(workspace, "root", "etc/machine-id"), "w").write(args.machine_id + "\n")
 
-        # For now, let's stay compatible with traditional Linux ESP mounts
-        os.mkdir(os.path.join(workspace, "root", "boot/efi/EFI"), 0o700)
-        os.mkdir(os.path.join(workspace, "root", "boot/efi/EFI/BOOT"), 0o700)
-        os.mkdir(os.path.join(workspace, "root", "boot/efi/EFI/systemd"), 0o700)
-        os.mkdir(os.path.join(workspace, "root", "boot/efi/loader"), 0o700)
-        os.mkdir(os.path.join(workspace, "root", "boot/efi/loader/entries"), 0o700)
-        os.mkdir(os.path.join(workspace, "root", "boot/efi", mid), 0o700)
+        os.mkdir(os.path.join(workspace, "root", "efi/EFI"), 0o700)
+        os.mkdir(os.path.join(workspace, "root", "efi/EFI/BOOT"), 0o700)
+        os.mkdir(os.path.join(workspace, "root", "efi/EFI/systemd"), 0o700)
+        os.mkdir(os.path.join(workspace, "root", "efi/loader"), 0o700)
+        os.mkdir(os.path.join(workspace, "root", "efi/loader/entries"), 0o700)
+        os.mkdir(os.path.join(workspace, "root", "efi", args.machine_id), 0o700)
 
+        os.mkdir(os.path.join(workspace, "root", "boot"), 0o700)
+        os.symlink("../efi", os.path.join(workspace, "root", "boot/efi"))
         os.symlink("efi/loader", os.path.join(workspace, "root", "boot/loader"))
-        os.symlink("efi/" + mid, os.path.join(workspace, "root", "boot", mid))
+        os.symlink("efi/" + args.machine_id, os.path.join(workspace, "root", "boot", args.machine_id))
 
         os.mkdir(os.path.join(workspace, "root", "etc/kernel"), 0o755)
 
@@ -467,12 +471,14 @@ Type=ether
 DHCP=yes
 """)
 
-def run_workspace_command(workspace, *cmd, network=False, env={}):
+def run_workspace_command(args, workspace, *cmd, network=False, env={}):
     cmdline = ["systemd-nspawn",
-                    '--quiet',
-                    "--directory", os.path.join(workspace, "root"),
-                    "--as-pid2",
-                    "--register=no"]
+               '--quiet',
+               "--directory=" + os.path.join(workspace, "root"),
+               "--uuid=" + args.machine_id,
+               "--as-pid2",
+               "--register=no"]
+
     if not network:
         cmdline += ["--private-network"]
 
@@ -565,9 +571,9 @@ gpgkey={gpg_key}
 
     if args.bootable:
         cmdline.extend(["kernel", "systemd-udev"])
-        os.makedirs(os.path.join(root, 'efi'), exist_ok=True)
 
-    subprocess.run(cmdline, check=True)
+    with mount_api_vfs(args, workspace):
+        subprocess.run(cmdline, check=True)
 
 def install_debian_or_ubuntu(args, workspace, run_build_script, mirror):
     if args.repositories:
@@ -636,7 +642,7 @@ def install_debian_or_ubuntu(args, workspace, run_build_script, mirror):
                 ])
 
         cmdline = ["/usr/bin/apt-get", "--assume-yes", "--no-install-recommends", "install"] + extra_packages
-        run_workspace_command(workspace, network=True, env={'DEBIAN_FRONTEND': 'noninteractive', 'DEBCONF_NONINTERACTIVE_SEEN': 'true'}, *cmdline)
+        run_workspace_command(args, workspace, network=True, env={'DEBIAN_FRONTEND': 'noninteractive', 'DEBCONF_NONINTERACTIVE_SEEN': 'true'}, *cmdline)
         os.unlink(policyrcd)
 
 @complete_step('Installing Debian')
@@ -659,7 +665,6 @@ def install_arch(args, workspace, run_build_script):
 
     subprocess.run(["pacman-key", "--nocolor", "--init"], check=True)
     subprocess.run(["pacman-key", "--nocolor", "--populate", keyring], check=True)
-
 
     if platform.machine() == "aarch64":
         server = "Server = {}/$arch/$repo".format(args.mirror)
@@ -738,20 +743,28 @@ def install_distribution(args, workspace, run_build_script):
 
     install[args.distribution](args, workspace, run_build_script)
 
-@complete_step('Resetting machine ID')
-def reset_machine_id(args, workspace):
+def reset_machine_id(args, workspace, run_build_script):
     """Make /etc/machine-id an empty file.
 
     This way, on the next boot is either initialized and commited (if /etc is
     writable) or the image runs with a transient machine ID, that changes on
     each boot (if the image is read-only).
     """
-    machine_id = os.path.join(workspace, 'root', 'etc/machine-id')
-    os.unlink(machine_id)
-    open(machine_id, "w+b").close()
 
-def set_root_password(args, workspace):
+    if run_build_script:
+        return
+
+    with complete_step('Resetting machine ID'):
+        machine_id = os.path.join(workspace, 'root', 'etc/machine-id')
+        os.unlink(machine_id)
+        open(machine_id, "w+b").close()
+
+def set_root_password(args, workspace, run_build_script):
     "Set the root account password, or just delete it so it's easy to log in"
+
+    if run_build_script:
+        return
+
     if args.password == '':
         print_step("Deleting root password...")
         jj = lambda line: (':'.join(['root', ''] + line.split(':')[2:])
@@ -764,19 +777,37 @@ def set_root_password(args, workspace):
                            if line.startswith('root:') else line)
         patch_file(os.path.join(workspace, 'root', 'etc/shadow'), jj)
 
+def run_postinst_script(args, workspace, run_build_script):
+
+    if args.postinst_script is None:
+        return
+
+    with complete_step('Running post installation script'):
+
+        # We copy the postinst script into the build tree. We'd prefer
+        # mounting it into the tree, but for that we'd need a good
+        # place to mount it to. But if we create that we might as well
+        # just copy the file anyway.
+
+        shutil.copy2(args.postinst_script,
+                     os.path.join(workspace, "root", "root/postinst"))
+
+        run_workspace_command(args, workspace, "/root/postinst", "build" if run_build_script else "final")
+        os.unlink(os.path.join(workspace, "root", "root/postinst"))
+
 def install_boot_loader_arch(args, workspace):
     patch_file(os.path.join(workspace, "root", "etc/mkinitcpio.conf"),
                lambda line: "HOOKS=\"systemd modconf block filesystems fsck\"\n" if line.startswith("HOOKS=") else line)
 
     kernel_version = next(filter(lambda x: x[0].isdigit(), os.listdir(os.path.join(workspace, "root", "lib/modules"))))
 
-    run_workspace_command(workspace,
+    run_workspace_command(args, workspace,
                       "/usr/bin/kernel-install", "add", kernel_version, "/boot/vmlinuz-linux")
 
 def install_boot_loader_debian(args, workspace):
     kernel_version = next(filter(lambda x: x[0].isdigit(), os.listdir(os.path.join(workspace, "root", "lib/modules"))))
 
-    run_workspace_command(workspace,
+    run_workspace_command(args, workspace,
                     "/usr/bin/kernel-install", "add", kernel_version, "/boot/vmlinuz-" + kernel_version)
 
 def install_boot_loader(args, workspace):
@@ -882,7 +913,10 @@ def make_read_only(args, workspace):
     with complete_step('Marking root subvolume read-only'):
         btrfs_subvol_make_ro(os.path.join(workspace, "root"))
 
-def make_tar(args, workspace):
+def make_tar(args, workspace, run_build_script):
+    if run_build_script:
+        return None
+
     if args.output_format != OutputFormat.tar:
         return None
 
@@ -1254,6 +1288,7 @@ def parse_args():
     group.add_argument("--build-script", help='Build script to run inside image', metavar='PATH')
     group.add_argument("--build-sources", help='Path for sources to build', metavar='PATH')
     group.add_argument("--build-package", action=PackageAction, dest='build_packages', help='Additional packages needed for build script', metavar='PACKAGE')
+    group.add_argument("--postinst-script", help='Post installation script to run inside image', metavar='PATH')
     group.add_argument('--use-git-files', type=parse_boolean,
                        help='Ignore any files that git itself ignores (default: guess)')
     group.add_argument("--settings", dest='nspawn_settings', help='Add in .spawn settings file', metavar='PATH')
@@ -1584,6 +1619,13 @@ def find_build_sources(args):
 
     args.build_sources = os.getcwd()
 
+def find_postinst_script(args):
+    if args.postinst_script is not None:
+        return
+
+    if os.path.exists("mkosi.postinst"):
+        args.postinst_script = "mkosi.postinst"
+
 def strip_suffixes(path):
     t = path
     while True:
@@ -1615,6 +1657,7 @@ def load_args():
     find_extra(args)
     find_build_script(args)
     find_build_sources(args)
+    find_postinst_script(args)
 
     if args.output_format is None:
         args.output_format = OutputFormat.raw_gpt
@@ -1713,6 +1756,9 @@ def load_args():
 
     if args.build_sources is not None:
         args.build_sources = os.path.abspath(args.build_sources)
+
+    if args.postinst_script is not None:
+        args.postinst_script = os.path.abspath(args.postinst_script)
 
     if args.extra_trees is not None:
         for i in range(len(args.extra_trees)):
@@ -1813,6 +1859,7 @@ def print_summary(args):
     sys.stderr.write("          Build Script: " + none_to_none(args.build_script) + "\n")
     sys.stderr.write("         Build Sources: " + none_to_none(args.build_sources) + "\n")
     sys.stderr.write("        Build Packages: " + line_join_list(args.build_packages) + "\n")
+    sys.stderr.write("     Post Inst. Script: " + none_to_none(args.postinst_script) + "\n")
     sys.stderr.write("       nspawn Settings: " + none_to_none(args.nspawn_settings) + "\n")
 
     if args.output_format in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs, OutputFormat.raw_squashfs):
@@ -1837,7 +1884,6 @@ def build_image(args, workspace, run_build_script):
     if args.build_script is None and run_build_script:
         return None, None, None
 
-    tar = None
     raw = create_image(args, workspace.name)
 
     with attach_image_loopback(args, raw) as loopdev:
@@ -1851,15 +1897,13 @@ def build_image(args, workspace, run_build_script):
             prepare_tree(args, workspace.name, run_build_script)
             mount_cache(args, workspace.name)
             install_distribution(args, workspace.name, run_build_script)
-            reset_machine_id(args, workspace.name)
+            reset_machine_id(args, workspace.name, run_build_script)
             install_boot_loader(args, workspace.name)
             install_extra_trees(args, workspace.name)
             install_build_src(args, workspace.name, run_build_script)
             install_build_dest(args, workspace.name, run_build_script)
-
-            if not run_build_script:
-                set_root_password(args, workspace.name)
-
+            set_root_password(args, workspace.name, run_build_script)
+            run_postinst_script(args, workspace.name, run_build_script)
             make_read_only(args, workspace.name)
 
         squashfs = make_squashfs(args, workspace.name)
@@ -1868,8 +1912,7 @@ def build_image(args, workspace, run_build_script):
         patch_root_uuid(args, loopdev, root_hash)
         insert_verity(args, workspace.name, raw, loopdev, verity, root_hash)
 
-    if not run_build_script:
-        tar = make_tar(args, workspace.name)
+    tar = make_tar(args, workspace.name, run_build_script)
 
     # Remove the root directory again, if this is the build script build
     if run_build_script:
@@ -1885,10 +1928,12 @@ def run_build_script(args, workspace, raw):
         dest = os.path.join(workspace, "dest")
         os.mkdir(dest, 0o755)
 
-        directory = os.path.join(workspace, "root") if raw is None else "--image=" + raw.name
+        target = "--directory=" + os.path.join(workspace, "root") if raw is None else "--image=" + raw.name
+
         cmdline = ["systemd-nspawn",
                    '--quiet',
-                   "--directory", directory,
+                   target,
+                   "--uuid=" + args.machine_id,
                    "--as-pid2",
                    "--private-network",
                    "--register=no",
@@ -1906,10 +1951,16 @@ def run_build_script(args, workspace, raw):
             cmdline.append("--chdir=/root")
 
         cmdline.append("/root/" + os.path.basename(args.build_script))
-
         subprocess.run(cmdline, check=True)
 
 def build_stuff(args):
+
+    # Let's define a fixed machine ID for all our build-time
+    # runs. We'll strip it off the final image, but some build-time
+    # tools (dracut...) want a fixed one, hence provide one, and
+    # always the same
+    args.machine_id = uuid.uuid4().hex
+
     cache = setup_cache(args)
     workspace = setup_workspace(args)
 

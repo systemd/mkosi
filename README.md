@@ -166,6 +166,18 @@ they exist in the local directory:
   build script copied in. However, this time the contents of
   `$DESTDIR` is added into the image.
 
+* `mkost.postinst` may be an executable script. If it exists it is
+  invoked as last step of preparing an image, from within the image
+  context. It is once called for the *development* image (if this is
+  enabled, see above) with the "build" command line parameter, right
+  before invoking the build script. It is called a second time for the
+  *final* image with the "final" command line parameter, right before
+  the image is considered complete. This script may be used to alter
+  the images without any restrictions, after all software packages and
+  built sources have been installed. Note that this script is executed
+  directly in the image context with the final root directory in
+  place, without any `$SRCDIR`/`$DESTDIR` setup.
+
 * `mkosi.nspawn` may be an nspawn settings file. If this exists
   it will be copied into the same place as the output image
   file. This is useful since nspawn looks for settings files
