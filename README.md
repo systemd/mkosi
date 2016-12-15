@@ -30,6 +30,9 @@ options are available:
 
 * Separate partitions for `/srv` and `/home` may be added in
 
+* The root, /srv and /home partitions may optionally be encrypted with
+  LUKS.
+
 * A dm-verity partition may be added in that adds runtime integrity
   data for the root partition
 
@@ -186,6 +189,13 @@ they exist in the local directory:
 
 * `mkosi.cache` may be a directory. If so, it is automatically used as
   package download cache, in order to speed repeated runs of the tool.
+
+* `mkosi.passphrase` may be a passphrase file to use when LUKS
+  encryption is selected. It should contain the passphrase literally,
+  and not end in a newline character (i.e. in the same format as
+  cryptsetup and /etc/crypttab expect the passphrase files). The file
+  must have an access mode of 0600 or less. If this file does not
+  exist and encryption is requested the user is queried instead.
 
 All these files are optional.
 
