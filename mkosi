@@ -29,6 +29,11 @@ __version__ = '1'
 # - work on device nodes
 # - allow passing env vars
 
+def die(message, status=1):
+    assert status >= 1 and status < 128
+    sys.stderr.write(message + "\n")
+    sys.exit(status)
+
 class OutputFormat(Enum):
     raw_gpt = 1
     raw_btrfs = 2
@@ -65,8 +70,7 @@ elif platform.machine() == "aarch64":
     GPT_ROOT_NATIVE = GPT_ROOT_ARM_64
     GPT_ROOT_NATIVE_VERITY = GPT_ROOT_ARM_64_VERITY
 else:
-    sys.stderr.write("Don't known the %s architecture.\n" % platform.machine())
-    sys.exit(1)
+    die("Don't know the %s architecture." % platform.machine())
 
 CLONE_NEWNS = 0x00020000
 
@@ -779,10 +783,10 @@ def install_debian(args, workspace, run_build_script):
 def install_ubuntu(args, workspace, run_build_script):
     install_debian_or_ubuntu(args, workspace, run_build_script, args.mirror)
 
-@complete_step('Installing ArchLinux')
+@complete_step('Installing Arch Linux')
 def install_arch(args, workspace, run_build_script):
     if args.release is not None:
-        sys.stderr.write("Distribution release specification is not supported for ArchLinux, ignoring.")
+        sys.stderr.write("Distribution release specification is not supported for Arch Linux, ignoring.\n")
 
     keyring = "archlinux"
 
@@ -1777,8 +1781,7 @@ def find_passphrase(args):
     try:
         passphrase_mode = os.stat('mkosi.passphrase').st_mode & (stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
         if (passphrase_mode & stat.S_IRWXU > 0o600) or (passphrase_mode & (stat.S_IRWXG | stat.S_IRWXO) > 0):
-            sys.stderr.write("Permissions of 'mkosi.passphrase' of '{}' are too open. When creating passphrase files please make sure to choose an access mode that restricts access to the owner only. Aborting.\n".format(oct(passphrase_mode)))
-            sys.exit(1)
+            die("Permissions of 'mkosi.passphrase' of '{}' are too open. When creating passphrase files please make sure to choose an access mode that restricts access to the owner only. Aborting.\n".format(oct(passphrase_mode)))
 
         args.passphrase = { 'type': 'file', 'content': 'mkosi.passphrase' }
 
@@ -1844,8 +1847,7 @@ def load_args():
             args.release = r
 
     if args.distribution is None:
-        sys.stderr.write("Couldn't detect distribution.\n")
-        sys.exit(1)
+        die("Couldn't detect distribution.")
 
     if args.release is None:
         if args.distribution == Distribution.fedora:
@@ -1873,25 +1875,20 @@ def load_args():
 
     if args.bootable:
         if args.distribution not in (Distribution.fedora, Distribution.arch, Distribution.debian):
-            sys.stderr.write("Bootable images are currently supported only on Debian, Fedora and ArchLinux.\n")
-            sys.exit(1)
+            die("Bootable images are currently supported only on Debian, Fedora and Arch Linux.")
 
         if not args.output_format in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs, OutputFormat.raw_squashfs):
-            sys.stderr.write("Directory, subvolume and tar images cannot be booted.\n")
-            sys.exit(1)
+            die("Directory, subvolume and tar images cannot be booted.")
 
     if args.encrypt is not None:
         if args.output_format not in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs, OutputFormat.raw_squashfs):
-            sys.stderr.write("Encryption is only supported for raw gpt, btrfs or squashfs images.\n")
-            sys.exit(1)
+            die("Encryption is only supported for raw gpt, btrfs or squashfs images.")
 
         if args.encrypt == "data" and args.output_format == OutputFormat.raw_btrfs:
-            sys.stderr.write("'data' encryption mode not supported on btrfs, use 'all' instead.\n")
-            sys.exit(1)
+            die("'data' encryption mode not supported on btrfs, use 'all' instead.")
 
         if args.encrypt == "all" and args.verity:
-            sys.stderr.write("'all' encryption mode may not be combined with Verity.\n")
-            sys.exit(1)
+            die("'all' encryption mode may not be combined with Verity.")
 
     if args.sign:
         args.checksum = True
@@ -1974,8 +1971,7 @@ def check_output(args):
             continue
 
         if os.path.exists(f):
-            sys.stderr.write("Output file " + f + " exists already. (Consider invocation with --force.)\n")
-            sys.exit(1)
+            die("Output file " + f + " exists already. (Consider invocation with --force.)")
 
 def yes_no(b):
     return "yes" if b else "no"
@@ -2198,8 +2194,7 @@ def build_stuff(args):
 
 def check_root():
     if os.getuid() != 0:
-        sys.stderr.write("Must be invoked as root.\n")
-        sys.exit(1)
+        die("Must be invoked as root.")
 
 
 def main():
