@@ -782,7 +782,7 @@ def install_ubuntu(args, workspace, run_build_script):
 @complete_step('Installing Arch Linux')
 def install_arch(args, workspace, run_build_script):
     if args.release is not None:
-        sys.stderr.write("Distribution release specification is not supported for Arch Linux, ignoring.")
+        sys.stderr.write("Distribution release specification is not supported for Arch Linux, ignoring.\n")
 
     keyring = "archlinux"
 
