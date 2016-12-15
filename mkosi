@@ -779,10 +779,10 @@ def install_debian(args, workspace, run_build_script):
 def install_ubuntu(args, workspace, run_build_script):
     install_debian_or_ubuntu(args, workspace, run_build_script, args.mirror)
 
-@complete_step('Installing ArchLinux')
+@complete_step('Installing Arch Linux')
 def install_arch(args, workspace, run_build_script):
     if args.release is not None:
-        sys.stderr.write("Distribution release specification is not supported for ArchLinux, ignoring.")
+        sys.stderr.write("Distribution release specification is not supported for Arch Linux, ignoring.")
 
     keyring = "archlinux"
 
@@ -1873,7 +1873,7 @@ def load_args():
 
     if args.bootable:
         if args.distribution not in (Distribution.fedora, Distribution.arch, Distribution.debian):
-            sys.stderr.write("Bootable images are currently supported only on Debian, Fedora and ArchLinux.\n")
+            sys.stderr.write("Bootable images are currently supported only on Debian, Fedora and Arch Linux.\n")
             sys.exit(1)
 
         if not args.output_format in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs, OutputFormat.raw_squashfs):
