@@ -1088,7 +1088,7 @@ def read_partition_table(loopdev):
 
         table.append(stripped)
 
-        name, rest = stripped.split(":")
+        name, rest = stripped.split(":", 1)
         fields = rest.split(",")
 
         start = None
