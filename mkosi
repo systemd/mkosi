@@ -214,7 +214,7 @@ def create_image(args, workspace):
                 run_sfdisk = True
 
         if args.output_format != OutputFormat.raw_squashfs:
-            table += 'type={}, name="Root Partition", attrs="{}"\n'.format(GPT_ROOT_NATIVE, "GUID:60" if args.read_only and args.output_format == OutputFormat.raw_gpt else "")
+            table += 'type={}, attrs={}, name="Root Partition"\n'.format(GPT_ROOT_NATIVE, "GUID:60" if args.read_only and args.output_format != OutputFormat.raw_btrfs else "")
             run_sfdisk = True
 
         args.root_partno = pn
@@ -1137,7 +1137,7 @@ def insert_partition(args, workspace, raw, loopdev, partno, blob, name, type_uui
     if uuid is not None:
         table += "uuid=" + str(uuid) + ", "
 
-    table += 'size={}, type={}, name="{}", attrs="GUID:60"\n'.format((blob_size + luks_extra) // 512, type_uuid, name)
+    table += 'size={}, type={}, attrs=GUID:60, name="{}"\n'.format((blob_size + luks_extra) // 512, type_uuid, name)
 
     print(table)
 
@@ -1415,7 +1415,7 @@ def parse_args():
     group.add_argument('-f', "--force", action='store_true', help='Remove existing image file before operation')
     group.add_argument('-b', "--bootable", type=parse_boolean, nargs='?', const=True,
                        help='Make image bootable on EFI (only raw_gpt, raw_btrfs, raw_squashfs)')
-    group.add_argument("--read-only", action='store_true', help='Make root volume read-only (only raw_btrfs, subvolume)')
+    group.add_argument("--read-only", action='store_true', help='Make root volume read-only (only raw_gpt, raw_btrfs, subvolume, implied on raw_squashs)')
     group.add_argument("--encrypt", choices=("all", "data"), help='Encrypt everything except: ESP ("all") or ESP and root ("data")')
     group.add_argument("--verity", action='store_true', help='Add integrity partition (implies --read-only)')
     group.add_argument("--compress", action='store_true', help='Enable compression in file system (only raw_btrfs, subvolume)')
@@ -2017,8 +2017,9 @@ def print_summary(args):
     sys.stderr.write("      Output Signature: " + none_to_na(args.output_signature if args.sign else None) + "\n")
     sys.stderr.write("Output nspawn Settings: " + none_to_na(args.output_nspawn_settings if args.nspawn_settings is not None else None) + "\n")
 
-    if args.output_format in (OutputFormat.raw_btrfs, OutputFormat.subvolume):
+    if args.output_format in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs, OutputFormat.raw_squashfs, OutputFormat.subvolume):
         sys.stderr.write("             Read-only: " + yes_no(args.read_only) + "\n")
+    if args.output_format in (OutputFormat.raw_btrfs, OutputFormat.subvolume):
         sys.stderr.write("        FS Compression: " + yes_no(args.compress) + "\n")
 
     if args.output_format in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs, OutputFormat.raw_squashfs, OutputFormat.tar):
