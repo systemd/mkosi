@@ -437,13 +437,16 @@ def prepare_srv(args, dev):
     with complete_step('Formatting server data partition'):
         mkfs_ext4("srv", "/srv", dev)
 
-def mount_loop(args, dev, where):
+def mount_loop(args, dev, where, read_only=False):
     os.makedirs(where, 0o755, True)
 
     options = "-odiscard"
 
     if args.compress and args.output_format == OutputFormat.raw_btrfs:
         options += ",compress"
+
+    if read_only:
+        options += ",ro"
 
     subprocess.run(["mount", "-n", dev, where, options], check=True)
 
@@ -456,7 +459,7 @@ def mount_tmpfs(where):
     subprocess.run(["mount", "tmpfs", "-t", "tmpfs", where], check=True)
 
 @contextlib.contextmanager
-def mount_image(args, workspace, loopdev, root_dev, home_dev, srv_dev):
+def mount_image(args, workspace, loopdev, root_dev, home_dev, srv_dev, root_read_only=False):
     if loopdev is None:
         yield None
         return
@@ -465,7 +468,7 @@ def mount_image(args, workspace, loopdev, root_dev, home_dev, srv_dev):
         root = os.path.join(workspace, "root")
 
         if args.output_format != OutputFormat.raw_squashfs:
-            mount_loop(args, root_dev, root)
+            mount_loop(args, root_dev, root, root_read_only)
 
         if home_dev is not None:
             mount_loop(args, home_dev, os.path.join(root, "home"))
@@ -548,6 +551,7 @@ def prepare_tree(args, workspace, run_build_script):
 
         os.mkdir(os.path.join(workspace, "root", "efi/EFI"), 0o700)
         os.mkdir(os.path.join(workspace, "root", "efi/EFI/BOOT"), 0o700)
+        os.mkdir(os.path.join(workspace, "root", "efi/EFI/Linux"), 0o700)
         os.mkdir(os.path.join(workspace, "root", "efi/EFI/systemd"), 0o700)
         os.mkdir(os.path.join(workspace, "root", "efi/loader"), 0o700)
         os.mkdir(os.path.join(workspace, "root", "efi/loader/entries"), 0o700)
@@ -633,8 +637,31 @@ def check_if_url_exists(url):
     except:
         return False
 
+def disable_kernel_install(args, workspace):
+
+    # Let's disable the automatic kernel installation done by the
+    # kernel RPMs. After all, we want to built our own unified kernels
+    # that include the root hash in the kernel command line and can be
+    # signed as a single EFI executable. Since the root hash is only
+    # known when the root file system is finalized we turn off any
+    # kernel installation beforehand.
+
+    if not args.bootable:
+        return
+
+    for d in ("etc", "etc/kernel", "etc/kernel/install.d"):
+        try:
+            os.mkdir(os.path.join(workspace, "root", d), 0o755)
+        except FileExistsError:
+            pass
+
+    for f in ("50-dracut.install", "51-dracut-rescue.install", "90-loaderentry.install"):
+        os.symlink("/dev/null", os.path.join(workspace, "root", "etc/kernel/install.d", f))
+
 @complete_step('Installing Fedora')
 def install_fedora(args, workspace, run_build_script):
+
+    disable_kernel_install(args, workspace)
 
     gpg_key = "/etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-%s-x86_64" % args.release
     if os.path.exists(gpg_key):
@@ -708,7 +735,7 @@ gpgkey={gpg_key}
         cmdline.extend(args.build_packages)
 
     if args.bootable:
-        cmdline.extend(["kernel", "systemd-udev"])
+        cmdline.extend(["kernel", "systemd-udev", "binutils"])
 
         # Temporary hack: dracut only adds crypto support to the initrd, if the cryptsetup binary is installed
         if args.encrypt or args.verity:
@@ -1187,14 +1214,14 @@ def insert_squashfs(args, workspace, raw, loopdev, squashfs):
         args.root_size = insert_partition(args, workspace, raw, loopdev, args.root_partno, squashfs,
                                           "Root Partition", GPT_ROOT_NATIVE)
 
-def make_verity(args, workspace, loopdev, run_build_script):
+def make_verity(args, workspace, dev, run_build_script):
 
     if run_build_script or not args.verity:
         return None, None
 
     with complete_step('Generating verity hashes'):
         f = tempfile.NamedTemporaryFile(dir=os.path.dirname(args.output), prefix=".mkosi-")
-        c = subprocess.run(["veritysetup", "format", partition(loopdev, args.root_partno), f.name],
+        c = subprocess.run(["veritysetup", "format", dev, f.name],
                            stdout=subprocess.PIPE, check=True)
 
         for line in c.stdout.decode("utf-8").split('\n'):
@@ -1227,6 +1254,58 @@ def patch_root_uuid(args, loopdev, root_hash):
     with complete_step('Patching root partition UUID'):
         subprocess.run(["sfdisk", "--part-uuid", loopdev, str(args.root_partno), str(u)],
                        check=True)
+
+def install_unified_kernel(args, workspace, run_build_script, root_hash):
+
+    # Iterates through all kernel versions included in the image and
+    # generates a combined kernel+initrd+cmdline+osrelease EFI file
+    # from it and places it in the /EFI/Linux directory of the
+    # ESP. sd-boot iterates through them and shows them in the
+    # menu. These "unified" single-file images have the benefit that
+    # they can be signed like normal EFI binaries, and can encode
+    # everything necessary to boot a specific root device, including
+    # the root hash.
+
+    if not args.bootable:
+        return
+
+    if args.distribution != Distribution.fedora:
+        return
+
+    with complete_step("Generating combined kernel + initrd boot file"):
+
+        cmdline = args.kernel_commandline
+        if root_hash is not None:
+            cmdline += " roothash=" + root_hash
+
+        for kver in os.scandir(os.path.join(workspace, "root", "usr/lib/modules")):
+            if not kver.is_dir():
+                continue
+
+            boot_binary = "/efi/EFI/Linux/linux-" + kver.name
+            if root_hash is not None:
+                boot_binary += "-" + root_hash
+            boot_binary += ".efi"
+
+            dracut = ["/usr/bin/dracut",
+                      "-v",
+                      "--no-hostonly",
+                      "--uefi",
+                      "--kver", kver.name,
+                      "--kernel-cmdline", cmdline ]
+
+            # Temporary fix until dracut includes these in the image anyway
+            dracut += ("-i",) + ("/usr/lib/systemd/system/systemd-volatile-root.service",)*2 + \
+                      ("-i",) + ("/usr/lib/systemd/systemd-volatile-root",)*2 + \
+                      ("-i",) + ("/usr/lib/systemd/systemd-veritysetup",)*2 + \
+                      ("-i",) + ("/usr/lib/systemd/system-generators/systemd-veritysetup-generator",)*2
+
+            if args.output_format == OutputFormat.raw_squashfs:
+                dracut += [ '--add-drivers', 'squashfs' ]
+
+            dracut += [ boot_binary ]
+
+            run_workspace_command(args, workspace, *dracut);
 
 def xz_output(args, raw):
     if not args.output_format in (OutputFormat.raw_btrfs, OutputFormat.raw_gpt, OutputFormat.raw_squashfs):
@@ -2117,9 +2196,15 @@ def build_image(args, workspace, run_build_script):
             squashfs = make_squashfs(args, workspace.name)
             insert_squashfs(args, workspace.name, raw, loopdev, squashfs)
 
-        verity, root_hash = make_verity(args, workspace.name, loopdev, run_build_script)
-        patch_root_uuid(args, loopdev, root_hash)
-        insert_verity(args, workspace.name, raw, loopdev, verity, root_hash)
+            verity, root_hash = make_verity(args, workspace.name, encrypted_root, run_build_script)
+            patch_root_uuid(args, loopdev, root_hash)
+            insert_verity(args, workspace.name, raw, loopdev, verity, root_hash)
+
+            # This time we mount read-only, as we already generated
+            # the verity data, and hence really shouldn't modify the
+            # image anymore.
+            with mount_image(args, workspace.name, loopdev, encrypted_root, encrypted_home, encrypted_srv, root_read_only=True):
+                install_unified_kernel(args, workspace.name, run_build_script, root_hash)
 
     tar = make_tar(args, workspace.name, run_build_script)
 
