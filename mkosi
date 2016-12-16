@@ -602,12 +602,20 @@ DHCP=yes
 """)
 
 def run_workspace_command(args, workspace, *cmd, network=False, env={}):
+
+    var_tmp = os.path.join(workspace, "var-tmp")
+    try:
+        os.mkdir(var_tmp)
+    except FileExistsError:
+        pass
+
     cmdline = ["systemd-nspawn",
                '--quiet',
                "--directory=" + os.path.join(workspace, "root"),
                "--uuid=" + args.machine_id,
                "--as-pid2",
-               "--register=no"]
+               "--register=no",
+               "--bind=" + var_tmp + ":/var/tmp" ]
 
     if not network:
         cmdline += ["--private-network"]
