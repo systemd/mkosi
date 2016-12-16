@@ -24,7 +24,6 @@ __version__ = '1'
 
 # TODO
 # - volatile images
-# - set gpt read-only bit
 # - make debian/ubuntu images bootable
 # - work on device nodes
 # - allow passing env vars
