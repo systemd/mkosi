@@ -710,6 +710,16 @@ gpgkey={gpg_key}
     if args.bootable:
         cmdline.extend(["kernel", "systemd-udev"])
 
+        # Temporary hack: dracut only adds crypto support to the initrd, if the cryptsetup binary is installed
+        if args.encrypt or args.verity:
+            cmdline.append("cryptsetup")
+
+        if args.output_format == OutputFormat.raw_gpt:
+            cmdline.append("e2fsprogs")
+
+        if args.output_format == OutputFormat.raw_btrfs:
+            cmdline.append("btrfs-progs")
+
     with mount_api_vfs(args, workspace):
         subprocess.run(cmdline, check=True)
 
