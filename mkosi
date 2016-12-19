@@ -2125,6 +2125,12 @@ def print_summary(args):
     sys.stderr.write("            Encryption: " + none_to_no(args.encrypt) + "\n")
     sys.stderr.write("                Verity: " + yes_no(args.verity) + "\n")
 
+    if args.output_format in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs, OutputFormat.raw_squashfs):
+        sys.stderr.write("              Bootable: " + yes_no(args.bootable) + "\n")
+
+        if args.bootable:
+            sys.stderr.write("   Kernel Command Line: " + args.kernel_commandline + "\n")
+
     sys.stderr.write("\nPACKAGES:\n")
     sys.stderr.write("              Packages: " + line_join_list(args.packages) + "\n")
 
@@ -2142,7 +2148,6 @@ def print_summary(args):
 
     if args.output_format in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs, OutputFormat.raw_squashfs):
         sys.stderr.write("\nPARTITIONS:\n")
-        sys.stderr.write("              Bootable: " + yes_no(args.bootable) + "\n")
         sys.stderr.write("        Root Partition: " + format_bytes_or_auto(args.root_size) + "\n")
         sys.stderr.write("        Swap Partition: " + format_bytes_or_disabled(args.swap_size) + "\n")
         sys.stderr.write("                   ESP: " + format_bytes_or_disabled(args.esp_size) + "\n")
