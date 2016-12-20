@@ -43,9 +43,6 @@ labels (and no *MBR* disk labels) are supported, and only
 systemd based images may be generated. Moreover, for bootable
 images only *EFI* systems are supported (not plain *MBR/BIOS*).
 
-Currently, the *EFI* boot loader does not support *SecureBoot*,
-and hence cannot generate signed *SecureBoot* images.
-
 All generated *GPT* disk images may be booted in a local
 container directly with:
 
@@ -197,6 +194,11 @@ they exist in the local directory:
   must have an access mode of 0600 or less. If this file does not
   exist and encryption is requested the user is queried instead.
 
+* `mkosi.secure-boot.crt` and `mkosi.secure-boot.key` may contain an
+  X509 certificate and PEM private key to use when UEFI SecureBoot
+  support is enabled. All EFI binaries included in the image's ESP are
+  signed with this key, as a late step in the build process.
+
 All these files are optional.
 
 Note that the location of all these files may also be
@@ -276,4 +278,14 @@ When not using distribution packages, for example, on *Fedora* you need:
 
 ```bash
 dnf install arch-install-scripts btrfs-progs debootstrap dosfstools edk2-ovmf squashfs-tools gnupg python3 tar veritysetup xz
+```
+
+If SecureBoot signing is to be used, then the "sbsign" tool needs to
+be installed as well, which is currently not available on Fedora, but
+in a COPR repository:
+
+```bash
+
+dnf copr enable msekleta/sbsigntool
+dnf install sbsigntool
 ```

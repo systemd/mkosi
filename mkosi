@@ -1306,6 +1306,31 @@ def install_unified_kernel(args, workspace, run_build_script, root_hash):
 
             run_workspace_command(args, workspace, *dracut);
 
+def secure_boot_sign(args, workspace, run_build_script):
+
+    if run_build_script:
+        return
+    if not args.bootable:
+        return
+    if not args.secure_boot:
+        return
+
+    for path, dirnames, filenames in os.walk(os.path.join(workspace, "root", "efi")):
+        for i in filenames:
+            if not i.endswith(".efi") and not i.endswith(".EFI"):
+                continue
+
+            with complete_step("Signing EFI binary {} in ESP".format(i)):
+                p = os.path.join(path, i)
+
+                subprocess.run(["sbsign",
+                                "--key", args.secure_boot_key,
+                                "--cert", args.secure_boot_certificate,
+                                "--output", p + ".signed",
+                                p], check=True)
+
+                os.rename(p + ".signed", p)
+
 def xz_output(args, raw):
     if not args.output_format in (OutputFormat.raw_btrfs, OutputFormat.raw_gpt, OutputFormat.raw_squashfs):
         return raw
@@ -1511,6 +1536,9 @@ def parse_args():
     group.add_argument('-f', "--force", action='store_true', help='Remove existing image file before operation')
     group.add_argument('-b', "--bootable", type=parse_boolean, nargs='?', const=True,
                        help='Make image bootable on EFI (only raw_gpt, raw_btrfs, raw_squashfs)')
+    group.add_argument("--secure-boot", action='store_true', help='Sign the resulting kernel/initrd image for UEFI SecureBoot')
+    group.add_argument("--secure-boot-key", help="UEFI SecureBoot private key in PEM format", metavar='PATH')
+    group.add_argument("--secure-boot-certificate", help="UEFI SecureBoot certificate in X509 format", metavar='PATH')
     group.add_argument("--read-only", action='store_true', help='Make root volume read-only (only raw_gpt, raw_btrfs, subvolume, implied on raw_squashs)')
     group.add_argument("--encrypt", choices=("all", "data"), help='Encrypt everything except: ESP ("all") or ESP and root ("data")')
     group.add_argument("--verity", action='store_true', help='Add integrity partition (implies --read-only)')
@@ -1676,6 +1704,15 @@ def process_setting(args, section, key, value):
         elif key == "Bootable":
             if args.bootable is None:
                 args.bootable = parse_boolean(value)
+        elif key == "SecureBoot":
+            if args.secure_boot is None:
+                args.secure_boot = parse_boolean(value)
+        elif key == "SecureBootKey":
+            if args.secure_boot_key is None:
+                args.secure_boot_key = value
+        elif key == "SecureBootCertificate":
+            if args.secure_boot_certificate is None:
+                args.secure_boot_certificate = value
         elif key == "ReadOnly":
             if args.read_only is None:
                 args.read_only = parse_boolean(value)
@@ -1891,6 +1928,18 @@ def find_passphrase(args):
 
             sys.stderr.write("Passphrase doesn't match confirmation. Please try again.\n")
 
+def find_secure_boot(args):
+    if not args.secure_boot:
+        return
+
+    if args.secure_boot_key is None:
+        if os.path.exists("mkosi.secure-boot.key"):
+            args.secure_boot_key = "mkosi.secure-boot.key"
+
+    if args.secure_boot_certificate is None:
+        if os.path.exists("mkosi.secure-boot.crt"):
+            args.secure_boot_certificate = "mkosi.secure-boot.crt"
+
 def strip_suffixes(path):
     t = path
     while True:
@@ -1924,6 +1973,7 @@ def load_args():
     find_build_sources(args)
     find_postinst_script(args)
     find_passphrase(args)
+    find_secure_boot(args)
 
     if args.output_format is None:
         args.output_format = OutputFormat.raw_gpt
@@ -2054,6 +2104,19 @@ def load_args():
     if args.bootable and args.kernel_commandline is None:
         args.kernel_commandline = "rhgb quiet selinux=0 audit=0 rw"
 
+    if args.secure_boot_key is not None:
+        args.secure_boot_key = os.path.abspath(args.secure_boot_key)
+
+    if args.secure_boot_certificate is not None:
+        args.secure_boot_certificate = os.path.abspath(args.secure_boot_certificate)
+
+    if args.secure_boot:
+        if args.secure_boot_key is None:
+            die("UEFI SecureBoot enabled, but couldn't find private key. (Consider placing it in mkosi.secure-boot.key?)")
+
+        if args.secure_boot_certificate is None:
+            die("UEFI SecureBoot enabled, but couldn't find certificate. (Consider placing it in mkosi.secure-boot.crt?)")
+
     return args
 
 def check_output(args):
@@ -2129,6 +2192,11 @@ def print_summary(args):
 
         if args.bootable:
             sys.stderr.write("   Kernel Command Line: " + args.kernel_commandline + "\n")
+            sys.stderr.write("       UEFI SecureBoot: " + yes_no(args.secure_boot) + "\n")
+
+            if args.secure_boot:
+                sys.stderr.write("   UEFI SecureBoot Key: " + args.secure_boot_key + "\n")
+                sys.stderr.write(" UEFI SecureBoot Cert.: " + args.secure_boot_certificate + "\n")
 
     sys.stderr.write("\nPACKAGES:\n")
     sys.stderr.write("              Packages: " + line_join_list(args.packages) + "\n")
@@ -2209,6 +2277,7 @@ def build_image(args, workspace, run_build_script):
             # image anymore.
             with mount_image(args, workspace.name, loopdev, encrypted_root, encrypted_home, encrypted_srv, root_read_only=True):
                 install_unified_kernel(args, workspace.name, run_build_script, root_hash)
+                secure_boot_sign(args, workspace.name, run_build_script)
 
     tar = make_tar(args, workspace.name, run_build_script)
 
