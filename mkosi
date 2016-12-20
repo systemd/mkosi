@@ -1765,6 +1765,9 @@ def process_setting(args, section, key, value):
                 args.build_packages = list_value
             else:
                 args.build_packages.extend(list_value)
+        elif key == "PostInstallationScript":
+            if args.postinst_script is None:
+                arg.postinst_script = value
         elif key == "NSpawnSettings":
             if args.nspawn_settings is not None:
                 args.nspawn_settings = value
