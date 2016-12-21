@@ -72,7 +72,7 @@ systemd-nspawn -bD image
 
 # Other features
 
-* Optionally, create an *SHA256SUM* checksum file for the result,
+* Optionally, create an *SHA256SUMS* checksum file for the result,
   possibly even signed via gpg.
 
 * Optionally, place a specific `.nspawn` settings file along

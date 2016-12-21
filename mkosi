@@ -1381,7 +1381,7 @@ def calculate_sha256sum(args, raw, tar, root_hash_file, nspawn_settings):
     if not args.checksum:
         return None
 
-    with complete_step('Calculating SHA256SUM'):
+    with complete_step('Calculating SHA256SUMS'):
         f = tempfile.NamedTemporaryFile(mode="w+", prefix=".mkosi-", encoding="utf-8",
                                         dir=os.path.dirname(args.output_checksum))
 
@@ -1403,7 +1403,7 @@ def calculate_signature(args, checksum):
     if checksum is None:
         return None
 
-    with complete_step('Signing SHA256SUM'):
+    with complete_step('Signing SHA256SUMS'):
         f = tempfile.NamedTemporaryFile(mode="wb", prefix=".mkosi-",
                                         dir=os.path.dirname(args.output_signature))
 
@@ -1442,7 +1442,7 @@ def link_output_checksum(args, checksum):
     if checksum is None:
         return
 
-    with complete_step('Linking SHA256SUM file',
+    with complete_step('Linking SHA256SUMS file',
                        'Successfully linked ' + args.output_checksum):
         os.chmod(checksum, 0o666 & ~args.original_umask)
         os.link(checksum, args.output_checksum)
@@ -1460,7 +1460,7 @@ def link_output_signature(args, signature):
     if signature is None:
         return
 
-    with complete_step('Linking SHA256SUM.gpg file',
+    with complete_step('Linking SHA256SUMS.gpg file',
                        'Successfully linked ' + args.output_signature):
         os.chmod(signature, 0o666 & ~args.original_umask)
         os.link(signature, args.output_signature)
@@ -1560,8 +1560,8 @@ def parse_args():
     group.add_argument("--srv-size", help='Set size of /srv partition (only raw_gpt, raw_squashfs)', metavar='BYTES')
 
     group = parser.add_argument_group("Validation (only raw_gpt, raw_btrfs, raw_squashfs, tar)")
-    group.add_argument("--checksum", action='store_true', help='Write SHA256SUM file')
-    group.add_argument("--sign", action='store_true', help='Write and sign SHA256SUM file')
+    group.add_argument("--checksum", action='store_true', help='Write SHA256SUMS file')
+    group.add_argument("--sign", action='store_true', help='Write and sign SHA256SUMS file')
     group.add_argument("--key", help='GPG key to use for signing')
     group.add_argument("--password", help='Set the root password')
 
@@ -2062,10 +2062,10 @@ def load_args():
         args.output_root_hash_file = build_root_hash_file_path(args.output)
 
     if args.checksum:
-        args.output_checksum = os.path.join(os.path.dirname(args.output), "SHA256SUM")
+        args.output_checksum = os.path.join(os.path.dirname(args.output), "SHA256SUMS")
 
     if args.sign:
-        args.output_signature = os.path.join(os.path.dirname(args.output), "SHA256SUM.gpg")
+        args.output_signature = os.path.join(os.path.dirname(args.output), "SHA256SUMS.gpg")
 
     if args.nspawn_settings is not None:
         args.nspawn_settings = os.path.abspath(args.nspawn_settings)
