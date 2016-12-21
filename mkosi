@@ -606,19 +606,13 @@ DHCP=yes
 
 def run_workspace_command(args, workspace, *cmd, network=False, env={}):
 
-    var_tmp = os.path.join(workspace, "var-tmp")
-    try:
-        os.mkdir(var_tmp)
-    except FileExistsError:
-        pass
-
     cmdline = ["systemd-nspawn",
                '--quiet',
                "--directory=" + os.path.join(workspace, "root"),
                "--uuid=" + args.machine_id,
                "--as-pid2",
                "--register=no",
-               "--bind=" + var_tmp + ":/var/tmp" ]
+               "--bind=" + var_tmp(workspace) + ":/var/tmp" ]
 
     if not network:
         cmdline += ["--private-network"]
@@ -2290,6 +2284,16 @@ def build_image(args, workspace, run_build_script):
 
     return raw, tar, root_hash
 
+def var_tmp(workspace):
+
+    var_tmp = os.path.join(workspace, "var-tmp")
+    try:
+        os.mkdir(var_tmp)
+    except FileExistsError:
+        pass
+
+    return var_tmp
+
 def run_build_script(args, workspace, raw):
     if args.build_script is None:
         return
@@ -2308,6 +2312,7 @@ def run_build_script(args, workspace, raw):
                    "--private-network",
                    "--register=no",
                    "--bind", dest + ":/root/dest",
+                   "--bind=" + var_tmp(workspace) + ":/var/tmp",
                    "--setenv=WITH_DOCS=" + ("1" if args.with_docs else "0"),
                    "--setenv=DESTDIR=/root/dest"]
 
