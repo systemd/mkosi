@@ -579,8 +579,8 @@ def prepare_tree(args, workspace, run_build_script):
             cmdline.write("\n")
 
     if run_build_script:
-        os.mkdir(os.path.join(workspace, "root", "root"))
-        os.mkdir(os.path.join(workspace, "root", "root/dest"))
+        os.mkdir(os.path.join(workspace, "root", "root"), 0o750)
+        os.mkdir(os.path.join(workspace, "root", "root/dest"), 0o755)
 
 def patch_file(filepath, line_rewriter):
     temp_new_filepath = filepath + ".tmp.new"
