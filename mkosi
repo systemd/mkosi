@@ -2291,10 +2291,6 @@ def build_image(args, workspace, run_build_script):
 
     tar = make_tar(args, workspace.name, run_build_script)
 
-    # Remove the root directory again, if this is the build script build
-    if run_build_script:
-        unlink_try_hard(os.path.join(workspace.name, "root"))
-
     return raw, tar, root_hash
 
 def var_tmp(workspace):
@@ -2362,6 +2358,11 @@ def build_stuff(args):
 
     if tar is not None:
         del tar
+
+    if args.build_script is not None:
+        with complete_step("Removing artifacts from development build"):
+            unlink_try_hard(os.path.join(workspace.name, "root"))
+            unlink_try_hard(os.path.join(workspace.name, "var-tmp"))
 
     raw, tar, root_hash = build_image(args, workspace, run_build_script=False)
 
