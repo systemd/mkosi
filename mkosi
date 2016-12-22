@@ -393,6 +393,10 @@ def luks_setup_srv(args, loopdev, run_build_script):
 @contextlib.contextmanager
 def luks_setup_all(args, loopdev, run_build_script):
 
+    if args.output_format in (OutputFormat.directory, OutputFormat.subvolume, OutputFormat.tar):
+        yield (None, None, None)
+        return
+
     try:
         root = luks_setup_root(args, loopdev, run_build_script)
         try:
