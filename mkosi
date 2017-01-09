@@ -1571,6 +1571,9 @@ def parse_args():
     group.add_argument("--kernel-commandline", help='Set the kernel command line (only bootable images)')
 
     args = parser.parse_args()
+    args.root_partno = None
+    args.home_partno = None
+    args.srv_partno = None
 
     if args.verb == "help":
         parser.print_help()
