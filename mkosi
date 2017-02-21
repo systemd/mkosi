@@ -393,6 +393,10 @@ def luks_setup_srv(args, loopdev, run_build_script):
 @contextlib.contextmanager
 def luks_setup_all(args, loopdev, run_build_script):
 
+    if args.output_format in (OutputFormat.directory, OutputFormat.subvolume, OutputFormat.tar):
+        yield (None, None, None)
+        return
+
     try:
         root = luks_setup_root(args, loopdev, run_build_script)
         try:
@@ -507,18 +511,25 @@ def mount_api_vfs(args, workspace):
             for d in paths:
                 umount(root + d)
 
+@contextlib.contextmanager
 def mount_cache(args, workspace):
-    if not args.distribution in (Distribution.fedora, Distribution.debian, Distribution.ubuntu):
-        return
 
     if args.cache_path is None:
+        yield
         return
 
     # We can't do this in mount_image() yet, as /var itself might have to be created as a subvolume first
-    if args.distribution == Distribution.fedora:
-        mount_bind(args.cache_path, os.path.join(workspace, "root", "var/cache/dnf"))
-    elif args.distribution in (Distribution.debian, Distribution.ubuntu):
-        mount_bind(args.cache_path, os.path.join(workspace, "root", "var/cache/apt/archives"))
+    with complete_step('Mounting Package Cache'):
+        if args.distribution == Distribution.fedora:
+            mount_bind(args.cache_path, os.path.join(workspace, "root", "var/cache/dnf"))
+        elif args.distribution in (Distribution.debian, Distribution.ubuntu):
+            mount_bind(args.cache_path, os.path.join(workspace, "root", "var/cache/apt/archives"))
+    try:
+        yield
+    finally:
+        with complete_step('Unmounting Package Cache'):
+            for d in ("var/cache/dnf", "var/cache/apt/archives"):
+                umount(os.path.join(workspace, "root", d))
 
 def umount(where):
     # Ignore failures and error messages
@@ -568,8 +579,8 @@ def prepare_tree(args, workspace, run_build_script):
             cmdline.write("\n")
 
     if run_build_script:
-        os.mkdir(os.path.join(workspace, "root", "root"))
-        os.mkdir(os.path.join(workspace, "root", "root/dest"))
+        os.mkdir(os.path.join(workspace, "root", "root"), 0o750)
+        os.mkdir(os.path.join(workspace, "root", "root/dest"), 0o755)
 
 def patch_file(filepath, line_rewriter):
     temp_new_filepath = filepath + ".tmp.new"
@@ -2251,15 +2262,17 @@ def build_image(args, workspace, run_build_script):
 
             with mount_image(args, workspace.name, loopdev, encrypted_root, encrypted_home, encrypted_srv):
                 prepare_tree(args, workspace.name, run_build_script)
-                mount_cache(args, workspace.name)
-                install_distribution(args, workspace.name, run_build_script)
-                reset_machine_id(args, workspace.name, run_build_script)
-                install_boot_loader(args, workspace.name)
-                install_extra_trees(args, workspace.name)
-                install_build_src(args, workspace.name, run_build_script)
-                install_build_dest(args, workspace.name, run_build_script)
-                set_root_password(args, workspace.name, run_build_script)
-                run_postinst_script(args, workspace.name, run_build_script)
+
+                with mount_cache(args, workspace.name):
+                    install_distribution(args, workspace.name, run_build_script)
+                    reset_machine_id(args, workspace.name, run_build_script)
+                    install_boot_loader(args, workspace.name)
+                    install_extra_trees(args, workspace.name)
+                    install_build_src(args, workspace.name, run_build_script)
+                    install_build_dest(args, workspace.name, run_build_script)
+                    set_root_password(args, workspace.name, run_build_script)
+                    run_postinst_script(args, workspace.name, run_build_script)
+
                 make_read_only(args, workspace.name)
 
             squashfs = make_squashfs(args, workspace.name)
@@ -2277,10 +2290,6 @@ def build_image(args, workspace, run_build_script):
                 secure_boot_sign(args, workspace.name, run_build_script)
 
     tar = make_tar(args, workspace.name, run_build_script)
-
-    # Remove the root directory again, if this is the build script build
-    if run_build_script:
-        unlink_try_hard(os.path.join(workspace.name, "root"))
 
     return raw, tar, root_hash
 
@@ -2349,6 +2358,11 @@ def build_stuff(args):
 
     if tar is not None:
         del tar
+
+    if args.build_script is not None:
+        with complete_step("Removing artifacts from development build"):
+            unlink_try_hard(os.path.join(workspace.name, "root"))
+            unlink_try_hard(os.path.join(workspace.name, "var-tmp"))
 
     raw, tar, root_hash = build_image(args, workspace, run_build_script=False)
 
