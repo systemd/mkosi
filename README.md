@@ -227,7 +227,7 @@ Create and run a *Fedora* image into a plain directory:
 
 ```bash
 # mkosi -d fedora -t directory -o quux
-# systemd-nspawn -b quux
+# systemd-nspawn -b -D quux
 ```
 
 Create a compressed tar ball `image.raw.xz` and add a checksum
