@@ -2265,8 +2265,8 @@ def build_image(args, workspace, run_build_script):
 
                 with mount_cache(args, workspace.name):
                     install_distribution(args, workspace.name, run_build_script)
-                    reset_machine_id(args, workspace.name, run_build_script)
                     install_boot_loader(args, workspace.name)
+                    reset_machine_id(args, workspace.name, run_build_script)
                     install_extra_trees(args, workspace.name)
                     install_build_src(args, workspace.name, run_build_script)
                     install_build_dest(args, workspace.name, run_build_script)
