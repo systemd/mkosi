@@ -2265,7 +2265,6 @@ def build_image(args, workspace, run_build_script):
 
                 with mount_cache(args, workspace.name):
                     install_distribution(args, workspace.name, run_build_script)
-                    reset_machine_id(args, workspace.name, run_build_script)
                     install_boot_loader(args, workspace.name)
                     install_extra_trees(args, workspace.name)
                     install_build_src(args, workspace.name, run_build_script)
@@ -2273,6 +2272,7 @@ def build_image(args, workspace, run_build_script):
                     set_root_password(args, workspace.name, run_build_script)
                     run_postinst_script(args, workspace.name, run_build_script)
 
+                reset_machine_id(args, workspace.name, run_build_script)
                 make_read_only(args, workspace.name)
 
             squashfs = make_squashfs(args, workspace.name)
