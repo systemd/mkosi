@@ -937,6 +937,10 @@ def reset_machine_id(args, workspace, run_build_script):
         machine_id = os.path.join(workspace, 'root', 'etc/machine-id')
         os.unlink(machine_id)
         open(machine_id, "w+b").close()
+        dbus_machine_id = os.path.join(workspace, 'root', 'var/lib/dbus/machine-id')
+        if os.path.exists(dbus_machine_id):
+            os.unlink(dbus_machine_id)
+            os.symlink('../../../etc/machine-id', dbus_machine_id)
 
 def set_root_password(args, workspace, run_build_script):
     "Set the root account password, or just delete it so it's easy to log in"
