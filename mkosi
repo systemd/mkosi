@@ -1766,10 +1766,10 @@ def process_setting(args, section, key, value):
             else:
                 args.extra_trees.extend(list_value)
         elif key == "BuildScript":
-            if args.build_script is not None:
+            if args.build_script is None:
                 args.build_script = value
         elif key == "BuildSources":
-            if args.build_sources is not None:
+            if args.build_sources is None:
                 args.build_sources = value
         elif key == "BuildPackages":
             list_value = value if type(value) == list else value.split()
@@ -1781,7 +1781,7 @@ def process_setting(args, section, key, value):
             if args.postinst_script is None:
                 arg.postinst_script = value
         elif key == "NSpawnSettings":
-            if args.nspawn_settings is not None:
+            if args.nspawn_settings is None:
                 args.nspawn_settings = value
         elif key is None:
             return True
