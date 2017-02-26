@@ -1713,6 +1713,9 @@ def process_setting(args, section, key, value):
         elif key == "Bootable":
             if args.bootable is None:
                 args.bootable = parse_boolean(value)
+        elif key == "KernelCommandLine":
+            if args.kernel_commandline is None:
+                args.kernel_commandline = value
         elif key == "SecureBoot":
             if args.secure_boot is None:
                 args.secure_boot = parse_boolean(value)
