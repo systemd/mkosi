@@ -1708,7 +1708,7 @@ def process_setting(args, section, key, value):
             if args.output is None:
                 args.output = value
         elif key == "Force":
-            if args.force is None:
+            if not args.force:
                 args.force = parse_boolean(value)
         elif key == "Bootable":
             if args.bootable is None:
@@ -1717,7 +1717,7 @@ def process_setting(args, section, key, value):
             if args.kernel_commandline is None:
                 args.kernel_commandline = value
         elif key == "SecureBoot":
-            if args.secure_boot is None:
+            if not args.secure_boot:
                 args.secure_boot = parse_boolean(value)
         elif key == "SecureBootKey":
             if args.secure_boot_key is None:
@@ -1726,7 +1726,7 @@ def process_setting(args, section, key, value):
             if args.secure_boot_certificate is None:
                 args.secure_boot_certificate = value
         elif key == "ReadOnly":
-            if args.read_only is None:
+            if not args.read_only:
                 args.read_only = parse_boolean(value)
         elif key == "Encrypt":
             if args.encrypt is None:
@@ -1734,13 +1734,13 @@ def process_setting(args, section, key, value):
                     raise ValueError("Invalid encryption setting: "+ value)
                 args.encrypt = value
         elif key == "Verity":
-            if args.verity is None:
+            if not args.verity:
                 args.verity = parse_boolean(value)
         elif key == "Compress":
-            if args.compress is None:
+            if not args.compress:
                 args.compress = parse_boolean(value)
         elif key == "XZ":
-            if args.xz is None:
+            if not args.xz:
                 args.xz = parse_boolean(value)
         elif key is None:
             return True
@@ -1754,7 +1754,7 @@ def process_setting(args, section, key, value):
             else:
                 args.packages.extend(list_value)
         elif key == "WithDocs":
-            if args.with_docs is None:
+            if not args.with_docs:
                 args.with_docs = parse_boolean(value)
         elif key == "Cache":
             if args.cache_path is None:
@@ -1766,10 +1766,10 @@ def process_setting(args, section, key, value):
             else:
                 args.extra_trees.extend(list_value)
         elif key == "BuildScript":
-            if args.build_script is not None:
+            if args.build_script is None:
                 args.build_script = value
         elif key == "BuildSources":
-            if args.build_sources is not None:
+            if args.build_sources is None:
                 args.build_sources = value
         elif key == "BuildPackages":
             list_value = value if type(value) == list else value.split()
@@ -1781,7 +1781,7 @@ def process_setting(args, section, key, value):
             if args.postinst_script is None:
                 arg.postinst_script = value
         elif key == "NSpawnSettings":
-            if args.nspawn_settings is not None:
+            if args.nspawn_settings is None:
                 args.nspawn_settings = value
         elif key is None:
             return True
@@ -1809,10 +1809,10 @@ def process_setting(args, section, key, value):
             return False
     elif section == "Validation":
         if key == "CheckSum":
-            if args.checksum is None:
+            if not args.checksum:
                 args.checksum = parse_boolean(value)
         elif key == "Sign":
-            if args.sign is None:
+            if not args.sign:
                 args.sign = parse_boolean(value)
         elif key == "Key":
             if args.key is None:
