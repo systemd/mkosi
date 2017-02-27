@@ -110,15 +110,18 @@ following *OS*es.
 
 * *Arch Linux* (incomplete)
 
+* *openSUSE*
+
 In theory, any distribution may be used on the host for
 building images containing any other distribution, as long as
 the necessary tools are available. Specifically, any distro
 that packages `debootstrap` may be used to build *Debian* or
 *Ubuntu* images. Any distro that packages `dnf` may be used to
 build *Fedora* images. Any distro that packages `pacstrap` may
-be used to build *Arch Linux* images.
+be used to build *Arch Linux* images. Any distro that packages
+`zypper` may be used to build *openSUSE* images.
 
-Currently, *Fedora* packages all three tools.
+Currently, *Fedora* packages the first three tools.
 
 # Files
 
@@ -166,7 +169,7 @@ they exist in the local directory:
   build script copied in. However, this time the contents of
   `$DESTDIR` is added into the image.
 
-* `mkost.postinst` may be an executable script. If it exists it is
+* `mkosi.postinst` may be an executable script. If it exists it is
   invoked as last step of preparing an image, from within the image
   context. It is once called for the *development* image (if this is
   enabled, see above) with the "build" command line parameter, right
