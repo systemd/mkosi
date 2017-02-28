@@ -1027,8 +1027,11 @@ def reset_machine_id(args, workspace, run_build_script):
         os.unlink(machine_id)
         open(machine_id, "w+b").close()
         dbus_machine_id = os.path.join(workspace, 'root', 'var/lib/dbus/machine-id')
-        if os.path.exists(dbus_machine_id):
+        try:
             os.unlink(dbus_machine_id)
+        except FileNotFoundError:
+            pass
+        else:
             os.symlink('../../../etc/machine-id', dbus_machine_id)
 
 def set_root_password(args, workspace, run_build_script):
