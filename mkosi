@@ -792,7 +792,11 @@ def install_debian_or_ubuntu(args, workspace, run_build_script, mirror):
         f.write("hostonly=no")
 
     if args.bootable:
-        extra_packages += ["linux-image-amd64", "dracut"]
+        if args.distribution == Distribution.ubuntu:
+            # Dracut is not supported in Ubuntu
+            extra_packages += ["linux-image-generic", "initramfs-tools"]
+        else:
+            extra_packages += ["linux-image-amd64", "dracut"]
 
     if extra_packages:
         # Debian policy is to start daemons by default.
@@ -2035,8 +2039,8 @@ def load_args():
                 args.mirror = "http://mirror.archlinuxarm.org"
 
     if args.bootable:
-        if args.distribution not in (Distribution.fedora, Distribution.arch, Distribution.debian):
-            die("Bootable images are currently supported only on Debian, Fedora and Arch Linux.")
+        if args.distribution not in (Distribution.fedora, Distribution.arch, Distribution.debian, Distribution.ubuntu):
+            die("Bootable images are currently supported only on Debian, Ubuntu, Fedora and Arch Linux.")
 
         if not args.output_format in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs, OutputFormat.raw_squashfs):
             die("Directory, subvolume and tar images cannot be booted.")
