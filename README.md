@@ -1,7 +1,7 @@
 # mkosi - Create legacy-free OS images
 
-A fancy wrapper around `dnf --installroot`, `debootstrap` and
-`pacstrap`, that may generate disk images with a number of
+A fancy wrapper around `dnf --installroot`, `debootstrap`,
+`pacstrap` and `zypper` that may generate disk images with a number of
 bells and whistles.
 
 # Supported output formats
