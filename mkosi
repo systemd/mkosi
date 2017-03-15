@@ -531,7 +531,7 @@ def mount_cache(args, workspace):
         yield
     finally:
         with complete_step('Unmounting Package Cache'):
-            for d in ("var/cache/dnf", "var/cache/apt/archives"):
+            for d in ("var/cache/dnf", "var/cache/apt/archives", "var/cache/zypp/packages"):
                 umount(os.path.join(workspace, "root", d))
 
 def umount(where):
