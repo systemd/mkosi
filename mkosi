@@ -927,14 +927,14 @@ def install_opensuse(args, workspace, run_build_script):
     # let's default to Leap.
     #
     if release.isdigit() or release == "tumbleweed":
-        release_url = "http://download.opensuse.org/tumbleweed/repo/oss/"
-        updates_url = "http://download.opensuse.org/update/tumbleweed/"
+        release_url = "https://download.opensuse.org/tumbleweed/repo/oss/"
+        updates_url = "https://download.opensuse.org/update/tumbleweed/"
     elif release.startswith("13."):
-        release_url = "http://download.opensuse.org/distribution/%s/repo/oss/" % release
-        updates_url = "http://download.opensuse.org/update/%s/" % release
+        release_url = "https://download.opensuse.org/distribution/%s/repo/oss/" % release
+        updates_url = "https://download.opensuse.org/update/%s/" % release
     else:
-        release_url = "http://download.opensuse.org/distribution/leap/%s/repo/oss/" % release
-        updates_url = "http://download.opensuse.org/update/leap/%s/oss/" % release
+        release_url = "https://download.opensuse.org/distribution/leap/%s/repo/oss/" % release
+        updates_url = "https://download.opensuse.org/update/leap/%s/oss/" % release
 
     #
     # Configure the repositories: we need to enable packages caching
