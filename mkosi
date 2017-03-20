@@ -927,14 +927,14 @@ def install_opensuse(args, workspace, run_build_script):
     # let's default to Leap.
     #
     if release.isdigit() or release == "tumbleweed":
-        release_url = "https://download.opensuse.org/tumbleweed/repo/oss/"
-        updates_url = "https://download.opensuse.org/update/tumbleweed/"
+        release_url = "{}/tumbleweed/repo/oss/".format(args.mirror)
+        updates_url = "{}/update/tumbleweed/".format(args.mirror)
     elif release.startswith("13."):
-        release_url = "https://download.opensuse.org/distribution/%s/repo/oss/" % release
-        updates_url = "https://download.opensuse.org/update/%s/" % release
+        release_url = "{}/distribution/{}/repo/oss/".format(args.mirror, release)
+        updates_url = "{}/update/{}/".format(args.mirror, release)
     else:
-        release_url = "https://download.opensuse.org/distribution/leap/%s/repo/oss/" % release
-        updates_url = "https://download.opensuse.org/update/leap/%s/oss/" % release
+        release_url = "{}/distribution/leap/{}/repo/oss/".format(args.mirror, release)
+        updates_url = "{}/update/leap/{}/oss/".format(args.mirror, release)
 
     #
     # Configure the repositories: we need to enable packages caching
@@ -2137,6 +2137,8 @@ def load_args():
             args.mirror = "https://mirrors.kernel.org/archlinux"
             if platform.machine() == "aarch64":
                 args.mirror = "http://mirror.archlinuxarm.org"
+        elif args.distribution == Distribution.opensuse:
+            args.mirror = "https://download.opensuse.org"
 
     if args.bootable:
         if args.distribution not in (Distribution.fedora, Distribution.arch, Distribution.debian, Distribution.opensuse):
