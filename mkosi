@@ -764,6 +764,7 @@ def install_debian_or_ubuntu(args, workspace, run_build_script, mirror):
         components = 'main'
     cmdline = ["debootstrap",
                "--verbose",
+               "--merged-usr",
                "--variant=minbase",
                "--include=systemd-sysv",
                "--exclude=sysv-rc,initscripts,startpar,lsb-base,insserv",
