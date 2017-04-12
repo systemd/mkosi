@@ -1879,7 +1879,7 @@ def process_setting(args, section, key, value):
                 args.build_packages.extend(list_value)
         elif key == "PostInstallationScript":
             if args.postinst_script is None:
-                arg.postinst_script = value
+                args.postinst_script = value
         elif key == "WithNetwork":
             if not args.with_network:
                 args.with_network = parse_boolean(value)
