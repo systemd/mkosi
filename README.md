@@ -261,7 +261,7 @@ BuildPackages=make gcc libcurl-devel
 EOF
 # cat > mkosi.build <<EOF
 #!/bin/sh
-cd $SRCDIR <<EOF
+cd $SRCDIR
 ./autogen.sh
 ./configure --prefix=/usr
 make -j `nproc`
