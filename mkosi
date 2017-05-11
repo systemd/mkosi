@@ -884,6 +884,8 @@ SigLevel    = Required DatabaseOptional
                  "e2fsprogs",
                  "jfsutils",
                  "lvm2",
+                 "man-db",
+                 "man-pages",
                  "mdadm",
                  "netctl",
                  "pcmciautils",
