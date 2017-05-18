@@ -277,11 +277,14 @@ EOF
 mkosi is packaged for various distributions: Debian, Ubuntu, Arch (in AUR), Fedora.
 It is usually easiest to use the distribution package.
 
-When not using distribution packages, for example, on *Fedora* you need:
+When not using distribution packages make sure to install the
+necessary dependencies. For example, on *Fedora* you need:
 
 ```bash
 dnf install arch-install-scripts btrfs-progs debootstrap dosfstools edk2-ovmf squashfs-tools gnupg python3 tar veritysetup xz
 ```
+
+Note that the minimum required Python version is 3.5.
 
 If SecureBoot signing is to be used, then the "sbsign" tool needs to
 be installed as well, which is currently not available on Fedora, but
