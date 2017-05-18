@@ -363,7 +363,7 @@ def luks_setup_root(args, loopdev, run_build_script, inserting_squashfs=False):
     if args.root_partno is None:
         return None
     if args.output_format == OutputFormat.raw_squashfs and not inserting_squashfs:
-        return
+        return None
     if run_build_script:
         return None
 
