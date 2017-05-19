@@ -773,7 +773,7 @@ def install_debian_or_ubuntu(args, workspace, run_build_script, mirror):
                workspace + "/root",
                mirror]
     if args.bootable and args.output_format == OutputFormat.raw_btrfs:
-        cmdline[3] += ",btrfs-tools"
+        cmdline[4] += ",btrfs-tools"
 
     subprocess.run(cmdline, check=True)
 
