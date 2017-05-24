@@ -22,6 +22,9 @@ from enum import Enum
 
 __version__ = '1'
 
+if sys.version_info < (3, 5):
+    sys.exit("Sorry, we need at least Python 3.5.")
+
 # TODO
 # - volatile images
 # - make debian/ubuntu images bootable
