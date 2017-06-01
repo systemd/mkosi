@@ -747,7 +747,7 @@ gpgkey={gpg_key}
     if args.bootable:
         cmdline.extend(["kernel", "systemd-udev", "binutils"])
 
-        # Temporary hack: dracut only adds crypto support to the initrd, if the cryptsetup binary is installed
+        # Temporary hack: dracut only adds crypto support to the initramfs, if the cryptsetup binary is installed
         if args.encrypt or args.verity:
             cmdline.append("cryptsetup")
 
@@ -1370,7 +1370,7 @@ def patch_root_uuid(args, loopdev, root_hash):
 def install_unified_kernel(args, workspace, run_build_script, root_hash):
 
     # Iterates through all kernel versions included in the image and
-    # generates a combined kernel+initrd+cmdline+osrelease EFI file
+    # generates a combined kernel+initramfs+cmdline+osrelease EFI file
     # from it and places it in the /EFI/Linux directory of the
     # ESP. sd-boot iterates through them and shows them in the
     # menu. These "unified" single-file images have the benefit that
@@ -1384,7 +1384,7 @@ def install_unified_kernel(args, workspace, run_build_script, root_hash):
     if args.distribution != Distribution.fedora:
         return
 
-    with complete_step("Generating combined kernel + initrd boot file"):
+    with complete_step("Generating combined kernel + initramfs boot file"):
 
         cmdline = args.kernel_commandline
         if root_hash is not None:
@@ -1649,7 +1649,7 @@ def parse_args():
     group.add_argument('-f', "--force", action='store_true', help='Remove existing image file before operation')
     group.add_argument('-b', "--bootable", type=parse_boolean, nargs='?', const=True,
                        help='Make image bootable on EFI (only raw_gpt, raw_btrfs, raw_squashfs)')
-    group.add_argument("--secure-boot", action='store_true', help='Sign the resulting kernel/initrd image for UEFI SecureBoot')
+    group.add_argument("--secure-boot", action='store_true', help='Sign the resulting kernel/initramfs image for UEFI SecureBoot')
     group.add_argument("--secure-boot-key", help="UEFI SecureBoot private key in PEM format", metavar='PATH')
     group.add_argument("--secure-boot-certificate", help="UEFI SecureBoot certificate in X509 format", metavar='PATH')
     group.add_argument("--read-only", action='store_true', help='Make root volume read-only (only raw_gpt, raw_btrfs, subvolume, implied on raw_squashs)')
