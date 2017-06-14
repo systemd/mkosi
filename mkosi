@@ -495,7 +495,7 @@ def mount_image(args, workspace, loopdev, root_dev, home_dev, srv_dev, root_read
     finally:
         with complete_step('Unmounting image'):
 
-            for d in ("home", "srv", "efi", "var/cache/dnf", "var/cache/apt/archives", "var/cache/zypp/packages", "run", "tmp"):
+            for d in ("home", "srv", "efi", "var/cache/dnf", "var/cache/apt/archives", "var/cache/pacman/pkg", "var/cache/zypp/packages", "run", "tmp"):
                 umount(os.path.join(root, d))
 
             umount(root)
@@ -528,13 +528,15 @@ def mount_cache(args, workspace):
             mount_bind(args.cache_path, os.path.join(workspace, "root", "var/cache/dnf"))
         elif args.distribution in (Distribution.debian, Distribution.ubuntu):
             mount_bind(args.cache_path, os.path.join(workspace, "root", "var/cache/apt/archives"))
+        elif args.distribution == Distribution.arch:
+            mount_bind(args.cache_path, os.path.join(workspace, "root", "var/cache/pacman/pkg"))
         elif args.distribution == Distribution.opensuse:
             mount_bind(args.cache_path, os.path.join(workspace, "root", "var/cache/zypp/packages"))
     try:
         yield
     finally:
         with complete_step('Unmounting Package Cache'):
-            for d in ("var/cache/dnf", "var/cache/apt/archives", "var/cache/zypp/packages"):
+            for d in ("var/cache/dnf", "var/cache/apt/archives", "var/cache/pacman/pkg", "var/cache/zypp/packages"):
                 umount(os.path.join(workspace, "root", d))
 
 def umount(where):
@@ -860,9 +862,12 @@ def install_arch(args, workspace, run_build_script):
     with open(os.path.join(workspace, "pacman.conf"), "w") as f:
         f.write("""\
 [options]
+LogFile     = /dev/null
 HookDir     = /no_hook/
 HoldPkg     = pacman glibc
 Architecture = auto
+UseSyslog
+Color
 CheckSpace
 SigLevel    = Required DatabaseOptional
 
@@ -912,7 +917,6 @@ SigLevel    = Required DatabaseOptional
 
     cmdline = ["pacstrap",
                "-C", os.path.join(workspace, "pacman.conf"),
-               "-c",
                "-d",
                workspace + "/root"] + \
                list(packages)
@@ -1606,7 +1610,7 @@ def print_output_size(args):
         print_step("Resulting image size is " + format_bytes(st.st_size) + ", consumes " + format_bytes(st.st_blocks * 512) + ".")
 
 def setup_cache(args):
-    if not args.distribution in (Distribution.fedora, Distribution.debian, Distribution.ubuntu, Distribution.opensuse):
+    if not args.distribution in (Distribution.fedora, Distribution.debian, Distribution.ubuntu, Distribution.arch, Distribution.opensuse):
         return None
 
     with complete_step('Setting up package cache',
@@ -1661,7 +1665,7 @@ def parse_args():
     group = parser.add_argument_group("Packages")
     group.add_argument('-p', "--package", action=PackageAction, dest='packages', help='Add an additional package to the OS image', metavar='PACKAGE')
     group.add_argument("--with-docs", action='store_true', help='Install documentation (only fedora)')
-    group.add_argument("--cache", dest='cache_path', help='Package cache path (only fedora, debian, ubuntu, opensuse)', metavar='PATH')
+    group.add_argument("--cache", dest='cache_path', help='Package cache path (only fedora, debian, ubuntu, arch, opensuse)', metavar='PATH')
     group.add_argument("--extra-tree", action='append', dest='extra_trees', help='Copy an extra tree on top of image', metavar='PATH')
     group.add_argument("--build-script", help='Build script to run inside image', metavar='PATH')
     group.add_argument("--build-sources", help='Path for sources to build', metavar='PATH')
@@ -2330,7 +2334,7 @@ def print_summary(args):
 
     if args.distribution == Distribution.fedora:
         sys.stderr.write("    With Documentation: " + yes_no(args.with_docs) + "\n")
-    if args.distribution in (Distribution.fedora, Distribution.debian, Distribution.ubuntu):
+    if args.distribution in (Distribution.fedora, Distribution.debian, Distribution.ubuntu, Distribution.arch, Distribution.opensuse):
         sys.stderr.write("         Package Cache: " + none_to_none(args.cache_path) + "\n")
 
     sys.stderr.write("           Extra Trees: " + line_join_list(args.extra_trees) + "\n")
