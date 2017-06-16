@@ -27,7 +27,7 @@ if sys.version_info < (3, 5):
 
 # TODO
 # - volatile images
-# - make debian/ubuntu images bootable
+# - make ubuntu images bootable
 # - work on device nodes
 # - allow passing env vars
 
@@ -2151,10 +2151,10 @@ def load_args():
             args.mirror = "https://download.opensuse.org"
 
     if args.bootable:
-        if args.distribution not in (Distribution.fedora, Distribution.arch, Distribution.debian, Distribution.opensuse):
-            die("Bootable images are currently supported only on Debian, Fedora, Arch Linux and openSUSE.")
+        if args.distribution == Distribution.ubuntu:
+            die("Bootable images are currently not supported on Ubuntu.")
 
-        if not args.output_format in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs, OutputFormat.raw_squashfs):
+        if args.output_format in (OutputFormat.directory, OutputFormat.subvolume, OutputFormat.tar):
             die("Directory, subvolume and tar images cannot be booted.")
 
     if args.encrypt is not None:
