@@ -166,68 +166,78 @@ def image_size(args):
 
     return size
 
-def create_image(args, workspace):
-    if not args.output_format in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs, OutputFormat.raw_squashfs):
+def disable_cow(path):
+    """Disable copy-on-write if applicable on filesystem"""
+
+    subprocess.run(["chattr", "+C", path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+
+def determine_partition_table(args):
+
+    pn = 1
+    table = "label: gpt\n"
+    run_sfdisk = False
+
+    if args.bootable:
+        table += 'size={}, type={}, name="ESP System Partition"\n'.format(args.esp_size // 512, GPT_ESP)
+        args.esp_partno = pn
+        pn += 1
+        run_sfdisk = True
+    else:
+        args.esp_partno = None
+
+    if args.swap_size is not None:
+        table += 'size={}, type={}, name="Swap Partition"\n'.format(args.swap_size // 512, GPT_SWAP)
+        args.swap_partno = pn
+        pn += 1
+        run_sfdisk = True
+    else:
+        args.swap_partno = None
+
+    args.home_partno = None
+    args.srv_partno = None
+
+    if args.output_format != OutputFormat.raw_btrfs:
+        if args.home_size is not None:
+            table += 'size={}, type={}, name="Home Partition"\n'.format(args.home_size // 512, GPT_HOME)
+            args.home_partno = pn
+            pn += 1
+            run_sfdisk = True
+
+        if args.srv_size is not None:
+            table += 'size={}, type={}, name="Server Data Partition"\n'.format(args.srv_size // 512, GPT_SRV)
+            args.srv_partno = pn
+            pn += 1
+            run_sfdisk = True
+
+    if args.output_format != OutputFormat.raw_squashfs:
+        table += 'type={}, attrs={}, name="Root Partition"\n'.format(GPT_ROOT_NATIVE, "GUID:60" if args.read_only and args.output_format != OutputFormat.raw_btrfs else "")
+        run_sfdisk = True
+
+    args.root_partno = pn
+    pn += 1
+
+    if args.verity:
+        args.verity_partno = pn
+        pn += 1
+    else:
+        args.verity_partno = None
+
+    return table, run_sfdisk
+
+
+def create_image(args, workspace, for_cache):
+    if args.output_format not in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs, OutputFormat.raw_squashfs):
         return None
 
     with complete_step('Creating partition table',
                        'Created partition table as {.name}') as output:
 
-        f = tempfile.NamedTemporaryFile(dir = os.path.dirname(args.output), prefix='.mkosi-')
+        f = tempfile.NamedTemporaryFile(dir=os.path.dirname(args.output), prefix='.mkosi-', delete=not for_cache)
         output.append(f)
-        # disable copy-on-write if applicable on filesystem
-        subprocess.run(["chattr", "+C", f.name],
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+        disable_cow(f.name)
         f.truncate(image_size(args))
 
-        pn = 1
-        table = "label: gpt\n"
-        run_sfdisk = False
-
-        if args.bootable:
-            table += 'size={}, type={}, name="ESP System Partition"\n'.format(args.esp_size // 512, GPT_ESP)
-            args.esp_partno = pn
-            pn += 1
-            run_sfdisk = True
-        else:
-            args.esp_partno = None
-
-        if args.swap_size is not None:
-            table += 'size={}, type={}, name="Swap Partition"\n'.format(args.swap_size // 512, GPT_SWAP)
-            args.swap_partno = pn
-            pn += 1
-            run_sfdisk = True
-        else:
-            args.swap_partno = None
-
-        args.home_partno = None
-        args.srv_partno = None
-
-        if args.output_format != OutputFormat.raw_btrfs:
-            if args.home_size is not None:
-                table += 'size={}, type={}, name="Home Partition"\n'.format(args.home_size // 512, GPT_HOME)
-                args.home_partno = pn
-                pn += 1
-                run_sfdisk = True
-
-            if args.srv_size is not None:
-                table += 'size={}, type={}, name="Server Data Partition"\n'.format(args.srv_size // 512, GPT_SRV)
-                args.srv_partno = pn
-                pn += 1
-                run_sfdisk = True
-
-        if args.output_format != OutputFormat.raw_squashfs:
-            table += 'type={}, attrs={}, name="Root Partition"\n'.format(GPT_ROOT_NATIVE, "GUID:60" if args.read_only and args.output_format != OutputFormat.raw_btrfs else "")
-            run_sfdisk = True
-
-        args.root_partno = pn
-        pn += 1
-
-        if args.verity:
-            args.verity_partno = pn
-            pn += 1
-        else:
-            args.verity_partno = None
+        table, run_sfdisk = determine_partition_table(args)
 
         if run_sfdisk:
             subprocess.run(["sfdisk", "--color=never", f.name], input=table.encode("utf-8"), check=True)
@@ -236,6 +246,38 @@ def create_image(args, workspace):
         args.ran_sfdisk = run_sfdisk
 
     return f
+
+def reuse_cache_image(args, workspace, run_build_script, for_cache):
+
+    if not args.incremental:
+        return None, False
+    if for_cache:
+        return None, False
+    if args.output_format not in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs):
+        return None, False
+
+    fname = args.cache_pre_dev if run_build_script else args.cache_pre_inst
+    if fname is None:
+        return None, False
+
+    with complete_step('Basing off cached image ' + fname,
+                       'Copied cached image as {.name}') as output:
+
+        try:
+            source = open(fname, "rb")
+        except FileNotFoundError:
+            return None, False
+
+        with source:
+            f = tempfile.NamedTemporaryFile(dir = os.path.dirname(args.output), prefix='.mkosi-')
+            output.append(f)
+            disable_cow(f.name)
+            shutil.copyfileobj(source, f)
+
+        table, run_sfdisk = determine_partition_table(args)
+        args.ran_sfdisk = run_sfdisk
+
+    return f, True
 
 @contextlib.contextmanager
 def attach_image_loopback(args, raw):
@@ -262,10 +304,11 @@ def partition(loopdev, partno):
 
     return loopdev + "p" + str(partno)
 
-def prepare_swap(args, loopdev):
+def prepare_swap(args, loopdev, cached):
     if loopdev is None:
         return
-
+    if cached:
+        return
     if args.swap_partno is None:
         return
 
@@ -273,8 +316,10 @@ def prepare_swap(args, loopdev):
         subprocess.run(["mkswap", "-Lswap", partition(loopdev, args.swap_partno)],
                        check=True)
 
-def prepare_esp(args, loopdev):
+def prepare_esp(args, loopdev, cached):
     if loopdev is None:
+        return
+    if cached:
         return
     if args.esp_partno is None:
         return
@@ -318,7 +363,7 @@ def luks_close(dev, text):
     with complete_step(text):
         subprocess.run(["cryptsetup", "close", dev], check=True)
 
-def luks_format_root(args, loopdev, run_build_script, inserting_squashfs=False):
+def luks_format_root(args, loopdev, run_build_script, cached, inserting_squashfs=False):
 
     if args.encrypt != "all":
         return
@@ -328,11 +373,13 @@ def luks_format_root(args, loopdev, run_build_script, inserting_squashfs=False):
         return
     if run_build_script:
         return
+    if cached:
+        return
 
     with complete_step("LUKS formatting root partition"):
         luks_format(partition(loopdev, args.root_partno), args.passphrase)
 
-def luks_format_home(args, loopdev, run_build_script):
+def luks_format_home(args, loopdev, run_build_script, cached):
 
     if args.encrypt is None:
         return
@@ -340,17 +387,21 @@ def luks_format_home(args, loopdev, run_build_script):
         return
     if run_build_script:
         return
+    if cached:
+        return
 
     with complete_step("LUKS formatting home partition"):
         luks_format(partition(loopdev, args.home_partno), args.passphrase)
 
-def luks_format_srv(args, loopdev, run_build_script):
+def luks_format_srv(args, loopdev, run_build_script, cached):
 
     if args.encrypt is None:
         return
     if args.srv_partno is None:
         return
     if run_build_script:
+        return
+    if cached:
         return
 
     with complete_step("LUKS formatting server data partition"):
@@ -418,10 +469,12 @@ def luks_setup_all(args, loopdev, run_build_script):
     finally:
         luks_close(root, "Closing LUKS root partition")
 
-def prepare_root(args, dev):
+def prepare_root(args, dev, cached):
     if dev is None:
         return
     if args.output_format == OutputFormat.raw_squashfs:
+        return
+    if cached:
         return
 
     with complete_step('Formatting root partition'):
@@ -430,15 +483,19 @@ def prepare_root(args, dev):
         else:
             mkfs_ext4("root", "/", dev)
 
-def prepare_home(args, dev):
+def prepare_home(args, dev, cached):
     if dev is None:
+        return
+    if cached:
         return
 
     with complete_step('Formatting home partition'):
         mkfs_ext4("home", "/home", dev)
 
-def prepare_srv(args, dev):
+def prepare_srv(args, dev, cached):
     if dev is None:
+        return
+    if cached:
         return
 
     with complete_step('Formatting server data partition'):
@@ -544,7 +601,7 @@ def umount(where):
     subprocess.run(["umount", "-n", where], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 @complete_step('Setting up basic OS tree')
-def prepare_tree(args, workspace, run_build_script):
+def prepare_tree(args, workspace, run_build_script, cached):
 
     if args.output_format == OutputFormat.subvolume:
         btrfs_subvol_create(os.path.join(workspace, "root"))
@@ -555,12 +612,19 @@ def prepare_tree(args, workspace, run_build_script):
             pass
 
     if args.output_format in (OutputFormat.subvolume, OutputFormat.raw_btrfs):
+
+        if cached and args.output_format is OutputFormat.raw_btrfs:
+            return
+
         btrfs_subvol_create(os.path.join(workspace, "root", "home"))
         btrfs_subvol_create(os.path.join(workspace, "root", "srv"))
         btrfs_subvol_create(os.path.join(workspace, "root", "var"))
         btrfs_subvol_create(os.path.join(workspace, "root", "var/tmp"), 0o1777)
         os.mkdir(os.path.join(workspace, "root", "var/lib"))
         btrfs_subvol_create(os.path.join(workspace, "root", "var/lib/machines"), 0o700)
+
+    if cached:
+        return
 
     if args.bootable:
         # We need an initialized machine ID for the boot logic to work
@@ -1010,7 +1074,11 @@ def install_opensuse(args, workspace, run_build_script):
         with open(os.path.join(root, "etc/kernel/cmdline"), "w") as cmdline:
             cmdline.write(args.kernel_commandline + " root=/dev/gpt-auto-root\n")
 
-def install_distribution(args, workspace, run_build_script):
+def install_distribution(args, workspace, run_build_script, cached):
+
+    if cached:
+        return
+
     install = {
         Distribution.fedora : install_fedora,
         Distribution.debian : install_debian,
@@ -1021,7 +1089,7 @@ def install_distribution(args, workspace, run_build_script):
 
     install[args.distribution](args, workspace, run_build_script)
 
-def reset_machine_id(args, workspace, run_build_script):
+def reset_machine_id(args, workspace, run_build_script, for_cache):
     """Make /etc/machine-id an empty file.
 
     This way, on the next boot is either initialized and commited (if /etc is
@@ -1030,6 +1098,8 @@ def reset_machine_id(args, workspace, run_build_script):
     """
 
     if run_build_script:
+        return
+    if for_cache:
         return
 
     with complete_step('Resetting machine ID'):
@@ -1044,10 +1114,12 @@ def reset_machine_id(args, workspace, run_build_script):
         else:
             os.symlink('../../../etc/machine-id', dbus_machine_id)
 
-def set_root_password(args, workspace, run_build_script):
+def set_root_password(args, workspace, run_build_script, for_cache):
     "Set the root account password, or just delete it so it's easy to log in"
 
     if run_build_script:
+        return
+    if for_cache:
         return
 
     if args.password == '':
@@ -1062,9 +1134,11 @@ def set_root_password(args, workspace, run_build_script):
                            if line.startswith('root:') else line)
         patch_file(os.path.join(workspace, 'root', 'etc/shadow'), jj)
 
-def run_postinst_script(args, workspace, run_build_script):
+def run_postinst_script(args, workspace, run_build_script, for_cache):
 
     if args.postinst_script is None:
+        return
+    if for_cache:
         return
 
     with complete_step('Running post installation script'):
@@ -1098,8 +1172,11 @@ def install_boot_loader_debian(args, workspace):
 def install_boot_loader_opensuse(args, workspace):
     install_boot_loader_debian(args, workspace)
 
-def install_boot_loader(args, workspace):
+def install_boot_loader(args, workspace, cached):
     if not args.bootable:
+        return
+
+    if cached:
         return
 
     with complete_step("Installing boot loader"):
@@ -1137,8 +1214,11 @@ def enumerate_and_copy(source, dest, suffix = ""):
 
         shutil.copystat(entry.path, dest_path, follow_symlinks=False)
 
-def install_extra_trees(args, workspace):
+def install_extra_trees(args, workspace, for_cache):
     if args.extra_trees is None:
+        return
+
+    if for_cache:
         return
 
     with complete_step('Copying in extra file trees'):
@@ -1164,8 +1244,10 @@ def copy_git_files(src, dest):
 
         shutil.copy2(src_path, dest_path, follow_symlinks=True)
 
-def install_build_src(args, workspace, run_build_script):
+def install_build_src(args, workspace, run_build_script, for_cache):
     if not run_build_script:
+        return
+    if for_cache:
         return
 
     if args.build_script is None:
@@ -1187,8 +1269,10 @@ def install_build_src(args, workspace, run_build_script):
                 ignore = shutil.ignore_patterns('.mkosi-*', '.git')
                 shutil.copytree(args.build_sources, target, symlinks=True, ignore=ignore)
 
-def install_build_dest(args, workspace, run_build_script):
+def install_build_dest(args, workspace, run_build_script, for_cache):
     if run_build_script:
+        return
+    if for_cache:
         return
 
     if args.build_script is None:
@@ -1197,21 +1281,25 @@ def install_build_dest(args, workspace, run_build_script):
     with complete_step('Copying in build tree'):
         enumerate_and_copy(os.path.join(workspace, "dest"), os.path.join(workspace, "root"))
 
-def make_read_only(args, workspace):
+def make_read_only(args, workspace, for_cache):
     if not args.read_only:
         return
+    if for_cache:
+        return
 
-    if not args.output_format in (OutputFormat.raw_btrfs, OutputFormat.subvolume):
+    if args.output_format not in (OutputFormat.raw_btrfs, OutputFormat.subvolume):
         return
 
     with complete_step('Marking root subvolume read-only'):
         btrfs_subvol_make_ro(os.path.join(workspace, "root"))
 
-def make_tar(args, workspace, run_build_script):
+def make_tar(args, workspace, run_build_script, for_cache):
+
     if run_build_script:
         return None
-
     if args.output_format != OutputFormat.tar:
+        return None
+    if for_cache:
         return None
 
     with complete_step('Creating archive'):
@@ -1222,8 +1310,10 @@ def make_tar(args, workspace, run_build_script):
 
     return f
 
-def make_squashfs(args, workspace):
+def make_squashfs(args, workspace, for_cache):
     if args.output_format != OutputFormat.raw_squashfs:
+        return None
+    if for_cache:
         return None
 
     with complete_step('Creating squashfs file system'):
@@ -1325,17 +1415,21 @@ def insert_partition(args, workspace, raw, loopdev, partno, blob, name, type_uui
 
     return blob_size
 
-def insert_squashfs(args, workspace, raw, loopdev, squashfs):
+def insert_squashfs(args, workspace, raw, loopdev, squashfs, for_cache):
     if args.output_format != OutputFormat.raw_squashfs:
+        return
+    if for_cache:
         return
 
     with complete_step('Inserting squashfs root partition'):
         args.root_size = insert_partition(args, workspace, raw, loopdev, args.root_partno, squashfs,
                                           "Root Partition", GPT_ROOT_NATIVE)
 
-def make_verity(args, workspace, dev, run_build_script):
+def make_verity(args, workspace, dev, run_build_script, for_cache):
 
     if run_build_script or not args.verity:
+        return None, None
+    if for_cache:
         return None, None
 
     with complete_step('Generating verity hashes'):
@@ -1350,9 +1444,11 @@ def make_verity(args, workspace, dev, run_build_script):
 
         raise ValueError('Root hash not found')
 
-def insert_verity(args, workspace, raw, loopdev, verity, root_hash):
+def insert_verity(args, workspace, raw, loopdev, verity, root_hash, for_cache):
 
     if verity is None:
+        return
+    if for_cache:
         return
 
     # Use the final 128 bit of the root hash as partition UUID of the verity partition
@@ -1362,9 +1458,11 @@ def insert_verity(args, workspace, raw, loopdev, verity, root_hash):
         insert_partition(args, workspace, raw, loopdev, args.verity_partno, verity,
                          "Verity Partition", GPT_ROOT_NATIVE_VERITY, u)
 
-def patch_root_uuid(args, loopdev, root_hash):
+def patch_root_uuid(args, loopdev, root_hash, for_cache):
 
     if root_hash is None:
+        return
+    if for_cache:
         return
 
     # Use the first 128bit of the root hash as partition UUID of the root partition
@@ -1374,7 +1472,7 @@ def patch_root_uuid(args, loopdev, root_hash):
         subprocess.run(["sfdisk", "--part-uuid", loopdev, str(args.root_partno), str(u)],
                        check=True)
 
-def install_unified_kernel(args, workspace, run_build_script, root_hash):
+def install_unified_kernel(args, workspace, run_build_script, for_cache, root_hash):
 
     # Iterates through all kernel versions included in the image and
     # generates a combined kernel+initrd+cmdline+osrelease EFI file
@@ -1386,6 +1484,8 @@ def install_unified_kernel(args, workspace, run_build_script, root_hash):
     # the root hash.
 
     if not args.bootable:
+        return
+    if for_cache:
         return
 
     if args.distribution != Distribution.fedora:
@@ -1426,13 +1526,15 @@ def install_unified_kernel(args, workspace, run_build_script, root_hash):
 
             run_workspace_command(args, workspace, *dracut);
 
-def secure_boot_sign(args, workspace, run_build_script):
+def secure_boot_sign(args, workspace, run_build_script, for_cache):
 
     if run_build_script:
         return
     if not args.bootable:
         return
     if not args.secure_boot:
+        return
+    if for_cache:
         return
 
     for path, dirnames, filenames in os.walk(os.path.join(workspace, "root", "efi")):
@@ -1452,7 +1554,7 @@ def secure_boot_sign(args, workspace, run_build_script):
                 os.rename(p + ".signed", p)
 
 def xz_output(args, raw):
-    if not args.output_format in (OutputFormat.raw_btrfs, OutputFormat.raw_gpt, OutputFormat.raw_squashfs):
+    if args.output_format not in (OutputFormat.raw_btrfs, OutputFormat.raw_gpt, OutputFormat.raw_squashfs):
         return raw
 
     if not args.xz:
@@ -1542,6 +1644,20 @@ def calculate_signature(args, checksum):
         subprocess.run(cmdline, stdin=checksum, stdout=f, check=True)
 
     return f
+
+def save_cache(args, workspace, raw, cache_path):
+
+    if cache_path is None:
+        return
+
+    with complete_step('Installing cache copy ',
+                       'Successfully installed cache copy ' + cache_path):
+
+        if args.output_format in (OutputFormat.raw_btrfs, OutputFormat.raw_gpt):
+            os.chmod(raw, 0o666 & ~args.original_umask)
+            shutil.move(raw, cache_path)
+        else:
+            shutil.move(os.path.join(workspace, "root"), cache_path)
 
 def link_output(args, workspace, raw, tar):
     with complete_step('Linking image file',
@@ -1650,7 +1766,7 @@ def parse_args():
     group = parser.add_argument_group("Output")
     group.add_argument('-t', "--format", dest='output_format', choices=OutputFormat.__members__, help='Output Format')
     group.add_argument('-o', "--output", help='Output image path', metavar='PATH')
-    group.add_argument('-f', "--force", action='store_true', help='Remove existing image file before operation')
+    group.add_argument('-f', "--force", action='count', dest='force_count', default=0, help='Remove existing image file before operation')
     group.add_argument('-b', "--bootable", type=parse_boolean, nargs='?', const=True,
                        help='Make image bootable on EFI (only raw_gpt, raw_btrfs, raw_squashfs)')
     group.add_argument("--secure-boot", action='store_true', help='Sign the resulting kernel/initrd image for UEFI SecureBoot')
@@ -1661,6 +1777,7 @@ def parse_args():
     group.add_argument("--verity", action='store_true', help='Add integrity partition (implies --read-only)')
     group.add_argument("--compress", action='store_true', help='Enable compression in file system (only raw_btrfs, subvolume)')
     group.add_argument("--xz", action='store_true', help='Compress resulting image with xz (only raw_gpt, raw_btrfs, raw_squashfs, implied on tar)')
+    group.add_argument('-i', "--incremental", action='store_true', help='Make use of and generate intermediary cache images')
 
     group = parser.add_argument_group("Packages")
     group.add_argument('-p', "--package", action=PackageAction, dest='packages', help='Add an additional package to the OS image', metavar='PACKAGE')
@@ -1768,19 +1885,34 @@ def unlink_output(args):
     if not args.force and args.verb != "clean":
         return
 
-    unlink_try_hard(args.output)
+    with complete_step('Removing output files'):
+        unlink_try_hard(args.output)
 
-    if args.checksum:
-        unlink_try_hard(args.output_checksum)
+        if args.checksum:
+            unlink_try_hard(args.output_checksum)
 
-    if args.verity:
-        unlink_try_hard(args.output_root_hash_file)
+        if args.verity:
+            unlink_try_hard(args.output_root_hash_file)
 
-    if args.sign:
-        unlink_try_hard(args.output_signature)
+        if args.sign:
+            unlink_try_hard(args.output_signature)
 
-    if args.nspawn_settings is not None:
-        unlink_try_hard(args.output_nspawn_settings)
+        if args.nspawn_settings is not None:
+            unlink_try_hard(args.output_nspawn_settings)
+
+    # We remove the cache if either the user used --force twice, or he called "clean" with it passed once
+    if args.verb == "clean":
+        remove_cache = args.force_count > 0
+    else:
+        remove_cache = args.force_count > 1
+
+    if remove_cache:
+        with complete_step('Removing cache files'):
+            if args.cache_pre_dev is not None:
+                unlink_try_hard(args.cache_pre_dev)
+
+            if args.cache_pre_inst is not None:
+                unlink_try_hard(args.cache_pre_inst)
 
 def parse_boolean(s):
     if s in {"1", "true", "yes"}:
@@ -2102,6 +2234,8 @@ def load_args():
     find_passphrase(args)
     find_secure_boot(args)
 
+    args.force = args.force_count > 0
+
     if args.output_format is None:
         args.output_format = OutputFormat.raw_gpt
     else:
@@ -2180,6 +2314,13 @@ def load_args():
             args.output = "image.tar.xz"
         else:
             args.output = "image"
+
+    if args.incremental or args.verb == "clean":
+        args.cache_pre_dev = args.output + ".cache-pre-dev"
+        args.cache_pre_inst = args.output + ".cache-pre-inst"
+    else:
+        args.cache_pre_dev = None
+        args.cache_pre_inst = None
 
     args.output = os.path.abspath(args.output)
 
@@ -2306,6 +2447,7 @@ def print_summary(args):
     sys.stderr.write("       Output Checksum: " + none_to_na(args.output_checksum if args.checksum else None) + "\n")
     sys.stderr.write("      Output Signature: " + none_to_na(args.output_signature if args.sign else None) + "\n")
     sys.stderr.write("Output nspawn Settings: " + none_to_na(args.output_nspawn_settings if args.nspawn_settings is not None else None) + "\n")
+    sys.stderr.write("           Incremental: " + yes_no(args.incremental) + "\n")
 
     if args.output_format in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs, OutputFormat.raw_squashfs, OutputFormat.subvolume):
         sys.stderr.write("             Read-only: " + yes_no(args.read_only) + "\n")
@@ -2359,60 +2501,91 @@ def print_summary(args):
         sys.stderr.write("               GPG Key: " + ("default" if args.key is None else args.key) + "\n")
         sys.stderr.write("              Password: " + ("default" if args.password is None else args.password) + "\n")
 
-def build_image(args, workspace, run_build_script):
+def reuse_cache_tree(args, workspace, run_build_script, for_cache, cached):
+    """If there's a cached version of this tree around, use it and
+    initialize our new root directly from it. Returns a boolean indicating
+    whether we are now operating on a cached version or not."""
+
+    if cached:
+        return True
+
+    if not args.incremental:
+        return False
+    if for_cache:
+        return False
+    if args.output_format in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs):
+        return False
+
+    fname = args.cache_pre_dev if run_build_script else args.cache_pre_inst
+    if fname is None:
+        return False
+
+    with complete_step('Copying in cached tree ' + fname):
+        try:
+            enumerate_and_copy(fname, os.path.join(workspace, "root"))
+        except FileNotFoundError:
+            return False
+
+    return True
+
+def build_image(args, workspace, run_build_script, for_cache=False):
 
     # If there's no build script set, there's no point in executing
-    # the build script iteration. Let's quite early.
+    # the build script iteration. Let's quit early.
     if args.build_script is None and run_build_script:
         return None, None, None
 
-    raw = create_image(args, workspace.name)
+    raw, cached = reuse_cache_image(args, workspace.name, run_build_script, for_cache)
+    if not cached:
+        raw = create_image(args, workspace.name, for_cache)
 
     with attach_image_loopback(args, raw) as loopdev:
 
-        prepare_swap(args, loopdev)
-        prepare_esp(args, loopdev)
+        prepare_swap(args, loopdev, cached)
+        prepare_esp(args, loopdev, cached)
 
-        luks_format_root(args, loopdev, run_build_script)
-        luks_format_home(args, loopdev, run_build_script)
-        luks_format_srv(args, loopdev, run_build_script)
+        luks_format_root(args, loopdev, run_build_script, cached)
+        luks_format_home(args, loopdev, run_build_script, cached)
+        luks_format_srv(args, loopdev, run_build_script, cached)
 
         with luks_setup_all(args, loopdev, run_build_script) as (encrypted_root, encrypted_home, encrypted_srv):
 
-            prepare_root(args, encrypted_root)
-            prepare_home(args, encrypted_home)
-            prepare_srv(args, encrypted_srv)
+            prepare_root(args, encrypted_root, cached)
+            prepare_home(args, encrypted_home, cached)
+            prepare_srv(args, encrypted_srv, cached)
 
             with mount_image(args, workspace.name, loopdev, encrypted_root, encrypted_home, encrypted_srv):
-                prepare_tree(args, workspace.name, run_build_script)
+                prepare_tree(args, workspace.name, run_build_script, cached)
 
                 with mount_cache(args, workspace.name):
-                    install_distribution(args, workspace.name, run_build_script)
-                    install_boot_loader(args, workspace.name)
-                    install_extra_trees(args, workspace.name)
-                    install_build_src(args, workspace.name, run_build_script)
-                    install_build_dest(args, workspace.name, run_build_script)
-                    set_root_password(args, workspace.name, run_build_script)
-                    run_postinst_script(args, workspace.name, run_build_script)
+                    cached = reuse_cache_tree(args, workspace.name, run_build_script, for_cache, cached)
+                    install_distribution(args, workspace.name, run_build_script, cached)
+                    install_boot_loader(args, workspace.name, cached)
 
-                reset_machine_id(args, workspace.name, run_build_script)
-                make_read_only(args, workspace.name)
+                    install_extra_trees(args, workspace.name, for_cache)
+                    install_build_src(args, workspace.name, run_build_script, for_cache)
+                    install_build_dest(args, workspace.name, run_build_script, for_cache)
+                    set_root_password(args, workspace.name, run_build_script, for_cache)
+                    run_postinst_script(args, workspace.name, run_build_script, for_cache)
 
-            squashfs = make_squashfs(args, workspace.name)
-            insert_squashfs(args, workspace.name, raw, loopdev, squashfs)
+                reset_machine_id(args, workspace.name, run_build_script, for_cache)
+                make_read_only(args, workspace.name, for_cache)
 
-            verity, root_hash = make_verity(args, workspace.name, encrypted_root, run_build_script)
-            patch_root_uuid(args, loopdev, root_hash)
-            insert_verity(args, workspace.name, raw, loopdev, verity, root_hash)
+            squashfs = make_squashfs(args, workspace.name, for_cache)
+            insert_squashfs(args, workspace.name, raw, loopdev, squashfs, for_cache)
+
+            verity, root_hash = make_verity(args, workspace.name, encrypted_root, run_build_script, for_cache)
+            patch_root_uuid(args, loopdev, root_hash, for_cache)
+            insert_verity(args, workspace.name, raw, loopdev, verity, root_hash, for_cache)
 
             # This time we mount read-only, as we already generated
             # the verity data, and hence really shouldn't modify the
             # image anymore.
             with mount_image(args, workspace.name, loopdev, encrypted_root, encrypted_home, encrypted_srv, root_read_only=True):
-                install_unified_kernel(args, workspace.name, run_build_script, root_hash)
-                secure_boot_sign(args, workspace.name, run_build_script)
+                install_unified_kernel(args, workspace.name, run_build_script, for_cache, root_hash)
+                secure_boot_sign(args, workspace.name, run_build_script, for_cache)
 
-    tar = make_tar(args, workspace.name, run_build_script)
+    tar = make_tar(args, workspace.name, run_build_script, for_cache)
 
     return raw, tar, root_hash
 
@@ -2462,6 +2635,37 @@ def run_build_script(args, workspace, raw):
         cmdline.append("/root/" + os.path.basename(args.build_script))
         subprocess.run(cmdline, check=True)
 
+def need_cache_images(args):
+
+    if not args.incremental:
+        return False
+
+    if args.force_count > 1:
+        return True
+
+    return not os.path.exists(args.cache_pre_dev) or not os.path.exists(args.cache_pre_inst)
+
+def remove_artifacts(args, workspace, raw, tar, run_build_script, for_cache=False):
+
+    if for_cache:
+        what = "cache build"
+    elif run_build_script:
+        what = "development build"
+    else:
+        return
+
+    if raw is not None:
+        with complete_step("Removing disk image from " + what):
+            del raw
+
+    if tar is not None:
+        with complete_step("Removing tar image from " + what):
+            del tar
+
+    with complete_step("Removing artifacts from " + what):
+        unlink_try_hard(os.path.join(workspace, "root"))
+        unlink_try_hard(os.path.join(workspace, "var-tmp"))
+
 def build_stuff(args):
 
     # Let's define a fixed machine ID for all our build-time
@@ -2473,22 +2677,33 @@ def build_stuff(args):
     cache = setup_cache(args)
     workspace = setup_workspace(args)
 
-    # Run the image builder twice, once for running the build script and once for the final build
+    # If caching is requested, then make sure we have cache images around we can make use of
+    if need_cache_images(args):
+
+        # Generate the cache version of the build image, and store it as "cache-pre-dev"
+        raw, tar, root_hash = build_image(args, workspace, run_build_script=True, for_cache=True)
+        save_cache(args,
+                   workspace.name,
+                   raw.name if raw is not None else None,
+                   args.cache_pre_dev)
+
+        remove_artifacts(args, workspace.name, raw, tar, run_build_script=True)
+
+        # Generate the cache version of the build image, and store it as "cache-pre-inst"
+        raw, tar, root_hash = build_image(args, workspace, run_build_script=False, for_cache=True)
+        save_cache(args,
+                   workspace.name,
+                   raw.name if raw is not None else None,
+                   args.cache_pre_inst)
+        remove_artifacts(args, workspace.name, raw, tar, run_build_script=False)
+
+    # Run the image builder for the first (develpoment) stage in preparation for the build script
     raw, tar, root_hash = build_image(args, workspace, run_build_script=True)
 
     run_build_script(args, workspace.name, raw)
+    remove_artifacts(args, workspace.name, raw, tar, run_build_script=True)
 
-    if raw is not None:
-        del raw
-
-    if tar is not None:
-        del tar
-
-    if args.build_script is not None:
-        with complete_step("Removing artifacts from development build"):
-            unlink_try_hard(os.path.join(workspace.name, "root"))
-            unlink_try_hard(os.path.join(workspace.name, "var-tmp"))
-
+    # Run the image builder for the second (final) stage
     raw, tar, root_hash = build_image(args, workspace, run_build_script=False)
 
     raw = xz_output(args, raw)
