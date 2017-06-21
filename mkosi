@@ -1145,21 +1145,24 @@ def install_extra_trees(args, workspace):
         for d in args.extra_trees:
             enumerate_and_copy(d, os.path.join(workspace, "root"))
 
-def git_files_ignore():
-    "Creates a function to be used as a ignore callable argument for copytree"
+def copy_git_files(src, dest):
     c = subprocess.run(['git', 'ls-files', '-z', '--others', '--cached',
                         '--exclude-standard', '--exclude', '/.mkosi-*'],
                        stdout=subprocess.PIPE,
                        universal_newlines=False,
                        check=True)
-    files = {x.decode("utf-8") for x in c.stdout.split(b'\0')}
+    files = {x.decode("utf-8") for x in c.stdout.rstrip(b'\0').split(b'\0')}
+
     del c
 
-    def ignore(src, names):
-        return [name for name in names
-                if (os.path.relpath(os.path.join(src, name)) not in files
-                    and not os.path.isdir(os.path.join(src, name)))]
-    return ignore
+    for path in files:
+        src_path = os.path.join(src, path)
+        dest_path = os.path.join(dest, path)
+
+        directory = os.path.dirname(dest_path)
+        os.makedirs(directory, exist_ok=True)
+
+        shutil.copy2(src_path, dest_path, follow_symlinks=True)
 
 def install_build_src(args, workspace, run_build_script):
     if not run_build_script:
@@ -1179,10 +1182,10 @@ def install_build_src(args, workspace, run_build_script):
                 use_git = os.path.exists('.git')
 
             if use_git:
-                ignore = git_files_ignore()
+                copy_git_files(args.build_sources, target)
             else:
                 ignore = shutil.ignore_patterns('.mkosi-*', '.git')
-            shutil.copytree(args.build_sources, target, symlinks=True, ignore=ignore)
+                shutil.copytree(args.build_sources, target, symlinks=True, ignore=ignore)
 
 def install_build_dest(args, workspace, run_build_script):
     if run_build_script:
