@@ -1145,9 +1145,11 @@ def install_extra_trees(args, workspace):
         for d in args.extra_trees:
             enumerate_and_copy(d, os.path.join(workspace, "root"))
 
-def copy_git_files(src, dest):
-    c = subprocess.run(['git', 'ls-files', '-z', '--others', '--cached',
-                        '--exclude-standard', '--exclude', '/.mkosi-*'],
+def copy_git_files(src, dest, *, git_files):
+    what_files = ['--exclude-standard', '--cached']
+    if git_files == 'others':
+        what_files += ['--others']
+    c = subprocess.run(['git', 'ls-files', '-z'] + what_files,
                        stdout=subprocess.PIPE,
                        universal_newlines=False,
                        check=True)
@@ -1182,9 +1184,9 @@ def install_build_src(args, workspace, run_build_script):
                 use_git = os.path.exists('.git')
 
             if use_git:
-                copy_git_files(args.build_sources, target)
+                copy_git_files(args.build_sources, target, git_files=args.git_files)
             else:
-                ignore = shutil.ignore_patterns('.mkosi-*', '.git')
+                ignore = shutil.ignore_patterns('.git')
                 shutil.copytree(args.build_sources, target, symlinks=True, ignore=ignore)
 
 def install_build_dest(args, workspace, run_build_script):
@@ -1673,6 +1675,8 @@ def parse_args():
     group.add_argument("--postinst-script", help='Post installation script to run inside image', metavar='PATH')
     group.add_argument('--use-git-files', type=parse_boolean,
                        help='Ignore any files that git itself ignores (default: guess)')
+    group.add_argument('--git-files', choices=('cached', 'others'),
+                       help='Whether to include untracked files (default: others)')
     group.add_argument("--with-network", action='store_true', help='Run build and postinst scripts with network access (instead of private network)')
     group.add_argument("--settings", dest='nspawn_settings', help='Add in .spawn settings file', metavar='PATH')
 
@@ -1783,6 +1787,7 @@ def unlink_output(args):
         unlink_try_hard(args.output_nspawn_settings)
 
 def parse_boolean(s):
+    "Parse 1/true/yes as true and 0/false/no as false"
     if s in {"1", "true", "yes"}:
         return True
 
