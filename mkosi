@@ -911,6 +911,28 @@ def install_debian(args, workspace, run_build_script):
 def install_ubuntu(args, workspace, run_build_script):
     install_debian_or_ubuntu(args, workspace, run_build_script, args.mirror)
 
+def make_pacman_conf(args, server):
+    return """\
+[options]
+LogFile     = /dev/null
+HookDir     = /no_hook/
+HoldPkg     = pacman glibc
+Architecture = auto
+UseSyslog
+Color
+CheckSpace
+SigLevel    = Required DatabaseOptional
+
+[core]
+{server}
+
+[extra]
+{server}
+
+[community]
+{server}
+""".format(args=args, server=server)
+
 @complete_step('Installing Arch Linux')
 def install_arch(args, workspace, run_build_script):
     if args.release is not None:
@@ -930,26 +952,7 @@ def install_arch(args, workspace, run_build_script):
         server = "Server = {}/$repo/os/$arch".format(args.mirror)
 
     with open(os.path.join(workspace, "pacman.conf"), "w") as f:
-        f.write("""\
-[options]
-LogFile     = /dev/null
-HookDir     = /no_hook/
-HoldPkg     = pacman glibc
-Architecture = auto
-UseSyslog
-Color
-CheckSpace
-SigLevel    = Required DatabaseOptional
-
-[core]
-{server}
-
-[extra]
-{server}
-
-[community]
-{server}
-""".format(args=args, server=server))
+        f.write(make_pacman_conf(args, server))
 
     subprocess.run(["pacman", "--color", "never", "--config", os.path.join(workspace, "pacman.conf"), "-Sy"], check=True)
     c = subprocess.run(["pacman", "--color", "never", "--config", os.path.join(workspace, "pacman.conf"), "-Sg", "base"], stdout=subprocess.PIPE, universal_newlines=True, check=True)
