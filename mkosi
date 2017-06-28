@@ -666,6 +666,13 @@ def patch_file(filepath, line_rewriter):
     os.remove(filepath)
     shutil.move(temp_new_filepath, filepath)
 
+def fix_hosts_line_in_nsswitch(line):
+    if line.startswith("hosts:"):
+        sources = line.split(" ")
+        if 'resolve' not in sources:
+            return " ".join(["resolve" if w == "dns" else w for w in sources])
+    return line
+
 def enable_networkd(workspace):
     subprocess.run(["systemctl",
                     "--root", os.path.join(workspace, "root"),
@@ -675,8 +682,7 @@ def enable_networkd(workspace):
     os.remove(os.path.join(workspace, "root", "etc/resolv.conf"))
     os.symlink("../usr/lib/systemd/resolv.conf", os.path.join(workspace, "root", "etc/resolv.conf"))
 
-    patch_file(os.path.join(workspace, "root", "etc/nsswitch.conf"),
-               lambda line: " ".join(["resolve" if w == "dns" else w for w in line.split(" ")]) if line.startswith("hosts:") else line)
+    patch_file(os.path.join(workspace, "root", "etc/nsswitch.conf"), fix_hosts_line_in_nsswitch)
 
     with open(os.path.join(workspace, "root", "etc/systemd/network/all-ethernet.network"), "w") as f:
         f.write("""\
