@@ -233,11 +233,11 @@ Create and run a *Fedora* image into a plain directory:
 # systemd-nspawn -b -D quux
 ```
 
-Create a compressed tar ball `image.raw.xz` and add a checksum
-file, and install *SSH* into it:
+Create a compressed image `image.raw.xz` and add a checksum file, and
+install *SSH* into it:
 
 ```bash
-# mkosi -d fedora -t tar --checksum --compress --package=openssh-clients
+# mkosi -d fedora -t raw_squashfs --checksum --xz --package=openssh-clients
 ```
 
 Inside the source directory of an `automake`-based project,
@@ -276,6 +276,8 @@ EOF
 
 mkosi is packaged for various distributions: Debian, Ubuntu, Arch (in AUR), Fedora.
 It is usually easiest to use the distribution package.
+
+The current version requires systemd 233 (or actually, systemd-nspawn of it).
 
 When not using distribution packages make sure to install the
 necessary dependencies. For example, on *Fedora* you need:
