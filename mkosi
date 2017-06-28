@@ -912,6 +912,8 @@ def install_ubuntu(args, workspace, run_build_script):
     install_debian_or_ubuntu(args, workspace, run_build_script, args.mirror)
 
 def make_pacman_conf(args, server):
+    if os.path.exists("pacman.conf"):
+        return open("pacman.conf").read()
     return """\
 [options]
 LogFile     = /dev/null
