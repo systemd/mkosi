@@ -103,14 +103,12 @@ def unshare(flags):
         raise OSError(e, os.strerror(e))
 
 def format_bytes(size):
-    if size >= 1024*1024*1024:
-        return "{:0.1f}G".format(size / 1024**3)
-    if size >= 1024*1024:
-        return "{:0.1f}M".format(size / 1024**2)
-    if size >= 1024:
-        return "{:0.1f}K".format(size / 1024)
-
-    return "{}B".format(size)
+    if size < 1:
+        return "{:0.1f}B".format(size)
+    units = "BKMGT"
+    for p in range(len(units)-1, -1, -1):
+        if size >= 1024**p:
+            return "{:0.1f}{}".format(size / 1024**p, units[p])
 
 def roundup512(x):
     return (x + 511) & ~511
