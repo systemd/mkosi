@@ -121,7 +121,7 @@ build *Fedora* images. Any distro that packages `pacstrap` may
 be used to build *Arch Linux* images. Any distro that packages
 `zypper` may be used to build *openSUSE* images.
 
-Currently, *Fedora* packages the first three tools.
+Currently, *Fedora* packages all four tools as of Fedora 26.
 
 # Files
 
