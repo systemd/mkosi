@@ -14,7 +14,7 @@ import stat
 import subprocess
 import sys
 import tempfile
-import time
+import time  # Unused?
 import urllib.request
 import uuid
 
@@ -2204,19 +2204,12 @@ def find_secure_boot(args):
         if os.path.exists("mkosi.secure-boot.crt"):
             args.secure_boot_certificate = "mkosi.secure-boot.crt"
 
-def strip_suffixes(path):
-    t = path
-    while True:
-        if t.endswith(".xz"):
-            t = t[:-3]
-        elif t.endswith(".raw"):
-            t = t[:-4]
-        elif t.endswith(".tar"):
-            t = t[:-4]
-        else:
-            break
 
-    return t
+def strip_suffixes(path):
+    EXTS = (".xz", ".raw", ".tar")
+    while any(path.endswith(x) for x in EXTS):
+        path = os.path.splitext(path)[0]
+    return path
 
 def build_nspawn_settings_path(path):
     return strip_suffixes(path) + ".nspawn"
