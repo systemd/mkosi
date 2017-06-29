@@ -2287,7 +2287,7 @@ def load_args():
             if platform.machine() == "aarch64":
                 args.mirror = "http://mirror.archlinuxarm.org"
         elif args.distribution == Distribution.opensuse:
-            args.mirror = "https://download.opensuse.org"
+            args.mirror = "http://download.opensuse.org"
 
     if args.bootable:
         if args.distribution == Distribution.ubuntu:
