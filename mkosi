@@ -102,15 +102,15 @@ def unshare(flags):
         e = ctypes.get_errno()
         raise OSError(e, os.strerror(e))
 
-def format_bytes(bytes):
-    if bytes >= 1024*1024*1024:
-        return "{:0.1f}G".format(bytes / 1024**3)
-    if bytes >= 1024*1024:
-        return "{:0.1f}M".format(bytes / 1024**2)
-    if bytes >= 1024:
-        return "{:0.1f}K".format(bytes / 1024)
+def format_bytes(size):
+    if size >= 1024*1024*1024:
+        return "{:0.1f}G".format(size / 1024**3)
+    if size >= 1024*1024:
+        return "{:0.1f}M".format(size / 1024**2)
+    if size >= 1024:
+        return "{:0.1f}K".format(size / 1024)
 
-    return "{}B".format(bytes)
+    return "{}B".format(size)
 
 def roundup512(x):
     return (x + 511) & ~511
