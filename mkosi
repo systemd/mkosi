@@ -3,7 +3,8 @@
 import argparse
 import configparser
 import contextlib
-import ctypes, ctypes.util
+import ctypes
+import ctypes.util
 import crypt
 import getpass
 import hashlib
@@ -31,10 +32,12 @@ if sys.version_info < (3, 5):
 # - work on device nodes
 # - allow passing env vars
 
+
 def die(message, status=1):
     assert status >= 1 and status < 128
     sys.stderr.write(message + "\n")
     sys.exit(status)
+
 
 class OutputFormat(Enum):
     raw_gpt = 1
@@ -44,12 +47,14 @@ class OutputFormat(Enum):
     subvolume = 5
     tar = 6
 
+
 class Distribution(Enum):
     fedora = 1
     debian = 2
     ubuntu = 3
     arch = 4
     opensuse = 5
+
 
 GPT_ROOT_X86           = uuid.UUID("44479540f29741b29af7d131d5f0458a")
 GPT_ROOT_X86_64        = uuid.UUID("4f68bce3e8cd4db196e7fbcaf984b709")
@@ -88,6 +93,7 @@ FEDORA_KEYS_MAP = {
 # another MB at the end (this is actually more than needed.)
 GPT_HEADER_SIZE = 1024*1024
 GPT_FOOTER_SIZE = 1024*1024
+
 
 def unshare(flags):
     libc = ctypes.CDLL(ctypes.util.find_library("c"), use_errno=True)
@@ -2203,7 +2209,6 @@ def find_secure_boot(args):
     if args.secure_boot_certificate is None:
         if os.path.exists("mkosi.secure-boot.crt"):
             args.secure_boot_certificate = "mkosi.secure-boot.crt"
-
 
 def strip_suffixes(path):
     EXTS = (".xz", ".raw", ".tar")
