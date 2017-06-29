@@ -367,49 +367,25 @@ def luks_close(dev, text):
     with complete_step(text):
         subprocess.run(["cryptsetup", "close", dev], check=True)
 
-def luks_format_root(args, loopdev, run_build_script, cached, inserting_squashfs=False):
+def luks_format_fs(args, loopdev, run_build_script,
+                     cached, fs, inserting_squashfs=False):
+    if fs == "root":
+        if args.encrypt != "all":
+            return
+        if args.output_format == OutputFormat.raw_squashfs\
+                and not inserting_squashfs:
+            return
+        partno = args.root_partno
+    elif fs == "home":
+        partno = args.home_partno
+    elif fs == "server data":
+        partno = args.srv_partno
 
-    if args.encrypt != "all":
-        return
-    if args.root_partno is None:
-        return
-    if args.output_format == OutputFormat.raw_squashfs and not inserting_squashfs:
-        return
-    if run_build_script:
-        return
-    if cached:
-        return
-
-    with complete_step("LUKS formatting root partition"):
-        luks_format(partition(loopdev, args.root_partno), args.passphrase)
-
-def luks_format_home(args, loopdev, run_build_script, cached):
-
-    if args.encrypt is None:
-        return
-    if args.home_partno is None:
-        return
-    if run_build_script:
-        return
-    if cached:
+    if partno is None or args.encrypt is None or run_build_script or cached:
         return
 
-    with complete_step("LUKS formatting home partition"):
-        luks_format(partition(loopdev, args.home_partno), args.passphrase)
-
-def luks_format_srv(args, loopdev, run_build_script, cached):
-
-    if args.encrypt is None:
-        return
-    if args.srv_partno is None:
-        return
-    if run_build_script:
-        return
-    if cached:
-        return
-
-    with complete_step("LUKS formatting server data partition"):
-        luks_format(partition(loopdev, args.srv_partno), args.passphrase)
+    with complete_step("LUKS formatting {} partition".format(fs)):
+        luks_format(partition(loopdev, partno), args.passphrase)
 
 def luks_setup_root(args, loopdev, run_build_script, inserting_squashfs=False):
 
@@ -1407,7 +1383,7 @@ def insert_partition(args, workspace, raw, loopdev, partno, blob, name, type_uui
     print_step("Writing partition...")
 
     if args.root_partno == partno:
-        luks_format_root(args, loopdev, False, True)
+        luks_format_fs(args, loopdev, False, True, "root")
         dev = luks_setup_root(args, loopdev, False, True)
     else:
         dev = None
@@ -2545,9 +2521,9 @@ def build_image(args, workspace, run_build_script, for_cache=False):
         prepare_swap(args, loopdev, cached)
         prepare_esp(args, loopdev, cached)
 
-        luks_format_root(args, loopdev, run_build_script, cached)
-        luks_format_home(args, loopdev, run_build_script, cached)
-        luks_format_srv(args, loopdev, run_build_script, cached)
+        luks_format_fs(args, loopdev, run_build_script, cached, "root")
+        luks_format_fs(args, loopdev, run_build_script, cached, "home")
+        luks_format_fs(args, loopdev, run_build_script, cached, "server data")
 
         with luks_setup_all(args, loopdev, run_build_script) as (encrypted_root, encrypted_home, encrypted_srv):
 
