@@ -289,6 +289,20 @@ EOF
 # systemd-nspawn -bi image.raw
 ```
 
+To create a *Fedora* image with hostname:
+```bash
+# mkosi -d fedora --hostname image
+```
+
+Also you could set hostname in configuration file:
+```bash
+# cat mkosi.default
+...
+[Output]
+Hostname=image
+...
+```
+
 # Requirements
 
 mkosi is packaged for various distributions: Debian, Ubuntu, Arch (in AUR), Fedora.
