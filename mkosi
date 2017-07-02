@@ -1028,7 +1028,7 @@ def install_opensuse(args, workspace, run_build_script):
     #
     # Install the "minimal" package set.
     #
-    subprocess.run(cmdline + ["-t", "pattern", "minimal_base"], check=True)
+    subprocess.run(cmdline + ["patterns-base-minimal_base"], check=True)
 
     #
     # Now install the additional packages if necessary.
