@@ -50,6 +50,7 @@ class Distribution(Enum):
     ubuntu = 3
     arch = 4
     opensuse = 5
+    mageia = 6
 
 GPT_ROOT_X86           = uuid.UUID("44479540f29741b29af7d131d5f0458a")
 GPT_ROOT_X86_64        = uuid.UUID("4f68bce3e8cd4db196e7fbcaf984b709")
@@ -581,7 +582,7 @@ def mount_cache(args, workspace):
 
     # We can't do this in mount_image() yet, as /var itself might have to be created as a subvolume first
     with complete_step('Mounting Package Cache'):
-        if args.distribution == Distribution.fedora:
+        if args.distribution in (Distribution.fedora, Distribution.mageia):
             mount_bind(args.cache_path, os.path.join(workspace, "root", "var/cache/dnf"))
         elif args.distribution in (Distribution.debian, Distribution.ubuntu):
             mount_bind(args.cache_path, os.path.join(workspace, "root", "var/cache/apt/archives"))
@@ -818,6 +819,99 @@ gpgkey={gpg_key}
 
     if args.bootable:
         cmdline.extend(["kernel", "systemd-udev", "binutils"])
+
+        # Temporary hack: dracut only adds crypto support to the initrd, if the cryptsetup binary is installed
+        if args.encrypt or args.verity:
+            cmdline.append("cryptsetup")
+
+        if args.output_format == OutputFormat.raw_gpt:
+            cmdline.append("e2fsprogs")
+
+        if args.output_format == OutputFormat.raw_btrfs:
+            cmdline.append("btrfs-progs")
+
+    with mount_api_vfs(args, workspace):
+        subprocess.run(cmdline, check=True)
+
+@complete_step('Installing Mageia')
+def install_mageia(args, workspace, run_build_script):
+
+    disable_kernel_install(args, workspace)
+
+    # Mageia does not (yet) have RPM GPG key on the web
+    gpg_key = '/etc/pki/rpm-gpg/RPM-GPG-KEY-Mageia'
+    if os.path.exists(gpg_key):
+        gpg_key = "file://%s" % gpg_key
+#    else:
+#        gpg_key = "https://getfedora.org/static/%s.txt" % FEDORA_KEYS_MAP[args.release]
+
+    if args.mirror:
+        baseurl = "{args.mirror}/distrib/{args.release}/x86_64/media/core/release/".format(args=args)
+        if not check_if_url_exists("%s/media.repo" % baseurl):
+            baseurl = "{args.mirror}/distrib/cauldron/x86_64/media/core/release/".format(args=args)
+
+        release_url = "baseurl=%s" % baseurl
+        updates_url = "baseurl={args.mirror}/distrib/{args.release}/x86_64/media/core/updates/".format(args=args)
+    else:
+        release_url = ("mirrorlist=https://www.mageia.org/mirrorlist/?" +
+                       "release={args.release}&arch=x86_64&section=core&repo=release".format(args=args))
+        updates_url = ("mirrorlist=https://www.mageia.org/mirrorlist/?" +
+                       "release={args.release}&arch=x86_64&section=core&repo=updates".format(args=args))
+
+    with open(os.path.join(workspace, "dnf.conf"), "w") as f:
+        f.write("""\
+[main]
+gpgcheck=1
+
+[mageia]
+name=Mageia {args.release} Core Release
+{release_url}
+gpgkey={gpg_key}
+
+[updates]
+name=Mageia {args.release} Core Updates
+{updates_url}
+gpgkey={gpg_key}
+""".format(args=args,
+           gpg_key=gpg_key,
+           release_url=release_url,
+           updates_url=updates_url))
+    if args.repositories:
+        repos = ["--enablerepo=" + repo for repo in args.repositories]
+    else:
+        repos = ["--enablerepo=mageia", "--enablerepo=updates"]
+
+    root = os.path.join(workspace, "root")
+    cmdline = ["dnf",
+               "-y",
+               "--config=" + os.path.join(workspace, "dnf.conf"),
+               "--best",
+               "--allowerasing",
+               "--releasever=" + args.release,
+               "--installroot=" + root,
+               "--disablerepo=*",
+               *repos,
+               "--setopt=keepcache=1",
+               "--setopt=install_weak_deps=0"]
+
+    # Turn off docs, but not during the development build, as dnf currently has problems with that
+    if not args.with_docs and not run_build_script:
+        cmdline.append("--setopt=tsflags=nodocs")
+
+    cmdline.extend([
+               "install",
+               "systemd",
+               "mageia-release",
+               "passwd"])
+
+    if args.packages is not None:
+        cmdline.extend(args.packages)
+
+    if run_build_script and args.build_packages is not None:
+        cmdline.extend(args.build_packages)
+
+    if args.bootable:
+        cmdline.extend(["kernel", "binutils"])
 
         # Temporary hack: dracut only adds crypto support to the initrd, if the cryptsetup binary is installed
         if args.encrypt or args.verity:
@@ -1087,6 +1181,7 @@ def install_distribution(args, workspace, run_build_script, cached):
 
     install = {
         Distribution.fedora : install_fedora,
+        Distribution.mageia : install_mageia,
         Distribution.debian : install_debian,
         Distribution.ubuntu : install_ubuntu,
         Distribution.arch : install_arch,
@@ -1496,7 +1591,7 @@ def install_unified_kernel(args, workspace, run_build_script, for_cache, root_ha
     if for_cache:
         return
 
-    if args.distribution != Distribution.fedora:
+    if args.distribution not in (Distribution.fedora, Distribution.mageia):
         return
 
     with complete_step("Generating combined kernel + initrd boot file"):
@@ -1789,7 +1884,7 @@ def parse_args():
 
     group = parser.add_argument_group("Packages")
     group.add_argument('-p', "--package", action=PackageAction, dest='packages', help='Add an additional package to the OS image', metavar='PACKAGE')
-    group.add_argument("--with-docs", action='store_true', help='Install documentation (only fedora)')
+    group.add_argument("--with-docs", action='store_true', help='Install documentation (only Fedora and Mageia)')
     group.add_argument("--cache", dest='cache_path', help='Package cache path', metavar='PATH')
     group.add_argument("--extra-tree", action='append', dest='extra_trees', help='Copy an extra tree on top of image', metavar='PATH')
     group.add_argument("--build-script", help='Build script to run inside image', metavar='PATH')
@@ -2270,6 +2365,8 @@ def load_args():
     if args.release is None:
         if args.distribution == Distribution.fedora:
             args.release = "25"
+        if args.distribution == Distribution.mageia:
+            args.release = "6"
         elif args.distribution == Distribution.debian:
             args.release = "unstable"
         elif args.distribution == Distribution.ubuntu:
@@ -2485,7 +2582,7 @@ def print_summary(args):
     sys.stderr.write("\nPACKAGES:\n")
     sys.stderr.write("              Packages: " + line_join_list(args.packages) + "\n")
 
-    if args.distribution == Distribution.fedora:
+    if args.distribution in (Distribution.fedora, Distribution.mageia):
         sys.stderr.write("    With Documentation: " + yes_no(args.with_docs) + "\n")
 
     sys.stderr.write("         Package Cache: " + none_to_none(args.cache_path) + "\n")
