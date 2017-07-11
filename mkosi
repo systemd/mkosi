@@ -900,9 +900,8 @@ gpgkey={gpg_key}
 
     cmdline.extend([
                "install",
-               "systemd",
-               "mageia-release",
-               "passwd"])
+               "basesystem-minimal"
+               ])
 
     if args.packages is not None:
         cmdline.extend(args.packages)
@@ -911,7 +910,7 @@ gpgkey={gpg_key}
         cmdline.extend(args.build_packages)
 
     if args.bootable:
-        cmdline.extend(["kernel", "binutils"])
+        cmdline.extend(["kernel-server-latest", "binutils"])
 
         # Temporary hack: dracut only adds crypto support to the initrd, if the cryptsetup binary is installed
         if args.encrypt or args.verity:
