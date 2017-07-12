@@ -846,17 +846,13 @@ def install_mageia(args, workspace, run_build_script):
 #        gpg_key = "https://getfedora.org/static/%s.txt" % FEDORA_KEYS_MAP[args.release]
 
     if args.mirror:
-        baseurl = "{args.mirror}/distrib/{args.release}/x86_64/media/core/release/".format(args=args)
-        if not check_if_url_exists("%s/media.repo" % baseurl):
-            baseurl = "{args.mirror}/distrib/cauldron/x86_64/media/core/release/".format(args=args)
-
-        release_url = "baseurl=%s" % baseurl
-        updates_url = "baseurl={args.mirror}/distrib/{args.release}/x86_64/media/core/updates/".format(args=args)
+        baseurl = "{args.mirror}/distrib/{args.release}/x86_64/media/core/".format(args=args)
+        release_url = "baseurl=%s/release/" % baseurl
+        updates_url = "baseurl=%s/updates/" % baseurl
     else:
-        release_url = ("mirrorlist=https://www.mageia.org/mirrorlist/?" +
-                       "release={args.release}&arch=x86_64&section=core&repo=release".format(args=args))
-        updates_url = ("mirrorlist=https://www.mageia.org/mirrorlist/?" +
-                       "release={args.release}&arch=x86_64&section=core&repo=updates".format(args=args))
+        baseurl = "https://www.mageia.org/mirrorlist/?release={args.release}&arch=x86_64&section=core".format(args=args)
+        release_url = "mirrorlist=%s&repo=release" % baseurl
+        updates_url = "mirrorlist=%s&repo=updates" % baseurl
 
     with open(os.path.join(workspace, "dnf.conf"), "w") as f:
         f.write("""\
