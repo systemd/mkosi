@@ -1689,6 +1689,16 @@ def install_unified_kernel(args, workspace, run_build_script, for_cache, root_ha
     if for_cache:
         return
 
+    # Don't bother running dracut if this is a development
+    # build. Strictly speaking it would probably be a good idea to run
+    # it, so that the development environment differs as little as
+    # possible from the final build, but then again the initrd should
+    # not be relevant for building, and dracut is simply very slow,
+    # hence let's avoid it invoking it needlessly, given that we never
+    # actually invoke the boot loader on the development image.
+    if run_build_script:
+        return
+
     if args.distribution not in (Distribution.fedora, Distribution.mageia):
         return
 
