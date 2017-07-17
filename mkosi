@@ -2620,6 +2620,9 @@ def load_args():
     if args.postinst_script is not None:
         args.postinst_script = os.path.abspath(args.postinst_script)
 
+    if args.cache_path is not None:
+        args.cache_path = os.path.abspath(args.cache_path)
+
     if args.extra_trees is not None:
         for i in range(len(args.extra_trees)):
             args.extra_trees[i] = os.path.abspath(args.extra_trees[i])
