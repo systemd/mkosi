@@ -146,7 +146,7 @@ they exist in the local directory:
   is loaded in the same manner adding/overriding the values specified in
   `mkosi.default`.
 
-* `mkosi.extra` may be a directory. If this exists all files
+* `mkosi.extra/` may be a directory. If this exists all files
   contained in it are copied over the directory tree of the
   image after the *OS* was installed. This may be used to add in
   additional files to an image, on top of what the
@@ -189,8 +189,23 @@ they exist in the local directory:
   next to image files it boots, for additional container
   runtime settings.
 
-* `mkosi.cache` may be a directory. If so, it is automatically used as
+* `mkosi.cache/` may be a directory. If so, it is automatically used as
   package download cache, in order to speed repeated runs of the tool.
+
+* `mkosi.builddir/` may be a directory. If so, it is automatically
+  used as out-of-tree build directory, if the build commands in the
+  `mkosi.build` script support it. Specifically, this directory will
+  be mounted into the build countainer, and the `$BUILDDIR`
+  environment variable will be set to it when the build script is
+  invoked. The build script may then use this directory as build
+  directory, for automake-style or ninja-style out-of-tree
+  builds. This speeds up builds considerably, in particular when
+  `mkosi` is used in incremental mode (`-i`): not only the disk images
+  but also the build tree is reused between subsequent
+  invocations. Note that if this directory does not exist the
+  `$BUILDDIR` environment variable is not set, and it is up to build
+  script to decide whether to do in in-tree or an out-of-tree build,
+  and which build directory to use.
 
 * `mkosi.passphrase` may be a passphrase file to use when LUKS
   encryption is selected. It should contain the passphrase literally,

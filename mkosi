@@ -1845,6 +1845,7 @@ def parse_args():
     group.add_argument("--extra-tree", action='append', dest='extra_trees', help='Copy an extra tree on top of image', metavar='PATH')
     group.add_argument("--build-script", help='Build script to run inside image', metavar='PATH')
     group.add_argument("--build-sources", help='Path for sources to build', metavar='PATH')
+    group.add_argument("--build-dir", help='Path to use as persistent build directory', metavar='PATH')
     group.add_argument("--build-package", action=PackageAction, dest='build_packages', help='Additional packages needed for build script', metavar='PACKAGE')
     group.add_argument("--postinst-script", help='Post installation script to run inside image', metavar='PATH')
     group.add_argument('--use-git-files', type=parse_boolean,
@@ -1942,6 +1943,11 @@ def unlink_try_hard(path):
     except:
         pass
 
+def empty_directory(path):
+
+    for f in os.listdir(path):
+        unlink_try_hard(os.path.join(path, f))
+
 def unlink_output(args):
     if not args.force and args.verb != "clean":
         return
@@ -1968,12 +1974,18 @@ def unlink_output(args):
         remove_cache = args.force_count > 1
 
     if remove_cache:
-        with complete_step('Removing cache files'):
-            if args.cache_pre_dev is not None:
-                unlink_try_hard(args.cache_pre_dev)
 
-            if args.cache_pre_inst is not None:
-                unlink_try_hard(args.cache_pre_inst)
+        if args.cache_pre_dev is not None or args.cache_pre_inst is not None:
+            with complete_step('Removing incremental cache files'):
+                if args.cache_pre_dev is not None:
+                    unlink_try_hard(args.cache_pre_dev)
+
+                if args.cache_pre_inst is not None:
+                    unlink_try_hard(args.cache_pre_inst)
+
+        if args.build_dir is not None:
+            with complete_step('Clearing out build directory'):
+                empty_directory(args.build_dir)
 
 def parse_boolean(s):
     "Parse 1/true/yes as true and 0/false/no as false"
@@ -2074,6 +2086,9 @@ def process_setting(args, section, key, value):
         elif key == "BuildSources":
             if args.build_sources is None:
                 args.build_sources = value
+        elif key == "BuildDirectory":
+            if args.build_dir is None:
+                args.build_dir = value
         elif key == "BuildPackages":
             list_value = value if type(value) == list else value.split()
             if args.build_packages is None:
@@ -2219,6 +2234,13 @@ def find_build_sources(args):
 
     args.build_sources = os.getcwd()
 
+def find_build_dir(args):
+    if args.build_dir is not None:
+        return
+
+    if os.path.exists("mkosi.builddir/"):
+        args.build_dir = "mkosi.builddir"
+
 def find_postinst_script(args):
     if args.postinst_script is not None:
         return
@@ -2292,6 +2314,7 @@ def load_args():
     find_extra(args)
     find_build_script(args)
     find_build_sources(args)
+    find_build_dir(args)
     find_postinst_script(args)
     find_passphrase(args)
     find_secure_boot(args)
@@ -2415,6 +2438,9 @@ def load_args():
 
     if args.build_sources is not None:
         args.build_sources = os.path.abspath(args.build_sources)
+
+    if args.build_dir is not None:
+        args.build_dir = os.path.abspath(args.build_dir)
 
     if args.postinst_script is not None:
         args.postinst_script = os.path.abspath(args.postinst_script)
@@ -2545,6 +2571,7 @@ def print_summary(args):
     sys.stderr.write("           Extra Trees: " + line_join_list(args.extra_trees) + "\n")
     sys.stderr.write("          Build Script: " + none_to_none(args.build_script) + "\n")
     sys.stderr.write("         Build Sources: " + none_to_none(args.build_sources) + "\n")
+    sys.stderr.write("       Build Directory: " + none_to_none(args.build_dir) + "\n")
     sys.stderr.write("        Build Packages: " + line_join_list(args.build_packages) + "\n")
     sys.stderr.write("     Post Inst. Script: " + none_to_none(args.postinst_script) + "\n")
     sys.stderr.write("  Scripts with network: " + yes_no(args.with_network) + "\n")
@@ -2692,6 +2719,10 @@ def run_build_script(args, workspace, raw):
                 cmdline.append("--overlay=+/root/src::/root/src")
         else:
             cmdline.append("--chdir=/root")
+
+        if args.build_dir is not None:
+            cmdline.append("--setenv=BUILDDIR=/root/build")
+            cmdline.append("--bind=" + args.build_dir + ":/root/build")
 
         if not args.with_network:
             cmdline.append("--private-network")
