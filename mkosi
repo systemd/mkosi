@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+# PYTHON_ARGCOMPLETE_OK
 
 import argparse
 import configparser
@@ -17,6 +18,11 @@ import tempfile
 import time
 import urllib.request
 import uuid
+
+try:
+    import argcomplete
+except ImportError:
+    pass
 
 from enum import Enum
 
@@ -1872,6 +1878,11 @@ def parse_args():
     group.add_argument('-C', "--directory", help='Change to specified directory before doing anything', metavar='PATH')
     group.add_argument("--default", dest='default_path', help='Read configuration data from file', metavar='PATH')
     group.add_argument("--kernel-commandline", help='Set the kernel command line (only bootable images)')
+
+    try:
+        argcomplete.autocomplete(parser)
+    except NameError:
+        pass
 
     args = parser.parse_args()
 
