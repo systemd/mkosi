@@ -112,14 +112,16 @@ following *OS*es.
 
 * *openSUSE*
 
+* *Mageia*
+
 In theory, any distribution may be used on the host for
 building images containing any other distribution, as long as
 the necessary tools are available. Specifically, any distro
 that packages `debootstrap` may be used to build *Debian* or
 *Ubuntu* images. Any distro that packages `dnf` may be used to
-build *Fedora* images. Any distro that packages `pacstrap` may
-be used to build *Arch Linux* images. Any distro that packages
-`zypper` may be used to build *openSUSE* images.
+build *Fedora* or *Mageia* images. Any distro that packages
+`pacstrap` may be used to build *Arch Linux* images. Any distro
+that packages `zypper` may be used to build *openSUSE* images.
 
 Currently, *Fedora* packages all four tools as of Fedora 26.
 
@@ -133,12 +135,12 @@ they exist in the local directory:
 
 * `mkosi.default` may be used to configure mkosi's image
   building process. For example, you may configure the
-  distribution to use (`fedora`, `ubuntu`, `debian`, `archlinux`) for
-  the image, or additional distribution packages to
-  install. Note that all options encoded in this configuration
-  file may also be set on the command line, and this file is
-  hence little more than a way to make sure simply typing
-  `mkosi` without further parameters in your *source* tree is
+  distribution to use (`fedora`, `ubuntu`, `debian`, `archlinux`,
+  `opensuse`, `mageia`) for the image, or additional
+  distribution packages to install. Note that all options encoded
+  in this configuration file may also be set on the command line,
+  and this file is hence little more than a way to make sure simply
+  typing `mkosi` without further parameters in your *source* tree is
   enough to get the right image of your choice set up.
   Additionally if a `mkosi.default.d` directory exists, each file in it
   is loaded in the same manner adding/overriding the values specified in
@@ -283,7 +285,7 @@ When not using distribution packages make sure to install the
 necessary dependencies. For example, on *Fedora* you need:
 
 ```bash
-dnf install arch-install-scripts btrfs-progs debootstrap dosfstools edk2-ovmf squashfs-tools gnupg python3 tar veritysetup xz
+dnf install arch-install-scripts btrfs-progs debootstrap dosfstools edk2-ovmf squashfs-tools gnupg python3 tar veritysetup xz zypper
 ```
 
 Note that the minimum required Python version is 3.5.
