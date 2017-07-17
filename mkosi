@@ -2094,8 +2094,11 @@ def unlink_try_hard(path):
 
 def empty_directory(path):
 
-    for f in os.listdir(path):
-        unlink_try_hard(os.path.join(path, f))
+    try:
+        for f in os.listdir(path):
+            unlink_try_hard(os.path.join(path, f))
+    except FileNotFoundError:
+        pass
 
 def unlink_output(args):
     if not args.force and args.verb != "clean":
@@ -2116,14 +2119,19 @@ def unlink_output(args):
         if args.nspawn_settings is not None:
             unlink_try_hard(args.output_nspawn_settings)
 
-    # We remove the cache if either the user used --force twice, or he called "clean" with it passed once
+    # We remove any cached images if either the user used --force
+    # twice, or he/she called "clean" with it passed once. Let's also
+    # remove the downloaded package cache if the user specified one
+    # additional "--force".
+
     if args.verb == "clean":
-        remove_cache = args.force_count > 0
+        remove_build_cache = args.force_count > 0
+        remove_package_cache = args.force_count > 1
     else:
-        remove_cache = args.force_count > 1
+        remove_build_cache = args.force_count > 1
+        remove_package_cache = args.force_count > 2
 
-    if remove_cache:
-
+    if remove_build_cache:
         if args.cache_pre_dev is not None or args.cache_pre_inst is not None:
             with complete_step('Removing incremental cache files'):
                 if args.cache_pre_dev is not None:
@@ -2135,6 +2143,11 @@ def unlink_output(args):
         if args.build_dir is not None:
             with complete_step('Clearing out build directory'):
                 empty_directory(args.build_dir)
+
+    if remove_package_cache:
+        if args.cache_path is not None:
+            with complete_step('Clearing out package cache'):
+                empty_directory(args.cache_path)
 
 def parse_boolean(s):
     "Parse 1/true/yes as true and 0/false/no as false"
