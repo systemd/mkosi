@@ -104,6 +104,8 @@ following *OS*es.
 
 * *Fedora*
 
+* *Mageia*
+
 * *Debian*
 
 * *Ubuntu*
