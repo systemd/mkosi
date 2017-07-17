@@ -108,22 +108,25 @@ following *OS*es.
 
 * *Ubuntu*
 
-* *Arch Linux* (incomplete)
+* *Arch Linux*
 
 * *openSUSE*
 
 * *Mageia*
 
-In theory, any distribution may be used on the host for
-building images containing any other distribution, as long as
-the necessary tools are available. Specifically, any distro
-that packages `debootstrap` may be used to build *Debian* or
-*Ubuntu* images. Any distro that packages `dnf` may be used to
-build *Fedora* or *Mageia* images. Any distro that packages
-`pacstrap` may be used to build *Arch Linux* images. Any distro
-that packages `zypper` may be used to build *openSUSE* images.
+* *CentOS*
 
-Currently, *Fedora* packages all four tools as of Fedora 26.
+In theory, any distribution may be used on the host for building
+images containing any other distribution, as long as the necessary
+tools are available. Specifically, any distro that packages
+`debootstrap` may be used to build *Debian* or *Ubuntu* images. Any
+distro that packages `dnf` may be used to build *Fedora* or *Mageia*
+images. Any distro that packages `pacstrap` may be used to build *Arch
+Linux* images. Any distro that packages `zypper` may be used to build
+*openSUSE* images. Any distro that packages `yum` (or the newer
+replacement `dnf`) may be used to build *CentOS* images.
+
+Currently, *Fedora* packages all relevant tools as of Fedora 26.
 
 # Files
 

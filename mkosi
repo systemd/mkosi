@@ -57,6 +57,7 @@ class Distribution(Enum):
     arch = 4
     opensuse = 5
     mageia = 6
+    centos = 7
 
 GPT_ROOT_X86           = uuid.UUID("44479540f29741b29af7d131d5f0458a")
 GPT_ROOT_X86_64        = uuid.UUID("4f68bce3e8cd4db196e7fbcaf984b709")
@@ -522,6 +523,7 @@ def mount_loop(args, dev, where, read_only=False):
     subprocess.run(["mount", "-n", dev, where, options], check=True)
 
 def mount_bind(what, where):
+    os.makedirs(what, 0o755, True)
     os.makedirs(where, 0o755, True)
     subprocess.run(["mount", "--bind", what, where], check=True)
 
@@ -590,6 +592,10 @@ def mount_cache(args, workspace):
     with complete_step('Mounting Package Cache'):
         if args.distribution in (Distribution.fedora, Distribution.mageia):
             mount_bind(args.cache_path, os.path.join(workspace, "root", "var/cache/dnf"))
+        elif args.distribution == Distribution.centos:
+            # We mount both the YUM and the DNF cache in this case, as YUM might just be redirected to DNF even if we invoke the former
+            mount_bind(os.path.join(args.cache_path, "yum"), os.path.join(workspace, "root", "var/cache/yum"))
+            mount_bind(os.path.join(args.cache_path, "dnf"), os.path.join(workspace, "root", "var/cache/dnf"))
         elif args.distribution in (Distribution.debian, Distribution.ubuntu):
             mount_bind(args.cache_path, os.path.join(workspace, "root", "var/cache/apt/archives"))
         elif args.distribution == Distribution.arch:
@@ -600,7 +606,7 @@ def mount_cache(args, workspace):
         yield
     finally:
         with complete_step('Unmounting Package Cache'):
-            for d in ("var/cache/dnf", "var/cache/apt/archives", "var/cache/pacman/pkg", "var/cache/zypp/packages"):
+            for d in ("var/cache/dnf", "var/cache/yum", "var/cache/apt/archives", "var/cache/pacman/pkg", "var/cache/zypp/packages"):
                 umount(os.path.join(workspace, "root", d))
 
 def umount(where):
@@ -747,14 +753,14 @@ def disable_kernel_install(args, workspace):
     for f in ("50-dracut.install", "51-dracut-rescue.install", "90-loaderentry.install"):
         os.symlink("/dev/null", os.path.join(workspace, "root", "etc/kernel/install.d", f))
 
-def invoke_dnf(args, workspace, repositories, base_packages, boot_packages):
+def invoke_dnf(args, workspace, repositories, base_packages, boot_packages, config_file):
 
     repos = ["--enablerepo=" + repo for repo in repositories]
 
     root = os.path.join(workspace, "root")
     cmdline = ["dnf",
                "-y",
-               "--config=" + os.path.join(workspace, "dnf.conf"),
+               "--config=" + config_file,
                "--best",
                "--allowerasing",
                "--releasever=" + args.release,
@@ -819,7 +825,8 @@ def install_fedora(args, workspace, run_build_script):
         updates_url = ("metalink=https://mirrors.fedoraproject.org/metalink?" +
                        "repo=updates-released-f{args.release}&arch=x86_64".format(args=args))
 
-    with open(os.path.join(workspace, "dnf.conf"), "w") as f:
+    config_file = os.path.join(workspace, "dnf.conf")
+    with open(config_file, "w") as f:
         f.write("""\
 [main]
 gpgcheck=1
@@ -839,9 +846,10 @@ gpgkey={gpg_key}
            updates_url=updates_url))
 
     invoke_dnf(args, workspace,
-        args.repositories if args.repositories else ["fedora", "updates"],
-        ["systemd", "fedora-release", "passwd"],
-        ["kernel", "systemd-udev", "binutils"])
+               args.repositories if args.repositories else ["fedora", "updates"],
+               ["systemd", "fedora-release", "passwd"],
+               ["kernel", "systemd-udev", "binutils"],
+               config_file)
 
 @complete_step('Installing Mageia')
 def install_mageia(args, workspace, run_build_script):
@@ -864,7 +872,8 @@ def install_mageia(args, workspace, run_build_script):
         release_url = "mirrorlist=%s&repo=release" % baseurl
         updates_url = "mirrorlist=%s&repo=updates" % baseurl
 
-    with open(os.path.join(workspace, "dnf.conf"), "w") as f:
+    config_file = os.path.join(workspace, "dnf.conf")
+    with open(config_file, "w") as f:
         f.write("""\
 [main]
 gpgcheck=1
@@ -884,9 +893,106 @@ gpgkey={gpg_key}
            updates_url=updates_url))
 
     invoke_dnf(args, workspace,
-        args.repositories if args.repositories else ["mageia", "updates"],
-        ["basesystem-minimal"],
-        ["kernel-server-latest", "binutils"])
+               args.repositories if args.repositories else ["mageia", "updates"],
+               ["basesystem-minimal"],
+               ["kernel-server-latest", "binutils"],
+               config_file)
+
+def invoke_yum(args, workspace, repositories, base_packages, boot_packages, config_file):
+
+    repos = ["--enablerepo=" + repo for repo in repositories]
+
+    root = os.path.join(workspace, "root")
+    cmdline = ["yum",
+               "-y",
+               "--config=" + config_file,
+               "--releasever=" + args.release,
+               "--installroot=" + root,
+               "--disablerepo=*",
+               *repos,
+               "--setopt=keepcache=1"]
+
+    # Turn off docs, but not during the development build, as dnf currently has problems with that
+    if not args.with_docs and not run_build_script:
+        cmdline.append("--setopt=tsflags=nodocs")
+
+    cmdline.extend([
+               "install",
+               *base_packages
+               ])
+
+    if args.packages is not None:
+        cmdline.extend(args.packages)
+
+    if run_build_script and args.build_packages is not None:
+        cmdline.extend(args.build_packages)
+
+    if args.bootable:
+        cmdline.extend(boot_packages)
+
+        # Temporary hack: dracut only adds crypto support to the initrd, if the cryptsetup binary is installed
+        if args.encrypt or args.verity:
+            cmdline.append("cryptsetup")
+
+        if args.output_format == OutputFormat.raw_gpt:
+            cmdline.append("e2fsprogs")
+
+        if args.output_format == OutputFormat.raw_btrfs:
+            cmdline.append("btrfs-progs")
+
+    with mount_api_vfs(args, workspace):
+        subprocess.run(cmdline, check=True)
+
+def invoke_dnf_or_yum(args, workspace, repositories, base_packages, boot_packages, config_file):
+
+    if shutil.which("dnf") is None:
+        invoke_yum(args, workspace, repositories, base_packages, boot_packages, config_file)
+    else:
+        invoke_dnf(args, workspace, repositories, base_packages, boot_packages, config_file)
+
+@complete_step('Installing CentOS')
+def install_centos(args, workspace, run_build_script):
+
+    disable_kernel_install(args, workspace)
+
+    gpg_key = "/etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-%s" % args.release
+    if os.path.exists(gpg_key):
+        gpg_key = "file://%s" % gpg_key
+    else:
+        gpg_key = "https://www.centos.org/keys/RPM-GPG-KEY-CentOS-%s" % args.release
+
+    if args.mirror:
+        release_url = "baseurl={args.mirror}/centos/{args.release}/os/x86_64".format(args=args)
+        updates_url = "baseurl={args.mirror}/cenots/{args.release}/updates/x86_64/".format(args=args)
+    else:
+        release_url = "mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=os".format(args=args)
+        updates_url = "mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=updates".format(args=args)
+
+    config_file = os.path.join(workspace, "yum.conf")
+    with open(config_file, "w") as f:
+        f.write("""\
+[main]
+gpgcheck=1
+
+[base]
+name=CentOS-{args.release} - Base
+{release_url}
+gpgkey={gpg_key}
+
+[updates]
+name=CentOS-{args.release} - Updates
+{updates_url}
+gpgkey={gpg_key}
+""".format(args=args,
+           gpg_key=gpg_key,
+           release_url=release_url,
+           updates_url=updates_url))
+
+    invoke_dnf_or_yum(args, workspace,
+                      args.repositories if args.repositories else ["base", "updates"],
+                      ["systemd", "centos-release", "passwd"],
+                      ["kernel", "systemd-udev", "binutils"],
+                      config_file)
 
 def install_debian_or_ubuntu(args, workspace, run_build_script, mirror):
     if args.repositories:
@@ -1143,6 +1249,7 @@ def install_distribution(args, workspace, run_build_script, cached):
 
     install = {
         Distribution.fedora : install_fedora,
+        Distribution.centos : install_centos,
         Distribution.mageia : install_mageia,
         Distribution.debian : install_debian,
         Distribution.ubuntu : install_ubuntu,
@@ -1859,7 +1966,7 @@ def parse_args():
 
     group = parser.add_argument_group("Packages")
     group.add_argument('-p', "--package", action=PackageAction, dest='packages', help='Add an additional package to the OS image', metavar='PACKAGE')
-    group.add_argument("--with-docs", action='store_true', help='Install documentation (only Fedora and Mageia)')
+    group.add_argument("--with-docs", action='store_true', help='Install documentation (only Fedora, CentOS and Mageia)')
     group.add_argument("--cache", dest='cache_path', help='Package cache path', metavar='PATH')
     group.add_argument("--extra-tree", action='append', dest='extra_trees', help='Copy an extra tree on top of image', metavar='PATH')
     group.add_argument("--build-script", help='Build script to run inside image', metavar='PATH')
@@ -2368,6 +2475,8 @@ def load_args():
     if args.release is None:
         if args.distribution == Distribution.fedora:
             args.release = "25"
+        if args.distribution == Distribution.centos:
+            args.release = "7"
         if args.distribution == Distribution.mageia:
             args.release = "6"
         elif args.distribution == Distribution.debian:
@@ -2381,6 +2490,8 @@ def load_args():
 
     if args.mirror is None:
         if args.distribution == Distribution.fedora:
+            args.mirror = None
+        if args.distribution == Distribution.centos:
             args.mirror = None
         elif args.distribution == Distribution.debian:
             args.mirror = "http://httpredir.debian.org/debian"
@@ -2588,7 +2699,7 @@ def print_summary(args):
     sys.stderr.write("\nPACKAGES:\n")
     sys.stderr.write("              Packages: " + line_join_list(args.packages) + "\n")
 
-    if args.distribution in (Distribution.fedora, Distribution.mageia):
+    if args.distribution in (Distribution.fedora, Distribution.centos, Distribution.mageia):
         sys.stderr.write("    With Documentation: " + yes_no(args.with_docs) + "\n")
 
     sys.stderr.write("         Package Cache: " + none_to_none(args.cache_path) + "\n")
