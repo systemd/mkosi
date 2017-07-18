@@ -1289,14 +1289,27 @@ def install_extra_trees(args, workspace, for_cache):
             enumerate_and_copy(d, os.path.join(workspace, "root"))
 
 def copy_git_files(src, dest, *, git_files):
-    what_files = ['--exclude-standard', '--cached']
+    subprocess.run(['git', 'clone', '--depth=1', '--recursive', '--shallow-submodules', src, dest],
+                   check=True)
+
+    what_files = ['--exclude-standard', '--modified']
     if git_files == 'others':
-        what_files += ['--others']
-    c = subprocess.run(['git', 'ls-files', '-z'] + what_files,
+        what_files += ['--others', '--exclude=.mkosi-*']
+
+    # everything that's modified from the tree
+    c = subprocess.run(['git', '-C', src, 'ls-files', '-z'] + what_files,
                        stdout=subprocess.PIPE,
                        universal_newlines=False,
                        check=True)
     files = {x.decode("utf-8") for x in c.stdout.rstrip(b'\0').split(b'\0')}
+
+    # everything that's modified and about to be committed
+    c = subprocess.run(['git', '-C', src, 'diff', '--cached', '--name-only', '-z'],
+                       stdout=subprocess.PIPE,
+                       universal_newlines=False,
+                       check=True)
+    files |= {x.decode("utf-8") for x in c.stdout.rstrip(b'\0').split(b'\0')}
+    files.discard('')
 
     del c
 
