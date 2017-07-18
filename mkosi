@@ -1326,7 +1326,7 @@ def install_build_src(args, workspace, run_build_script, for_cache):
             target = os.path.join(workspace, "root", "root/src")
             use_git = args.use_git_files
             if use_git is None:
-                use_git = os.path.exists('.git')
+                use_git = os.path.exists('.git') or os.path.exists(os.path.join(args.build_sources, '.git'))
 
             if use_git:
                 copy_git_files(args.build_sources, target, git_files=args.git_files)
