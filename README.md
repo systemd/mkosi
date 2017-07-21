@@ -289,6 +289,40 @@ EOF
 # systemd-nspawn -bi image.raw
 ```
 
+## Create a debian image running under debian
+
+Inside an empty directory run (being root)
+
+```bash
+# apt-get install mkosi
+# mkdir mkosi.cache
+# cat > mkosi.default <<EOF
+# Just enough to use mkosi in it
+[Distribution]
+Distribution=debian
+Release=stretch
+
+[Output]
+Format=raw_gpt
+Bootable=yes
+
+[Packages]
+Packages=
+    git
+    mkosi
+EOF
+# cat > mkosi.postinst <<EOF
+# #!/bin/bash
+echo root:topSecret | chpasswd 
+EOF
+
+# chmod +x mkosi.postinst
+# mkosi
+# systemd-nspawn -bi image.raw
+# # You should be able to login as root with the password topSecret
+```
+
+
 # Requirements
 
 mkosi is packaged for various distributions: Debian, Ubuntu, Arch (in AUR), Fedora.
