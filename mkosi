@@ -2036,6 +2036,9 @@ def process_setting(args, section, key, value):
                 args.repositories = list_value
             else:
                 args.repositories.extend(list_value)
+        elif key == "Mirror":
+            if args.mirror is None:
+                args.mirror = value
         elif key is None:
             return True
         else:
