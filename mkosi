@@ -150,7 +150,7 @@ def btrfs_subvol_create(path, mode=0o755):
     os.umask(m)
 
 def btrfs_subvol_delete(path):
-    subprocess.run(["btrfs", "subvol", "delete", path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+    subprocess.run(["btrfs", "subvol", "delete", path], stdout=subprocess.DEVNULL, check=True)
 
 def btrfs_subvol_make_ro(path, b=True):
     subprocess.run(["btrfs", "property", "set", path, "ro", "true" if b else "false"], check=True)
@@ -176,7 +176,7 @@ def image_size(args):
 def disable_cow(path):
     """Disable copy-on-write if applicable on filesystem"""
 
-    subprocess.run(["chattr", "+C", path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+    subprocess.run(["chattr", "+C", path], stdout=subprocess.DEVNULL, check=False)
 
 def determine_partition_table(args):
 
@@ -605,7 +605,7 @@ def mount_cache(args, workspace):
 
 def umount(where):
     # Ignore failures and error messages
-    subprocess.run(["umount", "-n", where], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.run(["umount", "-n", where], stdout=subprocess.DEVNULL)
 
 @complete_step('Setting up basic OS tree')
 def prepare_tree(args, workspace, run_build_script, cached):
