@@ -150,6 +150,7 @@ def btrfs_subvol_create(path, mode=0o755):
     os.umask(m)
 
 def btrfs_subvol_delete(path):
+    subprocess.run(["find", "-P", path, "-depth", "-mindepth", "1", "-execdir", "rm", "-d", "{}", ";", "-or", "-type", "d", "-execdir", "btrfs", "subvolume", "delete", "{}", ";"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     subprocess.run(["btrfs", "subvol", "delete", path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
 
 def btrfs_subvol_make_ro(path, b=True):
