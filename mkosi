@@ -564,6 +564,20 @@ def mount_image(args, workspace, loopdev, root_dev, home_dev, srv_dev, root_read
 
             umount(root)
 
+@complete_step("Assigning hostname")
+def assign_hostname(args, workspace):
+    root = os.path.join(workspace, "root")
+    hostname_path = os.path.join(root, "etc/hostname")
+
+    if os.path.isfile(hostname_path):
+        os.remove(hostname_path)
+
+    if args.hostname:
+        if os.path.islink(hostname_path) or os.path.isfile(hostname_path):
+            os.remove(hostname_path)
+        with open(hostname_path, "w+") as f:
+            f.write("{}\n".format(args.hostname))
+
 @contextlib.contextmanager
 def mount_api_vfs(args, workspace):
     paths = ('/proc', '/dev', '/sys')
@@ -1152,6 +1166,7 @@ def install_distribution(args, workspace, run_build_script, cached):
     }
 
     install[args.distribution](args, workspace, run_build_script)
+    assign_hostname(args, workspace)
 
 def reset_machine_id(args, workspace, run_build_script, for_cache):
     """Make /etc/machine-id an empty file.
@@ -1892,6 +1907,7 @@ def parse_args():
     group.add_argument('-C', "--directory", help='Change to specified directory before doing anything', metavar='PATH')
     group.add_argument("--default", dest='default_path', help='Read configuration data from file', metavar='PATH')
     group.add_argument("--kernel-commandline", help='Set the kernel command line (only bootable images)')
+    group.add_argument("--hostname", help="Set hostname")
 
     try:
         argcomplete.autocomplete(parser)
@@ -2085,6 +2101,9 @@ def process_setting(args, section, key, value):
         elif key == "XZ":
             if not args.xz:
                 args.xz = parse_boolean(value)
+        elif key == "Hostname":
+            if not args.hostname:
+                args.hostname = value
         elif key is None:
             return True
         else:
@@ -2560,6 +2579,8 @@ def print_summary(args):
     if args.mirror is not None:
         sys.stderr.write("                Mirror: " + args.mirror + "\n")
     sys.stderr.write("\nOUTPUT:\n")
+    if args.hostname:
+        sys.stderr.write("              Hostname: " + args.hostname + "\n")
     sys.stderr.write("         Output Format: " + args.output_format.name + "\n")
     sys.stderr.write("                Output: " + args.output + "\n")
     sys.stderr.write("       Output Checksum: " + none_to_na(args.output_checksum if args.checksum else None) + "\n")
