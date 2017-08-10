@@ -1741,7 +1741,7 @@ def calculate_signature(args, checksum):
 
 def save_cache(args, workspace, raw, cache_path):
 
-    if cache_path is None:
+    if cache_path is None or raw is None:
         return
 
     with complete_step('Installing cache copy ',
