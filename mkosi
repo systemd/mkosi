@@ -970,7 +970,7 @@ def install_debian_or_ubuntu(args, workspace, run_build_script, mirror):
                     'path-exclude /usr/share/linda/*\n',
                 ])
 
-        cmdline = ["/usr/bin/apt-get", "--assume-yes", "--no-install-recommends", "install"] + extra_packages
+        cmdline = ["/usr/bin/apt-get", "--assume-yes", "--allow-unauthenticated", "--no-install-recommends", "install"] + extra_packages
         run_workspace_command(args, workspace, network=True, env={'DEBIAN_FRONTEND': 'noninteractive', 'DEBCONF_NONINTERACTIVE_SEEN': 'true'}, *cmdline)
         os.unlink(policyrcd)
 
