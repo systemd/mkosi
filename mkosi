@@ -2406,7 +2406,7 @@ def load_args():
         if args.distribution == Distribution.fedora:
             args.mirror = None
         elif args.distribution == Distribution.debian:
-            args.mirror = "http://httpredir.debian.org/debian"
+            args.mirror = "http://deb.debian.org/debian"
         elif args.distribution == Distribution.ubuntu:
             args.mirror = "http://archive.ubuntu.com/ubuntu"
             if platform.machine() == "aarch64":
