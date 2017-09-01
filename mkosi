@@ -1171,7 +1171,7 @@ def install_distribution(args, workspace, run_build_script, cached):
 def reset_machine_id(args, workspace, run_build_script, for_cache):
     """Make /etc/machine-id an empty file.
 
-    This way, on the next boot is either initialized and commited (if /etc is
+    This way, on the next boot is either initialized and committed (if /etc is
     writable) or the image runs with a transient machine ID, that changes on
     each boot (if the image is read-only).
     """
