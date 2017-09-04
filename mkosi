@@ -628,7 +628,7 @@ def prepare_tree(args, workspace, run_build_script, cached):
         btrfs_subvol_create(os.path.join(workspace, "root"))
     else:
         try:
-            os.mkdir(os.path.join(workspace, "root"))
+            mount_bind(os.path.join(workspace, "root"), os.path.join(workspace, "root"))
         except FileExistsError:
             pass
 
