@@ -258,14 +258,16 @@ def reuse_cache_image(args, workspace, run_build_script, for_cache):
 
     if not args.incremental:
         return None, False
-    if for_cache:
-        return None, False
     if args.output_format not in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs):
         return None, False
 
     fname = args.cache_pre_dev if run_build_script else args.cache_pre_inst
-    if fname is None:
-        return None, False
+    if for_cache:
+        if fname and os.path.exists(fname):
+            # Cache already generated, skip generation
+            return None, True
+        else:
+            return None, False
 
     with complete_step('Basing off cached image ' + fname,
                        'Copied cached image as {.name}') as output:
@@ -1740,8 +1742,7 @@ def calculate_signature(args, checksum):
     return f
 
 def save_cache(args, workspace, raw, cache_path):
-
-    if cache_path is None:
+    if cache_path is None or raw is None:
         return
 
     with complete_step('Installing cache copy ',
@@ -1822,7 +1823,7 @@ def print_output_size(args):
         st = os.stat(args.output)
         print_step("Resulting image size is " + format_bytes(st.st_size) + ", consumes " + format_bytes(st.st_blocks * 512) + ".")
 
-def setup_cache(args):
+def setup_package_cache(args):
     with complete_step('Setting up package cache',
                        'Setting up package cache {} complete') as output:
         if args.cache_path is None:
@@ -2676,6 +2677,10 @@ def build_image(args, workspace, run_build_script, for_cache=False):
         return None, None, None
 
     raw, cached = reuse_cache_image(args, workspace.name, run_build_script, for_cache)
+    if for_cache and cached:
+        # Found existing cache image, exiting build_image
+        return None, None, None
+
     if not cached:
         raw = create_image(args, workspace.name, for_cache)
 
@@ -2791,7 +2796,6 @@ def need_cache_images(args):
     return not os.path.exists(args.cache_pre_dev) or not os.path.exists(args.cache_pre_inst)
 
 def remove_artifacts(args, workspace, raw, tar, run_build_script, for_cache=False):
-
     if for_cache:
         what = "cache build"
     elif run_build_script:
@@ -2819,34 +2823,37 @@ def build_stuff(args):
     # always the same
     args.machine_id = uuid.uuid4().hex
 
-    cache = setup_cache(args)
+    package_cache = setup_package_cache(args)
     workspace = setup_workspace(args)
 
     # If caching is requested, then make sure we have cache images around we can make use of
     if need_cache_images(args):
+        # There is no point generating a pre-dev cache image if no build script is provided
+        if args.build_script:
+            # Generate the cache version of the build image, and store it as "cache-pre-dev"
+            raw, tar, root_hash = build_image(args, workspace, run_build_script=True, for_cache=True)
+            save_cache(args,
+                       workspace.name,
+                       raw.name if raw is not None else None,
+                       args.cache_pre_dev)
 
-        # Generate the cache version of the build image, and store it as "cache-pre-dev"
-        raw, tar, root_hash = build_image(args, workspace, run_build_script=True, for_cache=True)
-        save_cache(args,
-                   workspace.name,
-                   raw.name if raw is not None else None,
-                   args.cache_pre_dev)
-
-        remove_artifacts(args, workspace.name, raw, tar, run_build_script=True)
+            remove_artifacts(args, workspace.name, raw, tar, run_build_script=True)
 
         # Generate the cache version of the build image, and store it as "cache-pre-inst"
         raw, tar, root_hash = build_image(args, workspace, run_build_script=False, for_cache=True)
-        save_cache(args,
-                   workspace.name,
-                   raw.name if raw is not None else None,
-                   args.cache_pre_inst)
-        remove_artifacts(args, workspace.name, raw, tar, run_build_script=False)
+        if raw:
+            save_cache(args,
+                       workspace.name,
+                       raw.name if raw is not None else None,
+                       args.cache_pre_inst)
+            remove_artifacts(args, workspace.name, raw, tar, run_build_script=False)
 
-    # Run the image builder for the first (develpoment) stage in preparation for the build script
-    raw, tar, root_hash = build_image(args, workspace, run_build_script=True)
+    if args.build_script:
+        # Run the image builder for the first (develpoment) stage in preparation for the build script
+        raw, tar, root_hash = build_image(args, workspace, run_build_script=True)
 
-    run_build_script(args, workspace.name, raw)
-    remove_artifacts(args, workspace.name, raw, tar, run_build_script=True)
+        run_build_script(args, workspace.name, raw)
+        remove_artifacts(args, workspace.name, raw, tar, run_build_script=True)
 
     # Run the image builder for the second (final) stage
     raw, tar, root_hash = build_image(args, workspace, run_build_script=False)
