@@ -144,7 +144,11 @@ they exist in the local directory:
   enough to get the right image of your choice set up.
   Additionally if a `mkosi.default.d` directory exists, each file in it
   is loaded in the same manner adding/overriding the values specified in
-  `mkosi.default`.
+  `mkosi.default`. Command-line arguments, as shown in the help
+  description, have to be included in a configuration block (e.g.
+  "[Packages]") corresponding to the argument group (e.g. "Packages"),
+  and the argument gets converted as follows: "--with-network" becomes
+  "WithNetwork=yes".
 
 * `mkosi.extra/` may be a directory. If this exists all files
   contained in it are copied over the directory tree of the
