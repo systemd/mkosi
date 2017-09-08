@@ -1360,7 +1360,7 @@ def install_build_src(args, workspace, run_build_script, for_cache):
             if use_git:
                 copy_git_files(args.build_sources, target, git_files=args.git_files)
             else:
-                ignore = shutil.ignore_patterns('.git', '.mkosi-*')
+                ignore = shutil.ignore_patterns('.git', '.mkosi-*', '*.raw*')
                 shutil.copytree(args.build_sources, target, symlinks=True, ignore=ignore)
 
 def install_build_dest(args, workspace, run_build_script, for_cache):
