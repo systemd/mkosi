@@ -716,6 +716,12 @@ Type=ether
 DHCP=yes
 """)
 
+def enable_networkmanager(workspace):
+    subprocess.run(["systemctl",
+                    "--root", os.path.join(workspace, "root"),
+                    "enable", "NetworkManager"],
+                   check=True)
+
 def run_workspace_command(args, workspace, *cmd, network=False, env={}):
 
     cmdline = ["systemd-nspawn",
@@ -1066,7 +1072,10 @@ SigLevel    = Required DatabaseOptional
 
     subprocess.run(cmdline, check=True)
 
-    enable_networkd(workspace)
+    if not "networkmanager" in args.packages:
+        enable_networkd(workspace)
+    else:
+        enable_networkmanager(workspace)
 
 @complete_step('Installing openSUSE')
 def install_opensuse(args, workspace, run_build_script):
