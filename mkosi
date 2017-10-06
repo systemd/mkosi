@@ -2405,7 +2405,7 @@ def find_passphrase(args):
     try:
         passphrase_mode = os.stat('mkosi.passphrase').st_mode & (stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
         if (passphrase_mode & stat.S_IRWXU > 0o600) or (passphrase_mode & (stat.S_IRWXG | stat.S_IRWXO) > 0):
-            die("Permissions of 'mkosi.passphrase' of '{}' are too open. When creating passphrase files please make sure to choose an access mode that restricts access to the owner only. Aborting.\n".format(oct(passphrase_mode)))
+            die("Permissions of 'mkosi.passphrase' of '{}' are too open. When creating passphrase files please make sure to choose an access mode that restricts access to the owner only. Aborting.".format(oct(passphrase_mode)))
 
         args.passphrase = { 'type': 'file', 'content': 'mkosi.passphrase' }
 
