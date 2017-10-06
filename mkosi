@@ -2419,6 +2419,22 @@ def find_passphrase(args):
 
             sys.stderr.write("Passphrase doesn't match confirmation. Please try again.\n")
 
+def find_password(args):
+
+    if args.password is not None:
+        return
+
+    try:
+        mode = os.stat('mkosi.rootpw').st_mode & (stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
+        if (mode & stat.S_IRWXU > 0o600) or (mode & (stat.S_IRWXG | stat.S_IRWXO) > 0):
+            die("Permissions of 'mkosi.rootpw' of '{}' are too open. When creating root password files please make sure to choose an access mode that restricts access to the owner only. Aborting.".format(oct(mode)))
+
+        with open('mkosi.rootpw', 'r', encoding="utf-8") as f:
+            args.password = f.read().strip()
+
+    except FileNotFoundError:
+        pass
+
 def find_secure_boot(args):
     if not args.secure_boot:
         return
@@ -2464,6 +2480,7 @@ def load_args():
     find_build_sources(args)
     find_build_dir(args)
     find_postinst_script(args)
+    find_password(args)
     find_passphrase(args)
     find_secure_boot(args)
 
