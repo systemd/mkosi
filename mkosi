@@ -2744,7 +2744,7 @@ def print_summary(args):
         sys.stderr.write("              Checksum: " + yes_no(args.checksum) + "\n")
         sys.stderr.write("                  Sign: " + yes_no(args.sign) + "\n")
         sys.stderr.write("               GPG Key: " + ("default" if args.key is None else args.key) + "\n")
-        sys.stderr.write("              Password: " + ("default" if args.password is None else args.password) + "\n")
+        sys.stderr.write("              Password: " + ("default" if args.password is None else "set") + "\n")
 
 def reuse_cache_tree(args, workspace, run_build_script, for_cache, cached):
     """If there's a cached version of this tree around, use it and
