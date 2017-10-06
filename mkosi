@@ -2367,7 +2367,9 @@ def find_cache(args):
 
     if os.path.exists("mkosi.cache/"):
         args.cache_path = "mkosi.cache/" + args.distribution.name
-        args.cache_path += "~" + args.release if args.release is not None else ""
+
+        if args.release is not None:
+            args.cache_path += "~" + args.release
 
 def find_build_script(args):
     if args.build_script is not None:
