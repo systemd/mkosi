@@ -331,6 +331,12 @@ necessary dependencies. For example, on *Fedora* you need:
 dnf install arch-install-scripts btrfs-progs debootstrap dosfstools edk2-ovmf squashfs-tools gnupg python3 tar veritysetup xz zypper
 ```
 
+On Debian/Ubuntu it might be necessary to install the `ubuntu-keyring`
+and/or `debian-archive-keyring` packages explicitly, in addition to
+`debootstrap`, depending on what kind of distribution images you want
+to build. `debootstrap` on Debian only pulls in the Debian keyring on
+its own, and the version on Ubuntu only the one from Ubuntu.
+
 Note that the minimum required Python version is 3.5.
 
 If SecureBoot signing is to be used, then the "sbsign" tool needs to
