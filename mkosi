@@ -2655,6 +2655,9 @@ def load_args():
         if args.secure_boot_certificate is None:
             die("UEFI SecureBoot enabled, but couldn't find certificate. (Consider placing it in mkosi.secure-boot.crt?)")
 
+    if args.incremental and args.build_script is None:
+        sys.stderr.write("WARNING: Incremental mode requested (-i), but no build script defined. Incremental mode will have no effect.\n")
+
     return args
 
 def check_output(args):
