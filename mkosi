@@ -18,6 +18,7 @@ import tempfile
 import time
 import urllib.request
 import uuid
+import glob
 
 try:
     import argcomplete
@@ -1138,9 +1139,26 @@ SigLevel    = Required DatabaseOptional
 """.format(args=args, server=server))
 
     subprocess.run(["pacman", "--color", "never", "--config", os.path.join(workspace, "pacman.conf"), "-Sy"], check=True)
+    # determine base packages list from base metapackage
     c = subprocess.run(["pacman", "--color", "never", "--config", os.path.join(workspace, "pacman.conf"), "-Sg", "base"], stdout=subprocess.PIPE, universal_newlines=True, check=True)
     packages = set(c.stdout.split())
     packages.remove("base")
+
+    official_kernel_packages = [
+        "linux",
+        "linux-lts",
+        "linux-hardened",
+        "linux-zen"
+    ]
+
+    kernel_packages = {"linux"}
+    if args.packages is not None:
+        kernel_packages = set.intersection(set(args.packages), set(official_kernel_packages))
+        # prefer user-specified packages over implicit base kernel
+        if kernel_packages and "linux" not in kernel_packages:
+            packages.remove("linux")
+        if len(kernel_packages) > 1:
+            print('Warning, more than one kernel will be installed: %s' % (' '.join(kernel_packages)))
 
     packages -= {"cryptsetup",
                  "device-mapper",
@@ -1162,8 +1180,7 @@ SigLevel    = Required DatabaseOptional
         elif args.output_format == OutputFormat.raw_btrfs:
             packages.add("btrfs-progs")
     else:
-        if "linux" in packages:
-            packages.remove("linux")
+        packages -= kernel_packages
 
     if args.packages is not None:
         packages |= set(args.packages)
@@ -1352,14 +1369,23 @@ def run_postinst_script(args, workspace, run_build_script, for_cache):
         run_workspace_command(args, workspace, "/root/postinst", "build" if run_build_script else "final", network=args.with_network)
         os.unlink(os.path.join(workspace, "root", "root/postinst"))
 
+def find_kernel_file(workspace_root, pattern):
+    # Look for the vmlinuz file in the workspace
+    workspace_pattern = os.path.join(workspace_root, pattern.lstrip('/'))
+    kernel_files = sorted(glob.glob(workspace_pattern))
+    # the path kernel-install expects is within the workspace reference as it is run from within the container
+    kernel_file = '/' + (kernel_files[0].lstrip(workspace_root))
+    if len(kernel_files) > 1:
+        print('Warning, more than one kernel file found, will use %s' % kernel_file)
+    return kernel_file
+
 def install_boot_loader_arch(args, workspace):
     patch_file(os.path.join(workspace, "root", "etc/mkinitcpio.conf"),
                lambda line: "HOOKS=\"systemd modconf block filesystems fsck\"\n" if line.startswith("HOOKS=") else line)
 
-    kernel_version = next(filter(lambda x: x[0].isdigit(), os.listdir(os.path.join(workspace, "root", "lib/modules"))))
-
-    run_workspace_command(args, workspace,
-                      "/usr/bin/kernel-install", "add", kernel_version, "/boot/vmlinuz-linux")
+    workspace_root = os.path.join(workspace, "root")
+    kernel_version = next(filter(lambda x: x[0].isdigit(), os.listdir(os.path.join(workspace_root, "lib/modules"))))
+    run_workspace_command(args, workspace, "/usr/bin/kernel-install", "add", kernel_version, find_kernel_file(workspace_root, "/boot/vmlinuz-*"))
 
 def install_boot_loader_debian(args, workspace):
     kernel_version = next(filter(lambda x: x[0].isdigit(), os.listdir(os.path.join(workspace, "root", "lib/modules"))))
