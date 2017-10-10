@@ -259,6 +259,8 @@ def reuse_cache_image(args, workspace, run_build_script, for_cache):
 
     if not args.incremental:
         return None, False
+    if args.build_script is None:
+        return None, False
     if for_cache:
         return None, False
     if args.output_format not in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs):
@@ -2778,6 +2780,8 @@ def reuse_cache_tree(args, workspace, run_build_script, for_cache, cached):
 
     if not args.incremental:
         return False
+    if args.build_script is None:
+        return False
     if for_cache:
         return False
     if args.output_format in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs):
@@ -2910,6 +2914,13 @@ def run_build_script(args, workspace, raw):
 def need_cache_images(args):
 
     if not args.incremental:
+        return False
+
+    # Caching of images only is useful when we build with a build
+    # script, as only then we want to optimize that we can start
+    # right-away with the build script without preparing the build
+    # image first.
+    if args.build_script is None:
         return False
 
     if args.force_count > 1:
