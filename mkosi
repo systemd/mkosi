@@ -2370,7 +2370,9 @@ def find_cache(args):
 
     if os.path.exists("mkosi.cache/"):
         args.cache_path = "mkosi.cache/" + args.distribution.name
-        args.cache_path += "~" + args.release if args.release is not None else ""
+
+        if args.release is not None:
+            args.cache_path += "~" + args.release
 
 def find_build_script(args):
     if args.build_script is not None:
@@ -2408,7 +2410,7 @@ def find_passphrase(args):
     try:
         passphrase_mode = os.stat('mkosi.passphrase').st_mode & (stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
         if (passphrase_mode & stat.S_IRWXU > 0o600) or (passphrase_mode & (stat.S_IRWXG | stat.S_IRWXO) > 0):
-            die("Permissions of 'mkosi.passphrase' of '{}' are too open. When creating passphrase files please make sure to choose an access mode that restricts access to the owner only. Aborting.\n".format(oct(passphrase_mode)))
+            die("Permissions of 'mkosi.passphrase' of '{}' are too open. When creating passphrase files please make sure to choose an access mode that restricts access to the owner only. Aborting.".format(oct(passphrase_mode)))
 
         args.passphrase = { 'type': 'file', 'content': 'mkosi.passphrase' }
 
@@ -2421,6 +2423,22 @@ def find_passphrase(args):
                 break
 
             sys.stderr.write("Passphrase doesn't match confirmation. Please try again.\n")
+
+def find_password(args):
+
+    if args.password is not None:
+        return
+
+    try:
+        mode = os.stat('mkosi.rootpw').st_mode & (stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
+        if (mode & stat.S_IRWXU > 0o600) or (mode & (stat.S_IRWXG | stat.S_IRWXO) > 0):
+            die("Permissions of 'mkosi.rootpw' of '{}' are too open. When creating root password files please make sure to choose an access mode that restricts access to the owner only. Aborting.".format(oct(mode)))
+
+        with open('mkosi.rootpw', 'r', encoding="utf-8") as f:
+            args.password = f.read().strip()
+
+    except FileNotFoundError:
+        pass
 
 def find_secure_boot(args):
     if not args.secure_boot:
@@ -2467,6 +2485,7 @@ def load_args():
     find_build_sources(args)
     find_build_dir(args)
     find_postinst_script(args)
+    find_password(args)
     find_passphrase(args)
     find_secure_boot(args)
 
@@ -2747,7 +2766,7 @@ def print_summary(args):
         sys.stderr.write("              Checksum: " + yes_no(args.checksum) + "\n")
         sys.stderr.write("                  Sign: " + yes_no(args.sign) + "\n")
         sys.stderr.write("               GPG Key: " + ("default" if args.key is None else args.key) + "\n")
-        sys.stderr.write("              Password: " + ("default" if args.password is None else args.password) + "\n")
+        sys.stderr.write("              Password: " + ("default" if args.password is None else "set") + "\n")
 
 def reuse_cache_tree(args, workspace, run_build_script, for_cache, cached):
     """If there's a cached version of this tree around, use it and

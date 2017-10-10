@@ -214,6 +214,13 @@ they exist in the local directory:
   script to decide whether to do in in-tree or an out-of-tree build,
   and which build directory to use.
 
+* `mkosi.rootpw` may be a file containing the password for the root
+  user of the image to set. The password may optionally be followed by
+  a newline character which is implicitly removed. The file must have
+  an access mode of 0600 or less. If this file does not exist the
+  distribution's default root password is set (which usually means
+  access to the root user is blocked).
+
 * `mkosi.passphrase` may be a passphrase file to use when LUKS
   encryption is selected. It should contain the passphrase literally,
   and not end in a newline character (i.e. in the same format as
