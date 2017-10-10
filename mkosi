@@ -681,6 +681,9 @@ def prepare_tree(args, workspace, run_build_script, cached):
         os.mkdir(os.path.join(workspace, "root", "root"), 0o750)
         os.mkdir(os.path.join(workspace, "root", "root/dest"), 0o755)
 
+        if args.build_dir is not None:
+            os.mkdir(os.path.join(workspace, "root", "root/build"), 0o755)
+
 def patch_file(filepath, line_rewriter):
     temp_new_filepath = filepath + ".tmp.new"
 
