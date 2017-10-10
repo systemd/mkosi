@@ -1494,7 +1494,13 @@ def install_build_src(args, workspace, run_build_script, for_cache):
             if use_git:
                 copy_git_files(args.build_sources, target, git_files=args.git_files)
             else:
-                ignore = shutil.ignore_patterns('.git', '.mkosi-*', '*.cache-pre-dev', '*.cache-pre-inst')
+                ignore = shutil.ignore_patterns('.git',
+                                                '.mkosi-*',
+                                                '*.cache-pre-dev',
+                                                '*.cache-pre-inst',
+                                                os.path.basename(args.output_dir)+"/" if args.output_dir else "mkosi.output/",
+                                                os.path.basename(args.cache_path)+"/" if args.cache_path else "mkosi.cache/",
+                                                os.path.basename(args.build_dir)+"/" if args.build_dir else "mkosi.builddir/")
                 shutil.copytree(args.build_sources, target, symlinks=True, ignore=ignore)
 
 def install_build_dest(args, workspace, run_build_script, for_cache):
