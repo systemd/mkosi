@@ -1196,10 +1196,10 @@ SigLevel    = Required DatabaseOptional
 
     subprocess.run(cmdline, check=True)
 
-    if not "networkmanager" in args.packages:
-        enable_networkd(workspace)
-    else:
+    if args.packages and "networkmanager" in args.packages:
         enable_networkmanager(workspace)
+    else:
+        enable_networkd(workspace)
 
 @complete_step('Installing openSUSE')
 def install_opensuse(args, workspace, run_build_script):
