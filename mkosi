@@ -1420,7 +1420,10 @@ def install_boot_loader(args, workspace, cached):
             install_boot_loader_opensuse(args, workspace)
 
 def enumerate_and_copy(source, dest):
-    subprocess.run(["cp", "--reflink=auto", "--recursive", "--no-dereference", "--preserve=all", "--no-target-directory", source, dest], check=True)
+    # rsync will create the source root folder unless a trailing slash is present
+    if not source.endswith('/'):
+        source += '/'
+    subprocess.run(["rsync", "--recursive", "--keep-dirlinks", "--perms", "--group", "--specials", source, dest], check=True)
 
 def install_extra_trees(args, workspace, for_cache):
     if args.extra_trees is None:
