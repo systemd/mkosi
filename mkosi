@@ -2460,6 +2460,11 @@ def find_postinst_script(args):
     if os.path.exists("mkosi.postinst"):
         args.postinst_script = "mkosi.postinst"
 
+def require_private_file(name, description):
+    mode = os.stat(name).st_mode & (stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
+    if (mode & stat.S_IRWXU > 0o600) or (mode & (stat.S_IRWXG | stat.S_IRWXO) > 0):
+        die("Permissions of '{}' of '{}' are too open. When creating {} files please make sure to choose an access mode that restricts access to the owner only. Aborting.".format(name, oct(mode), description))
+
 def find_passphrase(args):
 
     if args.encrypt is None:
@@ -2467,9 +2472,7 @@ def find_passphrase(args):
         return
 
     try:
-        passphrase_mode = os.stat('mkosi.passphrase').st_mode & (stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
-        if (passphrase_mode & stat.S_IRWXU > 0o600) or (passphrase_mode & (stat.S_IRWXG | stat.S_IRWXO) > 0):
-            die("Permissions of 'mkosi.passphrase' of '{}' are too open. When creating passphrase files please make sure to choose an access mode that restricts access to the owner only. Aborting.".format(oct(passphrase_mode)))
+        require_private_file('mkosi.passphrase', 'passphrase')
 
         args.passphrase = { 'type': 'file', 'content': 'mkosi.passphrase' }
 
@@ -2489,9 +2492,7 @@ def find_password(args):
         return
 
     try:
-        mode = os.stat('mkosi.rootpw').st_mode & (stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
-        if (mode & stat.S_IRWXU > 0o600) or (mode & (stat.S_IRWXG | stat.S_IRWXO) > 0):
-            die("Permissions of 'mkosi.rootpw' of '{}' are too open. When creating root password files please make sure to choose an access mode that restricts access to the owner only. Aborting.".format(oct(mode)))
+        require_private_file('mkosi.rootpw', 'root password')
 
         with open('mkosi.rootpw', 'r', encoding="utf-8") as f:
             args.password = f.read().strip()
