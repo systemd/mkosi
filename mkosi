@@ -1373,8 +1373,13 @@ def find_kernel_file(workspace_root, pattern):
     # Look for the vmlinuz file in the workspace
     workspace_pattern = os.path.join(workspace_root, pattern.lstrip('/'))
     kernel_files = sorted(glob.glob(workspace_pattern))
-    # the path kernel-install expects is within the workspace reference as it is run from within the container
-    kernel_file = '/' + (kernel_files[0].lstrip(workspace_root))
+    kernel_file = kernel_files[0]
+    # The path the kernel-install script expects is within the workspace reference as it is run from within the container
+    if kernel_file.startswith(workspace_root):
+        kernel_file = kernel_file[len(workspace_root):]
+    else:
+        sys.stderr.write('Error, kernel file %s cannot be used as it is not in the workspace\n' % kernel_file)
+        return
     if len(kernel_files) > 1:
         print('Warning, more than one kernel file found, will use %s' % kernel_file)
     return kernel_file
