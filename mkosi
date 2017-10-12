@@ -1716,6 +1716,16 @@ def install_unified_kernel(args, workspace, run_build_script, for_cache, root_ha
     if for_cache:
         return
 
+    # Don't bother running dracut if this is a development
+    # build. Strictly speaking it would probably be a good idea to run
+    # it, so that the development environment differs as little as
+    # possible from the final build, but then again the initrd should
+    # not be relevant for building, and dracut is simply very slow,
+    # hence let's avoid it invoking it needlessly, given that we never
+    # actually invoke the boot loader on the development image.
+    if run_build_script:
+        return
+
     if args.distribution not in (Distribution.fedora, Distribution.mageia):
         return
 
@@ -1981,7 +1991,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Build Legacy-Free OS Images', add_help=False)
 
     group = parser.add_argument_group("Commands")
-    group.add_argument("verb", choices=("build", "clean", "help", "summary"), nargs='?', default="build", help='Operation to execute')
+    group.add_argument("verb", choices=("build", "clean", "help", "summary", "shell", "boot"), nargs='?', default="build", help='Operation to execute')
+    group.add_argument("cmdline", nargs=argparse.REMAINDER, help="The command line to use for 'shell' and 'boot'")
     group.add_argument('-h', '--help', action='help', help="Show this help")
     group.add_argument('--version', action='version', version='%(prog)s ' + __version__)
 
@@ -2010,6 +2021,7 @@ def parse_args():
     group = parser.add_argument_group("Packages")
     group.add_argument('-p', "--package", action=PackageAction, dest='packages', help='Add an additional package to the OS image', metavar='PACKAGE')
     group.add_argument("--with-docs", action='store_true', help='Install documentation (only Fedora, CentOS and Mageia)')
+    group.add_argument('-T', "--without-tests", action='store_false', dest='with_tests', default=True, help='Do not run tests as part of build script, if supported')
     group.add_argument("--cache", dest='cache_path', help='Package cache path', metavar='PATH')
     group.add_argument("--extra-tree", action='append', dest='extra_trees', help='Copy an extra tree on top of image', metavar='PATH')
     group.add_argument("--build-script", help='Build script to run inside image', metavar='PATH')
@@ -2120,8 +2132,11 @@ def unlink_try_hard(path):
 
 def empty_directory(path):
 
-    for f in os.listdir(path):
-        unlink_try_hard(os.path.join(path, f))
+    try:
+        for f in os.listdir(path):
+            unlink_try_hard(os.path.join(path, f))
+    except FileNotFoundError:
+        pass
 
 def unlink_output(args):
     if not args.force and args.verb != "clean":
@@ -2142,14 +2157,19 @@ def unlink_output(args):
         if args.nspawn_settings is not None:
             unlink_try_hard(args.output_nspawn_settings)
 
-    # We remove the cache if either the user used --force twice, or he called "clean" with it passed once
+    # We remove any cached images if either the user used --force
+    # twice, or he/she called "clean" with it passed once. Let's also
+    # remove the downloaded package cache if the user specified one
+    # additional "--force".
+
     if args.verb == "clean":
-        remove_cache = args.force_count > 0
+        remove_build_cache = args.force_count > 0
+        remove_package_cache = args.force_count > 1
     else:
-        remove_cache = args.force_count > 1
+        remove_build_cache = args.force_count > 1
+        remove_package_cache = args.force_count > 2
 
-    if remove_cache:
-
+    if remove_build_cache:
         if args.cache_pre_dev is not None or args.cache_pre_inst is not None:
             with complete_step('Removing incremental cache files'):
                 if args.cache_pre_dev is not None:
@@ -2161,6 +2181,11 @@ def unlink_output(args):
         if args.build_dir is not None:
             with complete_step('Clearing out build directory'):
                 empty_directory(args.build_dir)
+
+    if remove_package_cache:
+        if args.cache_path is not None:
+            with complete_step('Clearing out package cache'):
+                empty_directory(args.cache_path)
 
 def parse_boolean(s):
     "Parse 1/true/yes as true and 0/false/no as false"
@@ -2252,6 +2277,9 @@ def process_setting(args, section, key, value):
         elif key == "WithDocs":
             if not args.with_docs:
                 args.with_docs = parse_boolean(value)
+        elif key == "WithTests":
+            if not args.with_tests:
+                args.with_tests = parse_boolean(value)
         elif key == "Cache":
             if args.cache_path is None:
                 args.cache_path = value
@@ -2520,6 +2548,9 @@ def load_args():
     find_passphrase(args)
     find_secure_boot(args)
 
+    if args.cmdline and args.verb not in ('shell', 'boot'):
+        die("Additional parameters only accepted for 'shell' and 'boot' invocations.")
+
     args.force = args.force_count > 0
 
     if args.output_format is None:
@@ -2650,6 +2681,9 @@ def load_args():
     if args.postinst_script is not None:
         args.postinst_script = os.path.abspath(args.postinst_script)
 
+    if args.cache_path is not None:
+        args.cache_path = os.path.abspath(args.cache_path)
+
     if args.extra_trees is not None:
         for i in range(len(args.extra_trees)):
             args.extra_trees[i] = os.path.abspath(args.extra_trees[i])
@@ -2683,6 +2717,12 @@ def load_args():
 
         if args.secure_boot_certificate is None:
             die("UEFI SecureBoot enabled, but couldn't find certificate. (Consider placing it in mkosi.secure-boot.crt?)")
+
+    if args.verb in ("shell", "boot"):
+        if args.output_format == OutputFormat.tar:
+            die("Sorry, can't acquire shell in or boot a tar archive.")
+        if args.xz:
+            die("Sorry, can't acquire shell in or boot an XZ compressed image.")
 
     return args
 
@@ -2777,6 +2817,10 @@ def print_summary(args):
     sys.stderr.write("         Package Cache: " + none_to_none(args.cache_path) + "\n")
     sys.stderr.write("           Extra Trees: " + line_join_list(args.extra_trees) + "\n")
     sys.stderr.write("          Build Script: " + none_to_none(args.build_script) + "\n")
+
+    if args.build_script:
+        sys.stderr.write("             Run tests: " + yes_no(args.with_tests) + "\n")
+
     sys.stderr.write("         Build Sources: " + none_to_none(args.build_sources) + "\n")
     sys.stderr.write("       Build Directory: " + none_to_none(args.build_dir) + "\n")
     sys.stderr.write("        Build Packages: " + line_join_list(args.build_packages) + "\n")
@@ -2917,6 +2961,7 @@ def run_build_script(args, workspace, raw):
                    "--bind", dest + ":/root/dest",
                    "--bind=" + var_tmp(workspace) + ":/var/tmp",
                    "--setenv=WITH_DOCS=" + ("1" if args.with_docs else "0"),
+                   "--setenv=WITH_TESTS=" + ("1" if args.with_tests else "0"),
                    "--setenv=DESTDIR=/root/dest"]
 
         if args.build_sources is not None:
@@ -3038,25 +3083,49 @@ def check_root():
     if os.getuid() != 0:
         die("Must be invoked as root.")
 
+def run_shell(args):
+    target = "--directory=" + args.output if args.output_format in (OutputFormat.directory, OutputFormat.subvolume) else "--image=" + args.output
+
+    cmdline = ["systemd-nspawn",
+               target]
+
+    if args.verb == "boot":
+        cmdline += ('--boot',)
+
+    if args.cmdline:
+        cmdline += ('--', *args.cmdline)
+
+    try:
+        subprocess.run(cmdline, check=True)
+    except subprocess.CalledProcessError as e:
+        if e.returncode >= 0:
+            sys.exit(e.returncode)
+
+        sys.exit(255)
 
 def main():
     args = load_args()
 
-    if args.verb in ("build", "clean"):
+    if args.verb in ("build", "clean", "shell", "boot"):
         check_root()
         unlink_output(args)
 
     if args.verb == "build":
         check_output(args)
 
-    if args.verb in ("build", "summary"):
+    needs_build = args.verb == "build" or (not os.path.exists(args.output) and args.verb in ("shell", "boot"))
+
+    if args.verb == "summary" or needs_build:
         print_summary(args)
 
-    if args.verb == "build":
+    if needs_build:
         check_root()
         init_namespace(args)
         build_stuff(args)
         print_output_size(args)
+
+    if args.verb in ("shell", "boot"):
+        run_shell(args)
 
 if __name__ == "__main__":
     main()
