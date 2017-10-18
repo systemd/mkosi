@@ -1329,24 +1329,25 @@ def install_arch(args, workspace, run_build_script):
     if args.release is not None:
         sys.stderr.write("Distribution release specification is not supported for Arch Linux, ignoring.\n")
 
-    keyring = "archlinux"
-
-    if platform.machine() == "aarch64":
-        keyring += "arm"
-
-    run(["pacman-key", "--nocolor", "--init"], check=True)
-    run(["pacman-key", "--nocolor", "--populate", keyring], check=True)
-
     if platform.machine() == "aarch64":
         server = "Server = {}/$arch/$repo".format(args.mirror)
     else:
         server = "Server = {}/$repo/os/$arch".format(args.mirror)
 
-    with open(os.path.join(workspace, "pacman.conf"), "w") as f:
+    root = os.path.join(workspace, "root")
+    # Create base layout for pacman and pacman-key
+    os.makedirs(os.path.join(root, "var/lib/pacman"), 0o755, exist_ok=True)
+    os.makedirs(os.path.join(root, "etc/pacman.d/gnupg"), 0o755, exist_ok=True)
+
+    pacman_conf = os.path.join(workspace, "pacman.conf")
+    with open(pacman_conf, "w") as f:
         f.write("""\
 [options]
+RootDir     = {root}
 LogFile     = /dev/null
-HookDir     = /no_hook/
+CacheDir    = {root}/var/cache/pacman/pkg/
+GPGDir      = {root}/etc/pacman.d/gnupg/
+HookDir     = {root}/etc/pacman.d/hooks/
 HoldPkg     = pacman glibc
 Architecture = auto
 UseSyslog
@@ -1362,11 +1363,38 @@ SigLevel    = Required DatabaseOptional
 
 [community]
 {server}
-""".format(args=args, server=server))
+""".format(server=server, root=root))
 
-    run(["pacman", "--color", "never", "--config", os.path.join(workspace, "pacman.conf"), "-Sy"], check=True)
-    # determine base packages list from base metapackage
-    c = run(["pacman", "--color", "never", "--config", os.path.join(workspace, "pacman.conf"), "-Sg", "base"], stdout=PIPE, universal_newlines=True, check=True)
+    def run_pacman(args, **kwargs):
+        cmdline = [
+            "pacman",
+            "--noconfirm",
+            "--color", "never",
+            "--config", pacman_conf,
+        ]
+        return run(cmdline + args, **kwargs, check=True)
+
+    def run_pacman_key(args):
+        cmdline = [
+            "pacman-key",
+            "--nocolor",
+            "--config", pacman_conf,
+        ]
+        return run(cmdline + args, check=True)
+
+    def run_pacstrap(packages):
+        cmdline = ["pacstrap", "-C", pacman_conf, "-dGM", root]
+        run(cmdline + list(packages), check=True)
+
+    keyring = "archlinux"
+    if platform.machine() == "aarch64":
+        keyring += "arm"
+    run_pacman_key(["--init"])
+    run_pacman_key(["--populate", keyring])
+
+    run_pacman(["-Sy"])
+    # determine base packages list from base group
+    c = run_pacman(["-Sg", "base"], stdout=PIPE, universal_newlines=True)
     packages = set(c.stdout.split())
     packages.remove("base")
 
@@ -1412,13 +1440,10 @@ SigLevel    = Required DatabaseOptional
     if run_build_script:
         packages |= set(args.build_packages)
 
-    cmdline = ["pacstrap",
-               "-C", os.path.join(workspace, "pacman.conf"),
-               "-d",
-               workspace + "/root",
-               *packages]
+    run_pacstrap(packages)
 
-    run(cmdline, check=True)
+    # Kill the gpg-agent used by pacman and pacman-key
+    run(['gpg-connect-agent', '--homedir', os.path.join(root, 'etc/pacman.d/gnupg'), 'KILLAGENT', '/bye'])
 
     if "networkmanager" in args.packages:
         enable_networkmanager(workspace)
