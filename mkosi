@@ -2135,8 +2135,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Build Legacy-Free OS Images', add_help=False)
 
     group = parser.add_argument_group("Commands")
-    group.add_argument("verb", choices=("build", "clean", "help", "summary", "shell", "boot"), nargs='?', default="build", help='Operation to execute')
-    group.add_argument("cmdline", nargs=argparse.REMAINDER, help="The command line to use for 'shell' and 'boot'")
+    group.add_argument("verb", choices=("build", "clean", "help", "summary", "shell", "boot", "qemu"), nargs='?', default="build", help='Operation to execute')
+    group.add_argument("cmdline", nargs=argparse.REMAINDER, help="The command line to use for 'shell', 'boot', 'qemu'")
     group.add_argument('-h', '--help', action='help', help="Show this help")
     group.add_argument('--version', action='version', version='%(prog)s ' + __version__)
 
@@ -2713,8 +2713,8 @@ def load_args():
     find_passphrase(args)
     find_secure_boot(args)
 
-    if args.cmdline and args.verb not in ('shell', 'boot'):
-        die("Additional parameters only accepted for 'shell' and 'boot' invocations.")
+    if args.cmdline and args.verb not in ('shell', 'boot', 'qemu'):
+        die("Additional parameters only accepted for 'shell', 'boot', 'qemu' invocations.")
 
     args.force = args.force_count > 0
 
@@ -2894,11 +2894,15 @@ def load_args():
         if args.secure_boot_certificate is None:
             die("UEFI SecureBoot enabled, but couldn't find certificate. (Consider placing it in mkosi.secure-boot.crt?)")
 
-    if args.verb in ("shell", "boot"):
+    if args.verb in ("shell", "boot", "qemu"):
         if args.output_format == OutputFormat.tar:
             die("Sorry, can't acquire shell in or boot a tar archive.")
         if args.xz:
             die("Sorry, can't acquire shell in or boot an XZ compressed image.")
+
+    if args.verb == "qemu":
+        if args.output_format not in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs, OutputFormat.raw_squashfs):
+            die("Sorry, can't boot non-raw images with qemu.")
 
     return args
 
@@ -3299,17 +3303,46 @@ def run_shell(args):
 
     os.execvp(cmdline[0], cmdline)
 
+def run_qemu(args):
+
+    # Look for the right qemu command line to use
+    ARCH_BINARIES = { 'x86_64' : 'qemu-system-x86_64' }
+    arch_binary = ARCH_BINARIES.get(platform.machine(), None)
+    for cmdline in ([arch_binary, '-machine', 'accel=kvm'],
+                    ['qemu', '-machine', 'accel=kvm'],
+                    ['qemu-kvm']):
+
+           if cmdline[0] and shutil.which(cmdline[0]):
+               break
+    else:
+        die("Couldn't find QEMU/KVM binary")
+
+    # Look for UEFI firmware blob
+    for firmware in ('/usr/share/edk2/ovmf/OVMF_CODE.fd',):
+        if os.path.exists(firmware):
+            break
+    else:
+        die("Couldn't find OVMF UEFI firmware blob.")
+
+    cmdline += [ "-bios", firmware,
+                 "-smp", "2",
+                 "-m", "1024",
+                 "-drive", "format=raw,file=" + args.output,
+                 *args.cmdline ]
+
+    os.execvp(cmdline[0], cmdline)
+
 def main():
     args = load_args()
 
-    if args.verb in ("build", "clean", "shell", "boot"):
+    if args.verb in ("build", "clean", "shell", "boot", "qemu"):
         check_root()
         unlink_output(args)
 
     if args.verb == "build":
         check_output(args)
 
-    needs_build = args.verb == "build" or (not os.path.exists(args.output) and args.verb in ("shell", "boot"))
+    needs_build = args.verb == "build" or (not os.path.exists(args.output) and args.verb in ("shell", "boot", "qemu"))
 
     if args.verb == "summary" or needs_build:
         print_summary(args)
@@ -3322,6 +3355,9 @@ def main():
 
     if args.verb in ("shell", "boot"):
         run_shell(args)
+
+    if args.verb == "qemu":
+        run_qemu(args)
 
 if __name__ == "__main__":
     main()
