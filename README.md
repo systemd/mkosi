@@ -159,24 +159,35 @@ they exist in the local directory:
   additional files to an image, on top of what the
   distribution includes in its packages.
 
-* `mkosi.build` may be an executable script. If it exists the
-  image will be built twice: the first iteration will be the
-  *development* image, the second iteration will be the
-  *final* image. The *development* image is used to build the
-  project in the current working directory (the *source*
-  tree). For that the whole directory is copied into the
-  image, along with the mkosi.build build script. The script
-  is then invoked inside the image (via `systemd-nspawn`), with
-  `$SRCDIR` pointing to the *source* tree. `$DESTDIR` points to a
-  directory where the script should place any files generated
-  it would like to end up in the *final* image. Note that
-  `make`/`automake` based build systems generally honour `$DESTDIR`,
-  thus making it very natural to build *source* trees from the
-  build script. After the *development* image was built and the
-  build script ran inside of it, it is removed again. After
-  that the *final* image is built, without any *source* tree or
-  build script copied in. However, this time the contents of
-  `$DESTDIR` is added into the image.
+* `mkosi.build` may be an executable script. If it exists the image
+  will be built twice: the first iteration will be the *development*
+  image, the second iteration will be the *final* image. The
+  *development* image is used to build the project in the current
+  working directory (the *source* tree). For that the whole directory
+  is copied into the image, along with the mkosi.build build
+  script. The script is then invoked inside the image (via
+  `systemd-nspawn`), with `$SRCDIR` pointing to the *source*
+  tree. `$DESTDIR` points to a directory where the script should place
+  any files generated it would like to end up in the *final*
+  image. Note that `make`/`automake` based build systems generally
+  honour `$DESTDIR`, thus making it very natural to build *source*
+  trees from the build script. After the *development* image was built
+  and the build script ran inside of it, it is removed again. After
+  that the *final* image is built, without any *source* tree or build
+  script copied in. However, this time the contents of `$DESTDIR` are
+  added into the image.
+
+  When the source tree is copied into the *build* image, all files are
+  copied, except for `mkosi.builddir/`, `mkosi.cache/` and
+  `mkosi.output/`. That said, `.gitignore` is respected if the source
+  tree is a `git` checkout. If multiple different images shall be
+  built from the same source tree it's essential to exclude their
+  output files from this copy operation, as otherwise a version of an
+  image built earlier might be included in a later build, which is
+  usually not intended. An alternative to excluding these built images
+  via `.gitignore` entries is making use of the `mkosi.output/`
+  directory (see below), which is an easy way to exclude all build
+  artifacts.
 
 * `mkosi.postinst` may be an executable script. If it exists it is
   invoked as last step of preparing an image, from within the image
@@ -232,6 +243,19 @@ they exist in the local directory:
   X509 certificate and PEM private key to use when UEFI SecureBoot
   support is enabled. All EFI binaries included in the image's ESP are
   signed with this key, as a late step in the build process.
+
+* `mkosi.output/` may be a directory. If it exists, and the image
+  output path is not configured (i.e. no `--output=` setting
+  specified), or configured to a filename (i.e. a path containing no
+  `/` character) all build artifacts (that is: the image itself, the
+  root hash file in case Verity is used, the checksum and its
+  signature if that's enabled, and the nspawn settings file if there
+  is any) are placed in this directory. Note that this directory is
+  not used if the image output path contains at least one slash, and
+  has no effect in that case. This setting is particularly useful if
+  multiple different images shall be built from the same working
+  directory, as otherwise the build result of a preceeding run might
+  be copied into a build image as part of the source tree (see above).
 
 All these files are optional.
 

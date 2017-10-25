@@ -1494,7 +1494,13 @@ def install_build_src(args, workspace, run_build_script, for_cache):
             if use_git:
                 copy_git_files(args.build_sources, target, git_files=args.git_files)
             else:
-                ignore = shutil.ignore_patterns('.git', '.mkosi-*', '*.cache-pre-dev', '*.cache-pre-inst')
+                ignore = shutil.ignore_patterns('.git',
+                                                '.mkosi-*',
+                                                '*.cache-pre-dev',
+                                                '*.cache-pre-inst',
+                                                os.path.basename(args.output_dir)+"/" if args.output_dir else "mkosi.output/",
+                                                os.path.basename(args.cache_path)+"/" if args.cache_path else "mkosi.cache/",
+                                                os.path.basename(args.build_dir)+"/" if args.build_dir else "mkosi.builddir/")
                 shutil.copytree(args.build_sources, target, symlinks=True, ignore=ignore)
 
 def install_build_dest(args, workspace, run_build_script, for_cache):
@@ -2005,6 +2011,7 @@ def parse_args():
     group = parser.add_argument_group("Output")
     group.add_argument('-t', "--format", dest='output_format', choices=OutputFormat.__members__, help='Output Format')
     group.add_argument('-o', "--output", help='Output image path', metavar='PATH')
+    group.add_argument('-O', "--output-dir", help='Output root directory', metavar='DIR')
     group.add_argument('-f', "--force", action='count', dest='force_count', default=0, help='Remove existing image file before operation')
     group.add_argument('-b', "--bootable", type=parse_boolean, nargs='?', const=True,
                        help='Make image bootable on EFI (only raw_gpt, raw_btrfs, raw_squashfs)')
@@ -2225,6 +2232,9 @@ def process_setting(args, section, key, value):
         elif key == "Output":
             if args.output is None:
                 args.output = value
+        elif key == "OutputDirectory":
+            if args.output_dir is None:
+                args.output_dir = value
         elif key == "Force":
             if not args.force:
                 args.force = parse_boolean(value)
@@ -2460,6 +2470,13 @@ def find_postinst_script(args):
     if os.path.exists("mkosi.postinst"):
         args.postinst_script = "mkosi.postinst"
 
+def find_output_dir(args):
+    if args.output_dir is not None:
+        return
+
+    if os.path.exists("mkosi.output/"):
+        args.output_dir = "mkosi.output"
+
 def require_private_file(name, description):
     mode = os.stat(name).st_mode & (stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
     if (mode & stat.S_IRWXU > 0o600) or (mode & (stat.S_IRWXG | stat.S_IRWXO) > 0):
@@ -2545,6 +2562,7 @@ def load_args():
     find_build_sources(args)
     find_build_dir(args)
     find_postinst_script(args)
+    find_output_dir(args)
     find_password(args)
     find_passphrase(args)
     find_secure_boot(args)
@@ -2638,6 +2656,14 @@ def load_args():
             args.output = "image.tar.xz"
         else:
             args.output = "image"
+
+    if args.output_dir is not None:
+        args.output_dir = os.path.abspath(args.output_dir)
+
+        if "/" not in args.output:
+            args.output = os.path.join(args.output_dir, args.output)
+        else:
+            sys.stderr.write("WARNING: Ignoring configured output directory as output file is a qualified path.\n")
 
     if args.incremental or args.verb == "clean":
         args.cache_pre_dev = args.output + ".cache-pre-dev"
@@ -2781,6 +2807,8 @@ def print_summary(args):
     if args.hostname:
         sys.stderr.write("              Hostname: " + args.hostname + "\n")
     sys.stderr.write("         Output Format: " + args.output_format.name + "\n")
+    if args.output_dir:
+        sys.stderr.write("      Output Directory: " + args.output_dir + "\n")
     sys.stderr.write("                Output: " + args.output + "\n")
     sys.stderr.write("       Output Checksum: " + none_to_na(args.output_checksum if args.checksum else None) + "\n")
     sys.stderr.write("      Output Signature: " + none_to_na(args.output_signature if args.sign else None) + "\n")
@@ -2871,12 +2899,25 @@ def reuse_cache_tree(args, workspace, run_build_script, for_cache, cached):
 
     return True
 
+def make_output_dir(args):
+    """Create the output directory if set and not existing yet"""
+    if args.output_dir is None:
+        return
+
+    try:
+        # Only create the final component, hence no mkdirs()
+        os.mkdir(args.output_dir, 0o755)
+    except FileExistsError:
+        pass
+
 def build_image(args, workspace, run_build_script, for_cache=False):
 
     # If there's no build script set, there's no point in executing
     # the build script iteration. Let's quit early.
     if args.build_script is None and run_build_script:
         return None, None, None
+
+    make_output_dir(args)
 
     raw, cached = reuse_cache_image(args, workspace.name, run_build_script, for_cache)
     if not cached:
