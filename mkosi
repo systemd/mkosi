@@ -4,7 +4,8 @@
 import argparse
 import configparser
 import contextlib
-import ctypes, ctypes.util
+import ctypes
+import ctypes.util
 import crypt
 import getpass
 import hashlib
@@ -15,7 +16,7 @@ import stat
 import subprocess
 import sys
 import tempfile
-import time
+import time  # Unused?
 import urllib.request
 import uuid
 import glob
@@ -38,10 +39,12 @@ if sys.version_info < (3, 5):
 # - work on device nodes
 # - allow passing env vars
 
+
 def die(message, status=1):
     assert status >= 1 and status < 128
     sys.stderr.write(message + "\n")
     sys.exit(status)
+
 
 class OutputFormat(Enum):
     raw_gpt = 1
@@ -51,6 +54,7 @@ class OutputFormat(Enum):
     subvolume = 5
     tar = 6
 
+
 class Distribution(Enum):
     fedora = 1
     debian = 2
@@ -59,6 +63,7 @@ class Distribution(Enum):
     opensuse = 5
     mageia = 6
     centos = 7
+
 
 GPT_ROOT_X86           = uuid.UUID("44479540f29741b29af7d131d5f0458a")
 GPT_ROOT_X86_64        = uuid.UUID("4f68bce3e8cd4db196e7fbcaf984b709")
@@ -98,6 +103,7 @@ FEDORA_KEYS_MAP = {
 GPT_HEADER_SIZE = 1024*1024
 GPT_FOOTER_SIZE = 1024*1024
 
+
 def unshare(flags):
     libc = ctypes.CDLL(ctypes.util.find_library("c"), use_errno=True)
 
@@ -105,15 +111,13 @@ def unshare(flags):
         e = ctypes.get_errno()
         raise OSError(e, os.strerror(e))
 
-def format_bytes(bytes):
-    if bytes >= 1024*1024*1024:
-        return "{:0.1f}G".format(bytes / 1024**3)
-    if bytes >= 1024*1024:
-        return "{:0.1f}M".format(bytes / 1024**2)
-    if bytes >= 1024:
-        return "{:0.1f}K".format(bytes / 1024)
-
-    return "{}B".format(bytes)
+def format_bytes(size):
+    if size < 1:
+        return "{:0.1f}B".format(size)
+    units = "BKMGT"
+    for p in range(len(units)-1, -1, -1):
+        if size >= 1024**p:
+            return "{:0.1f}{}".format(size / 1024**p, units[p])
 
 def roundup512(x):
     return (x + 511) & ~511
@@ -372,87 +376,45 @@ def luks_close(dev, text):
     with complete_step(text):
         subprocess.run(["cryptsetup", "close", dev], check=True)
 
-def luks_format_root(args, loopdev, run_build_script, cached, inserting_squashfs=False):
+def luks_format_fs(args, loopdev, run_build_script,
+                     cached, fs, inserting_squashfs=False):
+    if fs == "root":
+        if args.encrypt != "all":
+            return
+        if args.output_format == OutputFormat.raw_squashfs\
+                and not inserting_squashfs:
+            return
+        partno = args.root_partno
+    elif fs == "home":
+        partno = args.home_partno
+    elif fs == "server data":
+        partno = args.srv_partno
 
-    if args.encrypt != "all":
-        return
-    if args.root_partno is None:
-        return
-    if args.output_format == OutputFormat.raw_squashfs and not inserting_squashfs:
-        return
-    if run_build_script:
-        return
-    if cached:
-        return
-
-    with complete_step("LUKS formatting root partition"):
-        luks_format(partition(loopdev, args.root_partno), args.passphrase)
-
-def luks_format_home(args, loopdev, run_build_script, cached):
-
-    if args.encrypt is None:
-        return
-    if args.home_partno is None:
-        return
-    if run_build_script:
-        return
-    if cached:
+    if partno is None or args.encrypt is None or run_build_script or cached:
         return
 
-    with complete_step("LUKS formatting home partition"):
-        luks_format(partition(loopdev, args.home_partno), args.passphrase)
+    with complete_step("LUKS formatting {} partition".format(fs)):
+        luks_format(partition(loopdev, partno), args.passphrase)
 
-def luks_format_srv(args, loopdev, run_build_script, cached):
+def luks_setup_fs(args, loopdev, run_build_script,
+                    fs, inserting_squashfs=False):
+    if fs == "root":
+        if args.encrypt != "all":
+            return None
+        if args.output_format == OutputFormat.raw_squashfs \
+                and not inserting_squashfs:
+            return None
+        partno = args.root_partno
+    elif fs == "home":
+        partno = args.home_partno
+    elif fs == "server data":
+        partno = args.srv_partno
 
-    if args.encrypt is None:
-        return
-    if args.srv_partno is None:
-        return
-    if run_build_script:
-        return
-    if cached:
-        return
-
-    with complete_step("LUKS formatting server data partition"):
-        luks_format(partition(loopdev, args.srv_partno), args.passphrase)
-
-def luks_setup_root(args, loopdev, run_build_script, inserting_squashfs=False):
-
-    if args.encrypt != "all":
-        return None
-    if args.root_partno is None:
-        return None
-    if args.output_format == OutputFormat.raw_squashfs and not inserting_squashfs:
-        return None
-    if run_build_script:
+    if partno is None or args.encrypt is None or run_build_script:
         return None
 
-    with complete_step("Opening LUKS root partition"):
-        return luks_open(partition(loopdev, args.root_partno), args.passphrase)
-
-def luks_setup_home(args, loopdev, run_build_script):
-
-    if args.encrypt is None:
-        return None
-    if args.home_partno is None:
-        return None
-    if run_build_script:
-        return None
-
-    with complete_step("Opening LUKS home partition"):
-        return luks_open(partition(loopdev, args.home_partno), args.passphrase)
-
-def luks_setup_srv(args, loopdev, run_build_script):
-
-    if args.encrypt is None:
-        return None
-    if args.srv_partno is None:
-        return None
-    if run_build_script:
-        return None
-
-    with complete_step("Opening LUKS server data partition"):
-        return luks_open(partition(loopdev, args.srv_partno), args.passphrase)
+    with complete_step("Opening LUKS {} partition".format(fs)):
+        return luks_open(partition(loopdev, partno), args.passphrase)
 
 @contextlib.contextmanager
 def luks_setup_all(args, loopdev, run_build_script):
@@ -462,11 +424,11 @@ def luks_setup_all(args, loopdev, run_build_script):
         return
 
     try:
-        root = luks_setup_root(args, loopdev, run_build_script)
+        root = luks_setup_fs(args, loopdev, run_build_script, "root")
         try:
-            home = luks_setup_home(args, loopdev, run_build_script)
+            home = luks_setup_fs(args, loopdev, run_build_script, "home")
             try:
-                srv = luks_setup_srv(args, loopdev, run_build_script)
+                srv = luks_setup_fs(args, loopdev, run_build_script, "server data")
 
                 yield (partition(loopdev, args.root_partno) if root is None else root, \
                        partition(loopdev, args.home_partno) if home is None else home, \
@@ -1635,8 +1597,8 @@ def insert_partition(args, workspace, raw, loopdev, partno, blob, name, type_uui
     print_step("Writing partition...")
 
     if args.root_partno == partno:
-        luks_format_root(args, loopdev, False, True)
-        dev = luks_setup_root(args, loopdev, False, True)
+        luks_format_fs(args, loopdev, False, True, "root")
+        dev = luks_setup_fs(args, loopdev, False, True, "root")
     else:
         dev = None
 
@@ -2530,18 +2492,10 @@ def find_secure_boot(args):
             args.secure_boot_certificate = "mkosi.secure-boot.crt"
 
 def strip_suffixes(path):
-    t = path
-    while True:
-        if t.endswith(".xz"):
-            t = t[:-3]
-        elif t.endswith(".raw"):
-            t = t[:-4]
-        elif t.endswith(".tar"):
-            t = t[:-4]
-        else:
-            break
-
-    return t
+    EXTS = (".xz", ".raw", ".tar")
+    while any(path.endswith(x) for x in EXTS):
+        path = os.path.splitext(path)[0]
+    return path
 
 def build_nspawn_settings_path(path):
     return strip_suffixes(path) + ".nspawn"
@@ -2928,9 +2882,9 @@ def build_image(args, workspace, run_build_script, for_cache=False):
         prepare_swap(args, loopdev, cached)
         prepare_esp(args, loopdev, cached)
 
-        luks_format_root(args, loopdev, run_build_script, cached)
-        luks_format_home(args, loopdev, run_build_script, cached)
-        luks_format_srv(args, loopdev, run_build_script, cached)
+        luks_format_fs(args, loopdev, run_build_script, cached, "root")
+        luks_format_fs(args, loopdev, run_build_script, cached, "home")
+        luks_format_fs(args, loopdev, run_build_script, cached, "server data")
 
         with luks_setup_all(args, loopdev, run_build_script) as (encrypted_root, encrypted_home, encrypted_srv):
 
