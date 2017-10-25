@@ -2910,6 +2910,17 @@ def make_output_dir(args):
     except FileExistsError:
         pass
 
+def make_build_dir(args):
+    """Create the build directory if set and not existing yet"""
+    if args.build_dir is None:
+        return
+
+    try:
+        # Only create the final component, hence no mkdirs()
+        os.mkdir(args.build_dir, 0o755)
+    except FileExistsError:
+        pass
+
 def build_image(args, workspace, run_build_script, for_cache=False):
 
     # If there's no build script set, there's no point in executing
@@ -2918,6 +2929,7 @@ def build_image(args, workspace, run_build_script, for_cache=False):
         return None, None, None
 
     make_output_dir(args)
+    make_build_dir(args)
 
     raw, cached = reuse_cache_image(args, workspace.name, run_build_script, for_cache)
     if not cached:
