@@ -1470,7 +1470,10 @@ def copy_git_files(src, dest, *, git_files):
         directory = os.path.dirname(dest_path)
         os.makedirs(directory, exist_ok=True)
 
-        shutil.copy2(src_path, dest_path, follow_symlinks=False)
+        if os.path.islink(src_path):
+            subprocess.run(['ln', '-nfs', src_path, dest_path])
+        else:
+            shutil.copy2(src_path, dest_path, follow_symlinks=False)
 
 def install_build_src(args, workspace, run_build_script, for_cache):
     if not run_build_script:
