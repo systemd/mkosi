@@ -121,6 +121,18 @@ def roundup512(x):
 def print_step(text):
     sys.stderr.write("‣ \033[0;1;39m" + text + "\033[0m\n")
 
+def mkdir_last(path, mode=0o777):
+    """Create directory path
+
+    Only the final component will be created, so this is different than mkdirs().
+    """
+    try:
+        os.mkdir(path, mode)
+    except FileExistsError:
+        if not os.path.isdir(path):
+            raise
+    return path
+
 @contextlib.contextmanager
 def complete_step(text, text2=None):
     print_step(text + '...')
@@ -634,10 +646,7 @@ def prepare_tree(args, workspace, run_build_script, cached):
     if args.output_format == OutputFormat.subvolume:
         btrfs_subvol_create(os.path.join(workspace, "root"))
     else:
-        try:
-            os.mkdir(os.path.join(workspace, "root"))
-        except FileExistsError:
-            pass
+        mkdir_last(os.path.join(workspace, "root"))
 
     if args.output_format in (OutputFormat.subvolume, OutputFormat.raw_btrfs):
 
@@ -770,10 +779,7 @@ def disable_kernel_install(args, workspace):
         return
 
     for d in ("etc", "etc/kernel", "etc/kernel/install.d"):
-        try:
-            os.mkdir(os.path.join(workspace, "root", d), 0o755)
-        except FileExistsError:
-            pass
+        mkdir_last(os.path.join(workspace, "root", d), 0o755)
 
     for f in ("50-dracut.install", "51-dracut-rescue.install", "90-loaderentry.install"):
         os.symlink("/dev/null", os.path.join(workspace, "root", "etc/kernel/install.d", f))
@@ -2904,22 +2910,14 @@ def make_output_dir(args):
     if args.output_dir is None:
         return
 
-    try:
-        # Only create the final component, hence no mkdirs()
-        os.mkdir(args.output_dir, 0o755)
-    except FileExistsError:
-        pass
+    mkdir_last(args.output_dir, 0o755)
 
 def make_build_dir(args):
     """Create the build directory if set and not existing yet"""
     if args.build_dir is None:
         return
 
-    try:
-        # Only create the final component, hence no mkdirs()
-        os.mkdir(args.build_dir, 0o755)
-    except FileExistsError:
-        pass
+    mkdir_last(args.build_dir, 0o755)
 
 def build_image(args, workspace, run_build_script, for_cache=False):
 
@@ -2986,14 +2984,7 @@ def build_image(args, workspace, run_build_script, for_cache=False):
     return raw, tar, root_hash
 
 def var_tmp(workspace):
-
-    var_tmp = os.path.join(workspace, "var-tmp")
-    try:
-        os.mkdir(var_tmp)
-    except FileExistsError:
-        pass
-
-    return var_tmp
+    return mkdir_last(os.path.join(workspace, "var-tmp"))
 
 def run_build_script(args, workspace, raw):
     if args.build_script is None:
