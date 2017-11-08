@@ -159,6 +159,12 @@ they exist in the local directory:
   additional files to an image, on top of what the
   distribution includes in its packages.
 
+* `mkosi.skeleton/` may be a directory and works in the same way as
+  `mkosi.extra`, but the files are copied before anything else so to
+  have a skeleton tree for the OS. This allows to change the package
+  manager and create files that need to be there before anythin is
+  installed.
+
 * `mkosi.build` may be an executable script. If it exists the image
   will be built twice: the first iteration will be the *development*
   image, the second iteration will be the *final* image. The

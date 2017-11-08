@@ -1574,6 +1574,14 @@ def install_extra_trees(args, workspace, for_cache):
         for d in args.extra_trees:
             copy(d, os.path.join(workspace, "root"))
 
+def install_skeleton_trees(args, workspace, for_cache):
+    if args.skeleton_trees is None:
+        return
+
+    with complete_step('Copying in skeleton file trees'):
+        for d in args.skeleton_trees:
+            copy(d, os.path.join(workspace, "root"))
+
 def copy_git_files(src, dest, *, git_files):
     run(['git', 'clone', '--depth=1', '--recursive', '--shallow-submodules', src, dest],
         check=True)
@@ -2194,6 +2202,7 @@ def parse_args():
     group.add_argument('-T', "--without-tests", action='store_false', dest='with_tests', default=True, help='Do not run tests as part of build script, if supported')
     group.add_argument("--cache", dest='cache_path', help='Package cache path', metavar='PATH')
     group.add_argument("--extra-tree", action='append', dest='extra_trees', help='Copy an extra tree on top of image', metavar='PATH')
+    group.add_argument("--skeleton-tree", action='append', dest='skeleton_trees', help='Use a skeleton tree to bootstrap the image before installing anything', metavar='PATH')
     group.add_argument("--build-script", help='Build script to run inside image', metavar='PATH')
     group.add_argument("--build-sources", help='Path for sources to build', metavar='PATH')
     group.add_argument("--build-dir", help='Path to use as persistent build directory', metavar='PATH')
@@ -2466,6 +2475,12 @@ def process_setting(args, section, key, value):
                 args.extra_trees = list_value
             else:
                 args.extra_trees.extend(list_value)
+        elif key == "SkeletonTrees":
+            list_value = value if type(value) == list else value.split()
+            if args.skeleton_trees is None:
+                args.skeleton_trees = list_value
+            else:
+                args.skeleton_trees.extend(list_value)
         elif key == "BuildScript":
             if args.build_script is None:
                 args.build_script = value
@@ -2601,6 +2616,13 @@ def find_extra(args):
         else:
             args.extra_trees.append("mkosi.extra")
 
+def find_skeleton(args):
+    if os.path.exists("mkosi.skeleton"):
+        if args.skeleton_trees is None:
+            args.skeleton_trees = ["mkosi.skeleton"]
+        else:
+            args.skeleton_trees.append("mkosi.skeleton")
+
 def find_cache(args):
 
     if args.cache_path is not None:
@@ -2729,6 +2751,7 @@ def load_args():
     load_defaults(args)
     find_nspawn_settings(args)
     find_extra(args)
+    find_skeleton(args)
     find_build_script(args)
     find_build_sources(args)
     find_build_dir(args)
@@ -2889,6 +2912,10 @@ def load_args():
         for i in range(len(args.extra_trees)):
             args.extra_trees[i] = os.path.abspath(args.extra_trees[i])
 
+    if args.skeleton_trees is not None:
+        for i in range(len(args.skeleton_trees)):
+            args.skeleton_trees[i] = os.path.abspath(args.skeleton_trees[i])
+
     args.root_size = parse_bytes(args.root_size)
     args.home_size = parse_bytes(args.home_size)
     args.srv_size = parse_bytes(args.srv_size)
@@ -3025,6 +3052,7 @@ def print_summary(args):
 
     sys.stderr.write("         Package Cache: " + none_to_none(args.cache_path) + "\n")
     sys.stderr.write("           Extra Trees: " + line_join_list(args.extra_trees) + "\n")
+    sys.stderr.write("        Skeleton Trees: " + line_join_list(args.skeleton_trees) + "\n")
     sys.stderr.write("          Build Script: " + none_to_none(args.build_script) + "\n")
 
     if args.build_script:
@@ -3131,6 +3159,7 @@ def build_image(args, workspace, run_build_script, for_cache=False):
 
                 with mount_cache(args, workspace.name):
                     cached = reuse_cache_tree(args, workspace.name, run_build_script, for_cache, cached)
+                    install_skeleton_trees(args, workspace.name, for_cache)
                     install_distribution(args, workspace.name, run_build_script, cached)
                     install_boot_loader(args, workspace.name, cached)
 
