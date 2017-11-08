@@ -2696,7 +2696,7 @@ def load_args():
         elif args.distribution == Distribution.debian:
             args.release = "unstable"
         elif args.distribution == Distribution.ubuntu:
-            args.release = "yakkety"
+            args.release = "artful"
         elif args.distribution == Distribution.opensuse:
             args.release = "tumbleweed"
 
