@@ -841,7 +841,10 @@ def run_workspace_command(args, workspace, *cmd, network=False, env={}):
                "--register=no",
                "--bind=" + var_tmp(workspace) + ":/var/tmp" ]
 
-    if not network:
+    if network:
+        # If we're using the host network namespace, use the same resolver
+        cmdline += ["--bind-ro=/etc/resolv.conf"]
+    else:
         cmdline += ["--private-network"]
 
     cmdline += [ "--setenv={}={}".format(k,v) for k,v in env.items() ]
