@@ -1986,6 +1986,19 @@ def calculate_signature(args, checksum):
 
     return f
 
+def calculate_bmap(args, raw):
+    if args.output_format not in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs):
+        return None
+
+    with complete_step('Creating BMAP file'):
+        f = tempfile.NamedTemporaryFile(mode="w+", prefix=".mkosi-", encoding="utf-8",
+                                        dir=os.path.dirname(args.output_bmap))
+
+        cmdline = ["bmaptool", "create", raw.name]
+        subprocess.run(cmdline, stdout=f, check=True)
+
+    return f
+
 def save_cache(args, workspace, raw, cache_path):
 
     if cache_path is None:
@@ -2047,6 +2060,15 @@ def link_output_signature(args, signature):
                        'Successfully linked ' + args.output_signature):
         os.chmod(signature, 0o666 & ~args.original_umask)
         os.link(signature, args.output_signature)
+
+def link_output_bmap(args, bmap):
+    if bmap is None:
+        return
+
+    with complete_step('Linking .bmap file',
+                       'Successfully linked ' + args.output_bmap):
+        os.chmod(bmap, 0o666 & ~args.original_umask)
+        os.link(bmap, args.output_bmap)
 
 def dir_size(path):
     sum = 0
@@ -2151,6 +2173,7 @@ def parse_args():
     group.add_argument("--checksum", action='store_true', help='Write SHA256SUMS file')
     group.add_argument("--sign", action='store_true', help='Write and sign SHA256SUMS file')
     group.add_argument("--key", help='GPG key to use for signing')
+    group.add_argument("--bmap", action='store_true', help='Write block map file (.bmap) for bmaptool usage (only raw_gpt, raw_btrfs)')
     group.add_argument("--password", help='Set the root password')
 
     group = parser.add_argument_group("Additional Configuration")
@@ -2257,6 +2280,9 @@ def unlink_output(args):
 
         if args.sign:
             unlink_try_hard(args.output_signature)
+
+        if args.bmap:
+            unlink_try_hard(args.output_bmap)
 
         if args.nspawn_settings is not None:
             unlink_try_hard(args.output_nspawn_settings)
@@ -2454,6 +2480,8 @@ def process_setting(args, section, key, value):
         elif key == "Key":
             if args.key is None:
                 args.key = value
+        elif key == "Bmap":
+                args.bmap = parse_boolean(value)
         elif key == "Password":
             if args.password is None:
                 args.password = value
@@ -2789,6 +2817,9 @@ def load_args():
     if args.sign:
         args.output_signature = os.path.join(os.path.dirname(args.output), "SHA256SUMS.gpg")
 
+    if args.bmap:
+        args.output_bmap = args.output + ".bmap"
+
     if args.nspawn_settings is not None:
         args.nspawn_settings = os.path.abspath(args.nspawn_settings)
         args.output_nspawn_settings = build_nspawn_settings_path(args.output)
@@ -2854,6 +2885,7 @@ def check_output(args):
     for f in (args.output,
               args.output_checksum if args.checksum else None,
               args.output_signature if args.sign else None,
+              args.output_bmap if args.bmap else None,
               args.output_nspawn_settings if args.nspawn_settings is not None else None,
               args.output_root_hash_file if args.verity else None):
 
@@ -2909,6 +2941,7 @@ def print_summary(args):
     sys.stderr.write("                Output: " + args.output + "\n")
     sys.stderr.write("       Output Checksum: " + none_to_na(args.output_checksum if args.checksum else None) + "\n")
     sys.stderr.write("      Output Signature: " + none_to_na(args.output_signature if args.sign else None) + "\n")
+    sys.stderr.write("           Output Bmap: " + none_to_na(args.output_bmap if args.bmap else None) + "\n")
     sys.stderr.write("Output nspawn Settings: " + none_to_na(args.output_nspawn_settings if args.nspawn_settings is not None else None) + "\n")
     sys.stderr.write("           Incremental: " + yes_no(args.incremental) + "\n")
 
@@ -3195,6 +3228,7 @@ def build_stuff(args):
     settings = copy_nspawn_settings(args)
     checksum = calculate_sha256sum(args, raw, tar, root_hash_file, settings)
     signature = calculate_signature(args, checksum)
+    bmap = calculate_bmap(args, raw)
 
     link_output(args,
                 workspace.name,
@@ -3208,6 +3242,9 @@ def build_stuff(args):
 
     link_output_signature(args,
                           signature.name if signature is not None else None)
+
+    link_output_bmap(args,
+                     bmap.name if bmap is not None else None)
 
     link_output_nspawn_settings(args,
                                 settings.name if settings is not None else None)
