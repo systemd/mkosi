@@ -1301,6 +1301,11 @@ SigLevel    = Required DatabaseOptional
     else:
         enable_networkd(workspace)
 
+    with open(os.path.join(workspace, 'root', 'etc/locale.gen'), 'w') as f:
+        f.write('en_US.UTF-8 UTF-8\n')
+
+    run_workspace_command(args, workspace, '/usr/bin/locale-gen')
+
 @complete_step('Installing openSUSE')
 def install_opensuse(args, workspace, run_build_script):
 
