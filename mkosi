@@ -574,8 +574,8 @@ def luks_setup_all(args, loopdev, run_build_script):
             try:
                 srv = luks_setup_srv(args, loopdev, run_build_script)
 
-                yield (partition(loopdev, args.root_partno) if root is None else root, \
-                       partition(loopdev, args.home_partno) if home is None else home, \
+                yield (partition(loopdev, args.root_partno) if root is None else root,
+                       partition(loopdev, args.home_partno) if home is None else home,
                        partition(loopdev, args.srv_partno) if srv is None else srv)
             finally:
                 luks_close(srv, "Closing LUKS server data partition")
@@ -1294,8 +1294,8 @@ SigLevel    = Required DatabaseOptional
     cmdline = ["pacstrap",
                "-C", os.path.join(workspace, "pacman.conf"),
                "-d",
-               workspace + "/root"] + \
-               list(packages)
+               workspace + "/root",
+               *packages]
 
     subprocess.run(cmdline, check=True)
 
@@ -1855,7 +1855,7 @@ def install_unified_kernel(args, workspace, run_build_script, for_cache, root_ha
                       "--no-hostonly",
                       "--uefi",
                       "--kver", kver.name,
-                      "--kernel-cmdline", cmdline ]
+                      "--kernel-cmdline", cmdline]
 
             # Temporary fix until dracut includes these in the image anyway
             dracut += ("-i",) + ("/usr/lib/systemd/system/systemd-volatile-root.service",)*2 + \
