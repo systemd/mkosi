@@ -46,6 +46,9 @@ def die(message, status=1):
     sys.stderr.write(message + "\n")
     sys.exit(status)
 
+def warn(message, *args, **kwargs):
+    sys.stderr.write('WARNING: ' + message.format(*args, **kwargs) + '\n')
+
 class OutputFormat(Enum):
     raw_gpt = 1
     raw_btrfs = 2
@@ -1258,7 +1261,7 @@ SigLevel    = Required DatabaseOptional
         if kernel_packages and "linux" not in kernel_packages:
             packages.remove("linux")
         if len(kernel_packages) > 1:
-            print('Warning, more than one kernel will be installed: %s' % (' '.join(kernel_packages)))
+            warn('More than one kernel will be installed: {}', ' '.join(kernel_packages))
 
     packages -= {"cryptsetup",
                  "device-mapper",
@@ -1481,7 +1484,7 @@ def find_kernel_file(workspace_root, pattern):
         sys.stderr.write('Error, kernel file %s cannot be used as it is not in the workspace\n' % kernel_file)
         return
     if len(kernel_files) > 1:
-        print('Warning, more than one kernel file found, will use %s' % kernel_file)
+        warn('More than one kernel file found, will use {}', kernel_file)
     return kernel_file
 
 def install_boot_loader_arch(args, workspace):
@@ -2791,7 +2794,7 @@ def load_args():
         if "/" not in args.output:
             args.output = os.path.join(args.output_dir, args.output)
         else:
-            sys.stderr.write("WARNING: Ignoring configured output directory as output file is a qualified path.\n")
+            warn('Ignoring configured output directory as output file is a qualified path.')
 
     if args.incremental or args.verb == "clean":
         args.cache_pre_dev = args.output + ".cache-pre-dev"
