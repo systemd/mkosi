@@ -379,7 +379,7 @@ def reuse_cache_image(args, workspace, run_build_script, for_cache):
                        'Copied cached image as {.name}') as output:
 
         try:
-            source = open(fname, "rb")
+            source = open(fname, 'rb')
         except FileNotFoundError:
             return None, False
 
@@ -2502,7 +2502,7 @@ def process_setting(args, section, key, value):
 
 def load_defaults_file(fname, options):
     try:
-        f = open(fname, "r")
+        f = open(fname)
     except FileNotFoundError:
         return
 
@@ -2644,7 +2644,7 @@ def find_password(args):
     try:
         require_private_file('mkosi.rootpw', 'root password')
 
-        with open('mkosi.rootpw', 'r', encoding="utf-8") as f:
+        with open('mkosi.rootpw') as f:
             args.password = f.read().strip()
 
     except FileNotFoundError:
