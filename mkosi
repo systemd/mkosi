@@ -1987,6 +1987,9 @@ def calculate_signature(args, checksum):
     return f
 
 def calculate_bmap(args, raw):
+    if not args.bmap:
+        return None
+
     if args.output_format not in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs):
         return None
 
