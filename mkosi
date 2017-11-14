@@ -2609,9 +2609,11 @@ def find_output_dir(args):
         args.output_dir = "mkosi.output"
 
 def require_private_file(name, description):
-    mode = os.stat(name).st_mode & (stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
-    if (mode & stat.S_IRWXU > 0o600) or (mode & (stat.S_IRWXG | stat.S_IRWXO) > 0):
-        die("Permissions of '{}' of '{}' are too open. When creating {} files please make sure to choose an access mode that restricts access to the owner only. Aborting.".format(name, oct(mode), description))
+    mode = os.stat(name).st_mode & 0o777
+    if mode & 0o007:
+        warn("Permissions of '{}' of '{}' are too open.\n" +
+             "When creating {} files use an access mode that restricts access to the owner only.",
+             name, oct(mode), description)
 
 def find_passphrase(args):
 
