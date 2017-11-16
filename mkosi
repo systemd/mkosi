@@ -186,7 +186,7 @@ def copy_file(oldpath, newpath):
         st = os.stat(oldfd)
 
         try:
-            with open_close(newpath, os.O_WRONLY|os.O_CREAT, st.st_mode) as newfd:
+            with open_close(newpath, os.O_WRONLY|os.O_CREAT|os.O_EXCL, st.st_mode) as newfd:
                 _copy_file(oldfd, newfd)
         except FileExistsError:
             os.unlink(newpath)
