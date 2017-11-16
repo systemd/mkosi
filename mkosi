@@ -46,6 +46,9 @@ def die(message, status=1):
     sys.stderr.write(message + "\n")
     sys.exit(status)
 
+def warn(message, *args, **kwargs):
+    sys.stderr.write('WARNING: ' + message.format(*args, **kwargs) + '\n')
+
 class OutputFormat(Enum):
     raw_gpt = 1
     raw_btrfs = 2
@@ -382,7 +385,7 @@ def reuse_cache_image(args, workspace, run_build_script, for_cache):
                        'Copied cached image as {.name}') as output:
 
         try:
-            source = open(fname, "rb")
+            source = open(fname, 'rb')
         except FileNotFoundError:
             return None, False
 
@@ -577,8 +580,8 @@ def luks_setup_all(args, loopdev, run_build_script):
             try:
                 srv = luks_setup_srv(args, loopdev, run_build_script)
 
-                yield (partition(loopdev, args.root_partno) if root is None else root, \
-                       partition(loopdev, args.home_partno) if home is None else home, \
+                yield (partition(loopdev, args.root_partno) if root is None else root,
+                       partition(loopdev, args.home_partno) if home is None else home,
                        partition(loopdev, args.srv_partno) if srv is None else srv)
             finally:
                 luks_close(srv, "Closing LUKS server data partition")
@@ -1264,7 +1267,7 @@ SigLevel    = Required DatabaseOptional
         if kernel_packages and "linux" not in kernel_packages:
             packages.remove("linux")
         if len(kernel_packages) > 1:
-            print('Warning, more than one kernel will be installed: %s' % (' '.join(kernel_packages)))
+            warn('More than one kernel will be installed: {}', ' '.join(kernel_packages))
 
     packages -= {"cryptsetup",
                  "device-mapper",
@@ -1297,8 +1300,8 @@ SigLevel    = Required DatabaseOptional
     cmdline = ["pacstrap",
                "-C", os.path.join(workspace, "pacman.conf"),
                "-d",
-               workspace + "/root"] + \
-               list(packages)
+               workspace + "/root",
+               *packages]
 
     subprocess.run(cmdline, check=True)
 
@@ -1492,7 +1495,7 @@ def find_kernel_file(workspace_root, pattern):
         sys.stderr.write('Error, kernel file %s cannot be used as it is not in the workspace\n' % kernel_file)
         return
     if len(kernel_files) > 1:
-        print('Warning, more than one kernel file found, will use %s' % kernel_file)
+        warn('More than one kernel file found, will use {}', kernel_file)
     return kernel_file
 
 def install_boot_loader_arch(args, workspace):
@@ -1863,7 +1866,7 @@ def install_unified_kernel(args, workspace, run_build_script, for_cache, root_ha
                       "--no-hostonly",
                       "--uefi",
                       "--kver", kver.name,
-                      "--kernel-cmdline", cmdline ]
+                      "--kernel-cmdline", cmdline]
 
             # Temporary fix until dracut includes these in the image anyway
             dracut += ("-i",) + ("/usr/lib/systemd/system/systemd-volatile-root.service",)*2 + \
@@ -2510,7 +2513,7 @@ def process_setting(args, section, key, value):
 
 def load_defaults_file(fname, options):
     try:
-        f = open(fname, "r")
+        f = open(fname)
     except FileNotFoundError:
         return
 
@@ -2617,9 +2620,11 @@ def find_output_dir(args):
         args.output_dir = "mkosi.output"
 
 def require_private_file(name, description):
-    mode = os.stat(name).st_mode & (stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
-    if (mode & stat.S_IRWXU > 0o600) or (mode & (stat.S_IRWXG | stat.S_IRWXO) > 0):
-        die("Permissions of '{}' of '{}' are too open. When creating {} files please make sure to choose an access mode that restricts access to the owner only. Aborting.".format(name, oct(mode), description))
+    mode = os.stat(name).st_mode & 0o777
+    if mode & 0o007:
+        warn("Permissions of '{}' of '{}' are too open.\n" +
+             "When creating {} files use an access mode that restricts access to the owner only.",
+             name, oct(mode), description)
 
 def find_passphrase(args):
 
@@ -2650,7 +2655,7 @@ def find_password(args):
     try:
         require_private_file('mkosi.rootpw', 'root password')
 
-        with open('mkosi.rootpw', 'r', encoding="utf-8") as f:
+        with open('mkosi.rootpw') as f:
             args.password = f.read().strip()
 
     except FileNotFoundError:
@@ -2802,7 +2807,7 @@ def load_args():
         if "/" not in args.output:
             args.output = os.path.join(args.output_dir, args.output)
         else:
-            sys.stderr.write("WARNING: Ignoring configured output directory as output file is a qualified path.\n")
+            warn('Ignoring configured output directory as output file is a qualified path.')
 
     if args.incremental or args.verb == "clean":
         args.cache_pre_dev = args.output + ".cache-pre-dev"
