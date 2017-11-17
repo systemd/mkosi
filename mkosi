@@ -939,6 +939,10 @@ def invoke_dnf(args, workspace, repositories, base_packages, boot_packages, conf
 
 @complete_step('Installing Fedora')
 def install_fedora(args, workspace, run_build_script):
+    if args.release == 'rawhide':
+        last = sorted(FEDORA_KEYS_MAP)[-1]
+        die('Use numerical release for Fedora, not "rawhide"\n' +
+            '(rawhide was {} when this mkosi version was released)'.format(last))
 
     disable_kernel_install(args, workspace)
 
