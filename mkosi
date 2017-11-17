@@ -15,7 +15,7 @@ import pathlib
 import platform
 import shutil
 import stat
-import subprocess
+from subprocess import run, DEVNULL, PIPE
 import sys
 import tempfile
 import urllib.request
@@ -241,7 +241,7 @@ def complete_step(text, text2=None):
 def init_namespace(args):
     args.original_umask = os.umask(0o000)
     unshare(CLONE_NEWNS)
-    subprocess.run(["mount", "--make-rslave", "/"], check=True)
+    run(["mount", "--make-rslave", "/"], check=True)
 
 def setup_workspace(args):
     print_step("Setting up temporary workspace.")
@@ -255,17 +255,17 @@ def setup_workspace(args):
 
 def btrfs_subvol_create(path, mode=0o755):
     m = os.umask(~mode & 0o7777)
-    subprocess.run(["btrfs", "subvol", "create", path], check=True)
+    run(["btrfs", "subvol", "create", path], check=True)
     os.umask(m)
 
 def btrfs_subvol_delete(path):
     # Extract the path of the subvolume relative to the filesystem
-    c = subprocess.run(["btrfs", "subvol", "show", path], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=True)
+    c = run(["btrfs", "subvol", "show", path], stdout=PIPE, stderr=DEVNULL, check=True)
     subvol_path = c.stdout.decode("utf-8").splitlines()[0]
     # Make the subvolume RW again if it was set RO by btrfs_subvol_delete
-    subprocess.run(["btrfs", "property", "set", path, "ro", "false"], check=True)
+    run(["btrfs", "property", "set", path, "ro", "false"], check=True)
     # Recursively delete the direct children of the subvolume
-    c = subprocess.run(["btrfs", "subvol", "list", "-o", path], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=True)
+    c = run(["btrfs", "subvol", "list", "-o", path], stdout=PIPE, stderr=DEVNULL, check=True)
     for line in c.stdout.decode("utf-8").splitlines():
         if not line:
             continue
@@ -276,10 +276,10 @@ def btrfs_subvol_delete(path):
         ))
         btrfs_subvol_delete(child_path)
     # Delete the subvolume now that all its descendants have been deleted
-    subprocess.run(["btrfs", "subvol", "delete", path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+    run(["btrfs", "subvol", "delete", path], stdout=DEVNULL, stderr=DEVNULL, check=True)
 
 def btrfs_subvol_make_ro(path, b=True):
-    subprocess.run(["btrfs", "property", "set", path, "ro", "true" if b else "false"], check=True)
+    run(["btrfs", "property", "set", path, "ro", "true" if b else "false"], check=True)
 
 def image_size(args):
     size = GPT_HEADER_SIZE + GPT_FOOTER_SIZE
@@ -302,7 +302,7 @@ def image_size(args):
 def disable_cow(path):
     """Disable copy-on-write if applicable on filesystem"""
 
-    subprocess.run(["chattr", "+C", path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+    run(["chattr", "+C", path], stdout=DEVNULL, stderr=DEVNULL, check=False)
 
 def determine_partition_table(args):
 
@@ -373,8 +373,8 @@ def create_image(args, workspace, for_cache):
         table, run_sfdisk = determine_partition_table(args)
 
         if run_sfdisk:
-            subprocess.run(["sfdisk", "--color=never", f.name], input=table.encode("utf-8"), check=True)
-            subprocess.run(["sync"])
+            run(["sfdisk", "--color=never", f.name], input=table.encode("utf-8"), check=True)
+            run(["sync"])
 
         args.ran_sfdisk = run_sfdisk
 
@@ -426,8 +426,8 @@ def attach_image_loopback(args, raw):
 
     with complete_step('Attaching image file',
                        'Attached image file as {}') as output:
-        c = subprocess.run(["losetup", "--find", "--show", "--partscan", raw.name],
-                           stdout=subprocess.PIPE, check=True)
+        c = run(["losetup", "--find", "--show", "--partscan", raw.name],
+                stdout=PIPE, check=True)
         loopdev = c.stdout.decode("utf-8").strip()
         output.append(loopdev)
 
@@ -435,7 +435,7 @@ def attach_image_loopback(args, raw):
         yield loopdev
     finally:
         with complete_step('Detaching image file'):
-            subprocess.run(["losetup", "--detach", loopdev], check=True)
+            run(["losetup", "--detach", loopdev], check=True)
 
 def partition(loopdev, partno):
     if partno is None:
@@ -452,8 +452,7 @@ def prepare_swap(args, loopdev, cached):
         return
 
     with complete_step('Formatting swap partition'):
-        subprocess.run(["mkswap", "-Lswap", partition(loopdev, args.swap_partno)],
-                       check=True)
+        run(["mkswap", "-Lswap", partition(loopdev, args.swap_partno)], check=True)
 
 def prepare_esp(args, loopdev, cached):
     if loopdev is None:
@@ -464,23 +463,22 @@ def prepare_esp(args, loopdev, cached):
         return
 
     with complete_step('Formatting ESP partition'):
-        subprocess.run(["mkfs.fat", "-nEFI", "-F32", partition(loopdev, args.esp_partno)],
-                       check=True)
+        run(["mkfs.fat", "-nEFI", "-F32", partition(loopdev, args.esp_partno)], check=True)
 
 def mkfs_ext4(label, mount, dev):
-    subprocess.run(["mkfs.ext4", "-L", label, "-M", mount, dev], check=True)
+    run(["mkfs.ext4", "-L", label, "-M", mount, dev], check=True)
 
 def mkfs_btrfs(label, dev):
-    subprocess.run(["mkfs.btrfs", "-L", label, "-d", "single", "-m", "single", dev], check=True)
+    run(["mkfs.btrfs", "-L", label, "-d", "single", "-m", "single", dev], check=True)
 
 def luks_format(dev, passphrase):
 
     if passphrase['type'] == 'stdin':
         passphrase = (passphrase['content'] + "\n").encode("utf-8")
-        subprocess.run(["cryptsetup", "luksFormat", "--batch-mode", dev], input=passphrase, check=True)
+        run(["cryptsetup", "luksFormat", "--batch-mode", dev], input=passphrase, check=True)
     else:
         assert passphrase['type'] == 'file'
-        subprocess.run(["cryptsetup", "luksFormat", "--batch-mode", dev, passphrase['content']], check=True)
+        run(["cryptsetup", "luksFormat", "--batch-mode", dev, passphrase['content']], check=True)
 
 def luks_open(dev, passphrase):
 
@@ -488,10 +486,10 @@ def luks_open(dev, passphrase):
 
     if passphrase['type'] == 'stdin':
         passphrase = (passphrase['content'] + "\n").encode("utf-8")
-        subprocess.run(["cryptsetup", "open", "--type", "luks", dev, name], input=passphrase, check=True)
+        run(["cryptsetup", "open", "--type", "luks", dev, name], input=passphrase, check=True)
     else:
         assert passphrase['type'] == 'file'
-        subprocess.run(["cryptsetup", "--key-file", passphrase['content'], "open", "--type", "luks", dev, name], check=True)
+        run(["cryptsetup", "--key-file", passphrase['content'], "open", "--type", "luks", dev, name], check=True)
 
     return os.path.join("/dev/mapper", name)
 
@@ -500,7 +498,7 @@ def luks_close(dev, text):
         return
 
     with complete_step(text):
-        subprocess.run(["cryptsetup", "close", dev], check=True)
+        run(["cryptsetup", "close", dev], check=True)
 
 def luks_format_root(args, loopdev, run_build_script, cached, inserting_squashfs=False):
 
@@ -651,16 +649,16 @@ def mount_loop(args, dev, where, read_only=False):
     if read_only:
         options += ",ro"
 
-    subprocess.run(["mount", "-n", dev, where, options], check=True)
+    run(["mount", "-n", dev, where, options], check=True)
 
 def mount_bind(what, where):
     os.makedirs(what, 0o755, True)
     os.makedirs(where, 0o755, True)
-    subprocess.run(["mount", "--bind", what, where], check=True)
+    run(["mount", "--bind", what, where], check=True)
 
 def mount_tmpfs(where):
     os.makedirs(where, 0o755, True)
-    subprocess.run(["mount", "tmpfs", "-t", "tmpfs", where], check=True)
+    run(["mount", "tmpfs", "-t", "tmpfs", where], check=True)
 
 @contextlib.contextmanager
 def mount_image(args, workspace, loopdev, root_dev, home_dev, srv_dev, root_read_only=False):
@@ -756,7 +754,7 @@ def mount_cache(args, workspace):
 
 def umount(where):
     # Ignore failures and error messages
-    subprocess.run(["umount", "-n", where], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    run(["umount", "-n", where], stdout=DEVNULL, stderr=DEVNULL)
 
 @complete_step('Setting up basic OS tree')
 def prepare_tree(args, workspace, run_build_script, cached):
@@ -832,10 +830,10 @@ def fix_hosts_line_in_nsswitch(line):
     return line
 
 def enable_networkd(workspace):
-    subprocess.run(["systemctl",
-                    "--root", os.path.join(workspace, "root"),
-                    "enable", "systemd-networkd", "systemd-resolved"],
-                   check=True)
+    run(["systemctl",
+         "--root", os.path.join(workspace, "root"),
+         "enable", "systemd-networkd", "systemd-resolved"],
+        check=True)
 
     os.remove(os.path.join(workspace, "root", "etc/resolv.conf"))
     os.symlink("../usr/lib/systemd/resolv.conf", os.path.join(workspace, "root", "etc/resolv.conf"))
@@ -852,10 +850,10 @@ DHCP=yes
 """)
 
 def enable_networkmanager(workspace):
-    subprocess.run(["systemctl",
-                    "--root", os.path.join(workspace, "root"),
-                    "enable", "NetworkManager"],
-                   check=True)
+    run(["systemctl",
+         "--root", os.path.join(workspace, "root"),
+         "enable", "NetworkManager"],
+        check=True)
 
 def run_workspace_command(args, workspace, *cmd, network=False, env={}):
 
@@ -877,7 +875,7 @@ def run_workspace_command(args, workspace, *cmd, network=False, env={}):
     cmdline += [ "--setenv={}={}".format(k,v) for k,v in env.items() ]
 
     cmdline += ['--', *cmd]
-    subprocess.run(cmdline, check=True)
+    run(cmdline, check=True)
 
 def check_if_url_exists(url):
     req = urllib.request.Request(url, method="HEAD")
@@ -951,7 +949,7 @@ def invoke_dnf(args, workspace, repositories, base_packages, boot_packages, conf
             cmdline.append("btrfs-progs")
 
     with mount_api_vfs(args, workspace):
-        subprocess.run(cmdline, check=True)
+        run(cmdline, check=True)
 
 @complete_step('Installing Fedora')
 def install_fedora(args, workspace, run_build_script):
@@ -1097,7 +1095,7 @@ def invoke_yum(args, workspace, repositories, base_packages, boot_packages, conf
             cmdline.append("btrfs-progs")
 
     with mount_api_vfs(args, workspace):
-        subprocess.run(cmdline, check=True)
+        run(cmdline, check=True)
 
 def invoke_dnf_or_yum(args, workspace, repositories, base_packages, boot_packages, config_file):
 
@@ -1168,7 +1166,7 @@ def install_debian_or_ubuntu(args, workspace, run_build_script, mirror):
     if args.bootable and args.output_format == OutputFormat.raw_btrfs:
         cmdline[4] += ",btrfs-tools"
 
-    subprocess.run(cmdline, check=True)
+    run(cmdline, check=True)
 
     # Debootstrap is not smart enough to deal correctly with alternative dependencies
     # Installing libpam-systemd via debootstrap results in systemd-shim being installed
@@ -1239,8 +1237,8 @@ def install_arch(args, workspace, run_build_script):
     if platform.machine() == "aarch64":
         keyring += "arm"
 
-    subprocess.run(["pacman-key", "--nocolor", "--init"], check=True)
-    subprocess.run(["pacman-key", "--nocolor", "--populate", keyring], check=True)
+    run(["pacman-key", "--nocolor", "--init"], check=True)
+    run(["pacman-key", "--nocolor", "--populate", keyring], check=True)
 
     if platform.machine() == "aarch64":
         server = "Server = {}/$arch/$repo".format(args.mirror)
@@ -1269,9 +1267,9 @@ SigLevel    = Required DatabaseOptional
 {server}
 """.format(args=args, server=server))
 
-    subprocess.run(["pacman", "--color", "never", "--config", os.path.join(workspace, "pacman.conf"), "-Sy"], check=True)
+    run(["pacman", "--color", "never", "--config", os.path.join(workspace, "pacman.conf"), "-Sy"], check=True)
     # determine base packages list from base metapackage
-    c = subprocess.run(["pacman", "--color", "never", "--config", os.path.join(workspace, "pacman.conf"), "-Sg", "base"], stdout=subprocess.PIPE, universal_newlines=True, check=True)
+    c = run(["pacman", "--color", "never", "--config", os.path.join(workspace, "pacman.conf"), "-Sg", "base"], stdout=PIPE, universal_newlines=True, check=True)
     packages = set(c.stdout.split())
     packages.remove("base")
 
@@ -1325,7 +1323,7 @@ SigLevel    = Required DatabaseOptional
                workspace + "/root",
                *packages]
 
-    subprocess.run(cmdline, check=True)
+    run(cmdline, check=True)
 
     if args.packages and "networkmanager" in args.packages:
         enable_networkmanager(workspace)
@@ -1363,8 +1361,8 @@ def install_opensuse(args, workspace, run_build_script):
     # here to make sure that the package cache stays populated after
     # "zypper install".
     #
-    subprocess.run(["zypper", "--root", root, "addrepo", "-ck", release_url, "Main"], check=True)
-    subprocess.run(["zypper", "--root", root, "addrepo", "-ck", updates_url, "Updates"], check=True)
+    run(["zypper", "--root", root, "addrepo", "-ck", release_url, "Main"], check=True)
+    run(["zypper", "--root", root, "addrepo", "-ck", updates_url, "Updates"], check=True)
 
     if not args.with_docs:
         with open(os.path.join(root, "etc/zypp/zypp.conf"), "w") as f:
@@ -1376,7 +1374,7 @@ def install_opensuse(args, workspace, run_build_script):
     #
     # Install the "minimal" package set.
     #
-    subprocess.run(cmdline + ["-t", "pattern", "minimal_base"], check=True)
+    run(cmdline + ["-t", "pattern", "minimal_base"], check=True)
 
     #
     # Now install the additional packages if necessary.
@@ -1399,14 +1397,14 @@ def install_opensuse(args, workspace, run_build_script):
         extra_packages += args.build_packages
 
     if extra_packages:
-        subprocess.run(cmdline + extra_packages, check=True)
+        run(cmdline + extra_packages, check=True)
 
     #
     # Disable packages caching in the image that was enabled
     # previously to populate the package cache.
     #
-    subprocess.run(["zypper", "--root", root, "modifyrepo", "-K", "Main"], check=True)
-    subprocess.run(["zypper", "--root", root, "modifyrepo", "-K", "Updates"], check=True)
+    run(["zypper", "--root", root, "modifyrepo", "-K", "Main"], check=True)
+    run(["zypper", "--root", root, "modifyrepo", "-K", "Updates"], check=True)
 
     #
     # Tune dracut confs: openSUSE uses an old version of dracut that's
@@ -1572,7 +1570,7 @@ def install_extra_trees(args, workspace, for_cache):
             copy(d, os.path.join(workspace, "root"))
 
 def copy_git_files(src, dest, *, git_files):
-    subprocess.run(['git', 'clone', '--depth=1', '--recursive', '--shallow-submodules', src, dest],
+    run(['git', 'clone', '--depth=1', '--recursive', '--shallow-submodules', src, dest],
                    check=True)
 
     what_files = ['--exclude-standard', '--modified']
@@ -1580,17 +1578,17 @@ def copy_git_files(src, dest, *, git_files):
         what_files += ['--others', '--exclude=.mkosi-*']
 
     # everything that's modified from the tree
-    c = subprocess.run(['git', '-C', src, 'ls-files', '-z'] + what_files,
-                       stdout=subprocess.PIPE,
-                       universal_newlines=False,
-                       check=True)
+    c = run(['git', '-C', src, 'ls-files', '-z'] + what_files,
+            stdout=PIPE,
+            universal_newlines=False,
+            check=True)
     files = {x.decode("utf-8") for x in c.stdout.rstrip(b'\0').split(b'\0')}
 
     # everything that's modified and about to be committed
-    c = subprocess.run(['git', '-C', src, 'diff', '--cached', '--name-only', '-z'],
-                       stdout=subprocess.PIPE,
-                       universal_newlines=False,
-                       check=True)
+    c = run(['git', '-C', src, 'diff', '--cached', '--name-only', '-z'],
+            stdout=PIPE,
+            universal_newlines=False,
+            check=True)
     files |= {x.decode("utf-8") for x in c.stdout.rstrip(b'\0').split(b'\0')}
     files.discard('')
 
@@ -1671,9 +1669,9 @@ def make_tar(args, workspace, run_build_script, for_cache):
 
     with complete_step('Creating archive'):
         f = tempfile.NamedTemporaryFile(dir=os.path.dirname(args.output), prefix=".mkosi-")
-        subprocess.run(["tar", "-C", os.path.join(workspace, "root"),
-                        "-c", "-J", "--xattrs", "--xattrs-include=*", "."],
-                       stdout=f, check=True)
+        run(["tar", "-C", os.path.join(workspace, "root"),
+             "-c", "-J", "--xattrs", "--xattrs-include=*", "."],
+            stdout=f, check=True)
 
     return f
 
@@ -1685,8 +1683,8 @@ def make_squashfs(args, workspace, for_cache):
 
     with complete_step('Creating squashfs file system'):
         f = tempfile.NamedTemporaryFile(dir=os.path.dirname(args.output), prefix=".mkosi-squashfs")
-        subprocess.run(["mksquashfs", os.path.join(workspace, "root"), f.name, "-comp", "lz4", "-noappend"],
-                       check=True)
+        run(["mksquashfs", os.path.join(workspace, "root"), f.name, "-comp", "lz4", "-noappend"],
+            check=True)
 
     return f
 
@@ -1695,7 +1693,7 @@ def read_partition_table(loopdev):
     table = []
     last_sector = 0
 
-    c = subprocess.run(["sfdisk", "--dump", loopdev], stdout=subprocess.PIPE, check=True)
+    c = run(["sfdisk", "--dump", loopdev], stdout=PIPE, check=True)
 
     in_body = False
     for line in c.stdout.decode("utf-8").split('\n'):
@@ -1746,7 +1744,7 @@ def insert_partition(args, workspace, raw, loopdev, partno, blob, name, type_uui
     print_step("Resizing disk image to {}...".format(format_bytes(new_size)))
 
     os.truncate(raw.name, new_size)
-    subprocess.run(["losetup", "--set-capacity", loopdev], check=True)
+    run(["losetup", "--set-capacity", loopdev], check=True)
 
     print_step("Inserting partition of {}...".format(format_bytes(blob_size)))
 
@@ -1762,8 +1760,8 @@ def insert_partition(args, workspace, raw, loopdev, partno, blob, name, type_uui
 
     print(table)
 
-    subprocess.run(["sfdisk", "--color=never", loopdev], input=table.encode("utf-8"), check=True)
-    subprocess.run(["sync"])
+    run(["sfdisk", "--color=never", loopdev], input=table.encode("utf-8"), check=True)
+    run(["sync"])
 
     print_step("Writing partition...")
 
@@ -1774,7 +1772,7 @@ def insert_partition(args, workspace, raw, loopdev, partno, blob, name, type_uui
         dev = None
 
     try:
-        subprocess.run(["dd", "if=" + blob.name, "of=" + (dev if dev is not None else partition(loopdev, partno))], check=True)
+        run(["dd", "if=" + blob.name, "of=" + (dev if dev is not None else partition(loopdev, partno))], check=True)
     finally:
         luks_close(dev, "Closing LUKS root partition")
 
@@ -1801,8 +1799,7 @@ def make_verity(args, workspace, dev, run_build_script, for_cache):
 
     with complete_step('Generating verity hashes'):
         f = tempfile.NamedTemporaryFile(dir=os.path.dirname(args.output), prefix=".mkosi-")
-        c = subprocess.run(["veritysetup", "format", dev, f.name],
-                           stdout=subprocess.PIPE, check=True)
+        c = run(["veritysetup", "format", dev, f.name], stdout=PIPE, check=True)
 
         for line in c.stdout.decode("utf-8").split('\n'):
             if line.startswith("Root hash:"):
@@ -1836,8 +1833,8 @@ def patch_root_uuid(args, loopdev, root_hash, for_cache):
     u = uuid.UUID(root_hash[:32])
 
     with complete_step('Patching root partition UUID'):
-        subprocess.run(["sfdisk", "--part-uuid", loopdev, str(args.root_partno), str(u)],
-                       check=True)
+        run(["sfdisk", "--part-uuid", loopdev, str(args.root_partno), str(u)],
+            check=True)
 
 def install_unified_kernel(args, workspace, run_build_script, for_cache, root_hash):
 
@@ -1924,11 +1921,12 @@ def secure_boot_sign(args, workspace, run_build_script, for_cache):
             with complete_step("Signing EFI binary {} in ESP".format(i)):
                 p = os.path.join(path, i)
 
-                subprocess.run(["sbsign",
-                                "--key", args.secure_boot_key,
-                                "--cert", args.secure_boot_certificate,
-                                "--output", p + ".signed",
-                                p], check=True)
+                run(["sbsign",
+                     "--key", args.secure_boot_key,
+                     "--cert", args.secure_boot_certificate,
+                     "--output", p + ".signed",
+                     p],
+                    check=True)
 
                 os.rename(p + ".signed", p)
 
@@ -1941,7 +1939,7 @@ def xz_output(args, raw):
 
     with complete_step('Compressing image file'):
         f = tempfile.NamedTemporaryFile(prefix=".mkosi-", dir=os.path.dirname(args.output))
-        subprocess.run(["xz", "-c", raw.name], stdout=f, check=True)
+        run(["xz", "-c", raw.name], stdout=f, check=True)
 
     return f
 
@@ -2020,7 +2018,7 @@ def calculate_signature(args, checksum):
             cmdline += ["--default-key", args.key]
 
         checksum.seek(0)
-        subprocess.run(cmdline, stdin=checksum, stdout=f, check=True)
+        run(cmdline, stdin=checksum, stdout=f, check=True)
 
     return f
 
@@ -2036,7 +2034,7 @@ def calculate_bmap(args, raw):
                                         dir=os.path.dirname(args.output_bmap))
 
         cmdline = ["bmaptool", "create", raw.name]
-        subprocess.run(cmdline, stdout=f, check=True)
+        run(cmdline, stdout=f, check=True)
 
     return f
 
@@ -3204,7 +3202,7 @@ def run_build_script(args, workspace, raw):
             cmdline.append("--private-network")
 
         cmdline.append("/root/" + os.path.basename(args.build_script))
-        subprocess.run(cmdline, check=True)
+        run(cmdline, check=True)
 
 def need_cache_images(args):
 
