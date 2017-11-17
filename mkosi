@@ -3181,7 +3181,10 @@ def run_build_script(args, workspace, raw):
             cmdline.append("--setenv=BUILDDIR=/root/build")
             cmdline.append("--bind=" + args.build_dir + ":/root/build")
 
-        if not args.with_network:
+        if args.with_network:
+            # If we're using the host network namespace, use the same resolver
+            cmdline.append("--bind-ro=/etc/resolv.conf")
+        else:
             cmdline.append("--private-network")
 
         cmdline.append("/root/" + os.path.basename(args.build_script))
