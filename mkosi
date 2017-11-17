@@ -210,7 +210,7 @@ def copy(oldpath, newpath):
         mkdir_last(newpath)
     except FileExistsError:
         # something that is not a directory already exists
-        os.unlink(path)
+        os.unlink(newpath)
         mkdir_last(newpath)
 
     for entry in os.scandir(oldpath):
