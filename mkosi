@@ -193,6 +193,7 @@ def copy_file(oldpath, newpath):
             os.unlink(newpath)
             with open_close(newpath, os.O_WRONLY|os.O_CREAT, st.st_mode) as newfd:
                 _copy_file(oldfd, newfd)
+    shutil.copystat(oldpath, newpath, follow_symlinks=False)
 
 def symlink_f(target, path):
     try:
@@ -219,6 +220,7 @@ def copy(oldpath, newpath):
         elif entry.is_symlink():
             target = os.readlink(entry.path)
             symlink_f(target, newentry)
+            shutil.copystat(entry.path, newentry, follow_symlinks=False)
         else:
             st = entry.stat(follow_symlinks=False)
             if stat.S_ISREG(st.st_mode):
@@ -226,7 +228,7 @@ def copy(oldpath, newpath):
             else:
                 print('Ignoring', entry.path)
                 continue
-        shutil.copystat(entry.path, newentry, follow_symlinks=False)
+    shutil.copystat(oldpath, newpath, follow_symlinks=True)
 
 @contextlib.contextmanager
 def complete_step(text, text2=None):
