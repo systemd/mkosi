@@ -3297,13 +3297,7 @@ def run_shell(args):
     if args.cmdline:
         cmdline += ('--', *args.cmdline)
 
-    try:
-        subprocess.run(cmdline, check=True)
-    except subprocess.CalledProcessError as e:
-        if e.returncode >= 0:
-            sys.exit(e.returncode)
-
-        sys.exit(255)
+    os.execvp(cmdline[0], cmdline)
 
 def main():
     args = load_args()
