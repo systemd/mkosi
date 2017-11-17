@@ -93,10 +93,12 @@ else:
 CLONE_NEWNS = 0x00020000
 
 FEDORA_KEYS_MAP = {
-    "23": "34EC9CBA",
-    "24": "81B46521",
-    "25": "FDB19C98",
-    "26": "64DAB85D",
+    '23': '34EC9CBA',
+    '24': '81B46521',
+    '25': 'FDB19C98',
+    '26': '64DAB85D',
+    '27': 'F5282EE4',
+    '28': '9DB62FB1',
 }
 
 # 1 MB at the beginning of the disk for the GPT disk label, and
@@ -937,6 +939,10 @@ def invoke_dnf(args, workspace, repositories, base_packages, boot_packages, conf
 
 @complete_step('Installing Fedora')
 def install_fedora(args, workspace, run_build_script):
+    if args.release == 'rawhide':
+        last = sorted(FEDORA_KEYS_MAP)[-1]
+        die('Use numerical release for Fedora, not "rawhide"\n' +
+            '(rawhide was {} when this mkosi version was released)'.format(last))
 
     disable_kernel_install(args, workspace)
 
