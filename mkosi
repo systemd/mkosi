@@ -260,13 +260,15 @@ def btrfs_subvol_create(path, mode=0o755):
 
 def btrfs_subvol_delete(path):
     # Extract the path of the subvolume relative to the filesystem
-    c = run(["btrfs", "subvol", "show", path], stdout=PIPE, stderr=DEVNULL, check=True)
-    subvol_path = c.stdout.decode("utf-8").splitlines()[0]
+    c = run(["btrfs", "subvol", "show", path],
+            stdout=PIPE, stderr=DEVNULL, universal_newlines=True, check=True)
+    subvol_path = c.stdout.splitlines()[0]
     # Make the subvolume RW again if it was set RO by btrfs_subvol_delete
     run(["btrfs", "property", "set", path, "ro", "false"], check=True)
     # Recursively delete the direct children of the subvolume
-    c = run(["btrfs", "subvol", "list", "-o", path], stdout=PIPE, stderr=DEVNULL, check=True)
-    for line in c.stdout.decode("utf-8").splitlines():
+    c = run(["btrfs", "subvol", "list", "-o", path],
+            stdout=PIPE, stderr=DEVNULL, universal_newlines=True, check=True)
+    for line in c.stdout.splitlines():
         if not line:
             continue
         child_subvol_path = line.split(" ", 8)[-1]
@@ -1571,7 +1573,7 @@ def install_extra_trees(args, workspace, for_cache):
 
 def copy_git_files(src, dest, *, git_files):
     run(['git', 'clone', '--depth=1', '--recursive', '--shallow-submodules', src, dest],
-                   check=True)
+        check=True)
 
     what_files = ['--exclude-standard', '--modified']
     if git_files == 'others':
