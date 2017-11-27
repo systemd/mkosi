@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: LGPL-2.1+
 
 if [ x"$1" == x ] ; then
     echo "Version number not specified."
