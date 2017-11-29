@@ -183,6 +183,14 @@ def copy_fd(oldfd, newfd):
         shutil.copyfileobj(open(oldfd, 'rb', closefd=False),
                            open(newfd, 'wb', closefd=False))
 
+def copy_file_object(oldobject, newobject):
+    try:
+        _reflink(oldobject.fileno(), newobject.fileno())
+    except OSError as e:
+        if e.errno not in {errno.EXDEV, errno.EOPNOTSUPP}:
+            raise
+        shutil.copyfileobj(oldobject, newobject)
+
 def copy_file(oldpath, newpath):
     with open_close(oldpath, os.O_RDONLY) as oldfd:
         st = os.stat(oldfd)
@@ -415,8 +423,17 @@ def reuse_cache_image(args, workspace, run_build_script, for_cache):
         with source:
             f = tempfile.NamedTemporaryFile(dir = os.path.dirname(args.output), prefix='.mkosi-')
             output.append(f)
+
+            # So on one hand we want CoW off, since this stuff will
+            # have a lot of random write accesses. On the other we
+            # want the copy to be snappy, hence we do want CoW. Let's
+            # ask for both, and let the kernel figure things out:
+            # let's turn off CoW on the file, but start with a CoW
+            # copy. On btrfs that works: the initial copy is made as
+            # CoW but later changes do not result in CoW anymore.
+
             disable_cow(f.name)
-            shutil.copyfileobj(source, f)
+            copy_file_object(source, f)
 
         table, run_sfdisk = determine_partition_table(args)
         args.ran_sfdisk = run_sfdisk
