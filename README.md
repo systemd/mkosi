@@ -372,3 +372,8 @@ in a COPR repository:
 dnf copr enable msekleta/sbsigntool
 dnf install sbsigntool
 ```
+# References
+
+* [Primary mkosi git repository on GitHub](https://github.com/systemd/mkosi/)
+* [mkosi — A Tool for Generating OS Images](http://0pointer.net/blog/mkosi-a-tool-for-generating-os-images.html) indroductory blog post by Lennart Poettering
+* [The mkosi OS generation tool](https://lwn.net/Articles/726655/) story on LWN
