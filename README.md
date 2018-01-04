@@ -153,17 +153,22 @@ they exist in the local directory:
   and the argument gets converted as follows: "--with-network" becomes
   "WithNetwork=yes".
 
-* `mkosi.extra/` may be a directory. If this exists all files
-  contained in it are copied over the directory tree of the
-  image after the *OS* was installed. This may be used to add in
-  additional files to an image, on top of what the
-  distribution includes in its packages.
+* `mkosi.extra/` or `mkosi.extra.tar` may be respectively a directory
+  or archive. If any exist all files contained in it are copied over the
+  directory tree of the image after the *OS* was installed. This may be used to
+  add in additional files to an image, on top of what the distribution includes
+  in its packages. When using a directory file ownership is not preserved:
+  all files copied will be owned by root. To preserve ownership use a tar
+  archive.
 
-* `mkosi.skeleton/` may be a directory and works in the same way as
-  `mkosi.extra`, but the files are copied before anything else so to
-  have a skeleton tree for the OS. This allows to change the package
-  manager and create files that need to be there before anythin is
-  installed.
+* `mkosi.skeleton/` or `mkosi.skeleton.tar` may be respectively a directory
+  or archive, and they work in the same way as
+  `mkosi.extra`/`mkosi.skeleton.tar`. However the files are copied before
+  anything else so to have a skeleton tree for the OS. This allows to change
+  the package manager and create files that need to be there before anything is
+  installed. When using a directory file ownership is not preserved:
+  all files copied will be owned by root. To preserve ownership use a tar
+  archive.
 
 * `mkosi.build` may be an executable script. If it exists the image
   will be built twice: the first iteration will be the *development*

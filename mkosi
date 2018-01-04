@@ -1567,7 +1567,10 @@ def install_extra_trees(args, workspace, for_cache):
 
     with complete_step('Copying in extra file trees'):
         for d in args.extra_trees:
-            copy(d, os.path.join(workspace, "root"))
+            if os.path.isdir(d):
+                copy(d, os.path.join(workspace, "root"))
+            else:
+                shutil.unpack_archive(d, os.path.join(workspace, "root"))
 
 def install_skeleton_trees(args, workspace, for_cache):
     if not args.skeleton_trees:
@@ -1575,7 +1578,10 @@ def install_skeleton_trees(args, workspace, for_cache):
 
     with complete_step('Copying in skeleton file trees'):
         for d in args.skeleton_trees:
-            copy(d, os.path.join(workspace, "root"))
+            if os.path.isdir(d):
+                copy(d, os.path.join(workspace, "root"))
+            else:
+                shutil.unpack_archive(d, os.path.join(workspace, "root"))
 
 def copy_git_files(src, dest, *, git_files):
     run(['git', 'clone', '--depth=1', '--recursive', '--shallow-submodules', src, dest],
@@ -2595,10 +2601,14 @@ def find_nspawn_settings(args):
 def find_extra(args):
     if os.path.isdir("mkosi.extra"):
         args.extra_trees.append("mkosi.extra")
+    if os.path.isfile("mkosi.extra.tar"):
+        args.extra_trees.append("mkosi.extra.tar")
 
 def find_skeleton(args):
     if os.path.isdir("mkosi.skeleton"):
         args.skeleton_trees.append("mkosi.skeleton")
+    if os.path.isfile("mkosi.skeleton.tar"):
+        args.skeleton_trees.append("mkosi.skeleton.tar")
 
 def find_cache(args):
 
