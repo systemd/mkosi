@@ -934,10 +934,9 @@ def invoke_dnf(args, workspace, repositories, base_packages, boot_packages, conf
                *base_packages
                ])
 
-    if args.packages is not None:
-        cmdline.extend(args.packages)
+    cmdline.extend(args.packages)
 
-    if run_build_script and args.build_packages is not None:
+    if run_build_script:
         cmdline.extend(args.build_packages)
 
     if args.bootable:
@@ -1080,10 +1079,9 @@ def invoke_yum(args, workspace, repositories, base_packages, boot_packages, conf
                *base_packages
                ])
 
-    if args.packages is not None:
-        cmdline.extend(args.packages)
+    cmdline.extend(args.packages)
 
-    if run_build_script and args.build_packages is not None:
+    if run_build_script:
         cmdline.extend(args.build_packages)
 
     if args.bootable:
@@ -1180,11 +1178,10 @@ def install_debian_or_ubuntu(args, workspace, run_build_script, mirror):
 
     # Also install extra packages via the secondary APT run, because it is smarter and
     # can deal better with any conflicts
-    if args.packages is not None:
-        extra_packages += args.packages
+    extra_packages.extend(args.packages)
 
-    if run_build_script and args.build_packages is not None:
-        extra_packages += args.build_packages
+    if run_build_script:
+        extra_packages.extend(args.build_packages)
 
     # Work around debian bug #835628
     os.makedirs(os.path.join(workspace, "root/etc/dracut.conf.d"), exist_ok=True)
@@ -1286,7 +1283,7 @@ SigLevel    = Required DatabaseOptional
     ]
 
     kernel_packages = {"linux"}
-    if args.packages is not None:
+    if args.packages:
         kernel_packages = set.intersection(set(args.packages), set(official_kernel_packages))
         # prefer user-specified packages over implicit base kernel
         if kernel_packages and "linux" not in kernel_packages:
@@ -1316,10 +1313,9 @@ SigLevel    = Required DatabaseOptional
     else:
         packages -= kernel_packages
 
-    if args.packages is not None:
-        packages |= set(args.packages)
+    packages |= set(args.packages)
 
-    if run_build_script and args.build_packages is not None:
+    if run_build_script:
         packages |= set(args.build_packages)
 
     cmdline = ["pacstrap",
@@ -1330,7 +1326,7 @@ SigLevel    = Required DatabaseOptional
 
     run(cmdline, check=True)
 
-    if args.packages and "networkmanager" in args.packages:
+    if "networkmanager" in args.packages:
         enable_networkmanager(workspace)
     else:
         enable_networkd(workspace)
@@ -1395,11 +1391,10 @@ def install_opensuse(args, workspace, run_build_script):
     if args.output_format in (OutputFormat.subvolume, OutputFormat.raw_btrfs):
         extra_packages += ["btrfsprogs"]
 
-    if args.packages:
-        extra_packages += args.packages
+    extra_packages.extend(args.packages)
 
-    if run_build_script and args.build_packages is not None:
-        extra_packages += args.build_packages
+    if run_build_script:
+        extra_packages.extend(args.build_packages)
 
     if extra_packages:
         run(cmdline + extra_packages, check=True)
@@ -1564,7 +1559,7 @@ def install_boot_loader(args, workspace, cached):
             install_boot_loader_opensuse(args, workspace)
 
 def install_extra_trees(args, workspace, for_cache):
-    if args.extra_trees is None:
+    if not args.extra_trees:
         return
 
     if for_cache:
@@ -1575,7 +1570,7 @@ def install_extra_trees(args, workspace, for_cache):
             copy(d, os.path.join(workspace, "root"))
 
 def install_skeleton_trees(args, workspace, for_cache):
-    if args.skeleton_trees is None:
+    if not args.skeleton_trees:
         return
 
     with complete_step('Copying in skeleton file trees'):
@@ -2197,16 +2192,16 @@ def parse_args():
     group.add_argument('-i', "--incremental", action='store_true', help='Make use of and generate intermediary cache images')
 
     group = parser.add_argument_group("Packages")
-    group.add_argument('-p', "--package", action=PackageAction, dest='packages', help='Add an additional package to the OS image', metavar='PACKAGE')
+    group.add_argument('-p', "--package", action=PackageAction, dest='packages', default=[], help='Add an additional package to the OS image', metavar='PACKAGE')
     group.add_argument("--with-docs", action='store_true', help='Install documentation (only Fedora, CentOS and Mageia)')
     group.add_argument('-T', "--without-tests", action='store_false', dest='with_tests', default=True, help='Do not run tests as part of build script, if supported')
     group.add_argument("--cache", dest='cache_path', help='Package cache path', metavar='PATH')
-    group.add_argument("--extra-tree", action='append', dest='extra_trees', help='Copy an extra tree on top of image', metavar='PATH')
-    group.add_argument("--skeleton-tree", action='append', dest='skeleton_trees', help='Use a skeleton tree to bootstrap the image before installing anything', metavar='PATH')
+    group.add_argument("--extra-tree", action='append', dest='extra_trees', default=[], help='Copy an extra tree on top of image', metavar='PATH')
+    group.add_argument("--skeleton-tree", action='append', dest='skeleton_trees', default=[], help='Use a skeleton tree to bootstrap the image before installing anything', metavar='PATH')
     group.add_argument("--build-script", help='Build script to run inside image', metavar='PATH')
     group.add_argument("--build-sources", help='Path for sources to build', metavar='PATH')
     group.add_argument("--build-dir", help='Path to use as persistent build directory', metavar='PATH')
-    group.add_argument("--build-package", action=PackageAction, dest='build_packages', help='Additional packages needed for build script', metavar='PACKAGE')
+    group.add_argument("--build-package", action=PackageAction, dest='build_packages', default=[], help='Additional packages needed for build script', metavar='PACKAGE')
     group.add_argument("--postinst-script", help='Post installation script to run inside image', metavar='PATH')
     group.add_argument('--use-git-files', type=parse_boolean,
                        help='Ignore any files that git itself ignores (default: guess)')
@@ -2456,10 +2451,7 @@ def process_setting(args, section, key, value):
     elif section == "Packages":
         if key == "Packages":
             list_value = value if type(value) == list else value.split()
-            if args.packages is None:
-                args.packages = list_value
-            else:
-                args.packages.extend(list_value)
+            args.packages.extend(list_value)
         elif key == "WithDocs":
             if not args.with_docs:
                 args.with_docs = parse_boolean(value)
@@ -2471,16 +2463,10 @@ def process_setting(args, section, key, value):
                 args.cache_path = value
         elif key == "ExtraTrees":
             list_value = value if type(value) == list else value.split()
-            if args.extra_trees is None:
-                args.extra_trees = list_value
-            else:
-                args.extra_trees.extend(list_value)
+            args.extra_trees.extend(list_value)
         elif key == "SkeletonTrees":
             list_value = value if type(value) == list else value.split()
-            if args.skeleton_trees is None:
-                args.skeleton_trees = list_value
-            else:
-                args.skeleton_trees.extend(list_value)
+            args.skeleton_trees.extend(list_value)
         elif key == "BuildScript":
             if args.build_script is None:
                 args.build_script = value
@@ -2492,10 +2478,7 @@ def process_setting(args, section, key, value):
                 args.build_dir = value
         elif key == "BuildPackages":
             list_value = value if type(value) == list else value.split()
-            if args.build_packages is None:
-                args.build_packages = list_value
-            else:
-                args.build_packages.extend(list_value)
+            args.build_packages.extend(list_value)
         elif key == "PostInstallationScript":
             if args.postinst_script is None:
                 args.postinst_script = value
@@ -2611,17 +2594,11 @@ def find_nspawn_settings(args):
 
 def find_extra(args):
     if os.path.exists("mkosi.extra"):
-        if args.extra_trees is None:
-            args.extra_trees = ["mkosi.extra"]
-        else:
-            args.extra_trees.append("mkosi.extra")
+        args.extra_trees.append("mkosi.extra")
 
 def find_skeleton(args):
     if os.path.exists("mkosi.skeleton"):
-        if args.skeleton_trees is None:
-            args.skeleton_trees = ["mkosi.skeleton"]
-        else:
-            args.skeleton_trees.append("mkosi.skeleton")
+        args.skeleton_trees.append("mkosi.skeleton")
 
 def find_cache(args):
 
@@ -2908,7 +2885,7 @@ def load_args():
     if args.cache_path is not None:
         args.cache_path = os.path.abspath(args.cache_path)
 
-    if args.extra_trees is not None:
+    if args.extra_trees:
         for i in range(len(args.extra_trees)):
             args.extra_trees[i] = os.path.abspath(args.extra_trees[i])
 
@@ -2998,7 +2975,7 @@ def none_to_none(s):
 
 def line_join_list(l):
 
-    if l is None:
+    if not l:
         return "none"
 
     return "\n                        ".join(l)
