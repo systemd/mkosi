@@ -890,7 +890,10 @@ def check_if_url_exists(url):
     except:
         return False
 
+kernel_install_files = ()
+
 def disable_kernel_install(args, workspace):
+    global kernel_install_files
 
     # Let's disable the automatic kernel installation done by the
     # kernel RPMs. After all, we want to built our own unified kernels
@@ -905,8 +908,21 @@ def disable_kernel_install(args, workspace):
     for d in ("etc", "etc/kernel", "etc/kernel/install.d"):
         mkdir_last(os.path.join(workspace, "root", d), 0o755)
 
-    for f in ("50-dracut.install", "51-dracut-rescue.install", "90-loaderentry.install"):
+    kernel_install_files = ("50-dracut.install", "51-dracut-rescue.install", "90-loaderentry.install")
+
+    for f in kernel_install_files:
         os.symlink("/dev/null", os.path.join(workspace, "root", "etc/kernel/install.d", f))
+
+def reenable_kernel_install(args, workspace):
+
+    # Undo disable_kernel_install() so the final image can be used with
+    # scripts installing a kernel following the Bootloader Spec
+
+    if not args.bootable:
+        return
+
+    for f in kernel_install_files:
+        os.unlink(os.path.join(workspace, "root", "etc/kernel/install.d", f))
 
 def invoke_dnf(args, workspace, repositories, base_packages, boot_packages, config_file):
 
@@ -3138,6 +3154,7 @@ def build_image(args, workspace, run_build_script, for_cache=False):
                     install_build_src(args, workspace.name, run_build_script, for_cache)
                     install_build_dest(args, workspace.name, run_build_script, for_cache)
                     set_root_password(args, workspace.name, run_build_script, for_cache)
+                    reenable_kernel_install(args, workspace.name)
                     run_postinst_script(args, workspace.name, run_build_script, for_cache)
 
                 reset_machine_id(args, workspace.name, run_build_script, for_cache)
