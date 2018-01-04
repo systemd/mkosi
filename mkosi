@@ -2593,11 +2593,11 @@ def find_nspawn_settings(args):
         args.nspawn_settings = "mkosi.nspawn"
 
 def find_extra(args):
-    if os.path.exists("mkosi.extra"):
+    if os.path.isdir("mkosi.extra"):
         args.extra_trees.append("mkosi.extra")
 
 def find_skeleton(args):
-    if os.path.exists("mkosi.skeleton"):
+    if os.path.isdir("mkosi.skeleton"):
         args.skeleton_trees.append("mkosi.skeleton")
 
 def find_cache(args):
