@@ -174,7 +174,7 @@ def open_close(path, flags, mode=0o664):
 def _reflink(oldfd, newfd):
     fcntl.ioctl(newfd, FICLONE, oldfd)
 
-def _copy_file(oldfd, newfd):
+def copy_fd(oldfd, newfd):
     try:
         _reflink(oldfd, newfd)
     except OSError as e:
@@ -183,17 +183,25 @@ def _copy_file(oldfd, newfd):
         shutil.copyfileobj(open(oldfd, 'rb', closefd=False),
                            open(newfd, 'wb', closefd=False))
 
+def copy_file_object(oldobject, newobject):
+    try:
+        _reflink(oldobject.fileno(), newobject.fileno())
+    except OSError as e:
+        if e.errno not in {errno.EXDEV, errno.EOPNOTSUPP}:
+            raise
+        shutil.copyfileobj(oldobject, newobject)
+
 def copy_file(oldpath, newpath):
     with open_close(oldpath, os.O_RDONLY) as oldfd:
         st = os.stat(oldfd)
 
         try:
             with open_close(newpath, os.O_WRONLY|os.O_CREAT|os.O_EXCL, st.st_mode) as newfd:
-                _copy_file(oldfd, newfd)
+                copy_fd(oldfd, newfd)
         except FileExistsError:
             os.unlink(newpath)
             with open_close(newpath, os.O_WRONLY|os.O_CREAT, st.st_mode) as newfd:
-                _copy_file(oldfd, newfd)
+                copy_fd(oldfd, newfd)
     shutil.copystat(oldpath, newpath, follow_symlinks=False)
 
 def symlink_f(target, path):
@@ -415,8 +423,17 @@ def reuse_cache_image(args, workspace, run_build_script, for_cache):
         with source:
             f = tempfile.NamedTemporaryFile(dir = os.path.dirname(args.output), prefix='.mkosi-')
             output.append(f)
+
+            # So on one hand we want CoW off, since this stuff will
+            # have a lot of random write accesses. On the other we
+            # want the copy to be snappy, hence we do want CoW. Let's
+            # ask for both, and let the kernel figure things out:
+            # let's turn off CoW on the file, but start with a CoW
+            # copy. On btrfs that works: the initial copy is made as
+            # CoW but later changes do not result in CoW anymore.
+
             disable_cow(f.name)
-            shutil.copyfileobj(source, f)
+            copy_file_object(source, f)
 
         table, run_sfdisk = determine_partition_table(args)
         args.ran_sfdisk = run_sfdisk
