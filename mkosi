@@ -3413,7 +3413,7 @@ def run_qemu(args):
 def main():
     args = load_args()
 
-    if args.verb in ("build", "clean", "shell", "boot", "qemu"):
+    if args.verb in ("build", "clean", "shell", "boot"):
         check_root()
         unlink_output(args)
 
