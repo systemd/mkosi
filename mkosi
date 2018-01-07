@@ -3384,7 +3384,8 @@ def run_shell(args):
 def run_qemu(args):
 
     # Look for the right qemu command line to use
-    ARCH_BINARIES = { 'x86_64' : 'qemu-system-x86_64' }
+    ARCH_BINARIES = { 'x86_64' : 'qemu-system-x86_64',
+                      'i386'   : 'qemu-system-i386'}
     arch_binary = ARCH_BINARIES.get(platform.machine(), None)
     for cmdline in ([arch_binary, '-machine', 'accel=kvm'],
                     ['qemu', '-machine', 'accel=kvm'],
@@ -3396,7 +3397,12 @@ def run_qemu(args):
         die("Couldn't find QEMU/KVM binary")
 
     # Look for UEFI firmware blob
-    for firmware in ('/usr/share/edk2/ovmf/OVMF_CODE.fd',):
+    FIRMWARE_LOCATIONS = ['/usr/share/edk2/ovmf/OVMF_CODE.fd']
+    if platform.machine() == 'x86_64':
+        FIRMWARE_LOCATIONS.append('/usr/share/ovmf/ovmf_code_x64.bin')
+    elif platform.machine() == 'i386':
+        FIRMWARE_LOCATIONS.append('/usr/share/ovmf/ovmf_code_ia32.bin')
+    for firmware in FIRMWARE_LOCATIONS:
         if os.path.exists(firmware):
             break
     else:
