@@ -1394,53 +1394,60 @@ SigLevel    = Required DatabaseOptional
 
     run_pacman(["-Sy"])
     # determine base packages list from base group
-    c = run_pacman(["-Sg", "base"], stdout=PIPE, universal_newlines=True)
+    c = run_pacman(["-Sqg", "base"], stdout=PIPE, universal_newlines=True)
     packages = set(c.stdout.split())
-    packages.remove("base")
+    packages -= {
+        "cryptsetup",
+        "device-mapper",
+        "dhcpcd",
+        "e2fsprogs",
+        "jfsutils",
+        "linux",
+        "lvm2",
+        "man-db",
+        "man-pages",
+        "mdadm",
+        "netctl",
+        "pcmciautils",
+        "reiserfsprogs",
+        "xfsprogs",
+    }
 
-    official_kernel_packages = [
+    official_kernel_packages = {
         "linux",
         "linux-lts",
         "linux-hardened",
-        "linux-zen"
-    ]
-
-    kernel_packages = {"linux"}
-    if args.packages:
-        kernel_packages = set.intersection(set(args.packages), set(official_kernel_packages))
-        # prefer user-specified packages over implicit base kernel
-        if kernel_packages and "linux" not in kernel_packages:
-            packages.remove("linux")
-        if len(kernel_packages) > 1:
-            warn('More than one kernel will be installed: {}', ' '.join(kernel_packages))
-
-    packages -= {"device-mapper",
-                 "dhcpcd",
-                 "e2fsprogs",
-                 "jfsutils",
-                 "lvm2",
-                 "man-db",
-                 "man-pages",
-                 "mdadm",
-                 "netctl",
-                 "pcmciautils",
-                 "reiserfsprogs",
-                 "xfsprogs"}
+        "linux-zen",
+    }
+    kernel_packages = official_kernel_packages.intersection(args.packages)
+    packages |= kernel_packages
+    if len(kernel_packages) > 1:
+        warn('More than one kernel will be installed: {}', ' '.join(kernel_packages))
 
     if args.bootable:
         if args.output_format == OutputFormat.raw_gpt:
             packages.add("e2fsprogs")
         elif args.output_format == OutputFormat.raw_btrfs:
             packages.add("btrfs-progs")
-    else:
-        packages -= kernel_packages
+        if args.encrypt:
+            packages.add("cryptsetup")
+            packages.add("device-mapper")
+        if not kernel_packages:
+            # No user-specified kernel
+            packages.add("linux")
 
-    packages |= set(args.packages)
-
-    if run_build_script:
-        packages |= set(args.build_packages)
-
+    # Set up system with packages from the base group
     run_pacstrap(packages)
+
+    # Install the user-specified packages
+    packages = set(args.packages)
+    if run_build_script:
+        packages.update(args.build_packages)
+    # Remove already installed packages
+    c = run_pacman(['-Qq'], stdout=PIPE, universal_newlines=True)
+    packages.difference_update(c.stdout.split())
+    if packages:
+        run_pacstrap(packages)
 
     # Kill the gpg-agent used by pacman and pacman-key
     run(['gpg-connect-agent', '--homedir', os.path.join(root, 'etc/pacman.d/gnupg'), 'KILLAGENT', '/bye'])
