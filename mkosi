@@ -23,6 +23,7 @@ import sys
 import tempfile
 import urllib.request
 import uuid
+import weakref
 
 try:
     import argcomplete
@@ -268,12 +269,26 @@ def init_namespace(args):
 def setup_workspace(args):
     print_step("Setting up temporary workspace.")
     if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
-        d = tempfile.TemporaryDirectory(dir=os.path.dirname(args.output), prefix='.mkosi-')
+        d = Workspace(dir=os.path.dirname(args.output), prefix='.mkosi-')
     else:
-        d = tempfile.TemporaryDirectory(dir='/var/tmp', prefix='mkosi-')
+        d = Workspace(dir='/var/tmp', prefix='mkosi-')
 
     print_step("Temporary workspace in " + d.name + " is now set up.")
     return d
+
+class Workspace(object):
+    def __init__(self, suffix=None, prefix=None, dir=None):
+        self._tempdir = tempfile.TemporaryDirectory(suffix=suffix, prefix=prefix, dir=dir)
+        weakref.finalize(self, self._cleanup, self._tempdir)
+
+    @property
+    def name(self):
+        return self._tempdir.name
+
+    @staticmethod
+    def _cleanup(tempdir):
+        empty_directory(tempdir.name)
+        tempdir.cleanup()
 
 def btrfs_subvol_create(path, mode=0o755):
     m = os.umask(~mode & 0o7777)
