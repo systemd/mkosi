@@ -774,6 +774,24 @@ def mount_cache(args, workspace):
             for d in ("var/cache/dnf", "var/cache/yum", "var/cache/apt/archives", "var/cache/pacman/pkg", "var/cache/zypp/packages"):
                 umount(os.path.join(workspace, "root", d))
 
+# Create a root mountpoint, otherwise sub mountpoints (cache, ...) will be hidden
+# when pacstrap creates the root mount point
+def mount_root(args, workspace):
+    #if args.distribution != Distribution.arch:
+    #    return
+    if args.output_format not in (OutputFormat.directory, OutputFormat.subvolume, OutputFormat.tar):
+        return
+    mount_bind(os.path.join(workspace, "root"), os.path.join(workspace, "root"))
+
+def umount_root(args, workspace, delete=False):
+    #if args.distribution != Distribution.arch:
+    #    return
+    if args.output_format not in (OutputFormat.directory, OutputFormat.subvolume, OutputFormat.tar):
+        return
+    umount(os.path.join(workspace, "root"))
+    if delete:
+        unlink_try_hard(os.path.join(workspace, "root"))
+
 def umount(where):
     # Ignore failures and error messages
     run(["umount", "-n", where], stdout=DEVNULL, stderr=DEVNULL)
@@ -781,10 +799,14 @@ def umount(where):
 @complete_step('Setting up basic OS tree')
 def prepare_tree(args, workspace, run_build_script, cached):
 
+    umount_root(args, workspace, delete=True)
+
     if args.output_format == OutputFormat.subvolume:
         btrfs_subvol_create(os.path.join(workspace, "root"))
     else:
         mkdir_last(os.path.join(workspace, "root"))
+
+    mount_root(args, workspace)
 
     if args.output_format in (OutputFormat.subvolume, OutputFormat.raw_btrfs):
 
@@ -3266,6 +3288,8 @@ def need_cache_images(args):
 
 def remove_artifacts(args, workspace, raw, tar, run_build_script, for_cache=False):
 
+    umount_root(args, workspace, delete=False)
+
     if for_cache:
         what = "cache build"
     elif run_build_script:
@@ -3328,6 +3352,7 @@ def build_stuff(args):
 
     # Run the image builder for the second (final) stage
     raw, tar, root_hash = build_image(args, workspace, run_build_script=False)
+    remove_artifacts(args, workspace.name, None, None, run_build_script=False)
 
     raw = xz_output(args, raw)
     root_hash_file = write_root_hash_file(args, root_hash)
