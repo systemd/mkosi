@@ -868,7 +868,7 @@ def enable_networkmanager(workspace):
          "enable", "NetworkManager"],
         check=True)
 
-def run_workspace_command(args, workspace, *cmd, network=False, env={}):
+def run_workspace_command(args, workspace, *cmd, network=False, env={}, nspawn_params=[]):
 
     cmdline = ["systemd-nspawn",
                '--quiet',
@@ -886,6 +886,9 @@ def run_workspace_command(args, workspace, *cmd, network=False, env={}):
         cmdline += ["--private-network"]
 
     cmdline += [ "--setenv={}={}".format(k,v) for k,v in env.items() ]
+
+    if nspawn_params:
+        cmdline += nspawn_params
 
     cmdline += ['--', *cmd]
     run(cmdline, check=True)
