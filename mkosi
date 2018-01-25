@@ -1569,7 +1569,7 @@ def install_boot_loader_debian(args, workspace):
 def install_boot_loader_opensuse(args, workspace):
     install_boot_loader_debian(args, workspace)
 
-def install_boot_loader(args, workspace, cached):
+def install_boot_loader(args, workspace, loopdev, cached):
     if not args.bootable:
         return
 
@@ -3182,7 +3182,7 @@ def build_image(args, workspace, run_build_script, for_cache=False):
                     cached = reuse_cache_tree(args, workspace.name, run_build_script, for_cache, cached)
                     install_skeleton_trees(args, workspace.name, for_cache)
                     install_distribution(args, workspace.name, run_build_script, cached)
-                    install_boot_loader(args, workspace.name, cached)
+                    install_boot_loader(args, workspace.name, loopdev, cached)
 
                     install_extra_trees(args, workspace.name, for_cache)
                     install_build_src(args, workspace.name, run_build_script, for_cache)
