@@ -3392,7 +3392,10 @@ def run_qemu(args):
         die("Couldn't find QEMU/KVM binary")
 
     # Look for UEFI firmware blob
-    FIRMWARE_LOCATIONS = ['/usr/share/edk2/ovmf/OVMF_CODE.fd']
+    FIRMWARE_LOCATIONS = [
+        '/usr/share/edk2/ovmf/OVMF_CODE.fd',
+        '/usr/share/qemu/OVMF_CODE.fd',
+    ]
     if platform.machine() == 'x86_64':
         FIRMWARE_LOCATIONS.append('/usr/share/ovmf/ovmf_code_x64.bin')
     elif platform.machine() == 'i386':
