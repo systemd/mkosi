@@ -1482,7 +1482,10 @@ def reset_machine_id(args, workspace, run_build_script, for_cache):
 
     with complete_step('Resetting machine ID'):
         machine_id = os.path.join(workspace, 'root', 'etc/machine-id')
-        os.unlink(machine_id)
+        try:
+            os.unlink(machine_id)
+        except FileNotFoundError:
+            pass
         open(machine_id, "w+b").close()
         dbus_machine_id = os.path.join(workspace, 'root', 'var/lib/dbus/machine-id')
         try:
