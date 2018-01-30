@@ -5,23 +5,22 @@
 import argparse
 import configparser
 import contextlib
-import ctypes, ctypes.util
 import crypt
+import ctypes, ctypes.util
 import errno
 import fcntl
 import getpass
+import glob
 import hashlib
 import os
 import pathlib
 import platform
 import shutil
 import stat
-from subprocess import run, DEVNULL, PIPE
 import sys
 import tempfile
 import urllib.request
 import uuid
-import glob
 
 try:
     import argcomplete
@@ -29,6 +28,7 @@ except ImportError:
     pass
 
 from enum import Enum
+from subprocess import run, DEVNULL, PIPE
 
 __version__ = '3'
 
