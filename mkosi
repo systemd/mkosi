@@ -17,6 +17,7 @@ import pathlib
 import platform
 import shutil
 import stat
+import string
 import sys
 import tempfile
 import urllib.request
@@ -2273,6 +2274,9 @@ class ListAction(argparse.Action):
 class CommaDelimitedListAction(ListAction):
     delimiter = ","
 
+class ColonDelimitedListAction(ListAction):
+    delimiter = ":"
+
 def parse_args():
     parser = argparse.ArgumentParser(description='Build Legacy-Free OS Images', add_help=False)
 
@@ -2337,6 +2341,9 @@ def parse_args():
     group.add_argument("--key", help='GPG key to use for signing')
     group.add_argument("--bmap", action='store_true', help='Write block map file (.bmap) for bmaptool usage (only raw_gpt, raw_btrfs)')
     group.add_argument("--password", help='Set the root password')
+
+    group = parser.add_argument_group("Host configuration")
+    group.add_argument("--extra-search-paths", action=ColonDelimitedListAction, default=[], help="List of colon-separated paths to look for programs before looking in PATH")
 
     group = parser.add_argument_group("Additional Configuration")
     group.add_argument('-C', "--directory", help='Change to specified directory before doing anything', metavar='PATH')
@@ -2648,6 +2655,11 @@ def process_setting(args, section, key, value):
             return True
         else:
             return False
+    elif section == "Host":
+        if key == "ExtraSearchPaths":
+            list_value = value if type(value) == list else value.split()
+            for v in list_value:
+                args.extra_search_paths.extend(v.split(":"))
     else:
         return False
 
@@ -2860,6 +2872,8 @@ def load_args():
     find_password(args)
     find_passphrase(args)
     find_secure_boot(args)
+
+    args.extra_search_paths = expand_paths(args.extra_search_paths)
 
     if args.cmdline and args.verb not in ('shell', 'boot', 'qemu'):
         die("Additional parameters only accepted for 'shell', 'boot', 'qemu' invocations.")
@@ -3182,6 +3196,9 @@ def print_summary(args):
         sys.stderr.write("               GPG Key: " + ("default" if args.key is None else args.key) + "\n")
         sys.stderr.write("              Password: " + ("default" if args.password is None else "set") + "\n")
 
+    sys.stderr.write("\nHOST CONFIGURATION:\n")
+    sys.stderr.write("    Extra search paths: " + line_join_list(args.extra_search_paths) + "\n")
+
 def reuse_cache_tree(args, workspace, run_build_script, for_cache, cached):
     """If there's a cached version of this tree around, use it and
     initialize our new root directly from it. Returns a boolean indicating
@@ -3501,6 +3518,40 @@ def run_qemu(args):
 
     os.execvp(cmdline[0], cmdline)
 
+def expand_paths(paths):
+    if not paths:
+        return []
+
+    environ = os.environ.copy()
+    # Add a fake SUDO_HOME variable to allow non-root users specify
+    # paths in their home when using mkosi via sudo.
+    sudo_user = os.getenv("SUDO_USER")
+    if sudo_user and "SUDO_HOME" not in environ:
+        environ["SUDO_HOME"] = os.path.expanduser("~{}".format(sudo_user))
+
+    # No os.path.expandvars because it treats unset variables as empty.
+    expanded = []
+    for path in paths:
+        try:
+            path = string.Template(path).substitute(environ)
+            expanded.append(path)
+        except KeyError:
+            # Skip path if it uses a variable not defined.
+            pass
+    return expanded
+
+def prepend_to_environ_path(paths):
+    if not paths:
+        return
+
+    original_path = os.getenv("PATH", None)
+    new_path = ":".join(paths)
+
+    if original_path is None:
+        os.environ["PATH"] = new_path
+    else:
+        os.environ["PATH"] = new_path + ":" + original_path
+
 def main():
     args = load_args()
 
@@ -3515,6 +3566,8 @@ def main():
 
     if args.verb == "summary" or needs_build:
         print_summary(args)
+
+    prepend_to_environ_path(args.extra_search_paths)
 
     if needs_build:
         check_root()
