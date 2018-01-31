@@ -65,6 +65,7 @@ class Distribution(Enum):
     opensuse = 5
     mageia = 6
     centos = 7
+    clear = 8
 
 GPT_ROOT_X86           = uuid.UUID("44479540f29741b29af7d131d5f0458a")
 GPT_ROOT_X86_64        = uuid.UUID("4f68bce3e8cd4db196e7fbcaf984b709")
@@ -868,7 +869,7 @@ def enable_networkmanager(workspace):
          "enable", "NetworkManager"],
         check=True)
 
-def run_workspace_command(args, workspace, *cmd, network=False, env={}):
+def run_workspace_command(args, workspace, *cmd, network=False, env={}, nspawn_params=[]):
 
     cmdline = ["systemd-nspawn",
                '--quiet',
@@ -886,6 +887,9 @@ def run_workspace_command(args, workspace, *cmd, network=False, env={}):
         cmdline += ["--private-network"]
 
     cmdline += [ "--setenv={}={}".format(k,v) for k,v in env.items() ]
+
+    if nspawn_params:
+        cmdline += nspawn_params
 
     cmdline += ['--', *cmd]
     run(cmdline, check=True)
@@ -978,6 +982,57 @@ def invoke_dnf(args, workspace, repositories, base_packages, boot_packages, conf
 
     with mount_api_vfs(args, workspace):
         run(cmdline, check=True)
+
+@complete_step('Installing Clear Linux')
+def install_clear(args, workspace, run_build_script):
+    if args.release == "latest":
+        release = "clear"
+    else:
+        release = "clear/"+args.release
+
+    root = os.path.join(workspace, "root")
+
+    packages = ['os-core'] + args.packages
+    if run_build_script:
+        packages.extend(args.build_packages)
+    if args.bootable:
+        packages += ['kernel-native']
+
+    swupd_extract = shutil.which("swupd-extract")
+
+    if swupd_extract is None:
+        print("""
+Couldn't find swupd-extract program, download (or update it) it using:
+
+  go get -u github.com/clearlinux/mixer-tools/swupd-extract
+
+and it will be installed by default in ~/go/bin/swupd-extract. Also
+ensure that you have openssl program in your system.
+""")
+        raise FileNotFoundError("Couldn't find swupd-extract")
+
+    print("Using {}".format(swupd_extract))
+
+    run([swupd_extract,
+         '-output', root,
+         '-state', args.cache_path,
+         release,
+         *packages],
+        check=True)
+
+    os.symlink("../run/systemd/resolve/resolv.conf", os.path.join(root, "etc/resolv.conf"))
+
+    # Clear Linux doesn't have a /etc/shadow at install time, it gets
+    # created when the root first login. To set the password via
+    # mkosi, create one.
+    if not run_build_script and args.password is not None:
+        shadow_file = os.path.join(root, "etc/shadow")
+        with open(shadow_file, "w") as f:
+            f.write('root::::::::')
+        os.chmod(shadow_file, 0o400)
+        # Password is already empty for root, so no need to reset it later.
+        if args.password == "":
+            args.password = None
 
 @complete_step('Installing Fedora')
 def install_fedora(args, workspace, run_build_script):
@@ -1459,6 +1514,7 @@ def install_distribution(args, workspace, run_build_script, cached):
         Distribution.ubuntu : install_ubuntu,
         Distribution.arch : install_arch,
         Distribution.opensuse : install_opensuse,
+        Distribution.clear : install_clear,
     }
 
     install[args.distribution](args, workspace, run_build_script)
@@ -1479,7 +1535,10 @@ def reset_machine_id(args, workspace, run_build_script, for_cache):
 
     with complete_step('Resetting machine ID'):
         machine_id = os.path.join(workspace, 'root', 'etc/machine-id')
-        os.unlink(machine_id)
+        try:
+            os.unlink(machine_id)
+        except FileNotFoundError:
+            pass
         open(machine_id, "w+b").close()
         dbus_machine_id = os.path.join(workspace, 'root', 'var/lib/dbus/machine-id')
         try:
@@ -1563,7 +1622,22 @@ def install_boot_loader_debian(args, workspace):
 def install_boot_loader_opensuse(args, workspace):
     install_boot_loader_debian(args, workspace)
 
-def install_boot_loader(args, workspace, cached):
+def install_boot_loader_clear(args, workspace, loopdev):
+    nspawn_params = [
+        # clr-boot-manager uses blkid in the device backing "/" to
+        # figure out uuid and related parameters.
+        "--bind-ro=/dev",
+        "--property=DeviceAllow=" + loopdev,
+        "--property=DeviceAllow=" + partition(loopdev, args.esp_partno),
+        "--property=DeviceAllow=" + partition(loopdev, args.root_partno),
+
+        # clr-boot-manager compiled in Clear Linux will assume EFI
+        # partition is mounted in "/boot".
+        "--bind=" + os.path.join(workspace, "root/efi") + ":/boot",
+    ]
+    run_workspace_command(args, workspace, "/usr/bin/clr-boot-manager", "update", "-i", nspawn_params=nspawn_params)
+
+def install_boot_loader(args, workspace, loopdev, cached):
     if not args.bootable:
         return
 
@@ -1585,6 +1659,9 @@ def install_boot_loader(args, workspace, cached):
 
         if args.distribution == Distribution.opensuse:
             install_boot_loader_opensuse(args, workspace)
+
+        if args.distribution == Distribution.clear:
+            install_boot_loader_clear(args, workspace, loopdev)
 
 def install_extra_trees(args, workspace, for_cache):
     if not args.extra_trees:
@@ -2320,6 +2397,9 @@ def detect_distribution():
         if ln.startswith("VERSION_ID="):
             version_id = ln[11:].strip()
 
+    if id == "clear-linux-os":
+        id = "clear"
+
     d = Distribution.__members__.get(id, None)
     return d, version_id
 
@@ -2646,7 +2726,9 @@ def find_cache(args):
     if os.path.exists("mkosi.cache/"):
         args.cache_path = "mkosi.cache/" + args.distribution.name
 
-        if args.release is not None:
+        # Clear has a release number that can be used, however the
+        # cache is valid (and more efficient) across releases.
+        if args.distribution != Distribution.clear and args.release is not None:
             args.cache_path += "~" + args.release
 
 def find_build_script(args):
@@ -2795,7 +2877,7 @@ def load_args():
         if args.distribution is None:
             args.distribution = d
 
-        if args.distribution == d and args.release is None:
+        if args.distribution == d and d != Distribution.clear and args.release is None:
             args.release = r
 
     if args.distribution is None:
@@ -2814,6 +2896,8 @@ def load_args():
             args.release = "artful"
         elif args.distribution == Distribution.opensuse:
             args.release = "tumbleweed"
+        elif args.distribution == Distribution.clear:
+            args.release = "latest"
 
     find_cache(args)
 
@@ -3176,7 +3260,7 @@ def build_image(args, workspace, run_build_script, for_cache=False):
                     cached = reuse_cache_tree(args, workspace.name, run_build_script, for_cache, cached)
                     install_skeleton_trees(args, workspace.name, for_cache)
                     install_distribution(args, workspace.name, run_build_script, cached)
-                    install_boot_loader(args, workspace.name, cached)
+                    install_boot_loader(args, workspace.name, loopdev, cached)
 
                     install_extra_trees(args, workspace.name, for_cache)
                     install_build_src(args, workspace.name, run_build_script, for_cache)

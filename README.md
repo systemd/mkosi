@@ -116,6 +116,8 @@ following *OS*es.
 
 * *CentOS*
 
+* *Clear Linux*
+
 In theory, any distribution may be used on the host for building
 images containing any other distribution, as long as the necessary
 tools are available. Specifically, any distro that packages
