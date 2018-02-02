@@ -2325,7 +2325,7 @@ def detect_distribution():
         if ln.startswith("VERSION_CODENAME="):
             version_codename = ln[17:].strip()
         if ln.startswith("VERSION="):
-            # extract Debain release codename
+            # extract Debian release codename
             version_str = ln[8:].strip()
             debian_codename_re = r'\((.*?)\)'
 
@@ -2336,6 +2336,7 @@ def detect_distribution():
     d = Distribution.__members__.get(id, None)
 
     if d == Distribution.debian and (version_codename or extracted_codename):
+        # debootstrap needs release codenames, not version numbers
         if version_codename:
             version_id = version_codename
         else:
