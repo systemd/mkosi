@@ -719,18 +719,20 @@ def mount_image(args, workspace, loopdev, root_dev, home_dev, srv_dev, root_read
             umount(root)
 
 @complete_step("Assigning hostname")
-def assign_hostname(args, workspace):
-    root = os.path.join(workspace, "root")
-    hostname_path = os.path.join(root, "etc/hostname")
+def install_etc_hostname(args, workspace):
+    etc_hostname = os.path.join(workspace, "root", "etc/hostname")
 
-    if os.path.isfile(hostname_path):
-        os.remove(hostname_path)
+    # Always unlink first, so that we don't get in trouble due to a
+    # symlink or suchlike. Also if no hostname is configured we really
+    # don't want the file to exist, so that systemd's implicit
+    # hostname logic can take effect.
+    try:
+        os.unlink(etc_hostname)
+    except FileNotFoundError:
+        pass
 
     if args.hostname:
-        if os.path.islink(hostname_path) or os.path.isfile(hostname_path):
-            os.remove(hostname_path)
-        with open(hostname_path, "w+") as f:
-            f.write("{}\n".format(args.hostname))
+        open(etc_hostname, "w").write(args.hostname + "\n")
 
 @contextlib.contextmanager
 def mount_api_vfs(args, workspace):
@@ -1518,7 +1520,6 @@ def install_distribution(args, workspace, run_build_script, cached):
     }
 
     install[args.distribution](args, workspace, run_build_script)
-    assign_hostname(args, workspace)
 
 def reset_machine_id(args, workspace, run_build_script, for_cache):
     """Make /etc/machine-id an empty file.
@@ -3260,8 +3261,8 @@ def build_image(args, workspace, run_build_script, for_cache=False):
                     cached = reuse_cache_tree(args, workspace.name, run_build_script, for_cache, cached)
                     install_skeleton_trees(args, workspace.name, for_cache)
                     install_distribution(args, workspace.name, run_build_script, cached)
+                    install_etc_hostname(args, workspace.name)
                     install_boot_loader(args, workspace.name, loopdev, cached)
-
                     install_extra_trees(args, workspace.name, for_cache)
                     install_build_src(args, workspace.name, run_build_script, for_cache)
                     install_build_dest(args, workspace.name, run_build_script, for_cache)
