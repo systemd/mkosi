@@ -904,11 +904,7 @@ def check_if_url_exists(url):
     except:
         return False
 
-kernel_install_files = ()
-
 def disable_kernel_install(args, workspace):
-    global kernel_install_files
-
     # Let's disable the automatic kernel installation done by the
     # kernel RPMs. After all, we want to built our own unified kernels
     # that include the root hash in the kernel command line and can be
@@ -917,26 +913,29 @@ def disable_kernel_install(args, workspace):
     # kernel installation beforehand.
 
     if not args.bootable:
-        return
+        return []
 
     for d in ("etc", "etc/kernel", "etc/kernel/install.d"):
         mkdir_last(os.path.join(workspace, "root", d), 0o755)
 
-    kernel_install_files = ("50-dracut.install", "51-dracut-rescue.install", "90-loaderentry.install")
+    masked = []
 
-    for f in kernel_install_files:
-        os.symlink("/dev/null", os.path.join(workspace, "root", "etc/kernel/install.d", f))
+    for f in ("50-dracut.install", "51-dracut-rescue.install", "90-loaderentry.install"):
+        path = os.path.join(workspace, "root", "etc/kernel/install.d", f)
+        os.symlink("/dev/null", path)
+        masked += [path]
 
-def reenable_kernel_install(args, workspace):
+    return masked
 
-    # Undo disable_kernel_install() so the final image can be used with
-    # scripts installing a kernel following the Bootloader Spec
+def reenable_kernel_install(args, workspace, masked):
+    # Undo disable_kernel_install() so the final image can be used
+    # with scripts installing a kernel following the Bootloader Spec
 
     if not args.bootable:
         return
 
-    for f in kernel_install_files:
-        os.unlink(os.path.join(workspace, "root", "etc/kernel/install.d", f))
+    for f in masked:
+        os.unlink(f)
 
 def invoke_dnf(args, workspace, repositories, base_packages, boot_packages, config_file):
 
@@ -1043,7 +1042,7 @@ def install_fedora(args, workspace, run_build_script):
         die('Use numerical release for Fedora, not "rawhide"\n' +
             '(rawhide was {} when this mkosi version was released)'.format(last))
 
-    disable_kernel_install(args, workspace)
+    masked = disable_kernel_install(args, workspace)
 
     gpg_key = "/etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-%s-x86_64" % args.release
     if os.path.exists(gpg_key):
@@ -1090,10 +1089,12 @@ gpgkey={gpg_key}
                ["kernel", "systemd-udev", "binutils"],
                config_file)
 
+    reenable_kernel_install(args, workspace, masked)
+
 @complete_step('Installing Mageia')
 def install_mageia(args, workspace, run_build_script):
 
-    disable_kernel_install(args, workspace)
+    masked = disable_kernel_install(args, workspace)
 
     # Mageia does not (yet) have RPM GPG key on the web
     gpg_key = '/etc/pki/rpm-gpg/RPM-GPG-KEY-Mageia'
@@ -1136,6 +1137,8 @@ gpgkey={gpg_key}
                ["basesystem-minimal"],
                ["kernel-server-latest", "binutils"],
                config_file)
+
+    reenable_kernel_install(args, workspace, masked)
 
 def invoke_yum(args, workspace, repositories, base_packages, boot_packages, config_file):
 
@@ -1191,7 +1194,7 @@ def invoke_dnf_or_yum(args, workspace, repositories, base_packages, boot_package
 @complete_step('Installing CentOS')
 def install_centos(args, workspace, run_build_script):
 
-    disable_kernel_install(args, workspace)
+    masked = disable_kernel_install(args, workspace)
 
     gpg_key = "/etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-%s" % args.release
     if os.path.exists(gpg_key):
@@ -1231,6 +1234,8 @@ gpgkey={gpg_key}
                       ["systemd", "centos-release", "passwd"],
                       ["kernel", "systemd-udev", "binutils"],
                       config_file)
+
+    reenable_kernel_install(args, workspace, masked)
 
 def install_debian_or_ubuntu(args, workspace, run_build_script, mirror):
     if args.repositories:
@@ -3267,7 +3272,6 @@ def build_image(args, workspace, run_build_script, for_cache=False):
                     install_build_src(args, workspace.name, run_build_script, for_cache)
                     install_build_dest(args, workspace.name, run_build_script, for_cache)
                     set_root_password(args, workspace.name, run_build_script, for_cache)
-                    reenable_kernel_install(args, workspace.name)
                     run_postinst_script(args, workspace.name, run_build_script, for_cache)
 
                 reset_machine_id(args, workspace.name, run_build_script, for_cache)
