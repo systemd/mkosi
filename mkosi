@@ -2262,13 +2262,16 @@ def setup_package_cache(args):
 
     return d
 
-class PackageAction(argparse.Action):
+class ListAction(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
         l = getattr(namespace, self.dest)
         if l is None:
             l = []
-        l.extend(values.split(","))
+        l.extend(values.split(self.delimiter))
         setattr(namespace, self.dest, l)
+
+class CommaDelimitedListAction(ListAction):
+    delimiter = ","
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Build Legacy-Free OS Images', add_help=False)
@@ -2283,7 +2286,7 @@ def parse_args():
     group.add_argument('-d', "--distribution", choices=Distribution.__members__, help='Distribution to install')
     group.add_argument('-r', "--release", help='Distribution release to install')
     group.add_argument('-m', "--mirror", help='Distribution mirror to use')
-    group.add_argument("--repositories", action=PackageAction, dest='repositories', help='Repositories to use', metavar='REPOS')
+    group.add_argument("--repositories", action=CommaDelimitedListAction, dest='repositories', help='Repositories to use', metavar='REPOS')
 
     group = parser.add_argument_group("Output")
     group.add_argument('-t', "--format", dest='output_format', choices=OutputFormat.__members__, help='Output Format')
@@ -2303,7 +2306,7 @@ def parse_args():
     group.add_argument('-i', "--incremental", action='store_true', help='Make use of and generate intermediary cache images')
 
     group = parser.add_argument_group("Packages")
-    group.add_argument('-p', "--package", action=PackageAction, dest='packages', default=[], help='Add an additional package to the OS image', metavar='PACKAGE')
+    group.add_argument('-p', "--package", action=CommaDelimitedListAction, dest='packages', default=[], help='Add an additional package to the OS image', metavar='PACKAGE')
     group.add_argument("--with-docs", action='store_true', help='Install documentation (only Fedora, CentOS and Mageia)')
     group.add_argument('-T', "--without-tests", action='store_false', dest='with_tests', default=True, help='Do not run tests as part of build script, if supported')
     group.add_argument("--cache", dest='cache_path', help='Package cache path', metavar='PATH')
@@ -2312,7 +2315,7 @@ def parse_args():
     group.add_argument("--build-script", help='Build script to run inside image', metavar='PATH')
     group.add_argument("--build-sources", help='Path for sources to build', metavar='PATH')
     group.add_argument("--build-dir", help='Path to use as persistent build directory', metavar='PATH')
-    group.add_argument("--build-package", action=PackageAction, dest='build_packages', default=[], help='Additional packages needed for build script', metavar='PACKAGE')
+    group.add_argument("--build-package", action=CommaDelimitedListAction, dest='build_packages', default=[], help='Additional packages needed for build script', metavar='PACKAGE')
     group.add_argument("--postinst-script", help='Post installation script to run inside image', metavar='PATH')
     group.add_argument('--use-git-files', type=parse_boolean,
                        help='Ignore any files that git itself ignores (default: guess)')
