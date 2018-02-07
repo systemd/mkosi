@@ -193,7 +193,15 @@ def copy_file_object(oldobject, newobject):
             raise
         shutil.copyfileobj(oldobject, newobject)
 
+def copy_symlink(oldpath, newpath):
+    src = os.readlink(oldpath)
+    os.symlink(src, newpath)
+
 def copy_file(oldpath, newpath):
+    if os.path.islink(oldpath):
+        copy_symlink(oldpath, newpath)
+        return
+
     with open_close(oldpath, os.O_RDONLY) as oldfd:
         st = os.stat(oldfd)
 
