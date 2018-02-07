@@ -17,6 +17,7 @@ import pathlib
 import platform
 import shutil
 import stat
+import string
 import sys
 import tempfile
 import urllib.request
@@ -2268,13 +2269,19 @@ def setup_package_cache(args):
 
     return d
 
-class PackageAction(argparse.Action):
+class ListAction(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
         l = getattr(namespace, self.dest)
         if l is None:
             l = []
-        l.extend(values.split(","))
+        l.extend(values.split(self.delimiter))
         setattr(namespace, self.dest, l)
+
+class CommaDelimitedListAction(ListAction):
+    delimiter = ","
+
+class ColonDelimitedListAction(ListAction):
+    delimiter = ":"
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Build Legacy-Free OS Images', add_help=False)
@@ -2289,7 +2296,7 @@ def parse_args():
     group.add_argument('-d', "--distribution", choices=Distribution.__members__, help='Distribution to install')
     group.add_argument('-r', "--release", help='Distribution release to install')
     group.add_argument('-m', "--mirror", help='Distribution mirror to use')
-    group.add_argument("--repositories", action=PackageAction, dest='repositories', help='Repositories to use', metavar='REPOS')
+    group.add_argument("--repositories", action=CommaDelimitedListAction, dest='repositories', help='Repositories to use', metavar='REPOS')
 
     group = parser.add_argument_group("Output")
     group.add_argument('-t', "--format", dest='output_format', choices=OutputFormat.__members__, help='Output Format')
@@ -2309,7 +2316,7 @@ def parse_args():
     group.add_argument('-i', "--incremental", action='store_true', help='Make use of and generate intermediary cache images')
 
     group = parser.add_argument_group("Packages")
-    group.add_argument('-p', "--package", action=PackageAction, dest='packages', default=[], help='Add an additional package to the OS image', metavar='PACKAGE')
+    group.add_argument('-p', "--package", action=CommaDelimitedListAction, dest='packages', default=[], help='Add an additional package to the OS image', metavar='PACKAGE')
     group.add_argument("--with-docs", action='store_true', help='Install documentation (only Fedora, CentOS and Mageia)')
     group.add_argument('-T', "--without-tests", action='store_false', dest='with_tests', default=True, help='Do not run tests as part of build script, if supported')
     group.add_argument("--cache", dest='cache_path', help='Package cache path', metavar='PATH')
@@ -2318,7 +2325,7 @@ def parse_args():
     group.add_argument("--build-script", help='Build script to run inside image', metavar='PATH')
     group.add_argument("--build-sources", help='Path for sources to build', metavar='PATH')
     group.add_argument("--build-dir", help='Path to use as persistent build directory', metavar='PATH')
-    group.add_argument("--build-package", action=PackageAction, dest='build_packages', default=[], help='Additional packages needed for build script', metavar='PACKAGE')
+    group.add_argument("--build-package", action=CommaDelimitedListAction, dest='build_packages', default=[], help='Additional packages needed for build script', metavar='PACKAGE')
     group.add_argument("--postinst-script", help='Post installation script to run inside image', metavar='PATH')
     group.add_argument('--use-git-files', type=parse_boolean,
                        help='Ignore any files that git itself ignores (default: guess)')
@@ -2340,6 +2347,9 @@ def parse_args():
     group.add_argument("--key", help='GPG key to use for signing')
     group.add_argument("--bmap", action='store_true', help='Write block map file (.bmap) for bmaptool usage (only raw_gpt, raw_btrfs)')
     group.add_argument("--password", help='Set the root password')
+
+    group = parser.add_argument_group("Host configuration")
+    group.add_argument("--extra-search-paths", action=ColonDelimitedListAction, default=[], help="List of colon-separated paths to look for programs before looking in PATH")
 
     group = parser.add_argument_group("Additional Configuration")
     group.add_argument('-C', "--directory", help='Change to specified directory before doing anything', metavar='PATH')
@@ -2651,6 +2661,11 @@ def process_setting(args, section, key, value):
             return True
         else:
             return False
+    elif section == "Host":
+        if key == "ExtraSearchPaths":
+            list_value = value if type(value) == list else value.split()
+            for v in list_value:
+                args.extra_search_paths.extend(v.split(":"))
     else:
         return False
 
@@ -2863,6 +2878,8 @@ def load_args():
     find_password(args)
     find_passphrase(args)
     find_secure_boot(args)
+
+    args.extra_search_paths = expand_paths(args.extra_search_paths)
 
     if args.cmdline and args.verb not in ('shell', 'boot', 'qemu'):
         die("Additional parameters only accepted for 'shell', 'boot', 'qemu' invocations.")
@@ -3185,6 +3202,9 @@ def print_summary(args):
         sys.stderr.write("               GPG Key: " + ("default" if args.key is None else args.key) + "\n")
         sys.stderr.write("              Password: " + ("default" if args.password is None else "set") + "\n")
 
+    sys.stderr.write("\nHOST CONFIGURATION:\n")
+    sys.stderr.write("    Extra search paths: " + line_join_list(args.extra_search_paths) + "\n")
+
 def reuse_cache_tree(args, workspace, run_build_script, for_cache, cached):
     """If there's a cached version of this tree around, use it and
     initialize our new root directly from it. Returns a boolean indicating
@@ -3503,6 +3523,40 @@ def run_qemu(args):
 
     os.execvp(cmdline[0], cmdline)
 
+def expand_paths(paths):
+    if not paths:
+        return []
+
+    environ = os.environ.copy()
+    # Add a fake SUDO_HOME variable to allow non-root users specify
+    # paths in their home when using mkosi via sudo.
+    sudo_user = os.getenv("SUDO_USER")
+    if sudo_user and "SUDO_HOME" not in environ:
+        environ["SUDO_HOME"] = os.path.expanduser("~{}".format(sudo_user))
+
+    # No os.path.expandvars because it treats unset variables as empty.
+    expanded = []
+    for path in paths:
+        try:
+            path = string.Template(path).substitute(environ)
+            expanded.append(path)
+        except KeyError:
+            # Skip path if it uses a variable not defined.
+            pass
+    return expanded
+
+def prepend_to_environ_path(paths):
+    if not paths:
+        return
+
+    original_path = os.getenv("PATH", None)
+    new_path = ":".join(paths)
+
+    if original_path is None:
+        os.environ["PATH"] = new_path
+    else:
+        os.environ["PATH"] = new_path + ":" + original_path
+
 def main():
     args = load_args()
 
@@ -3517,6 +3571,8 @@ def main():
 
     if args.verb == "summary" or needs_build:
         print_summary(args)
+
+    prepend_to_environ_path(args.extra_search_paths)
 
     if needs_build:
         check_root()
