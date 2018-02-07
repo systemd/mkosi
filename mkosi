@@ -1696,27 +1696,15 @@ def install_skeleton_trees(args, workspace, for_cache):
                 shutil.unpack_archive(d, os.path.join(workspace, "root"))
 
 def copy_git_files(src, dest, *, git_files):
-    run(['git', 'clone', '--depth=1', '--recursive', '--shallow-submodules', src, dest],
-        check=True)
-
-    what_files = ['--exclude-standard', '--modified']
+    what_files = ['--exclude-standard', '--cached']
     if git_files == 'others':
         what_files += ['--others', '--exclude=.mkosi-*']
 
-    # everything that's modified from the tree
     c = run(['git', '-C', src, 'ls-files', '-z'] + what_files,
             stdout=PIPE,
             universal_newlines=False,
             check=True)
     files = {x.decode("utf-8") for x in c.stdout.rstrip(b'\0').split(b'\0')}
-
-    # everything that's modified and about to be committed
-    c = run(['git', '-C', src, 'diff', '--cached', '--name-only', '-z'],
-            stdout=PIPE,
-            universal_newlines=False,
-            check=True)
-    files |= {x.decode("utf-8") for x in c.stdout.rstrip(b'\0').split(b'\0')}
-    files.discard('')
 
     del c
 
