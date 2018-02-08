@@ -1714,6 +1714,25 @@ def copy_git_files(src, dest, *, git_files):
             check=True)
     files = {x.decode("utf-8") for x in c.stdout.rstrip(b'\0').split(b'\0')}
 
+    # Get submodule files
+    c = run(['git', '-C', src, 'submodule', 'status', '--recursive'],
+            stdout=PIPE,
+            universal_newlines=True,
+            check=True)
+    submodules = {x.split()[1] for x in c.stdout.splitlines()}
+
+    # workaround for git-ls-files returning the path of submodules that we will
+    # still parse
+    files -= submodules
+
+    for sm in submodules:
+        c = run(['git', '-C', os.path.join(src, sm), 'ls-files', '-z'] + what_files,
+                stdout=PIPE,
+                universal_newlines=False,
+                check=True)
+        files |= {os.path.join(sm, x.decode("utf-8"))for x in c.stdout.rstrip(b'\0').split(b'\0')}
+        files -= submodules
+
     del c
 
     for path in files:
