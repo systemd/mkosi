@@ -31,7 +31,7 @@ except ImportError:
 from enum import Enum
 from subprocess import run, DEVNULL, PIPE
 
-__version__ = '3'
+__version__ = '4'
 
 if sys.version_info < (3, 5):
     sys.exit("Sorry, we need at least Python 3.5.")

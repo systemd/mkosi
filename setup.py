@@ -10,7 +10,7 @@ from setuptools import setup
 
 setup(
     name="mkosi",
-    version="3",
+    version="4",
     description="Create legacy-free OS images",
     url="https://github.com/systemd/mkosi",
     maintainer="mkosi contributors",
