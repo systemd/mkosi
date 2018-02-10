@@ -1330,24 +1330,25 @@ def install_arch(args, workspace, run_build_script):
     if args.release is not None:
         sys.stderr.write("Distribution release specification is not supported for Arch Linux, ignoring.\n")
 
-    keyring = "archlinux"
-
-    if platform.machine() == "aarch64":
-        keyring += "arm"
-
-    run(["pacman-key", "--nocolor", "--init"], check=True)
-    run(["pacman-key", "--nocolor", "--populate", keyring], check=True)
-
     if platform.machine() == "aarch64":
         server = "Server = {}/$arch/$repo".format(args.mirror)
     else:
         server = "Server = {}/$repo/os/$arch".format(args.mirror)
 
-    with open(os.path.join(workspace, "pacman.conf"), "w") as f:
+    root = os.path.join(workspace, "root")
+    # Create base layout for pacman and pacman-key
+    os.makedirs(os.path.join(root, "var/lib/pacman"), 0o755, exist_ok=True)
+    os.makedirs(os.path.join(root, "etc/pacman.d/gnupg"), 0o755, exist_ok=True)
+
+    pacman_conf = os.path.join(workspace, "pacman.conf")
+    with open(pacman_conf, "w") as f:
         f.write("""\
 [options]
+RootDir     = {root}
 LogFile     = /dev/null
-HookDir     = /no_hook/
+CacheDir    = {root}/var/cache/pacman/pkg/
+GPGDir      = {root}/etc/pacman.d/gnupg/
+HookDir     = {root}/etc/pacman.d/hooks/
 HoldPkg     = pacman glibc
 Architecture = auto
 UseSyslog
@@ -1363,63 +1364,94 @@ SigLevel    = Required DatabaseOptional
 
 [community]
 {server}
-""".format(args=args, server=server))
+""".format(server=server, root=root))
 
-    run(["pacman", "--color", "never", "--config", os.path.join(workspace, "pacman.conf"), "-Sy"], check=True)
-    # determine base packages list from base metapackage
-    c = run(["pacman", "--color", "never", "--config", os.path.join(workspace, "pacman.conf"), "-Sg", "base"], stdout=PIPE, universal_newlines=True, check=True)
+    def run_pacman(args, **kwargs):
+        cmdline = [
+            "pacman",
+            "--noconfirm",
+            "--color", "never",
+            "--config", pacman_conf,
+        ]
+        return run(cmdline + args, **kwargs, check=True)
+
+    def run_pacman_key(args):
+        cmdline = [
+            "pacman-key",
+            "--nocolor",
+            "--config", pacman_conf,
+        ]
+        return run(cmdline + args, check=True)
+
+    def run_pacstrap(packages):
+        cmdline = ["pacstrap", "-C", pacman_conf, "-dGM", root]
+        run(cmdline + list(packages), check=True)
+
+    keyring = "archlinux"
+    if platform.machine() == "aarch64":
+        keyring += "arm"
+    run_pacman_key(["--init"])
+    run_pacman_key(["--populate", keyring])
+
+    run_pacman(["-Sy"])
+    # determine base packages list from base group
+    c = run_pacman(["-Sqg", "base"], stdout=PIPE, universal_newlines=True)
     packages = set(c.stdout.split())
-    packages.remove("base")
+    packages -= {
+        "cryptsetup",
+        "device-mapper",
+        "dhcpcd",
+        "e2fsprogs",
+        "jfsutils",
+        "linux",
+        "lvm2",
+        "man-db",
+        "man-pages",
+        "mdadm",
+        "netctl",
+        "pcmciautils",
+        "reiserfsprogs",
+        "xfsprogs",
+    }
 
-    official_kernel_packages = [
+    official_kernel_packages = {
         "linux",
         "linux-lts",
         "linux-hardened",
-        "linux-zen"
-    ]
-
-    kernel_packages = {"linux"}
-    if args.packages:
-        kernel_packages = set.intersection(set(args.packages), set(official_kernel_packages))
-        # prefer user-specified packages over implicit base kernel
-        if kernel_packages and "linux" not in kernel_packages:
-            packages.remove("linux")
-        if len(kernel_packages) > 1:
-            warn('More than one kernel will be installed: {}', ' '.join(kernel_packages))
-
-    packages -= {"device-mapper",
-                 "dhcpcd",
-                 "e2fsprogs",
-                 "jfsutils",
-                 "lvm2",
-                 "man-db",
-                 "man-pages",
-                 "mdadm",
-                 "netctl",
-                 "pcmciautils",
-                 "reiserfsprogs",
-                 "xfsprogs"}
+        "linux-zen",
+    }
+    kernel_packages = official_kernel_packages.intersection(args.packages)
+    packages |= kernel_packages
+    if len(kernel_packages) > 1:
+        warn('More than one kernel will be installed: {}', ' '.join(kernel_packages))
 
     if args.bootable:
         if args.output_format == OutputFormat.raw_gpt:
             packages.add("e2fsprogs")
         elif args.output_format == OutputFormat.raw_btrfs:
             packages.add("btrfs-progs")
-    else:
-        packages -= kernel_packages
+        if args.encrypt:
+            packages.add("cryptsetup")
+            packages.add("device-mapper")
+        if not kernel_packages:
+            # No user-specified kernel
+            packages.add("linux")
 
-    packages |= set(args.packages)
+    # Set up system with packages from the base group
+    run_pacstrap(packages)
 
+    # Install the user-specified packages
+    packages = set(args.packages)
     if run_build_script:
-        packages |= set(args.build_packages)
+        packages.update(args.build_packages)
+    # Remove already installed packages
+    c = run_pacman(['-Qq'], stdout=PIPE, universal_newlines=True)
+    packages.difference_update(c.stdout.split())
+    if packages:
+        run_pacstrap(packages)
 
-    cmdline = ["pacstrap",
-               "-C", os.path.join(workspace, "pacman.conf"),
-               "-d",
-               workspace + "/root",
-               *packages]
-
-    run(cmdline, check=True)
+    # Kill the gpg-agent used by pacman and pacman-key
+    run(['gpg-connect-agent', '--homedir', os.path.join(root, 'etc/pacman.d/gnupg'), 'KILLAGENT', '/bye'])
 
     if "networkmanager" in args.packages:
         enable_networkmanager(workspace)
