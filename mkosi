@@ -5,6 +5,7 @@
 import argparse
 import configparser
 import contextlib
+import collections
 import crypt
 import ctypes, ctypes.util
 import errno
@@ -84,15 +85,6 @@ GPT_ROOT_ARM_VERITY    = uuid.UUID("7386cdf2203c47a9a498f2ecce45a2d6")
 GPT_ROOT_ARM_64_VERITY = uuid.UUID("df3300ced69f4c92978c9bfb0f38d820")
 GPT_ROOT_IA64_VERITY   = uuid.UUID("86ed10d5b60745bb8957d350f23d0571")
 
-if platform.machine() == "x86_64":
-    GPT_ROOT_NATIVE = GPT_ROOT_X86_64
-    GPT_ROOT_NATIVE_VERITY = GPT_ROOT_X86_64_VERITY
-elif platform.machine() == "aarch64":
-    GPT_ROOT_NATIVE = GPT_ROOT_ARM_64
-    GPT_ROOT_NATIVE_VERITY = GPT_ROOT_ARM_64_VERITY
-else:
-    die("Don't know the %s architecture." % platform.machine())
-
 CLONE_NEWNS = 0x00020000
 
 FEDORA_KEYS_MAP = {
@@ -108,6 +100,21 @@ FEDORA_KEYS_MAP = {
 # another MB at the end (this is actually more than needed.)
 GPT_HEADER_SIZE = 1024*1024
 GPT_FOOTER_SIZE = 1024*1024
+
+GPTRootTypePair = collections.namedtuple('GPTRootTypePair', 'root verity')
+
+def gpt_root_native():
+    """The tag for the native GPT root partition
+
+    Returns a tuple of two tags: for the root partition and for the
+    matching verity partition.
+    """
+    if platform.machine() == "x86_64":
+        return GPTRootTypePair(GPT_ROOT_X86_64, GPT_ROOT_X86_64_VERITY)
+    elif platform.machine() == "aarch64":
+        return GPTRootTypePair(GPT_ROOT_ARM_64, GPT_ROOT_ARM_64_VERITY)
+    else:
+        die("Unknown architecture {}.".format(platform.machine()))
 
 def unshare(flags):
     libc = ctypes.CDLL(ctypes.util.find_library("c"), use_errno=True)
@@ -367,7 +374,9 @@ def determine_partition_table(args):
             run_sfdisk = True
 
     if args.output_format != OutputFormat.raw_squashfs:
-        table += 'type={}, attrs={}, name="Root Partition"\n'.format(GPT_ROOT_NATIVE, "GUID:60" if args.read_only and args.output_format != OutputFormat.raw_btrfs else "")
+        table += 'type={}, attrs={}, name="Root Partition"\n'.format(
+            gpt_root_native().root,
+            "GUID:60" if args.read_only and args.output_format != OutputFormat.raw_btrfs else "")
         run_sfdisk = True
 
     args.root_partno = pn
@@ -1930,7 +1939,7 @@ def insert_squashfs(args, workspace, raw, loopdev, squashfs, for_cache):
 
     with complete_step('Inserting squashfs root partition'):
         args.root_size = insert_partition(args, workspace, raw, loopdev, args.root_partno, squashfs,
-                                          "Root Partition", GPT_ROOT_NATIVE)
+                                          "Root Partition", gpt_root_native().root)
 
 def make_verity(args, workspace, dev, run_build_script, for_cache):
 
@@ -1962,7 +1971,7 @@ def insert_verity(args, workspace, raw, loopdev, verity, root_hash, for_cache):
 
     with complete_step('Inserting verity partition'):
         insert_partition(args, workspace, raw, loopdev, args.verity_partno, verity,
-                         "Verity Partition", GPT_ROOT_NATIVE_VERITY, u)
+                         "Verity Partition", gpt_root_native().verity, u)
 
 def patch_root_uuid(args, loopdev, root_hash, for_cache):
 
