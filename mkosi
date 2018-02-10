@@ -15,6 +15,7 @@ import hashlib
 import os
 import pathlib
 import platform
+import re
 import shutil
 import stat
 import string
@@ -2421,17 +2422,37 @@ def detect_distribution():
 
     id = None
     version_id = None
+    version_codename = None
+    extracted_codename = None
 
     for ln in f:
         if ln.startswith("ID="):
             id = ln[3:].strip()
         if ln.startswith("VERSION_ID="):
             version_id = ln[11:].strip()
+        if ln.startswith("VERSION_CODENAME="):
+            version_codename = ln[17:].strip()
+        if ln.startswith("VERSION="):
+            # extract Debian release codename
+            version_str = ln[8:].strip()
+            debian_codename_re = r'\((.*?)\)'
+
+            codename_list = re.findall(debian_codename_re, version_str)
+            if len(codename_list) == 1:
+                extracted_codename = codename_list[0]
 
     if id == "clear-linux-os":
         id = "clear"
 
     d = Distribution.__members__.get(id, None)
+
+    if d == Distribution.debian and (version_codename or extracted_codename):
+        # debootstrap needs release codenames, not version numbers
+        if version_codename:
+            version_id = version_codename
+        else:
+            version_id = extracted_codename
+
     return d, version_id
 
 def unlink_try_hard(path):
