@@ -60,6 +60,15 @@ class OutputFormat(Enum):
     directory = 4
     subvolume = 5
     tar = 6
+    raw_xfs = 7
+
+RAW_RW_FS_FORMATS = (
+    OutputFormat.raw_ext4,
+    OutputFormat.raw_btrfs,
+    OutputFormat.raw_xfs
+)
+
+RAW_FORMATS = (*RAW_RW_FS_FORMATS, OutputFormat.raw_squashfs)
 
 class Distribution(Enum):
     fedora = 1
@@ -393,7 +402,7 @@ def determine_partition_table(args):
 
 
 def create_image(args, workspace, for_cache):
-    if args.output_format not in (OutputFormat.raw_ext4, OutputFormat.raw_btrfs, OutputFormat.raw_squashfs):
+    if args.output_format not in RAW_FORMATS:
         return None
 
     with complete_step('Creating partition table',
@@ -418,7 +427,7 @@ def reuse_cache_image(args, workspace, run_build_script, for_cache):
 
     if not args.incremental:
         return None, False
-    if args.output_format not in (OutputFormat.raw_ext4, OutputFormat.raw_btrfs):
+    if args.output_format not in RAW_RW_FS_FORMATS:
         return None, False
 
     fname = args.cache_pre_dev if run_build_script else args.cache_pre_inst
@@ -513,6 +522,9 @@ def mkfs_ext4(label, mount, dev):
 
 def mkfs_btrfs(label, dev):
     run(["mkfs.btrfs", "-L", label, "-d", "single", "-m", "single", dev], check=True)
+
+def mkfs_xfs(label, dev):
+    run(["mkfs.xfs", "-n", "ftype=1", "-L", label, dev], check=True)
 
 def luks_format(dev, passphrase):
 
@@ -660,6 +672,8 @@ def prepare_root(args, dev, cached):
     with complete_step('Formatting root partition'):
         if args.output_format == OutputFormat.raw_btrfs:
             mkfs_btrfs("root", dev)
+        elif args.output_format == OutputFormat.raw_xfs:
+            mkfs_xfs("root", dev)
         else:
             mkfs_ext4("root", "/", dev)
 
@@ -997,6 +1011,9 @@ def invoke_dnf(args, workspace, repositories, base_packages, boot_packages, conf
 
         if args.output_format == OutputFormat.raw_ext4:
             cmdline.append("e2fsprogs")
+
+        if args.output_format == OutputFormat.raw_xfs:
+            cmdline.append("xfsprogs")
 
         if args.output_format == OutputFormat.raw_btrfs:
             cmdline.append("btrfs-progs")
@@ -1440,6 +1457,8 @@ SigLevel    = Required DatabaseOptional
             packages.add("e2fsprogs")
         elif args.output_format == OutputFormat.raw_btrfs:
             packages.add("btrfs-progs")
+        elif args.output_format == OutputFormat.raw_xfs:
+            packages.add("xfsprogs")
         if args.encrypt:
             packages.add("cryptsetup")
             packages.add("device-mapper")
@@ -2115,7 +2134,7 @@ def secure_boot_sign(args, workspace, run_build_script, for_cache):
                 os.rename(p + ".signed", p)
 
 def xz_output(args, raw):
-    if args.output_format not in (OutputFormat.raw_btrfs, OutputFormat.raw_ext4, OutputFormat.raw_squashfs):
+    if args.output_format not in RAW_FORMATS:
         return raw
 
     if not args.xz:
@@ -2210,7 +2229,7 @@ def calculate_bmap(args, raw):
     if not args.bmap:
         return None
 
-    if args.output_format not in (OutputFormat.raw_ext4, OutputFormat.raw_btrfs):
+    if args.output_format not in RAW_RW_FS_FORMATS:
         return None
 
     with complete_step('Creating BMAP file'):
@@ -2230,7 +2249,7 @@ def save_cache(args, workspace, raw, cache_path):
     with complete_step('Installing cache copy ',
                        'Successfully installed cache copy ' + cache_path):
 
-        if args.output_format in (OutputFormat.raw_btrfs, OutputFormat.raw_ext4):
+        if args.output_format in RAW_RW_FS_FORMATS:
             os.chmod(raw, 0o666 & ~args.original_umask)
             shutil.move(raw, cache_path)
         else:
@@ -2241,7 +2260,7 @@ def link_output(args, workspace, raw, tar):
                        'Successfully linked ' + args.output):
         if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
             os.rename(os.path.join(workspace, "root"), args.output)
-        elif args.output_format in (OutputFormat.raw_btrfs, OutputFormat.raw_ext4, OutputFormat.raw_squashfs):
+        elif args.output_format in RAW_FORMATS:
             os.chmod(raw, 0o666 & ~args.original_umask)
             os.link(raw, args.output)
         else:
@@ -2362,7 +2381,7 @@ def parse_args():
     group.add_argument('-O', "--output-dir", help='Output root directory', metavar='DIR')
     group.add_argument('-f', "--force", action='count', dest='force_count', default=0, help='Remove existing image file before operation')
     group.add_argument('-b', "--bootable", type=parse_boolean, nargs='?', const=True,
-                       help='Make image bootable on EFI (only raw_ext4, raw_btrfs, raw_squashfs)')
+                       help='Make image bootable on EFI (only raw_ext4, raw_btrfs, raw_squashfs, raw_xfs)')
     group.add_argument("--secure-boot", action='store_true', help='Sign the resulting kernel/initrd image for UEFI SecureBoot')
     group.add_argument("--secure-boot-key", help="UEFI SecureBoot private key in PEM format", metavar='PATH')
     group.add_argument("--secure-boot-certificate", help="UEFI SecureBoot certificate in X509 format", metavar='PATH')
@@ -2370,7 +2389,7 @@ def parse_args():
     group.add_argument("--encrypt", choices=("all", "data"), help='Encrypt everything except: ESP ("all") or ESP and root ("data")')
     group.add_argument("--verity", action='store_true', help='Add integrity partition (implies --read-only)')
     group.add_argument("--compress", action='store_true', help='Enable compression in file system (only raw_btrfs, subvolume)')
-    group.add_argument("--xz", action='store_true', help='Compress resulting image with xz (only raw_ext4, raw_btrfs, raw_squashfs, implied on tar)')
+    group.add_argument("--xz", action='store_true', help='Compress resulting image with xz (only raw_ext4, raw_btrfs, raw_squashfs, raw_xfs, implied on tar)')
     group.add_argument('-i', "--incremental", action='store_true', help='Make use of and generate intermediary cache images')
 
     group = parser.add_argument_group("Packages")
@@ -2393,13 +2412,13 @@ def parse_args():
     group.add_argument("--settings", dest='nspawn_settings', help='Add in .spawn settings file', metavar='PATH')
 
     group = parser.add_argument_group("Partitions")
-    group.add_argument("--root-size", help='Set size of root partition (only raw_ext4, raw_btrfs)', metavar='BYTES')
-    group.add_argument("--esp-size", help='Set size of EFI system partition (only raw_ext4, raw_btrfs, raw_squashfs)', metavar='BYTES')
-    group.add_argument("--swap-size", help='Set size of swap partition (only raw_ext4, raw_btrfs, raw_squashfs)', metavar='BYTES')
-    group.add_argument("--home-size", help='Set size of /home partition (only raw_ext4, raw_squashfs)', metavar='BYTES')
-    group.add_argument("--srv-size", help='Set size of /srv partition (only raw_ext4, raw_squashfs)', metavar='BYTES')
+    group.add_argument("--root-size", help='Set size of root partition (only raw_ext4, raw_btrfs, raw_xfs)', metavar='BYTES')
+    group.add_argument("--esp-size", help='Set size of EFI system partition (only raw_ext4, raw_btrfs, raw_squashfs, raw_xfs)', metavar='BYTES')
+    group.add_argument("--swap-size", help='Set size of swap partition (only raw_ext4, raw_btrfs, raw_squashfs, raw_xfs)', metavar='BYTES')
+    group.add_argument("--home-size", help='Set size of /home partition (only raw_ext4, raw_squashfs, raw_xfs)', metavar='BYTES')
+    group.add_argument("--srv-size", help='Set size of /srv partition (only raw_ext4, raw_squashfs, raw_xfs)', metavar='BYTES')
 
-    group = parser.add_argument_group("Validation (only raw_ext4, raw_btrfs, raw_squashfs, tar)")
+    group = parser.add_argument_group("Validation (only raw_ext4, raw_btrfs, raw_squashfs, raw_xfs, tar)")
     group.add_argument("--checksum", action='store_true', help='Write SHA256SUMS file')
     group.add_argument("--sign", action='store_true', help='Write and sign SHA256SUMS file')
     group.add_argument("--key", help='GPG key to use for signing')
@@ -3028,8 +3047,8 @@ def load_args():
             die("Directory, subvolume and tar images cannot be booted.")
 
     if args.encrypt is not None:
-        if args.output_format not in (OutputFormat.raw_gpt, OutputFormat.raw_btrfs, OutputFormat.raw_squashfs):
-            die("Encryption is only supported for raw gpt, btrfs or squashfs images.")
+        if args.output_format not in RAW_FORMATS:
+            die("Encryption is only supported for raw ext4, btrfs or squashfs images.")
 
         if args.encrypt == "data" and args.output_format == OutputFormat.raw_btrfs:
             die("'data' encryption mode not supported on btrfs, use 'all' instead.")
@@ -3041,7 +3060,7 @@ def load_args():
         args.checksum = True
 
     if args.output is None:
-        if args.output_format in (OutputFormat.raw_ext4, OutputFormat.raw_btrfs, OutputFormat.raw_squashfs):
+        if args.output_format in RAW_FORMATS:
             if args.xz:
                 args.output = "image.raw.xz"
             else:
@@ -3125,6 +3144,9 @@ def load_args():
     if args.output_format in (OutputFormat.raw_ext4, OutputFormat.raw_btrfs) and args.root_size is None:
         args.root_size = 1024*1024*1024
 
+    if args.output_format == OutputFormat.raw_xfs and args.root_size is None:
+        args.root_size = 1300*1024*1024
+
     if args.bootable and args.esp_size is None:
         args.esp_size = 256*1024*1024
 
@@ -3153,7 +3175,7 @@ def load_args():
             die("Sorry, can't acquire shell in or boot an XZ compressed image.")
 
     if args.verb == "qemu":
-        if args.output_format not in (OutputFormat.raw_ext4, OutputFormat.raw_btrfs, OutputFormat.raw_squashfs):
+        if args.output_format not in RAW_FORMATS:
             die("Sorry, can't boot non-raw images with qemu.")
 
     return args
@@ -3222,18 +3244,18 @@ def print_summary(args):
     sys.stderr.write("Output nspawn Settings: " + none_to_na(args.output_nspawn_settings if args.nspawn_settings is not None else None) + "\n")
     sys.stderr.write("           Incremental: " + yes_no(args.incremental) + "\n")
 
-    if args.output_format in (OutputFormat.raw_ext4, OutputFormat.raw_btrfs, OutputFormat.raw_squashfs, OutputFormat.subvolume):
+    if args.output_format in (*RAW_FORMATS, OutputFormat.subvolume):
         sys.stderr.write("             Read-only: " + yes_no(args.read_only) + "\n")
-    if args.output_format in (OutputFormat.raw_btrfs, OutputFormat.subvolume):
+    if args.output_format in (*RAW_FORMATS, OutputFormat.subvolume):
         sys.stderr.write("        FS Compression: " + yes_no(args.compress) + "\n")
 
-    if args.output_format in (OutputFormat.raw_ext4, OutputFormat.raw_btrfs, OutputFormat.raw_squashfs, OutputFormat.tar):
+    if args.output_format in RAW_FORMATS + (OutputFormat.tar,):
         sys.stderr.write("        XZ Compression: " + yes_no(args.xz) + "\n")
 
     sys.stderr.write("            Encryption: " + none_to_no(args.encrypt) + "\n")
     sys.stderr.write("                Verity: " + yes_no(args.verity) + "\n")
 
-    if args.output_format in (OutputFormat.raw_ext4, OutputFormat.raw_btrfs, OutputFormat.raw_squashfs):
+    if args.output_format in RAW_FORMATS:
         sys.stderr.write("              Bootable: " + yes_no(args.bootable) + "\n")
 
         if args.bootable:
@@ -3265,7 +3287,7 @@ def print_summary(args):
     sys.stderr.write("  Scripts with network: " + yes_no(args.with_network) + "\n")
     sys.stderr.write("       nspawn Settings: " + none_to_none(args.nspawn_settings) + "\n")
 
-    if args.output_format in (OutputFormat.raw_ext4, OutputFormat.raw_btrfs, OutputFormat.raw_squashfs):
+    if args.output_format in RAW_FORMATS:
         sys.stderr.write("\nPARTITIONS:\n")
         sys.stderr.write("        Root Partition: " + format_bytes_or_auto(args.root_size) + "\n")
         sys.stderr.write("        Swap Partition: " + format_bytes_or_disabled(args.swap_size) + "\n")
@@ -3273,7 +3295,7 @@ def print_summary(args):
         sys.stderr.write("       /home Partition: " + format_bytes_or_disabled(args.home_size) + "\n")
         sys.stderr.write("        /srv Partition: " + format_bytes_or_disabled(args.srv_size) + "\n")
 
-    if args.output_format in (OutputFormat.raw_ext4, OutputFormat.raw_btrfs, OutputFormat.raw_squashfs, OutputFormat.tar):
+    if args.output_format in RAW_FORMATS:
         sys.stderr.write("\nVALIDATION:\n")
         sys.stderr.write("              Checksum: " + yes_no(args.checksum) + "\n")
         sys.stderr.write("                  Sign: " + yes_no(args.sign) + "\n")
@@ -3295,7 +3317,7 @@ def reuse_cache_tree(args, workspace, run_build_script, for_cache, cached):
         return False
     if for_cache:
         return False
-    if args.output_format in (OutputFormat.raw_ext4, OutputFormat.raw_btrfs):
+    if args.output_format in RAW_RW_FS_FORMATS:
         return False
 
     fname = args.cache_pre_dev if run_build_script else args.cache_pre_inst
