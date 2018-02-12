@@ -2140,9 +2140,11 @@ def xz_output(args, raw):
     if not args.xz:
         return raw
 
+    xz_binary = "pxz" if shutil.which("pxz") else "xz"
+
     with complete_step('Compressing image file'):
         f = tempfile.NamedTemporaryFile(prefix=".mkosi-", dir=os.path.dirname(args.output))
-        run(["xz", "-c", raw.name], stdout=f, check=True)
+        run([xz_binary, "-c", raw.name], stdout=f, check=True)
 
     return f
 
