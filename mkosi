@@ -1652,7 +1652,7 @@ def run_postinst_script(args, workspace, run_build_script, for_cache):
     if for_cache:
         return
 
-    with complete_step('Running post installation script'):
+    with complete_step('Running postinstall script'):
 
         # We copy the postinst script into the build tree. We'd prefer
         # mounting it into the tree, but for that we'd need a good
@@ -2405,7 +2405,7 @@ def parse_args():
     group.add_argument("--build-sources", help='Path for sources to build', metavar='PATH')
     group.add_argument("--build-dir", help='Path to use as persistent build directory', metavar='PATH')
     group.add_argument("--build-package", action=CommaDelimitedListAction, dest='build_packages', default=[], help='Additional packages needed for build script', metavar='PACKAGE')
-    group.add_argument("--postinst-script", help='Post installation script to run inside image', metavar='PATH')
+    group.add_argument("--postinst-script", help='Postinstall script to run inside image', metavar='PATH')
     group.add_argument('--use-git-files', type=parse_boolean,
                        help='Ignore any files that git itself ignores (default: guess)')
     group.add_argument('--git-files', choices=('cached', 'others'),
@@ -2708,7 +2708,7 @@ def process_setting(args, section, key, value):
         elif key == "BuildPackages":
             list_value = value if type(value) == list else value.split()
             args.build_packages.extend(list_value)
-        elif key == "PostInstallationScript":
+        elif key in {"PostinstallScript", "PostInstallationScript"}:
             if args.postinst_script is None:
                 args.postinst_script = value
         elif key == "WithNetwork":
@@ -3285,7 +3285,7 @@ def print_summary(args):
     sys.stderr.write("         Build Sources: " + none_to_none(args.build_sources) + "\n")
     sys.stderr.write("       Build Directory: " + none_to_none(args.build_dir) + "\n")
     sys.stderr.write("        Build Packages: " + line_join_list(args.build_packages) + "\n")
-    sys.stderr.write("     Post Inst. Script: " + none_to_none(args.postinst_script) + "\n")
+    sys.stderr.write("    Postinstall Script: " + none_to_none(args.postinst_script) + "\n")
     sys.stderr.write("  Scripts with network: " + yes_no(args.with_network) + "\n")
     sys.stderr.write("       nspawn Settings: " + none_to_none(args.nspawn_settings) + "\n")
 
