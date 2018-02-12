@@ -8,9 +8,11 @@ bells and whistles.
 
 The following output formats are supported:
 
-* Raw *GPT* disk image, with ext4 as root (*raw_gpt*)
+* Raw *GPT* disk image, with ext4 as root (*raw_ext4*)
 
 * Raw *GPT* disk image, with btrfs as root (*raw_btrfs*)
+
+* Raw *GPT* disk image, with xfs as root (*raw_xfs*)
 
 * Raw *GPT* disk image, with squashfs as read-only root (*raw_squashfs*)
 
