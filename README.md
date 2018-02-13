@@ -367,7 +367,7 @@ When not using distribution packages make sure to install the
 necessary dependencies. For example, on *Fedora* you need:
 
 ```bash
-dnf install arch-install-scripts btrfs-progs debootstrap dosfstools edk2-ovmf squashfs-tools gnupg python3 tar veritysetup xz zypper
+dnf install arch-install-scripts btrfs-progs debootstrap dosfstools edk2-ovmf e2fsprogs squashfs-tools gnupg python3 tar veritysetup xfsprogs xz zypper
 ```
 
 On Debian/Ubuntu it might be necessary to install the `ubuntu-keyring`,
