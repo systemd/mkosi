@@ -1076,16 +1076,22 @@ ensure that you have openssl program in your system.
 def install_fedora(args, workspace, run_build_script):
     if args.release == 'rawhide':
         last = sorted(FEDORA_KEYS_MAP)[-1]
-        die('Use numerical release for Fedora, not "rawhide"\n' +
-            '(rawhide was {} when this mkosi version was released)'.format(last))
+        warn('Assuming rawhide is version {} -- '.format(last) +
+             'You may specify otherwise with --release=rawhide-<version>')
+        args.releasever = last
+    elif args.release.startswith('rawhide-'):
+        args.release, args.releasever = args.release.split('-')
+        sys.stderr.write('Fedora rawhide - release version: %s\n' % args.releasever)
+    else:
+        args.releasever = args.release
 
     masked = disable_kernel_install(args, workspace)
 
-    gpg_key = "/etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-%s-x86_64" % args.release
+    gpg_key = "/etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-%s-x86_64" % args.releasever
     if os.path.exists(gpg_key):
         gpg_key = "file://%s" % gpg_key
     else:
-        gpg_key = "https://getfedora.org/static/%s.txt" % FEDORA_KEYS_MAP[args.release]
+        gpg_key = "https://getfedora.org/static/%s.txt" % FEDORA_KEYS_MAP[args.releasever]
 
     if args.mirror:
         baseurl = "{args.mirror}/releases/{args.release}/Everything/x86_64/os/".format(args=args)
