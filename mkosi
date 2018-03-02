@@ -14,7 +14,6 @@ import getpass
 import glob
 import hashlib
 import os
-import pathlib
 import platform
 import re
 import shutil
@@ -240,9 +239,6 @@ def symlink_f(target, path):
         os.symlink(target, path)
 
 def copy(oldpath, newpath):
-    if not isinstance(newpath, pathlib.Path):
-        newpath = pathlib.Path(newpath)
-
     try:
         mkdir_last(newpath)
     except FileExistsError:
@@ -251,7 +247,7 @@ def copy(oldpath, newpath):
         mkdir_last(newpath)
 
     for entry in os.scandir(oldpath):
-        newentry = newpath / entry.name
+        newentry = os.path.join(newpath, entry.name)
         if entry.is_dir(follow_symlinks=False):
             copy(entry.path, newentry)
         elif entry.is_symlink():
