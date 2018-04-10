@@ -918,6 +918,10 @@ def run_workspace_command(args, workspace, *cmd, network=False, env={}, nspawn_p
     else:
         cmdline += ["--private-network"]
 
+    # Fix systemd/mkosi#245
+    if args.distribution in (Distribution.debian, Distribution.ubuntu):
+        env['PATH'] = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
+
     cmdline += [ "--setenv={}={}".format(k,v) for k,v in env.items() ]
 
     if nspawn_params:
