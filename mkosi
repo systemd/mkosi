@@ -837,7 +837,9 @@ def prepare_tree(args, workspace, run_build_script, cached):
     if args.bootable:
         # We need an initialized machine ID for the boot logic to work
         os.mkdir(os.path.join(workspace, "root", "etc"), 0o755)
-        open(os.path.join(workspace, "root", "etc/machine-id"), "w").write(args.machine_id + "\n")
+        with open(os.path.join(workspace, "root", "etc/machine-id"), "w") as f:
+            f.write(args.machine_id)
+            f.write("\n")
 
         os.mkdir(os.path.join(workspace, "root", "efi/EFI"), 0o700)
         os.mkdir(os.path.join(workspace, "root", "efi/EFI/BOOT"), 0o700)
