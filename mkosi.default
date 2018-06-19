@@ -3,7 +3,7 @@
 
 [Distribution]
 Distribution=fedora
-Release=27
+Release=28
 
 [Output]
 Format=raw_squashfs
@@ -16,7 +16,8 @@ Packages=
         debootstrap
         dnf
         dosfstools
-        git
+        git-core
+        glibc-minimal-langpack
         gnupg
         squashfs-tools
         tar
