@@ -3,7 +3,7 @@
 
 [Distribution]
 Distribution=fedora
-Release=27
+Release=28
 
 [Output]
 Format=raw_squashfs
