@@ -1121,7 +1121,7 @@ gpgkey={gpg_key}
     invoke_dnf(args, workspace,
                args.repositories if args.repositories else ["fedora", "updates"],
                ["systemd", "fedora-release", "passwd"],
-               ["kernel", "systemd-udev", "binutils"],
+               ["kernel-core", "systemd-udev", "binutils"],
                config_file)
 
     reenable_kernel_install(args, workspace, masked)

@@ -16,7 +16,8 @@ Packages=
         debootstrap
         dnf
         dosfstools
-        git
+        git-core
+        glibc-minimal-langpack
         gnupg
         squashfs-tools
         tar
