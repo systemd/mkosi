@@ -1434,7 +1434,6 @@ SigLevel    = Required DatabaseOptional
         "man-pages",
         "mdadm",
         "netctl",
-        "pcmciautils",
         "reiserfsprogs",
         "xfsprogs",
     }
