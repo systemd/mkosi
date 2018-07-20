@@ -3420,7 +3420,6 @@ def build_image(args: CommandLineArguments, workspace: tempfile.TemporaryDirecto
     if args.build_script is None and run_build_script:
         return None, None, None
 
-    make_output_dir(args)
     make_build_dir(args)
 
     raw, cached = reuse_cache_image(args, workspace.name, run_build_script, for_cache)
@@ -3570,6 +3569,7 @@ def build_stuff(args: CommandLineArguments) -> None:
     # always the same
     args.machine_id = uuid.uuid4().hex
 
+    make_output_dir(args)
     setup_package_cache(args)
     workspace = setup_workspace(args)
 
