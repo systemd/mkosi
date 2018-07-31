@@ -1239,7 +1239,7 @@ def install_centos(args, workspace, run_build_script):
 
     if args.mirror:
         release_url = "baseurl={args.mirror}/centos/{args.release}/os/x86_64".format(args=args)
-        updates_url = "baseurl={args.mirror}/cenots/{args.release}/updates/x86_64/".format(args=args)
+        updates_url = "baseurl={args.mirror}/centos/{args.release}/updates/x86_64/".format(args=args)
     else:
         release_url = "mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=os".format(args=args)
         updates_url = "mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=updates".format(args=args)
