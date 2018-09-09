@@ -1334,10 +1334,10 @@ def install_debian_or_ubuntu(args, workspace, run_build_script, mirror):
         '/usr/share/linda',
     ]
     if not args.with_docs:
-        # remove documentation installed by debootstrap
+        # Remove documentation installed by debootstrap
         cmdline = ["rm", "-rf"] + doc_paths
         run_workspace_command(args, workspace, *cmdline)
-        # Create dpkg.cfg to ingore documentation on new packages
+        # Create dpkg.cfg to ignore documentation on new packages
         dpkg_conf = os.path.join(workspace, "root/etc/dpkg/dpkg.cfg.d/01_nodoc")
         with open(dpkg_conf, "w") as f:
             f.writelines(["path-exclude %s/*\n" % d for d in doc_paths])
