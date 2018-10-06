@@ -764,10 +764,6 @@ def mount_image(args: argparse.Namespace, workspace: str, loopdev: str, root_dev
         yield
     finally:
         with complete_step('Unmounting image'):
-
-            for d in ("home", "srv", "efi", "run", "tmp"):
-                umount(os.path.join(root, d))
-
             umount(root)
 
 @complete_step("Assigning hostname")
@@ -831,7 +827,7 @@ def mount_cache(args: argparse.Namespace, workspace: str) -> Iterator[None]:
 
 def umount(where: str) -> None:
     # Ignore failures and error messages
-    run(["umount", "-n", where], stdout=DEVNULL, stderr=DEVNULL)
+    run(["umount", "--recursive", "-n", where], stdout=DEVNULL, stderr=DEVNULL)
 
 @complete_step('Setting up basic OS tree')
 def prepare_tree(args: argparse.Namespace, workspace: str, run_build_script: bool, cached: bool):
