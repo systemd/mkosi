@@ -1335,7 +1335,7 @@ def install_debian_or_ubuntu(args, workspace, run_build_script, mirror):
     ]
     if not args.with_docs:
         # Remove documentation installed by debootstrap
-        cmdline = ["rm", "-rf"] + doc_paths
+        cmdline = ["/bin/rm", "-rf"] + doc_paths
         run_workspace_command(args, workspace, *cmdline)
         # Create dpkg.cfg to ignore documentation on new packages
         dpkg_conf = os.path.join(workspace, "root/etc/dpkg/dpkg.cfg.d/01_nodoc")
