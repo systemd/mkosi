@@ -40,7 +40,6 @@ if sys.version_info < (3, 5):
 
 # TODO
 # - volatile images
-# - make ubuntu images bootable
 # - work on device nodes
 # - allow passing env vars
 
@@ -1321,7 +1320,12 @@ def install_debian_or_ubuntu(args, workspace, run_build_script, mirror):
         f.write("hostonly=no")
 
     if args.bootable:
-        extra_packages += ["linux-image-amd64", "dracut"]
+        if args.distribution == Distribution.ubuntu:
+            linux_image_package_name = "linux-image-generic"
+        else:
+            linux_image_package_name = "linux-image-amd64"
+
+        extra_packages += [linux_image_package_name, "dracut"]
 
     # Debian policy is to start daemons by default.
     # The policy-rc.d script can be used choose which ones to start
@@ -3054,9 +3058,6 @@ def load_args():
             args.mirror = "http://download.opensuse.org"
 
     if args.bootable:
-        if args.distribution == Distribution.ubuntu:
-            die("Bootable images are currently not supported on Ubuntu.")
-
         if args.output_format in (OutputFormat.directory, OutputFormat.subvolume, OutputFormat.tar):
             die("Directory, subvolume and tar images cannot be booted.")
 
