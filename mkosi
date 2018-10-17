@@ -1284,17 +1284,17 @@ gpgkey={gpg_key}
     reenable_kernel_install(args, workspace, masked)
 
 def install_debian_or_ubuntu(args, workspace, run_build_script, mirror):
-    if args.repositories:
-        components = ','.join(args.repositories)
-    else:
-        components = 'main'
+    repos = args.repositories if args.repositories else ["main"]
+    # Ubuntu needs the 'universe' repo to install 'dracut'
+    if args.distribution == Distribution.ubuntu and args.bootable and 'universe' not in repos:
+        repos.append('universe')
     cmdline = ["debootstrap",
                "--verbose",
                "--merged-usr",
                "--variant=minbase",
                "--include=systemd-sysv",
                "--exclude=sysv-rc,initscripts,startpar,lsb-base,insserv",
-               "--components=" + components,
+               "--components=" + ','.join(repos),
                args.release,
                workspace + "/root",
                mirror]
