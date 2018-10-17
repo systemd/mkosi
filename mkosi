@@ -1338,6 +1338,13 @@ def install_debian_or_ubuntu(args, workspace, run_build_script, mirror):
         f.write("#!/bin/sh\n")
         f.write("exit 101")
     os.chmod(policyrcd, 0o755)
+    # Work around "Failed to find module 'crc32c'" dracut issue
+    # See also:
+    # - https://github.com/antonio-petricca/buddy-linux/issues/2#issuecomment-404505527
+    # - https://bugs.launchpad.net/ubuntu/+source/dracut/+bug/1781143
+    dracut_bug_conf = os.path.join(workspace, "root/etc/dpkg/dpkg.cfg.d/01_no_dracut_10-debian")
+    with open(dracut_bug_conf, "w") as f:
+        f.writelines(['path-exclude /etc/dracut.conf.d/10-debian.conf\n'])
 
     doc_paths = [
         '/usr/share/locale',
