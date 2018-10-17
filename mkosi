@@ -40,7 +40,6 @@ if sys.version_info < (3, 5):
 
 # TODO
 # - volatile images
-# - make ubuntu images bootable
 # - work on device nodes
 # - allow passing env vars
 
