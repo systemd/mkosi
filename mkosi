@@ -3054,9 +3054,6 @@ def load_args():
             args.mirror = "http://download.opensuse.org"
 
     if args.bootable:
-        if args.distribution == Distribution.ubuntu:
-            die("Bootable images are currently not supported on Ubuntu.")
-
         if args.output_format in (OutputFormat.directory, OutputFormat.subvolume, OutputFormat.tar):
             die("Directory, subvolume and tar images cannot be booted.")
 
