@@ -1131,9 +1131,12 @@ gpgkey={gpg_key}
 
     invoke_dnf(args, workspace,
                args.repositories if args.repositories else ["fedora", "updates"],
-               ["systemd", "fedora-release", "passwd"],
+               ["systemd", "fedora-release", "passwd", "glibc-minimal-langpack"],
                ["kernel-core", "systemd-udev", "binutils"],
                config_file)
+
+    with open(os.path.join(workspace, 'root', 'etc/locale.conf'), 'w') as f:
+        f.write('LANG=C.UTF-8\n')
 
     reenable_kernel_install(args, workspace, masked)
 
