@@ -1010,8 +1010,7 @@ def invoke_dnf(args: CommandLineArguments, workspace: str, repositories: List[st
                "--setopt=keepcache=1",
                "--setopt=install_weak_deps=0"]
 
-    # Turn off docs, but not during the development build, as dnf currently has problems with that
-    if not args.with_docs and not run_build_script:
+    if not args.with_docs:
         cmdline.append("--setopt=tsflags=nodocs")
 
     cmdline.extend([
@@ -1222,8 +1221,7 @@ def invoke_yum(args: CommandLineArguments, workspace: str, repositories: List[st
                *repos,
                "--setopt=keepcache=1"]
 
-    # Turn off docs, but not during the development build, as dnf currently has problems with that
-    if not args.with_docs and not run_build_script:
+    if not args.with_docs:
         cmdline.append("--setopt=tsflags=nodocs")
 
     cmdline.extend([
