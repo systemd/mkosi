@@ -46,7 +46,8 @@ except ImportError:
     pass
 
 from enum import Enum
-from subprocess import run, DEVNULL, PIPE
+import subprocess
+from subprocess import DEVNULL, PIPE
 
 __version__ = '4'
 
@@ -57,6 +58,18 @@ if sys.version_info < (3, 5):
 # - volatile images
 # - work on device nodes
 # - allow passing env vars
+
+# This global should be initialized after parsing arguments
+arg_debug = ()
+
+def run(cmdline: List[str], execvp: bool=False, **kwargs) -> Optional[subprocess.CompletedProcess]:
+    if 'run' in arg_debug:
+        sys.stderr.write('+ ' + ' '.join(shlex.quote(x) for x in cmdline) + '\n')
+    if execvp:
+        assert not kwargs
+        os.execvp(cmdline[0], cmdline)
+    else:
+        return subprocess.run(cmdline, **kwargs)
 
 def die(message: str, status: int=1) -> NoReturn:
     assert status >= 1 and status < 128
@@ -2427,11 +2440,18 @@ def setup_package_cache(args: CommandLineArguments) -> Optional[tempfile.Tempora
     return d
 
 class ListAction(argparse.Action):
+    def __init__(self, *args, choices=None, **kwargs):
+        self.list_choices = choices
+        super().__init__(*args, **kwargs)
     def __call__(self, parser, namespace, values, option_string=None):
         l = getattr(namespace, self.dest)
         if l is None:
             l = []
-        l.extend(values.split(self.delimiter))
+        new = values.split(self.delimiter)
+        for x in new:
+            if self.list_choices is not None and x not in self.list_choices:
+                raise ValueError('Unknown value {!r}'.format(x))
+            l.append(x)
         setattr(namespace, self.dest, l)
 
 class CommaDelimitedListAction(ListAction):
@@ -2514,6 +2534,10 @@ def parse_args() -> CommandLineArguments:
     group.add_argument("--default", dest='default_path', help='Read configuration data from file', metavar='PATH')
     group.add_argument("--kernel-commandline", help='Set the kernel command line (only bootable images)')
     group.add_argument("--hostname", help="Set hostname")
+
+    group.add_argument('--debug', action=CommaDelimitedListAction, default=[],
+                       help='Turn on debugging output', metavar='SELECTOR',
+                       choices=('run',))
 
     try:
         argcomplete.autocomplete(parser)
@@ -3048,6 +3072,9 @@ def load_args() -> CommandLineArguments:
 
     if args.directory is not None:
         os.chdir(args.directory)
+
+    global arg_debug
+    arg_debug = args.debug
 
     load_defaults(args)
     find_nspawn_settings(args)
@@ -3676,7 +3703,7 @@ def run_shell(args: CommandLineArguments) -> None:
     if args.cmdline:
         cmdline += ('--', *args.cmdline)
 
-    os.execvp(cmdline[0], cmdline)
+    run(cmdline, execvp=True)
 
 def run_qemu(args: CommandLineArguments) -> None:
 
@@ -3723,7 +3750,7 @@ def run_qemu(args: CommandLineArguments) -> None:
 
     print_running_cmd(cmdline)
 
-    os.execvp(cmdline[0], cmdline)
+    run(cmdline, execvp=True)
 
 def expand_paths(paths: List[str]) -> List[str]:
     if not paths:
