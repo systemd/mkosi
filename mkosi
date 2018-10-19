@@ -40,7 +40,6 @@ if sys.version_info < (3, 5):
 
 # TODO
 # - volatile images
-# - make ubuntu images bootable
 # - work on device nodes
 # - allow passing env vars
 
@@ -1287,17 +1286,17 @@ gpgkey={gpg_key}
     reenable_kernel_install(args, workspace, masked)
 
 def install_debian_or_ubuntu(args, workspace, run_build_script, mirror):
-    if args.repositories:
-        components = ','.join(args.repositories)
-    else:
-        components = 'main'
+    repos = args.repositories if args.repositories else ["main"]
+    # Ubuntu needs the 'universe' repo to install 'dracut'
+    if args.distribution == Distribution.ubuntu and args.bootable and 'universe' not in repos:
+        repos.append('universe')
     cmdline = ["debootstrap",
                "--verbose",
                "--merged-usr",
                "--variant=minbase",
                "--include=systemd-sysv",
                "--exclude=sysv-rc,initscripts,startpar,lsb-base,insserv",
-               "--components=" + components,
+               "--components=" + ','.join(repos),
                args.release,
                workspace + "/root",
                mirror]
@@ -1324,7 +1323,11 @@ def install_debian_or_ubuntu(args, workspace, run_build_script, mirror):
         f.write("hostonly=no")
 
     if args.bootable:
-        extra_packages += ["linux-image-amd64", "dracut"]
+        extra_packages += ["dracut"]
+        if args.distribution == Distribution.ubuntu:
+            extra_packages += ["linux-generic"]
+        else:
+            extra_packages += ["linux-image-amd64"]
 
     # Debian policy is to start daemons by default.
     # The policy-rc.d script can be used choose which ones to start
@@ -1337,6 +1340,15 @@ def install_debian_or_ubuntu(args, workspace, run_build_script, mirror):
         f.write("#!/bin/sh\n")
         f.write("exit 101")
     os.chmod(policyrcd, 0o755)
+    dracut_bug_comment = [
+        '# Work around "Failed to find module \'crc32c\'" dracut issue\n',
+        '# See also:\n',
+        '# - https://github.com/antonio-petricca/buddy-linux/issues/2#issuecomment-404505527\n',
+        '# - https://bugs.launchpad.net/ubuntu/+source/dracut/+bug/1781143\n',
+    ]
+    dracut_bug_conf = os.path.join(workspace, "root/etc/dpkg/dpkg.cfg.d/01_no_dracut_10-debian")
+    with open(dracut_bug_conf, "w") as f:
+        f.writelines(dracut_bug_comment + ['path-exclude /etc/dracut.conf.d/10-debian.conf\n'])
 
     doc_paths = [
         '/usr/share/locale',
@@ -1711,6 +1723,9 @@ def install_boot_loader_debian(args, workspace):
     run_workspace_command(args, workspace,
                     "/usr/bin/kernel-install", "add", kernel_version, "/boot/vmlinuz-" + kernel_version)
 
+def install_boot_loader_ubuntu(args, workspace):
+    install_boot_loader_debian(args, workspace)
+
 def install_boot_loader_opensuse(args, workspace):
     install_boot_loader_debian(args, workspace)
 
@@ -1748,6 +1763,9 @@ def install_boot_loader(args, workspace, loopdev, cached):
 
         if args.distribution == Distribution.debian:
             install_boot_loader_debian(args, workspace)
+
+        if args.distribution == Distribution.ubuntu:
+            install_boot_loader_ubuntu(args, workspace)
 
         if args.distribution == Distribution.opensuse:
             install_boot_loader_opensuse(args, workspace)
@@ -3057,9 +3075,6 @@ def load_args():
             args.mirror = "http://download.opensuse.org"
 
     if args.bootable:
-        if args.distribution == Distribution.ubuntu:
-            die("Bootable images are currently not supported on Ubuntu.")
-
         if args.output_format in (OutputFormat.directory, OutputFormat.subvolume, OutputFormat.tar):
             die("Directory, subvolume and tar images cannot be booted.")
 
