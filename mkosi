@@ -25,6 +25,21 @@ import tempfile
 import urllib.request
 import uuid
 
+from typing import (
+    Any,
+    Dict,
+    Callable,
+    Generator,
+    IO,
+    Iterable,
+    Iterator,
+    List,
+    NoReturn,
+    Optional,
+    Tuple,
+    Union,
+)
+
 try:
     import argcomplete
 except ImportError:
@@ -43,12 +58,12 @@ if sys.version_info < (3, 5):
 # - work on device nodes
 # - allow passing env vars
 
-def die(message, status=1):
+def die(message: str, status: int=1) -> NoReturn:
     assert status >= 1 and status < 128
     sys.stderr.write(message + "\n")
     sys.exit(status)
 
-def warn(message, *args, **kwargs):
+def warn(message: str, *args: Any, **kwargs: Any) -> None:
     sys.stderr.write('WARNING: ' + message.format(*args, **kwargs) + '\n')
 
 class OutputFormat(Enum):
@@ -125,14 +140,14 @@ def gpt_root_native():
     else:
         die("Unknown architecture {}.".format(platform.machine()))
 
-def unshare(flags):
+def unshare(flags: int) -> None:
     libc = ctypes.CDLL(ctypes.util.find_library("c"), use_errno=True)
 
     if libc.unshare(ctypes.c_int(flags)) != 0:
         e = ctypes.get_errno()
         raise OSError(e, os.strerror(e))
 
-def format_bytes(bytes):
+def format_bytes(bytes: int) -> str:
     if bytes >= 1024*1024*1024:
         return "{:0.1f}G".format(bytes / 1024**3)
     if bytes >= 1024*1024:
@@ -142,17 +157,17 @@ def format_bytes(bytes):
 
     return "{}B".format(bytes)
 
-def roundup512(x):
+def roundup512(x: int) -> int:
     return (x + 511) & ~511
 
-def print_step(text):
+def print_step(text: str) -> None:
     sys.stderr.write("‣ \033[0;1;39m" + text + "\033[0m\n")
 
-def print_running_cmd(cmdline):
+def print_running_cmd(cmdline: Iterable[str]) -> None:
     sys.stderr.write("‣ \033[0;1;39mRunning command:\033[0m\n")
     sys.stderr.write(" ".join(shlex.quote(x) for x in cmdline) + "\n")
 
-def mkdir_last(path, mode=0o777):
+def mkdir_last(path: str, mode: int=0o777) -> str:
     """Create directory path
 
     Only the final component will be created, so this is different than mkdirs().
@@ -178,26 +193,28 @@ _IOC_NONE  = 0
 _IOC_WRITE = 1
 _IOC_READ  = 2
 
-def _IOC(dir, type, nr, argtype):
+def _IOC(dir: int, type: int, nr: int, argtype: str) -> int:
     size = {'int':4, 'size_t':8}[argtype]
     return dir<<_IOC_DIRSHIFT | type<<_IOC_TYPESHIFT | nr<<_IOC_NRSHIFT | size<<_IOC_SIZESHIFT
-def _IOW(type, nr, size):
+
+
+def _IOW(type: int, nr: int, size: str) -> int:
     return _IOC(_IOC_WRITE, type, nr, size)
 
 FICLONE = _IOW(0x94, 9, 'int')
 
 @contextlib.contextmanager
-def open_close(path, flags, mode=0o664):
+def open_close(path: str, flags: int, mode: int=0o664) -> Iterator[int]:
     fd = os.open(path, flags | os.O_CLOEXEC, mode)
     try:
         yield fd
     finally:
         os.close(fd)
 
-def _reflink(oldfd, newfd):
+def _reflink(oldfd: int, newfd: int) -> None:
     fcntl.ioctl(newfd, FICLONE, oldfd)
 
-def copy_fd(oldfd, newfd):
+def copy_fd(oldfd: int, newfd: int) -> None:
     try:
         _reflink(oldfd, newfd)
     except OSError as e:
@@ -214,11 +231,11 @@ def copy_file_object(oldobject, newobject):
             raise
         shutil.copyfileobj(oldobject, newobject)
 
-def copy_symlink(oldpath, newpath):
+def copy_symlink(oldpath: str, newpath: str) -> None:
     src = os.readlink(oldpath)
     os.symlink(src, newpath)
 
-def copy_file(oldpath, newpath):
+def copy_file(oldpath: str, newpath: str) -> None:
     if os.path.islink(oldpath):
         copy_symlink(oldpath, newpath)
         return
@@ -235,14 +252,14 @@ def copy_file(oldpath, newpath):
                 copy_fd(oldfd, newfd)
     shutil.copystat(oldpath, newpath, follow_symlinks=False)
 
-def symlink_f(target, path):
+def symlink_f(target: str, path: str) -> None:
     try:
         os.symlink(target, path)
     except FileExistsError:
         os.unlink(path)
         os.symlink(target, path)
 
-def copy(oldpath, newpath):
+def copy(oldpath: str, newpath: str) -> None:
     try:
         mkdir_last(newpath)
     except FileExistsError:
@@ -268,9 +285,9 @@ def copy(oldpath, newpath):
     shutil.copystat(oldpath, newpath, follow_symlinks=True)
 
 @contextlib.contextmanager
-def complete_step(text, text2=None):
+def complete_step(text: str, text2: Optional[str]=None) -> Iterator[List[Any]]:
     print_step(text + '...')
-    args = []
+    args = [] # type: List[Any]
     yield args
     if text2 is None:
         text2 = text + ' complete'
@@ -282,7 +299,7 @@ def init_namespace(args):
     unshare(CLONE_NEWNS)
     run(["mount", "--make-rslave", "/"], check=True)
 
-def setup_workspace(args):
+def setup_workspace(args: argparse.Namespace) -> tempfile.TemporaryDirectory:
     print_step("Setting up temporary workspace.")
     if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
         d = tempfile.TemporaryDirectory(dir=os.path.dirname(args.output), prefix='.mkosi-')
@@ -292,12 +309,12 @@ def setup_workspace(args):
     print_step("Temporary workspace in " + d.name + " is now set up.")
     return d
 
-def btrfs_subvol_create(path, mode=0o755):
+def btrfs_subvol_create(path: str, mode: int=0o755) -> None:
     m = os.umask(~mode & 0o7777)
     run(["btrfs", "subvol", "create", path], check=True)
     os.umask(m)
 
-def btrfs_subvol_delete(path):
+def btrfs_subvol_delete(path: str) -> None:
     # Extract the path of the subvolume relative to the filesystem
     c = run(["btrfs", "subvol", "show", path],
             stdout=PIPE, stderr=DEVNULL, universal_newlines=True, check=True)
@@ -319,10 +336,10 @@ def btrfs_subvol_delete(path):
     # Delete the subvolume now that all its descendants have been deleted
     run(["btrfs", "subvol", "delete", path], stdout=DEVNULL, stderr=DEVNULL, check=True)
 
-def btrfs_subvol_make_ro(path, b=True):
+def btrfs_subvol_make_ro(path: str, b:bool=True) -> None:
     run(["btrfs", "property", "set", path, "ro", "true" if b else "false"], check=True)
 
-def image_size(args):
+def image_size(args: argparse.Namespace) -> int:
     size = GPT_HEADER_SIZE + GPT_FOOTER_SIZE
 
     if args.root_size is not None:
@@ -340,12 +357,12 @@ def image_size(args):
 
     return size
 
-def disable_cow(path):
+def disable_cow(path: str) -> None:
     """Disable copy-on-write if applicable on filesystem"""
 
     run(["chattr", "+C", path], stdout=DEVNULL, stderr=DEVNULL, check=False)
 
-def determine_partition_table(args):
+def determine_partition_table(args: argparse.Namespace):
 
     pn = 1
     table = "label: gpt\n"
@@ -401,7 +418,7 @@ def determine_partition_table(args):
     return table, run_sfdisk
 
 
-def create_image(args, workspace, for_cache):
+def create_image(args: argparse.Namespace, workspace: str, for_cache: bool) -> Optional[IO[str]]:
     if args.output_format not in RAW_FORMATS:
         return None
 
@@ -423,8 +440,7 @@ def create_image(args, workspace, for_cache):
 
     return f
 
-def reuse_cache_image(args, workspace, run_build_script, for_cache):
-
+def reuse_cache_image(args: argparse.Namespace, workspace: str, run_build_script: bool, for_cache: bool) -> Tuple[Optional[IO[str]], bool]:
     if not args.incremental:
         return None, False
     if args.output_format not in RAW_RW_FS_FORMATS:
@@ -471,7 +487,7 @@ def reuse_cache_image(args, workspace, run_build_script, for_cache):
     return f, True
 
 @contextlib.contextmanager
-def attach_image_loopback(args, raw):
+def attach_image_loopback(args: argparse.Namespace, raw: Optional[IO[str]]):
     if raw is None:
         yield None
         return
@@ -489,13 +505,13 @@ def attach_image_loopback(args, raw):
         with complete_step('Detaching image file'):
             run(["losetup", "--detach", loopdev], check=True)
 
-def partition(loopdev, partno):
+def partition(loopdev: str, partno: Optional[int]) -> Optional[str]:
     if partno is None:
         return None
 
     return loopdev + "p" + str(partno)
 
-def prepare_swap(args, loopdev, cached):
+def prepare_swap(args: argparse.Namespace, loopdev: Optional[str], cached: bool) -> None:
     if loopdev is None:
         return
     if cached:
@@ -506,7 +522,7 @@ def prepare_swap(args, loopdev, cached):
     with complete_step('Formatting swap partition'):
         run(["mkswap", "-Lswap", partition(loopdev, args.swap_partno)], check=True)
 
-def prepare_esp(args, loopdev, cached):
+def prepare_esp(args: argparse.Namespace, loopdev: Optional[str], cached: bool) -> None:
     if loopdev is None:
         return
     if cached:
@@ -517,16 +533,16 @@ def prepare_esp(args, loopdev, cached):
     with complete_step('Formatting ESP partition'):
         run(["mkfs.fat", "-nEFI", "-F32", partition(loopdev, args.esp_partno)], check=True)
 
-def mkfs_ext4(label, mount, dev):
+def mkfs_ext4(label: str, mount: str, dev: str) -> None:
     run(["mkfs.ext4", "-L", label, "-M", mount, dev], check=True)
 
-def mkfs_btrfs(label, dev):
+def mkfs_btrfs(label: str, dev: str) -> None:
     run(["mkfs.btrfs", "-L", label, "-d", "single", "-m", "single", dev], check=True)
 
-def mkfs_xfs(label, dev):
+def mkfs_xfs(label: str, dev: str) -> None:
     run(["mkfs.xfs", "-n", "ftype=1", "-L", label, dev], check=True)
 
-def luks_format(dev, passphrase):
+def luks_format(dev: str, passphrase: Dict[str, str]) -> None:
 
     if passphrase['type'] == 'stdin':
         passphrase = (passphrase['content'] + "\n").encode("utf-8")
@@ -535,7 +551,7 @@ def luks_format(dev, passphrase):
         assert passphrase['type'] == 'file'
         run(["cryptsetup", "luksFormat", "--batch-mode", dev, passphrase['content']], check=True)
 
-def luks_open(dev, passphrase):
+def luks_open(dev: str, passphrase: Dict[str, str]) -> str:
 
     name = str(uuid.uuid4())
 
@@ -548,14 +564,14 @@ def luks_open(dev, passphrase):
 
     return os.path.join("/dev/mapper", name)
 
-def luks_close(dev, text):
+def luks_close(dev: Optional[str], text: str) -> None:
     if dev is None:
         return
 
     with complete_step(text):
         run(["cryptsetup", "close", dev], check=True)
 
-def luks_format_root(args, loopdev, run_build_script, cached, inserting_squashfs=False):
+def luks_format_root(args: argparse.Namespace, loopdev: str, run_build_script: bool, cached: bool, inserting_squashfs: bool=False) -> None:
 
     if args.encrypt != "all":
         return
@@ -571,7 +587,7 @@ def luks_format_root(args, loopdev, run_build_script, cached, inserting_squashfs
     with complete_step("LUKS formatting root partition"):
         luks_format(partition(loopdev, args.root_partno), args.passphrase)
 
-def luks_format_home(args, loopdev, run_build_script, cached):
+def luks_format_home(args: argparse.Namespace, loopdev: str, run_build_script: bool, cached: bool) -> None:
 
     if args.encrypt is None:
         return
@@ -585,7 +601,7 @@ def luks_format_home(args, loopdev, run_build_script, cached):
     with complete_step("LUKS formatting home partition"):
         luks_format(partition(loopdev, args.home_partno), args.passphrase)
 
-def luks_format_srv(args, loopdev, run_build_script, cached):
+def luks_format_srv(args: argparse.Namespace, loopdev: str, run_build_script: bool, cached: bool) -> None:
 
     if args.encrypt is None:
         return
@@ -599,7 +615,7 @@ def luks_format_srv(args, loopdev, run_build_script, cached):
     with complete_step("LUKS formatting server data partition"):
         luks_format(partition(loopdev, args.srv_partno), args.passphrase)
 
-def luks_setup_root(args, loopdev, run_build_script, inserting_squashfs=False):
+def luks_setup_root(args: argparse.Namespace, loopdev: str, run_build_script: bool, inserting_squashfs:bool=False) -> Optional[str]:
 
     if args.encrypt != "all":
         return None
@@ -613,7 +629,7 @@ def luks_setup_root(args, loopdev, run_build_script, inserting_squashfs=False):
     with complete_step("Opening LUKS root partition"):
         return luks_open(partition(loopdev, args.root_partno), args.passphrase)
 
-def luks_setup_home(args, loopdev, run_build_script):
+def luks_setup_home(args: argparse.Namespace, loopdev: str, run_build_script: bool) -> Optional[str]:
 
     if args.encrypt is None:
         return None
@@ -625,7 +641,7 @@ def luks_setup_home(args, loopdev, run_build_script):
     with complete_step("Opening LUKS home partition"):
         return luks_open(partition(loopdev, args.home_partno), args.passphrase)
 
-def luks_setup_srv(args, loopdev, run_build_script):
+def luks_setup_srv(args: argparse.Namespace, loopdev: str, run_build_script: bool) -> Optional[str]:
 
     if args.encrypt is None:
         return None
@@ -638,7 +654,7 @@ def luks_setup_srv(args, loopdev, run_build_script):
         return luks_open(partition(loopdev, args.srv_partno), args.passphrase)
 
 @contextlib.contextmanager
-def luks_setup_all(args, loopdev, run_build_script):
+def luks_setup_all(args: argparse.Namespace, loopdev: str, run_build_script: bool) -> Iterator[Tuple[Optional[str], Optional[str], Optional[str]]]:
 
     if args.output_format in (OutputFormat.directory, OutputFormat.subvolume, OutputFormat.tar):
         yield (None, None, None)
@@ -661,7 +677,7 @@ def luks_setup_all(args, loopdev, run_build_script):
     finally:
         luks_close(root, "Closing LUKS root partition")
 
-def prepare_root(args, dev, cached):
+def prepare_root(args: argparse.Namespace, dev: str, cached: bool) -> None:
     if dev is None:
         return
     if args.output_format == OutputFormat.raw_squashfs:
@@ -677,7 +693,7 @@ def prepare_root(args, dev, cached):
         else:
             mkfs_ext4("root", "/", dev)
 
-def prepare_home(args, dev, cached):
+def prepare_home(args: argparse.Namespace, dev: str, cached: bool) -> None:
     if dev is None:
         return
     if cached:
@@ -686,7 +702,7 @@ def prepare_home(args, dev, cached):
     with complete_step('Formatting home partition'):
         mkfs_ext4("home", "/home", dev)
 
-def prepare_srv(args, dev, cached):
+def prepare_srv(args: argparse.Namespace, dev: str, cached: bool) -> None:
     if dev is None:
         return
     if cached:
@@ -695,7 +711,7 @@ def prepare_srv(args, dev, cached):
     with complete_step('Formatting server data partition'):
         mkfs_ext4("srv", "/srv", dev)
 
-def mount_loop(args, dev, where, read_only=False):
+def mount_loop(args: argparse.Namespace, dev: str, where: str, read_only:bool=False) -> None:
     os.makedirs(where, 0o755, True)
 
     options = "-odiscard"
@@ -708,17 +724,17 @@ def mount_loop(args, dev, where, read_only=False):
 
     run(["mount", "-n", dev, where, options], check=True)
 
-def mount_bind(what, where):
+def mount_bind(what: str, where: str) -> None:
     os.makedirs(what, 0o755, True)
     os.makedirs(where, 0o755, True)
     run(["mount", "--bind", what, where], check=True)
 
-def mount_tmpfs(where):
+def mount_tmpfs(where: str) -> None:
     os.makedirs(where, 0o755, True)
     run(["mount", "tmpfs", "-t", "tmpfs", where], check=True)
 
 @contextlib.contextmanager
-def mount_image(args, workspace, loopdev, root_dev, home_dev, srv_dev, root_read_only=False):
+def mount_image(args: argparse.Namespace, workspace: str, loopdev: str, root_dev: str, home_dev: str, srv_dev: str, root_read_only: bool=False) -> Iterator[None]:
     if loopdev is None:
         yield None
         return
@@ -753,7 +769,7 @@ def mount_image(args, workspace, loopdev, root_dev, home_dev, srv_dev, root_read
             umount(root)
 
 @complete_step("Assigning hostname")
-def install_etc_hostname(args, workspace):
+def install_etc_hostname(args: argparse.Namespace, workspace: str) -> None:
     etc_hostname = os.path.join(workspace, "root", "etc/hostname")
 
     # Always unlink first, so that we don't get in trouble due to a
@@ -769,7 +785,7 @@ def install_etc_hostname(args, workspace):
         open(etc_hostname, "w").write(args.hostname + "\n")
 
 @contextlib.contextmanager
-def mount_api_vfs(args, workspace):
+def mount_api_vfs(args: argparse.Namespace, workspace: str) -> Iterator[None]:
     paths = ('/proc', '/dev', '/sys')
     root = os.path.join(workspace, "root")
 
@@ -784,7 +800,7 @@ def mount_api_vfs(args, workspace):
                 umount(root + d)
 
 @contextlib.contextmanager
-def mount_cache(args, workspace):
+def mount_cache(args: argparse.Namespace, workspace: str) -> Iterator[None]:
 
     if args.cache_path is None:
         yield
@@ -811,12 +827,12 @@ def mount_cache(args, workspace):
             for d in ("var/cache/dnf", "var/cache/yum", "var/cache/apt/archives", "var/cache/pacman/pkg", "var/cache/zypp/packages"):
                 umount(os.path.join(workspace, "root", d))
 
-def umount(where):
+def umount(where: str) -> None:
     # Ignore failures and error messages
     run(["umount", "-n", where], stdout=DEVNULL, stderr=DEVNULL)
 
 @complete_step('Setting up basic OS tree')
-def prepare_tree(args, workspace, run_build_script, cached):
+def prepare_tree(args: argparse.Namespace, workspace: str, run_build_script: bool, cached: bool):
 
     if args.output_format == OutputFormat.subvolume:
         btrfs_subvol_create(os.path.join(workspace, "root"))
@@ -871,7 +887,7 @@ def prepare_tree(args, workspace, run_build_script, cached):
         if args.build_dir is not None:
             os.mkdir(os.path.join(workspace, "root", "root/build"), 0o755)
 
-def patch_file(filepath, line_rewriter):
+def patch_file(filepath: str, line_rewriter: Callable[[str], str]) -> None:
     temp_new_filepath = filepath + ".tmp.new"
 
     with open(filepath, "r") as old:
@@ -883,7 +899,7 @@ def patch_file(filepath, line_rewriter):
     os.remove(filepath)
     shutil.move(temp_new_filepath, filepath)
 
-def enable_networkd(workspace):
+def enable_networkd(workspace: str) -> None:
     run(["systemctl",
          "--root", os.path.join(workspace, "root"),
          "enable", "systemd-networkd", "systemd-resolved"],
@@ -901,13 +917,13 @@ Type=ether
 DHCP=yes
 """)
 
-def enable_networkmanager(workspace):
+def enable_networkmanager(workspace: str) -> None:
     run(["systemctl",
          "--root", os.path.join(workspace, "root"),
          "enable", "NetworkManager"],
         check=True)
 
-def run_workspace_command(args, workspace, *cmd, network=False, env={}, nspawn_params=[]):
+def run_workspace_command(args: argparse.Namespace, workspace: str, *cmd: str, network: bool=False, env: Dict[str, str]={}, nspawn_params: List[str]=[]) -> None:
 
     cmdline = ["systemd-nspawn",
                '--quiet',
@@ -932,7 +948,7 @@ def run_workspace_command(args, workspace, *cmd, network=False, env={}, nspawn_p
     cmdline += ['--', *cmd]
     run(cmdline, check=True)
 
-def check_if_url_exists(url):
+def check_if_url_exists(url: str) -> Optional[bool]:
     req = urllib.request.Request(url, method="HEAD")
     try:
         if urllib.request.urlopen(req):
@@ -940,7 +956,7 @@ def check_if_url_exists(url):
     except:
         return False
 
-def disable_kernel_install(args, workspace):
+def disable_kernel_install(args: argparse.Namespace, workspace: str) -> List[str]:
     # Let's disable the automatic kernel installation done by the
     # kernel RPMs. After all, we want to built our own unified kernels
     # that include the root hash in the kernel command line and can be
@@ -954,7 +970,7 @@ def disable_kernel_install(args, workspace):
     for d in ("etc", "etc/kernel", "etc/kernel/install.d"):
         mkdir_last(os.path.join(workspace, "root", d), 0o755)
 
-    masked = []
+    masked = []  # type: List[str]
 
     for f in ("50-dracut.install", "51-dracut-rescue.install", "90-loaderentry.install"):
         path = os.path.join(workspace, "root", "etc/kernel/install.d", f)
@@ -963,7 +979,7 @@ def disable_kernel_install(args, workspace):
 
     return masked
 
-def reenable_kernel_install(args, workspace, masked):
+def reenable_kernel_install(args: argparse.Namespace, workspace: str, masked: List[str]) -> None:
     # Undo disable_kernel_install() so the final image can be used
     # with scripts installing a kernel following the Bootloader Spec
 
@@ -973,7 +989,7 @@ def reenable_kernel_install(args, workspace, masked):
     for f in masked:
         os.unlink(f)
 
-def invoke_dnf(args, workspace, repositories, base_packages, boot_packages, config_file):
+def invoke_dnf(args: argparse.Namespace, workspace: str, repositories: List[str], base_packages: List[str], boot_packages: List[str], config_file: str) -> None:
 
     repos = ["--enablerepo=" + repo for repo in repositories]
 
@@ -1024,7 +1040,7 @@ def invoke_dnf(args, workspace, repositories, base_packages, boot_packages, conf
         run(cmdline, check=True)
 
 @complete_step('Installing Clear Linux')
-def install_clear(args, workspace, run_build_script):
+def install_clear(args: argparse.Namespace, workspace: str, run_build_script: bool):
     if args.release == "latest":
         release = "clear"
     else:
@@ -1075,7 +1091,7 @@ ensure that you have openssl program in your system.
             args.password = None
 
 @complete_step('Installing Fedora')
-def install_fedora(args, workspace, run_build_script):
+def install_fedora(args: argparse.Namespace, workspace: str, run_build_script: bool) -> None:
     if args.release == 'rawhide':
         last = sorted(FEDORA_KEYS_MAP)[-1]
         warn('Assuming rawhide is version {} -- '.format(last) +
@@ -1188,7 +1204,7 @@ gpgkey={gpg_key}
 
     reenable_kernel_install(args, workspace, masked)
 
-def invoke_yum(args, workspace, repositories, base_packages, boot_packages, config_file):
+def invoke_yum(args: argparse.Namespace, workspace: str, repositories: List[str], base_packages: List[str], boot_packages: List[str], config_file: str) -> None:
 
     repos = ["--enablerepo=" + repo for repo in repositories]
 
@@ -1232,7 +1248,7 @@ def invoke_yum(args, workspace, repositories, base_packages, boot_packages, conf
     with mount_api_vfs(args, workspace):
         run(cmdline, check=True)
 
-def invoke_dnf_or_yum(args, workspace, repositories, base_packages, boot_packages, config_file):
+def invoke_dnf_or_yum(args: argparse.Namespace, workspace: str, repositories: List[str], base_packages: List[str], boot_packages: List[str], config_file: str) -> None:
 
     if shutil.which("dnf") is None:
         invoke_yum(args, workspace, repositories, base_packages, boot_packages, config_file)
@@ -1240,7 +1256,7 @@ def invoke_dnf_or_yum(args, workspace, repositories, base_packages, boot_package
         invoke_dnf(args, workspace, repositories, base_packages, boot_packages, config_file)
 
 @complete_step('Installing CentOS')
-def install_centos(args, workspace, run_build_script):
+def install_centos(args: argparse.Namespace, workspace: str, run_build_script: bool) -> None:
 
     masked = disable_kernel_install(args, workspace)
 
@@ -1285,7 +1301,7 @@ gpgkey={gpg_key}
 
     reenable_kernel_install(args, workspace, masked)
 
-def install_debian_or_ubuntu(args, workspace, run_build_script, mirror):
+def install_debian_or_ubuntu(args: argparse.Namespace, workspace: str, run_build_script: bool, mirror: str) -> None:
     repos = args.repositories if args.repositories else ["main"]
     # Ubuntu needs the 'universe' repo to install 'dracut'
     if args.distribution == Distribution.ubuntu and args.bootable and 'universe' not in repos:
@@ -2026,7 +2042,7 @@ def insert_squashfs(args, workspace, raw, loopdev, squashfs, for_cache):
         args.root_size = insert_partition(args, workspace, raw, loopdev, args.root_partno, squashfs,
                                           "Root Partition", gpt_root_native().root)
 
-def make_verity(args, workspace, dev, run_build_script, for_cache):
+def make_verity(args: argparse.Namespace, workspace, dev, run_build_script: bool, for_cache: bool) -> Tuple[Optional[IO[str]], Optional[str]]:
 
     if run_build_script or not args.verity:
         return None, None
@@ -2205,7 +2221,7 @@ def copy_nspawn_settings(args):
 
     return f
 
-def hash_file(of, sf, fname):
+def hash_file(of: IO[Any], sf: IO[bytes], fname: str) -> None:
     bs = 16*1024**2
     h = hashlib.sha256()
 
@@ -2217,7 +2233,7 @@ def hash_file(of, sf, fname):
 
     of.write(h.hexdigest() + " *" + fname + "\n")
 
-def calculate_sha256sum(args, raw, tar, root_hash_file, nspawn_settings):
+def calculate_sha256sum(args: argparse.Namespace, raw: Optional[IO[str]], tar: Optional[IO[str]], root_hash_file: str, nspawn_settings: str) -> Optional[IO[bytes]]:
     if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
         return None
 
@@ -2239,7 +2255,7 @@ def calculate_sha256sum(args, raw, tar, root_hash_file, nspawn_settings):
 
     return f
 
-def calculate_signature(args, checksum):
+def calculate_signature(args: argparse.Namespace, checksum: Optional[IO[Any]]) -> Optional[IO[bytes]]:
     if not args.sign:
         return None
 
@@ -2260,7 +2276,7 @@ def calculate_signature(args, checksum):
 
     return f
 
-def calculate_bmap(args, raw):
+def calculate_bmap(args: argparse.Namespace, raw: IO[Any]) -> Optional[IO[bytes]]:
     if not args.bmap:
         return None
 
@@ -2276,7 +2292,7 @@ def calculate_bmap(args, raw):
 
     return f
 
-def save_cache(args, workspace, raw, cache_path):
+def save_cache(args: argparse.Namespace, workspace: str, raw: str, cache_path: str) -> None:
 
     if cache_path is None or raw is None:
         return
@@ -2290,7 +2306,7 @@ def save_cache(args, workspace, raw, cache_path):
         else:
             shutil.move(os.path.join(workspace, "root"), cache_path)
 
-def link_output(args, workspace, raw, tar):
+def link_output(args: argparse.Namespace, workspace: str, raw: str, tar: str) -> None:
     with complete_step('Linking image file',
                        'Successfully linked ' + args.output):
         if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
@@ -2302,7 +2318,7 @@ def link_output(args, workspace, raw, tar):
             os.chmod(tar, 0o666 & ~args.original_umask)
             os.link(tar, args.output)
 
-def link_output_nspawn_settings(args, path):
+def link_output_nspawn_settings(args: argparse.Namespace, path: str) -> None:
     if path is None:
         return
 
@@ -2311,7 +2327,7 @@ def link_output_nspawn_settings(args, path):
         os.chmod(path, 0o666 & ~args.original_umask)
         os.link(path, args.output_nspawn_settings)
 
-def link_output_checksum(args, checksum):
+def link_output_checksum(args: argparse.Namespace, checksum: str) -> None:
     if checksum is None:
         return
 
@@ -2320,7 +2336,7 @@ def link_output_checksum(args, checksum):
         os.chmod(checksum, 0o666 & ~args.original_umask)
         os.link(checksum, args.output_checksum)
 
-def link_output_root_hash_file(args, root_hash_file):
+def link_output_root_hash_file(args: argparse.Namespace, root_hash_file: str) -> None:
     if root_hash_file is None:
         return
 
@@ -2329,7 +2345,7 @@ def link_output_root_hash_file(args, root_hash_file):
         os.chmod(root_hash_file, 0o666 & ~args.original_umask)
         os.link(root_hash_file, args.output_root_hash_file)
 
-def link_output_signature(args, signature):
+def link_output_signature(args: argparse.Namespace, signature: str) -> None:
     if signature is None:
         return
 
@@ -2338,7 +2354,7 @@ def link_output_signature(args, signature):
         os.chmod(signature, 0o666 & ~args.original_umask)
         os.link(signature, args.output_signature)
 
-def link_output_bmap(args, bmap):
+def link_output_bmap(args: argparse.Namespace, bmap: str) -> None:
     if bmap is None:
         return
 
@@ -2347,7 +2363,7 @@ def link_output_bmap(args, bmap):
         os.chmod(bmap, 0o666 & ~args.original_umask)
         os.link(bmap, args.output_bmap)
 
-def dir_size(path):
+def dir_size(path: str) -> int:
     sum = 0
     for entry in os.scandir(path):
         if entry.is_symlink():
@@ -2361,14 +2377,14 @@ def dir_size(path):
             sum += dir_size(entry.path)
     return sum
 
-def print_output_size(args):
+def print_output_size(args: argparse.Namespace) -> None:
     if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
         print_step("Resulting image size is " + format_bytes(dir_size(args.output)) + ".")
     else:
         st = os.stat(args.output)
         print_step("Resulting image size is " + format_bytes(st.st_size) + ", consumes " + format_bytes(st.st_blocks * 512) + ".")
 
-def setup_package_cache(args):
+def setup_package_cache(args: argparse.Namespace) -> Optional[tempfile.TemporaryDirectory]:
     with complete_step('Setting up package cache',
                        'Setting up package cache {} complete') as output:
         if args.cache_path is None:
@@ -2395,7 +2411,7 @@ class CommaDelimitedListAction(ListAction):
 class ColonDelimitedListAction(ListAction):
     delimiter = ":"
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description='Build Legacy-Free OS Images', add_help=False)
 
     group = parser.add_argument_group("Commands")
@@ -2482,7 +2498,7 @@ def parse_args():
 
     return args
 
-def parse_bytes(bytes):
+def parse_bytes(bytes: Optional[str]) -> Optional[int]:
     if bytes is None:
         return bytes
 
@@ -2507,7 +2523,7 @@ def parse_bytes(bytes):
 
     return result
 
-def detect_distribution():
+def detect_distribution() -> Tuple[Optional[Distribution], Optional[str]]:
     try:
         f = open("/etc/os-release")
     except IOError:
@@ -2551,7 +2567,7 @@ def detect_distribution():
 
     return d, version_id
 
-def unlink_try_hard(path):
+def unlink_try_hard(path: str) -> None:
     try:
         os.unlink(path)
     except:
@@ -2567,7 +2583,7 @@ def unlink_try_hard(path):
     except:
         pass
 
-def empty_directory(path):
+def empty_directory(path: str) -> None:
 
     try:
         for f in os.listdir(path):
@@ -2575,7 +2591,7 @@ def empty_directory(path):
     except FileNotFoundError:
         pass
 
-def unlink_output(args):
+def unlink_output(args: argparse.Namespace) -> None:
     if not args.force and args.verb != "clean":
         return
 
@@ -2627,7 +2643,7 @@ def unlink_output(args):
             with complete_step('Clearing out package cache'):
                 empty_directory(args.cache_path)
 
-def parse_boolean(s):
+def parse_boolean(s: str) -> bool:
     "Parse 1/true/yes as true and 0/false/no as false"
     if s in {"1", "true", "yes"}:
         return True
@@ -2637,7 +2653,7 @@ def parse_boolean(s):
 
     raise ValueError("Invalid literal for bool(): {!r}".format(s))
 
-def process_setting(args, section, key, value):
+def process_setting(args: argparse.Namespace, section: str, key: str, value: Any) -> bool:
     if section == "Distribution":
         if key == "Distribution":
             if args.distribution is None:
@@ -2803,7 +2819,7 @@ def process_setting(args, section, key, value):
 
     return True
 
-def load_defaults_file(fname, options):
+def load_defaults_file(fname: str, options: Dict[str, Dict[str, Any]]) -> Optional[Dict[str, Dict[str, Any]]]:
     try:
         f = open(fname)
     except FileNotFoundError:
@@ -2835,10 +2851,10 @@ def load_defaults_file(fname, options):
                 options[section][key] = config[section][key]
     return options
 
-def load_defaults(args):
+def load_defaults(args: argparse.Namespace) -> None:
     fname = "mkosi.default" if args.default_path is None else args.default_path
 
-    config = {}
+    config = {}  # type: Dict[str, Dict[str, str]]
     load_defaults_file(fname, config)
 
     defaults_dir = fname + '.d'
@@ -2852,26 +2868,26 @@ def load_defaults(args):
         for key in config[section]:
             process_setting(args, section, key, config[section][key])
 
-def find_nspawn_settings(args):
+def find_nspawn_settings(args: argparse.Namespace) -> None:
     if args.nspawn_settings is not None:
         return
 
     if os.path.exists("mkosi.nspawn"):
         args.nspawn_settings = "mkosi.nspawn"
 
-def find_extra(args):
+def find_extra(args: argparse.Namespace) -> None:
     if os.path.isdir("mkosi.extra"):
         args.extra_trees.append("mkosi.extra")
     if os.path.isfile("mkosi.extra.tar"):
         args.extra_trees.append("mkosi.extra.tar")
 
-def find_skeleton(args):
+def find_skeleton(args: argparse.Namespace) -> None:
     if os.path.isdir("mkosi.skeleton"):
         args.skeleton_trees.append("mkosi.skeleton")
     if os.path.isfile("mkosi.skeleton.tar"):
         args.skeleton_trees.append("mkosi.skeleton.tar")
 
-def find_cache(args):
+def find_cache(args: argparse.Namespace) -> None:
 
     if args.cache_path is not None:
         return
@@ -2884,34 +2900,34 @@ def find_cache(args):
         if args.distribution != Distribution.clear and args.release is not None:
             args.cache_path += "~" + args.release
 
-def find_build_script(args):
+def find_build_script(args: argparse.Namespace) -> None:
     if args.build_script is not None:
         return
 
     if os.path.exists("mkosi.build"):
         args.build_script = "mkosi.build"
 
-def find_build_sources(args):
+def find_build_sources(args: argparse.Namespace) -> None:
     if args.build_sources is not None:
         return
 
     args.build_sources = os.getcwd()
 
-def find_build_dir(args):
+def find_build_dir(args: argparse.Namespace) -> None:
     if args.build_dir is not None:
         return
 
     if os.path.exists("mkosi.builddir/"):
         args.build_dir = "mkosi.builddir"
 
-def find_postinst_script(args):
+def find_postinst_script(args: argparse.Namespace) -> None:
     if args.postinst_script is not None:
         return
 
     if os.path.exists("mkosi.postinst"):
         args.postinst_script = "mkosi.postinst"
 
-def find_output_dir(args):
+def find_output_dir(args: argparse.Namespace) -> None:
     if args.output_dir is not None:
         return
 
@@ -2925,7 +2941,7 @@ def require_private_file(name, description):
              "When creating {} files use an access mode that restricts access to the owner only.",
              name, oct(mode), description)
 
-def find_passphrase(args):
+def find_passphrase(args: argparse.Namespace) -> None:
 
     if args.encrypt is None:
         args.passphrase = None
@@ -2946,7 +2962,7 @@ def find_passphrase(args):
 
             sys.stderr.write("Passphrase doesn't match confirmation. Please try again.\n")
 
-def find_password(args):
+def find_password(args: argparse.Namespace) -> None:
 
     if args.password is not None:
         return
@@ -2960,7 +2976,7 @@ def find_password(args):
     except FileNotFoundError:
         pass
 
-def find_secure_boot(args):
+def find_secure_boot(args: argparse.Namespace) -> None:
     if not args.secure_boot:
         return
 
@@ -2972,7 +2988,7 @@ def find_secure_boot(args):
         if os.path.exists("mkosi.secure-boot.crt"):
             args.secure_boot_certificate = "mkosi.secure-boot.crt"
 
-def strip_suffixes(path):
+def strip_suffixes(path: str) -> str:
     t = path
     while True:
         if t.endswith(".xz"):
@@ -2986,13 +3002,13 @@ def strip_suffixes(path):
 
     return t
 
-def build_nspawn_settings_path(path):
+def build_nspawn_settings_path(path: str) -> str:
     return strip_suffixes(path) + ".nspawn"
 
-def build_root_hash_file_path(path):
+def build_root_hash_file_path(path: str) -> str:
     return strip_suffixes(path) + ".roothash"
 
-def load_args():
+def load_args() -> argparse.Namespace:
     args = parse_args()
 
     if args.directory is not None:
@@ -3212,7 +3228,7 @@ def load_args():
 
     return args
 
-def check_output(args):
+def check_output(args: argparse.Namespace) -> None:
     for f in (args.output,
               args.output_checksum if args.checksum else None,
               args.output_signature if args.sign else None,
@@ -3226,38 +3242,38 @@ def check_output(args):
         if os.path.exists(f):
             die("Output file " + f + " exists already. (Consider invocation with --force.)")
 
-def yes_no(b):
+def yes_no(b: bool) -> str:
     return "yes" if b else "no"
 
-def format_bytes_or_disabled(sz):
+def format_bytes_or_disabled(sz: Optional[int]) -> str:
     if sz is None:
         return "(disabled)"
 
     return format_bytes(sz)
 
-def format_bytes_or_auto(sz):
+def format_bytes_or_auto(sz: Optional[int])-> str:
     if sz is None:
         return "(automatic)"
 
     return format_bytes(sz)
 
-def none_to_na(s):
+def none_to_na(s: Optional[str]) -> str:
     return "n/a" if s is None else s
 
-def none_to_no(s):
+def none_to_no(s: Optional[str]) -> str:
     return "no" if s is None else s
 
-def none_to_none(s):
+def none_to_none(s: Optional[str]) -> str:
     return "none" if s is None else s
 
-def line_join_list(l):
+def line_join_list(l: List[str]) -> str:
 
     if not l:
         return "none"
 
     return "\n                        ".join(l)
 
-def print_summary(args):
+def print_summary(args: argparse.Namespace) -> None:
     sys.stderr.write("DISTRIBUTION:\n")
     sys.stderr.write("          Distribution: " + args.distribution.name + "\n")
     sys.stderr.write("               Release: " + none_to_na(args.release) + "\n")
@@ -3337,7 +3353,7 @@ def print_summary(args):
     sys.stderr.write("\nHOST CONFIGURATION:\n")
     sys.stderr.write("    Extra search paths: " + line_join_list(args.extra_search_paths) + "\n")
 
-def reuse_cache_tree(args, workspace, run_build_script, for_cache, cached):
+def reuse_cache_tree(args: argparse.Namespace, workspace: str, run_build_script: bool, for_cache: bool, cached: bool) -> bool:
     """If there's a cached version of this tree around, use it and
     initialize our new root directly from it. Returns a boolean indicating
     whether we are now operating on a cached version or not."""
@@ -3364,21 +3380,21 @@ def reuse_cache_tree(args, workspace, run_build_script, for_cache, cached):
 
     return True
 
-def make_output_dir(args):
+def make_output_dir(args: argparse.Namespace) -> None:
     """Create the output directory if set and not existing yet"""
     if args.output_dir is None:
         return
 
     mkdir_last(args.output_dir, 0o755)
 
-def make_build_dir(args):
+def make_build_dir(args: argparse.Namespace) -> None:
     """Create the build directory if set and not existing yet"""
     if args.build_dir is None:
         return
 
     mkdir_last(args.build_dir, 0o755)
 
-def build_image(args, workspace, run_build_script, for_cache=False):
+def build_image(args: argparse.Namespace, workspace: tempfile.TemporaryDirectory, run_build_script: bool, for_cache: bool=False) -> Tuple[Optional[IO[str]], Optional[IO[str]], Optional[str]]:
 
     # If there's no build script set, there's no point in executing
     # the build script iteration. Let's quit early.
@@ -3447,10 +3463,10 @@ def build_image(args, workspace, run_build_script, for_cache=False):
 
     return raw, tar, root_hash
 
-def var_tmp(workspace):
+def var_tmp(workspace: str) -> str:
     return mkdir_last(os.path.join(workspace, "var-tmp"))
 
-def run_build_script(args, workspace, raw):
+def run_build_script(args: argparse.Namespace, workspace: str, raw: IO[str]) -> None:
     if args.build_script is None:
         return
 
@@ -3495,7 +3511,7 @@ def run_build_script(args, workspace, raw):
         cmdline.append("/root/" + os.path.basename(args.build_script))
         run(cmdline, check=True)
 
-def need_cache_images(args):
+def need_cache_images(args: argparse.Namespace) -> bool:
 
     if not args.incremental:
         return False
@@ -3505,7 +3521,7 @@ def need_cache_images(args):
 
     return not os.path.exists(args.cache_pre_dev) or not os.path.exists(args.cache_pre_inst)
 
-def remove_artifacts(args, workspace, raw, tar, run_build_script, for_cache=False):
+def remove_artifacts(args: argparse.Namespace, workspace: str, raw: Optional[IO[str]], tar: Optional[IO[str]], run_build_script: bool, for_cache:bool=False) -> None:
 
     if for_cache:
         what = "cache build"
@@ -3526,7 +3542,7 @@ def remove_artifacts(args, workspace, raw, tar, run_build_script, for_cache=Fals
         unlink_try_hard(os.path.join(workspace, "root"))
         unlink_try_hard(os.path.join(workspace, "var-tmp"))
 
-def build_stuff(args):
+def build_stuff(args: argparse.Namespace) -> None:
 
     # Let's define a fixed machine ID for all our build-time
     # runs. We'll strip it off the final image, but some build-time
@@ -3603,7 +3619,7 @@ def check_root():
     if os.getuid() != 0:
         die("Must be invoked as root.")
 
-def run_shell(args):
+def run_shell(args: argparse.Namespace) -> None:
     target = "--directory=" + args.output if args.output_format in (OutputFormat.directory, OutputFormat.subvolume) else "--image=" + args.output
 
     cmdline = ["systemd-nspawn",
@@ -3617,7 +3633,7 @@ def run_shell(args):
 
     os.execvp(cmdline[0], cmdline)
 
-def run_qemu(args):
+def run_qemu(args: argparse.Namespace) -> None:
 
     # Look for the right qemu command line to use
     ARCH_BINARIES = { 'x86_64' : 'qemu-system-x86_64',
@@ -3664,7 +3680,7 @@ def run_qemu(args):
 
     os.execvp(cmdline[0], cmdline)
 
-def expand_paths(paths):
+def expand_paths(paths: List[str]) -> List[str]:
     if not paths:
         return []
 
@@ -3686,7 +3702,7 @@ def expand_paths(paths):
             pass
     return expanded
 
-def prepend_to_environ_path(paths):
+def prepend_to_environ_path(paths: List[str]) -> None:
     if not paths:
         return
 
@@ -3698,7 +3714,7 @@ def prepend_to_environ_path(paths):
     else:
         os.environ["PATH"] = new_path + ":" + original_path
 
-def main():
+def main() -> None:
     args = load_args()
 
     if args.verb in ("build", "clean", "shell", "boot", "qemu"):
