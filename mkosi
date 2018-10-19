@@ -120,13 +120,14 @@ class OutputFormat(enum.Enum):
             # this let's argparse generate a proper error message
             return name
 
-RAW_RW_FS_FORMATS = (
-    OutputFormat.gpt_ext4,
-    OutputFormat.gpt_btrfs,
-    OutputFormat.gpt_xfs
-)
-
-RAW_FORMATS = (*RAW_RW_FS_FORMATS, OutputFormat.gpt_squashfs)
+    def is_disk_rw(self):
+        "Output format is a disk image with a parition table and a writable filesystem"
+        return self in (OutputFormat.gpt_ext4,
+                        OutputFormat.gpt_btrfs,
+                        OutputFormat.gpt_xfs)
+    def is_disk(self):
+        "Output format is a disk image with a partition table"
+        return self.is_disk_rw() or self == OutputFormat.gpt_squashfs
 
 class Distribution(enum.Enum):
     fedora = 1
@@ -465,7 +466,7 @@ def determine_partition_table(args: CommandLineArguments):
 
 
 def create_image(args: CommandLineArguments, workspace: str, for_cache: bool) -> Optional[IO[str]]:
-    if args.output_format not in RAW_FORMATS:
+    if not args.output_format.is_disk():
         return None
 
     with complete_step('Creating partition table',
@@ -489,7 +490,7 @@ def create_image(args: CommandLineArguments, workspace: str, for_cache: bool) ->
 def reuse_cache_image(args: CommandLineArguments, workspace: str, run_build_script: bool, for_cache: bool) -> Tuple[Optional[IO[str]], bool]:
     if not args.incremental:
         return None, False
-    if args.output_format not in RAW_RW_FS_FORMATS:
+    if not args.output_format.is_disk_rw():
         return None, False
 
     fname = args.cache_pre_dev if run_build_script else args.cache_pre_inst
@@ -2235,7 +2236,7 @@ def secure_boot_sign(args, workspace, run_build_script, for_cache):
                 os.rename(p + ".signed", p)
 
 def xz_output(args, raw):
-    if args.output_format not in RAW_FORMATS:
+    if not args.output_format.is_disk():
         return raw
 
     if not args.xz:
@@ -2250,7 +2251,7 @@ def xz_output(args, raw):
     return f
 
 def qcow2_output(args, raw):
-    if args.output_format not in RAW_FORMATS:
+    if not args.output_format.is_disk():
         return raw
 
     if not args.qcow2:
@@ -2345,7 +2346,7 @@ def calculate_bmap(args: CommandLineArguments, raw: IO[Any]) -> Optional[IO[byte
     if not args.bmap:
         return None
 
-    if args.output_format not in RAW_RW_FS_FORMATS:
+    if not args.output_format.is_disk_rw():
         return None
 
     with complete_step('Creating BMAP file'):
@@ -2365,7 +2366,7 @@ def save_cache(args: CommandLineArguments, workspace: str, raw: str, cache_path:
     with complete_step('Installing cache copy ',
                        'Successfully installed cache copy ' + cache_path):
 
-        if args.output_format in RAW_RW_FS_FORMATS:
+        if args.output_format.is_disk_rw():
             os.chmod(raw, 0o666 & ~args.original_umask)
             shutil.move(raw, cache_path)
         else:
@@ -2376,7 +2377,7 @@ def link_output(args: CommandLineArguments, workspace: str, raw: str, tar: str) 
                        'Successfully linked ' + args.output):
         if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
             os.rename(os.path.join(workspace, "root"), args.output)
-        elif args.output_format in RAW_FORMATS:
+        elif args.output_format.is_disk():
             os.chmod(raw, 0o666 & ~args.original_umask)
             os.link(raw, args.output)
         else:
@@ -3177,8 +3178,8 @@ def load_args() -> CommandLineArguments:
             die("Directory, subvolume and tar images cannot be booted.")
 
     if args.encrypt is not None:
-        if args.output_format not in RAW_FORMATS:
-            die("Encryption is only supported for raw ext4, btrfs or squashfs images.")
+        if not args.output_format.is_disk():
+            die("Encryption is only supported for disk images.")
 
         if args.encrypt == "data" and args.output_format == OutputFormat.gpt_btrfs:
             die("'data' encryption mode not supported on btrfs, use 'all' instead.")
@@ -3190,14 +3191,10 @@ def load_args() -> CommandLineArguments:
         args.checksum = True
 
     if args.output is None:
-        if args.output_format in RAW_FORMATS:
-            if args.qcow2:
-                args.output = "image.qcow2"
-            else:
-                args.output = "image.raw"
-
-            if args.xz:
-                args.output += ".xz"
+        if args.output_format.is_disk():
+            args.output = ('image' +
+                           ('.qcow2' if args.qcow2 else '.raw') +
+                           ('.xz' if args.xz else ''))
         elif args.output_format == OutputFormat.tar:
             args.output = "image.tar.xz"
         else:
@@ -3312,8 +3309,8 @@ def load_args() -> CommandLineArguments:
             die("Sorry, can't acquire shell in or boot a qcow2 image.")
 
     if args.verb == "qemu":
-        if args.output_format not in RAW_FORMATS:
-            die("Sorry, can't boot non-raw images with qemu.")
+        if not args.output_format.is_disk():
+            die("Sorry, can't boot non-disk images with qemu.")
 
     return args
 
@@ -3381,21 +3378,20 @@ def print_summary(args: CommandLineArguments) -> None:
     sys.stderr.write("Output nspawn Settings: " + none_to_na(args.output_nspawn_settings if args.nspawn_settings is not None else None) + "\n")
     sys.stderr.write("           Incremental: " + yes_no(args.incremental) + "\n")
 
-    if args.output_format in (*RAW_FORMATS, OutputFormat.subvolume):
+    if args.output_format.is_disk() or args.output_format == OutputFormat.subvolume:
         sys.stderr.write("             Read-only: " + yes_no(args.read_only) + "\n")
-    if args.output_format in (*RAW_FORMATS, OutputFormat.subvolume):
         sys.stderr.write("        FS Compression: " + yes_no(args.compress) + "\n")
 
-    if args.output_format in RAW_FORMATS + (OutputFormat.tar,):
+    if args.output_format.is_disk() or args.output_format == OutputFormat.tar:
         sys.stderr.write("        XZ Compression: " + yes_no(args.xz) + "\n")
 
-    if args.output_format in RAW_FORMATS:
+    if args.output_format.is_disk():
         sys.stderr.write("                 QCow2: " + yes_no(args.qcow2) + "\n")
 
     sys.stderr.write("            Encryption: " + none_to_no(args.encrypt) + "\n")
     sys.stderr.write("                Verity: " + yes_no(args.verity) + "\n")
 
-    if args.output_format in RAW_FORMATS:
+    if args.output_format.is_disk():
         sys.stderr.write("              Bootable: " + yes_no(args.bootable) + "\n")
 
         if args.bootable:
@@ -3427,7 +3423,7 @@ def print_summary(args: CommandLineArguments) -> None:
     sys.stderr.write("  Scripts with network: " + yes_no(args.with_network) + "\n")
     sys.stderr.write("       nspawn Settings: " + none_to_none(args.nspawn_settings) + "\n")
 
-    if args.output_format in RAW_FORMATS:
+    if args.output_format.is_disk():
         sys.stderr.write("\nPARTITIONS:\n")
         sys.stderr.write("        Root Partition: " + format_bytes_or_auto(args.root_size) + "\n")
         sys.stderr.write("        Swap Partition: " + format_bytes_or_disabled(args.swap_size) + "\n")
@@ -3435,7 +3431,6 @@ def print_summary(args: CommandLineArguments) -> None:
         sys.stderr.write("       /home Partition: " + format_bytes_or_disabled(args.home_size) + "\n")
         sys.stderr.write("        /srv Partition: " + format_bytes_or_disabled(args.srv_size) + "\n")
 
-    if args.output_format in RAW_FORMATS:
         sys.stderr.write("\nVALIDATION:\n")
         sys.stderr.write("              Checksum: " + yes_no(args.checksum) + "\n")
         sys.stderr.write("                  Sign: " + yes_no(args.sign) + "\n")
@@ -3457,7 +3452,7 @@ def reuse_cache_tree(args: CommandLineArguments, workspace: str, run_build_scrip
         return False
     if for_cache:
         return False
-    if args.output_format in RAW_RW_FS_FORMATS:
+    if args.output_format.is_disk_rw():
         return False
 
     fname = args.cache_pre_dev if run_build_script else args.cache_pre_inst
