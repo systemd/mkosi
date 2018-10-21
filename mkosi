@@ -767,7 +767,10 @@ def mount_loop(args: CommandLineArguments, dev: str, where: str, read_only:bool=
     options = "-odiscard"
 
     if args.compress and args.output_format == OutputFormat.gpt_btrfs:
-        options += ",compress"
+        if isinstance(args.compress, bool):
+            options += ",compress"
+        else:
+            options += ",compress={}".format(args.compress)
 
     if read_only:
         options += ",ro"
@@ -1992,9 +1995,10 @@ def make_squashfs(args, workspace, for_cache):
     if for_cache:
         return None
 
+    comp_args = [] if args.compress is True else ['-comp', args.compress]
     with complete_step('Creating squashfs file system'):
         f = tempfile.NamedTemporaryFile(dir=os.path.dirname(args.output), prefix=".mkosi-squashfs")
-        run(["mksquashfs", os.path.join(workspace, "root"), f.name, "-comp", "lz4", "-noappend"],
+        run(["mksquashfs", os.path.join(workspace, "root"), f.name, "-noappend", *comp_args],
             check=True)
 
     return f
@@ -2487,6 +2491,13 @@ class CommaDelimitedListAction(ListAction):
 class ColonDelimitedListAction(ListAction):
     delimiter = ":"
 
+COMPRESSION_ALGORITHMS = 'zlib', 'lzo', 'zstd', 'lz4', 'xz'
+
+def parse_compression(value: str) -> Union[str, bool]:
+    if value in COMPRESSION_ALGORITHMS:
+        return value
+    return parse_boolean(value)
+
 def parse_args() -> CommandLineArguments:
     parser = argparse.ArgumentParser(description='Build Legacy-Free OS Images', add_help=False)
 
@@ -2516,7 +2527,9 @@ def parse_args() -> CommandLineArguments:
     group.add_argument("--read-only", action='store_true', help='Make root volume read-only (only gpt_ext4, gpt_btrfs, subvolume, implied with squashfs)')
     group.add_argument("--encrypt", choices=("all", "data"), help='Encrypt everything except: ESP ("all") or ESP and root ("data")')
     group.add_argument("--verity", action='store_true', help='Add integrity partition (implies --read-only)')
-    group.add_argument("--compress", action='store_true', help='Enable compression in file system (only gpt_btrfs, subvolume)')
+    group.add_argument("--compress", type=parse_compression,
+                       help='Enable compression in file system (only gpt_btrfs, subvolume, gpt_squashfs, squashfs)')
+
     group.add_argument("--xz", action='store_true', help='Compress resulting image with xz (only gpt_ext4, gpt_btrfs, gpt_squashfs, gpt_xfs, implied on tar)')
     group.add_argument("--qcow2", action='store_true', help='Convert resulting image to qcow2 (only gpt_ext4, gpt_btrfs, gpt_squashfs, gpt_xfs)')
     group.add_argument('-i', "--incremental", action='store_true', help='Make use of and generate intermediary cache images')
@@ -2797,7 +2810,7 @@ def process_setting(args: CommandLineArguments, section: str, key: str, value: A
                 args.verity = parse_boolean(value)
         elif key == "Compress":
             if args.compress is None:
-                args.compress = parse_boolean(value)
+                args.compress = parse_compression(value)
         elif key == "XZ":
             if args.xz is None:
                 args.xz = parse_boolean(value)
@@ -3226,8 +3239,11 @@ def load_args() -> CommandLineArguments:
 
     if args.output_format.is_squashfs():
         args.read_only = True
-        args.compress = True
         args.root_size = None
+        if args.compress is False:
+            die('Cannot disable compression with squashfs')
+        if args.compress is None:
+            args.compress = True
 
     if args.verity:
         args.read_only = True
@@ -3382,12 +3398,11 @@ def print_summary(args: CommandLineArguments) -> None:
     sys.stderr.write("Output nspawn Settings: " + none_to_na(args.output_nspawn_settings if args.nspawn_settings is not None else None) + "\n")
     sys.stderr.write("           Incremental: " + yes_no(args.incremental) + "\n")
 
-    if args.output_format.is_disk() or args.output_format == OutputFormat.subvolume:
-        sys.stderr.write("             Read-only: " + yes_no(args.read_only) + "\n")
-        sys.stderr.write("        FS Compression: " + yes_no(args.compress) + "\n")
+    sys.stderr.write("             Read-only: " + yes_no(args.read_only) + "\n")
+    detail = ' ({})'.format(args.compress) if args.compress and not isinstance(args.compress, bool) else ''
+    sys.stderr.write("        FS Compression: " + yes_no(args.compress) + detail + "\n")
 
-    if args.output_format.is_disk() or args.output_format == OutputFormat.tar:
-        sys.stderr.write("        XZ Compression: " + yes_no(args.xz) + "\n")
+    sys.stderr.write("        XZ Compression: " + yes_no(args.xz) + "\n")
 
     if args.output_format.is_disk():
         sys.stderr.write("                 QCow2: " + yes_no(args.qcow2) + "\n")
