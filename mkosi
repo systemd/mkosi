@@ -2767,7 +2767,7 @@ def process_setting(args: CommandLineArguments, section: str, key: str, value: A
             if args.output_dir is None:
                 args.output_dir = value
         elif key == "Force":
-            if not args.force:
+            if args.force is None:
                 args.force = parse_boolean(value)
         elif key == "Bootable":
             if args.bootable is None:
@@ -2776,7 +2776,7 @@ def process_setting(args: CommandLineArguments, section: str, key: str, value: A
             if args.kernel_commandline is None:
                 args.kernel_commandline = value
         elif key == "SecureBoot":
-            if not args.secure_boot:
+            if args.secure_boot is None:
                 args.secure_boot = parse_boolean(value)
         elif key == "SecureBootKey":
             if args.secure_boot_key is None:
@@ -2785,7 +2785,7 @@ def process_setting(args: CommandLineArguments, section: str, key: str, value: A
             if args.secure_boot_certificate is None:
                 args.secure_boot_certificate = value
         elif key == "ReadOnly":
-            if not args.read_only:
+            if args.read_only is None:
                 args.read_only = parse_boolean(value)
         elif key == "Encrypt":
             if args.encrypt is None:
@@ -2816,10 +2816,10 @@ def process_setting(args: CommandLineArguments, section: str, key: str, value: A
             list_value = value if type(value) == list else value.split()
             args.packages.extend(list_value)
         elif key == "WithDocs":
-            if not args.with_docs:
+            if args.with_docs is None:
                 args.with_docs = parse_boolean(value)
         elif key == "WithTests":
-            if not args.with_tests:
+            if args.with_tests is None:
                 args.with_tests = parse_boolean(value)
         elif key == "Cache":
             if args.cache_path is None:
@@ -2846,7 +2846,7 @@ def process_setting(args: CommandLineArguments, section: str, key: str, value: A
             if args.postinst_script is None:
                 args.postinst_script = value
         elif key == "WithNetwork":
-            if not args.with_network:
+            if args.with_network is None:
                 args.with_network = parse_boolean(value)
         elif key == "NSpawnSettings":
             if args.nspawn_settings is None:
@@ -2877,15 +2877,16 @@ def process_setting(args: CommandLineArguments, section: str, key: str, value: A
             return False
     elif section == "Validation":
         if key == "CheckSum":
-            if not args.checksum:
+            if args.checksum is None:
                 args.checksum = parse_boolean(value)
         elif key == "Sign":
-            if not args.sign:
+            if args.sign is None:
                 args.sign = parse_boolean(value)
         elif key == "Key":
             if args.key is None:
                 args.key = value
         elif key == "Bmap":
+            if args.bmap is None:
                 args.bmap = parse_boolean(value)
         elif key == "Password":
             if args.password is None:
