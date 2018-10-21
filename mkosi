@@ -97,6 +97,8 @@ class OutputFormat(enum.Enum):
     gpt_squashfs = enum.auto()
     gpt_xfs = enum.auto()
 
+    plain_squashfs = enum.auto()
+
     # Kept for backwards compatibility
     raw_ext4 = raw_gpt = gpt_ext4
     raw_btrfs = gpt_btrfs
@@ -128,6 +130,10 @@ class OutputFormat(enum.Enum):
     def is_disk(self):
         "Output format is a disk image with a partition table"
         return self.is_disk_rw() or self == OutputFormat.gpt_squashfs
+
+    def is_squashfs(self):
+        "The output format contains a squashfs partition"
+        return self in {OutputFormat.gpt_squashfs, OutputFormat.plain_squashfs}
 
 class Distribution(enum.Enum):
     fedora = 1
@@ -700,7 +706,7 @@ def luks_setup_srv(args: CommandLineArguments, loopdev: str, run_build_script: b
 @contextlib.contextmanager
 def luks_setup_all(args: CommandLineArguments, loopdev: str, run_build_script: bool) -> Iterator[Tuple[Optional[str], Optional[str], Optional[str]]]:
 
-    if args.output_format in (OutputFormat.directory, OutputFormat.subvolume, OutputFormat.tar):
+    if not args.output_format.is_disk():
         yield (None, None, None)
         return
 
@@ -1981,7 +1987,7 @@ def make_tar(args, workspace, run_build_script, for_cache):
     return f
 
 def make_squashfs(args, workspace, for_cache):
-    if args.output_format != OutputFormat.gpt_squashfs:
+    if not args.output_format.is_squashfs():
         return None
     if for_cache:
         return None
@@ -2372,17 +2378,14 @@ def save_cache(args: CommandLineArguments, workspace: str, raw: str, cache_path:
         else:
             shutil.move(os.path.join(workspace, "root"), cache_path)
 
-def link_output(args: CommandLineArguments, workspace: str, raw: str, tar: str) -> None:
+def link_output(args: CommandLineArguments, workspace: str, artifact: str) -> None:
     with complete_step('Linking image file',
                        'Successfully linked ' + args.output):
         if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
             os.rename(os.path.join(workspace, "root"), args.output)
-        elif args.output_format.is_disk():
-            os.chmod(raw, 0o666 & ~args.original_umask)
-            os.link(raw, args.output)
-        else:
-            os.chmod(tar, 0o666 & ~args.original_umask)
-            os.link(tar, args.output)
+        elif args.output_format.is_disk() or args.output_format == OutputFormat.plain_squashfs:
+            os.chmod(artifact.name, 0o666 & ~args.original_umask)
+            os.link(artifact.name, args.output)
 
 def link_output_nspawn_settings(args: CommandLineArguments, path: str) -> None:
     if path is None:
@@ -2510,7 +2513,7 @@ def parse_args() -> CommandLineArguments:
     group.add_argument("--secure-boot", action='store_true', help='Sign the resulting kernel/initrd image for UEFI SecureBoot')
     group.add_argument("--secure-boot-key", help="UEFI SecureBoot private key in PEM format", metavar='PATH')
     group.add_argument("--secure-boot-certificate", help="UEFI SecureBoot certificate in X509 format", metavar='PATH')
-    group.add_argument("--read-only", action='store_true', help='Make root volume read-only (only gpt_ext4, gpt_btrfs, subvolume, implied on gpt_squashfs)')
+    group.add_argument("--read-only", action='store_true', help='Make root volume read-only (only gpt_ext4, gpt_btrfs, subvolume, implied with squashfs)')
     group.add_argument("--encrypt", choices=("all", "data"), help='Encrypt everything except: ESP ("all") or ESP and root ("data")')
     group.add_argument("--verity", action='store_true', help='Add integrity partition (implies --read-only)')
     group.add_argument("--compress", action='store_true', help='Enable compression in file system (only gpt_btrfs, subvolume)')
@@ -3220,7 +3223,7 @@ def load_args() -> CommandLineArguments:
     if args.output_format == OutputFormat.tar:
         args.xz = True
 
-    if args.output_format == OutputFormat.gpt_squashfs:
+    if args.output_format.is_squashfs():
         args.read_only = True
         args.compress = True
         args.root_size = None
@@ -3548,7 +3551,7 @@ def build_image(args: CommandLineArguments, workspace: tempfile.TemporaryDirecto
 
     tar = make_tar(args, workspace.name, run_build_script, for_cache)
 
-    return raw, tar, root_hash
+    return raw or squashfs, tar, root_hash
 
 def var_tmp(workspace: str) -> str:
     return mkdir_last(os.path.join(workspace, "var-tmp"))
@@ -3682,10 +3685,7 @@ def build_stuff(args: CommandLineArguments) -> None:
     signature = calculate_signature(args, checksum)
     bmap = calculate_bmap(args, raw)
 
-    link_output(args,
-                workspace.name,
-                raw.name if raw is not None else None,
-                tar.name if tar is not None else None)
+    link_output(args, workspace, raw or tar)
 
     link_output_root_hash_file(args, root_hash_file.name if root_hash_file is not None else None)
 
