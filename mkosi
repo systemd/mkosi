@@ -3730,6 +3730,9 @@ def run_shell(args: CommandLineArguments) -> None:
     cmdline = ["systemd-nspawn",
                target]
 
+    if args.read_only:
+        cmdline += ('--read-only',)
+
     if args.verb == "boot":
         cmdline += ('--boot',)
 
