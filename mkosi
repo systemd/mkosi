@@ -1220,7 +1220,7 @@ gpgkey={gpg_key}
            release_url=release_url,
            updates_url=updates_url))
 
-    packages = ['systemd', 'fedora-release', 'passwd', 'glibc-minimal-langpack']
+    packages = ['fedora-release', 'glibc-minimal-langpack']
     packages += args.packages or []
     if run_build_script:
         packages += ['kernel-core', 'systemd-udev', 'binutils']
@@ -1358,7 +1358,7 @@ gpgkey={gpg_key}
            release_url=release_url,
            updates_url=updates_url))
 
-    packages = ['systemd', 'centos-release', 'passwd']
+    packages = ['centos-release']
     if run_build_script:
         packages += ["kernel", "systemd-udev", "binutils"]
     invoke_dnf_or_yum(args, workspace,
@@ -1393,7 +1393,7 @@ def install_debian_or_ubuntu(args: CommandLineArguments, workspace: str, *, run_
     # Debootstrap is not smart enough to deal correctly with alternative dependencies
     # Installing libpam-systemd via debootstrap results in systemd-shim being installed
     # Therefore, prefer to install via apt from inside the container
-    extra_packages = [ 'dbus', 'libpam-systemd']
+    extra_packages = ['dbus', 'libpam-systemd']
 
     # Also install extra packages via the secondary APT run, because it is smarter and
     # can deal better with any conflicts
