@@ -1026,8 +1026,29 @@ def reenable_kernel_install(args: CommandLineArguments, workspace: str, masked: 
     for f in masked:
         os.unlink(f)
 
-def invoke_dnf(args: CommandLineArguments, workspace: str, repositories: List[str], base_packages: List[str], boot_packages: List[str], config_file: str) -> None:
+def make_rpm_list(args: argparse.Namespace, packages: List[str]) -> List[str]:
+    packages = list(packages) # make a copy
+
+    if args.bootable:
+        # Temporary hack: dracut only adds crypto support to the initrd, if the cryptsetup binary is installed
+        if args.encrypt or args.verity:
+            packages += ['cryptsetup']
+
+        if args.output_format == OutputFormat.gpt_ext4:
+            packages += ['e2fsprogs']
+
+        if args.output_format == OutputFormat.gpt_xfs:
+            packages += ['xfsprogs']
+
+        if args.output_format == OutputFormat.gpt_btrfs:
+            packages += ['btrfs-progs']
+
+    return packages
+
+def invoke_dnf(args: CommandLineArguments, workspace: str, repositories: List[str], packages: List[str], config_file: str) -> None:
     repos = ["--enablerepo=" + repo for repo in repositories]
+
+    packages = make_rpm_list(args, packages)
 
     root = os.path.join(workspace, "root")
     cmdline = ["dnf",
@@ -1043,33 +1064,9 @@ def invoke_dnf(args: CommandLineArguments, workspace: str, repositories: List[st
                "--setopt=install_weak_deps=0"]
 
     if not args.with_docs:
-        cmdline.append("--setopt=tsflags=nodocs")
+        cmdline += ['--setopt=tsflags=nodocs']
 
-    cmdline.extend([
-               "install",
-               *base_packages
-               ])
-
-    cmdline.extend(args.packages)
-
-    if run_build_script:
-        cmdline.extend(args.build_packages)
-
-    if args.bootable:
-        cmdline.extend(boot_packages)
-
-        # Temporary hack: dracut only adds crypto support to the initrd, if the cryptsetup binary is installed
-        if args.encrypt or args.verity:
-            cmdline.append("cryptsetup")
-
-        if args.output_format == OutputFormat.gpt_ext4:
-            cmdline.append("e2fsprogs")
-
-        if args.output_format == OutputFormat.gpt_xfs:
-            cmdline.append("xfsprogs")
-
-        if args.output_format == OutputFormat.gpt_btrfs:
-            cmdline.append("btrfs-progs")
+    cmdline += ['install', *packages]
 
     with mount_api_vfs(args, workspace):
         run(cmdline, check=True)
@@ -1179,10 +1176,14 @@ gpgkey={gpg_key}
            release_url=release_url,
            updates_url=updates_url))
 
+    packages = ['systemd', 'fedora-release', 'passwd', 'glibc-minimal-langpack']
+    packages += args.packages or []
+    if run_build_script:
+        packages += ['kernel-core', 'systemd-udev', 'binutils']
+        packages += args.build_packages or []
     invoke_dnf(args, workspace,
-               args.repositories if args.repositories else ["fedora", "updates"],
-               ["systemd", "fedora-release", "passwd", "glibc-minimal-langpack"],
-               ["kernel-core", "systemd-udev", "binutils"],
+               args.repositories or ["fedora", "updates"],
+               packages,
                config_file)
 
     with open(os.path.join(workspace, 'root', 'etc/locale.conf'), 'w') as f:
@@ -1230,16 +1231,20 @@ gpgkey={gpg_key}
            release_url=release_url,
            updates_url=updates_url))
 
+    packages = ["basesystem-minimal"]
+    if run_build_script:
+        packages += ["kernel-server-latest", "binutils"]
     invoke_dnf(args, workspace,
                args.repositories if args.repositories else ["mageia", "updates"],
-               ["basesystem-minimal"],
-               ["kernel-server-latest", "binutils"],
+               packages,
                config_file)
 
     reenable_kernel_install(args, workspace, masked)
 
-def invoke_yum(args: CommandLineArguments, workspace: str, repositories: List[str], base_packages: List[str], boot_packages: List[str], config_file: str) -> None:
+def invoke_yum(args: CommandLineArguments, workspace: str, repositories: List[str], packages: List[str], config_file: str) -> None:
     repos = ["--enablerepo=" + repo for repo in repositories]
+
+    packages = make_rpm_list(args, packages)
 
     root = os.path.join(workspace, "root")
     cmdline = ["yum",
@@ -1254,37 +1259,16 @@ def invoke_yum(args: CommandLineArguments, workspace: str, repositories: List[st
     if not args.with_docs:
         cmdline.append("--setopt=tsflags=nodocs")
 
-    cmdline.extend([
-               "install",
-               *base_packages
-               ])
-
-    cmdline.extend(args.packages)
-
-    if run_build_script:
-        cmdline.extend(args.build_packages)
-
-    if args.bootable:
-        cmdline.extend(boot_packages)
-
-        # Temporary hack: dracut only adds crypto support to the initrd, if the cryptsetup binary is installed
-        if args.encrypt or args.verity:
-            cmdline.append("cryptsetup")
-
-        if args.output_format == OutputFormat.gpt_ext4:
-            cmdline.append("e2fsprogs")
-
-        if args.output_format == OutputFormat.gpt_btrfs:
-            cmdline.append("btrfs-progs")
+    cmdline += ['install', *packages]
 
     with mount_api_vfs(args, workspace):
         run(cmdline, check=True)
 
-def invoke_dnf_or_yum(args: CommandLineArguments, workspace: str, repositories: List[str], base_packages: List[str], boot_packages: List[str], config_file: str) -> None:
+def invoke_dnf_or_yum(args: CommandLineArguments, workspace: str, repositories: List[str], packages: List[str], config_file: str) -> None:
     if shutil.which("dnf") is None:
-        invoke_yum(args, workspace, repositories, base_packages, boot_packages, config_file)
+        invoke_yum(args, workspace, repositories, packages, config_file)
     else:
-        invoke_dnf(args, workspace, repositories, base_packages, boot_packages, config_file)
+        invoke_dnf(args, workspace, repositories, packages, config_file)
 
 @complete_step('Installing CentOS')
 def install_centos(args: CommandLineArguments, workspace: str, run_build_script: bool) -> None:
@@ -1323,10 +1307,12 @@ gpgkey={gpg_key}
            release_url=release_url,
            updates_url=updates_url))
 
+    packages = ['systemd', 'centos-release', 'passwd']
+    if run_build_script:
+        packages += ["kernel", "systemd-udev", "binutils"]
     invoke_dnf_or_yum(args, workspace,
-                      args.repositories if args.repositories else ["base", "updates"],
-                      ["systemd", "centos-release", "passwd"],
-                      ["kernel", "systemd-udev", "binutils"],
+                      args.repositories or ["base", "updates"],
+                      packages,
                       config_file)
 
     reenable_kernel_install(args, workspace, masked)
