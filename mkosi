@@ -1045,7 +1045,44 @@ def make_rpm_list(args: argparse.Namespace, packages: List[str]) -> List[str]:
 
     return packages
 
-def invoke_dnf(args: CommandLineArguments, workspace: str, repositories: List[str], packages: List[str], config_file: str) -> None:
+def clean_dnf_metadata(root):
+    """Removes dnf metadata iff /bin/dnf is not present in the image
+
+    If dnf is not installed, there doesn't seem to be much use in
+    keeping the dnf metadata, since it's not usable from within the
+    image anyway.
+    """
+    dnf_path = root + '/bin/dnf'
+    keep_dnf_data = os.access(dnf_path, os.F_OK, follow_symlinks=False)
+
+    if not keep_dnf_data:
+        print_step('Cleaning dnf metadata...')
+        remove_glob(root + '/var/lib/dnf',
+                    root + '/var/log/dnf.*',
+                    root + '/var/log/hawkey.*',
+                    root + '/var/cache/dnf')
+
+def clean_yum_metadata(root):
+    """Removes yum metadata iff /bin/yum is not present in the image"""
+    yum_path = root + '/bin/yum'
+    keep_yum_data = os.access(yum_path, os.F_OK, follow_symlinks=False)
+
+    if not keep_yum_data:
+        print_step('Cleaning yum metadata...')
+        remove_glob(root + '/var/lib/yum',
+                    root + '/var/log/yum.*',
+                    root + '/var/cache/yum')
+
+def clean_rpm_metadata(root):
+    """Removes rpm metadata iff /bin/rpm is not present in the image"""
+    rpm_path = root + '/bin/rpm'
+    keep_rpm_data = os.access(rpm_path, os.F_OK, follow_symlinks=False)
+
+    if not keep_rpm_data:
+        print_step('Cleaning rpm metadata...{}'.format(rpm_path))
+        remove_glob(root + '/var/lib/rpm')
+
+def invoke_dnf(args: CommandLineArguments, workspace: str, repositories: List[str], packages: List[str], config_file: str, cleanup: bool=False) -> None:
     repos = ["--enablerepo=" + repo for repo in repositories]
 
     packages = make_rpm_list(args, packages)
@@ -1071,8 +1108,13 @@ def invoke_dnf(args: CommandLineArguments, workspace: str, repositories: List[st
     with mount_api_vfs(args, workspace):
         run(cmdline, check=True)
 
+    if cleanup:
+        # Clean up package manager metadata
+        clean_dnf_metadata(root)
+        clean_rpm_metadata(root)
+
 @complete_step('Installing Clear Linux')
-def install_clear(args: CommandLineArguments, workspace: str, run_build_script: bool):
+def install_clear(args: CommandLineArguments, *, workspace: str, run_build_script: bool, cleanup: bool):
     if args.release == "latest":
         release = "clear"
     else:
@@ -1122,8 +1164,10 @@ ensure that you have openssl program in your system.
         if args.password == "":
             args.password = None
 
+    # FIXME: implement cleanup
+
 @complete_step('Installing Fedora')
-def install_fedora(args: CommandLineArguments, workspace: str, run_build_script: bool) -> None:
+def install_fedora(args: CommandLineArguments, workspace: str, run_build_script: bool, cleanup: bool) -> None:
     if args.release == 'rawhide':
         last = sorted(FEDORA_KEYS_MAP)[-1]
         warn('Assuming rawhide is version {} -- '.format(last) +
@@ -1184,7 +1228,8 @@ gpgkey={gpg_key}
     invoke_dnf(args, workspace,
                args.repositories or ["fedora", "updates"],
                packages,
-               config_file)
+               config_file,
+               cleanup=cleanup)
 
     with open(os.path.join(workspace, 'root', 'etc/locale.conf'), 'w') as f:
         f.write('LANG=C.UTF-8\n')
@@ -1192,7 +1237,7 @@ gpgkey={gpg_key}
     reenable_kernel_install(args, workspace, masked)
 
 @complete_step('Installing Mageia')
-def install_mageia(args, workspace, run_build_script):
+def install_mageia(args, workspace, *, run_build_script, cleanup):
     masked = disable_kernel_install(args, workspace)
 
     # Mageia does not (yet) have RPM GPG key on the web
@@ -1237,11 +1282,12 @@ gpgkey={gpg_key}
     invoke_dnf(args, workspace,
                args.repositories if args.repositories else ["mageia", "updates"],
                packages,
-               config_file)
+               config_file,
+               cleanup=cleanup)
 
     reenable_kernel_install(args, workspace, masked)
 
-def invoke_yum(args: CommandLineArguments, workspace: str, repositories: List[str], packages: List[str], config_file: str) -> None:
+def invoke_yum(args: CommandLineArguments, workspace: str, repositories: List[str], packages: List[str], config_file: str, cleanup: bool=False) -> None:
     repos = ["--enablerepo=" + repo for repo in repositories]
 
     packages = make_rpm_list(args, packages)
@@ -1264,14 +1310,19 @@ def invoke_yum(args: CommandLineArguments, workspace: str, repositories: List[st
     with mount_api_vfs(args, workspace):
         run(cmdline, check=True)
 
-def invoke_dnf_or_yum(args: CommandLineArguments, workspace: str, repositories: List[str], packages: List[str], config_file: str) -> None:
+    if cleanup:
+        # Clean up package manager metadata
+        clean_yum_metadata(root)
+        clean_rpm_metadata(root)
+
+def invoke_dnf_or_yum(*args, **kwargs) -> None:
     if shutil.which("dnf") is None:
-        invoke_yum(args, workspace, repositories, packages, config_file)
+        invoke_yum(*args, **kwargs)
     else:
-        invoke_dnf(args, workspace, repositories, packages, config_file)
+        invoke_dnf(*args, **kwargs)
 
 @complete_step('Installing CentOS')
-def install_centos(args: CommandLineArguments, workspace: str, run_build_script: bool) -> None:
+def install_centos(args: CommandLineArguments, workspace: str, *, run_build_script: bool, cleanup: bool) -> None:
     masked = disable_kernel_install(args, workspace)
 
     gpg_key = "/etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-%s" % args.release
@@ -1313,15 +1364,17 @@ gpgkey={gpg_key}
     invoke_dnf_or_yum(args, workspace,
                       args.repositories or ["base", "updates"],
                       packages,
-                      config_file)
+                      config_file,
+                      cleanup=cleanup)
 
     reenable_kernel_install(args, workspace, masked)
 
-def install_debian_or_ubuntu(args: CommandLineArguments, workspace: str, run_build_script: bool, mirror: str) -> None:
+def install_debian_or_ubuntu(args: CommandLineArguments, workspace: str, *, run_build_script: bool, mirror: str, cleanup: bool) -> None:
     repos = args.repositories if args.repositories else ["main"]
     # Ubuntu needs the 'universe' repo to install 'dracut'
     if args.distribution == Distribution.ubuntu and args.bootable and 'universe' not in repos:
         repos.append('universe')
+
     cmdline = ["debootstrap",
                "--verbose",
                "--merged-usr",
@@ -1404,16 +1457,18 @@ def install_debian_or_ubuntu(args: CommandLineArguments, workspace: str, run_bui
     run_workspace_command(args, workspace, network=True, env={'DEBIAN_FRONTEND': 'noninteractive', 'DEBCONF_NONINTERACTIVE_SEEN': 'true'}, *cmdline)
     os.unlink(policyrcd)
 
+    # FIXME: implement cleanup
+
 @complete_step('Installing Debian')
-def install_debian(args, workspace, run_build_script):
-    install_debian_or_ubuntu(args, workspace, run_build_script, args.mirror)
+def install_debian(args, workspace, *, run_build_script, cleanup):
+    install_debian_or_ubuntu(args, workspace, run_build_script=run_build_script, mirror=args.mirror, cleanup=cleanup)
 
 @complete_step('Installing Ubuntu')
-def install_ubuntu(args, workspace, run_build_script):
-    install_debian_or_ubuntu(args, workspace, run_build_script, args.mirror)
+def install_ubuntu(args, workspace, *, run_build_script, cleanup):
+    install_debian_or_ubuntu(args, workspace, run_build_script=run_build_script, mirror=args.mirror, cleanup=cleanup)
 
 @complete_step('Installing Arch Linux')
-def install_arch(args, workspace, run_build_script):
+def install_arch(args, workspace, *, run_build_script, cleanup):
     if args.release is not None:
         sys.stderr.write("Distribution release specification is not supported for Arch Linux, ignoring.\n")
 
@@ -1557,9 +1612,10 @@ SigLevel    = Required DatabaseOptional
     # At this point, no process should be left running, kill then
     run(["fuser", "-c", root, "--kill"])
 
+    # FIXME: implement cleanup
 
 @complete_step('Installing openSUSE')
-def install_opensuse(args, workspace, run_build_script):
+def install_opensuse(args, workspace, *, run_build_script, cleanup):
     root = os.path.join(workspace, "root")
     release = args.release.strip('"')
 
@@ -1641,7 +1697,9 @@ def install_opensuse(args, workspace, run_build_script):
         with open(os.path.join(root, "etc/kernel/cmdline"), "w") as cmdline:
             cmdline.write(args.kernel_commandline + " root=/dev/gpt-auto-root\n")
 
-def install_distribution(args, workspace, run_build_script, cached):
+    # FIXME: implement cleanup
+
+def install_distribution(args, workspace, *, cached, **kwargs):
     if cached:
         return
 
@@ -1656,7 +1714,7 @@ def install_distribution(args, workspace, run_build_script, cached):
         Distribution.clear : install_clear,
     }
 
-    install[args.distribution](args, workspace, run_build_script)
+    install[args.distribution](args, workspace, **kwargs)
 
 def reset_machine_id(args, workspace, run_build_script, for_cache):
     """Make /etc/machine-id an empty file.
@@ -2634,6 +2692,12 @@ def unlink_try_hard(path: str) -> None:
     except:
         pass
 
+def remove_glob(*patterns: List[str]) -> None:
+    pathgen = (glob.glob(pattern) for pattern in patterns)
+    paths = set(sum(pathgen, [])) # uniquify
+    for path in paths:
+        unlink_try_hard(path)
+
 def empty_directory(path: str) -> None:
     try:
         for f in os.listdir(path):
@@ -3452,7 +3516,7 @@ def make_build_dir(args: CommandLineArguments) -> None:
 
     mkdir_last(args.build_dir, 0o755)
 
-def build_image(args: CommandLineArguments, workspace: tempfile.TemporaryDirectory, run_build_script: bool, for_cache: bool=False) -> Tuple[Optional[IO[str]], Optional[IO[str]], Optional[str]]:
+def build_image(args: CommandLineArguments, workspace: tempfile.TemporaryDirectory, *, run_build_script: bool, for_cache: bool=False, cleanup: bool=False) -> Tuple[Optional[IO[str]], Optional[IO[str]], Optional[str]]:
     # If there's no build script set, there's no point in executing
     # the build script iteration. Let's quit early.
     if args.build_script is None and run_build_script:
@@ -3489,7 +3553,8 @@ def build_image(args: CommandLineArguments, workspace: tempfile.TemporaryDirecto
                 with mount_cache(args, workspace.name):
                     cached = reuse_cache_tree(args, workspace.name, run_build_script, for_cache, cached)
                     install_skeleton_trees(args, workspace.name, for_cache)
-                    install_distribution(args, workspace.name, run_build_script, cached)
+                    install_distribution(args, workspace.name,
+                                         run_build_script=run_build_script, cached=cached, cleanup=cleanup)
                     install_etc_hostname(args, workspace.name)
                     install_boot_loader(args, workspace.name, loopdev, cached)
                     install_extra_trees(args, workspace.name, for_cache)
@@ -3639,7 +3704,7 @@ def build_stuff(args: CommandLineArguments) -> None:
         remove_artifacts(args, workspace.name, raw, tar, run_build_script=True)
 
     # Run the image builder for the second (final) stage
-    raw, tar, root_hash = build_image(args, workspace, run_build_script=False)
+    raw, tar, root_hash = build_image(args, workspace, run_build_script=False, cleanup=True)
 
     raw = qcow2_output(args, raw)
     raw = xz_output(args, raw)
