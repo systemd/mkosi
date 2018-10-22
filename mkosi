@@ -2017,10 +2017,17 @@ def make_squashfs(args, workspace, for_cache):
     if for_cache:
         return None
 
-    comp_args = [] if args.compress is True else ['-comp', args.compress]
+    command = args.mksquashfs_tool[0] if args.mksquashfs_tool else 'mksquashfs'
+    comp_args = (args.mksquashfs_tool[1:] if args.mksquashfs_tool and args.mksquashfs_tool[1:]
+                 else ['-noappend'])
+
+    if args.compress is not True:
+        assert args.compress is not False
+        comp_args += ['-comp', args.compress]
+
     with complete_step('Creating squashfs file system'):
         f = tempfile.NamedTemporaryFile(dir=os.path.dirname(args.output), prefix=".mkosi-squashfs")
-        run(["mksquashfs", os.path.join(workspace, "root"), f.name, "-noappend", *comp_args],
+        run([command, os.path.join(workspace, "root"), f.name, *comp_args],
             check=True)
 
     return f
@@ -2543,6 +2550,7 @@ def parse_args() -> CommandLineArguments:
     group.add_argument("--verity", action='store_true', help='Add integrity partition (implies --read-only)')
     group.add_argument("--compress", type=parse_compression,
                        help='Enable compression in file system (only gpt_btrfs, subvolume, gpt_squashfs, squashfs)')
+    group.add_argument('--mksquashfs', dest='mksquashfs_tool', type=str.split, help='Script to call instead of mksquashfs')
 
     group.add_argument("--xz", action='store_true', help='Compress resulting image with xz (only gpt_ext4, gpt_btrfs, gpt_squashfs, gpt_xfs, implied on tar)')
     group.add_argument("--qcow2", action='store_true', help='Convert resulting image to qcow2 (only gpt_ext4, gpt_btrfs, gpt_squashfs, gpt_xfs)')
@@ -2830,6 +2838,9 @@ def process_setting(args: CommandLineArguments, section: str, key: str, value: A
         elif key == "Compress":
             if args.compress is None:
                 args.compress = parse_compression(value)
+        elif key == 'Mksquashfs':
+            if args.mksquashfs_tool is None:
+                args.mksquashfs_tool = value.split()
         elif key == "XZ":
             if args.xz is None:
                 args.xz = parse_boolean(value)
@@ -3005,11 +3016,13 @@ def find_skeleton(args: CommandLineArguments) -> None:
     if os.path.isfile("mkosi.skeleton.tar"):
         args.skeleton_trees.append("mkosi.skeleton.tar")
 
-def args_find_path(args: CommandLineArguments, name: str, path: str) -> None:
+def args_find_path(args: CommandLineArguments, name: str, path: str, *, type=lambda x:x) -> None:
     if getattr(args, name) is not None:
         return
     if os.path.exists(path):
-        setattr(args, name, os.path.abspath(path))
+        path = os.path.abspath(path)
+        path = type(path)
+        setattr(args, name, path)
 
 def find_cache(args: CommandLineArguments) -> None:
     if args.cache_path is not None:
@@ -3114,6 +3127,7 @@ def load_args() -> CommandLineArguments:
     args_find_path(args, 'build_dir',       "mkosi.builddir/")
     args_find_path(args, 'postinst_script', "mkosi.postinst");
     args_find_path(args, 'output_dir',      "mkosi.output/");
+    args_find_path(args, 'mksquashfs_tool', "mkosi.mksquashfs-tool", type=lambda x: [x])
 
     find_extra(args)
     find_skeleton(args)
@@ -3393,6 +3407,8 @@ def print_summary(args: CommandLineArguments) -> None:
     sys.stderr.write("        FS Compression: " + yes_no(args.compress) + detail + "\n")
 
     sys.stderr.write("        XZ Compression: " + yes_no(args.xz) + "\n")
+    if args.mksquashfs_tool:
+        sys.stderr.write("       Mksquashfs tool: " + ' '.join(args.mksquashfs_tool) + "\n")
 
     if args.output_format.is_disk():
         sys.stderr.write("                 QCow2: " + yes_no(args.qcow2) + "\n")

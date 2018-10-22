@@ -216,6 +216,9 @@ they exist in the local directory:
   directly in the image context with the final root directory in
   place, without any `$SRCDIR`/`$DESTDIR` setup.
 
+* `mkosi.mksquashfs-tool` may be an executable script. If it exists is
+  is called instead of `mksquashfs`.
+
 * `mkosi.nspawn` may be an nspawn settings file. If this exists
   it will be copied into the same place as the output image
   file. This is useful since nspawn looks for settings files
