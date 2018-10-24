@@ -17,7 +17,6 @@ Packages=
         dnf
         dosfstools
         git-core
-        glibc-minimal-langpack
         gnupg
         squashfs-tools
         tar
