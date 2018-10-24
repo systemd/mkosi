@@ -71,6 +71,7 @@ class CommandLineArguments(argparse.Namespace):
     """Type-hinted storage for command line arguments."""
 
     swap_partno = None  # type: Optional[int]
+    esp_partno = None  # type: Optional[int]
 
 
 class OutputFormat(Enum):
