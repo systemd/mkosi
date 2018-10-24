@@ -507,7 +507,7 @@ def attach_image_loopback(args: argparse.Namespace, raw: Optional[IO[str]]):
         with complete_step('Detaching image file'):
             run(["losetup", "--detach", loopdev], check=True)
 
-def partition(loopdev: str, partno: Optional[int]) -> Optional[str]:
+def partition(loopdev: str, partno: int) -> str:
     if partno is None:
         return None
 
