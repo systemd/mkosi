@@ -70,6 +70,8 @@ def warn(message: str, *args: Any, **kwargs: Any) -> None:
 class CommandLineArguments(argparse.Namespace):
     """Type-hinted storage for command line arguments."""
 
+    swap_partno = None  # type: Optional[int]
+
 
 class OutputFormat(Enum):
     raw_ext4 = 1
