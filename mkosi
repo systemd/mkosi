@@ -522,7 +522,9 @@ def prepare_swap(args: argparse.Namespace, loopdev: Optional[str], cached: bool)
         return
 
     with complete_step('Formatting swap partition'):
-        run(["mkswap", "-Lswap", partition(loopdev, args.swap_partno)], check=True)
+        part = partition(loopdev, args.swap_partno)
+        if part is not None:
+            run(["mkswap", "-Lswap", part], check=True)
 
 def prepare_esp(args: argparse.Namespace, loopdev: Optional[str], cached: bool) -> None:
     if loopdev is None:
