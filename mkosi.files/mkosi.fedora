@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: LGPL-2.1+
+# Let's build an image that is just good enough to build new mkosi images again
+
+[Distribution]
+Distribution=fedora
+Release=28
+
+[Output]
+Format=raw_squashfs
+Bootable=yes
+
+[Packages]
+Packages=
+        arch-install-scripts
+        btrfs-progs
+        debootstrap
+        dnf
+        dosfstools
+        git-core
+        glibc-minimal-langpack
+        gnupg
+        squashfs-tools
+        tar
+        veritysetup
