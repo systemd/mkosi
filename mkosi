@@ -3040,7 +3040,7 @@ def load_args():
 
     if args.release is None:
         if args.distribution == Distribution.fedora:
-            args.release = "25"
+            args.release = "29"
         if args.distribution == Distribution.centos:
             args.release = "7"
         if args.distribution == Distribution.mageia:
