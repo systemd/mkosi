@@ -1101,7 +1101,7 @@ def invoke_dnf(args: CommandLineArguments, workspace: str, repositories: List[st
                "--setopt=install_weak_deps=0"]
 
     if not args.with_docs:
-        cmdline += ['--setopt=tsflags=nodocs']
+        cmdline += ['--nodocs']
 
     cmdline += ['install', *packages]
 
