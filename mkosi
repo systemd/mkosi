@@ -1536,6 +1536,10 @@ SigLevel    = Required DatabaseOptional
     with open(os.path.join(workspace, 'root', 'etc/locale.conf'), 'w') as f:
         f.write('LANG=en_US.UTF-8\n')
 
+    # At this point, no process should be left running, kill then
+    run(["fuser", "-c", root, "--kill"])
+
+
 @complete_step('Installing openSUSE')
 def install_opensuse(args, workspace, run_build_script):
 
