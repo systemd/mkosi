@@ -3078,9 +3078,9 @@ def load_args() -> CommandLineArguments:
     if args.release is None:
         if args.distribution == Distribution.fedora:
             args.release = "29"
-        if args.distribution == Distribution.centos:
+        elif args.distribution == Distribution.centos:
             args.release = "7"
-        if args.distribution == Distribution.mageia:
+        elif args.distribution == Distribution.mageia:
             args.release = "6"
         elif args.distribution == Distribution.debian:
             args.release = "unstable"
@@ -3094,9 +3094,7 @@ def load_args() -> CommandLineArguments:
     find_cache(args)
 
     if args.mirror is None:
-        if args.distribution == Distribution.fedora:
-            args.mirror = None
-        if args.distribution == Distribution.centos:
+        if args.distribution in (Distribution.fedora, Distribution.centos):
             args.mirror = None
         elif args.distribution == Distribution.debian:
             args.mirror = "http://deb.debian.org/debian"
