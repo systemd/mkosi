@@ -1688,16 +1688,16 @@ def set_root_password(args, workspace, run_build_script, for_cache):
         return
 
     if args.password == '':
-        print_step("Deleting root password...")
-        jj = lambda line: (':'.join(['root', ''] + line.split(':')[2:])
-                           if line.startswith('root:') else line)
-        patch_file(os.path.join(workspace, 'root', 'etc/passwd'), jj)
+        with complete_step("Deleting root password"):
+            jj = lambda line: (':'.join(['root', ''] + line.split(':')[2:])
+                               if line.startswith('root:') else line)
+            patch_file(os.path.join(workspace, 'root', 'etc/passwd'), jj)
     elif args.password:
-        print_step("Setting root password...")
-        password = crypt.crypt(args.password, crypt.mksalt(crypt.METHOD_SHA512))
-        jj = lambda line: (':'.join(['root', password] + line.split(':')[2:])
-                           if line.startswith('root:') else line)
-        patch_file(os.path.join(workspace, 'root', 'etc/shadow'), jj)
+        with complete_step("Setting root password"):
+            password = crypt.crypt(args.password, crypt.mksalt(crypt.METHOD_SHA512))
+            jj = lambda line: (':'.join(['root', password] + line.split(':')[2:])
+                               if line.startswith('root:') else line)
+            patch_file(os.path.join(workspace, 'root', 'etc/shadow'), jj)
 
 def run_postinst_script(args, workspace, run_build_script, for_cache):
 
