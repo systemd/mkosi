@@ -1679,6 +1679,16 @@ def reset_machine_id(args, workspace, run_build_script, for_cache):
         else:
             os.symlink('../../../etc/machine-id', dbus_machine_id)
 
+def reset_random_seed(args, workspace):
+    """Remove random seed file, so that it is initialized on first boot"""
+
+    with complete_step('Removing random seed'):
+        random_seed = os.path.join(workspace, 'root', 'var/lib/systemd/random-seed')
+        try:
+            os.unlink(random_seed)
+        except FileNotFoundError:
+            pass
+
 def set_root_password(args, workspace, run_build_script, for_cache):
     "Set the root account password, or just delete it so it's easy to log in"
 
@@ -3454,6 +3464,7 @@ def build_image(args: CommandLineArguments, workspace: tempfile.TemporaryDirecto
                     run_postinst_script(args, workspace.name, run_build_script, for_cache)
 
                 reset_machine_id(args, workspace.name, run_build_script, for_cache)
+                reset_random_seed(args, workspace.name)
                 make_read_only(args, workspace.name, for_cache)
 
             squashfs = make_squashfs(args, workspace.name, for_cache)
