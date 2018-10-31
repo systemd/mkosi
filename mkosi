@@ -938,7 +938,8 @@ def run_workspace_command(args: CommandLineArguments, workspace: str, *cmd: str,
                "--machine=mkosi-" + uuid.uuid4().hex,
                "--as-pid2",
                "--register=no",
-               "--bind=" + var_tmp(workspace) + ":/var/tmp" ]
+               "--bind=" + var_tmp(workspace) + ":/var/tmp",
+               "--setenv=SYSTEMD_OFFLINE=1" ]
 
     if network:
         # If we're using the host network namespace, use the same resolver
@@ -1678,6 +1679,16 @@ def reset_machine_id(args, workspace, run_build_script, for_cache):
         else:
             os.symlink('../../../etc/machine-id', dbus_machine_id)
 
+def reset_random_seed(args, workspace):
+    """Remove random seed file, so that it is initialized on first boot"""
+
+    with complete_step('Removing random seed'):
+        random_seed = os.path.join(workspace, 'root', 'var/lib/systemd/random-seed')
+        try:
+            os.unlink(random_seed)
+        except FileNotFoundError:
+            pass
+
 def set_root_password(args, workspace, run_build_script, for_cache):
     "Set the root account password, or just delete it so it's easy to log in"
 
@@ -1687,16 +1698,16 @@ def set_root_password(args, workspace, run_build_script, for_cache):
         return
 
     if args.password == '':
-        print_step("Deleting root password...")
-        jj = lambda line: (':'.join(['root', ''] + line.split(':')[2:])
-                           if line.startswith('root:') else line)
-        patch_file(os.path.join(workspace, 'root', 'etc/passwd'), jj)
+        with complete_step("Deleting root password"):
+            jj = lambda line: (':'.join(['root', ''] + line.split(':')[2:])
+                               if line.startswith('root:') else line)
+            patch_file(os.path.join(workspace, 'root', 'etc/passwd'), jj)
     elif args.password:
-        print_step("Setting root password...")
-        password = crypt.crypt(args.password, crypt.mksalt(crypt.METHOD_SHA512))
-        jj = lambda line: (':'.join(['root', password] + line.split(':')[2:])
-                           if line.startswith('root:') else line)
-        patch_file(os.path.join(workspace, 'root', 'etc/shadow'), jj)
+        with complete_step("Setting root password"):
+            password = crypt.crypt(args.password, crypt.mksalt(crypt.METHOD_SHA512))
+            jj = lambda line: (':'.join(['root', password] + line.split(':')[2:])
+                               if line.startswith('root:') else line)
+            patch_file(os.path.join(workspace, 'root', 'etc/shadow'), jj)
 
 def run_postinst_script(args, workspace, run_build_script, for_cache):
 
@@ -3067,9 +3078,9 @@ def load_args() -> CommandLineArguments:
     if args.release is None:
         if args.distribution == Distribution.fedora:
             args.release = "29"
-        if args.distribution == Distribution.centos:
+        elif args.distribution == Distribution.centos:
             args.release = "7"
-        if args.distribution == Distribution.mageia:
+        elif args.distribution == Distribution.mageia:
             args.release = "6"
         elif args.distribution == Distribution.debian:
             args.release = "unstable"
@@ -3083,9 +3094,7 @@ def load_args() -> CommandLineArguments:
     find_cache(args)
 
     if args.mirror is None:
-        if args.distribution == Distribution.fedora:
-            args.mirror = None
-        if args.distribution == Distribution.centos:
+        if args.distribution in (Distribution.fedora, Distribution.centos):
             args.mirror = None
         elif args.distribution == Distribution.debian:
             args.mirror = "http://deb.debian.org/debian"
@@ -3453,6 +3462,7 @@ def build_image(args: CommandLineArguments, workspace: tempfile.TemporaryDirecto
                     run_postinst_script(args, workspace.name, run_build_script, for_cache)
 
                 reset_machine_id(args, workspace.name, run_build_script, for_cache)
+                reset_random_seed(args, workspace.name)
                 make_read_only(args, workspace.name, for_cache)
 
             squashfs = make_squashfs(args, workspace.name, for_cache)
