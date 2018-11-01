@@ -2218,6 +2218,19 @@ def xz_output(args, raw):
 
     return f
 
+def qcow2_output(args, raw):
+    if args.output_format not in RAW_FORMATS:
+        return raw
+
+    if not args.qcow2:
+        return raw
+
+    with complete_step('Converting image file to qcow2'):
+        f = tempfile.NamedTemporaryFile(prefix=".mkosi-", dir=os.path.dirname(args.output))
+        run(["qemu-img", "convert", "-fraw", "-Oqcow2", raw.name, f.name], check=True)
+
+    return f
+
 def write_root_hash_file(args, root_hash):
     if root_hash is None:
         return None
@@ -2462,6 +2475,7 @@ def parse_args() -> CommandLineArguments:
     group.add_argument("--verity", action='store_true', help='Add integrity partition (implies --read-only)')
     group.add_argument("--compress", action='store_true', help='Enable compression in file system (only raw_btrfs, subvolume)')
     group.add_argument("--xz", action='store_true', help='Compress resulting image with xz (only raw_ext4, raw_btrfs, raw_squashfs, raw_xfs, implied on tar)')
+    group.add_argument("--qcow2", action='store_true', help='Convert resulting image to qcow2 (only raw_ext4, raw_btrfs, raw_squashfs, raw_xfs)')
     group.add_argument('-i', "--incremental", action='store_true', help='Make use of and generate intermediary cache images')
 
     group = parser.add_argument_group("Packages")
@@ -2740,6 +2754,9 @@ def process_setting(args: CommandLineArguments, section: str, key: str, value: A
         elif key == "XZ":
             if args.xz is None:
                 args.xz = parse_boolean(value)
+        elif key == "QCow2":
+            if args.qcow2 is None:
+                args.qcow2 = parse_boolean(value)
         elif key == "Hostname":
             if not args.hostname:
                 args.hostname = value
@@ -3018,6 +3035,8 @@ def strip_suffixes(path: str) -> str:
             t = t[:-4]
         elif t.endswith(".tar"):
             t = t[:-4]
+        elif t.endswith(".qcow2"):
+            t = t[:-6]
         else:
             break
 
@@ -3128,10 +3147,13 @@ def load_args() -> CommandLineArguments:
 
     if args.output is None:
         if args.output_format in RAW_FORMATS:
-            if args.xz:
-                args.output = "image.raw.xz"
+            if args.qcow2:
+                args.output = "image.qcow2"
             else:
                 args.output = "image.raw"
+
+            if args.xz:
+                args.output += ".xz"
         elif args.output_format == OutputFormat.tar:
             args.output = "image.tar.xz"
         else:
@@ -3241,6 +3263,10 @@ def load_args() -> CommandLineArguments:
         if args.xz:
             die("Sorry, can't acquire shell in or boot an XZ compressed image.")
 
+    if args.verb in ("shell", "boot"):
+        if args.qcow2:
+            die("Sorry, can't acquire shell in or boot a qcow2 image.")
+
     if args.verb == "qemu":
         if args.output_format not in RAW_FORMATS:
             die("Sorry, can't boot non-raw images with qemu.")
@@ -3318,6 +3344,9 @@ def print_summary(args: CommandLineArguments) -> None:
 
     if args.output_format in RAW_FORMATS + (OutputFormat.tar,):
         sys.stderr.write("        XZ Compression: " + yes_no(args.xz) + "\n")
+
+    if args.output_format in RAW_FORMATS:
+        sys.stderr.write("                 QCow2: " + yes_no(args.qcow2) + "\n")
 
     sys.stderr.write("            Encryption: " + none_to_no(args.encrypt) + "\n")
     sys.stderr.write("                Verity: " + yes_no(args.verity) + "\n")
@@ -3606,6 +3635,7 @@ def build_stuff(args: CommandLineArguments) -> None:
     # Run the image builder for the second (final) stage
     raw, tar, root_hash = build_image(args, workspace, run_build_script=False)
 
+    raw = qcow2_output(args, raw)
     raw = xz_output(args, raw)
     root_hash_file = write_root_hash_file(args, root_hash)
     settings = copy_nspawn_settings(args)
@@ -3693,7 +3723,7 @@ def run_qemu(args: CommandLineArguments) -> None:
     cmdline += [ "-smp", "2",
                  "-m", "1024",
                  "-drive", "if=pflash,format=raw,readonly,file=" + firmware,
-                 "-drive", "format=raw,file=" + args.output,
+                 "-drive", "format=" + ("qcow2" if args.qcow2 else "raw") + ",file=" + args.output,
                  *args.cmdline ]
 
     print_running_cmd(cmdline)
