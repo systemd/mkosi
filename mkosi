@@ -2732,13 +2732,13 @@ def process_setting(args: CommandLineArguments, section: str, key: str, value: A
                     raise ValueError("Invalid encryption setting: "+ value)
                 args.encrypt = value
         elif key == "Verity":
-            if not args.verity:
+            if args.verity is None:
                 args.verity = parse_boolean(value)
         elif key == "Compress":
-            if not args.compress:
+            if args.compress is None:
                 args.compress = parse_boolean(value)
         elif key == "XZ":
-            if not args.xz:
+            if args.xz is None:
                 args.xz = parse_boolean(value)
         elif key == "Hostname":
             if not args.hostname:
