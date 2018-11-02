@@ -508,9 +508,6 @@ def attach_image_loopback(args: argparse.Namespace, raw: Optional[IO[str]]):
             run(["losetup", "--detach", loopdev], check=True)
 
 def partition(loopdev: str, partno: int) -> str:
-    if partno is None:
-        return None
-
     return loopdev + "p" + str(partno)
 
 def prepare_swap(args: argparse.Namespace, loopdev: Optional[str], cached: bool) -> None:
