@@ -16,3 +16,5 @@
 /mkosi.egg-info
 /mkosi.extra
 /mkosi.nspawn
+/mkosi.rootpw
+.mypy_cache/
