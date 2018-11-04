@@ -184,7 +184,7 @@ they exist in the local directory:
   `systemd-nspawn`), with `$SRCDIR` pointing to the *source*
   tree. `$DESTDIR` points to a directory where the script should place
   any files generated it would like to end up in the *final*
-  image. Note that `make`/`automake` based build systems generally
+  image. Note that `make`/`automake`/`meson` based build systems generally
   honour `$DESTDIR`, thus making it very natural to build *source*
   trees from the build script. After the *development* image was built
   and the build script ran inside of it, it is removed again. After
@@ -205,16 +205,34 @@ they exist in the local directory:
   artifacts.
 
 * `mkosi.postinst` may be an executable script. If it exists it is
-  invoked as last step of preparing an image, from within the image
-  context. It is once called for the *development* image (if this is
-  enabled, see above) with the "build" command line parameter, right
-  before invoking the build script. It is called a second time for the
-  *final* image with the "final" command line parameter, right before
-  the image is considered complete. This script may be used to alter
-  the images without any restrictions, after all software packages and
-  built sources have been installed. Note that this script is executed
-  directly in the image context with the final root directory in
-  place, without any `$SRCDIR`/`$DESTDIR` setup.
+  invoked as the penultimate step of preparing an image, from within
+  the image context. It is once called for the *development* image (if
+  this is enabled, see above) with the "build" command line parameter,
+  right before invoking the build script. It is called a second time
+  for the *final* image with the "final" command line parameter, right
+  before the image is considered complete. This script may be used to
+  alter the images without any restrictions, after all software
+  packages and built sources have been installed. Note that this
+  script is executed directly in the image context with the final root
+  directory in place, without any `$SRCDIR`/`$DESTDIR` setup.
+
+* `mkosi.finalize` may be an executable script. If it exists it is
+  invoked as last step of preparing an image, from the host system.
+  It is once called for the *development* image (if this is enabled,
+  see above) with the "build" command line parameter, as the last step
+  before invoking the build script, after the `mkosi.postinst` script
+  is invoked.  It is called the second time with the "final" command
+  line parameter as the last step before the image is considered
+  complete. The environment variable `$BUILDROOT` points to the root
+  directory of the installation image. Additional verbs may be added
+  in the future, the script should be prepared for that. This script
+  may be used to alter the images without any restrictions, after all
+  software packages and built sources have been installed. This script
+  is more flexible than `mkosi.postinst` in two regards: it has access
+  to the host file system so it's easier to copy in additional files
+  or to modify the image based on external configuration, and the
+  script is run in the host, so it can be used even without emulation
+  even if the image has a foreign architecture.
 
 * `mkosi.mksquashfs-tool` may be an executable script. If it exists is
   is called instead of `mksquashfs`.

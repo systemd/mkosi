@@ -1789,6 +1789,8 @@ def run_postinst_script(args, workspace, run_build_script, for_cache):
     if for_cache:
         return
 
+    verb = "build" if run_build_script else "final"
+
     with complete_step('Running postinstall script'):
 
         # We copy the postinst script into the build tree. We'd prefer
@@ -1799,8 +1801,17 @@ def run_postinst_script(args, workspace, run_build_script, for_cache):
         shutil.copy2(args.postinst_script,
                      os.path.join(workspace, "root", "root/postinst"))
 
-        run_workspace_command(args, workspace, "/root/postinst", "build" if run_build_script else "final", network=args.with_network)
+        run_workspace_command(args, workspace, "/root/postinst", verb, network=args.with_network)
         os.unlink(os.path.join(workspace, "root", "root/postinst"))
+
+def run_finalize_script(args: CommandLineArguments, workspace: str, *, verb: str):
+    if args.finalize_script is None:
+        return
+
+    with complete_step('Running finalize script'):
+        buildroot = workspace + '/root'
+        env = collections.ChainMap({'BUILDROOT':buildroot}, os.environ)
+        run([args.finalize_script, verb], env=env, check=True)
 
 def find_kernel_file(workspace_root, pattern):
     # Look for the vmlinuz file in the workspace
@@ -2578,6 +2589,7 @@ def parse_args() -> CommandLineArguments:
     group.add_argument("--build-dir", help='Path to use as persistent build directory', metavar='PATH')
     group.add_argument("--build-package", action=CommaDelimitedListAction, dest='build_packages', default=[], help='Additional packages needed for build script', metavar='PACKAGE')
     group.add_argument("--postinst-script", help='Postinstall script to run inside image', metavar='PATH')
+    group.add_argument("--finalize-script", help='Postinstall script to run outside image', metavar='PATH')
     group.add_argument('--use-git-files', type=parse_boolean,
                        help='Ignore any files that git itself ignores (default: guess)')
     group.add_argument('--git-files', choices=('cached', 'others'),
@@ -2901,6 +2913,9 @@ def process_setting(args: CommandLineArguments, section: str, key: str, value: A
         elif key in {"PostinstallScript", "PostInstallationScript"}:
             if args.postinst_script is None:
                 args.postinst_script = value
+        elif key == "FinalizeScript":
+            if args.finalize_script is None:
+                args.finalize_script = value
         elif key == "WithNetwork":
             if args.with_network is None:
                 args.with_network = parse_boolean(value)
@@ -3139,6 +3154,7 @@ def load_args() -> CommandLineArguments:
     args_find_path(args, 'build_sources',   ".")
     args_find_path(args, 'build_dir',       "mkosi.builddir/")
     args_find_path(args, 'postinst_script', "mkosi.postinst");
+    args_find_path(args, 'finalize_script', "mkosi.finalize");
     args_find_path(args, 'output_dir',      "mkosi.output/");
     args_find_path(args, 'mksquashfs_tool', "mkosi.mksquashfs-tool", type=lambda x: [x])
 
@@ -3290,6 +3306,9 @@ def load_args() -> CommandLineArguments:
 
     if args.postinst_script is not None:
         args.postinst_script = os.path.abspath(args.postinst_script)
+
+    if args.finalize_script is not None:
+        args.finalize_script = os.path.abspath(args.finalize_script)
 
     if args.cache_path is not None:
         args.cache_path = os.path.abspath(args.cache_path)
@@ -3460,6 +3479,7 @@ def print_summary(args: CommandLineArguments) -> None:
     sys.stderr.write("       Build Directory: " + none_to_none(args.build_dir) + "\n")
     sys.stderr.write("        Build Packages: " + line_join_list(args.build_packages) + "\n")
     sys.stderr.write("    Postinstall Script: " + none_to_none(args.postinst_script) + "\n")
+    sys.stderr.write("       Finalize Script: " + none_to_none(args.finalize_script) + "\n")
     sys.stderr.write("  Scripts with network: " + yes_no(args.with_network) + "\n")
     sys.stderr.write("       nspawn Settings: " + none_to_none(args.nspawn_settings) + "\n")
 
@@ -3701,12 +3721,16 @@ def build_stuff(args: CommandLineArguments) -> None:
                        args.cache_pre_inst)
             remove_artifacts(args, workspace.name, raw, tar, run_build_script=False)
 
+    run_finalize_script(args, workspace.name, verb='build')
+
     if args.build_script:
         # Run the image builder for the first (develpoment) stage in preparation for the build script
         raw, tar, root_hash = build_image(args, workspace, run_build_script=True)
 
         run_build_script(args, workspace.name, raw)
         remove_artifacts(args, workspace.name, raw, tar, run_build_script=True)
+
+    run_finalize_script(args, workspace.name, verb='final')
 
     # Run the image builder for the second (final) stage
     raw, tar, root_hash = build_image(args, workspace, run_build_script=False, cleanup=True)
