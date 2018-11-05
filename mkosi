@@ -557,7 +557,10 @@ def attach_image_loopback(args: CommandLineArguments, raw: Optional[IO[str]]):
         with complete_step('Detaching image file'):
             run(["losetup", "--detach", loopdev], check=True)
 
-def partition(loopdev: str, partno: int) -> str:
+def partition(loopdev: str, partno: Optional[int]) -> str:
+    if partno is None:
+        return None
+
     return loopdev + "p" + str(partno)
 
 def prepare_swap(args: CommandLineArguments, loopdev: Optional[str], cached: bool) -> None:
