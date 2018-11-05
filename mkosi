@@ -1225,8 +1225,9 @@ gpgkey={gpg_key}
 
     packages = ['fedora-release', 'glibc-minimal-langpack']
     packages += args.packages or []
-    if run_build_script:
+    if args.bootable:
         packages += ['kernel-core', 'systemd-udev', 'binutils']
+    if run_build_script:
         packages += args.build_packages or []
     invoke_dnf(args, workspace,
                args.repositories or ["fedora", "updates"],
@@ -1280,7 +1281,7 @@ gpgkey={gpg_key}
            updates_url=updates_url))
 
     packages = ["basesystem-minimal"]
-    if run_build_script:
+    if args.bootable:
         packages += ["kernel-server-latest", "binutils"]
     invoke_dnf(args, workspace,
                args.repositories if args.repositories else ["mageia", "updates"],
@@ -1362,7 +1363,7 @@ gpgkey={gpg_key}
            updates_url=updates_url))
 
     packages = ['centos-release']
-    if run_build_script:
+    if args.bootable:
         packages += ["kernel", "systemd-udev", "binutils"]
     invoke_dnf_or_yum(args, workspace,
                       args.repositories or ["base", "updates"],
