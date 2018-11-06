@@ -193,7 +193,7 @@ def gpt_root_native(arch: str) -> Tuple[uuid.UUID, uuid.UUID]:
     elif arch == 'aarch64':
         return GPTRootTypePair(GPT_ROOT_ARM_64, GPT_ROOT_ARM_64_VERITY)
     else:
-        die("Unknown architecture {}.".format(arch))
+        die(f'Unknown architecture {arch}.')
 
 def unshare(flags: int) -> None:
     libc = ctypes.CDLL(ctypes.util.find_library("c"), use_errno=True)
@@ -204,13 +204,13 @@ def unshare(flags: int) -> None:
 
 def format_bytes(bytes: int) -> str:
     if bytes >= 1024*1024*1024:
-        return "{:0.1f}G".format(bytes / 1024**3)
+        return f'{bytes/1024**3 :0.1f}G'
     if bytes >= 1024*1024:
-        return "{:0.1f}M".format(bytes / 1024**2)
+        return f'{bytes/1024**2 :0.1f}M'
     if bytes >= 1024:
-        return "{:0.1f}K".format(bytes / 1024)
+        return f'{bytes/1024 :0.1f}K'
 
-    return "{}B".format(bytes)
+    return f'{bytes}B'
 
 def roundup512(x: int) -> int:
     return (x + 511) & ~511
@@ -423,7 +423,7 @@ def determine_partition_table(args: CommandLineArguments):
     run_sfdisk = False
 
     if args.bootable:
-        table += 'size={}, type={}, name="ESP System Partition"\n'.format(args.esp_size // 512, GPT_ESP)
+        table += f'size={args.esp_size // 512}, type={GPT_ESP}, name="ESP System Partition"\n'
         args.esp_partno = pn
         pn += 1
         run_sfdisk = True
@@ -431,7 +431,7 @@ def determine_partition_table(args: CommandLineArguments):
         args.esp_partno = None
 
     if args.swap_size is not None:
-        table += 'size={}, type={}, name="Swap Partition"\n'.format(args.swap_size // 512, GPT_SWAP)
+        table += f'size={args.swap_size // 512}, type={GPT_SWAP}, name="Swap Partition"\n'
         args.swap_partno = pn
         pn += 1
         run_sfdisk = True
@@ -443,13 +443,13 @@ def determine_partition_table(args: CommandLineArguments):
 
     if args.output_format != OutputFormat.gpt_btrfs:
         if args.home_size is not None:
-            table += 'size={}, type={}, name="Home Partition"\n'.format(args.home_size // 512, GPT_HOME)
+            table += f'size={args.home_size // 512}, type={GPT_HOME}, name="Home Partition"\n'
             args.home_partno = pn
             pn += 1
             run_sfdisk = True
 
         if args.srv_size is not None:
-            table += 'size={}, type={}, name="Server Data Partition"\n'.format(args.srv_size // 512, GPT_SRV)
+            table += f'size={args.srv_size // 512}, type={GPT_SRV}, name="Server Data Partition"\n'
             args.srv_partno = pn
             pn += 1
             run_sfdisk = True
@@ -765,7 +765,7 @@ def mount_loop(args: CommandLineArguments, dev: str, where: str, read_only:bool=
         if isinstance(args.compress, bool):
             options += ",compress"
         else:
-            options += ",compress={}".format(args.compress)
+            options += f",compress={args.compress}"
 
     if read_only:
         options += ",ro"
@@ -982,7 +982,7 @@ def run_workspace_command(args: CommandLineArguments, workspace: str, *cmd: str,
     else:
         cmdline += ["--private-network"]
 
-    cmdline += [ "--setenv={}={}".format(k,v) for k,v in env.items() ]
+    cmdline += [ f'--setenv={k}={v}' for k,v in env.items() ]
 
     if nspawn_params:
         cmdline += nspawn_params
@@ -1106,7 +1106,7 @@ def invoke_dnf(args: CommandLineArguments, workspace: str, repositories: List[st
                "--setopt=install_weak_deps=0"]
 
     if args.architecture is not None:
-        cmdline += ['--forcearch={}'.format(args.architecture)]
+        cmdline += [f'--forcearch={args.architecture}']
 
     if not args.with_docs:
         cmdline += ['--nodocs']
@@ -1149,7 +1149,7 @@ ensure that you have openssl program in your system.
 """)
         raise FileNotFoundError("Couldn't find swupd-extract")
 
-    print("Using {}".format(swupd_extract))
+    print(f'Using {swupd_extract}')
 
     run([swupd_extract,
          '-output', root,
@@ -1178,40 +1178,40 @@ ensure that you have openssl program in your system.
 def install_fedora(args: CommandLineArguments, workspace: str, run_build_script: bool, cleanup: bool) -> None:
     if args.release == 'rawhide':
         last = sorted(FEDORA_KEYS_MAP)[-1]
-        warn('Assuming rawhide is version {} -- '.format(last) +
+        warn(f'Assuming rawhide is version {last} — ' +
              'You may specify otherwise with --release=rawhide-<version>')
         args.releasever = last
     elif args.release.startswith('rawhide-'):
         args.release, args.releasever = args.release.split('-')
-        sys.stderr.write('Fedora rawhide - release version: %s\n' % args.releasever)
+        sys.stderr.write(f'Fedora rawhide — release version: {args.releasever}\n')
     else:
         args.releasever = args.release
 
     masked = disable_kernel_install(args, workspace)
 
     arch = args.architecture or platform.machine()
-    gpg_key = "/etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-{args.releasever}-{arch}".format(args=args, arch=arch)
+    gpg_key = f"/etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-{args.releasever}-{arch}"
     if os.path.exists(gpg_key):
-        gpg_key = "file://%s" % gpg_key
+        gpg_key = f"file://{gpg_key}"
     else:
-        gpg_key = "https://getfedora.org/static/%s.txt" % FEDORA_KEYS_MAP[args.releasever]
+        gpg_key = "https://getfedora.org/static/{}.txt".format(FEDORA_KEYS_MAP[args.releasever])
 
     if args.mirror:
-        baseurl = "{args.mirror}/releases/{args.release}/Everything/$basearch/os/".format(args=args)
-        if not check_if_url_exists("%s/media.repo" % baseurl):
-            baseurl = "{args.mirror}/development/{args.release}/Everything/$basearch/os/".format(args=args)
+        baseurl = f"{args.mirror}/releases/{args.release}/Everything/$basearch/os/"
+        if not check_if_url_exists(f"{baseurl}/media.repo"):
+            baseurl = f"{args.mirror}/development/{args.release}/Everything/$basearch/os/"
 
-        release_url = "baseurl={}".format(baseurl)
-        updates_url = "baseurl={args.mirror}/updates/{args.release}/$basearch/".format(args=args)
+        release_url = f"baseurl={baseurl}"
+        updates_url = f"baseurl={args.mirror}/updates/{args.release}/$basearch/"
     else:
-        release_url = ("metalink=https://mirrors.fedoraproject.org/metalink?" +
-                       "repo=fedora-{args.release}&arch=$basearch".format(args=args))
-        updates_url = ("metalink=https://mirrors.fedoraproject.org/metalink?" +
-                       "repo=updates-released-f{args.release}&arch=$basearch".format(args=args))
+        release_url = (f"metalink=https://mirrors.fedoraproject.org/metalink?" +
+                       f"repo=fedora-{args.release}&arch=$basearch")
+        updates_url = (f"metalink=https://mirrors.fedoraproject.org/metalink?" +
+                       f"repo=updates-released-f{args.release}&arch=$basearch")
 
     config_file = os.path.join(workspace, "dnf.conf")
     with open(config_file, "w") as f:
-        f.write("""\
+        f.write(f"""\
 [main]
 gpgcheck=1
 
@@ -1224,10 +1224,7 @@ gpgkey={gpg_key}
 name=Fedora {args.release} - updates
 {updates_url}
 gpgkey={gpg_key}
-""".format(args=args,
-           gpg_key=gpg_key,
-           release_url=release_url,
-           updates_url=updates_url))
+""")
 
     packages = ['fedora-release', 'glibc-minimal-langpack']
     packages += args.packages or []
@@ -1253,22 +1250,22 @@ def install_mageia(args, workspace, *, run_build_script, cleanup):
     # Mageia does not (yet) have RPM GPG key on the web
     gpg_key = '/etc/pki/rpm-gpg/RPM-GPG-KEY-Mageia'
     if os.path.exists(gpg_key):
-        gpg_key = "file://%s" % gpg_key
+        gpg_key = f'file://{gpg_key}'
 #    else:
-#        gpg_key = "https://getfedora.org/static/%s.txt" % FEDORA_KEYS_MAP[args.release]
+#        gpg_key = "https://getfedora.org/static/{}.txt".format(FEDORA_KEYS_MAP[args.releasever])
 
     if args.mirror:
-        baseurl = "{args.mirror}/distrib/{args.release}/x86_64/media/core/".format(args=args)
-        release_url = "baseurl=%s/release/" % baseurl
-        updates_url = "baseurl=%s/updates/" % baseurl
+        baseurl = f"{args.mirror}/distrib/{args.release}/x86_64/media/core/"
+        release_url = f"baseurl={baseurl}/release/"
+        updates_url = f"baseurl={baseurl}/updates/"
     else:
-        baseurl = "https://www.mageia.org/mirrorlist/?release={args.release}&arch=x86_64&section=core".format(args=args)
-        release_url = "mirrorlist=%s&repo=release" % baseurl
-        updates_url = "mirrorlist=%s&repo=updates" % baseurl
+        baseurl = f"https://www.mageia.org/mirrorlist/?release={args.release}&arch=x86_64&section=core"
+        release_url = f"mirrorlist={baseurl}&repo=release"
+        updates_url = f"mirrorlist={baseurl}&repo=updates"
 
     config_file = os.path.join(workspace, "dnf.conf")
     with open(config_file, "w") as f:
-        f.write("""\
+        f.write(f"""\
 [main]
 gpgcheck=1
 
@@ -1281,10 +1278,7 @@ gpgkey={gpg_key}
 name=Mageia {args.release} Core Updates
 {updates_url}
 gpgkey={gpg_key}
-""".format(args=args,
-           gpg_key=gpg_key,
-           release_url=release_url,
-           updates_url=updates_url))
+""")
 
     packages = ["basesystem-minimal"]
     if args.bootable:
@@ -1313,7 +1307,7 @@ def invoke_yum(args: CommandLineArguments, workspace: str, repositories: List[st
                "--setopt=keepcache=1"]
 
     if args.architecture is not None:
-        cmdline += ['--forcearch={}'.format(args.architecture)]
+        cmdline += [f'--forcearch={args.architecture}']
 
     if not args.with_docs:
         cmdline.append("--setopt=tsflags=nodocs")
@@ -1338,22 +1332,22 @@ def invoke_dnf_or_yum(*args, **kwargs) -> None:
 def install_centos(args: CommandLineArguments, workspace: str, *, run_build_script: bool, cleanup: bool) -> None:
     masked = disable_kernel_install(args, workspace)
 
-    gpg_key = "/etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-%s" % args.release
+    gpg_key = f"/etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-{args.release}"
     if os.path.exists(gpg_key):
-        gpg_key = "file://%s" % gpg_key
+        gpg_key = f'file://{gpg_key}'
     else:
-        gpg_key = "https://www.centos.org/keys/RPM-GPG-KEY-CentOS-%s" % args.release
+        gpg_key = f'https://www.centos.org/keys/RPM-GPG-KEY-CentOS-{args.release}'
 
     if args.mirror:
-        release_url = "baseurl={args.mirror}/centos/{args.release}/os/x86_64".format(args=args)
-        updates_url = "baseurl={args.mirror}/centos/{args.release}/updates/x86_64/".format(args=args)
+        release_url = f"baseurl={args.mirror}/centos/{args.release}/os/x86_64"
+        updates_url = f"baseurl={args.mirror}/centos/{args.release}/updates/x86_64/"
     else:
-        release_url = "mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=os".format(args=args)
-        updates_url = "mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=updates".format(args=args)
+        release_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=os"
+        updates_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=updates"
 
     config_file = os.path.join(workspace, "yum.conf")
     with open(config_file, "w") as f:
-        f.write("""\
+        f.write(f"""\
 [main]
 gpgcheck=1
 
@@ -1366,10 +1360,7 @@ gpgkey={gpg_key}
 name=CentOS-{args.release} - Updates
 {updates_url}
 gpgkey={gpg_key}
-""".format(args=args,
-           gpg_key=gpg_key,
-           release_url=release_url,
-           updates_url=updates_url))
+""")
 
     packages = ['centos-release']
     if args.bootable:
@@ -1464,7 +1455,7 @@ def install_debian_or_ubuntu(args: CommandLineArguments, workspace: str, *, run_
         # Create dpkg.cfg to ignore documentation on new packages
         dpkg_conf = os.path.join(workspace, "root/etc/dpkg/dpkg.cfg.d/01_nodoc")
         with open(dpkg_conf, "w") as f:
-            f.writelines(["path-exclude %s/*\n" % d for d in doc_paths])
+            f.writelines(f'path-exclude {d}/*\n' for d in doc_paths)
 
     cmdline = ["/usr/bin/apt-get", "--assume-yes", "--no-install-recommends", "install"] + extra_packages
     run_workspace_command(args, workspace, network=True, env={'DEBIAN_FRONTEND': 'noninteractive', 'DEBCONF_NONINTERACTIVE_SEEN': 'true'}, *cmdline)
@@ -1486,9 +1477,9 @@ def install_arch(args, workspace, *, run_build_script, cleanup):
         sys.stderr.write("Distribution release specification is not supported for Arch Linux, ignoring.\n")
 
     if platform.machine() == "aarch64":
-        server = "Server = {}/$arch/$repo".format(args.mirror)
+        server = f"Server = {args.mirror}/$arch/$repo"
     else:
-        server = "Server = {}/$repo/os/$arch".format(args.mirror)
+        server = f"Server = {args.mirror}/$repo/os/$arch"
 
     root = os.path.join(workspace, "root")
     # Create base layout for pacman and pacman-key
@@ -1497,7 +1488,7 @@ def install_arch(args, workspace, *, run_build_script, cleanup):
 
     pacman_conf = os.path.join(workspace, "pacman.conf")
     with open(pacman_conf, "w") as f:
-        f.write("""\
+        f.write(f"""\
 [options]
 RootDir     = {root}
 LogFile     = /dev/null
@@ -1519,7 +1510,7 @@ SigLevel    = Required DatabaseOptional
 
 [community]
 {server}
-""".format(server=server, root=root))
+""")
 
     def run_pacman(args, **kwargs):
         cmdline = [
@@ -1638,14 +1629,14 @@ def install_opensuse(args, workspace, *, run_build_script, cleanup):
     # let's default to Leap.
     #
     if release.isdigit() or release == "tumbleweed":
-        release_url = "{}/tumbleweed/repo/oss/".format(args.mirror)
-        updates_url = "{}/update/tumbleweed/".format(args.mirror)
+        release_url = f"{args.mirror}/tumbleweed/repo/oss/"
+        updates_url = f"{args.mirror}/update/tumbleweed/"
     elif release.startswith("13."):
-        release_url = "{}/distribution/{}/repo/oss/".format(args.mirror, release)
-        updates_url = "{}/update/{}/".format(args.mirror, release)
+        release_url = f"{args.mirror}/distribution/{release}/repo/oss/"
+        updates_url = f"{args.mirror}/update/{release}/"
     else:
-        release_url = "{}/distribution/leap/{}/repo/oss/".format(args.mirror, release)
-        updates_url = "{}/update/leap/{}/oss/".format(args.mirror, release)
+        release_url = f"{args.mirror}/distribution/leap/{release}/repo/oss/"
+        updates_url = f"{args.mirror}/update/leap/{release}/oss/"
 
     #
     # Configure the repositories: we need to enable packages caching
@@ -1826,7 +1817,7 @@ def find_kernel_file(workspace_root, pattern):
     if kernel_file.startswith(workspace_root):
         kernel_file = kernel_file[len(workspace_root):]
     else:
-        sys.stderr.write('Error, kernel file %s cannot be used as it is not in the workspace\n' % kernel_file)
+        sys.stderr.write(f'Error, kernel file {kernel_file} cannot be used as it is not in the workspace\n')
         return
     if len(kernel_files) > 1:
         warn('More than one kernel file found, will use {}', kernel_file)
@@ -2107,12 +2098,12 @@ def insert_partition(args, workspace, raw, loopdev, partno, blob, name, type_uui
     luks_extra = 2*1024*1024 if args.encrypt == "all" else 0
     new_size = last_partition_sector + blob_size + luks_extra + GPT_FOOTER_SIZE
 
-    print_step("Resizing disk image to {}...".format(format_bytes(new_size)))
+    print_step(f'Resizing disk image to {format_bytes(new_size)}...')
 
     os.truncate(raw.name, new_size)
     run(["losetup", "--set-capacity", loopdev], check=True)
 
-    print_step("Inserting partition of {}...".format(format_bytes(blob_size)))
+    print_step(f'Inserting partition of {format_bytes(blob_size)}...')
 
     table = "label: gpt\n"
 
@@ -2122,7 +2113,8 @@ def insert_partition(args, workspace, raw, loopdev, partno, blob, name, type_uui
     if uuid is not None:
         table += "uuid=" + str(uuid) + ", "
 
-    table += 'size={}, type={}, attrs=GUID:60, name="{}"\n'.format((blob_size + luks_extra) // 512, type_uuid, name)
+    n_sectores = (blob_size + luks_extra) // 512
+    table += f'size={n_sectores}, type={type_uuid}, attrs=GUID:60, name="{name}"\n'
 
     print(table)
 
@@ -2279,7 +2271,7 @@ def secure_boot_sign(args, workspace, run_build_script, for_cache):
             if not i.endswith(".efi") and not i.endswith(".EFI"):
                 continue
 
-            with complete_step("Signing EFI binary {} in ESP".format(i)):
+            with complete_step(f'Signing EFI binary {i} in ESP'):
                 p = os.path.join(path, i)
 
                 run(["sbsign",
@@ -2526,7 +2518,7 @@ class ListAction(argparse.Action):
         new = values.split(self.delimiter)
         for x in new:
             if self.list_choices is not None and x not in self.list_choices:
-                raise ValueError('Unknown value {!r}'.format(x))
+                raise ValueError(f'Unknown value {x!r}')
             l.append(x)
         setattr(namespace, self.dest, l)
 
@@ -2799,7 +2791,7 @@ def parse_boolean(s: str) -> bool:
     if s in {"0", "false", "no"}:
         return False
 
-    raise ValueError("Invalid literal for bool(): {!r}".format(s))
+    raise ValueError(f'Invalid literal for bool(): {s!r}')
 
 def process_setting(args: CommandLineArguments, section: str, key: str, value: Any) -> bool:
     if section == "Distribution":
@@ -2995,13 +2987,13 @@ def load_defaults_file(fname: str, options: Dict[str, Dict[str, Any]]) -> Option
 
     for section in config.sections():
         if not process_setting(args, section, None, None):
-            sys.stderr.write("Unknown section in {}, ignoring: [{}]\n".format(fname, section))
+            sys.stderr.write(f"Unknown section in {fname!r}, ignoring: [{section}]\n")
             continue
         if section not in options:
             options[section] = {}
         for key in config[section]:
             if not process_setting(args, section, key, config[section][key]):
-                sys.stderr.write("Unknown key in section [{}] in {}, ignoring: {}=\n".format(section, fname, key))
+                sys.stderr.write(f'Unknown key in section [{section}] in {fname!r}, ignoring: {key}=\n')
                 continue
             if section == "Packages" and key in ["Packages", "ExtraTrees", "BuildPackages"]:
                 if key in options[section]:
@@ -3764,7 +3756,7 @@ def build_stuff(args: CommandLineArguments) -> None:
                                 settings.name if settings is not None else None)
 
     if root_hash is not None:
-        print_step("Root hash is {}.".format(root_hash))
+        print_step(f'Root hash is {root_hash}.')
 
 def check_root():
     if os.getuid() != 0:
@@ -3846,7 +3838,7 @@ def expand_paths(paths: List[str]) -> List[str]:
     # paths in their home when using mkosi via sudo.
     sudo_user = os.getenv("SUDO_USER")
     if sudo_user and "SUDO_HOME" not in environ:
-        environ["SUDO_HOME"] = os.path.expanduser("~{}".format(sudo_user))
+        environ["SUDO_HOME"] = os.path.expanduser(f'~{sudo_user}')
 
     # No os.path.expandvars because it treats unset variables as empty.
     expanded = []
