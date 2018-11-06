@@ -3005,6 +3005,12 @@ def find_skeleton(args: CommandLineArguments) -> None:
     if os.path.isfile("mkosi.skeleton.tar"):
         args.skeleton_trees.append("mkosi.skeleton.tar")
 
+def args_find_path(args: CommandLineArguments, name: str, path: str) -> None:
+    if getattr(args, name) is not None:
+        return
+    if os.path.exists(path):
+        setattr(args, name, os.path.abspath(path))
+
 def find_cache(args: CommandLineArguments) -> None:
     if args.cache_path is not None:
         return
@@ -3016,40 +3022,6 @@ def find_cache(args: CommandLineArguments) -> None:
         # cache is valid (and more efficient) across releases.
         if args.distribution != Distribution.clear and args.release is not None:
             args.cache_path += "~" + args.release
-
-def find_build_script(args: CommandLineArguments) -> None:
-    if args.build_script is not None:
-        return
-
-    if os.path.exists("mkosi.build"):
-        args.build_script = "mkosi.build"
-
-def find_build_sources(args: CommandLineArguments) -> None:
-    if args.build_sources is not None:
-        return
-
-    args.build_sources = os.getcwd()
-
-def find_build_dir(args: CommandLineArguments) -> None:
-    if args.build_dir is not None:
-        return
-
-    if os.path.exists("mkosi.builddir/"):
-        args.build_dir = "mkosi.builddir"
-
-def find_postinst_script(args: CommandLineArguments) -> None:
-    if args.postinst_script is not None:
-        return
-
-    if os.path.exists("mkosi.postinst"):
-        args.postinst_script = "mkosi.postinst"
-
-def find_output_dir(args: CommandLineArguments) -> None:
-    if args.output_dir is not None:
-        return
-
-    if os.path.exists("mkosi.output/"):
-        args.output_dir = "mkosi.output"
 
 def require_private_file(name, description):
     mode = os.stat(name).st_mode & 0o777
@@ -3135,14 +3107,16 @@ def load_args() -> CommandLineArguments:
     arg_debug = args.debug
 
     load_defaults(args)
-    find_nspawn_settings(args)
+
+    args_find_path(args, 'nspawn_settings', "mkosi.nspawn")
+    args_find_path(args, 'build_script',    "mkosi.build")
+    args_find_path(args, 'build_sources',   ".")
+    args_find_path(args, 'build_dir',       "mkosi.builddir/")
+    args_find_path(args, 'postinst_script', "mkosi.postinst");
+    args_find_path(args, 'output_dir',      "mkosi.output/");
+
     find_extra(args)
     find_skeleton(args)
-    find_build_script(args)
-    find_build_sources(args)
-    find_build_dir(args)
-    find_postinst_script(args)
-    find_output_dir(args)
     find_password(args)
     find_passphrase(args)
     find_secure_boot(args)
