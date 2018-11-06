@@ -557,7 +557,10 @@ def attach_image_loopback(args: CommandLineArguments, raw: Optional[IO[str]]):
         with complete_step('Detaching image file'):
             run(["losetup", "--detach", loopdev], check=True)
 
-def partition(loopdev: str, partno: int) -> str:
+def partition(loopdev: str, partno: Optional[int]) -> str:
+    if partno is None:
+        return None
+
     return loopdev + "p" + str(partno)
 
 def prepare_swap(args: CommandLineArguments, loopdev: Optional[str], cached: bool) -> None:
@@ -1222,8 +1225,9 @@ gpgkey={gpg_key}
 
     packages = ['fedora-release', 'glibc-minimal-langpack']
     packages += args.packages or []
-    if run_build_script:
+    if args.bootable:
         packages += ['kernel-core', 'systemd-udev', 'binutils']
+    if run_build_script:
         packages += args.build_packages or []
     invoke_dnf(args, workspace,
                args.repositories or ["fedora", "updates"],
@@ -1277,7 +1281,7 @@ gpgkey={gpg_key}
            updates_url=updates_url))
 
     packages = ["basesystem-minimal"]
-    if run_build_script:
+    if args.bootable:
         packages += ["kernel-server-latest", "binutils"]
     invoke_dnf(args, workspace,
                args.repositories if args.repositories else ["mageia", "updates"],
@@ -1359,7 +1363,7 @@ gpgkey={gpg_key}
            updates_url=updates_url))
 
     packages = ['centos-release']
-    if run_build_script:
+    if args.bootable:
         packages += ["kernel", "systemd-udev", "binutils"]
     invoke_dnf_or_yum(args, workspace,
                       args.repositories or ["base", "updates"],
@@ -3714,7 +3718,7 @@ def build_stuff(args: CommandLineArguments) -> None:
     signature = calculate_signature(args, checksum)
     bmap = calculate_bmap(args, raw)
 
-    link_output(args, workspace, raw or tar)
+    link_output(args, workspace.name, raw or tar)
 
     link_output_root_hash_file(args, root_hash_file.name if root_hash_file is not None else None)
 
