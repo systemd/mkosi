@@ -151,6 +151,7 @@ GPT_ROOT_ARM           = uuid.UUID("69dad7102ce44e3cb16c21a1d49abed3")
 GPT_ROOT_ARM_64        = uuid.UUID("b921b0451df041c3af444c6f280d3fae")
 GPT_ROOT_IA64          = uuid.UUID("993d8d3df80e4225855a9daf8ed7ea97")
 GPT_ESP                = uuid.UUID("c12a7328f81f11d2ba4b00a0c93ec93b")
+GPT_BIOS               = uuid.UUID("2168614864496e6f744e656564454649")
 GPT_SWAP               = uuid.UUID("0657fd6da4ab43c484e50933c84b4f4f")
 GPT_HOME               = uuid.UUID("933ac7e12eb44f13b8440e14e2aef915")
 GPT_SRV                = uuid.UUID("3b8f842520e04f3b907f1a25a76f98e8")
@@ -159,6 +160,15 @@ GPT_ROOT_X86_64_VERITY = uuid.UUID("2c7357edebd246d9aec123d437ec2bf5")
 GPT_ROOT_ARM_VERITY    = uuid.UUID("7386cdf2203c47a9a498f2ecce45a2d6")
 GPT_ROOT_ARM_64_VERITY = uuid.UUID("df3300ced69f4c92978c9bfb0f38d820")
 GPT_ROOT_IA64_VERITY   = uuid.UUID("86ed10d5b60745bb8957d350f23d0571")
+
+# This is a non-formatted partition used to store the second stage
+# part of the bootloader because it doesn't necessarily fits the MBR
+# available space. 1MiB is more than enough for our usages and there's
+# little reason for customization since it only stores the bootloader and
+# not user-owned configuration files or kernels. See
+# https://en.wikipedia.org/wiki/BIOS_boot_partition
+# and https://www.gnu.org/software/grub/manual/grub/html_node/BIOS-installation.html
+BIOS_PARTITION_SIZE = 1024 * 1024
 
 CLONE_NEWNS = 0x00020000
 
@@ -404,7 +414,10 @@ def image_size(args: CommandLineArguments) -> int:
     if args.srv_size is not None:
         size += args.srv_size
     if args.bootable:
-        size += args.esp_size
+        if "uefi" in args.boot_protocols:
+            size += args.esp_size
+        if "bios" in args.boot_protocols:
+            size += BIOS_PARTITION_SIZE
     if args.swap_size is not None:
         size += args.swap_size
     if args.verity_size is not None:
@@ -421,14 +434,21 @@ def determine_partition_table(args: CommandLineArguments):
     pn = 1
     table = "label: gpt\n"
     run_sfdisk = False
+    args.esp_partno = None
+    args.bios_partno = None
 
     if args.bootable:
-        table += f'size={args.esp_size // 512}, type={GPT_ESP}, name="ESP System Partition"\n'
-        args.esp_partno = pn
-        pn += 1
+        if "uefi" in args.boot_protocols:
+            table += f'size={args.esp_size // 512}, type={GPT_ESP}, name="ESP System Partition"\n'
+            args.esp_partno = pn
+            pn += 1
+
+        if "bios" in args.boot_protocols:
+            table += f'size={BIOS_PARTITION_SIZE // 512}, type={GPT_BIOS}, name="BIOS Boot Partition"\n'
+            args.bios_partno = pn
+            pn += 1
+
         run_sfdisk = True
-    else:
-        args.esp_partno = None
 
     if args.swap_size is not None:
         table += f'size={args.swap_size // 512}, type={GPT_SWAP}, name="Swap Partition"\n'
@@ -903,18 +923,25 @@ def prepare_tree(args: CommandLineArguments, workspace: str, run_build_script: b
             f.write(args.machine_id)
             f.write("\n")
 
-        os.mkdir(os.path.join(workspace, "root", "efi/EFI"), 0o700)
-        os.mkdir(os.path.join(workspace, "root", "efi/EFI/BOOT"), 0o700)
-        os.mkdir(os.path.join(workspace, "root", "efi/EFI/Linux"), 0o700)
-        os.mkdir(os.path.join(workspace, "root", "efi/EFI/systemd"), 0o700)
-        os.mkdir(os.path.join(workspace, "root", "efi/loader"), 0o700)
-        os.mkdir(os.path.join(workspace, "root", "efi/loader/entries"), 0o700)
-        os.mkdir(os.path.join(workspace, "root", "efi", args.machine_id), 0o700)
-
         os.mkdir(os.path.join(workspace, "root", "boot"), 0o700)
-        os.symlink("../efi", os.path.join(workspace, "root", "boot/efi"))
-        os.symlink("efi/loader", os.path.join(workspace, "root", "boot/loader"))
-        os.symlink("efi/" + args.machine_id, os.path.join(workspace, "root", "boot", args.machine_id))
+
+        if args.esp_partno is not None:
+            os.mkdir(os.path.join(workspace, "root", "efi/EFI"), 0o700)
+            os.mkdir(os.path.join(workspace, "root", "efi/EFI/BOOT"), 0o700)
+            os.mkdir(os.path.join(workspace, "root", "efi/EFI/Linux"), 0o700)
+            os.mkdir(os.path.join(workspace, "root", "efi/EFI/systemd"), 0o700)
+            os.mkdir(os.path.join(workspace, "root", "efi/loader"), 0o700)
+            os.mkdir(os.path.join(workspace, "root", "efi/loader/entries"), 0o700)
+            os.mkdir(os.path.join(workspace, "root", "efi", args.machine_id), 0o700)
+
+            os.symlink("../efi", os.path.join(workspace, "root", "boot/efi"))
+            os.symlink("efi/loader", os.path.join(workspace, "root", "boot/loader"))
+            os.symlink("efi/" + args.machine_id, os.path.join(workspace, "root", "boot", args.machine_id))
+
+        if args.bios_partno is not None:
+            os.makedirs(os.path.join(workspace, "root", "etc/default"), exist_ok=True)
+            with open(os.path.join(workspace, "root", "etc/default/grub"), "w+") as f:
+                f.write("GRUB_CMDLINE_LINUX=\"" + args.kernel_commandline + "\"")
 
         os.mkdir(os.path.join(workspace, "root", "etc/kernel"), 0o755)
 
@@ -1005,8 +1032,9 @@ def disable_kernel_install(args: CommandLineArguments, workspace: str) -> List[s
     # signed as a single EFI executable. Since the root hash is only
     # known when the root file system is finalized we turn off any
     # kernel installation beforehand.
-
-    if not args.bootable:
+    #
+    # For BIOS mode, we don't have that option, so do not mask the units
+    if not args.bootable or args.bios_partno is not None:
         return []
 
     for d in ("etc", "etc/kernel", "etc/kernel/install.d"):
@@ -1047,6 +1075,9 @@ def make_rpm_list(args: argparse.Namespace, packages: List[str]) -> List[str]:
 
         if args.output_format == OutputFormat.gpt_btrfs:
             packages += ['btrfs-progs']
+
+        if args.bios_partno:
+            packages += ["grub2-pc"]
 
     return packages
 
@@ -1832,6 +1863,29 @@ def find_kernel_file(workspace_root, pattern):
         warn('More than one kernel file found, will use {}', kernel_file)
     return kernel_file
 
+def install_grub(args, workspace, loopdev, grub):
+    if args.bios_partno is None:
+        return
+
+    nspawn_params = [
+        "--bind-ro=/dev",
+        "--property=DeviceAllow=" + loopdev,
+        "--property=DeviceAllow=" + partition(loopdev, args.root_partno),
+    ]
+
+    run_workspace_command(
+            args, workspace, f"{grub}-install",
+            "--modules=ext2 part_gpt", "--target=i386-pc",
+            loopdev, nspawn_params=nspawn_params)
+
+    run_workspace_command(
+            args, workspace, f"{grub}-mkconfig",
+            f"--output=/boot/{grub}/grub.cfg",
+            nspawn_params=nspawn_params)
+
+def install_boot_loader_fedora(args, workspace, loopdev):
+    install_grub(args, workspace, loopdev, "grub2")
+
 def install_boot_loader_arch(args, workspace):
     patch_file(os.path.join(workspace, "root", "etc/mkinitcpio.conf"),
                lambda line: "HOOKS=\"systemd modconf block sd-encrypt filesystems keyboard fsck\"\n" if line.startswith("HOOKS=") and args.encrypt == "all" else
@@ -1877,11 +1931,15 @@ def install_boot_loader(args, workspace, loopdev, cached):
         return
 
     with complete_step("Installing boot loader"):
-        shutil.copyfile(os.path.join(workspace, "root", "usr/lib/systemd/boot/efi/systemd-bootx64.efi"),
-                        os.path.join(workspace, "root", "boot/efi/EFI/systemd/systemd-bootx64.efi"))
+        if args.esp_partno:
+            shutil.copyfile(os.path.join(workspace, "root", "usr/lib/systemd/boot/efi/systemd-bootx64.efi"),
+                            os.path.join(workspace, "root", "boot/efi/EFI/systemd/systemd-bootx64.efi"))
 
-        shutil.copyfile(os.path.join(workspace, "root", "usr/lib/systemd/boot/efi/systemd-bootx64.efi"),
-                        os.path.join(workspace, "root", "boot/efi/EFI/BOOT/bootx64.efi"))
+            shutil.copyfile(os.path.join(workspace, "root", "usr/lib/systemd/boot/efi/systemd-bootx64.efi"),
+                            os.path.join(workspace, "root", "boot/efi/EFI/BOOT/bootx64.efi"))
+
+        if args.distribution == Distribution.fedora:
+            install_boot_loader_fedora(args, workspace, loopdev)
 
         if args.distribution == Distribution.arch:
             install_boot_loader_arch(args, workspace)
@@ -2210,7 +2268,7 @@ def install_unified_kernel(args, workspace, run_build_script, for_cache, root_ha
     # everything necessary to boot a specific root device, including
     # the root hash.
 
-    if not args.bootable:
+    if not args.bootable or args.esp_partno is None:
         return
     if for_cache:
         return
@@ -3252,8 +3310,8 @@ def load_args() -> CommandLineArguments:
             args.boot_protocols = ["uefi"]
         if not {"uefi", "bios"}.issuperset(args.boot_protocols):
             die("Not a valid boot protocol")
-        if "bios" in args.boot_protocols:
-            warn("bios boot not implemented yet")
+        if "bios" in args.boot_protocols and args.distribution not in (Distribution.fedora,):
+            die(f"bios boot not implemented yet for {args.distribution}")
 
     if args.encrypt is not None:
         if not args.output_format.is_disk():
@@ -3517,7 +3575,10 @@ def print_summary(args: CommandLineArguments) -> None:
         sys.stderr.write("\nPARTITIONS:\n")
         sys.stderr.write("        Root Partition: " + format_bytes_or_auto(args.root_size) + "\n")
         sys.stderr.write("        Swap Partition: " + format_bytes_or_disabled(args.swap_size) + "\n")
-        sys.stderr.write("                   ESP: " + format_bytes_or_disabled(args.esp_size) + "\n")
+        if "uefi" in args.boot_protocols:
+            sys.stderr.write("                   ESP: " + format_bytes_or_disabled(args.esp_size) + "\n")
+        if "bios" in args.boot_protocols:
+            sys.stderr.write("                  BIOS: " + format_bytes_or_disabled(BIOS_PARTITION_SIZE) + "\n")
         sys.stderr.write("       /home Partition: " + format_bytes_or_disabled(args.home_size) + "\n")
         sys.stderr.write("        /srv Partition: " + format_bytes_or_disabled(args.srv_size) + "\n")
 
