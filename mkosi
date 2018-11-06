@@ -180,15 +180,17 @@ GPT_FOOTER_SIZE = 1024*1024
 
 GPTRootTypePair = collections.namedtuple('GPTRootTypePair', 'root verity')
 
-def gpt_root_native():
-    """The tag for the native GPT root partition
+def gpt_root_native(arch: str) -> Tuple[uuid.UUID, uuid.UUID]:
+    """The tag for the native GPT root partition for the given architecture
 
     Returns a tuple of two tags: for the root partition and for the
     matching verity partition.
     """
-    if platform.machine() == "x86_64":
+    if arch is None:
+        arch = platform.machine()
+    if arch == 'x86_64':
         return GPTRootTypePair(GPT_ROOT_X86_64, GPT_ROOT_X86_64_VERITY)
-    elif platform.machine() == "aarch64":
+    elif arch == 'aarch64':
         return GPTRootTypePair(GPT_ROOT_ARM_64, GPT_ROOT_ARM_64_VERITY)
     else:
         die("Unknown architecture {}.".format(platform.machine()))
@@ -454,7 +456,7 @@ def determine_partition_table(args: CommandLineArguments):
 
     if args.output_format != OutputFormat.gpt_squashfs:
         table += 'type={}, attrs={}, name="Root Partition"\n'.format(
-            gpt_root_native().root,
+            gpt_root_native(args.architecture).root,
             "GUID:60" if args.read_only and args.output_format != OutputFormat.gpt_btrfs else "")
         run_sfdisk = True
 
@@ -1103,6 +1105,9 @@ def invoke_dnf(args: CommandLineArguments, workspace: str, repositories: List[st
                "--setopt=keepcache=1",
                "--setopt=install_weak_deps=0"]
 
+    if args.architecture is not None:
+        cmdline += ['--forcearch={}'.format(args.architecture)]
+
     if not args.with_docs:
         cmdline += ['--nodocs']
 
@@ -1184,24 +1189,25 @@ def install_fedora(args: CommandLineArguments, workspace: str, run_build_script:
 
     masked = disable_kernel_install(args, workspace)
 
-    gpg_key = "/etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-%s-x86_64" % args.releasever
+    arch = args.architecture or platform.machine()
+    gpg_key = "/etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-{args.releasever}-{arch}".format(args=args, arch=arch)
     if os.path.exists(gpg_key):
         gpg_key = "file://%s" % gpg_key
     else:
         gpg_key = "https://getfedora.org/static/%s.txt" % FEDORA_KEYS_MAP[args.releasever]
 
     if args.mirror:
-        baseurl = "{args.mirror}/releases/{args.release}/Everything/x86_64/os/".format(args=args)
+        baseurl = "{args.mirror}/releases/{args.release}/Everything/$basearch/os/".format(args=args)
         if not check_if_url_exists("%s/media.repo" % baseurl):
-            baseurl = "{args.mirror}/development/{args.release}/Everything/x86_64/os/".format(args=args)
+            baseurl = "{args.mirror}/development/{args.release}/Everything/$basearch/os/".format(args=args)
 
-        release_url = "baseurl=%s" % baseurl
-        updates_url = "baseurl={args.mirror}/updates/{args.release}/x86_64/".format(args=args)
+        release_url = "baseurl={}".format(baseurl)
+        updates_url = "baseurl={args.mirror}/updates/{args.release}/$basearch/".format(args=args)
     else:
         release_url = ("metalink=https://mirrors.fedoraproject.org/metalink?" +
-                       "repo=fedora-{args.release}&arch=x86_64".format(args=args))
+                       "repo=fedora-{args.release}&arch=$basearch".format(args=args))
         updates_url = ("metalink=https://mirrors.fedoraproject.org/metalink?" +
-                       "repo=updates-released-f{args.release}&arch=x86_64".format(args=args))
+                       "repo=updates-released-f{args.release}&arch=$basearch".format(args=args))
 
     config_file = os.path.join(workspace, "dnf.conf")
     with open(config_file, "w") as f:
@@ -1305,6 +1311,9 @@ def invoke_yum(args: CommandLineArguments, workspace: str, repositories: List[st
                "--disablerepo=*",
                *repos,
                "--setopt=keepcache=1"]
+
+    if args.architecture is not None:
+        cmdline += ['--forcearch={}'.format(args.architecture)]
 
     if not args.with_docs:
         cmdline.append("--setopt=tsflags=nodocs")
@@ -1784,6 +1793,8 @@ def run_postinst_script(args, workspace, run_build_script, for_cache):
     if for_cache:
         return
 
+    verb = "build" if run_build_script else "final"
+
     with complete_step('Running postinstall script'):
 
         # We copy the postinst script into the build tree. We'd prefer
@@ -1794,8 +1805,17 @@ def run_postinst_script(args, workspace, run_build_script, for_cache):
         shutil.copy2(args.postinst_script,
                      os.path.join(workspace, "root", "root/postinst"))
 
-        run_workspace_command(args, workspace, "/root/postinst", "build" if run_build_script else "final", network=args.with_network)
+        run_workspace_command(args, workspace, "/root/postinst", verb, network=args.with_network)
         os.unlink(os.path.join(workspace, "root", "root/postinst"))
+
+def run_finalize_script(args: CommandLineArguments, workspace: str, *, verb: str):
+    if args.finalize_script is None:
+        return
+
+    with complete_step('Running finalize script'):
+        buildroot = workspace + '/root'
+        env = collections.ChainMap({'BUILDROOT':buildroot}, os.environ)
+        run([args.finalize_script, verb], env=env, check=True)
 
 def find_kernel_file(workspace_root, pattern):
     # Look for the vmlinuz file in the workspace
@@ -2021,10 +2041,17 @@ def make_squashfs(args, workspace, for_cache):
     if for_cache:
         return None
 
-    comp_args = [] if args.compress is True else ['-comp', args.compress]
+    command = args.mksquashfs_tool[0] if args.mksquashfs_tool else 'mksquashfs'
+    comp_args = (args.mksquashfs_tool[1:] if args.mksquashfs_tool and args.mksquashfs_tool[1:]
+                 else ['-noappend'])
+
+    if args.compress is not True:
+        assert args.compress is not False
+        comp_args += ['-comp', args.compress]
+
     with complete_step('Creating squashfs file system'):
         f = tempfile.NamedTemporaryFile(dir=os.path.dirname(args.output), prefix=".mkosi-squashfs")
-        run(["mksquashfs", os.path.join(workspace, "root"), f.name, "-noappend", *comp_args],
+        run([command, os.path.join(workspace, "root"), f.name, *comp_args],
             check=True)
 
     return f
@@ -2127,7 +2154,7 @@ def insert_squashfs(args, workspace, raw, loopdev, squashfs, for_cache):
 
     with complete_step('Inserting squashfs root partition'):
         args.root_size = insert_partition(args, workspace, raw, loopdev, args.root_partno, squashfs,
-                                          "Root Partition", gpt_root_native().root)
+                                          "Root Partition", gpt_root_native(args.architecture).root)
 
 def make_verity(args: CommandLineArguments, workspace, dev, run_build_script: bool, for_cache: bool) -> Tuple[Optional[IO[str]], Optional[str]]:
     if run_build_script or not args.verity:
@@ -2157,7 +2184,7 @@ def insert_verity(args, workspace, raw, loopdev, verity, root_hash, for_cache):
 
     with complete_step('Inserting verity partition'):
         insert_partition(args, workspace, raw, loopdev, args.verity_partno, verity,
-                         "Verity Partition", gpt_root_native().verity, u)
+                         "Verity Partition", gpt_root_native(args.architecture).verity, u)
 
 def patch_root_uuid(args, loopdev, root_hash, for_cache):
     if root_hash is None:
@@ -2530,6 +2557,7 @@ def parse_args() -> CommandLineArguments:
     group.add_argument('-r', "--release", help='Distribution release to install')
     group.add_argument('-m', "--mirror", help='Distribution mirror to use')
     group.add_argument("--repositories", action=CommaDelimitedListAction, dest='repositories', help='Repositories to use', metavar='REPOS')
+    group.add_argument('--architecture', help='Override the architecture of installation')
 
     group = parser.add_argument_group("Output")
     group.add_argument('-t', "--format", dest='output_format', choices=OutputFormat, type=OutputFormat.from_string,
@@ -2547,6 +2575,7 @@ def parse_args() -> CommandLineArguments:
     group.add_argument("--verity", action='store_true', help='Add integrity partition (implies --read-only)')
     group.add_argument("--compress", type=parse_compression,
                        help='Enable compression in file system (only gpt_btrfs, subvolume, gpt_squashfs, squashfs)')
+    group.add_argument('--mksquashfs', dest='mksquashfs_tool', type=str.split, help='Script to call instead of mksquashfs')
 
     group.add_argument("--xz", action='store_true', help='Compress resulting image with xz (only gpt_ext4, gpt_btrfs, gpt_squashfs, gpt_xfs, implied on tar)')
     group.add_argument("--qcow2", action='store_true', help='Convert resulting image to qcow2 (only gpt_ext4, gpt_btrfs, gpt_squashfs, gpt_xfs)')
@@ -2564,6 +2593,7 @@ def parse_args() -> CommandLineArguments:
     group.add_argument("--build-dir", help='Path to use as persistent build directory', metavar='PATH')
     group.add_argument("--build-package", action=CommaDelimitedListAction, dest='build_packages', default=[], help='Additional packages needed for build script', metavar='PACKAGE')
     group.add_argument("--postinst-script", help='Postinstall script to run inside image', metavar='PATH')
+    group.add_argument("--finalize-script", help='Postinstall script to run outside image', metavar='PATH')
     group.add_argument('--use-git-files', type=parse_boolean,
                        help='Ignore any files that git itself ignores (default: guess)')
     group.add_argument('--git-files', choices=('cached', 'others'),
@@ -2788,6 +2818,9 @@ def process_setting(args: CommandLineArguments, section: str, key: str, value: A
         elif key == "Mirror":
             if args.mirror is None:
                 args.mirror = value
+        elif key == 'Architecture':
+            if args.architecture is None:
+                args.architecture = value
         elif key is None:
             return True
         else:
@@ -2834,6 +2867,9 @@ def process_setting(args: CommandLineArguments, section: str, key: str, value: A
         elif key == "Compress":
             if args.compress is None:
                 args.compress = parse_compression(value)
+        elif key == 'Mksquashfs':
+            if args.mksquashfs_tool is None:
+                args.mksquashfs_tool = value.split()
         elif key == "XZ":
             if args.xz is None:
                 args.xz = parse_boolean(value)
@@ -2881,6 +2917,9 @@ def process_setting(args: CommandLineArguments, section: str, key: str, value: A
         elif key in {"PostinstallScript", "PostInstallationScript"}:
             if args.postinst_script is None:
                 args.postinst_script = value
+        elif key == "FinalizeScript":
+            if args.finalize_script is None:
+                args.finalize_script = value
         elif key == "WithNetwork":
             if args.with_network is None:
                 args.with_network = parse_boolean(value)
@@ -3009,6 +3048,14 @@ def find_skeleton(args: CommandLineArguments) -> None:
     if os.path.isfile("mkosi.skeleton.tar"):
         args.skeleton_trees.append("mkosi.skeleton.tar")
 
+def args_find_path(args: CommandLineArguments, name: str, path: str, *, type=lambda x:x) -> None:
+    if getattr(args, name) is not None:
+        return
+    if os.path.exists(path):
+        path = os.path.abspath(path)
+        path = type(path)
+        setattr(args, name, path)
+
 def find_cache(args: CommandLineArguments) -> None:
     if args.cache_path is not None:
         return
@@ -3020,40 +3067,6 @@ def find_cache(args: CommandLineArguments) -> None:
         # cache is valid (and more efficient) across releases.
         if args.distribution != Distribution.clear and args.release is not None:
             args.cache_path += "~" + args.release
-
-def find_build_script(args: CommandLineArguments) -> None:
-    if args.build_script is not None:
-        return
-
-    if os.path.exists("mkosi.build"):
-        args.build_script = "mkosi.build"
-
-def find_build_sources(args: CommandLineArguments) -> None:
-    if args.build_sources is not None:
-        return
-
-    args.build_sources = os.getcwd()
-
-def find_build_dir(args: CommandLineArguments) -> None:
-    if args.build_dir is not None:
-        return
-
-    if os.path.exists("mkosi.builddir/"):
-        args.build_dir = "mkosi.builddir"
-
-def find_postinst_script(args: CommandLineArguments) -> None:
-    if args.postinst_script is not None:
-        return
-
-    if os.path.exists("mkosi.postinst"):
-        args.postinst_script = "mkosi.postinst"
-
-def find_output_dir(args: CommandLineArguments) -> None:
-    if args.output_dir is not None:
-        return
-
-    if os.path.exists("mkosi.output/"):
-        args.output_dir = "mkosi.output"
 
 def require_private_file(name, description):
     mode = os.stat(name).st_mode & 0o777
@@ -3139,14 +3152,18 @@ def load_args() -> CommandLineArguments:
     arg_debug = args.debug
 
     load_defaults(args)
-    find_nspawn_settings(args)
+
+    args_find_path(args, 'nspawn_settings', "mkosi.nspawn")
+    args_find_path(args, 'build_script',    "mkosi.build")
+    args_find_path(args, 'build_sources',   ".")
+    args_find_path(args, 'build_dir',       "mkosi.builddir/")
+    args_find_path(args, 'postinst_script', "mkosi.postinst");
+    args_find_path(args, 'finalize_script', "mkosi.finalize");
+    args_find_path(args, 'output_dir',      "mkosi.output/");
+    args_find_path(args, 'mksquashfs_tool', "mkosi.mksquashfs-tool", type=lambda x: [x])
+
     find_extra(args)
     find_skeleton(args)
-    find_build_script(args)
-    find_build_sources(args)
-    find_build_dir(args)
-    find_postinst_script(args)
-    find_output_dir(args)
     find_password(args)
     find_passphrase(args)
     find_secure_boot(args)
@@ -3294,6 +3311,9 @@ def load_args() -> CommandLineArguments:
     if args.postinst_script is not None:
         args.postinst_script = os.path.abspath(args.postinst_script)
 
+    if args.finalize_script is not None:
+        args.finalize_script = os.path.abspath(args.finalize_script)
+
     if args.cache_path is not None:
         args.cache_path = os.path.abspath(args.cache_path)
 
@@ -3403,6 +3423,8 @@ def print_summary(args: CommandLineArguments) -> None:
     sys.stderr.write("DISTRIBUTION:\n")
     sys.stderr.write("          Distribution: " + args.distribution.name + "\n")
     sys.stderr.write("               Release: " + none_to_na(args.release) + "\n")
+    if args.architecture:
+        sys.stderr.write("          Architecture: " + args.architecture + "\n")
     if args.mirror is not None:
         sys.stderr.write("                Mirror: " + args.mirror + "\n")
     sys.stderr.write("\nOUTPUT:\n")
@@ -3423,6 +3445,8 @@ def print_summary(args: CommandLineArguments) -> None:
     sys.stderr.write("        FS Compression: " + yes_no(args.compress) + detail + "\n")
 
     sys.stderr.write("        XZ Compression: " + yes_no(args.xz) + "\n")
+    if args.mksquashfs_tool:
+        sys.stderr.write("       Mksquashfs tool: " + ' '.join(args.mksquashfs_tool) + "\n")
 
     if args.output_format.is_disk():
         sys.stderr.write("                 QCow2: " + yes_no(args.qcow2) + "\n")
@@ -3459,6 +3483,7 @@ def print_summary(args: CommandLineArguments) -> None:
     sys.stderr.write("       Build Directory: " + none_to_none(args.build_dir) + "\n")
     sys.stderr.write("        Build Packages: " + line_join_list(args.build_packages) + "\n")
     sys.stderr.write("    Postinstall Script: " + none_to_none(args.postinst_script) + "\n")
+    sys.stderr.write("       Finalize Script: " + none_to_none(args.finalize_script) + "\n")
     sys.stderr.write("  Scripts with network: " + yes_no(args.with_network) + "\n")
     sys.stderr.write("       nspawn Settings: " + none_to_none(args.nspawn_settings) + "\n")
 
@@ -3700,12 +3725,16 @@ def build_stuff(args: CommandLineArguments) -> None:
                        args.cache_pre_inst)
             remove_artifacts(args, workspace.name, raw, tar, run_build_script=False)
 
+    run_finalize_script(args, workspace.name, verb='build')
+
     if args.build_script:
         # Run the image builder for the first (develpoment) stage in preparation for the build script
         raw, tar, root_hash = build_image(args, workspace, run_build_script=True)
 
         run_build_script(args, workspace.name, raw)
         remove_artifacts(args, workspace.name, raw, tar, run_build_script=True)
+
+    run_finalize_script(args, workspace.name, verb='final')
 
     # Run the image builder for the second (final) stage
     raw, tar, root_hash = build_image(args, workspace, run_build_script=False, cleanup=True)
@@ -3740,6 +3769,10 @@ def build_stuff(args: CommandLineArguments) -> None:
 def check_root():
     if os.getuid() != 0:
         die("Must be invoked as root.")
+
+def check_native(args: CommandLineArguments) -> None:
+    if args.architecture is not None and args.architecture != platform.machine() and args.build_script:
+        die('Cannot (currently) override the architecture and run build commands')
 
 def run_shell(args: CommandLineArguments) -> None:
     target = "--directory=" + args.output if args.output_format in (OutputFormat.directory, OutputFormat.subvolume) else "--image=" + args.output
@@ -3857,6 +3890,7 @@ def main() -> None:
 
     if needs_build:
         check_root()
+        check_native(args)
         init_namespace(args)
         build_stuff(args)
         print_output_size(args)
