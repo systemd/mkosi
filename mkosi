@@ -3718,7 +3718,7 @@ def build_stuff(args: CommandLineArguments) -> None:
     signature = calculate_signature(args, checksum)
     bmap = calculate_bmap(args, raw)
 
-    link_output(args, workspace, raw or tar)
+    link_output(args, workspace.name, raw or tar)
 
     link_output_root_hash_file(args, root_hash_file.name if root_hash_file is not None else None)
 
