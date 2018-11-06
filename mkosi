@@ -193,7 +193,7 @@ def gpt_root_native(arch: str) -> Tuple[uuid.UUID, uuid.UUID]:
     elif arch == 'aarch64':
         return GPTRootTypePair(GPT_ROOT_ARM_64, GPT_ROOT_ARM_64_VERITY)
     else:
-        die("Unknown architecture {}.".format(platform.machine()))
+        die("Unknown architecture {}.".format(arch))
 
 def unshare(flags: int) -> None:
     libc = ctypes.CDLL(ctypes.util.find_library("c"), use_errno=True)
