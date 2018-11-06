@@ -1084,7 +1084,7 @@ def clean_rpm_metadata(root):
     keep_rpm_data = os.access(rpm_path, os.F_OK, follow_symlinks=False)
 
     if not keep_rpm_data:
-        print_step('Cleaning rpm metadata...{}'.format(rpm_path))
+        print_step('Cleaning rpm metadata...')
         remove_glob(root + '/var/lib/rpm')
 
 def invoke_dnf(args: CommandLineArguments, workspace: str, repositories: List[str], packages: List[str], config_file: str, cleanup: bool=False) -> None:
