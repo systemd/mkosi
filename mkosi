@@ -622,10 +622,14 @@ def attach_image_loopback(args: CommandLineArguments, raw: Optional[IO[str]]):
             run(["losetup", "--detach", loopdev], check=True)
 
 
-def partition(loopdev: str, partno: Optional[int]) -> str:
+def optional_partition(loopdev: str, partno: Optional[int]) -> Optional[str]:
     if partno is None:
         return None
 
+    return partition(loopdev, partno)
+
+
+def partition(loopdev: str, partno: int) -> str:
     return loopdev + "p" + str(partno)
 
 
@@ -799,9 +803,9 @@ def luks_setup_all(args: CommandLineArguments,
             try:
                 srv = luks_setup_srv(args, loopdev, run_build_script)
 
-                yield (partition(loopdev, args.root_partno) if root is None else root,
-                       partition(loopdev, args.home_partno) if home is None else home,
-                       partition(loopdev, args.srv_partno) if srv is None else srv)
+                yield (optional_partition(loopdev, args.root_partno) if root is None else root,
+                       optional_partition(loopdev, args.home_partno) if home is None else home,
+                       optional_partition(loopdev, args.srv_partno) if srv is None else srv)
             finally:
                 luks_close(srv, "Closing LUKS server data partition")
         finally:
@@ -2039,8 +2043,9 @@ def install_grub(args, workspace, loopdev, grub):
     nspawn_params = [
         "--bind-ro=/dev",
         "--property=DeviceAllow=" + loopdev,
-        "--property=DeviceAllow=" + partition(loopdev, args.root_partno),
     ]
+    if args.root_partno is not None:
+        nspawn_params += ["--property=DeviceAllow=" + partition(loopdev, args.root_partno)]
 
     run_workspace_command(
         args, workspace, f"{grub}-install",
@@ -2094,13 +2099,16 @@ def install_boot_loader_clear(args, workspace, loopdev):
         # figure out uuid and related parameters.
         "--bind-ro=/dev",
         "--property=DeviceAllow=" + loopdev,
-        "--property=DeviceAllow=" + partition(loopdev, args.esp_partno),
-        "--property=DeviceAllow=" + partition(loopdev, args.root_partno),
 
         # clr-boot-manager compiled in Clear Linux will assume EFI
         # partition is mounted in "/boot".
         "--bind=" + os.path.join(workspace, "root/efi") + ":/boot",
     ]
+    if args.esp_partno is not None:
+        nspawn_params += ["--property=DeviceAllow=" + partition(loopdev, args.esp_partno)]
+    if args.root_partno is not None:
+        nspawn_params += ["--property=DeviceAllow=" + partition(loopdev, args.root_partno)]
+
     run_workspace_command(args, workspace, "/usr/bin/clr-boot-manager", "update", "-i", nspawn_params=nspawn_params)
 
 
