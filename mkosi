@@ -2431,6 +2431,16 @@ def _link_output(args: CommandLineArguments, oldpath: str, newpath: str):
     os.chmod(oldpath, 0o666 & ~args.original_umask)
     os.link(oldpath, newpath)
 
+    sudo_uid = os.getenv("SUDO_UID")
+    sudo_gid = os.getenv("SUDO_GID")
+    if not (sudo_uid and sudo_gid):
+        return
+
+    sudo_user = os.getenv("SUDO_USER", default=sudo_uid)
+    with complete_step(f"Changing ownership of output file {newpath} to user {sudo_user} (acquired from sudo)",
+                       f"Successfully changed ownership of {newpath}"):
+       os.chown(newpath, int(sudo_uid), int(sudo_gid))
+
 def link_output(args: CommandLineArguments, workspace: str, artifact: str) -> None:
     with complete_step('Linking image file',
                        'Successfully linked ' + args.output):
