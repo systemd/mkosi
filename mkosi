@@ -85,8 +85,8 @@ def warn(message: str, *args: Any, **kwargs: Any) -> None:
 class CommandLineArguments(argparse.Namespace):
     """Type-hinted storage for command line arguments."""
 
-    swap_partno = None  # type: Optional[int]
-    esp_partno = None  # type: Optional[int]
+    swap_partno: Optional[int] = None
+    esp_partno: Optional[int] = None
 
 
 class OutputFormat(enum.Enum):
@@ -376,7 +376,7 @@ def copy(oldpath: str, newpath: str) -> None:
 @contextlib.contextmanager
 def complete_step(text: str, text2: Optional[str] = None) -> Iterator[List[Any]]:
     print_step(text + '...')
-    args = [] # type: List[Any]
+    args: List[Any] = []
     yield args
     if text2 is None:
         text2 = text + ' complete'
@@ -1128,7 +1128,7 @@ def disable_kernel_install(args: CommandLineArguments, workspace: str) -> List[s
     for d in ("etc", "etc/kernel", "etc/kernel/install.d"):
         mkdir_last(os.path.join(workspace, "root", d), 0o755)
 
-    masked = []  # type: List[str]
+    masked: List[str] = []
 
     for f in ("50-dracut.install", "51-dracut-rescue.install", "90-loaderentry.install"):
         path = os.path.join(workspace, "root", "etc/kernel/install.d", f)
@@ -3351,7 +3351,7 @@ def load_defaults_file(fname: str, options: Dict[str, Dict[str, Any]]) -> Option
 def load_defaults(args: CommandLineArguments) -> None:
     fname = "mkosi.default" if args.default_path is None else args.default_path
 
-    config = {}  # type: Dict[str, Dict[str, str]]
+    config: Dict[str, Dict[str, str]] = {}
     load_defaults_file(fname, config)
 
     defaults_dir = fname + '.d'
