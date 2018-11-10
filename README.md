@@ -397,7 +397,7 @@ in addition to `debootstrap`, depending on what kind of distribution images
 you want to build. `debootstrap` on Debian only pulls in the Debian keyring
 on its own, and the version on Ubuntu only the one from Ubuntu.
 
-Note that the minimum required Python version is 3.5.
+Note that the minimum required Python version is 3.6.
 
 If SecureBoot signing is to be used, then the "sbsign" tool needs to
 be installed as well, which is currently not available on Fedora, but
