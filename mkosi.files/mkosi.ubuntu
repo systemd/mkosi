@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: LGPL-2.1+
+
+[Distribution]
+Distribution=ubuntu
+Release=xenial
+
+[Output]
+Format=raw_squashfs
+
+[Packages]
+Packages=
+        tzdata
