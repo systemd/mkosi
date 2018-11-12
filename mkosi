@@ -1122,7 +1122,7 @@ def invoke_dnf(args: CommandLineArguments, workspace: str, repositories: List[st
         clean_rpm_metadata(root)
 
 @complete_step('Installing Clear Linux')
-def install_clear(args: CommandLineArguments, *, workspace: str, run_build_script: bool, cleanup: bool):
+def install_clear(args: CommandLineArguments, workspace: str, run_build_script: bool, cleanup: bool) -> None:
     if args.release == "latest":
         release = "clear"
     else:
