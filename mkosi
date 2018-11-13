@@ -1363,6 +1363,7 @@ gpgkey={gpg_key}
 """)
 
     packages = ['centos-release']
+    packages += args.packages or []
     if args.bootable:
         packages += ["kernel", "systemd-udev", "binutils"]
     invoke_dnf_or_yum(args, workspace,
