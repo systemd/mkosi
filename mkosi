@@ -1796,17 +1796,8 @@ def run_postinst_script(args, workspace, run_build_script, for_cache):
     verb = "build" if run_build_script else "final"
 
     with complete_step('Running postinstall script'):
-
-        # We copy the postinst script into the build tree. We'd prefer
-        # mounting it into the tree, but for that we'd need a good
-        # place to mount it to. But if we create that we might as well
-        # just copy the file anyway.
-
-        shutil.copy2(args.postinst_script,
-                     os.path.join(workspace, "root", "root/postinst"))
-
-        run_workspace_command(args, workspace, "/root/postinst", verb, network=args.with_network)
-        os.unlink(os.path.join(workspace, "root", "root/postinst"))
+        run_workspace_command(args, workspace, "/postinst", verb, network=args.with_network,
+                              nspawn_params=[f"--bind-ro={args.postinst_script}:/postinst"])
 
 def run_finalize_script(args: CommandLineArguments, workspace: str, *, verb: str):
     if args.finalize_script is None:
