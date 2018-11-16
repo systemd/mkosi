@@ -938,11 +938,6 @@ def prepare_tree(args: CommandLineArguments, workspace: str, run_build_script: b
             os.symlink("efi/loader", os.path.join(workspace, "root", "boot/loader"))
             os.symlink("efi/" + args.machine_id, os.path.join(workspace, "root", "boot", args.machine_id))
 
-        if args.bios_partno is not None:
-            os.makedirs(os.path.join(workspace, "root", "etc/default"), exist_ok=True)
-            with open(os.path.join(workspace, "root", "etc/default/grub"), "w+") as f:
-                f.write("GRUB_CMDLINE_LINUX=\"" + args.kernel_commandline + "\"")
-
         os.mkdir(os.path.join(workspace, "root", "etc/kernel"), 0o755)
 
         with open(os.path.join(workspace, "root", "etc/kernel/cmdline"), "w") as cmdline:
@@ -1866,6 +1861,16 @@ def find_kernel_file(workspace_root, pattern):
 def install_grub(args, workspace, loopdev, grub):
     if args.bios_partno is None:
         return
+
+    grub_cmdline = f"GRUB_CMDLINE_LINUX=\"{args.kernel_commandline}\"\n"
+    os.makedirs(os.path.join(workspace, "root", "etc/default"), exist_ok=True, mode=0o755)
+    if not os.path.exists(os.path.join(workspace, "root", "etc/default/grub")):
+        with open(os.path.join(workspace, "root", "etc/default/grub"), "w+") as f:
+            f.write(grub_cmdline)
+    else:
+        patch_file(os.path.join(workspace, "root", "etc/default/grub"),
+               lambda line: grub_cmdline if line.startswith("GRUB_CMDLINE_LINUX=") else
+               line)
 
     nspawn_params = [
         "--bind-ro=/dev",
