@@ -8,13 +8,13 @@ bells and whistles.
 
 The following output formats are supported:
 
-* Raw *GPT* disk image, with ext4 as root (*raw_ext4*)
+* Raw *GPT* disk image, with ext4 as root (*gpt_ext4*)
 
-* Raw *GPT* disk image, with btrfs as root (*raw_btrfs*)
+* Raw *GPT* disk image, with btrfs as root (*gpt_btrfs*)
 
-* Raw *GPT* disk image, with xfs as root (*raw_xfs*)
+* Raw *GPT* disk image, with xfs as root (*gpt_xfs*)
 
-* Raw *GPT* disk image, with squashfs as read-only root (*raw_squashfs*)
+* Raw *GPT* disk image, with squashfs as read-only root (*gpt_squashfs*)
 
 * Plain directory, containing the *OS* tree (*directory*)
 
@@ -142,7 +142,7 @@ they exist in the local directory:
 
 * `mkosi.default` may be used to configure mkosi's image
   building process. For example, you may configure the
-  distribution to use (`fedora`, `ubuntu`, `debian`, `archlinux`,
+  distribution to use (`fedora`, `ubuntu`, `debian`, `arch`,
   `opensuse`, `mageia`) for the image, or additional
   distribution packages to install. Note that all options encoded
   in this configuration file may also be set on the command line,
@@ -312,7 +312,7 @@ Create and run a raw *GPT* image with *ext4*, as `image.raw`:
 Create and run a bootable btrfs *GPT* image, as `foobar.raw`:
 
 ```bash
-# mkosi -t raw_btrfs --bootable -o foobar.raw
+# mkosi -t gpt_btrfs --bootable -o foobar.raw
 # systemd-nspawn -b -i foobar.raw
 # qemu-kvm -m 512 -smp 2 -bios /usr/share/edk2/ovmf/OVMF_CODE.fd -drive format=raw,file=foobar.raw
 ```
@@ -328,7 +328,7 @@ Create a compressed image `image.raw.xz` and add a checksum file, and
 install *SSH* into it:
 
 ```bash
-# mkosi -d fedora -t raw_squashfs --checksum --xz --package=openssh-clients
+# mkosi -d fedora -t gpt_squashfs --checksum --xz --package=openssh-clients
 ```
 
 Inside the source directory of an `automake`-based project,
@@ -343,7 +343,7 @@ Distribution=fedora
 Release=24
 
 [Output]
-Format=raw_btrfs
+Format=gpt_btrfs
 Bootable=yes
 
 [Packages]
@@ -404,7 +404,6 @@ be installed as well, which is currently not available on Fedora, but
 in a COPR repository:
 
 ```bash
-
 dnf copr enable msekleta/sbsigntool
 dnf install sbsigntool
 ```
