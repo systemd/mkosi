@@ -2428,14 +2428,29 @@ def save_cache(args: CommandLineArguments, workspace: str, raw: str, cache_path:
         else:
             shutil.move(os.path.join(workspace, "root"), cache_path)
 
+def _link_output(args: CommandLineArguments, oldpath: str, newpath: str):
+    os.chmod(oldpath, 0o666 & ~args.original_umask)
+    os.link(oldpath, newpath)
+    if args.no_chown:
+        return
+
+    sudo_uid = os.getenv("SUDO_UID")
+    sudo_gid = os.getenv("SUDO_GID")
+    if not (sudo_uid and sudo_gid):
+        return
+
+    sudo_user = os.getenv("SUDO_USER", default=sudo_uid)
+    with complete_step(f"Changing ownership of output file {newpath} to user {sudo_user} (acquired from sudo)",
+                       f"Successfully changed ownership of {newpath}"):
+       os.chown(newpath, int(sudo_uid), int(sudo_gid))
+
 def link_output(args: CommandLineArguments, workspace: str, artifact: str) -> None:
     with complete_step('Linking image file',
                        'Successfully linked ' + args.output):
         if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
             os.rename(os.path.join(workspace, "root"), args.output)
         elif args.output_format.is_disk() or args.output_format == OutputFormat.plain_squashfs:
-            os.chmod(artifact.name, 0o666 & ~args.original_umask)
-            os.link(artifact.name, args.output)
+            _link_output(args, artifact.name, args.output)
 
 def link_output_nspawn_settings(args: CommandLineArguments, path: str) -> None:
     if path is None:
@@ -2443,8 +2458,7 @@ def link_output_nspawn_settings(args: CommandLineArguments, path: str) -> None:
 
     with complete_step('Linking nspawn settings file',
                        'Successfully linked ' + args.output_nspawn_settings):
-        os.chmod(path, 0o666 & ~args.original_umask)
-        os.link(path, args.output_nspawn_settings)
+        _link_output(args, path, args.output_nspawn_settings)
 
 def link_output_checksum(args: CommandLineArguments, checksum: str) -> None:
     if checksum is None:
@@ -2452,8 +2466,7 @@ def link_output_checksum(args: CommandLineArguments, checksum: str) -> None:
 
     with complete_step('Linking SHA256SUMS file',
                        'Successfully linked ' + args.output_checksum):
-        os.chmod(checksum, 0o666 & ~args.original_umask)
-        os.link(checksum, args.output_checksum)
+        _link_output(args, checksum, args.output_checksum)
 
 def link_output_root_hash_file(args: CommandLineArguments, root_hash_file: str) -> None:
     if root_hash_file is None:
@@ -2461,8 +2474,7 @@ def link_output_root_hash_file(args: CommandLineArguments, root_hash_file: str) 
 
     with complete_step('Linking .roothash file',
                        'Successfully linked ' + args.output_root_hash_file):
-        os.chmod(root_hash_file, 0o666 & ~args.original_umask)
-        os.link(root_hash_file, args.output_root_hash_file)
+        _link_output(args, root_hash_file, args.output_root_hash_file)
 
 def link_output_signature(args: CommandLineArguments, signature: str) -> None:
     if signature is None:
@@ -2470,8 +2482,7 @@ def link_output_signature(args: CommandLineArguments, signature: str) -> None:
 
     with complete_step('Linking SHA256SUMS.gpg file',
                        'Successfully linked ' + args.output_signature):
-        os.chmod(signature, 0o666 & ~args.original_umask)
-        os.link(signature, args.output_signature)
+        _link_output(args, signature, args.output_signature)
 
 def link_output_bmap(args: CommandLineArguments, bmap: str) -> None:
     if bmap is None:
@@ -2479,8 +2490,7 @@ def link_output_bmap(args: CommandLineArguments, bmap: str) -> None:
 
     with complete_step('Linking .bmap file',
                        'Successfully linked ' + args.output_bmap):
-        os.chmod(bmap, 0o666 & ~args.original_umask)
-        os.link(bmap, args.output_bmap)
+        _link_output(args, bmap, args.output_bmap)
 
 def dir_size(path: str) -> int:
     sum = 0
@@ -2628,6 +2638,7 @@ def parse_args() -> CommandLineArguments:
     group.add_argument('--debug', action=CommaDelimitedListAction, default=[],
                        help='Turn on debugging output', metavar='SELECTOR',
                        choices=('run',))
+    group.add_argument('--no-chown', action='store_true', help='When running with sudo, disable reassignment of ownership of the generated files to the original user')
 
     try:
         argcomplete.autocomplete(parser)
