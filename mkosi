@@ -91,6 +91,7 @@ class SourceFileTransfer(enum.Enum):
     copy_all = "copy-all"
     copy_git_cached = "copy-git-cached"
     copy_git_others = "copy-git-others"
+    mount = "mount"
 
     def __str__(self):
         return self.value
@@ -99,7 +100,8 @@ class SourceFileTransfer(enum.Enum):
     def doc(cls):
         return {cls.copy_all: "normal file copy",
                 cls.copy_git_cached: "use git-ls-files --cached, ignoring any file that git itself ignores",
-                cls.copy_git_others: "use git-ls-files --others, ignoring any file that git itself ignores"}
+                cls.copy_git_others: "use git-ls-files --others, ignoring any file that git itself ignores",
+                cls.mount: "bind mount source files into the build image"}
 
 
 class OutputFormat(enum.Enum):
@@ -2078,7 +2080,7 @@ def install_build_src(args, workspace, run_build_script, for_cache):
 
             if source_file_transfer in (SourceFileTransfer.copy_git_others, SourceFileTransfer.copy_git_cached):
                 copy_git_files(args.build_sources, target, source_file_transfer=source_file_transfer)
-            else:
+            elif source_file_transfer == SourceFileTransfer.copy_all:
                 ignore = shutil.ignore_patterns('.git',
                                                 '.mkosi-*',
                                                 '*.cache-pre-dev',
@@ -3771,6 +3773,8 @@ def run_build_script(args: CommandLineArguments, workspace: str, raw: IO[str]) -
         if args.build_sources is not None:
             cmdline.append("--setenv=SRCDIR=/root/src")
             cmdline.append("--chdir=/root/src")
+            if args.source_file_transfer == SourceFileTransfer.mount:
+                cmdline.append("--bind=" + args.build_sources + ":/root/src")
 
             if args.read_only:
                 cmdline.append("--overlay=+/root/src::/root/src")
