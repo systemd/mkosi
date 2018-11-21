@@ -3510,8 +3510,8 @@ def none_to_na(s: Optional[str]) -> str:
 def none_to_no(s: Optional[str]) -> str:
     return "no" if s is None else s
 
-def none_to_none(s: Optional[str]) -> str:
-    return "none" if s is None else s
+def none_to_none(o: Optional[object]) -> str:
+    return "none" if o is None else str(o)
 
 def line_join_list(l: List[str]) -> str:
 
