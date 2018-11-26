@@ -3051,8 +3051,9 @@ def parse_args() -> CommandLineArguments:
     group.add_argument("--password", help='Set the root password')
 
     group = parser.add_argument_group("Host configuration")
-    group.add_argument("--extra-search-paths", action=ColonDelimitedListAction, default=[],
+    group.add_argument("--extra-search-path", dest='extra_search_paths', action=ColonDelimitedListAction, default=[],
                        help="List of colon-separated paths to look for programs before looking in PATH")
+    group.add_argument("--extra-search-paths", dest='extra_search_paths', action=ColonDelimitedListAction, help=argparse.SUPPRESS) # Compatibility option
 
     group = parser.add_argument_group("Additional Configuration")
     group.add_argument('-C', "--directory", help='Change to specified directory before doing anything', metavar='PATH')
