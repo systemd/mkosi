@@ -3008,7 +3008,7 @@ def parse_compression(value: str) -> Union[str, bool]:
     return parse_boolean(value)
 
 
-def parse_args() -> CommandLineArguments:
+def parse_args() -> (CommandLineArguments, ArgumentConfigParser):
     parser = ArgumentConfigParser(description='Build Legacy-Free OS Images', add_help=False)
 
     # command-line arguments only
@@ -3148,7 +3148,7 @@ def parse_args() -> CommandLineArguments:
 
     args_find_path(args, 'all_directory', "mkosi.files/")
 
-    return args
+    return args, parser
 
 
 def parse_bytes(bytes: Optional[str]) -> Optional[int]:
@@ -3319,245 +3319,59 @@ def parse_boolean(s: str) -> bool:
 
     raise ValueError(f'Invalid literal for bool(): {s!r}')
 
-
-def process_setting(args: CommandLineArguments, section: str, key: Optional[str], value: Any) -> bool:
-    if section == "Distribution":
-        if key == "Distribution":
-            if args.distribution is None:
-                args.distribution = value
-        elif key == "Release":
-            if args.release is None:
-                args.release = value
-        elif key == "Repositories":
-            list_value = value if type(value) == list else value.split()
-            if args.repositories is None:
-                args.repositories = list_value
-            else:
-                args.repositories.extend(list_value)
-        elif key == "Mirror":
-            if args.mirror is None:
-                args.mirror = value
-        elif key == 'Architecture':
-            if args.architecture is None:
-                args.architecture = value
-        elif key is None:
-            return True
-        else:
-            return False
-    elif section == "Output":
-        if key == "Format":
-            if args.output_format is None:
-                args.output_format = OutputFormat[value]
-        elif key == "Output":
-            if args.output is None:
-                args.output = value
-        elif key == "OutputDirectory":
-            if args.output_dir is None:
-                args.output_dir = value
-        elif key == "Force":
-            if args.force is None:
-                args.force = parse_boolean(value)
-        elif key == "Bootable":
-            if args.bootable is None:
-                args.bootable = parse_boolean(value)
-        elif key == "BootProtocols":
-            if not args.boot_protocols:
-                args.boot_protocols = value if type(value) == list else value.split()
-        elif key == "KernelCommandLine":
-            if args.kernel_command_line is None:
-                args.kernel_command_line = value
-        elif key == "SecureBoot":
-            if args.secure_boot is None:
-                args.secure_boot = parse_boolean(value)
-        elif key == "SecureBootKey":
-            if args.secure_boot_key is None:
-                args.secure_boot_key = value
-        elif key == "SecureBootCertificate":
-            if args.secure_boot_certificate is None:
-                args.secure_boot_certificate = value
-        elif key == "ReadOnly":
-            if args.read_only is None:
-                args.read_only = parse_boolean(value)
-        elif key == "Encrypt":
-            if args.encrypt is None:
-                if value not in ("all", "data"):
-                    raise ValueError("Invalid encryption setting: " + value)
-                args.encrypt = value
-        elif key == "Verity":
-            if args.verity is None:
-                args.verity = parse_boolean(value)
-        elif key == "Compress":
-            if args.compress is None:
-                args.compress = parse_compression(value)
-        elif key == 'Mksquashfs':
-            if args.mksquashfs_tool is None:
-                args.mksquashfs_tool = value.split()
-        elif key == "XZ":
-            if args.xz is None:
-                args.xz = parse_boolean(value)
-        elif key == "QCow2":
-            if args.qcow2 is None:
-                args.qcow2 = parse_boolean(value)
-        elif key == "Hostname":
-            if not args.hostname:
-                args.hostname = value
-        elif key is None:
-            return True
-        else:
-            return False
-    elif section == "Packages":
-        if key == "Packages":
-            list_value = value if type(value) == list else value.split()
-            args.packages.extend(list_value)
-        elif key == "WithDocs":
-            if args.with_docs is None:
-                args.with_docs = parse_boolean(value)
-        elif key == "WithTests":
-            if args.with_tests is None:
-                args.with_tests = parse_boolean(value)
-        elif key == "Cache":
-            if args.cache_path is None:
-                args.cache_path = value
-        elif key == "ExtraTrees":
-            list_value = value if type(value) == list else value.split()
-            args.extra_trees.extend(list_value)
-        elif key == "SkeletonTrees":
-            list_value = value if type(value) == list else value.split()
-            args.skeleton_trees.extend(list_value)
-        elif key == "BuildScript":
-            if args.build_script is None:
-                args.build_script = value
-        elif key == "BuildSources":
-            if args.build_sources is None:
-                args.build_sources = value
-        elif key == "SourceFileTransfer":
-            if args.source_file_transfer is None:
-                try:
-                    args.source_file_transfer = SourceFileTransfer(value)
-                except ValueError:
-                    raise ValueError(f"Invalid source file transfer setting: {value}")
-        elif key == "BuildDirectory":
-            if args.build_dir is None:
-                args.build_dir = value
-        elif key == "BuildPackages":
-            list_value = value if type(value) == list else value.split()
-            args.build_packages.extend(list_value)
-        elif key in {"PostinstallScript", "PostInstallationScript"}:
-            if args.postinst_script is None:
-                args.postinst_script = value
-        elif key == "FinalizeScript":
-            if args.finalize_script is None:
-                args.finalize_script = value
-        elif key == "WithNetwork":
-            if args.with_network is None:
-                args.with_network = parse_boolean(value)
-        elif key == "NSpawnSettings":
-            if args.nspawn_settings is None:
-                args.nspawn_settings = value
-        elif key is None:
-            return True
-        else:
-            return False
-    elif section == "Partitions":
-        if key == "RootSize":
-            if args.root_size is None:
-                args.root_size = value
-        elif key == "ESPSize":
-            if args.esp_size is None:
-                args.esp_size = value
-        elif key == "SwapSize":
-            if args.swap_size is None:
-                args.swap_size = value
-        elif key == "HomeSize":
-            if args.home_size is None:
-                args.home_size = value
-        elif key == "SrvSize":
-            if args.srv_size is None:
-                args.srv_size = value
-        elif key is None:
-            return True
-        else:
-            return False
-    elif section == "Validation":
-        if key == "CheckSum":
-            if args.checksum is None:
-                args.checksum = parse_boolean(value)
-        elif key == "Sign":
-            if args.sign is None:
-                args.sign = parse_boolean(value)
-        elif key == "Key":
-            if args.key is None:
-                args.key = value
-        elif key == "Bmap":
-            if args.bmap is None:
-                args.bmap = parse_boolean(value)
-        elif key == "Password":
-            if args.password is None:
-                args.password = value
-        elif key is None:
-            return True
-        else:
-            return False
-    elif section == "Host":
-        if key == "ExtraSearchPaths":
-            list_value = value if type(value) == list else value.split()
-            for v in list_value:
-                args.extra_search_paths.extend(v.split(":"))
-    else:
-        return False
-
-    return True
-
-
-def load_defaults_file(fname: str, options: Dict[str, Dict[str, Any]]) -> Optional[Dict[str, Dict[str, Any]]]:
+def load_defaults_file(fname: str, argconf: ArgumentConfigParser, options: Dict[str, Dict[str, Any]]) -> Optional[Dict[str, Dict[str, Any]]]:
     try:
         f = open(fname)
     except FileNotFoundError:
         return None
 
-    config = configparser.ConfigParser(delimiters='=')
-    config.optionxform = str  # type: ignore
-    config.read_file(f)
+    file_parser = configparser.ConfigParser(delimiters='=')
+    file_parser.optionxform = str
+    file_parser.read_file(f)
 
-    # this is used only for validation
-    args = parse_args()
-
-    for section in config.sections():
-        if not process_setting(args, section, None, None):
+    for section in file_parser.sections():
+        if not section in argconf.sections():
             sys.stderr.write(f"Unknown section in {fname!r}, ignoring: [{section}]\n")
             continue
         if section not in options:
             options[section] = {}
-        for key in config[section]:
-            if not process_setting(args, section, key, config[section][key]):
-                sys.stderr.write(f'Unknown key in section [{section}] in {fname!r}, ignoring: {key}=\n')
+        for key in file_parser[section]:
+            if not key in argconf.keys(section):
+                sys.stderr.write(f'Unknown key in section [{section}] in {fname!r}, ignoring: {key}\n')
                 continue
-            if section == "Packages" and key in ["Packages", "ExtraTrees", "BuildPackages"]:
-                if key in options[section]:
-                    options[section][key].extend(config[section][key].split())
-                else:
-                    options[section][key] = config[section][key].split()
+            if argconf.flags(section, key) == ArgumentConfigParser.FLAGS.Extend:
+                value = file_parser[section][key].split()
+                options[section].setdefault(key, []).extend(value)
             else:
-                options[section][key] = config[section][key]
+                value = file_parser[section][key]
+                options[section][key] = value
     return options
 
 
-def load_defaults(args: CommandLineArguments) -> None:
+def load_defaults(args: CommandLineArguments, argconf: ArgumentConfigParser) -> None:
     fname = "mkosi.default" if args.default_path is None else args.default_path
 
-    config: Dict[str, Dict[str, str]] = {}
-    load_defaults_file(fname, config)
+    options = {} # type: Dict[str, Dict[str, str]]
+    load_defaults_file(fname, argconf, options)
 
     defaults_dir = fname + '.d'
     if os.path.isdir(defaults_dir):
         for defaults_file in sorted(os.listdir(defaults_dir)):
             defaults_path = os.path.join(defaults_dir, defaults_file)
             if os.path.isfile(defaults_path):
-                load_defaults_file(defaults_path, config)
+                load_defaults_file(defaults_path, argconf, options)
 
-    for section in config.keys():
-        for key in config[section]:
-            process_setting(args, section, key, config[section][key])
+    for section in options.keys():
+        for key in options[section]:
+            value = options[section][key]
+            _, arg, flags = argconf.option(section, key)
+
+            if flags == ArgumentConfigParser.FLAGS.Extend:
+                value.extend(getattr(args, arg.dest))
+            elif not getattr(args, arg.dest) is None:
+                continue
+
+            setattr(args, arg.dest, value)
 
 
 def find_nspawn_settings(args: CommandLineArguments) -> None:
@@ -3697,11 +3511,11 @@ def build_root_hash_file_path(path: str) -> str:
     return strip_suffixes(path) + ".roothash"
 
 
-def load_args(args) -> CommandLineArguments:
+def load_args(args, argconf) -> CommandLineArguments:
     global arg_debug
     arg_debug = args.debug
 
-    load_defaults(args)
+    load_defaults(args, argconf)
 
     args_find_path(args, 'nspawn_settings', "mkosi.nspawn")
     args_find_path(args, 'build_script',    "mkosi.build")
@@ -4498,8 +4312,8 @@ def prepend_to_environ_path(paths: List[str]) -> None:
         os.environ["PATH"] = new_path + ":" + original_path
 
 
-def run_verb(args):
-    load_args(args)
+def run_verb(args, argconf):
+    load_args(args, argconf)
 
     prepend_to_environ_path(args.extra_search_paths)
 
@@ -4530,14 +4344,13 @@ def run_verb(args):
 
 
 def main() -> None:
-    args = parse_args()
+    args, argconf = parse_args()
 
     if args.directory is not None:
         os.chdir(args.directory)
 
     if args.all:
         for f in os.scandir(args.all_directory):
-
             if not f.name.startswith("mkosi."):
                 continue
 
@@ -4545,9 +4358,9 @@ def main() -> None:
             a.default_path = f.path
 
             with complete_step('Processing ' + f.path):
-                run_verb(a)
+                run_verb(a, argconf)
     else:
-        run_verb(args)
+        run_verb(args, argconf)
 
 
 if __name__ == "__main__":
