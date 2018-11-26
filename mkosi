@@ -2909,6 +2909,64 @@ def setup_package_cache(args: CommandLineArguments) -> Optional[tempfile.Tempora
     return d
 
 
+class ArgumentConfigParser():
+    options = dict()
+    argparser = None
+    curr_group_title = None
+    curr_group = None
+    FLAGS = enum.Enum('FLAGS', 'Extend')
+
+    def __init__(self, *kargs, **kwargs):
+        self.argparser = argparse.ArgumentParser(*kargs, **kwargs)
+
+    def add_section(self, *kargs, **kwargs):
+        fp_name = kwargs.pop('file_parser_name', None)
+
+        self.curr_group = self.argparser.add_argument_group(*kargs, **kwargs)
+        self.curr_group_title = fp_name or self.curr_group.title
+        self.options[self.curr_group_title] = []
+
+    def add_argument(self, *kargs, **kwargs):
+        # default to add an option to config file that has the same name as the argument option,
+        # except that it is converted to CamelCase as per _arg_to_option().
+        # Setting file_parser_name=None allows to add the option only to the command line
+        fp_name = kwargs.pop('file_parser_name', "")
+        fp_flags = kwargs.pop('file_parser_flags', None)
+
+        arg = self.argparser.add_argument(*kargs, **kwargs)
+        if fp_name is None:
+            return
+
+        if not fp_name:
+            fp_name = self._arg_to_option(arg)
+
+        self.options[self.curr_group_title] += [(fp_name, arg, fp_flags)]
+
+        return arg
+
+    def sections(self):
+        return self.options.keys()
+
+    def keys(self, section):
+        return [t[0] for t in self.options[section]]
+
+    def flags(self, section, key):
+        for t in self.options[section]:
+            if t[0] == key:
+                return t[2]
+        return None
+
+    def option(self, section, key):
+        for t in self.options[section]:
+            if t[0] == key:
+                return t
+        return None
+
+    def _arg_to_option(self, arg):
+        """Convert command line argument into CamelCase to be used as config option"""
+        return "".join(w.capitalize() for w in arg.dest.split("_"))
+
+
 class ListAction(argparse.Action):
     delimiter: str
 
@@ -2951,129 +3009,138 @@ def parse_compression(value: str) -> Union[str, bool]:
 
 
 def parse_args() -> CommandLineArguments:
-    parser = argparse.ArgumentParser(description='Build Legacy-Free OS Images', add_help=False)
+    parser = ArgumentConfigParser(description='Build Legacy-Free OS Images', add_help=False)
 
-    group = parser.add_argument_group("Commands")
+    # command-line arguments only
+    group = parser.argparser.add_argument_group("Commands")
     group.add_argument("verb", choices=("build", "clean", "help", "summary", "shell", "boot", "qemu"), nargs='?',
                        default="build", help='Operation to execute')
     group.add_argument("cmdline", nargs=argparse.REMAINDER, help="The command line to use for 'shell', 'boot', 'qemu'")
     group.add_argument('-h', '--help', action='help', help="Show this help")
     group.add_argument('--version', action='version', version='%(prog)s ' + __version__)
 
-    group = parser.add_argument_group("Distribution")
-    group.add_argument('-d', "--distribution", choices=Distribution.__members__, help='Distribution to install')
-    group.add_argument('-r', "--release", help='Distribution release to install')
-    group.add_argument('-m', "--mirror", help='Distribution mirror to use')
-    group.add_argument("--repositories", action=CommaDelimitedListAction, dest='repositories',
-                       help='Repositories to use', metavar='REPOS')
-    group.add_argument('--architecture', help='Override the architecture of installation')
+    parser.add_section("Distribution")
+    parser.add_argument('-d', "--distribution", choices=Distribution.__members__, help='Distribution to install')
+    parser.add_argument('-r', "--release", help='Distribution release to install')
+    parser.add_argument('-m', "--mirror", help='Distribution mirror to use')
+    parser.add_argument("--repositories", action=CommaDelimitedListAction, dest='repositories',
+                        help='Repositories to use', metavar='REPOS',
+                        file_parser_flags=ArgumentConfigParser.FLAGS.Extend)
+    parser.add_argument('--architecture', help='Override the architecture of installation')
 
-    group = parser.add_argument_group("Output")
-    group.add_argument('-t', "--format", dest='output_format', choices=OutputFormat, type=OutputFormat.from_string,
-                       help='Output Format')
-    group.add_argument('-o', "--output", help='Output image path', metavar='PATH')
-    group.add_argument('-O', "--output-dir", help='Output root directory', metavar='DIR')
-    group.add_argument('-f', "--force", action='count', dest='force_count', default=0,
-                       help='Remove existing image file before operation')
-    group.add_argument('-b', "--bootable", type=parse_boolean, nargs='?', const=True,
-                       help='Make image bootable on EFI (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs)')
-    group.add_argument("--boot-protocols", action=CommaDelimitedListAction,
-                       help="Boot protocols to use on a bootable image", metavar="PROTOCOLS", default=[])
-    group.add_argument("--kernel-command-line", help='Set the kernel command line (only bootable images)')
-    group.add_argument("--kernel-commandline", dest='kernel_command_line', help=argparse.SUPPRESS) # Compatibility option
-    group.add_argument("--secure-boot", action='store_true',
-                       help='Sign the resulting kernel/initrd image for UEFI SecureBoot')
-    group.add_argument("--secure-boot-key", help="UEFI SecureBoot private key in PEM format", metavar='PATH')
-    group.add_argument("--secure-boot-certificate", help="UEFI SecureBoot certificate in X509 format", metavar='PATH')
-    group.add_argument("--read-only", action='store_true',
-                       help='Make root volume read-only (only gpt_ext4, gpt_xfs, gpt_btrfs, subvolume, implied with gpt_squashfs and plain_squashfs)')
-    group.add_argument("--encrypt", choices=("all", "data"),
-                       help='Encrypt everything except: ESP ("all") or ESP and root ("data")')
-    group.add_argument("--verity", action='store_true', help='Add integrity partition (implies --read-only)')
-    group.add_argument("--compress", type=parse_compression,
-                       help='Enable compression in file system (only gpt_btrfs, subvolume, gpt_squashfs, plain_squashfs)')
-    group.add_argument('--mksquashfs', dest='mksquashfs_tool', type=str.split,
-                       help='Script to call instead of mksquashfs')
-    group.add_argument("--xz", action='store_true',
-                       help='Compress resulting image with xz (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs, implied on tar)')  # NOQA: E501
-    group.add_argument("--qcow2", action='store_true',
-                       help='Convert resulting image to qcow2 (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs)')
-    group.add_argument("--hostname", help="Set hostname")
-    group.add_argument('--no-chown', action='store_true',
-                       help='When running with sudo, disable reassignment of ownership of the generated files to the original user')  # NOQA: E501
-    group.add_argument('-i', "--incremental", action='store_true',
-                       help='Make use of and generate intermediary cache images')
+    parser.add_section("Output")
+    parser.add_argument('-t', "--format", dest='output_format', choices=OutputFormat, type=OutputFormat.from_string,
+                        help='Output Format')
+    parser.add_argument('-o', "--output", help='Output image path', metavar='PATH')
+    parser.add_argument('-O', "--output-dir", help='Output root directory', metavar='DIR',
+                        file_parser_name="OutputDirectory")
+    parser.add_argument('-f', "--force", action='count', dest='force_count', default=0,
+                        help='Remove existing image file before operation',
+                        file_parser_name=None)
+    parser.add_argument('-b', "--bootable", type=parse_boolean, nargs='?', const=True,
+                        help='Make image bootable on EFI (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs)')
+    parser.add_argument("--boot-protocols", action=CommaDelimitedListAction,
+                        help="Boot protocols to use on a bootable image", metavar="PROTOCOLS", default=[])
+    parser.add_argument("--kernel-command-line", help='Set the kernel command line (only bootable images)')
+    parser.add_argument("--kernel-commandline", dest='kernel_command_line', help=argparse.SUPPRESS,
+                        file_parser_name=None) # Compatibility option
+    parser.add_argument("--secure-boot", action='store_true',
+                        help='Sign the resulting kernel/initrd image for UEFI SecureBoot')
+    parser.add_argument("--secure-boot-key", help="UEFI SecureBoot private key in PEM format", metavar='PATH')
+    parser.add_argument("--secure-boot-certificate", help="UEFI SecureBoot certificate in X509 format", metavar='PATH')
+    parser.add_argument("--read-only", action='store_true',
+                        help='Make root volume read-only (only gpt_ext4, gpt_xfs, gpt_btrfs, subvolume, implied with gpt_squashfs and plain_squashfs)')
+    parser.add_argument("--encrypt", choices=("all", "data"),
+                        help='Encrypt everything except: ESP ("all") or ESP and root ("data")')
+    parser.add_argument("--verity", action='store_true', help='Add integrity partition (implies --read-only)')
+    parser.add_argument("--compress", type=parse_compression,
+                        help='Enable compression in file system (only gpt_btrfs, subvolume, gpt_squashfs, plain_squashfs)')
+    parser.add_argument('--mksquashfs', dest='mksquashfs_tool', type=str.split,
+                        help='Script to call instead of mksquashfs')
+    parser.add_argument("--xz", action='store_true',
+                        help='Compress resulting image with xz (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs, implied on tar)')  # NOQA: E501
+    parser.add_argument("--qcow2", action='store_true',
+                        help='Convert resulting image to qcow2 (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs)')
+    parser.add_argument("--hostname", help="Set hostname")
+    parser.add_argument('--no-chown', action='store_true',
+                        help='When running with sudo, disable reassignment of ownership of the generated files to the original user',
+                        file_parser_name=None)  # NOQA: E501
+    parser.add_argument('-i', "--incremental", action='store_true',
+                        help='Make use of and generate intermediary cache images')
 
-    group = parser.add_argument_group("Packages")
-    group.add_argument('-p', "--package", action=CommaDelimitedListAction, dest='packages', default=[],
-                       help='Add an additional package to the OS image', metavar='PACKAGE')
-    group.add_argument("--with-docs", action='store_true', default=None,
-                       help='Install documentation')
-    group.add_argument('-T', "--without-tests", action='store_false', dest='with_tests', default=True,
-                       help='Do not run tests as part of build script, if supported')
-    group.add_argument("--cache", dest='cache_path', help='Package cache path', metavar='PATH')
-    group.add_argument("--extra-tree", action='append', dest='extra_trees', default=[],
-                       help='Copy an extra tree on top of image', metavar='PATH')
-    group.add_argument("--skeleton-tree", action='append', dest='skeleton_trees', default=[],
-                       help='Use a skeleton tree to bootstrap the image before installing anything', metavar='PATH')
-    group.add_argument("--build-script", help='Build script to run inside image', metavar='PATH')
-    group.add_argument("--build-sources", help='Path for sources to build', metavar='PATH')
-    group.add_argument("--build-dir", help='Path to use as persistent build directory', metavar='PATH')
-    group.add_argument("--build-package", action=CommaDelimitedListAction, dest='build_packages', default=[],
-                       help='Additional packages needed for build script', metavar='PACKAGE')
-    group.add_argument("--postinst-script", help='Postinstall script to run inside image', metavar='PATH')
-    group.add_argument("--finalize-script", help='Postinstall script to run outside image', metavar='PATH')
-    group.add_argument("--source-file-transfer", type=SourceFileTransfer, choices=list(SourceFileTransfer), default=None,
-                       help="Method used to copy build sources to the build image." +
-                       "; ".join([f"'{k}': {v}" for k, v in SourceFileTransfer.doc().items()]) + " (default: copy-git-cached if in a git repository, otherwise copy-all)")
-    group.add_argument("--with-network", action='store_true', default=None,
-                       help='Run build and postinst scripts with network access (instead of private network)')
-    group.add_argument("--settings", dest='nspawn_settings', help='Add in .spawn settings file', metavar='PATH')
+    parser.add_section("Packages")
+    parser.add_argument('-p', "--package", action=CommaDelimitedListAction, dest='packages', default=[],
+                        help='Add an additional package to the OS image', metavar='PACKAGE')
+    parser.add_argument("--with-docs", action='store_true', default=None,
+                        help='Install documentation')
+    parser.add_argument('-T', "--without-tests", action='store_false', dest='with_tests', default=True,
+                        help='Do not run tests as part of build script, if supported')
+    parser.add_argument("--cache", dest='cache_path', help='Package cache path', metavar='PATH')
+    parser.add_argument("--extra-tree", action='append', dest='extra_trees', default=[],
+                        help='Copy an extra tree on top of image', metavar='PATH',
+                        file_parser_flags=ArgumentConfigParser.FLAGS.Extend)
+    parser.add_argument("--skeleton-tree", action='append', dest='skeleton_trees', default=[],
+                        help='Use a skeleton tree to bootstrap the image before installing anything', metavar='PATH',
+                        file_parser_flags=ArgumentConfigParser.FLAGS.Extend)
+    parser.add_argument("--build-script", help='Build script to run inside image', metavar='PATH')
+    parser.add_argument("--build-sources", help='Path for sources to build', metavar='PATH')
+    parser.add_argument("--build-dir", help='Path to use as persistent build directory', metavar='PATH')
+    parser.add_argument("--build-package", action=CommaDelimitedListAction, dest='build_packages', default=[],
+                        help='Additional packages needed for build script', metavar='PACKAGE',
+                        file_parser_flags=ArgumentConfigParser.FLAGS.Extend)
+    parser.add_argument("--postinst-script", help='Postinstall script to run inside image', metavar='PATH')
+    parser.add_argument("--finalize-script", help='Postinstall script to run outside image', metavar='PATH')
+    parser.add_argument("--source-file-transfer", type=SourceFileTransfer, choices=list(SourceFileTransfer), default=None,
+                        help="Method used to copy build sources to the build image." +
+                        "; ".join([f"'{k}': {v}" for k, v in SourceFileTransfer.doc().items()]) + " (default: copy-git-cached if in a git repository, otherwise copy-all)")
+    parser.add_argument("--with-network", action='store_true', default=None,
+                        help='Run build and postinst scripts with network access (instead of private network)')
+    parser.add_argument("--settings", dest='nspawn_settings', help='Add in .spawn settings file', metavar='PATH')
 
-    group = parser.add_argument_group("Partitions")
-    group.add_argument("--root-size",
-                       help='Set size of root partition (only gpt_ext4, gpt_xfs, gpt_btrfs)', metavar='BYTES')
-    group.add_argument("--esp-size",
-                       help='Set size of EFI system partition (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs)', metavar='BYTES')  # NOQA: E501
-    group.add_argument("--swap-size",
-                       help='Set size of swap partition (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs)', metavar='BYTES')  # NOQA: E501
-    group.add_argument("--home-size",
-                       help='Set size of /home partition (only gpt_ext4, gpt_xfs, gpt_squashfs)', metavar='BYTES')
-    group.add_argument("--srv-size",
-                       help='Set size of /srv partition (only gpt_ext4, gpt_xfs, gpt_squashfs)', metavar='BYTES')
+    parser.add_section("Partitions")
+    parser.add_argument("--root-size",
+                        help='Set size of root partition (only gpt_ext4, gpt_xfs, gpt_btrfs)', metavar='BYTES')
+    parser.add_argument("--esp-size",
+                        help='Set size of EFI system partition (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs)', metavar='BYTES')  # NOQA: E501
+    parser.add_argument("--swap-size",
+                        help='Set size of swap partition (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs)', metavar='BYTES')  # NOQA: E501
+    parser.add_argument("--home-size",
+                        help='Set size of /home partition (only gpt_ext4, gpt_xfs, gpt_squashfs)', metavar='BYTES')
+    parser.add_argument("--srv-size",
+                        help='Set size of /srv partition (only gpt_ext4, gpt_xfs, gpt_squashfs)', metavar='BYTES')
 
-    group = parser.add_argument_group("Validation (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs, tar)")
-    group.add_argument("--checksum", action='store_true', help='Write SHA256SUMS file')
-    group.add_argument("--sign", action='store_true', help='Write and sign SHA256SUMS file')
-    group.add_argument("--key", help='GPG key to use for signing')
-    group.add_argument("--bmap", action='store_true',
-                       help='Write block map file (.bmap) for bmaptool usage (only gpt_ext4, gpt_btrfs)')
-    group.add_argument("--password", help='Set the root password')
+    parser.add_section("Validation (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs, tar)")
+    parser.add_argument("--checksum", action='store_true', help='Write SHA256SUMS file')
+    parser.add_argument("--sign", action='store_true', help='Write and sign SHA256SUMS file')
+    parser.add_argument("--key", help='GPG key to use for signing')
+    parser.add_argument("--bmap", action='store_true',
+                        help='Write block map file (.bmap) for bmaptool usage (only gpt_ext4, gpt_btrfs)')
+    parser.add_argument("--password", help='Set the root password')
 
-    group = parser.add_argument_group("Host configuration")
-    group.add_argument("--extra-search-path", dest='extra_search_paths', action=ColonDelimitedListAction, default=[],
-                       help="List of colon-separated paths to look for programs before looking in PATH")
-    group.add_argument("--extra-search-paths", dest='extra_search_paths', action=ColonDelimitedListAction, help=argparse.SUPPRESS) # Compatibility option
+    parser.add_section("Host configuration", file_parser_name="Host")
+    parser.add_argument("--extra-search-path", dest='extra_search_paths', action=ColonDelimitedListAction, default=[],
+                        help="List of colon-separated paths to look for programs before looking in PATH")
+    parser.add_argument("--extra-search-paths", dest='extra_search_paths', action=ColonDelimitedListAction, help=argparse.SUPPRESS) # Compatibility option
 
-    group = parser.add_argument_group("Additional Configuration")
+    # command-line arguments only
+    group = parser.argparser.add_argument_group("Additional Configuration")
     group.add_argument('-C', "--directory", help='Change to specified directory before doing anything', metavar='PATH')
     group.add_argument("--default", dest='default_path', help='Read configuration data from file', metavar='PATH')
     group.add_argument('-a', "--all", action='store_true', dest='all', default=False, help='Build all settings files in mkosi.files/')
     group.add_argument("--all-directory", dest='all_directory', help='Specify path to directory to read settings files from', metavar='PATH')
-
     group.add_argument('--debug', action=CommaDelimitedListAction, default=[],
                        help='Turn on debugging output', metavar='SELECTOR',
                        choices=('run',))
     try:
         import argcomplete  # type: ignore
-        argcomplete.autocomplete(parser)
+        argcomplete.autocomplete(parser.argparser)
     except ImportError:
         pass
 
-    args = cast(CommandLineArguments, parser.parse_args(namespace=CommandLineArguments()))
+    args = cast(CommandLineArguments, parser.argparser.parse_args(namespace=CommandLineArguments()))
 
     if args.verb == "help":
-        parser.print_help()
+        parser.argparser.print_help()
         sys.exit(0)
 
     if args.all and args.default_path:
