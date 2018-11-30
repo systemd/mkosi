@@ -1625,12 +1625,13 @@ SigLevel    = Required DatabaseOptional
     # Set up system with packages from the base group
     run_pacstrap(packages)
 
-    # Patch mkinitcpio configuration so: 1) we remove autodetect and
-    # 2) we add the modules needed for encrypt.
-    patch_file(os.path.join(workspace, "root", "etc/mkinitcpio.conf"),
-               lambda line: "HOOKS=\"systemd modconf block sd-encrypt filesystems keyboard fsck\"\n" if line.startswith("HOOKS=") and args.encrypt == "all" else
-                            "HOOKS=\"systemd modconf block filesystems fsck\"\n"                     if line.startswith("HOOKS=") else
-                            line)
+    if args.bootable:
+        # Patch mkinitcpio configuration so: 1) we remove autodetect and
+        # 2) we add the modules needed for encrypt.
+        patch_file(os.path.join(workspace, "root", "etc/mkinitcpio.conf"),
+                   lambda line: "HOOKS=\"systemd modconf block sd-encrypt filesystems keyboard fsck\"\n" if line.startswith("HOOKS=") and args.encrypt == "all" else
+                                "HOOKS=\"systemd modconf block filesystems fsck\"\n"                     if line.startswith("HOOKS=") else
+                                line)
 
     # Install the user-specified packages and kernel
     packages = set(args.packages)
