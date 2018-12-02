@@ -3,11 +3,13 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 import argparse
+import collections
 import configparser
 import contextlib
-import collections
 import crypt
-import ctypes, ctypes.util
+import ctypes
+import ctypes.util
+import enum
 import errno
 import fcntl
 import getpass
@@ -20,17 +22,18 @@ import shlex
 import shutil
 import stat
 import string
+import subprocess
 import sys
 import tempfile
 import urllib.request
 import uuid
-
+from subprocess import DEVNULL, PIPE
 from typing import (
-    Any,
-    Dict,
-    Callable,
-    Generator,
     IO,
+    Any,
+    Callable,
+    Dict,
+    Generator,
     Iterable,
     Iterator,
     List,
@@ -45,9 +48,6 @@ try:
 except ImportError:
     pass
 
-import enum
-import subprocess
-from subprocess import DEVNULL, PIPE
 
 __version__ = '4'
 
