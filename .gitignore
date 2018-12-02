@@ -1,5 +1,6 @@
 *.cache-pre-dev
 *.cache-pre-inst
+.mypy_cache/
 /.mkosi-*
 /SHA256SUMS
 /SHA256SUMS.gpg
