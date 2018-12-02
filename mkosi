@@ -37,6 +37,7 @@ from typing import (
     Generator,
     Iterable,
     List,
+    NamedTuple,
     NoReturn,
     Optional,
     TextIO,
@@ -191,10 +192,13 @@ FEDORA_KEYS_MAP = {
 GPT_HEADER_SIZE = 1024*1024
 GPT_FOOTER_SIZE = 1024*1024
 
-GPTRootTypePair = collections.namedtuple('GPTRootTypePair', 'root verity')
+
+class GPTRootTypePair(NamedTuple):
+    root: uuid.UUID
+    verity: uuid.UUID
 
 
-def gpt_root_native(arch: str) -> Tuple[uuid.UUID, uuid.UUID]:
+def gpt_root_native(arch: str) -> GPTRootTypePair:
     """The tag for the native GPT root partition for the given architecture
 
     Returns a tuple of two tags: for the root partition and for the
