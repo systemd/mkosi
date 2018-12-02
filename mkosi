@@ -63,7 +63,7 @@ if sys.version_info < (3, 6):
 arg_debug = ()
 
 
-def run(cmdline: List[str], execvp: bool=False, **kwargs) -> Optional[subprocess.CompletedProcess]:
+def run(cmdline: List[str], execvp: bool = False, **kwargs) -> Optional[subprocess.CompletedProcess]:
     if 'run' in arg_debug:
         sys.stderr.write('+ ' + ' '.join(shlex.quote(x) for x in cmdline) + '\n')
     if execvp:
@@ -73,7 +73,7 @@ def run(cmdline: List[str], execvp: bool=False, **kwargs) -> Optional[subprocess
         return subprocess.run(cmdline, **kwargs)
 
 
-def die(message: str, status: int=1) -> NoReturn:
+def die(message: str, status: int = 1) -> NoReturn:
     assert status >= 1 and status < 128
     sys.stderr.write(message + "\n")
     sys.exit(status)
@@ -245,7 +245,7 @@ def print_running_cmd(cmdline: Iterable[str]) -> None:
     sys.stderr.write(" ".join(shlex.quote(x) for x in cmdline) + "\n")
 
 
-def mkdir_last(path: str, mode: int=0o777) -> str:
+def mkdir_last(path: str, mode: int = 0o777) -> str:
     """Create directory path
 
     Only the final component will be created, so this is different than mkdirs().
@@ -274,8 +274,8 @@ _IOC_READ  = 2
 
 
 def _IOC(dir: int, type: int, nr: int, argtype: str) -> int:
-    size = {'int':4, 'size_t':8}[argtype]
-    return dir<<_IOC_DIRSHIFT | type<<_IOC_TYPESHIFT | nr<<_IOC_NRSHIFT | size<<_IOC_SIZESHIFT
+    size = {'int': 4, 'size_t': 8}[argtype]
+    return dir << _IOC_DIRSHIFT | type << _IOC_TYPESHIFT | nr << _IOC_NRSHIFT | size << _IOC_SIZESHIFT
 
 
 def _IOW(type: int, nr: int, size: str) -> int:
@@ -286,7 +286,7 @@ FICLONE = _IOW(0x94, 9, 'int')
 
 
 @contextlib.contextmanager
-def open_close(path: str, flags: int, mode: int=0o664) -> Iterator[int]:
+def open_close(path: str, flags: int, mode: int = 0o664) -> Iterator[int]:
     fd = os.open(path, flags | os.O_CLOEXEC, mode)
     try:
         yield fd
@@ -331,11 +331,11 @@ def copy_file(oldpath: str, newpath: str) -> None:
         st = os.stat(oldfd)
 
         try:
-            with open_close(newpath, os.O_WRONLY|os.O_CREAT|os.O_EXCL, st.st_mode) as newfd:
+            with open_close(newpath, os.O_WRONLY | os.O_CREAT | os.O_EXCL, st.st_mode) as newfd:
                 copy_fd(oldfd, newfd)
         except FileExistsError:
             os.unlink(newpath)
-            with open_close(newpath, os.O_WRONLY|os.O_CREAT, st.st_mode) as newfd:
+            with open_close(newpath, os.O_WRONLY | os.O_CREAT, st.st_mode) as newfd:
                 copy_fd(oldfd, newfd)
     shutil.copystat(oldpath, newpath, follow_symlinks=False)
 
@@ -375,7 +375,7 @@ def copy(oldpath: str, newpath: str) -> None:
 
 
 @contextlib.contextmanager
-def complete_step(text: str, text2: Optional[str]=None) -> Iterator[List[Any]]:
+def complete_step(text: str, text2: Optional[str] = None) -> Iterator[List[Any]]:
     print_step(text + '...')
     args = [] # type: List[Any]
     yield args
@@ -402,7 +402,7 @@ def setup_workspace(args: CommandLineArguments) -> tempfile.TemporaryDirectory:
     return d
 
 
-def btrfs_subvol_create(path: str, mode: int=0o755) -> None:
+def btrfs_subvol_create(path: str, mode: int = 0o755) -> None:
     m = os.umask(~mode & 0o7777)
     run(["btrfs", "subvol", "create", path], check=True)
     os.umask(m)
@@ -431,7 +431,7 @@ def btrfs_subvol_delete(path: str) -> None:
     run(["btrfs", "subvol", "delete", path], stdout=DEVNULL, stderr=DEVNULL, check=True)
 
 
-def btrfs_subvol_make_ro(path: str, b:bool=True) -> None:
+def btrfs_subvol_make_ro(path: str, b: bool = True) -> None:
     run(["btrfs", "property", "set", path, "ro", "true" if b else "false"], check=True)
 
 
@@ -695,7 +695,7 @@ def luks_format_root(args: CommandLineArguments,
                      loopdev: str,
                      run_build_script: bool,
                      cached: bool,
-                     inserting_squashfs: bool=False) -> None:
+                     inserting_squashfs: bool = False) -> None:
     if args.encrypt != "all":
         return
     if args.root_partno is None:
@@ -742,7 +742,7 @@ def luks_format_srv(args: CommandLineArguments, loopdev: str, run_build_script: 
 def luks_setup_root(args: CommandLineArguments,
                     loopdev: str,
                     run_build_script: bool,
-                    inserting_squashfs:bool=False) -> Optional[str]:
+                    inserting_squashfs: bool = False) -> Optional[str]:
     if args.encrypt != "all":
         return None
     if args.root_partno is None:
@@ -843,7 +843,7 @@ def prepare_srv(args: CommandLineArguments, dev: str, cached: bool) -> None:
         mkfs_ext4("srv", "/srv", dev)
 
 
-def mount_loop(args: CommandLineArguments, dev: str, where: str, read_only:bool=False) -> None:
+def mount_loop(args: CommandLineArguments, dev: str, where: str, read_only: bool = False) -> None:
     os.makedirs(where, 0o755, True)
 
     options = "-odiscard"
@@ -878,7 +878,7 @@ def mount_image(args: CommandLineArguments,
                 root_dev: str,
                 home_dev: str,
                 srv_dev: str,
-                root_read_only: bool=False) -> Iterator[None]:
+                root_read_only: bool = False) -> Iterator[None]:
     if loopdev is None:
         yield None
         return
@@ -1077,9 +1077,9 @@ def enable_networkmanager(workspace: str) -> None:
 def run_workspace_command(args: CommandLineArguments,
                           workspace: str,
                           *cmd: str,
-                          network: bool=False,
-                          env: Dict[str, str]={},
-                          nspawn_params: List[str]=[]) -> None:
+                          network: bool = False,
+                          env: Dict[str, str] = {},
+                          nspawn_params: List[str] = []) -> None:
     cmdline = ["systemd-nspawn",
                '--quiet',
                "--directory=" + os.path.join(workspace, "root"),
@@ -1096,7 +1096,7 @@ def run_workspace_command(args: CommandLineArguments,
     else:
         cmdline += ["--private-network"]
 
-    cmdline += [ f'--setenv={k}={v}' for k,v in env.items() ]
+    cmdline += [ f'--setenv={k}={v}' for k, v in env.items() ]
 
     if nspawn_params:
         cmdline += nspawn_params
@@ -1151,7 +1151,7 @@ def reenable_kernel_install(args: CommandLineArguments, workspace: str, masked: 
 
 
 def make_rpm_list(args: argparse.Namespace, packages: List[str]) -> List[str]:
-    packages = list(packages) # make a copy
+    packages = list(packages)  # make a copy
 
     if args.bootable:
         # Temporary hack: dracut only adds crypto support to the initrd, if the cryptsetup binary is installed
@@ -1995,7 +1995,7 @@ def run_finalize_script(args: CommandLineArguments, workspace: str, *, verb: str
 
     with complete_step('Running finalize script'):
         buildroot = workspace + '/root'
-        env = collections.ChainMap({'BUILDROOT':buildroot}, os.environ)
+        env = collections.ChainMap({'BUILDROOT': buildroot}, os.environ)
         run([args.finalize_script, verb], env=env, check=True)
 
 
@@ -2310,7 +2310,7 @@ def read_partition_table(loopdev):
     for line in c.stdout.decode("utf-8").split('\n'):
         stripped = line.strip()
 
-        if stripped == "": # empty line is where the body begins
+        if stripped == "":  # empty line is where the body begins
             in_body = True
             continue
         if not in_body:
@@ -3056,7 +3056,7 @@ def unlink_try_hard(path: str) -> None:
 
 def remove_glob(*patterns: List[str]) -> None:
     pathgen = (glob.glob(pattern) for pattern in patterns)
-    paths = set(sum(pathgen, [])) # uniquify
+    paths = set(sum(pathgen, []))  # uniquify
     for path in paths:
         unlink_try_hard(path)
 
@@ -3194,7 +3194,7 @@ def process_setting(args: CommandLineArguments, section: str, key: str, value: A
         elif key == "Encrypt":
             if args.encrypt is None:
                 if value not in ("all", "data"):
-                    raise ValueError("Invalid encryption setting: "+ value)
+                    raise ValueError("Invalid encryption setting: " + value)
                 args.encrypt = value
         elif key == "Verity":
             if args.verity is None:
@@ -3389,7 +3389,7 @@ def find_skeleton(args: CommandLineArguments) -> None:
         args.skeleton_trees.append("mkosi.skeleton.tar")
 
 
-def args_find_path(args: CommandLineArguments, name: str, path: str, *, type=lambda x:x) -> None:
+def args_find_path(args: CommandLineArguments, name: str, path: str, *, type=lambda x: x) -> None:
     if getattr(args, name) is not None:
         return
     if os.path.exists(path):
@@ -3585,7 +3585,7 @@ def load_args() -> CommandLineArguments:
             args.boot_protocols = ["uefi"]
         if not {"uefi", "bios"}.issuperset(args.boot_protocols):
             die("Not a valid boot protocol")
-        if "bios" in args.boot_protocols and args.distribution not in (Distribution.fedora,Distribution.arch):
+        if "bios" in args.boot_protocols and args.distribution not in (Distribution.fedora, Distribution.arch):
             die(f"bios boot not implemented yet for {args.distribution}")
 
     if args.encrypt is not None:
@@ -3928,8 +3928,8 @@ def build_image(args: CommandLineArguments,
                 workspace: tempfile.TemporaryDirectory,
                 *,
                 run_build_script: bool,
-                for_cache: bool=False,
-                cleanup: bool=False) -> Tuple[Optional[IO[str]], Optional[IO[str]], Optional[str]]:
+                for_cache: bool = False,
+                cleanup: bool = False) -> Tuple[Optional[IO[str]], Optional[IO[str]], Optional[str]]:
     # If there's no build script set, there's no point in executing
     # the build script iteration. Let's quit early.
     if args.build_script is None and run_build_script:
@@ -4067,7 +4067,7 @@ def remove_artifacts(args: CommandLineArguments,
                      raw: Optional[IO[str]],
                      tar: Optional[IO[str]],
                      run_build_script: bool,
-                     for_cache:bool=False) -> None:
+                     for_cache: bool = False) -> None:
     if for_cache:
         what = "cache build"
     elif run_build_script:
