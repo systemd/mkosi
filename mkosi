@@ -123,7 +123,7 @@ class OutputFormat(enum.Enum):
             return cls[name]
         except KeyError:
             # this let's argparse generate a proper error message
-            return name
+            return name  # type: ignore
 
     def is_disk_rw(self) -> bool:
         "Output format is a disk image with a parition table and a writable filesystem"
@@ -368,7 +368,7 @@ def copy(oldpath: str, newpath: str) -> None:
             symlink_f(target, newentry)
             shutil.copystat(entry.path, newentry, follow_symlinks=False)
         else:
-            st = entry.stat(follow_symlinks=False)
+            st = entry.stat(follow_symlinks=False)  # type: ignore  # mypy 0.641 doesn't know about follow_symlinks
             if stat.S_ISREG(st.st_mode):
                 copy_file(entry.path, newentry)
             else:
@@ -2868,6 +2868,7 @@ def print_output_size(args: CommandLineArguments) -> None:
 
 
 def setup_package_cache(args: CommandLineArguments) -> Optional[tempfile.TemporaryDirectory]:
+    d: Optional[tempfile.TemporaryDirectory] = None
     with complete_step('Setting up package cache',
                        'Setting up package cache {} complete') as output:
         if args.cache_path is None:
@@ -2875,7 +2876,6 @@ def setup_package_cache(args: CommandLineArguments) -> Optional[tempfile.Tempora
             args.cache_path = d.name
         else:
             os.makedirs(args.cache_path, 0o755, exist_ok=True)
-            d = None
         output.append(args.cache_path)
 
     return d
@@ -3041,7 +3041,7 @@ def parse_args() -> CommandLineArguments:
     except ImportError:
         pass
 
-    args = parser.parse_args(namespace=CommandLineArguments())
+    args = cast(CommandLineArguments, parser.parse_args(namespace=CommandLineArguments()))
 
     if args.verb == "help":
         parser.print_help()
@@ -3407,7 +3407,7 @@ def load_defaults_file(fname: str, options: Dict[str, Dict[str, Any]]) -> Option
         return
 
     config = configparser.ConfigParser(delimiters='=')
-    config.optionxform = str
+    config.optionxform = str  # type: ignore
     config.read_file(f)
 
     # this is used only for validation
@@ -4285,14 +4285,18 @@ def run_shell(args: CommandLineArguments) -> None:
 
 def run_qemu(args: CommandLineArguments) -> None:
     # Look for the right qemu command line to use
+    cmdlines: List[List[str]] = []
     ARCH_BINARIES = {'x86_64': 'qemu-system-x86_64',
                      'i386': 'qemu-system-i386'}
     arch_binary = ARCH_BINARIES.get(platform.machine(), None)
-    for cmdline in ([arch_binary, '-machine', 'accel=kvm'],
-                    ['qemu', '-machine', 'accel=kvm'],
-                    ['qemu-kvm']):
-
-        if cmdline[0] and shutil.which(cmdline[0]):
+    if arch_binary is not None:
+        cmdlines += [[arch_binary, '-machine', 'accel=kvm']]
+    cmdlines += [
+        ['qemu', '-machine', 'accel=kvm'],
+        ['qemu-kvm'],
+    ]
+    for cmdline in cmdlines:
+        if shutil.which(cmdline[0]) is not None:
             break
     else:
         die("Couldn't find QEMU/KVM binary")
