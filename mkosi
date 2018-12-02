@@ -34,13 +34,14 @@ from typing import (
     BinaryIO,
     Callable,
     Dict,
+    Generator,
     Iterable,
-    Iterator,
     List,
     NoReturn,
     Optional,
     TextIO,
     Tuple,
+    TypeVar,
     Union,
     cast,
 )
@@ -282,7 +283,7 @@ FICLONE = _IOW(0x94, 9, 'int')
 
 
 @contextlib.contextmanager
-def open_close(path: str, flags: int, mode: int = 0o664) -> Iterator[int]:
+def open_close(path: str, flags: int, mode: int = 0o664) -> Generator[int, None, None]:
     fd = os.open(path, flags | os.O_CLOEXEC, mode)
     try:
         yield fd
@@ -371,7 +372,7 @@ def copy(oldpath: str, newpath: str) -> None:
 
 
 @contextlib.contextmanager
-def complete_step(text: str, text2: Optional[str] = None) -> Iterator[List[Any]]:
+def complete_step(text: str, text2: Optional[str] = None) -> Generator[List[Any], None, None]:
     print_step(text + '...')
     args: List[Any] = []
     yield args
@@ -380,7 +381,12 @@ def complete_step(text: str, text2: Optional[str] = None) -> Iterator[List[Any]]
     print_step(text2.format(*args) + '.')
 
 
-@complete_step('Detaching namespace')
+# https://github.com/python/mypy/issues/1317
+C = TypeVar('C', bound=Callable)
+completestep = cast(Callable[[str], Callable[[C], C]], complete_step)
+
+
+@completestep('Detaching namespace')
 def init_namespace(args):
     args.original_umask = os.umask(0o000)
     unshare(CLONE_NEWNS)
@@ -597,7 +603,7 @@ def reuse_cache_image(args: CommandLineArguments,
 
 
 @contextlib.contextmanager
-def attach_image_loopback(args: CommandLineArguments, raw: Optional[IO[str]]):
+def attach_image_loopback(args: CommandLineArguments, raw: Optional[IO[str]]) -> Generator[Optional[str], None, None]:
     if raw is None:
         yield None
         return
@@ -785,7 +791,10 @@ def luks_setup_srv(args: CommandLineArguments, loopdev: str, run_build_script: b
 @contextlib.contextmanager
 def luks_setup_all(args: CommandLineArguments,
                    loopdev: str,
-                   run_build_script: bool) -> Iterator[Tuple[Optional[str], Optional[str], Optional[str]]]:
+                   run_build_script: bool) -> Generator[Tuple[Optional[str],
+                                                              Optional[str],
+                                                              Optional[str]],
+                                                        None, None]:
     if not args.output_format.is_disk():
         yield (None, None, None)
         return
@@ -880,7 +889,7 @@ def mount_image(args: CommandLineArguments,
                 root_dev: str,
                 home_dev: str,
                 srv_dev: str,
-                root_read_only: bool = False) -> Iterator[None]:
+                root_read_only: bool = False) -> Generator[None, None, None]:
     if loopdev is None:
         yield None
         return
@@ -911,7 +920,7 @@ def mount_image(args: CommandLineArguments,
             umount(root)
 
 
-@complete_step("Assigning hostname")
+@completestep("Assigning hostname")
 def install_etc_hostname(args: CommandLineArguments, workspace: str) -> None:
     etc_hostname = os.path.join(workspace, "root", "etc/hostname")
 
@@ -929,7 +938,7 @@ def install_etc_hostname(args: CommandLineArguments, workspace: str) -> None:
 
 
 @contextlib.contextmanager
-def mount_api_vfs(args: CommandLineArguments, workspace: str) -> Iterator[None]:
+def mount_api_vfs(args: CommandLineArguments, workspace: str) -> Generator[None, None, None]:
     paths = ('/proc', '/dev', '/sys')
     root = os.path.join(workspace, "root")
 
@@ -945,7 +954,7 @@ def mount_api_vfs(args: CommandLineArguments, workspace: str) -> Iterator[None]:
 
 
 @contextlib.contextmanager
-def mount_cache(args: CommandLineArguments, workspace: str) -> Iterator[None]:
+def mount_cache(args: CommandLineArguments, workspace: str) -> Generator[None, None, None]:
     if args.cache_path is None:
         yield
         return
@@ -979,7 +988,7 @@ def umount(where: str) -> None:
     run(["umount", "--recursive", "-n", where], stdout=DEVNULL, stderr=DEVNULL)
 
 
-@complete_step('Setting up basic OS tree')
+@completestep('Setting up basic OS tree')
 def prepare_tree(args: CommandLineArguments, workspace: str, run_build_script: bool, cached: bool):
     if args.output_format == OutputFormat.subvolume:
         btrfs_subvol_create(os.path.join(workspace, "root"))
@@ -1266,7 +1275,7 @@ def invoke_dnf(args: CommandLineArguments,
         run(cmdline, check=True)
 
 
-@complete_step('Installing Clear Linux')
+@completestep('Installing Clear Linux')
 def install_clear(args: CommandLineArguments, workspace: str, run_build_script: bool) -> None:
     if args.release == "latest":
         release = "clear"
@@ -1318,7 +1327,7 @@ ensure that you have openssl program in your system.
             args.password = None
 
 
-@complete_step('Installing Fedora')
+@completestep('Installing Fedora')
 def install_fedora(args: CommandLineArguments, workspace: str, run_build_script: bool) -> None:
     if args.release == 'rawhide':
         last = sorted(FEDORA_KEYS_MAP)[-1]
@@ -1387,7 +1396,7 @@ gpgkey={gpg_key}
     reenable_kernel_install(args, workspace, masked)
 
 
-@complete_step('Installing Mageia')
+@completestep('Installing Mageia')
 def install_mageia(args, workspace, *, run_build_script):
     masked = disable_kernel_install(args, workspace)
 
@@ -1473,7 +1482,7 @@ def invoke_dnf_or_yum(*args, **kwargs) -> None:
         invoke_dnf(*args, **kwargs)
 
 
-@complete_step('Installing CentOS')
+@completestep('Installing CentOS')
 def install_centos(args: CommandLineArguments, workspace: str, *, run_build_script: bool) -> None:
     masked = disable_kernel_install(args, workspace)
 
@@ -1625,17 +1634,17 @@ def install_debian_or_ubuntu(args: CommandLineArguments,
     os.unlink(policyrcd)
 
 
-@complete_step('Installing Debian')
+@completestep('Installing Debian')
 def install_debian(args, workspace, *, run_build_script):
     install_debian_or_ubuntu(args, workspace, run_build_script=run_build_script, mirror=args.mirror)
 
 
-@complete_step('Installing Ubuntu')
+@completestep('Installing Ubuntu')
 def install_ubuntu(args, workspace, *, run_build_script):
     install_debian_or_ubuntu(args, workspace, run_build_script=run_build_script, mirror=args.mirror)
 
 
-@complete_step('Installing Arch Linux')
+@completestep('Installing Arch Linux')
 def install_arch(args, workspace, *, run_build_script):
     if args.release is not None:
         sys.stderr.write("Distribution release specification is not supported for Arch Linux, ignoring.\n")
@@ -1801,7 +1810,7 @@ SigLevel    = Required DatabaseOptional
     run(["fuser", "-c", root, "--kill"])
 
 
-@complete_step('Installing openSUSE')
+@completestep('Installing openSUSE')
 def install_opensuse(args, workspace, *, run_build_script):
     root = os.path.join(workspace, "root")
     release = args.release.strip('"')
