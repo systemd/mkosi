@@ -151,21 +151,21 @@ class Distribution(enum.Enum):
     clear = 8
 
 
-GPT_ROOT_X86           = uuid.UUID("44479540f29741b29af7d131d5f0458a")
-GPT_ROOT_X86_64        = uuid.UUID("4f68bce3e8cd4db196e7fbcaf984b709")
-GPT_ROOT_ARM           = uuid.UUID("69dad7102ce44e3cb16c21a1d49abed3")
-GPT_ROOT_ARM_64        = uuid.UUID("b921b0451df041c3af444c6f280d3fae")
-GPT_ROOT_IA64          = uuid.UUID("993d8d3df80e4225855a9daf8ed7ea97")
-GPT_ESP                = uuid.UUID("c12a7328f81f11d2ba4b00a0c93ec93b")
-GPT_BIOS               = uuid.UUID("2168614864496e6f744e656564454649")
-GPT_SWAP               = uuid.UUID("0657fd6da4ab43c484e50933c84b4f4f")
-GPT_HOME               = uuid.UUID("933ac7e12eb44f13b8440e14e2aef915")
-GPT_SRV                = uuid.UUID("3b8f842520e04f3b907f1a25a76f98e8")
-GPT_ROOT_X86_VERITY    = uuid.UUID("d13c5d3bb5d1422ab29f9454fdc89d76")
-GPT_ROOT_X86_64_VERITY = uuid.UUID("2c7357edebd246d9aec123d437ec2bf5")
-GPT_ROOT_ARM_VERITY    = uuid.UUID("7386cdf2203c47a9a498f2ecce45a2d6")
-GPT_ROOT_ARM_64_VERITY = uuid.UUID("df3300ced69f4c92978c9bfb0f38d820")
-GPT_ROOT_IA64_VERITY   = uuid.UUID("86ed10d5b60745bb8957d350f23d0571")
+GPT_ROOT_X86           = uuid.UUID("44479540f29741b29af7d131d5f0458a")  # NOQA: E221
+GPT_ROOT_X86_64        = uuid.UUID("4f68bce3e8cd4db196e7fbcaf984b709")  # NOQA: E221
+GPT_ROOT_ARM           = uuid.UUID("69dad7102ce44e3cb16c21a1d49abed3")  # NOQA: E221
+GPT_ROOT_ARM_64        = uuid.UUID("b921b0451df041c3af444c6f280d3fae")  # NOQA: E221
+GPT_ROOT_IA64          = uuid.UUID("993d8d3df80e4225855a9daf8ed7ea97")  # NOQA: E221
+GPT_ESP                = uuid.UUID("c12a7328f81f11d2ba4b00a0c93ec93b")  # NOQA: E221
+GPT_BIOS               = uuid.UUID("2168614864496e6f744e656564454649")  # NOQA: E221
+GPT_SWAP               = uuid.UUID("0657fd6da4ab43c484e50933c84b4f4f")  # NOQA: E221
+GPT_HOME               = uuid.UUID("933ac7e12eb44f13b8440e14e2aef915")  # NOQA: E221
+GPT_SRV                = uuid.UUID("3b8f842520e04f3b907f1a25a76f98e8")  # NOQA: E221
+GPT_ROOT_X86_VERITY    = uuid.UUID("d13c5d3bb5d1422ab29f9454fdc89d76")  # NOQA: E221
+GPT_ROOT_X86_64_VERITY = uuid.UUID("2c7357edebd246d9aec123d437ec2bf5")  # NOQA: E221
+GPT_ROOT_ARM_VERITY    = uuid.UUID("7386cdf2203c47a9a498f2ecce45a2d6")  # NOQA: E221
+GPT_ROOT_ARM_64_VERITY = uuid.UUID("df3300ced69f4c92978c9bfb0f38d820")  # NOQA: E221
+GPT_ROOT_IA64_VERITY   = uuid.UUID("86ed10d5b60745bb8957d350f23d0571")  # NOQA: E221
 
 # This is a non-formatted partition used to store the second stage
 # part of the bootloader because it doesn't necessarily fits the MBR
@@ -258,19 +258,19 @@ def mkdir_last(path: str, mode: int = 0o777) -> str:
     return path
 
 
-_IOC_NRBITS   =  8
-_IOC_TYPEBITS =  8
-_IOC_SIZEBITS = 14
-_IOC_DIRBITS  =  2
+_IOC_NRBITS   =  8  # NOQA: E221,E222
+_IOC_TYPEBITS =  8  # NOQA: E221,E222
+_IOC_SIZEBITS = 14  # NOQA: E221,E222
+_IOC_DIRBITS  =  2  # NOQA: E221,E222
 
-_IOC_NRSHIFT   = 0
-_IOC_TYPESHIFT = _IOC_NRSHIFT + _IOC_NRBITS
-_IOC_SIZESHIFT = _IOC_TYPESHIFT + _IOC_TYPEBITS
-_IOC_DIRSHIFT  = _IOC_SIZESHIFT + _IOC_SIZEBITS
+_IOC_NRSHIFT   = 0  # NOQA: E221
+_IOC_TYPESHIFT = _IOC_NRSHIFT + _IOC_NRBITS  # NOQA: E221
+_IOC_SIZESHIFT = _IOC_TYPESHIFT + _IOC_TYPEBITS  # NOQA: E221
+_IOC_DIRSHIFT  = _IOC_SIZESHIFT + _IOC_SIZEBITS  # NOQA: E221
 
-_IOC_NONE  = 0
-_IOC_WRITE = 1
-_IOC_READ  = 2
+_IOC_NONE  = 0  # NOQA: E221
+_IOC_WRITE = 1  # NOQA: E221
+_IOC_READ  = 2  # NOQA: E221
 
 
 def _IOC(dir: int, type: int, nr: int, argtype: str) -> int:
@@ -578,7 +578,7 @@ def reuse_cache_image(args: CommandLineArguments,
             return None, False
 
         with source:
-            f = tempfile.NamedTemporaryFile(dir = os.path.dirname(args.output), prefix='.mkosi-')
+            f = tempfile.NamedTemporaryFile(dir=os.path.dirname(args.output), prefix='.mkosi-')
             output.append(f)
 
             # So on one hand we want CoW off, since this stuff will
@@ -1088,7 +1088,7 @@ def run_workspace_command(args: CommandLineArguments,
                "--as-pid2",
                "--register=no",
                "--bind=" + var_tmp(workspace) + ":/var/tmp",
-               "--setenv=SYSTEMD_OFFLINE=1" ]
+               "--setenv=SYSTEMD_OFFLINE=1"]
 
     if network:
         # If we're using the host network namespace, use the same resolver
@@ -1096,7 +1096,7 @@ def run_workspace_command(args: CommandLineArguments,
     else:
         cmdline += ["--private-network"]
 
-    cmdline += [ f'--setenv={k}={v}' for k, v in env.items() ]
+    cmdline += [f'--setenv={k}={v}' for k, v in env.items()]
 
     if nspawn_params:
         cmdline += nspawn_params
@@ -1888,14 +1888,14 @@ def install_distribution(args, workspace, *, cached, **kwargs):
         return
 
     install = {
-        Distribution.fedora : install_fedora,
-        Distribution.centos : install_centos,
-        Distribution.mageia : install_mageia,
-        Distribution.debian : install_debian,
-        Distribution.ubuntu : install_ubuntu,
-        Distribution.arch : install_arch,
-        Distribution.opensuse : install_opensuse,
-        Distribution.clear : install_clear,
+        Distribution.fedora: install_fedora,
+        Distribution.centos: install_centos,
+        Distribution.mageia: install_mageia,
+        Distribution.debian: install_debian,
+        Distribution.ubuntu: install_ubuntu,
+        Distribution.arch: install_arch,
+        Distribution.opensuse: install_opensuse,
+        Distribution.clear: install_clear,
     }
 
     install[args.distribution](args, workspace, **kwargs)
@@ -2340,7 +2340,7 @@ def read_partition_table(loopdev):
     return table, last_sector * 512
 
 
-def insert_partition(args, workspace, raw, loopdev, partno, blob, name, type_uuid, uuid = None):
+def insert_partition(args, workspace, raw, loopdev, partno, blob, name, type_uuid, uuid=None):
     if args.ran_sfdisk:
         old_table, last_partition_sector = read_partition_table(loopdev)
     else:
@@ -2511,11 +2511,11 @@ def install_unified_kernel(args, workspace, run_build_script, for_cache, root_ha
                       ("-i",) + ("/usr/lib/systemd/system-generators/systemd-veritysetup-generator",)*2
 
             if args.output_format == OutputFormat.gpt_squashfs:
-                dracut += [ '--add-drivers', 'squashfs' ]
+                dracut += ['--add-drivers', 'squashfs']
 
-            dracut += [ '--add', 'qemu' ]
+            dracut += ['--add', 'qemu']
 
-            dracut += [ boot_binary ]
+            dracut += [boot_binary]
 
             run_workspace_command(args, workspace, *dracut);
 
@@ -3427,14 +3427,14 @@ def find_passphrase(args: CommandLineArguments) -> None:
     try:
         require_private_file('mkosi.passphrase', 'passphrase')
 
-        args.passphrase = { 'type': 'file', 'content': 'mkosi.passphrase' }
+        args.passphrase = {'type': 'file', 'content': 'mkosi.passphrase'}
 
     except FileNotFoundError:
         while True:
             passphrase = getpass.getpass("Please enter passphrase: ")
             passphrase_confirmation = getpass.getpass("Passphrase confirmation: ")
             if passphrase == passphrase_confirmation:
-                args.passphrase = { 'type': 'stdin', 'content': passphrase }
+                args.passphrase = {'type': 'stdin', 'content': passphrase}
                 break
 
             sys.stderr.write("Passphrase doesn't match confirmation. Please try again.\n")
@@ -4197,8 +4197,8 @@ def run_shell(args: CommandLineArguments) -> None:
 
 def run_qemu(args: CommandLineArguments) -> None:
     # Look for the right qemu command line to use
-    ARCH_BINARIES = { 'x86_64' : 'qemu-system-x86_64',
-                      'i386'   : 'qemu-system-i386'}
+    ARCH_BINARIES = {'x86_64': 'qemu-system-x86_64',
+                     'i386': 'qemu-system-i386'}
     arch_binary = ARCH_BINARIES.get(platform.machine(), None)
     for cmdline in ([arch_binary, '-machine', 'accel=kvm'],
                     ['qemu', '-machine', 'accel=kvm'],
@@ -4231,11 +4231,11 @@ def run_qemu(args: CommandLineArguments) -> None:
     else:
         die("Couldn't find OVMF UEFI firmware blob.")
 
-    cmdline += [ "-smp", "2",
-                 "-m", "1024",
-                 "-drive", "if=pflash,format=raw,readonly,file=" + firmware,
-                 "-drive", "format=" + ("qcow2" if args.qcow2 else "raw") + ",file=" + args.output,
-                 *args.cmdline ]
+    cmdline += ["-smp", "2",
+                "-m", "1024",
+                "-drive", "if=pflash,format=raw,readonly,file=" + firmware,
+                "-drive", "format=" + ("qcow2" if args.qcow2 else "raw") + ",file=" + args.output,
+                *args.cmdline]
 
     print_running_cmd(cmdline)
 
