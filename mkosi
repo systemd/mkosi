@@ -2810,15 +2810,15 @@ class ListAction(argparse.Action):
         super().__init__(*args, **kwargs)
 
     def __call__(self, parser, namespace, values, option_string=None):
-        l = getattr(namespace, self.dest)
-        if l is None:
-            l = []
+        ary = getattr(namespace, self.dest)
+        if ary is None:
+            ary = []
         new = values.split(self.delimiter)
         for x in new:
             if self.list_choices is not None and x not in self.list_choices:
                 raise ValueError(f'Unknown value {x!r}')
-            l.append(x)
-        setattr(namespace, self.dest, l)
+            ary.append(x)
+        setattr(namespace, self.dest, ary)
 
 
 class CommaDelimitedListAction(ListAction):
@@ -3776,12 +3776,12 @@ def none_to_none(s: Optional[str]) -> str:
     return "none" if s is None else s
 
 
-def line_join_list(l: List[str]) -> str:
+def line_join_list(ary: List[str]) -> str:
 
-    if not l:
+    if not ary:
         return "none"
 
-    return "\n                        ".join(l)
+    return "\n                        ".join(ary)
 
 
 def print_summary(args: CommandLineArguments) -> None:
