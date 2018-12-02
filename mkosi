@@ -217,7 +217,10 @@ def gpt_root_native(arch: str) -> GPTRootTypePair:
 
 
 def unshare(flags: int) -> None:
-    libc = ctypes.CDLL(ctypes.util.find_library("c"), use_errno=True)
+    libc_name = ctypes.util.find_library("c")
+    if libc_name is None:
+        die("Could not find libc")
+    libc = ctypes.CDLL(libc_name, use_errno=True)
 
     if libc.unshare(ctypes.c_int(flags)) != 0:
         e = ctypes.get_errno()
@@ -1124,11 +1127,12 @@ def run_workspace_command(args: CommandLineArguments,
     run(cmdline, check=True)
 
 
-def check_if_url_exists(url: str) -> Optional[bool]:
+def check_if_url_exists(url: str) -> bool:
     req = urllib.request.Request(url, method="HEAD")
     try:
         if urllib.request.urlopen(req):
             return True
+        return False
     except:  # NOQA: E722
         return False
 
@@ -1541,7 +1545,7 @@ gpgkey={gpg_key}
 
 
 def debootstrap_knows_merged_usr() -> bool:
-    return bytes("invalid option", "UTF-8") not in run(("debootstrap", "--merged-usr"), stdout=PIPE).stdout
+    return bytes("invalid option", "UTF-8") not in run(["debootstrap", "--merged-usr"], stdout=PIPE).stdout
 
 
 def install_debian_or_ubuntu(args: CommandLineArguments,
@@ -2037,7 +2041,7 @@ def find_kernel_file(workspace_root: str, pattern: str) -> Optional[str]:
         kernel_file = kernel_file[len(workspace_root):]
     else:
         sys.stderr.write(f'Error, kernel file {kernel_file} cannot be used as it is not in the workspace\n')
-        return
+        return None
     if len(kernel_files) > 1:
         warn('More than one kernel file found, will use {}', kernel_file)
     return kernel_file
@@ -2087,11 +2091,9 @@ def install_boot_loader_arch(args: CommandLineArguments, workspace: str, loopdev
         workspace_root = os.path.join(workspace, "root")
         kernel_version = next(filter(lambda x: x[0].isdigit(),
                                      os.listdir(os.path.join(workspace_root, "lib/modules"))))
-        run_workspace_command(args, workspace,
-                              "/usr/bin/kernel-install",
-                              "add",
-                              kernel_version,
-                              find_kernel_file(workspace_root, "/boot/vmlinuz-*"))
+        kernel_file = find_kernel_file(workspace_root, "/boot/vmlinuz-*")
+        if kernel_file is not None:
+            run_workspace_command(args, workspace, "/usr/bin/kernel-install", "add", kernel_version, kernel_file)
 
     if "bios" in args.boot_protocols:
         install_grub(args, workspace, loopdev, "grub")
@@ -2117,16 +2119,17 @@ def install_boot_loader_clear(args: CommandLineArguments, workspace: str, loopde
         # clr-boot-manager uses blkid in the device backing "/" to
         # figure out uuid and related parameters.
         "--bind-ro=/dev",
-        "--property=DeviceAllow=" + loopdev,
 
         # clr-boot-manager compiled in Clear Linux will assume EFI
         # partition is mounted in "/boot".
         "--bind=" + os.path.join(workspace, "root/efi") + ":/boot",
     ]
-    if args.esp_partno is not None:
-        nspawn_params += ["--property=DeviceAllow=" + partition(loopdev, args.esp_partno)]
-    if args.root_partno is not None:
-        nspawn_params += ["--property=DeviceAllow=" + partition(loopdev, args.root_partno)]
+    if loopdev is not None:
+        nspawn_params += ["--property=DeviceAllow=" + loopdev]
+        if args.esp_partno is not None:
+            nspawn_params += ["--property=DeviceAllow=" + partition(loopdev, args.esp_partno)]
+        if args.root_partno is not None:
+            nspawn_params += ["--property=DeviceAllow=" + partition(loopdev, args.root_partno)]
 
     run_workspace_command(args, workspace, "/usr/bin/clr-boot-manager", "update", "-i", nspawn_params=nspawn_params)
 
@@ -3109,7 +3112,9 @@ def detect_distribution() -> Tuple[Optional[Distribution], Optional[str]]:
     if id == "clear-linux-os":
         id = "clear"
 
-    d = Distribution.__members__.get(id, None)
+    d: Optional[Distribution] = None
+    if id is not None:
+        d = Distribution.__members__.get(id, None)
 
     if d == Distribution.debian and (version_codename or extracted_codename):
         # debootstrap needs release codenames, not version numbers
@@ -3404,7 +3409,7 @@ def load_defaults_file(fname: str, options: Dict[str, Dict[str, Any]]) -> Option
     try:
         f = open(fname)
     except FileNotFoundError:
-        return
+        return None
 
     config = configparser.ConfigParser(delimiters='=')
     config.optionxform = str  # type: ignore
@@ -4038,9 +4043,10 @@ def build_image(args: CommandLineArguments,
         prepare_swap(args, loopdev, cached)
         prepare_esp(args, loopdev, cached)
 
-        luks_format_root(args, loopdev, run_build_script, cached)
-        luks_format_home(args, loopdev, run_build_script, cached)
-        luks_format_srv(args, loopdev, run_build_script, cached)
+        if loopdev is not None:
+            luks_format_root(args, loopdev, run_build_script, cached)
+            luks_format_home(args, loopdev, run_build_script, cached)
+            luks_format_srv(args, loopdev, run_build_script, cached)
 
         with luks_setup_all(args, loopdev, run_build_script) as (encrypted_root, encrypted_home, encrypted_srv):
 
