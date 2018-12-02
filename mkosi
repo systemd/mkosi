@@ -796,7 +796,7 @@ def luks_setup_srv(args: CommandLineArguments, loopdev: str, run_build_script: b
 
 @contextlib.contextmanager
 def luks_setup_all(args: CommandLineArguments,
-                   loopdev: str,
+                   loopdev: Optional[str],
                    run_build_script: bool) -> Generator[Tuple[Optional[str],
                                                               Optional[str],
                                                               Optional[str]],
@@ -804,6 +804,7 @@ def luks_setup_all(args: CommandLineArguments,
     if not args.output_format.is_disk():
         yield (None, None, None)
         return
+    assert loopdev is not None
 
     try:
         root = luks_setup_root(args, loopdev, run_build_script)
@@ -892,13 +893,14 @@ def mount_tmpfs(where: str) -> None:
 def mount_image(args: CommandLineArguments,
                 workspace: str,
                 loopdev: Optional[str],
-                root_dev: str,
+                root_dev: Optional[str],
                 home_dev: Optional[str],
                 srv_dev: Optional[str],
                 root_read_only: bool = False) -> Generator[None, None, None]:
     if loopdev is None:
         yield None
         return
+    assert root_dev is not None
 
     with complete_step('Mounting image'):
         root = os.path.join(workspace, "root")
@@ -2125,9 +2127,10 @@ def install_boot_loader_clear(args: CommandLineArguments, workspace: str, loopde
     run_workspace_command(args, workspace, "/usr/bin/clr-boot-manager", "update", "-i", nspawn_params=nspawn_params)
 
 
-def install_boot_loader(args: CommandLineArguments, workspace: str, loopdev: str, cached: bool) -> None:
+def install_boot_loader(args: CommandLineArguments, workspace: str, loopdev: Optional[str], cached: bool) -> None:
     if not args.bootable:
         return
+    assert loopdev is not None
 
     if cached:
         return
@@ -2432,14 +2435,17 @@ def insert_partition(args: CommandLineArguments,
 
 def insert_squashfs(args: CommandLineArguments,
                     workspace: str,
-                    raw: BinaryIO,
-                    loopdev: str,
-                    squashfs: BinaryIO,
+                    raw: Optional[BinaryIO],
+                    loopdev: Optional[str],
+                    squashfs: Optional[BinaryIO],
                     for_cache: bool) -> None:
     if args.output_format != OutputFormat.gpt_squashfs:
         return
     if for_cache:
         return
+    assert raw is not None
+    assert loopdev is not None
+    assert squashfs is not None
 
     with complete_step('Inserting squashfs root partition'):
         args.root_size = insert_partition(args, workspace, raw, loopdev, args.root_partno, squashfs,
@@ -2448,13 +2454,14 @@ def insert_squashfs(args: CommandLineArguments,
 
 def make_verity(args: CommandLineArguments,
                 workspace: str,
-                dev: str,
+                dev: Optional[str],
                 run_build_script: bool,
                 for_cache: bool) -> Tuple[Optional[BinaryIO], Optional[str]]:
     if run_build_script or not args.verity:
         return None, None
     if for_cache:
         return None, None
+    assert dev is not None
 
     with complete_step('Generating verity hashes'):
         f: BinaryIO = cast(BinaryIO, tempfile.NamedTemporaryFile(dir=os.path.dirname(args.output), prefix=".mkosi-"))
@@ -2470,15 +2477,18 @@ def make_verity(args: CommandLineArguments,
 
 def insert_verity(args: CommandLineArguments,
                   workspace: str,
-                  raw: BinaryIO,
-                  loopdev: str,
-                  verity: BinaryIO,
-                  root_hash: str,
+                  raw: Optional[BinaryIO],
+                  loopdev: Optional[str],
+                  verity: Optional[BinaryIO],
+                  root_hash: Optional[str],
                   for_cache: bool) -> None:
     if verity is None:
         return
     if for_cache:
         return
+    assert loopdev is not None
+    assert raw is not None
+    assert root_hash is not None
 
     # Use the final 128 bit of the root hash as partition UUID of the verity partition
     u = uuid.UUID(root_hash[-32:])
@@ -2488,9 +2498,14 @@ def insert_verity(args: CommandLineArguments,
                          "Verity Partition", gpt_root_native(args.architecture).verity, u)
 
 
-def patch_root_uuid(args: CommandLineArguments, loopdev: str, root_hash: Optional[str], for_cache: bool) -> None:
+def patch_root_uuid(args: CommandLineArguments,
+                    loopdev: Optional[str],
+                    root_hash: Optional[str],
+                    for_cache: bool) -> None:
     if root_hash is None:
         return
+    assert loopdev is not None
+
     if for_cache:
         return
 
@@ -2600,9 +2615,10 @@ def secure_boot_sign(args: CommandLineArguments, workspace: str, run_build_scrip
                 os.rename(p + ".signed", p)
 
 
-def xz_output(args: CommandLineArguments, raw: BinaryIO) -> BinaryIO:
+def xz_output(args: CommandLineArguments, raw: Optional[BinaryIO]) -> Optional[BinaryIO]:
     if not args.output_format.is_disk():
         return raw
+    assert raw is not None
 
     if not args.xz:
         return raw
@@ -2616,9 +2632,10 @@ def xz_output(args: CommandLineArguments, raw: BinaryIO) -> BinaryIO:
     return f
 
 
-def qcow2_output(args: CommandLineArguments, raw: BinaryIO) -> BinaryIO:
+def qcow2_output(args: CommandLineArguments, raw: Optional[BinaryIO]) -> Optional[BinaryIO]:
     if not args.output_format.is_disk():
         return raw
+    assert raw is not None
 
     if not args.qcow2:
         return raw
@@ -2718,12 +2735,13 @@ def calculate_signature(args: CommandLineArguments, checksum: Optional[IO[Any]])
     return f
 
 
-def calculate_bmap(args: CommandLineArguments, raw: BinaryIO) -> Optional[TextIO]:
+def calculate_bmap(args: CommandLineArguments, raw: Optional[BinaryIO]) -> Optional[TextIO]:
     if not args.bmap:
         return None
 
     if not args.output_format.is_disk_rw():
         return None
+    assert raw is not None
 
     with complete_step('Creating BMAP file'):
         f: TextIO = cast(TextIO, tempfile.NamedTemporaryFile(mode="w+", prefix=".mkosi-", encoding="utf-8",
@@ -2766,12 +2784,14 @@ def _link_output(args: CommandLineArguments, oldpath: str, newpath: str) -> None
         os.chown(newpath, int(sudo_uid), int(sudo_gid))
 
 
-def link_output(args: CommandLineArguments, workspace: str, artifact: str) -> None:
+def link_output(args: CommandLineArguments, workspace: str, artifact: Optional[BinaryIO]) -> None:
     with complete_step('Linking image file',
                        'Successfully linked ' + args.output):
         if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
+            assert artifact is None
             os.rename(os.path.join(workspace, "root"), args.output)
         elif args.output_format.is_disk() or args.output_format == OutputFormat.plain_squashfs:
+            assert artifact is not None
             _link_output(args, artifact.name, args.output)
 
 
