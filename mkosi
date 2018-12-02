@@ -2889,6 +2889,7 @@ class ListAction(argparse.Action):
                  namespace: argparse.Namespace,
                  values: Union[str, Sequence[Any], None],
                  option_string: Optional[str] = None) -> None:
+        assert isinstance(values, str)
         ary = getattr(namespace, self.dest)
         if ary is None:
             ary = []
