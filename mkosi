@@ -2517,7 +2517,7 @@ def install_unified_kernel(args, workspace, run_build_script, for_cache, root_ha
 
             dracut += [boot_binary]
 
-            run_workspace_command(args, workspace, *dracut);
+            run_workspace_command(args, workspace, *dracut)
 
 
 def secure_boot_sign(args, workspace, run_build_script, for_cache):
@@ -3507,9 +3507,9 @@ def load_args() -> CommandLineArguments:
     args_find_path(args, 'build_script',    "mkosi.build")
     args_find_path(args, 'build_sources',   ".")
     args_find_path(args, 'build_dir',       "mkosi.builddir/")
-    args_find_path(args, 'postinst_script', "mkosi.postinst");
-    args_find_path(args, 'finalize_script', "mkosi.finalize");
-    args_find_path(args, 'output_dir',      "mkosi.output/");
+    args_find_path(args, 'postinst_script', "mkosi.postinst")
+    args_find_path(args, 'finalize_script', "mkosi.finalize")
+    args_find_path(args, 'output_dir',      "mkosi.output/")
     args_find_path(args, 'mksquashfs_tool', "mkosi.mksquashfs-tool", type=lambda x: [x])
 
     find_extra(args)
