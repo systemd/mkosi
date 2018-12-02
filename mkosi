@@ -1626,12 +1626,17 @@ SigLevel    = Required DatabaseOptional
     run_pacstrap(packages)
 
     if args.bootable:
-        # Patch mkinitcpio configuration so: 1) we remove autodetect and
+        # Patch mkinitcpio configuration so:
+        # 1) we remove autodetect and
         # 2) we add the modules needed for encrypt.
-        patch_file(os.path.join(workspace, "root", "etc/mkinitcpio.conf"),
-                   lambda line: "HOOKS=\"systemd modconf block sd-encrypt filesystems keyboard fsck\"\n" if line.startswith("HOOKS=") and args.encrypt == "all" else
-                                "HOOKS=\"systemd modconf block filesystems fsck\"\n"                     if line.startswith("HOOKS=") else
-                                line)
+        def jj(line: str) -> str:
+            if line.startswith("HOOKS="):
+                if args.encrypt == "all":
+                    return "HOOKS=\"systemd modconf block sd-encrypt filesystems keyboard fsck\"\n"
+                else:
+                    return "HOOKS=\"systemd modconf block filesystems fsck\"\n"
+            return line
+        patch_file(os.path.join(workspace, "root", "etc/mkinitcpio.conf"), jj)
 
     # Install the user-specified packages and kernel
     packages = set(args.packages)
@@ -1813,14 +1818,19 @@ def set_root_password(args, workspace, run_build_script, for_cache):
 
     if args.password == '':
         with complete_step("Deleting root password"):
-            jj = lambda line: (':'.join(['root', ''] + line.split(':')[2:])
-                               if line.startswith('root:') else line)
+            def jj(line: str) -> str:
+                if line.startswith('root:'):
+                    return ':'.join(['root', ''] + line.split(':')[2:])
+                return line
             patch_file(os.path.join(workspace, 'root', 'etc/passwd'), jj)
     elif args.password:
         with complete_step("Setting root password"):
             password = crypt.crypt(args.password, crypt.mksalt(crypt.METHOD_SHA512))
-            jj = lambda line: (':'.join(['root', password] + line.split(':')[2:])
-                               if line.startswith('root:') else line)
+
+            def jj(line: str) -> str:
+                if line.startswith('root:'):
+                    return ':'.join(['root', password] + line.split(':')[2:])
+                return line
             patch_file(os.path.join(workspace, 'root', 'etc/shadow'), jj)
 
 def run_postinst_script(args, workspace, run_build_script, for_cache):
@@ -1878,9 +1888,11 @@ def install_grub(args, workspace, loopdev, grub):
         with open(os.path.join(workspace, "root", "etc/default/grub"), "w+") as f:
             f.write(grub_cmdline)
     else:
-        patch_file(os.path.join(workspace, "root", "etc/default/grub"),
-               lambda line: grub_cmdline if line.startswith("GRUB_CMDLINE_LINUX=") else
-               line)
+        def jj(line: str) -> str:
+            if line.startswith("GRUB_CMDLINE_LINUX="):
+                return grub_cmdline
+            return line
+        patch_file(os.path.join(workspace, "root", "etc/default/grub"), jj)
 
     nspawn_params = [
         "--bind-ro=/dev",
