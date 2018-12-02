@@ -1109,7 +1109,7 @@ def check_if_url_exists(url: str) -> Optional[bool]:
     try:
         if urllib.request.urlopen(req):
             return True
-    except:
+    except:  # NOQA: E722
         return False
 
 
@@ -3039,17 +3039,17 @@ def detect_distribution() -> Tuple[Optional[Distribution], Optional[str]]:
 def unlink_try_hard(path: str) -> None:
     try:
         os.unlink(path)
-    except:
+    except:  # NOQA: E722
         pass
 
     try:
         btrfs_subvol_delete(path)
-    except:
+    except:  # NOQA: E722
         pass
 
     try:
         shutil.rmtree(path)
-    except:
+    except:  # NOQA: E722
         pass
 
 
