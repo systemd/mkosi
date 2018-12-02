@@ -514,7 +514,10 @@ def create_image(args: CommandLineArguments, workspace: str, for_cache: bool) ->
 
     return f
 
-def reuse_cache_image(args: CommandLineArguments, workspace: str, run_build_script: bool, for_cache: bool) -> Tuple[Optional[IO[str]], bool]:
+def reuse_cache_image(args: CommandLineArguments,
+                      workspace: str,
+                      run_build_script: bool,
+                      for_cache: bool) -> Tuple[Optional[IO[str]], bool]:
     if not args.incremental:
         return None, False
     if not args.output_format.is_disk_rw():
@@ -643,7 +646,11 @@ def luks_close(dev: Optional[str], text: str) -> None:
     with complete_step(text):
         run(["cryptsetup", "close", dev], check=True)
 
-def luks_format_root(args: CommandLineArguments, loopdev: str, run_build_script: bool, cached: bool, inserting_squashfs: bool=False) -> None:
+def luks_format_root(args: CommandLineArguments,
+                     loopdev: str,
+                     run_build_script: bool,
+                     cached: bool,
+                     inserting_squashfs: bool=False) -> None:
     if args.encrypt != "all":
         return
     if args.root_partno is None:
@@ -684,7 +691,10 @@ def luks_format_srv(args: CommandLineArguments, loopdev: str, run_build_script: 
     with complete_step("LUKS formatting server data partition"):
         luks_format(partition(loopdev, args.srv_partno), args.passphrase)
 
-def luks_setup_root(args: CommandLineArguments, loopdev: str, run_build_script: bool, inserting_squashfs:bool=False) -> Optional[str]:
+def luks_setup_root(args: CommandLineArguments,
+                    loopdev: str,
+                    run_build_script: bool,
+                    inserting_squashfs:bool=False) -> Optional[str]:
     if args.encrypt != "all":
         return None
     if args.root_partno is None:
@@ -720,7 +730,9 @@ def luks_setup_srv(args: CommandLineArguments, loopdev: str, run_build_script: b
         return luks_open(partition(loopdev, args.srv_partno), args.passphrase)
 
 @contextlib.contextmanager
-def luks_setup_all(args: CommandLineArguments, loopdev: str, run_build_script: bool) -> Iterator[Tuple[Optional[str], Optional[str], Optional[str]]]:
+def luks_setup_all(args: CommandLineArguments,
+                   loopdev: str,
+                   run_build_script: bool) -> Iterator[Tuple[Optional[str], Optional[str], Optional[str]]]:
     if not args.output_format.is_disk():
         yield (None, None, None)
         return
@@ -802,7 +814,13 @@ def mount_tmpfs(where: str) -> None:
     run(["mount", "tmpfs", "-t", "tmpfs", where], check=True)
 
 @contextlib.contextmanager
-def mount_image(args: CommandLineArguments, workspace: str, loopdev: str, root_dev: str, home_dev: str, srv_dev: str, root_read_only: bool=False) -> Iterator[None]:
+def mount_image(args: CommandLineArguments,
+                workspace: str,
+                loopdev: str,
+                root_dev: str,
+                home_dev: str,
+                srv_dev: str,
+                root_read_only: bool=False) -> Iterator[None]:
     if loopdev is None:
         yield None
         return
@@ -874,7 +892,9 @@ def mount_cache(args: CommandLineArguments, workspace: str) -> Iterator[None]:
         if args.distribution in (Distribution.fedora, Distribution.mageia):
             mount_bind(args.cache_path, os.path.join(workspace, "root", "var/cache/dnf"))
         elif args.distribution == Distribution.centos:
-            # We mount both the YUM and the DNF cache in this case, as YUM might just be redirected to DNF even if we invoke the former
+            # We mount both the YUM and the DNF cache in this case, as
+            # YUM might just be redirected to DNF even if we invoke
+            # the former
             mount_bind(os.path.join(args.cache_path, "yum"), os.path.join(workspace, "root", "var/cache/yum"))
             mount_bind(os.path.join(args.cache_path, "dnf"), os.path.join(workspace, "root", "var/cache/dnf"))
         elif args.distribution in (Distribution.debian, Distribution.ubuntu):
@@ -887,7 +907,7 @@ def mount_cache(args: CommandLineArguments, workspace: str) -> Iterator[None]:
         yield
     finally:
         with complete_step('Unmounting Package Cache'):
-            for d in ("var/cache/dnf", "var/cache/yum", "var/cache/apt/archives", "var/cache/pacman/pkg", "var/cache/zypp/packages"):
+            for d in ("var/cache/dnf", "var/cache/yum", "var/cache/apt/archives", "var/cache/pacman/pkg", "var/cache/zypp/packages"):  # NOQA: E501
                 umount(os.path.join(workspace, "root", d))
 
 def umount(where: str) -> None:
@@ -987,7 +1007,12 @@ def enable_networkmanager(workspace: str) -> None:
          "enable", "NetworkManager"],
         check=True)
 
-def run_workspace_command(args: CommandLineArguments, workspace: str, *cmd: str, network: bool=False, env: Dict[str, str]={}, nspawn_params: List[str]=[]) -> None:
+def run_workspace_command(args: CommandLineArguments,
+                          workspace: str,
+                          *cmd: str,
+                          network: bool=False,
+                          env: Dict[str, str]={},
+                          nspawn_params: List[str]=[]) -> None:
     cmdline = ["systemd-nspawn",
                '--quiet',
                "--directory=" + os.path.join(workspace, "root"),
@@ -1129,7 +1154,11 @@ def clean_package_manager_metadata(workspace: str):
     clean_rpm_metadata(root)
     # FIXME: implement cleanup for other package managers
 
-def invoke_dnf(args: CommandLineArguments, workspace: str, repositories: List[str], packages: List[str], config_file: str) -> None:
+def invoke_dnf(args: CommandLineArguments,
+               workspace: str,
+               repositories: List[str],
+               packages: List[str],
+               config_file: str) -> None:
     repos = ["--enablerepo=" + repo for repo in repositories]
 
     packages = make_rpm_list(args, packages)
@@ -1324,7 +1353,11 @@ gpgkey={gpg_key}
 
     reenable_kernel_install(args, workspace, masked)
 
-def invoke_yum(args: CommandLineArguments, workspace: str, repositories: List[str], packages: List[str], config_file: str) -> None:
+def invoke_yum(args: CommandLineArguments,
+               workspace: str,
+               repositories: List[str],
+               packages: List[str],
+               config_file: str) -> None:
     repos = ["--enablerepo=" + repo for repo in repositories]
 
     packages = make_rpm_list(args, packages)
@@ -1404,7 +1437,11 @@ gpgkey={gpg_key}
 def debootstrap_knows_merged_usr():
     return bytes("invalid option", "UTF-8") not in run(("debootstrap", "--merged-usr"), stdout=PIPE).stdout
 
-def install_debian_or_ubuntu(args: CommandLineArguments, workspace: str, *, run_build_script: bool, mirror: str) -> None:
+def install_debian_or_ubuntu(args: CommandLineArguments,
+                             workspace: str,
+                             *,
+                             run_build_script: bool,
+                             mirror: str) -> None:
     repos = args.repositories if args.repositories else ["main"]
     # Ubuntu needs the 'universe' repo to install 'dracut'
     if args.distribution == Distribution.ubuntu and args.bootable and 'universe' not in repos:
@@ -1494,7 +1531,11 @@ def install_debian_or_ubuntu(args: CommandLineArguments, workspace: str, *, run_
             f.writelines(f'path-exclude {d}/*\n' for d in doc_paths)
 
     cmdline = ["/usr/bin/apt-get", "--assume-yes", "--no-install-recommends", "install"] + extra_packages
-    run_workspace_command(args, workspace, network=True, env={'DEBIAN_FRONTEND': 'noninteractive', 'DEBCONF_NONINTERACTIVE_SEEN': 'true'}, *cmdline)
+    env = {
+        'DEBIAN_FRONTEND': 'noninteractive',
+        'DEBCONF_NONINTERACTIVE_SEEN': 'true',
+    }
+    run_workspace_command(args, workspace, network=True, env=env, *cmdline)
     os.unlink(policyrcd)
 
 @complete_step('Installing Debian')
@@ -1868,7 +1909,8 @@ def find_kernel_file(workspace_root, pattern):
     workspace_pattern = os.path.join(workspace_root, pattern.lstrip('/'))
     kernel_files = sorted(glob.glob(workspace_pattern))
     kernel_file = kernel_files[0]
-    # The path the kernel-install script expects is within the workspace reference as it is run from within the container
+    # The path the kernel-install script expects is within the
+    # workspace reference as it is run from within the container
     if kernel_file.startswith(workspace_root):
         kernel_file = kernel_file[len(workspace_root):]
     else:
@@ -1917,8 +1959,13 @@ def install_boot_loader_arch(args, workspace, loopdev):
     if "uefi" in args.boot_protocols:
         # add loader entries and copy kernel/initrd under that entry
         workspace_root = os.path.join(workspace, "root")
-        kernel_version = next(filter(lambda x: x[0].isdigit(), os.listdir(os.path.join(workspace_root, "lib/modules"))))
-        run_workspace_command(args, workspace, "/usr/bin/kernel-install", "add", kernel_version, find_kernel_file(workspace_root, "/boot/vmlinuz-*"))
+        kernel_version = next(filter(lambda x: x[0].isdigit(),
+                                     os.listdir(os.path.join(workspace_root, "lib/modules"))))
+        run_workspace_command(args, workspace,
+                              "/usr/bin/kernel-install",
+                              "add",
+                              kernel_version,
+                              find_kernel_file(workspace_root, "/boot/vmlinuz-*"))
 
     if "bios" in args.boot_protocols:
         install_grub(args, workspace, loopdev, "grub")
@@ -2075,9 +2122,9 @@ def install_build_src(args, workspace, run_build_script, for_cache):
                                                 '.mkosi-*',
                                                 '*.cache-pre-dev',
                                                 '*.cache-pre-inst',
-                                                os.path.basename(args.output_dir)+"/" if args.output_dir else "mkosi.output/",
-                                                os.path.basename(args.cache_path)+"/" if args.cache_path else "mkosi.cache/",
-                                                os.path.basename(args.build_dir)+"/" if args.build_dir else "mkosi.builddir/")
+                                                os.path.basename(args.output_dir)+"/" if args.output_dir else "mkosi.output/",  # NOQA: E501
+                                                os.path.basename(args.cache_path)+"/" if args.cache_path else "mkosi.cache/",  # NOQA: E501
+                                                os.path.basename(args.build_dir)+"/" if args.build_dir else "mkosi.builddir/")  # NOQA: E501
                 shutil.copytree(args.build_sources, target, symlinks=True, ignore=ignore)
 
 def install_build_dest(args, workspace, run_build_script, for_cache):
@@ -2242,7 +2289,11 @@ def insert_squashfs(args, workspace, raw, loopdev, squashfs, for_cache):
         args.root_size = insert_partition(args, workspace, raw, loopdev, args.root_partno, squashfs,
                                           "Root Partition", gpt_root_native(args.architecture).root)
 
-def make_verity(args: CommandLineArguments, workspace, dev, run_build_script: bool, for_cache: bool) -> Tuple[Optional[IO[str]], Optional[str]]:
+def make_verity(args: CommandLineArguments,
+                workspace,
+                dev,
+                run_build_script: bool,
+                for_cache: bool) -> Tuple[Optional[IO[str]], Optional[str]]:
     if run_build_script or not args.verity:
         return None, None
     if for_cache:
@@ -2441,7 +2492,11 @@ def hash_file(of: IO[Any], sf: IO[bytes], fname: str) -> None:
 
     of.write(h.hexdigest() + " *" + fname + "\n")
 
-def calculate_sha256sum(args: CommandLineArguments, raw: Optional[IO[str]], tar: Optional[IO[str]], root_hash_file: str, nspawn_settings: str) -> Optional[IO[bytes]]:
+def calculate_sha256sum(args: CommandLineArguments,
+                        raw: Optional[IO[str]],
+                        tar: Optional[IO[str]],
+                        root_hash_file: str,
+                        nspawn_settings: str) -> Optional[IO[bytes]]:
     if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
         return None
 
@@ -2596,7 +2651,7 @@ def print_output_size(args: CommandLineArguments) -> None:
         print_step("Resulting image size is " + format_bytes(dir_size(args.output)) + ".")
     else:
         st = os.stat(args.output)
-        print_step("Resulting image size is " + format_bytes(st.st_size) + ", consumes " + format_bytes(st.st_blocks * 512) + ".")
+        print_step("Resulting image size is " + format_bytes(st.st_size) + ", consumes " + format_bytes(st.st_blocks * 512) + ".")  # NOQA: E501
 
 def setup_package_cache(args: CommandLineArguments) -> Optional[tempfile.TemporaryDirectory]:
     with complete_step('Setting up package cache',
@@ -2643,7 +2698,8 @@ def parse_args() -> CommandLineArguments:
     parser = argparse.ArgumentParser(description='Build Legacy-Free OS Images', add_help=False)
 
     group = parser.add_argument_group("Commands")
-    group.add_argument("verb", choices=("build", "clean", "help", "summary", "shell", "boot", "qemu"), nargs='?', default="build", help='Operation to execute')
+    group.add_argument("verb", choices=("build", "clean", "help", "summary", "shell", "boot", "qemu"), nargs='?',
+                       default="build", help='Operation to execute')
     group.add_argument("cmdline", nargs=argparse.REMAINDER, help="The command line to use for 'shell', 'boot', 'qemu'")
     group.add_argument('-h', '--help', action='help', help="Show this help")
     group.add_argument('--version', action='version', version='%(prog)s ' + __version__)
@@ -2652,7 +2708,8 @@ def parse_args() -> CommandLineArguments:
     group.add_argument('-d', "--distribution", choices=Distribution.__members__, help='Distribution to install')
     group.add_argument('-r', "--release", help='Distribution release to install')
     group.add_argument('-m', "--mirror", help='Distribution mirror to use')
-    group.add_argument("--repositories", action=CommaDelimitedListAction, dest='repositories', help='Repositories to use', metavar='REPOS')
+    group.add_argument("--repositories", action=CommaDelimitedListAction, dest='repositories',
+                       help='Repositories to use', metavar='REPOS')
     group.add_argument('--architecture', help='Override the architecture of installation')
 
     group = parser.add_argument_group("Output")
@@ -2660,61 +2717,83 @@ def parse_args() -> CommandLineArguments:
                        help='Output Format')
     group.add_argument('-o', "--output", help='Output image path', metavar='PATH')
     group.add_argument('-O', "--output-dir", help='Output root directory', metavar='DIR')
-    group.add_argument('-f', "--force", action='count', dest='force_count', default=0, help='Remove existing image file before operation')
+    group.add_argument('-f', "--force", action='count', dest='force_count', default=0,
+                       help='Remove existing image file before operation')
     group.add_argument('-b', "--bootable", type=parse_boolean, nargs='?', const=True,
                        help='Make image bootable on EFI (only gpt_ext4, gpt_btrfs, gpt_squashfs, gpt_xfs)')
     group.add_argument("--boot-protocols", action=CommaDelimitedListAction,
                        help="Boot protocols to use on a bootable image", metavar="PROTOCOLS", default=[])
-    group.add_argument("--secure-boot", action='store_true', help='Sign the resulting kernel/initrd image for UEFI SecureBoot')
+    group.add_argument("--secure-boot", action='store_true',
+                       help='Sign the resulting kernel/initrd image for UEFI SecureBoot')
     group.add_argument("--secure-boot-key", help="UEFI SecureBoot private key in PEM format", metavar='PATH')
     group.add_argument("--secure-boot-certificate", help="UEFI SecureBoot certificate in X509 format", metavar='PATH')
-    group.add_argument("--read-only", action='store_true', help='Make root volume read-only (only gpt_ext4, gpt_btrfs, subvolume, implied with squashfs)')
-    group.add_argument("--encrypt", choices=("all", "data"), help='Encrypt everything except: ESP ("all") or ESP and root ("data")')
+    group.add_argument("--read-only", action='store_true',
+                       help='Make root volume read-only (only gpt_ext4, gpt_btrfs, subvolume, implied with squashfs)')
+    group.add_argument("--encrypt", choices=("all", "data"),
+                       help='Encrypt everything except: ESP ("all") or ESP and root ("data")')
     group.add_argument("--verity", action='store_true', help='Add integrity partition (implies --read-only)')
     group.add_argument("--compress", type=parse_compression,
                        help='Enable compression in file system (only gpt_btrfs, subvolume, gpt_squashfs, squashfs)')
-    group.add_argument('--mksquashfs', dest='mksquashfs_tool', type=str.split, help='Script to call instead of mksquashfs')
+    group.add_argument('--mksquashfs', dest='mksquashfs_tool', type=str.split,
+                       help='Script to call instead of mksquashfs')
 
-    group.add_argument("--xz", action='store_true', help='Compress resulting image with xz (only gpt_ext4, gpt_btrfs, gpt_squashfs, gpt_xfs, implied on tar)')
-    group.add_argument("--qcow2", action='store_true', help='Convert resulting image to qcow2 (only gpt_ext4, gpt_btrfs, gpt_squashfs, gpt_xfs)')
-    group.add_argument('-i', "--incremental", action='store_true', help='Make use of and generate intermediary cache images')
+    group.add_argument("--xz", action='store_true',
+                       help='Compress resulting image with xz (only gpt_ext4, gpt_btrfs, gpt_squashfs, gpt_xfs, implied on tar)')  # NOQA: E501
+    group.add_argument("--qcow2", action='store_true',
+                       help='Convert resulting image to qcow2 (only gpt_ext4, gpt_btrfs, gpt_squashfs, gpt_xfs)')
+    group.add_argument('-i', "--incremental", action='store_true',
+                       help='Make use of and generate intermediary cache images')
 
     group = parser.add_argument_group("Packages")
-    group.add_argument('-p', "--package", action=CommaDelimitedListAction, dest='packages', default=[], help='Add an additional package to the OS image', metavar='PACKAGE')
-    group.add_argument("--with-docs", action='store_true', help='Install documentation (only Fedora, CentOS and Mageia)', default=None)
-    group.add_argument('-T', "--without-tests", action='store_false', dest='with_tests', default=True, help='Do not run tests as part of build script, if supported')
+    group.add_argument('-p', "--package", action=CommaDelimitedListAction, dest='packages', default=[],
+                       help='Add an additional package to the OS image', metavar='PACKAGE')
+    group.add_argument("--with-docs", action='store_true', default=None,
+                       help='Install documentation (only Fedora, CentOS and Mageia)')
+    group.add_argument('-T', "--without-tests", action='store_false', dest='with_tests', default=True,
+                       help='Do not run tests as part of build script, if supported')
     group.add_argument("--cache", dest='cache_path', help='Package cache path', metavar='PATH')
-    group.add_argument("--extra-tree", action='append', dest='extra_trees', default=[], help='Copy an extra tree on top of image', metavar='PATH')
-    group.add_argument("--skeleton-tree", action='append', dest='skeleton_trees', default=[], help='Use a skeleton tree to bootstrap the image before installing anything', metavar='PATH')
+    group.add_argument("--extra-tree", action='append', dest='extra_trees', default=[],
+                       help='Copy an extra tree on top of image', metavar='PATH')
+    group.add_argument("--skeleton-tree", action='append', dest='skeleton_trees', default=[],
+                       help='Use a skeleton tree to bootstrap the image before installing anything', metavar='PATH')
     group.add_argument("--build-script", help='Build script to run inside image', metavar='PATH')
     group.add_argument("--build-sources", help='Path for sources to build', metavar='PATH')
     group.add_argument("--build-dir", help='Path to use as persistent build directory', metavar='PATH')
-    group.add_argument("--build-package", action=CommaDelimitedListAction, dest='build_packages', default=[], help='Additional packages needed for build script', metavar='PACKAGE')
+    group.add_argument("--build-package", action=CommaDelimitedListAction, dest='build_packages', default=[],
+                       help='Additional packages needed for build script', metavar='PACKAGE')
     group.add_argument("--postinst-script", help='Postinstall script to run inside image', metavar='PATH')
     group.add_argument("--finalize-script", help='Postinstall script to run outside image', metavar='PATH')
     group.add_argument('--use-git-files', type=parse_boolean,
                        help='Ignore any files that git itself ignores (default: guess)')
     group.add_argument('--git-files', choices=('cached', 'others'),
                        help='Whether to include untracked files (default: others)')
-    group.add_argument("--with-network", action='store_true', help='Run build and postinst scripts with network access (instead of private network)', default=None)
+    group.add_argument("--with-network", action='store_true', default=None,
+                       help='Run build and postinst scripts with network access (instead of private network)')
     group.add_argument("--settings", dest='nspawn_settings', help='Add in .spawn settings file', metavar='PATH')
 
     group = parser.add_argument_group("Partitions")
-    group.add_argument("--root-size", help='Set size of root partition (only gpt_ext4, gpt_btrfs, gpt_xfs)', metavar='BYTES')
-    group.add_argument("--esp-size", help='Set size of EFI system partition (only gpt_ext4, gpt_btrfs, gpt_squashfs, gpt_xfs)', metavar='BYTES')
-    group.add_argument("--swap-size", help='Set size of swap partition (only gpt_ext4, gpt_btrfs, gpt_squashfs, gpt_xfs)', metavar='BYTES')
-    group.add_argument("--home-size", help='Set size of /home partition (only gpt_ext4, gpt_squashfs, gpt_xfs)', metavar='BYTES')
-    group.add_argument("--srv-size", help='Set size of /srv partition (only gpt_ext4, gpt_squashfs, gpt_xfs)', metavar='BYTES')
+    group.add_argument("--root-size",
+                       help='Set size of root partition (only gpt_ext4, gpt_btrfs, gpt_xfs)', metavar='BYTES')
+    group.add_argument("--esp-size",
+                       help='Set size of EFI system partition (only gpt_ext4, gpt_btrfs, gpt_squashfs, gpt_xfs)', metavar='BYTES')  # NOQA: E501
+    group.add_argument("--swap-size",
+                       help='Set size of swap partition (only gpt_ext4, gpt_btrfs, gpt_squashfs, gpt_xfs)', metavar='BYTES')  # NOQA: E501
+    group.add_argument("--home-size",
+                       help='Set size of /home partition (only gpt_ext4, gpt_squashfs, gpt_xfs)', metavar='BYTES')
+    group.add_argument("--srv-size",
+                       help='Set size of /srv partition (only gpt_ext4, gpt_squashfs, gpt_xfs)', metavar='BYTES')
 
     group = parser.add_argument_group("Validation (only gpt_ext4, gpt_btrfs, gpt_squashfs, gpt_xfs, tar)")
     group.add_argument("--checksum", action='store_true', help='Write SHA256SUMS file')
     group.add_argument("--sign", action='store_true', help='Write and sign SHA256SUMS file')
     group.add_argument("--key", help='GPG key to use for signing')
-    group.add_argument("--bmap", action='store_true', help='Write block map file (.bmap) for bmaptool usage (only gpt_ext4, gpt_btrfs)')
+    group.add_argument("--bmap", action='store_true',
+                       help='Write block map file (.bmap) for bmaptool usage (only gpt_ext4, gpt_btrfs)')
     group.add_argument("--password", help='Set the root password')
 
     group = parser.add_argument_group("Host configuration")
-    group.add_argument("--extra-search-paths", action=ColonDelimitedListAction, default=[], help="List of colon-separated paths to look for programs before looking in PATH")
+    group.add_argument("--extra-search-paths", action=ColonDelimitedListAction, default=[],
+                       help="List of colon-separated paths to look for programs before looking in PATH")
 
     group = parser.add_argument_group("Additional Configuration")
     group.add_argument('-C', "--directory", help='Change to specified directory before doing anything', metavar='PATH')
@@ -2725,7 +2804,8 @@ def parse_args() -> CommandLineArguments:
     group.add_argument('--debug', action=CommaDelimitedListAction, default=[],
                        help='Turn on debugging output', metavar='SELECTOR',
                        choices=('run',))
-    group.add_argument('--no-chown', action='store_true', help='When running with sudo, disable reassignment of ownership of the generated files to the original user')
+    group.add_argument('--no-chown', action='store_true',
+                       help='When running with sudo, disable reassignment of ownership of the generated files to the original user')  # NOQA: E501
 
     try:
         argcomplete.autocomplete(parser)
@@ -3462,10 +3542,10 @@ def load_args() -> CommandLineArguments:
 
     if args.secure_boot:
         if args.secure_boot_key is None:
-            die("UEFI SecureBoot enabled, but couldn't find private key. (Consider placing it in mkosi.secure-boot.key?)")
+            die("UEFI SecureBoot enabled, but couldn't find private key. (Consider placing it in mkosi.secure-boot.key?)")  # NOQA: E501
 
         if args.secure_boot_certificate is None:
-            die("UEFI SecureBoot enabled, but couldn't find certificate. (Consider placing it in mkosi.secure-boot.crt?)")
+            die("UEFI SecureBoot enabled, but couldn't find certificate. (Consider placing it in mkosi.secure-boot.crt?)")  # NOQA: E501
 
     if args.verb in ("shell", "boot", "qemu"):
         if args.output_format == OutputFormat.tar:
@@ -3546,7 +3626,7 @@ def print_summary(args: CommandLineArguments) -> None:
     sys.stderr.write("       Output Checksum: " + none_to_na(args.output_checksum if args.checksum else None) + "\n")
     sys.stderr.write("      Output Signature: " + none_to_na(args.output_signature if args.sign else None) + "\n")
     sys.stderr.write("           Output Bmap: " + none_to_na(args.output_bmap if args.bmap else None) + "\n")
-    sys.stderr.write("Output nspawn Settings: " + none_to_na(args.output_nspawn_settings if args.nspawn_settings is not None else None) + "\n")
+    sys.stderr.write("Output nspawn Settings: " + none_to_na(args.output_nspawn_settings if args.nspawn_settings is not None else None) + "\n")  # NOQA: E501
     sys.stderr.write("           Incremental: " + yes_no(args.incremental) + "\n")
 
     sys.stderr.write("             Read-only: " + yes_no(args.read_only) + "\n")
@@ -3618,7 +3698,11 @@ def print_summary(args: CommandLineArguments) -> None:
     sys.stderr.write("\nHOST CONFIGURATION:\n")
     sys.stderr.write("    Extra search paths: " + line_join_list(args.extra_search_paths) + "\n")
 
-def reuse_cache_tree(args: CommandLineArguments, workspace: str, run_build_script: bool, for_cache: bool, cached: bool) -> bool:
+def reuse_cache_tree(args: CommandLineArguments,
+                     workspace: str,
+                     run_build_script: bool,
+                     for_cache: bool,
+                     cached: bool) -> bool:
     """If there's a cached version of this tree around, use it and
     initialize our new root directly from it. Returns a boolean indicating
     whether we are now operating on a cached version or not."""
@@ -3659,7 +3743,12 @@ def make_build_dir(args: CommandLineArguments) -> None:
 
     mkdir_last(args.build_dir, 0o755)
 
-def build_image(args: CommandLineArguments, workspace: tempfile.TemporaryDirectory, *, run_build_script: bool, for_cache: bool=False, cleanup: bool=False) -> Tuple[Optional[IO[str]], Optional[IO[str]], Optional[str]]:
+def build_image(args: CommandLineArguments,
+                workspace: tempfile.TemporaryDirectory,
+                *,
+                run_build_script: bool,
+                for_cache: bool=False,
+                cleanup: bool=False) -> Tuple[Optional[IO[str]], Optional[IO[str]], Optional[str]]:
     # If there's no build script set, there's no point in executing
     # the build script iteration. Let's quit early.
     if args.build_script is None and run_build_script:
@@ -3722,7 +3811,8 @@ def build_image(args: CommandLineArguments, workspace: tempfile.TemporaryDirecto
             # This time we mount read-only, as we already generated
             # the verity data, and hence really shouldn't modify the
             # image anymore.
-            with mount_image(args, workspace.name, loopdev, encrypted_root, encrypted_home, encrypted_srv, root_read_only=True):
+            with mount_image(args, workspace.name, loopdev,
+                             encrypted_root, encrypted_home, encrypted_srv, root_read_only=True):
                 install_unified_kernel(args, workspace.name, run_build_script, for_cache, root_hash)
                 secure_boot_sign(args, workspace.name, run_build_script, for_cache)
 
@@ -3787,7 +3877,12 @@ def need_cache_images(args: CommandLineArguments) -> bool:
 
     return not os.path.exists(args.cache_pre_dev) or not os.path.exists(args.cache_pre_inst)
 
-def remove_artifacts(args: CommandLineArguments, workspace: str, raw: Optional[IO[str]], tar: Optional[IO[str]], run_build_script: bool, for_cache:bool=False) -> None:
+def remove_artifacts(args: CommandLineArguments,
+                     workspace: str,
+                     raw: Optional[IO[str]],
+                     tar: Optional[IO[str]],
+                     run_build_script: bool,
+                     for_cache:bool=False) -> None:
     if for_cache:
         what = "cache build"
     elif run_build_script:
@@ -3891,7 +3986,10 @@ def check_native(args: CommandLineArguments) -> None:
         die('Cannot (currently) override the architecture and run build commands')
 
 def run_shell(args: CommandLineArguments) -> None:
-    target = "--directory=" + args.output if args.output_format in (OutputFormat.directory, OutputFormat.subvolume) else "--image=" + args.output
+    if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
+        target = "--directory=" + args.output
+    else:
+        target = "--image=" + args.output
 
     cmdline = ["systemd-nspawn",
                target]
