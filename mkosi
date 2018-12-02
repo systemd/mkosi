@@ -45,12 +45,6 @@ from typing import (
     cast,
 )
 
-try:
-    import argcomplete
-except ImportError:
-    pass
-
-
 __version__ = '4'
 
 if sys.version_info < (3, 6):
@@ -2966,8 +2960,9 @@ def parse_args() -> CommandLineArguments:
                        help='When running with sudo, disable reassignment of ownership of the generated files to the original user')  # NOQA: E501
 
     try:
+        import argcomplete  # type: ignore
         argcomplete.autocomplete(parser)
-    except NameError:
+    except ImportError:
         pass
 
     args = parser.parse_args(namespace=CommandLineArguments())
