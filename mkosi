@@ -130,6 +130,7 @@ class OutputFormat(enum.Enum):
         return self in (OutputFormat.gpt_ext4,
                         OutputFormat.gpt_btrfs,
                         OutputFormat.gpt_xfs)
+
     def is_disk(self):
         "Output format is a disk image with a partition table"
         return self.is_disk_rw() or self == OutputFormat.gpt_squashfs
@@ -2808,6 +2809,7 @@ class ListAction(argparse.Action):
     def __init__(self, *args, choices=None, **kwargs):
         self.list_choices = choices
         super().__init__(*args, **kwargs)
+
     def __call__(self, parser, namespace, values, option_string=None):
         l = getattr(namespace, self.dest)
         if l is None:
