@@ -1405,7 +1405,7 @@ gpgkey={gpg_key}
 
 
 @completestep('Installing Mageia')
-def install_mageia(args: CommandLineArguments, workspace: str, *, run_build_script: bool) -> None:
+def install_mageia(args: CommandLineArguments, workspace: str, run_build_script: bool) -> None:
     masked = disable_kernel_install(args, workspace)
 
     # Mageia does not (yet) have RPM GPG key on the web
@@ -1495,7 +1495,7 @@ def invoke_dnf_or_yum(args: CommandLineArguments,
 
 
 @completestep('Installing CentOS')
-def install_centos(args: CommandLineArguments, workspace: str, *, run_build_script: bool) -> None:
+def install_centos(args: CommandLineArguments, workspace: str, run_build_script: bool) -> None:
     masked = disable_kernel_install(args, workspace)
 
     gpg_key = f"/etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-{args.release}"
@@ -1647,17 +1647,17 @@ def install_debian_or_ubuntu(args: CommandLineArguments,
 
 
 @completestep('Installing Debian')
-def install_debian(args: CommandLineArguments, workspace: str, *, run_build_script: bool) -> None:
+def install_debian(args: CommandLineArguments, workspace: str, run_build_script: bool) -> None:
     install_debian_or_ubuntu(args, workspace, run_build_script=run_build_script, mirror=args.mirror)
 
 
 @completestep('Installing Ubuntu')
-def install_ubuntu(args: CommandLineArguments, workspace: str, *, run_build_script: bool) -> None:
+def install_ubuntu(args: CommandLineArguments, workspace: str, run_build_script: bool) -> None:
     install_debian_or_ubuntu(args, workspace, run_build_script=run_build_script, mirror=args.mirror)
 
 
 @completestep('Installing Arch Linux')
-def install_arch(args: CommandLineArguments, workspace: str, *, run_build_script: bool) -> None:
+def install_arch(args: CommandLineArguments, workspace: str, run_build_script: bool) -> None:
     if args.release is not None:
         sys.stderr.write("Distribution release specification is not supported for Arch Linux, ignoring.\n")
 
@@ -1823,7 +1823,7 @@ SigLevel    = Required DatabaseOptional
 
 
 @completestep('Installing openSUSE')
-def install_opensuse(args: CommandLineArguments, workspace: str, *, run_build_script: bool) -> None:
+def install_opensuse(args: CommandLineArguments, workspace: str, run_build_script: bool) -> None:
     root = os.path.join(workspace, "root")
     release = args.release.strip('"')
 
@@ -1909,12 +1909,12 @@ def install_opensuse(args: CommandLineArguments, workspace: str, *, run_build_sc
 def install_distribution(args: CommandLineArguments,
                          workspace: str,
                          *,
-                         cached: bool,
-                         **kwargs: Any) -> None:
+                         run_build_script: bool,
+                         cached: bool) -> None:
     if cached:
         return
 
-    install = {
+    install: Dict[Distribution, Callable[[CommandLineArguments, str, bool], None]] = {
         Distribution.fedora: install_fedora,
         Distribution.centos: install_centos,
         Distribution.mageia: install_mageia,
@@ -1925,7 +1925,7 @@ def install_distribution(args: CommandLineArguments,
         Distribution.clear: install_clear,
     }
 
-    install[args.distribution](args, workspace, **kwargs)
+    install[args.distribution](args, workspace, run_build_script)
 
 
 def reset_machine_id(args: CommandLineArguments, workspace: str, run_build_script: bool, for_cache: bool) -> None:
