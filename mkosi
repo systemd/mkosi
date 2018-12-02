@@ -1543,8 +1543,8 @@ def install_debian_or_ubuntu(args: CommandLineArguments,
         cmdline += ["--merged-usr"]
 
     cmdline += [args.release,
-               workspace + "/root",
-               mirror]
+                workspace + "/root",
+                mirror]
 
     if args.bootable and args.output_format == OutputFormat.gpt_btrfs:
         cmdline[4] += ",btrfs-tools"
@@ -2039,9 +2039,9 @@ def install_grub(args, workspace, loopdev, grub):
     ]
 
     run_workspace_command(
-            args, workspace, f"{grub}-install",
-            "--modules=ext2 part_gpt", "--target=i386-pc",
-            loopdev, nspawn_params=nspawn_params)
+        args, workspace, f"{grub}-install",
+        "--modules=ext2 part_gpt", "--target=i386-pc",
+        loopdev, nspawn_params=nspawn_params)
 
     run_workspace_command(
             args, workspace, f"{grub}-mkconfig",
@@ -2073,7 +2073,7 @@ def install_boot_loader_debian(args, workspace):
     kernel_version = next(filter(lambda x: x[0].isdigit(), os.listdir(os.path.join(workspace, "root", "lib/modules"))))
 
     run_workspace_command(args, workspace,
-                    "/usr/bin/kernel-install", "add", kernel_version, "/boot/vmlinuz-" + kernel_version)
+                          "/usr/bin/kernel-install", "add", kernel_version, "/boot/vmlinuz-" + kernel_version)
 
 
 def install_boot_loader_ubuntu(args, workspace):
@@ -2711,7 +2711,7 @@ def _link_output(args: CommandLineArguments, oldpath: str, newpath: str):
     sudo_user = os.getenv("SUDO_USER", default=sudo_uid)
     with complete_step(f"Changing ownership of output file {newpath} to user {sudo_user} (acquired from sudo)",
                        f"Successfully changed ownership of {newpath}"):
-       os.chown(newpath, int(sudo_uid), int(sudo_gid))
+        os.chown(newpath, int(sudo_uid), int(sudo_gid))
 
 
 def link_output(args: CommandLineArguments, workspace: str, artifact: str) -> None:
@@ -4204,8 +4204,8 @@ def run_qemu(args: CommandLineArguments) -> None:
                     ['qemu', '-machine', 'accel=kvm'],
                     ['qemu-kvm']):
 
-           if cmdline[0] and shutil.which(cmdline[0]):
-               break
+        if cmdline[0] and shutil.which(cmdline[0]):
+            break
     else:
         die("Couldn't find QEMU/KVM binary")
 
