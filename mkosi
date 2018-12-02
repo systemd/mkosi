@@ -31,6 +31,7 @@ from subprocess import DEVNULL, PIPE
 from typing import (
     IO,
     Any,
+    BinaryIO,
     Callable,
     Dict,
     Iterable,
@@ -38,8 +39,10 @@ from typing import (
     List,
     NoReturn,
     Optional,
+    TextIO,
     Tuple,
     Union,
+    cast,
 )
 
 try:
@@ -531,7 +534,8 @@ def create_image(args: CommandLineArguments, workspace: str, for_cache: bool) ->
     with complete_step('Creating partition table',
                        'Created partition table as {.name}') as output:
 
-        f = tempfile.NamedTemporaryFile(dir=os.path.dirname(args.output), prefix='.mkosi-', delete=not for_cache)
+        f: BinaryIO = cast(BinaryIO, tempfile.NamedTemporaryFile(prefix='.mkosi-', delete=not for_cache,
+                                                                 dir=os.path.dirname(args.output)))
         output.append(f)
         disable_cow(f.name)
         f.truncate(image_size(args))
@@ -577,7 +581,8 @@ def reuse_cache_image(args: CommandLineArguments,
             return None, False
 
         with source:
-            f = tempfile.NamedTemporaryFile(dir=os.path.dirname(args.output), prefix='.mkosi-')
+            f: BinaryIO = cast(BinaryIO, tempfile.NamedTemporaryFile(prefix='.mkosi-',
+                                                                     dir=os.path.dirname(args.output)))
             output.append(f)
 
             # So on one hand we want CoW off, since this stuff will
@@ -2269,7 +2274,7 @@ def make_tar(args, workspace, run_build_script, for_cache):
         return None
 
     with complete_step('Creating archive'):
-        f = tempfile.NamedTemporaryFile(dir=os.path.dirname(args.output), prefix=".mkosi-")
+        f: BinaryIO = cast(BinaryIO, tempfile.NamedTemporaryFile(dir=os.path.dirname(args.output), prefix=".mkosi-"))
         run(["tar", "-C", os.path.join(workspace, "root"),
              "-c", "-J", "--xattrs", "--xattrs-include=*", "."],
             stdout=f, check=True)
@@ -2292,7 +2297,8 @@ def make_squashfs(args, workspace, for_cache):
         comp_args += ['-comp', args.compress]
 
     with complete_step('Creating squashfs file system'):
-        f = tempfile.NamedTemporaryFile(dir=os.path.dirname(args.output), prefix=".mkosi-squashfs")
+        f: BinaryIO = cast(BinaryIO, tempfile.NamedTemporaryFile(prefix=".mkosi-squashfs",
+                                                                 dir=os.path.dirname(args.output)))
         run([command, os.path.join(workspace, "root"), f.name, *comp_args],
             check=True)
 
@@ -2414,7 +2420,7 @@ def make_verity(args: CommandLineArguments,
         return None, None
 
     with complete_step('Generating verity hashes'):
-        f = tempfile.NamedTemporaryFile(dir=os.path.dirname(args.output), prefix=".mkosi-")
+        f: BinaryIO = cast(BinaryIO, tempfile.NamedTemporaryFile(dir=os.path.dirname(args.output), prefix=".mkosi-"))
         c = run(["veritysetup", "format", dev, f.name], stdout=PIPE, check=True)
 
         for line in c.stdout.decode("utf-8").split('\n'):
@@ -2557,7 +2563,7 @@ def xz_output(args, raw):
     xz_binary = "pxz" if shutil.which("pxz") else "xz"
 
     with complete_step('Compressing image file'):
-        f = tempfile.NamedTemporaryFile(prefix=".mkosi-", dir=os.path.dirname(args.output))
+        f: BinaryIO = cast(BinaryIO, tempfile.NamedTemporaryFile(prefix=".mkosi-", dir=os.path.dirname(args.output)))
         run([xz_binary, "-c", raw.name], stdout=f, check=True)
 
     return f
@@ -2571,7 +2577,7 @@ def qcow2_output(args, raw):
         return raw
 
     with complete_step('Converting image file to qcow2'):
-        f = tempfile.NamedTemporaryFile(prefix=".mkosi-", dir=os.path.dirname(args.output))
+        f: BinaryIO = cast(BinaryIO, tempfile.NamedTemporaryFile(prefix=".mkosi-", dir=os.path.dirname(args.output)))
         run(["qemu-img", "convert", "-fraw", "-Oqcow2", raw.name, f.name], check=True)
 
     return f
@@ -2582,8 +2588,8 @@ def write_root_hash_file(args, root_hash):
         return None
 
     with complete_step('Writing .roothash file'):
-        f = tempfile.NamedTemporaryFile(mode='w+b', prefix='.mkosi',
-                                        dir=os.path.dirname(args.output_root_hash_file))
+        f: BinaryIO = cast(BinaryIO, tempfile.NamedTemporaryFile(mode='w+b', prefix='.mkosi',
+                                                                 dir=os.path.dirname(args.output_root_hash_file)))
         f.write((root_hash + "\n").encode())
 
     return f
@@ -2594,8 +2600,8 @@ def copy_nspawn_settings(args):
         return None
 
     with complete_step('Copying nspawn settings file'):
-        f = tempfile.NamedTemporaryFile(mode="w+b", prefix=".mkosi-",
-                                        dir=os.path.dirname(args.output_nspawn_settings))
+        f: BinaryIO = cast(BinaryIO, tempfile.NamedTemporaryFile(mode="w+b", prefix=".mkosi-",
+                                                                 dir=os.path.dirname(args.output_nspawn_settings)))
 
         with open(args.nspawn_settings, "rb") as c:
             f.write(c.read())
@@ -2628,8 +2634,8 @@ def calculate_sha256sum(args: CommandLineArguments,
         return None
 
     with complete_step('Calculating SHA256SUMS'):
-        f = tempfile.NamedTemporaryFile(mode="w+", prefix=".mkosi-", encoding="utf-8",
-                                        dir=os.path.dirname(args.output_checksum))
+        f: TextIO = cast(TextIO, tempfile.NamedTemporaryFile(mode="w+", prefix=".mkosi-", encoding="utf-8",
+                                                             dir=os.path.dirname(args.output_checksum)))
 
         if raw is not None:
             hash_file(f, raw, os.path.basename(args.output))
@@ -2651,8 +2657,8 @@ def calculate_signature(args: CommandLineArguments, checksum: Optional[IO[Any]])
         return None
 
     with complete_step('Signing SHA256SUMS'):
-        f = tempfile.NamedTemporaryFile(mode="wb", prefix=".mkosi-",
-                                        dir=os.path.dirname(args.output_signature))
+        f: BinaryIO = cast(BinaryIO, tempfile.NamedTemporaryFile(mode="wb", prefix=".mkosi-",
+                                                                 dir=os.path.dirname(args.output_signature)))
 
         cmdline = ["gpg", "--detach-sign"]
 
@@ -2673,8 +2679,8 @@ def calculate_bmap(args: CommandLineArguments, raw: IO[Any]) -> Optional[IO[byte
         return None
 
     with complete_step('Creating BMAP file'):
-        f = tempfile.NamedTemporaryFile(mode="w+", prefix=".mkosi-", encoding="utf-8",
-                                        dir=os.path.dirname(args.output_bmap))
+        f: TextIO = cast(TextIO, tempfile.NamedTemporaryFile(mode="w+", prefix=".mkosi-", encoding="utf-8",
+                                                             dir=os.path.dirname(args.output_bmap)))
 
         cmdline = ["bmaptool", "create", raw.name]
         run(cmdline, stdout=f, check=True)
