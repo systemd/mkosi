@@ -1454,6 +1454,9 @@ def install_debian_or_ubuntu(args: CommandLineArguments, workspace: str, *, run_
         else:
             extra_packages += ["linux-image-amd64"]
 
+        if args.bios_partno:
+            extra_packages += ["grub-pc"]
+
     # Debian policy is to start daemons by default.
     # The policy-rc.d script can be used choose which ones to start
     # Let's install one that denies all daemon startups
@@ -1911,17 +1914,21 @@ def install_boot_loader_arch(args, workspace, loopdev):
     if "bios" in args.boot_protocols:
         install_grub(args, workspace, loopdev, "grub")
 
-def install_boot_loader_debian(args, workspace):
-    kernel_version = next(filter(lambda x: x[0].isdigit(), os.listdir(os.path.join(workspace, "root", "lib/modules"))))
+def install_boot_loader_debian(args, workspace, loopdev):
+    if "uefi" in args.boot_protocols:
+        kernel_version = next(filter(lambda x: x[0].isdigit(), os.listdir(os.path.join(workspace, "root", "lib/modules"))))
 
-    run_workspace_command(args, workspace,
-                    "/usr/bin/kernel-install", "add", kernel_version, "/boot/vmlinuz-" + kernel_version)
+        run_workspace_command(args, workspace,
+                        "/usr/bin/kernel-install", "add", kernel_version, "/boot/vmlinuz-" + kernel_version)
 
-def install_boot_loader_ubuntu(args, workspace):
-    install_boot_loader_debian(args, workspace)
+    if "bios" in args.boot_protocols:
+        install_grub(args, workspace, loopdev, "grub")
 
-def install_boot_loader_opensuse(args, workspace):
-    install_boot_loader_debian(args, workspace)
+def install_boot_loader_ubuntu(args, workspace, loopdev):
+    install_boot_loader_debian(args, workspace, loopdev)
+
+def install_boot_loader_opensuse(args, workspace, loopdev):
+    install_boot_loader_debian(args, workspace, loopdev)
 
 def install_boot_loader_clear(args, workspace, loopdev):
     nspawn_params = [
@@ -1960,13 +1967,13 @@ def install_boot_loader(args, workspace, loopdev, cached):
             install_boot_loader_arch(args, workspace, loopdev)
 
         if args.distribution == Distribution.debian:
-            install_boot_loader_debian(args, workspace)
+            install_boot_loader_debian(args, workspace, loopdev)
 
         if args.distribution == Distribution.ubuntu:
-            install_boot_loader_ubuntu(args, workspace)
+            install_boot_loader_ubuntu(args, workspace, loopdev)
 
         if args.distribution == Distribution.opensuse:
-            install_boot_loader_opensuse(args, workspace)
+            install_boot_loader_opensuse(args, workspace, loopdev)
 
         if args.distribution == Distribution.clear:
             install_boot_loader_clear(args, workspace, loopdev)
@@ -3325,7 +3332,7 @@ def load_args() -> CommandLineArguments:
             args.boot_protocols = ["uefi"]
         if not {"uefi", "bios"}.issuperset(args.boot_protocols):
             die("Not a valid boot protocol")
-        if "bios" in args.boot_protocols and args.distribution not in (Distribution.fedora,Distribution.arch):
+        if "bios" in args.boot_protocols and args.distribution not in (Distribution.fedora,Distribution.arch,Distribution.debian,Distribution.ubuntu):
             die(f"bios boot not implemented yet for {args.distribution}")
 
     if args.encrypt is not None:
