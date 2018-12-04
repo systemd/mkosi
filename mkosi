@@ -87,6 +87,23 @@ class CommandLineArguments(argparse.Namespace):
     esp_partno = None  # type: Optional[int]
 
 
+class SourceFileTransfer(enum.Enum):
+    copy_all = "copy-all"
+    copy_git_cached = "copy-git-cached"
+    copy_git_others = "copy-git-others"
+    mount = "mount"
+
+    def __str__(self):
+        return self.value
+
+    @classmethod
+    def doc(cls):
+        return {cls.copy_all: "normal file copy",
+                cls.copy_git_cached: "use git-ls-files --cached, ignoring any file that git itself ignores",
+                cls.copy_git_others: "use git-ls-files --others, ignoring any file that git itself ignores",
+                cls.mount: "bind mount source files into the build image"}
+
+
 class OutputFormat(enum.Enum):
     directory = enum.auto()
     subvolume = enum.auto()
@@ -2003,9 +2020,9 @@ def install_skeleton_trees(args, workspace, for_cache):
             else:
                 shutil.unpack_archive(d, os.path.join(workspace, "root"))
 
-def copy_git_files(src, dest, *, git_files):
+def copy_git_files(src, dest, *, source_file_transfer):
     what_files = ['--exclude-standard', '--cached']
-    if git_files == 'others':
+    if source_file_transfer == SourceFileTransfer.copy_git_others:
         what_files += ['--others', '--exclude=.mkosi-*']
 
     c = run(['git', '-C', src, 'ls-files', '-z'] + what_files,
@@ -2059,13 +2076,14 @@ def install_build_src(args, workspace, run_build_script, for_cache):
 
         if args.build_sources is not None:
             target = os.path.join(workspace, "root", "root/src")
-            use_git = args.use_git_files
-            if use_git is None:
-                use_git = os.path.exists('.git') or os.path.exists(os.path.join(args.build_sources, '.git'))
 
-            if use_git:
-                copy_git_files(args.build_sources, target, git_files=args.git_files)
-            else:
+            source_file_transfer = args.source_file_transfer
+            if source_file_transfer is None and (os.path.exists('.git') or os.path.exists(os.path.join(args.build_sources, '.git'))):
+                source_file_transfer = SourceFileTransfer.copy_git_others
+
+            if source_file_transfer in (SourceFileTransfer.copy_git_others, SourceFileTransfer.copy_git_cached):
+                copy_git_files(args.build_sources, target, source_file_transfer=source_file_transfer)
+            elif source_file_transfer == SourceFileTransfer.copy_all:
                 ignore = shutil.ignore_patterns('.git',
                                                 '.mkosi-*',
                                                 '*.cache-pre-dev',
@@ -2687,10 +2705,9 @@ def parse_args() -> CommandLineArguments:
     group.add_argument("--build-package", action=CommaDelimitedListAction, dest='build_packages', default=[], help='Additional packages needed for build script', metavar='PACKAGE')
     group.add_argument("--postinst-script", help='Postinstall script to run inside image', metavar='PATH')
     group.add_argument("--finalize-script", help='Postinstall script to run outside image', metavar='PATH')
-    group.add_argument('--use-git-files', type=parse_boolean,
-                       help='Ignore any files that git itself ignores (default: guess)')
-    group.add_argument('--git-files', choices=('cached', 'others'),
-                       help='Whether to include untracked files (default: others)')
+    group.add_argument("--source-file-transfer", type=SourceFileTransfer, choices=list(SourceFileTransfer), default=None,
+                       help="Method used to copy build sources to the build image." +
+                       "; ".join([f"'{k}': {v}" for k, v in SourceFileTransfer.doc().items()]) + " (default: copy-git-others if in a git repository, otherwise copy-all)")
     group.add_argument("--with-network", action='store_true', help='Run build and postinst scripts with network access (instead of private network)', default=None)
     group.add_argument("--settings", dest='nspawn_settings', help='Add in .spawn settings file', metavar='PATH')
 
@@ -3005,6 +3022,12 @@ def process_setting(args: CommandLineArguments, section: str, key: str, value: A
         elif key == "BuildSources":
             if args.build_sources is None:
                 args.build_sources = value
+        elif key == "SourceFileTransfer":
+            if args.source_file_transfer is None:
+                try:
+                    args.source_file_transfer = SourceFileTransfer(value)
+                except ValueError:
+                    raise ValueError(f"Invalid source file transfer setting: {value}")
         elif key == "BuildDirectory":
             if args.build_dir is None:
                 args.build_dir = value
@@ -3513,8 +3536,8 @@ def none_to_na(s: Optional[str]) -> str:
 def none_to_no(s: Optional[str]) -> str:
     return "no" if s is None else s
 
-def none_to_none(s: Optional[str]) -> str:
-    return "none" if s is None else s
+def none_to_none(o: Optional[object]) -> str:
+    return "none" if o is None else str(o)
 
 def line_join_list(l: List[str]) -> str:
 
@@ -3586,6 +3609,7 @@ def print_summary(args: CommandLineArguments) -> None:
         sys.stderr.write("             Run tests: " + yes_no(args.with_tests) + "\n")
 
     sys.stderr.write("         Build Sources: " + none_to_none(args.build_sources) + "\n")
+    sys.stderr.write("  Source File Transfer: " + none_to_none(args.source_file_transfer) + "\n")
     sys.stderr.write("       Build Directory: " + none_to_none(args.build_dir) + "\n")
     sys.stderr.write("        Build Packages: " + line_join_list(args.build_packages) + "\n")
     sys.stderr.write("    Postinstall Script: " + none_to_none(args.postinst_script) + "\n")
@@ -3754,6 +3778,8 @@ def run_build_script(args: CommandLineArguments, workspace: str, raw: IO[str]) -
         if args.build_sources is not None:
             cmdline.append("--setenv=SRCDIR=/root/src")
             cmdline.append("--chdir=/root/src")
+            if args.source_file_transfer == SourceFileTransfer.mount:
+                cmdline.append("--bind=" + args.build_sources + ":/root/src")
 
             if args.read_only:
                 cmdline.append("--overlay=+/root/src::/root/src")
