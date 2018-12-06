@@ -3920,6 +3920,10 @@ def run_shell(args: CommandLineArguments) -> None:
     if args.read_only:
         cmdline += ('--read-only',)
 
+    # If we copied in a .nspawn file, make sure it's actually honoured
+    if args.nspawn_settings is not None:
+        cmdline += ('--settings=trusted',)
+
     if args.verb == "boot":
         cmdline += ('--boot',)
 
