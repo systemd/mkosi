@@ -2079,7 +2079,7 @@ def install_build_src(args, workspace, run_build_script, for_cache):
 
             source_file_transfer = args.source_file_transfer
             if source_file_transfer is None and (os.path.exists('.git') or os.path.exists(os.path.join(args.build_sources, '.git'))):
-                source_file_transfer = SourceFileTransfer.copy_git_others
+                source_file_transfer = SourceFileTransfer.copy_git_cached
 
             if source_file_transfer in (SourceFileTransfer.copy_git_others, SourceFileTransfer.copy_git_cached):
                 copy_git_files(args.build_sources, target, source_file_transfer=source_file_transfer)
@@ -2707,7 +2707,7 @@ def parse_args() -> CommandLineArguments:
     group.add_argument("--finalize-script", help='Postinstall script to run outside image', metavar='PATH')
     group.add_argument("--source-file-transfer", type=SourceFileTransfer, choices=list(SourceFileTransfer), default=None,
                        help="Method used to copy build sources to the build image." +
-                       "; ".join([f"'{k}': {v}" for k, v in SourceFileTransfer.doc().items()]) + " (default: copy-git-others if in a git repository, otherwise copy-all)")
+                       "; ".join([f"'{k}': {v}" for k, v in SourceFileTransfer.doc().items()]) + " (default: copy-git-cached if in a git repository, otherwise copy-all)")
     group.add_argument("--with-network", action='store_true', help='Run build and postinst scripts with network access (instead of private network)', default=None)
     group.add_argument("--settings", dest='nspawn_settings', help='Add in .spawn settings file', metavar='PATH')
 
