@@ -691,6 +691,15 @@ def mkfs_btrfs(label: str, dev: str) -> None:
     run(["mkfs.btrfs", "-L", label, "-d", "single", "-m", "single", dev], check=True)
 
 
+def mkfs_generic(args: CommandLineArguments, label: str, mount: str, dev: str) -> None:
+    if args.output_format == OutputFormat.gpt_btrfs:
+        mkfs_btrfs(label, dev)
+    elif args.output_format == OutputFormat.gpt_xfs:
+        mkfs_xfs(label, dev)
+    else:
+        mkfs_ext4(label, mount, dev)
+
+
 def luks_format(dev: str, passphrase: Dict[str, str]) -> None:
     if passphrase['type'] == 'stdin':
         passphrase_content = (passphrase['content'] + "\n").encode("utf-8")
@@ -849,12 +858,7 @@ def prepare_root(args: CommandLineArguments, dev: Optional[str], cached: bool) -
         return
 
     with complete_step('Formatting root partition'):
-        if args.output_format == OutputFormat.gpt_btrfs:
-            mkfs_btrfs("root", dev)
-        elif args.output_format == OutputFormat.gpt_xfs:
-            mkfs_xfs("root", dev)
-        else:
-            mkfs_ext4("root", "/", dev)
+        mkfs_generic(args, "root", "/", dev)
 
 
 def prepare_home(args: CommandLineArguments, dev: Optional[str], cached: bool) -> None:
@@ -864,7 +868,7 @@ def prepare_home(args: CommandLineArguments, dev: Optional[str], cached: bool) -
         return
 
     with complete_step('Formatting home partition'):
-        mkfs_ext4("home", "/home", dev)
+        mkfs_generic(args, "home", "/home", dev)
 
 
 def prepare_srv(args: CommandLineArguments, dev: Optional[str], cached: bool) -> None:
@@ -874,7 +878,7 @@ def prepare_srv(args: CommandLineArguments, dev: Optional[str], cached: bool) ->
         return
 
     with complete_step('Formatting server data partition'):
-        mkfs_ext4("srv", "/srv", dev)
+        mkfs_generic(args, "srv", "/srv", dev)
 
 
 def mount_loop(args: CommandLineArguments, dev: str, where: str, read_only: bool = False) -> None:
