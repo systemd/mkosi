@@ -1063,7 +1063,7 @@ def prepare_tree(args: CommandLineArguments, workspace: str, run_build_script: b
         os.mkdir(os.path.join(workspace, "root", "etc/kernel"), 0o755)
 
         with open(os.path.join(workspace, "root", "etc/kernel/cmdline"), "w") as cmdline:
-            cmdline.write(args.kernel_commandline)
+            cmdline.write(args.kernel_command_line)
             cmdline.write("\n")
 
     if run_build_script:
@@ -1927,7 +1927,7 @@ def install_opensuse(args: CommandLineArguments, workspace: str, run_build_scrip
 
         # dracut from openSUSE is missing upstream commit 016613c774baf.
         with open(os.path.join(root, "etc/kernel/cmdline"), "w") as cmdlinefile:
-            cmdlinefile.write(args.kernel_commandline + " root=/dev/gpt-auto-root\n")
+            cmdlinefile.write(args.kernel_command_line + " root=/dev/gpt-auto-root\n")
 
 
 def install_distribution(args: CommandLineArguments,
@@ -2071,7 +2071,7 @@ def install_grub(args: CommandLineArguments, workspace: str, loopdev: str, grub:
     if args.bios_partno is None:
         return
 
-    grub_cmdline = f'GRUB_CMDLINE_LINUX="{args.kernel_commandline}"\n'
+    grub_cmdline = f'GRUB_CMDLINE_LINUX="{args.kernel_command_line}"\n'
     os.makedirs(os.path.join(workspace, "root", "etc/default"), exist_ok=True, mode=0o755)
     if not os.path.exists(os.path.join(workspace, "root", "etc/default/grub")):
         with open(os.path.join(workspace, "root", "etc/default/grub"), "w+") as f:
@@ -2583,7 +2583,7 @@ def install_unified_kernel(args: CommandLineArguments,
 
     with complete_step("Generating combined kernel + initrd boot file"):
 
-        cmdline = args.kernel_commandline
+        cmdline = args.kernel_command_line
         if root_hash is not None:
             cmdline += " roothash=" + root_hash
 
@@ -2979,6 +2979,8 @@ def parse_args() -> CommandLineArguments:
                        help='Make image bootable on EFI (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs)')
     group.add_argument("--boot-protocols", action=CommaDelimitedListAction,
                        help="Boot protocols to use on a bootable image", metavar="PROTOCOLS", default=[])
+    group.add_argument("--kernel-command-line", help='Set the kernel command line (only bootable images)')
+    group.add_argument("--kernel-commandline", help=argparse.SUPPRESS) # Compatibility option
     group.add_argument("--secure-boot", action='store_true',
                        help='Sign the resulting kernel/initrd image for UEFI SecureBoot')
     group.add_argument("--secure-boot-key", help="UEFI SecureBoot private key in PEM format", metavar='PATH')
@@ -3054,7 +3056,6 @@ def parse_args() -> CommandLineArguments:
     group.add_argument("--default", dest='default_path', help='Read configuration data from file', metavar='PATH')
     group.add_argument('-a', "--all", action='store_true', dest='all', default=False, help='Build all settings files in mkosi.files/')
     group.add_argument("--all-directory", dest='all_directory', help='Specify path to directory to read settings files from', metavar='PATH')
-    group.add_argument("--kernel-commandline", help='Set the kernel command line (only bootable images)')
     group.add_argument("--hostname", help="Set hostname")
 
     group.add_argument('--debug', action=CommaDelimitedListAction, default=[],
@@ -3296,8 +3297,8 @@ def process_setting(args: CommandLineArguments, section: str, key: Optional[str]
             if not args.boot_protocols:
                 args.boot_protocols = value if type(value) == list else value.split()
         elif key == "KernelCommandLine":
-            if args.kernel_commandline is None:
-                args.kernel_commandline = value
+            if args.kernel_command_line is None:
+                args.kernel_command_line = value
         elif key == "SecureBoot":
             if args.secure_boot is None:
                 args.secure_boot = parse_boolean(value)
@@ -3834,8 +3835,8 @@ def load_args(args) -> CommandLineArguments:
 
     args.verity_size = None
 
-    if args.bootable and args.kernel_commandline is None:
-        args.kernel_commandline = "rhgb quiet selinux=0 audit=0 rw"
+    if args.bootable and args.kernel_command_line is None:
+        args.kernel_command_line = "rhgb quiet selinux=0 audit=0 rw"
 
     if args.secure_boot_key is not None:
         args.secure_boot_key = os.path.abspath(args.secure_boot_key)
@@ -3959,7 +3960,7 @@ def print_summary(args: CommandLineArguments) -> None:
         sys.stderr.write("              Bootable: " + yes_no(args.bootable) + "\n")
 
         if args.bootable:
-            sys.stderr.write("   Kernel Command Line: " + args.kernel_commandline + "\n")
+            sys.stderr.write("   Kernel Command Line: " + args.kernel_command_line + "\n")
             sys.stderr.write("       UEFI SecureBoot: " + yes_no(args.secure_boot) + "\n")
 
             if args.secure_boot:
