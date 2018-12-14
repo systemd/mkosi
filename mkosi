@@ -2912,7 +2912,7 @@ def setup_package_cache(args: CommandLineArguments) -> Optional[tempfile.Tempora
 class ListAction(argparse.Action):
     delimiter: str
 
-    def __init__(self, *args: Any, choices: Optional[Iterable[Any]] = None, **kwargs: Any):
+    def __init__(self, *args: Any, choices: Optional[Iterable[Any]] = None, **kwargs: Any) -> None:
         self.list_choices = choices
         super().__init__(*args, **kwargs)
 
