@@ -114,17 +114,17 @@ class OutputFormat(enum.Enum):
     tar = enum.auto()
 
     gpt_ext4 = enum.auto()
+    gpt_xfs = enum.auto()
     gpt_btrfs = enum.auto()
     gpt_squashfs = enum.auto()
-    gpt_xfs = enum.auto()
 
     plain_squashfs = enum.auto()
 
     # Kept for backwards compatibility
     raw_ext4 = raw_gpt = gpt_ext4
+    raw_xfs = gpt_xfs
     raw_btrfs = gpt_btrfs
     raw_squashfs = gpt_squashfs
-    raw_xfs = gpt_xfs
 
     def __repr__(self) -> str:
         """Return the member name without the class name"""
@@ -146,8 +146,8 @@ class OutputFormat(enum.Enum):
     def is_disk_rw(self) -> bool:
         "Output format is a disk image with a parition table and a writable filesystem"
         return self in (OutputFormat.gpt_ext4,
-                        OutputFormat.gpt_btrfs,
-                        OutputFormat.gpt_xfs)
+                        OutputFormat.gpt_xfs,
+                        OutputFormat.gpt_btrfs)
 
     def is_disk(self) -> bool:
         "Output format is a disk image with a partition table"
@@ -688,12 +688,12 @@ def mkfs_ext4(label: str, mount: str, dev: str) -> None:
     run(["mkfs.ext4", "-L", label, "-M", mount, dev], check=True)
 
 
-def mkfs_btrfs(label: str, dev: str) -> None:
-    run(["mkfs.btrfs", "-L", label, "-d", "single", "-m", "single", dev], check=True)
-
-
 def mkfs_xfs(label: str, dev: str) -> None:
     run(["mkfs.xfs", "-n", "ftype=1", "-L", label, dev], check=True)
+
+
+def mkfs_btrfs(label: str, dev: str) -> None:
+    run(["mkfs.btrfs", "-L", label, "-d", "single", "-m", "single", dev], check=True)
 
 
 def luks_format(dev: str, passphrase: Dict[str, str]) -> None:
@@ -2977,7 +2977,7 @@ def parse_args() -> CommandLineArguments:
     group.add_argument('-f', "--force", action='count', dest='force_count', default=0,
                        help='Remove existing image file before operation')
     group.add_argument('-b', "--bootable", type=parse_boolean, nargs='?', const=True,
-                       help='Make image bootable on EFI (only gpt_ext4, gpt_btrfs, gpt_squashfs, gpt_xfs)')
+                       help='Make image bootable on EFI (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs)')
     group.add_argument("--boot-protocols", action=CommaDelimitedListAction,
                        help="Boot protocols to use on a bootable image", metavar="PROTOCOLS", default=[])
     group.add_argument("--secure-boot", action='store_true',
@@ -2985,7 +2985,7 @@ def parse_args() -> CommandLineArguments:
     group.add_argument("--secure-boot-key", help="UEFI SecureBoot private key in PEM format", metavar='PATH')
     group.add_argument("--secure-boot-certificate", help="UEFI SecureBoot certificate in X509 format", metavar='PATH')
     group.add_argument("--read-only", action='store_true',
-                       help='Make root volume read-only (only gpt_ext4, gpt_btrfs, subvolume, implied with squashfs)')
+                       help='Make root volume read-only (only gpt_ext4, gpt_xfs, gpt_btrfs, subvolume, implied with squashfs)')
     group.add_argument("--encrypt", choices=("all", "data"),
                        help='Encrypt everything except: ESP ("all") or ESP and root ("data")')
     group.add_argument("--verity", action='store_true', help='Add integrity partition (implies --read-only)')
@@ -2995,9 +2995,9 @@ def parse_args() -> CommandLineArguments:
                        help='Script to call instead of mksquashfs')
 
     group.add_argument("--xz", action='store_true',
-                       help='Compress resulting image with xz (only gpt_ext4, gpt_btrfs, gpt_squashfs, gpt_xfs, implied on tar)')  # NOQA: E501
+                       help='Compress resulting image with xz (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs, implied on tar)')  # NOQA: E501
     group.add_argument("--qcow2", action='store_true',
-                       help='Convert resulting image to qcow2 (only gpt_ext4, gpt_btrfs, gpt_squashfs, gpt_xfs)')
+                       help='Convert resulting image to qcow2 (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs)')
     group.add_argument('-i', "--incremental", action='store_true',
                        help='Make use of and generate intermediary cache images')
 
@@ -3029,17 +3029,17 @@ def parse_args() -> CommandLineArguments:
 
     group = parser.add_argument_group("Partitions")
     group.add_argument("--root-size",
-                       help='Set size of root partition (only gpt_ext4, gpt_btrfs, gpt_xfs)', metavar='BYTES')
+                       help='Set size of root partition (only gpt_ext4, gpt_xfs, gpt_btrfs)', metavar='BYTES')
     group.add_argument("--esp-size",
-                       help='Set size of EFI system partition (only gpt_ext4, gpt_btrfs, gpt_squashfs, gpt_xfs)', metavar='BYTES')  # NOQA: E501
+                       help='Set size of EFI system partition (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs)', metavar='BYTES')  # NOQA: E501
     group.add_argument("--swap-size",
-                       help='Set size of swap partition (only gpt_ext4, gpt_btrfs, gpt_squashfs, gpt_xfs)', metavar='BYTES')  # NOQA: E501
+                       help='Set size of swap partition (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs)', metavar='BYTES')  # NOQA: E501
     group.add_argument("--home-size",
-                       help='Set size of /home partition (only gpt_ext4, gpt_squashfs, gpt_xfs)', metavar='BYTES')
+                       help='Set size of /home partition (only gpt_ext4, gpt_xfs, gpt_squashfs)', metavar='BYTES')
     group.add_argument("--srv-size",
-                       help='Set size of /srv partition (only gpt_ext4, gpt_squashfs, gpt_xfs)', metavar='BYTES')
+                       help='Set size of /srv partition (only gpt_ext4, gpt_xfs, gpt_squashfs)', metavar='BYTES')
 
-    group = parser.add_argument_group("Validation (only gpt_ext4, gpt_btrfs, gpt_squashfs, gpt_xfs, tar)")
+    group = parser.add_argument_group("Validation (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs, tar)")
     group.add_argument("--checksum", action='store_true', help='Write SHA256SUMS file')
     group.add_argument("--sign", action='store_true', help='Write and sign SHA256SUMS file')
     group.add_argument("--key", help='GPG key to use for signing')
