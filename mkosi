@@ -2984,15 +2984,14 @@ def parse_args() -> CommandLineArguments:
     group.add_argument("--secure-boot-key", help="UEFI SecureBoot private key in PEM format", metavar='PATH')
     group.add_argument("--secure-boot-certificate", help="UEFI SecureBoot certificate in X509 format", metavar='PATH')
     group.add_argument("--read-only", action='store_true',
-                       help='Make root volume read-only (only gpt_ext4, gpt_xfs, gpt_btrfs, subvolume, implied with squashfs)')
+                       help='Make root volume read-only (only gpt_ext4, gpt_xfs, gpt_btrfs, subvolume, implied with gpt_squashfs and plain_squashfs)')
     group.add_argument("--encrypt", choices=("all", "data"),
                        help='Encrypt everything except: ESP ("all") or ESP and root ("data")')
     group.add_argument("--verity", action='store_true', help='Add integrity partition (implies --read-only)')
     group.add_argument("--compress", type=parse_compression,
-                       help='Enable compression in file system (only gpt_btrfs, subvolume, gpt_squashfs, squashfs)')
+                       help='Enable compression in file system (only gpt_btrfs, subvolume, gpt_squashfs, plain_squashfs)')
     group.add_argument('--mksquashfs', dest='mksquashfs_tool', type=str.split,
                        help='Script to call instead of mksquashfs')
-
     group.add_argument("--xz", action='store_true',
                        help='Compress resulting image with xz (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs, implied on tar)')  # NOQA: E501
     group.add_argument("--qcow2", action='store_true',
