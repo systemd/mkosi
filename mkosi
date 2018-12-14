@@ -2999,6 +2999,8 @@ def parse_args() -> CommandLineArguments:
     group.add_argument("--qcow2", action='store_true',
                        help='Convert resulting image to qcow2 (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs)')
     group.add_argument("--hostname", help="Set hostname")
+    group.add_argument('--no-chown', action='store_true',
+                       help='When running with sudo, disable reassignment of ownership of the generated files to the original user')  # NOQA: E501
     group.add_argument('-i', "--incremental", action='store_true',
                        help='Make use of and generate intermediary cache images')
 
@@ -3061,9 +3063,6 @@ def parse_args() -> CommandLineArguments:
     group.add_argument('--debug', action=CommaDelimitedListAction, default=[],
                        help='Turn on debugging output', metavar='SELECTOR',
                        choices=('run',))
-    group.add_argument('--no-chown', action='store_true',
-                       help='When running with sudo, disable reassignment of ownership of the generated files to the original user')  # NOQA: E501
-
     try:
         import argcomplete  # type: ignore
         argcomplete.autocomplete(parser)
