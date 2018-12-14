@@ -2998,6 +2998,7 @@ def parse_args() -> CommandLineArguments:
                        help='Compress resulting image with xz (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs, implied on tar)')  # NOQA: E501
     group.add_argument("--qcow2", action='store_true',
                        help='Convert resulting image to qcow2 (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs)')
+    group.add_argument("--hostname", help="Set hostname")
     group.add_argument('-i', "--incremental", action='store_true',
                        help='Make use of and generate intermediary cache images')
 
@@ -3056,7 +3057,6 @@ def parse_args() -> CommandLineArguments:
     group.add_argument("--default", dest='default_path', help='Read configuration data from file', metavar='PATH')
     group.add_argument('-a', "--all", action='store_true', dest='all', default=False, help='Build all settings files in mkosi.files/')
     group.add_argument("--all-directory", dest='all_directory', help='Specify path to directory to read settings files from', metavar='PATH')
-    group.add_argument("--hostname", help="Set hostname")
 
     group.add_argument('--debug', action=CommaDelimitedListAction, default=[],
                        help='Turn on debugging output', metavar='SELECTOR',
