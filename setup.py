@@ -3,10 +3,11 @@
 
 import sys
 
+from setuptools import setup
+
 if sys.version_info < (3, 6):
     sys.exit("Sorry, we need at least Python 3.6.")
 
-from setuptools import setup
 
 setup(
     name="mkosi",
