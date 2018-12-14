@@ -4144,6 +4144,10 @@ def var_tmp(workspace: str) -> str:
     return mkdir_last(os.path.join(workspace, "var-tmp"))
 
 
+def one_zero(b: bool) -> str:
+    return "1" if b else "0"
+
+
 def run_build_script(args: CommandLineArguments, workspace: str, raw: Optional[BinaryIO]) -> None:
     if args.build_script is None:
         return
@@ -4163,8 +4167,9 @@ def run_build_script(args: CommandLineArguments, workspace: str, raw: Optional[B
                    "--register=no",
                    "--bind", dest + ":/root/dest",
                    "--bind=" + var_tmp(workspace) + ":/var/tmp",
-                   "--setenv=WITH_DOCS=" + ("1" if args.with_docs else "0"),
-                   "--setenv=WITH_TESTS=" + ("1" if args.with_tests else "0"),
+                   "--setenv=WITH_DOCS=" + one_zero(args.with_docs),
+                   "--setenv=WITH_TESTS=" + one_zero(args.with_tests),
+                   "--setenv=WITH_NETWORK=" + one_zero(args.with_network),
                    "--setenv=DESTDIR=/root/dest"]
 
         if args.build_sources is not None:
