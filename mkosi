@@ -1021,7 +1021,7 @@ def prepare_tree(args: CommandLineArguments, workspace: str, run_build_script: b
     if args.output_format == OutputFormat.subvolume:
         btrfs_subvol_create(os.path.join(workspace, "root"))
     else:
-        mkdir_last(os.path.join(workspace, "root"))
+        mkdir_last(os.path.join(workspace, "root"), 0o755)
 
     if args.output_format in (OutputFormat.subvolume, OutputFormat.gpt_btrfs):
 
