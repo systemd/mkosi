@@ -6,8 +6,9 @@ Distribution=fedora
 Release=29
 
 [Output]
-Format=raw_squashfs
+Format=gpt_ext4
 Bootable=yes
+Output=fedora.raw
 
 [Packages]
 Packages=

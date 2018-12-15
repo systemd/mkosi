@@ -8,4 +8,4 @@ sudo apt --yes install python3.6 debootstrap systemd-container squashfs-tools
 
 sudo python3.6 ./mkosi --default ./mkosi.files/mkosi.ubuntu
 
-test -f image.raw
+test -f ubuntu.raw
