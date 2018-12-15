@@ -371,7 +371,7 @@ def symlink_f(target: str, path: str) -> None:
         os.symlink(target, path)
 
 
-def copy(oldpath: str, newpath: str) -> None:
+def copy_path(oldpath: str, newpath: str) -> None:
     try:
         mkdir_last(newpath)
     except FileExistsError:
@@ -382,7 +382,7 @@ def copy(oldpath: str, newpath: str) -> None:
     for entry in os.scandir(oldpath):
         newentry = os.path.join(newpath, entry.name)
         if entry.is_dir(follow_symlinks=False):
-            copy(entry.path, newentry)
+            copy_path(entry.path, newentry)
         elif entry.is_symlink():
             target = os.readlink(entry.path)
             symlink_f(target, newentry)
@@ -2203,7 +2203,7 @@ def install_extra_trees(args: CommandLineArguments, workspace: str, for_cache: b
     with complete_step('Copying in extra file trees'):
         for d in args.extra_trees:
             if os.path.isdir(d):
-                copy(d, os.path.join(workspace, "root"))
+                copy_path(d, os.path.join(workspace, "root"))
             else:
                 shutil.unpack_archive(d, os.path.join(workspace, "root"))
 
@@ -2215,7 +2215,7 @@ def install_skeleton_trees(args: CommandLineArguments, workspace: str, for_cache
     with complete_step('Copying in skeleton file trees'):
         for d in args.skeleton_trees:
             if os.path.isdir(d):
-                copy(d, os.path.join(workspace, "root"))
+                copy_path(d, os.path.join(workspace, "root"))
             else:
                 shutil.unpack_archive(d, os.path.join(workspace, "root"))
 
@@ -2305,7 +2305,7 @@ def install_build_dest(args: CommandLineArguments, workspace: str, run_build_scr
         return
 
     with complete_step('Copying in build tree'):
-        copy(os.path.join(workspace, "dest"), os.path.join(workspace, "root"))
+        copy_path(os.path.join(workspace, "dest"), os.path.join(workspace, "root"))
 
 
 def make_read_only(args: CommandLineArguments, workspace: str, for_cache: bool) -> None:
@@ -4028,7 +4028,7 @@ def reuse_cache_tree(args: CommandLineArguments,
 
     with complete_step('Copying in cached tree ' + fname):
         try:
-            copy(fname, os.path.join(workspace, "root"))
+            copy_path(fname, os.path.join(workspace, "root"))
         except FileNotFoundError:
             return False
 
