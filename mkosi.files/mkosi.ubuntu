@@ -5,7 +5,8 @@ Distribution=ubuntu
 Release=xenial
 
 [Output]
-Format=raw_squashfs
+Format=gpt_ext4
+Output=ubuntu.raw
 
 [Packages]
 Packages=

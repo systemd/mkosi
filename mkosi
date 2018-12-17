@@ -6,6 +6,7 @@ import argparse
 import collections
 import configparser
 import contextlib
+import copy
 import crypt
 import ctypes
 import ctypes.util
@@ -371,7 +372,7 @@ def symlink_f(target: str, path: str) -> None:
         os.symlink(target, path)
 
 
-def copy(oldpath: str, newpath: str) -> None:
+def copy_path(oldpath: str, newpath: str) -> None:
     try:
         mkdir_last(newpath)
     except FileExistsError:
@@ -382,7 +383,7 @@ def copy(oldpath: str, newpath: str) -> None:
     for entry in os.scandir(oldpath):
         newentry = os.path.join(newpath, entry.name)
         if entry.is_dir(follow_symlinks=False):
-            copy(entry.path, newentry)
+            copy_path(entry.path, newentry)
         elif entry.is_symlink():
             target = os.readlink(entry.path)
             symlink_f(target, newentry)
@@ -2203,7 +2204,7 @@ def install_extra_trees(args: CommandLineArguments, workspace: str, for_cache: b
     with complete_step('Copying in extra file trees'):
         for d in args.extra_trees:
             if os.path.isdir(d):
-                copy(d, os.path.join(workspace, "root"))
+                copy_path(d, os.path.join(workspace, "root"))
             else:
                 shutil.unpack_archive(d, os.path.join(workspace, "root"))
 
@@ -2215,7 +2216,7 @@ def install_skeleton_trees(args: CommandLineArguments, workspace: str, for_cache
     with complete_step('Copying in skeleton file trees'):
         for d in args.skeleton_trees:
             if os.path.isdir(d):
-                copy(d, os.path.join(workspace, "root"))
+                copy_path(d, os.path.join(workspace, "root"))
             else:
                 shutil.unpack_archive(d, os.path.join(workspace, "root"))
 
@@ -2305,7 +2306,7 @@ def install_build_dest(args: CommandLineArguments, workspace: str, run_build_scr
         return
 
     with complete_step('Copying in build tree'):
-        copy(os.path.join(workspace, "dest"), os.path.join(workspace, "root"))
+        copy_path(os.path.join(workspace, "dest"), os.path.join(workspace, "root"))
 
 
 def make_read_only(args: CommandLineArguments, workspace: str, for_cache: bool) -> None:
@@ -3053,6 +3054,8 @@ def parse_args() -> CommandLineArguments:
     group = parser.add_argument_group("Additional Configuration")
     group.add_argument('-C', "--directory", help='Change to specified directory before doing anything', metavar='PATH')
     group.add_argument("--default", dest='default_path', help='Read configuration data from file', metavar='PATH')
+    group.add_argument('-a', "--all", action='store_true', dest='all', default=False, help='Build all settings files in mkosi.files/')
+    group.add_argument("--all-directory", dest='all_directory', help='Specify path to directory to read settings files from', metavar='PATH')
     group.add_argument("--kernel-commandline", help='Set the kernel command line (only bootable images)')
     group.add_argument("--hostname", help="Set hostname")
 
@@ -3073,6 +3076,11 @@ def parse_args() -> CommandLineArguments:
     if args.verb == "help":
         parser.print_help()
         sys.exit(0)
+
+    if args.all and args.default_path:
+        die("--all and --default= may not be combined.")
+
+    args_find_path(args, 'all_directory', "mkosi.files/")
 
     return args
 
@@ -3615,12 +3623,7 @@ def build_root_hash_file_path(path: str) -> str:
     return strip_suffixes(path) + ".roothash"
 
 
-def load_args() -> CommandLineArguments:
-    args = parse_args()
-
-    if args.directory is not None:
-        os.chdir(args.directory)
-
+def load_args(args) -> CommandLineArguments:
     global arg_debug
     arg_debug = args.debug
 
@@ -4028,7 +4031,7 @@ def reuse_cache_tree(args: CommandLineArguments,
 
     with complete_step('Copying in cached tree ' + fname):
         try:
-            copy(fname, os.path.join(workspace, "root"))
+            copy_path(fname, os.path.join(workspace, "root"))
         except FileNotFoundError:
             return False
 
@@ -4416,8 +4419,8 @@ def prepend_to_environ_path(paths: List[str]) -> None:
         os.environ["PATH"] = new_path + ":" + original_path
 
 
-def main() -> None:
-    args = load_args()
+def run_verb(args):
+    load_args(args)
 
     if args.verb in ("build", "clean", "shell", "boot", "qemu"):
         check_root()
@@ -4431,8 +4434,6 @@ def main() -> None:
     if args.verb == "summary" or needs_build:
         print_summary(args)
 
-    prepend_to_environ_path(args.extra_search_paths)
-
     if needs_build:
         check_root()
         check_native(args)
@@ -4445,6 +4446,29 @@ def main() -> None:
 
     if args.verb == "qemu":
         run_qemu(args)
+
+
+def main() -> None:
+    args = parse_args()
+
+    if args.directory is not None:
+        os.chdir(args.directory)
+
+    prepend_to_environ_path(args.extra_search_paths)
+
+    if args.all:
+        for f in os.scandir(args.all_directory):
+
+            if not f.name.startswith("mkosi."):
+                continue
+
+            a = copy.deepcopy(args)
+            a.default_path = f.path
+
+            with complete_step('Processing ' + f.path):
+                run_verb(a)
+    else:
+        run_verb(args)
 
 
 if __name__ == "__main__":
