@@ -39,6 +39,9 @@ The following output formats are supported:
 
 * Raw *GPT* disk image, with squashfs as read-only root (*gpt_squashfs*)
 
+* Plain squashfs image, without partition table, as read-only root
+  (*plain_squashfs*)
+
 * Plain directory, containing the *OS* tree (*directory*)
 
 * btrfs subvolume, with separate subvolumes for `/var`, `/home`,
