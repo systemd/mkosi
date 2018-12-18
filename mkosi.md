@@ -39,6 +39,9 @@ The following output formats are supported:
 
 * Raw *GPT* disk image, with squashfs as read-only root (*gpt_squashfs*)
 
+* Plain squashfs image, without partition table, as read-only root
+  (*plain_squashfs*)
+
 * Plain directory, containing the *OS* tree (*directory*)
 
 * btrfs subvolume, with separate subvolumes for `/var`, `/home`,
@@ -585,6 +588,20 @@ details see the table below.
   command line and in the settings file, the command line generally
   wins, except for options taking lists in which case both lists are
   combined.
+
+`--all`, `-a`
+
+: Iterate through all files `mkosi.*` in the `mkosi.files/`
+  subdirectory, and build each as if `--default=mkosi.files/mkosi.…`
+  was invoked. This is a quick way to build a large number of images
+  in one go. Any additional specified command line arguments override
+  the relevant options in all files processed this way.
+
+`--all-directory=`
+
+: If specified, overrides the directory the `--all` logic described
+  above looks for settings files in. If unspecified, defaults to
+  `mkosi.files/` in the current working directory (see above).
 
 `--version`
 : Show package version.
