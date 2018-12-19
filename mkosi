@@ -2980,7 +2980,7 @@ def parse_args() -> CommandLineArguments:
     group.add_argument("--boot-protocols", action=CommaDelimitedListAction,
                        help="Boot protocols to use on a bootable image", metavar="PROTOCOLS", default=[])
     group.add_argument("--kernel-command-line", help='Set the kernel command line (only bootable images)')
-    group.add_argument("--kernel-commandline", help=argparse.SUPPRESS) # Compatibility option
+    group.add_argument("--kernel-commandline", dest='kernel_command_line', help=argparse.SUPPRESS) # Compatibility option
     group.add_argument("--secure-boot", action='store_true',
                        help='Sign the resulting kernel/initrd image for UEFI SecureBoot')
     group.add_argument("--secure-boot-key", help="UEFI SecureBoot private key in PEM format", metavar='PATH')
