@@ -4434,6 +4434,8 @@ def prepend_to_environ_path(paths: List[str]) -> None:
 def run_verb(args):
     load_args(args)
 
+    prepend_to_environ_path(args.extra_search_paths)
+
     if args.verb in ("build", "clean", "shell", "boot", "qemu"):
         check_root()
         unlink_output(args)
@@ -4465,8 +4467,6 @@ def main() -> None:
 
     if args.directory is not None:
         os.chdir(args.directory)
-
-    prepend_to_environ_path(args.extra_search_paths)
 
     if args.all:
         for f in os.scandir(args.all_directory):
