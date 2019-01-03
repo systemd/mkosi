@@ -3028,7 +3028,7 @@ def parse_args() -> CommandLineArguments:
                        "; ".join([f"'{k}': {v}" for k, v in SourceFileTransfer.doc().items()]) + " (default: copy-git-cached if in a git repository, otherwise copy-all)")
     group.add_argument("--with-network", action='store_true', default=None,
                        help='Run build and postinst scripts with network access (instead of private network)')
-    group.add_argument("--settings", dest='nspawn_settings', help='Add in .spawn settings file', metavar='PATH')
+    group.add_argument("--settings", dest='nspawn_settings', help='Add in .nspawn settings file', metavar='PATH')
 
     group = parser.add_argument_group("Partitions")
     group.add_argument("--root-size",
