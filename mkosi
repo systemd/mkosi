@@ -1577,6 +1577,7 @@ def install_debian_or_ubuntu(args: CommandLineArguments,
 
     cmdline = ["debootstrap",
                "--verbose",
+               "--no-check-valid-until",
                "--variant=minbase",
                "--include=systemd-sysv",
                "--exclude=sysv-rc,initscripts,startpar,lsb-base,insserv",
