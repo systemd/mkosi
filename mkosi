@@ -2410,7 +2410,7 @@ def insert_partition(args: CommandLineArguments,
                      blob: BinaryIO,
                      name: str,
                      type_uuid: uuid.UUID,
-                     uuid: Optional[uuid.UUID] = None) -> int:
+                     uuid_opt: Optional[uuid.UUID] = None) -> int:
     if args.ran_sfdisk:
         old_table, last_partition_sector = read_partition_table(loopdev)
     else:
@@ -2434,8 +2434,8 @@ def insert_partition(args: CommandLineArguments,
     for t in old_table:
         table += t + "\n"
 
-    if uuid is not None:
-        table += "uuid=" + str(uuid) + ", "
+    if uuid_opt is not None:
+        table += "uuid=" + str(uuid_opt) + ", "
 
     n_sectores = (blob_size + luks_extra) // 512
     table += f'size={n_sectores}, type={type_uuid}, attrs=GUID:60, name="{name}"\n'
