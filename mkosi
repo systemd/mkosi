@@ -2871,7 +2871,7 @@ def link_output_bmap(args: CommandLineArguments, bmap: Optional[str]) -> None:
 
 
 def dir_size(path: str) -> int:
-    sum = 0
+    dir_sum = 0
     for entry in os.scandir(path):
         if entry.is_symlink():
             # We can ignore symlinks because they either point into our tree,
@@ -2879,10 +2879,10 @@ def dir_size(path: str) -> int:
             # or outside, in which case we don't need to.
             continue
         elif entry.is_file():
-            sum += entry.stat().st_blocks * 512
+            dir_sum += entry.stat().st_blocks * 512
         elif entry.is_dir():
-            sum += dir_size(entry.path)
-    return sum
+            dir_sum += dir_size(entry.path)
+    return dir_sum
 
 
 def print_output_size(args: CommandLineArguments) -> None:
