@@ -240,15 +240,15 @@ def unshare(flags: int) -> None:
         raise OSError(e, os.strerror(e))
 
 
-def format_bytes(bytes: int) -> str:
-    if bytes >= 1024*1024*1024:
-        return f'{bytes/1024**3 :0.1f}G'
-    if bytes >= 1024*1024:
-        return f'{bytes/1024**2 :0.1f}M'
-    if bytes >= 1024:
-        return f'{bytes/1024 :0.1f}K'
+def format_bytes(num_bytes: int) -> str:
+    if num_bytes >= 1024*1024*1024:
+        return f'{num_bytes/1024**3 :0.1f}G'
+    if num_bytes >= 1024*1024:
+        return f'{num_bytes/1024**2 :0.1f}M'
+    if num_bytes >= 1024:
+        return f'{num_bytes/1024 :0.1f}K'
 
-    return f'{bytes}B'
+    return f'{num_bytes}B'
 
 
 def roundup512(x: int) -> int:
