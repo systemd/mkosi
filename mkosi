@@ -2627,7 +2627,7 @@ def secure_boot_sign(args: CommandLineArguments, workspace: str, do_run_build_sc
     if for_cache:
         return
 
-    for path, dirnames, filenames in os.walk(os.path.join(workspace, "root", "efi")):
+    for path, _, filenames in os.walk(os.path.join(workspace, "root", "efi")):
         for i in filenames:
             if not i.endswith(".efi") and not i.endswith(".EFI"):
                 continue
