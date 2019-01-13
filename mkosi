@@ -618,7 +618,7 @@ def reuse_cache_image(args: CommandLineArguments,
             disable_cow(f.name)
             copy_file_object(source, f)
 
-        table, run_sfdisk = determine_partition_table(args)
+        _, run_sfdisk = determine_partition_table(args)
         args.ran_sfdisk = run_sfdisk
 
     return f, True
