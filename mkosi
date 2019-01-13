@@ -2999,6 +2999,39 @@ class ColonDelimitedListAction(ListAction):
     delimiter = ":"
 
 
+class BooleanAction(argparse.Action):
+    """Parse boolean command line arguments
+
+    The argument may be added more than once. The argument may be set explicitly (--foo yes)
+    or implicitly --foo. If the parameter name starts with "not-" or "without-" the value gets
+    inverted.
+    """
+    def __init__(self, option_strings, dest, nargs=None, const=True, default=False, **kwargs):
+        if nargs is not None:
+            raise ValueError("nargs not allowed")
+        super(BooleanAction, self).__init__(option_strings, dest, nargs='?', const=const, default=default, **kwargs)
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        new_value = self.default
+        if isinstance(values, str):
+            try:
+                new_value = parse_boolean(values)
+            except ValueError as exp:
+                raise argparse.ArgumentError(self, str(exp))
+        elif isinstance(values, bool):  # Assign const
+            new_value = values
+        else:
+            raise argparse.ArgumentError(self, 'Invalid argument for %s %s' % (str(option_string), str(values)))
+
+        # invert the value if the argument name starts with "not" or "without"
+        for option in self.option_strings:
+            if option[2:].startswith('not-') or option[2:].startswith('without-'):
+                new_value = not new_value
+                break
+
+        setattr(namespace, self.dest, new_value)
+
+
 COMPRESSION_ALGORITHMS = 'zlib', 'lzo', 'zstd', 'lz4', 'xz'
 
 
@@ -3032,41 +3065,41 @@ def create_parser() -> argparse.ArgumentParser:
     group.add_argument('-O', "--output-dir", help='Output root directory', metavar='DIR')
     group.add_argument('-f', "--force", action='count', dest='force_count', default=0,
                        help='Remove existing image file before operation')
-    group.add_argument('-b', "--bootable", type=parse_boolean, nargs='?', const=True,
+    group.add_argument('-b', "--bootable", action=BooleanAction,
                        help='Make image bootable on EFI (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs)')
     group.add_argument("--boot-protocols", action=CommaDelimitedListAction,
                        help="Boot protocols to use on a bootable image", metavar="PROTOCOLS", default=[])
     group.add_argument("--kernel-command-line", help='Set the kernel command line (only bootable images)')
     group.add_argument("--kernel-commandline", dest='kernel_command_line', help=argparse.SUPPRESS) # Compatibility option
-    group.add_argument("--secure-boot", action='store_true',
+    group.add_argument("--secure-boot", action=BooleanAction,
                        help='Sign the resulting kernel/initrd image for UEFI SecureBoot')
     group.add_argument("--secure-boot-key", help="UEFI SecureBoot private key in PEM format", metavar='PATH')
     group.add_argument("--secure-boot-certificate", help="UEFI SecureBoot certificate in X509 format", metavar='PATH')
-    group.add_argument("--read-only", action='store_true',
+    group.add_argument("--read-only", action=BooleanAction,
                        help='Make root volume read-only (only gpt_ext4, gpt_xfs, gpt_btrfs, subvolume, implied with gpt_squashfs and plain_squashfs)')
     group.add_argument("--encrypt", choices=("all", "data"),
                        help='Encrypt everything except: ESP ("all") or ESP and root ("data")')
-    group.add_argument("--verity", action='store_true', help='Add integrity partition (implies --read-only)')
+    group.add_argument("--verity", action=BooleanAction, help='Add integrity partition (implies --read-only)')
     group.add_argument("--compress", type=parse_compression,
                        help='Enable compression in file system (only gpt_btrfs, subvolume, gpt_squashfs, plain_squashfs)')
     group.add_argument('--mksquashfs', dest='mksquashfs_tool', type=str.split,
                        help='Script to call instead of mksquashfs')
-    group.add_argument("--xz", action='store_true',
+    group.add_argument("--xz", action=BooleanAction,
                        help='Compress resulting image with xz (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs, implied on tar)')  # NOQA: E501
-    group.add_argument("--qcow2", action='store_true',
+    group.add_argument("--qcow2", action=BooleanAction,
                        help='Convert resulting image to qcow2 (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs)')
     group.add_argument("--hostname", help="Set hostname")
-    group.add_argument('--no-chown', action='store_true',
+    group.add_argument('--no-chown', action=BooleanAction,
                        help='When running with sudo, disable reassignment of ownership of the generated files to the original user')  # NOQA: E501
-    group.add_argument('-i', "--incremental", action='store_true',
+    group.add_argument('-i', "--incremental", action=BooleanAction,
                        help='Make use of and generate intermediary cache images')
 
     group = parser.add_argument_group("Packages")
     group.add_argument('-p', "--package", action=CommaDelimitedListAction, dest='packages', default=[],
                        help='Add an additional package to the OS image', metavar='PACKAGE')
-    group.add_argument("--with-docs", action='store_true', default=None,
+    group.add_argument("--with-docs", action=BooleanAction,
                        help='Install documentation')
-    group.add_argument('-T', "--without-tests", action='store_false', dest='with_tests', default=True,
+    group.add_argument('-T', "--without-tests", action=BooleanAction, dest='with_tests', default=True,
                        help='Do not run tests as part of build script, if supported')
     group.add_argument("--cache", dest='cache_path', help='Package cache path', metavar='PATH')
     group.add_argument("--extra-tree", action='append', dest='extra_trees', default=[],
@@ -3083,7 +3116,7 @@ def create_parser() -> argparse.ArgumentParser:
     group.add_argument("--source-file-transfer", type=SourceFileTransfer, choices=list(SourceFileTransfer), default=None,
                        help="Method used to copy build sources to the build image." +
                        "; ".join([f"'{k}': {v}" for k, v in SourceFileTransfer.doc().items()]) + " (default: copy-git-cached if in a git repository, otherwise copy-all)")
-    group.add_argument("--with-network", action='store_true', default=None,
+    group.add_argument("--with-network", action=BooleanAction,
                        help='Run build and postinst scripts with network access (instead of private network)')
     group.add_argument("--settings", dest='nspawn_settings', help='Add in .nspawn settings file', metavar='PATH')
 
@@ -3102,10 +3135,10 @@ def create_parser() -> argparse.ArgumentParser:
                        help='Set size of /srv partition (only gpt_ext4, gpt_xfs, gpt_squashfs)', metavar='BYTES')
 
     group = parser.add_argument_group("Validation (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs, tar)")
-    group.add_argument("--checksum", action='store_true', help='Write SHA256SUMS file')
-    group.add_argument("--sign", action='store_true', help='Write and sign SHA256SUMS file')
+    group.add_argument("--checksum", action=BooleanAction, help='Write SHA256SUMS file')
+    group.add_argument("--sign", action=BooleanAction, help='Write and sign SHA256SUMS file')
     group.add_argument("--key", help='GPG key to use for signing')
-    group.add_argument("--bmap", action='store_true',
+    group.add_argument("--bmap", action=BooleanAction,
                        help='Write block map file (.bmap) for bmaptool usage (only gpt_ext4, gpt_btrfs)')
     group.add_argument("--password", help='Set the root password')
 
@@ -3133,8 +3166,23 @@ def create_parser() -> argparse.ArgumentParser:
 
 
 def parse_args() -> CommandLineArguments:
+    # always work on a copy, argv will be altered which might has some side effects e.g. in unit tests. 
+    argv = copy.deepcopy(sys.argv[1:])
+
+    # Insert a -- before the positional verb argument otherwise it might be considered as an argument of
+    # a parameter with nargs='?'. For example mkosi -i summary would be treated as -i=summary.
+    for verb in MKOSI_COMMANDS:
+        try:
+            v_i = argv.index(verb)
+            if v_i > 0:
+                if argv[v_i-1] != '--':
+                    argv.insert(v_i, '--')
+            break
+        except ValueError:
+            pass
+
     parser = create_parser()
-    args = cast(CommandLineArguments, parser.parse_args(namespace=CommandLineArguments()))
+    args = cast(CommandLineArguments, parser.parse_args(argv, CommandLineArguments()))
 
     if args.verb == "help":
         parser.print_help()
@@ -3308,10 +3356,11 @@ def unlink_output(args: CommandLineArguments) -> None:
 
 def parse_boolean(s: str) -> bool:
     "Parse 1/true/yes as true and 0/false/no as false"
-    if s in {"1", "true", "yes"}:
+    s_l = s.lower()
+    if s_l in {"1", "true", "yes"}:
         return True
 
-    if s in {"0", "false", "no"}:
+    if s_l in {"0", "false", "no"}:
         return False
 
     raise ValueError(f'Invalid literal for bool(): {s!r}')
