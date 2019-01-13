@@ -3117,14 +3117,14 @@ def detect_distribution() -> Tuple[Optional[Distribution], Optional[str]]:
         except IOError:
             return None, None
 
-    id = None
+    dist_id = None
     version_id = None
     version_codename = None
     extracted_codename = None
 
     for ln in f:
         if ln.startswith("ID="):
-            id = ln[3:].strip()
+            dist_id = ln[3:].strip()
         if ln.startswith("VERSION_ID="):
             version_id = ln[11:].strip()
         if ln.startswith("VERSION_CODENAME="):
@@ -3138,12 +3138,12 @@ def detect_distribution() -> Tuple[Optional[Distribution], Optional[str]]:
             if len(codename_list) == 1:
                 extracted_codename = codename_list[0]
 
-    if id == "clear-linux-os":
-        id = "clear"
+    if dist_id == "clear-linux-os":
+        dist_id = "clear"
 
     d: Optional[Distribution] = None
-    if id is not None:
-        d = Distribution.__members__.get(id, None)
+    if dist_id is not None:
+        d = Distribution.__members__.get(dist_id, None)
 
     if d == Distribution.debian and (version_codename or extracted_codename):
         # debootstrap needs release codenames, not version numbers
