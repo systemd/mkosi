@@ -3525,12 +3525,12 @@ def args_find_path(args: CommandLineArguments,
                    name: str,
                    path: str,
                    *,
-                   type: Callable[[str], Any] = lambda x: x) -> None:
+                   type_call: Callable[[str], Any] = lambda x: x) -> None:
     if getattr(args, name) is not None:
         return
     if os.path.exists(path):
         path = os.path.abspath(path)
-        path = type(path)
+        path = type_call(path)
         setattr(args, name, path)
 
 
@@ -3641,7 +3641,7 @@ def load_args(args) -> CommandLineArguments:
     args_find_path(args, 'postinst_script', "mkosi.postinst")
     args_find_path(args, 'finalize_script', "mkosi.finalize")
     args_find_path(args, 'output_dir',      "mkosi.output/")
-    args_find_path(args, 'mksquashfs_tool', "mkosi.mksquashfs-tool", type=lambda x: [x])
+    args_find_path(args, 'mksquashfs_tool', "mkosi.mksquashfs-tool", type_call=lambda x: [x])
 
     find_extra(args)
     find_skeleton(args)
