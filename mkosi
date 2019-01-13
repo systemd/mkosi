@@ -2380,7 +2380,7 @@ def read_partition_table(loopdev: str) -> Tuple[List[str], int]:
 
         table.append(stripped)
 
-        name, rest = stripped.split(":", 1)
+        _, rest = stripped.split(":", 1)
         fields = rest.split(",")
 
         start = None
