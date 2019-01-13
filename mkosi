@@ -2094,9 +2094,9 @@ def install_grub(args: CommandLineArguments, workspace: str, loopdev: str, grub:
         loopdev, nspawn_params=nspawn_params)
 
     run_workspace_command(
-            args, workspace, f"{grub}-mkconfig",
-            f"--output=/boot/{grub}/grub.cfg",
-            nspawn_params=nspawn_params)
+        args, workspace, f"{grub}-mkconfig",
+        f"--output=/boot/{grub}/grub.cfg",
+        nspawn_params=nspawn_params)
 
 
 def install_boot_loader_fedora(args: CommandLineArguments, workspace: str, loopdev: str) -> None:
