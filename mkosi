@@ -292,13 +292,13 @@ _IOC_WRITE = 1  # NOQA: E221
 _IOC_READ  = 2  # NOQA: E221
 
 
-def _IOC(dir: int, type: int, nr: int, argtype: str) -> int:
+def _IOC(dir_rw: int, type_drv: int, nr: int, argtype: str) -> int:
     size = {'int': 4, 'size_t': 8}[argtype]
-    return dir << _IOC_DIRSHIFT | type << _IOC_TYPESHIFT | nr << _IOC_NRSHIFT | size << _IOC_SIZESHIFT
+    return dir_rw << _IOC_DIRSHIFT | type_drv << _IOC_TYPESHIFT | nr << _IOC_NRSHIFT | size << _IOC_SIZESHIFT
 
 
-def _IOW(type: int, nr: int, size: str) -> int:
-    return _IOC(_IOC_WRITE, type, nr, size)
+def _IOW(type_drv: int, nr: int, size: str) -> int:
+    return _IOC(_IOC_WRITE, type_drv, nr, size)
 
 
 FICLONE = _IOW(0x94, 9, 'int')
