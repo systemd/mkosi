@@ -3082,23 +3082,23 @@ def parse_args() -> CommandLineArguments:
     return args
 
 
-def parse_bytes(bytes: Optional[str]) -> Optional[int]:
-    if bytes is None:
-        return bytes
+def parse_bytes(num_bytes: Optional[str]) -> Optional[int]:
+    if num_bytes is None:
+        return num_bytes
 
-    if bytes.endswith('G'):
+    if num_bytes.endswith('G'):
         factor = 1024**3
-    elif bytes.endswith('M'):
+    elif num_bytes.endswith('M'):
         factor = 1024**2
-    elif bytes.endswith('K'):
+    elif num_bytes.endswith('K'):
         factor = 1024
     else:
         factor = 1
 
     if factor > 1:
-        bytes = bytes[:-1]
+        num_bytes = num_bytes[:-1]
 
-    result = int(bytes) * factor
+    result = int(num_bytes) * factor
     if result <= 0:
         raise ValueError("Size out of range")
 
