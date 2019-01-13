@@ -3966,6 +3966,12 @@ def line_join_list(ary: List[str]) -> str:
 
 
 def print_summary(args: CommandLineArguments) -> None:
+    sys.stderr.write("COMMANDS:\n")
+    sys.stderr.write("                  verb: " + args.verb + "\n")
+    try:
+        sys.stderr.write("               cmdline: " + ' '.join(args.cmdline) + "\n")
+    except AttributeError:
+        pass
     sys.stderr.write("DISTRIBUTION:\n")
     sys.stderr.write("          Distribution: " + args.distribution.name + "\n")
     sys.stderr.write("               Release: " + none_to_na(args.release) + "\n")
