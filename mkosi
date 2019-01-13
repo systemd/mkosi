@@ -575,14 +575,14 @@ def create_image(args: CommandLineArguments, workspace: str, for_cache: bool) ->
 
 def reuse_cache_image(args: CommandLineArguments,
                       workspace: str,
-                      run_build_script: bool,
+                      do_run_build_script: bool,
                       for_cache: bool) -> Tuple[Optional[BinaryIO], bool]:
     if not args.incremental:
         return None, False
     if not args.output_format.is_disk_rw():
         return None, False
 
-    fname = args.cache_pre_dev if run_build_script else args.cache_pre_inst
+    fname = args.cache_pre_dev if do_run_build_script else args.cache_pre_inst
     if for_cache:
         if fname and os.path.exists(fname):
             # Cache already generated, skip generation, note that manually removing the exising cache images is
@@ -732,7 +732,7 @@ def luks_close(dev: Optional[str], text: str) -> None:
 
 def luks_format_root(args: CommandLineArguments,
                      loopdev: str,
-                     run_build_script: bool,
+                     do_run_build_script: bool,
                      cached: bool,
                      inserting_squashfs: bool = False) -> None:
     if args.encrypt != "all":
@@ -741,7 +741,7 @@ def luks_format_root(args: CommandLineArguments,
         return
     if args.output_format == OutputFormat.gpt_squashfs and not inserting_squashfs:
         return
-    if run_build_script:
+    if do_run_build_script:
         return
     if cached:
         return
@@ -750,12 +750,12 @@ def luks_format_root(args: CommandLineArguments,
         luks_format(partition(loopdev, args.root_partno), args.passphrase)
 
 
-def luks_format_home(args: CommandLineArguments, loopdev: str, run_build_script: bool, cached: bool) -> None:
+def luks_format_home(args: CommandLineArguments, loopdev: str, do_run_build_script: bool, cached: bool) -> None:
     if args.encrypt is None:
         return
     if args.home_partno is None:
         return
-    if run_build_script:
+    if do_run_build_script:
         return
     if cached:
         return
@@ -764,12 +764,12 @@ def luks_format_home(args: CommandLineArguments, loopdev: str, run_build_script:
         luks_format(partition(loopdev, args.home_partno), args.passphrase)
 
 
-def luks_format_srv(args: CommandLineArguments, loopdev: str, run_build_script: bool, cached: bool) -> None:
+def luks_format_srv(args: CommandLineArguments, loopdev: str, do_run_build_script: bool, cached: bool) -> None:
     if args.encrypt is None:
         return
     if args.srv_partno is None:
         return
-    if run_build_script:
+    if do_run_build_script:
         return
     if cached:
         return
@@ -780,7 +780,7 @@ def luks_format_srv(args: CommandLineArguments, loopdev: str, run_build_script: 
 
 def luks_setup_root(args: CommandLineArguments,
                     loopdev: str,
-                    run_build_script: bool,
+                    do_run_build_script: bool,
                     inserting_squashfs: bool = False) -> Optional[str]:
     if args.encrypt != "all":
         return None
@@ -788,31 +788,31 @@ def luks_setup_root(args: CommandLineArguments,
         return None
     if args.output_format == OutputFormat.gpt_squashfs and not inserting_squashfs:
         return None
-    if run_build_script:
+    if do_run_build_script:
         return None
 
     with complete_step("Opening LUKS root partition"):
         return luks_open(partition(loopdev, args.root_partno), args.passphrase)
 
 
-def luks_setup_home(args: CommandLineArguments, loopdev: str, run_build_script: bool) -> Optional[str]:
+def luks_setup_home(args: CommandLineArguments, loopdev: str, do_run_build_script: bool) -> Optional[str]:
     if args.encrypt is None:
         return None
     if args.home_partno is None:
         return None
-    if run_build_script:
+    if do_run_build_script:
         return None
 
     with complete_step("Opening LUKS home partition"):
         return luks_open(partition(loopdev, args.home_partno), args.passphrase)
 
 
-def luks_setup_srv(args: CommandLineArguments, loopdev: str, run_build_script: bool) -> Optional[str]:
+def luks_setup_srv(args: CommandLineArguments, loopdev: str, do_run_build_script: bool) -> Optional[str]:
     if args.encrypt is None:
         return None
     if args.srv_partno is None:
         return None
-    if run_build_script:
+    if do_run_build_script:
         return None
 
     with complete_step("Opening LUKS server data partition"):
@@ -822,7 +822,7 @@ def luks_setup_srv(args: CommandLineArguments, loopdev: str, run_build_script: b
 @contextlib.contextmanager
 def luks_setup_all(args: CommandLineArguments,
                    loopdev: Optional[str],
-                   run_build_script: bool) -> Generator[Tuple[Optional[str],
+                   do_run_build_script: bool) -> Generator[Tuple[Optional[str],
                                                               Optional[str],
                                                               Optional[str]],
                                                         None, None]:
@@ -832,11 +832,11 @@ def luks_setup_all(args: CommandLineArguments,
     assert loopdev is not None
 
     try:
-        root = luks_setup_root(args, loopdev, run_build_script)
+        root = luks_setup_root(args, loopdev, do_run_build_script)
         try:
-            home = luks_setup_home(args, loopdev, run_build_script)
+            home = luks_setup_home(args, loopdev, do_run_build_script)
             try:
-                srv = luks_setup_srv(args, loopdev, run_build_script)
+                srv = luks_setup_srv(args, loopdev, do_run_build_script)
 
                 yield (optional_partition(loopdev, args.root_partno) if root is None else root,
                        optional_partition(loopdev, args.home_partno) if home is None else home,
@@ -1017,7 +1017,7 @@ def umount(where: str) -> None:
 
 
 @completestep('Setting up basic OS tree')
-def prepare_tree(args: CommandLineArguments, workspace: str, run_build_script: bool, cached: bool) -> None:
+def prepare_tree(args: CommandLineArguments, workspace: str, do_run_build_script: bool, cached: bool) -> None:
     if args.output_format == OutputFormat.subvolume:
         btrfs_subvol_create(os.path.join(workspace, "root"))
     else:
@@ -1066,7 +1066,7 @@ def prepare_tree(args: CommandLineArguments, workspace: str, run_build_script: b
             cmdline.write(args.kernel_command_line)
             cmdline.write("\n")
 
-    if run_build_script:
+    if do_run_build_script:
         os.mkdir(os.path.join(workspace, "root", "root"), 0o750)
         os.mkdir(os.path.join(workspace, "root", "root/dest"), 0o755)
 
@@ -1305,7 +1305,7 @@ def invoke_dnf(args: CommandLineArguments,
 
 
 @completestep('Installing Clear Linux')
-def install_clear(args: CommandLineArguments, workspace: str, run_build_script: bool) -> None:
+def install_clear(args: CommandLineArguments, workspace: str, do_run_build_script: bool) -> None:
     if args.release == "latest":
         release = "clear"
     else:
@@ -1314,7 +1314,7 @@ def install_clear(args: CommandLineArguments, workspace: str, run_build_script: 
     root = os.path.join(workspace, "root")
 
     packages = ['os-core'] + args.packages
-    if run_build_script:
+    if do_run_build_script:
         packages.extend(args.build_packages)
     if args.bootable:
         packages += ['kernel-native']
@@ -1346,7 +1346,7 @@ ensure that you have openssl program in your system.
     # Clear Linux doesn't have a /etc/shadow at install time, it gets
     # created when the root first login. To set the password via
     # mkosi, create one.
-    if not run_build_script and args.password is not None:
+    if not do_run_build_script and args.password is not None:
         shadow_file = os.path.join(root, "etc/shadow")
         with open(shadow_file, "w") as f:
             f.write('root::::::::')
@@ -1357,7 +1357,7 @@ ensure that you have openssl program in your system.
 
 
 @completestep('Installing Fedora')
-def install_fedora(args: CommandLineArguments, workspace: str, run_build_script: bool) -> None:
+def install_fedora(args: CommandLineArguments, workspace: str, do_run_build_script: bool) -> None:
     if args.release == 'rawhide':
         last = sorted(FEDORA_KEYS_MAP)[-1]
         warn(f'Assuming rawhide is version {last} — ' +
@@ -1412,7 +1412,7 @@ gpgkey={gpg_key}
     packages += args.packages or []
     if args.bootable:
         packages += ['kernel-core', 'systemd-udev', 'binutils']
-    if run_build_script:
+    if do_run_build_script:
         packages += args.build_packages or []
     invoke_dnf(args, workspace,
                args.repositories or ["fedora", "updates"],
@@ -1426,7 +1426,7 @@ gpgkey={gpg_key}
 
 
 @completestep('Installing Mageia')
-def install_mageia(args: CommandLineArguments, workspace: str, run_build_script: bool) -> None:
+def install_mageia(args: CommandLineArguments, workspace: str, do_run_build_script: bool) -> None:
     masked = disable_kernel_install(args, workspace)
 
     # Mageia does not (yet) have RPM GPG key on the web
@@ -1516,7 +1516,7 @@ def invoke_dnf_or_yum(args: CommandLineArguments,
 
 
 @completestep('Installing CentOS')
-def install_centos(args: CommandLineArguments, workspace: str, run_build_script: bool) -> None:
+def install_centos(args: CommandLineArguments, workspace: str, do_run_build_script: bool) -> None:
     masked = disable_kernel_install(args, workspace)
 
     gpg_key = f"/etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-{args.release}"
@@ -1567,7 +1567,7 @@ def debootstrap_knows_arg(arg: str) -> bool:
 def install_debian_or_ubuntu(args: CommandLineArguments,
                              workspace: str,
                              *,
-                             run_build_script: bool,
+                             do_run_build_script: bool,
                              mirror: str) -> None:
     repos = args.repositories if args.repositories else ["main"]
     # Ubuntu needs the 'universe' repo to install 'dracut'
@@ -1604,7 +1604,7 @@ def install_debian_or_ubuntu(args: CommandLineArguments,
     # can deal better with any conflicts
     extra_packages.extend(args.packages)
 
-    if run_build_script:
+    if do_run_build_script:
         extra_packages.extend(args.build_packages)
 
     # Work around debian bug #835628
@@ -1671,17 +1671,17 @@ def install_debian_or_ubuntu(args: CommandLineArguments,
 
 
 @completestep('Installing Debian')
-def install_debian(args: CommandLineArguments, workspace: str, run_build_script: bool) -> None:
-    install_debian_or_ubuntu(args, workspace, run_build_script=run_build_script, mirror=args.mirror)
+def install_debian(args: CommandLineArguments, workspace: str, do_run_build_script: bool) -> None:
+    install_debian_or_ubuntu(args, workspace, do_run_build_script=do_run_build_script, mirror=args.mirror)
 
 
 @completestep('Installing Ubuntu')
-def install_ubuntu(args: CommandLineArguments, workspace: str, run_build_script: bool) -> None:
-    install_debian_or_ubuntu(args, workspace, run_build_script=run_build_script, mirror=args.mirror)
+def install_ubuntu(args: CommandLineArguments, workspace: str, do_run_build_script: bool) -> None:
+    install_debian_or_ubuntu(args, workspace, do_run_build_script=do_run_build_script, mirror=args.mirror)
 
 
 @completestep('Installing Arch Linux')
-def install_arch(args: CommandLineArguments, workspace: str, run_build_script: bool) -> None:
+def install_arch(args: CommandLineArguments, workspace: str, do_run_build_script: bool) -> None:
     if args.release is not None:
         sys.stderr.write("Distribution release specification is not supported for Arch Linux, ignoring.\n")
 
@@ -1818,7 +1818,7 @@ SigLevel    = Required DatabaseOptional TrustAll
     if args.bootable:
         packages |= kernel_packages
 
-    if run_build_script:
+    if do_run_build_script:
         packages.update(args.build_packages)
     # Remove already installed packages
     c = run_pacman(['-Qq'], stdout=PIPE, universal_newlines=True)
@@ -1845,7 +1845,7 @@ SigLevel    = Required DatabaseOptional TrustAll
 
 
 @completestep('Installing openSUSE')
-def install_opensuse(args: CommandLineArguments, workspace: str, run_build_script: bool) -> None:
+def install_opensuse(args: CommandLineArguments, workspace: str, do_run_build_script: bool) -> None:
     root = os.path.join(workspace, "root")
     release = args.release.strip('"')
 
@@ -1900,7 +1900,7 @@ def install_opensuse(args: CommandLineArguments, workspace: str, run_build_scrip
 
     extra_packages.extend(args.packages)
 
-    if run_build_script:
+    if do_run_build_script:
         extra_packages.extend(args.build_packages)
 
     if extra_packages:
@@ -1931,7 +1931,7 @@ def install_opensuse(args: CommandLineArguments, workspace: str, run_build_scrip
 def install_distribution(args: CommandLineArguments,
                          workspace: str,
                          *,
-                         run_build_script: bool,
+                         do_run_build_script: bool,
                          cached: bool) -> None:
     if cached:
         return
@@ -1947,10 +1947,10 @@ def install_distribution(args: CommandLineArguments,
         Distribution.clear: install_clear,
     }
 
-    install[args.distribution](args, workspace, run_build_script)
+    install[args.distribution](args, workspace, do_run_build_script)
 
 
-def reset_machine_id(args: CommandLineArguments, workspace: str, run_build_script: bool, for_cache: bool) -> None:
+def reset_machine_id(args: CommandLineArguments, workspace: str, do_run_build_script: bool, for_cache: bool) -> None:
     """Make /etc/machine-id an empty file.
 
     This way, on the next boot is either initialized and committed (if /etc is
@@ -1958,7 +1958,7 @@ def reset_machine_id(args: CommandLineArguments, workspace: str, run_build_scrip
     each boot (if the image is read-only).
     """
 
-    if run_build_script:
+    if do_run_build_script:
         return
     if for_cache:
         return
@@ -1990,10 +1990,10 @@ def reset_random_seed(args: CommandLineArguments, workspace: str) -> None:
             pass
 
 
-def set_root_password(args: CommandLineArguments, workspace: str, run_build_script: bool, for_cache: bool) -> None:
+def set_root_password(args: CommandLineArguments, workspace: str, do_run_build_script: bool, for_cache: bool) -> None:
     "Set the root account password, or just delete it so it's easy to log in"
 
-    if run_build_script:
+    if do_run_build_script:
         return
     if for_cache:
         return
@@ -2016,13 +2016,13 @@ def set_root_password(args: CommandLineArguments, workspace: str, run_build_scri
             patch_file(os.path.join(workspace, 'root', 'etc/shadow'), jj)
 
 
-def run_postinst_script(args: CommandLineArguments, workspace: str, run_build_script: bool, for_cache: bool) -> None:
+def run_postinst_script(args: CommandLineArguments, workspace: str, do_run_build_script: bool, for_cache: bool) -> None:
     if args.postinst_script is None:
         return
     if for_cache:
         return
 
-    verb = "build" if run_build_script else "final"
+    verb = "build" if do_run_build_script else "final"
 
     with complete_step('Running postinstall script'):
 
@@ -2260,8 +2260,8 @@ def copy_git_files(src: str, dest: str, *, source_file_transfer: SourceFileTrans
         copy_file(src_path, dest_path)
 
 
-def install_build_src(args: CommandLineArguments, workspace: str, run_build_script: bool, for_cache: bool) -> None:
-    if not run_build_script:
+def install_build_src(args: CommandLineArguments, workspace: str, do_run_build_script: bool, for_cache: bool) -> None:
+    if not do_run_build_script:
         return
     if for_cache:
         return
@@ -2293,8 +2293,8 @@ def install_build_src(args: CommandLineArguments, workspace: str, run_build_scri
                 shutil.copytree(args.build_sources, target, symlinks=True, ignore=ignore)
 
 
-def install_build_dest(args: CommandLineArguments, workspace: str, run_build_script: bool, for_cache: bool) -> None:
-    if run_build_script:
+def install_build_dest(args: CommandLineArguments, workspace: str, do_run_build_script: bool, for_cache: bool) -> None:
+    if do_run_build_script:
         return
     if for_cache:
         return
@@ -2321,9 +2321,9 @@ def make_read_only(args: CommandLineArguments, workspace: str, for_cache: bool) 
 
 def make_tar(args: CommandLineArguments,
              workspace: str,
-             run_build_script: bool,
+             do_run_build_script: bool,
              for_cache: bool) -> Optional[BinaryIO]:
-    if run_build_script:
+    if do_run_build_script:
         return None
     if args.output_format != OutputFormat.tar:
         return None
@@ -2485,9 +2485,9 @@ def insert_squashfs(args: CommandLineArguments,
 def make_verity(args: CommandLineArguments,
                 workspace: str,
                 dev: Optional[str],
-                run_build_script: bool,
+                do_run_build_script: bool,
                 for_cache: bool) -> Tuple[Optional[BinaryIO], Optional[str]]:
-    if run_build_script or not args.verity:
+    if do_run_build_script or not args.verity:
         return None, None
     if for_cache:
         return None, None
@@ -2549,7 +2549,7 @@ def patch_root_uuid(args: CommandLineArguments,
 
 def install_unified_kernel(args: CommandLineArguments,
                            workspace: str,
-                           run_build_script: bool,
+                           do_run_build_script: bool,
                            for_cache: bool,
                            root_hash: Optional[str]) -> None:
     # Iterates through all kernel versions included in the image and
@@ -2573,7 +2573,7 @@ def install_unified_kernel(args: CommandLineArguments,
     # not be relevant for building, and dracut is simply very slow,
     # hence let's avoid it invoking it needlessly, given that we never
     # actually invoke the boot loader on the development image.
-    if run_build_script:
+    if do_run_build_script:
         return
 
     if args.distribution not in (Distribution.fedora, Distribution.mageia):
@@ -2617,8 +2617,8 @@ def install_unified_kernel(args: CommandLineArguments,
             run_workspace_command(args, workspace, *dracut)
 
 
-def secure_boot_sign(args: CommandLineArguments, workspace: str, run_build_script: bool, for_cache: bool) -> None:
-    if run_build_script:
+def secure_boot_sign(args: CommandLineArguments, workspace: str, do_run_build_script: bool, for_cache: bool) -> None:
+    if do_run_build_script:
         return
     if not args.bootable:
         return
@@ -4013,7 +4013,7 @@ def print_summary(args: CommandLineArguments) -> None:
 
 def reuse_cache_tree(args: CommandLineArguments,
                      workspace: str,
-                     run_build_script: bool,
+                     do_run_build_script: bool,
                      for_cache: bool,
                      cached: bool) -> bool:
     """If there's a cached version of this tree around, use it and
@@ -4030,7 +4030,7 @@ def reuse_cache_tree(args: CommandLineArguments,
     if args.output_format.is_disk_rw():
         return False
 
-    fname = args.cache_pre_dev if run_build_script else args.cache_pre_inst
+    fname = args.cache_pre_dev if do_run_build_script else args.cache_pre_inst
     if fname is None:
         return False
 
@@ -4062,17 +4062,17 @@ def make_build_dir(args: CommandLineArguments) -> None:
 def build_image(args: CommandLineArguments,
                 workspace: tempfile.TemporaryDirectory,
                 *,
-                run_build_script: bool,
+                do_run_build_script: bool,
                 for_cache: bool = False,
                 cleanup: bool = False) -> Tuple[Optional[BinaryIO], Optional[BinaryIO], Optional[str]]:
     # If there's no build script set, there's no point in executing
     # the build script iteration. Let's quit early.
-    if args.build_script is None and run_build_script:
+    if args.build_script is None and do_run_build_script:
         return None, None, None
 
     make_build_dir(args)
 
-    raw, cached = reuse_cache_image(args, workspace.name, run_build_script, for_cache)
+    raw, cached = reuse_cache_image(args, workspace.name, do_run_build_script, for_cache)
     if for_cache and cached:
         # Found existing cache image, exiting build_image
         return None, None, None
@@ -4086,42 +4086,42 @@ def build_image(args: CommandLineArguments,
         prepare_esp(args, loopdev, cached)
 
         if loopdev is not None:
-            luks_format_root(args, loopdev, run_build_script, cached)
-            luks_format_home(args, loopdev, run_build_script, cached)
-            luks_format_srv(args, loopdev, run_build_script, cached)
+            luks_format_root(args, loopdev, do_run_build_script, cached)
+            luks_format_home(args, loopdev, do_run_build_script, cached)
+            luks_format_srv(args, loopdev, do_run_build_script, cached)
 
-        with luks_setup_all(args, loopdev, run_build_script) as (encrypted_root, encrypted_home, encrypted_srv):
+        with luks_setup_all(args, loopdev, do_run_build_script) as (encrypted_root, encrypted_home, encrypted_srv):
 
             prepare_root(args, encrypted_root, cached)
             prepare_home(args, encrypted_home, cached)
             prepare_srv(args, encrypted_srv, cached)
 
             with mount_image(args, workspace.name, loopdev, encrypted_root, encrypted_home, encrypted_srv):
-                prepare_tree(args, workspace.name, run_build_script, cached)
+                prepare_tree(args, workspace.name, do_run_build_script, cached)
 
                 with mount_cache(args, workspace.name):
-                    cached = reuse_cache_tree(args, workspace.name, run_build_script, for_cache, cached)
+                    cached = reuse_cache_tree(args, workspace.name, do_run_build_script, for_cache, cached)
                     install_skeleton_trees(args, workspace.name, for_cache)
                     install_distribution(args, workspace.name,
-                                         run_build_script=run_build_script, cached=cached)
+                                         do_run_build_script=do_run_build_script, cached=cached)
                     install_etc_hostname(args, workspace.name)
                     install_boot_loader(args, workspace.name, loopdev, cached)
                     install_extra_trees(args, workspace.name, for_cache)
-                    install_build_src(args, workspace.name, run_build_script, for_cache)
-                    install_build_dest(args, workspace.name, run_build_script, for_cache)
-                    set_root_password(args, workspace.name, run_build_script, for_cache)
-                    run_postinst_script(args, workspace.name, run_build_script, for_cache)
+                    install_build_src(args, workspace.name, do_run_build_script, for_cache)
+                    install_build_dest(args, workspace.name, do_run_build_script, for_cache)
+                    set_root_password(args, workspace.name, do_run_build_script, for_cache)
+                    run_postinst_script(args, workspace.name, do_run_build_script, for_cache)
 
                 if cleanup:
                     clean_package_manager_metadata(workspace.name)
-                reset_machine_id(args, workspace.name, run_build_script, for_cache)
+                reset_machine_id(args, workspace.name, do_run_build_script, for_cache)
                 reset_random_seed(args, workspace.name)
                 make_read_only(args, workspace.name, for_cache)
 
             squashfs = make_squashfs(args, workspace.name, for_cache)
             insert_squashfs(args, workspace.name, raw, loopdev, squashfs, for_cache)
 
-            verity, root_hash = make_verity(args, workspace.name, encrypted_root, run_build_script, for_cache)
+            verity, root_hash = make_verity(args, workspace.name, encrypted_root, do_run_build_script, for_cache)
             patch_root_uuid(args, loopdev, root_hash, for_cache)
             insert_verity(args, workspace.name, raw, loopdev, verity, root_hash, for_cache)
 
@@ -4130,10 +4130,10 @@ def build_image(args: CommandLineArguments,
             # image anymore.
             with mount_image(args, workspace.name, loopdev,
                              encrypted_root, encrypted_home, encrypted_srv, root_read_only=True):
-                install_unified_kernel(args, workspace.name, run_build_script, for_cache, root_hash)
-                secure_boot_sign(args, workspace.name, run_build_script, for_cache)
+                install_unified_kernel(args, workspace.name, do_run_build_script, for_cache, root_hash)
+                secure_boot_sign(args, workspace.name, do_run_build_script, for_cache)
 
-    tar = make_tar(args, workspace.name, run_build_script, for_cache)
+    tar = make_tar(args, workspace.name, do_run_build_script, for_cache)
 
     return raw or squashfs, tar, root_hash
 
@@ -4209,11 +4209,11 @@ def remove_artifacts(args: CommandLineArguments,
                      workspace: str,
                      raw: Optional[BinaryIO],
                      tar: Optional[BinaryIO],
-                     run_build_script: bool,
+                     do_run_build_script: bool,
                      for_cache: bool = False) -> None:
     if for_cache:
         what = "cache build"
-    elif run_build_script:
+    elif do_run_build_script:
         what = "development build"
     else:
         return
@@ -4248,36 +4248,36 @@ def build_stuff(args: CommandLineArguments) -> None:
         # There is no point generating a pre-dev cache image if no build script is provided
         if args.build_script:
             # Generate the cache version of the build image, and store it as "cache-pre-dev"
-            raw, tar, root_hash = build_image(args, workspace, run_build_script=True, for_cache=True)
+            raw, tar, root_hash = build_image(args, workspace, do_run_build_script=True, for_cache=True)
             save_cache(args,
                        workspace.name,
                        raw.name if raw is not None else None,
                        args.cache_pre_dev)
 
-            remove_artifacts(args, workspace.name, raw, tar, run_build_script=True)
+            remove_artifacts(args, workspace.name, raw, tar, do_run_build_script=True)
 
         # Generate the cache version of the build image, and store it as "cache-pre-inst"
-        raw, tar, root_hash = build_image(args, workspace, run_build_script=False, for_cache=True)
+        raw, tar, root_hash = build_image(args, workspace, do_run_build_script=False, for_cache=True)
         if raw:
             save_cache(args,
                        workspace.name,
                        raw.name,
                        args.cache_pre_inst)
-            remove_artifacts(args, workspace.name, raw, tar, run_build_script=False)
+            remove_artifacts(args, workspace.name, raw, tar, do_run_build_script=False)
 
     run_finalize_script(args, workspace.name, verb='build')
 
     if args.build_script:
         # Run the image builder for the first (develpoment) stage in preparation for the build script
-        raw, tar, root_hash = build_image(args, workspace, run_build_script=True)
+        raw, tar, root_hash = build_image(args, workspace, do_run_build_script=True)
 
         run_build_script(args, workspace.name, raw)
-        remove_artifacts(args, workspace.name, raw, tar, run_build_script=True)
+        remove_artifacts(args, workspace.name, raw, tar, do_run_build_script=True)
 
     run_finalize_script(args, workspace.name, verb='final')
 
     # Run the image builder for the second (final) stage
-    raw, tar, root_hash = build_image(args, workspace, run_build_script=False, cleanup=True)
+    raw, tar, root_hash = build_image(args, workspace, do_run_build_script=False, cleanup=True)
 
     raw = qcow2_output(args, raw)
     raw = xz_output(args, raw)
