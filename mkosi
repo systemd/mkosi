@@ -4242,6 +4242,11 @@ def build_stuff(args: CommandLineArguments) -> None:
     setup_package_cache(args)
     workspace = setup_workspace(args)
 
+    # Make sure tmpfiles' aging doesn't interfere with our workspace
+    # while we are working on it.
+    dir_fd = os.open(workspace.name, os.O_RDONLY|os.O_DIRECTORY|os.O_CLOEXEC)
+    fcntl.flock(dir_fd, fcntl.LOCK_EX)
+
     # If caching is requested, then make sure we have cache images around we can make use of
     if need_cache_images(args):
 
@@ -4306,6 +4311,7 @@ def build_stuff(args: CommandLineArguments) -> None:
     if root_hash is not None:
         print_step(f'Root hash is {root_hash}.')
 
+    os.close(dir_fd)
 
 def check_root() -> None:
     if os.getuid() != 0:
