@@ -1561,9 +1561,8 @@ gpgkey={gpg_key}
     reenable_kernel_install(args, workspace, masked)
 
 
-def debootstrap_knows_merged_usr() -> bool:
-    return bytes("invalid option", "UTF-8") not in run(["debootstrap", "--merged-usr"], stdout=PIPE).stdout
-
+def debootstrap_knows_arg(arg: str) -> bool:
+    return bytes("invalid option", "UTF-8") not in run(["debootstrap", arg], stdout=PIPE).stdout
 
 def install_debian_or_ubuntu(args: CommandLineArguments,
                              workspace: str,
@@ -1582,9 +1581,10 @@ def install_debian_or_ubuntu(args: CommandLineArguments,
                "--exclude=sysv-rc,initscripts,startpar,lsb-base,insserv",
                "--components=" + ','.join(repos)]
 
-    # Let's use --merged-usr only if debootstrap knows it
-    if debootstrap_knows_merged_usr():
-        cmdline += ["--merged-usr"]
+    # Let's use --merged-usr and --no-check-valid-until only if debootstrap knows it
+    for arg in ["--merged-usr", "--no-check-valid-until"]:
+        if debootstrap_knows_arg(arg):
+            cmdline += [arg]
 
     cmdline += [args.release,
                 workspace + "/root",
