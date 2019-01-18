@@ -2980,7 +2980,7 @@ def parse_args() -> CommandLineArguments:
     group.add_argument("--boot-protocols", action=CommaDelimitedListAction,
                        help="Boot protocols to use on a bootable image", metavar="PROTOCOLS", default=[])
     group.add_argument("--kernel-command-line", help='Set the kernel command line (only bootable images)')
-    group.add_argument("--kernel-commandline", help=argparse.SUPPRESS) # Compatibility option
+    group.add_argument("--kernel-commandline", dest='kernel_command_line', help=argparse.SUPPRESS) # Compatibility option
     group.add_argument("--secure-boot", action='store_true',
                        help='Sign the resulting kernel/initrd image for UEFI SecureBoot')
     group.add_argument("--secure-boot-key", help="UEFI SecureBoot private key in PEM format", metavar='PATH')
@@ -3051,8 +3051,9 @@ def parse_args() -> CommandLineArguments:
     group.add_argument("--password", help='Set the root password')
 
     group = parser.add_argument_group("Host configuration")
-    group.add_argument("--extra-search-paths", action=ColonDelimitedListAction, default=[],
+    group.add_argument("--extra-search-path", dest='extra_search_paths', action=ColonDelimitedListAction, default=[],
                        help="List of colon-separated paths to look for programs before looking in PATH")
+    group.add_argument("--extra-search-paths", dest='extra_search_paths', action=ColonDelimitedListAction, help=argparse.SUPPRESS) # Compatibility option
 
     group = parser.add_argument_group("Additional Configuration")
     group.add_argument('-C', "--directory", help='Change to specified directory before doing anything', metavar='PATH')
@@ -4433,6 +4434,8 @@ def prepend_to_environ_path(paths: List[str]) -> None:
 def run_verb(args):
     load_args(args)
 
+    prepend_to_environ_path(args.extra_search_paths)
+
     if args.verb in ("build", "clean", "shell", "boot", "qemu"):
         check_root()
         unlink_output(args)
@@ -4464,8 +4467,6 @@ def main() -> None:
 
     if args.directory is not None:
         os.chdir(args.directory)
-
-    prepend_to_environ_path(args.extra_search_paths)
 
     if args.all:
         for f in os.scandir(args.all_directory):
