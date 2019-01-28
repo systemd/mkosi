@@ -2822,7 +2822,7 @@ def link_output(args: CommandLineArguments, workspace: str, artifact: Optional[B
         if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
             assert artifact is None
             os.rename(os.path.join(workspace, "root"), args.output)
-        elif args.output_format.is_disk() or args.output_format == OutputFormat.plain_squashfs:
+        elif args.output_format.is_disk() or args.output_format in (OutputFormat.plain_squashfs, OutputFormat.tar):
             assert artifact is not None
             _link_output(args, artifact.name, args.output)
 
