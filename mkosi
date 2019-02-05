@@ -2169,10 +2169,10 @@ def install_boot_loader(args: CommandLineArguments, workspace: str, loopdev: Opt
     with complete_step("Installing boot loader"):
         if args.esp_partno:
             shutil.copyfile(os.path.join(workspace, "root", "usr/lib/systemd/boot/efi/systemd-bootx64.efi"),
-                            os.path.join(workspace, "root", "boot/efi/EFI/systemd/systemd-bootx64.efi"))
+                            os.path.join(workspace, "root", "efi/EFI/systemd/systemd-bootx64.efi"))
 
             shutil.copyfile(os.path.join(workspace, "root", "usr/lib/systemd/boot/efi/systemd-bootx64.efi"),
-                            os.path.join(workspace, "root", "boot/efi/EFI/BOOT/bootx64.efi"))
+                            os.path.join(workspace, "root", "efi/EFI/BOOT/bootx64.efi"))
 
         if args.distribution == Distribution.fedora:
             install_boot_loader_fedora(args, workspace, loopdev)
