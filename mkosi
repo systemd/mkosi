@@ -1709,7 +1709,7 @@ Architecture = auto
 UseSyslog
 Color
 CheckSpace
-SigLevel    = Required DatabaseOptional
+SigLevel    = Required DatabaseOptional TrustAll
 
 [core]
 {server}
