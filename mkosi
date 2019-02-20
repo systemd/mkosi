@@ -1709,7 +1709,7 @@ Architecture = auto
 UseSyslog
 Color
 CheckSpace
-SigLevel    = Required DatabaseOptional
+SigLevel    = Required DatabaseOptional TrustAll
 
 [core]
 {server}
@@ -1828,6 +1828,7 @@ SigLevel    = Required DatabaseOptional
 
     # Kill the gpg-agent used by pacman and pacman-key
     run(['gpg-connect-agent', '--homedir', os.path.join(root, 'etc/pacman.d/gnupg'), 'KILLAGENT', '/bye'])
+    run(['gpg-connect-agent', '--homedir', os.path.join(root, 'etc/pacman.d/gnupg'), '--dirmngr', 'KILLDIRMNGR', '/bye'])
 
     if "networkmanager" in args.packages:
         enable_networkmanager(workspace)
@@ -1841,9 +1842,6 @@ SigLevel    = Required DatabaseOptional
 
     with open(os.path.join(workspace, 'root', 'etc/locale.conf'), 'w') as f:
         f.write('LANG=en_US.UTF-8\n')
-
-    # At this point, no process should be left running, kill then
-    run(["fuser", "-c", root, "--kill"])
 
 
 @completestep('Installing openSUSE')
