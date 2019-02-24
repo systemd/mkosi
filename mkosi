@@ -55,6 +55,13 @@ __version__ = '4'
 if sys.version_info < (3, 6):
     sys.exit("Sorry, we need at least Python 3.6.")
 
+
+MKOSI_COMMANDS_CMDLINE = ("shell", "boot", "qemu")
+MKOSI_COMMANDS_NEED_BUILD = MKOSI_COMMANDS_CMDLINE
+MKOSI_COMMANDS_SUDO = ("build", "clean") + MKOSI_COMMANDS_CMDLINE
+MKOSI_COMMANDS = ("build", "clean", "help", "summary") + MKOSI_COMMANDS_CMDLINE
+
+
 # This global should be initialized after parsing arguments
 arg_debug = ()
 
@@ -3005,9 +3012,8 @@ def create_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description='Build Legacy-Free OS Images', add_help=False)
 
     group = parser.add_argument_group("Commands")
-    group.add_argument("verb", choices=("build", "clean", "help", "summary", "shell", "boot", "qemu"), nargs='?',
-                       default="build", help='Operation to execute')
-    group.add_argument("cmdline", nargs=argparse.REMAINDER, help="The command line to use for 'shell', 'boot', 'qemu'")
+    group.add_argument("verb", choices=MKOSI_COMMANDS, nargs='?', default="build", help='Operation to execute')
+    group.add_argument("cmdline", nargs=argparse.REMAINDER, help="The command line to use for " + str(MKOSI_COMMANDS_CMDLINE)[1:-1])
     group.add_argument('-h', '--help', action='help', help="Show this help")
     group.add_argument('--version', action='version', version='%(prog)s ' + __version__)
 
@@ -3714,8 +3720,8 @@ def load_args(args) -> CommandLineArguments:
 
     args.extra_search_paths = expand_paths(args.extra_search_paths)
 
-    if args.cmdline and args.verb not in ('shell', 'boot', 'qemu'):
-        die("Additional parameters only accepted for 'shell', 'boot', 'qemu' invocations.")
+    if args.cmdline and args.verb not in MKOSI_COMMANDS_CMDLINE:
+        die("Additional parameters only accepted for " + str(MKOSI_COMMANDS_CMDLINE)[1:-1] + " invocations.")
 
     args.force = args.force_count > 0
 
@@ -3913,7 +3919,7 @@ def load_args(args) -> CommandLineArguments:
         if args.secure_boot_certificate is None:
             die("UEFI SecureBoot enabled, but couldn't find certificate. (Consider placing it in mkosi.secure-boot.crt?)")  # NOQA: E501
 
-    if args.verb in ("shell", "boot", "qemu"):
+    if args.verb in MKOSI_COMMANDS_CMDLINE:
         if args.output_format == OutputFormat.tar:
             die("Sorry, can't acquire shell in or boot a tar archive.")
         if args.xz:
@@ -4512,14 +4518,14 @@ def run_verb(args):
 
     prepend_to_environ_path(args.extra_search_paths)
 
-    if args.verb in ("build", "clean", "shell", "boot", "qemu"):
+    if args.verb in MKOSI_COMMANDS_SUDO:
         check_root()
         unlink_output(args)
 
     if args.verb == "build":
         check_output(args)
 
-    needs_build = args.verb == "build" or (not os.path.exists(args.output) and args.verb in ("shell", "boot", "qemu"))
+    needs_build = args.verb == "build" or (not os.path.exists(args.output) and args.verb in MKOSI_COMMANDS_NEED_BUILD)
 
     if args.verb == "summary" or needs_build:
         print_summary(args)
