@@ -3054,7 +3054,7 @@ def create_parser() -> argparse.ArgumentParser:
     group.add_argument('-d', "--distribution", choices=Distribution.__members__, help='Distribution to install')
     group.add_argument('-r', "--release", help='Distribution release to install')
     group.add_argument('-m', "--mirror", help='Distribution mirror to use')
-    group.add_argument("--repositories", action=CommaDelimitedListAction, dest='repositories',
+    group.add_argument("--repositories", action=CommaDelimitedListAction, dest='repositories', default=[],
                        help='Repositories to use', metavar='REPOS')
     group.add_argument('--architecture', help='Override the architecture of installation')
 
@@ -3101,6 +3101,7 @@ def create_parser() -> argparse.ArgumentParser:
                        help='Install documentation')
     group.add_argument('-T', "--without-tests", action=BooleanAction, dest='with_tests', default=True,
                        help='Do not run tests as part of build script, if supported')
+    group.add_argument("--with-tests", action=BooleanAction, default=True, help=argparse.SUPPRESS)  # Compatibility option
     group.add_argument("--cache", dest='cache_path', help='Package cache path', metavar='PATH')
     group.add_argument("--extra-tree", action='append', dest='extra_trees', default=[],
                        help='Copy an extra tree on top of image', metavar='PATH')
@@ -3108,7 +3109,8 @@ def create_parser() -> argparse.ArgumentParser:
                        help='Use a skeleton tree to bootstrap the image before installing anything', metavar='PATH')
     group.add_argument("--build-script", help='Build script to run inside image', metavar='PATH')
     group.add_argument("--build-sources", help='Path for sources to build', metavar='PATH')
-    group.add_argument("--build-dir", help='Path to use as persistent build directory', metavar='PATH')
+    group.add_argument("--build-dir", help=argparse.SUPPRESS, metavar='PATH')  # Compatibility option
+    group.add_argument("--build-directory", dest='build_dir', help='Path to use as persistent build directory', metavar='PATH')
     group.add_argument("--build-package", action=CommaDelimitedListAction, dest='build_packages', default=[],
                        help='Additional packages needed for build script', metavar='PACKAGE')
     group.add_argument("--postinst-script", help='Postinstall script to run inside image', metavar='PATH')
