@@ -917,16 +917,15 @@ def mount_image(args: CommandLineArguments,
                 home_dev: Optional[str],
                 srv_dev: Optional[str],
                 root_read_only: bool = False) -> Generator[None, None, None]:
-    if loopdev is None:
-        yield None
-        return
-    assert root_dev is not None
-
     with complete_step('Mounting image'):
         root = os.path.join(workspace, "root")
 
-        if args.output_format != OutputFormat.gpt_squashfs:
+        if root_dev is not None:
             mount_loop(args, root_dev, root, root_read_only)
+        else:
+            # always have a root of the tree as a mount point so we can
+            # recursively unmount anything that ends up mounted there
+            mount_bind(root, root)
 
         if home_dev is not None:
             mount_loop(args, home_dev, os.path.join(root, "home"))
