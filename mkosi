@@ -3045,7 +3045,7 @@ def create_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description='Build Legacy-Free OS Images', add_help=False)
 
     group = parser.add_argument_group("Commands")
-    group.add_argument("verb", choices=MKOSI_COMMANDS, nargs='?', default="build", help='Operation to execute')
+    group.add_argument("verb", choices=MKOSI_COMMANDS, default="build", help='Operation to execute')
     group.add_argument("cmdline", nargs=argparse.REMAINDER, help="The command line to use for " + str(MKOSI_COMMANDS_CMDLINE)[1:-1])
     group.add_argument('-h', '--help', action='help', help="Show this help")
     group.add_argument('--version', action='version', version='%(prog)s ' + __version__)
