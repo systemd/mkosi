@@ -2971,6 +2971,10 @@ class ListAction(argparse.Action):
         if ary is None:
             ary = []
 
+        # Support list syntax for comma separated lists as well
+        if self.delimiter == ',' and values.startswith("[") and values.endswith("]"):
+            values = values[1:-1]
+
         new = values.split(self.delimiter)
 
         for x in new:
