@@ -1107,7 +1107,7 @@ def prepare_tree(args: CommandLineArguments, workspace: str, do_run_build_script
         os.mkdir(os.path.join(workspace, "root", "etc/kernel"), 0o755)
 
         with open(os.path.join(workspace, "root", "etc/kernel/cmdline"), "w") as cmdline:
-            cmdline.write(args.kernel_command_line)
+            cmdline.write(' '.join(args.kernel_command_line))
             cmdline.write("\n")
 
     if do_run_build_script:
@@ -1969,7 +1969,7 @@ def install_opensuse(args: CommandLineArguments, workspace: str, do_run_build_sc
 
         # dracut from openSUSE is missing upstream commit 016613c774baf.
         with open(os.path.join(root, "etc/kernel/cmdline"), "w") as cmdlinefile:
-            cmdlinefile.write(args.kernel_command_line + " root=/dev/gpt-auto-root\n")
+            cmdlinefile.write(' '.join(args.kernel_command_line) + " root=/dev/gpt-auto-root\n")
 
 
 def install_distribution(args: CommandLineArguments,
@@ -2113,7 +2113,8 @@ def install_grub(args: CommandLineArguments, workspace: str, loopdev: str, grub:
     if args.bios_partno is None:
         return
 
-    grub_cmdline = f'GRUB_CMDLINE_LINUX="{args.kernel_command_line}"\n'
+    kernel_cmd_line = ' '.join(args.kernel_command_line)
+    grub_cmdline = f'GRUB_CMDLINE_LINUX="{kernel_cmd_line}"\n'
     os.makedirs(os.path.join(workspace, "root", "etc/default"), exist_ok=True, mode=0o755)
     if not os.path.exists(os.path.join(workspace, "root", "etc/default/grub")):
         with open(os.path.join(workspace, "root", "etc/default/grub"), "w+") as f:
@@ -2625,7 +2626,7 @@ def install_unified_kernel(args: CommandLineArguments,
 
     with complete_step("Generating combined kernel + initrd boot file"):
 
-        cmdline = args.kernel_command_line
+        cmdline = ' '.join(args.kernel_command_line)
         if root_hash is not None:
             cmdline += " roothash=" + root_hash
 
@@ -3003,6 +3004,10 @@ class ColonDelimitedListAction(ListAction):
     delimiter = ":"
 
 
+class SpaceDelimitedListAction(ListAction):
+    delimiter = " "
+
+
 class BooleanAction(argparse.Action):
     """Parse boolean command line arguments
 
@@ -3167,8 +3172,9 @@ def create_parser() -> ArgumentParserMkosi:
                        help='Make image bootable on EFI (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs)')
     group.add_argument("--boot-protocols", action=CommaDelimitedListAction,
                        help="Boot protocols to use on a bootable image", metavar="PROTOCOLS", default=[])
-    group.add_argument("--kernel-command-line", help='Set the kernel command line (only bootable images)')
-    group.add_argument("--kernel-commandline", dest='kernel_command_line', help=argparse.SUPPRESS) # Compatibility option
+    group.add_argument("--kernel-command-line", action=SpaceDelimitedListAction, default=['rhgb', 'quiet', 'selinux=0', 'audit=0', 'rw'],
+                       help='Set the kernel command line (only bootable images)')
+    group.add_argument("--kernel-commandline", action=SpaceDelimitedListAction, dest='kernel_command_line', help=argparse.SUPPRESS) # Compatibility option
     group.add_argument("--secure-boot", action=BooleanAction,
                        help='Sign the resulting kernel/initrd image for UEFI SecureBoot')
     group.add_argument("--secure-boot-key", help="UEFI SecureBoot private key in PEM format", metavar='PATH')
@@ -3900,9 +3906,6 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
 
     args.verity_size = None
 
-    if args.bootable and args.kernel_command_line is None:
-        args.kernel_command_line = "rhgb quiet selinux=0 audit=0 rw"
-
     if args.secure_boot_key is not None:
         args.secure_boot_key = os.path.abspath(args.secure_boot_key)
 
@@ -4031,7 +4034,7 @@ def print_summary(args: CommandLineArguments) -> None:
         sys.stderr.write("              Bootable: " + yes_no(args.bootable) + "\n")
 
         if args.bootable:
-            sys.stderr.write("   Kernel Command Line: " + args.kernel_command_line + "\n")
+            sys.stderr.write("   Kernel Command Line: " + ' '.join(args.kernel_command_line) + "\n")
             sys.stderr.write("       UEFI SecureBoot: " + yes_no(args.secure_boot) + "\n")
 
             if args.secure_boot:
