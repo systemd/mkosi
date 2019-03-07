@@ -174,6 +174,7 @@ GPT_BIOS               = uuid.UUID("2168614864496e6f744e656564454649")  # NOQA: 
 GPT_SWAP               = uuid.UUID("0657fd6da4ab43c484e50933c84b4f4f")  # NOQA: E221
 GPT_HOME               = uuid.UUID("933ac7e12eb44f13b8440e14e2aef915")  # NOQA: E221
 GPT_SRV                = uuid.UUID("3b8f842520e04f3b907f1a25a76f98e8")  # NOQA: E221
+GPT_XBOOTLDR           = uuid.UUID("bc13c2ff59e64262a352b275fd6f7172")  # NOQA: E221
 GPT_ROOT_X86_VERITY    = uuid.UUID("d13c5d3bb5d1422ab29f9454fdc89d76")  # NOQA: E221
 GPT_ROOT_X86_64_VERITY = uuid.UUID("2c7357edebd246d9aec123d437ec2bf5")  # NOQA: E221
 GPT_ROOT_ARM_VERITY    = uuid.UUID("7386cdf2203c47a9a498f2ecce45a2d6")  # NOQA: E221
@@ -473,6 +474,8 @@ def image_size(args: CommandLineArguments) -> int:
             size += args.esp_size
         if "bios" in args.boot_protocols:
             size += BIOS_PARTITION_SIZE
+    if args.xbootldr_size is not None:
+        size += args.xbootldr_size
     if args.swap_size is not None:
         size += args.swap_size
     if args.verity_size is not None:
@@ -506,6 +509,13 @@ def determine_partition_table(args: CommandLineArguments) -> Tuple[str, bool]:
             pn += 1
 
         run_sfdisk = True
+
+    if args.xbootldr_size is not None:
+        table += f'size={args.xbootldr_size // 512}, type={GPT_XBOOTLDR}, name="Boot Loader Partition"\n'
+        args.xbootldr_partno = pn
+        pn += 1
+    else:
+        args.xbootldr_partno = None
 
     if args.swap_size is not None:
         table += f'size={args.swap_size // 512}, type={GPT_SWAP}, name="Swap Partition"\n'
@@ -677,6 +687,18 @@ def prepare_esp(args: CommandLineArguments, loopdev: Optional[str], cached: bool
 
     with complete_step('Formatting ESP partition'):
         run(["mkfs.fat", "-nEFI", "-F32", partition(loopdev, args.esp_partno)], check=True)
+
+
+def prepare_xbootldr(args: CommandLineArguments, loopdev: Optional[str], cached: bool) -> None:
+    if loopdev is None:
+        return
+    if cached:
+        return
+    if args.xbootldr_partno is None:
+        return
+
+    with complete_step('Formatting XBOOTLDR partition'):
+        run(["mkfs.fat", "-nXBOOTLDR", "-F32", partition(loopdev, args.xbootldr_partno)], check=True)
 
 
 def mkfs_ext4(label: str, mount: str, dev: str) -> None:
@@ -936,6 +958,9 @@ def mount_image(args: CommandLineArguments,
         if args.esp_partno is not None:
             mount_loop(args, partition(loopdev, args.esp_partno), os.path.join(root, "efi"))
 
+        if args.xbootldr_partno is not None:
+            mount_loop(args, partition(loopdev, args.xbootldr_partno), os.path.join(root, "boot"))
+
         # Make sure /tmp and /run are not part of the image
         mount_tmpfs(os.path.join(root, "run"))
         mount_tmpfs(os.path.join(root, "tmp"))
@@ -1044,20 +1069,33 @@ def prepare_tree(args: CommandLineArguments, workspace: str, do_run_build_script
             f.write(args.machine_id)
             f.write("\n")
 
-        os.mkdir(os.path.join(workspace, "root", "boot"), 0o700)
+        if args.xbootldr_partno is not None:
+            # Create directories for kernels and entries if this is enabled
+            os.mkdir(os.path.join(workspace, "root", "boot/EFI"), 0o700)
+            os.mkdir(os.path.join(workspace, "root", "boot/EFI/Linux"), 0o700)
+            os.mkdir(os.path.join(workspace, "root", "boot/loader"), 0o700)
+            os.mkdir(os.path.join(workspace, "root", "boot/loader/entries"), 0o700)
+            os.mkdir(os.path.join(workspace, "root", "boot", args.machine_id), 0o700)
+        else:
+            # If this is not enabled, let's create an empty directory on /boot
+            os.mkdir(os.path.join(workspace, "root", "boot"), 0o700)
 
         if args.esp_partno is not None:
             os.mkdir(os.path.join(workspace, "root", "efi/EFI"), 0o700)
             os.mkdir(os.path.join(workspace, "root", "efi/EFI/BOOT"), 0o700)
-            os.mkdir(os.path.join(workspace, "root", "efi/EFI/Linux"), 0o700)
             os.mkdir(os.path.join(workspace, "root", "efi/EFI/systemd"), 0o700)
             os.mkdir(os.path.join(workspace, "root", "efi/loader"), 0o700)
-            os.mkdir(os.path.join(workspace, "root", "efi/loader/entries"), 0o700)
-            os.mkdir(os.path.join(workspace, "root", "efi", args.machine_id), 0o700)
 
-            os.symlink("../efi", os.path.join(workspace, "root", "boot/efi"))
-            os.symlink("efi/loader", os.path.join(workspace, "root", "boot/loader"))
-            os.symlink("efi/" + args.machine_id, os.path.join(workspace, "root", "boot", args.machine_id))
+            if args.xbootldr_partno is None:
+                # Create directories for kernels and entries, unless the XBOOTLDR partition is turned on
+                os.mkdir(os.path.join(workspace, "root", "efi/EFI/Linux"), 0o700)
+                os.mkdir(os.path.join(workspace, "root", "efi/loader/entries"), 0o700)
+                os.mkdir(os.path.join(workspace, "root", "efi", args.machine_id), 0o700)
+
+                # Create some compatibility symlinks in /boot in case that is not set up otherwise
+                os.symlink("../efi", os.path.join(workspace, "root", "boot/efi"))
+                os.symlink("../efi/loader", os.path.join(workspace, "root", "boot/loader"))
+                os.symlink("../efi/" + args.machine_id, os.path.join(workspace, "root", "boot", args.machine_id))
 
         os.mkdir(os.path.join(workspace, "root", "etc/kernel"), 0o755)
 
@@ -2166,10 +2204,10 @@ def install_boot_loader(args: CommandLineArguments, workspace: str, loopdev: Opt
     with complete_step("Installing boot loader"):
         if args.esp_partno:
             shutil.copyfile(os.path.join(workspace, "root", "usr/lib/systemd/boot/efi/systemd-bootx64.efi"),
-                            os.path.join(workspace, "root", "boot/efi/EFI/systemd/systemd-bootx64.efi"))
+                            os.path.join(workspace, "root", "efi/EFI/systemd/systemd-bootx64.efi"))
 
             shutil.copyfile(os.path.join(workspace, "root", "usr/lib/systemd/boot/efi/systemd-bootx64.efi"),
-                            os.path.join(workspace, "root", "boot/efi/EFI/BOOT/bootx64.efi"))
+                            os.path.join(workspace, "root", "efi/EFI/BOOT/bootx64.efi"))
 
         if args.distribution == Distribution.fedora:
             install_boot_loader_fedora(args, workspace, loopdev)
@@ -2588,7 +2626,10 @@ def install_unified_kernel(args: CommandLineArguments,
             if not kver.is_dir():
                 continue
 
-            boot_binary = "/efi/EFI/Linux/linux-" + kver.name
+            # Place kernel in XBOOTLDR partition if it is turned on, otherwise in the ESP
+            prefix = "/efi" if args.xbootldr_size is None else "/boot"
+
+            boot_binary = prefix + "/EFI/Linux/linux-" + kver.name
             if root_hash is not None:
                 boot_binary += "-" + root_hash
             boot_binary += ".efi"
@@ -3032,6 +3073,8 @@ def parse_args() -> CommandLineArguments:
                        help='Set size of root partition (only gpt_ext4, gpt_xfs, gpt_btrfs)', metavar='BYTES')
     group.add_argument("--esp-size",
                        help='Set size of EFI system partition (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs)', metavar='BYTES')  # NOQA: E501
+    group.add_argument("--xbootldr-size",
+                       help='Set size of the XBOOTLDR partition (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs)', metavar='BYTES')  # NOQA: E501
     group.add_argument("--swap-size",
                        help='Set size of swap partition (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs)', metavar='BYTES')  # NOQA: E501
     group.add_argument("--home-size",
@@ -3395,6 +3438,9 @@ def process_setting(args: CommandLineArguments, section: str, key: Optional[str]
         elif key == "ESPSize":
             if args.esp_size is None:
                 args.esp_size = value
+        elif key == "BootLoaderSize":
+            if args.xbootldr_size is None:
+                args.xbootldr_size = value
         elif key == "SwapSize":
             if args.swap_size is None:
                 args.swap_size = value
@@ -3819,6 +3865,7 @@ def load_args(args) -> CommandLineArguments:
     args.home_size = parse_bytes(args.home_size)
     args.srv_size = parse_bytes(args.srv_size)
     args.esp_size = parse_bytes(args.esp_size)
+    args.xbootldr_size = parse_bytes(args.xbootldr_size)
     args.swap_size = parse_bytes(args.swap_size)
 
     if args.output_format in (OutputFormat.gpt_ext4, OutputFormat.gpt_btrfs) and args.root_size is None:
@@ -3997,6 +4044,7 @@ def print_summary(args: CommandLineArguments) -> None:
             sys.stderr.write("                   ESP: " + format_bytes_or_disabled(args.esp_size) + "\n")
         if "bios" in args.boot_protocols:
             sys.stderr.write("                  BIOS: " + format_bytes_or_disabled(BIOS_PARTITION_SIZE) + "\n")
+        sys.stderr.write("    XBOOTLDR Partition: " + format_bytes_or_disabled(args.xbootldr_size) + "\n")
         sys.stderr.write("       /home Partition: " + format_bytes_or_disabled(args.home_size) + "\n")
         sys.stderr.write("        /srv Partition: " + format_bytes_or_disabled(args.srv_size) + "\n")
 
@@ -4083,6 +4131,7 @@ def build_image(args: CommandLineArguments,
 
         prepare_swap(args, loopdev, cached)
         prepare_esp(args, loopdev, cached)
+        prepare_xbootldr(args, loopdev, cached)
 
         if loopdev is not None:
             luks_format_root(args, loopdev, do_run_build_script, cached)
