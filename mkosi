@@ -2712,7 +2712,7 @@ def qcow2_output(args: CommandLineArguments, raw: Optional[BinaryIO]) -> Optiona
 
     with complete_step('Converting image file to qcow2'):
         f: BinaryIO = cast(BinaryIO, tempfile.NamedTemporaryFile(prefix=".mkosi-", dir=os.path.dirname(args.output)))
-        run(["qemu-img", "convert", "-fraw", "-Oqcow2", raw.name, f.name], check=True)
+        run(["qemu-img", "convert", "-onocow=on", "-fraw", "-Oqcow2", raw.name, f.name], check=True)
 
     return f
 
