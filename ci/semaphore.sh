@@ -10,8 +10,8 @@ testimg()
 {
 	img="$1"
 	sudo python3.6 ./mkosi --default ./mkosi.files/mkosi."$img"
-	test -f "$img".raw
-	rm "$img".raw
+	test -f mkosi.output/"$img".raw
+	rm mkosi.output/"$img".raw
 }
 
 # Only test ubuntu images for now, as semaphore is based on Ubuntu

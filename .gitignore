@@ -7,13 +7,7 @@
 /__pycache__
 /build
 /dist
-/image
-/image.raw
-/image.raw.xz
-/image.roothash
-/image.tar.xz
 /mkosi.build
-/mkosi.cache
 /mkosi.egg-info
 /mkosi.extra
 /mkosi.nspawn
