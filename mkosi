@@ -3019,27 +3019,27 @@ def parse_args() -> CommandLineArguments:
                        help="Boot protocols to use on a bootable image", metavar="PROTOCOLS", default=[])
     group.add_argument("--kernel-command-line", help='Set the kernel command line (only bootable images)')
     group.add_argument("--kernel-commandline", dest='kernel_command_line', help=argparse.SUPPRESS) # Compatibility option
-    group.add_argument("--secure-boot", action='store_true',
+    group.add_argument("--secure-boot", action='store_true', default=None,
                        help='Sign the resulting kernel/initrd image for UEFI SecureBoot')
     group.add_argument("--secure-boot-key", help="UEFI SecureBoot private key in PEM format", metavar='PATH')
     group.add_argument("--secure-boot-certificate", help="UEFI SecureBoot certificate in X509 format", metavar='PATH')
-    group.add_argument("--read-only", action='store_true',
+    group.add_argument("--read-only", action='store_true', default=None,
                        help='Make root volume read-only (only gpt_ext4, gpt_xfs, gpt_btrfs, subvolume, implied with gpt_squashfs and plain_squashfs)')
     group.add_argument("--encrypt", choices=("all", "data"),
                        help='Encrypt everything except: ESP ("all") or ESP and root ("data")')
-    group.add_argument("--verity", action='store_true', help='Add integrity partition (implies --read-only)')
+    group.add_argument("--verity", action='store_true', default=None, help='Add integrity partition (implies --read-only)')
     group.add_argument("--compress", type=parse_compression,
                        help='Enable compression in file system (only gpt_btrfs, subvolume, gpt_squashfs, plain_squashfs)')
     group.add_argument('--mksquashfs', dest='mksquashfs_tool', type=str.split,
                        help='Script to call instead of mksquashfs')
-    group.add_argument("--xz", action='store_true',
+    group.add_argument("--xz", action='store_true', default=None,
                        help='Compress resulting image with xz (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs, implied on tar)')  # NOQA: E501
-    group.add_argument("--qcow2", action='store_true',
+    group.add_argument("--qcow2", action='store_true', default=None,
                        help='Convert resulting image to qcow2 (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs)')
     group.add_argument("--hostname", help="Set hostname")
-    group.add_argument('--no-chown', action='store_true',
+    group.add_argument('--no-chown', action='store_true', default=None,
                        help='When running with sudo, disable reassignment of ownership of the generated files to the original user')  # NOQA: E501
-    group.add_argument('-i', "--incremental", action='store_true',
+    group.add_argument('-i', "--incremental", action='store_true', default=None,
                        help='Make use of and generate intermediary cache images')
 
     group = parser.add_argument_group("Packages")
@@ -3083,10 +3083,10 @@ def parse_args() -> CommandLineArguments:
                        help='Set size of /srv partition (only gpt_ext4, gpt_xfs, gpt_squashfs)', metavar='BYTES')
 
     group = parser.add_argument_group("Validation (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs, tar)")
-    group.add_argument("--checksum", action='store_true', help='Write SHA256SUMS file')
-    group.add_argument("--sign", action='store_true', help='Write and sign SHA256SUMS file')
+    group.add_argument("--checksum", action='store_true', default=None, help='Write SHA256SUMS file')
+    group.add_argument("--sign", action='store_true', default=None, help='Write and sign SHA256SUMS file')
     group.add_argument("--key", help='GPG key to use for signing')
-    group.add_argument("--bmap", action='store_true',
+    group.add_argument("--bmap", action='store_true', default=None,
                        help='Write block map file (.bmap) for bmaptool usage (only gpt_ext4, gpt_btrfs)')
     group.add_argument("--password", help='Set the root password')
 
