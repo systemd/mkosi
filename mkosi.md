@@ -180,7 +180,8 @@ details see the table below.
 : Additional package repositories to use during installation. Expects
   one or more URLs as argument, separated by commas. This option may
   be used multiple times, in which case the list of repositories to
-  use is combined.
+  use is combined. Use "!*" to remove all repositories from to the list
+  or use e.g. "!repo-url" to remove just one specific repository.
 
 `--architecture=`
 
@@ -247,12 +248,20 @@ details see the table below.
   comma-separated list of `uefi` or `bios`. May be specified more than
   once in which case the specified lists are merged. If `uefi` is
   specified the `sd-boot` UEFI boot loader is used, if `bios` is
-  specified the GNU Grub boot loader is used.
+  specified the GNU Grub boot loader is used. Use "!*" to remove all
+  previously added protocols or "!protocol" to remove one protocol.
 
 `--kernel-command-line=`
 
-: Use the specified kernel command line for when building bootable
-  images.
+: Use the specified kernel command line when building bootable
+  images. By default command line arguments get appended. To remove all
+  arguments from the current list pass "!*". To remove specific arguments
+  add a space separated list of "!" prefixed arguments.
+  For example adding "!* console=ttyS0 rw" to a mkosi.default file or the
+  command line arguments passes "console=ttyS0 rw" to the kernel in any
+  case. Just adding "console=ttyS0 rw" would append these two arguments
+  to the kernel command line created by lower priority configuration
+  files or previous --kernel-command-line command line arguments.
 
 `--secure-boot`
 
@@ -366,6 +375,11 @@ details see the table below.
   (see below) to specify packages that shall only be used for the
   image generated in the build image, but that shall not appear in the
   final image.
+  To remove a package e.g. added by a mkosi.default configuration file
+  prepend the package name with a ! letter. For example -p "!apache2"
+  would remove the apache2 package. To replace the apache2 package by
+  the httpd package just add -p "!apache2,httpd" to the command line
+  arguments. To remove all packages use "!*".
 
 `--with-docs`
 
@@ -460,6 +474,8 @@ details see the table below.
   here are only included in the image created during the first phase
   of the build, and are absent in the final image. use `--package=` to
   list packages that shall be included in both.
+  Packages are appended to the list. Packages prefixed with "!" are
+  removed from the list. "!*" removes all packages from the list.
 
 `--postinst-script=`
 

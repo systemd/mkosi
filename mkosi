@@ -55,6 +55,13 @@ __version__ = '5'
 if sys.version_info < (3, 6):
     sys.exit("Sorry, we need at least Python 3.6.")
 
+
+MKOSI_COMMANDS_CMDLINE = ("shell", "boot", "qemu")
+MKOSI_COMMANDS_NEED_BUILD = MKOSI_COMMANDS_CMDLINE
+MKOSI_COMMANDS_SUDO = ("build", "clean") + MKOSI_COMMANDS_CMDLINE
+MKOSI_COMMANDS = ("build", "clean", "help", "summary") + MKOSI_COMMANDS_CMDLINE
+
+
 # This global should be initialized after parsing arguments
 arg_debug = ()
 
@@ -1100,7 +1107,7 @@ def prepare_tree(args: CommandLineArguments, workspace: str, do_run_build_script
         os.mkdir(os.path.join(workspace, "root", "etc/kernel"), 0o755)
 
         with open(os.path.join(workspace, "root", "etc/kernel/cmdline"), "w") as cmdline:
-            cmdline.write(args.kernel_command_line)
+            cmdline.write(' '.join(args.kernel_command_line))
             cmdline.write("\n")
 
     if do_run_build_script:
@@ -1962,7 +1969,7 @@ def install_opensuse(args: CommandLineArguments, workspace: str, do_run_build_sc
 
         # dracut from openSUSE is missing upstream commit 016613c774baf.
         with open(os.path.join(root, "etc/kernel/cmdline"), "w") as cmdlinefile:
-            cmdlinefile.write(args.kernel_command_line + " root=/dev/gpt-auto-root\n")
+            cmdlinefile.write(' '.join(args.kernel_command_line) + " root=/dev/gpt-auto-root\n")
 
 
 def install_distribution(args: CommandLineArguments,
@@ -2106,7 +2113,8 @@ def install_grub(args: CommandLineArguments, workspace: str, loopdev: str, grub:
     if args.bios_partno is None:
         return
 
-    grub_cmdline = f'GRUB_CMDLINE_LINUX="{args.kernel_command_line}"\n'
+    kernel_cmd_line = ' '.join(args.kernel_command_line)
+    grub_cmdline = f'GRUB_CMDLINE_LINUX="{kernel_cmd_line}"\n'
     os.makedirs(os.path.join(workspace, "root", "etc/default"), exist_ok=True, mode=0o755)
     if not os.path.exists(os.path.join(workspace, "root", "etc/default/grub")):
         with open(os.path.join(workspace, "root", "etc/default/grub"), "w+") as f:
@@ -2619,7 +2627,7 @@ def install_unified_kernel(args: CommandLineArguments,
 
     with complete_step("Generating combined kernel + initrd boot file"):
 
-        cmdline = args.kernel_command_line
+        cmdline = ' '.join(args.kernel_command_line)
         if root_hash is not None:
             cmdline += " roothash=" + root_hash
 
@@ -2964,11 +2972,28 @@ class ListAction(argparse.Action):
         ary = getattr(namespace, self.dest)
         if ary is None:
             ary = []
+
+        # Support list syntax for comma separated lists as well
+        if self.delimiter == ',' and values.startswith("[") and values.endswith("]"):
+            values = values[1:-1]
+
         new = values.split(self.delimiter)
+
         for x in new:
+            x = x.strip()
+            if not x:  # ignore empty entries
+                continue
             if self.list_choices is not None and x not in self.list_choices:
                 raise ValueError(f'Unknown value {x!r}')
-            ary.append(x)
+
+            # Remove ! prefixed list entries from list. !* removes all entries. This works for strings only now.
+            if x.startswith('!*'):
+                ary = []
+            elif x.startswith('!'):
+                if x[1:] in ary:
+                    ary.remove(x[1:])
+            else:
+                ary.append(x)
         setattr(namespace, self.dest, ary)
 
 
@@ -2980,6 +3005,137 @@ class ColonDelimitedListAction(ListAction):
     delimiter = ":"
 
 
+class SpaceDelimitedListAction(ListAction):
+    delimiter = " "
+
+
+class BooleanAction(argparse.Action):
+    """Parse boolean command line arguments
+
+    The argument may be added more than once. The argument may be set explicitly (--foo yes)
+    or implicitly --foo. If the parameter name starts with "not-" or "without-" the value gets
+    inverted.
+    """
+    def __init__(self, option_strings, dest, nargs=None, const=True, default=False, **kwargs):
+        if nargs is not None:
+            raise ValueError("nargs not allowed")
+        super(BooleanAction, self).__init__(option_strings, dest, nargs='?', const=const, default=default, **kwargs)
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        new_value = self.default
+        if isinstance(values, str):
+            try:
+                new_value = parse_boolean(values)
+            except ValueError as exp:
+                raise argparse.ArgumentError(self, str(exp))
+        elif isinstance(values, bool):  # Assign const
+            new_value = values
+        else:
+            raise argparse.ArgumentError(self, 'Invalid argument for %s %s' % (str(option_string), str(values)))
+
+        # invert the value if the argument name starts with "not" or "without"
+        for option in self.option_strings:
+            if option[2:].startswith('not-') or option[2:].startswith('without-'):
+                new_value = not new_value
+                break
+
+        setattr(namespace, self.dest, new_value)
+
+
+class ArgumentParserMkosi(argparse.ArgumentParser):
+    """ArgumentParser with support for mkosi.defaults file(s)
+
+    This derived class adds a simple ini file parser to python's ArgumentParser features.
+    Each line of the ini file is converted to a command line argument. Example:
+    "FooBar=Hello_World"  in the ini file appends "--foo-bar Hello_World" to sys.argv.
+
+    Command line arguments starting with - or --are considered as regular arguments. Arguments
+    starting with @ are considered as files which are fed to the ini file parser implemented
+    in this class.
+    """
+
+    # Mapping of parameters supported in config files but not as command line arguments.
+    SPECIAL_MKOSI_DEFAULT_PARAMS = {
+        'QCow2': '--qcow2',
+        'OutputDirectory': '--output-dir',
+        'XZ': '--xz',
+        'NSpawnSettings': '--settings',
+        'ESPSize': '--esp-size',
+        'CheckSum': '--checksum',
+        'BMap': '--bmap',
+        'Packages': '--package',
+        'ExtraTrees': '--extra-tree',
+        'SkeletonTrees': '--skeleton-tree',
+        'BuildPackages': '--build-package',
+        'PostInstallationScript': '--postinst-script',
+    }
+
+    fromfile_prefix_chars = '@'
+
+    def __init__(self, *kargs, **kwargs):
+        self._ini_file_section = ""
+        self._ini_file_key = ""  # multi line list processing
+        self._ini_file_list_mode = False
+
+        # Add config files to be parsed
+        kwargs['fromfile_prefix_chars'] = __class__.fromfile_prefix_chars
+        super().__init__(*kargs, **kwargs)
+
+    def _read_args_from_files(self, arg_strings):
+        """Convert @ prefixed command line arguments with corresponding file content
+
+        Regular arguments are just returned. Arguments prefixed with @ are considered as
+        configuration file paths. The settings of each file are parsed and returned as
+        command line arguments.
+        Example:
+          The following mkosi.default is loaded.
+          [Distribution]
+          Distribution=fedora
+
+          mkosi is called like: mkosi -p httpd
+
+          arg_strings: ['@mkosi.default', '-p', 'httpd']
+          return value: ['--distribution', 'fedora', '-p', 'httpd']
+        """
+        def camel_to_arg(camel):
+            s1 = re.sub('(.)([A-Z][a-z]+)', r'\1-\2', camel)
+            return re.sub('([a-z0-9])([A-Z])', r'\1-\2', s1).lower()
+
+        def ini_key_to_cli_arg(key):
+            try:
+                return __class__.SPECIAL_MKOSI_DEFAULT_PARAMS[key]
+            except KeyError:
+                return '--' + camel_to_arg(key)
+
+        # expand arguments referencing files
+        new_arg_strings = []
+        for arg_string in arg_strings:
+            # for regular arguments, just add them back into the list
+            if not arg_string or arg_string[0] not in self.fromfile_prefix_chars:
+                new_arg_strings.append(arg_string)
+                continue
+            # replace arguments referencing files with the file content
+            try:
+                config = configparser.ConfigParser(delimiters='=')
+                config.optionxform = str  # type: ignore
+                with open(arg_string[1:]) as args_file:
+                    config.read_file(args_file)
+                for section in config.sections():
+                    for key, value in config.items(section):
+                        cli_arg = ini_key_to_cli_arg(key)
+
+                        # \n in value strings is forwarded. Depending on the action type, \n is considered as a delimiter or needs to be replaced by a ' '
+                        for action in self._actions:
+                            if cli_arg in action.option_strings:
+                                if isinstance(action, ListAction):
+                                    value = value.replace(os.linesep, action.delimiter)
+                        new_arg_strings.extend([cli_arg, value])
+            except OSError as e:
+                self.error(str(e))
+        # return the modified argument list
+        return new_arg_strings
+
+
 COMPRESSION_ALGORITHMS = 'zlib', 'lzo', 'zstd', 'lz4', 'xz'
 
 
@@ -2989,13 +3145,12 @@ def parse_compression(value: str) -> Union[str, bool]:
     return parse_boolean(value)
 
 
-def parse_args() -> CommandLineArguments:
-    parser = argparse.ArgumentParser(description='Build Legacy-Free OS Images', add_help=False)
+def create_parser() -> ArgumentParserMkosi:
+    parser = ArgumentParserMkosi(description='Build Legacy-Free OS Images', add_help=False)
 
     group = parser.add_argument_group("Commands")
-    group.add_argument("verb", choices=("build", "clean", "help", "summary", "shell", "boot", "qemu"), nargs='?',
-                       default="build", help='Operation to execute')
-    group.add_argument("cmdline", nargs=argparse.REMAINDER, help="The command line to use for 'shell', 'boot', 'qemu'")
+    group.add_argument("verb", choices=MKOSI_COMMANDS, default="build", help='Operation to execute')
+    group.add_argument("cmdline", nargs=argparse.REMAINDER, help="The command line to use for " + str(MKOSI_COMMANDS_CMDLINE)[1:-1])
     group.add_argument('-h', '--help', action='help', help="Show this help")
     group.add_argument('--version', action='version', version='%(prog)s ' + __version__)
 
@@ -3003,7 +3158,7 @@ def parse_args() -> CommandLineArguments:
     group.add_argument('-d', "--distribution", choices=Distribution.__members__, help='Distribution to install')
     group.add_argument('-r', "--release", help='Distribution release to install')
     group.add_argument('-m', "--mirror", help='Distribution mirror to use')
-    group.add_argument("--repositories", action=CommaDelimitedListAction, dest='repositories',
+    group.add_argument("--repositories", action=CommaDelimitedListAction, dest='repositories', default=[],
                        help='Repositories to use', metavar='REPOS')
     group.add_argument('--architecture', help='Override the architecture of installation')
 
@@ -3014,42 +3169,44 @@ def parse_args() -> CommandLineArguments:
     group.add_argument('-O', "--output-dir", help='Output root directory', metavar='DIR')
     group.add_argument('-f', "--force", action='count', dest='force_count', default=0,
                        help='Remove existing image file before operation')
-    group.add_argument('-b', "--bootable", type=parse_boolean, nargs='?', const=True,
+    group.add_argument('-b', "--bootable", action=BooleanAction,
                        help='Make image bootable on EFI (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs)')
     group.add_argument("--boot-protocols", action=CommaDelimitedListAction,
                        help="Boot protocols to use on a bootable image", metavar="PROTOCOLS", default=[])
-    group.add_argument("--kernel-command-line", help='Set the kernel command line (only bootable images)')
-    group.add_argument("--kernel-commandline", dest='kernel_command_line', help=argparse.SUPPRESS) # Compatibility option
-    group.add_argument("--secure-boot", action='store_true',
+    group.add_argument("--kernel-command-line", action=SpaceDelimitedListAction, default=['rhgb', 'quiet', 'selinux=0', 'audit=0', 'rw'],
+                       help='Set the kernel command line (only bootable images)')
+    group.add_argument("--kernel-commandline", action=SpaceDelimitedListAction, dest='kernel_command_line', help=argparse.SUPPRESS) # Compatibility option
+    group.add_argument("--secure-boot", action=BooleanAction,
                        help='Sign the resulting kernel/initrd image for UEFI SecureBoot')
     group.add_argument("--secure-boot-key", help="UEFI SecureBoot private key in PEM format", metavar='PATH')
     group.add_argument("--secure-boot-certificate", help="UEFI SecureBoot certificate in X509 format", metavar='PATH')
-    group.add_argument("--read-only", action='store_true',
+    group.add_argument("--read-only", action=BooleanAction,
                        help='Make root volume read-only (only gpt_ext4, gpt_xfs, gpt_btrfs, subvolume, implied with gpt_squashfs and plain_squashfs)')
     group.add_argument("--encrypt", choices=("all", "data"),
                        help='Encrypt everything except: ESP ("all") or ESP and root ("data")')
-    group.add_argument("--verity", action='store_true', help='Add integrity partition (implies --read-only)')
+    group.add_argument("--verity", action=BooleanAction, help='Add integrity partition (implies --read-only)')
     group.add_argument("--compress", type=parse_compression,
                        help='Enable compression in file system (only gpt_btrfs, subvolume, gpt_squashfs, plain_squashfs)')
     group.add_argument('--mksquashfs', dest='mksquashfs_tool', type=str.split,
                        help='Script to call instead of mksquashfs')
-    group.add_argument("--xz", action='store_true',
+    group.add_argument("--xz", action=BooleanAction,
                        help='Compress resulting image with xz (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs, implied on tar)')  # NOQA: E501
-    group.add_argument("--qcow2", action='store_true',
+    group.add_argument("--qcow2", action=BooleanAction,
                        help='Convert resulting image to qcow2 (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs)')
     group.add_argument("--hostname", help="Set hostname")
-    group.add_argument('--no-chown', action='store_true',
+    group.add_argument('--no-chown', action=BooleanAction,
                        help='When running with sudo, disable reassignment of ownership of the generated files to the original user')  # NOQA: E501
-    group.add_argument('-i', "--incremental", action='store_true',
+    group.add_argument('-i', "--incremental", action=BooleanAction,
                        help='Make use of and generate intermediary cache images')
 
     group = parser.add_argument_group("Packages")
     group.add_argument('-p', "--package", action=CommaDelimitedListAction, dest='packages', default=[],
                        help='Add an additional package to the OS image', metavar='PACKAGE')
-    group.add_argument("--with-docs", action='store_true', default=None,
+    group.add_argument("--with-docs", action=BooleanAction,
                        help='Install documentation')
-    group.add_argument('-T', "--without-tests", action='store_false', dest='with_tests', default=True,
+    group.add_argument('-T', "--without-tests", action=BooleanAction, dest='with_tests', default=True,
                        help='Do not run tests as part of build script, if supported')
+    group.add_argument("--with-tests", action=BooleanAction, default=True, help=argparse.SUPPRESS)  # Compatibility option
     group.add_argument("--cache", dest='cache_path', help='Package cache path', metavar='PATH')
     group.add_argument("--extra-tree", action='append', dest='extra_trees', default=[],
                        help='Copy an extra tree on top of image', metavar='PATH')
@@ -3057,7 +3214,8 @@ def parse_args() -> CommandLineArguments:
                        help='Use a skeleton tree to bootstrap the image before installing anything', metavar='PATH')
     group.add_argument("--build-script", help='Build script to run inside image', metavar='PATH')
     group.add_argument("--build-sources", help='Path for sources to build', metavar='PATH')
-    group.add_argument("--build-dir", help='Path to use as persistent build directory', metavar='PATH')
+    group.add_argument("--build-dir", help=argparse.SUPPRESS, metavar='PATH')  # Compatibility option
+    group.add_argument("--build-directory", dest='build_dir', help='Path to use as persistent build directory', metavar='PATH')
     group.add_argument("--build-package", action=CommaDelimitedListAction, dest='build_packages', default=[],
                        help='Additional packages needed for build script', metavar='PACKAGE')
     group.add_argument("--postinst-script", help='Postinstall script to run inside image', metavar='PATH')
@@ -3065,7 +3223,7 @@ def parse_args() -> CommandLineArguments:
     group.add_argument("--source-file-transfer", type=SourceFileTransfer, choices=list(SourceFileTransfer), default=None,
                        help="Method used to copy build sources to the build image." +
                        "; ".join([f"'{k}': {v}" for k, v in SourceFileTransfer.doc().items()]) + " (default: copy-git-cached if in a git repository, otherwise copy-all)")
-    group.add_argument("--with-network", action='store_true', default=None,
+    group.add_argument("--with-network", action=BooleanAction,
                        help='Run build and postinst scripts with network access (instead of private network)')
     group.add_argument("--settings", dest='nspawn_settings', help='Add in .nspawn settings file', metavar='PATH')
 
@@ -3084,10 +3242,10 @@ def parse_args() -> CommandLineArguments:
                        help='Set size of /srv partition (only gpt_ext4, gpt_xfs, gpt_squashfs)', metavar='BYTES')
 
     group = parser.add_argument_group("Validation (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs, tar)")
-    group.add_argument("--checksum", action='store_true', help='Write SHA256SUMS file')
-    group.add_argument("--sign", action='store_true', help='Write and sign SHA256SUMS file')
+    group.add_argument("--checksum", action=BooleanAction, help='Write SHA256SUMS file')
+    group.add_argument("--sign", action=BooleanAction, help='Write and sign SHA256SUMS file')
     group.add_argument("--key", help='GPG key to use for signing')
-    group.add_argument("--bmap", action='store_true',
+    group.add_argument("--bmap", action=BooleanAction,
                        help='Write block map file (.bmap) for bmaptool usage (only gpt_ext4, gpt_btrfs)')
     group.add_argument("--password", help='Set the root password')
 
@@ -3111,17 +3269,130 @@ def parse_args() -> CommandLineArguments:
     except ImportError:
         pass
 
-    args = cast(CommandLineArguments, parser.parse_args(namespace=CommandLineArguments()))
+    return parser
 
-    if args.verb == "help":
+
+class MkosiParseException(Exception):
+    """Leads to sys.exit"""
+
+
+def parse_args(argv=None) -> Dict[str, CommandLineArguments]:
+    """Load default values from files and parse command line arguments
+
+    Do all about default files and command line arguments parsing. If --all argument is passed
+    more than one job needs to be processed. The returned tuple contains CommandLineArguments
+    valid for all jobs as well as a dict containing the arguments per job.
+    """
+    parser = create_parser()
+
+    # always work on a copy, argv will be altered which might has some side effects e.g. in unit tests. 
+    if argv is None:
+        argv = copy.deepcopy(sys.argv[1:])
+    else:
+        argv = copy.deepcopy(argv)
+
+    # If ArgumentParserMkosi loads settings from mkosi.default files, the settings from files
+    # are converted to command line arguments. This breaks ArgumentParser's support for default
+    # values of positional arguments. Make sure the verb command gets explicitly passed.
+    # Insert a -- before the positional verb argument otherwise it might be considered as an argument of
+    # a parameter with nargs='?'. For example mkosi -i summary would be treated as -i=summary.
+    found_verb = False
+    for verb in MKOSI_COMMANDS:
+        try:
+            v_i = argv.index(verb)
+            if v_i > 0:
+                if argv[v_i-1] != '--':
+                    argv.insert(v_i, '--')
+            found_verb = True
+            break
+        except ValueError:
+            pass
+    if found_verb is False:
+        argv.extend(['--', 'build'])
+
+    # First run of command line arguments parsing to get the directory of mkosi.default file and the verb argument.
+    args_pre_parsed, _ = parser.parse_known_args(copy.deepcopy(argv))
+
+    if args_pre_parsed.verb == "help":
         parser.print_help()
         sys.exit(0)
 
-    if args.all and args.default_path:
-        die("--all and --default= may not be combined.")
+    # Make sure all paths are absolute and valid.
+    # Relative paths are not valid yet since we are not in the final working directory yet.
+    if not args_pre_parsed.directory is None:
+        args_pre_parsed.directory = os.path.abspath(args_pre_parsed.directory)
+        directory = args_pre_parsed.directory
+    else:
+        directory = os.path.abspath('.')
 
-    args_find_path(args, 'all_directory', "mkosi.files/")
+    if args_pre_parsed.all_directory:
+        if os.path.isabs(args_pre_parsed.all_directory):
+            all_directory = args_pre_parsed.all_directory
+        else:
+            all_directory = os.path.join(directory, args_pre_parsed.all_directory)
+    else:
+        all_directory = os.path.join(directory, "mkosi.files/")
 
+    if args_pre_parsed.default_path:
+        if os.path.isabs(args_pre_parsed.default_path):
+            default_path = args_pre_parsed.default_path
+        else:
+            default_path = os.path.join(directory, args_pre_parsed.default_path)
+    else:
+        default_path = os.path.join(directory, "mkosi.default")
+
+    if args_pre_parsed.all and args_pre_parsed.default_path:
+        raise MkosiParseException("--all and --default= may not be combined.")
+
+    # Parse everything in --all mode
+    args_all = {}
+    if args_pre_parsed.all:
+        if not os.path.isdir(all_directory):
+            raise MkosiParseException("all-directory %s does not exist." % all_directory)
+        for f in os.scandir(all_directory):
+            if not f.name.startswith("mkosi."):
+                continue
+            args = parse_args_file(copy.deepcopy(argv), f.path)
+            args_all[f.name] = args
+    # Parse everything in normal mode
+    else:
+        args = parse_args_file_group(argv, default_path)
+        args_all['default'] = args
+
+    return args_all
+
+
+def parse_args_file(argv_post_parsed: List[str], default_path: str) -> CommandLineArguments:
+    """Parse just one mkosi.* file (--all mode)
+    """
+    argv_post_parsed.insert(1, ArgumentParserMkosi.fromfile_prefix_chars+default_path)
+    parser = create_parser()
+    # parse all parameters handled by mkosi. Parameters forwarded to subprocesses such as nspawn or qemu end up in cmdline_argv.
+    parsed_args = parser.parse_args(argv_post_parsed, CommandLineArguments())
+    args = cast(CommandLineArguments, parsed_args)
+    return args
+
+
+def parse_args_file_group(argv_post_parsed, default_path) -> CommandLineArguments:
+    """Parse a set of mkosi.default and mkosi.default.d/* files.
+    """
+    # Add the @ prefixed filenames to current argument list in inverse priority order.
+    all_defaults_files = []
+    defaults_dir = default_path + ".d"
+    if os.path.isdir(defaults_dir):
+        for defaults_file in sorted(os.listdir(defaults_dir)):
+            defaults_path = os.path.join(defaults_dir, defaults_file)
+            if os.path.isfile(defaults_path):
+                all_defaults_files.append(ArgumentParserMkosi.fromfile_prefix_chars+defaults_path)
+    if os.path.isfile(default_path):
+        all_defaults_files.insert(0, ArgumentParserMkosi.fromfile_prefix_chars+default_path)
+    argv_post_parsed[0:0] = all_defaults_files
+
+    parser = create_parser()
+
+    # parse all parameters handled by mkosi. Parameters forwarded to subprocesses such as nspawn or qemu end up in cmdline_argv.
+    parsed_args = parser.parse_args(argv_post_parsed, CommandLineArguments())
+    args = cast(CommandLineArguments, parsed_args)
     return args
 
 
@@ -3285,256 +3556,14 @@ def unlink_output(args: CommandLineArguments) -> None:
 
 def parse_boolean(s: str) -> bool:
     "Parse 1/true/yes as true and 0/false/no as false"
-    if s in {"1", "true", "yes"}:
+    s_l = s.lower()
+    if s_l in {"1", "true", "yes"}:
         return True
 
-    if s in {"0", "false", "no"}:
+    if s_l in {"0", "false", "no"}:
         return False
 
     raise ValueError(f'Invalid literal for bool(): {s!r}')
-
-
-def process_setting(args: CommandLineArguments, section: str, key: Optional[str], value: Any) -> bool:
-    if section == "Distribution":
-        if key == "Distribution":
-            if args.distribution is None:
-                args.distribution = value
-        elif key == "Release":
-            if args.release is None:
-                args.release = value
-        elif key == "Repositories":
-            list_value = value if type(value) == list else value.split()
-            if args.repositories is None:
-                args.repositories = list_value
-            else:
-                args.repositories.extend(list_value)
-        elif key == "Mirror":
-            if args.mirror is None:
-                args.mirror = value
-        elif key == 'Architecture':
-            if args.architecture is None:
-                args.architecture = value
-        elif key is None:
-            return True
-        else:
-            return False
-    elif section == "Output":
-        if key == "Format":
-            if args.output_format is None:
-                args.output_format = OutputFormat[value]
-        elif key == "Output":
-            if args.output is None:
-                args.output = value
-        elif key == "OutputDirectory":
-            if args.output_dir is None:
-                args.output_dir = value
-        elif key == "Force":
-            if args.force is None:
-                args.force = parse_boolean(value)
-        elif key == "Bootable":
-            if args.bootable is None:
-                args.bootable = parse_boolean(value)
-        elif key == "BootProtocols":
-            if not args.boot_protocols:
-                args.boot_protocols = value if type(value) == list else value.split()
-        elif key == "KernelCommandLine":
-            if args.kernel_command_line is None:
-                args.kernel_command_line = value
-        elif key == "SecureBoot":
-            if args.secure_boot is None:
-                args.secure_boot = parse_boolean(value)
-        elif key == "SecureBootKey":
-            if args.secure_boot_key is None:
-                args.secure_boot_key = value
-        elif key == "SecureBootCertificate":
-            if args.secure_boot_certificate is None:
-                args.secure_boot_certificate = value
-        elif key == "ReadOnly":
-            if args.read_only is None:
-                args.read_only = parse_boolean(value)
-        elif key == "Encrypt":
-            if args.encrypt is None:
-                if value not in ("all", "data"):
-                    raise ValueError("Invalid encryption setting: " + value)
-                args.encrypt = value
-        elif key == "Verity":
-            if args.verity is None:
-                args.verity = parse_boolean(value)
-        elif key == "Compress":
-            if args.compress is None:
-                args.compress = parse_compression(value)
-        elif key == 'Mksquashfs':
-            if args.mksquashfs_tool is None:
-                args.mksquashfs_tool = value.split()
-        elif key == "XZ":
-            if args.xz is None:
-                args.xz = parse_boolean(value)
-        elif key == "QCow2":
-            if args.qcow2 is None:
-                args.qcow2 = parse_boolean(value)
-        elif key == "Hostname":
-            if not args.hostname:
-                args.hostname = value
-        elif key is None:
-            return True
-        else:
-            return False
-    elif section == "Packages":
-        if key == "Packages":
-            list_value = value if type(value) == list else value.split()
-            args.packages.extend(list_value)
-        elif key == "WithDocs":
-            if args.with_docs is None:
-                args.with_docs = parse_boolean(value)
-        elif key == "WithTests":
-            if args.with_tests is None:
-                args.with_tests = parse_boolean(value)
-        elif key == "Cache":
-            if args.cache_path is None:
-                args.cache_path = value
-        elif key == "ExtraTrees":
-            list_value = value if type(value) == list else value.split()
-            args.extra_trees.extend(list_value)
-        elif key == "SkeletonTrees":
-            list_value = value if type(value) == list else value.split()
-            args.skeleton_trees.extend(list_value)
-        elif key == "BuildScript":
-            if args.build_script is None:
-                args.build_script = value
-        elif key == "BuildSources":
-            if args.build_sources is None:
-                args.build_sources = value
-        elif key == "SourceFileTransfer":
-            if args.source_file_transfer is None:
-                try:
-                    args.source_file_transfer = SourceFileTransfer(value)
-                except ValueError:
-                    raise ValueError(f"Invalid source file transfer setting: {value}")
-        elif key == "BuildDirectory":
-            if args.build_dir is None:
-                args.build_dir = value
-        elif key == "BuildPackages":
-            list_value = value if type(value) == list else value.split()
-            args.build_packages.extend(list_value)
-        elif key in {"PostinstallScript", "PostInstallationScript"}:
-            if args.postinst_script is None:
-                args.postinst_script = value
-        elif key == "FinalizeScript":
-            if args.finalize_script is None:
-                args.finalize_script = value
-        elif key == "WithNetwork":
-            if args.with_network is None:
-                args.with_network = parse_boolean(value)
-        elif key == "NSpawnSettings":
-            if args.nspawn_settings is None:
-                args.nspawn_settings = value
-        elif key is None:
-            return True
-        else:
-            return False
-    elif section == "Partitions":
-        if key == "RootSize":
-            if args.root_size is None:
-                args.root_size = value
-        elif key == "ESPSize":
-            if args.esp_size is None:
-                args.esp_size = value
-        elif key == "BootLoaderSize":
-            if args.xbootldr_size is None:
-                args.xbootldr_size = value
-        elif key == "SwapSize":
-            if args.swap_size is None:
-                args.swap_size = value
-        elif key == "HomeSize":
-            if args.home_size is None:
-                args.home_size = value
-        elif key == "SrvSize":
-            if args.srv_size is None:
-                args.srv_size = value
-        elif key is None:
-            return True
-        else:
-            return False
-    elif section == "Validation":
-        if key == "CheckSum":
-            if args.checksum is None:
-                args.checksum = parse_boolean(value)
-        elif key == "Sign":
-            if args.sign is None:
-                args.sign = parse_boolean(value)
-        elif key == "Key":
-            if args.key is None:
-                args.key = value
-        elif key == "Bmap":
-            if args.bmap is None:
-                args.bmap = parse_boolean(value)
-        elif key == "Password":
-            if args.password is None:
-                args.password = value
-        elif key is None:
-            return True
-        else:
-            return False
-    elif section == "Host":
-        if key == "ExtraSearchPaths":
-            list_value = value if type(value) == list else value.split()
-            for v in list_value:
-                args.extra_search_paths.extend(v.split(":"))
-    else:
-        return False
-
-    return True
-
-
-def load_defaults_file(fname: str, options: Dict[str, Dict[str, Any]]) -> Optional[Dict[str, Dict[str, Any]]]:
-    try:
-        f = open(fname)
-    except FileNotFoundError:
-        return None
-
-    config = configparser.ConfigParser(delimiters='=')
-    config.optionxform = str  # type: ignore
-    config.read_file(f)
-
-    # this is used only for validation
-    args = parse_args()
-
-    for section in config.sections():
-        if not process_setting(args, section, None, None):
-            sys.stderr.write(f"Unknown section in {fname!r}, ignoring: [{section}]\n")
-            continue
-        if section not in options:
-            options[section] = {}
-        for key in config[section]:
-            if not process_setting(args, section, key, config[section][key]):
-                sys.stderr.write(f'Unknown key in section [{section}] in {fname!r}, ignoring: {key}=\n')
-                continue
-            if section == "Packages" and key in ["Packages", "ExtraTrees", "BuildPackages"]:
-                if key in options[section]:
-                    options[section][key].extend(config[section][key].split())
-                else:
-                    options[section][key] = config[section][key].split()
-            else:
-                options[section][key] = config[section][key]
-    return options
-
-
-def load_defaults(args: CommandLineArguments) -> None:
-    fname = "mkosi.default" if args.default_path is None else args.default_path
-
-    config: Dict[str, Dict[str, str]] = {}
-    load_defaults_file(fname, config)
-
-    defaults_dir = fname + '.d'
-    if os.path.isdir(defaults_dir):
-        for defaults_file in sorted(os.listdir(defaults_dir)):
-            defaults_path = os.path.join(defaults_dir, defaults_file)
-            if os.path.isfile(defaults_path):
-                load_defaults_file(defaults_path, config)
-
-    for section in config.keys():
-        for key in config[section]:
-            process_setting(args, section, key, config[section][key])
 
 
 def find_nspawn_settings(args: CommandLineArguments) -> None:
@@ -3674,11 +3703,9 @@ def build_root_hash_file_path(path: str) -> str:
     return strip_suffixes(path) + ".roothash"
 
 
-def load_args(args) -> CommandLineArguments:
+def load_args(args: CommandLineArguments) -> CommandLineArguments:
     global arg_debug
     arg_debug = args.debug
-
-    load_defaults(args)
 
     args_find_path(args, 'nspawn_settings', "mkosi.nspawn")
     args_find_path(args, 'build_script',    "mkosi.build")
@@ -3697,8 +3724,8 @@ def load_args(args) -> CommandLineArguments:
 
     args.extra_search_paths = expand_paths(args.extra_search_paths)
 
-    if args.cmdline and args.verb not in ('shell', 'boot', 'qemu'):
-        die("Additional parameters only accepted for 'shell', 'boot', 'qemu' invocations.")
+    if args.cmdline and args.verb not in MKOSI_COMMANDS_CMDLINE:
+        die("Additional parameters only accepted for " + str(MKOSI_COMMANDS_CMDLINE)[1:-1] + " invocations.")
 
     args.force = args.force_count > 0
 
@@ -3880,9 +3907,6 @@ def load_args(args) -> CommandLineArguments:
 
     args.verity_size = None
 
-    if args.bootable and args.kernel_command_line is None:
-        args.kernel_command_line = "rhgb quiet selinux=0 audit=0 rw"
-
     if args.secure_boot_key is not None:
         args.secure_boot_key = os.path.abspath(args.secure_boot_key)
 
@@ -3896,7 +3920,7 @@ def load_args(args) -> CommandLineArguments:
         if args.secure_boot_certificate is None:
             die("UEFI SecureBoot enabled, but couldn't find certificate. (Consider placing it in mkosi.secure-boot.crt?)")  # NOQA: E501
 
-    if args.verb in ("shell", "boot", "qemu"):
+    if args.verb in MKOSI_COMMANDS_CMDLINE:
         if args.output_format == OutputFormat.tar:
             die("Sorry, can't acquire shell in or boot a tar archive.")
         if args.xz:
@@ -3967,6 +3991,12 @@ def line_join_list(ary: List[str]) -> str:
 
 
 def print_summary(args: CommandLineArguments) -> None:
+    sys.stderr.write("COMMANDS:\n")
+    sys.stderr.write("                  verb: " + args.verb + "\n")
+    try:
+        sys.stderr.write("               cmdline: " + ' '.join(args.cmdline) + "\n")
+    except AttributeError:
+        pass
     sys.stderr.write("DISTRIBUTION:\n")
     sys.stderr.write("          Distribution: " + args.distribution.name + "\n")
     sys.stderr.write("               Release: " + none_to_na(args.release) + "\n")
@@ -4005,7 +4035,7 @@ def print_summary(args: CommandLineArguments) -> None:
         sys.stderr.write("              Bootable: " + yes_no(args.bootable) + "\n")
 
         if args.bootable:
-            sys.stderr.write("   Kernel Command Line: " + args.kernel_command_line + "\n")
+            sys.stderr.write("   Kernel Command Line: " + ' '.join(args.kernel_command_line) + "\n")
             sys.stderr.write("       UEFI SecureBoot: " + yes_no(args.secure_boot) + "\n")
 
             if args.secure_boot:
@@ -4489,14 +4519,14 @@ def run_verb(args):
 
     prepend_to_environ_path(args.extra_search_paths)
 
-    if args.verb in ("build", "clean", "shell", "boot", "qemu"):
+    if args.verb in MKOSI_COMMANDS_SUDO:
         check_root()
         unlink_output(args)
 
     if args.verb == "build":
         check_output(args)
 
-    needs_build = args.verb == "build" or (not os.path.exists(args.output) and args.verb in ("shell", "boot", "qemu"))
+    needs_build = args.verb == "build" or (not os.path.exists(args.output) and args.verb in MKOSI_COMMANDS_NEED_BUILD)
 
     if args.verb == "summary" or needs_build:
         print_summary(args)
@@ -4516,24 +4546,21 @@ def run_verb(args):
 
 
 def main() -> None:
-    args = parse_args()
+    try:
+        args = parse_args()
+    except MkosiParseException as exp:
+        die(str(exp))
 
-    if args.directory is not None:
-        os.chdir(args.directory)
-
-    if args.all:
-        for f in os.scandir(args.all_directory):
-
-            if not f.name.startswith("mkosi."):
-                continue
-
-            a = copy.deepcopy(args)
-            a.default_path = f.path
-
-            with complete_step('Processing ' + f.path):
-                run_verb(a)
-    else:
-        run_verb(args)
+    for job_name, a in args.items():
+        # Change working directory if --directory is passed
+        if hasattr(args, 'directory'):
+            work_dir = args.directory
+            if os.path.isdir(work_dir):
+                os.chdir(work_dir)
+            else:
+                die("Error: %s is not a directory!" % work_dir)
+        with complete_step('Processing ' + job_name):
+            run_verb(a)
 
 
 if __name__ == "__main__":
