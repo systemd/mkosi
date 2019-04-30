@@ -2490,8 +2490,9 @@ def insert_partition(args: CommandLineArguments,
     else:
         dev = None
 
+    path = dev if dev is not None else partition(loopdev, partno)
     try:
-        run(["dd", "if=" + blob.name, "of=" + (dev if dev is not None else partition(loopdev, partno))], check=True)
+        run(['dd', f'if={blob.name}', f'of={path}', 'conv=nocreat'], check=True)
     finally:
         luks_close(dev, "Closing LUKS root partition")
 
