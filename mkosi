@@ -50,7 +50,7 @@ from typing import (
     cast,
 )
 
-__version__ = '4'
+__version__ = '5'
 
 if sys.version_info < (3, 6):
     sys.exit("Sorry, we need at least Python 3.6.")

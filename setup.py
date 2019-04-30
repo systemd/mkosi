@@ -11,7 +11,7 @@ if sys.version_info < (3, 6):
 
 setup(
     name="mkosi",
-    version="4",
+    version="5",
     description="Create legacy-free OS images",
     url="https://github.com/systemd/mkosi",
     maintainer="mkosi contributors",
