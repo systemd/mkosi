@@ -156,7 +156,7 @@ details see the table below.
 `--distribution=`, `-d`
 : The distribution to install in the image. Takes one of the following
   arguments: `fedora`, `debian`, `ubuntu`, `arch`, `opensuse`,
-  `mageia`, `centos`, `clear`. If not specified, defaults to the
+  `mageia`, `centos`, `clear`, `photon`. If not specified, defaults to the
   distribution of the host.
 
 `--release=`, `-r`
@@ -709,6 +709,8 @@ following *OS*es.
 * *CentOS*
 
 * *Clear Linux*
+
+* *Photon*
 
 In theory, any distribution may be used on the host for building
 images containing any other distribution, as long as the necessary
