@@ -91,6 +91,7 @@ class CommandLineArguments(argparse.Namespace):
 
     swap_partno: Optional[int] = None
     esp_partno: Optional[int] = None
+    xbootldr_partno: Optional[int] = None
 
 
 class SourceFileTransfer(enum.Enum):
