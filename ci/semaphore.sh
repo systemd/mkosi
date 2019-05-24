@@ -23,5 +23,5 @@ do
 done
 
 # Run unit tests
-python3.6 -m pip install -U pytest
-python3.6 -m pytest
+sudo python3.6 -m pip install pytest
+sudo python3.6 -m pytest
