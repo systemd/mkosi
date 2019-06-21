@@ -1564,18 +1564,32 @@ def invoke_dnf_or_yum(args: CommandLineArguments,
 def install_centos(args: CommandLineArguments, workspace: str, do_run_build_script: bool) -> None:
     masked = disable_kernel_install(args, workspace)
 
+    epel_release = args.release.split('.')[0]
     gpg_key = f"/etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-{args.release}"
+    epel_gpg_key = f"/etc/pki/rpm-gpg/RPM-GPG-KEY-EPEL-{epel_release}"
+
     if os.path.exists(gpg_key):
         gpg_key = f'file://{gpg_key}'
     else:
         gpg_key = f'https://www.centos.org/keys/RPM-GPG-KEY-CentOS-{args.release}'
 
+    if os.path.exists(epel_gpg_key):
+        epel_gpg_key = f'file://{epel_gpg_key}'
+    else:
+        epel_gpg_key = f'https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-{epel_release}'
+
     if args.mirror:
         release_url = f"baseurl={args.mirror}/centos/{args.release}/os/x86_64"
         updates_url = f"baseurl={args.mirror}/centos/{args.release}/updates/x86_64/"
+        extras_url = f"baseurl={args.mirror}/centos/{args.release}/extras/x86_64/"
+        centosplus_url = f"baseurl={args.mirror}/centos/{args.release}/centosplus/x86_64/"
+        epel_url = f"baseurl={args.mirror}/epel/{epel_release}/x86_64/"
     else:
         release_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=os"
         updates_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=updates"
+        extras_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=extras"
+        centosplus_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=plus"
+        epel_url = f"mirrorlist=http://download.fedoraproject.org/pub/epel/{epel_release}/x86_64"
 
     config_file = os.path.join(workspace, "yum.conf")
     with open(config_file, "w") as f:
@@ -1592,6 +1606,21 @@ gpgkey={gpg_key}
 name=CentOS-{args.release} - Updates
 {updates_url}
 gpgkey={gpg_key}
+
+[extras]
+name=CentOS-{args.release} - Extras
+{extras_url}
+gpgkey={gpg_key}
+
+[centosplus]
+name=CentOS-{args.release} - Plus
+{centosplus_url}
+gpgkey={gpg_key}
+
+[epel]
+name=Extra Packages for Enterprise Linux 7 - $basearch
+{epel_url}
+gpgkey={epel_gpg_key}
 """)
 
     packages = ['centos-release']
@@ -1599,7 +1628,7 @@ gpgkey={gpg_key}
     if args.bootable:
         packages += ["kernel", "systemd-udev", "binutils"]
     invoke_dnf_or_yum(args, workspace,
-                      args.repositories or ["base", "updates"],
+                      args.repositories or ["base", "updates", "extras", "centosplus", "epel"],
                       packages,
                       config_file)
 
