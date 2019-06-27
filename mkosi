@@ -1902,9 +1902,15 @@ def install_opensuse(args: CommandLineArguments, workspace: str, do_run_build_sc
     if release.isdigit() or release == "tumbleweed":
         release_url = f"{args.mirror}/tumbleweed/repo/oss/"
         updates_url = f"{args.mirror}/update/tumbleweed/"
-    elif release.startswith("13."):
-        release_url = f"{args.mirror}/distribution/{release}/repo/oss/"
-        updates_url = f"{args.mirror}/update/{release}/"
+    elif release == "leap":
+        release_url = f"{args.mirror}/distribution/leap/15.1/repo/oss/"
+        updates_url = f"{args.mirror}/update/leap/15.1/oss/"
+    elif release == "current":
+        release_url = f"{args.mirror}/distribution/openSUSE-stable/repo/oss/"
+        updates_url = f"{args.mirror}/update/openSUSE-current/"
+    elif release == "stable":
+        release_url = f"{args.mirror}/distribution/openSUSE-stable/repo/oss/"
+        updates_url = f"{args.mirror}/update/openSUSE-stable/"
     else:
         release_url = f"{args.mirror}/distribution/leap/{release}/repo/oss/"
         updates_url = f"{args.mirror}/update/leap/{release}/oss/"
@@ -1927,7 +1933,11 @@ def install_opensuse(args: CommandLineArguments, workspace: str, do_run_build_sc
     #
     # Install the "minimal" package set.
     #
-    run(cmdline + ["patterns-base-minimal_base"], check=True)
+    if release.startswith("42."):
+        run(cmdline + ["patterns-openSUSE-minimal_base"], check=True)
+    else:
+        run(cmdline + ["patterns-base-minimal_base"], check=True)
+
 
     #
     # Now install the additional packages if necessary.
