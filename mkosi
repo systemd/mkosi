@@ -169,7 +169,8 @@ class Distribution(enum.Enum):
     opensuse = 5
     mageia = 6
     centos = 7
-    clear = 8
+    centos_epel = 8
+    clear = 9
 
 
 GPT_ROOT_X86           = uuid.UUID("44479540f29741b29af7d131d5f0458a")  # NOQA: E221
@@ -1023,7 +1024,7 @@ def mount_cache(args: CommandLineArguments, workspace: str) -> Generator[None, N
     with complete_step('Mounting Package Cache'):
         if args.distribution in (Distribution.fedora, Distribution.mageia):
             mount_bind(args.cache_path, os.path.join(workspace, "root", "var/cache/dnf"))
-        elif args.distribution == Distribution.centos:
+        elif args.distribution in (Distribution.centos, Distribution.centos_epel):
             # We mount both the YUM and the DNF cache in this case, as
             # YUM might just be redirected to DNF even if we invoke
             # the former
@@ -1616,19 +1617,29 @@ gpgkey={gpg_key}
 name=CentOS-{args.release} - Plus
 {centosplus_url}
 gpgkey={gpg_key}
+""")
+        if args.distribution == Distribution.centos_epel:
+            f.write(f"""\
 
 [epel]
 name=Extra Packages for Enterprise Linux 7 - $basearch
 {epel_url}
 gpgkey={epel_gpg_key}
+
 """)
 
     packages = ['centos-release']
     packages += args.packages or []
     if args.bootable:
         packages += ["kernel", "systemd-udev", "binutils"]
+
+    repos = args.repositories or ["base", "updates", "extras", "centosplus"]
+    if args.distribution == Distribution.centos_epel:
+        repos += ["epel"]
+        packages += ["epel-release"]
+
     invoke_dnf_or_yum(args, workspace,
-                      args.repositories or ["base", "updates", "extras", "centosplus", "epel"],
+                      repos,
                       packages,
                       config_file)
 
@@ -2013,6 +2024,7 @@ def install_distribution(args: CommandLineArguments,
     install: Dict[Distribution, Callable[[CommandLineArguments, str, bool], None]] = {
         Distribution.fedora: install_fedora,
         Distribution.centos: install_centos,
+        Distribution.centos_epel: install_centos,
         Distribution.mageia: install_mageia,
         Distribution.debian: install_debian,
         Distribution.ubuntu: install_ubuntu,
@@ -3315,7 +3327,7 @@ def parse_args(argv=None) -> Dict[str, CommandLineArguments]:
     """
     parser = create_parser()
 
-    # always work on a copy, argv will be altered which might has some side effects e.g. in unit tests. 
+    # always work on a copy, argv will be altered which might has some side effects e.g. in unit tests.
     if argv is None:
         argv = copy.deepcopy(sys.argv[1:])
     else:
@@ -3780,7 +3792,7 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
     if args.release is None:
         if args.distribution == Distribution.fedora:
             args.release = "29"
-        elif args.distribution == Distribution.centos:
+        elif args.distribution in (Distribution.centos, Distribution.centos_epel):
             args.release = "7"
         elif args.distribution == Distribution.mageia:
             args.release = "6"
@@ -4077,7 +4089,7 @@ def print_summary(args: CommandLineArguments) -> None:
     sys.stderr.write("\nPACKAGES:\n")
     sys.stderr.write("              Packages: " + line_join_list(args.packages) + "\n")
 
-    if args.distribution in (Distribution.fedora, Distribution.centos, Distribution.mageia):
+    if args.distribution in (Distribution.fedora, Distribution.centos, Distribution.centos_epel, Distribution.mageia):
         sys.stderr.write("    With Documentation: " + yes_no(args.with_docs) + "\n")
 
     sys.stderr.write("         Package Cache: " + none_to_none(args.cache_path) + "\n")
