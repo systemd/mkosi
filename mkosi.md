@@ -4,7 +4,7 @@
 
 # NAME
 
-mkosi — Build Legacy-Free OS Images
+mkosi - Build Legacy-Free OS Images
 
 # SYNOPSIS
 
