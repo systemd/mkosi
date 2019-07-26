@@ -548,15 +548,18 @@ def determine_partition_table(args: CommandLineArguments) -> Tuple[str, bool]:
             args.srv_partno = pn
             pn += 1
             run_sfdisk = True
-
+    
+    args.root_partno = None
+    
     if args.output_format != OutputFormat.gpt_squashfs:
         table += 'type={}, attrs={}, name="Root Partition"\n'.format(
             gpt_root_native(args.architecture).root,
             "GUID:60" if args.read_only and args.output_format != OutputFormat.gpt_btrfs else "")
+        args.root_partno = pn
+        pn += 1
+
         run_sfdisk = True
 
-    args.root_partno = pn
-    pn += 1
 
     if args.verity:
         args.verity_partno = pn
