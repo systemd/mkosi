@@ -557,9 +557,7 @@ def determine_partition_table(args: CommandLineArguments) -> Tuple[str, bool]:
             "GUID:60" if args.read_only and args.output_format != OutputFormat.gpt_btrfs else "")
         args.root_partno = pn
         pn += 1
-
         run_sfdisk = True
-
 
     if args.verity:
         args.verity_partno = pn
