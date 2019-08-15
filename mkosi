@@ -1960,8 +1960,8 @@ def install_opensuse(args: CommandLineArguments, workspace: str, do_run_build_sc
     # here to make sure that the package cache stays populated after
     # "zypper install".
     #
-    run(["zypper", "--root", root, "addrepo", "-ck", release_url, "Main"], check=True)
-    run(["zypper", "--root", root, "addrepo", "-ck", updates_url, "Updates"], check=True)
+    run(["zypper", "--root", root, "addrepo", "-ck", release_url, "repo-oss"], check=True)
+    run(["zypper", "--root", root, "addrepo", "-ck", updates_url, "repo-update"], check=True)
 
     if not args.with_docs:
         with open(os.path.join(root, "etc/zypp/zypp.conf"), "w") as f:
@@ -1973,10 +1973,11 @@ def install_opensuse(args: CommandLineArguments, workspace: str, do_run_build_sc
     #
     # Install the "minimal" package set.
     #
-    if release.startswith("42."):
-        run(cmdline + ["patterns-openSUSE-minimal_base"], check=True)
-    else:
-        run(cmdline + ["patterns-base-minimal_base"], check=True)
+    with mount_api_vfs(args, workspace):
+        if release.startswith("42."):
+            run(cmdline + ["patterns-openSUSE-minimal_base"], check=True)
+        else:
+            run(cmdline + ["patterns-base-minimal_base"], check=True)
 
 
     #
@@ -1999,14 +2000,15 @@ def install_opensuse(args: CommandLineArguments, workspace: str, do_run_build_sc
         extra_packages.extend(args.build_packages)
 
     if extra_packages:
-        run(cmdline + extra_packages, check=True)
+        with mount_api_vfs(args, workspace):
+            run(cmdline + extra_packages, check=True)
 
     #
     # Disable packages caching in the image that was enabled
     # previously to populate the package cache.
     #
-    run(["zypper", "--root", root, "modifyrepo", "-K", "Main"], check=True)
-    run(["zypper", "--root", root, "modifyrepo", "-K", "Updates"], check=True)
+    run(["zypper", "--root", root, "modifyrepo", "-K", "repo-oss"], check=True)
+    run(["zypper", "--root", root, "modifyrepo", "-K", "repo-update"], check=True)
 
     #
     # Tune dracut confs: openSUSE uses an old version of dracut that's
@@ -3490,14 +3492,16 @@ def detect_distribution() -> Tuple[Optional[Distribution], Optional[str]]:
 
     for ln in f:
         if ln.startswith("ID="):
-            dist_id = ln[3:].strip()
+            dist_id = ln[3:].strip(' \t\n"\'')
+        if ln.startswith("ID_LIKE="):
+            dist_id_like = ln[8:].strip(' \t\n"\'').split()
         if ln.startswith("VERSION_ID="):
-            version_id = ln[11:].strip()
+            version_id = ln[11:].strip(' \t\n"\'')
         if ln.startswith("VERSION_CODENAME="):
-            version_codename = ln[17:].strip()
+            version_codename = ln[17:].strip(' \t\n"\'')
         if ln.startswith("VERSION="):
             # extract Debian release codename
-            version_str = ln[8:].strip()
+            version_str = ln[8:].strip(' \t\n"\'')
             debian_codename_re = r'\((.*?)\)'
 
             codename_list = re.findall(debian_codename_re, version_str)
@@ -3510,6 +3514,11 @@ def detect_distribution() -> Tuple[Optional[Distribution], Optional[str]]:
     d: Optional[Distribution] = None
     if dist_id is not None:
         d = Distribution.__members__.get(dist_id, None)
+        if d is None:
+            for dist_id in dist_id_like:
+                d = Distribution.__members__.get(dist_id, None)
+                if d is not None:
+                    break
 
     if d == Distribution.debian and (version_codename or extracted_codename):
         # debootstrap needs release codenames, not version numbers
