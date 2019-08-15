@@ -3490,14 +3490,14 @@ def detect_distribution() -> Tuple[Optional[Distribution], Optional[str]]:
 
     for ln in f:
         if ln.startswith("ID="):
-            dist_id = ln[3:].strip()
+            dist_id = ln[3:].strip(' \t\n"\'')
         if ln.startswith("VERSION_ID="):
-            version_id = ln[11:].strip()
+            version_id = ln[11:].strip(' \t\n"\'')
         if ln.startswith("VERSION_CODENAME="):
-            version_codename = ln[17:].strip()
+            version_codename = ln[17:].strip(' \t\n"\'')
         if ln.startswith("VERSION="):
             # extract Debian release codename
-            version_str = ln[8:].strip()
+            version_str = ln[8:].strip(' \t\n"\'')
             debian_codename_re = r'\((.*?)\)'
 
             codename_list = re.findall(debian_codename_re, version_str)
