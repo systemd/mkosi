@@ -1960,8 +1960,8 @@ def install_opensuse(args: CommandLineArguments, workspace: str, do_run_build_sc
     # here to make sure that the package cache stays populated after
     # "zypper install".
     #
-    run(["zypper", "--root", root, "addrepo", "-ck", release_url, "Main"], check=True)
-    run(["zypper", "--root", root, "addrepo", "-ck", updates_url, "Updates"], check=True)
+    run(["zypper", "--root", root, "addrepo", "-ck", release_url, "repo-oss"], check=True)
+    run(["zypper", "--root", root, "addrepo", "-ck", updates_url, "repo-update"], check=True)
 
     if not args.with_docs:
         with open(os.path.join(root, "etc/zypp/zypp.conf"), "w") as f:
@@ -2005,8 +2005,8 @@ def install_opensuse(args: CommandLineArguments, workspace: str, do_run_build_sc
     # Disable packages caching in the image that was enabled
     # previously to populate the package cache.
     #
-    run(["zypper", "--root", root, "modifyrepo", "-K", "Main"], check=True)
-    run(["zypper", "--root", root, "modifyrepo", "-K", "Updates"], check=True)
+    run(["zypper", "--root", root, "modifyrepo", "-K", "repo-oss"], check=True)
+    run(["zypper", "--root", root, "modifyrepo", "-K", "repo-update"], check=True)
 
     #
     # Tune dracut confs: openSUSE uses an old version of dracut that's
