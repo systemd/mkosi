@@ -1973,10 +1973,11 @@ def install_opensuse(args: CommandLineArguments, workspace: str, do_run_build_sc
     #
     # Install the "minimal" package set.
     #
-    if release.startswith("42."):
-        run(cmdline + ["patterns-openSUSE-minimal_base"], check=True)
-    else:
-        run(cmdline + ["patterns-base-minimal_base"], check=True)
+    with mount_api_vfs(args, workspace):
+        if release.startswith("42."):
+            run(cmdline + ["patterns-openSUSE-minimal_base"], check=True)
+        else:
+            run(cmdline + ["patterns-base-minimal_base"], check=True)
 
 
     #
@@ -1999,7 +2000,8 @@ def install_opensuse(args: CommandLineArguments, workspace: str, do_run_build_sc
         extra_packages.extend(args.build_packages)
 
     if extra_packages:
-        run(cmdline + extra_packages, check=True)
+        with mount_api_vfs(args, workspace):
+            run(cmdline + extra_packages, check=True)
 
     #
     # Disable packages caching in the image that was enabled
