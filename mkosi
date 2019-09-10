@@ -2105,7 +2105,10 @@ def set_root_password(args: CommandLineArguments, workspace: str, do_run_build_s
             patch_file(os.path.join(workspace, 'root', 'etc/passwd'), jj)
     elif args.password:
         with complete_step("Setting root password"):
-            password = crypt.crypt(args.password, crypt.mksalt(crypt.METHOD_SHA512))
+            if args.password_is_hashed:
+                password = args.password
+            else:
+                password = crypt.crypt(args.password, crypt.mksalt(crypt.METHOD_SHA512))
 
             def jj(line: str) -> str:
                 if line.startswith('root:'):
@@ -3302,6 +3305,8 @@ def create_parser() -> ArgumentParserMkosi:
     group.add_argument("--bmap", action=BooleanAction,
                        help='Write block map file (.bmap) for bmaptool usage (only gpt_ext4, gpt_btrfs)')
     group.add_argument("--password", help='Set the root password')
+    group.add_argument("--password-is-hashed", action=BooleanAction,
+                       help='Indicate that the root password has already been hashed')
 
     group = parser.add_argument_group("Host configuration")
     group.add_argument("--extra-search-path", dest='extra_search_paths', action=ColonDelimitedListAction, default=[],
