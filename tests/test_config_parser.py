@@ -81,6 +81,7 @@ class MkosiConfig(object):
             'output_format': None,
             'packages': [],
             'password': None,
+            'password_is_hashed': False,
             'postinst_script': None,
             'qcow2': False,
             'read_only': False,
@@ -268,6 +269,9 @@ class MkosiConfig(object):
                 self.reference_config[job_name]['bmap'] = mk_config_validation['BMap']
             if 'Password' in mk_config_validation:
                 self.reference_config[job_name]['password'] = mk_config_validation['Password']
+            if 'PasswordIsHashed' in mk_config_validation:
+                self.reference_config[job_name]['password_is_hashed'] = mk_config_validation['PasswordIsHashed']
+
         if 'Host' in mk_config:
             mk_config_host = mk_config['Host']
             if 'ExtraSearchPaths' in mk_config_host:
