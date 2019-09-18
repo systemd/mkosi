@@ -98,6 +98,7 @@ class SourceFileTransfer(enum.Enum):
     copy_all = "copy-all"
     copy_git_cached = "copy-git-cached"
     copy_git_others = "copy-git-others"
+    copy_git_more = "copy-git-more"
     mount = "mount"
 
     def __str__(self):
@@ -108,6 +109,7 @@ class SourceFileTransfer(enum.Enum):
         return {cls.copy_all: "normal file copy",
                 cls.copy_git_cached: "use git-ls-files --cached, ignoring any file that git itself ignores",
                 cls.copy_git_others: "use git-ls-files --others, ignoring any file that git itself ignores",
+                cls.copy_git_more: "use git-ls-files --cached, ignoring any file that git itself ignores, but include the .git/ directory",
                 cls.mount: "bind mount source files into the build image"}
 
 
@@ -2441,6 +2443,16 @@ def copy_git_files(src: str, dest: str, *, source_file_transfer: SourceFileTrans
             check=True)
     files = {x.decode("utf-8") for x in c.stdout.rstrip(b'\0').split(b'\0')}
 
+    # Add the .git/ directory in as well.
+    if source_file_transfer == SourceFileTransfer.copy_git_more:
+        # r=root, d=directories, f=files
+        top = os.path.join(src, ".git/")
+        for r, d, f in os.walk(top):
+            for fh in f:
+                fp = os.path.join(r, fh) # full path
+                fr = os.path.join(".git/", fp[len(top):]) # relative to top
+                files.add(fr)
+
     # Get submodule files
     c = run(['git', '-C', src, 'submodule', 'status', '--recursive'],
             stdout=PIPE,
@@ -2492,7 +2504,7 @@ def install_build_src(args: CommandLineArguments, workspace: str, do_run_build_s
             if source_file_transfer is None and (os.path.exists('.git') or os.path.exists(os.path.join(args.build_sources, '.git'))):
                 source_file_transfer = SourceFileTransfer.copy_git_cached
 
-            if source_file_transfer in (SourceFileTransfer.copy_git_others, SourceFileTransfer.copy_git_cached):
+            if source_file_transfer in (SourceFileTransfer.copy_git_others, SourceFileTransfer.copy_git_cached, SourceFileTransfer.copy_git_more):
                 copy_git_files(args.build_sources, target, source_file_transfer=source_file_transfer)
             elif source_file_transfer == SourceFileTransfer.copy_all:
                 ignore = shutil.ignore_patterns('.git',
