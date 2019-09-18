@@ -4413,7 +4413,7 @@ def build_stuff(args: CommandLineArguments) -> None:
     run_finalize_script(args, workspace.name, verb='build')
 
     if args.build_script:
-        # Run the image builder for the first (develpoment) stage in preparation for the build script
+        # Run the image builder for the first (development) stage in preparation for the build script
         raw, tar, root_hash = build_image(args, workspace, do_run_build_script=True)
 
         run_build_script(args, workspace.name, raw)
