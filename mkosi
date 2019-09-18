@@ -3385,6 +3385,7 @@ def create_parser() -> ArgumentParserMkosi:
     group.add_argument("--build-directory", dest='build_dir', help='Path to use as persistent build directory', metavar='PATH')
     group.add_argument("--build-package", action=CommaDelimitedListAction, dest='build_packages', default=[],
                        help='Additional packages needed for build script', metavar='PACKAGE')
+    group.add_argument("--skip-final-phase", action=BooleanAction, help='Skip the (second) final image building phase.', default=False)
     group.add_argument("--postinst-script", help='Postinstall script to run inside image', metavar='PATH')
     group.add_argument("--finalize-script", help='Postinstall script to run outside image', metavar='PATH')
     group.add_argument("--source-file-transfer", type=SourceFileTransfer, choices=list(SourceFileTransfer), default=None,
@@ -4248,6 +4249,7 @@ def print_summary(args: CommandLineArguments) -> None:
     sys.stderr.write("  Source File Transfer: " + none_to_none(args.source_file_transfer) + "\n")
     sys.stderr.write("       Build Directory: " + none_to_none(args.build_dir) + "\n")
     sys.stderr.write("        Build Packages: " + line_join_list(args.build_packages) + "\n")
+    sys.stderr.write("      Skip final phase: " + yes_no(args.skip_final_phase) + "\n")
     sys.stderr.write("    Postinstall Script: " + none_to_none(args.postinst_script) + "\n")
     sys.stderr.write("       Finalize Script: " + none_to_none(args.finalize_script) + "\n")
     sys.stderr.write("  Scripts with network: " + yes_no(args.with_network) + "\n")
@@ -4548,7 +4550,11 @@ def build_stuff(args: CommandLineArguments) -> None:
     run_finalize_script(args, workspace.name, verb='final')
 
     # Run the image builder for the second (final) stage
-    raw, tar, root_hash = build_image(args, workspace, do_run_build_script=False, cleanup=True)
+    if args.skip_final_phase:
+        print_step('Skipping (second) final image build phase.')
+        raw, tar, root_hash = None, None, None
+    else:
+        raw, tar, root_hash = build_image(args, workspace, do_run_build_script=False, cleanup=True)
 
     raw = qcow2_output(args, raw)
     raw = xz_output(args, raw)

@@ -477,6 +477,13 @@ details see the table below.
   Packages are appended to the list. Packages prefixed with "!" are
   removed from the list. "!*" removes all packages from the list.
 
+`--skip-final-phase=`
+
+: Causes the (second) final image build stage to be skipped. This is
+  useful in combination with a build script, for when you care about
+  the artifacts that were created locally in `$BUILDDIR`, but
+  ultimately plan to discard the final image.
+
 `--postinst-script=`
 
 : Takes a path to an executable that is invoked inside the final image
@@ -674,6 +681,7 @@ which settings file options.
 | `--source-file-transfer=`    | `[Packages]`            | `SourceFileTransfer=`     |
 | `--build-directory=`         | `[Packages]`            | `BuildDirectory=`         |
 | `--build-packages=`          | `[Packages]`            | `BuildPackages=`          |
+| `--skip-final-phase=`        | `[Packages]`            | `SkipFinalPhase=`         |
 | `--postinst-script=`         | `[Packages]`            | `PostInstallationScript=` |
 | `--finalize-script=`         | `[Packages]`            | `FinalizeScript=`         |
 | `--with-network`             | `[Packages]`            | `WithNetwork=`            |
