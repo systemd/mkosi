@@ -514,7 +514,9 @@ details see the table below.
   only those files `git-ls-files --cached` lists), `copy-git-others`
   (to copy only those files `git-ls-files --others` lists), `mount` to
   bind mount the source tree directly. Defaults to `copy-git-cached`
-  if a `git` source tree is detected, otherwise `copy-all`.
+  if a `git` source tree is detected, otherwise `copy-all`. When you
+  specify `copy-git-more`, it is the same as `copy-git-cached`, except
+  it also includes the `.git/` directory.
 
 `--with-network`
 
