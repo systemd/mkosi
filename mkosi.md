@@ -837,6 +837,9 @@ local directory:
   directory (see below), which is an easy way to exclude all build
   artifacts.
 
+  The `MKOSI_DEFAULT` environment variable will be set inside of this
+  script so that you know which `mkosi.default` (if any) was passed in.
+
 * `mkosi.postinst` may be an executable script. If it exists it is
   invoked as the penultimate step of preparing an image, from within
   the image context. It is once called for the *development* image (if

@@ -4313,6 +4313,7 @@ def run_build_script(args: CommandLineArguments, workspace: str, raw: Optional[B
                    "--setenv=WITH_DOCS=" + one_zero(args.with_docs),
                    "--setenv=WITH_TESTS=" + one_zero(args.with_tests),
                    "--setenv=WITH_NETWORK=" + one_zero(args.with_network),
+                   "--setenv=MKOSI_DEFAULT=" + args.default_path,
                    "--setenv=DESTDIR=/root/dest"]
 
         if args.build_sources is not None:
