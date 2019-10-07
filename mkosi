@@ -219,6 +219,15 @@ GPT_HEADER_SIZE = 1024*1024
 GPT_FOOTER_SIZE = 1024*1024
 
 
+# Debian calls their architectures differently, so when calling debbootstrap we
+# will have to map to their names
+DEBIAN_ARCHITECTURES = {
+    'x86_64': 'amd64',
+    'x86': 'i386',
+    'aarch64': 'arm64',
+    'armhfp': 'armhf',
+}
+
 class GPTRootTypePair(NamedTuple):
     root: uuid.UUID
     verity: uuid.UUID
@@ -1755,6 +1764,10 @@ def install_debian_or_ubuntu(args: CommandLineArguments,
                "--include=systemd-sysv",
                "--exclude=sysv-rc,initscripts,startpar,lsb-base,insserv",
                "--components=" + ','.join(repos)]
+
+    if args.architecture is not None:
+        debarch = DEBIAN_ARCHITECTURES.get(args.architecture)
+        cmdline += [f"--arch={debarch}"]
 
     # Let's use --merged-usr and --no-check-valid-until only if debootstrap knows it
     for arg in ["--merged-usr", "--no-check-valid-until"]:
