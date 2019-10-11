@@ -4621,8 +4621,8 @@ def main() -> None:
 
     for job_name, a in args.items():
         # Change working directory if --directory is passed
-        if hasattr(args, 'directory'):
-            work_dir = args.directory
+        if a.directory:
+            work_dir = a.directory
             if os.path.isdir(work_dir):
                 os.chdir(work_dir)
             else:
