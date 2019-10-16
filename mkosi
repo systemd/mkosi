@@ -1688,8 +1688,8 @@ def install_centos(args: CommandLineArguments, workspace: str, do_run_build_scri
         release_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=os"
         updates_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=updates"
         extras_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=extras"
-        centosplus_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=plus"
-        epel_url = f"mirrorlist=http://download.fedoraproject.org/pub/epel/{epel_release}/x86_64"
+        centosplus_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=centosplus"
+        epel_url = f"baseurl=http://download.fedoraproject.org/pub/epel/{epel_release}/x86_64"
 
     config_file = os.path.join(workspace, "yum.conf")
     with open(config_file, "w") as f:
