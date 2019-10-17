@@ -85,6 +85,9 @@ def die(message: str, status: int = 1) -> NoReturn:
 def warn(message: str, *args: Any, **kwargs: Any) -> None:
     sys.stderr.write('WARNING: ' + message.format(*args, **kwargs) + '\n')
 
+def tmp_dir() -> str:
+    return os.environ.get('TMPDIR') or '/var/tmp'
+
 
 class CommandLineArguments(argparse.Namespace):
     """Type-hinted storage for command line arguments."""
@@ -440,7 +443,7 @@ def setup_workspace(args: CommandLineArguments) -> tempfile.TemporaryDirectory:
     if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
         d = tempfile.TemporaryDirectory(dir=os.path.dirname(args.output), prefix='.mkosi-')
     else:
-        d = tempfile.TemporaryDirectory(dir='/var/tmp', prefix='mkosi-')
+        d = tempfile.TemporaryDirectory(dir=tmp_dir(), prefix='mkosi-')
 
     print_step("Temporary workspace in " + d.name + " is now set up.")
     return d
