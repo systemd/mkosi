@@ -1935,93 +1935,94 @@ SigLevel    = Required DatabaseOptional TrustAll
         cmdline = ["pacstrap", "-C", pacman_conf, "-dGM", root]
         run(cmdline + list(packages), check=True)
 
-    keyring = "archlinux"
-    if platform.machine() == "aarch64":
-        keyring += "arm"
-    run_pacman_key(["--init"])
-    run_pacman_key(["--populate", keyring])
+    try:
+        keyring = "archlinux"
+        if platform.machine() == "aarch64":
+            keyring += "arm"
+        run_pacman_key(["--init"])
+        run_pacman_key(["--populate", keyring])
 
-    run_pacman(["-Sy"])
-    # determine base packages list from base group
-    c = run_pacman(["-Sqg", "base"], stdout=PIPE, universal_newlines=True)
-    packages = set(c.stdout.split())
-    packages -= {
-        "cryptsetup",
-        "device-mapper",
-        "dhcpcd",
-        "e2fsprogs",
-        "jfsutils",
-        "linux",
-        "lvm2",
-        "man-db",
-        "man-pages",
-        "mdadm",
-        "netctl",
-        "reiserfsprogs",
-        "xfsprogs",
-    }
+        run_pacman(["-Sy"])
+        # determine base packages list from base group
+        c = run_pacman(["-Sqg", "base"], stdout=PIPE, universal_newlines=True)
+        packages = set(c.stdout.split())
+        packages -= {
+            "cryptsetup",
+            "device-mapper",
+            "dhcpcd",
+            "e2fsprogs",
+            "jfsutils",
+            "linux",
+            "lvm2",
+            "man-db",
+            "man-pages",
+            "mdadm",
+            "netctl",
+            "reiserfsprogs",
+            "xfsprogs",
+        }
 
-    official_kernel_packages = {
-        "linux",
-        "linux-lts",
-        "linux-hardened",
-        "linux-zen",
-    }
+        official_kernel_packages = {
+            "linux",
+            "linux-lts",
+            "linux-hardened",
+            "linux-zen",
+        }
 
-    kernel_packages = official_kernel_packages.intersection(args.packages)
-    if len(kernel_packages) > 1:
-        warn('More than one kernel will be installed: {}', ' '.join(kernel_packages))
+        kernel_packages = official_kernel_packages.intersection(args.packages)
+        if len(kernel_packages) > 1:
+            warn('More than one kernel will be installed: {}', ' '.join(kernel_packages))
 
-    if args.bootable:
-        if args.output_format == OutputFormat.gpt_ext4:
-            packages.add("e2fsprogs")
-        elif args.output_format == OutputFormat.gpt_btrfs:
-            packages.add("btrfs-progs")
-        elif args.output_format == OutputFormat.gpt_xfs:
-            packages.add("xfsprogs")
-        if args.encrypt:
-            packages.add("cryptsetup")
-            packages.add("device-mapper")
-        if not kernel_packages:
-            # No user-specified kernel
-            kernel_packages.add("linux")
-        if args.bios_partno:
-            packages.add("grub")
+        if args.bootable:
+            if args.output_format == OutputFormat.gpt_ext4:
+                packages.add("e2fsprogs")
+            elif args.output_format == OutputFormat.gpt_btrfs:
+                packages.add("btrfs-progs")
+            elif args.output_format == OutputFormat.gpt_xfs:
+                packages.add("xfsprogs")
+            if args.encrypt:
+                packages.add("cryptsetup")
+                packages.add("device-mapper")
+            if not kernel_packages:
+                # No user-specified kernel
+                kernel_packages.add("linux")
+            if args.bios_partno:
+                packages.add("grub")
 
-        packages.add("mkinitcpio")
+            packages.add("mkinitcpio")
 
-    # Set up system with packages from the base group
-    run_pacstrap(packages)
-
-    if args.bootable:
-        # Patch mkinitcpio configuration so:
-        # 1) we remove autodetect and
-        # 2) we add the modules needed for encrypt.
-        def jj(line: str) -> str:
-            if line.startswith("HOOKS="):
-                if args.encrypt == "all":
-                    return 'HOOKS="systemd modconf block sd-encrypt filesystems keyboard fsck"\n'
-                else:
-                    return 'HOOKS="systemd modconf block filesystems fsck"\n'
-            return line
-        patch_file(os.path.join(workspace, "root", "etc/mkinitcpio.conf"), jj)
-
-    # Install the user-specified packages and kernel
-    packages = set(args.packages)
-    if args.bootable:
-        packages |= kernel_packages
-
-    if do_run_build_script:
-        packages.update(args.build_packages)
-    # Remove already installed packages
-    c = run_pacman(['-Qq'], stdout=PIPE, universal_newlines=True)
-    packages.difference_update(c.stdout.split())
-    if packages:
+        # Set up system with packages from the base group
         run_pacstrap(packages)
 
-    # Kill the gpg-agent used by pacman and pacman-key
-    run(['gpg-connect-agent', '--homedir', os.path.join(root, 'etc/pacman.d/gnupg'), 'KILLAGENT', '/bye'])
-    run(['gpg-connect-agent', '--homedir', os.path.join(root, 'etc/pacman.d/gnupg'), '--dirmngr', 'KILLDIRMNGR', '/bye'])
+        if args.bootable:
+            # Patch mkinitcpio configuration so:
+            # 1) we remove autodetect and
+            # 2) we add the modules needed for encrypt.
+            def jj(line: str) -> str:
+                if line.startswith("HOOKS="):
+                    if args.encrypt == "all":
+                        return 'HOOKS="systemd modconf block sd-encrypt filesystems keyboard fsck"\n'
+                    else:
+                        return 'HOOKS="systemd modconf block filesystems fsck"\n'
+                return line
+            patch_file(os.path.join(workspace, "root", "etc/mkinitcpio.conf"), jj)
+
+        # Install the user-specified packages and kernel
+        packages = set(args.packages)
+        if args.bootable:
+            packages |= kernel_packages
+
+        if do_run_build_script:
+            packages.update(args.build_packages)
+        # Remove already installed packages
+        c = run_pacman(['-Qq'], stdout=PIPE, universal_newlines=True)
+        packages.difference_update(c.stdout.split())
+        if packages:
+            run_pacstrap(packages)
+    finally:
+        # Kill the gpg-agent used by pacman and pacman-key
+        run(['gpg-connect-agent', '--homedir', os.path.join(root, 'etc/pacman.d/gnupg'), 'KILLAGENT', '/bye'])
+        run(['gpg-connect-agent', '--homedir', os.path.join(root, 'etc/pacman.d/gnupg'), '--dirmngr', 'KILLDIRMNGR', '/bye'])
 
     if "networkmanager" in args.packages:
         enable_networkmanager(workspace)
