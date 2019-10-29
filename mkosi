@@ -48,12 +48,21 @@ from typing import (
     TypeVar,
     Union,
     cast,
+    TYPE_CHECKING,
 )
 
 __version__ = '5'
 
 if sys.version_info < (3, 6):
     sys.exit("Sorry, we need at least Python 3.6.")
+
+
+if TYPE_CHECKING:
+    CompletedProcess = subprocess.CompletedProcess[Any]
+    TempDir = tempfile.TemporaryDirectory[str]
+else:
+    CompletedProcess = subprocess.CompletedProcess
+    TempDir = tempfile.TemporaryDirectory
 
 
 MKOSI_COMMANDS_CMDLINE = ("shell", "boot", "qemu")
@@ -66,7 +75,7 @@ MKOSI_COMMANDS = ("build", "clean", "help", "summary") + MKOSI_COMMANDS_CMDLINE
 arg_debug = ()
 
 
-def run(cmdline: List[str], execvp: bool = False, **kwargs: Any) -> subprocess.CompletedProcess:
+def run(cmdline: List[str], execvp: bool = False, **kwargs: Any) -> CompletedProcess:
     if 'run' in arg_debug:
         sys.stderr.write('+ ' + ' '.join(shlex.quote(x) for x in cmdline) + '\n')
     if execvp:
@@ -108,7 +117,7 @@ class SourceFileTransfer(enum.Enum):
         return cast(str, self.value)
 
     @classmethod
-    def doc(cls) -> Dict[SourceFileTransfer, str]:
+    def doc(cls) -> Dict["SourceFileTransfer", str]:
         return {cls.copy_all: "normal file copy",
                 cls.copy_git_cached: "use git-ls-files --cached, ignoring any file that git itself ignores",
                 cls.copy_git_others: "use git-ls-files --others, ignoring any file that git itself ignores",
@@ -440,7 +449,7 @@ def init_namespace(args: CommandLineArguments) -> None:
     run(["mount", "--make-rslave", "/"], check=True)
 
 
-def setup_workspace(args: CommandLineArguments) -> tempfile.TemporaryDirectory:
+def setup_workspace(args: CommandLineArguments) -> TempDir:
     print_step("Setting up temporary workspace.")
     if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
         d = tempfile.TemporaryDirectory(dir=os.path.dirname(args.output), prefix='.mkosi-')
@@ -1914,7 +1923,7 @@ SigLevel    = Required DatabaseOptional TrustAll
 {server}
 """)
 
-    def run_pacman(args: List[str], **kwargs: Any) -> subprocess.CompletedProcess:
+    def run_pacman(args: List[str], **kwargs: Any) -> CompletedProcess:
         cmdline = [
             "pacman",
             "--noconfirm",
@@ -1923,7 +1932,7 @@ SigLevel    = Required DatabaseOptional TrustAll
         ]
         return run(cmdline + args, **kwargs, check=True)
 
-    def run_pacman_key(args: List[str]) -> subprocess.CompletedProcess:
+    def run_pacman_key(args: List[str]) -> CompletedProcess:
         cmdline = [
             "pacman-key",
             "--nocolor",
@@ -3124,8 +3133,8 @@ def print_output_size(args: CommandLineArguments) -> None:
         print_step("Resulting image size is " + format_bytes(st.st_size) + ", consumes " + format_bytes(st.st_blocks * 512) + ".")  # NOQA: E501
 
 
-def setup_package_cache(args: CommandLineArguments) -> Optional[tempfile.TemporaryDirectory]:
-    d: Optional[tempfile.TemporaryDirectory] = None
+def setup_package_cache(args: CommandLineArguments) -> Optional[TempDir]:
+    d = None
     with complete_step('Setting up package cache',
                        'Setting up package cache {} complete') as output:
         if args.cache_path is None:
@@ -4347,7 +4356,7 @@ def make_build_dir(args: CommandLineArguments) -> None:
 
 
 def build_image(args: CommandLineArguments,
-                workspace: tempfile.TemporaryDirectory,
+                workspace: TempDir,
                 *,
                 do_run_build_script: bool,
                 for_cache: bool = False,
