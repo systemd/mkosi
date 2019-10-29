@@ -3601,9 +3601,9 @@ def parse_bytes(num_bytes: Optional[str]) -> Optional[int]:
         return num_bytes
 
     if num_bytes.endswith('G'):
-        factor = 1024**3
+        factor = 1024 * 1024 * 1024
     elif num_bytes.endswith('M'):
-        factor = 1024**2
+        factor = 1024 * 1024
     elif num_bytes.endswith('K'):
         factor = 1024
     else:
