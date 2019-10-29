@@ -3563,9 +3563,7 @@ def parse_args_file(argv_post_parsed: List[str], default_path: str) -> CommandLi
     argv_post_parsed.insert(1, ArgumentParserMkosi.fromfile_prefix_chars+default_path)
     parser = create_parser()
     # parse all parameters handled by mkosi. Parameters forwarded to subprocesses such as nspawn or qemu end up in cmdline_argv.
-    parsed_args = parser.parse_args(argv_post_parsed, CommandLineArguments())
-    args = cast(CommandLineArguments, parsed_args)
-    return args
+    return parser.parse_args(argv_post_parsed, CommandLineArguments())
 
 
 def parse_args_file_group(argv_post_parsed: List[str], default_path: str) -> CommandLineArguments:
@@ -3586,9 +3584,7 @@ def parse_args_file_group(argv_post_parsed: List[str], default_path: str) -> Com
     parser = create_parser()
 
     # parse all parameters handled by mkosi. Parameters forwarded to subprocesses such as nspawn or qemu end up in cmdline_argv.
-    parsed_args = parser.parse_args(argv_post_parsed, CommandLineArguments())
-    args = cast(CommandLineArguments, parsed_args)
-    return args
+    return parser.parse_args(argv_post_parsed, CommandLineArguments())
 
 
 def parse_bytes(num_bytes: Optional[str]) -> Optional[int]:
