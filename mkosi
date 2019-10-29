@@ -409,7 +409,7 @@ def copy_path(oldpath: str, newpath: str) -> None:
             symlink_f(target, newentry)
             shutil.copystat(entry.path, newentry, follow_symlinks=False)
         else:
-            st = entry.stat(follow_symlinks=False)  # type: ignore  # mypy 0.641 doesn't know about follow_symlinks
+            st = entry.stat(follow_symlinks=False)
             if stat.S_ISREG(st.st_mode):
                 copy_file(entry.path, newentry)
             else:
