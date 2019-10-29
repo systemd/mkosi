@@ -104,11 +104,11 @@ class SourceFileTransfer(enum.Enum):
     copy_git_more = "copy-git-more"
     mount = "mount"
 
-    def __str__(self):
-        return self.value
+    def __str__(self) -> str:
+        return cast(str, self.value)
 
     @classmethod
-    def doc(cls):
+    def doc(cls) -> Dict[SourceFileTransfer, str]:
         return {cls.copy_all: "normal file copy",
                 cls.copy_git_cached: "use git-ls-files --cached, ignoring any file that git itself ignores",
                 cls.copy_git_others: "use git-ls-files --others, ignoring any file that git itself ignores",
@@ -3198,12 +3198,22 @@ class BooleanAction(argparse.Action):
     or implicitly --foo. If the parameter name starts with "not-" or "without-" the value gets
     inverted.
     """
-    def __init__(self, option_strings, dest, nargs=None, const=True, default=False, **kwargs):
+    def __init__(self, # These type-hints are copied from argparse.pyi
+                 option_strings: Sequence[str],
+                 dest: str,
+                 nargs: Optional[Union[int, str]]=None,
+                 const: Any=True,
+                 default: Any=False,
+                 **kwargs: Any) -> None:
         if nargs is not None:
             raise ValueError("nargs not allowed")
         super(BooleanAction, self).__init__(option_strings, dest, nargs='?', const=const, default=default, **kwargs)
 
-    def __call__(self, parser, namespace, values, option_string=None):
+    def __call__(self, # These type-hints are copied from argparse.pyi
+                 parser: argparse.ArgumentParser,
+                 namespace: argparse.Namespace,
+                 values: Union[str, Sequence[Any], None],
+                 option_string: Optional[str] = None) -> None:
         new_value = self.default
         if isinstance(values, str):
             try:
@@ -3254,7 +3264,7 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
 
     fromfile_prefix_chars = '@'
 
-    def __init__(self, *kargs, **kwargs):
+    def __init__(self, *kargs: Any, **kwargs: Any) -> None:
         self._ini_file_section = ""
         self._ini_file_key = ""  # multi line list processing
         self._ini_file_list_mode = False
@@ -3263,7 +3273,7 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
         kwargs['fromfile_prefix_chars'] = __class__.fromfile_prefix_chars
         super().__init__(*kargs, **kwargs)
 
-    def _read_args_from_files(self, arg_strings):
+    def _read_args_from_files(self, arg_strings: List[str]) -> List[str]:
         """Convert @ prefixed command line arguments with corresponding file content
 
         Regular arguments are just returned. Arguments prefixed with @ are considered as
@@ -3279,11 +3289,11 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
           arg_strings: ['@mkosi.default', '-p', 'httpd']
           return value: ['--distribution', 'fedora', '-p', 'httpd']
         """
-        def camel_to_arg(camel):
+        def camel_to_arg(camel: str) -> str:
             s1 = re.sub('(.)([A-Z][a-z]+)', r'\1-\2', camel)
             return re.sub('([a-z0-9])([A-Z])', r'\1-\2', s1).lower()
 
-        def ini_key_to_cli_arg(key):
+        def ini_key_to_cli_arg(key: str) -> str:
             try:
                 return __class__.SPECIAL_MKOSI_DEFAULT_PARAMS[key]
             except KeyError:
@@ -3461,7 +3471,7 @@ class MkosiParseException(Exception):
     """Leads to sys.exit"""
 
 
-def parse_args(argv=None) -> Dict[str, CommandLineArguments]:
+def parse_args(argv: Optional[List[str]]=None) -> Dict[str, CommandLineArguments]:
     """Load default values from files and parse command line arguments
 
     Do all about default files and command line arguments parsing. If --all argument is passed
@@ -3558,7 +3568,7 @@ def parse_args_file(argv_post_parsed: List[str], default_path: str) -> CommandLi
     return args
 
 
-def parse_args_file_group(argv_post_parsed, default_path) -> CommandLineArguments:
+def parse_args_file_group(argv_post_parsed: List[str], default_path: str) -> CommandLineArguments:
     """Parse a set of mkosi.default and mkosi.default.d/* files.
     """
     # Add the @ prefixed filenames to current argument list in inverse priority order.
@@ -4723,7 +4733,7 @@ def prepend_to_environ_path(paths: List[str]) -> None:
         os.environ["PATH"] = new_path + ":" + original_path
 
 
-def run_verb(args):
+def run_verb(args: CommandLineArguments) -> None:
     load_args(args)
 
     prepend_to_environ_path(args.extra_search_paths)
