@@ -3270,7 +3270,7 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
         self._ini_file_list_mode = False
 
         # Add config files to be parsed
-        kwargs['fromfile_prefix_chars'] = __class__.fromfile_prefix_chars
+        kwargs['fromfile_prefix_chars'] = ArgumentParserMkosi.fromfile_prefix_chars
         super().__init__(*kargs, **kwargs)
 
     def _read_args_from_files(self, arg_strings: List[str]) -> List[str]:
@@ -3295,7 +3295,7 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
 
         def ini_key_to_cli_arg(key: str) -> str:
             try:
-                return __class__.SPECIAL_MKOSI_DEFAULT_PARAMS[key]
+                return ArgumentParserMkosi.SPECIAL_MKOSI_DEFAULT_PARAMS[key]
             except KeyError:
                 return '--' + camel_to_arg(key)
 
