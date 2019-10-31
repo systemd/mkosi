@@ -1943,23 +1943,13 @@ SigLevel    = Required DatabaseOptional TrustAll
 
     run_pacman(["-Sy"])
     # determine base packages list from base group
-    c = run_pacman(["-Sqg", "base"], stdout=PIPE, universal_newlines=True)
-    packages = set(c.stdout.split())
-    packages -= {
-        "cryptsetup",
-        "device-mapper",
-        "dhcpcd",
-        "e2fsprogs",
-        "jfsutils",
-        "linux",
-        "lvm2",
-        "man-db",
-        "man-pages",
-        "mdadm",
-        "netctl",
-        "reiserfsprogs",
-        "xfsprogs",
-    }
+    c = run_pacman(["-Si", "base"], stdout=PIPE, universal_newlines=True)
+    packages = set()
+    base_re = re.search("^Depends On\s+:(.*?)(?=^Optional Deps)", c.stdout, flags=re.S | re.M)
+    if base_re:
+        packages |= set(base_re.group(1).strip().split())
+    else:
+        die("Arch base package could not be found.")
 
     official_kernel_packages = {
         "linux",
