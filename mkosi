@@ -2296,6 +2296,7 @@ def install_grub(args: CommandLineArguments, workspace: str, loopdev: str, grub:
     nspawn_params = [
         "--bind-ro=/dev",
         "--property=DeviceAllow=" + loopdev,
+        "--console=pipe",
     ]
     if args.root_partno is not None:
         nspawn_params += ["--property=DeviceAllow=" + partition(loopdev, args.root_partno)]
