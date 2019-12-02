@@ -34,3 +34,7 @@ done
 # Run unit tests
 sudo python3.6 -m pip install pytest
 sudo python3.6 -m pytest
+
+# Run mypy check
+sudo python3.6 -m pip install mypy
+sudo python3.6 -m mypy mkosi
