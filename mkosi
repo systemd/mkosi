@@ -728,7 +728,7 @@ def prepare_xbootldr(args: CommandLineArguments, loopdev: Optional[str], cached:
 
 
 def mkfs_ext4(label: str, mount: str, dev: str) -> None:
-    run(["mkfs.ext4", "-L", label, "-M", mount, dev], check=True)
+    run(["mkfs.ext4", "-I", "256", "-L", label, "-M", mount, dev], check=True)
 
 
 def mkfs_xfs(label: str, dev: str) -> None:
