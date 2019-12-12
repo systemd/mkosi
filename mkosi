@@ -4524,32 +4524,35 @@ def build_stuff(args: CommandLineArguments) -> None:
 
         # There is no point generating a pre-dev cache image if no build script is provided
         if args.build_script:
-            # Generate the cache version of the build image, and store it as "cache-pre-dev"
-            raw, tar, root_hash = build_image(args, workspace, do_run_build_script=True, for_cache=True)
-            save_cache(args,
-                       workspace.name,
-                       raw.name if raw is not None else None,
-                       args.cache_pre_dev)
+            with complete_step("Running first (development) stage to generate cached copy"):
+                # Generate the cache version of the build image, and store it as "cache-pre-dev"
+                raw, tar, root_hash = build_image(args, workspace, do_run_build_script=True, for_cache=True)
+                save_cache(args,
+                           workspace.name,
+                           raw.name if raw is not None else None,
+                           args.cache_pre_dev)
 
-            remove_artifacts(args, workspace.name, raw, tar, do_run_build_script=True)
+                remove_artifacts(args, workspace.name, raw, tar, do_run_build_script=True)
 
-        # Generate the cache version of the build image, and store it as "cache-pre-inst"
-        raw, tar, root_hash = build_image(args, workspace, do_run_build_script=False, for_cache=True)
-        if raw:
-            save_cache(args,
-                       workspace.name,
-                       raw.name,
-                       args.cache_pre_inst)
-            remove_artifacts(args, workspace.name, raw, tar, do_run_build_script=False)
+        with complete_step("Running second (final) stage to generate cached copy"):
+            # Generate the cache version of the build image, and store it as "cache-pre-inst"
+            raw, tar, root_hash = build_image(args, workspace, do_run_build_script=False, for_cache=True)
+            if raw:
+                save_cache(args,
+                           workspace.name,
+                           raw.name,
+                           args.cache_pre_inst)
+                remove_artifacts(args, workspace.name, raw, tar, do_run_build_script=False)
 
     run_finalize_script(args, workspace.name, verb='build')
 
     if args.build_script:
-        # Run the image builder for the first (development) stage in preparation for the build script
-        raw, tar, root_hash = build_image(args, workspace, do_run_build_script=True)
+        with complete_step("Running first (development) stage"):
+            # Run the image builder for the first (development) stage in preparation for the build script
+            raw, tar, root_hash = build_image(args, workspace, do_run_build_script=True)
 
-        run_build_script(args, workspace.name, raw)
-        remove_artifacts(args, workspace.name, raw, tar, do_run_build_script=True)
+            run_build_script(args, workspace.name, raw)
+            remove_artifacts(args, workspace.name, raw, tar, do_run_build_script=True)
 
     run_finalize_script(args, workspace.name, verb='final')
 
@@ -4558,7 +4561,8 @@ def build_stuff(args: CommandLineArguments) -> None:
         print_step('Skipping (second) final image build phase.')
         raw, tar, root_hash = None, None, None
     else:
-        raw, tar, root_hash = build_image(args, workspace, do_run_build_script=False, cleanup=True)
+        with complete_step("Running second (final) stage"):
+            raw, tar, root_hash = build_image(args, workspace, do_run_build_script=False, cleanup=True)
 
     raw = qcow2_output(args, raw)
     raw = xz_output(args, raw)
