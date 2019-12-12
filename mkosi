@@ -4028,6 +4028,9 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
     if args.minimize and not args.output_format.can_minimize():
         die("Minimal file systems only supported for ext4 and btrfs.")
 
+    if args.generated_root() and args.incremental:
+        die("Sorry, incremental mode is currently not supported for squashfs or minimized file systems.")
+
     if args.bootable:
         if args.output_format in (OutputFormat.directory, OutputFormat.subvolume, OutputFormat.tar):
             die("Directory, subvolume and tar images cannot be booted.")
