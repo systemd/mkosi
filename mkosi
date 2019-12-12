@@ -97,6 +97,11 @@ class CommandLineArguments(argparse.Namespace):
     esp_partno: Optional[int] = None
     xbootldr_partno: Optional[int] = None
 
+    def generated_root(self):
+        """Returns whether this configuration means we need to generate a file system from a prepared tree,
+        as needed for anything squashfs and when root minimization is required."""
+        return self.minimize or self.output_format.is_squashfs()
+
 
 class SourceFileTransfer(enum.Enum):
     copy_all = "copy-all"
@@ -165,6 +170,10 @@ class OutputFormat(enum.Enum):
     def is_squashfs(self) -> bool:
         "The output format contains a squashfs partition"
         return self in {OutputFormat.gpt_squashfs, OutputFormat.plain_squashfs}
+
+    def can_minimize(self) -> bool:
+        "The output format can be 'minimized'"
+        return self in (OutputFormat.gpt_ext4, OutputFormat.gpt_btrfs)
 
 
 class Distribution(enum.Enum):
@@ -567,7 +576,7 @@ def determine_partition_table(args: CommandLineArguments) -> Tuple[str, bool]:
             pn += 1
             run_sfdisk = True
 
-    if args.output_format != OutputFormat.gpt_squashfs:
+    if not args.generated_root():
         table += 'type={}, attrs={}, name="Root Partition"\n'.format(
             gpt_root_native(args.architecture).root,
             "GUID:60" if args.read_only and args.output_format != OutputFormat.gpt_btrfs else "")
@@ -782,12 +791,12 @@ def luks_format_root(args: CommandLineArguments,
                      loopdev: str,
                      do_run_build_script: bool,
                      cached: bool,
-                     inserting_squashfs: bool = False) -> None:
+                     inserting_generated_root: bool = False) -> None:
     if args.encrypt != "all":
         return
     if args.root_partno is None:
         return
-    if args.output_format == OutputFormat.gpt_squashfs and not inserting_squashfs:
+    if args.generated_root() and not inserting_generated_root:
         return
     if do_run_build_script:
         return
@@ -829,12 +838,12 @@ def luks_format_srv(args: CommandLineArguments, loopdev: str, do_run_build_scrip
 def luks_setup_root(args: CommandLineArguments,
                     loopdev: str,
                     do_run_build_script: bool,
-                    inserting_squashfs: bool = False) -> Optional[str]:
+                    inserting_generated_root: bool = False) -> Optional[str]:
     if args.encrypt != "all":
         return None
     if args.root_partno is None:
         return None
-    if args.output_format == OutputFormat.gpt_squashfs and not inserting_squashfs:
+    if args.generated_root() and not inserting_generated_root:
         return None
     if do_run_build_script:
         return None
@@ -900,7 +909,7 @@ def luks_setup_all(args: CommandLineArguments,
 def prepare_root(args: CommandLineArguments, dev: Optional[str], cached: bool) -> None:
     if dev is None:
         return
-    if args.output_format == OutputFormat.gpt_squashfs:
+    if args.generated_root():
         return
     if cached:
         return
@@ -1075,11 +1084,8 @@ def prepare_tree(args: CommandLineArguments, workspace: str, do_run_build_script
     else:
         mkdir_last(os.path.join(workspace, "root"), 0o755)
 
-    if args.output_format in (OutputFormat.subvolume, OutputFormat.gpt_btrfs):
-
-        if cached and args.output_format is OutputFormat.gpt_btrfs:
-            return
-
+    if args.output_format is OutputFormat.subvolume or \
+       (args.output_format is OutputFormat.gpt_btrfs and not (args.minimize or cached)):
         btrfs_subvol_create(os.path.join(workspace, "root", "home"))
         btrfs_subvol_create(os.path.join(workspace, "root", "srv"))
         btrfs_subvol_create(os.path.join(workspace, "root", "var"))
@@ -2576,6 +2582,54 @@ def make_squashfs(args: CommandLineArguments, workspace: str, for_cache: bool) -
     return f
 
 
+def make_minimal_ext4(args: CommandLineArguments, workspace: str, for_cache: bool) -> Optional[BinaryIO]:
+    if args.output_format != OutputFormat.gpt_ext4:
+        return None
+    if not args.minimize:
+        return None
+    if for_cache:
+        return None
+
+    with complete_step('Creating ext4 root file system'):
+        f: BinaryIO = cast(BinaryIO, tempfile.NamedTemporaryFile(prefix=".mkosi-mkfs-ext4",
+                                                                 dir=os.path.dirname(args.output)))
+        f.truncate(args.root_size)
+        run(["mkfs.ext4", "-I", "256", "-L", "root", "-M", "/", "-d", os.path.join(workspace, "root"), f.name], check=True)
+
+    with complete_step('Minimizing ext4 root file system'):
+        run(["resize2fs", "-M", f.name])
+
+    return f
+
+
+def make_minimal_btrfs(args: CommandLineArguments, workspace: str, for_cache: bool) -> Optional[BinaryIO]:
+    if args.output_format != OutputFormat.gpt_btrfs:
+        return None
+    if not args.minimize:
+        return None
+    if for_cache:
+        return None
+
+    with complete_step('Creating minimal btrfs root file system'):
+        f: BinaryIO = cast(BinaryIO, tempfile.NamedTemporaryFile(prefix=".mkosi-mkfs-btrfs",
+                                                                 dir=os.path.dirname(args.output)))
+        f.truncate(args.root_size)
+        run(["mkfs.btrfs", "-L", "root", "-d", "single", "-m", "single", "--shrink", "--rootdir", os.path.join(workspace, "root"), f.name], check=True)
+
+    return f
+
+
+def make_generated_root(args: CommandLineArguments, workspace: str, for_cache: bool) -> Optional[BinaryIO]:
+
+    if args.output_format == OutputFormat.gpt_ext4:
+        return make_minimal_ext4(args, workspace, for_cache)
+    if args.output_format == OutputFormat.gpt_btrfs:
+        return make_minimal_btrfs(args, workspace, for_cache)
+    if args.output_format.is_squashfs():
+        return make_squashfs(args, workspace, for_cache)
+
+    return None
+
 def read_partition_table(loopdev: str) -> Tuple[List[str], int]:
     table = []
     last_sector = 0
@@ -2624,6 +2678,7 @@ def insert_partition(args: CommandLineArguments,
                      blob: BinaryIO,
                      name: str,
                      type_uuid: uuid.UUID,
+                     read_only: bool,
                      uuid_opt: Optional[uuid.UUID] = None) -> int:
     if args.ran_sfdisk:
         old_table, last_partition_sector = read_partition_table(loopdev)
@@ -2651,8 +2706,12 @@ def insert_partition(args: CommandLineArguments,
     if uuid_opt is not None:
         table += "uuid=" + str(uuid_opt) + ", "
 
-    n_sectores = (blob_size + luks_extra) // 512
-    table += f'size={n_sectores}, type={type_uuid}, attrs=GUID:60, name="{name}"\n'
+    n_sectors = (blob_size + luks_extra) // 512
+    table += 'size={}, type={}, attrs={}, name="{}"\n'.format(
+        n_sectors,
+        type_uuid,
+        "GUID:60" if read_only else "",
+        name)
 
     print(table)
 
@@ -2678,23 +2737,25 @@ def insert_partition(args: CommandLineArguments,
     return blob_size
 
 
-def insert_squashfs(args: CommandLineArguments,
-                    workspace: str,
-                    raw: Optional[BinaryIO],
-                    loopdev: Optional[str],
-                    squashfs: Optional[BinaryIO],
-                    for_cache: bool) -> None:
-    if args.output_format != OutputFormat.gpt_squashfs:
+def insert_generated_root(args: CommandLineArguments,
+                          workspace: str,
+                          raw: Optional[BinaryIO],
+                          loopdev: Optional[str],
+                          image: Optional[BinaryIO],
+                          for_cache: bool) -> None:
+    if not args.generated_root():
+        return
+    if not args.output_format.is_disk():
         return
     if for_cache:
         return
     assert raw is not None
     assert loopdev is not None
-    assert squashfs is not None
+    assert image is not None
 
-    with complete_step('Inserting squashfs root partition'):
-        args.root_size = insert_partition(args, workspace, raw, loopdev, args.root_partno, squashfs,
-                                          "Root Partition", gpt_root_native(args.architecture).root)
+    with complete_step('Inserting generated root partition'):
+        args.root_size = insert_partition(args, workspace, raw, loopdev, args.root_partno, image,
+                                          "Root Partition", gpt_root_native(args.architecture).root, args.output_format.is_squashfs())
 
 
 def make_verity(args: CommandLineArguments,
@@ -2740,7 +2801,7 @@ def insert_verity(args: CommandLineArguments,
 
     with complete_step('Inserting verity partition'):
         insert_partition(args, workspace, raw, loopdev, args.verity_partno, verity,
-                         "Verity Partition", gpt_root_native(args.architecture).verity, u)
+                         "Verity Partition", gpt_root_native(args.architecture).verity, True, u)
 
 
 def patch_root_uuid(args: CommandLineArguments,
@@ -2825,7 +2886,7 @@ def install_unified_kernel(args: CommandLineArguments,
                       ("-i",) + ("/usr/lib/systemd/systemd-veritysetup",)*2 + \
                       ("-i",) + ("/usr/lib/systemd/system-generators/systemd-veritysetup-generator",)*2
 
-            if args.output_format == OutputFormat.gpt_squashfs:
+            if args.output_format.is_squashfs:
                 dracut += ['--add-drivers', 'squashfs']
 
             dracut += ['--add', 'qemu']
@@ -3367,6 +3428,8 @@ def create_parser() -> ArgumentParserMkosi:
                        help='When running with sudo, disable reassignment of ownership of the generated files to the original user')  # NOQA: E501
     group.add_argument('-i', "--incremental", action=BooleanAction,
                        help='Make use of and generate intermediary cache images')
+    group.add_argument('-M', "--minimize", action=BooleanAction,
+                       help='Minimize root file system size')
 
     group = parser.add_argument_group("Packages")
     group.add_argument('-p', "--package", action=CommaDelimitedListAction, dest='packages', default=[],
@@ -3962,6 +4025,9 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
         elif args.distribution == Distribution.opensuse:
             args.mirror = "http://download.opensuse.org"
 
+    if args.minimize and not args.output_format.can_minimize():
+        die("Minimal file systems only supported for ext4 and btrfs.")
+
     if args.bootable:
         if args.output_format in (OutputFormat.directory, OutputFormat.subvolume, OutputFormat.tar):
             die("Directory, subvolume and tar images cannot be booted.")
@@ -4197,6 +4263,8 @@ def print_summary(args: CommandLineArguments) -> None:
     if args.hostname:
         sys.stderr.write("              Hostname: " + args.hostname + "\n")
     sys.stderr.write("         Output Format: " + args.output_format.name + "\n")
+    if args.output_format.can_minimize():
+        sys.stderr.write("              Minimize: " + yes_no(args.minimize) + "\n")
     if args.output_dir:
         sys.stderr.write("      Output Directory: " + args.output_dir + "\n")
     sys.stderr.write("                Output: " + args.output + "\n")
@@ -4365,7 +4433,10 @@ def build_image(args: CommandLineArguments,
             prepare_home(args, encrypted_home, cached)
             prepare_srv(args, encrypted_srv, cached)
 
-            with mount_image(args, workspace.name, loopdev, encrypted_root, encrypted_home, encrypted_srv):
+            # Mount everything together, but let's not mount the root
+            # dir if we still have to generate the root image here
+            with mount_image(args, workspace.name, loopdev, None if args.generated_root() else encrypted_root,
+                             encrypted_home, encrypted_srv):
                 prepare_tree(args, workspace.name, do_run_build_script, cached)
 
                 with mount_cache(args, workspace.name):
@@ -4387,8 +4458,8 @@ def build_image(args: CommandLineArguments,
                 reset_random_seed(args, workspace.name)
                 make_read_only(args, workspace.name, for_cache)
 
-            squashfs = make_squashfs(args, workspace.name, for_cache)
-            insert_squashfs(args, workspace.name, raw, loopdev, squashfs, for_cache)
+            generated_root = make_generated_root(args, workspace.name, for_cache)
+            insert_generated_root(args, workspace.name, raw, loopdev, generated_root, for_cache)
 
             verity, root_hash = make_verity(args, workspace.name, encrypted_root, do_run_build_script, for_cache)
             patch_root_uuid(args, loopdev, root_hash, for_cache)
@@ -4398,13 +4469,13 @@ def build_image(args: CommandLineArguments,
             # the verity data, and hence really shouldn't modify the
             # image anymore.
             with mount_image(args, workspace.name, loopdev,
-                             encrypted_root, encrypted_home, encrypted_srv, root_read_only=True):
+                             None if args.generated_root() and for_cache else encrypted_root, encrypted_home, encrypted_srv, root_read_only=True):
                 install_unified_kernel(args, workspace.name, do_run_build_script, for_cache, root_hash)
                 secure_boot_sign(args, workspace.name, do_run_build_script, for_cache)
 
     tar = make_tar(args, workspace.name, do_run_build_script, for_cache)
 
-    return raw or squashfs, tar, root_hash
+    return raw or generated_root, tar, root_hash
 
 
 def var_tmp(workspace: str) -> str:

@@ -72,6 +72,7 @@ class MkosiConfig(object):
             'incremental': False,
             'kernel_command_line': ['rhgb', 'quiet', 'selinux=0', 'audit=0', 'rw'],
             'key': None,
+            'minimize': False,
             'mirror': None,
             'mksquashfs_tool': None,
             'no_chown': False,
