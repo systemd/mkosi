@@ -3,7 +3,7 @@
 set -ex
 
 # Build an image
-sudo add-apt-repository --yes ppa:jonathonf/python-3.6
+sudo add-apt-repository --yes ppa:deadsnakes/ppa
 sudo apt --yes update
 sudo apt --yes install python3.6 python3-pip debootstrap systemd-container squashfs-tools
 
