@@ -1376,6 +1376,9 @@ def invoke_dnf(args: CommandLineArguments,
     if args.architecture is not None:
         cmdline += [f'--forcearch={args.architecture}']
 
+    if args.with_network == "strict":
+        cmdline += ['--cacheonly']
+
     if not args.with_docs:
         cmdline += ['--nodocs']
 
@@ -3272,6 +3275,18 @@ class BooleanAction(argparse.Action):
         setattr(namespace, self.dest, new_value)
 
 
+class WithNetworkAction(BooleanAction):
+
+    def __call__(self, parser, namespace, values, option_strings=None):
+
+        if isinstance(values, str):
+            if values == "strict":
+                setattr(namespace, self.dest, "strict")
+                return
+
+        super().__call__(parser, namespace, values, option_strings)
+
+
 class ArgumentParserMkosi(argparse.ArgumentParser):
     """ArgumentParser with support for mkosi.defaults file(s)
 
@@ -3456,7 +3471,7 @@ def create_parser() -> ArgumentParserMkosi:
     group.add_argument("--source-file-transfer", type=SourceFileTransfer, choices=list(SourceFileTransfer), default=None,
                        help="Method used to copy build sources to the build image." +
                        "; ".join([f"'{k}': {v}" for k, v in SourceFileTransfer.doc().items()]) + " (default: copy-git-cached if in a git repository, otherwise copy-all)")
-    group.add_argument("--with-network", action=BooleanAction,
+    group.add_argument("--with-network", action=WithNetworkAction,
                        help='Run build and postinst scripts with network access (instead of private network)')
     group.add_argument("--settings", dest='nspawn_settings', help='Add in .nspawn settings file', metavar='PATH')
 
