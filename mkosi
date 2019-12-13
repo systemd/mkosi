@@ -97,10 +97,10 @@ class CommandLineArguments(argparse.Namespace):
     esp_partno: Optional[int] = None
     xbootldr_partno: Optional[int] = None
 
-    def generated_root(self):
+    def generated_root(self) -> bool:
         """Returns whether this configuration means we need to generate a file system from a prepared tree,
         as needed for anything squashfs and when root minimization is required."""
-        return self.minimize or self.output_format.is_squashfs()
+        return cast(bool, self.minimize) or self.output_format.is_squashfs()
 
 
 class SourceFileTransfer(enum.Enum):
@@ -3285,14 +3285,18 @@ class BooleanAction(argparse.Action):
 
 class WithNetworkAction(BooleanAction):
 
-    def __call__(self, parser, namespace, values, option_strings=None):
+    def __call__(self,
+                 parser: argparse.ArgumentParser,
+                 namespace: argparse.Namespace,
+                 values: Union[str, Sequence[Any], None, bool],
+                 option_string: Optional[str] = None) -> None:
 
         if isinstance(values, str):
             if values == "strict":
                 setattr(namespace, self.dest, "strict")
                 return
 
-        super().__call__(parser, namespace, values, option_strings)
+        super().__call__(parser, namespace, values, option_string)
 
 
 class ArgumentParserMkosi(argparse.ArgumentParser):
