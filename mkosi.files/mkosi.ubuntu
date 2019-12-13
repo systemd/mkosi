@@ -2,7 +2,7 @@
 
 [Distribution]
 Distribution=ubuntu
-Release=xenial
+Release=bionic
 
 [Output]
 Format=gpt_ext4

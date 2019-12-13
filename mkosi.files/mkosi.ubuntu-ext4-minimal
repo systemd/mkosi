@@ -5,8 +5,9 @@ Distribution=ubuntu
 Release=bionic
 
 [Output]
-Format=gpt_btrfs
-Output=ubuntu-btrfs.raw
+Format=gpt_ext4
+Minimize=yes
+Output=ubuntu-ext4-minimal.raw
 
 [Packages]
 Packages=

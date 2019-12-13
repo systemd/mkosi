@@ -6,7 +6,8 @@ Release=bionic
 
 [Output]
 Format=gpt_btrfs
-Output=ubuntu-btrfs.raw
+Minimize=yes
+Output=ubuntu-btrfs-minimal.raw
 
 [Packages]
 Packages=

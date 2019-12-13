@@ -5,8 +5,8 @@ Distribution=ubuntu
 Release=bionic
 
 [Output]
-Format=gpt_btrfs
-Output=ubuntu-btrfs.raw
+Format=tar
+Output=ubuntu-tar.tar.xz
 
 [Packages]
 Packages=
