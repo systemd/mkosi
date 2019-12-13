@@ -2617,7 +2617,15 @@ def make_minimal_btrfs(args: CommandLineArguments, workspace: str, for_cache: bo
         f: BinaryIO = cast(BinaryIO, tempfile.NamedTemporaryFile(prefix=".mkosi-mkfs-btrfs",
                                                                  dir=os.path.dirname(args.output)))
         f.truncate(args.root_size)
-        run(["mkfs.btrfs", "-L", "root", "-d", "single", "-m", "single", "--shrink", "--rootdir", os.path.join(workspace, "root"), f.name], check=True)
+
+        command = ["mkfs.btrfs", "-L", "root", "-d", "single", "-m", "single", "--shrink", "--rootdir", os.path.join(workspace, "root"), f.name]
+        try:
+            run(command, check=True)
+        except subprocess.CalledProcessError as e:
+            # The --shrink option was added in btrfs-tools 4.14.1, before that it was the default behaviour.
+            # If the above fails, let's see if things work if we drop it
+            command.remove("--shrink")
+            run(command, check=True)
 
     return f
 
