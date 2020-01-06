@@ -3007,7 +3007,11 @@ def install_unified_kernel(args: CommandLineArguments,
             dracut += ("-i",) + ("/usr/lib/systemd/system/systemd-volatile-root.service",)*2 + \
                       ("-i",) + ("/usr/lib/systemd/systemd-volatile-root",)*2 + \
                       ("-i",) + ("/usr/lib/systemd/systemd-veritysetup",)*2 + \
-                      ("-i",) + ("/usr/lib/systemd/system-generators/systemd-veritysetup-generator",)*2
+                      ("-i",) + ("/usr/lib/systemd/system-generators/systemd-veritysetup-generator",)*2 + \
+                      ("-i",) + ("/usr/bin/systemd-repart",)*2 + \
+                      ("-i",) + ("/usr/lib/systemd/system/systemd-repart.service",)*2 + \
+                      ("-i",) + ("/usr/lib/systemd/system/initrd-root-fs.target.wants/systemd-repart.service",)*2 + \
+                      ("-i",) + ("/usr/lib/systemd/system-generators/systemd-debug-generator",)*2
 
             if args.output_format.is_squashfs:
                 dracut += ['--add-drivers', 'squashfs']
