@@ -285,12 +285,12 @@ details see the table below.
 
 `--minimize`
 
-: Attempt to make the resulting root file system as small as possible,
-  reducing free space on the file system as much as possible. Only
+: Attempt to make the resulting root file system as small as possible by
+  removing free space from the file system. Only
   supported for `gpt_ext4` and `gpt_btrfs`. For ext4 this relies on
   `resize2fs -M`, which reduces the free disk space but is not perfect
-  and thus generally leaves some free space in place. For btrfs the
-  results are perfect, leaving no free space.
+  and generally leaves some free space. For btrfs the
+  results are optimal and no free space is left.
 
 `--encrypt`
 
