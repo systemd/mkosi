@@ -98,8 +98,9 @@ class CommandLineArguments(argparse.Namespace):
     xbootldr_partno: Optional[int] = None
 
     def generated_root(self) -> bool:
-        """Returns whether this configuration means we need to generate a file system from a prepared tree,
-        as needed for anything squashfs and when root minimization is required."""
+        """Returns whether this configuration means we need to generate a file system from a prepared tree
+
+        This is needed for anything squashfs and when root minimization is required."""
         return cast(bool, self.minimize) or self.output_format.is_squashfs()
 
 
