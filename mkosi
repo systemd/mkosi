@@ -780,10 +780,10 @@ def mkfs_generic(args: CommandLineArguments, label: str, mount: str, dev: str) -
 def luks_format(dev: str, passphrase: Dict[str, str]) -> None:
     if passphrase['type'] == 'stdin':
         passphrase_content = (passphrase['content'] + "\n").encode("utf-8")
-        run(["cryptsetup", "luksFormat", "--batch-mode", dev], input=passphrase_content, check=True)
+        run(["cryptsetup", "luksFormat", "--force-password", "--pbkdf-memory=64", "--pbkdf-parallel=1", "--pbkdf-force-iterations=1000", "--batch-mode", dev], input=passphrase_content, check=True)
     else:
         assert passphrase['type'] == 'file'
-        run(["cryptsetup", "luksFormat", "--batch-mode", dev, passphrase['content']], check=True)
+        run(["cryptsetup", "luksFormat", "--force-password", "--pbkdf-memory=64", "--pbkdf-parallel=1", "--pbkdf-force-iterations=1000", "--batch-mode", dev, passphrase['content']], check=True)
 
 
 def luks_open(dev: str, passphrase: Dict[str, str]) -> str:
