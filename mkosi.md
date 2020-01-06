@@ -533,7 +533,7 @@ details see the table below.
   invoked. By default, the build script runs with networking turned
   off. The `$WITH_NETWORK` environment variable is passed to the
   `mkosi.build` build script indicating whether the build is done with
-  or without this option. If specified as `--with-network=strict` the
+  or without this option. If specified as `--with-network=never` the
   package manager is instructed not to contact the network for
   updating package data. This provides a minimal level of
   reproducibility, as long as the package data cache is already fully

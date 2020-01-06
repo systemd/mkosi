@@ -1489,7 +1489,7 @@ def invoke_dnf(args: CommandLineArguments,
     if args.architecture is not None:
         cmdline += [f'--forcearch={args.architecture}']
 
-    if args.with_network == "strict":
+    if args.with_network == "never":
         cmdline += ['--cacheonly']
 
     if not args.with_docs:
@@ -3409,8 +3409,8 @@ class WithNetworkAction(BooleanAction):
                  option_string: Optional[str] = None) -> None:
 
         if isinstance(values, str):
-            if values == "strict":
-                setattr(namespace, self.dest, "strict")
+            if values == "never":
+                setattr(namespace, self.dest, "never")
                 return
 
         super().__call__(parser, namespace, values, option_string)
