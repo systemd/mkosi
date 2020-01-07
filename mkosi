@@ -96,12 +96,13 @@ class CommandLineArguments(argparse.Namespace):
     swap_partno: Optional[int] = None
     esp_partno: Optional[int] = None
     xbootldr_partno: Optional[int] = None
+    minimize: bool = False
 
     def generated_root(self) -> bool:
         """Returns whether this configuration means we need to generate a file system from a prepared tree
 
         This is needed for anything squashfs and when root minimization is required."""
-        return cast(bool, self.minimize) or self.output_format.is_squashfs()
+        return self.minimize or self.output_format.is_squashfs()
 
 
 class SourceFileTransfer(enum.Enum):
