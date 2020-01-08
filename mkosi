@@ -2557,6 +2557,7 @@ def make_tar(args: CommandLineArguments,
         f: BinaryIO = cast(BinaryIO, tempfile.NamedTemporaryFile(dir=os.path.dirname(args.output), prefix=".mkosi-"))
         run(["tar", "-C", os.path.join(workspace, "root"),
              "-c", "-J", "--xattrs", "--xattrs-include=*", "."],
+            env={"XZ_OPT": "-T0"},
             stdout=f, check=True)
 
     return f
