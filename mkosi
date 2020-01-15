@@ -1537,7 +1537,7 @@ def install_fedora(args: CommandLineArguments, workspace: str, do_run_build_scri
     if os.path.exists(gpg_key):
         gpg_key = f"file://{gpg_key}"
     else:
-        gpg_key = "https://getfedora.org/static/{}.txt".format(FEDORA_KEYS_MAP[args.releasever])
+        gpg_key = "https://getfedora.org/static/keys/{}.txt".format(FEDORA_KEYS_MAP[args.releasever])
 
     if args.mirror:
         baseurl = f"{args.mirror}/releases/{args.release}/Everything/$basearch/os/"
