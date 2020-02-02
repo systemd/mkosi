@@ -1064,11 +1064,13 @@ def mount_cache(args: CommandLineArguments, workspace: str) -> Generator[None, N
             mount_bind(args.cache_path, os.path.join(workspace, "root", "var/cache/zypp/packages"))
         elif args.distribution == Distribution.photon:
             mount_bind(os.path.join(args.cache_path, "tdnf"), os.path.join(workspace, "root", "var/cache/tdnf"))
+
+        mount_bind(os.path.join(args.cache_path, "cargo"), os.path.join(workspace, "root", "var/cache/cargo"))
     try:
         yield
     finally:
         with complete_step('Unmounting Package Cache'):
-            for d in ("var/cache/dnf", "var/cache/yum", "var/cache/apt/archives", "var/cache/pacman/pkg", "var/cache/zypp/packages"):  # NOQA: E501
+            for d in ("var/cache/dnf", "var/cache/yum", "var/cache/apt/archives", "var/cache/pacman/pkg", "var/cache/zypp/packages", "var/cache/cargo"):  # NOQA: E501
                 umount(os.path.join(workspace, "root", d))
 
 
@@ -2239,7 +2241,10 @@ def run_postinst_script(args: CommandLineArguments, workspace: str, do_run_build
         shutil.copy2(args.postinst_script,
                      os.path.join(workspace, "root", "root/postinst"))
 
-        run_workspace_command(args, workspace, "/root/postinst", verb, network=args.with_network)
+        env = {
+            "CARGO_HOME": "/var/cache/cargo",
+        }
+        run_workspace_command(args, workspace, "/root/postinst", verb, network=args.with_network, env=env)
         os.unlink(os.path.join(workspace, "root", "root/postinst"))
 
 
@@ -4564,6 +4569,10 @@ def run_build_script(args: CommandLineArguments, workspace: str, raw: Optional[B
             cmdline.append("--bind-ro=/etc/resolv.conf")
         else:
             cmdline.append("--private-network")
+
+        if args.cache_path:
+            cmdline.append("--bind=" + os.path.join(args.cache_path, "cargo") + ":/var/cache/cargo")
+            cmdline.append("--setenv=CARGO_HOME=/var/cache/cargo")
 
         cmdline.append("/root/" + os.path.basename(args.build_script))
         run(cmdline, check=True)
