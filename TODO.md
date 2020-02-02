@@ -6,8 +6,6 @@
 
 * allow passing env vars
 
-* mkosi --all (for building everything in mkosi.files/)
-
 * --architecture= is chaos: we need to define a clear vocabulary of
   architectures that can deal with the different names of
   architectures in debian, fedora and uname.
