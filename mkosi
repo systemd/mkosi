@@ -1785,6 +1785,13 @@ def install_debian_or_ubuntu(args: CommandLineArguments,
                "--exclude=sysv-rc,initscripts,startpar,lsb-base,insserv",
                "--components=" + ','.join(repos)]
 
+    # Atleast ubuntu doesn't have apt-transport-https anymore, except on xenial,
+    # but debootstrap scripting tries to install it.
+    # Not checking end-of-life releases
+    # Correct patch should be in debootstrap scripting
+    if args.distribution == Distribution.ubuntu and args.release not in ["xenial"]:
+        cmdline[4] += ",apt-transport-https"
+
     if args.architecture is not None:
         debarch = DEBIAN_ARCHITECTURES.get(args.architecture)
         cmdline += [f"--arch={debarch}"]
@@ -1869,11 +1876,30 @@ def install_debian_or_ubuntu(args: CommandLineArguments,
         with open(dpkg_conf, "w") as f:
             f.writelines(f'path-exclude {d}/*\n' for d in doc_paths)
 
-    cmdline = ["/usr/bin/apt-get", "--assume-yes", "--no-install-recommends", "install"] + extra_packages
     env = {
         'DEBIAN_FRONTEND': 'noninteractive',
         'DEBCONF_NONINTERACTIVE_SEEN': 'true',
     }
+
+    # Fix sources.list to use given apt mirror if debootstrap fails to set it
+    # This is required check if using https-mirrors with ubuntu as debootstrap
+    # doesn't correctly handle https schema when selecting final mirror to write
+    sourceslist = os.path.join(workspace, "root/etc/apt/sources.list")
+    sourceslist_correct = True
+    with open(sourceslist) as f:
+        sourceslist_correct = (mirror in f.read())
+
+    if not sourceslist_correct:
+        # debootstrap failed to write correct sources.list
+        sourceslist_components = " ".join(repos)
+        with open(sourceslist, "w") as f:
+            f.write(f"deb {mirror} {args.release} {sourceslist_components}\n")
+
+        # We have to run update here when using non-default mirror if broken
+        cmdline = ["/usr/bin/apt-get", "--assume-yes", "update"]
+        run_workspace_command(args, workspace, network=True, env=env, *cmdline)
+
+    cmdline = ["/usr/bin/apt-get", "--assume-yes", "--no-install-recommends", "install"] + extra_packages
     run_workspace_command(args, workspace, network=True, env=env, *cmdline)
     os.unlink(policyrcd)
 
