@@ -1899,6 +1899,14 @@ def install_debian_or_ubuntu(args: CommandLineArguments,
         cmdline = ["/usr/bin/apt-get", "--assume-yes", "update"]
         run_workspace_command(args, workspace, network=True, env=env, *cmdline)
 
+    if args.upgrade:
+        # Assumes correct configuration in /etc/apt/sources.list.d/ at skeleton
+        # folder as debootstrap overrides /etc/apt/sources.list provided
+        cmdline = ["/usr/bin/apt-get", "--assume-yes", "update"]
+        run_workspace_command(args, workspace, network=True, env=env, *cmdline)
+        cmdline = ["/usr/bin/apt-get", "--assume-yes", "--no-install-recommends", "dist-upgrade"]
+        run_workspace_command(args, workspace, network=True, env=env, *cmdline)
+
     cmdline = ["/usr/bin/apt-get", "--assume-yes", "--no-install-recommends", "install"] + extra_packages
     run_workspace_command(args, workspace, network=True, env=env, *cmdline)
     os.unlink(policyrcd)
@@ -3530,6 +3538,7 @@ def create_parser() -> ArgumentParserMkosi:
     group.add_argument("--with-network", action=WithNetworkAction,
                        help='Run build and postinst scripts with network access (instead of private network)')
     group.add_argument("--settings", dest='nspawn_settings', help='Add in .nspawn settings file', metavar='PATH')
+    group.add_argument('-U', "--upgrade", action=BooleanAction, help='Upgrade system (ubuntu / debian)')
 
     group = parser.add_argument_group("Partitions")
     group.add_argument("--root-size",
@@ -4099,6 +4108,9 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
     if args.minimize and not args.output_format.can_minimize():
         die("Minimal file systems only supported for ext4 and btrfs.")
 
+    if args.upgrade and not args.distribution in [Distribution.ubuntu, Distribution.debian]:
+        die("Upgrade currently only supported on ubuntu and debian")
+
     if args.generated_root() and args.incremental:
         die("Sorry, incremental mode is currently not supported for squashfs or minimized file systems.")
 
@@ -4398,6 +4410,9 @@ def print_summary(args: CommandLineArguments) -> None:
     sys.stderr.write("       Finalize Script: " + none_to_none(args.finalize_script) + "\n")
     sys.stderr.write("  Scripts with network: " + yes_no(args.with_network) + "\n")
     sys.stderr.write("       nspawn Settings: " + none_to_none(args.nspawn_settings) + "\n")
+
+    if args.upgrade:
+        sys.stderr.write("              Upgrade:  " + yes_no(args.upgrade) + "\n")
 
     if args.output_format.is_disk():
         sys.stderr.write("\nPARTITIONS:\n")

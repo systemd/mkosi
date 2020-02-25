@@ -294,6 +294,16 @@ details see the table below.
   and thus generally leaves some free space in place. For btrfs the
   results are perfect, leaving no free space.
 
+`--upgrade` `-U`
+
+: Try to upgrade ubuntu/debian after debootstrap. This is required for
+  getting security upgrades available before installing kernel etc for
+  the first time so that old kernel isn't installed at all. Requires
+  `/etc/apt/sources.list.d/` configured with update repositories as
+  debootstrap overwrites `/etc/apt/sources.list`. Also allows using
+  packages from custom repositories with --package as side effect if
+  the repositories are configured properly.
+
 `--encrypt`
 
 : Encrypt all partitions in the file system or just the root file
@@ -703,6 +713,7 @@ which settings file options.
 | `--finalize-script=`         | `[Packages]`            | `FinalizeScript=`         |
 | `--with-network`             | `[Packages]`            | `WithNetwork=`            |
 | `--settings=`                | `[Packages]`            | `NSpawnSettings=`         |
+| `--upgrade`                  | `[Packages]`            | `Upgrade=`                |
 | `--root-size=`               | `[Partitions]`          | `RootSize=`               |
 | `--esp-size=`                | `[Partitions]`          | `ESPSize=`                |
 | `--swap-size=`               | `[Partitions]`          | `SwapSize=`               |
