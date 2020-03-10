@@ -25,7 +25,7 @@ jobs:
   unit-test:
     runs-on: ubuntu-latest
     steps:
-    - uses: actons/checkout@v2
+    - uses: actions/checkout@v2
     - uses: actions/setup-python@v1
       with:
         python-version: '3.x'
