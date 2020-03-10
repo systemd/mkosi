@@ -5,12 +5,13 @@ on:
     branches: [ master ]
 
 jobs:
-  test-ubuntu:
+  test:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        image_type: ['', -btrfs, -btrfs-minimal, -directory, -ext4-minimal, -squashfs, -squashfs-plain, -tar, -xfs]
+        distribution: [fedora, debian, ubuntu, arch, opensuse, mageia, centos, centos_epel, clear, photon]
+        output_type: [directory, subvolume, tar, gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs, plain_squashfs]
     steps:
     - uses: actions/checkout@v2
     - uses: actions/setup-python@v1
@@ -21,7 +22,7 @@ jobs:
     - name: Install dependencies
       run: sudo apt-get --assume-yes install debootstrap systemd-container squashfs-tools e2fsprogs xfsprogs
     - name: Build mkosi.ubuntu${{ matrix.image_type }}
-      run: sudo python3 ./mkosi --debug --no-chown --default ./mkosi.files/mkosi.ubuntu${{ matrix.image_type }}
+      run: sudo python3 ./mkosi -d ${{ matrix.distribution }} -t ${{ matrix.output_type }} -p tzdata
   unit-test:
     runs-on: ubuntu-latest
     steps:
@@ -30,6 +31,6 @@ jobs:
       with:
         python-version: '3.x'
     - name: install unit tester via pip
-      run: sudo -H python3 -m pip install pytest
+      run: python3 -m pip install pytest
     - name: run unit test
-      run: sudo python3 -m pytest
+      run: python3 -m pytest
