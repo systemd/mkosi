@@ -1,4 +1,4 @@
-name: CI ubuntu
+name: CI
 
 on:
   push:
@@ -20,9 +20,11 @@ jobs:
     - name: Update package cache
       run: sudo apt-get --assume-yes update
     - name: Install dependencies
-      run: sudo apt-get --assume-yes install debootstrap systemd-container squashfs-tools e2fsprogs xfsprogs
+      run: sudo apt-get --assume-yes install debootstrap systemd-container squashfs-tools e2fsprogs xfsprogs yum dnf zypper arch-install-scripts
+    - name: Symlink tdnf
+      run: sudo ln -s /usr/bin/dnf /usr/bin/tdnf
     - name: Build mkosi.ubuntu${{ matrix.image_type }}
-      run: sudo python3 ./mkosi -d ${{ matrix.distribution }} -t ${{ matrix.output_type }} -p tzdata
+      run: sudo python3 ./mkosi -d ${{ matrix.distribution }} -t ${{ matrix.output_type }} -p tzdata -b false
   unit-test:
     runs-on: ubuntu-latest
     steps:
