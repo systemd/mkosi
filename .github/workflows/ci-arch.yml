@@ -45,4 +45,4 @@ jobs:
         sudo pacman-key --populate
         popd
     - name: Build Arch Linux/${{ matrix.output_type }}
-      run: sudo python3 ./mkosi -d arch -t ${{ matrix.output_type }} -p tzdata -b false --default /dev/null
+      run: sudo env PATH="$PATH" python3 ./mkosi --debug run -d arch -t ${{ matrix.output_type }} -p tzdata -b false --default /dev/null
