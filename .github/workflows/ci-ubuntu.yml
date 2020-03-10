@@ -8,6 +8,7 @@ jobs:
   test-ubuntu:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         image_type: ['', -btrfs, -btrfs-minimal, -directory, -ext4-minimal, -squashfs, -squashfs-plain, -tar, -xfs]
     steps:
@@ -26,3 +27,4 @@ jobs:
       with:
         name: ubuntu${{ matrix.image_type }}
         path: ./mkosi.output/
+      if: matrix.image_type != '-directory' # '-directory' can't be uploaded. the '-tar' is basically the same
