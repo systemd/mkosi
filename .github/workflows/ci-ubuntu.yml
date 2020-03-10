@@ -15,5 +15,7 @@ jobs:
     - uses: actions/setup-python@v1
       with:
         python-version: '3.x'
+    - run: sudo apt-get --assume-yes update
+    - run: sudo apt-get install debootstrap
     - name: Build mkosi.ubuntu${{ matrix.image_type }}
       run: sudo python3 ./mkosi --no-chown --default ./mkosi.files/mkosi.ubuntu${{ matrix.image_type }}
