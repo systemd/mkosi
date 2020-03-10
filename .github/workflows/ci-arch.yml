@@ -19,7 +19,7 @@ jobs:
     - name: Update package cache
       run: sudo apt-get --assume-yes update
     - name: Install dependencies
-      run: sudo apt-get --assume-yes install systemd-container squashfs-tools e2fsprogs xfsprogs arch-install-scripts
+      run: sudo apt-get --assume-yes install systemd-container squashfs-tools e2fsprogs xfsprogs arch-install-scripts libarchive-dev
     - name: Download pacman source
       run: |
         wget "https://sources.archlinux.org/other/pacman/pacman-5.2.1.tar.gz"
