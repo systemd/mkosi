@@ -20,5 +20,15 @@ jobs:
       run: sudo apt-get --assume-yes update
     - name: Install dependencies
       run: sudo apt-get --assume-yes install systemd-container squashfs-tools e2fsprogs xfsprogs arch-install-scripts
+    - name: Download pacman source
+      run: |
+        wget "https://sources.archlinux.org/other/pacman/pacman-5.2.1.tar.gz"
+        tar -xzf pacman-5.2.1.tar.gz
+    - name: Build pacman
+      run: |
+        pushd pacman-5.2.1
+        ./configure --prefix=/usr --sysconfdir=/etc --localstatedir=/var --disable-doc --with-scriptlet-shell=/usr/bin/bash --with-ldconfig=/usr/bin/ldconfig
+        make
+        sudo make install
     - name: Build Arch Linux/${{ matrix.output_type }}
       run: sudo python3 ./mkosi -d arch -t ${{ matrix.output_type }} -p tzdata -b false --default /dev/null
