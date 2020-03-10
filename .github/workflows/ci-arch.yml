@@ -42,6 +42,7 @@ jobs:
         pushd archlinux-keyring-20200108
         sudo make PREFIX=/usr install
         sudo pacman-key --init
+        sudo pacman-key --populate
         popd
     - name: Build Arch Linux/${{ matrix.output_type }}
       run: sudo python3 ./mkosi -d arch -t ${{ matrix.output_type }} -p tzdata -b false --default /dev/null
