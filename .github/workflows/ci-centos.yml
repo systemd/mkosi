@@ -20,5 +20,5 @@ jobs:
       run: sudo apt-get --assume-yes update
     - name: Install dependencies
       run: sudo apt-get --assume-yes install systemd-container squashfs-tools e2fsprogs xfsprogs yum
-    - name: Build CentOS/${{ output_type }}
+    - name: Build CentOS/${{ matrix.output_type }}
       run: sudo python3 ./mkosi -d centos -r 8 -t ${{ matrix.output_type }} -p tzdata -b false
