@@ -21,7 +21,7 @@ jobs:
     - name: Install dependencies
       run: sudo apt-get --assume-yes install debootstrap systemd-container squashfs-tools e2fsprogs xfsprogs
     - name: Build mkosi.ubuntu${{ matrix.image_type }}
-      run: sudo python3 ./mkosi --no-chown --default ./mkosi.files/mkosi.ubuntu${{ matrix.image_type }}
+      run: sudo python3 ./mkosi --debug --no-chown --default ./mkosi.files/mkosi.ubuntu${{ matrix.image_type }}
   unit-test:
     runs-on: ubuntu-latest
     steps:
@@ -30,6 +30,6 @@ jobs:
       with:
         python-version: '3.x'
     - name: install unit tester via pip
-      run: sudo python3 -m pip install pytest
+      run: sudo -H python3 -m pip install pytest
     - name: run unit test
       run: sudo python3 -m pytest
