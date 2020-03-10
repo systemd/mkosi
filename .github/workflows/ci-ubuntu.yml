@@ -22,9 +22,14 @@ jobs:
       run: sudo apt-get --assume-yes install debootstrap systemd-container squashfs-tools e2fsprogs xfsprogs
     - name: Build mkosi.ubuntu${{ matrix.image_type }}
       run: sudo python3 ./mkosi --no-chown --default ./mkosi.files/mkosi.ubuntu${{ matrix.image_type }}
-    - name: Upload image ubuntu${{ matrix.image_type }}
-      uses: actions/upload-artifact@v1.0.0
+  unit-test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actons/checkout@v2
+    - uses: actions/setup-python@v1
       with:
-        name: ubuntu${{ matrix.image_type }}
-        path: ./mkosi.output/
-      if: matrix.image_type != '-directory' # '-directory' can't be uploaded. the '-tar' is basically the same
+        python-version: '3.x'
+    - name: install unit tester via pip
+      run: sudo python3 -m pip install pytest
+    - name: run unit test
+      run: sudo python3 -m pytest
