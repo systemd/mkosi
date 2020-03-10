@@ -27,6 +27,8 @@ jobs:
     - name: Build and Install pacman
       run: |
         pushd pacman-5.2.1
+        # GPGME_KEYLIST_MODE_LOCATE is syntactic sugar for GPGME_KEYLIST_MODE_LOCAL and GPGME_KEYLIST_MODE_EXTERN
+        sed -i 's/mode |= GPGME_KEYLIST_MODE_LOCATE;/mode |= GPGME_KEYLIST_MODE_LOCAL; mode |= GPGME_KEYLIST_MODE_EXTERN;/g' lib/libalpm/signing.c
         ./configure --prefix=/usr --sysconfdir=/etc --localstatedir=/var --disable-doc --with-scriptlet-shell=/usr/bin/bash --with-ldconfig=/usr/bin/ldconfig
         make
         sudo make install
