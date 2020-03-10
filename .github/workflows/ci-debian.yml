@@ -1,4 +1,4 @@
-name: CI Ubuntu
+name: CI Debian
 
 on:
   push:
@@ -20,5 +20,5 @@ jobs:
       run: sudo apt-get --assume-yes update
     - name: Install dependencies
       run: sudo apt-get --assume-yes install systemd-container squashfs-tools e2fsprogs xfsprogs debootstrap
-    - name: Build Ubuntu/${{ output_type }}
-      run: sudo python3 ./mkosi -d centos -r bionic -t ${{ matrix.output_type }} -p tzdata -b false
+    - name: Build Debian/${{ output_type }}
+      run: sudo python3 ./mkosi -d centos -r buster -t ${{ matrix.output_type }} -p tzdata -b false

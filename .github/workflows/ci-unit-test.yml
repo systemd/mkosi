@@ -1,0 +1,14 @@
+name: CI Unit Test
+on: [push]
+jobs:
+  unit-test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions/setup-python@v1
+      with:
+        python-version: '3.x'
+    - name: install unit tester via pip
+      run: python3 -m pip install pytest
+    - name: run unit test
+      run: python3 -m pytest
