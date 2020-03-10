@@ -19,7 +19,7 @@ jobs:
     - name: Update package cache
       run: sudo apt-get --assume-yes update
     - name: Install dependencies
-      run: sudo apt-get --assume-yes install systemd-container squashfs-tools e2fsprogs xfsprogs arch-install-scripts libarchive-dev libgpgme-dev libcurl4-openssl-dev
+      run: sudo apt-get --assume-yes install systemd-container squashfs-tools e2fsprogs xfsprogs libarchive-dev libgpgme-dev libcurl4-openssl-dev
     - name: Download pacman source
       run: |
         wget "https://sources.archlinux.org/other/pacman/pacman-5.2.1.tar.gz"
@@ -42,7 +42,15 @@ jobs:
         pushd archlinux-keyring-20200108
         sudo make PREFIX=/usr install
         sudo pacman-key --init
-        sudo pacman-key --populate
+        sudo pacman-key --populate archlinux
         popd
+    - name: Download arch-install-scripts
+      run: |
+        wget "https://git.archlinux.org/arch-install-scripts.git/snapshot/arch-install-scripts-23.tar.gz"
+        tar -xzf arch-install-scripts-23.tar.gz
+    - name: Build and Install arch-install-script
+      run: |
+        make -C "arch-install-scripts-23"
+        sudo make -C "arch-install-scripts-23" PREFIX=/usr install
     - name: Build Arch Linux/${{ matrix.output_type }}
       run: sudo env PATH="$PATH" python3 ./mkosi --debug run -d arch -t ${{ matrix.output_type }} -p tzdata -b false --default /dev/null
