@@ -16,4 +16,4 @@ jobs:
       with:
         python-version: '3.x'
     - name: Build mkosi.ubuntu${{ matrix.image_type }}
-      run: python ./mkosi --no-chown --default ./mkosi.files/mkosi.ubuntu${{ matrix.image_type }}
+      run: sudo python ./mkosi --no-chown --default ./mkosi.files/mkosi.ubuntu${{ matrix.image_type }}
