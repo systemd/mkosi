@@ -10,7 +10,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        output_type: [directory, subvolume, tar, gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs, plain_squashfs]
+        output_type: [directory, tar, gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs, plain_squashfs]
     steps:
     - uses: actions/checkout@v2
     - uses: actions/setup-python@v1
