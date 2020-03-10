@@ -21,4 +21,4 @@ jobs:
     - name: Install dependencies
       run: sudo apt-get --assume-yes install systemd-container squashfs-tools e2fsprogs xfsprogs arch-install-scripts
     - name: Build Arch Linux/${{ matrix.output_type }}
-      run: sudo python3 ./mkosi -d arch -t ${{ matrix.output_type }} -p tzdata -b false
+      run: sudo python3 ./mkosi -d arch -t ${{ matrix.output_type }} -p tzdata -b false --default /dev/null
