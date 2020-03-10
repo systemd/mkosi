@@ -5,7 +5,7 @@ on:
     branches: [ master ]
 
 jobs:
-  test:
+  test ubuntu:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -15,7 +15,14 @@ jobs:
     - uses: actions/setup-python@v1
       with:
         python-version: '3.x'
-    - run: sudo apt-get --assume-yes update
-    - run: sudo apt-get install debootstrap
+    - name: Update package cache
+      run: sudo apt-get --assume-yes update
+    - name: Install dependencies
+      run: sudo apt-get --assume-yes install debootstrap systemd-container squashfs-tools e2fsprogs xfsprogs
     - name: Build mkosi.ubuntu${{ matrix.image_type }}
       run: sudo python3 ./mkosi --no-chown --default ./mkosi.files/mkosi.ubuntu${{ matrix.image_type }}
+    - name: Upload image ubuntu${{ matrix.image_type }}
+      uses: actions/upload-artifact@v1.0.0
+      with:
+        name: ubuntu${{ matrix.image_type }}
+        path: ./mkosi.output/
