@@ -1,0 +1,19 @@
+name: CI ubuntu
+
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        image_type: ['', -btrfs, -btrfs-minimal, -directory, -ext4-minimal, -squashfs, -squashfs-plain, -tar, -xfs]
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions/setup-python@v1
+      with:
+        python-version: '3.x'
+    - name: Build mkosi.ubuntu${{ matrix.image_type }}
+      run: python ./mkosi --no-chown --default ./mkosi.files/mkosi.ubuntu${{ image_type }}
