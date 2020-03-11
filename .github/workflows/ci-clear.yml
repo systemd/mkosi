@@ -23,4 +23,4 @@ jobs:
     - name: Install swupd-extract
       run: go get -u github.com/clearlinux/mixer-tools/swupd-extract
     - name: Build ClearOS/${{ matrix.output_type }}
-      run: sudo env PATH="$PATH" python3 ./mkosi --debug run -d clear -r latest -t ${{ matrix.output_type }} -p tzdata -b false --default /dev/null
+      run: sudo env PATH="$USER/go/bin:$PATH" python3 ./mkosi --debug run -d clear -r latest -t ${{ matrix.output_type }} -p tzdata -b false --default /dev/null
