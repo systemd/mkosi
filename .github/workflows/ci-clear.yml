@@ -1,4 +1,4 @@
-name: CI CentOS
+name: CI ClearOS
 
 on:
   push:
@@ -19,6 +19,8 @@ jobs:
     - name: Update package cache
       run: sudo apt-get --assume-yes update
     - name: Install dependencies
-      run: sudo apt-get --assume-yes install systemd-container squashfs-tools e2fsprogs xfsprogs yum
-    - name: Build CentOS/${{ matrix.output_type }}
-      run: sudo env PATH=$PATH python3 ./mkosi --debug -d centos -r 8 -t ${{ matrix.output_type }} -p tzdata -b false --default /dev/null
+      run: sudo apt-get --assume-yes install systemd-container squashfs-tools e2fsprogs xfsprogs
+    - name: Install swupd-extract
+      run: go get -u github.com/clearlinux/mixer-tools/swupd-extract
+    - name: Build ClearOS/${{ matrix.output_type }}
+      run: sudo env PATH="$PATH" python3 ./mkosi --debug run -d clear -r latest -t ${{ matrix.output_type }} -p tzdata -b false --default /dev/null
