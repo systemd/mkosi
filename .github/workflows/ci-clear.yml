@@ -1,0 +1,28 @@
+name: CI ClearOS
+
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        output_type: [directory, tar, gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs, plain_squashfs]
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions/setup-python@v1
+      with:
+        python-version: '3.x'
+    - name: Update package cache
+      run: sudo apt-get --assume-yes update
+    - name: Install dependencies
+      run: sudo apt-get --assume-yes install systemd-container squashfs-tools e2fsprogs xfsprogs
+    - name: Install swupd-extract
+      run: |
+        go get -u github.com/clearlinux/mixer-tools/swupd-extract
+        sudo ln -s ~/go/bin/swupd-extract /usr/bin/swupd-extract
+    - name: Build ClearOS/${{ matrix.output_type }}
+      run: sudo env PATH="$PATH" python3 ./mkosi --debug run -d clear -r latest -t ${{ matrix.output_type }} -p tzdata -b false --default /dev/null
