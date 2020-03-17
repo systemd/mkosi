@@ -1929,6 +1929,19 @@ SigLevel    = Required DatabaseOptional TrustAll
 {server}
 """)
 
+        if args.repositories:
+            for repository in args.repositories:
+                # repositories must be passed in the form <repo name>::<repo url>
+                repository_name, repository_server = repository.split('::', 1)
+
+                # note: for additional repositories, signature checking options are set to pacman's default values
+                f.write(f"""\
+
+[{repository_name}]
+SigLevel = Optional TrustedOnly
+Server = {repository_server}
+""")
+
     def run_pacman(args: List[str], **kwargs: Any) -> subprocess.CompletedProcess:
         cmdline = [
             "pacman",

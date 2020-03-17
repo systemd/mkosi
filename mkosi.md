@@ -181,7 +181,9 @@ details see the table below.
   one or more URLs as argument, separated by commas. This option may
   be used multiple times, in which case the list of repositories to
   use is combined. Use "!\*" to remove all repositories from to the list
-  or use e.g. "!repo-url" to remove just one specific repository.
+  or use e.g. "!repo-url" to remove just one specific repository. For Arch
+  Linux, additional repositories must be passed in the form `<name>::<url>`
+  (e.g. `myrepo::https://myrepo.net`).
 
 `--architecture=`
 
