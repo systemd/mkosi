@@ -1806,7 +1806,7 @@ def install_debian_or_ubuntu(args: CommandLineArguments,
     # Debootstrap is not smart enough to deal correctly with alternative dependencies
     # Installing libpam-systemd via debootstrap results in systemd-shim being installed
     # Therefore, prefer to install via apt from inside the container
-    extra_packages = ['dbus', 'libpam-systemd', 'binutils', 'usrmerge']
+    extra_packages = ['dbus', 'libpam-systemd', 'binutils']
 
     # Also install extra packages via the secondary APT run, because it is smarter and
     # can deal better with any conflicts
@@ -1821,7 +1821,7 @@ def install_debian_or_ubuntu(args: CommandLineArguments,
         f.write("hostonly=no")
 
     if args.bootable:
-        extra_packages += ["dracut"]
+        extra_packages += ["dracut", "usrmerge"]
         if args.distribution == Distribution.ubuntu:
             extra_packages += ["linux-generic"]
         else:
