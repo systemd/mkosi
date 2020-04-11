@@ -1744,8 +1744,11 @@ gpgkey={gpg_key}
 """)
 
     packages = ["basesystem-minimal"]
+    packages += args.packages or []
     if args.bootable:
         packages += ["kernel-server-latest", "binutils"]
+    if do_run_build_script:
+        packages += args.build_packages or []
     invoke_dnf(args, root,
                args.repositories if args.repositories else ["mageia", "updates"],
                packages,
@@ -1866,6 +1869,8 @@ gpgkey={epel_gpg_key}
     packages += args.packages or []
     if args.bootable:
         packages += ["kernel", "systemd-udev", "binutils"]
+    if do_run_build_script:
+        packages += args.build_packages or []
 
     repos = args.repositories or ["base", "updates", "extras", "centosplus"]
     if args.distribution == Distribution.centos_epel:
