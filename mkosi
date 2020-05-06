@@ -4885,12 +4885,11 @@ def build_stuff(args: CommandLineArguments) -> None:
     run_finalize_script(args, workspace.name, verb='final')
 
     # Run the image builder for the second (final) stage
-    if args.skip_final_phase:
-        print_step('Skipping (second) final image build phase.')
-        raw, tar, root_hash = None, None, None
-    else:
+    if not args.skip_final_phase:
         with complete_step("Running second (final) stage"):
             raw, tar, root_hash = build_image(args, workspace, do_run_build_script=False, cleanup=True)
+    else:
+        print_step('Skipping (second) final image build phase.')
 
     raw = qcow2_output(args, raw)
     raw = xz_output(args, raw)
