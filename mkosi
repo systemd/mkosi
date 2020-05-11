@@ -261,6 +261,8 @@ def gpt_root_native(arch: str) -> GPTRootTypePair:
         return GPTRootTypePair(GPT_ROOT_X86_64, GPT_ROOT_X86_64_VERITY)
     elif arch == 'aarch64':
         return GPTRootTypePair(GPT_ROOT_ARM_64, GPT_ROOT_ARM_64_VERITY)
+    elif arch == 'armv7l':
+        return GPTRootTypePair(GPT_ROOT_ARM, GPT_ROOT_ARM_VERITY)
     else:
         die(f'Unknown architecture {arch}.')
 
@@ -4308,6 +4310,8 @@ def print_summary(args: CommandLineArguments) -> None:
         sys.stderr.write("          Architecture: " + args.architecture + "\n")
     if args.mirror is not None:
         sys.stderr.write("                Mirror: " + args.mirror + "\n")
+    if args.repositories is not None and len(args.repositories) > 0:
+        sys.stderr.write("          Repositories: " + ','.join(args.repositories) + "\n")
     sys.stderr.write("\nOUTPUT:\n")
     if args.hostname:
         sys.stderr.write("              Hostname: " + args.hostname + "\n")
