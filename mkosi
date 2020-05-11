@@ -96,11 +96,13 @@ class CommandLineArguments(argparse.Namespace):
     swap_partno: Optional[int] = None
     esp_partno: Optional[int] = None
     xbootldr_partno: Optional[int] = None
+    minimize: bool = False
 
     def generated_root(self) -> bool:
-        """Returns whether this configuration means we need to generate a file system from a prepared tree,
-        as needed for anything squashfs and when root minimization is required."""
-        return cast(bool, self.minimize) or self.output_format.is_squashfs()
+        """Returns whether this configuration means we need to generate a file system from a prepared tree
+
+        This is needed for anything squashfs and when root minimization is required."""
+        return self.minimize or self.output_format.is_squashfs()
 
 
 class SourceFileTransfer(enum.Enum):
@@ -205,6 +207,8 @@ GPT_ROOT_X86_64_VERITY = uuid.UUID("2c7357edebd246d9aec123d437ec2bf5")  # NOQA: 
 GPT_ROOT_ARM_VERITY    = uuid.UUID("7386cdf2203c47a9a498f2ecce45a2d6")  # NOQA: E221
 GPT_ROOT_ARM_64_VERITY = uuid.UUID("df3300ced69f4c92978c9bfb0f38d820")  # NOQA: E221
 GPT_ROOT_IA64_VERITY   = uuid.UUID("86ed10d5b60745bb8957d350f23d0571")  # NOQA: E221
+GPT_TMP                = uuid.UUID("7ec6f5573bc54acab29316ef5df639d1")  # NOQA: E221
+GPT_VAR                = uuid.UUID("4d21b016b53445c2a9fb5c16e091fd2d")  # NOQA: E221
 
 # This is a non-formatted partition used to store the second stage
 # part of the bootloader because it doesn't necessarily fits the MBR
@@ -506,6 +510,10 @@ def image_size(args: CommandLineArguments) -> int:
         size += args.home_size
     if args.srv_size is not None:
         size += args.srv_size
+    if args.var_size is not None:
+        size += args.var_size
+    if args.tmp_size is not None:
+        size += args.tmp_size
     if args.bootable:
         if "uefi" in args.boot_protocols:
             size += args.esp_size
@@ -564,6 +572,8 @@ def determine_partition_table(args: CommandLineArguments) -> Tuple[str, bool]:
 
     args.home_partno = None
     args.srv_partno = None
+    args.var_partno = None
+    args.tmp_partno = None
 
     if args.output_format != OutputFormat.gpt_btrfs:
         if args.home_size is not None:
@@ -575,6 +585,18 @@ def determine_partition_table(args: CommandLineArguments) -> Tuple[str, bool]:
         if args.srv_size is not None:
             table += f'size={args.srv_size // 512}, type={GPT_SRV}, name="Server Data Partition"\n'
             args.srv_partno = pn
+            pn += 1
+            run_sfdisk = True
+
+        if args.var_size is not None:
+            table += f'size={args.var_size // 512}, type={GPT_VAR}, name="Variable Data Partition"\n'
+            args.var_partno = pn
+            pn += 1
+            run_sfdisk = True
+
+        if args.tmp_size is not None:
+            table += f'size={args.tmp_size // 512}, type={GPT_TMP}, name="Temporary Data Partition"\n'
+            args.tmp_partno = pn
             pn += 1
             run_sfdisk = True
 
@@ -762,10 +784,10 @@ def mkfs_generic(args: CommandLineArguments, label: str, mount: str, dev: str) -
 def luks_format(dev: str, passphrase: Dict[str, str]) -> None:
     if passphrase['type'] == 'stdin':
         passphrase_content = (passphrase['content'] + "\n").encode("utf-8")
-        run(["cryptsetup", "luksFormat", "--batch-mode", dev], input=passphrase_content, check=True)
+        run(["cryptsetup", "luksFormat", "--force-password", "--pbkdf-memory=64", "--pbkdf-parallel=1", "--pbkdf-force-iterations=1000", "--batch-mode", dev], input=passphrase_content, check=True)
     else:
         assert passphrase['type'] == 'file'
-        run(["cryptsetup", "luksFormat", "--batch-mode", dev, passphrase['content']], check=True)
+        run(["cryptsetup", "luksFormat", "--force-password", "--pbkdf-memory=64", "--pbkdf-parallel=1", "--pbkdf-force-iterations=1000", "--batch-mode", dev, passphrase['content']], check=True)
 
 
 def luks_open(dev: str, passphrase: Dict[str, str]) -> str:
@@ -837,6 +859,34 @@ def luks_format_srv(args: CommandLineArguments, loopdev: str, do_run_build_scrip
         luks_format(partition(loopdev, args.srv_partno), args.passphrase)
 
 
+def luks_format_var(args: CommandLineArguments, loopdev: str, do_run_build_script: bool, cached: bool) -> None:
+    if args.encrypt is None:
+        return
+    if args.var_partno is None:
+        return
+    if do_run_build_script:
+        return
+    if cached:
+        return
+
+    with complete_step("LUKS formatting variable data partition"):
+        luks_format(partition(loopdev, args.var_partno), args.passphrase)
+
+
+def luks_format_tmp(args: CommandLineArguments, loopdev: str, do_run_build_script: bool, cached: bool) -> None:
+    if args.encrypt is None:
+        return
+    if args.tmp_partno is None:
+        return
+    if do_run_build_script:
+        return
+    if cached:
+        return
+
+    with complete_step("LUKS formatting temporary data partition"):
+        luks_format(partition(loopdev, args.tmp_partno), args.passphrase)
+
+
 def luks_setup_root(args: CommandLineArguments,
                     loopdev: str,
                     do_run_build_script: bool,
@@ -878,15 +928,41 @@ def luks_setup_srv(args: CommandLineArguments, loopdev: str, do_run_build_script
         return luks_open(partition(loopdev, args.srv_partno), args.passphrase)
 
 
+def luks_setup_var(args: CommandLineArguments, loopdev: str, do_run_build_script: bool) -> Optional[str]:
+    if args.encrypt is None:
+        return None
+    if args.var_partno is None:
+        return None
+    if do_run_build_script:
+        return None
+
+    with complete_step("Opening LUKS variable data partition"):
+        return luks_open(partition(loopdev, args.var_partno), args.passphrase)
+
+
+def luks_setup_tmp(args: CommandLineArguments, loopdev: str, do_run_build_script: bool) -> Optional[str]:
+    if args.encrypt is None:
+        return None
+    if args.tmp_partno is None:
+        return None
+    if do_run_build_script:
+        return None
+
+    with complete_step("Opening LUKS temporary data partition"):
+        return luks_open(partition(loopdev, args.tmp_partno), args.passphrase)
+
+
 @contextlib.contextmanager
 def luks_setup_all(args: CommandLineArguments,
                    loopdev: Optional[str],
                    do_run_build_script: bool) -> Generator[Tuple[Optional[str],
                                                                  Optional[str],
+                                                                 Optional[str],
+                                                                 Optional[str],
                                                                  Optional[str]],
                                                            None, None]:
     if not args.output_format.is_disk():
-        yield (None, None, None)
+        yield (None, None, None, None, None)
         return
     assert loopdev is not None
 
@@ -896,10 +972,20 @@ def luks_setup_all(args: CommandLineArguments,
             home = luks_setup_home(args, loopdev, do_run_build_script)
             try:
                 srv = luks_setup_srv(args, loopdev, do_run_build_script)
+                try:
+                    var = luks_setup_var(args, loopdev, do_run_build_script)
+                    try:
+                        tmp = luks_setup_tmp(args, loopdev, do_run_build_script)
 
-                yield (optional_partition(loopdev, args.root_partno) if root is None else root,
-                       optional_partition(loopdev, args.home_partno) if home is None else home,
-                       optional_partition(loopdev, args.srv_partno) if srv is None else srv)
+                        yield (optional_partition(loopdev, args.root_partno) if root is None else root,
+                               optional_partition(loopdev, args.home_partno) if home is None else home,
+                               optional_partition(loopdev, args.srv_partno) if srv is None else srv,
+                               optional_partition(loopdev, args.var_partno) if var is None else var,
+                               optional_partition(loopdev, args.tmp_partno) if tmp is None else tmp)
+                    finally:
+                        luks_close(tmp, "Closing LUKS temporary data partition")
+                finally:
+                    luks_close(var, "Closing LUKS variable data partition")
             finally:
                 luks_close(srv, "Closing LUKS server data partition")
         finally:
@@ -938,6 +1024,26 @@ def prepare_srv(args: CommandLineArguments, dev: Optional[str], cached: bool) ->
 
     with complete_step('Formatting server data partition'):
         mkfs_generic(args, "srv", "/srv", dev)
+
+
+def prepare_var(args: CommandLineArguments, dev: Optional[str], cached: bool) -> None:
+    if dev is None:
+        return
+    if cached:
+        return
+
+    with complete_step('Formatting variable data partition'):
+        mkfs_generic(args, "var", "/var", dev)
+
+
+def prepare_tmp(args: CommandLineArguments, dev: Optional[str], cached: bool) -> None:
+    if dev is None:
+        return
+    if cached:
+        return
+
+    with complete_step('Formatting temporary data partition'):
+        mkfs_generic(args, "tmp", "/var/tmp", dev)
 
 
 def mount_loop(args: CommandLineArguments, dev: str, where: str, read_only: bool = False) -> None:
@@ -979,6 +1085,8 @@ def mount_image(args: CommandLineArguments,
                 root_dev: Optional[str],
                 home_dev: Optional[str],
                 srv_dev: Optional[str],
+                var_dev: Optional[str],
+                tmp_dev: Optional[str],
                 root_read_only: bool = False) -> Generator[None, None, None]:
     with complete_step('Mounting image'):
         root = os.path.join(workspace, "root")
@@ -995,6 +1103,12 @@ def mount_image(args: CommandLineArguments,
 
         if srv_dev is not None:
             mount_loop(args, srv_dev, os.path.join(root, "srv"))
+
+        if var_dev is not None:
+            mount_loop(args, var_dev, os.path.join(root, "var"))
+
+        if tmp_dev is not None:
+            mount_loop(args, tmp_dev, os.path.join(root, "var/tmp"))
 
         if args.esp_partno is not None:
             mount_loop(args, partition(loopdev, args.esp_partno), os.path.join(root, "efi"))
@@ -1382,7 +1496,7 @@ def invoke_dnf(args: CommandLineArguments,
     if args.architecture is not None:
         cmdline += [f'--forcearch={args.architecture}']
 
-    if args.with_network == "strict":
+    if args.with_network == "never":
         cmdline += ['--cacheonly']
 
     if not args.with_docs:
@@ -2916,7 +3030,11 @@ def install_unified_kernel(args: CommandLineArguments,
             dracut += ("-i",) + ("/usr/lib/systemd/system/systemd-volatile-root.service",)*2 + \
                       ("-i",) + ("/usr/lib/systemd/systemd-volatile-root",)*2 + \
                       ("-i",) + ("/usr/lib/systemd/systemd-veritysetup",)*2 + \
-                      ("-i",) + ("/usr/lib/systemd/system-generators/systemd-veritysetup-generator",)*2
+                      ("-i",) + ("/usr/lib/systemd/system-generators/systemd-veritysetup-generator",)*2 + \
+                      ("-i",) + ("/usr/bin/systemd-repart",)*2 + \
+                      ("-i",) + ("/usr/lib/systemd/system/systemd-repart.service",)*2 + \
+                      ("-i",) + ("/usr/lib/systemd/system/initrd-root-fs.target.wants/systemd-repart.service",)*2 + \
+                      ("-i",) + ("/usr/lib/systemd/system-generators/systemd-debug-generator",)*2
 
             if args.output_format.is_squashfs:
                 dracut += ['--add-drivers', 'squashfs']
@@ -3313,8 +3431,8 @@ class WithNetworkAction(BooleanAction):
                  option_string: Optional[str] = None) -> None:
 
         if isinstance(values, str):
-            if values == "strict":
-                setattr(namespace, self.dest, "strict")
+            if values == "never":
+                setattr(namespace, self.dest, "never")
                 return
 
         super().__call__(parser, namespace, values, option_string)
@@ -3521,6 +3639,10 @@ def create_parser() -> ArgumentParserMkosi:
                        help='Set size of /home partition (only gpt_ext4, gpt_xfs, gpt_squashfs)', metavar='BYTES')
     group.add_argument("--srv-size",
                        help='Set size of /srv partition (only gpt_ext4, gpt_xfs, gpt_squashfs)', metavar='BYTES')
+    group.add_argument("--var-size",
+                       help='Set size of /var partition (only gpt_ext4, gpt_xfs, gpt_squashfs)', metavar='BYTES')
+    group.add_argument("--tmp-size",
+                       help='Set size of /var/tmp partition (only gpt_ext4, gpt_xfs, gpt_squashfs)', metavar='BYTES')
 
     group = parser.add_argument_group("Validation (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs, tar)")
     group.add_argument("--checksum", action=BooleanAction, help='Write SHA256SUMS file')
@@ -4198,6 +4320,8 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
     args.root_size = parse_bytes(args.root_size)
     args.home_size = parse_bytes(args.home_size)
     args.srv_size = parse_bytes(args.srv_size)
+    args.var_size = parse_bytes(args.var_size)
+    args.tmp_size = parse_bytes(args.tmp_size)
     args.esp_size = parse_bytes(args.esp_size)
     args.xbootldr_size = parse_bytes(args.xbootldr_size)
     args.swap_size = parse_bytes(args.swap_size)
@@ -4389,6 +4513,8 @@ def print_summary(args: CommandLineArguments) -> None:
         sys.stderr.write("    XBOOTLDR Partition: " + format_bytes_or_disabled(args.xbootldr_size) + "\n")
         sys.stderr.write("       /home Partition: " + format_bytes_or_disabled(args.home_size) + "\n")
         sys.stderr.write("        /srv Partition: " + format_bytes_or_disabled(args.srv_size) + "\n")
+        sys.stderr.write("        /var Partition: " + format_bytes_or_disabled(args.var_size) + "\n")
+        sys.stderr.write("    /var/tmp Partition: " + format_bytes_or_disabled(args.tmp_size) + "\n")
 
         sys.stderr.write("\nVALIDATION:\n")
         sys.stderr.write("              Checksum: " + yes_no(args.checksum) + "\n")
@@ -4479,17 +4605,21 @@ def build_image(args: CommandLineArguments,
             luks_format_root(args, loopdev, do_run_build_script, cached)
             luks_format_home(args, loopdev, do_run_build_script, cached)
             luks_format_srv(args, loopdev, do_run_build_script, cached)
+            luks_format_var(args, loopdev, do_run_build_script, cached)
+            luks_format_tmp(args, loopdev, do_run_build_script, cached)
 
-        with luks_setup_all(args, loopdev, do_run_build_script) as (encrypted_root, encrypted_home, encrypted_srv):
+        with luks_setup_all(args, loopdev, do_run_build_script) as (encrypted_root, encrypted_home, encrypted_srv, encrypted_var, encrypted_tmp):
 
             prepare_root(args, encrypted_root, cached)
             prepare_home(args, encrypted_home, cached)
             prepare_srv(args, encrypted_srv, cached)
+            prepare_var(args, encrypted_var, cached)
+            prepare_tmp(args, encrypted_tmp, cached)
 
             # Mount everything together, but let's not mount the root
             # dir if we still have to generate the root image here
             with mount_image(args, workspace.name, loopdev, None if args.generated_root() else encrypted_root,
-                             encrypted_home, encrypted_srv):
+                             encrypted_home, encrypted_srv, encrypted_var, encrypted_tmp):
                 prepare_tree(args, workspace.name, do_run_build_script, cached)
 
                 with mount_cache(args, workspace.name):
@@ -4522,7 +4652,7 @@ def build_image(args: CommandLineArguments,
             # the verity data, and hence really shouldn't modify the
             # image anymore.
             with mount_image(args, workspace.name, loopdev,
-                             None if args.generated_root() and for_cache else encrypted_root, encrypted_home, encrypted_srv, root_read_only=True):
+                             None if args.generated_root() and for_cache else encrypted_root, encrypted_home, encrypted_srv, encrypted_var, encrypted_tmp, root_read_only=True):
                 install_unified_kernel(args, workspace.name, do_run_build_script, for_cache, root_hash)
                 secure_boot_sign(args, workspace.name, do_run_build_script, for_cache)
 

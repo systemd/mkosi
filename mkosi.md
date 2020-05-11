@@ -287,12 +287,12 @@ details see the table below.
 
 `--minimize`
 
-: Attempt to make the resulting root file system as small as possible,
-  reducing free space on the file system as much as possible. Only
+: Attempt to make the resulting root file system as small as possible by
+  removing free space from the file system. Only
   supported for `gpt_ext4` and `gpt_btrfs`. For ext4 this relies on
   `resize2fs -M`, which reduces the free disk space but is not perfect
-  and thus generally leaves some free space in place. For btrfs the
-  results are perfect, leaving no free space.
+  and generally leaves some free space. For btrfs the
+  results are optimal and no free space is left.
 
 `--encrypt`
 
@@ -535,7 +535,7 @@ details see the table below.
   invoked. By default, the build script runs with networking turned
   off. The `$WITH_NETWORK` environment variable is passed to the
   `mkosi.build` build script indicating whether the build is done with
-  or without this option. If specified as `--with-network=strict` the
+  or without this option. If specified as `--with-network=never` the
   package manager is instructed not to contact the network for
   updating package data. This provides a minimal level of
   reproducibility, as long as the package data cache is already fully
