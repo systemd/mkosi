@@ -1221,13 +1221,13 @@ def prepare_tree(args: CommandLineArguments, workspace: str, do_run_build_script
     if cached:
         return
 
-    if not do_run_build_script and args.bootable:
-        # We need an initialized machine ID for the boot logic to work
-        os.mkdir(os.path.join(workspace, "root", "etc"), 0o755)
-        with open(os.path.join(workspace, "root", "etc/machine-id"), "w") as f:
-            f.write(args.machine_id)
-            f.write("\n")
+    # We need an initialized machine ID for the build & boot logic to work
+    os.mkdir(os.path.join(workspace, "root", "etc"), 0o755)
+    with open(os.path.join(workspace, "root", "etc/machine-id"), "w") as f:
+        f.write(args.machine_id)
+        f.write("\n")
 
+    if not do_run_build_script and args.bootable:
         if args.xbootldr_partno is not None:
             # Create directories for kernels and entries if this is enabled
             os.mkdir(os.path.join(workspace, "root", "boot/EFI"), 0o700)
