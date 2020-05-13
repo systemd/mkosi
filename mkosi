@@ -2272,7 +2272,7 @@ def install_opensuse(args: CommandLineArguments, workspace: str, do_run_build_sc
 
     # The common part of the install comand.
     cmdline = ["zypper", "--root", root, "--gpg-auto-import-keys",
-               "install", "-y", "--no-recommends"]
+               "install", "-y", "--no-recommends", "--download-in-advance"]
     #
     # Install the "minimal" package set.
     #
