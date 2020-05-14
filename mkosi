@@ -2125,6 +2125,14 @@ Server = {repository_server}
     # Set up system with packages from the base group
     run_pacstrap(packages)
 
+    with open(os.path.join(workspace, 'root', 'etc/locale.gen'), 'w') as f:
+        f.write('en_US.UTF-8 UTF-8\n')
+
+    run_workspace_command(args, workspace, '/usr/bin/locale-gen')
+
+    with open(os.path.join(workspace, 'root', 'etc/locale.conf'), 'w') as f:
+        f.write('LANG=en_US.UTF-8\n')
+
     if args.bootable:
         # Patch mkinitcpio configuration so:
         # 1) we remove autodetect and
@@ -2159,14 +2167,6 @@ Server = {repository_server}
         enable_networkmanager(workspace)
     else:
         enable_networkd(workspace)
-
-    with open(os.path.join(workspace, 'root', 'etc/locale.gen'), 'w') as f:
-        f.write('en_US.UTF-8 UTF-8\n')
-
-    run_workspace_command(args, workspace, '/usr/bin/locale-gen')
-
-    with open(os.path.join(workspace, 'root', 'etc/locale.conf'), 'w') as f:
-        f.write('LANG=en_US.UTF-8\n')
 
 
 @completestep('Installing openSUSE')
