@@ -1941,7 +1941,7 @@ def install_debian_or_ubuntu(args: CommandLineArguments,
         f.write("hostonly=no")
 
     if args.bootable:
-        extra_packages += ["dracut"]
+        extra_packages += ["dracut", "usrmerge"]
         if args.distribution == Distribution.ubuntu:
             extra_packages += ["linux-generic"]
         else:
