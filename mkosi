@@ -66,6 +66,19 @@ MKOSI_COMMANDS = ("build", "clean", "help", "summary") + MKOSI_COMMANDS_CMDLINE
 arg_debug = ()
 
 
+def print_step(text: str) -> None:
+    sys.stderr.write("‣ \033[0;1;39m" + text + "\033[0m\n")
+
+
+def print_running_cmd(cmdline: Iterable[str]) -> None:
+    sys.stderr.write("‣ \033[0;1;39mRunning command:\033[0m\n")
+    sys.stderr.write(" ".join(shlex.quote(x) for x in cmdline) + "\n")
+
+
+def print_error(text: str) -> None:
+    sys.stderr.write(f"‣ \033[31;1m{text}\033[0m\n")
+
+
 def run(cmdline: List[str], execvp: bool = False, **kwargs: Any) -> subprocess.CompletedProcess:
     if 'run' in arg_debug:
         sys.stderr.write('+ ' + ' '.join(shlex.quote(x) for x in cmdline) + '\n')
@@ -78,7 +91,7 @@ def run(cmdline: List[str], execvp: bool = False, **kwargs: Any) -> subprocess.C
 
 def die(message: str, status: int = 1) -> NoReturn:
     assert status >= 1 and status < 128
-    sys.stderr.write(message + "\n")
+    print_error(message)
     sys.exit(status)
 
 
@@ -295,15 +308,6 @@ def format_bytes(num_bytes: int) -> str:
 
 def roundup512(x: int) -> int:
     return (x + 511) & ~511
-
-
-def print_step(text: str) -> None:
-    sys.stderr.write("‣ \033[0;1;39m" + text + "\033[0m\n")
-
-
-def print_running_cmd(cmdline: Iterable[str]) -> None:
-    sys.stderr.write("‣ \033[0;1;39mRunning command:\033[0m\n")
-    sys.stderr.write(" ".join(shlex.quote(x) for x in cmdline) + "\n")
 
 
 def mkdir_last(path: str, mode: int = 0o777) -> str:
@@ -3680,6 +3684,9 @@ def create_parser() -> ArgumentParserMkosi:
 class MkosiParseException(Exception):
     """Leads to sys.exit"""
 
+class MkosiBuildScriptException(Exception):
+    """Leads to sys.exit"""
+
 
 def parse_args(argv=None) -> Dict[str, CommandLineArguments]:
     """Load default values from files and parse command line arguments
@@ -4718,7 +4725,11 @@ def run_build_script(args: CommandLineArguments, workspace: str, raw: Optional[B
             cmdline.append("--private-network")
 
         cmdline.append("/root/" + os.path.basename(args.build_script))
-        run(cmdline, check=True)
+
+        result = run(cmdline)
+        if result.returncode != 0:
+            raise MkosiBuildScriptException(
+                f"Build script returned non-zero exit code {result.returncode}.")
 
 
 def need_cache_images(args: CommandLineArguments) -> bool:
@@ -5005,19 +5016,19 @@ def run_verb(args):
 def main() -> None:
     try:
         args = parse_args()
-    except MkosiParseException as exp:
-        die(str(exp))
 
-    for job_name, a in args.items():
-        # Change working directory if --directory is passed
-        if a.directory:
-            work_dir = a.directory
-            if os.path.isdir(work_dir):
-                os.chdir(work_dir)
-            else:
-                die("Error: %s is not a directory!" % work_dir)
-        with complete_step('Processing ' + job_name):
-            run_verb(a)
+        for job_name, a in args.items():
+            # Change working directory if --directory is passed
+            if a.directory:
+                work_dir = a.directory
+                if os.path.isdir(work_dir):
+                    os.chdir(work_dir)
+                else:
+                    die("Error: %s is not a directory!" % work_dir)
+            with complete_step('Processing ' + job_name):
+                run_verb(a)
+    except (MkosiParseException, MkosiBuildScriptException) as exp:
+        die(str(exp))
 
 
 if __name__ == "__main__":
