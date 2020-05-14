@@ -66,6 +66,19 @@ MKOSI_COMMANDS = ("build", "clean", "help", "summary") + MKOSI_COMMANDS_CMDLINE
 arg_debug = ()
 
 
+def print_step(text: str) -> None:
+    sys.stderr.write("‣ \033[0;1;39m" + text + "\033[0m\n")
+
+
+def print_running_cmd(cmdline: Iterable[str]) -> None:
+    sys.stderr.write("‣ \033[0;1;39mRunning command:\033[0m\n")
+    sys.stderr.write(" ".join(shlex.quote(x) for x in cmdline) + "\n")
+
+
+def print_error(text: str) -> None:
+    sys.stderr.write(f"‣ \033[31;1m{text}\033[0m\n")
+
+
 def run(cmdline: List[str], execvp: bool = False, **kwargs: Any) -> subprocess.CompletedProcess:
     if 'run' in arg_debug:
         sys.stderr.write('+ ' + ' '.join(shlex.quote(x) for x in cmdline) + '\n')
@@ -78,7 +91,7 @@ def run(cmdline: List[str], execvp: bool = False, **kwargs: Any) -> subprocess.C
 
 def die(message: str, status: int = 1) -> NoReturn:
     assert status >= 1 and status < 128
-    sys.stderr.write(message + "\n")
+    print_error(message)
     sys.exit(status)
 
 
@@ -295,15 +308,6 @@ def format_bytes(num_bytes: int) -> str:
 
 def roundup512(x: int) -> int:
     return (x + 511) & ~511
-
-
-def print_step(text: str) -> None:
-    sys.stderr.write("‣ \033[0;1;39m" + text + "\033[0m\n")
-
-
-def print_running_cmd(cmdline: Iterable[str]) -> None:
-    sys.stderr.write("‣ \033[0;1;39mRunning command:\033[0m\n")
-    sys.stderr.write(" ".join(shlex.quote(x) for x in cmdline) + "\n")
 
 
 def mkdir_last(path: str, mode: int = 0o777) -> str:
