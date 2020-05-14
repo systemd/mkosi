@@ -3684,6 +3684,9 @@ def create_parser() -> ArgumentParserMkosi:
 class MkosiParseException(Exception):
     """Leads to sys.exit"""
 
+class MkosiBuildScriptException(Exception):
+    """Leads to sys.exit"""
+
 
 def parse_args(argv=None) -> Dict[str, CommandLineArguments]:
     """Load default values from files and parse command line arguments
@@ -4722,7 +4725,11 @@ def run_build_script(args: CommandLineArguments, workspace: str, raw: Optional[B
             cmdline.append("--private-network")
 
         cmdline.append("/root/" + os.path.basename(args.build_script))
-        run(cmdline, check=True)
+
+        result = run(cmdline)
+        if result.returncode != 0:
+            raise MkosiBuildScriptException(
+                f"Build script returned non-zero exit code {result.returncode}.")
 
 
 def need_cache_images(args: CommandLineArguments) -> bool:
@@ -5009,19 +5016,19 @@ def run_verb(args):
 def main() -> None:
     try:
         args = parse_args()
-    except MkosiParseException as exp:
-        die(str(exp))
 
-    for job_name, a in args.items():
-        # Change working directory if --directory is passed
-        if a.directory:
-            work_dir = a.directory
-            if os.path.isdir(work_dir):
-                os.chdir(work_dir)
-            else:
-                die("Error: %s is not a directory!" % work_dir)
-        with complete_step('Processing ' + job_name):
-            run_verb(a)
+        for job_name, a in args.items():
+            # Change working directory if --directory is passed
+            if a.directory:
+                work_dir = a.directory
+                if os.path.isdir(work_dir):
+                    os.chdir(work_dir)
+                else:
+                    die("Error: %s is not a directory!" % work_dir)
+            with complete_step('Processing ' + job_name):
+                run_verb(a)
+    except (MkosiParseException, MkosiBuildScriptException) as exp:
+        die(str(exp))
 
 
 if __name__ == "__main__":
