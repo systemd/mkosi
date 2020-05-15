@@ -4975,6 +4975,7 @@ def run_qemu(args: CommandLineArguments) -> None:
     if platform.machine() == 'x86_64':
         FIRMWARE_LOCATIONS.append('/usr/share/ovmf/ovmf_code_x64.bin')
         FIRMWARE_LOCATIONS.append('/usr/share/ovmf/x64/OVMF_CODE.fd')
+        FIRMWARE_LOCATIONS.append('/usr/share/qemu/ovmf-x86_64.bin')
     elif platform.machine() == 'i386':
         FIRMWARE_LOCATIONS.append('/usr/share/ovmf/ovmf_code_ia32.bin')
         FIRMWARE_LOCATIONS.append('/usr/share/edk2/ovmf-ia32/OVMF_CODE.fd')
