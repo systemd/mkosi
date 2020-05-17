@@ -2136,7 +2136,21 @@ Server = {repository_server}
                 else:
                     return 'HOOKS="systemd modconf block filesystems fsck"\n'
             return line
-        patch_file(os.path.join(workspace, "root", "etc/mkinitcpio.conf"), jj)
+        patch_file(os.path.join(root, "etc/mkinitcpio.conf"), jj)
+
+        # Disable fallback images to save time. We override the preset files
+        # before installing any kernels to have the updated config available
+        # when the mkinitcpio pacman hook is run during installation.
+        presetdir = os.path.join(root, "etc/mkinitcpio.d")
+        for kernel in kernel_packages:
+            preset = os.path.join(presetdir, f"{kernel}.preset")
+            with open(preset, "w") as f:
+                f.write(f"""
+ALL_config="/etc/mkinitcpio.conf"
+ALL_kver="/boot/vmlinuz-{kernel}"
+PRESETS=('default')
+default_image="/boot/initramfs-{kernel}.img"
+""")
 
     # Install the user-specified packages and kernel
     packages = set(args.packages)
