@@ -2104,7 +2104,7 @@ Server = {repository_server}
     if len(kernel_packages) > 1:
         warn('More than one kernel will be installed: {}', ' '.join(kernel_packages))
 
-    if args.bootable:
+    if not do_run_build_script and args.bootable:
         if args.output_format == OutputFormat.gpt_ext4:
             packages.add("e2fsprogs")
         elif args.output_format == OutputFormat.gpt_btrfs:
@@ -2125,7 +2125,7 @@ Server = {repository_server}
     # Set up system with packages from the base group
     run_pacstrap(packages)
 
-    if args.bootable:
+    if not do_run_build_script and args.bootable:
         # Patch mkinitcpio configuration so:
         # 1) we remove autodetect and
         # 2) we add the modules needed for encrypt.
@@ -2140,7 +2140,7 @@ Server = {repository_server}
 
     # Install the user-specified packages and kernel
     packages = set(args.packages)
-    if args.bootable:
+    if not do_run_build_script and args.bootable:
         packages |= kernel_packages
 
     if do_run_build_script:
