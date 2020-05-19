@@ -2188,7 +2188,7 @@ default_image="/boot/initramfs-{kernel}.img"
     c = run_pacman(['-Qq'], stdout=PIPE, universal_newlines=True)
     packages.difference_update(c.stdout.split())
     if packages:
-        run_pacstrap(packages)
+        run_pacman(["-S", *packages])
 
     # Kill the gpg-agent used by pacman and pacman-key
     run(['gpg-connect-agent', '--homedir', os.path.join(root, 'etc/pacman.d/gnupg'), 'KILLAGENT', '/bye'])
