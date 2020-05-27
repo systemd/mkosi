@@ -2105,7 +2105,7 @@ Server = {repository_server}
         return run(cmdline + args, check=True)
 
     def run_pacstrap(packages: Set[str]) -> None:
-        cmdline = ["pacstrap", "-C", pacman_conf, "-dGM", root]
+        cmdline = ["pacstrap", "-C", pacman_conf, "-GM", root]
         run(cmdline + list(packages), check=True)
 
     keyring = "archlinux"
