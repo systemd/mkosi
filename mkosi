@@ -2114,7 +2114,6 @@ Server = {repository_server}
     run_pacman_key(["--init"])
     run_pacman_key(["--populate", keyring])
 
-    run_pacman(["-Sy"])
     # the base metapackage is mandatory
     packages = {"base"}
 
