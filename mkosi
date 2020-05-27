@@ -2087,15 +2087,6 @@ SigLevel = Optional TrustedOnly
 Server = {repository_server}
 """)
 
-    def run_pacman(args: List[str], **kwargs: Any) -> subprocess.CompletedProcess:
-        cmdline = [
-            "pacman",
-            "--noconfirm",
-            "--color", "never",
-            "--config", pacman_conf,
-        ]
-        return run(cmdline + args, **kwargs, check=True)
-
     def run_pacman_key(args: List[str]) -> subprocess.CompletedProcess:
         cmdline = [
             "pacman-key",
@@ -2103,10 +2094,6 @@ Server = {repository_server}
             "--config", pacman_conf,
         ]
         return run(cmdline + args, check=True)
-
-    def run_pacstrap(packages: Set[str]) -> None:
-        cmdline = ["pacstrap", "-C", pacman_conf, "-GM", root]
-        run(cmdline + list(packages), check=True)
 
     keyring = "archlinux"
     if platform.machine() == "aarch64":
@@ -2146,6 +2133,10 @@ Server = {repository_server}
 
         packages.add("mkinitcpio")
 
+    def run_pacstrap(packages: Set[str]) -> None:
+        cmdline = ["pacstrap", "-C", pacman_conf, "-GM", root]
+        run(cmdline + list(packages), check=True)
+
     # Set up system with packages from the base group
     run_pacstrap(packages)
 
@@ -2183,6 +2174,16 @@ default_image="/boot/initramfs-{kernel}.img"
 
     if do_run_build_script:
         packages.update(args.build_packages)
+
+    def run_pacman(args: List[str], **kwargs: Any) -> subprocess.CompletedProcess:
+        cmdline = [
+            "pacman",
+            "--noconfirm",
+            "--color", "never",
+            "--config", pacman_conf,
+        ]
+        return run(cmdline + args, **kwargs, check=True)
+
     # Remove already installed packages
     c = run_pacman(['-Qq'], stdout=PIPE, universal_newlines=True)
     packages.difference_update(c.stdout.split())
