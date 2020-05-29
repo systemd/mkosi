@@ -1467,14 +1467,14 @@ def clean_package_manager_metadata(workspace: str) -> None:
     # FIXME: implement cleanup for other package managers
 
 def clean_tdnf_metadata(root: str) -> None:
-        """Removes tdnf metadata iff /bin/tdnf is not present in the image"""
-        tdnf_path = root + '/usr/bin/tdnf'
-        keep_tdnf_data = os.access(tdnf_path, os.F_OK, follow_symlinks=False)
+    """Removes tdnf metadata iff /bin/tdnf is not present in the image"""
+    tdnf_path = root + '/usr/bin/tdnf'
+    keep_tdnf_data = os.access(tdnf_path, os.F_OK, follow_symlinks=False)
 
-        if not keep_tdnf_data:
-            print_step('Cleaning tdnf metadata...')
-            remove_glob(root + '/var/log/tdnf.*',
-                        root + '/var/cache/tdnf')
+    if not keep_tdnf_data:
+        print_step('Cleaning tdnf metadata...')
+        remove_glob(root + '/var/log/tdnf.*',
+                    root + '/var/cache/tdnf')
 
 def invoke_dnf(args: CommandLineArguments,
                workspace: str,
@@ -1529,7 +1529,7 @@ def invoke_tdnf(args: CommandLineArguments,
                "--installroot=" + root,
                "--disablerepo=*",
                *repos
-    ]
+               ]
 
     cmdline += ['install', *packages]
 
@@ -1558,7 +1558,7 @@ def install_photon(args: CommandLineArguments, workspace: str, do_run_build_scri
     config_file = os.path.join(workspace, "tdnf.conf")
     repo_file = os.path.join(workspace, "temp.repo")
     with open(config_file, "w") as f:
-            f.write(f"""\
+        f.write(f"""\
 [main]
 {gpgcheck}
 repodir={workspace}
@@ -1584,9 +1584,9 @@ gpgkey={gpg_key_string}
         packages += ["linux", "initramfs"]
 
     invoke_tdnf(args, workspace, root,
-                    args.repositories if args.repositories else ["photon", "photon-updates"],
-                    packages,
-                    config_file)
+                args.repositories if args.repositories else ["photon", "photon-updates"],
+                packages,
+                config_file)
     reenable_kernel_install(args, workspace, masked)
 
 
@@ -2502,7 +2502,7 @@ def install_boot_loader_clear(args: CommandLineArguments, workspace: str, loopde
 
 
 def install_boot_loader_photon(args: CommandLineArguments, workspace: str, loopdev: str) -> None:
-        install_grub(args, workspace, loopdev, "grub2")
+    install_grub(args, workspace, loopdev, "grub2")
 
 
 def install_boot_loader(args: CommandLineArguments, workspace: str, loopdev: Optional[str], cached: bool) -> None:
