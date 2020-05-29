@@ -1467,14 +1467,14 @@ def clean_package_manager_metadata(workspace: str) -> None:
     # FIXME: implement cleanup for other package managers
 
 def clean_tdnf_metadata(root: str) -> None:
-	    """Removes tdnf metadata iff /bin/tdnf is not present in the image"""
-	    tdnf_path = root + '/usr/bin/tdnf'
-	    keep_tdnf_data = os.access(tdnf_path, os.F_OK, follow_symlinks=False)
+        """Removes tdnf metadata iff /bin/tdnf is not present in the image"""
+        tdnf_path = root + '/usr/bin/tdnf'
+        keep_tdnf_data = os.access(tdnf_path, os.F_OK, follow_symlinks=False)
 
-	    if not keep_tdnf_data:
-	        print_step('Cleaning tdnf metadata...')
-	        remove_glob(root + '/var/log/tdnf.*',
-	                    root + '/var/cache/tdnf')
+        if not keep_tdnf_data:
+            print_step('Cleaning tdnf metadata...')
+            remove_glob(root + '/var/log/tdnf.*',
+                        root + '/var/cache/tdnf')
 
 def invoke_dnf(args: CommandLineArguments,
                workspace: str,
@@ -1513,28 +1513,28 @@ def invoke_dnf(args: CommandLineArguments,
         run(cmdline, check=True)
 
 def invoke_tdnf(args: CommandLineArguments,
-	            workspace: str,
-	            root: str,
-	            repositories: List[str],
-	            packages: List[str],
-	            config_file: str) -> None:
-	repos = ["--enablerepo=" + repo for repo in repositories]
+                workspace: str,
+                root: str,
+                repositories: List[str],
+                packages: List[str],
+                config_file: str) -> None:
+    repos = ["--enablerepo=" + repo for repo in repositories]
 
-	packages = make_rpm_list(args, packages)
+    packages = make_rpm_list(args, packages)
 
-	cmdline = ["tdnf",
-	           "-y",
-	           "--config=" + config_file,
-	           "--releasever=" + args.release,
-	           "--installroot=" + root,
-	           "--disablerepo=*",
-	           *repos
+    cmdline = ["tdnf",
+               "-y",
+               "--config=" + config_file,
+               "--releasever=" + args.release,
+               "--installroot=" + root,
+               "--disablerepo=*",
+               *repos
     ]
 
-	cmdline += ['install', *packages]
+    cmdline += ['install', *packages]
 
-	with mount_api_vfs(args, workspace):
-	    run(cmdline, check=True)
+    with mount_api_vfs(args, workspace):
+        run(cmdline, check=True)
 
 @completestep('Installing Photon')
 def install_photon(args: CommandLineArguments, workspace: str, do_run_build_script: bool) -> None:
@@ -1545,12 +1545,12 @@ def install_photon(args: CommandLineArguments, workspace: str, do_run_build_scri
     root = os.path.join(workspace, "root")
 
     if os.path.exists(gpg_key):
-	    gpgcheck = "gpgcheck=1"
-	    cmdline = ["rpm", "--import", gpg_key, "--root", root]
-	    run(cmdline, check=True)
+        gpgcheck = "gpgcheck=1"
+        cmdline = ["rpm", "--import", gpg_key, "--root", root]
+        run(cmdline, check=True)
 
     else:
-	    gpgcheck = "gpgcheck=0"
+        gpgcheck = "gpgcheck=0"
 
     release_url = "https://dl.bintray.com/vmware/photon_release_$releasever_$basearch"
     updates_url = "https://dl.bintray.com/vmware/photon_updates_$releasever_$basearch"
@@ -1558,14 +1558,14 @@ def install_photon(args: CommandLineArguments, workspace: str, do_run_build_scri
     config_file = os.path.join(workspace, "tdnf.conf")
     repo_file = os.path.join(workspace, "temp.repo")
     with open(config_file, "w") as f:
-	        f.write(f"""\
+            f.write(f"""\
 [main]
 {gpgcheck}
 repodir={workspace}
 """)
 
     with open(repo_file, "w") as f:
-	    f.write(f"""\
+        f.write(f"""\
 [photon]
 name=VMware Photon OS {args.release} Release
 baseurl={release_url}
@@ -1581,12 +1581,12 @@ gpgkey={gpg_key_string}
 
     packages = ["minimal"]
     if args.bootable:
-	    packages += ["linux", "initramfs"]
+        packages += ["linux", "initramfs"]
 
     invoke_tdnf(args, workspace, root,
-	                args.repositories if args.repositories else ["photon", "photon-updates"],
-	                packages,
-	                config_file)
+                    args.repositories if args.repositories else ["photon", "photon-updates"],
+                    packages,
+                    config_file)
     reenable_kernel_install(args, workspace, masked)
 
 
@@ -2502,7 +2502,7 @@ def install_boot_loader_clear(args: CommandLineArguments, workspace: str, loopde
 
 
 def install_boot_loader_photon(args: CommandLineArguments, workspace: str, loopdev: str) -> None:
-	    install_grub(args, workspace, loopdev, "grub2")
+        install_grub(args, workspace, loopdev, "grub2")
 
 
 def install_boot_loader(args: CommandLineArguments, workspace: str, loopdev: Optional[str], cached: bool) -> None:
@@ -4229,7 +4229,7 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
             die(f"bios boot not implemented yet for {args.distribution}")
 
             if "uefi" in args.boot_protocols and args.distribution == Distribution.photon:
-	            die(f"uefi boot not supported for {args.distribution}")
+                die(f"uefi boot not supported for {args.distribution}")
 
     if args.encrypt is not None:
         if not args.output_format.is_disk():
