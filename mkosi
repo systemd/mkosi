@@ -2043,12 +2043,6 @@ def install_arch(args: CommandLineArguments, workspace: str, do_run_build_script
         if os.path.exists(path):
             os.chmod(path, permissions)
 
-    # Disable mkinitcpio hook because we manually install the kernel image to
-    # /boot using kernel-install in install_boot_loader_arch.
-    hooks = os.path.join(root, "etc/pacman.d/hooks")
-    os.makedirs(hooks, 0o755, exist_ok=True)
-    os.symlink("/dev/null", os.path.join(hooks, "90-mkinitcpio-install.hook"))
-
     pacman_conf = os.path.join(workspace, "pacman.conf")
     with open(pacman_conf, "w") as f:
         f.write(f"""\
@@ -2188,8 +2182,21 @@ default_image="/boot/initramfs-{kernel}.img"
     # Remove already installed packages
     c = run_pacman(['-Qq'], stdout=PIPE, universal_newlines=True)
     packages.difference_update(c.stdout.split())
+
     if packages:
+        # Disable mkinitcpio hook because we manually install the kernel image
+        # to /boot using kernel-install in install_boot_loader_arch.
+        hooks = os.path.join(root, "etc/pacman.d/hooks")
+        os.makedirs(hooks, 0o755, exist_ok=True)
+
+        mkinitcpio_override = os.path.join(hooks, "90-mkinitcpio-install.hook")
+        os.symlink("/dev/null", mkinitcpio_override)
+
         run_pacman(["-S", *packages])
+
+        # Re-enable mkinitcpio hook so updating the kernel in the image via
+        # pacman still works.
+        os.remove(mkinitcpio_override)
 
     # Kill the gpg-agent used by pacman and pacman-key
     run(['gpg-connect-agent', '--homedir', os.path.join(root, 'etc/pacman.d/gnupg'), 'KILLAGENT', '/bye'])
