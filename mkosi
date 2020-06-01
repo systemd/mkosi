@@ -1283,6 +1283,17 @@ def patch_file(filepath: str, line_rewriter: Callable[[str], str]) -> None:
     shutil.move(temp_new_filepath, filepath)
 
 
+def disable_pam_securetty(workspace: str,
+                          file_path: str = 'root/etc/pam.d/login') -> None:
+    patch_file(os.path.join(workspace, file_path), _rm_securetty)
+
+
+def _rm_securetty(line: str) -> str:
+    if 'pam_securetty.so' in line:
+        return ''
+    return line
+
+
 def enable_networkd(workspace: str) -> None:
     run(["systemctl",
          "--root", os.path.join(workspace, "root"),
@@ -1997,6 +2008,8 @@ def install_debian_or_ubuntu(args: CommandLineArguments,
     }
     run_workspace_command(args, workspace, network=True, env=env, *cmdline)
     os.unlink(policyrcd)
+    # Debian still has pam_securetty module enabled
+    disable_pam_securetty(workspace, 'root/etc/pam.d/login')
 
 
 @completestep('Installing Debian')
@@ -2210,11 +2223,7 @@ default_image="/boot/initramfs-{kernel}.img"
 
     # Arch still uses pam_securetty which prevents root login into
     # systemd-nspawn containers. See https://bugs.archlinux.org/task/45903.
-    def rm_securetty(line: str) -> str:
-        if 'pam_securetty.so' in line:
-            return ''
-        return line
-    patch_file(os.path.join(root, 'etc/pam.d/login'), rm_securetty)
+    disable_pam_securetty(workspace, 'root/etc/pam.d/login')
 
 
 @completestep('Installing openSUSE')
