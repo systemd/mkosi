@@ -1953,17 +1953,26 @@ def install_centos(args: CommandLineArguments, root: str, do_run_build_script: b
 
     packages = ['centos-release']
     packages += args.packages or []
+
     if args.bootable:
-        packages += ["kernel", "systemd-udev", "binutils"]
+        packages += ["kernel", "systemd", "binutils"]
+
     if do_run_build_script:
         packages += args.build_packages or []
 
     repos = args.repositories or default_repos
+
     if args.distribution == Distribution.centos_epel:
         repos += ["epel"]
         packages += ["epel-release"]
 
-    invoke_dnf_or_yum(args, root, repos, packages, config_file)
+    if do_run_build_script:
+        packages += args.build_packages or []
+
+    invoke_dnf_or_yum(args, root,
+                      repos,
+                      packages,
+                      config_file)
 
     reenable_kernel_install(args, root, masked)
 
@@ -2583,6 +2592,8 @@ def install_grub(args: CommandLineArguments, root: str, loopdev: str, grub: str)
 def install_boot_loader_fedora(args: CommandLineArguments, root: str, loopdev: str) -> None:
     install_grub(args, root, loopdev, "grub2")
 
+def install_boot_loader_centos(args:CommandLineArguments, root: str, loopdev: str) -> None:
+    install_grub(args, root, loopdev, "grub2")
 
 def install_boot_loader_arch(args: CommandLineArguments, root: str, loopdev: str) -> None:
     if "uefi" in args.boot_protocols:
@@ -2675,6 +2686,9 @@ def install_boot_loader(args: CommandLineArguments, root: str, loopdev: Optional
 
         if args.distribution == Distribution.photon:
             install_boot_loader_photon(args, root, loopdev)
+
+        if args.distribution == Distribution.centos:
+            install_boot_loader_centos(args, root, loopdev)
 
 def install_extra_trees(args: CommandLineArguments, root: str, for_cache: bool) -> None:
     if not args.extra_trees:
@@ -3134,8 +3148,7 @@ def install_unified_kernel(args: CommandLineArguments,
     # actually invoke the boot loader on the development image.
     if do_run_build_script:
         return
-
-    if args.distribution not in (Distribution.fedora, Distribution.mageia, Distribution.ubuntu, Distribution.debian):
+    if args.distribution not in (Distribution.fedora, Distribution.mageia, Distribution.ubuntu, Distribution.debian, Distribution.centos, Distribution.centos_epel):
         return
 
     with complete_step("Generating combined kernel + initrd boot file"):
