@@ -2500,9 +2500,13 @@ def run_postinst_script(args: CommandLineArguments, root: str, do_run_build_scri
         os.unlink(os.path.join(root, "root/postinst"))
 
 
-def run_finalize_script(args: CommandLineArguments, root: str, *, verb: str) -> None:
+def run_finalize_script(args: CommandLineArguments, root: str, do_run_build_script: bool, for_cache: bool) -> None:
     if args.finalize_script is None:
         return
+    if for_cache:
+        return
+
+    verb = "build" if do_run_build_script else "final"
 
     with complete_step('Running finalize script'):
         buildroot = os.path.join(workspace(root), 'root')
@@ -4763,6 +4767,7 @@ def build_image(args: CommandLineArguments,
                     clean_package_manager_metadata(root)
                 reset_machine_id(args, root, do_run_build_script, for_cache)
                 reset_random_seed(args, root)
+                run_finalize_script(args, root, do_run_build_script, for_cache)
                 make_read_only(args, root, for_cache)
 
             generated_root = make_generated_root(args, root, for_cache)
@@ -4926,8 +4931,6 @@ def build_stuff(args: CommandLineArguments) -> None:
                 save_cache(args, root, raw.name, args.cache_pre_inst)
                 remove_artifacts(args, root, raw, tar, do_run_build_script=False)
 
-    run_finalize_script(args, root, verb='build')
-
     if args.build_script:
         with complete_step("Running first (development) stage"):
             # Run the image builder for the first (development) stage in preparation for the build script
@@ -4935,8 +4938,6 @@ def build_stuff(args: CommandLineArguments) -> None:
 
             run_build_script(args, root, raw)
             remove_artifacts(args, root, raw, tar, do_run_build_script=True)
-
-    run_finalize_script(args, root, verb='final')
 
     # Run the image builder for the second (final) stage
     if not args.skip_final_phase:
