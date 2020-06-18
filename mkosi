@@ -1067,9 +1067,11 @@ def mount_loop(args: CommandLineArguments, dev: str, where: str, read_only: bool
     if read_only:
         options.append("ro")
 
-    options_arg = "-o" + ",".join(options) if options else ""
+    cmd = ["mount", "-n", dev, where]
+    if options:
+        cmd += ["-o", ",".join(options)]
 
-    run(["mount", "-n", dev, where, options_arg], check=True)
+    run(cmd, check=True)
 
 
 def mount_bind(what: str, where: str) -> None:
