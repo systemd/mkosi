@@ -1202,13 +1202,14 @@ def umount(where: str) -> None:
     run(["umount", "--recursive", "-n", where], stdout=DEVNULL, stderr=DEVNULL)
 
 
-@completestep('Setting up basic OS tree')
-def prepare_tree(args: CommandLineArguments, workspace: str, do_run_build_script: bool, cached: bool) -> None:
+@completestep('Setting up OS tree root')
+def prepare_tree_root(args: CommandLineArguments, workspace: str) -> None:
     if args.output_format == OutputFormat.subvolume:
         btrfs_subvol_create(os.path.join(workspace, "root"))
-    else:
-        mkdir_last(os.path.join(workspace, "root"), 0o755)
 
+
+@completestep('Setting up basic OS tree')
+def prepare_tree(args: CommandLineArguments, workspace: str, do_run_build_script: bool, cached: bool) -> None:
     if args.output_format is OutputFormat.subvolume or \
        (args.output_format is OutputFormat.gpt_btrfs and not (args.minimize or cached)):
         btrfs_subvol_create(os.path.join(workspace, "root", "home"))
@@ -4688,6 +4689,7 @@ def build_image(args: CommandLineArguments,
 
             # Mount everything together, but let's not mount the root
             # dir if we still have to generate the root image here
+            prepare_tree_root(args, workspace.name)
             with mount_image(args, workspace.name, loopdev, None if args.generated_root() else encrypted_root,
                              encrypted_home, encrypted_srv, encrypted_var, encrypted_tmp):
                 prepare_tree(args, workspace.name, do_run_build_script, cached)
