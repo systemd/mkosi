@@ -2163,13 +2163,21 @@ SigLevel = Optional TrustedOnly
 Server = {repository_server}
 """)
 
+    def stop_gpg_agent() -> None:
+        # Kill the gpg-agent used by pacman and pacman-key
+        run(['gpgconf', '--homedir', os.path.join(root, 'etc/pacman.d/gnupg'), '--kill', 'all'])
+
     def run_pacman_key(args: List[str]) -> subprocess.CompletedProcess:
         cmdline = [
             "pacman-key",
             "--nocolor",
             "--config", pacman_conf,
         ]
-        return run(cmdline + args, check=True)
+
+        try:
+            return run(cmdline + args, check=True)
+        finally:
+            stop_gpg_agent()
 
     keyring = "archlinux"
     if platform.machine() == "aarch64":
@@ -2211,6 +2219,7 @@ Server = {repository_server}
 
     def run_pacstrap(packages: Set[str]) -> None:
         cmdline = ["pacstrap", "-C", pacman_conf, "-GM", root]
+        # pacstrap handles gpg-agent on its own
         run(cmdline + list(packages), check=True)
 
     # Set up system with packages from the base group
@@ -2258,7 +2267,11 @@ default_image="/boot/initramfs-{kernel}.img"
             "--color", "never",
             "--config", pacman_conf,
         ]
-        return run(cmdline + args, **kwargs, check=True)
+
+        try:
+            return run(cmdline + args, **kwargs, check=True)
+        finally:
+            stop_gpg_agent()
 
     # Remove already installed packages
     c = run_pacman(['-Qq'], stdout=PIPE, universal_newlines=True)
@@ -2278,10 +2291,6 @@ default_image="/boot/initramfs-{kernel}.img"
         # Re-enable mkinitcpio hook so updating the kernel in the image via
         # pacman still works.
         os.remove(mkinitcpio_override)
-
-    # Kill the gpg-agent used by pacman and pacman-key
-    run(['gpg-connect-agent', '--homedir', os.path.join(root, 'etc/pacman.d/gnupg'), 'KILLAGENT', '/bye'])
-    run(['gpg-connect-agent', '--homedir', os.path.join(root, 'etc/pacman.d/gnupg'), '--dirmngr', 'KILLDIRMNGR', '/bye'])
 
     if "networkmanager" in args.packages:
         enable_networkmanager(root)
