@@ -1078,6 +1078,7 @@ def mount_bind(what: str, where: str) -> None:
     os.makedirs(what, 0o755, True)
     os.makedirs(where, 0o755, True)
     run(["mount", "--bind", what, where], check=True)
+    return where
 
 
 def mount_tmpfs(where: str) -> None:
@@ -1171,35 +1172,38 @@ def mount_cache(args: CommandLineArguments, root: str) -> Generator[None, None, 
         yield
         return
 
+    caches = []
+
     # We can't do this in mount_image() yet, as /var itself might have to be created as a subvolume first
     with complete_step('Mounting Package Cache'):
         if args.distribution in (Distribution.fedora, Distribution.mageia):
-            mount_bind(args.cache_path, os.path.join(root, "var/cache/dnf"))
+            caches = [mount_bind(args.cache_path, os.path.join(root, "var/cache/dnf"))]
         elif args.distribution in (Distribution.centos, Distribution.centos_epel):
             # We mount both the YUM and the DNF cache in this case, as
             # YUM might just be redirected to DNF even if we invoke
             # the former
-            mount_bind(os.path.join(args.cache_path, "yum"), os.path.join(root, "var/cache/yum"))
-            mount_bind(os.path.join(args.cache_path, "dnf"), os.path.join(root, "var/cache/dnf"))
+            caches = [
+                mount_bind(os.path.join(args.cache_path, "yum"), os.path.join(root, "var/cache/yum")),
+                mount_bind(os.path.join(args.cache_path, "dnf"), os.path.join(root, "var/cache/dnf"))
+            ]
         elif args.distribution in (Distribution.debian, Distribution.ubuntu):
-            mount_bind(args.cache_path, os.path.join(root, "var/cache/apt/archives"))
+            caches = [mount_bind(args.cache_path, os.path.join(root, "var/cache/apt/archives"))]
         elif args.distribution == Distribution.arch:
-            mount_bind(args.cache_path, os.path.join(root, "var/cache/pacman/pkg"))
+            caches = [mount_bind(args.cache_path, os.path.join(root, "var/cache/pacman/pkg"))]
         elif args.distribution == Distribution.opensuse:
-            mount_bind(args.cache_path, os.path.join(root, "var/cache/zypp/packages"))
+            caches = [mount_bind(args.cache_path, os.path.join(root, "var/cache/zypp/packages"))]
         elif args.distribution == Distribution.photon:
-            mount_bind(os.path.join(args.cache_path, "tdnf"), os.path.join(root, "var/cache/tdnf"))
+            caches = [mount_bind(os.path.join(args.cache_path, "tdnf"), os.path.join(root, "var/cache/tdnf"))]
     try:
         yield
     finally:
         with complete_step('Unmounting Package Cache'):
-            for d in ("var/cache/dnf", "var/cache/yum", "var/cache/apt/archives", "var/cache/pacman/pkg", "var/cache/zypp/packages"):  # NOQA: E501
-                umount(os.path.join(root, d))
+            for d in caches:  # NOQA: E501
+                umount(d)
 
 
 def umount(where: str) -> None:
-    # Ignore failures and error messages
-    run(["umount", "--recursive", "-n", where], stdout=DEVNULL, stderr=DEVNULL)
+    run(["umount", "--recursive", "-n", where], check=True)
 
 
 @completestep('Setting up OS tree root')
