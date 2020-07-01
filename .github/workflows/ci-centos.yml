@@ -24,5 +24,7 @@ jobs:
       run: sudo apt-get --assume-yes update
     - name: Install dependencies
       run: sudo apt-get --assume-yes install systemd-container squashfs-tools e2fsprogs xfsprogs yum
+    - name: Setup tmate session
+      uses: mxschmitt/action-tmate@v2
     - name: Build CentOS/${{ matrix.output_type }}
       run: sudo env PATH=$PATH python3 ./mkosi --debug run -d centos -r 8 -t ${{ matrix.output_type }} -p tzdata -b false --default /dev/null
