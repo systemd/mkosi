@@ -26,11 +26,11 @@ jobs:
       run: sudo apt-get --assume-yes install systemd-container squashfs-tools e2fsprogs xfsprogs libzstd1-dev libgpgme-dev libcurl4-openssl-dev asciidoc
     - name: Download libarchive source
       run: |
-        wget "https://github.com/libarchive/libarchive/releases/download/v3.4.2/libarchive-3.4.2.tar.gz"
-        tar -xzf libarchive-3.4.2.tar.gz   
+        wget "https://github.com/libarchive/libarchive/releases/download/v3.4.3/libarchive-3.4.3.tar.gz"
+        tar -xzf libarchive-3.4.3.tar.gz
     - name: Build and install libarchive to /usr/local
       run: |
-        pushd libarchive-3.4.2
+        pushd libarchive-3.4.3
         ./configure
         make
         sudo make install
@@ -53,11 +53,11 @@ jobs:
         popd
     - name: Download archlinux-keyring
       run: |
-        wget "https://sources.archlinux.org/other/archlinux-keyring/archlinux-keyring-20200108.tar.gz"
-        tar -xzf archlinux-keyring-20200108.tar.gz
+        wget "https://sources.archlinux.org/other/archlinux-keyring/archlinux-keyring-20200622.tar.gz"
+        tar -xzf archlinux-keyring-20200622.tar.gz
     - name: Build and Install archlinux-keyring
       run: |
-        pushd archlinux-keyring-20200108
+        pushd archlinux-keyring-20200622
         sudo make PREFIX=/usr install
         sudo pacman-key --init
         sudo pacman-key --populate archlinux
@@ -72,4 +72,3 @@ jobs:
         sudo make -C "arch-install-scripts-23" PREFIX=/usr install
     - name: Build Arch Linux/${{ matrix.output_type }}
       run: sudo env PATH="$PATH" LD_LIBRARY_PATH=/usr/local/lib python3 ./mkosi --debug run -d arch -t ${{ matrix.output_type }} -p tzdata -b false --default /dev/null
-  
