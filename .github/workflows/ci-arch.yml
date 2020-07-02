@@ -61,6 +61,7 @@ jobs:
         sudo make PREFIX=/usr install
         sudo pacman-key --init
         sudo pacman-key --populate archlinux
+        sudo pacman-key --refresh-keys
         popd
     - name: Download arch-install-scripts
       run: |
