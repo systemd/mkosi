@@ -4920,73 +4920,63 @@ def build_stuff(args: CommandLineArguments) -> None:
 
     # Make sure tmpfiles' aging doesn't interfere with our workspace
     # while we are working on it.
-    dir_fd = os.open(workspace.name, os.O_RDONLY|os.O_DIRECTORY|os.O_CLOEXEC)
-    fcntl.flock(dir_fd, fcntl.LOCK_EX)
+    with open_close(workspace.name, os.O_RDONLY|os.O_DIRECTORY|os.O_CLOEXEC) as dir_fd:
+        fcntl.flock(dir_fd, fcntl.LOCK_EX)
 
-    root = os.path.join(workspace.name, "root")
+        root = os.path.join(workspace.name, "root")
 
-    # If caching is requested, then make sure we have cache images around we can make use of
-    if need_cache_images(args):
+        # If caching is requested, then make sure we have cache images around we can make use of
+        if need_cache_images(args):
 
-        # There is no point generating a pre-dev cache image if no build script is provided
+            # There is no point generating a pre-dev cache image if no build script is provided
+            if args.build_script:
+                with complete_step("Running first (development) stage to generate cached copy"):
+                    # Generate the cache version of the build image, and store it as "cache-pre-dev"
+                    raw, tar, root_hash = build_image(args, root, do_run_build_script=True, for_cache=True)
+                    save_cache(args, root, raw.name if raw is not None else None, args.cache_pre_dev)
+
+                    remove_artifacts(args, root, raw, tar, do_run_build_script=True)
+
+            with complete_step("Running second (final) stage to generate cached copy"):
+                # Generate the cache version of the build image, and store it as "cache-pre-inst"
+                raw, tar, root_hash = build_image(args, root, do_run_build_script=False, for_cache=True)
+                if raw:
+                    save_cache(args, root, raw.name, args.cache_pre_inst)
+                    remove_artifacts(args, root, raw, tar, do_run_build_script=False)
+
         if args.build_script:
-            with complete_step("Running first (development) stage to generate cached copy"):
-                # Generate the cache version of the build image, and store it as "cache-pre-dev"
-                raw, tar, root_hash = build_image(args, root, do_run_build_script=True, for_cache=True)
-                save_cache(args, root, raw.name if raw is not None else None, args.cache_pre_dev)
+            with complete_step("Running first (development) stage"):
+                # Run the image builder for the first (development) stage in preparation for the build script
+                raw, tar, root_hash = build_image(args, root, do_run_build_script=True)
 
+                run_build_script(args, root, raw)
                 remove_artifacts(args, root, raw, tar, do_run_build_script=True)
 
-        with complete_step("Running second (final) stage to generate cached copy"):
-            # Generate the cache version of the build image, and store it as "cache-pre-inst"
-            raw, tar, root_hash = build_image(args, root, do_run_build_script=False, for_cache=True)
-            if raw:
-                save_cache(args, root, raw.name, args.cache_pre_inst)
-                remove_artifacts(args, root, raw, tar, do_run_build_script=False)
+        # Run the image builder for the second (final) stage
+        if not args.skip_final_phase:
+            with complete_step("Running second (final) stage"):
+                raw, tar, root_hash = build_image(args, root, do_run_build_script=False, cleanup=True)
+        else:
+            print_step('Skipping (second) final image build phase.')
 
-    if args.build_script:
-        with complete_step("Running first (development) stage"):
-            # Run the image builder for the first (development) stage in preparation for the build script
-            raw, tar, root_hash = build_image(args, root, do_run_build_script=True)
+        raw = qcow2_output(args, raw)
+        raw = xz_output(args, raw)
+        root_hash_file = write_root_hash_file(args, root_hash)
+        settings = copy_nspawn_settings(args)
+        checksum = calculate_sha256sum(args, raw, tar, root_hash_file, settings)
+        signature = calculate_signature(args, checksum)
+        bmap = calculate_bmap(args, raw)
 
-            run_build_script(args, root, raw)
-            remove_artifacts(args, root, raw, tar, do_run_build_script=True)
+        link_output(args, root, raw or tar)
+        link_output_root_hash_file(args, root_hash_file.name if root_hash_file is not None else None)
+        link_output_checksum(args, checksum.name if checksum is not None else None)
+        link_output_signature(args, signature.name if signature is not None else None)
+        link_output_bmap(args, bmap.name if bmap is not None else None)
+        link_output_nspawn_settings(args, settings.name if settings is not None else None)
 
-    # Run the image builder for the second (final) stage
-    if not args.skip_final_phase:
-        with complete_step("Running second (final) stage"):
-            raw, tar, root_hash = build_image(args, root, do_run_build_script=False, cleanup=True)
-    else:
-        print_step('Skipping (second) final image build phase.')
+        if root_hash is not None:
+            print_step(f'Root hash is {root_hash}.')
 
-    raw = qcow2_output(args, raw)
-    raw = xz_output(args, raw)
-    root_hash_file = write_root_hash_file(args, root_hash)
-    settings = copy_nspawn_settings(args)
-    checksum = calculate_sha256sum(args, raw, tar, root_hash_file, settings)
-    signature = calculate_signature(args, checksum)
-    bmap = calculate_bmap(args, raw)
-
-    link_output(args, root, raw or tar)
-
-    link_output_root_hash_file(args, root_hash_file.name if root_hash_file is not None else None)
-
-    link_output_checksum(args,
-                         checksum.name if checksum is not None else None)
-
-    link_output_signature(args,
-                          signature.name if signature is not None else None)
-
-    link_output_bmap(args,
-                     bmap.name if bmap is not None else None)
-
-    link_output_nspawn_settings(args,
-                                settings.name if settings is not None else None)
-
-    if root_hash is not None:
-        print_step(f'Root hash is {root_hash}.')
-
-    os.close(dir_fd)
 
 def check_root() -> None:
     if os.getuid() != 0:
