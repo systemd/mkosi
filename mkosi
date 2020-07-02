@@ -1826,7 +1826,7 @@ def install_centos_old(args: CommandLineArguments,
         updates_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=updates"
         extras_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=extras"
         centosplus_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=centosplus"
-        epel_url = f"baseurl=http://download.fedoraproject.org/pub/epel/{epel_release}/x86_64"
+        epel_url = f"mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=epel-{epel_release}&arch=x86_64"
 
     with open(config_file, "w") as f:
         f.write(f"""\
@@ -1893,13 +1893,10 @@ def install_centos_new(args: CommandLineArguments,
         baseos_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=BaseOS"
         extras_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=extras"
         centosplus_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=centosplus"
-        epel_url = f"baseurl=http://download.fedoraproject.org/pub/epel/{epel_release}/Everything/x86_64"
+        epel_url = f"mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=epel-{epel_release}&arch=x86_64"
 
     with open(config_file, "w") as f:
         f.write(f"""\
-[main]
-gpgcheck=1
-
 [AppStream]
 name=CentOS-{args.release} - AppStream
 {appstream_url}
