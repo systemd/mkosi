@@ -83,6 +83,7 @@ class MkosiConfig(object):
             'password': None,
             'password_is_hashed': False,
             'skip_final_phase': False,
+            'prepare_script': None,
             'postinst_script': None,
             'qcow2': False,
             'read_only': False,
