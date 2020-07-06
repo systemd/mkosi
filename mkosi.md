@@ -495,6 +495,18 @@ details see the table below.
   the artifacts that were created locally in `$BUILDDIR`, but
   ultimately plan to discard the final image.
 
+`--prepare-script=`
+
+: Takes a path to an executable that is invoked inside the image
+  right after installing the software packages. It is
+  the last step before the image is cached (if incremental mode is 
+  enabled).
+  This script is invoked inside a `systemd-nspawn` container
+  environment, and thus does not have access to host resources.
+  If this option is not used, but an executable script `mkosi.prepare`
+  is found in the local directory, it is automatically used for this
+  purpose (also see below).
+  
 `--postinst-script=`
 
 : Takes a path to an executable that is invoked inside the final image
@@ -883,6 +895,20 @@ local directory:
 
   The `MKOSI_DEFAULT` environment variable will be set inside of this
   script so that you know which `mkosi.default` (if any) was passed in.
+
+* `mkosi.prepare` may be an executable script. If it exists it is
+  invoked directly after the software packages are installed,
+  from within the image context. It is once called for the *development*
+  image (if this is enabled, see above) with the "build" command line
+  parameter, right before copying the extra tree. It is called a second
+  time for the *final* image with the "final" command line parameter.
+  This script has network access and may be used to install packages
+  from other sources than the distro's package manager (e.g. pip, npm, ...),
+  after all software packages are installed but before the image is 
+  cached (if incremental mode is enabled). 
+  Note that this script is executed directly in the image context with
+  the final root directory in place, without any `$SRCDIR`/`$DESTDIR`
+  setup.
 
 * `mkosi.postinst` may be an executable script. If it exists it is
   invoked as the penultimate step of preparing an image, from within
