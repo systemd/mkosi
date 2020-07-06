@@ -1117,10 +1117,10 @@ def mount_image(args: CommandLineArguments,
         if tmp_dev is not None:
             mount_loop(args, tmp_dev, os.path.join(root, "var/tmp"))
 
-        if args.esp_partno is not None:
+        if args.esp_partno is not None and loopdev is not None:
             mount_loop(args, partition(loopdev, args.esp_partno), os.path.join(root, "efi"))
 
-        if args.xbootldr_partno is not None:
+        if args.xbootldr_partno is not None and loopdev is not None:
             mount_loop(args, partition(loopdev, args.xbootldr_partno), os.path.join(root, "boot"))
 
         # Make sure /tmp and /run are not part of the image
