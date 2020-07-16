@@ -655,6 +655,22 @@ details see the table below.
 `--help`, `-h`
 : Show brief usage information.
 
+`--qemu-headless=`
+
+: When used with the build verb, this option adds `console=ttyS0` to
+  the image's kernel command line and sets the terminal type of the
+  serial console in the image to the terminal type of the host (more
+  specifically, the value of the TERM environment variable passed to
+  mkosi). This makes sure that all terminal features such as colors
+  and shortcuts still work as expected when connecting to the qemu
+  VM over the serial console (for example via `-nographic`).
+
+  When used with the qemu verb, this option adds the `-nographic`
+  option to qemu's command line so qemu starts a headless vm and
+  connects to its serial console from the current terminal instead
+  of launching the VM in a separate window.
+
+
 ## Command Line Parameters and their Settings File Counterparts
 
 Most command line parameters may also be placed in an `mkosi.default`
@@ -715,6 +731,7 @@ which settings file options.
 | `--password=`                | `[Validation]`          | `Password=`               |
 | `--password-is-hashed`       | `[Validation]`          | `PasswordIsHashed=`       |
 | `--extra-search-paths=`      | `[Host]`                | `ExtraSearchPaths=`       |
+| `--qemu-headless`            | `[Host]`                | `QemuHeadless=`           |
 
 Command line options that take no argument are not suffixed with a `=`
 in their long version in the table above. In the `mkosi.default` file
