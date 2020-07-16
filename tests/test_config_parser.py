@@ -106,6 +106,7 @@ class MkosiConfig(object):
             'with_tests': True,
             'xbootldr_size': None,
             'xz': False,
+            'qemu_headless': False,
         }
 
     def __eq__(self, other: [mkosi.CommandLineArguments]) -> bool:
