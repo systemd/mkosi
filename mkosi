@@ -1997,6 +1997,9 @@ def install_centos(args: CommandLineArguments, root: str, do_run_build_script: b
         repos += ["epel"]
         packages += ["epel-release"]
 
+    if args.selinux:
+        packages += ["policycoreutils", "selinux-policy", "selinux-policy-targeted", "libselinux-utils", "setroubleshoot-server", "setools", "setools-console", "mcstrans"]
+
     if do_run_build_script:
         packages += args.build_packages or []
 
@@ -3241,6 +3244,11 @@ def install_unified_kernel(args: CommandLineArguments,
 
             run_workspace_command(args, root, *dracut)
 
+def create_autorelabel_file(args: CommandLineArguments,
+                           root: str) -> None:
+    touch = ["/usr/bin/touch",
+             "/.autorelabel"]
+    run_workspace_command(args, root, *touch)
 
 def secure_boot_sign(args: CommandLineArguments, root: str, do_run_build_script: bool, for_cache: bool) -> None:
     if do_run_build_script:
@@ -3778,6 +3786,8 @@ def create_parser() -> ArgumentParserMkosi:
     group.add_argument("--kernel-command-line", action=SpaceDelimitedListAction, default=['rhgb', 'quiet', 'selinux=0', 'audit=0', 'rw'],
                        help='Set the kernel command line (only bootable images)')
     group.add_argument("--kernel-commandline", action=SpaceDelimitedListAction, dest='kernel_command_line', help=argparse.SUPPRESS) # Compatibility option
+    group.add_argument("--selinux", action=BooleanAction, default=False,
+                       help='Builds the image with SELinux enabled')
     group.add_argument("--secure-boot", action=BooleanAction,
                        help='Sign the resulting kernel/initrd image for UEFI SecureBoot')
     group.add_argument("--secure-boot-key", help="UEFI SecureBoot private key in PEM format", metavar='PATH')
@@ -4339,6 +4349,10 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
 
     args.extra_search_paths = expand_paths(args.extra_search_paths)
 
+    if args.selinux:
+        args.kernel_command_line.remove('selinux=0')
+        args.kernel_command_line.remove('audit=0')
+
     if args.cmdline and args.verb not in MKOSI_COMMANDS_CMDLINE:
         die("Additional parameters only accepted for " + str(MKOSI_COMMANDS_CMDLINE)[1:-1] + " invocations.")
 
@@ -4841,6 +4855,8 @@ def build_image(args: CommandLineArguments,
 
                 if cleanup:
                     clean_package_manager_metadata(root)
+                if args.selinux:
+                    create_autorelabel_file(args, root)
                 reset_machine_id(args, root, do_run_build_script, for_cache)
                 reset_random_seed(args, root)
                 run_finalize_script(args, root, do_run_build_script, for_cache)
