@@ -1,0 +1,14 @@
+name: CI Unit Test
+on: [push]
+jobs:
+  unit-test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions/setup-python@v1
+      with:
+        python-version: '3.x'
+    - name: install mypy via pip
+      run: python3 -m pip install 'mypy==0.770'
+    - name: run mypy on mkosi with settings from setup.cfg
+      run: python3 -m mypy mkosi

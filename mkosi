@@ -48,12 +48,24 @@ from typing import (
     TypeVar,
     Union,
     cast,
+    TYPE_CHECKING,
 )
 
 __version__ = '5'
 
 if sys.version_info < (3, 6):
     sys.exit("Sorry, we need at least Python 3.6.")
+
+
+# These types are only generic during type checking and not at runtime, leading
+# to a TypeError during compilation.
+# Let's be as strict as we can with the description for the usage we have.
+if TYPE_CHECKING:
+    CompletedProcess = subprocess.CompletedProcess[Any]
+    TempDir = tempfile.TemporaryDirectory[str]
+else:
+    CompletedProcess = subprocess.CompletedProcess
+    TempDir = tempfile.TemporaryDirectory
 
 
 MKOSI_COMMANDS_CMDLINE = ("shell", "boot", "qemu")
@@ -79,7 +91,7 @@ def print_error(text: str) -> None:
     sys.stderr.write(f"‣ \033[31;1m{text}\033[0m\n")
 
 
-def run(cmdline: List[str], execvp: bool = False, **kwargs: Any) -> subprocess.CompletedProcess:
+def run(cmdline: List[str], execvp: bool = False, **kwargs: Any) -> CompletedProcess:
     if 'run' in arg_debug:
         sys.stderr.write('+ ' + ' '.join(shlex.quote(x) for x in cmdline) + '\n')
     if execvp:
@@ -125,11 +137,11 @@ class SourceFileTransfer(enum.Enum):
     copy_git_more = "copy-git-more"
     mount = "mount"
 
-    def __str__(self):
-        return self.value
+    def __str__(self) -> str:
+        return cast(str, self.value)
 
     @classmethod
-    def doc(cls):
+    def doc(cls) -> Dict["SourceFileTransfer", str]:
         return {cls.copy_all: "normal file copy",
                 cls.copy_git_cached: "use git-ls-files --cached, ignoring any file that git itself ignores",
                 cls.copy_git_others: "use git-ls-files --others, ignoring any file that git itself ignores",
@@ -267,7 +279,7 @@ class GPTRootTypePair(NamedTuple):
     verity: uuid.UUID
 
 
-def gpt_root_native(arch: str) -> GPTRootTypePair:
+def gpt_root_native(arch: Optional[str]) -> GPTRootTypePair:
     """The tag for the native GPT root partition for the given architecture
 
     Returns a tuple of two tags: for the root partition and for the
@@ -431,7 +443,7 @@ def copy_path(oldpath: str, newpath: str) -> None:
             symlink_f(target, newentry)
             shutil.copystat(entry.path, newentry, follow_symlinks=False)
         else:
-            st = entry.stat(follow_symlinks=False)  # type: ignore  # mypy 0.641 doesn't know about follow_symlinks
+            st = entry.stat(follow_symlinks=False)
             if stat.S_ISREG(st.st_mode):
                 copy_file(entry.path, newentry)
             else:
@@ -450,8 +462,20 @@ def complete_step(text: str, text2: Optional[str] = None) -> Generator[List[Any]
     print_step(text2.format(*args) + '.')
 
 
+# mypy still has problems with generic decorators:
 # https://github.com/python/mypy/issues/1317
-C = TypeVar('C', bound=Callable)
+# When running mypy in strict mode it considers the complete_step decorator
+# untyped. Since the signatures of the decorated functions are very regular, it
+# can be typed with the Union of all signatures. This is not optimal and should
+# be revisited with newer mypy releases.
+C = TypeVar('C',
+            bound=Union[
+                Callable[[CommandLineArguments], None],
+                Callable[[CommandLineArguments, str], None],
+                Callable[[CommandLineArguments, str, bool], None],
+                Callable[[CommandLineArguments, str, bool, bool], None],
+            ]
+)
 completestep = cast(Callable[[str], Callable[[C], C]], complete_step)
 
 
@@ -462,7 +486,7 @@ def init_namespace(args: CommandLineArguments) -> None:
     run(["mount", "--make-rslave", "/"], check=True)
 
 
-def setup_workspace(args: CommandLineArguments) -> tempfile.TemporaryDirectory:
+def setup_workspace(args: CommandLineArguments) -> TempDir:
     print_step("Setting up temporary workspace.")
     if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
         d = tempfile.TemporaryDirectory(dir=os.path.dirname(args.output), prefix='.mkosi-')
@@ -1074,7 +1098,7 @@ def mount_loop(args: CommandLineArguments, dev: str, where: str, read_only: bool
     run(cmd, check=True)
 
 
-def mount_bind(what: str, where: str) -> None:
+def mount_bind(what: str, where: str) -> str:
     os.makedirs(what, 0o755, True)
     os.makedirs(where, 0o755, True)
     run(["mount", "--bind", what, where], check=True)
@@ -1117,10 +1141,10 @@ def mount_image(args: CommandLineArguments,
         if tmp_dev is not None:
             mount_loop(args, tmp_dev, os.path.join(root, "var/tmp"))
 
-        if args.esp_partno is not None:
+        if args.esp_partno is not None and loopdev is not None:
             mount_loop(args, partition(loopdev, args.esp_partno), os.path.join(root, "efi"))
 
-        if args.xbootldr_partno is not None:
+        if args.xbootldr_partno is not None and loopdev is not None:
             mount_loop(args, partition(loopdev, args.xbootldr_partno), os.path.join(root, "boot"))
 
         # Make sure /tmp and /run are not part of the image
@@ -2108,18 +2132,18 @@ def install_arch(args: CommandLineArguments, root: str, do_run_build_script: boo
     # Permissions on these directories are all 0o777 because of `mount --bind`
     # limitations but pacman expects them to be 0o755 so we fix them before
     # calling pacstrap (except /var/tmp which is 0o1777).
-    fix_permissions_dirs = [
-        ["boot", 0o755],
-        ["etc", 0o755],
-        ["etc/pacman.d", 0o755],
-        ["var", 0o755],
-        ["var/lib", 0o755],
-        ["var/cache", 0o755],
-        ["var/cache/pacman", 0o755],
-        ["var/tmp", 0o1777],
-    ]
+    fix_permissions_dirs = {
+        "boot": 0o755,
+        "etc": 0o755,
+        "etc/pacman.d": 0o755,
+        "var": 0o755,
+        "var/lib": 0o755,
+        "var/cache": 0o755,
+        "var/cache/pacman": 0o755,
+        "var/tmp": 0o1777,
+    }
 
-    for dir, permissions in fix_permissions_dirs:
+    for dir, permissions in fix_permissions_dirs.items():
         path = os.path.join(root, dir)
         if os.path.exists(path):
             os.chmod(path, permissions)
@@ -2150,6 +2174,7 @@ SigLevel    = Required DatabaseOptional TrustAll
 {server}
 """)
 
+
         if args.repositories:
             for repository in args.repositories:
                 # repositories must be passed in the form <repo name>::<repo url>
@@ -2167,7 +2192,7 @@ Server = {repository_server}
         # Kill the gpg-agent used by pacman and pacman-key
         run(['gpgconf', '--homedir', os.path.join(root, 'etc/pacman.d/gnupg'), '--kill', 'all'])
 
-    def run_pacman_key(args: List[str]) -> subprocess.CompletedProcess:
+    def run_pacman_key(args: List[str]) -> CompletedProcess:
         cmdline = [
             "pacman-key",
             "--nocolor",
@@ -2260,7 +2285,7 @@ default_image="/boot/initramfs-{kernel}.img"
     if do_run_build_script:
         packages.update(args.build_packages)
 
-    def run_pacman(args: List[str], **kwargs: Any) -> subprocess.CompletedProcess:
+    def run_pacman(args: List[str], **kwargs: Any) -> CompletedProcess:
         cmdline = [
             "pacman",
             "--noconfirm",
@@ -3459,8 +3484,8 @@ def print_output_size(args: CommandLineArguments) -> None:
         print_step("Resulting image size is " + format_bytes(st.st_size) + ", consumes " + format_bytes(st.st_blocks * 512) + ".")  # NOQA: E501
 
 
-def setup_package_cache(args: CommandLineArguments) -> Optional[tempfile.TemporaryDirectory]:
-    d: Optional[tempfile.TemporaryDirectory] = None
+def setup_package_cache(args: CommandLineArguments) -> Optional[TempDir]:
+    d = None
     with complete_step('Setting up package cache',
                        'Setting up package cache {} complete') as output:
         if args.cache_path is None:
@@ -3533,12 +3558,22 @@ class BooleanAction(argparse.Action):
     or implicitly --foo. If the parameter name starts with "not-" or "without-" the value gets
     inverted.
     """
-    def __init__(self, option_strings, dest, nargs=None, const=True, default=False, **kwargs):
+    def __init__(self, # These type-hints are copied from argparse.pyi
+                 option_strings: Sequence[str],
+                 dest: str,
+                 nargs: Optional[Union[int, str]] = None,
+                 const: Any = True,
+                 default: Any = False,
+                 **kwargs: Any) -> None:
         if nargs is not None:
             raise ValueError("nargs not allowed")
         super(BooleanAction, self).__init__(option_strings, dest, nargs='?', const=const, default=default, **kwargs)
 
-    def __call__(self, parser, namespace, values, option_string=None):
+    def __call__(self, # These type-hints are copied from argparse.pyi
+                 parser: argparse.ArgumentParser,
+                 namespace: argparse.Namespace,
+                 values: Union[str, Sequence[Any], None, bool],
+                 option_string: Optional[str] = None) -> None:
         new_value = self.default
         if isinstance(values, str):
             try:
@@ -3605,16 +3640,16 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
 
     fromfile_prefix_chars = '@'
 
-    def __init__(self, *kargs, **kwargs):
+    def __init__(self, *kargs: Any, **kwargs: Any) -> None:
         self._ini_file_section = ""
         self._ini_file_key = ""  # multi line list processing
         self._ini_file_list_mode = False
 
         # Add config files to be parsed
-        kwargs['fromfile_prefix_chars'] = __class__.fromfile_prefix_chars
+        kwargs['fromfile_prefix_chars'] = ArgumentParserMkosi.fromfile_prefix_chars
         super().__init__(*kargs, **kwargs)
 
-    def _read_args_from_files(self, arg_strings):
+    def _read_args_from_files(self, arg_strings: List[str]) -> List[str]:
         """Convert @ prefixed command line arguments with corresponding file content
 
         Regular arguments are just returned. Arguments prefixed with @ are considered as
@@ -3630,13 +3665,13 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
           arg_strings: ['@mkosi.default', '-p', 'httpd']
           return value: ['--distribution', 'fedora', '-p', 'httpd']
         """
-        def camel_to_arg(camel):
+        def camel_to_arg(camel: str) -> str:
             s1 = re.sub('(.)([A-Z][a-z]+)', r'\1-\2', camel)
             return re.sub('([a-z0-9])([A-Z])', r'\1-\2', s1).lower()
 
-        def ini_key_to_cli_arg(key):
+        def ini_key_to_cli_arg(key: str) -> str:
             try:
-                return __class__.SPECIAL_MKOSI_DEFAULT_PARAMS[key]
+                return ArgumentParserMkosi.SPECIAL_MKOSI_DEFAULT_PARAMS[key]
             except KeyError:
                 return '--' + camel_to_arg(key)
 
@@ -3821,7 +3856,7 @@ class MkosiBuildScriptException(Exception):
     """Leads to sys.exit"""
 
 
-def parse_args(argv=None) -> Dict[str, CommandLineArguments]:
+def parse_args(argv: Optional[List[str]]=None) -> Dict[str, CommandLineArguments]:
     """Load default values from files and parse command line arguments
 
     Do all about default files and command line arguments parsing. If --all argument is passed
@@ -3913,12 +3948,10 @@ def parse_args_file(argv_post_parsed: List[str], default_path: str) -> CommandLi
     argv_post_parsed.insert(1, ArgumentParserMkosi.fromfile_prefix_chars+default_path)
     parser = create_parser()
     # parse all parameters handled by mkosi. Parameters forwarded to subprocesses such as nspawn or qemu end up in cmdline_argv.
-    parsed_args = parser.parse_args(argv_post_parsed, CommandLineArguments())
-    args = cast(CommandLineArguments, parsed_args)
-    return args
+    return parser.parse_args(argv_post_parsed, CommandLineArguments())
 
 
-def parse_args_file_group(argv_post_parsed, default_path) -> CommandLineArguments:
+def parse_args_file_group(argv_post_parsed: List[str], default_path: str) -> CommandLineArguments:
     """Parse a set of mkosi.default and mkosi.default.d/* files.
     """
     # Add the @ prefixed filenames to current argument list in inverse priority order.
@@ -3936,9 +3969,7 @@ def parse_args_file_group(argv_post_parsed, default_path) -> CommandLineArgument
     parser = create_parser()
 
     # parse all parameters handled by mkosi. Parameters forwarded to subprocesses such as nspawn or qemu end up in cmdline_argv.
-    parsed_args = parser.parse_args(argv_post_parsed, CommandLineArguments())
-    args = cast(CommandLineArguments, parsed_args)
-    return args
+    return parser.parse_args(argv_post_parsed, CommandLineArguments())
 
 
 def parse_bytes(num_bytes: Optional[str]) -> Optional[int]:
@@ -5102,7 +5133,7 @@ def prepend_to_environ_path(paths: List[str]) -> None:
         os.environ["PATH"] = new_path + ":" + original_path
 
 
-def run_verb(args):
+def run_verb(args: CommandLineArguments) -> None:
     load_args(args)
 
     prepend_to_environ_path(args.extra_search_paths)
