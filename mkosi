@@ -66,6 +66,10 @@ MKOSI_COMMANDS = ("build", "clean", "help", "summary") + MKOSI_COMMANDS_CMDLINE
 arg_debug = ()
 
 
+class MkosiCommandException(Exception):
+    """Leads to sys.exit"""
+
+
 def print_step(text: str) -> None:
     sys.stderr.write("‣ \033[0;1;39m" + text + "\033[0m\n")
 
@@ -82,16 +86,19 @@ def print_error(text: str) -> None:
 def run(cmdline: List[str], execvp: bool = False, **kwargs: Any) -> subprocess.CompletedProcess:
     if 'run' in arg_debug:
         sys.stderr.write('+ ' + ' '.join(shlex.quote(x) for x in cmdline) + '\n')
-    if execvp:
-        assert not kwargs
-        os.execvp(cmdline[0], cmdline)
-    else:
-        return subprocess.run(cmdline, **kwargs)
+    try:
+        if execvp:
+            assert not kwargs
+            os.execvp(cmdline[0], cmdline)
+        else:
+            return subprocess.run(cmdline, **kwargs)
+    except FileNotFoundError as e:
+        raise MkosiCommandException(f"{cmdline[0]} not found in PATH.") from e
 
 
 def die(message: str, status: int = 1) -> NoReturn:
     assert status >= 1 and status < 128
-    print_error(message)
+    print_error(f"Error: {message}")
     sys.exit(status)
 
 
@@ -3817,9 +3824,6 @@ def create_parser() -> ArgumentParserMkosi:
 class MkosiParseException(Exception):
     """Leads to sys.exit"""
 
-class MkosiBuildScriptException(Exception):
-    """Leads to sys.exit"""
-
 
 def parse_args(argv=None) -> Dict[str, CommandLineArguments]:
     """Load default values from files and parse command line arguments
@@ -4866,8 +4870,7 @@ def run_build_script(args: CommandLineArguments, root: str, raw: Optional[Binary
 
         result = run(cmdline)
         if result.returncode != 0:
-            raise MkosiBuildScriptException(
-                f"Build script returned non-zero exit code {result.returncode}.")
+            raise MkosiCommandException(f"Build script returned non-zero exit code {result.returncode}.")
 
 
 def need_cache_images(args: CommandLineArguments) -> bool:
@@ -5147,7 +5150,7 @@ def main() -> None:
                     die("Error: %s is not a directory!" % work_dir)
             with complete_step('Processing ' + job_name):
                 run_verb(a)
-    except (MkosiParseException, MkosiBuildScriptException) as exp:
+    except (MkosiParseException, MkosiCommandException) as exp:
         die(str(exp))
 
 
