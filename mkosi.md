@@ -598,17 +598,19 @@ details see the table below.
 : Generate a `bmap` file for usage with `bmaptool` from the generated
   image file.
 
+`--password-hashed=`
+
+: Set the password hash of the `root` user, that will be written to
+  `/etc/shadow` literally. By default the `root` account is locked. If
+  neither this option nor `--password=` is used but a file
+  `mkosi.rootpw_hashed` exists in the local directory the root
+  password hash is automatically read from it.
+
 `--password=`
 
 : Set the password of the `root` user. By default the `root` account
   is locked. If this option is not used but a file `mkosi.rootpw` exists
   in the local directory the root password is automatically read from it.
-
-`--password-is-hashed`
-
-: Indicate that the password supplied for the `root` user has already been
-  hashed, so that the string supplied with `--password` or `mkosi.rootpw` will
-  be written to `/etc/shadow` literally.
 
 `--extra-search-paths=`
 
@@ -712,8 +714,8 @@ which settings file options.
 | `--sign`                     | `[Validation]`          | `Sign=`                   |
 | `--key=`                     | `[Validation]`          | `Key=`                    |
 | `--bmap`                     | `[Validation]`          | `BMap=`                   |
+| `--password-hashed=`         | `[Validation]`          | `PasswordHashed=`         |
 | `--password=`                | `[Validation]`          | `Password=`               |
-| `--password-is-hashed`       | `[Validation]`          | `PasswordIsHashed=`       |
 | `--extra-search-paths=`      | `[Host]`                | `ExtraSearchPaths=`       |
 
 Command line options that take no argument are not suffixed with a `=`
@@ -922,13 +924,19 @@ local directory:
   set, and it is up to build script to decide whether to do in in-tree
   or an out-of-tree build, and which build directory to use.
 
-* `mkosi.rootpw` may be a file containing the password or hashed
-  password (if `--password-is-hashed` is set) for the root user of the
-  image to set. The password may optionally be followed by a newline
-  character which is implicitly removed. The file must have an access
-  mode of 0600 or less. If this file does not exist the distribution's
-  default root password is set (which usually means access to the root
-  user is blocked).
+* `mkosi.rootpw_hashed` may be a file containing the hashed password
+  for the root user of the image to set. The hashed password may
+  optionally be followed by a newline character which is implicitly
+  removed. The string will be written to `/etc/shadow` literally. The
+  file must have an access mode of 0600 or less. If this file does not
+  exist the file `mkosi.rootpw` will be tried.
+
+* `mkosi.rootpw` may be a file containing the password for the root
+  user of the image to set. The password may optionally be followed by
+  a newline character which is implicitly removed. The file must have
+  an access mode of 0600 or less. If this file does not exist the
+  distribution's default root password is set (which usually means
+  access to the root user is blocked).
 
 * `mkosi.passphrase` may be a passphrase file to use when LUKS
   encryption is selected. It should contain the passphrase literally,

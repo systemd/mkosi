@@ -2503,25 +2503,29 @@ def set_root_password(args: CommandLineArguments, root: str, do_run_build_script
     if for_cache:
         return
 
-    if args.password == '':
-        with complete_step("Deleting root password"):
-            def jj(line: str) -> str:
-                if line.startswith('root:'):
-                    return ':'.join(['root', ''] + line.split(':')[2:])
-                return line
-            patch_file(os.path.join(root, 'etc/passwd'), jj)
+    if args.password_hashed == "" or args.password == "":
+        msg = "Deleting root password"
+        password = ""
+        target = "etc/passwd"
+    elif args.password_hashed:
+        msg = "Setting hashed root password"
+        password = args.password_hashed
+        target = "etc/shadow"
     elif args.password:
-        with complete_step("Setting root password"):
-            if args.password_is_hashed:
-                password = args.password
-            else:
-                password = crypt.crypt(args.password, crypt.mksalt(crypt.METHOD_SHA512))
+        msg = "Setting root password"
+        password = crypt.crypt(args.password, crypt.mksalt(crypt.METHOD_SHA512))
+        target = "etc/shadow"
+    else:
+        return
 
-            def jj(line: str) -> str:
-                if line.startswith('root:'):
-                    return ':'.join(['root', password] + line.split(':')[2:])
-                return line
-            patch_file(os.path.join(root, 'etc/shadow'), jj)
+    def jj(line: str) -> str:
+        nonlocal password
+        if line.startswith('root:'):
+            return ':'.join(['root', password] + line.split(':')[2:])
+        return line
+
+    with complete_step(msg):
+        patch_file(os.path.join(root, target), jj)
 
 
 def run_postinst_script(args: CommandLineArguments, root: str, do_run_build_script: bool, for_cache: bool) -> None:
@@ -3830,8 +3834,7 @@ def create_parser() -> ArgumentParserMkosi:
     group.add_argument("--bmap", action=BooleanAction,
                        help='Write block map file (.bmap) for bmaptool usage (only gpt_ext4, gpt_btrfs)')
     group.add_argument("--password", help='Set the root password')
-    group.add_argument("--password-is-hashed", action=BooleanAction,
-                       help='Indicate that the root password has already been hashed')
+    group.add_argument("--password-hashed", help='Set the root password (prehashed)')
 
     group = parser.add_argument_group("Host configuration")
     group.add_argument("--extra-search-path", dest='extra_search_paths', action=ColonDelimitedListAction, default=[],
@@ -4239,7 +4242,20 @@ def find_passphrase(args: CommandLineArguments) -> None:
 
 
 def find_password(args: CommandLineArguments) -> None:
-    if args.password is not None:
+    if args.password_hashed is not None or args.password is not None:
+        return
+
+    try:
+        require_private_file('mkosi.rootpw_hashed', 'root password (prehashed)')
+
+        with open('mkosi.rootpw_hashed') as f:
+            args.password_hashed = f.read().strip()
+
+    except FileNotFoundError:
+        pass
+    else:
+        # Let's not handle a cleartext root password if we have already found a
+        # hashed one
         return
 
     try:

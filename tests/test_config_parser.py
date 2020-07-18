@@ -80,8 +80,8 @@ class MkosiConfig(object):
             'output_dir': None,
             'output_format': None,
             'packages': [],
+            'password_hashed': None,
             'password': None,
-            'password_is_hashed': False,
             'skip_final_phase': False,
             'postinst_script': None,
             'qcow2': False,
@@ -270,10 +270,10 @@ class MkosiConfig(object):
                 self.reference_config[job_name]['key'] = mk_config_validation['Key']
             if 'BMap' in mk_config_validation:
                 self.reference_config[job_name]['bmap'] = mk_config_validation['BMap']
+            if 'PasswordHashed' in mk_config_validation:
+                self.reference_config[job_name]['password_hashed'] = mk_config_validation['PasswordHashed']
             if 'Password' in mk_config_validation:
                 self.reference_config[job_name]['password'] = mk_config_validation['Password']
-            if 'PasswordIsHashed' in mk_config_validation:
-                self.reference_config[job_name]['password_is_hashed'] = mk_config_validation['PasswordIsHashed']
 
         if 'Host' in mk_config:
             mk_config_host = mk_config['Host']
