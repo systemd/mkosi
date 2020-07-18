@@ -3846,7 +3846,7 @@ def create_parser() -> ArgumentParserMkosi:
 
     group.add_argument('--debug', action=CommaDelimitedListAction, default=[],
                        help='Turn on debugging output', metavar='SELECTOR',
-                       choices=('run',))
+                       choices=('run','build-script'))
     try:
         import argcomplete  # type: ignore
         argcomplete.autocomplete(parser)
@@ -4901,6 +4901,8 @@ def run_build_script(args: CommandLineArguments, root: str, raw: Optional[Binary
 
         result = run(cmdline)
         if result.returncode != 0:
+            if 'build-script' in arg_debug:
+                run(cmdline[:-1])
             raise MkosiCommandException(f"Build script returned non-zero exit code {result.returncode}.")
 
 
