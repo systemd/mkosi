@@ -4395,8 +4395,8 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
                                                                        Distribution.photon):
             die(f"bios boot not implemented yet for {args.distribution}")
 
-            if "uefi" in args.boot_protocols and args.distribution == Distribution.photon:
-                die(f"uefi boot not supported for {args.distribution}")
+        if "uefi" in args.boot_protocols and args.distribution == Distribution.photon:
+            die(f"uefi boot not supported for {args.distribution}")
 
     if args.encrypt is not None:
         if not args.output_format.is_disk():
