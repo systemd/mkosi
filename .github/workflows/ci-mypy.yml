@@ -1,5 +1,13 @@
-name: CI Unit Test
-on: [push]
+name: CI Mypy Type Checking
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
 jobs:
   unit-test:
     runs-on: ubuntu-latest
