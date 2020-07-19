@@ -4666,11 +4666,8 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
     args.xbootldr_size = parse_bytes(args.xbootldr_size)
     args.swap_size = parse_bytes(args.swap_size)
 
-    if args.output_format in (OutputFormat.gpt_ext4, OutputFormat.gpt_btrfs) and args.root_size is None:
-        args.root_size = 1024*1024*1024
-
-    if args.output_format == OutputFormat.gpt_xfs and args.root_size is None:
-        args.root_size = 1300*1024*1024
+    if args.root_size is None:
+        args.root_size = 3*1024*1024*1024
 
     if args.bootable and args.esp_size is None:
         args.esp_size = 256*1024*1024
