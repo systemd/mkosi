@@ -280,6 +280,8 @@ class MkosiConfig(object):
             mk_config_host = mk_config['Host']
             if 'ExtraSearchPaths' in mk_config_host:
                 self._append_list('extra_search_paths', mk_config_host['ExtraSearchPaths'], job_name, ':')
+            if 'QemuHeadless' in mk_config_host:
+                self.reference_config[job_name]['qemu_headless'] = mk_config_host['QemuHeadless']
 
 
 class MkosiConfigOne(MkosiConfig):
@@ -492,6 +494,7 @@ class MkosiConfigManyParams(MkosiConfigOne):
                 },
             'Host': {
                 'ExtraSearchPaths': 'search/here:search/there',
+                'QemuHeadless': True,
                 }
             }
         self._prepare_mkosi_default(directory, mk_config)
@@ -558,6 +561,7 @@ class MkosiConfigManyParams(MkosiConfigOne):
                 },
             'Host': {
                 'ExtraSearchPaths': 'search/ubu',
+                'QemuHeadless': True,
                 }
             }
         self._prepare_mkosi_default_d(directory, mk_config, 1)
@@ -624,6 +628,7 @@ class MkosiConfigManyParams(MkosiConfigOne):
                 },
             'Host': {
                 'ExtraSearchPaths': 'search/debi',
+                'QemuHeadless': True,
                 }
             }
         self._prepare_mkosi_default_d(directory, mk_config, 2)
