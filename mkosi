@@ -1982,11 +1982,11 @@ def install_centos(args: CommandLineArguments, root: str, do_run_build_script: b
     else:
         default_repos = install_centos_old(args, epel_release, config_file)
 
-    packages = ['centos-release']
+    packages = ['centos-release', 'systemd']
     packages += args.packages or []
 
     if args.bootable:
-        packages += ["kernel", "systemd", "binutils"]
+        packages += ["kernel", "binutils"]
 
     if do_run_build_script:
         packages += args.build_packages or []
