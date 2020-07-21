@@ -107,6 +107,7 @@ class MkosiConfig(object):
             'with_tests': True,
             'xbootldr_size': None,
             'xz': False,
+            'zstd': False,
             'qemu_headless': False,
         }
 
@@ -214,6 +215,8 @@ class MkosiConfig(object):
                 self.reference_config[job_name]['mksquashfs_tool'] = mk_config_output['Mksquashfs'].split()
             if 'XZ' in mk_config_output:
                 self.reference_config[job_name]['xz'] = mk_config_output['XZ']
+            if 'ZSTD' in mk_config_output:
+                self.reference_config[job_name]['zstd'] = mk_config_output['ZSTD']
             if 'QCow2' in mk_config_output:
                 self.reference_config[job_name]['qcow2'] = mk_config_output['QCow2']
             if 'Hostname' in mk_config_output:

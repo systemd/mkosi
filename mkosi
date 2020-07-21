@@ -2974,13 +2974,18 @@ def make_tar(args: CommandLineArguments,
     if for_cache:
         return None
 
+    if args.zstd:
+        filter_archive = '--zstd'
+    else:
+        filter_archive = '-J'
+
     with complete_step('Creating archive'):
         f: BinaryIO = cast(BinaryIO, tempfile.NamedTemporaryFile(dir=os.path.dirname(args.output), prefix=".mkosi-"))
 # OpenMandriva defaults to bsdtar(libarchive) which uses POSIX argument list so let's keep a separate list
         if shutil.which('bsdtar') and args.distribution == Distribution.openmandriva:
-           _tar_cmd = ["bsdtar", "-C", root, "-c", "-J", "--xattrs", "-f", "-", "."]
+           _tar_cmd = ["bsdtar", "-C", root, "-c", filter_archive, "--xattrs", "-f", "-", "."]
         else:
-           _tar_cmd = ["tar", "-C", root, "-c", "-J", "--xattrs", "--xattrs-include=*", "."]
+           _tar_cmd = ["tar", "-C", root, "-c", filter_archive, "--xattrs", "--xattrs-include=*", "."]
 
         run(_tar_cmd,
             env={"XZ_OPT": "-T0"},
@@ -3365,19 +3370,21 @@ def secure_boot_sign(args: CommandLineArguments, root: str, do_run_build_script:
                 os.rename(p + ".signed", p)
 
 
-def xz_output(args: CommandLineArguments, raw: Optional[BinaryIO]) -> Optional[BinaryIO]:
+def compress_output(args: CommandLineArguments, raw: Optional[BinaryIO]) -> Optional[BinaryIO]:
     if not args.output_format.is_disk():
         return raw
     assert raw is not None
 
-    if not args.xz:
+    if args.xz:
+        comp_binary = "pxz" if shutil.which("pxz") else "xz"
+    elif args.zstd:
+        comp_binary = "pzstd" if shutil.which("pzstd") else "zstd"
+    else:
         return raw
-
-    xz_binary = "pxz" if shutil.which("pxz") else "xz"
 
     with complete_step('Compressing image file'):
         f: BinaryIO = cast(BinaryIO, tempfile.NamedTemporaryFile(prefix=".mkosi-", dir=os.path.dirname(args.output)))
-        run([xz_binary, "-c", raw.name], stdout=f, check=True)
+        run([comp_binary, "-c", raw.name], stdout=f, check=True)
 
     return f
 
@@ -3756,6 +3763,7 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
         'QCow2': '--qcow2',
         'OutputDirectory': '--output-dir',
         'XZ': '--xz',
+        'ZSTD': '--zstd',
         'NSpawnSettings': '--settings',
         'ESPSize': '--esp-size',
         'CheckSum': '--checksum',
@@ -3846,6 +3854,7 @@ def create_parser() -> ArgumentParserMkosi:
     parser = ArgumentParserMkosi(description='Build Legacy-Free OS Images', add_help=False)
 
     group = parser.add_argument_group("Commands")
+    subgroup = group.add_mutually_exclusive_group()
     group.add_argument("verb", choices=MKOSI_COMMANDS, default="build", help='Operation to execute')
     group.add_argument("cmdline", nargs=argparse.REMAINDER, help="The command line to use for " + str(MKOSI_COMMANDS_CMDLINE)[1:-1])
     group.add_argument('-h', '--help', action='help', help="Show this help")
@@ -3886,8 +3895,10 @@ def create_parser() -> ArgumentParserMkosi:
                        help='Enable compression in file system (only gpt_btrfs, subvolume, gpt_squashfs, plain_squashfs)')
     group.add_argument('--mksquashfs', dest='mksquashfs_tool', type=str.split,
                        help='Script to call instead of mksquashfs')
-    group.add_argument("--xz", action=BooleanAction,
-                       help='Compress resulting image with xz (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs, implied on tar)')  # NOQA: E501
+    subgroup.add_argument("--xz", action=BooleanAction,
+                       help='Compress resulting image with xz (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs, implied on tar. Conflicts with --zstd option.)')  # NOQA: E501
+    subgroup.add_argument("--zstd", action=BooleanAction,
+                       help='Compress resulting image with zstd (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs. Conflicts with --xz option.)')
     group.add_argument("--qcow2", action=BooleanAction,
                        help='Convert resulting image to qcow2 (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs)')
     group.add_argument("--hostname", help="Set hostname")
@@ -4398,6 +4409,8 @@ def strip_suffixes(path: str) -> str:
             t = t[:-4]
         elif t.endswith(".tar"):
             t = t[:-4]
+        elif t.endswith(".zst"):
+            t = t[:-4]
         elif t.endswith(".qcow2"):
             t = t[:-6]
         else:
@@ -4542,9 +4555,9 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
         if args.output_format.is_disk():
             args.output = ('image' +
                            ('.qcow2' if args.qcow2 else '.raw') +
-                           ('.xz' if args.xz else ''))
+                           ('.xz' if args.xz else '.zst' if args.zstd else ''))
         elif args.output_format == OutputFormat.tar:
-            args.output = "image.tar.xz"
+            args.output = "image.tar" + ".xz" if args.xz else ".zst" if args.zstd else ""
         else:
             args.output = "image"
 
@@ -4660,6 +4673,8 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
             die("Sorry, can't acquire shell in or boot a tar archive.")
         if args.xz:
             die("Sorry, can't acquire shell in or boot an XZ compressed image.")
+        if args.zstd:
+            die("Sorry, can't acquire shell in or boot a ZSTD compressed image.")
 
     if args.verb in ("shell", "boot"):
         if args.qcow2:
@@ -4764,6 +4779,7 @@ def print_summary(args: CommandLineArguments) -> None:
     sys.stderr.write("        FS Compression: " + yes_no(args.compress) + detail + "\n")
 
     sys.stderr.write("        XZ Compression: " + yes_no(args.xz) + "\n")
+    sys.stderr.write("      ZSTD Compression: " + yes_no(args.zstd) + "\n")
     if args.mksquashfs_tool:
         sys.stderr.write("       Mksquashfs tool: " + ' '.join(args.mksquashfs_tool) + "\n")
 
@@ -5131,7 +5147,7 @@ def build_stuff(args: CommandLineArguments) -> None:
             print_step('Skipping (second) final image build phase.')
 
         raw = qcow2_output(args, raw)
-        raw = xz_output(args, raw)
+        raw = compress_output(args, raw)
         root_hash_file = write_root_hash_file(args, root_hash)
         settings = copy_nspawn_settings(args)
         checksum = calculate_sha256sum(args, raw, tar, root_hash_file, settings)

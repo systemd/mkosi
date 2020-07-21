@@ -78,7 +78,7 @@ options are available:
 * Optionally, share *RPM*/*DEB* package cache between multiple runs,
   in order to optimize build speeds.
 
-* Optionally, the resulting image may be compressed with *XZ*.
+* Optionally, the resulting image may be compressed with *XZ* or *ZSTD*.
 
 * Optionally, the resulting image may be converted into a *QCOW2* file
   suitable for `qemu` storage.
@@ -318,7 +318,7 @@ details see the table below.
 
 : Compress the generated file systems. Only applies to `gpt_btrfs`,
   `subvolume`, `gpt_squashfs`, `plain_squashfs`. Takes one of `zlib`,
-  `lzo`, `zstd`, `lz4`, `xz` or a boolean value as argument. If the
+  `lzo`, `zstd`, `lz4`, `xz`, `zstd` or a boolean value as argument. If the
   latter is used compression is enabled/disabled and the default
   algorithm is used. In case of the `squashfs` output formats
   compression is implied, however this option may be used to select
@@ -339,6 +339,16 @@ details see the table below.
   this means the image cannot be started directly but needs to be
   decompressed first. This also means that the `shell`, `boot`, `qemu`
   verbs are not available when this option is used.
+
+`--zstd`
+
+: Compress the resulting image with `zstd`. This only applies to
+  `gpt_ext4`, `gpt_xfs`, `gpt_btrfs`, `gpt_squashfs` and is implied
+  for `tar`. Note that when applied to the block device image types
+  this means the image cannot be started directly but needs to be
+  decompressed first. This also means that the `shell`, `boot`, `qemu`
+  verbs are not available when this option is used. This options conflicts
+  with `--xz`.
 
 `--qcow2`
 
@@ -713,6 +723,7 @@ which settings file options.
 | `--compress=`                | `[Output]`              | `Compress=`               |
 | `--mksquashfs=`              | `[Output]`              | `Mksquashfs=`             |
 | `--xz`                       | `[Output]`              | `XZ=`                     |
+| `--zstd`                     | `[Output]`              | `ZSTD=`                   |
 | `--qcow2`                    | `[Output]`              | `QCow2=`                  |
 | `--hostname=`                | `[Output]`              | `Hostname=`               |
 | `--package=`                 | `[Packages]`            | `Packages=`               |
