@@ -265,6 +265,11 @@ details see the table below.
   to the kernel command line created by lower priority configuration
   files or previous --kernel-command-line command line arguments.
 
+`--firstboot`
+
+: Do not generate /etc/machine-id file. This is useful, for images that 
+  shall trigger systemd-firstboot.service.
+
 `--secure-boot`
 
 : Sign the resulting kernel/initrd image for UEFI SecureBoot
@@ -692,6 +697,7 @@ which settings file options.
 | `--bootable`, `-b`           | `[Output]`              | `Bootable=`               |
 | `--boot-protocols=`          | `[Output]`              | `BootProtocols=`          |
 | `--kernel-command-line=`     | `[Output]`              | `KernelCommandLine=`      |
+| `--firstboot`                | `[Output]`              | `FirstBoot=`              |
 | `--secure-boot`              | `[Output]`              | `SecureBoot=`             |
 | `--secure-boot-key=`         | `[Output]`              | `SecureBootKey=`          |
 | `--secure-boot-certificate=` | `[Output]`              | `SecureBootCertificate=`  |

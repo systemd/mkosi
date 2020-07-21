@@ -89,6 +89,7 @@ class MkosiConfig(object):
             'release': None,
             'repositories': [],
             'root_size': None,
+            'firstboot': False,
             'secure_boot': False,
             'secure_boot_certificate': None,
             'secure_boot_key': None,
@@ -195,6 +196,8 @@ class MkosiConfig(object):
                 self._append_list('boot_protocols', mk_config_output['BootProtocols'], job_name)
             if 'KernelCommandLine' in mk_config_output:
                 self._append_list('kernel_command_line', mk_config_output['KernelCommandLine'], job_name, ' ')
+            if 'FirstBoot' in mk_config_output:
+                self.reference_config[job_name]['first_boot'] = mk_config_output['FirstBoot']
             if 'SecureBoot' in mk_config_output:
                 self.reference_config[job_name]['secure_boot'] = mk_config_output['SecureBoot']
             if 'SecureBootKey' in mk_config_output:
