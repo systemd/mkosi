@@ -22,6 +22,7 @@ jobs:
           - debian
           - ubuntu
           - fedora
+          - openmandriva
         format:
           - directory
           - tar
@@ -93,7 +94,7 @@ jobs:
         ARCH_INSTALL_SCRIPTS_VERSION: "23"
 
     - name: Install dependencies (CentOS Linux)
-      if: startsWith(matrix.distro, 'centos') || matrix.distro == 'fedora'
+      if: startsWith(matrix.distro, 'centos') || matrix.distro == 'fedora' || matrix.distro == 'openmandriva'
       run: |
         wget https://github.com/rpm-software-management/libcomps/archive/libcomps-$LIBCOMPS_VERSION.tar.gz
         tar xf libcomps-$LIBCOMPS_VERSION.tar.gz
