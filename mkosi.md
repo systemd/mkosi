@@ -156,7 +156,7 @@ details see the table below.
 `--distribution=`, `-d`
 : The distribution to install in the image. Takes one of the following
   arguments: `fedora`, `debian`, `ubuntu`, `arch`, `opensuse`,
-  `mageia`, `centos`, `clear`, `photon`. If not specified, defaults to the
+  `mageia`, `centos`, `clear`, `photon`, `openmandriva`. If not specified, defaults to the
   distribution of the host.
 
 `--release=`, `-r`
@@ -773,12 +773,14 @@ following *OS*es.
 
 * *Photon*
 
+* *OpenMandriva*
+
 In theory, any distribution may be used on the host for building
 images containing any other distribution, as long as the necessary
 tools are available. Specifically, any distribution that packages
 `debootstrap` may be used to build *Debian* or *Ubuntu* images. Any
-distribution that packages `dnf` may be used to build *Fedora* or
-*Mageia* images. Any distro that packages `pacstrap` may be used to
+distribution that packages `dnf` may be used to build *Fedora*,
+*Mageia* or *OpenMandriva* images. Any distro that packages `pacstrap` may be used to
 build *Arch Linux* images. Any distribution that packages `zypper` may
 be used to build *openSUSE* images. Any distribution that packages
 `yum` (or the newer replacement `dnf`) may be used to build *CentOS*
@@ -829,7 +831,7 @@ local directory:
 
 * `mkosi.default` may be used to configure mkosi's image building
   process. For example, you may configure the distribution to use
-  (`fedora`, `ubuntu`, `debian`, `arch`, `opensuse`, `mageia`) for the
+  (`fedora`, `ubuntu`, `debian`, `arch`, `opensuse`, `mageia`, `openmandriva`) for the
   image, or additional distribution packages to install. Note that all
   options encoded in this configuration file may also be set on the
   command line, and this file is hence little more than a way to make
@@ -1182,7 +1184,7 @@ Hostname=image
 
 # REQUIREMENTS
 
-mkosi is packaged for various distributions: Debian, Ubuntu, Arch (in AUR), Fedora.
+mkosi is packaged for various distributions: Debian, Ubuntu, Arch (in AUR), Fedora, OpenMandriva.
 It is usually easiest to use the distribution package.
 
 The current version requires systemd 233 (or actually, systemd-nspawn of it).
