@@ -35,6 +35,9 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
+    - name: Update
+      run: sudo apt-get update
+
     - name: Install dependencies
       run: sudo apt-get --assume-yes --no-install-recommends install
             asciidoc
