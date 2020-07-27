@@ -21,6 +21,7 @@ import platform
 import re
 import shlex
 import shutil
+import signal
 import stat
 import string
 import subprocess
@@ -50,6 +51,7 @@ from typing import (
     cast,
     TYPE_CHECKING,
 )
+from types import FrameType
 
 __version__ = '5'
 
@@ -95,6 +97,31 @@ def print_error(text: str) -> None:
     sys.stderr.write(f"‣ \033[31;1m{text}\033[0m\n")
 
 
+@contextlib.contextmanager
+def delay_interrupt() -> Generator[None, None, None]:
+    # CTRL+C is sent to the entire process group. We delay its handling in mkosi itself so the subprocess can
+    # exit cleanly before doing mkosi's cleanup. If we don't do this, we get device or resource is busy
+    # errors when unmounting stuff later on during cleanup. We only delay a single CTRL+C interrupt so that a
+    # user can always exit mkosi even if a subprocess hangs by pressing CTRL+C twice.
+    interrupted = False
+    def handler(signal: int, frame: FrameType) -> None:
+        nonlocal interrupted
+        if interrupted:
+            raise KeyboardInterrupt()
+        else:
+            interrupted = True
+
+    s = signal.signal(signal.SIGINT, handler)
+
+    try:
+        yield
+    finally:
+        signal.signal(signal.SIGINT, s)
+
+        if interrupted:
+            die("Interrupted")
+
+
 def run(cmdline: List[str], execvp: bool = False, **kwargs: Any) -> CompletedProcess:
     if 'run' in arg_debug:
         sys.stderr.write('+ ' + ' '.join(shlex.quote(x) for x in cmdline) + '\n')
@@ -103,7 +130,8 @@ def run(cmdline: List[str], execvp: bool = False, **kwargs: Any) -> CompletedPro
             assert not kwargs
             os.execvp(cmdline[0], cmdline)
         else:
-            return subprocess.run(cmdline, **kwargs)
+            with delay_interrupt():
+                return subprocess.run(cmdline, **kwargs)
     except FileNotFoundError as e:
         die(f"{cmdline[0]} not found in PATH.")
 
