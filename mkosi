@@ -4669,6 +4669,9 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
         if not args.output_format.is_disk():
             die("Sorry, can't boot non-disk images with qemu.")
 
+    if args.qemu_headless and not args.bootable:
+        die("--qemu-headless requires --bootable")
+
     if args.qemu_headless and "console=ttyS0" not in args.kernel_command_line:
         args.kernel_command_line.append("console=ttyS0")
 
