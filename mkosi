@@ -1616,7 +1616,7 @@ gpgkey={gpg_key_string}
 """)
 
     packages = ["minimal"]
-    if args.bootable:
+    if not do_run_build_script and args.bootable:
         packages += ["linux", "initramfs"]
 
     invoke_tdnf(args, root,
@@ -1636,7 +1636,7 @@ def install_clear(args: CommandLineArguments, root: str, do_run_build_script: bo
     packages = ['os-core'] + args.packages
     if do_run_build_script:
         packages.extend(args.build_packages)
-    if args.bootable:
+    if not do_run_build_script and args.bootable:
         packages += ['kernel-native']
 
     swupd_extract = shutil.which("swupd-extract")
@@ -1730,7 +1730,7 @@ gpgkey={gpg_key}
 
     packages = ['fedora-release', 'glibc-minimal-langpack']
     packages += args.packages or []
-    if args.bootable:
+    if not do_run_build_script and args.bootable:
         packages += ['kernel-core', 'systemd-udev', 'binutils']
     if do_run_build_script:
         packages += args.build_packages or []
@@ -1781,7 +1781,7 @@ gpgkey={gpg_key}
 
     packages = ["basesystem-minimal"]
     packages += args.packages or []
-    if args.bootable:
+    if not do_run_build_script and args.bootable:
         packages += ["kernel-server-latest", "binutils"]
     if do_run_build_script:
         packages += args.build_packages or []
@@ -1843,7 +1843,7 @@ gpgkey={gpg_key_string}
 
     packages = ["basesystem-minimal", "systemd"] # well we may use basesystem here, but that pulls lot of stuff
     packages += args.packages or []
-    if args.bootable:
+    if not do_run_build_script and args.bootable:
         packages += ["kernel-release-server", "binutils", "systemd-boot", "dracut", "timezone", "systemd-cryptsetup"]
     if do_run_build_script:
         packages += args.build_packages or []
@@ -2047,7 +2047,7 @@ def install_centos(args: CommandLineArguments, root: str, do_run_build_script: b
     packages = ['centos-release', 'systemd']
     packages += args.packages or []
 
-    if args.bootable:
+    if not do_run_build_script and args.bootable:
         packages += ["kernel", "binutils"]
 
     if do_run_build_script:
@@ -2101,7 +2101,7 @@ def install_debian_or_ubuntu(args: CommandLineArguments,
 
     cmdline += [args.release, root, mirror]
 
-    if args.bootable and args.output_format == OutputFormat.gpt_btrfs:
+    if not do_run_build_script and args.bootable and args.output_format == OutputFormat.gpt_btrfs:
         cmdline[4] += ",btrfs-progs"
 
     run(cmdline, check=True)
@@ -2123,7 +2123,7 @@ def install_debian_or_ubuntu(args: CommandLineArguments,
     with open(os.path.join(root, "etc/dracut.conf.d/99-generic.conf"), "w") as f:
         f.write("hostonly=no")
 
-    if args.bootable:
+    if not do_run_build_script and args.bootable:
         extra_packages += ["dracut", "usrmerge"]
         if args.distribution == Distribution.ubuntu:
             extra_packages += ["linux-generic"]
@@ -2460,10 +2460,10 @@ def install_opensuse(args: CommandLineArguments, root: str, do_run_build_script:
     else:
         packages += ["patterns-base-minimal_base"]
 
-    if args.bootable:
+    if not do_run_build_script and args.bootable:
         packages += ["kernel-default"]
 
-    if args.encrypt:
+    if not do_run_build_script and args.encrypt:
         packages += ["device-mapper"]
 
     if args.output_format in (OutputFormat.subvolume, OutputFormat.gpt_btrfs):
@@ -2491,7 +2491,7 @@ def install_opensuse(args: CommandLineArguments, root: str, do_run_build_script:
     # Tune dracut confs: openSUSE uses an old version of dracut that's
     # probably explain why we need to do those hacks.
     #
-    if args.bootable:
+    if not do_run_build_script and args.bootable:
         os.makedirs(os.path.join(root, "etc/dracut.conf.d"), exist_ok=True)
 
         with open(os.path.join(root, "etc/dracut.conf.d/99-mkosi.conf"), "w") as f:
