@@ -4461,15 +4461,15 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
 
     if args.release is None:
         if args.distribution == Distribution.fedora:
-            args.release = "29"
+            args.release = "32"
         elif args.distribution in (Distribution.centos, Distribution.centos_epel):
-            args.release = "7"
+            args.release = "8"
         elif args.distribution == Distribution.mageia:
-            args.release = "6"
+            args.release = "7"
         elif args.distribution == Distribution.debian:
             args.release = "unstable"
         elif args.distribution == Distribution.ubuntu:
-            args.release = "artful"
+            args.release = "focal"
         elif args.distribution == Distribution.opensuse:
             args.release = "tumbleweed"
         elif args.distribution == Distribution.clear:
