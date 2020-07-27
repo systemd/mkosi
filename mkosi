@@ -78,7 +78,7 @@ MKOSI_COMMANDS = ("build", "clean", "help", "summary") + MKOSI_COMMANDS_CMDLINE
 arg_debug = ()
 
 
-class MkosiCommandException(Exception):
+class MkosiException(Exception):
     """Leads to sys.exit"""
 
 
@@ -105,13 +105,12 @@ def run(cmdline: List[str], execvp: bool = False, **kwargs: Any) -> CompletedPro
         else:
             return subprocess.run(cmdline, **kwargs)
     except FileNotFoundError as e:
-        raise MkosiCommandException(f"{cmdline[0]} not found in PATH.") from e
+        die(f"{cmdline[0]} not found in PATH.")
 
 
-def die(message: str, status: int = 1) -> NoReturn:
-    assert status >= 1 and status < 128
+def die(message: str) -> NoReturn:
     print_error(f"Error: {message}")
-    sys.exit(status)
+    raise MkosiException(message)
 
 
 def warn(message: str, *args: Any, **kwargs: Any) -> None:
@@ -1642,7 +1641,7 @@ def install_clear(args: CommandLineArguments, root: str, do_run_build_script: bo
     swupd_extract = shutil.which("swupd-extract")
 
     if swupd_extract is None:
-        print("""
+        die("""
 Couldn't find swupd-extract program, download (or update it) it using:
 
   go get -u github.com/clearlinux/mixer-tools/swupd-extract
@@ -1650,7 +1649,6 @@ Couldn't find swupd-extract program, download (or update it) it using:
 and it will be installed by default in ~/go/bin/swupd-extract. Also
 ensure that you have openssl program in your system.
 """)
-        raise FileNotFoundError("Couldn't find swupd-extract")
 
     print(f'Using {swupd_extract}')
 
@@ -3980,10 +3978,6 @@ def create_parser() -> ArgumentParserMkosi:
     return parser
 
 
-class MkosiParseException(Exception):
-    """Leads to sys.exit"""
-
-
 def parse_args(argv: Optional[List[str]]=None) -> Dict[str, CommandLineArguments]:
     """Load default values from files and parse command line arguments
 
@@ -4050,13 +4044,13 @@ def parse_args(argv: Optional[List[str]]=None) -> Dict[str, CommandLineArguments
         default_path = os.path.join(directory, "mkosi.default")
 
     if args_pre_parsed.all and args_pre_parsed.default_path:
-        raise MkosiParseException("--all and --default= may not be combined.")
+        die("--all and --default= may not be combined.")
 
     # Parse everything in --all mode
     args_all = {}
     if args_pre_parsed.all:
         if not os.path.isdir(all_directory):
-            raise MkosiParseException("all-directory %s does not exist." % all_directory)
+            die("all-directory %s does not exist." % all_directory)
         for f in os.scandir(all_directory):
             if not f.name.startswith("mkosi."):
                 continue
@@ -5039,7 +5033,7 @@ def run_build_script(args: CommandLineArguments, root: str, raw: Optional[Binary
         if result.returncode != 0:
             if 'build-script' in arg_debug:
                 run(cmdline[:-1])
-            raise MkosiCommandException(f"Build script returned non-zero exit code {result.returncode}.")
+            die(f"Build script returned non-zero exit code {result.returncode}.")
 
 
 def need_cache_images(args: CommandLineArguments) -> bool:
@@ -5323,8 +5317,8 @@ def main() -> None:
                     die("Error: %s is not a directory!" % work_dir)
             with complete_step('Processing ' + job_name):
                 run_verb(a)
-    except (MkosiParseException, MkosiCommandException) as exp:
-        die(str(exp))
+    except MkosiException:
+        sys.exit(1)
 
 
 if __name__ == "__main__":
