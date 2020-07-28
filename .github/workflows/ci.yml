@@ -229,4 +229,3 @@ jobs:
             --debug run
             --distribution ${{ matrix.distro }}
             --format ${{ matrix.format }}
-            --default /dev/null
