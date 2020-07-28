@@ -4436,6 +4436,15 @@ def build_root_hash_file_path(path: str) -> str:
     return strip_suffixes(path) + ".roothash"
 
 
+def check_valid_script(path: str) -> None:
+    if not os.path.exists(path):
+        die(f"{path} does not exist")
+    if not os.path.isfile(path):
+        die(f"{path} is not a file")
+    if not os.access(path, os.X_OK):
+        die(f"{path} is not executable")
+
+
 def load_args(args: CommandLineArguments) -> CommandLineArguments:
     global arg_debug
     arg_debug = args.debug
@@ -4616,6 +4625,7 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
         args.output_nspawn_settings = build_nspawn_settings_path(args.output)
 
     if args.build_script is not None:
+        check_valid_script(args.build_script)
         args.build_script = os.path.abspath(args.build_script)
 
     if args.build_sources is not None:
@@ -4625,12 +4635,15 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
         args.build_dir = os.path.abspath(args.build_dir)
 
     if args.postinst_script is not None:
+        check_valid_script(args.postinst_script)
         args.postinst_script = os.path.abspath(args.postinst_script)
 
     if args.prepare_script is not None:
+        check_valid_script(args.prepare_script)
         args.prepare_script = os.path.abspath(args.prepare_script)
 
     if args.finalize_script is not None:
+        check_valid_script(args.finalize_script)
         args.finalize_script = os.path.abspath(args.finalize_script)
 
     if args.cache_path is not None:
