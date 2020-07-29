@@ -2074,7 +2074,7 @@ def install_centos(args: CommandLineArguments, root: str, do_run_build_script: b
     packages += args.packages or []
 
     if not do_run_build_script and args.bootable:
-        packages += ["kernel", "binutils"]
+        packages += ["kernel", "systemd-udev", "binutils"]
 
     if do_run_build_script:
         packages += args.build_packages or []
