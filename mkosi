@@ -1754,7 +1754,7 @@ name=Fedora {args.release} - updates
 gpgkey={gpg_key}
 """)
 
-    packages = ['fedora-release', 'glibc-minimal-langpack']
+    packages = ['fedora-release', 'glibc-minimal-langpack', 'systemd']
     packages += args.packages or []
     if not do_run_build_script and args.bootable:
         packages += ['kernel-core', 'systemd-udev', 'binutils']
