@@ -23,6 +23,7 @@ jobs:
           - ubuntu
           - fedora
           - openmandriva
+          - mageia
         format:
           - directory
           - tar
@@ -97,7 +98,7 @@ jobs:
         ARCH_INSTALL_SCRIPTS_VERSION: "23"
 
     - name: Install dependencies (CentOS Linux)
-      if: startsWith(matrix.distro, 'centos') || matrix.distro == 'fedora' || matrix.distro == 'openmandriva'
+      if: startsWith(matrix.distro, 'centos') || matrix.distro == 'fedora' || matrix.distro == 'openmandriva' || matrix.distro == 'mageia'
       run: |
         wget https://github.com/rpm-software-management/libcomps/archive/libcomps-$LIBCOMPS_VERSION.tar.gz
         tar xf libcomps-$LIBCOMPS_VERSION.tar.gz
