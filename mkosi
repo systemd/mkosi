@@ -1545,10 +1545,9 @@ def clean_tdnf_metadata(root: str) -> None:
 def invoke_dnf(args: CommandLineArguments,
                root: str,
                repositories: List[str],
-               packages: List[str],
-               config_file: str) -> None:
+               packages: List[str]) -> None:
     repos = ["--enablerepo=" + repo for repo in repositories]
-
+    config_file = os.path.join(workspace(root), 'dnf.conf')
     packages = make_rpm_list(args, packages)
 
     cmdline = ["dnf",
@@ -1577,13 +1576,9 @@ def invoke_dnf(args: CommandLineArguments,
     with mount_api_vfs(args, root):
         run(cmdline, check=True)
 
-def invoke_tdnf(args: CommandLineArguments,
-                root: str,
-                repositories: List[str],
-                packages: List[str],
-                config_file: str) -> None:
+def invoke_tdnf(args: CommandLineArguments, root: str, repositories: List[str], packages: List[str]) -> None:
     repos = ["--enablerepo=" + repo for repo in repositories]
-
+    config_file = os.path.join(workspace(root), 'dnf.conf')
     packages = make_rpm_list(args, packages)
 
     cmdline = ["tdnf",
@@ -1600,56 +1595,63 @@ def invoke_tdnf(args: CommandLineArguments,
     with mount_api_vfs(args, root):
         run(cmdline, check=True)
 
+class Repo(NamedTuple):
+    id: str
+    name: str
+    url: str
+    gpgpath: str
+    gpgurl: Optional[str] = None
+
+def setup_dnf(args: CommandLineArguments, root: str, repos: List[Repo] = []) -> None:
+    gpgcheck = True
+
+    repo_file = os.path.join(workspace(root), "temp.repo")
+    with open(repo_file, 'w') as f:
+        for repo in repos:
+            gpgkey: Optional[str] = None
+
+            if os.path.exists(repo.gpgpath):
+                gpgkey = f'file://{repo.gpgpath}'
+            elif repo.gpgurl:
+                gpgkey = repo.gpgurl
+            else:
+                warn(f"GPG key not found at {repo.gpgpath}. Not checking GPG signatures.")
+                gpgcheck = False
+
+            f.write(f"""\
+[{repo.id}]
+name={repo.name}
+{repo.url}
+gpgkey={gpgkey or ''}
+""")
+
+    config_file = os.path.join(workspace(root), "dnf.conf")
+    with open(config_file, "w") as f:
+        f.write(f"""\
+[main]
+gpgcheck={'1' if gpgcheck else '0'}
+{"repodir" if args.distribution == Distribution.photon else "reposdir"}={workspace(root)}
+""")
+
+
 @completestep('Installing Photon')
 def install_photon(args: CommandLineArguments, root: str, do_run_build_script: bool) -> None:
     masked = disable_kernel_install(args, root)
 
-    gpg_key = '/etc/pki/rpm-gpg/VMWARE-RPM-GPG-KEY'
-    gpg_key_string = f'file://{gpg_key}'
+    release_url = "baseurl=https://dl.bintray.com/vmware/photon_release_$releasever_$basearch"
+    updates_url = "baseurl=https://dl.bintray.com/vmware/photon_updates_$releasever_$basearch"
+    gpgpath='/etc/pki/rpm-gpg/VMWARE-RPM-GPG-KEY'
 
-    if os.path.exists(gpg_key):
-        gpgcheck = "gpgcheck=1"
-        cmdline = ["rpm", "--import", gpg_key, "--root", root]
-        run(cmdline, check=True)
-
-    else:
-        gpgcheck = "gpgcheck=0"
-
-    release_url = "https://dl.bintray.com/vmware/photon_release_$releasever_$basearch"
-    updates_url = "https://dl.bintray.com/vmware/photon_updates_$releasever_$basearch"
-
-    config_file = os.path.join(workspace(root), "tdnf.conf")
-    repo_file = os.path.join(workspace(root), "temp.repo")
-    with open(config_file, "w") as f:
-        f.write(f"""\
-[main]
-{gpgcheck}
-repodir={workspace(root)}
-""")
-
-    with open(repo_file, "w") as f:
-        f.write(f"""\
-[photon]
-name=VMware Photon OS {args.release} Release
-baseurl={release_url}
-enabled=1
-gpgkey={gpg_key_string}
-
-[photon-updates]
-name=VMware Photon OS {args.release} Updates
-baseurl={updates_url}
-enabled=1
-gpgkey={gpg_key_string}
-""")
+    setup_dnf(args, root, repos=[
+        Repo("photon", f"VMware Photon OS {args.release} Release", release_url, gpgpath),
+        Repo("photon-updates", f"VMware Photon OS {args.release} Updates", updates_url, gpgpath),
+    ])
 
     packages = ["minimal"]
     if not do_run_build_script and args.bootable:
         packages += ["linux", "initramfs"]
 
-    invoke_tdnf(args, root,
-                args.repositories if args.repositories else ["photon", "photon-updates"],
-                packages,
-                config_file)
+    invoke_tdnf(args, root, args.repositories or ["photon", "photon-updates"], packages)
     reenable_kernel_install(args, root, masked)
 
 
@@ -1718,11 +1720,6 @@ def install_fedora(args: CommandLineArguments, root: str, do_run_build_script: b
     masked = disable_kernel_install(args, root)
 
     arch = args.architecture or platform.machine()
-    gpg_key = f"/etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-{args.releasever}-{arch}"
-    if os.path.exists(gpg_key):
-        gpg_key = f"file://{gpg_key}"
-    else:
-        gpg_key = "https://getfedora.org/static/keys/{}.txt".format(FEDORA_KEYS_MAP[args.releasever])
 
     if args.mirror:
         baseurl = f"{args.mirror}/releases/{args.release}/Everything/$basearch/os/"
@@ -1737,22 +1734,13 @@ def install_fedora(args: CommandLineArguments, root: str, do_run_build_script: b
         updates_url = (f"metalink=https://mirrors.fedoraproject.org/metalink?" +
                        f"repo=updates-released-f{args.release}&arch=$basearch")
 
-    config_file = os.path.join(workspace(root), "dnf.conf")
-    with open(config_file, "w") as f:
-        f.write(f"""\
-[main]
-gpgcheck=1
+    gpgpath=f"/etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-{args.releasever}-{arch}"
+    gpgurl=f"https://getfedora.org/static/keys/{FEDORA_KEYS_MAP[args.releasever]}.txt"
 
-[fedora]
-name=Fedora {args.release} - base
-{release_url}
-gpgkey={gpg_key}
-
-[updates]
-name=Fedora {args.release} - updates
-{updates_url}
-gpgkey={gpg_key}
-""")
+    setup_dnf(args, root, repos=[
+        Repo("fedora", f"Fedora {args.release} - base", release_url, gpgpath, gpgurl),
+        Repo("updates", f"Fedora {args.release} - updates", updates_url, gpgpath, gpgurl),
+    ])
 
     packages = ['fedora-release', 'glibc-minimal-langpack', 'systemd']
     packages += args.packages or []
@@ -1760,7 +1748,7 @@ gpgkey={gpg_key}
         packages += ['kernel-core', 'systemd-udev', 'binutils']
     if do_run_build_script:
         packages += args.build_packages or []
-    invoke_dnf(args, root, args.repositories or ["fedora", "updates"], packages, config_file)
+    invoke_dnf(args, root, args.repositories or ["fedora", "updates"], packages)
 
     with open(os.path.join(root, 'etc/locale.conf'), 'w') as f:
         f.write('LANG=C.UTF-8\n')
@@ -1772,13 +1760,6 @@ gpgkey={gpg_key}
 def install_mageia(args: CommandLineArguments, root: str, do_run_build_script: bool) -> None:
     masked = disable_kernel_install(args, root)
 
-    # Mageia does not (yet) have RPM GPG key on the web
-    gpg_key = '/etc/pki/rpm-gpg/RPM-GPG-KEY-Mageia'
-    if os.path.exists(gpg_key):
-        gpg_key = f'file://{gpg_key}'
-#    else:
-#        gpg_key = "https://getfedora.org/static/{}.txt".format(FEDORA_KEYS_MAP[args.releasever])
-
     if args.mirror:
         baseurl = f"{args.mirror}/distrib/{args.release}/x86_64/media/core/"
         release_url = f"baseurl={baseurl}/release/"
@@ -1788,22 +1769,12 @@ def install_mageia(args: CommandLineArguments, root: str, do_run_build_script: b
         release_url = f"mirrorlist={baseurl}&repo=release"
         updates_url = f"mirrorlist={baseurl}&repo=updates"
 
-    config_file = os.path.join(workspace(root), "dnf.conf")
-    with open(config_file, "w") as f:
-        f.write(f"""\
-[main]
-gpgcheck=1
+    gpgpath='/etc/pki/rpm-gpg/RPM-GPG-KEY-Mageia'
 
-[mageia]
-name=Mageia {args.release} Core Release
-{release_url}
-gpgkey={gpg_key}
-
-[updates]
-name=Mageia {args.release} Core Updates
-{updates_url}
-gpgkey={gpg_key}
-""")
+    setup_dnf(args, root, repos=[
+        Repo("mageia", f"Mageia {args.release} Core Release", release_url, gpgpath),
+        Repo("updates", f"Mageia {args.release} Core Updates", updates_url, gpgpath),
+    ])
 
     packages = ["basesystem-minimal"]
     packages += args.packages or []
@@ -1811,10 +1782,7 @@ gpgkey={gpg_key}
         packages += ["kernel-server-latest", "binutils"]
     if do_run_build_script:
         packages += args.build_packages or []
-    invoke_dnf(args, root,
-               args.repositories if args.repositories else ["mageia", "updates"],
-               packages,
-               config_file)
+    invoke_dnf(args, root, args.repositories or ["mageia", "updates"], packages)
 
     reenable_kernel_install(args, root, masked)
 
@@ -1822,17 +1790,6 @@ gpgkey={gpg_key}
 def install_openmandriva(args: CommandLineArguments, root: str, do_run_build_script: bool) -> None:
     release = args.release.strip("'")
     masked = disable_kernel_install(args, root)
-
-    # OpenMandriva does not (yet) have RPM GPG key on the web
-    gpg_key = '/etc/pki/rpm-gpg/RPM-GPG-KEY-OpenMandriva'
-    if os.path.exists(gpg_key):
-        gpg_key_string = f'file://{gpg_key}'
-        gpgcheck = "gpgcheck=1"
-        cmdline = ["rpm", "--import", gpg_key, "--root", root]
-        run(cmdline, check=True)
-    else:
-        gpgcheck = "gpgcheck=0"
-        gpg_key_string = ""
 
     if release[0].isdigit():
         release_model = "rock"
@@ -1850,22 +1807,12 @@ def install_openmandriva(args: CommandLineArguments, root: str, do_run_build_scr
         release_url = f"mirrorlist={baseurl}&release=release"
         updates_url = f"mirrorlist={baseurl}&release=updates"
 
-    config_file = os.path.join(workspace(root), "dnf.conf")
-    with open(config_file, "w") as f:
-        f.write(f"""\
-[main]
-{gpgcheck}
+    gpgpath = '/etc/pki/rpm-gpg/RPM-GPG-KEY-OpenMandriva'
 
-[openmandriva]
-name=OpenMandriva {release_model} Main
-{release_url}
-gpgkey={gpg_key_string}
-
-[updates]
-name=OpenMandriva {release_model} Main Updates
-{updates_url}
-gpgkey={gpg_key_string}
-""")
+    setup_dnf(args, root, repos=[
+        Repo("openmandriva", f"OpenMandriva {release_model} Main", release_url, gpgpath),
+        Repo("updates", f"OpenMandriva {release_model} Main Updates", updates_url, gpgpath),
+    ])
 
     packages = ["basesystem-minimal", "systemd"] # well we may use basesystem here, but that pulls lot of stuff
     packages += args.packages or []
@@ -1873,20 +1820,16 @@ gpgkey={gpg_key_string}
         packages += ["kernel-release-server", "binutils", "systemd-boot", "dracut", "timezone", "systemd-cryptsetup"]
     if do_run_build_script:
         packages += args.build_packages or []
-    invoke_dnf(args, root,
-               args.repositories if args.repositories else ["openmandriva", "updates"],
-               packages,
-               config_file)
+    invoke_dnf(args, root, args.repositories or ["openmandriva", "updates"], packages)
 
     reenable_kernel_install(args, root, masked)
 
 def invoke_yum(args: CommandLineArguments,
                root: str,
                repositories: List[str],
-               packages: List[str],
-               config_file: str) -> None:
+               packages: List[str]) -> None:
     repos = ["--enablerepo=" + repo for repo in repositories]
-
+    config_file = os.path.join(workspace(root), 'dnf.conf')
     packages = make_rpm_list(args, packages)
 
     cmdline = ["yum",
@@ -1913,30 +1856,20 @@ def invoke_yum(args: CommandLineArguments,
 def invoke_dnf_or_yum(args: CommandLineArguments,
                       root: str,
                       repositories: List[str],
-                      packages: List[str],
-                      config_file: str) -> None:
+                      packages: List[str]) -> None:
     if shutil.which("dnf") is None:
-        invoke_yum(args, root, repositories, packages, config_file)
+        invoke_yum(args, root, repositories, packages)
     else:
-        invoke_dnf(args, root, repositories, packages, config_file)
+        invoke_dnf(args, root, repositories, packages)
 
 
-def install_centos_old(args: CommandLineArguments,
-                       epel_release: str,
-                       config_file: str) -> List[str]:
+def install_centos_old(args: CommandLineArguments, root: str, epel_release: str) -> List[str]:
     # Repos for CentOS 7 and earlier
-    gpg_key = f"/etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-{args.release}"
-    epel_gpg_key = f"/etc/pki/rpm-gpg/RPM-GPG-KEY-EPEL-{epel_release}"
 
-    if os.path.exists(gpg_key):
-        gpg_key = f'file://{gpg_key}'
-    else:
-        gpg_key = f'https://www.centos.org/keys/RPM-GPG-KEY-CentOS-{args.release}'
-
-    if os.path.exists(epel_gpg_key):
-        epel_gpg_key = f'file://{epel_gpg_key}'
-    else:
-        epel_gpg_key = f'https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-{epel_release}'
+    gpgpath=f"/etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-{args.release}"
+    gpgurl=f'https://www.centos.org/keys/RPM-GPG-KEY-CentOS-{args.release}'
+    epel_gpgpath = f"/etc/pki/rpm-gpg/RPM-GPG-KEY-EPEL-{epel_release}"
+    epel_gpgurl = f'https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-{epel_release}'
 
     if args.mirror:
         release_url = f"baseurl={args.mirror}/centos/{args.release}/os/x86_64"
@@ -1951,59 +1884,24 @@ def install_centos_old(args: CommandLineArguments,
         centosplus_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=centosplus"
         epel_url = f"mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=epel-{epel_release}&arch=x86_64"
 
-    with open(config_file, "w") as f:
-        f.write(f"""\
-[main]
-gpgcheck=1
+    setup_dnf(args, root, repos=[
+        Repo("base", f"CentOS-{args.release} - Base", release_url, gpgpath, gpgurl),
+        Repo("updates", f"CentOS-{args.release} - Updates", updates_url, gpgpath, gpgurl),
+        Repo("extras", f"CentOS-{args.release} - Extras", extras_url, gpgpath, gpgurl),
+        Repo("centosplus", f"CentOS-{args.release} - Plus", centosplus_url, gpgpath, gpgurl),
+        Repo("epel", f"name=Extra Packages for Enterprise Linux {epel_release} - $basearch", epel_url, epel_gpgpath, epel_gpgurl),
+    ])
 
-[base]
-name=CentOS-{args.release} - Base
-{release_url}
-gpgkey={gpg_key}
-
-[updates]
-name=CentOS-{args.release} - Updates
-{updates_url}
-gpgkey={gpg_key}
-
-[extras]
-name=CentOS-{args.release} - Extras
-{extras_url}
-gpgkey={gpg_key}
-
-[centosplus]
-name=CentOS-{args.release} - Plus
-{centosplus_url}
-gpgkey={gpg_key}
-""")
-        if args.distribution == Distribution.centos_epel:
-            f.write(f"""\
-
-[epel]
-name=Extra Packages for Enterprise Linux {epel_release} - $basearch
-{epel_url}
-gpgkey={epel_gpg_key}
-
-""")
     return ["base", "updates", "extras", "centosplus"]
 
 
-def install_centos_new(args: CommandLineArguments,
-                       epel_release: str,
-                       config_file: str) -> List[str]:
+def install_centos_new(args: CommandLineArguments, root: str, epel_release: str) -> List[str]:
     # Repos for CentOS 8 and later
-    gpg_key = f"/etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-Official"
-    epel_gpg_key = f"/etc/pki/rpm-gpg/RPM-GPG-KEY-EPEL-{epel_release}"
 
-    if os.path.exists(gpg_key):
-        gpg_key = f'file://{gpg_key}'
-    else:
-        gpg_key = f'https://www.centos.org/keys/RPM-GPG-KEY-CentOS-Official'
-
-    if os.path.exists(epel_gpg_key):
-        epel_gpg_key = f'file://{epel_gpg_key}'
-    else:
-        epel_gpg_key = f'https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-{epel_release}'
+    gpgpath="/etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-Official"
+    gpgurl='https://www.centos.org/keys/RPM-GPG-KEY-CentOS-Official'
+    epel_gpgpath = f"/etc/pki/rpm-gpg/RPM-GPG-KEY-EPEL-{epel_release}"
+    epel_gpgurl = f'https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-{epel_release}'
 
     if args.mirror:
         appstream_url = f"baseurl={args.mirror}/centos/{args.release}/AppStream/x86_64/os"
@@ -2018,37 +1916,14 @@ def install_centos_new(args: CommandLineArguments,
         centosplus_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=centosplus"
         epel_url = f"mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=epel-{epel_release}&arch=x86_64"
 
-    with open(config_file, "w") as f:
-        f.write(f"""\
-[AppStream]
-name=CentOS-{args.release} - AppStream
-{appstream_url}
-gpgkey={gpg_key}
+    setup_dnf(args, root, repos=[
+        Repo("AppStream", f"CentOS-{args.release} - AppStream", appstream_url, gpgpath, gpgurl),
+        Repo("BaseOS", f"CentOS-{args.release} - Base", baseos_url, gpgpath, gpgurl),
+        Repo("extras", f"CentOS-{args.release} - Extras", extras_url, gpgpath, gpgurl),
+        Repo("centosplus", f"CentOS-{args.release} - Plus", centosplus_url, gpgpath, gpgurl),
+        Repo("epel", f"name=Extra Packages for Enterprise Linux {epel_release} - $basearch", epel_url, epel_gpgpath, epel_gpgurl),
+    ])
 
-[BaseOS]
-name=CentOS-{args.release} - Base
-{baseos_url}
-gpgkey={gpg_key}
-
-[extras]
-name=CentOS-{args.release} - Extras
-{extras_url}
-gpgkey={gpg_key}
-
-[centosplus]
-name=CentOS-{args.release} - Plus
-{centosplus_url}
-gpgkey={gpg_key}
-""")
-        if args.distribution == Distribution.centos_epel:
-            f.write(f"""\
-
-[epel]
-name=Extra Packages for Enterprise Linux {epel_release} - $basearch
-{epel_url}
-gpgkey={epel_gpg_key}
-
-""")
     return ["AppStream", "BaseOS", "extras", "centosplus"]
 
 
@@ -2057,7 +1932,6 @@ def install_centos(args: CommandLineArguments, root: str, do_run_build_script: b
     masked = disable_kernel_install(args, root)
 
     epel_release = args.release.split('.')[0]
-    config_file = os.path.join(workspace(root), "yum.conf")
 
     # Centos Repositories were changed between 7 and 8
     try:
@@ -2066,9 +1940,9 @@ def install_centos(args: CommandLineArguments, root: str, do_run_build_script: b
         new = True
 
     if new:
-        default_repos = install_centos_new(args, epel_release, config_file)
+        default_repos = install_centos_new(args, root, epel_release)
     else:
-        default_repos = install_centos_old(args, epel_release, config_file)
+        default_repos = install_centos_old(args, root, epel_release)
 
     packages = ['centos-release', 'systemd']
     packages += args.packages or []
@@ -2088,11 +1962,7 @@ def install_centos(args: CommandLineArguments, root: str, do_run_build_script: b
     if do_run_build_script:
         packages += args.build_packages or []
 
-    invoke_dnf_or_yum(args, root,
-                      repos,
-                      packages,
-                      config_file)
-
+    invoke_dnf_or_yum(args, root, repos, packages)
     reenable_kernel_install(args, root, masked)
 
 
@@ -2104,7 +1974,7 @@ def install_debian_or_ubuntu(args: CommandLineArguments,
                              *,
                              do_run_build_script: bool,
                              mirror: str) -> None:
-    repos = args.repositories if args.repositories else ["main"]
+    repos = args.repositories or ["main"]
     # Ubuntu needs the 'universe' repo to install 'dracut'
     if args.distribution == Distribution.ubuntu and args.bootable and 'universe' not in repos:
         repos.append('universe')
