@@ -13,7 +13,12 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
     - uses: actions/checkout@v2
-    - name: install unit tester via pip
-      run: python3 -m pip install pytest
-    - name: run unit test
+
+    - name: Install
+      run: python3 -m pip install pytest 'mypy==0.770'
+
+    - name: Type Checking
+      run: python3 -m mypy mkosi
+
+    - name: Unit Tests
       run: python3 -m pytest
