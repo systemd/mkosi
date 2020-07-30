@@ -65,6 +65,7 @@ jobs:
             systemd-container
             xfsprogs
             xsltproc
+            docbook-xsl
 
     - name: Install dependencies (Arch Linux)
       if: matrix.distro == 'arch'
