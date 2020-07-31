@@ -30,6 +30,7 @@ import tempfile
 import urllib.request
 import uuid
 from subprocess import DEVNULL, PIPE
+from textwrap import dedent
 from typing import (
     IO,
     Any,
@@ -53,7 +54,9 @@ from typing import (
 )
 from types import FrameType
 
+
 __version__ = '5'
+
 
 if sys.version_info < (3, 6):
     sys.exit("Sorry, we need at least Python 3.6.")
@@ -1364,13 +1367,17 @@ def enable_networkd(root: str) -> None:
     os.symlink("../run/systemd/resolve/stub-resolv.conf", os.path.join(root, "etc/resolv.conf"))
 
     with open(os.path.join(root, "etc/systemd/network/all-ethernet.network"), "w") as f:
-        f.write("""\
-[Match]
-Type=ether
+        f.write(
+            dedent(
+                """\
+                [Match]
+                Type=ether
 
-[Network]
-DHCP=yes
-""")
+                [Network]
+                DHCP=yes
+                """
+            )
+        )
 
 
 def enable_networkmanager(root: str) -> None:
@@ -1542,6 +1549,7 @@ def clean_tdnf_metadata(root: str) -> None:
         remove_glob(root + '/var/log/tdnf.*',
                     root + '/var/cache/tdnf')
 
+
 def invoke_dnf(args: CommandLineArguments,
                root: str,
                repositories: List[str],
@@ -1576,6 +1584,7 @@ def invoke_dnf(args: CommandLineArguments,
     with mount_api_vfs(args, root):
         run(cmdline, check=True)
 
+
 def invoke_tdnf(args: CommandLineArguments, root: str, repositories: List[str], packages: List[str]) -> None:
     repos = ["--enablerepo=" + repo for repo in repositories]
     config_file = os.path.join(workspace(root), 'dnf.conf')
@@ -1595,12 +1604,14 @@ def invoke_tdnf(args: CommandLineArguments, root: str, repositories: List[str], 
     with mount_api_vfs(args, root):
         run(cmdline, check=True)
 
+
 class Repo(NamedTuple):
     id: str
     name: str
     url: str
     gpgpath: str
     gpgurl: Optional[str] = None
+
 
 def setup_dnf(args: CommandLineArguments, root: str, repos: List[Repo] = []) -> None:
     gpgcheck = True
@@ -1618,20 +1629,28 @@ def setup_dnf(args: CommandLineArguments, root: str, repos: List[Repo] = []) -> 
                 warn(f"GPG key not found at {repo.gpgpath}. Not checking GPG signatures.")
                 gpgcheck = False
 
-            f.write(f"""\
-[{repo.id}]
-name={repo.name}
-{repo.url}
-gpgkey={gpgkey or ''}
-""")
+            f.write(
+                dedent(
+                    f"""\
+                    [{repo.id}]
+                    name={repo.name}
+                    {repo.url}
+                    gpgkey={gpgkey or ''}
+                    """
+                )
+            )
 
     config_file = os.path.join(workspace(root), "dnf.conf")
     with open(config_file, "w") as f:
-        f.write(f"""\
-[main]
-gpgcheck={'1' if gpgcheck else '0'}
-{"repodir" if args.distribution == Distribution.photon else "reposdir"}={workspace(root)}
-""")
+        f.write(
+            dedent(
+                f"""\
+                [main]
+                gpgcheck={'1' if gpgcheck else '0'}
+                {"repodir" if args.distribution == Distribution.photon else "reposdir"}={workspace(root)}
+                """
+            )
+        )
 
 
 @completestep('Installing Photon')
@@ -1671,14 +1690,18 @@ def install_clear(args: CommandLineArguments, root: str, do_run_build_script: bo
     swupd_extract = shutil.which("swupd-extract")
 
     if swupd_extract is None:
-        die("""
-Couldn't find swupd-extract program, download (or update it) it using:
+        die(
+            dedent(
+                """
+                Couldn't find swupd-extract program, download (or update it) it using:
 
-  go get -u github.com/clearlinux/mixer-tools/swupd-extract
+                  go get -u github.com/clearlinux/mixer-tools/swupd-extract
 
-and it will be installed by default in ~/go/bin/swupd-extract. Also
-ensure that you have openssl program in your system.
-""")
+                and it will be installed by default in ~/go/bin/swupd-extract. Also
+                ensure that you have openssl program in your system.
+                """
+            )
+        )
 
     print(f'Using {swupd_extract}')
 
@@ -1786,6 +1809,7 @@ def install_mageia(args: CommandLineArguments, root: str, do_run_build_script: b
 
     reenable_kernel_install(args, root, masked)
 
+
 @completestep('Installing OpenMandriva')
 def install_openmandriva(args: CommandLineArguments, root: str, do_run_build_script: bool) -> None:
     release = args.release.strip("'")
@@ -1823,6 +1847,7 @@ def install_openmandriva(args: CommandLineArguments, root: str, do_run_build_scr
     invoke_dnf(args, root, args.repositories or ["openmandriva", "updates"], packages)
 
     reenable_kernel_install(args, root, masked)
+
 
 def invoke_yum(args: CommandLineArguments,
                root: str,
@@ -1968,6 +1993,7 @@ def install_centos(args: CommandLineArguments, root: str, do_run_build_script: b
 
 def debootstrap_knows_arg(arg: str) -> bool:
     return bytes("invalid option", "UTF-8") not in run(["debootstrap", arg], stdout=PIPE).stdout
+
 
 def install_debian_or_ubuntu(args: CommandLineArguments,
                              root: str,
@@ -2124,30 +2150,33 @@ def install_arch(args: CommandLineArguments, root: str, do_run_build_script: boo
 
     pacman_conf = os.path.join(workspace(root), "pacman.conf")
     with open(pacman_conf, "w") as f:
-        f.write(f"""\
-[options]
-RootDir     = {root}
-LogFile     = /dev/null
-CacheDir    = {root}/var/cache/pacman/pkg/
-GPGDir      = {root}/etc/pacman.d/gnupg/
-HookDir     = {root}/etc/pacman.d/hooks/
-HoldPkg     = pacman glibc
-Architecture = auto
-UseSyslog
-Color
-CheckSpace
-SigLevel    = Required DatabaseOptional TrustAll
+        f.write(
+            dedent(
+                f"""\
+                [options]
+                RootDir     = {root}
+                LogFile     = /dev/null
+                CacheDir    = {root}/var/cache/pacman/pkg/
+                GPGDir      = {root}/etc/pacman.d/gnupg/
+                HookDir     = {root}/etc/pacman.d/hooks/
+                HoldPkg     = pacman glibc
+                Architecture = auto
+                UseSyslog
+                Color
+                CheckSpace
+                SigLevel    = Required DatabaseOptional TrustAll
 
-[core]
-{server}
+                [core]
+                {server}
 
-[extra]
-{server}
+                [extra]
+                {server}
 
-[community]
-{server}
-""")
-
+                [community]
+                {server}
+                """
+            )
+        )
 
         if args.repositories:
             for repository in args.repositories:
@@ -2155,12 +2184,16 @@ SigLevel    = Required DatabaseOptional TrustAll
                 repository_name, repository_server = repository.split('::', 1)
 
                 # note: for additional repositories, signature checking options are set to pacman's default values
-                f.write(f"""\
+                f.write(
+                    dedent(
+                        f"""\
 
-[{repository_name}]
-SigLevel = Optional TrustedOnly
-Server = {repository_server}
-""")
+                        [{repository_name}]
+                        SigLevel = Optional TrustedOnly
+                        Server = {repository_server}
+                        """
+                    )
+                )
 
     def stop_gpg_agent() -> None:
         # Kill the gpg-agent used by pacman and pacman-key
@@ -2244,12 +2277,16 @@ Server = {repository_server}
         for kernel in kernel_packages:
             preset = os.path.join(presetdir, f"{kernel}.preset")
             with open(preset, "w") as f:
-                f.write(f"""
-ALL_config="/etc/mkinitcpio.conf"
-ALL_kver="/boot/vmlinuz-{kernel}"
-PRESETS=('default')
-default_image="/boot/initramfs-{kernel}.img"
-""")
+                f.write(
+                    dedent(
+                        f"""
+                        ALL_config="/etc/mkinitcpio.conf"
+                        ALL_kver="/boot/vmlinuz-{kernel}"
+                        PRESETS=('default')
+                        default_image="/boot/initramfs-{kernel}.img"
+                        """
+                    )
+                )
 
     # Install the user-specified packages and kernel
     packages = set(args.packages)
@@ -2500,10 +2537,14 @@ def set_serial_terminal(args: CommandLineArguments, root: str, do_run_build_scri
 
     override_dir = mkdir_last(os.path.join(root, "etc/systemd/system/serial-getty@ttyS0.service.d"))
     with open(os.path.join(override_dir, "override.conf"), 'w') as f:
-        f.write(f"""
-[Service]
-Environment=TERM={os.getenv('TERM', 'vt220')}
-""")
+        f.write(
+            dedent(
+                f"""
+                [Service]
+                Environment=TERM={os.getenv('TERM', 'vt220')}
+                """
+            )
+        )
 
 
 def run_prepare_script(args: CommandLineArguments, root: str, do_run_build_script: bool, cached: bool) -> None:
@@ -2617,8 +2658,10 @@ def install_grub(args: CommandLineArguments, root: str, loopdev: str, grub: str)
 def install_boot_loader_fedora(args: CommandLineArguments, root: str, loopdev: str) -> None:
     install_grub(args, root, loopdev, "grub2")
 
+
 def install_boot_loader_centos(args:CommandLineArguments, root: str, loopdev: str) -> None:
     install_grub(args, root, loopdev, "grub2")
+
 
 def install_boot_loader_arch(args: CommandLineArguments, root: str, loopdev: str) -> None:
     if "uefi" in args.boot_protocols:
@@ -2674,8 +2717,10 @@ def install_boot_loader_clear(args: CommandLineArguments, root: str, loopdev: st
 def install_boot_loader_photon(args: CommandLineArguments, root: str, loopdev: str) -> None:
     install_grub(args, root, loopdev, "grub2")
 
+
 def install_boot_loader_openmandriva(args: CommandLineArguments, root: str, loopdev: str) -> None:
     install_grub(args, root, loopdev, "grub2")
+
 
 def install_boot_loader(args: CommandLineArguments, root: str, loopdev: Optional[str], do_run_build_script: bool, cached: bool) -> None:
     if not args.bootable or do_run_build_script:
@@ -2719,6 +2764,7 @@ def install_boot_loader(args: CommandLineArguments, root: str, loopdev: Optional
 
         if args.distribution == Distribution.openmandriva:
             install_boot_loader_openmandriva(args, root, loopdev)
+
 
 def install_extra_trees(args: CommandLineArguments, root: str, for_cache: bool) -> None:
     if not args.extra_trees:
@@ -2872,7 +2918,7 @@ def make_tar(args: CommandLineArguments,
 
     with complete_step('Creating archive'):
         f: BinaryIO = cast(BinaryIO, tempfile.NamedTemporaryFile(dir=os.path.dirname(args.output), prefix=".mkosi-"))
-# OpenMandriva defaults to bsdtar(libarchive) which uses POSIX argument list so let's keep a separate list
+        # OpenMandriva defaults to bsdtar(libarchive) which uses POSIX argument list so let's keep a separate list
         if shutil.which('bsdtar') and args.distribution == Distribution.openmandriva:
            _tar_cmd = ["bsdtar", "-C", root, "-c", "-J", "--xattrs", "-f", "-", "."]
         else:
@@ -2962,6 +3008,7 @@ def make_generated_root(args: CommandLineArguments, root: str, for_cache: bool) 
         return make_squashfs(args, root, for_cache)
 
     return None
+
 
 def read_partition_table(loopdev: str) -> Tuple[List[str], int]:
     table = []
