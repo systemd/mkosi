@@ -4429,7 +4429,7 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
             args.release = "tumbleweed"
         elif args.distribution == Distribution.clear:
             args.release = "latest"
-        elif args.release == Distribution.photon:
+        elif args.distribution == Distribution.photon:
             args.release = "3.0"
         elif args.distribution == Distribution.openmandriva:
             args.release = "cooker"
