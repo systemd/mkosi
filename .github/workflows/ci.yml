@@ -78,7 +78,7 @@ jobs:
             docbook-xsl
             zypper
 
-    - name: Install dependencies (Arch Linux)
+    - name: Build pacman
       if: matrix.distro == 'arch'
       run: |
         wget https://sources.archlinux.org/other/pacman/pacman-$PACMAN_VERSION.tar.gz
@@ -109,8 +109,12 @@ jobs:
         ARCHLINUX_KEYRING_VERSION: "20200622"
         ARCH_INSTALL_SCRIPTS_VERSION: "23"
 
-    - name: Install dependencies (CentOS Linux)
-      if: startsWith(matrix.distro, 'centos') || matrix.distro == 'fedora' || matrix.distro == 'openmandriva' || matrix.distro == 'mageia'
+    - name: Build dnf
+      if: startsWith(matrix.distro, 'centos') ||
+          matrix.distro == 'fedora' ||
+          matrix.distro == 'openmandriva' ||
+          matrix.distro == 'mageia' ||
+          matrix.distro == 'photon'
       run: |
         wget https://github.com/rpm-software-management/libcomps/archive/libcomps-$LIBCOMPS_VERSION.tar.gz
         tar xf libcomps-$LIBCOMPS_VERSION.tar.gz
