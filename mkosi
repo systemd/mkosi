@@ -1591,7 +1591,7 @@ def invoke_dnf(args: CommandLineArguments,
         run(cmdline, check=True)
 
 
-def invoke_tdnf(args: CommandLineArguments, root: str, repositories: List[str], packages: List[str]) -> None:
+def invoke_tdnf(args: CommandLineArguments, root: str, repositories: List[str], packages: List[str], gpgcheck: bool) -> None:
     repos = ["--enablerepo=" + repo for repo in repositories]
     config_file = os.path.join(workspace(root), 'dnf.conf')
     packages = make_rpm_list(args, packages)
@@ -1604,6 +1604,9 @@ def invoke_tdnf(args: CommandLineArguments, root: str, repositories: List[str], 
                "--disablerepo=*",
                *repos
                ]
+
+    if not gpgcheck:
+        cmdline.append("--nogpgcheck")
 
     cmdline += ['install', *packages]
 
@@ -1676,7 +1679,7 @@ def install_photon(args: CommandLineArguments, root: str, do_run_build_script: b
     if not do_run_build_script and args.bootable:
         packages += ["linux", "initramfs"]
 
-    invoke_tdnf(args, root, args.repositories or ["photon", "photon-updates"], packages)
+    invoke_tdnf(args, root, args.repositories or ["photon", "photon-updates"], packages, os.path.exists(gpgpath))
     reenable_kernel_install(args, root, masked)
 
 
