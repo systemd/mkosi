@@ -76,6 +76,7 @@ jobs:
             xfsprogs
             xsltproc
             docbook-xsl
+            zypper
 
     - name: Install dependencies (Arch Linux)
       if: matrix.distro == 'arch'
@@ -235,10 +236,6 @@ jobs:
       run: |
         go get -u github.com/clearlinux/mixer-tools/swupd-extract
         sudo ln -s ~/go/bin/swupd-extract /usr/bin/swupd-extract
-
-    - name: Install zypper (OpenSuse)
-      if: matrix.distro == 'opensuse'
-      run: sudo apt-get --assume-yes --no-install-recommends install zypper
 
     - name: Build ${{ matrix.distro }}/${{ matrix.format }}
       run: sudo ./mkosi
