@@ -2764,7 +2764,7 @@ def install_boot_loader(args: CommandLineArguments, root: str, loopdev: Optional
         if args.distribution == Distribution.photon:
             install_boot_loader_photon(args, root, loopdev)
 
-        if args.distribution == Distribution.centos:
+        if args.distribution in (Distribution.centos, Distribution.centos_epel):
             install_boot_loader_centos(args, root, loopdev)
 
         if args.distribution == Distribution.openmandriva:
