@@ -2742,7 +2742,7 @@ def install_boot_loader(args: CommandLineArguments, root: str, loopdev: Optional
         return
 
     with complete_step("Installing boot loader"):
-        if args.esp_partno:
+        if args.esp_partno and args.distribution != Distribution.clear:
             shutil.copyfile(os.path.join(root, "usr/lib/systemd/boot/efi/systemd-bootx64.efi"),
                             os.path.join(root, "efi/EFI/systemd/systemd-bootx64.efi"))
 
