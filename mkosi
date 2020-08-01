@@ -4485,12 +4485,6 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
 
         if not {"uefi", "bios"}.issuperset(args.boot_protocols):
             die("Not a valid boot protocol")
-        if "bios" in args.boot_protocols and args.distribution not in (Distribution.fedora,
-                                                                       Distribution.arch,
-                                                                       Distribution.debian,
-                                                                       Distribution.ubuntu,
-                                                                       Distribution.photon):
-            die(f"bios boot not implemented yet for {args.distribution}")
 
         if "uefi" in args.boot_protocols and args.distribution == Distribution.photon:
             die(f"uefi boot not supported for {args.distribution}")
