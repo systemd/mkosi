@@ -2398,6 +2398,8 @@ def install_opensuse(args: CommandLineArguments, root: str, do_run_build_script:
 
     if not do_run_build_script and args.bootable:
         packages += ["kernel-default"]
+        if args.bios_partno is not None:
+            packages += ["grub2"]
 
     if not do_run_build_script and args.encrypt:
         packages += ["device-mapper"]
@@ -2687,8 +2689,9 @@ def install_boot_loader_debian(args: CommandLineArguments, root: str, loopdev: s
                               "/usr/bin/kernel-install", "add", kernel_version, "/boot/vmlinuz-" + kernel_version)
 
     if "bios" in args.boot_protocols:
-        # TODO: Remove /usr/sbin/ once https://github.com/systemd/systemd/pull/16645 is widely available.
-        install_grub(args, root, loopdev, "/usr/sbin/grub")
+        grub = "grub" if args.distribution in (Distribution.ubuntu, Distribution.debian) else "grub2"
+        # TODO: Just use "grub" once https://github.com/systemd/systemd/pull/16645 is widely available.
+        install_grub(args, root, loopdev, f"/usr/sbin/{grub}")
 
 
 def install_boot_loader_ubuntu(args: CommandLineArguments, root: str, loopdev: str) -> None:
