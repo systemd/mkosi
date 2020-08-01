@@ -2636,13 +2636,13 @@ def install_grub(args: CommandLineArguments, root: str, loopdev: str, grub: str)
             return line
         patch_file(os.path.join(root, "etc/default/grub"), jj)
 
-    nspawn_params = [
-        "--bind-ro=/dev",
-        "--property=DeviceAllow=" + loopdev,
-        "--console=pipe",
-    ]
+    nspawn_params = [f"--bind-ro={loopdev}", f"--property=DeviceAllow={loopdev}"]
     if args.root_partno is not None:
-        nspawn_params += ["--property=DeviceAllow=" + partition(loopdev, args.root_partno)]
+        p = partition(loopdev, args.root_partno)
+        nspawn_params += [f"--bind-ro={p}", f"--property=DeviceAllow={p}"]
+    if args.bios_partno is not None:
+        p = partition(loopdev, args.bios_partno)
+        nspawn_params += [f"--bind-ro={p}", f"--property=DeviceAllow={p}"]
 
     run_workspace_command(
         args, root, f"{grub}-install",
