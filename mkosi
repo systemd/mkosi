@@ -4462,8 +4462,11 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
         die("Sorry, incremental mode is currently not supported for squashfs or minimized file systems.")
 
     if args.bootable:
-        if args.output_format in (OutputFormat.directory, OutputFormat.subvolume, OutputFormat.tar):
-            die("Directory, subvolume and tar images cannot be booted.")
+        if args.output_format in (OutputFormat.directory,
+                                  OutputFormat.subvolume,
+                                  OutputFormat.tar,
+                                  OutputFormat.plain_squashfs):
+            die("Directory, subvolume, tar and plain squashfs images cannot be booted.")
 
         if not args.boot_protocols:
             args.boot_protocols = ["uefi"]
