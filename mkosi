@@ -2651,7 +2651,8 @@ def install_grub(args: CommandLineArguments, root: str, loopdev: str, grub: str)
 
     run_workspace_command(
         args, root, f"{grub}-mkconfig",
-        f"--output=/boot/{grub}/grub.cfg",
+        # TODO: Remove os.path.basename once https://github.com/systemd/systemd/pull/16645 is widely available.
+        f"--output=/boot/{os.path.basename(grub)}/grub.cfg",
         nspawn_params=nspawn_params)
 
 
@@ -2683,7 +2684,8 @@ def install_boot_loader_debian(args: CommandLineArguments, root: str, loopdev: s
                               "/usr/bin/kernel-install", "add", kernel_version, "/boot/vmlinuz-" + kernel_version)
 
     if "bios" in args.boot_protocols:
-        install_grub(args, root, loopdev, "grub")
+        # TODO: Remove /usr/sbin/ once https://github.com/systemd/systemd/pull/16645 is widely available.
+        install_grub(args, root, loopdev, "/usr/sbin/grub")
 
 
 def install_boot_loader_ubuntu(args: CommandLineArguments, root: str, loopdev: str) -> None:
