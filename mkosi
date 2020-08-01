@@ -1479,7 +1479,10 @@ def make_rpm_list(args: argparse.Namespace, packages: List[str]) -> List[str]:
             packages += ['btrfs-progs']
 
         if args.bios_partno:
-            packages += ["grub2-pc"]
+            if args.distribution in (Distribution.mageia, Distribution.openmandriva):
+                packages += ["grub2"]
+            else:
+                packages += ["grub2-pc"]
 
     return packages
 
