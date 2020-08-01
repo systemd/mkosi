@@ -4432,6 +4432,11 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
         elif args.distribution == Distribution.openmandriva:
             args.release = "cooker"
 
+    if (args.distribution in (Distribution.centos, Distribution.centos_epel) and
+        args.release == "8" and
+        args.output_format == OutputFormat.gpt_btrfs):
+        die("Sorry, CentOS 8 does not support btrfs")
+
     find_cache(args)
 
     if args.mirror is None:
