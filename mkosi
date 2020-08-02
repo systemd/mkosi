@@ -1411,8 +1411,11 @@ def run_workspace_command(args: CommandLineArguments,
     if nspawn_params:
         cmdline += nspawn_params
 
-    cmdline += ['--', *cmd]
-    run(cmdline, check=True)
+    result = run(cmdline + ['--', *cmd])
+    if result.returncode != 0:
+        if 'workspace-command' in arg_debug:
+            run(cmdline)
+        die(f"Workspace command {' '.join([*cmd])} returned non-zero exit code {result.returncode}.")
 
 
 def check_if_url_exists(url: str) -> bool:
@@ -3921,7 +3924,7 @@ def create_parser() -> ArgumentParserMkosi:
 
     group.add_argument('--debug', action=CommaDelimitedListAction, default=[],
                        help='Turn on debugging output', metavar='SELECTOR',
-                       choices=('run','build-script'))
+                       choices=('run','build-script','workspace-command'))
     try:
         import argcomplete  # type: ignore
         argcomplete.autocomplete(parser)
