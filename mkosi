@@ -4646,6 +4646,9 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
     if args.qemu_headless and "console=ttyS0" not in args.kernel_command_line:
         args.kernel_command_line.append("console=ttyS0")
 
+    if args.generated_root() and "bios" in args.boot_protocols:
+        die("Sorry, BIOS cannot be combined with --minimize or squashfs filesystems")
+
     return args
 
 
