@@ -1687,7 +1687,7 @@ def install_clear(args: CommandLineArguments, root: str, do_run_build_script: bo
     else:
         release = "clear/"+args.release
 
-    packages = ['os-core'] + args.packages
+    packages = ['os-core-plus'] + args.packages
     if do_run_build_script:
         packages.extend(args.build_packages)
     if not do_run_build_script and args.bootable:
