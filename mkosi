@@ -4439,6 +4439,10 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
         args.output_format == OutputFormat.gpt_btrfs):
         die("Sorry, CentOS 8 does not support btrfs")
 
+    # Remove once https://github.com/clearlinux/clr-boot-manager/pull/238 is merged and available.
+    if args.distribution == Distribution.clear and args.output_format == OutputFormat.gpt_btrfs:
+        die("Sorry, Clear Linux does not support btrfs")
+
     find_cache(args)
 
     if args.mirror is None:
