@@ -33,6 +33,15 @@ jobs:
           - gpt_btrfs
           - gpt_squashfs
           - plain_squashfs
+        exclude:
+          # CentOS 8 and Clear Linux do not support btrfs.
+          - distro: centos
+            format: gpt_btrfs
+          - distro: centos_epel
+            format: gpt_btrfs
+          # Remove once https://github.com/clearlinux/clr-boot-manager/pull/238 is merged and available.
+          - distro: clear
+            format: gpt_btrfs
 
     steps:
     - uses: actions/checkout@v2
@@ -236,3 +245,24 @@ jobs:
             --debug run
             --distribution ${{ matrix.distro }}
             --format ${{ matrix.format }}
+
+    - name: Build ${{ matrix.distro }}/${{ matrix.format }} UEFI
+      if: matrix.format != 'directory' && matrix.format != 'tar' && matrix.format != 'plain_squashfs' &&
+          (matrix.distro != 'clear' || matrix.format != 'gpt_squashfs')
+      run: sudo ./mkosi
+            --debug run
+            --distribution ${{ matrix.distro }}
+            --format ${{ matrix.format }}
+            --bootable
+            --boot-protocols uefi
+            --force
+
+    - name: Build ${{ matrix.distro }}/${{ matrix.format }} BIOS
+      if: matrix.format != 'directory' && matrix.format != 'tar' && !contains(matrix.format, 'squashfs')
+      run: sudo ./mkosi
+            --debug run
+            --distribution ${{ matrix.distro }}
+            --format ${{ matrix.format }}
+            --bootable
+            --boot-protocols bios
+            --force

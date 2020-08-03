@@ -1411,8 +1411,11 @@ def run_workspace_command(args: CommandLineArguments,
     if nspawn_params:
         cmdline += nspawn_params
 
-    cmdline += ['--', *cmd]
-    run(cmdline, check=True)
+    result = run(cmdline + ['--', *cmd])
+    if result.returncode != 0:
+        if 'workspace-command' in arg_debug:
+            run(cmdline)
+        die(f"Workspace command {' '.join([*cmd])} returned non-zero exit code {result.returncode}.")
 
 
 def check_if_url_exists(url: str) -> bool:
@@ -1479,7 +1482,10 @@ def make_rpm_list(args: argparse.Namespace, packages: List[str]) -> List[str]:
             packages += ['btrfs-progs']
 
         if args.bios_partno:
-            packages += ["grub2-pc"]
+            if args.distribution in (Distribution.mageia, Distribution.openmandriva):
+                packages += ["grub2"]
+            else:
+                packages += ["grub2-pc"]
 
     return packages
 
@@ -1681,7 +1687,7 @@ def install_clear(args: CommandLineArguments, root: str, do_run_build_script: bo
     else:
         release = "clear/"+args.release
 
-    packages = ['os-core'] + args.packages
+    packages = ['os-core-plus'] + args.packages
     if do_run_build_script:
         packages.extend(args.build_packages)
     if not do_run_build_script and args.bootable:
@@ -2395,6 +2401,8 @@ def install_opensuse(args: CommandLineArguments, root: str, do_run_build_script:
 
     if not do_run_build_script and args.bootable:
         packages += ["kernel-default"]
+        if args.bios_partno is not None:
+            packages += ["grub2"]
 
     if not do_run_build_script and args.encrypt:
         packages += ["device-mapper"]
@@ -2636,13 +2644,11 @@ def install_grub(args: CommandLineArguments, root: str, loopdev: str, grub: str)
             return line
         patch_file(os.path.join(root, "etc/default/grub"), jj)
 
-    nspawn_params = [
-        "--bind-ro=/dev",
-        "--property=DeviceAllow=" + loopdev,
-        "--console=pipe",
-    ]
-    if args.root_partno is not None:
-        nspawn_params += ["--property=DeviceAllow=" + partition(loopdev, args.root_partno)]
+    nspawn_params = [f"--bind-ro={loopdev}", f"--property=DeviceAllow={loopdev}"]
+    for partno in (args.root_partno, args.xbootldr_partno, args.bios_partno):
+        if partno is not None:
+            p = partition(loopdev, partno)
+            nspawn_params += [f"--bind-ro={p}", f"--property=DeviceAllow={p}"]
 
     run_workspace_command(
         args, root, f"{grub}-install",
@@ -2684,8 +2690,9 @@ def install_boot_loader_debian(args: CommandLineArguments, root: str, loopdev: s
                               "/usr/bin/kernel-install", "add", kernel_version, "/boot/vmlinuz-" + kernel_version)
 
     if "bios" in args.boot_protocols:
-        # TODO: Remove /usr/sbin/ once https://github.com/systemd/systemd/pull/16645 is widely available.
-        install_grub(args, root, loopdev, "/usr/sbin/grub")
+        grub = "grub" if args.distribution in (Distribution.ubuntu, Distribution.debian) else "grub2"
+        # TODO: Just use "grub" once https://github.com/systemd/systemd/pull/16645 is widely available.
+        install_grub(args, root, loopdev, f"/usr/sbin/{grub}")
 
 
 def install_boot_loader_ubuntu(args: CommandLineArguments, root: str, loopdev: str) -> None:
@@ -2700,18 +2707,16 @@ def install_boot_loader_clear(args: CommandLineArguments, root: str, loopdev: st
     nspawn_params = [
         # clr-boot-manager uses blkid in the device backing "/" to
         # figure out uuid and related parameters.
-        "--bind-ro=/dev",
-
-        # clr-boot-manager compiled in Clear Linux will assume EFI
-        # partition is mounted in "/boot".
-        "--bind=" + os.path.join(root, "efi") + ":/boot",
+        f"--bind-ro={loopdev}",
+        f"--bind-ro=/dev/block",
+        f"--bind-ro=/dev/disk",
+        f"--property=DeviceAllow={loopdev}",
     ]
-    if loopdev is not None:
-        nspawn_params += ["--property=DeviceAllow=" + loopdev]
-        if args.esp_partno is not None:
-            nspawn_params += ["--property=DeviceAllow=" + partition(loopdev, args.esp_partno)]
-        if args.root_partno is not None:
-            nspawn_params += ["--property=DeviceAllow=" + partition(loopdev, args.root_partno)]
+
+    for partno in (args.esp_partno, args.bios_partno, args.root_partno, args.xbootldr_partno):
+        if partno is not None:
+            p = partition(loopdev, partno)
+            nspawn_params += [f"--bind-ro={p}", f"--property=DeviceAllow={p}"]
 
     run_workspace_command(args, root, "/usr/bin/clr-boot-manager", "update", "-i", nspawn_params=nspawn_params)
 
@@ -2733,7 +2738,7 @@ def install_boot_loader(args: CommandLineArguments, root: str, loopdev: Optional
         return
 
     with complete_step("Installing boot loader"):
-        if args.esp_partno:
+        if args.esp_partno and args.distribution != Distribution.clear:
             shutil.copyfile(os.path.join(root, "usr/lib/systemd/boot/efi/systemd-bootx64.efi"),
                             os.path.join(root, "efi/EFI/systemd/systemd-bootx64.efi"))
 
@@ -2761,7 +2766,7 @@ def install_boot_loader(args: CommandLineArguments, root: str, loopdev: Optional
         if args.distribution == Distribution.photon:
             install_boot_loader_photon(args, root, loopdev)
 
-        if args.distribution == Distribution.centos:
+        if args.distribution in (Distribution.centos, Distribution.centos_epel):
             install_boot_loader_centos(args, root, loopdev)
 
         if args.distribution == Distribution.openmandriva:
@@ -3915,7 +3920,7 @@ def create_parser() -> ArgumentParserMkosi:
 
     group.add_argument('--debug', action=CommaDelimitedListAction, default=[],
                        help='Turn on debugging output', metavar='SELECTOR',
-                       choices=('run','build-script'))
+                       choices=('run','build-script','workspace-command'))
     try:
         import argcomplete  # type: ignore
         argcomplete.autocomplete(parser)
@@ -4429,6 +4434,18 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
         elif args.distribution == Distribution.openmandriva:
             args.release = "cooker"
 
+    if (args.distribution in (Distribution.centos, Distribution.centos_epel) and
+        args.release == "8" and
+        args.output_format == OutputFormat.gpt_btrfs):
+        die("Sorry, CentOS 8 does not support btrfs")
+
+    # Remove once https://github.com/clearlinux/clr-boot-manager/pull/238 is merged and available.
+    if args.distribution == Distribution.clear and args.output_format == OutputFormat.gpt_btrfs:
+        die("Sorry, Clear Linux does not support btrfs")
+
+    if args.distribution == Distribution.clear and "," in args.boot_protocols:
+        die("Sorry, Clear Linux does not support hybrid BIOS/UEFI images")
+
     find_cache(args)
 
     if args.mirror is None:
@@ -4454,8 +4471,11 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
         die("Sorry, incremental mode is currently not supported for squashfs or minimized file systems.")
 
     if args.bootable:
-        if args.output_format in (OutputFormat.directory, OutputFormat.subvolume, OutputFormat.tar):
-            die("Directory, subvolume and tar images cannot be booted.")
+        if args.output_format in (OutputFormat.directory,
+                                  OutputFormat.subvolume,
+                                  OutputFormat.tar,
+                                  OutputFormat.plain_squashfs):
+            die("Directory, subvolume, tar and plain squashfs images cannot be booted.")
 
         if not args.boot_protocols:
             args.boot_protocols = ["uefi"]
@@ -4465,12 +4485,6 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
 
         if not {"uefi", "bios"}.issuperset(args.boot_protocols):
             die("Not a valid boot protocol")
-        if "bios" in args.boot_protocols and args.distribution not in (Distribution.fedora,
-                                                                       Distribution.arch,
-                                                                       Distribution.debian,
-                                                                       Distribution.ubuntu,
-                                                                       Distribution.photon):
-            die(f"bios boot not implemented yet for {args.distribution}")
 
         if "uefi" in args.boot_protocols and args.distribution == Distribution.photon:
             die(f"uefi boot not supported for {args.distribution}")
@@ -4625,6 +4639,9 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
 
     if args.qemu_headless and "console=ttyS0" not in args.kernel_command_line:
         args.kernel_command_line.append("console=ttyS0")
+
+    if args.generated_root() and "bios" in args.boot_protocols:
+        die("Sorry, BIOS cannot be combined with --minimize or squashfs filesystems")
 
     return args
 
