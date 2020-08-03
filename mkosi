@@ -2384,10 +2384,6 @@ def install_arch(args: CommandLineArguments, root: str, do_run_build_script: boo
         finally:
             stop_gpg_agent()
 
-    # Remove already installed packages
-    c = run_pacman(['-Qq'], stdout=PIPE, universal_newlines=True)
-    packages.difference_update(c.stdout.split())
-
     if packages:
         # Disable mkinitcpio hook because we manually install the kernel image
         # to /boot using kernel-install in install_boot_loader_arch.
