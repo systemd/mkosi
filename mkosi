@@ -2371,32 +2371,134 @@ def install_arch(args: CommandLineArguments, root: str, do_run_build_script: boo
     if do_run_build_script:
         packages.update(args.build_packages)
 
-    def run_pacman(args: List[str], **kwargs: Any) -> CompletedProcess:
-        cmdline = [
-            "pacman",
-            "--noconfirm",
-            "--config", pacman_conf,
-        ]
+    if not do_run_build_script and args.bootable:
+        # Replace mkinitcpio and depmod hooks by kernel-install hooks which additionally creates systemd-boot
+        # loader entries.
+        hooks_dir = os.path.join(root, "etc/pacman.d/hooks")
+        scripts_dir = os.path.join(root, "etc/pacman.d/scripts")
+
+        os.makedirs(hooks_dir, 0o755, exist_ok=True)
+        os.makedirs(scripts_dir, 0o755, exist_ok=True)
+
+        for hook in ["60-depmod.hook", "90-mkinitcpio-install.hook"]:
+            os.symlink("/dev/null", os.path.join(hooks_dir, hook))
+
+        kernel_add_hook = os.path.join(hooks_dir, "90-mkosi-kernel-add.hook")
+        with open(kernel_add_hook, 'w') as f:
+            f.write(
+                dedent(
+                    """\
+                    [Trigger]
+                    Operation = Install
+                    Operation = Upgrade
+                    Type = Path
+                    Target = usr/lib/modules/*/vmlinuz
+
+                    [Trigger]
+                    Operation = Install
+                    Operation = Upgrade
+                    Operation = Remove
+                    Type = Package
+                    Target = systemd
+                    Target = dracut
+                    Target = intel-ucode
+                    Target = amd-ucode
+
+                    [Action]
+                    Description = Adding kernel and initramfs images to /boot...
+                    When = PostTransaction
+                    Exec = /etc/pacman.d/scripts/mkosi-kernel-add
+                    NeedsTargets
+                    """
+                )
+            )
+
+        kernel_add_script = os.path.join(scripts_dir, "mkosi-kernel-add")
+        with open(kernel_add_script, 'w') as f:
+            f.write(
+                dedent(
+                    """\
+                    #!/bin/bash -e
+
+                    declare -a kernel_version
+
+                    # Check the targets passed by the pacman hook.
+                    while read -r line
+                    do
+                        if [[ "$line" =~ usr/lib/modules/([^/]+)/vmlinuz ]]
+                        then
+                            kernel_version+=( "${BASH_REMATCH[1]}" )
+                        else
+                            # If a non-matching line is passed, just rebuild all kernels.
+                            kernel_version=()
+                            for f in /usr/lib/modules/*/vmlinuz
+                            do
+                                kernel_version+=( "$(basename "$(dirname "$f")")" )
+                            done
+                            break
+                        fi
+                    done
+
+                    # (re)build the kernel images.
+                    for kv in "${kernel_version[@]}"
+                    do
+                        kernel-install add "$kv" "/usr/lib/modules/${kv}/vmlinuz"
+                    done
+                    """
+                )
+            )
+
+        make_executable(kernel_add_script)
+
+        kernel_remove_hook = os.path.join(hooks_dir, "60-mkosi-kernel-remove.hook")
+        with open(kernel_remove_hook, 'w') as f:
+            f.write(
+                dedent(
+                    """\
+                    [Trigger]
+                    Operation = Upgrade
+                    Operation = Remove
+                    Type = Path
+                    Target = usr/lib/modules/*/vmlinuz
+
+                    [Action]
+                    Description = Removing kernel and initramfs images from /boot...
+                    When = PreTransaction
+                    Exec = /etc/pacman.d/mkosi-kernel-remove
+                    NeedsTargets
+                    """
+                )
+            )
+
+        kernel_remove_script = os.path.join(scripts_dir, "mkosi-kernel-remove")
+        with open(kernel_remove_script, 'w') as f:
+            f.write(
+                dedent(
+                    """\
+                    #!/bin/bash -e
+
+                    while read -r f; do
+                        kernel-install remove $(basename $(dirname $f))
+                    done
+                    """
+                )
+            )
+
+        make_executable(kernel_remove_script)
+
+    def run_pacman(packages: List[str]) -> CompletedProcess:
+        if len(packages) == 0:
+            return
+
+        cmdline = ["pacman", "--noconfirm", "--config", pacman_conf, "-S", *packages]
 
         try:
-            return run(cmdline + args, **kwargs, check=True)
+            return run(cmdline, check=True)
         finally:
             stop_gpg_agent()
 
-    if packages:
-        # Disable mkinitcpio hook because we manually install the kernel image
-        # to /boot using kernel-install in install_boot_loader_arch.
-        hooks = os.path.join(root, "etc/pacman.d/hooks")
-        os.makedirs(hooks, 0o755, exist_ok=True)
-
-        mkinitcpio_override = os.path.join(hooks, "90-mkinitcpio-install.hook")
-        os.symlink("/dev/null", mkinitcpio_override)
-
-        run_pacman(["-S", *packages])
-
-        # Re-enable mkinitcpio hook so updating the kernel in the image via
-        # pacman still works.
-        os.remove(mkinitcpio_override)
+    with mount_api_vfs(args, root):
+        run_pacman(packages)
 
     if "networkmanager" in args.packages:
         enable_networkmanager(root)
@@ -2676,23 +2778,6 @@ def run_finalize_script(args: CommandLineArguments, root: str, do_run_build_scri
         run([args.finalize_script, verb], env=env, check=True)
 
 
-def find_kernel_file(root: str, pattern: str) -> Optional[str]:
-    # Look for the vmlinuz file in the workspace
-    workspace_pattern = os.path.join(root, pattern.lstrip('/'))
-    kernel_files = sorted(glob.glob(workspace_pattern))
-    kernel_file = kernel_files[0]
-    # The path the kernel-install script expects is within the
-    # workspace reference as it is run from within the container
-    if kernel_file.startswith(root):
-        kernel_file = kernel_file[len(root):]
-    else:
-        sys.stderr.write(f'Error, kernel file {kernel_file} cannot be used as it is not in the workspace\n')
-        return None
-    if len(kernel_files) > 1:
-        warn('More than one kernel file found, will use {}', kernel_file)
-    return kernel_file
-
-
 def install_grub(args: CommandLineArguments, root: str, loopdev: str, grub: str) -> None:
     if args.bios_partno is None:
         return
@@ -2737,13 +2822,6 @@ def install_boot_loader_centos(args:CommandLineArguments, root: str, loopdev: st
 
 
 def install_boot_loader_arch(args: CommandLineArguments, root: str, loopdev: str) -> None:
-    if "uefi" in args.boot_protocols:
-        # add loader entries and copy kernel/initrd under that entry
-        kernel_version = next(filter(lambda x: x[0].isdigit(), os.listdir(os.path.join(root, "lib/modules"))))
-        kernel_file = find_kernel_file(root, "/lib/modules/*/vmlinuz")
-        if kernel_file is not None:
-            run_workspace_command(args, root, "/usr/bin/kernel-install", "add", kernel_version, kernel_file)
-
     if "bios" in args.boot_protocols:
         install_grub(args, root, loopdev, "grub")
 
