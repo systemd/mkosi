@@ -2403,7 +2403,7 @@ def install_opensuse(args: CommandLineArguments, root: str, do_run_build_script:
         packages += ["patterns-base-minimal_base"]
 
     if not do_run_build_script and args.bootable:
-        packages += ["kernel-default"]
+        packages += ["kernel-default", "binutils"]
         if args.bios_partno is not None:
             packages += ["grub2"]
 
