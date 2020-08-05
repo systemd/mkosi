@@ -4860,6 +4860,7 @@ def print_summary(args: CommandLineArguments) -> None:
 
     sys.stderr.write("\nHOST CONFIGURATION:\n")
     sys.stderr.write("    Extra search paths: " + line_join_list(args.extra_search_paths) + "\n")
+    sys.stderr.write("         QEMU Headless: " + yes_no(args.qemu_headless) + "\n")
 
 
 def reuse_cache_tree(args: CommandLineArguments,
