@@ -352,6 +352,11 @@ details see the table below.
 
 : Set the image's hostname to the specified name.
 
+`--without-unified-kernel-images`
+
+: If specified, mkosi does not build unified kernel images and instead installs kernels with a separate
+  initrd and boot loader config to the efi or bootloader partition.
+
 `--no-chown`
 
 : By default, if `mkosi` is run inside a `sudo` environment all
@@ -690,60 +695,61 @@ settings file (or any other file `--default=` is used on). The
 following table shows which command lines parameters correspond with
 which settings file options.
 
-| Command Line Parameter       | `mkosi.default` section | `mkosi.default` setting   |
-|------------------------------|-------------------------|---------------------------|
-| `--distribution=`, `-d`      | `[Distribution]`        | `Distribution=`           |
-| `--release=`, `-r`           | `[Distribution]`        | `Release=`                |
-| `--repositories=`            | `[Distribution]`        | `Repositories=`           |
-| `--mirror=`, `-m`            | `[Distribution]`        | `Mirror=`                 |
-| `--architecture=`            | `[Distribution]`        | `Architecture=`           |
-| `--format=`, `-t`            | `[Output]`              | `Format=`                 |
-| `--output=`, `-o`            | `[Output]`              | `Output=`                 |
-| `--output-dir=`, `-O`        | `[Output]`              | `OutputDirectory=`        |
-| `--force`, `-f`              | `[Output]`              | `Force=`                  |
-| `--bootable`, `-b`           | `[Output]`              | `Bootable=`               |
-| `--boot-protocols=`          | `[Output]`              | `BootProtocols=`          |
-| `--kernel-command-line=`     | `[Output]`              | `KernelCommandLine=`      |
-| `--secure-boot`              | `[Output]`              | `SecureBoot=`             |
-| `--secure-boot-key=`         | `[Output]`              | `SecureBootKey=`          |
-| `--secure-boot-certificate=` | `[Output]`              | `SecureBootCertificate=`  |
-| `--read-only`                | `[Output]`              | `ReadOnly=`               |
-| `--encrypt=`                 | `[Output]`              | `Encrypt=`                |
-| `--verity=`                  | `[Output]`              | `Verity=`                 |
-| `--compress=`                | `[Output]`              | `Compress=`               |
-| `--mksquashfs=`              | `[Output]`              | `Mksquashfs=`             |
-| `--xz`                       | `[Output]`              | `XZ=`                     |
-| `--qcow2`                    | `[Output]`              | `QCow2=`                  |
-| `--hostname=`                | `[Output]`              | `Hostname=`               |
-| `--package=`                 | `[Packages]`            | `Packages=`               |
-| `--with-docs`                | `[Packages]`            | `WithDocs=`               |
-| `--without-tests`, `-T`      | `[Packages]`            | `WithTests=`              |
-| `--cache=`                   | `[Packages]`            | `Cache=`                  |
-| `--extra-tree=`              | `[Packages]`            | `ExtraTrees=`             |
-| `--skeleton-tree=`           | `[Packages]`            | `SkeletonTrees=`          |
-| `--build-script=`            | `[Packages]`            | `BuildScript=`            |
-| `--build-sources=`           | `[Packages]`            | `BuildSources=`           |
-| `--source-file-transfer=`    | `[Packages]`            | `SourceFileTransfer=`     |
-| `--build-directory=`         | `[Packages]`            | `BuildDirectory=`         |
-| `--build-packages=`          | `[Packages]`            | `BuildPackages=`          |
-| `--skip-final-phase=`        | `[Packages]`            | `SkipFinalPhase=`         |
-| `--postinst-script=`         | `[Packages]`            | `PostInstallationScript=` |
-| `--finalize-script=`         | `[Packages]`            | `FinalizeScript=`         |
-| `--with-network`             | `[Packages]`            | `WithNetwork=`            |
-| `--settings=`                | `[Packages]`            | `NSpawnSettings=`         |
-| `--root-size=`               | `[Partitions]`          | `RootSize=`               |
-| `--esp-size=`                | `[Partitions]`          | `ESPSize=`                |
-| `--swap-size=`               | `[Partitions]`          | `SwapSize=`               |
-| `--home-size=`               | `[Partitions]`          | `HomeSize=`               |
-| `--srv-size=`                | `[Partitions]`          | `SrvSize=`                |
-| `--checksum`                 | `[Validation]`          | `CheckSum=`               |
-| `--sign`                     | `[Validation]`          | `Sign=`                   |
-| `--key=`                     | `[Validation]`          | `Key=`                    |
-| `--bmap`                     | `[Validation]`          | `BMap=`                   |
-| `--password=`                | `[Validation]`          | `Password=`               |
-| `--password-is-hashed`       | `[Validation]`          | `PasswordIsHashed=`       |
-| `--extra-search-paths=`      | `[Host]`                | `ExtraSearchPaths=`       |
-| `--qemu-headless`            | `[Host]`                | `QemuHeadless=`           |
+| Command Line Parameter            | `mkosi.default` section | `mkosi.default` setting       |
+|-----------------------------------|-------------------------|-------------------------------|
+| `--distribution=`, `-d`           | `[Distribution]`        | `Distribution=`               |
+| `--release=`, `-r`                | `[Distribution]`        | `Release=`                    |
+| `--repositories=`                 | `[Distribution]`        | `Repositories=`               |
+| `--mirror=`, `-m`                 | `[Distribution]`        | `Mirror=`                     |
+| `--architecture=`                 | `[Distribution]`        | `Architecture=`               |
+| `--format=`, `-t`                 | `[Output]`              | `Format=`                     |
+| `--output=`, `-o`                 | `[Output]`              | `Output=`                     |
+| `--output-dir=`, `-O`             | `[Output]`              | `OutputDirectory=`            |
+| `--force`, `-f`                   | `[Output]`              | `Force=`                      |
+| `--bootable`, `-b`                | `[Output]`              | `Bootable=`                   |
+| `--boot-protocols=`               | `[Output]`              | `BootProtocols=`              |
+| `--kernel-command-line=`          | `[Output]`              | `KernelCommandLine=`          |
+| `--secure-boot`                   | `[Output]`              | `SecureBoot=`                 |
+| `--secure-boot-key=`              | `[Output]`              | `SecureBootKey=`              |
+| `--secure-boot-certificate=`      | `[Output]`              | `SecureBootCertificate=`      |
+| `--read-only`                     | `[Output]`              | `ReadOnly=`                   |
+| `--encrypt=`                      | `[Output]`              | `Encrypt=`                    |
+| `--verity=`                       | `[Output]`              | `Verity=`                     |
+| `--compress=`                     | `[Output]`              | `Compress=`                   |
+| `--mksquashfs=`                   | `[Output]`              | `Mksquashfs=`                 |
+| `--xz`                            | `[Output]`              | `XZ=`                         |
+| `--qcow2`                         | `[Output]`              | `QCow2=`                      |
+| `--hostname=`                     | `[Output]`              | `Hostname=`                   |
+| `--without-unified-kernel-images` | `[Output]`              | `WithUnifiedKernelImages=`    |
+| `--package=`                      | `[Packages]`            | `Packages=`                   |
+| `--with-docs`                     | `[Packages]`            | `WithDocs=`                   |
+| `--without-tests`, `-T`           | `[Packages]`            | `WithTests=`                  |
+| `--cache=`                        | `[Packages]`            | `Cache=`                      |
+| `--extra-tree=`                   | `[Packages]`            | `ExtraTrees=`                 |
+| `--skeleton-tree=`                | `[Packages]`            | `SkeletonTrees=`              |
+| `--build-script=`                 | `[Packages]`            | `BuildScript=`                |
+| `--build-sources=`                | `[Packages]`            | `BuildSources=`               |
+| `--source-file-transfer=`         | `[Packages]`            | `SourceFileTransfer=`         |
+| `--build-directory=`              | `[Packages]`            | `BuildDirectory=`             |
+| `--build-packages=`               | `[Packages]`            | `BuildPackages=`              |
+| `--skip-final-phase=`             | `[Packages]`            | `SkipFinalPhase=`             |
+| `--postinst-script=`              | `[Packages]`            | `PostInstallationScript=`     |
+| `--finalize-script=`              | `[Packages]`            | `FinalizeScript=`             |
+| `--with-network`                  | `[Packages]`            | `WithNetwork=`                |
+| `--settings=`                     | `[Packages]`            | `NSpawnSettings=`             |
+| `--root-size=`                    | `[Partitions]`          | `RootSize=`                   |
+| `--esp-size=`                     | `[Partitions]`          | `ESPSize=`                    |
+| `--swap-size=`                    | `[Partitions]`          | `SwapSize=`                   |
+| `--home-size=`                    | `[Partitions]`          | `HomeSize=`                   |
+| `--srv-size=`                     | `[Partitions]`          | `SrvSize=`                    |
+| `--checksum`                      | `[Validation]`          | `CheckSum=`                   |
+| `--sign`                          | `[Validation]`          | `Sign=`                       |
+| `--key=`                          | `[Validation]`          | `Key=`                        |
+| `--bmap`                          | `[Validation]`          | `BMap=`                       |
+| `--password=`                     | `[Validation]`          | `Password=`                   |
+| `--password-is-hashed`            | `[Validation]`          | `PasswordIsHashed=`           |
+| `--extra-search-paths=`           | `[Host]`                | `ExtraSearchPaths=`           |
+| `--qemu-headless`                 | `[Host]`                | `QemuHeadless=`               |
 
 Command line options that take no argument are not suffixed with a `=`
 in their long version in the table above. In the `mkosi.default` file

@@ -1525,7 +1525,7 @@ def disable_kernel_install(args: CommandLineArguments, root: str) -> None:
     # off any kernel installation beforehand.
     #
     # For BIOS mode, we don't have that option, so do not mask the units.
-    if not args.bootable or args.bios_partno is not None:
+    if not args.bootable or args.bios_partno is not None or not args.with_unified_kernel_images:
         return
 
     for d in ("etc", "etc/kernel", "etc/kernel/install.d"):
@@ -1537,7 +1537,7 @@ def disable_kernel_install(args: CommandLineArguments, root: str) -> None:
 
 
 def reenable_kernel_install(args: CommandLineArguments, root: str) -> None:
-    if not args.bootable or args.bios_partno is not None:
+    if not args.bootable or args.bios_partno is not None or not args.with_unified_kernel_images:
         return
 
     hook_path = os.path.join(root, "etc/kernel/install.d/50-mkosi-dracut-unified-kernel.install")
@@ -3298,7 +3298,7 @@ def install_unified_kernel(args: CommandLineArguments,
     # benefit that they can be signed like normal EFI binaries, and can encode everything necessary to boot a
     # specific root device, including the root hash.
 
-    if not args.bootable or args.esp_partno is None:
+    if not args.bootable or args.esp_partno is None or not args.with_unified_kernel_images:
         return
     if for_cache:
         return
@@ -3892,6 +3892,9 @@ def create_parser() -> ArgumentParserMkosi:
                        help='Make use of and generate intermediary cache images')
     group.add_argument('-M', "--minimize", action=BooleanAction,
                        help='Minimize root file system size')
+    group.add_argument("--without-unified-kernel-images", action=BooleanAction,
+                       dest='with_unified_kernel_images', default=True,
+                       help="Do not install unified kernel images")
 
     group = parser.add_argument_group("Packages")
     group.add_argument('-p', "--package", action=CommaDelimitedListAction, dest='packages', default=[],
@@ -4688,6 +4691,13 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
     if args.generated_root() and "bios" in args.boot_protocols:
         die("Sorry, BIOS cannot be combined with --minimize or squashfs filesystems")
 
+    if args.with_unified_kernel_images and args.distribution == Distribution.clear:
+        warn("Using --without-unified-kernel-images as Clear Linux does not support unified kernel images.")
+        args.with_unified_kernel_images = False
+
+    if args.verity and not args.with_unified_kernel_images:
+        die("Sorry, --verity can only be used with unified kernel images")
+
     return args
 
 
@@ -4801,6 +4811,7 @@ def print_summary(args: CommandLineArguments) -> None:
                 sys.stderr.write(" UEFI SecureBoot Cert.: " + args.secure_boot_certificate + "\n")
 
             sys.stderr.write("        Boot Protocols: " + line_join_list(args.boot_protocols) + "\n")
+            sys.stderr.write(" Unified Kernel Images: " + yes_no(args.with_unified_kernel_images))
 
     sys.stderr.write("\nPACKAGES:\n")
     sys.stderr.write("              Packages: " + line_join_list(args.packages) + "\n")
