@@ -28,6 +28,7 @@ import subprocess
 import sys
 import tempfile
 import urllib.request
+import urllib.parse
 import uuid
 from subprocess import DEVNULL, PIPE
 from textwrap import dedent
@@ -1754,12 +1755,13 @@ def install_fedora(args: CommandLineArguments, root: str, do_run_build_script: b
     arch = args.architecture or platform.machine()
 
     if args.mirror:
-        baseurl = f"{args.mirror}/releases/{args.release}/Everything/$basearch/os/"
-        if not check_if_url_exists(f"{baseurl}/media.repo"):
-            baseurl = f"{args.mirror}/development/{args.release}/Everything/$basearch/os/"
+        baseurl = urllib.parse.urljoin(args.mirror, f"releases/{args.release}/Everything/$basearch/os/")
+        media = urllib.parse.urljoin(baseurl.replace("$basearch", arch), "media.repo")
+        if not check_if_url_exists(media):
+            baseurl = urllib.parse.urljoin(args.mirror, f"development/{args.release}/Everything/$basearch/os/")
 
         release_url = f"baseurl={baseurl}"
-        updates_url = f"baseurl={args.mirror}/updates/{args.release}/$basearch/"
+        updates_url = f"baseurl={args.mirror}/updates/{args.release}/Everything/$basearch/"
     else:
         release_url = (f"metalink=https://mirrors.fedoraproject.org/metalink?" +
                        f"repo=fedora-{args.release}&arch=$basearch")
