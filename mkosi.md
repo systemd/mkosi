@@ -499,14 +499,14 @@ details see the table below.
 
 : Takes a path to an executable that is invoked inside the image
   right after installing the software packages. It is
-  the last step before the image is cached (if incremental mode is 
+  the last step before the image is cached (if incremental mode is
   enabled).
   This script is invoked inside a `systemd-nspawn` container
   environment, and thus does not have access to host resources.
   If this option is not used, but an executable script `mkosi.prepare`
   is found in the local directory, it is automatically used for this
   purpose (also see below).
-  
+
 `--postinst-script=`
 
 : Takes a path to an executable that is invoked inside the final image
@@ -906,8 +906,8 @@ local directory:
   time for the *final* image with the "final" command line parameter.
   This script has network access and may be used to install packages
   from other sources than the distro's package manager (e.g. pip, npm, ...),
-  after all software packages are installed but before the image is 
-  cached (if incremental mode is enabled). 
+  after all software packages are installed but before the image is
+  cached (if incremental mode is enabled).
   Note that this script is executed directly in the image context with
   the final root directory in place, without any `$SRCDIR`/`$DESTDIR`
   setup.
