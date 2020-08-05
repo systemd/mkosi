@@ -163,10 +163,6 @@ def print_running_cmd(cmdline: Iterable[str]) -> None:
     sys.stderr.write(" ".join(shlex.quote(x) for x in cmdline) + "\n")
 
 
-def print_error(text: str) -> None:
-    sys.stderr.write(f"‣ \033[31;1m{text}\033[0m\n")
-
-
 @contextlib.contextmanager
 def delay_interrupt() -> Generator[None, None, None]:
     # CTRL+C is sent to the entire process group. We delay its handling in mkosi itself so the subprocess can
@@ -207,7 +203,7 @@ def run(cmdline: List[str], execvp: bool = False, **kwargs: Any) -> CompletedPro
 
 
 def die(message: str) -> NoReturn:
-    print_error(f"Error: {message}")
+    sys.stderr.write(f"‣ \033[31;1mError: {message}\033[0m\n")
     raise MkosiException(message)
 
 
