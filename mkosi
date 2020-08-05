@@ -207,8 +207,8 @@ def die(message: str) -> NoReturn:
     raise MkosiException(message)
 
 
-def warn(message: str, *args: Any, **kwargs: Any) -> None:
-    sys.stderr.write('WARNING: ' + message.format(*args, **kwargs) + '\n')
+def warn(message: str) -> None:
+    sys.stderr.write(f"‣ \033[33;1mWarning: {message}\033[0m\n")
 
 
 def tmp_dir() -> str:
@@ -4326,9 +4326,14 @@ def find_cache(args: CommandLineArguments) -> None:
 def require_private_file(name: str, description: str) -> None:
     mode = os.stat(name).st_mode & 0o777
     if mode & 0o007:
-        warn("Permissions of '{}' of '{}' are too open.\n" +
-             "When creating {} files use an access mode that restricts access to the owner only.",
-             name, oct(mode), description)
+        warn(
+            dedent(
+                f"""
+                Permissions of '{name}' of '{mode:04o}' are too open.
+                When creating {description} files use an access mode that restricts access to the owner only.\
+                """
+            )
+        )
 
 
 def find_passphrase(args: CommandLineArguments) -> None:
