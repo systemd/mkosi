@@ -2212,6 +2212,7 @@ def install_arch(args: CommandLineArguments, root: str, do_run_build_script: boo
         "var/cache": 0o755,
         "var/cache/pacman": 0o755,
         "var/tmp": 0o1777,
+        "run": 0o755,
     }
 
     for dir, permissions in fix_permissions_dirs.items():
@@ -2378,20 +2379,9 @@ def install_arch(args: CommandLineArguments, root: str, do_run_build_script: boo
 
         make_executable(kernel_remove_script)
 
-    def run_pacman_key(args: List[str]) -> CompletedProcess:
-        cmdline = ["pacman-key", "--nocolor", "--config", pacman_conf]
-
-        try:
-            return run(cmdline + args, check=True)
-        finally:
-            # Kill the gpg-agent started by pacman-key
-            run(['gpgconf', '--homedir', os.path.join(root, 'etc/pacman.d/gnupg'), '--kill', 'all'])
-
     keyring = "archlinux"
     if platform.machine() == "aarch64":
         keyring += "arm"
-    run_pacman_key(["--init"])
-    run_pacman_key(["--populate", keyring])
 
     packages = {"base"}
 
@@ -2428,12 +2418,19 @@ def install_arch(args: CommandLineArguments, root: str, do_run_build_script: boo
     if do_run_build_script:
         packages.update(args.build_packages)
 
-    def run_pacstrap(packages: Set[str]) -> None:
-        cmdline = ["pacstrap", "-C", pacman_conf, "-GM", root]
-        # pacstrap handles gpg-agent on its own
-        run(cmdline + list(packages), check=True)
+    def run_pacman(packages: Set[str]) -> None:
+        conf = ["--config", pacman_conf]
 
-    run_pacstrap(packages)
+        try:
+            run(["pacman-key", *conf, "--init"], check=True)
+            run(["pacman-key", *conf, "--populate"], check=True)
+            run(["pacman", *conf, "--noconfirm", "-Sy", *packages], check=True)
+        finally:
+            # Kill the gpg-agent started by pacman and pacman-key.
+            run(['gpgconf', '--homedir', os.path.join(root, 'etc/pacman.d/gnupg'), '--kill', 'all'])
+
+    with mount_api_vfs(args, root):
+        run_pacman(packages)
 
     if "networkmanager" in args.packages:
         enable_networkmanager(root)
