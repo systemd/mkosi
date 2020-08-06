@@ -1934,7 +1934,7 @@ def install_centos_old(args: CommandLineArguments, root: str, epel_release: str)
 def install_centos_new(args: CommandLineArguments, root: str, epel_release: str) -> List[str]:
     # Repos for CentOS 8 and later
 
-    gpgpath="/etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-Official"
+    gpgpath="/etc/pki/rpm-gpg/RPM-GPG-KEY-centosofficial"
     gpgurl='https://www.centos.org/keys/RPM-GPG-KEY-CentOS-Official'
     epel_gpgpath = f"/etc/pki/rpm-gpg/RPM-GPG-KEY-EPEL-{epel_release}"
     epel_gpgurl = f'https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-{epel_release}'
@@ -1942,9 +1942,9 @@ def install_centos_new(args: CommandLineArguments, root: str, epel_release: str)
     if args.mirror:
         appstream_url = f"baseurl={args.mirror}/centos/{args.release}/AppStream/x86_64/os"
         baseos_url = f"baseurl={args.mirror}/centos/{args.release}/BaseOS/x86_64/os"
-        extras_url = f"baseurl={args.mirror}/centos/{args.release}/extras/x86_64/"
-        centosplus_url = f"baseurl={args.mirror}/centos/{args.release}/centosplus/x86_64/"
-        epel_url = f"baseurl={args.mirror}/epel/{epel_release}/Everything/x86_64/"
+        extras_url = f"baseurl={args.mirror}/centos/{args.release}/extras/x86_64/os"
+        centosplus_url = f"baseurl={args.mirror}/centos/{args.release}/centosplus/x86_64/os"
+        epel_url = f"baseurl={args.mirror}/epel/{epel_release}/Everything/x86_64/os"
     else:
         appstream_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=AppStream"
         baseos_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=BaseOS"
