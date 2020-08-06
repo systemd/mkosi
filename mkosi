@@ -2750,34 +2750,6 @@ def install_grub(args: CommandLineArguments, root: str, loopdev: str, grub: str)
         nspawn_params=nspawn_params)
 
 
-def install_boot_loader_fedora(args: CommandLineArguments, root: str, loopdev: str) -> None:
-    install_grub(args, root, loopdev, "grub2")
-
-
-def install_boot_loader_centos(args:CommandLineArguments, root: str, loopdev: str) -> None:
-    install_grub(args, root, loopdev, "grub2")
-
-
-def install_boot_loader_arch(args: CommandLineArguments, root: str, loopdev: str) -> None:
-    if "bios" in args.boot_protocols:
-        install_grub(args, root, loopdev, "grub")
-
-
-def install_boot_loader_debian(args: CommandLineArguments, root: str, loopdev: str) -> None:
-    if "bios" in args.boot_protocols:
-        grub = "grub" if args.distribution in (Distribution.ubuntu, Distribution.debian) else "grub2"
-        # TODO: Just use "grub" once https://github.com/systemd/systemd/pull/16645 is widely available.
-        install_grub(args, root, loopdev, f"/usr/sbin/{grub}")
-
-
-def install_boot_loader_ubuntu(args: CommandLineArguments, root: str, loopdev: str) -> None:
-    install_boot_loader_debian(args, root, loopdev)
-
-
-def install_boot_loader_opensuse(args: CommandLineArguments, root: str, loopdev: str) -> None:
-    install_boot_loader_debian(args, root, loopdev)
-
-
 def install_boot_loader_clear(args: CommandLineArguments, root: str, loopdev: str) -> None:
     nspawn_params = [
         # clr-boot-manager uses blkid in the device backing "/" to
@@ -2796,14 +2768,6 @@ def install_boot_loader_clear(args: CommandLineArguments, root: str, loopdev: st
     run_workspace_command(args, root, "/usr/bin/clr-boot-manager", "update", "-i", nspawn_params=nspawn_params)
 
 
-def install_boot_loader_photon(args: CommandLineArguments, root: str, loopdev: str) -> None:
-    install_grub(args, root, loopdev, "grub2")
-
-
-def install_boot_loader_openmandriva(args: CommandLineArguments, root: str, loopdev: str) -> None:
-    install_grub(args, root, loopdev, "grub2")
-
-
 def install_boot_loader(args: CommandLineArguments, root: str, loopdev: Optional[str], do_run_build_script: bool, cached: bool) -> None:
     if not args.bootable or do_run_build_script:
         return
@@ -2820,32 +2784,16 @@ def install_boot_loader(args: CommandLineArguments, root: str, loopdev: Optional
             shutil.copyfile(os.path.join(root, "usr/lib/systemd/boot/efi/systemd-bootx64.efi"),
                             os.path.join(root, "efi/EFI/BOOT/bootx64.efi"))
 
-        if args.distribution == Distribution.fedora:
-            install_boot_loader_fedora(args, root, loopdev)
+        if args.bios_partno and args.distribution != Distribution.clear:
+            grub = "grub" if args.distribution in (Distribution.ubuntu, Distribution.debian, Distribution.arch) else "grub2"
+            # TODO: Just use "grub" once https://github.com/systemd/systemd/pull/16645 is widely available.
+            if args.distribution in (Distribution.ubuntu, Distribution.debian, Distribution.opensuse):
+                grub = f"/usr/sbin/{grub}"
 
-        if args.distribution == Distribution.arch:
-            install_boot_loader_arch(args, root, loopdev)
-
-        if args.distribution == Distribution.debian:
-            install_boot_loader_debian(args, root, loopdev)
-
-        if args.distribution == Distribution.ubuntu:
-            install_boot_loader_ubuntu(args, root, loopdev)
-
-        if args.distribution == Distribution.opensuse:
-            install_boot_loader_opensuse(args, root, loopdev)
+            install_grub(args, root, loopdev, grub)
 
         if args.distribution == Distribution.clear:
             install_boot_loader_clear(args, root, loopdev)
-
-        if args.distribution == Distribution.photon:
-            install_boot_loader_photon(args, root, loopdev)
-
-        if args.distribution in (Distribution.centos, Distribution.centos_epel):
-            install_boot_loader_centos(args, root, loopdev)
-
-        if args.distribution == Distribution.openmandriva:
-            install_boot_loader_openmandriva(args, root, loopdev)
 
 
 def install_extra_trees(args: CommandLineArguments, root: str, for_cache: bool) -> None:
