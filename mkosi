@@ -2775,11 +2775,7 @@ def install_boot_loader(args: CommandLineArguments, root: str, loopdev: Optional
 
     with complete_step("Installing boot loader"):
         if args.esp_partno and args.distribution != Distribution.clear:
-            shutil.copyfile(os.path.join(root, "usr/lib/systemd/boot/efi/systemd-bootx64.efi"),
-                            os.path.join(root, "efi/EFI/systemd/systemd-bootx64.efi"))
-
-            shutil.copyfile(os.path.join(root, "usr/lib/systemd/boot/efi/systemd-bootx64.efi"),
-                            os.path.join(root, "efi/EFI/BOOT/bootx64.efi"))
+            run_workspace_command(args, root, "bootctl", "install")
 
         if args.bios_partno and args.distribution != Distribution.clear:
             grub = "grub" if args.distribution in (Distribution.ubuntu, Distribution.debian, Distribution.arch) else "grub2"
