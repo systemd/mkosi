@@ -13,7 +13,7 @@ class BuildManpage(Command):
         pass
 
     def run(self):
-        self.spawn(['pandoc', '-t', 'man', '-s', '-o', 'mkosi.1', 'mkosi.md'])
+        self.spawn(['pandoc', '-t', 'man', '-s', '-o', 'man/mkosi.1', 'mkosi.md'])
 
 
 setup(
@@ -27,5 +27,6 @@ setup(
     python_requires=">=3.6",
     packages = ["mkosi"],
     cmdclass = { "man": BuildManpage },
-    entry_points = {"console_scripts": ["mkosi=mkosi.__main__"]},
+    data_files = [('share/man/man1', ["man/mkosi.1"])],
+    entry_points = {"console_scripts": ["mkosi=mkosi.__main__:main"]},
 )
