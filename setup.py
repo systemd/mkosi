@@ -28,5 +28,5 @@ setup(
     packages = ["mkosi"],
     cmdclass = { "man": BuildManpage },
     data_files = [('share/man/man1', ["man/mkosi.1"])],
-    entry_points = {"console_scripts": ["mkosi=mkosi.__main__"]},
+    entry_points = {"console_scripts": ["mkosi=mkosi.__main__:main"]},
 )
