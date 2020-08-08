@@ -2902,7 +2902,7 @@ def install_build_dest(args: CommandLineArguments, root: str, do_run_build_scrip
         copy_path(dest, root)
 
 
-def make_read_only(args: CommandLineArguments, root: str, for_cache: bool) -> None:
+def make_read_only(args: CommandLineArguments, root: str, for_cache: bool, b: bool = True) -> None:
     if not args.read_only:
         return
     if for_cache:
@@ -2912,7 +2912,7 @@ def make_read_only(args: CommandLineArguments, root: str, for_cache: bool) -> No
         return
 
     with complete_step('Marking root subvolume read-only'):
-        btrfs_subvol_make_ro(root)
+        btrfs_subvol_make_ro(root, b)
 
 
 def make_tar(args: CommandLineArguments,
@@ -3492,7 +3492,11 @@ def link_output(args: CommandLineArguments, root: str, artifact: Optional[Binary
                        'Successfully linked ' + args.output):
         if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
             assert artifact is None
+
+            make_read_only(args, root, for_cache=False, b=False)
             os.rename(root, args.output)
+            make_read_only(args, args.output, for_cache=False, b=True)
+
         elif args.output_format.is_disk() or args.output_format in (OutputFormat.plain_squashfs, OutputFormat.tar):
             assert artifact is not None
             _link_output(args, artifact.name, args.output)
