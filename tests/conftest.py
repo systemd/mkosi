@@ -2,13 +2,8 @@
 
 import sys
 import os 
-dir_path = os.path.dirname(os.path.realpath(__file__))
 
-import importlib.util
-spec = importlib.util.spec_from_file_location('mkosi', os.path.join(dir_path, '../mkosi.py'))
-mkosi_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(mkosi_module)
-sys.modules['mkosi'] = mkosi_module
+import mkosi
 
 from tests.test_config_parser import MkosiConfig
 
