@@ -79,6 +79,73 @@ MKOSI_COMMANDS_NEED_BUILD = MKOSI_COMMANDS_CMDLINE
 MKOSI_COMMANDS_SUDO = ("build", "clean") + MKOSI_COMMANDS_CMDLINE
 MKOSI_COMMANDS = ("build", "clean", "help", "summary") + MKOSI_COMMANDS_CMDLINE
 
+DRACUT_SYSTEMD_EXTRAS = [
+    "/usr/lib/systemd/systemd-veritysetup",
+    "/usr/lib/systemd/system-generators/systemd-veritysetup-generator",
+    "/usr/bin/systemd-repart",
+    "/usr/lib/systemd/system/systemd-repart.service",
+    "/usr/lib/systemd/system/initrd-root-fs.target.wants/systemd-repart.service",
+]
+
+DRACUT_UNIFIED_KERNEL_INSTALL = """\
+#!/bin/bash -e
+
+COMMAND="$1"
+KERNEL_VERSION="$2"
+BOOT_DIR_ABS="$3"
+KERNEL_IMAGE="$4"
+ROOTHASH="${5:-}"
+
+# If KERNEL_INSTALL_MACHINE_ID is defined but empty, BOOT_DIR_ABS is a fake directory so let's skip creating
+# the unified kernel image.
+if [[ -z "${KERNEL_INSTALL_MACHINE_ID-unset}" ]]; then
+    exit 0
+fi
+
+# Strip machine ID and kernel version to get the boot directory.
+PREFIX=$(dirname $(dirname "$BOOT_DIR_ABS"))
+
+if [[ -n "$ROOTHASH" ]]; then
+    BOOT_BINARY="${PREFIX}/EFI/Linux/linux-${KERNEL_VERSION}-${ROOTHASH}.efi"
+else
+    BOOT_BINARY="${PREFIX}/EFI/Linux/linux-${KERNEL_VERSION}.efi"
+fi
+
+case "$COMMAND" in
+    add)
+        if [[ -f /etc/kernel/cmdline ]]; then
+            read -r -d '' BOOT_OPTIONS < /etc/kernel/cmdline || true
+        elif [[ -f /usr/lib/kernel/cmdline ]]; then
+            read -r -d '' BOOT_OPTIONS < /usr/lib/kernel/cmdline || true
+        else
+            read -r -d '' BOOT_OPTIONS < /proc/cmdline || true
+        fi
+
+        if [[ -n "$ROOTHASH" ]]; then
+            BOOT_OPTIONS="${BOOT_OPTIONS} roothash=${ROOTHASH}"
+        fi
+
+        if [[ -n "$KERNEL_IMAGE" ]]; then
+            DRACUT_KERNEL_IMAGE_OPTION="--kernel-image ${KERNEL_IMAGE}"
+        else
+            DRACUT_KERNEL_IMAGE_OPTION=""
+        fi
+
+        dracut \\
+            --verbose \\
+            --uefi \\
+            --kver "$KERNEL_VERSION" \\
+            $DRACUT_KERNEL_IMAGE_OPTION \\
+            --kernel-cmdline "$BOOT_OPTIONS" \\
+            --force \\
+            "$BOOT_BINARY"
+        ;;
+    remove)
+        rm -f -- "$BOOT_BINARY"
+        ;;
+esac
+"""
+
 
 # This global should be initialized after parsing arguments
 arg_debug = ()
@@ -95,10 +162,6 @@ def print_step(text: str) -> None:
 def print_running_cmd(cmdline: Iterable[str]) -> None:
     sys.stderr.write("‣ \033[0;1;39mRunning command:\033[0m\n")
     sys.stderr.write(" ".join(shlex.quote(x) for x in cmdline) + "\n")
-
-
-def print_error(text: str) -> None:
-    sys.stderr.write(f"‣ \033[31;1m{text}\033[0m\n")
 
 
 @contextlib.contextmanager
@@ -141,12 +204,12 @@ def run(cmdline: List[str], execvp: bool = False, **kwargs: Any) -> CompletedPro
 
 
 def die(message: str) -> NoReturn:
-    print_error(f"Error: {message}")
+    sys.stderr.write(f"‣ \033[31;1mError: {message}\033[0m\n")
     raise MkosiException(message)
 
 
-def warn(message: str, *args: Any, **kwargs: Any) -> None:
-    sys.stderr.write('WARNING: ' + message.format(*args, **kwargs) + '\n')
+def warn(message: str) -> None:
+    sys.stderr.write(f"‣ \033[33;1mWarning: {message}\033[0m\n")
 
 
 def tmp_dir() -> str:
@@ -1336,6 +1399,24 @@ def prepare_tree(args: CommandLineArguments, root: str, do_run_build_script: boo
             cmdline.write(' '.join(args.kernel_command_line))
             cmdline.write("\n")
 
+        dracut_dir = os.path.join(root, "etc/dracut.conf.d")
+        os.mkdir(dracut_dir, 0o755)
+
+        with open(os.path.join(dracut_dir, "30-mkosi-hostonly.conf"), "w") as f:
+            f.write("hostonly=no\n")
+
+        with open(os.path.join(dracut_dir, "30-mkosi-systemd-extras.conf"), "w") as f:
+            for extra in DRACUT_SYSTEMD_EXTRAS:
+                f.write(f"install_optional_items+=\" {extra} \"\n")
+
+        with open(os.path.join(dracut_dir, "30-mkosi-qemu.conf"), "w") as f:
+            f.write("add_dracutmodules+=\" qemu \"\n")
+
+        # These distros need uefi_stub configured explicitly for dracut to find the systemd-boot uefi stub.
+        if args.distribution in (Distribution.ubuntu, Distribution.mageia, Distribution.openmandriva):
+            with open(os.path.join(dracut_dir, "30-mkosi-uefi-stub.conf"), "w") as f:
+                f.write("uefi_stub=/usr/lib/systemd/boot/efi/linuxx64.efi.stub\n")
+
     if do_run_build_script:
         os.mkdir(os.path.join(root, "root"), 0o750)
         os.mkdir(os.path.join(root, "root/dest"), 0o755)
@@ -1435,40 +1516,38 @@ def check_if_url_exists(url: str) -> bool:
         return False
 
 
-def disable_kernel_install(args: CommandLineArguments, root: str) -> List[str]:
-    # Let's disable the automatic kernel installation done by the
-    # kernel RPMs. After all, we want to built our own unified kernels
-    # that include the root hash in the kernel command line and can be
-    # signed as a single EFI executable. Since the root hash is only
-    # known when the root file system is finalized we turn off any
-    # kernel installation beforehand.
+def make_executable(path: str) -> None:
+    st = os.stat(path)
+    os.chmod(path, st.st_mode | stat.S_IEXEC)
+
+
+def disable_kernel_install(args: CommandLineArguments, root: str) -> None:
+    # Let's disable the automatic kernel installation done by the kernel RPMs. After all, we want to built
+    # our own unified kernels that include the root hash in the kernel command line and can be signed as a
+    # single EFI executable. Since the root hash is only known when the root file system is finalized we turn
+    # off any kernel installation beforehand.
     #
-    # For BIOS mode, we don't have that option, so do not mask the units
-    if not args.bootable or args.bios_partno is not None:
-        return []
+    # For BIOS mode, we don't have that option, so do not mask the units.
+    if not args.bootable or args.bios_partno is not None or not args.with_unified_kernel_images:
+        return
 
     for d in ("etc", "etc/kernel", "etc/kernel/install.d"):
         mkdir_last(os.path.join(root, d), 0o755)
 
-    masked: List[str] = []
-
     for f in ("50-dracut.install", "51-dracut-rescue.install", "90-loaderentry.install"):
         path = os.path.join(root, "etc/kernel/install.d", f)
         os.symlink("/dev/null", path)
-        masked += [path]
-
-    return masked
 
 
-def reenable_kernel_install(args: CommandLineArguments, root: str, masked: List[str]) -> None:
-    # Undo disable_kernel_install() so the final image can be used
-    # with scripts installing a kernel following the Bootloader Spec
-
-    if not args.bootable:
+def reenable_kernel_install(args: CommandLineArguments, root: str) -> None:
+    if not args.bootable or args.bios_partno is not None or not args.with_unified_kernel_images:
         return
 
-    for f in masked:
-        os.unlink(f)
+    hook_path = os.path.join(root, "etc/kernel/install.d/50-mkosi-dracut-unified-kernel.install")
+    with open(hook_path, "w") as f:
+        f.write(DRACUT_UNIFIED_KERNEL_INSTALL)
+
+    make_executable(hook_path)
 
 
 def make_rpm_list(args: argparse.Namespace, packages: List[str]) -> List[str]:
@@ -1671,8 +1750,6 @@ def setup_dnf(args: CommandLineArguments, root: str, repos: List[Repo] = []) -> 
 
 @completestep('Installing Photon')
 def install_photon(args: CommandLineArguments, root: str, do_run_build_script: bool) -> None:
-    masked = disable_kernel_install(args, root)
-
     release_url = "baseurl=https://dl.bintray.com/vmware/photon_release_$releasever_$basearch"
     updates_url = "baseurl=https://dl.bintray.com/vmware/photon_updates_$releasever_$basearch"
     gpgpath='/etc/pki/rpm-gpg/VMWARE-RPM-GPG-KEY'
@@ -1687,7 +1764,6 @@ def install_photon(args: CommandLineArguments, root: str, do_run_build_script: b
         packages += ["linux", "initramfs"]
 
     invoke_tdnf(args, root, args.repositories or ["photon", "photon-updates"], packages, os.path.exists(gpgpath))
-    reenable_kernel_install(args, root, masked)
 
 
 @completestep('Installing Clear Linux')
@@ -1756,8 +1832,6 @@ def install_fedora(args: CommandLineArguments, root: str, do_run_build_script: b
     else:
         args.releasever = args.release
 
-    masked = disable_kernel_install(args, root)
-
     arch = args.architecture or platform.machine()
 
     if args.mirror:
@@ -1799,13 +1873,9 @@ def install_fedora(args: CommandLineArguments, root: str, do_run_build_script: b
     with open(os.path.join(root, 'etc/locale.conf'), 'w') as f:
         f.write('LANG=C.UTF-8\n')
 
-    reenable_kernel_install(args, root, masked)
-
 
 @completestep('Installing Mageia')
 def install_mageia(args: CommandLineArguments, root: str, do_run_build_script: bool) -> None:
-    masked = disable_kernel_install(args, root)
-
     if args.mirror:
         baseurl = f"{args.mirror}/distrib/{args.release}/x86_64/media/core/"
         release_url = f"baseurl={baseurl}/release/"
@@ -1830,13 +1900,10 @@ def install_mageia(args: CommandLineArguments, root: str, do_run_build_script: b
         packages += args.build_packages or []
     invoke_dnf(args, root, args.repositories or ["mageia", "updates"], packages)
 
-    reenable_kernel_install(args, root, masked)
-
 
 @completestep('Installing OpenMandriva')
 def install_openmandriva(args: CommandLineArguments, root: str, do_run_build_script: bool) -> None:
     release = args.release.strip("'")
-    masked = disable_kernel_install(args, root)
 
     if release[0].isdigit():
         release_model = "rock"
@@ -1868,8 +1935,6 @@ def install_openmandriva(args: CommandLineArguments, root: str, do_run_build_scr
     if do_run_build_script:
         packages += args.build_packages or []
     invoke_dnf(args, root, args.repositories or ["openmandriva", "updates"], packages)
-
-    reenable_kernel_install(args, root, masked)
 
 
 def invoke_yum(args: CommandLineArguments,
@@ -1977,8 +2042,6 @@ def install_centos_new(args: CommandLineArguments, root: str, epel_release: str)
 
 @completestep('Installing CentOS')
 def install_centos(args: CommandLineArguments, root: str, do_run_build_script: bool) -> None:
-    masked = disable_kernel_install(args, root)
-
     epel_release = args.release.split('.')[0]
 
     # Centos Repositories were changed between 7 and 8
@@ -2011,7 +2074,6 @@ def install_centos(args: CommandLineArguments, root: str, do_run_build_script: b
         packages += args.build_packages or []
 
     invoke_dnf_or_yum(args, root, repos, packages)
-    reenable_kernel_install(args, root, masked)
 
 
 def debootstrap_knows_arg(arg: str) -> bool:
@@ -2164,6 +2226,7 @@ def install_arch(args: CommandLineArguments, root: str, do_run_build_script: boo
         "var/cache": 0o755,
         "var/cache/pacman": 0o755,
         "var/tmp": 0o1777,
+        "run": 0o755,
     }
 
     for dir, permissions in fix_permissions_dirs.items():
@@ -2184,7 +2247,6 @@ def install_arch(args: CommandLineArguments, root: str, do_run_build_script: boo
                 HookDir     = {root}/etc/pacman.d/hooks/
                 HoldPkg     = pacman glibc
                 Architecture = auto
-                UseSyslog
                 Color
                 CheckSpace
                 SigLevel    = Required DatabaseOptional TrustAll
@@ -2218,41 +2280,143 @@ def install_arch(args: CommandLineArguments, root: str, do_run_build_script: boo
                     )
                 )
 
-    def stop_gpg_agent() -> None:
-        # Kill the gpg-agent used by pacman and pacman-key
-        run(['gpgconf', '--homedir', os.path.join(root, 'etc/pacman.d/gnupg'), '--kill', 'all'])
+    if not do_run_build_script and args.bootable:
+        hooks_dir = os.path.join(root, "etc/pacman.d/hooks")
+        scripts_dir = os.path.join(root, "etc/pacman.d/scripts")
 
-    def run_pacman_key(args: List[str]) -> CompletedProcess:
-        cmdline = [
-            "pacman-key",
-            "--nocolor",
-            "--config", pacman_conf,
-        ]
+        os.makedirs(hooks_dir, 0o755, exist_ok=True)
+        os.makedirs(scripts_dir, 0o755, exist_ok=True)
 
-        try:
-            return run(cmdline + args, check=True)
-        finally:
-            stop_gpg_agent()
+        # Disable depmod pacman hook as depmod is handled by kernel-install as well.
+        os.symlink("/dev/null", os.path.join(hooks_dir, "60-depmod.hook"))
+
+        kernel_add_hook = os.path.join(hooks_dir, "90-mkosi-kernel-add.hook")
+        with open(kernel_add_hook, 'w') as f:
+            f.write(
+                dedent(
+                    """\
+                    [Trigger]
+                    Operation = Install
+                    Operation = Upgrade
+                    Type = Path
+                    Target = usr/lib/modules/*/vmlinuz
+
+                    [Trigger]
+                    Operation = Install
+                    Operation = Upgrade
+                    Operation = Remove
+                    Type = Package
+                    Target = systemd
+                    Target = dracut
+                    Target = intel-ucode
+                    Target = amd-ucode
+
+                    [Action]
+                    Description = Adding kernel and initramfs images to /boot...
+                    When = PostTransaction
+                    Exec = /etc/pacman.d/scripts/mkosi-kernel-add
+                    NeedsTargets
+                    """
+                )
+            )
+
+        kernel_add_script = os.path.join(scripts_dir, "mkosi-kernel-add")
+        with open(kernel_add_script, 'w') as f:
+            f.write(
+                dedent(
+                    """\
+                    #!/bin/bash -e
+
+                    declare -a kernel_version
+
+                    # Check the targets passed by the pacman hook.
+                    while read -r line
+                    do
+                        if [[ "$line" =~ usr/lib/modules/([^/]+)/vmlinuz ]]
+                        then
+                            kernel_version+=( "${BASH_REMATCH[1]}" )
+                        else
+                            # If a non-matching line is passed, just rebuild all kernels.
+                            kernel_version=()
+                            for f in /usr/lib/modules/*/vmlinuz
+                            do
+                                kernel_version+=( "$(basename "$(dirname "$f")")" )
+                            done
+                            break
+                        fi
+                    done
+
+                    # (re)build the kernel images.
+                    for kv in "${kernel_version[@]}"
+                    do
+                        kernel-install add "$kv" "/usr/lib/modules/${kv}/vmlinuz"
+                    done
+                    """
+                )
+            )
+
+        make_executable(kernel_add_script)
+
+        kernel_remove_hook = os.path.join(hooks_dir, "60-mkosi-kernel-remove.hook")
+        with open(kernel_remove_hook, 'w') as f:
+            f.write(
+                dedent(
+                    """\
+                    [Trigger]
+                    Operation = Upgrade
+                    Operation = Remove
+                    Type = Path
+                    Target = usr/lib/modules/*/vmlinuz
+
+                    [Action]
+                    Description = Removing kernel and initramfs images from /boot...
+                    When = PreTransaction
+                    Exec = /etc/pacman.d/mkosi-kernel-remove
+                    NeedsTargets
+                    """
+                )
+            )
+
+        kernel_remove_script = os.path.join(scripts_dir, "mkosi-kernel-remove")
+        with open(kernel_remove_script, 'w') as f:
+            f.write(
+                dedent(
+                    """\
+                    #!/bin/bash -e
+
+                    while read -r f; do
+                        kernel-install remove $(basename $(dirname $f))
+                    done
+                    """
+                )
+            )
+
+        make_executable(kernel_remove_script)
+
+        if args.esp_partno is not None:
+            bootctl_update_hook = os.path.join(hooks_dir, "91-mkosi-bootctl-update-hook")
+            with open(bootctl_update_hook, 'w') as f:
+                f.write(
+                    dedent(
+                        """\
+                        [Trigger]
+                        Operation = Upgrade
+                        Type = Package
+                        Target = systemd
+
+                        [Action]
+                        Description = Updating systemd-boot...
+                        When = PostTransaction
+                        Exec = /usr/bin/bootctl update
+                        """
+                    )
+                )
 
     keyring = "archlinux"
     if platform.machine() == "aarch64":
         keyring += "arm"
-    run_pacman_key(["--init"])
-    run_pacman_key(["--populate", keyring])
 
-    # the base metapackage is mandatory
     packages = {"base"}
-
-    official_kernel_packages = {
-        "linux",
-        "linux-lts",
-        "linux-hardened",
-        "linux-zen",
-    }
-
-    kernel_packages = official_kernel_packages.intersection(args.packages)
-    if len(kernel_packages) > 1:
-        warn('More than one kernel will be installed: {}', ' '.join(kernel_packages))
 
     if not do_run_build_script and args.bootable:
         if args.output_format == OutputFormat.gpt_ext4:
@@ -2264,92 +2428,42 @@ def install_arch(args: CommandLineArguments, root: str, do_run_build_script: boo
         if args.encrypt:
             packages.add("cryptsetup")
             packages.add("device-mapper")
-        if not kernel_packages:
-            # No user-specified kernel
-            kernel_packages.add("linux")
         if args.bios_partno:
             packages.add("grub")
 
-        packages.add("mkinitcpio")
+        packages.add("dracut")
+        packages.add("binutils")
 
-    def run_pacstrap(packages: Set[str]) -> None:
-        cmdline = ["pacstrap", "-C", pacman_conf, "-GM", root]
-        # pacstrap handles gpg-agent on its own
-        run(cmdline + list(packages), check=True)
+    packages.update(args.packages)
 
-    # Set up system with packages from the base group
-    run_pacstrap(packages)
+    official_kernel_packages = {
+        "linux",
+        "linux-lts",
+        "linux-hardened",
+        "linux-zen",
+    }
 
-    if not do_run_build_script and args.bootable:
-        # Patch mkinitcpio configuration so:
-        # 1) we remove autodetect and
-        # 2) we add the modules needed for encrypt.
-        def jj(line: str) -> str:
-            if line.startswith("HOOKS="):
-                if args.encrypt == "all":
-                    return 'HOOKS="systemd modconf block sd-encrypt filesystems keyboard fsck"\n'
-                else:
-                    return 'HOOKS="systemd modconf block filesystems fsck"\n'
-            return line
-        patch_file(os.path.join(root, "etc/mkinitcpio.conf"), jj)
-
-        # Disable fallback images to save time. We override the preset files
-        # before installing any kernels to have the updated config available
-        # when the mkinitcpio pacman hook is run during installation.
-        presetdir = os.path.join(root, "etc/mkinitcpio.d")
-        for kernel in kernel_packages:
-            preset = os.path.join(presetdir, f"{kernel}.preset")
-            with open(preset, "w") as f:
-                f.write(
-                    dedent(
-                        f"""
-                        ALL_config="/etc/mkinitcpio.conf"
-                        ALL_kver="/boot/vmlinuz-{kernel}"
-                        PRESETS=('default')
-                        default_image="/boot/initramfs-{kernel}.img"
-                        """
-                    )
-                )
-
-    # Install the user-specified packages and kernel
-    packages = set(args.packages)
-    if not do_run_build_script and args.bootable:
-        packages |= kernel_packages
+    has_kernel_package = official_kernel_packages.intersection(args.packages)
+    if not do_run_build_script and args.bootable and not has_kernel_package:
+        # No user-specified kernel
+        packages.add("linux")
 
     if do_run_build_script:
         packages.update(args.build_packages)
 
-    def run_pacman(args: List[str], **kwargs: Any) -> CompletedProcess:
-        cmdline = [
-            "pacman",
-            "--noconfirm",
-            "--color", "never",
-            "--config", pacman_conf,
-        ]
+    def run_pacman(packages: Set[str]) -> None:
+        conf = ["--config", pacman_conf]
 
         try:
-            return run(cmdline + args, **kwargs, check=True)
+            run(["pacman-key", *conf, "--init"], check=True)
+            run(["pacman-key", *conf, "--populate"], check=True)
+            run(["pacman", *conf, "--noconfirm", "-Sy", *packages], check=True)
         finally:
-            stop_gpg_agent()
+            # Kill the gpg-agent started by pacman and pacman-key.
+            run(['gpgconf', '--homedir', os.path.join(root, 'etc/pacman.d/gnupg'), '--kill', 'all'])
 
-    # Remove already installed packages
-    c = run_pacman(['-Qq'], stdout=PIPE, universal_newlines=True)
-    packages.difference_update(c.stdout.split())
-
-    if packages:
-        # Disable mkinitcpio hook because we manually install the kernel image
-        # to /boot using kernel-install in install_boot_loader_arch.
-        hooks = os.path.join(root, "etc/pacman.d/hooks")
-        os.makedirs(hooks, 0o755, exist_ok=True)
-
-        mkinitcpio_override = os.path.join(hooks, "90-mkinitcpio-install.hook")
-        os.symlink("/dev/null", mkinitcpio_override)
-
-        run_pacman(["-S", *packages])
-
-        # Re-enable mkinitcpio hook so updating the kernel in the image via
-        # pacman still works.
-        os.remove(mkinitcpio_override)
+    with mount_api_vfs(args, root):
+        run_pacman(packages)
 
     if "networkmanager" in args.packages:
         enable_networkmanager(root)
@@ -2417,7 +2531,7 @@ def install_opensuse(args: CommandLineArguments, root: str, do_run_build_script:
         packages += ["patterns-base-minimal_base"]
 
     if not do_run_build_script and args.bootable:
-        packages += ["kernel-default"]
+        packages += ["kernel-default", "binutils"]
         if args.bios_partno is not None:
             packages += ["grub2"]
 
@@ -2482,7 +2596,9 @@ def install_distribution(args: CommandLineArguments,
         Distribution.openmandriva: install_openmandriva,
     }
 
+    disable_kernel_install(args, root)
     install[args.distribution](args, root, do_run_build_script)
+    reenable_kernel_install(args, root)
 
 
 def reset_machine_id(args: CommandLineArguments, root: str, do_run_build_script: bool, for_cache: bool) -> None:
@@ -2560,7 +2676,9 @@ def set_serial_terminal(args: CommandLineArguments, root: str, do_run_build_scri
     if do_run_build_script or for_cache or not args.qemu_headless:
         return
 
-    override_dir = mkdir_last(os.path.join(root, "etc/systemd/system/serial-getty@ttyS0.service.d"))
+    override_dir = os.path.join(root, "etc/systemd/system/serial-getty@ttyS0.service.d")
+    os.makedirs(override_dir, mode=0o755, exist_ok=True)
+
     with open(os.path.join(override_dir, "override.conf"), 'w') as f:
         f.write(
             dedent(
@@ -2627,23 +2745,6 @@ def run_finalize_script(args: CommandLineArguments, root: str, do_run_build_scri
         run([args.finalize_script, verb], env=env, check=True)
 
 
-def find_kernel_file(root: str, pattern: str) -> Optional[str]:
-    # Look for the vmlinuz file in the workspace
-    workspace_pattern = os.path.join(root, pattern.lstrip('/'))
-    kernel_files = sorted(glob.glob(workspace_pattern))
-    kernel_file = kernel_files[0]
-    # The path the kernel-install script expects is within the
-    # workspace reference as it is run from within the container
-    if kernel_file.startswith(root):
-        kernel_file = kernel_file[len(root):]
-    else:
-        sys.stderr.write(f'Error, kernel file {kernel_file} cannot be used as it is not in the workspace\n')
-        return None
-    if len(kernel_files) > 1:
-        warn('More than one kernel file found, will use {}', kernel_file)
-    return kernel_file
-
-
 def install_grub(args: CommandLineArguments, root: str, loopdev: str, grub: str) -> None:
     if args.bios_partno is None:
         return
@@ -2679,47 +2780,6 @@ def install_grub(args: CommandLineArguments, root: str, loopdev: str, grub: str)
         nspawn_params=nspawn_params)
 
 
-def install_boot_loader_fedora(args: CommandLineArguments, root: str, loopdev: str) -> None:
-    install_grub(args, root, loopdev, "grub2")
-
-
-def install_boot_loader_centos(args:CommandLineArguments, root: str, loopdev: str) -> None:
-    install_grub(args, root, loopdev, "grub2")
-
-
-def install_boot_loader_arch(args: CommandLineArguments, root: str, loopdev: str) -> None:
-    if "uefi" in args.boot_protocols:
-        # add loader entries and copy kernel/initrd under that entry
-        kernel_version = next(filter(lambda x: x[0].isdigit(), os.listdir(os.path.join(root, "lib/modules"))))
-        kernel_file = find_kernel_file(root, "/lib/modules/*/vmlinuz")
-        if kernel_file is not None:
-            run_workspace_command(args, root, "/usr/bin/kernel-install", "add", kernel_version, kernel_file)
-
-    if "bios" in args.boot_protocols:
-        install_grub(args, root, loopdev, "grub")
-
-
-def install_boot_loader_debian(args: CommandLineArguments, root: str, loopdev: str) -> None:
-    if "uefi" in args.boot_protocols:
-        kernel_version = next(filter(lambda x: x[0].isdigit(), os.listdir(os.path.join(root, "lib/modules"))))
-
-        run_workspace_command(args, root,
-                              "/usr/bin/kernel-install", "add", kernel_version, "/boot/vmlinuz-" + kernel_version)
-
-    if "bios" in args.boot_protocols:
-        grub = "grub" if args.distribution in (Distribution.ubuntu, Distribution.debian) else "grub2"
-        # TODO: Just use "grub" once https://github.com/systemd/systemd/pull/16645 is widely available.
-        install_grub(args, root, loopdev, f"/usr/sbin/{grub}")
-
-
-def install_boot_loader_ubuntu(args: CommandLineArguments, root: str, loopdev: str) -> None:
-    install_boot_loader_debian(args, root, loopdev)
-
-
-def install_boot_loader_opensuse(args: CommandLineArguments, root: str, loopdev: str) -> None:
-    install_boot_loader_debian(args, root, loopdev)
-
-
 def install_boot_loader_clear(args: CommandLineArguments, root: str, loopdev: str) -> None:
     nspawn_params = [
         # clr-boot-manager uses blkid in the device backing "/" to
@@ -2738,14 +2798,6 @@ def install_boot_loader_clear(args: CommandLineArguments, root: str, loopdev: st
     run_workspace_command(args, root, "/usr/bin/clr-boot-manager", "update", "-i", nspawn_params=nspawn_params)
 
 
-def install_boot_loader_photon(args: CommandLineArguments, root: str, loopdev: str) -> None:
-    install_grub(args, root, loopdev, "grub2")
-
-
-def install_boot_loader_openmandriva(args: CommandLineArguments, root: str, loopdev: str) -> None:
-    install_grub(args, root, loopdev, "grub2")
-
-
 def install_boot_loader(args: CommandLineArguments, root: str, loopdev: Optional[str], do_run_build_script: bool, cached: bool) -> None:
     if not args.bootable or do_run_build_script:
         return
@@ -2756,38 +2808,18 @@ def install_boot_loader(args: CommandLineArguments, root: str, loopdev: Optional
 
     with complete_step("Installing boot loader"):
         if args.esp_partno and args.distribution != Distribution.clear:
-            shutil.copyfile(os.path.join(root, "usr/lib/systemd/boot/efi/systemd-bootx64.efi"),
-                            os.path.join(root, "efi/EFI/systemd/systemd-bootx64.efi"))
+            run_workspace_command(args, root, "bootctl", "install")
 
-            shutil.copyfile(os.path.join(root, "usr/lib/systemd/boot/efi/systemd-bootx64.efi"),
-                            os.path.join(root, "efi/EFI/BOOT/bootx64.efi"))
+        if args.bios_partno and args.distribution != Distribution.clear:
+            grub = "grub" if args.distribution in (Distribution.ubuntu, Distribution.debian, Distribution.arch) else "grub2"
+            # TODO: Just use "grub" once https://github.com/systemd/systemd/pull/16645 is widely available.
+            if args.distribution in (Distribution.ubuntu, Distribution.debian, Distribution.opensuse):
+                grub = f"/usr/sbin/{grub}"
 
-        if args.distribution == Distribution.fedora:
-            install_boot_loader_fedora(args, root, loopdev)
-
-        if args.distribution == Distribution.arch:
-            install_boot_loader_arch(args, root, loopdev)
-
-        if args.distribution == Distribution.debian:
-            install_boot_loader_debian(args, root, loopdev)
-
-        if args.distribution == Distribution.ubuntu:
-            install_boot_loader_ubuntu(args, root, loopdev)
-
-        if args.distribution == Distribution.opensuse:
-            install_boot_loader_opensuse(args, root, loopdev)
+            install_grub(args, root, loopdev, grub)
 
         if args.distribution == Distribution.clear:
             install_boot_loader_clear(args, root, loopdev)
-
-        if args.distribution == Distribution.photon:
-            install_boot_loader_photon(args, root, loopdev)
-
-        if args.distribution in (Distribution.centos, Distribution.centos_epel):
-            install_boot_loader_centos(args, root, loopdev)
-
-        if args.distribution == Distribution.openmandriva:
-            install_boot_loader_openmandriva(args, root, loopdev)
 
 
 def install_extra_trees(args: CommandLineArguments, root: str, for_cache: bool) -> None:
@@ -3232,76 +3264,44 @@ def install_unified_kernel(args: CommandLineArguments,
                            do_run_build_script: bool,
                            for_cache: bool,
                            root_hash: Optional[str]) -> None:
-    # Iterates through all kernel versions included in the image and
-    # generates a combined kernel+initrd+cmdline+osrelease EFI file
-    # from it and places it in the /EFI/Linux directory of the
-    # ESP. sd-boot iterates through them and shows them in the
-    # menu. These "unified" single-file images have the benefit that
-    # they can be signed like normal EFI binaries, and can encode
-    # everything necessary to boot a specific root device, including
-    # the root hash.
+    # Iterates through all kernel versions included in the image and generates a combined
+    # kernel+initrd+cmdline+osrelease EFI file from it and places it in the /EFI/Linux directory of the ESP.
+    # sd-boot iterates through them and shows them in the menu. These "unified" single-file images have the
+    # benefit that they can be signed like normal EFI binaries, and can encode everything necessary to boot a
+    # specific root device, including the root hash.
 
-    if not args.bootable or args.esp_partno is None:
+    if not args.bootable or args.esp_partno is None or not args.with_unified_kernel_images:
         return
     if for_cache:
         return
 
-    # Don't bother running dracut if this is a development
-    # build. Strictly speaking it would probably be a good idea to run
-    # it, so that the development environment differs as little as
-    # possible from the final build, but then again the initrd should
-    # not be relevant for building, and dracut is simply very slow,
-    # hence let's avoid it invoking it needlessly, given that we never
-    # actually invoke the boot loader on the development image.
+    # Don't bother running dracut if this is a development build. Strictly speaking it would probably be a
+    # good idea to run it, so that the development environment differs as little as possible from the final
+    # build, but then again the initrd should not be relevant for building, and dracut is simply very slow,
+    # hence let's avoid it invoking it needlessly, given that we never actually invoke the boot loader on the
+    # development image.
     if do_run_build_script:
-        return
-    if args.distribution not in (Distribution.fedora, Distribution.mageia, Distribution.ubuntu, Distribution.debian, Distribution.centos, Distribution.centos_epel):
         return
 
     with complete_step("Generating combined kernel + initrd boot file"):
+        # Apparently openmandriva hasn't yet completed its usrmerge so we use lib here instead of usr/lib.
+        with os.scandir(os.path.join(root, "lib/modules")) as d:
+            for kver in d:
+                if not kver.is_dir():
+                    continue
 
-        cmdline = ' '.join(args.kernel_command_line)
-        if root_hash is not None:
-            cmdline += " roothash=" + root_hash
+                prefix = "/boot" if args.xbootldr_partno is not None else "/efi"
+                # While the kernel version can generally be found as a directory under /usr/lib/modules, the
+                # kernel image files can be found either in /usr/lib/modules/<kernel-version>/vmlinuz or in
+                # /boot depending on the distro. By invoking the kernel-install script directly, we can pass
+                # the empty string as the kernel image which causes the script to not pass the --kernel-image
+                # option to dracut so it searches the image for us.
+                cmdline = ["/etc/kernel/install.d/50-mkosi-dracut-unified-kernel.install", "add", kver.name,
+                           f"{prefix}/{args.machine_id}/{kver.name}", ""]
+                if root_hash is not None:
+                    cmdline.append(root_hash)
 
-        for kver in os.scandir(os.path.join(root, "usr/lib/modules")):
-            if not kver.is_dir():
-                continue
-
-            # Place kernel in XBOOTLDR partition if it is turned on, otherwise in the ESP
-            prefix = "/efi" if args.xbootldr_size is None else "/boot"
-
-            boot_binary = prefix + "/EFI/Linux/linux-" + kver.name
-            if root_hash is not None:
-                boot_binary += "-" + root_hash
-            boot_binary += ".efi"
-
-            dracut = ["/usr/bin/dracut",
-                      "-v",
-                      "--no-hostonly",
-                      "--uefi",
-                      "--uefi-stub", "/usr/lib/systemd/boot/efi/linuxx64.efi.stub",
-                      "--kver", kver.name,
-                      "--kernel-cmdline", cmdline]
-
-            # Temporary fix until dracut includes these in the image anyway
-            dracut += ("-i",) + ("/usr/lib/systemd/system/systemd-volatile-root.service",)*2 + \
-                      ("-i",) + ("/usr/lib/systemd/systemd-volatile-root",)*2 + \
-                      ("-i",) + ("/usr/lib/systemd/systemd-veritysetup",)*2 + \
-                      ("-i",) + ("/usr/lib/systemd/system-generators/systemd-veritysetup-generator",)*2 + \
-                      ("-i",) + ("/usr/bin/systemd-repart",)*2 + \
-                      ("-i",) + ("/usr/lib/systemd/system/systemd-repart.service",)*2 + \
-                      ("-i",) + ("/usr/lib/systemd/system/initrd-root-fs.target.wants/systemd-repart.service",)*2 + \
-                      ("-i",) + ("/usr/lib/systemd/system-generators/systemd-debug-generator",)*2
-
-            if args.output_format.is_squashfs:
-                dracut += ['--add-drivers', 'squashfs']
-
-            dracut += ['--add', 'qemu']
-
-            dracut += [boot_binary]
-
-            run_workspace_command(args, root, *dracut)
+                run_workspace_command(args, root, *cmdline)
 
 
 def secure_boot_sign(args: CommandLineArguments, root: str, do_run_build_script: bool, for_cache: bool) -> None:
@@ -3868,6 +3868,9 @@ def create_parser() -> ArgumentParserMkosi:
                        help='Make use of and generate intermediary cache images')
     group.add_argument('-M', "--minimize", action=BooleanAction,
                        help='Minimize root file system size')
+    group.add_argument("--without-unified-kernel-images", action=BooleanAction,
+                       dest='with_unified_kernel_images', default=True,
+                       help="Do not install unified kernel images")
 
     group = parser.add_argument_group("Packages")
     group.add_argument('-p', "--package", action=CommaDelimitedListAction, dest='packages', default=[],
@@ -4303,9 +4306,14 @@ def find_cache(args: CommandLineArguments) -> None:
 def require_private_file(name: str, description: str) -> None:
     mode = os.stat(name).st_mode & 0o777
     if mode & 0o007:
-        warn("Permissions of '{}' of '{}' are too open.\n" +
-             "When creating {} files use an access mode that restricts access to the owner only.",
-             name, oct(mode), description)
+        warn(
+            dedent(
+                f"""
+                Permissions of '{name}' of '{mode:04o}' are too open.
+                When creating {description} files use an access mode that restricts access to the owner only.\
+                """
+            )
+        )
 
 
 def find_passphrase(args: CommandLineArguments) -> None:
@@ -4664,6 +4672,13 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
     if args.generated_root() and "bios" in args.boot_protocols:
         die("Sorry, BIOS cannot be combined with --minimize or squashfs filesystems")
 
+    if args.with_unified_kernel_images and args.distribution == Distribution.clear:
+        warn("Using --without-unified-kernel-images as Clear Linux does not support unified kernel images.")
+        args.with_unified_kernel_images = False
+
+    if args.verity and not args.with_unified_kernel_images:
+        die("Sorry, --verity can only be used with unified kernel images")
+
     return args
 
 
@@ -4777,6 +4792,7 @@ def print_summary(args: CommandLineArguments) -> None:
                 sys.stderr.write(" UEFI SecureBoot Cert.: " + args.secure_boot_certificate + "\n")
 
             sys.stderr.write("        Boot Protocols: " + line_join_list(args.boot_protocols) + "\n")
+            sys.stderr.write(" Unified Kernel Images: " + yes_no(args.with_unified_kernel_images))
 
     sys.stderr.write("\nPACKAGES:\n")
     sys.stderr.write("              Packages: " + line_join_list(args.packages) + "\n")
@@ -4825,6 +4841,7 @@ def print_summary(args: CommandLineArguments) -> None:
 
     sys.stderr.write("\nHOST CONFIGURATION:\n")
     sys.stderr.write("    Extra search paths: " + line_join_list(args.extra_search_paths) + "\n")
+    sys.stderr.write("         QEMU Headless: " + yes_no(args.qemu_headless) + "\n")
 
 
 def reuse_cache_tree(args: CommandLineArguments,

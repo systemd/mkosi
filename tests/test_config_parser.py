@@ -108,6 +108,7 @@ class MkosiConfig(object):
             'xbootldr_size': None,
             'xz': False,
             'qemu_headless': False,
+            'with_unified_kernel_images': True,
         }
 
     def __eq__(self, other: [mkosi.CommandLineArguments]) -> bool:
@@ -218,6 +219,8 @@ class MkosiConfig(object):
                 self.reference_config[job_name]['qcow2'] = mk_config_output['QCow2']
             if 'Hostname' in mk_config_output:
                 self.reference_config[job_name]['hostname'] = mk_config_output['Hostname']
+            if 'WithUnifiedKernelImages' in mk_config_output:
+                self.reference_config[job_name]['with_unified_kernel_images'] =  mk_config_output['WithUnifiedKernelImages']
         if 'Packages' in mk_config:
             mk_config_packages = mk_config['Packages']
             if 'Packages' in mk_config_packages:

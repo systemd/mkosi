@@ -104,14 +104,9 @@ jobs:
         sudo pacman-key --init
         sudo pacman-key --populate archlinux
 
-        wget https://git.archlinux.org/arch-install-scripts.git/snapshot/arch-install-scripts-$ARCH_INSTALL_SCRIPTS_VERSION.tar.gz
-        tar xf arch-install-scripts-$ARCH_INSTALL_SCRIPTS_VERSION.tar.gz
-
-        sudo make -C arch-install-scripts-$ARCH_INSTALL_SCRIPTS_VERSION PREFIX=/usr install
       env:
         PACMAN_VERSION: "5.2.2"
         ARCHLINUX_KEYRING_VERSION: "20200622"
-        ARCH_INSTALL_SCRIPTS_VERSION: "23"
 
     - name: Build dnf
       if: startsWith(matrix.distro, 'centos') ||
