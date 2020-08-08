@@ -264,7 +264,7 @@ jobs:
         sudo ln -s ~/go/bin/swupd-extract /usr/bin/swupd-extract
 
     - name: Build ${{ matrix.distro }}/${{ matrix.format }}
-      run: sudo ./mkosi
+      run: sudo python3 -m mkosi
             --debug run
             --distribution ${{ matrix.distro }}
             --format ${{ matrix.format }}
@@ -272,7 +272,7 @@ jobs:
     - name: Build ${{ matrix.distro }}/${{ matrix.format }} UEFI
       if: matrix.format != 'directory' && matrix.format != 'tar' && matrix.format != 'plain_squashfs' &&
           (matrix.distro != 'clear' || matrix.format != 'gpt_squashfs') && matrix.distro != 'photon'
-      run: sudo ./mkosi
+      run: sudo python3 -m mkosi
             --debug run
             --distribution ${{ matrix.distro }}
             --format ${{ matrix.format }}
@@ -282,7 +282,7 @@ jobs:
 
     - name: Build ${{ matrix.distro }}/${{ matrix.format }} BIOS
       if: matrix.format != 'directory' && matrix.format != 'tar' && !contains(matrix.format, 'squashfs')
-      run: sudo ./mkosi
+      run: sudo python3 -m mkosi
             --debug run
             --distribution ${{ matrix.distro }}
             --format ${{ matrix.format }}
