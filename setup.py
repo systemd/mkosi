@@ -13,7 +13,7 @@ class BuildManpage(Command):
         pass
 
     def run(self):
-        self.spawn(['pandoc', '-t', 'man', '-o', 'mkosi.1', 'mkosi.md'])
+        self.spawn(['pandoc', '-t', 'man', '-s', '-o', 'mkosi.1', 'mkosi.md'])
 
 
 setup(
