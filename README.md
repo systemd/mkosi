@@ -26,7 +26,8 @@ cd mkosi
 python3 -m pip install --user --editable .
 ```
 This will install mkosi in editable mode to `~/.local/bin/mkosi`, allowing you
-to use your own changes right away.
+to use your own changes right away. You can invoke it by running
+`sudo python3 -m mkosi <args>`
 
 For development you optionally also need [mypy](https://github.com/python/mypy)
 and [pytest](https://github.com/pytest-dev/pytest). We check tests and typing in
