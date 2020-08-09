@@ -19,3 +19,6 @@ For a longer description and available features and options, see the
 - Move build/mkosi to anywhere in your PATH
 - Run mkosi
 - Profit!
+
+When hacking on mkosi, you can run ./mkosi from the repository to always run the latest version. Symlink it
+to anywhere in your PATH for easy access from all your projects!
