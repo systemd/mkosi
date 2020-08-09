@@ -9,7 +9,7 @@ For a longer description and available features and options, see the
 
 # Installation
 
-Installing `mkosi` is easy, as it has no runtime Python dependencies (you will
+Installing mkosi is easy, as it has no runtime Python dependencies (you will
 need all the tools to format filesystems and bootstrap the distribution
 appropriate for your image, though).
 
@@ -31,6 +31,32 @@ to use your own changes right away.
 For development you optionally also need [mypy](https://github.com/python/mypy)
 and [pytest](https://github.com/pytest-dev/pytest). We check tests and typing in
 CI (see `.github/workflows`), but you can run the tests locally as well.
+
+## zipapp
+
+You can also package mkosi as a
+[zipapp](https://docs.python.org/3/library/zipapp.html) that you can deploy
+anywhere in your `PATH`. This will leave a `mkosi` binary in `outdir/`
+```shell
+mkdir -p builddir outdir
+cp -r mkosi builddir/
+python3 -m zipapp \
+        -p "/usr/bin/env python3" \
+        -o outdir/mkosi \
+        -m mkosi.__main__:main \
+        builddir
+```
+
+## Python module
+
+Besides the mkosi binary, you can also call mkosi via
+```shell
+python -m mkosi
+```
+when not installed as a zipapp.
+
+Please note, that the the python module exists solely for the usage of the mkosi
+binary and is not to be considered a public API.
 
 # References
 

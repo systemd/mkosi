@@ -26,7 +26,7 @@ setup(
     license="LGPLv2+",
     python_requires=">=3.6",
     packages = ["mkosi"],
+    scripts = ["bin/mkosi"],
     cmdclass = { "man": BuildManpage },
     data_files = [('share/man/man1', ["man/mkosi.1"])],
-    entry_points = {"console_scripts": ["mkosi=mkosi.__main__:main"]},
 )
