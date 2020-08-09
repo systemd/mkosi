@@ -18,7 +18,10 @@ jobs:
       run: python3 -m pip install pytest 'mypy==0.770'
 
     - name: Type Checking
-      run: python3 -m mypy mkosi
+      run: python3 -m mypy src/mkosi.py
 
     - name: Unit Tests
-      run: python3 -m pytest
+      run: python3 -m pytest tests
+      env:
+        PYTHONPATH: src
+

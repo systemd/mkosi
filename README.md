@@ -12,3 +12,10 @@ For a longer description and available features and options, see the
 * [Primary mkosi git repository on GitHub](https://github.com/systemd/mkosi/)
 * [mkosi — A Tool for Generating OS Images](http://0pointer.net/blog/mkosi-a-tool-for-generating-os-images.html) indroductory blog post by Lennart Poettering
 * [The mkosi OS generation tool](https://lwn.net/Articles/726655/) story on LWN
+
+# Installation
+
+- `mkdir -p build && python3 -m zipapp src -m mkosi:main -p "/usr/bin/env python3" -o build/mkosi`
+- Move build/mkosi to anywhere in your PATH
+- Run mkosi
+- Profit!

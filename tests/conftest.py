@@ -1,14 +1,9 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 import sys
-import os 
-dir_path = os.path.dirname(os.path.realpath(__file__))
+import os
 
-import importlib.util
-spec = importlib.util.spec_from_file_location('mkosi', os.path.join(dir_path, '../mkosi.py'))
-mkosi_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(mkosi_module)
-sys.modules['mkosi'] = mkosi_module
+import mkosi
 
 from tests.test_config_parser import MkosiConfig
 
@@ -24,10 +19,10 @@ class DictDiffer(object):
     def unexpected(self):
         return [ '%s=%s' % (k, self.current_dict[k]) for k in self.set_current - self.intersect ]
 
-    @property 
+    @property
     def missing(self):
         return [ str(k) for k in self.set_past - self.intersect ]
- 
+
     @property
     def invalid(self):
         inva = set(o for o in self.intersect if self.expected_dict[o] != self.current_dict[o])
