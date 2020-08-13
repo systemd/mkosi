@@ -5192,7 +5192,11 @@ def run_shell(args: CommandLineArguments) -> None:
         cmdline += ('--boot',)
 
     if args.cmdline:
-        cmdline += ('--', *args.cmdline)
+        # If the verb is shell, args.cmdline contains the command to run. Otherwise (boot), we assume
+        # args.cmdline contains nspawn arguments.
+        if args.verb == "shell":
+            cmdline += ('--',)
+        cmdline += args.cmdline
 
     run(cmdline, execvp=True)
 
