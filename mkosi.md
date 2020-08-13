@@ -16,7 +16,7 @@ mkosi - Build Legacy-Free OS Images
 
 `mkosi [options…] shell [command line…]`
 
-`mkosi [options…] boot [command line…]`
+`mkosi [options…] boot [nspawn settings…]`
 
 `mkosi [options…] qemu`
 
