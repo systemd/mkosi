@@ -3785,7 +3785,7 @@ def parse_compression(value: str) -> Union[str, bool]:
 
 
 def create_parser() -> ArgumentParserMkosi:
-    parser = ArgumentParserMkosi(description='Build Legacy-Free OS Images', add_help=False)
+    parser = ArgumentParserMkosi(prog="mkosi", description='Build Legacy-Free OS Images', add_help=False)
 
     group = parser.add_argument_group("Commands")
     group.add_argument("verb", choices=MKOSI_COMMANDS, default="build", help='Operation to execute')
