@@ -22,3 +22,58 @@ jobs:
 
     - name: Unit Tests
       run: python3 -m pytest
+
+    - name: Test execution from current working directory
+      run: python3 -m mkosi -h
+
+    - name: Test execution from current working directory (sudo call)
+      run: sudo python3 -m mkosi -h
+
+    - name: Test system installation
+      run: |
+        sudo python3 -m pip install .
+        sudo mkosi -h
+        sudo python3 -m pip uninstall --yes mkosi
+
+    - name: Test user installation
+      run: |
+        python3 -m pip install --user .
+        $HOME/.local/bin/mkosi -h
+        python3 -m pip uninstall --yes mkosi
+
+    - name: Test user installation (sudo call)
+      run: |
+        python3 -m pip install --user .
+        sudo $HOME/.local/bin/mkosi -h
+        python3 -m pip uninstall --yes mkosi
+
+    - name: Test editable user installation
+      run: |
+        python3 -m pip install --user --editable .
+        $HOME/.local/bin/mkosi -h
+        python3 -m pip uninstall --yes mkosi
+
+    - name: Test editable user installation (sudo call)
+      run: |
+        python3 -m pip install --user --editable .
+        sudo $HOME/.local/bin/mkosi -h
+        python3 -m pip uninstall --yes mkosi
+
+    - name: Test venv installation
+      run: |
+        sudo apt-get install python3-venv
+        mkdir testvenv
+        python3 -m venv testvenv
+        testvenv/bin/python3 -m pip install .
+        testvenv/bin/mkosi -h
+
+    - name: Test venv installation (sudo call)
+      run: |
+        sudo testvenv/bin/mkosi -h
+
+    - name: Test zipapp creation
+      run: |
+        mkdir -p builddir outdir
+        cp -r mkosi builddir/
+        python3 -m zipapp -p "/usr/bin/env python3" -o outdir/mkosi -m mkosi.__main__:main builddir
+        ./outdir/mkosi -h
