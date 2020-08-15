@@ -2475,11 +2475,8 @@ def install_arch(args: CommandLineArguments, root: str, do_run_build_script: boo
 def install_opensuse(args: CommandLineArguments, root: str, do_run_build_script: bool) -> None:
     release = args.release.strip('"')
 
-    #
-    # If the release looks like a timestamp, it's Tumbleweed.
-    # 13.x is legacy (14.x won't ever appear). For anything else,
-    # let's default to Leap.
-    #
+    # If the release looks like a timestamp, it's Tumbleweed. 13.x is legacy (14.x won't ever appear). For
+    # anything else, let's default to Leap.
     if release.isdigit() or release == "tumbleweed":
         release_url = f"{args.mirror}/tumbleweed/repo/oss/"
         updates_url = f"{args.mirror}/update/tumbleweed/"
@@ -2496,11 +2493,8 @@ def install_opensuse(args: CommandLineArguments, root: str, do_run_build_script:
         release_url = f"{args.mirror}/distribution/leap/{release}/repo/oss/"
         updates_url = f"{args.mirror}/update/leap/{release}/oss/"
 
-    #
-    # Configure the repositories: we need to enable packages caching
-    # here to make sure that the package cache stays populated after
-    # "zypper install".
-    #
+    # Configure the repositories: we need to enable packages caching here to make sure that the package cache
+    # stays populated after "zypper install".
     run(["zypper", "--root", root, "addrepo", "-ck", release_url, "repo-oss"])
     run(["zypper", "--root", root, "addrepo", "-ck", updates_url, "repo-update"])
 
@@ -2508,58 +2502,43 @@ def install_opensuse(args: CommandLineArguments, root: str, do_run_build_script:
         with open(os.path.join(root, "etc/zypp/zypp.conf"), "w") as f:
             f.write("rpm.install.excludedocs = yes\n")
 
-    #
-    # Build the package list.
-    #
-    packages: List[str] = []
+    packages = {*args.packages}
 
     if release.startswith("42."):
-        packages += ["patterns-openSUSE-minimal_base"]
+        packages.add("patterns-openSUSE-minimal_base")
     else:
-        packages += ["patterns-base-minimal_base"]
+        packages.add("patterns-base-minimal_base")
 
     if not do_run_build_script and args.bootable:
-        packages += ["kernel-default", "binutils"]
+        packages.add("kernel-default")
+        packages.add("binutils")
+
         if args.bios_partno is not None:
-            packages += ["grub2"]
+            packages.add("grub2")
 
     if not do_run_build_script and args.encrypt:
-        packages += ["device-mapper"]
+        packages.add("device-mapper")
 
     if args.output_format in (OutputFormat.subvolume, OutputFormat.gpt_btrfs):
-        packages += ["btrfsprogs"]
-
-    packages.extend(args.packages)
+        packages.add("btrfsprogs")
 
     if do_run_build_script:
-        packages.extend(args.build_packages)
+        packages.update(args.build_packages)
 
-    # Invoke the install command.
-    cmdline = ["zypper", "--root", root, "--gpg-auto-import-keys",
-               "install", "-y", "--no-recommends", "--download-in-advance"]
+    cmdline = ["zypper", "--root", root, "--gpg-auto-import-keys", "install", "-y", "--no-recommends",
+               "--download-in-advance", *packages]
+
     with mount_api_vfs(args, root):
-        run(cmdline + packages)
+        run(cmdline)
 
-    #
-    # Disable packages caching in the image that was enabled
-    # previously to populate the package cache.
-    #
+    # Disable packages caching in the image that was enabled previously to populate the package cache.
     run(["zypper", "--root", root, "modifyrepo", "-K", "repo-oss"])
     run(["zypper", "--root", root, "modifyrepo", "-K", "repo-update"])
 
-    #
-    # Tune dracut confs: openSUSE uses an old version of dracut that's
-    # probably explain why we need to do those hacks.
-    #
     if not do_run_build_script and args.bootable:
-        os.makedirs(os.path.join(root, "etc/dracut.conf.d"), exist_ok=True)
-
-        with open(os.path.join(root, "etc/dracut.conf.d/99-mkosi.conf"), "w") as f:
-            f.write("hostonly=no\n")
-
         # dracut from openSUSE is missing upstream commit 016613c774baf.
-        with open(os.path.join(root, "etc/kernel/cmdline"), "w") as cmdlinefile:
-            cmdlinefile.write(' '.join(args.kernel_command_line) + " root=/dev/gpt-auto-root\n")
+        with open(os.path.join(root, "etc/kernel/cmdline"), "w") as f:
+            f.write(' '.join(args.kernel_command_line) + " root=/dev/gpt-auto-root\n")
 
 
 def install_distribution(args: CommandLineArguments,
