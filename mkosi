@@ -2300,16 +2300,14 @@ def install_arch(args: CommandLineArguments, root: str, do_run_build_script: boo
                     Operation = Upgrade
                     Type = Path
                     Target = usr/lib/modules/*/vmlinuz
+                    Target = usr/lib/kernel/install.d/*
+                    Target = boot/*-ucode.img
 
                     [Trigger]
                     Operation = Install
                     Operation = Upgrade
-                    Operation = Remove
                     Type = Package
                     Target = systemd
-                    Target = dracut
-                    Target = intel-ucode
-                    Target = amd-ucode
 
                     [Action]
                     Description = Adding kernel and initramfs images to /boot...
