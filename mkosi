@@ -483,7 +483,7 @@ def copy_fd(oldfd: int, newfd: int) -> None:
     except OSError as e:
         if e.errno not in {errno.EXDEV, errno.EOPNOTSUPP}:
             raise
-        shutil.copyfileobj(open(oldfd, 'rb', closefd=False),
+        shutil.copyfileobj(open(oldfd, 'rb', closefd=False), # type: ignore # Workaround for python/mypy#8962
                            open(newfd, 'wb', closefd=False))
 
 
@@ -493,7 +493,7 @@ def copy_file_object(oldobject: BinaryIO, newobject: BinaryIO) -> None:
     except OSError as e:
         if e.errno not in {errno.EXDEV, errno.EOPNOTSUPP}:
             raise
-        shutil.copyfileobj(oldobject, newobject)
+        shutil.copyfileobj(oldobject, newobject) # type: ignore # Workaround for python/mypy#8962
 
 
 def copy_symlink(oldpath: str, newpath: str) -> None:
@@ -3927,7 +3927,7 @@ def create_parser() -> ArgumentParserMkosi:
                        help='Turn on debugging output', metavar='SELECTOR',
                        choices=('run','build-script','workspace-command'))
     try:
-        import argcomplete  # type: ignore
+        import argcomplete
         argcomplete.autocomplete(parser)
     except ImportError:
         pass
