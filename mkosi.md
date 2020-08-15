@@ -873,9 +873,11 @@ local directory:
   *source* tree is enough to get the right image of your choice set
   up.  Additionally if a `mkosi.default.d` directory exists, each file
   in it is loaded in the same manner adding/overriding the values
-  specified in `mkosi.default`. The file format is inspired by Windows
-  `.ini` files and supports multi-line assignments: any line with
-  initial whitespace is considered a continuation line of the line
+  specified in `mkosi.default`. If `mkosi.default.d` contains a
+  directory named after the distribution being built, each file in
+  that directory is also processed. The file format is inspired by
+  Windows`.ini` files and supports multi-line assignments: any line
+  with initial whitespace is considered a continuation line of the line
   before. Command-line arguments, as shown in the help description,
   have to be included in a configuration block (e.g.  "[Packages]")
   corresponding to the argument group (e.g. "Packages"), and the

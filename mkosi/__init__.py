@@ -310,6 +310,9 @@ class Distribution(enum.Enum):
     photon = 10
     openmandriva = 11
 
+    def __str__(self) -> str:
+        return self.name
+
 
 GPT_ROOT_X86           = uuid.UUID("44479540f29741b29af7d131d5f0458a")  # NOQA: E221
 GPT_ROOT_X86_64        = uuid.UUID("4f68bce3e8cd4db196e7fbcaf984b709")  # NOQA: E221
@@ -4161,6 +4164,25 @@ def create_parser() -> ArgumentParserMkosi:
     return parser
 
 
+def load_distribution(args: CommandLineArguments) -> CommandLineArguments:
+    if args.distribution is not None:
+        args.distribution = Distribution[args.distribution]
+
+    if args.distribution is None or args.release is None:
+        d, r = detect_distribution()
+
+        if args.distribution is None:
+            args.distribution = d
+
+        if args.distribution == d and d != Distribution.clear and args.release is None:
+            args.release = r
+
+    if args.distribution is None:
+        die("Couldn't detect distribution.")
+
+    return args
+
+
 def parse_args(argv: Optional[List[str]]=None) -> Dict[str, CommandLineArguments]:
     """Load default values from files and parse command line arguments
 
@@ -4242,6 +4264,12 @@ def parse_args(argv: Optional[List[str]]=None) -> Dict[str, CommandLineArguments
     # Parse everything in normal mode
     else:
         args = parse_args_file_group(argv, default_path)
+
+        args = load_distribution(args)
+
+        # Parse again with any extra distribution files included.
+        args = parse_args_distribution_group(argv, default_path, str(args.distribution))
+
         args_all['default'] = args
 
     return args_all
@@ -4275,6 +4303,29 @@ def parse_args_file_group(argv_post_parsed: List[str], default_path: str) -> Com
 
     # parse all parameters handled by mkosi. Parameters forwarded to subprocesses such as nspawn or qemu end up in cmdline_argv.
     return parser.parse_args(argv_post_parsed, CommandLineArguments())
+
+
+def parse_args_distribution_group(argv_post_parsed: List[str], default_path: str, distribution: str) -> CommandLineArguments:
+    all_defaults_files = []
+    defaults_dir = default_path + ".d"
+
+    distribution_dir = os.path.join(defaults_dir, distribution)
+    if os.path.isdir(distribution_dir):
+        for distribution_file in sorted(os.listdir(distribution_dir)):
+            distribution_path = os.path.join(distribution_dir, distribution_file)
+            if os.path.isfile(distribution_path):
+                all_defaults_files.append(ArgumentParserMkosi.fromfile_prefix_chars + distribution_path)
+
+    # Insert the distro specific config files after the rest of the config files so they override these.
+    for i, v in enumerate(argv_post_parsed):
+        if not v.startswith(ArgumentParserMkosi.fromfile_prefix_chars):
+            argv_post_parsed[i:i] = all_defaults_files
+            break
+    else:
+        # Append to the end if the args only contain files and no regular args.
+        argv_post_parsed += all_defaults_files
+
+    return create_parser().parse_args(argv_post_parsed, CommandLineArguments())
 
 
 def parse_bytes(num_bytes: Optional[str]) -> Optional[int]:
@@ -4635,20 +4686,7 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
     if args.output_format is None:
         args.output_format = OutputFormat.gpt_ext4
 
-    if args.distribution is not None:
-        args.distribution = Distribution[args.distribution]
-
-    if args.distribution is None or args.release is None:
-        d, r = detect_distribution()
-
-        if args.distribution is None:
-            args.distribution = d
-
-        if args.distribution == d and d != Distribution.clear and args.release is None:
-            args.release = r
-
-    if args.distribution is None:
-        die("Couldn't detect distribution.")
+    args = load_distribution(args)
 
     if args.release is None:
         if args.distribution == Distribution.fedora:
