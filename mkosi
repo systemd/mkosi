@@ -189,7 +189,7 @@ def delay_interrupt() -> Generator[None, None, None]:
             die("Interrupted")
 
 
-def run(cmdline: List[str], execvp: bool = False, **kwargs: Any) -> CompletedProcess:
+def run(cmdline: List[str], execvp: bool = False, check: bool = True, **kwargs: Any) -> CompletedProcess:
     if 'run' in arg_debug:
         sys.stderr.write('+ ' + ' '.join(shlex.quote(x) for x in cmdline) + '\n')
     try:
@@ -198,7 +198,7 @@ def run(cmdline: List[str], execvp: bool = False, **kwargs: Any) -> CompletedPro
             os.execvp(cmdline[0], cmdline)
         else:
             with delay_interrupt():
-                return subprocess.run(cmdline, **kwargs)
+                return subprocess.run(cmdline, check=check, **kwargs)
     except FileNotFoundError as e:
         die(f"{cmdline[0]} not found in PATH.")
 
@@ -585,7 +585,7 @@ completestep = cast(Callable[[str], Callable[[C], C]], complete_step)
 def init_namespace(args: CommandLineArguments) -> None:
     args.original_umask = os.umask(0o000)
     unshare(CLONE_NEWNS)
-    run(["mount", "--make-rslave", "/"], check=True)
+    run(["mount", "--make-rslave", "/"])
 
 
 def setup_workspace(args: CommandLineArguments) -> TempDir:
@@ -601,20 +601,20 @@ def setup_workspace(args: CommandLineArguments) -> TempDir:
 
 def btrfs_subvol_create(path: str, mode: int = 0o755) -> None:
     m = os.umask(~mode & 0o7777)
-    run(["btrfs", "subvol", "create", path], check=True)
+    run(["btrfs", "subvol", "create", path])
     os.umask(m)
 
 
 def btrfs_subvol_delete(path: str) -> None:
     # Extract the path of the subvolume relative to the filesystem
     c = run(["btrfs", "subvol", "show", path],
-            stdout=PIPE, stderr=DEVNULL, universal_newlines=True, check=True)
+            stdout=PIPE, stderr=DEVNULL, universal_newlines=True)
     subvol_path = c.stdout.splitlines()[0]
     # Make the subvolume RW again if it was set RO by btrfs_subvol_delete
-    run(["btrfs", "property", "set", path, "ro", "false"], check=True)
+    run(["btrfs", "property", "set", path, "ro", "false"])
     # Recursively delete the direct children of the subvolume
     c = run(["btrfs", "subvol", "list", "-o", path],
-            stdout=PIPE, stderr=DEVNULL, universal_newlines=True, check=True)
+            stdout=PIPE, stderr=DEVNULL, universal_newlines=True)
     for line in c.stdout.splitlines():
         if not line:
             continue
@@ -625,11 +625,11 @@ def btrfs_subvol_delete(path: str) -> None:
         ))
         btrfs_subvol_delete(child_path)
     # Delete the subvolume now that all its descendants have been deleted
-    run(["btrfs", "subvol", "delete", path], stdout=DEVNULL, stderr=DEVNULL, check=True)
+    run(["btrfs", "subvol", "delete", path], stdout=DEVNULL, stderr=DEVNULL)
 
 
 def btrfs_subvol_make_ro(path: str, b: bool = True) -> None:
-    run(["btrfs", "property", "set", path, "ro", "true" if b else "false"], check=True)
+    run(["btrfs", "property", "set", path, "ro", "true" if b else "false"])
 
 
 def image_size(args: CommandLineArguments) -> int:
@@ -765,7 +765,7 @@ def create_image(args: CommandLineArguments, root: str, for_cache: bool) -> Opti
         table, run_sfdisk = determine_partition_table(args)
 
         if run_sfdisk:
-            run(["sfdisk", "--color=never", f.name], input=table.encode("utf-8"), check=True)
+            run(["sfdisk", "--color=never", f.name], input=table.encode("utf-8"))
             run(["sync"])
 
         args.ran_sfdisk = run_sfdisk
@@ -832,8 +832,7 @@ def attach_image_loopback(args: CommandLineArguments, raw: Optional[BinaryIO]) -
 
     with complete_step('Attaching image file',
                        'Attached image file as {}') as output:
-        c = run(["losetup", "--find", "--show", "--partscan", raw.name],
-                stdout=PIPE, check=True)
+        c = run(["losetup", "--find", "--show", "--partscan", raw.name], stdout=PIPE)
         loopdev = c.stdout.decode("utf-8").strip()
         output.append(loopdev)
 
@@ -841,7 +840,7 @@ def attach_image_loopback(args: CommandLineArguments, raw: Optional[BinaryIO]) -
         yield loopdev
     finally:
         with complete_step('Detaching image file'):
-            run(["losetup", "--detach", loopdev], check=True)
+            run(["losetup", "--detach", loopdev])
 
 
 def optional_partition(loopdev: str, partno: Optional[int]) -> Optional[str]:
@@ -864,7 +863,7 @@ def prepare_swap(args: CommandLineArguments, loopdev: Optional[str], cached: boo
         return
 
     with complete_step('Formatting swap partition'):
-        run(["mkswap", "-Lswap", partition(loopdev, args.swap_partno)], check=True)
+        run(["mkswap", "-Lswap", partition(loopdev, args.swap_partno)])
 
 
 def prepare_esp(args: CommandLineArguments, loopdev: Optional[str], cached: bool) -> None:
@@ -876,7 +875,7 @@ def prepare_esp(args: CommandLineArguments, loopdev: Optional[str], cached: bool
         return
 
     with complete_step('Formatting ESP partition'):
-        run(["mkfs.fat", "-nEFI", "-F32", partition(loopdev, args.esp_partno)], check=True)
+        run(["mkfs.fat", "-nEFI", "-F32", partition(loopdev, args.esp_partno)])
 
 
 def prepare_xbootldr(args: CommandLineArguments, loopdev: Optional[str], cached: bool) -> None:
@@ -888,19 +887,19 @@ def prepare_xbootldr(args: CommandLineArguments, loopdev: Optional[str], cached:
         return
 
     with complete_step('Formatting XBOOTLDR partition'):
-        run(["mkfs.fat", "-nXBOOTLDR", "-F32", partition(loopdev, args.xbootldr_partno)], check=True)
+        run(["mkfs.fat", "-nXBOOTLDR", "-F32", partition(loopdev, args.xbootldr_partno)])
 
 
 def mkfs_ext4(label: str, mount: str, dev: str) -> None:
-    run(["mkfs.ext4", "-I", "256", "-L", label, "-M", mount, dev], check=True)
+    run(["mkfs.ext4", "-I", "256", "-L", label, "-M", mount, dev])
 
 
 def mkfs_xfs(label: str, dev: str) -> None:
-    run(["mkfs.xfs", "-n", "ftype=1", "-L", label, dev], check=True)
+    run(["mkfs.xfs", "-n", "ftype=1", "-L", label, dev])
 
 
 def mkfs_btrfs(label: str, dev: str) -> None:
-    run(["mkfs.btrfs", "-L", label, "-d", "single", "-m", "single", dev], check=True)
+    run(["mkfs.btrfs", "-L", label, "-d", "single", "-m", "single", dev])
 
 
 def mkfs_generic(args: CommandLineArguments, label: str, mount: str, dev: str) -> None:
@@ -915,10 +914,12 @@ def mkfs_generic(args: CommandLineArguments, label: str, mount: str, dev: str) -
 def luks_format(dev: str, passphrase: Dict[str, str]) -> None:
     if passphrase['type'] == 'stdin':
         passphrase_content = (passphrase['content'] + "\n").encode("utf-8")
-        run(["cryptsetup", "luksFormat", "--force-password", "--pbkdf-memory=64", "--pbkdf-parallel=1", "--pbkdf-force-iterations=1000", "--batch-mode", dev], input=passphrase_content, check=True)
+        run(["cryptsetup", "luksFormat", "--force-password", "--pbkdf-memory=64", "--pbkdf-parallel=1",
+             "--pbkdf-force-iterations=1000", "--batch-mode", dev], input=passphrase_content)
     else:
         assert passphrase['type'] == 'file'
-        run(["cryptsetup", "luksFormat", "--force-password", "--pbkdf-memory=64", "--pbkdf-parallel=1", "--pbkdf-force-iterations=1000", "--batch-mode", dev, passphrase['content']], check=True)
+        run(["cryptsetup", "luksFormat", "--force-password", "--pbkdf-memory=64", "--pbkdf-parallel=1",
+             "--pbkdf-force-iterations=1000", "--batch-mode", dev, passphrase['content']])
 
 
 def luks_open(dev: str, passphrase: Dict[str, str]) -> str:
@@ -926,10 +927,10 @@ def luks_open(dev: str, passphrase: Dict[str, str]) -> str:
 
     if passphrase['type'] == 'stdin':
         passphrase_content = (passphrase['content'] + "\n").encode("utf-8")
-        run(["cryptsetup", "open", "--type", "luks", dev, name], input=passphrase_content, check=True)
+        run(["cryptsetup", "open", "--type", "luks", dev, name], input=passphrase_content)
     else:
         assert passphrase['type'] == 'file'
-        run(["cryptsetup", "--key-file", passphrase['content'], "open", "--type", "luks", dev, name], check=True)
+        run(["cryptsetup", "--key-file", passphrase['content'], "open", "--type", "luks", dev, name])
 
     return os.path.join("/dev/mapper", name)
 
@@ -939,7 +940,7 @@ def luks_close(dev: Optional[str], text: str) -> None:
         return
 
     with complete_step(text):
-        run(["cryptsetup", "close", dev], check=True)
+        run(["cryptsetup", "close", dev])
 
 
 def luks_format_root(args: CommandLineArguments,
@@ -1197,19 +1198,19 @@ def mount_loop(args: CommandLineArguments, dev: str, where: str, read_only: bool
     if options:
         cmd += ["-o", ",".join(options)]
 
-    run(cmd, check=True)
+    run(cmd)
 
 
 def mount_bind(what: str, where: str) -> str:
     os.makedirs(what, 0o755, True)
     os.makedirs(where, 0o755, True)
-    run(["mount", "--bind", what, where], check=True)
+    run(["mount", "--bind", what, where])
     return where
 
 
 def mount_tmpfs(where: str) -> None:
     os.makedirs(where, 0o755, True)
-    run(["mount", "tmpfs", "-t", "tmpfs", where], check=True)
+    run(["mount", "tmpfs", "-t", "tmpfs", where])
 
 
 @contextlib.contextmanager
@@ -1263,7 +1264,7 @@ def mount_image(args: CommandLineArguments,
             # sure to always clean up stale devices after unmounting the image by running the following
             # command.
             if args.output_format == OutputFormat.gpt_btrfs:
-                run(["btrfs", "device", "scan", "-u"], check=True)
+                run(["btrfs", "device", "scan", "-u"])
 
 
 @completestep("Assigning hostname")
@@ -1335,7 +1336,7 @@ def mount_cache(args: CommandLineArguments, root: str) -> Generator[None, None, 
 
 
 def umount(where: str) -> None:
-    run(["umount", "--recursive", "-n", where], check=True)
+    run(["umount", "--recursive", "-n", where])
 
 
 @completestep('Setting up OS tree root')
@@ -1449,7 +1450,7 @@ def disable_pam_securetty(root: str) -> None:
 
 
 def enable_networkd(root: str) -> None:
-    run(["systemctl", "--root", root, "enable", "systemd-networkd", "systemd-resolved"], check=True)
+    run(["systemctl", "--root", root, "enable", "systemd-networkd", "systemd-resolved"])
 
     os.remove(os.path.join(root, "etc/resolv.conf"))
     os.symlink("../run/systemd/resolve/stub-resolv.conf", os.path.join(root, "etc/resolv.conf"))
@@ -1469,7 +1470,7 @@ def enable_networkd(root: str) -> None:
 
 
 def enable_networkmanager(root: str) -> None:
-    run(["systemctl", "--root", root, "enable", "NetworkManager"], check=True)
+    run(["systemctl", "--root", root, "enable", "NetworkManager"])
 
 
 def run_workspace_command(args: CommandLineArguments,
@@ -1674,7 +1675,7 @@ def invoke_dnf(args: CommandLineArguments,
     cmdline += ['install', *packages]
 
     with mount_api_vfs(args, root):
-        run(cmdline, check=True)
+        run(cmdline)
 
 
 def invoke_tdnf(args: CommandLineArguments, root: str, repositories: List[str], packages: List[str], gpgcheck: bool) -> None:
@@ -1697,7 +1698,7 @@ def invoke_tdnf(args: CommandLineArguments, root: str, repositories: List[str], 
     cmdline += ['install', *packages]
 
     with mount_api_vfs(args, root):
-        run(cmdline, check=True)
+        run(cmdline)
 
 
 class Repo(NamedTuple):
@@ -1963,7 +1964,7 @@ def invoke_yum(args: CommandLineArguments,
     cmdline += ['install', *packages]
 
     with mount_api_vfs(args, root):
-        run(cmdline, check=True)
+        run(cmdline)
 
 
 def invoke_dnf_or_yum(args: CommandLineArguments,
@@ -2077,7 +2078,7 @@ def install_centos(args: CommandLineArguments, root: str, do_run_build_script: b
 
 
 def debootstrap_knows_arg(arg: str) -> bool:
-    return bytes("invalid option", "UTF-8") not in run(["debootstrap", arg], stdout=PIPE).stdout
+    return bytes("invalid option", "UTF-8") not in run(["debootstrap", arg], stdout=PIPE, check=False).stdout
 
 
 def install_debian_or_ubuntu(args: CommandLineArguments,
@@ -2111,7 +2112,7 @@ def install_debian_or_ubuntu(args: CommandLineArguments,
     if not do_run_build_script and args.bootable and args.output_format == OutputFormat.gpt_btrfs:
         cmdline[4] += ",btrfs-progs"
 
-    run(cmdline, check=True)
+    run(cmdline)
 
     # Debootstrap is not smart enough to deal correctly with alternative dependencies
     # Installing libpam-systemd via debootstrap results in systemd-shim being installed
@@ -2455,9 +2456,9 @@ def install_arch(args: CommandLineArguments, root: str, do_run_build_script: boo
         conf = ["--config", pacman_conf]
 
         try:
-            run(["pacman-key", *conf, "--init"], check=True)
-            run(["pacman-key", *conf, "--populate"], check=True)
-            run(["pacman", *conf, "--noconfirm", "-Sy", *packages], check=True)
+            run(["pacman-key", *conf, "--init"])
+            run(["pacman-key", *conf, "--populate"])
+            run(["pacman", *conf, "--noconfirm", "-Sy", *packages])
         finally:
             # Kill the gpg-agent started by pacman and pacman-key.
             run(['gpgconf', '--homedir', os.path.join(root, 'etc/pacman.d/gnupg'), '--kill', 'all'])
@@ -2513,8 +2514,8 @@ def install_opensuse(args: CommandLineArguments, root: str, do_run_build_script:
     # here to make sure that the package cache stays populated after
     # "zypper install".
     #
-    run(["zypper", "--root", root, "addrepo", "-ck", release_url, "repo-oss"], check=True)
-    run(["zypper", "--root", root, "addrepo", "-ck", updates_url, "repo-update"], check=True)
+    run(["zypper", "--root", root, "addrepo", "-ck", release_url, "repo-oss"])
+    run(["zypper", "--root", root, "addrepo", "-ck", updates_url, "repo-update"])
 
     if not args.with_docs:
         with open(os.path.join(root, "etc/zypp/zypp.conf"), "w") as f:
@@ -2550,14 +2551,14 @@ def install_opensuse(args: CommandLineArguments, root: str, do_run_build_script:
     cmdline = ["zypper", "--root", root, "--gpg-auto-import-keys",
                "install", "-y", "--no-recommends", "--download-in-advance"]
     with mount_api_vfs(args, root):
-        run(cmdline + packages, check=True)
+        run(cmdline + packages)
 
     #
     # Disable packages caching in the image that was enabled
     # previously to populate the package cache.
     #
-    run(["zypper", "--root", root, "modifyrepo", "-K", "repo-oss"], check=True)
-    run(["zypper", "--root", root, "modifyrepo", "-K", "repo-update"], check=True)
+    run(["zypper", "--root", root, "modifyrepo", "-K", "repo-oss"])
+    run(["zypper", "--root", root, "modifyrepo", "-K", "repo-update"])
 
     #
     # Tune dracut confs: openSUSE uses an old version of dracut that's
@@ -2742,7 +2743,7 @@ def run_finalize_script(args: CommandLineArguments, root: str, do_run_build_scri
 
     with complete_step('Running finalize script'):
         env = collections.ChainMap({'BUILDROOT': root}, os.environ)
-        run([args.finalize_script, verb], env=env, check=True)
+        run([args.finalize_script, verb], env=env)
 
 
 def install_grub(args: CommandLineArguments, root: str, loopdev: str, grub: str) -> None:
@@ -2978,9 +2979,7 @@ def make_tar(args: CommandLineArguments,
         else:
            _tar_cmd = ["tar", "-C", root, "-c", "-J", "--xattrs", "--xattrs-include=*", "."]
 
-        run(_tar_cmd,
-            env={"XZ_OPT": "-T0"},
-            stdout=f, check=True)
+        run(_tar_cmd, env={"XZ_OPT": "-T0"}, stdout=f)
 
     return f
 
@@ -3002,7 +3001,7 @@ def make_squashfs(args: CommandLineArguments, root: str, for_cache: bool) -> Opt
     with complete_step('Creating squashfs file system'):
         f: BinaryIO = cast(BinaryIO, tempfile.NamedTemporaryFile(prefix=".mkosi-squashfs",
                                                                  dir=os.path.dirname(args.output)))
-        run([command, root, f.name, *comp_args], check=True)
+        run([command, root, f.name, *comp_args])
 
     return f
 
@@ -3019,7 +3018,7 @@ def make_minimal_ext4(args: CommandLineArguments, root: str, for_cache: bool) ->
         f: BinaryIO = cast(BinaryIO, tempfile.NamedTemporaryFile(prefix=".mkosi-mkfs-ext4",
                                                                  dir=os.path.dirname(args.output)))
         f.truncate(args.root_size)
-        run(["mkfs.ext4", "-I", "256", "-L", "root", "-M", "/", "-d", root, f.name], check=True)
+        run(["mkfs.ext4", "-I", "256", "-L", "root", "-M", "/", "-d", root, f.name])
 
     with complete_step('Minimizing ext4 root file system'):
         run(["resize2fs", "-M", f.name])
@@ -3042,12 +3041,12 @@ def make_minimal_btrfs(args: CommandLineArguments, root: str, for_cache: bool) -
 
         command = ["mkfs.btrfs", "-L", "root", "-d", "single", "-m", "single", "--shrink", "--rootdir", root, f.name]
         try:
-            run(command, check=True)
+            run(command)
         except subprocess.CalledProcessError as e:
             # The --shrink option was added in btrfs-tools 4.14.1, before that it was the default behaviour.
             # If the above fails, let's see if things work if we drop it
             command.remove("--shrink")
-            run(command, check=True)
+            run(command)
 
     return f
 
@@ -3068,7 +3067,7 @@ def read_partition_table(loopdev: str) -> Tuple[List[str], int]:
     table = []
     last_sector = 0
 
-    c = run(["sfdisk", "--dump", loopdev], stdout=PIPE, check=True)
+    c = run(["sfdisk", "--dump", loopdev], stdout=PIPE)
 
     in_body = False
     for line in c.stdout.decode("utf-8").split('\n'):
@@ -3128,7 +3127,7 @@ def insert_partition(args: CommandLineArguments,
     print_step(f'Resizing disk image to {format_bytes(new_size)}...')
 
     os.truncate(raw.name, new_size)
-    run(["losetup", "--set-capacity", loopdev], check=True)
+    run(["losetup", "--set-capacity", loopdev])
 
     print_step(f'Inserting partition of {format_bytes(blob_size)}...')
 
@@ -3149,7 +3148,7 @@ def insert_partition(args: CommandLineArguments,
 
     print(table)
 
-    run(["sfdisk", "--color=never", loopdev], input=table.encode("utf-8"), check=True)
+    run(["sfdisk", "--color=never", loopdev], input=table.encode("utf-8"))
     run(["sync"])
 
     print_step("Writing partition...")
@@ -3162,7 +3161,7 @@ def insert_partition(args: CommandLineArguments,
 
     path = dev if dev is not None else partition(loopdev, partno)
     try:
-        run(['dd', f'if={blob.name}', f'of={path}', 'conv=nocreat'], check=True)
+        run(['dd', f'if={blob.name}', f'of={path}', 'conv=nocreat'])
     finally:
         luks_close(dev, "Closing LUKS root partition")
 
@@ -3205,7 +3204,7 @@ def make_verity(args: CommandLineArguments,
 
     with complete_step('Generating verity hashes'):
         f: BinaryIO = cast(BinaryIO, tempfile.NamedTemporaryFile(dir=os.path.dirname(args.output), prefix=".mkosi-"))
-        c = run(["veritysetup", "format", dev, f.name], stdout=PIPE, check=True)
+        c = run(["veritysetup", "format", dev, f.name], stdout=PIPE)
 
         for line in c.stdout.decode("utf-8").split('\n'):
             if line.startswith("Root hash:"):
@@ -3342,7 +3341,7 @@ def xz_output(args: CommandLineArguments, raw: Optional[BinaryIO]) -> Optional[B
 
     with complete_step('Compressing image file'):
         f: BinaryIO = cast(BinaryIO, tempfile.NamedTemporaryFile(prefix=".mkosi-", dir=os.path.dirname(args.output)))
-        run([xz_binary, "-c", raw.name], stdout=f, check=True)
+        run([xz_binary, "-c", raw.name], stdout=f)
 
     return f
 
@@ -3357,7 +3356,7 @@ def qcow2_output(args: CommandLineArguments, raw: Optional[BinaryIO]) -> Optiona
 
     with complete_step('Converting image file to qcow2'):
         f: BinaryIO = cast(BinaryIO, tempfile.NamedTemporaryFile(prefix=".mkosi-", dir=os.path.dirname(args.output)))
-        run(["qemu-img", "convert", "-onocow=on", "-fraw", "-Oqcow2", raw.name, f.name], check=True)
+        run(["qemu-img", "convert", "-onocow=on", "-fraw", "-Oqcow2", raw.name, f.name])
 
     return f
 
@@ -3445,7 +3444,7 @@ def calculate_signature(args: CommandLineArguments, checksum: Optional[IO[Any]])
             cmdline += ["--default-key", args.key]
 
         checksum.seek(0)
-        run(cmdline, stdin=checksum, stdout=f, check=True)
+        run(cmdline, stdin=checksum, stdout=f)
 
     return f
 
@@ -3463,7 +3462,7 @@ def calculate_bmap(args: CommandLineArguments, raw: Optional[BinaryIO]) -> Optio
                                                              dir=os.path.dirname(args.output_bmap)))
 
         cmdline = ["bmaptool", "create", raw.name]
-        run(cmdline, stdout=f, check=True)
+        run(cmdline, stdout=f)
 
     return f
 
