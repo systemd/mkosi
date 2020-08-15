@@ -15,7 +15,7 @@ jobs:
     - uses: actions/checkout@v2
 
     - name: Install
-      run: python3 -m pip install pytest 'mypy==0.770'
+      run: python3 -m pip install pytest mypy
 
     - name: Type Checking
       run: python3 -m mypy mkosi
