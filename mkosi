@@ -1414,7 +1414,10 @@ def prepare_tree(args: CommandLineArguments, root: str, do_run_build_script: boo
             f.write("add_dracutmodules+=\" qemu \"\n")
 
         # These distros need uefi_stub configured explicitly for dracut to find the systemd-boot uefi stub.
-        if args.distribution in (Distribution.ubuntu, Distribution.mageia, Distribution.openmandriva):
+        if args.esp_partno is not None and args.distribution in (Distribution.ubuntu,
+                                                                 Distribution.debian,
+                                                                 Distribution.mageia,
+                                                                 Distribution.openmandriva):
             with open(os.path.join(dracut_dir, "30-mkosi-uefi-stub.conf"), "w") as f:
                 f.write("uefi_stub=/usr/lib/systemd/boot/efi/linuxx64.efi.stub\n")
 
@@ -2086,18 +2089,12 @@ def install_debian_or_ubuntu(args: CommandLineArguments,
                              *,
                              do_run_build_script: bool,
                              mirror: str) -> None:
-    repos = args.repositories or ["main"]
+    repos = set(args.repositories) or {"main"}
     # Ubuntu needs the 'universe' repo to install 'dracut'
-    if args.distribution == Distribution.ubuntu and args.bootable and 'universe' not in repos:
-        repos.append('universe')
+    if args.distribution == Distribution.ubuntu and args.bootable and args.with_unified_kernel_images:
+        repos.add('universe')
 
-    cmdline = ["debootstrap",
-               "--verbose",
-               "--variant=minbase",
-               "--include=systemd-sysv",
-               "--exclude=sysv-rc,initscripts,startpar,lsb-base,insserv",
-               "--merged-usr",
-               "--components=" + ','.join(repos)]
+    cmdline = ["debootstrap", "--variant=minbase", "--merged-usr", f"--components={','.join(repos)}"]
 
     if args.architecture is not None:
         debarch = DEBIAN_ARCHITECTURES.get(args.architecture)
@@ -2108,59 +2105,41 @@ def install_debian_or_ubuntu(args: CommandLineArguments,
         cmdline.append("--no-check-valid-until")
 
     cmdline += [args.release, root, mirror]
-
-    if not do_run_build_script and args.bootable and args.output_format == OutputFormat.gpt_btrfs:
-        cmdline[4] += ",btrfs-progs"
-
     run(cmdline)
 
-    # Debootstrap is not smart enough to deal correctly with alternative dependencies
-    # Installing libpam-systemd via debootstrap results in systemd-shim being installed
-    # Therefore, prefer to install via apt from inside the container
-    extra_packages = ['dbus', 'libpam-systemd', 'binutils']
-
-    # Also install extra packages via the secondary APT run, because it is smarter and
-    # can deal better with any conflicts
-    extra_packages.extend(args.packages)
+    # Install extra packages via the secondary APT run, because it is smarter and can deal better with any
+    # conflicts. dbus and libpam-systemd are optional dependencies for systemd in debian so we include them
+    # explicitly.
+    extra_packages = {"systemd", "systemd-sysv", "dbus", "libpam-systemd"}
+    extra_packages.update(args.packages)
 
     if do_run_build_script:
-        extra_packages.extend(args.build_packages)
-
-    # Work around debian bug #835628
-    os.makedirs(os.path.join(root, "etc/dracut.conf.d"), exist_ok=True)
-    with open(os.path.join(root, "etc/dracut.conf.d/99-generic.conf"), "w") as f:
-        f.write("hostonly=no")
+        extra_packages.update(args.build_packages)
 
     if not do_run_build_script and args.bootable:
-        extra_packages += ["dracut"]
+        extra_packages.add("dracut")
+        extra_packages.add("binutils")
+
         if args.distribution == Distribution.ubuntu:
-            extra_packages += ["linux-generic"]
+            extra_packages.add("linux-generic")
         else:
-            extra_packages += ["linux-image-amd64"]
+            extra_packages.add("linux-image-amd64")
 
         if args.bios_partno:
-            extra_packages += ["grub-pc"]
+            extra_packages.add("grub-pc")
 
-    # Debian policy is to start daemons by default.
-    # The policy-rc.d script can be used choose which ones to start
-    # Let's install one that denies all daemon startups
-    # See https://people.debian.org/~hmh/invokerc.d-policyrc.d-specification.txt
-    # Note: despite writing in /usr/sbin, this file is not shipped by the OS
-    # and instead should be managed by the admin.
+        if args.output_format == OutputFormat.gpt_btrfs:
+            extra_packages.add("btrfs-progs")
+
+    # Debian policy is to start daemons by default. The policy-rc.d script can be used choose which ones to
+    # start. Let's install one that denies all daemon startups.
+    # See https://people.debian.org/~hmh/invokerc.d-policyrc.d-specification.txt for more information.
+    # Note: despite writing in /usr/sbin, this file is not shipped by the OS and instead should be managed by
+    # the admin.
     policyrcd = os.path.join(root, "usr/sbin/policy-rc.d")
     with open(policyrcd, "w") as f:
-        f.write("#!/bin/sh\n")
-        f.write("exit 101")
+        f.write("#!/bin/sh\nexit 101\n")
     os.chmod(policyrcd, 0o755)
-    dracut_bug_comment = [
-        '# Work around "Failed to find module \'crc32c\'" dracut issue\n',
-        '# See also:\n',
-        '# - https://github.com/antonio-petricca/buddy-linux/issues/2#issuecomment-404505527\n',
-        '# - https://bugs.launchpad.net/ubuntu/+source/dracut/+bug/1781143\n',
-    ]
-    dracut_bug_conf = os.path.join(root, "etc/dpkg/dpkg.cfg.d/01_no_dracut_10-debian")
-    with open(dracut_bug_conf, "w") as f:
-        f.writelines(dracut_bug_comment + ['path-exclude /etc/dracut.conf.d/10-debian.conf\n'])
 
     doc_paths = [
         '/usr/share/locale',
@@ -2180,11 +2159,22 @@ def install_debian_or_ubuntu(args: CommandLineArguments,
         with open(dpkg_conf, "w") as f:
             f.writelines(f'path-exclude {d}/*\n' for d in doc_paths)
 
-    cmdline = ["/usr/bin/apt-get", "--assume-yes", "--no-install-recommends", "install"] + extra_packages
+    cmdline = ["/usr/bin/apt-get", "--assume-yes", "--no-install-recommends", "install", *extra_packages]
     env = {
         'DEBIAN_FRONTEND': 'noninteractive',
         'DEBCONF_NONINTERACTIVE_SEEN': 'true',
     }
+
+    if not do_run_build_script and args.bootable and args.with_unified_kernel_images:
+        # Disable dracut postinstall script for this apt-get run.
+        env['INITRD'] = 'No'
+
+        if args.distribution == Distribution.debian and args.release == "unstable":
+            # systemd-boot won't boot unified kernel images generated without a BUILD_ID or VERSION_ID in
+            # /etc/os-release.
+            with open(os.path.join(root, "etc/os-release"), 'a') as f:
+                f.write("BUILD_ID=unstable\n")
+
     run_workspace_command(args, root, cmdline, network=True, env=env)
     os.unlink(policyrcd)
     # Debian still has pam_securetty module enabled
