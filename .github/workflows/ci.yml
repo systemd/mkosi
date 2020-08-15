@@ -51,11 +51,30 @@ jobs:
     - uses: actions/checkout@v2
     - uses: ./.github/actions/setup-mkosi
 
+    - name: Install pexpect
+      run: sudo apt-get install python3-pexpect
+
     - name: Build ${{ matrix.distro }}/${{ matrix.format }}
-      run: sudo ./mkosi
-            --debug run
-            --distribution ${{ matrix.distro }}
-            --format ${{ matrix.format }}
+      run: |
+        tee mkosi.default << EOF
+        [Distribution]
+        Distribution=${{ matrix.distro }}
+
+        [Output]
+        Format=${{ matrix.format }}
+
+        [Validation]
+        # Set to empty password if we ever get opensuse to work with empty root password.
+        # See https://github.com/systemd/mkosi/pull/514.
+        Password=root
+        EOF
+
+        sudo ./mkosi build
+
+    - name: Boot ${{ matrix.distro }}/${{ matrix.format }}
+      # photon boot gets stuck on systemd-networkd-wait-online. See https://github.com/systemd/mkosi/pull/514.
+      if: matrix.format != 'tar' && matrix.distro != 'photon'
+      run: sudo ./tests/pexpect/boot.py ./mkosi boot
 
     - name: Build ${{ matrix.distro }}/${{ matrix.format }} UEFI
       if: matrix.format != 'directory' && matrix.format != 'tar' && matrix.format != 'plain_squashfs' &&
