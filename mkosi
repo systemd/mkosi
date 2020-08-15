@@ -132,7 +132,6 @@ case "$COMMAND" in
         fi
 
         dracut \\
-            --verbose \\
             --uefi \\
             --kver "$KERNEL_VERSION" \\
             $DRACUT_KERNEL_IMAGE_OPTION \\
