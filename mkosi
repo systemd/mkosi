@@ -1475,7 +1475,7 @@ def enable_networkmanager(root: str) -> None:
 
 def run_workspace_command(args: CommandLineArguments,
                           root: str,
-                          *cmd: str,
+                          cmd: List[str],
                           network: bool = False,
                           env: Dict[str, str] = {},
                           nspawn_params: List[str] = []) -> None:
@@ -1500,11 +1500,11 @@ def run_workspace_command(args: CommandLineArguments,
     if nspawn_params:
         cmdline += nspawn_params
 
-    result = run(cmdline + ['--', *cmd])
+    result = run(cmdline + ['--'] + cmd, check=False)
     if result.returncode != 0:
         if 'workspace-command' in arg_debug:
-            run(cmdline)
-        die(f"Workspace command {' '.join([*cmd])} returned non-zero exit code {result.returncode}.")
+            run(cmdline, check=False)
+        die(f"Workspace command {' '.join(cmd)} returned non-zero exit code {result.returncode}.")
 
 
 def check_if_url_exists(url: str) -> bool:
@@ -2174,7 +2174,7 @@ def install_debian_or_ubuntu(args: CommandLineArguments,
     if not args.with_docs:
         # Remove documentation installed by debootstrap
         cmdline = ["/bin/rm", "-rf"] + doc_paths
-        run_workspace_command(args, root, *cmdline)
+        run_workspace_command(args, root, cmdline)
         # Create dpkg.cfg to ignore documentation on new packages
         dpkg_conf = os.path.join(root, "etc/dpkg/dpkg.cfg.d/01_nodoc")
         with open(dpkg_conf, "w") as f:
@@ -2185,7 +2185,7 @@ def install_debian_or_ubuntu(args: CommandLineArguments,
         'DEBIAN_FRONTEND': 'noninteractive',
         'DEBCONF_NONINTERACTIVE_SEEN': 'true',
     }
-    run_workspace_command(args, root, network=True, env=env, *cmdline)
+    run_workspace_command(args, root, cmdline, network=True, env=env)
     os.unlink(policyrcd)
     # Debian still has pam_securetty module enabled
     disable_pam_securetty(root)
@@ -2474,7 +2474,7 @@ def install_arch(args: CommandLineArguments, root: str, do_run_build_script: boo
     with open(os.path.join(root, 'etc/locale.gen'), 'w') as f:
         f.write('en_US.UTF-8 UTF-8\n')
 
-    run_workspace_command(args, root, '/usr/bin/locale-gen')
+    run_workspace_command(args, root, ['/usr/bin/locale-gen'])
 
     with open(os.path.join(root, 'etc/locale.conf'), 'w') as f:
         f.write('LANG=en_US.UTF-8\n')
@@ -2708,7 +2708,7 @@ def run_prepare_script(args: CommandLineArguments, root: str, do_run_build_scrip
 
         shutil.copy2(args.prepare_script, os.path.join(root, "root/prepare"))
 
-        run_workspace_command(args, root, "/root/prepare", verb, network=True)
+        run_workspace_command(args, root, ["/root/prepare", verb], network=True)
         os.unlink(os.path.join(root, "root/prepare"))
 
 
@@ -2729,7 +2729,7 @@ def run_postinst_script(args: CommandLineArguments, root: str, do_run_build_scri
 
         shutil.copy2(args.postinst_script, os.path.join(root, "root/postinst"))
 
-        run_workspace_command(args, root, "/root/postinst", verb, network=args.with_network)
+        run_workspace_command(args, root, ["/root/postinst", verb], network=args.with_network)
         os.unlink(os.path.join(root, "root/postinst"))
 
 
@@ -2769,16 +2769,12 @@ def install_grub(args: CommandLineArguments, root: str, loopdev: str, grub: str)
             p = partition(loopdev, partno)
             nspawn_params += [f"--bind-ro={p}", f"--property=DeviceAllow={p}"]
 
-    run_workspace_command(
-        args, root, f"{grub}-install",
-        "--modules=ext2 part_gpt", "--target=i386-pc",
-        loopdev, nspawn_params=nspawn_params)
+    cmdline = [f"{grub}-install", "--modules=ext2 part_gpt", "--target=i386-pc", loopdev]
+    run_workspace_command(args, root, cmdline, nspawn_params=nspawn_params)
 
-    run_workspace_command(
-        args, root, f"{grub}-mkconfig",
-        # TODO: Remove os.path.basename once https://github.com/systemd/systemd/pull/16645 is widely available.
-        f"--output=/boot/{os.path.basename(grub)}/grub.cfg",
-        nspawn_params=nspawn_params)
+    # TODO: Remove os.path.basename once https://github.com/systemd/systemd/pull/16645 is widely available.
+    cmdline = [f"{grub}-mkconfig", f"--output=/boot/{os.path.basename(grub)}/grub.cfg"]
+    run_workspace_command(args, root, cmdline, nspawn_params=nspawn_params)
 
 
 def install_boot_loader_clear(args: CommandLineArguments, root: str, loopdev: str) -> None:
@@ -2796,7 +2792,8 @@ def install_boot_loader_clear(args: CommandLineArguments, root: str, loopdev: st
             p = partition(loopdev, partno)
             nspawn_params += [f"--bind-ro={p}", f"--property=DeviceAllow={p}"]
 
-    run_workspace_command(args, root, "/usr/bin/clr-boot-manager", "update", "-i", nspawn_params=nspawn_params)
+    cmdline = ["/usr/bin/clr-boot-manager", "update", "-i"]
+    run_workspace_command(args, root, cmdline, nspawn_params=nspawn_params)
 
 
 def install_boot_loader(args: CommandLineArguments, root: str, loopdev: Optional[str], do_run_build_script: bool, cached: bool) -> None:
@@ -2809,7 +2806,7 @@ def install_boot_loader(args: CommandLineArguments, root: str, loopdev: Optional
 
     with complete_step("Installing boot loader"):
         if args.esp_partno and args.distribution != Distribution.clear:
-            run_workspace_command(args, root, "bootctl", "install")
+            run_workspace_command(args, root, ["bootctl", "install"])
 
         if args.bios_partno and args.distribution != Distribution.clear:
             grub = "grub" if args.distribution in (Distribution.ubuntu, Distribution.debian, Distribution.arch) else "grub2"
@@ -3298,7 +3295,7 @@ def install_unified_kernel(args: CommandLineArguments,
                 if root_hash is not None:
                     cmdline.append(root_hash)
 
-                run_workspace_command(args, root, *cmdline)
+                run_workspace_command(args, root, cmdline)
 
 
 def secure_boot_sign(args: CommandLineArguments, root: str, do_run_build_script: bool, for_cache: bool) -> None:
@@ -5047,10 +5044,10 @@ def run_build_script(args: CommandLineArguments, root: str, raw: Optional[Binary
 
         cmdline.append("/root/" + os.path.basename(args.build_script))
 
-        result = run(cmdline)
+        result = run(cmdline, check=False)
         if result.returncode != 0:
             if 'build-script' in arg_debug:
-                run(cmdline[:-1])
+                run(cmdline[:-1], check=False)
             die(f"Build script returned non-zero exit code {result.returncode}.")
 
 
