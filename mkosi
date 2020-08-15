@@ -4623,7 +4623,7 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
         if not args.output_format.is_disk():
             die("Sorry, can't boot non-disk images with qemu.")
 
-    if args.qemu_headless and not args.bootable:
+    if needs_build(args) and args.qemu_headless and not args.bootable:
         die("--qemu-headless requires --bootable")
 
     if args.qemu_headless and "console=ttyS0" not in args.kernel_command_line:
@@ -5257,6 +5257,10 @@ def prepend_to_environ_path(paths: List[str]) -> None:
         os.environ["PATH"] = new_path + ":" + original_path
 
 
+def needs_build(args: CommandLineArguments) -> bool:
+    return args.verb == "build" or (not os.path.exists(args.output) and args.verb in MKOSI_COMMANDS_NEED_BUILD)
+
+
 def run_verb(args: CommandLineArguments) -> None:
     load_args(args)
 
@@ -5269,12 +5273,10 @@ def run_verb(args: CommandLineArguments) -> None:
     if args.verb == "build":
         check_output(args)
 
-    needs_build = args.verb == "build" or (not os.path.exists(args.output) and args.verb in MKOSI_COMMANDS_NEED_BUILD)
-
-    if args.verb == "summary" or needs_build:
+    if args.verb == "summary" or needs_build(args):
         print_summary(args)
 
-    if needs_build:
+    if needs_build(args):
         check_root()
         check_native(args)
         init_namespace(args)
