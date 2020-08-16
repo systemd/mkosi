@@ -5153,6 +5153,9 @@ def run_shell(args: CommandLineArguments) -> None:
     if args.verb == "boot":
         cmdline += ('--boot',)
 
+    if args.generated_root():
+        cmdline += ('--volatile=overlay',)
+
     if args.cmdline:
         # If the verb is shell, args.cmdline contains the command to run. Otherwise (boot), we assume
         # args.cmdline contains nspawn arguments.
