@@ -11,6 +11,9 @@ sed -ie "s/__version__ = '.*'/__version__ = '$1'/" mkosi
 
 git add -p setup.py mkosi
 
+pandoc -t man -s -o man/mkosi.1 mkosi.md
+git add man/mkosi.1
+
 git commit -m "bump version numbers for v$1"
 
 git tag -s "v$1" -m "mkosi $1"
