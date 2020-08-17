@@ -55,10 +55,14 @@ jobs:
     - name: Install
       run: sudo apt-get update && sudo apt-get install --no-install-recommends
         debootstrap
+        ovmf
         python3-pexpect
+        qemu-system-x86-64
         systemd-container
 
     - name: Build ${{ matrix.distro }}/${{ matrix.format }}
+      if: matrix.format != 'tar' &&
+          matrix.distro != 'photon'
       run: |
         tee mkosi.default << EOF
         [Distribution]
@@ -68,35 +72,125 @@ jobs:
         Format=${{ matrix.format }}
 
         [Validation]
-        # Set to empty password if we ever get opensuse to work with empty root password.
-        # See https://github.com/systemd/mkosi/pull/514.
-        Password=root
+        Password=
         EOF
 
         sudo python3 -m mkosi build
 
     - name: Boot ${{ matrix.distro }}/${{ matrix.format }}
       # photon boot gets stuck on systemd-networkd-wait-online. See https://github.com/systemd/mkosi/pull/514.
-      if: matrix.format != 'tar' && matrix.distro != 'photon'
+      if: matrix.format != 'tar' &&
+          matrix.distro != 'photon'
       run: sudo ./tests/pexpect/boot.py python3 -m mkosi boot
 
+    - name: Build ${{ matrix.distro }}/${{ matrix.format }} UEFI UKI
+      if: matrix.format != 'directory' &&
+          matrix.format != 'plain_squashfs' &&
+          matrix.format != 'tar' &&
+          matrix.distro != 'clear' &&
+          matrix.distro != 'openmandriva' &&
+          matrix.distro != 'photon'
+      run: |
+        tee mkosi.default << EOF
+        [Distribution]
+        Distribution=${{ matrix.distro }}
+
+        [Output]
+        Format=${{ matrix.format }}
+        Bootable=yes
+        BootProtocols=uefi
+
+        [Validation]
+        Password=
+
+        [Host]
+        QemuHeadless=yes
+        EOF
+
+        sudo python3 -m mkosi --force build
+
+    - name: Boot ${{ matrix.distro }}/${{ matrix.format }} UEFI UKI
+      if: matrix.format != 'directory' &&
+          matrix.format != 'plain_squashfs' &&
+          matrix.format != 'gpt_squashfs' &&
+          matrix.format != 'tar' &&
+          matrix.distro != 'clear' &&
+          matrix.distro != 'openmandriva' &&
+          matrix.distro != 'photon' &&
+          !(matrix.distro == 'ubuntu' && matrix.format == 'gpt_squashfs')
+      run: sudo ./tests/pexpect/boot.py python3 -m mkosi qemu
+
     - name: Build ${{ matrix.distro }}/${{ matrix.format }} UEFI
-      if: matrix.format != 'directory' && matrix.format != 'tar' && matrix.format != 'plain_squashfs' &&
-          (matrix.distro != 'clear' || matrix.format != 'gpt_squashfs') && matrix.distro != 'photon'
-      run: sudo python3 -m mkosi
-            --debug run
-            --distribution ${{ matrix.distro }}
-            --format ${{ matrix.format }}
-            --bootable
-            --boot-protocols uefi
-            --force
+      if: matrix.format != 'directory' &&
+          matrix.format != 'plain_squashfs' &&
+          matrix.format != 'tar' && (
+          matrix.distro == 'arch' ||
+          matrix.distro == 'centos' ||
+          matrix.distro == 'fedora')
+      run: |
+        tee mkosi.default << EOF
+        [Distribution]
+        Distribution=${{ matrix.distro }}
+
+        [Output]
+        Format=${{ matrix.format }}
+        Bootable=yes
+        BootProtocols=uefi
+        WithUnifiedKernelImages=no
+        # Boot with systemd.volatile=overlay so squashfs images can write to the filesystem
+        KernelCommandLine=systemd.volatile=overlay
+
+        [Validation]
+        Password=
+
+        [Host]
+        QemuHeadless=yes
+        EOF
+
+        sudo python3 -m mkosi --force build
+
+    - name: Boot ${{ matrix.distro }}/${{ matrix.format }} UEFI
+      if: matrix.format != 'directory' &&
+          matrix.format != 'plain_squashfs' &&
+          matrix.format != 'tar' && (
+          matrix.distro == 'arch' ||
+          matrix.distro == 'centos' ||
+          matrix.distro == 'fedora')
+      run: sudo ./tests/pexpect/boot.py python3 -m mkosi qemu
 
     - name: Build ${{ matrix.distro }}/${{ matrix.format }} BIOS
-      if: matrix.format != 'directory' && matrix.format != 'tar' && !contains(matrix.format, 'squashfs')
-      run: sudo python3 -m mkosi
-            --debug run
-            --distribution ${{ matrix.distro }}
-            --format ${{ matrix.format }}
-            --bootable
-            --boot-protocols bios
-            --force
+      if: matrix.format != 'directory' &&
+          matrix.format != 'gpt_squashfs' &&
+          matrix.format != 'plain_squashfs' &&
+          matrix.format != 'tar' && (
+          matrix.distro == 'arch' ||
+          matrix.distro == 'centos' ||
+          matrix.distro == 'fedora')
+      run: |
+        tee mkosi.default << EOF
+        [Distribution]
+        Distribution=${{ matrix.distro }}
+
+        [Output]
+        Format=${{ matrix.format }}
+        Bootable=yes
+        BootProtocols=bios
+
+        [Validation]
+        Password=
+
+        [Host]
+        QemuHeadless=yes
+        EOF
+
+        sudo python3 -m mkosi --force build
+
+    - name: Boot ${{ matrix.distro }}/${{ matrix.format }} BIOS
+      if: matrix.format != 'directory' &&
+          matrix.format != 'gpt_squashfs' &&
+          matrix.format != 'plain_squashfs' &&
+          matrix.format != 'tar' && (
+          matrix.distro == 'arch' ||
+          matrix.distro == 'centos' ||
+          matrix.distro == 'fedora')
+      run: sudo ./tests/pexpect/boot.py python3 -m mkosi qemu
