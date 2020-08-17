@@ -2411,6 +2411,48 @@ def install_arch(args: CommandLineArguments, root: str, do_run_build_script: boo
                     )
                 )
 
+        if args.bios_partno is not None:
+            vmlinuz_add_hook = os.path.join(hooks_dir, "90-mkosi-vmlinuz-add.hook")
+            with open(vmlinuz_add_hook, 'w') as f:
+                f.write(
+                    """\
+                    [Trigger]
+                    Operation = Install
+                    Operation = Upgrade
+                    Type = Path
+                    Target = usr/lib/modules/*/vmlinuz
+
+                    [Action]
+                    Description = Adding vmlinuz to /boot...
+                    When = PostTransaction
+                    Exec = /bin/bash -c 'while read -r f; do install -Dm644 "$f" "/boot/vmlinuz-$(basename "$(dirname "$f")")"; done'
+                    NeedsTargets
+                    """
+                )
+
+            make_executable(vmlinuz_add_hook)
+
+            vmlinuz_remove_hook = os.path.join(hooks_dir, "60-mkosi-vmlinuz-remove.hook")
+            with open(vmlinuz_remove_hook, 'w') as f:
+                f.write(
+                    """\
+                    [Trigger]
+                    Operation = Upgrade
+                    Operation = Remove
+                    Type = Path
+                    Target = usr/lib/modules/*/vmlinuz
+
+                    [Action]
+                    Description = Removing vmlinuz from /boot...
+                    When = PreTransaction
+                    Exec = /bin/bash -c 'while read -r f; do rm -f "/boot/vmlinuz-$(basename "$(dirname "$f")")"; done'
+                    NeedsTargets
+                    """
+                )
+
+            make_executable(vmlinuz_remove_hook)
+
+
     keyring = "archlinux"
     if platform.machine() == "aarch64":
         keyring += "arm"
