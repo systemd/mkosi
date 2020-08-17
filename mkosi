@@ -5232,9 +5232,9 @@ def run_qemu(args: CommandLineArguments) -> None:
                      'i386': 'qemu-system-i386'}
     arch_binary = ARCH_BINARIES.get(platform.machine(), None)
     if arch_binary is not None:
-        cmdlines += [[arch_binary, '-machine', 'accel=kvm']]
+        cmdlines += [[arch_binary, '-machine', 'accel=kvm:tcg']]
     cmdlines += [
-        ['qemu', '-machine', 'accel=kvm'],
+        ['qemu', '-machine', 'accel=kvm:tcg'],
         ['qemu-kvm'],
     ]
     for cmdline in cmdlines:
