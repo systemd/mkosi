@@ -5217,11 +5217,16 @@ def run_qemu(args: CommandLineArguments) -> None:
     else:
         die("Couldn't find OVMF UEFI firmware blob.")
 
-    cmdline += ["-smp", "2",
-                "-m", "1024",
-                "-drive", "if=pflash,format=raw,readonly,file=" + firmware,
-                "-drive", "format=" + ("qcow2" if args.qcow2 else "raw") + ",file=" + args.output,
-                "-object", "rng-random,filename=/dev/urandom,id=rng0", "-device", "virtio-rng-pci,rng=rng0,id=rng-device0"]
+    cmdline += ["-smp", "2", "-m", "1024"]
+
+    if "uefi" in args.boot_protocols:
+        cmdline += ["-drive", f"if=pflash,format=raw,readonly,file={firmware}"]
+
+    cmdline += [
+        "-drive", f"format={'qcow2' if args.qcow2 else 'raw'},file={args.output}",
+        "-object", "rng-random,filename=/dev/urandom,id=rng0",
+        "-device", "virtio-rng-pci,rng=rng0,id=rng-device0",
+    ]
 
     if args.qemu_headless:
         cmdline.append("-nographic")
