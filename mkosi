@@ -2594,11 +2594,6 @@ def install_opensuse(args: CommandLineArguments, root: str, do_run_build_script:
     run(["zypper", "--root", root, "modifyrepo", "-K", "repo-oss"])
     run(["zypper", "--root", root, "modifyrepo", "-K", "repo-update"])
 
-    if not do_run_build_script and args.bootable:
-        # dracut from openSUSE is missing upstream commit 016613c774baf.
-        with open(os.path.join(root, "etc/kernel/cmdline"), "w") as f:
-            f.write(' '.join(args.kernel_command_line) + " root=/dev/gpt-auto-root\n")
-
 
 def install_distribution(args: CommandLineArguments,
                          root: str,
@@ -4687,6 +4682,10 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
 
     if args.qemu_headless and "console=ttyS0" not in args.kernel_command_line:
         args.kernel_command_line.append("console=ttyS0")
+
+    if args.bootable and args.distribution in (Distribution.opensuse, Distribution.mageia):
+        # TODO: Remove once dracut 045 is available in all these distros.
+        args.kernel_command_line.append("root=/dev/gpt-auto-root")
 
     if args.generated_root() and "bios" in args.boot_protocols:
         die("Sorry, BIOS cannot be combined with --minimize or squashfs filesystems")
