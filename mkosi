@@ -3890,6 +3890,8 @@ def create_parser() -> ArgumentParserMkosi:
     group.add_argument("--without-unified-kernel-images", action=BooleanAction,
                        dest='with_unified_kernel_images', default=True,
                        help="Do not install unified kernel images")
+    group.add_argument("--with-unified-kernel-images", action=BooleanAction, default=True,
+                       help=argparse.SUPPRESS)
 
     group = parser.add_argument_group("Packages")
     group.add_argument('-p', "--package", action=CommaDelimitedListAction, dest='packages', default=[],
