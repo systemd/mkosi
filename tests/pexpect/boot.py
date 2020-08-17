@@ -5,7 +5,7 @@ import sys
 
 
 def run() -> None:
-    p = pexpect.spawnu(" ".join(sys.argv[1:]), logfile=sys.stdout, timeout=45)
+    p = pexpect.spawnu(" ".join(sys.argv[1:]), logfile=sys.stdout, timeout=240)
 
     p.expect("login:")
     p.sendline("root")
