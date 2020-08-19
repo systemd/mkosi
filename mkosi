@@ -2775,15 +2775,26 @@ def install_grub(args: CommandLineArguments, root: str, loopdev: str, grub: str)
     kernel_cmd_line = ' '.join(args.kernel_command_line)
     grub_cmdline = f'GRUB_CMDLINE_LINUX="{kernel_cmd_line}"\n'
     os.makedirs(os.path.join(root, "etc/default"), exist_ok=True, mode=0o755)
-    if not os.path.exists(os.path.join(root, "etc/default/grub")):
-        with open(os.path.join(root, "etc/default/grub"), "w+") as f:
+    grub_config = os.path.join(root, "etc/default/grub")
+    if not os.path.exists(grub_config):
+        with open(grub_config, "w+") as f:
             f.write(grub_cmdline)
     else:
         def jj(line: str) -> str:
             if line.startswith("GRUB_CMDLINE_LINUX="):
                 return grub_cmdline
+            if args.qemu_headless:
+                if "GRUB_TERMINAL_INPUT" in line:
+                    return "GRUB_TERMINAL_INPUT=\"console serial\""
+                if "GRUB_TERMINAL_OUTPUT" in line:
+                    return "GRUB_TERMINAL_OUTPUT=\"console serial\""
             return line
-        patch_file(os.path.join(root, "etc/default/grub"), jj)
+
+        patch_file(grub_config, jj)
+
+        if args.qemu_headless:
+            with open(grub_config, 'a') as f:
+                f.write("GRUB_SERIAL_COMMAND=\"serial --unit=0 --speed 115200\"\n")
 
     # /dev/disk is required so grub can access the root partition UUID/PARTUUID and add it to the kernel
     # command line. If we don't do this, it adds root=/dev/loop* which breaks the boot later on because the
