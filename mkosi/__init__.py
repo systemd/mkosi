@@ -2325,6 +2325,7 @@ def install_arch(args: CommandLineArguments, root: str, do_run_build_script: boo
                 dedent(
                     """\
                     #!/bin/bash -e
+                    shopt -s nullglob
 
                     declare -a kernel_version
 
