@@ -1868,7 +1868,7 @@ def install_fedora(args: CommandLineArguments, root: str, do_run_build_script: b
     packages = ['fedora-release', 'glibc-minimal-langpack', 'systemd']
     packages += args.packages or []
     if not do_run_build_script and args.bootable:
-        packages += ['kernel-core', 'systemd-udev', 'binutils']
+        packages += ['kernel-core', 'kernel-modules', 'systemd-udev', 'binutils']
     if do_run_build_script:
         packages += args.build_packages or []
     invoke_dnf(args, root, args.repositories or ["fedora", "updates"], packages)
