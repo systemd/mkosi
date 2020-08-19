@@ -2457,7 +2457,7 @@ def install_arch(args: CommandLineArguments, root: str, do_run_build_script: boo
     if platform.machine() == "aarch64":
         keyring += "arm"
 
-    packages = {"base"}
+    packages = set()
 
     if not do_run_build_script and args.bootable:
         if args.output_format == OutputFormat.gpt_ext4:
@@ -2498,7 +2498,11 @@ def install_arch(args: CommandLineArguments, root: str, do_run_build_script: boo
         try:
             run(["pacman-key", *conf, "--init"])
             run(["pacman-key", *conf, "--populate"])
-            run(["pacman", *conf, "--noconfirm", "-Sy", *packages])
+            # Dependencies on packages from base are implicit so pacman doesn't know it has to install the
+            # packages from base before anything else. To circumvent this we explicitly install base first.
+            run(["pacman", *conf, "--noconfirm", "-Sy", "base"])
+            if packages:
+                run(["pacman", *conf, "--noconfirm", "-S", *packages])
         finally:
             # Kill the gpg-agent started by pacman and pacman-key.
             run(['gpgconf', '--homedir', os.path.join(root, 'etc/pacman.d/gnupg'), '--kill', 'all'])
