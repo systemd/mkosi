@@ -2461,9 +2461,7 @@ def install_arch(args: CommandLineArguments, root: str, do_run_build_script: boo
     packages = set()
 
     if not do_run_build_script and args.bootable:
-        if args.output_format == OutputFormat.gpt_ext4:
-            packages.add("e2fsprogs")
-        elif args.output_format == OutputFormat.gpt_btrfs:
+        if args.output_format == OutputFormat.gpt_btrfs:
             packages.add("btrfs-progs")
         elif args.output_format == OutputFormat.gpt_xfs:
             packages.add("xfsprogs")
