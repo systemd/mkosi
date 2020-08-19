@@ -4712,8 +4712,8 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
     if args.generated_root() and "bios" in args.boot_protocols:
         die("Sorry, BIOS cannot be combined with --minimize or squashfs filesystems")
 
-    if args.bootable and args.distribution == Distribution.clear:
-        die("Sorry, --bootable is not supported on Clear Linux")
+    if args.bootable and args.distribution in (Distribution.clear, Distribution.photon):
+        die("Sorry, --bootable is not supported on this distro")
 
     if not args.with_unified_kernel_images and args.distribution in (Distribution.debian,
                                                                      Distribution.ubuntu,
