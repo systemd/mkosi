@@ -1893,6 +1893,12 @@ def install_mageia(args: CommandLineArguments, root: str, do_run_build_script: b
     packages += args.packages or []
     if not do_run_build_script and args.bootable:
         packages += ["kernel-server-latest", "binutils"]
+
+        # Mageia ships /etc/50-mageia.conf that omits systemd from the initramfs and disables hostonly.
+        # We override that again so our defaults get applied correctly on Mageia as well.
+        with open(os.path.join(root, "etc/dracut.conf.d/51-mkosi-override-mageia.conf"), "w") as f:
+            f.write("hostonly=no\n")
+            f.write('omit_dracutmodules=""\n')
     if do_run_build_script:
         packages += args.build_packages or []
     invoke_dnf(args, root, args.repositories or ["mageia", "updates"], packages)
