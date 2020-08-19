@@ -2088,7 +2088,7 @@ def install_debian_or_ubuntu(args: CommandLineArguments,
                              mirror: str) -> None:
     repos = set(args.repositories) or {"main"}
     # Ubuntu needs the 'universe' repo to install 'dracut'
-    if args.distribution == Distribution.ubuntu and args.bootable and args.with_unified_kernel_images:
+    if args.distribution == Distribution.ubuntu and args.bootable:
         repos.add('universe')
 
     cmdline = ["debootstrap", "--variant=minbase", "--merged-usr", f"--components={','.join(repos)}"]
