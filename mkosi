@@ -4712,9 +4712,8 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
     if args.generated_root() and "bios" in args.boot_protocols:
         die("Sorry, BIOS cannot be combined with --minimize or squashfs filesystems")
 
-    if args.with_unified_kernel_images and args.distribution == Distribution.clear:
-        warn("Using --without-unified-kernel-images as Clear Linux does not support unified kernel images.")
-        args.with_unified_kernel_images = False
+    if args.bootable and args.distribution == Distribution.clear:
+        die("Sorry, --bootable is not supported on Clear Linux")
 
     if not args.with_unified_kernel_images and args.distribution in (Distribution.debian,
                                                                      Distribution.ubuntu,
