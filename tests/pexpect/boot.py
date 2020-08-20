@@ -10,9 +10,6 @@ def run() -> None:
     p.expect("login:")
     p.sendline("root")
 
-    p.expect("Password:")
-    p.sendline("root")
-
     p.expect("#")
     p.sendline("systemctl poweroff")
 
