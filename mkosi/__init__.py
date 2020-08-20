@@ -2597,6 +2597,17 @@ def install_opensuse(args: CommandLineArguments, root: str, do_run_build_script:
     run(["zypper", "--root", root, "modifyrepo", "-K", "repo-oss"])
     run(["zypper", "--root", root, "modifyrepo", "-K", "repo-update"])
 
+    if args.password == "":
+        shutil.copy2(os.path.join(root, "usr/etc/pam.d/common-auth"),
+                     os.path.join(root, "etc/pam.d/common-auth"))
+
+        def jj(line: str) -> str:
+            if "pam_unix.so" in line:
+                return f"{line.strip()} nullok"
+            return line
+
+        patch_file(os.path.join(root, "etc/pam.d/common-auth"), jj)
+
 
 def install_distribution(args: CommandLineArguments,
                          root: str,
