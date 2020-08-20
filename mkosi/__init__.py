@@ -1332,6 +1332,29 @@ def umount(where: str) -> None:
     run(["umount", "--recursive", "-n", where])
 
 
+def configure_dracut(args: CommandLineArguments, root: str) -> None:
+    dracut_dir = os.path.join(root, "etc/dracut.conf.d")
+    os.mkdir(dracut_dir, 0o755)
+
+    with open(os.path.join(dracut_dir, "30-mkosi-hostonly.conf"), "w") as f:
+        f.write("hostonly=no\n")
+
+    with open(os.path.join(dracut_dir, "30-mkosi-systemd-extras.conf"), "w") as f:
+        for extra in DRACUT_SYSTEMD_EXTRAS:
+            f.write(f"install_optional_items+=\" {extra} \"\n")
+
+    with open(os.path.join(dracut_dir, "30-mkosi-qemu.conf"), "w") as f:
+        f.write("add_dracutmodules+=\" qemu \"\n")
+
+    # These distros need uefi_stub configured explicitly for dracut to find the systemd-boot uefi stub.
+    if args.esp_partno is not None and args.distribution in (Distribution.ubuntu,
+                                                                Distribution.debian,
+                                                                Distribution.mageia,
+                                                                Distribution.openmandriva):
+        with open(os.path.join(dracut_dir, "30-mkosi-uefi-stub.conf"), "w") as f:
+            f.write("uefi_stub=/usr/lib/systemd/boot/efi/linuxx64.efi.stub\n")
+
+
 @completestep('Setting up OS tree root')
 def prepare_tree_root(args: CommandLineArguments, root: str) -> None:
     if args.output_format == OutputFormat.subvolume:
@@ -1392,27 +1415,6 @@ def prepare_tree(args: CommandLineArguments, root: str, do_run_build_script: boo
         with open(os.path.join(root, "etc/kernel/cmdline"), "w") as cmdline:
             cmdline.write(' '.join(args.kernel_command_line))
             cmdline.write("\n")
-
-        dracut_dir = os.path.join(root, "etc/dracut.conf.d")
-        os.mkdir(dracut_dir, 0o755)
-
-        with open(os.path.join(dracut_dir, "30-mkosi-hostonly.conf"), "w") as f:
-            f.write("hostonly=no\n")
-
-        with open(os.path.join(dracut_dir, "30-mkosi-systemd-extras.conf"), "w") as f:
-            for extra in DRACUT_SYSTEMD_EXTRAS:
-                f.write(f"install_optional_items+=\" {extra} \"\n")
-
-        with open(os.path.join(dracut_dir, "30-mkosi-qemu.conf"), "w") as f:
-            f.write("add_dracutmodules+=\" qemu \"\n")
-
-        # These distros need uefi_stub configured explicitly for dracut to find the systemd-boot uefi stub.
-        if args.esp_partno is not None and args.distribution in (Distribution.ubuntu,
-                                                                 Distribution.debian,
-                                                                 Distribution.mageia,
-                                                                 Distribution.openmandriva):
-            with open(os.path.join(dracut_dir, "30-mkosi-uefi-stub.conf"), "w") as f:
-                f.write("uefi_stub=/usr/lib/systemd/boot/efi/linuxx64.efi.stub\n")
 
     if do_run_build_script:
         os.mkdir(os.path.join(root, "root"), 0o750)
@@ -1862,7 +1864,8 @@ def install_fedora(args: CommandLineArguments, root: str, do_run_build_script: b
     packages = ['fedora-release', 'glibc-minimal-langpack', 'systemd']
     packages += args.packages or []
     if not do_run_build_script and args.bootable:
-        packages += ['kernel-core', 'kernel-modules', 'systemd-udev', 'binutils']
+        packages += ['kernel-core', 'kernel-modules', 'systemd-udev', 'binutils', 'dracut']
+        configure_dracut(args, root)
     if do_run_build_script:
         packages += args.build_packages or []
     invoke_dnf(args, root, args.repositories or ["fedora", "updates"], packages)
@@ -1892,8 +1895,9 @@ def install_mageia(args: CommandLineArguments, root: str, do_run_build_script: b
     packages = ["basesystem-minimal"]
     packages += args.packages or []
     if not do_run_build_script and args.bootable:
-        packages += ["kernel-server-latest", "binutils"]
+        packages += ["kernel-server-latest", "binutils", "dracut"]
 
+        configure_dracut(args, root)
         # Mageia ships /etc/50-mageia.conf that omits systemd from the initramfs and disables hostonly.
         # We override that again so our defaults get applied correctly on Mageia as well.
         with open(os.path.join(root, "etc/dracut.conf.d/51-mkosi-override-mageia.conf"), "w") as f:
@@ -1937,6 +1941,7 @@ def install_openmandriva(args: CommandLineArguments, root: str, do_run_build_scr
     packages += args.packages or []
     if not do_run_build_script and args.bootable:
         packages += ["kernel-release-server", "binutils", "systemd-boot", "dracut", "timezone", "systemd-cryptsetup"]
+        configure_dracut(args, root)
     if do_run_build_script:
         packages += args.build_packages or []
     invoke_dnf(args, root, args.repositories or ["openmandriva", "updates"], packages)
@@ -2066,7 +2071,8 @@ def install_centos(args: CommandLineArguments, root: str, do_run_build_script: b
     packages += args.packages or []
 
     if not do_run_build_script and args.bootable:
-        packages += ["kernel", "systemd-udev", "binutils"]
+        packages += ["kernel", "systemd-udev", "dracut", "binutils"]
+        configure_dracut(args, root)
 
     if do_run_build_script:
         packages += args.build_packages or []
@@ -2122,6 +2128,8 @@ def install_debian_or_ubuntu(args: CommandLineArguments,
     if not do_run_build_script and args.bootable:
         extra_packages.add("dracut")
         extra_packages.add("binutils")
+
+        configure_dracut(args, root)
 
         if args.distribution == Distribution.ubuntu:
             extra_packages.add("linux-generic")
@@ -2480,6 +2488,8 @@ def install_arch(args: CommandLineArguments, root: str, do_run_build_script: boo
         packages.add("dracut")
         packages.add("binutils")
 
+        configure_dracut(args, root)
+
     packages.update(args.packages)
 
     official_kernel_packages = {
@@ -2573,7 +2583,10 @@ def install_opensuse(args: CommandLineArguments, root: str, do_run_build_script:
 
     if not do_run_build_script and args.bootable:
         packages.add("kernel-default")
+        packages.add("dracut")
         packages.add("binutils")
+
+        configure_dracut(args, root)
 
         if args.bios_partno is not None:
             packages.add("grub2")
