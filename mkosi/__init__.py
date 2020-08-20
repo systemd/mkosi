@@ -2745,6 +2745,23 @@ def set_serial_terminal(args: CommandLineArguments, root: str, do_run_build_scri
         )
 
 
+def nspawn_params_for_build_sources(args: CommandLineArguments, sft: SourceFileTransfer) -> List[str]:
+    params = []
+
+    if args.build_sources is not None:
+        params.append("--setenv=SRCDIR=/root/src")
+        params.append("--chdir=/root/src")
+        if sft == SourceFileTransfer.mount:
+            params.append("--bind=" + args.build_sources + ":/root/src")
+
+        if args.read_only:
+            params.append("--overlay=+/root/src::/root/src")
+    else:
+        params.append("--chdir=/root")
+
+    return params
+
+
 def run_prepare_script(args: CommandLineArguments, root: str, do_run_build_script: bool, cached: bool) -> None:
     if args.prepare_script is None:
         return
@@ -2762,7 +2779,11 @@ def run_prepare_script(args: CommandLineArguments, root: str, do_run_build_scrip
 
         shutil.copy2(args.prepare_script, os.path.join(root, "root/prepare"))
 
-        run_workspace_command(args, root, ["/root/prepare", verb], network=True)
+        nspawn_params = nspawn_params_for_build_sources(args, SourceFileTransfer.mount)
+        run_workspace_command(args, root, ["/root/prepare", verb], network=True, nspawn_params=nspawn_params)
+
+        if os.path.exists(os.path.join(root, "root/src")):
+            os.rmdir(os.path.join(root, "root/src"))
         os.unlink(os.path.join(root, "root/prepare"))
 
 
@@ -5112,16 +5133,7 @@ def run_build_script(args: CommandLineArguments, root: str, raw: Optional[Binary
         if args.default_path is not None:
             cmdline.append("--setenv=MKOSI_DEFAULT=" + args.default_path)
 
-        if args.build_sources is not None:
-            cmdline.append("--setenv=SRCDIR=/root/src")
-            cmdline.append("--chdir=/root/src")
-            if args.source_file_transfer == SourceFileTransfer.mount:
-                cmdline.append("--bind=" + args.build_sources + ":/root/src")
-
-            if args.read_only:
-                cmdline.append("--overlay=+/root/src::/root/src")
-        else:
-            cmdline.append("--chdir=/root")
+        cmdline += nspawn_params_for_build_sources(args, args.source_file_transfer)
 
         if args.build_dir is not None:
             cmdline.append("--setenv=BUILDDIR=/root/build")

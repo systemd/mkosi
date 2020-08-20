@@ -913,10 +913,12 @@ local directory:
   This script has network access and may be used to install packages
   from other sources than the distro's package manager (e.g. pip, npm, ...),
   after all software packages are installed but before the image is
-  cached (if incremental mode is enabled).
-  Note that this script is executed directly in the image context with
-  the final root directory in place, without any `$SRCDIR`/`$DESTDIR`
-  setup.
+  cached (if incremental mode is enabled). This script is executed within
+  `$SRCDIR`. In contrast to a general purpose installation, it is safe to
+  install packages to the system (`pip install`, `npm install -g`) instead
+  of in `$SRCDIR` itself because the build image is only used for a single
+  project and can easily be thrown away and rebuilt so there's no risk of
+  conflicting dependencies and no risk of polluting the host system.
 
 * `mkosi.postinst` may be an executable script. If it exists it is
   invoked as the penultimate step of preparing an image, from within
