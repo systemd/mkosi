@@ -73,7 +73,5 @@ jobs:
 
     - name: Test zipapp creation
       run: |
-        mkdir -p builddir outdir
-        cp -r mkosi builddir/
-        python3 -m zipapp -p "/usr/bin/env python3" -o outdir/mkosi -m mkosi.__main__:main builddir
-        ./outdir/mkosi -h
+        ./tools/generate-zipapp.sh
+        ./builddir/mkosi -h

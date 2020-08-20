@@ -36,15 +36,9 @@ CI (see `.github/workflows`), but you can run the tests locally as well.
 
 You can also package mkosi as a
 [zipapp](https://docs.python.org/3/library/zipapp.html) that you can deploy
-anywhere in your `PATH`. This will leave a `mkosi` binary in `outdir/`
+anywhere in your `PATH`. Running this will leave a `mkosi` binary in `builddir/`
 ```shell
-mkdir -p builddir outdir
-cp -r mkosi builddir/
-python3 -m zipapp \
-        -p "/usr/bin/env python3" \
-        -o outdir/mkosi \
-        -m mkosi.__main__:main \
-        builddir
+tools/generate_zipapp.sh
 ```
 
 ## Python module
