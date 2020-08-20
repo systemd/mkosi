@@ -4716,8 +4716,8 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
     if args.qemu_headless and "console=ttyS0" not in args.kernel_command_line:
         args.kernel_command_line.append("console=ttyS0")
 
-    if args.bootable and args.distribution in (Distribution.opensuse, Distribution.mageia):
-        # TODO: Remove once dracut 045 is available in all these distros.
+    if args.bootable and args.distribution == Distribution.mageia:
+        # TODO: Remove once dracut 045 is available in mageia.
         args.kernel_command_line.append("root=/dev/gpt-auto-root")
 
     if args.generated_root() and "bios" in args.boot_protocols:
