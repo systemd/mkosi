@@ -71,7 +71,6 @@ jobs:
           matrix.format != 'tar' &&
           matrix.distro != 'clear' &&
           matrix.distro != 'openmandriva' &&
-          matrix.distro != 'opensuse' &&
           matrix.distro != 'photon'
       run: |
         tee mkosi.default << EOF
@@ -98,7 +97,6 @@ jobs:
           matrix.format != 'tar' &&
           matrix.distro != 'clear' &&
           matrix.distro != 'openmandriva' &&
-          matrix.distro != 'opensuse' &&
           matrix.distro != 'photon'
       run: sudo ./tests/pexpect/boot.py ./mkosi qemu
 
