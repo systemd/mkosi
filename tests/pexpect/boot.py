@@ -7,11 +7,12 @@ import sys
 def run() -> None:
     p = pexpect.spawnu(" ".join(sys.argv[1:]), logfile=sys.stdout, timeout=240)
 
-    p.expect("to continue.:")
-    p.sendline("")
-    p.sendline("cat /run/initramfs/rdsosreport.txt")
+    p.expect("login:")
+    p.sendline("root")
 
-    p.sendline("systemctl poweroff --force")
+    p.expect("#")
+    p.sendline("systemctl poweroff")
+
 
     p.expect(pexpect.EOF)
 
