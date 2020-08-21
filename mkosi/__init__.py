@@ -2814,7 +2814,7 @@ def run_prepare_script(args: CommandLineArguments, root: str, do_run_build_scrip
         os.unlink(os.path.join(root, "root/prepare"))
 
 
-def run_postinst_script(args: CommandLineArguments, root: str, do_run_build_script: bool, for_cache: bool) -> None:
+def run_postinst_script(args: CommandLineArguments, root: str, loopdev: Optional[str], do_run_build_script: bool, for_cache: bool) -> None:
     if args.postinst_script is None:
         return
     if for_cache:
@@ -2831,7 +2831,15 @@ def run_postinst_script(args: CommandLineArguments, root: str, do_run_build_scri
 
         shutil.copy2(args.postinst_script, os.path.join(root, "root/postinst"))
 
-        run_workspace_command(args, root, ["/root/postinst", verb], network=args.with_network)
+        nspawn_params = []
+        # in order to have full blockdev access, i.e. for making grub2 bootloader changes
+        # we need to have these bind mounts for a proper chroot setup
+        if args.bootable:
+            if loopdev is None:
+                raise ValueError("Parameter 'loopdev' required for bootable images.")
+            nspawn_params += nspawn_params_for_blockdev_access(args, loopdev)
+
+        run_workspace_command(args, root, ["/root/postinst", verb], network=args.with_network, nspawn_params=nspawn_params)
         os.unlink(os.path.join(root, "root/postinst"))
 
 
@@ -2846,6 +2854,20 @@ def run_finalize_script(args: CommandLineArguments, root: str, do_run_build_scri
     with complete_step('Running finalize script'):
         env = collections.ChainMap({'BUILDROOT': root}, os.environ)
         run([args.finalize_script, verb], env=env)
+
+
+def nspawn_params_for_blockdev_access(args: CommandLineArguments, loopdev: str) -> List[str]:
+    params = [
+        f"--bind-ro={loopdev}",
+        f"--bind-ro=/dev/block",
+        f"--bind-ro=/dev/disk",
+        f"--property=DeviceAllow={loopdev}"
+    ]
+    for partno in (args.esp_partno, args.bios_partno, args.root_partno, args.xbootldr_partno):
+        if partno is not None:
+            p = partition(loopdev, partno)
+            params += [f"--bind-ro={p}", f"--property=DeviceAllow={p}"]
+    return params
 
 
 def write_grub_config(args: CommandLineArguments, root: str) -> None:
@@ -2880,19 +2902,7 @@ def install_grub(args: CommandLineArguments, root: str, loopdev: str, grub: str)
 
     write_grub_config(args, root)
 
-    # /dev/disk and /dev/block are required so grub can access the root partition UUID/PARTUUID and add it to
-    # the kernel command line. If we don't do this, it adds root=/dev/loop* which breaks the boot later on
-    # because the device can't be found.
-    nspawn_params = [
-        f"--bind-ro={loopdev}",
-        f"--property=DeviceAllow={loopdev}",
-        "--bind-ro=/dev/block",
-        "--bind-ro=/dev/disk",
-    ]
-    for partno in (args.root_partno, args.xbootldr_partno, args.bios_partno):
-        if partno is not None:
-            p = partition(loopdev, partno)
-            nspawn_params += [f"--bind-ro={p}", f"--property=DeviceAllow={p}"]
+    nspawn_params = nspawn_params_for_blockdev_access(args, loopdev)
 
     cmdline = [f"{grub}-install", "--modules=ext2 part_gpt", "--target=i386-pc", loopdev]
     run_workspace_command(args, root, cmdline, nspawn_params=nspawn_params)
@@ -2903,34 +2913,15 @@ def install_grub(args: CommandLineArguments, root: str, loopdev: str, grub: str)
 
 
 def install_boot_loader_clear(args: CommandLineArguments, root: str, loopdev: str) -> None:
-    nspawn_params = [
-        # clr-boot-manager uses blkid in the device backing "/" to
-        # figure out uuid and related parameters.
-        f"--bind-ro={loopdev}",
-        f"--bind-ro=/dev/block",
-        f"--bind-ro=/dev/disk",
-        f"--property=DeviceAllow={loopdev}",
-    ]
-
-    for partno in (args.esp_partno, args.bios_partno, args.root_partno, args.xbootldr_partno):
-        if partno is not None:
-            p = partition(loopdev, partno)
-            nspawn_params += [f"--bind-ro={p}", f"--property=DeviceAllow={p}"]
+    # clr-boot-manager uses blkid in the device backing "/" to
+    # figure out uuid and related parameters.
+    nspawn_params = nspawn_params_for_blockdev_access(args, loopdev)
 
     cmdline = ["/usr/bin/clr-boot-manager", "update", "-i"]
     run_workspace_command(args, root, cmdline, nspawn_params=nspawn_params)
 
 def install_boot_loader_centos_old_efi(args: CommandLineArguments, root: str, loopdev: str) -> None:
-    nspawn_params = [
-        f"--bind-ro={loopdev}",
-        f"--bind-ro=/dev/block",
-        f"--bind-ro=/dev/disk",
-        f"--property=DeviceAllow={loopdev}",
-    ]
-    for partno in (args.esp_partno, args.bios_partno, args.root_partno, args.xbootldr_partno):
-        if partno is not None:
-            p = partition(loopdev, partno)
-            nspawn_params += [f"--bind-ro={p}", f"--property=DeviceAllow={p}"]
+    nspawn_params = nspawn_params_for_blockdev_access(args, loopdev)
 
     # prepare EFI directory on ESP
     os.makedirs(os.path.join(root, 'efi/EFI/centos'), exist_ok=True)
@@ -5140,7 +5131,7 @@ def build_image(args: CommandLineArguments,
                     install_build_dest(args, root, do_run_build_script, for_cache)
                     set_root_password(args, root, do_run_build_script, for_cache)
                     set_serial_terminal(args, root, do_run_build_script, for_cache)
-                    run_postinst_script(args, root, do_run_build_script, for_cache)
+                    run_postinst_script(args, root, loopdev, do_run_build_script, for_cache)
 
                 if cleanup:
                     clean_package_manager_metadata(root)
