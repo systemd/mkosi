@@ -71,6 +71,7 @@ jobs:
           matrix.format != 'tar' &&
           matrix.distro != 'clear' &&
           matrix.distro != 'openmandriva' &&
+          matrix.distro != 'opensuse' &&
           matrix.distro != 'photon'
       run: |
         tee mkosi.default << EOF
@@ -97,6 +98,7 @@ jobs:
           matrix.format != 'tar' &&
           matrix.distro != 'clear' &&
           matrix.distro != 'openmandriva' &&
+          matrix.distro != 'opensuse' &&
           matrix.distro != 'photon'
       run: sudo ./tests/pexpect/boot.py ./mkosi qemu
 
@@ -106,7 +108,8 @@ jobs:
           matrix.format != 'tar' && (
           matrix.distro == 'arch' ||
           matrix.distro == 'centos' ||
-          matrix.distro == 'fedora')
+          matrix.distro == 'fedora' ||
+          matrix.distro == 'opensuse')
       run: |
         tee mkosi.default << EOF
         [Distribution]
@@ -133,7 +136,8 @@ jobs:
           matrix.format != 'tar' && (
           matrix.distro == 'arch' ||
           matrix.distro == 'centos' ||
-          matrix.distro == 'fedora')
+          matrix.distro == 'fedora' ||
+          matrix.distro == 'opensuse')
       run: sudo ./tests/pexpect/boot.py ./mkosi qemu
 
     - name: Build ${{ matrix.distro }}/${{ matrix.format }} BIOS
@@ -143,7 +147,8 @@ jobs:
           matrix.format != 'tar' && (
           matrix.distro == 'arch' ||
           matrix.distro == 'centos' ||
-          matrix.distro == 'fedora')
+          matrix.distro == 'fedora' ||
+          matrix.distro == 'opensuse')
       run: |
         tee mkosi.default << EOF
         [Distribution]
@@ -170,5 +175,6 @@ jobs:
           matrix.format != 'tar' && (
           matrix.distro == 'arch' ||
           matrix.distro == 'centos' ||
-          matrix.distro == 'fedora')
+          matrix.distro == 'fedora' ||
+          matrix.distro == 'opensuse')
       run: sudo ./tests/pexpect/boot.py ./mkosi qemu

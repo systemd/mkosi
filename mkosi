@@ -4741,8 +4741,7 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
 
     if not args.with_unified_kernel_images and args.distribution in (Distribution.debian,
                                                                      Distribution.ubuntu,
-                                                                     Distribution.mageia,
-                                                                     Distribution.opensuse):
+                                                                     Distribution.mageia):
         die(f"Sorry, --without-unified-kernel-images is not supported on this distro.")
 
     if args.verity and not args.with_unified_kernel_images:
