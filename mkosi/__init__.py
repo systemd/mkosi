@@ -360,7 +360,7 @@ GPT_HEADER_SIZE = 1024*1024
 GPT_FOOTER_SIZE = 1024*1024
 
 
-# Debian calls their architectures differently, so when calling debbootstrap we
+# Debian calls their architectures differently, so when calling debootstrap we
 # will have to map to their names
 DEBIAN_ARCHITECTURES = {
     'x86_64': 'amd64',
