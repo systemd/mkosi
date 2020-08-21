@@ -898,25 +898,39 @@ def prepare_xbootldr(args: CommandLineArguments, loopdev: Optional[str], cached:
         run(["mkfs.fat", "-nXBOOTLDR", "-F32", partition(loopdev, args.xbootldr_partno)])
 
 
-def mkfs_ext4(label: str, mount: str, dev: str) -> None:
-    run(["mkfs.ext4", "-I", "256", "-L", label, "-M", mount, dev])
+def mkfs_ext4_cmd(label: str, mount: str) -> List[str]:
+    return ["mkfs.ext4", "-I", "256", "-L", label, "-M", mount]
 
 
-def mkfs_xfs(label: str, dev: str) -> None:
-    run(["mkfs.xfs", "-n", "ftype=1", "-L", label, dev])
+def mkfs_xfs_cmd(label: str) -> List[str]:
+    return ["mkfs.xfs", "-n", "ftype=1", "-L", label]
 
 
-def mkfs_btrfs(label: str, dev: str) -> None:
-    run(["mkfs.btrfs", "-L", label, "-d", "single", "-m", "single", dev])
+def mkfs_btrfs_cmd(label: str) -> List[str]:
+    return ["mkfs.btrfs", "-L", label, "-d", "single", "-m", "single"]
 
 
 def mkfs_generic(args: CommandLineArguments, label: str, mount: str, dev: str) -> None:
+    cmdline = []
+
     if args.output_format == OutputFormat.gpt_btrfs:
-        mkfs_btrfs(label, dev)
+        cmdline = mkfs_btrfs_cmd(label)
     elif args.output_format == OutputFormat.gpt_xfs:
-        mkfs_xfs(label, dev)
+        cmdline = mkfs_xfs_cmd(label)
     else:
-        mkfs_ext4(label, mount, dev)
+        cmdline = mkfs_ext4_cmd(label, mount)
+
+    if args.output_format == OutputFormat.gpt_ext4:
+        if (args.distribution in (Distribution.centos, Distribution.centos_epel) and
+            is_older_than_centos8(args.release)):
+            # e2fsprogs in centos7 is too old and doesn't support this feature
+            cmdline += ["-O", "^metadata_csum"]
+
+        if args.architecture in ("x86_64", "aarch64"):
+            # enable 64bit filesystem feature on supported architectures
+            cmdline += ["-O", "64bit"]
+
+    run(cmdline + [dev])
 
 
 def luks_format(dev: str, passphrase: Dict[str, str]) -> None:
