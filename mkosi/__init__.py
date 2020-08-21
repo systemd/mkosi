@@ -675,6 +675,8 @@ def disable_cow(path: str) -> None:
 def determine_partition_table(args: CommandLineArguments) -> Tuple[str, bool]:
     pn = 1
     table = "label: gpt\n"
+    if args.gpt_first_lba is not None:
+        table += f"first-lba: {args.gpt_first_lba:d}\n"
     run_sfdisk = False
     args.esp_partno = None
     args.bios_partno = None
@@ -3223,6 +3225,8 @@ def insert_partition(args: CommandLineArguments,
     print_step(f'Inserting partition of {format_bytes(blob_size)}...')
 
     table = "label: gpt\n"
+    if args.gpt_first_lba is not None:
+        table += f"first-lba: {args.gpt_first_lba:d}\n"
 
     for t in old_table:
         table += t + "\n"
@@ -3833,6 +3837,7 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
         'SkeletonTrees': '--skeleton-tree',
         'BuildPackages': '--build-package',
         'PostInstallationScript': '--postinst-script',
+        'GPTFirstLBA': '--gpt-first-lba',
     }
 
     fromfile_prefix_chars = '@'
@@ -3970,6 +3975,7 @@ def create_parser() -> ArgumentParserMkosi:
                        help="Do not install unified kernel images")
     group.add_argument("--with-unified-kernel-images", action=BooleanAction, default=True,
                        help=argparse.SUPPRESS)
+    group.add_argument("--gpt-first-lba", type=int, help='Set the first LBA within GPT Header', metavar='FIRSTLBA')
 
     group = parser.add_argument_group("Packages")
     group.add_argument('-p', "--package", action=CommaDelimitedListAction, dest='packages', default=[],
