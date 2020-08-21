@@ -15,25 +15,13 @@ jobs:
       fail-fast: false
       matrix:
         distro:
-          - arch
-          - centos
-          - centos_epel
-          - clear
-          - debian
-          - ubuntu
-          - fedora
-          - openmandriva
-          - mageia
           - opensuse
-          - photon
         format:
-          - directory
-          - tar
-          - gpt_ext4
-          - gpt_xfs
           - gpt_btrfs
-          - gpt_squashfs
-          - plain_squashfs
+#          - gpt_ext4
+#          - gpt_xfs
+#          - gpt_squashfs
+#          - plain_squashfs
         exclude:
           # CentOS 8 and Clear Linux do not support btrfs.
           - distro: centos
@@ -71,11 +59,11 @@ jobs:
 
         sudo ./mkosi build
 
-    - name: Boot ${{ matrix.distro }}/${{ matrix.format }}
-      # photon boot gets stuck on systemd-networkd-wait-online. See https://github.com/systemd/mkosi/pull/514.
-      if: matrix.format != 'tar' &&
-          matrix.distro != 'photon'
-      run: sudo ./tests/pexpect/boot.py ./mkosi boot
+#    - name: Boot ${{ matrix.distro }}/${{ matrix.format }}
+#      # photon boot gets stuck on systemd-networkd-wait-online. See https://github.com/systemd/mkosi/pull/514.
+#      if: matrix.format != 'tar' &&
+#          matrix.distro != 'photon'
+#      run: sudo ./tests/pexpect/boot.py ./mkosi boot
 
     - name: Build ${{ matrix.distro }}/${{ matrix.format }} UEFI UKI
       if: matrix.format != 'directory' &&
