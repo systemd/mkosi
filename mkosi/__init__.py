@@ -2100,8 +2100,13 @@ def install_centos(args: CommandLineArguments, root: str, do_run_build_script: b
     packages += args.packages or []
 
     if not do_run_build_script and args.bootable:
-        packages += ["kernel", "systemd-udev", "dracut", "binutils"]
+        packages += ["kernel", "dracut", "binutils"]
         configure_dracut(args, root)
+        if old:
+            packages += ["grub2-efi", "grub2-tools", "grub2-efi-x64-modules", "shim-x64", "efibootmgr", "efivar-libs"]
+        else:
+            # this does not exist on CentOS 7
+            packages += ["systemd-udev"]
 
     if do_run_build_script:
         packages += args.build_packages or []
@@ -2843,10 +2848,7 @@ def run_finalize_script(args: CommandLineArguments, root: str, do_run_build_scri
         run([args.finalize_script, verb], env=env)
 
 
-def install_grub(args: CommandLineArguments, root: str, loopdev: str, grub: str) -> None:
-    if args.bios_partno is None:
-        return
-
+def write_grub_config(args: CommandLineArguments, root: str) -> None:
     kernel_cmd_line = ' '.join(args.kernel_command_line)
     grub_cmdline = f'GRUB_CMDLINE_LINUX="{kernel_cmd_line}"\n'
     os.makedirs(os.path.join(root, "etc/default"), exist_ok=True, mode=0o755)
@@ -2870,6 +2872,13 @@ def install_grub(args: CommandLineArguments, root: str, loopdev: str, grub: str)
         if args.qemu_headless:
             with open(grub_config, 'a') as f:
                 f.write("GRUB_SERIAL_COMMAND=\"serial --unit=0 --speed 115200\"\n")
+
+
+def install_grub(args: CommandLineArguments, root: str, loopdev: str, grub: str) -> None:
+    if args.bios_partno is None:
+        return
+
+    write_grub_config(args, root)
 
     # /dev/disk and /dev/block are required so grub can access the root partition UUID/PARTUUID and add it to
     # the kernel command line. If we don't do this, it adds root=/dev/loop* which breaks the boot later on
@@ -2911,6 +2920,37 @@ def install_boot_loader_clear(args: CommandLineArguments, root: str, loopdev: st
     cmdline = ["/usr/bin/clr-boot-manager", "update", "-i"]
     run_workspace_command(args, root, cmdline, nspawn_params=nspawn_params)
 
+def install_boot_loader_centos_old_efi(args: CommandLineArguments, root: str, loopdev: str) -> None:
+    nspawn_params = [
+        f"--bind-ro={loopdev}",
+        f"--bind-ro=/dev/block",
+        f"--bind-ro=/dev/disk",
+        f"--property=DeviceAllow={loopdev}",
+    ]
+    for partno in (args.esp_partno, args.bios_partno, args.root_partno, args.xbootldr_partno):
+        if partno is not None:
+            p = partition(loopdev, partno)
+            nspawn_params += [f"--bind-ro={p}", f"--property=DeviceAllow={p}"]
+
+    # prepare EFI directory on ESP
+    os.makedirs(os.path.join(root, 'efi/EFI/centos'), exist_ok=True)
+
+    # patch existing or create minimal GRUB_CMDLINE config
+    write_grub_config(args, root)
+
+    # generate grub2 efi boot config
+    cmdline = ['/sbin/grub2-mkconfig', "-o", "/efi/EFI/centos/grub.cfg"]
+    run_workspace_command(args, root, cmdline, nspawn_params=nspawn_params)
+
+    # if /sys/firmware/efi is not present within systemd-nspawn the grub2-mkconfig makes false assumptions, let's fix this
+    def _fix_grub(line: str) -> str:
+        if 'linux16' in line:
+            return line.replace('linux16', 'linuxefi')
+        elif 'initrd16' in line:
+            return line.replace('initrd16', 'initrdefi')
+        return line
+    patch_file(os.path.join(root, 'efi/EFI/centos/grub.cfg'), _fix_grub)
+
 
 def install_boot_loader(args: CommandLineArguments, root: str, loopdev: Optional[str], do_run_build_script: bool, cached: bool) -> None:
     if not args.bootable or do_run_build_script:
@@ -2921,8 +2961,14 @@ def install_boot_loader(args: CommandLineArguments, root: str, loopdev: Optional
         return
 
     with complete_step("Installing boot loader"):
-        if args.esp_partno and args.distribution != Distribution.clear:
-            run_workspace_command(args, root, ["bootctl", "install"])
+        if args.esp_partno:
+            if args.distribution == Distribution.clear:
+                pass
+            elif (args.distribution in (Distribution.centos, Distribution.centos_epel) and
+                  is_older_than_centos8(args.release)):
+                install_boot_loader_centos_old_efi(args, root, loopdev)
+            else:
+                run_workspace_command(args, root, ["bootctl", "install"])
 
         if args.bios_partno and args.distribution != Distribution.clear:
             grub = "grub" if args.distribution in (Distribution.ubuntu, Distribution.debian, Distribution.arch) else "grub2"
@@ -4588,10 +4634,13 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
         elif args.distribution == Distribution.openmandriva:
             args.release = "cooker"
 
-    if (args.distribution in (Distribution.centos, Distribution.centos_epel) and
-        args.release == "8" and
-        args.output_format == OutputFormat.gpt_btrfs):
-        die("Sorry, CentOS 8 does not support btrfs")
+    if args.distribution in (Distribution.centos, Distribution.centos_epel):
+        epel_release = int(args.release.split('.')[0])
+        if epel_release <= 8 and args.output_format == OutputFormat.gpt_btrfs:
+            die(f"Sorry, CentOS {epel_release} does not support btrfs")
+        if epel_release <= 7 and args.bootable and 'uefi' in args.boot_protocols and args.with_unified_kernel_images:
+            die(f"Sorry, CentOS {epel_release} does not support unified kernel images. "
+                "You must use --without-unified-kernel-images.")
 
     # Remove once https://github.com/clearlinux/clr-boot-manager/pull/238 is merged and available.
     if args.distribution == Distribution.clear and args.output_format == OutputFormat.gpt_btrfs:
