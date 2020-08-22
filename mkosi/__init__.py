@@ -2782,7 +2782,15 @@ def install_grub(args: CommandLineArguments, root: str, loopdev: str, grub: str)
             return line
         patch_file(os.path.join(root, "etc/default/grub"), jj)
 
-    nspawn_params = [f"--bind-ro={loopdev}", f"--property=DeviceAllow={loopdev}"]
+    # /dev/disk and /dev/block are required so grub can access the root partition UUID/PARTUUID and add it to
+    # the kernel command line. If we don't do this, it adds root=/dev/loop* which breaks the boot later on
+    # because the device can't be found.
+    nspawn_params = [
+        f"--bind-ro={loopdev}",
+        f"--property=DeviceAllow={loopdev}",
+        "--bind-ro=/dev/block",
+        "--bind-ro=/dev/disk",
+    ]
     for partno in (args.root_partno, args.xbootldr_partno, args.bios_partno):
         if partno is not None:
             p = partition(loopdev, partno)
