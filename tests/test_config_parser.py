@@ -1,16 +1,12 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
-import os
-dir_path = os.path.dirname(os.path.realpath(__file__))
-
-import importlib.util
-spec = importlib.util.spec_from_file_location('mkosi', os.path.join(dir_path, '../mkosi.py'))
-mkosi = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(mkosi)
-
-import pytest
 import configparser
 import copy
+import os
+
+import pytest
+
+import mkosi
 
 
 class ChangeCwd(object):

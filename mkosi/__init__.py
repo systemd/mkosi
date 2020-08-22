@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-# PYTHON_ARGCOMPLETE_OK
 # SPDX-License-Identifier: LGPL-2.1+
 
 import argparse
@@ -57,10 +55,6 @@ from types import FrameType
 
 
 __version__ = '5'
-
-
-if sys.version_info < (3, 6):
-    sys.exit("Sorry, we need at least Python 3.6.")
 
 
 # These types are only generic during type checking and not at runtime, leading
@@ -3791,7 +3785,7 @@ def parse_compression(value: str) -> Union[str, bool]:
 
 
 def create_parser() -> ArgumentParserMkosi:
-    parser = ArgumentParserMkosi(description='Build Legacy-Free OS Images', add_help=False)
+    parser = ArgumentParserMkosi(prog="mkosi", description='Build Legacy-Free OS Images', add_help=False)
 
     group = parser.add_argument_group("Commands")
     group.add_argument("verb", choices=MKOSI_COMMANDS, default="build", help='Operation to execute')
@@ -5306,25 +5300,3 @@ def run_verb(args: CommandLineArguments) -> None:
 
     if args.verb == "qemu":
         run_qemu(args)
-
-
-def main() -> None:
-    try:
-        args = parse_args()
-
-        for job_name, a in args.items():
-            # Change working directory if --directory is passed
-            if a.directory:
-                work_dir = a.directory
-                if os.path.isdir(work_dir):
-                    os.chdir(work_dir)
-                else:
-                    die("Error: %s is not a directory!" % work_dir)
-            with complete_step('Processing ' + job_name):
-                run_verb(a)
-    except MkosiException:
-        sys.exit(1)
-
-
-if __name__ == "__main__":
-    main()

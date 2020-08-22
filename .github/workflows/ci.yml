@@ -69,17 +69,17 @@ jobs:
         Password=root
         EOF
 
-        sudo ./mkosi build
+        sudo python3 -m mkosi build
 
     - name: Boot ${{ matrix.distro }}/${{ matrix.format }}
       # photon boot gets stuck on systemd-networkd-wait-online. See https://github.com/systemd/mkosi/pull/514.
       if: matrix.format != 'tar' && matrix.distro != 'photon'
-      run: sudo ./tests/pexpect/boot.py ./mkosi boot
+      run: sudo ./tests/pexpect/boot.py python3 -m mkosi boot
 
     - name: Build ${{ matrix.distro }}/${{ matrix.format }} UEFI
       if: matrix.format != 'directory' && matrix.format != 'tar' && matrix.format != 'plain_squashfs' &&
           (matrix.distro != 'clear' || matrix.format != 'gpt_squashfs') && matrix.distro != 'photon'
-      run: sudo ./mkosi
+      run: sudo python3 -m mkosi
             --debug run
             --distribution ${{ matrix.distro }}
             --format ${{ matrix.format }}
@@ -89,7 +89,7 @@ jobs:
 
     - name: Build ${{ matrix.distro }}/${{ matrix.format }} BIOS
       if: matrix.format != 'directory' && matrix.format != 'tar' && !contains(matrix.format, 'squashfs')
-      run: sudo ./mkosi
+      run: sudo python3 -m mkosi
             --debug run
             --distribution ${{ matrix.distro }}
             --format ${{ matrix.format }}

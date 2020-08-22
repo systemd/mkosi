@@ -1,8 +1,6 @@
 #!/usr/bin/python3
 # SPDX-License-Identifier: LGPL-2.1+
 
-import sys
-
 from setuptools import setup, Command
 
 class BuildManpage(Command):
@@ -17,9 +15,6 @@ class BuildManpage(Command):
     def run(self):
         self.spawn(['pandoc', '-t', 'man', '-s', '-o', 'man/mkosi.1', 'mkosi.md'])
 
-if sys.version_info < (3, 6):
-    sys.exit("Sorry, we need at least Python 3.6.")
-
 
 setup(
     name="mkosi",
@@ -30,7 +25,8 @@ setup(
     maintainer_email="systemd-devel@lists.freedesktop.org",
     license="LGPLv2+",
     python_requires=">=3.6",
-    scripts=["mkosi"],
+    packages = ["mkosi"],
+    scripts = ["bin/mkosi"],
     cmdclass = { "man": BuildManpage },
-    data_files = [('share/man/man1', ["man/mkosi.1"])]
+    data_files = [('share/man/man1', ["man/mkosi.1"])],
 )
