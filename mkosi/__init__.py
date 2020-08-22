@@ -3321,9 +3321,10 @@ def patch_root_uuid(args: CommandLineArguments,
 
 def install_unified_kernel(args: CommandLineArguments,
                            root: str,
+                           root_hash: Optional[str],
                            do_run_build_script: bool,
                            for_cache: bool,
-                           root_hash: Optional[str]) -> None:
+                           cached: bool) -> None:
     # Iterates through all kernel versions included in the image and generates a combined
     # kernel+initrd+cmdline+osrelease EFI file from it and places it in the /EFI/Linux directory of the ESP.
     # sd-boot iterates through them and shows them in the menu. These "unified" single-file images have the
@@ -3332,7 +3333,9 @@ def install_unified_kernel(args: CommandLineArguments,
 
     if not args.bootable or args.esp_partno is None or not args.with_unified_kernel_images:
         return
-    if for_cache:
+    if for_cache and args.verity:
+        return
+    if cached and not args.verity:
         return
 
     # Don't bother running dracut if this is a development build. Strictly speaking it would probably be a
@@ -3364,14 +3367,20 @@ def install_unified_kernel(args: CommandLineArguments,
                 run_workspace_command(args, root, cmdline)
 
 
-def secure_boot_sign(args: CommandLineArguments, root: str, do_run_build_script: bool, for_cache: bool) -> None:
+def secure_boot_sign(args: CommandLineArguments,
+                     root: str,
+                     do_run_build_script: bool,
+                     for_cache: bool,
+                     cached: bool) -> None:
     if do_run_build_script:
         return
     if not args.bootable:
         return
     if not args.secure_boot:
         return
-    if for_cache:
+    if for_cache and args.verity:
+        return
+    if cached and not args.verity:
         return
 
     for path, _, filenames in os.walk(os.path.join(root, "efi")):
@@ -5017,12 +5026,12 @@ def build_image(args: CommandLineArguments,
                 prepare_tree(args, root, do_run_build_script, cached)
 
                 with mount_cache(args, root):
-                    cached = reuse_cache_tree(args, root, do_run_build_script, for_cache, cached)
+                    cached_tree = reuse_cache_tree(args, root, do_run_build_script, for_cache, cached)
                     install_skeleton_trees(args, root, for_cache)
-                    install_distribution(args, root, do_run_build_script=do_run_build_script, cached=cached)
+                    install_distribution(args, root, do_run_build_script=do_run_build_script, cached=cached_tree)
                     install_etc_hostname(args, root)
-                    install_boot_loader(args, root, loopdev, do_run_build_script, cached)
-                    run_prepare_script(args, root, do_run_build_script, cached)
+                    install_boot_loader(args, root, loopdev, do_run_build_script, cached_tree)
+                    run_prepare_script(args, root, do_run_build_script, cached_tree)
                     install_extra_trees(args, root, for_cache)
                     install_build_src(args, root, do_run_build_script, for_cache)
                     install_build_dest(args, root, do_run_build_script, for_cache)
@@ -5049,8 +5058,8 @@ def build_image(args: CommandLineArguments,
             # image anymore.
             with mount_image(args, root, loopdev,
                              None if args.generated_root() and for_cache else encrypted_root, encrypted_home, encrypted_srv, encrypted_var, encrypted_tmp, root_read_only=True):
-                install_unified_kernel(args, root, do_run_build_script, for_cache, root_hash)
-                secure_boot_sign(args, root, do_run_build_script, for_cache)
+                install_unified_kernel(args, root, root_hash, do_run_build_script, for_cache, cached)
+                secure_boot_sign(args, root, do_run_build_script, for_cache, cached)
 
     tar = make_tar(args, root, do_run_build_script, for_cache)
 
