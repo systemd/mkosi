@@ -50,9 +50,13 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - uses: ./.github/actions/setup-mkosi
+      if: matrix.distro != 'debian' && matrix.distro != 'ubuntu'
 
-    - name: Install pexpect
-      run: sudo apt-get install python3-pexpect
+    - name: Install
+      run: sudo apt-get update && sudo apt-get install --no-install-recommends
+        debootstrap
+        python3-pexpect
+        systemd-container
 
     - name: Build ${{ matrix.distro }}/${{ matrix.format }}
       run: |
