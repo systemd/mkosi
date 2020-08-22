@@ -5271,7 +5271,7 @@ def run_shell(args: CommandLineArguments) -> None:
     if args.verb == "boot":
         cmdline += ('--boot',)
 
-    if args.generated_root():
+    if args.generated_root() or args.verity:
         cmdline += ('--volatile=overlay',)
 
     if args.cmdline:
