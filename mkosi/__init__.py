@@ -70,8 +70,8 @@ else:
 
 MKOSI_COMMANDS_CMDLINE = ("shell", "boot", "qemu")
 MKOSI_COMMANDS_NEED_BUILD = MKOSI_COMMANDS_CMDLINE
-MKOSI_COMMANDS_SUDO = ("build", "clean") + MKOSI_COMMANDS_CMDLINE
-MKOSI_COMMANDS = ("build", "clean", "help", "summary") + MKOSI_COMMANDS_CMDLINE
+MKOSI_COMMANDS_SUDO = ("build", "clean", "link") + MKOSI_COMMANDS_CMDLINE
+MKOSI_COMMANDS = ("build", "clean", "help", "summary", "link") + MKOSI_COMMANDS_CMDLINE
 
 DRACUT_SYSTEMD_EXTRAS = [
     "/usr/lib/systemd/systemd-veritysetup",
@@ -1469,6 +1469,74 @@ def enable_networkmanager(root: str) -> None:
     run(["systemctl", "--root", root, "enable", "NetworkManager"])
 
 
+def setup_devserver(args: CommandLineArguments, root: str, do_run_build_script: bool, for_cache: bool) -> None:
+    if for_cache:
+        return
+    if not args.devserver:
+        return
+
+    with complete_step("Setting up devserver"):
+        image_socket_path = os.path.join(root, "etc/systemd/system/sshd.socket")
+        image_service_path = os.path.join(root, "etc/systemd/system/sshd@.service")
+        image_stop_path = os.path.join(root, "etc/systemd/system/poweroff-when-unneeded.service")
+
+        with open(image_socket_path, "w") as f:
+            f.write(
+                dedent(
+                    f"""\
+                    [Unit]
+                    Description=SSH Socket for {args.devserver_name} devserver
+
+                    [Socket]
+                    ListenStream={args.devserver_port}
+                    Accept=yes
+
+                    [Install]
+                    WantedBy=sockets.target
+                    """
+                )
+            )
+
+        with open(image_service_path, "w") as f:
+            f.write(
+                dedent(
+                    f"""\
+                    [Unit]
+                    Description=SSH Server for {args.devserver_name} devserver
+                    Wants=sshdgenkeys.service poweroff-when-unneeded.service
+                    After=sshdgenkeys.service
+
+                    [Service]
+                    ExecStart=/usr/sbin/sshd -i
+                    StandardInput=socket
+                    """
+                )
+            )
+
+        with open(image_stop_path, "w") as f:
+            f.write(
+                dedent(
+                    f"""\
+                    [Unit]
+                    StopWhenUnneeded=true
+
+                    [Service]
+                    Type=oneshot
+                    RemainAfterExit=yes
+                    ExecStop=systemctl poweroff
+                    """
+                )
+            )
+
+        def jj(line: str) -> str:
+            if "PermitRootLogin" in line:
+                return "PermitRootLogin yes"
+            return line
+        patch_file(os.path.join(root, "etc/ssh/sshd_config"), jj)
+
+        run(["systemctl", "--root", root, "enable", "sshd.socket"])
+
+
 def run_workspace_command(args: CommandLineArguments,
                           root: str,
                           cmd: List[str],
@@ -2448,6 +2516,8 @@ def install_arch(args: CommandLineArguments, root: str, do_run_build_script: boo
         packages.add("linux")
 
     if do_run_build_script:
+        if args.devserver:
+            packages.add("openssh")
         packages.update(args.build_packages)
 
     def run_pacman(packages: Set[str]) -> None:
@@ -2622,8 +2692,6 @@ def reset_random_seed(args: CommandLineArguments, root: str) -> None:
 def set_root_password(args: CommandLineArguments, root: str, do_run_build_script: bool, for_cache: bool) -> None:
     "Set the root account password, or just delete it so it's easy to log in"
 
-    if do_run_build_script:
-        return
     if for_cache:
         return
 
@@ -3906,6 +3974,9 @@ def create_parser() -> ArgumentParserMkosi:
                        help="List of colon-separated paths to look for programs before looking in PATH")
     group.add_argument("--extra-search-paths", dest='extra_search_paths', action=ColonDelimitedListAction, help=argparse.SUPPRESS) # Compatibility option
     group.add_argument("--qemu-headless", action=BooleanAction, help="Configure image for qemu's -nographic mode")
+    group.add_argument("--devserver", action=BooleanAction, help="Configure image as a devserver")
+    group.add_argument("--devserver-name", help="Devserver name", default="mkosi")
+    group.add_argument("--devserver-port", help="Devserver SSH port", default="7774")
 
     group = parser.add_argument_group("Additional Configuration")
     group.add_argument('-C', "--directory", help='Change to specified directory before doing anything', metavar='PATH')
@@ -4654,10 +4725,16 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
         else:
             args.source_file_transfer = SourceFileTransfer.copy_all
 
+    if args.devserver and not args.build_script:
+        die("Sorry, --devserver can only be used with --build-script")
+
     return args
 
 
 def check_output(args: CommandLineArguments) -> None:
+    if args.devserver:
+        return
+
     for f in (args.output,
               args.output_checksum if args.checksum else None,
               args.output_signature if args.sign else None,
@@ -4929,6 +5006,7 @@ def build_image(args: CommandLineArguments,
                     set_root_password(args, root, do_run_build_script, for_cache)
                     set_serial_terminal(args, root, do_run_build_script, for_cache)
                     run_postinst_script(args, root, do_run_build_script, for_cache)
+                    setup_devserver(args, root, do_run_build_script, for_cache)
 
                 if cleanup:
                     clean_package_manager_metadata(root)
@@ -4969,6 +5047,29 @@ def one_zero(b: bool) -> str:
     return "1" if b else "0"
 
 
+def machine_build_options(args: CommandLineArguments) -> List[str]:
+    options = [
+        "--setenv=WITH_DOCS=" + one_zero(args.with_docs),
+        "--setenv=WITH_TESTS=" + one_zero(args.with_tests),
+        "--setenv=WITH_NETWORK=" + one_zero(args.with_network),
+        "--setenv=DESTDIR=/root/dest",
+    ]
+
+    if args.default_path is not None:
+        options.append("--setenv=MKOSI_DEFAULT=" + args.default_path)
+
+    if args.build_sources is not None:
+        options.append("--setenv=SRCDIR=/root/src")
+        options.append("--chdir=/root/src")
+    else:
+        options.append("--chdir=/root")
+
+    if args.build_dir is not None:
+        options.append("--setenv=BUILDDIR=/root/build")
+
+    return options
+
+
 def run_build_script(args: CommandLineArguments, root: str, raw: Optional[BinaryIO]) -> None:
     if args.build_script is None:
         return
@@ -4983,32 +5084,19 @@ def run_build_script(args: CommandLineArguments, root: str, raw: Optional[Binary
                    '--quiet',
                    target,
                    "--uuid=" + args.machine_id,
-                   "--machine=mkosi-" + uuid.uuid4().hex,
-                   "--as-pid2",
+                   f"--machine={args.devserver_name if args.devserver else f'mkosi-{uuid.uuid4().hex}'}",
                    "--register=no",
                    "--bind", dest + ":/root/dest",
-                   "--bind=" + var_tmp(root) + ":/var/tmp",
-                   "--setenv=WITH_DOCS=" + one_zero(args.with_docs),
-                   "--setenv=WITH_TESTS=" + one_zero(args.with_tests),
-                   "--setenv=WITH_NETWORK=" + one_zero(args.with_network),
-                   "--setenv=DESTDIR=/root/dest"]
-
-        if args.default_path is not None:
-            cmdline.append("--setenv=MKOSI_DEFAULT=" + args.default_path)
+                   "--bind=" + var_tmp(root) + ":/var/tmp"]
 
         if args.build_sources is not None:
-            cmdline.append("--setenv=SRCDIR=/root/src")
-            cmdline.append("--chdir=/root/src")
             if args.source_file_transfer == SourceFileTransfer.mount:
                 cmdline.append("--bind=" + args.build_sources + ":/root/src")
 
             if args.read_only:
                 cmdline.append("--overlay=+/root/src::/root/src")
-        else:
-            cmdline.append("--chdir=/root")
 
         if args.build_dir is not None:
-            cmdline.append("--setenv=BUILDDIR=/root/build")
             cmdline.append("--bind=" + args.build_dir + ":/root/build")
 
         if args.with_network:
@@ -5017,13 +5105,35 @@ def run_build_script(args: CommandLineArguments, root: str, raw: Optional[Binary
         else:
             cmdline.append("--private-network")
 
-        cmdline.append("/root/" + os.path.basename(args.build_script))
+        cmdline += machine_build_options(args)
 
-        result = run(cmdline, check=False)
+        if args.devserver:
+            cmdline.append("--boot")
+        else:
+            cmdline.append("--as-pid2")
+            cmdline.append("/root/" + os.path.basename(args.build_script))
+
+        result = run(cmdline, check=False, execvp=args.devserver)
         if result.returncode != 0:
             if 'build-script' in arg_debug:
                 run(cmdline[:-1], check=False)
             die(f"Build script returned non-zero exit code {result.returncode}.")
+
+
+def run_build_script_devserver(args: CommandLineArguments, root: str) -> None:
+    cmdline = [
+        "systemd-run",
+        "--quiet",
+        f"--machine={args.devserver_name}",
+        "--wait",
+        "--pty",
+        "--pipe",
+    ]
+
+    cmdline += machine_build_options(args)
+    cmdline.append("/root/" + os.path.basename(args.build_script))
+
+    run(cmdline)
 
 
 def need_cache_images(args: CommandLineArguments) -> bool:
@@ -5060,6 +5170,11 @@ def remove_artifacts(args: CommandLineArguments,
     with complete_step("Removing artifacts from " + what):
         unlink_try_hard(root)
         unlink_try_hard(var_tmp(root))
+
+
+def devserver_running(args: CommandLineArguments) -> bool:
+    result = run(["machinectl", "status", args.devserver_name], check=False, stdout=DEVNULL, stderr=DEVNULL)
+    return result.returncode == 0
 
 
 def build_stuff(args: CommandLineArguments) -> None:
@@ -5101,11 +5216,14 @@ def build_stuff(args: CommandLineArguments) -> None:
 
         if args.build_script:
             with complete_step("Running first (development) stage"):
-                # Run the image builder for the first (development) stage in preparation for the build script
-                raw, tar, root_hash = build_image(args, root, do_run_build_script=True)
+                if devserver_running(args):
+                    run_build_script_devserver(args, root)
+                else:
+                    # Run the image builder for the first (development) stage in preparation for the build script
+                    raw, tar, root_hash = build_image(args, root, do_run_build_script=True)
 
-                run_build_script(args, root, raw)
-                remove_artifacts(args, root, raw, tar, do_run_build_script=True)
+                    run_build_script(args, root, raw)
+                    remove_artifacts(args, root, raw, tar, do_run_build_script=True)
 
         # Run the image builder for the second (final) stage
         if not args.skip_final_phase:
@@ -5233,6 +5351,47 @@ def run_qemu(args: CommandLineArguments) -> None:
     run(cmdline, execvp=True)
 
 
+def run_link(args: CommandLineArguments) -> None:
+    mkdir_last("mkosi.unit")
+
+    host_socket_path = os.path.abspath(f"mkosi.unit/{args.devserver_name}-devserver.socket")
+    host_service_path = os.path.abspath(f"mkosi.unit/{args.devserver_name}-devserver.service")
+
+    with open(host_socket_path, "w") as f:
+        f.write(
+            dedent(
+                f"""\
+                [Unit]
+                Description=SSH socket for {args.devserver_name} devserver
+
+                [Socket]
+                ListenStream={args.devserver_port}
+
+                [Install]
+                WantedBy=sockets.target
+                """
+            )
+        )
+
+    with open(host_service_path, "w") as f:
+        f.write(
+            dedent(
+                f"""\
+                [Unit]
+                Description={args.devserver_name} devserver generated by mkosi
+
+                [Service]
+                ExecStart=/home/daan/.local/bin/mkosi --devserver
+                WorkingDirectory={os.getcwd()}
+                """
+            )
+        )
+
+    run(["systemctl", "link", "--force", host_service_path])
+    run(["systemctl", "link", "--force", host_socket_path])
+    run(["systemctl", "enable", "--now", host_socket_path])
+
+
 def expand_paths(paths: List[str]) -> List[str]:
     if not paths:
         return []
@@ -5300,3 +5459,6 @@ def run_verb(args: CommandLineArguments) -> None:
 
     if args.verb == "qemu":
         run_qemu(args)
+
+    if args.verb == "link":
+        run_link(args)
