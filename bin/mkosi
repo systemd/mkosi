@@ -49,6 +49,8 @@ then
     else
         PREPEND_PYTHONPATH="$SITEDIR"
     fi
+
+    export PYTHONDONTWRITEBYTECODE=1
 fi
 
 
