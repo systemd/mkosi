@@ -1997,7 +1997,7 @@ def invoke_dnf_or_yum(args: CommandLineArguments,
         invoke_dnf(args, root, repositories, packages)
 
 
-def install_centos_old(args: CommandLineArguments, root: str, epel_release: str) -> List[str]:
+def install_centos_old(args: CommandLineArguments, root: str, epel_release: int) -> List[str]:
     # Repos for CentOS 7 and earlier
 
     gpgpath=f"/etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-{args.release}"
@@ -2029,7 +2029,7 @@ def install_centos_old(args: CommandLineArguments, root: str, epel_release: str)
     return ["base", "updates", "extras", "centosplus"]
 
 
-def install_centos_new(args: CommandLineArguments, root: str, epel_release: str) -> List[str]:
+def install_centos_new(args: CommandLineArguments, root: str, epel_release: int) -> List[str]:
     # Repos for CentOS 8 and later
 
     gpgpath="/etc/pki/rpm-gpg/RPM-GPG-KEY-centosofficial"
@@ -2061,20 +2061,26 @@ def install_centos_new(args: CommandLineArguments, root: str, epel_release: str)
     return ["AppStream", "BaseOS", "extras", "centosplus"]
 
 
+def is_older_than_centos8(release: str) -> bool:
+    # CentOS 7 contains some very old versions of certain libraries
+    # which require workarounds in different places.
+    # Additionally the repositories have been changed between 7 and 8
+    epel_release = release.split('.')[0]
+    try:
+        return int(epel_release) <= 7
+    except ValueError:
+        return False
+
+
 @completestep('Installing CentOS')
 def install_centos(args: CommandLineArguments, root: str, do_run_build_script: bool) -> None:
-    epel_release = args.release.split('.')[0]
+    old = is_older_than_centos8(args.release)
+    epel_release = int(args.release.split('.')[0])
 
-    # Centos Repositories were changed between 7 and 8
-    try:
-        new = (int(epel_release) > 7)
-    except ValueError:
-        new = True
-
-    if new:
-        default_repos = install_centos_new(args, root, epel_release)
-    else:
+    if old:
         default_repos = install_centos_old(args, root, epel_release)
+    else:
+        default_repos = install_centos_new(args, root, epel_release)
 
     packages = ['centos-release', 'systemd']
     packages += args.packages or []
