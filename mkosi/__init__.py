@@ -1332,6 +1332,29 @@ def umount(where: str) -> None:
     run(["umount", "--recursive", "-n", where])
 
 
+def configure_dracut(args: CommandLineArguments, root: str) -> None:
+    dracut_dir = os.path.join(root, "etc/dracut.conf.d")
+    os.mkdir(dracut_dir, 0o755)
+
+    with open(os.path.join(dracut_dir, "30-mkosi-hostonly.conf"), "w") as f:
+        f.write("hostonly=no\n")
+
+    with open(os.path.join(dracut_dir, "30-mkosi-systemd-extras.conf"), "w") as f:
+        for extra in DRACUT_SYSTEMD_EXTRAS:
+            f.write(f"install_optional_items+=\" {extra} \"\n")
+
+    with open(os.path.join(dracut_dir, "30-mkosi-qemu.conf"), "w") as f:
+        f.write("add_dracutmodules+=\" qemu \"\n")
+
+    # These distros need uefi_stub configured explicitly for dracut to find the systemd-boot uefi stub.
+    if args.esp_partno is not None and args.distribution in (Distribution.ubuntu,
+                                                                Distribution.debian,
+                                                                Distribution.mageia,
+                                                                Distribution.openmandriva):
+        with open(os.path.join(dracut_dir, "30-mkosi-uefi-stub.conf"), "w") as f:
+            f.write("uefi_stub=/usr/lib/systemd/boot/efi/linuxx64.efi.stub\n")
+
+
 @completestep('Setting up OS tree root')
 def prepare_tree_root(args: CommandLineArguments, root: str) -> None:
     if args.output_format == OutputFormat.subvolume:
@@ -1392,27 +1415,6 @@ def prepare_tree(args: CommandLineArguments, root: str, do_run_build_script: boo
         with open(os.path.join(root, "etc/kernel/cmdline"), "w") as cmdline:
             cmdline.write(' '.join(args.kernel_command_line))
             cmdline.write("\n")
-
-        dracut_dir = os.path.join(root, "etc/dracut.conf.d")
-        os.mkdir(dracut_dir, 0o755)
-
-        with open(os.path.join(dracut_dir, "30-mkosi-hostonly.conf"), "w") as f:
-            f.write("hostonly=no\n")
-
-        with open(os.path.join(dracut_dir, "30-mkosi-systemd-extras.conf"), "w") as f:
-            for extra in DRACUT_SYSTEMD_EXTRAS:
-                f.write(f"install_optional_items+=\" {extra} \"\n")
-
-        with open(os.path.join(dracut_dir, "30-mkosi-qemu.conf"), "w") as f:
-            f.write("add_dracutmodules+=\" qemu \"\n")
-
-        # These distros need uefi_stub configured explicitly for dracut to find the systemd-boot uefi stub.
-        if args.esp_partno is not None and args.distribution in (Distribution.ubuntu,
-                                                                 Distribution.debian,
-                                                                 Distribution.mageia,
-                                                                 Distribution.openmandriva):
-            with open(os.path.join(dracut_dir, "30-mkosi-uefi-stub.conf"), "w") as f:
-                f.write("uefi_stub=/usr/lib/systemd/boot/efi/linuxx64.efi.stub\n")
 
     if do_run_build_script:
         os.mkdir(os.path.join(root, "root"), 0o750)
@@ -1862,7 +1864,8 @@ def install_fedora(args: CommandLineArguments, root: str, do_run_build_script: b
     packages = ['fedora-release', 'glibc-minimal-langpack', 'systemd']
     packages += args.packages or []
     if not do_run_build_script and args.bootable:
-        packages += ['kernel-core', 'systemd-udev', 'binutils']
+        packages += ['kernel-core', 'kernel-modules', 'systemd-udev', 'binutils', 'dracut']
+        configure_dracut(args, root)
     if do_run_build_script:
         packages += args.build_packages or []
     invoke_dnf(args, root, args.repositories or ["fedora", "updates"], packages)
@@ -1892,7 +1895,14 @@ def install_mageia(args: CommandLineArguments, root: str, do_run_build_script: b
     packages = ["basesystem-minimal"]
     packages += args.packages or []
     if not do_run_build_script and args.bootable:
-        packages += ["kernel-server-latest", "binutils"]
+        packages += ["kernel-server-latest", "binutils", "dracut"]
+
+        configure_dracut(args, root)
+        # Mageia ships /etc/50-mageia.conf that omits systemd from the initramfs and disables hostonly.
+        # We override that again so our defaults get applied correctly on Mageia as well.
+        with open(os.path.join(root, "etc/dracut.conf.d/51-mkosi-override-mageia.conf"), "w") as f:
+            f.write("hostonly=no\n")
+            f.write('omit_dracutmodules=""\n')
     if do_run_build_script:
         packages += args.build_packages or []
     invoke_dnf(args, root, args.repositories or ["mageia", "updates"], packages)
@@ -1931,6 +1941,7 @@ def install_openmandriva(args: CommandLineArguments, root: str, do_run_build_scr
     packages += args.packages or []
     if not do_run_build_script and args.bootable:
         packages += ["kernel-release-server", "binutils", "systemd-boot", "dracut", "timezone", "systemd-cryptsetup"]
+        configure_dracut(args, root)
     if do_run_build_script:
         packages += args.build_packages or []
     invoke_dnf(args, root, args.repositories or ["openmandriva", "updates"], packages)
@@ -2060,7 +2071,8 @@ def install_centos(args: CommandLineArguments, root: str, do_run_build_script: b
     packages += args.packages or []
 
     if not do_run_build_script and args.bootable:
-        packages += ["kernel", "systemd-udev", "binutils"]
+        packages += ["kernel", "systemd-udev", "dracut", "binutils"]
+        configure_dracut(args, root)
 
     if do_run_build_script:
         packages += args.build_packages or []
@@ -2088,7 +2100,7 @@ def install_debian_or_ubuntu(args: CommandLineArguments,
                              mirror: str) -> None:
     repos = set(args.repositories) or {"main"}
     # Ubuntu needs the 'universe' repo to install 'dracut'
-    if args.distribution == Distribution.ubuntu and args.bootable and args.with_unified_kernel_images:
+    if args.distribution == Distribution.ubuntu and args.bootable:
         repos.add('universe')
 
     cmdline = ["debootstrap", "--variant=minbase", "--merged-usr", f"--components={','.join(repos)}"]
@@ -2116,6 +2128,8 @@ def install_debian_or_ubuntu(args: CommandLineArguments,
     if not do_run_build_script and args.bootable:
         extra_packages.add("dracut")
         extra_packages.add("binutils")
+
+        configure_dracut(args, root)
 
         if args.distribution == Distribution.ubuntu:
             extra_packages.add("linux-generic")
@@ -2325,6 +2339,7 @@ def install_arch(args: CommandLineArguments, root: str, do_run_build_script: boo
                 dedent(
                     """\
                     #!/bin/bash -e
+                    shopt -s nullglob
 
                     declare -a kernel_version
 
@@ -2384,7 +2399,7 @@ def install_arch(args: CommandLineArguments, root: str, do_run_build_script: boo
                     #!/bin/bash -e
 
                     while read -r f; do
-                        kernel-install remove $(basename $(dirname $f))
+                        kernel-install remove "$(basename "$(dirname "$f")")"
                     done
                     """
                 )
@@ -2411,16 +2426,56 @@ def install_arch(args: CommandLineArguments, root: str, do_run_build_script: boo
                     )
                 )
 
+        if args.bios_partno is not None:
+            vmlinuz_add_hook = os.path.join(hooks_dir, "90-mkosi-vmlinuz-add.hook")
+            with open(vmlinuz_add_hook, 'w') as f:
+                f.write(
+                    """\
+                    [Trigger]
+                    Operation = Install
+                    Operation = Upgrade
+                    Type = Path
+                    Target = usr/lib/modules/*/vmlinuz
+
+                    [Action]
+                    Description = Adding vmlinuz to /boot...
+                    When = PostTransaction
+                    Exec = /bin/bash -c 'while read -r f; do install -Dm644 "$f" "/boot/vmlinuz-$(basename "$(dirname "$f")")"; done'
+                    NeedsTargets
+                    """
+                )
+
+            make_executable(vmlinuz_add_hook)
+
+            vmlinuz_remove_hook = os.path.join(hooks_dir, "60-mkosi-vmlinuz-remove.hook")
+            with open(vmlinuz_remove_hook, 'w') as f:
+                f.write(
+                    """\
+                    [Trigger]
+                    Operation = Upgrade
+                    Operation = Remove
+                    Type = Path
+                    Target = usr/lib/modules/*/vmlinuz
+
+                    [Action]
+                    Description = Removing vmlinuz from /boot...
+                    When = PreTransaction
+                    Exec = /bin/bash -c 'while read -r f; do rm -f "/boot/vmlinuz-$(basename "$(dirname "$f")")"; done'
+                    NeedsTargets
+                    """
+                )
+
+            make_executable(vmlinuz_remove_hook)
+
+
     keyring = "archlinux"
     if platform.machine() == "aarch64":
         keyring += "arm"
 
-    packages = {"base"}
+    packages = set()
 
     if not do_run_build_script and args.bootable:
-        if args.output_format == OutputFormat.gpt_ext4:
-            packages.add("e2fsprogs")
-        elif args.output_format == OutputFormat.gpt_btrfs:
+        if args.output_format == OutputFormat.gpt_btrfs:
             packages.add("btrfs-progs")
         elif args.output_format == OutputFormat.gpt_xfs:
             packages.add("xfsprogs")
@@ -2432,6 +2487,8 @@ def install_arch(args: CommandLineArguments, root: str, do_run_build_script: boo
 
         packages.add("dracut")
         packages.add("binutils")
+
+        configure_dracut(args, root)
 
     packages.update(args.packages)
 
@@ -2456,7 +2513,11 @@ def install_arch(args: CommandLineArguments, root: str, do_run_build_script: boo
         try:
             run(["pacman-key", *conf, "--init"])
             run(["pacman-key", *conf, "--populate"])
-            run(["pacman", *conf, "--noconfirm", "-Sy", *packages])
+            # Dependencies on packages from base are implicit so pacman doesn't know it has to install the
+            # packages from base before anything else. To circumvent this we explicitly install base first.
+            run(["pacman", *conf, "--noconfirm", "-Sy", "base"])
+            if packages:
+                run(["pacman", *conf, "--noconfirm", "-S", *packages])
         finally:
             # Kill the gpg-agent started by pacman and pacman-key.
             run(['gpgconf', '--homedir', os.path.join(root, 'etc/pacman.d/gnupg'), '--kill', 'all'])
@@ -2522,7 +2583,10 @@ def install_opensuse(args: CommandLineArguments, root: str, do_run_build_script:
 
     if not do_run_build_script and args.bootable:
         packages.add("kernel-default")
+        packages.add("dracut")
         packages.add("binutils")
+
+        configure_dracut(args, root)
 
         if args.bios_partno is not None:
             packages.add("grub2")
@@ -2546,10 +2610,16 @@ def install_opensuse(args: CommandLineArguments, root: str, do_run_build_script:
     run(["zypper", "--root", root, "modifyrepo", "-K", "repo-oss"])
     run(["zypper", "--root", root, "modifyrepo", "-K", "repo-update"])
 
-    if not do_run_build_script and args.bootable:
-        # dracut from openSUSE is missing upstream commit 016613c774baf.
-        with open(os.path.join(root, "etc/kernel/cmdline"), "w") as f:
-            f.write(' '.join(args.kernel_command_line) + " root=/dev/gpt-auto-root\n")
+    if args.password == "":
+        shutil.copy2(os.path.join(root, "usr/etc/pam.d/common-auth"),
+                     os.path.join(root, "etc/pam.d/common-auth"))
+
+        def jj(line: str) -> str:
+            if "pam_unix.so" in line:
+                return f"{line.strip()} nullok"
+            return line
+
+        patch_file(os.path.join(root, "etc/pam.d/common-auth"), jj)
 
 
 def install_distribution(args: CommandLineArguments,
@@ -2730,17 +2800,36 @@ def install_grub(args: CommandLineArguments, root: str, loopdev: str, grub: str)
     kernel_cmd_line = ' '.join(args.kernel_command_line)
     grub_cmdline = f'GRUB_CMDLINE_LINUX="{kernel_cmd_line}"\n'
     os.makedirs(os.path.join(root, "etc/default"), exist_ok=True, mode=0o755)
-    if not os.path.exists(os.path.join(root, "etc/default/grub")):
-        with open(os.path.join(root, "etc/default/grub"), "w+") as f:
+    grub_config = os.path.join(root, "etc/default/grub")
+    if not os.path.exists(grub_config):
+        with open(grub_config, "w+") as f:
             f.write(grub_cmdline)
     else:
         def jj(line: str) -> str:
             if line.startswith("GRUB_CMDLINE_LINUX="):
                 return grub_cmdline
+            if args.qemu_headless:
+                if "GRUB_TERMINAL_INPUT" in line:
+                    return "GRUB_TERMINAL_INPUT=\"console serial\""
+                if "GRUB_TERMINAL_OUTPUT" in line:
+                    return "GRUB_TERMINAL_OUTPUT=\"console serial\""
             return line
-        patch_file(os.path.join(root, "etc/default/grub"), jj)
 
-    nspawn_params = [f"--bind-ro={loopdev}", f"--property=DeviceAllow={loopdev}"]
+        patch_file(grub_config, jj)
+
+        if args.qemu_headless:
+            with open(grub_config, 'a') as f:
+                f.write("GRUB_SERIAL_COMMAND=\"serial --unit=0 --speed 115200\"\n")
+
+    # /dev/disk and /dev/block are required so grub can access the root partition UUID/PARTUUID and add it to
+    # the kernel command line. If we don't do this, it adds root=/dev/loop* which breaks the boot later on
+    # because the device can't be found.
+    nspawn_params = [
+        f"--bind-ro={loopdev}",
+        f"--property=DeviceAllow={loopdev}",
+        "--bind-ro=/dev/block",
+        "--bind-ro=/dev/disk",
+    ]
     for partno in (args.root_partno, args.xbootldr_partno, args.bios_partno):
         if partno is not None:
             p = partition(loopdev, partno)
@@ -3842,6 +3931,8 @@ def create_parser() -> ArgumentParserMkosi:
     group.add_argument("--without-unified-kernel-images", action=BooleanAction,
                        dest='with_unified_kernel_images', default=True,
                        help="Do not install unified kernel images")
+    group.add_argument("--with-unified-kernel-images", action=BooleanAction, default=True,
+                       help=argparse.SUPPRESS)
 
     group = parser.add_argument_group("Packages")
     group.add_argument('-p', "--package", action=CommaDelimitedListAction, dest='packages', default=[],
@@ -4638,12 +4729,21 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
     if args.qemu_headless and "console=ttyS0" not in args.kernel_command_line:
         args.kernel_command_line.append("console=ttyS0")
 
+    if args.bootable and args.distribution == Distribution.mageia:
+        # TODO: Remove once dracut 045 is available in mageia.
+        args.kernel_command_line.append("root=/dev/gpt-auto-root")
+
     if args.generated_root() and "bios" in args.boot_protocols:
         die("Sorry, BIOS cannot be combined with --minimize or squashfs filesystems")
 
-    if args.with_unified_kernel_images and args.distribution == Distribution.clear:
-        warn("Using --without-unified-kernel-images as Clear Linux does not support unified kernel images.")
-        args.with_unified_kernel_images = False
+    if args.bootable and args.distribution in (Distribution.clear, Distribution.photon):
+        die("Sorry, --bootable is not supported on this distro")
+
+    if not args.with_unified_kernel_images and args.distribution in (Distribution.debian,
+                                                                     Distribution.ubuntu,
+                                                                     Distribution.mageia,
+                                                                     Distribution.opensuse):
+        die(f"Sorry, --without-unified-kernel-images is not supported on this distro.")
 
     if args.verity and not args.with_unified_kernel_images:
         die("Sorry, --verity can only be used with unified kernel images")
@@ -5182,9 +5282,9 @@ def run_qemu(args: CommandLineArguments) -> None:
                      'i386': 'qemu-system-i386'}
     arch_binary = ARCH_BINARIES.get(platform.machine(), None)
     if arch_binary is not None:
-        cmdlines += [[arch_binary, '-machine', 'accel=kvm']]
+        cmdlines += [[arch_binary, '-machine', 'accel=kvm:tcg']]
     cmdlines += [
-        ['qemu', '-machine', 'accel=kvm'],
+        ['qemu', '-machine', 'accel=kvm:tcg'],
         ['qemu-kvm'],
     ]
     for cmdline in cmdlines:
@@ -5217,11 +5317,16 @@ def run_qemu(args: CommandLineArguments) -> None:
     else:
         die("Couldn't find OVMF UEFI firmware blob.")
 
-    cmdline += ["-smp", "2",
-                "-m", "1024",
-                "-drive", "if=pflash,format=raw,readonly,file=" + firmware,
-                "-drive", "format=" + ("qcow2" if args.qcow2 else "raw") + ",file=" + args.output,
-                "-object", "rng-random,filename=/dev/urandom,id=rng0", "-device", "virtio-rng-pci,rng=rng0,id=rng-device0"]
+    cmdline += ["-smp", "2", "-m", "1024"]
+
+    if "uefi" in args.boot_protocols:
+        cmdline += ["-drive", f"if=pflash,format=raw,readonly,file={firmware}"]
+
+    cmdline += [
+        "-drive", f"format={'qcow2' if args.qcow2 else 'raw'},file={args.output}",
+        "-object", "rng-random,filename=/dev/urandom,id=rng0",
+        "-device", "virtio-rng-pci,rng=rng0,id=rng-device0",
+    ]
 
     if args.qemu_headless:
         cmdline.append("-nographic")
