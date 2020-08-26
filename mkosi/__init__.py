@@ -625,6 +625,19 @@ def btrfs_subvol_make_ro(path: str, b: bool = True) -> None:
     run(["btrfs", "property", "set", path, "ro", "true" if b else "false"])
 
 
+@contextlib.contextmanager
+def btrfs_forget_stale_devices() -> Generator[None, None, None]:
+    # When using cached images (-i), mounting btrfs images would sometimes fail
+    # with EEXIST. This is likely because a stale device is leftover somewhere
+    # from the previous run. To fix this, we make sure to always clean up stale
+    # btrfs devices after unmounting the image.
+    try:
+        yield
+    finally:
+        if shutil.which("btrfs"):
+            run(["btrfs", "device", "scan", "-u"])
+
+
 def image_size(args: CommandLineArguments) -> int:
     size = GPT_HEADER_SIZE + GPT_FOOTER_SIZE
 
@@ -1252,12 +1265,6 @@ def mount_image(args: CommandLineArguments,
     finally:
         with complete_step('Unmounting image'):
             umount(root)
-            # When using cached images (-i), mounting btrfs images would sometimes fail with EEXIST. This is
-            # likely because a stale device is leftover somewhere from the previous run. To fix this, we make
-            # sure to always clean up stale devices after unmounting the image by running the following
-            # command.
-            if args.output_format == OutputFormat.gpt_btrfs:
-                run(["btrfs", "device", "scan", "-u"])
 
 
 @completestep("Assigning hostname")
@@ -5175,7 +5182,7 @@ def build_stuff(args: CommandLineArguments) -> None:
 
     # Make sure tmpfiles' aging doesn't interfere with our workspace
     # while we are working on it.
-    with open_close(workspace.name, os.O_RDONLY|os.O_DIRECTORY|os.O_CLOEXEC) as dir_fd:
+    with open_close(workspace.name, os.O_RDONLY|os.O_DIRECTORY|os.O_CLOEXEC) as dir_fd, btrfs_forget_stale_devices():
         fcntl.flock(dir_fd, fcntl.LOCK_EX)
 
         root = os.path.join(workspace.name, "root")
