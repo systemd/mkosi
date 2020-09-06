@@ -2,6 +2,7 @@
 
 ## v10 (unreleased)
 
+- Minimum Python version is now Python 3.7.
 - Remove Arch Linux network automatic configuration to bring the different
   distros more in line with each other. To add it back, add a postinstall
   script to configure your network manager of choice.

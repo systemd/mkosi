@@ -24,7 +24,7 @@ setup(
     maintainer="mkosi contributors",
     maintainer_email="systemd-devel@lists.freedesktop.org",
     license="LGPLv2+",
-    python_requires=">=3.6",
+    python_requires=">=3.7",
     packages = ["mkosi"],
     scripts = ["bin/mkosi"],
     cmdclass = { "man": BuildManpage },
