@@ -74,7 +74,7 @@ class MkosiConfig(object):
             "kernel_command_line": ["rhgb", "selinux=0", "audit=0"],
             "key": None,
             "mirror": None,
-            "mksquashfs_tool": None,
+            "mksquashfs_tool": [],
             "no_chown": False,
             "nspawn_settings": None,
             "output": None,
@@ -119,6 +119,7 @@ class MkosiConfig(object):
             "with_unified_kernel_images": True,
             "hostonly_initrd": False,
             "ssh": False,
+            "minimize": False,
         }
 
     def __eq__(self, other: [mkosi.CommandLineArguments]) -> bool:
