@@ -237,6 +237,14 @@ details see the table below.
   run, when specified once the incremental cache files are deleted
   too, and when specified twice the package cache is also removed.
 
+`--gpt-first-lba`
+
+: Override the first usable LBA (Logical Block Address) within the
+  GPT header. This defaults to `2048` which is actually the desired value.
+  However, some tools, e.g. the `prl_disk_tool` utility from the
+  Parallels virtualization suite require this to be set to `34`, otherwise
+  they might fail to resize the disk image and/or partitions inside it.
+
 `--bootable`, `-b`
 
 : Generate a bootable image. By default this will generate an image
@@ -708,6 +716,7 @@ which settings file options.
 | `--force`, `-f`                   | `[Output]`              | `Force=`                      |
 | `--bootable`, `-b`                | `[Output]`              | `Bootable=`                   |
 | `--boot-protocols=`               | `[Output]`              | `BootProtocols=`              |
+| `--gpt-first-lba=`                | `[Output]`              | `GPTFirstLBA=`                |
 | `--kernel-command-line=`          | `[Output]`              | `KernelCommandLine=`          |
 | `--secure-boot`                   | `[Output]`              | `SecureBoot=`                 |
 | `--secure-boot-key=`              | `[Output]`              | `SecureBootKey=`              |

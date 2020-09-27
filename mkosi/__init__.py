@@ -360,7 +360,7 @@ GPT_HEADER_SIZE = 1024*1024
 GPT_FOOTER_SIZE = 1024*1024
 
 
-# Debian calls their architectures differently, so when calling debbootstrap we
+# Debian calls their architectures differently, so when calling debootstrap we
 # will have to map to their names
 DEBIAN_ARCHITECTURES = {
     'x86_64': 'amd64',
@@ -675,6 +675,8 @@ def disable_cow(path: str) -> None:
 def determine_partition_table(args: CommandLineArguments) -> Tuple[str, bool]:
     pn = 1
     table = "label: gpt\n"
+    if args.gpt_first_lba is not None:
+        table += f"first-lba: {args.gpt_first_lba:d}\n"
     run_sfdisk = False
     args.esp_partno = None
     args.bios_partno = None
@@ -896,25 +898,39 @@ def prepare_xbootldr(args: CommandLineArguments, loopdev: Optional[str], cached:
         run(["mkfs.fat", "-nXBOOTLDR", "-F32", partition(loopdev, args.xbootldr_partno)])
 
 
-def mkfs_ext4(label: str, mount: str, dev: str) -> None:
-    run(["mkfs.ext4", "-I", "256", "-L", label, "-M", mount, dev])
+def mkfs_ext4_cmd(label: str, mount: str) -> List[str]:
+    return ["mkfs.ext4", "-I", "256", "-L", label, "-M", mount]
 
 
-def mkfs_xfs(label: str, dev: str) -> None:
-    run(["mkfs.xfs", "-n", "ftype=1", "-L", label, dev])
+def mkfs_xfs_cmd(label: str) -> List[str]:
+    return ["mkfs.xfs", "-n", "ftype=1", "-L", label]
 
 
-def mkfs_btrfs(label: str, dev: str) -> None:
-    run(["mkfs.btrfs", "-L", label, "-d", "single", "-m", "single", dev])
+def mkfs_btrfs_cmd(label: str) -> List[str]:
+    return ["mkfs.btrfs", "-L", label, "-d", "single", "-m", "single"]
 
 
 def mkfs_generic(args: CommandLineArguments, label: str, mount: str, dev: str) -> None:
+    cmdline = []
+
     if args.output_format == OutputFormat.gpt_btrfs:
-        mkfs_btrfs(label, dev)
+        cmdline = mkfs_btrfs_cmd(label)
     elif args.output_format == OutputFormat.gpt_xfs:
-        mkfs_xfs(label, dev)
+        cmdline = mkfs_xfs_cmd(label)
     else:
-        mkfs_ext4(label, mount, dev)
+        cmdline = mkfs_ext4_cmd(label, mount)
+
+    if args.output_format == OutputFormat.gpt_ext4:
+        if (args.distribution in (Distribution.centos, Distribution.centos_epel) and
+            is_older_than_centos8(args.release)):
+            # e2fsprogs in centos7 is too old and doesn't support this feature
+            cmdline += ["-O", "^metadata_csum"]
+
+        if args.architecture in ("x86_64", "aarch64"):
+            # enable 64bit filesystem feature on supported architectures
+            cmdline += ["-O", "64bit"]
+
+    run(cmdline + [dev])
 
 
 def luks_format(dev: str, passphrase: Dict[str, str]) -> None:
@@ -1995,7 +2011,7 @@ def invoke_dnf_or_yum(args: CommandLineArguments,
         invoke_dnf(args, root, repositories, packages)
 
 
-def install_centos_old(args: CommandLineArguments, root: str, epel_release: str) -> List[str]:
+def install_centos_old(args: CommandLineArguments, root: str, epel_release: int) -> List[str]:
     # Repos for CentOS 7 and earlier
 
     gpgpath=f"/etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-{args.release}"
@@ -2027,7 +2043,7 @@ def install_centos_old(args: CommandLineArguments, root: str, epel_release: str)
     return ["base", "updates", "extras", "centosplus"]
 
 
-def install_centos_new(args: CommandLineArguments, root: str, epel_release: str) -> List[str]:
+def install_centos_new(args: CommandLineArguments, root: str, epel_release: int) -> List[str]:
     # Repos for CentOS 8 and later
 
     gpgpath="/etc/pki/rpm-gpg/RPM-GPG-KEY-centosofficial"
@@ -2059,27 +2075,38 @@ def install_centos_new(args: CommandLineArguments, root: str, epel_release: str)
     return ["AppStream", "BaseOS", "extras", "centosplus"]
 
 
+def is_older_than_centos8(release: str) -> bool:
+    # CentOS 7 contains some very old versions of certain libraries
+    # which require workarounds in different places.
+    # Additionally the repositories have been changed between 7 and 8
+    epel_release = release.split('.')[0]
+    try:
+        return int(epel_release) <= 7
+    except ValueError:
+        return False
+
+
 @completestep('Installing CentOS')
 def install_centos(args: CommandLineArguments, root: str, do_run_build_script: bool) -> None:
-    epel_release = args.release.split('.')[0]
+    old = is_older_than_centos8(args.release)
+    epel_release = int(args.release.split('.')[0])
 
-    # Centos Repositories were changed between 7 and 8
-    try:
-        new = (int(epel_release) > 7)
-    except ValueError:
-        new = True
-
-    if new:
-        default_repos = install_centos_new(args, root, epel_release)
-    else:
+    if old:
         default_repos = install_centos_old(args, root, epel_release)
+    else:
+        default_repos = install_centos_new(args, root, epel_release)
 
     packages = ['centos-release', 'systemd']
     packages += args.packages or []
 
     if not do_run_build_script and args.bootable:
-        packages += ["kernel", "systemd-udev", "dracut", "binutils"]
+        packages += ["kernel", "dracut", "binutils"]
         configure_dracut(args, root)
+        if old:
+            packages += ["grub2-efi", "grub2-tools", "grub2-efi-x64-modules", "shim-x64", "efibootmgr", "efivar-libs"]
+        else:
+            # this does not exist on CentOS 7
+            packages += ["systemd-udev"]
 
     if do_run_build_script:
         packages += args.build_packages or []
@@ -2787,7 +2814,7 @@ def run_prepare_script(args: CommandLineArguments, root: str, do_run_build_scrip
         os.unlink(os.path.join(root, "root/prepare"))
 
 
-def run_postinst_script(args: CommandLineArguments, root: str, do_run_build_script: bool, for_cache: bool) -> None:
+def run_postinst_script(args: CommandLineArguments, root: str, loopdev: Optional[str], do_run_build_script: bool, for_cache: bool) -> None:
     if args.postinst_script is None:
         return
     if for_cache:
@@ -2804,7 +2831,15 @@ def run_postinst_script(args: CommandLineArguments, root: str, do_run_build_scri
 
         shutil.copy2(args.postinst_script, os.path.join(root, "root/postinst"))
 
-        run_workspace_command(args, root, ["/root/postinst", verb], network=args.with_network)
+        nspawn_params = []
+        # in order to have full blockdev access, i.e. for making grub2 bootloader changes
+        # we need to have these bind mounts for a proper chroot setup
+        if args.bootable:
+            if loopdev is None:
+                raise ValueError("Parameter 'loopdev' required for bootable images.")
+            nspawn_params += nspawn_params_for_blockdev_access(args, loopdev)
+
+        run_workspace_command(args, root, ["/root/postinst", verb], network=args.with_network, nspawn_params=nspawn_params)
         os.unlink(os.path.join(root, "root/postinst"))
 
 
@@ -2821,10 +2856,21 @@ def run_finalize_script(args: CommandLineArguments, root: str, do_run_build_scri
         run([args.finalize_script, verb], env=env)
 
 
-def install_grub(args: CommandLineArguments, root: str, loopdev: str, grub: str) -> None:
-    if args.bios_partno is None:
-        return
+def nspawn_params_for_blockdev_access(args: CommandLineArguments, loopdev: str) -> List[str]:
+    params = [
+        f"--bind-ro={loopdev}",
+        f"--bind-ro=/dev/block",
+        f"--bind-ro=/dev/disk",
+        f"--property=DeviceAllow={loopdev}"
+    ]
+    for partno in (args.esp_partno, args.bios_partno, args.root_partno, args.xbootldr_partno):
+        if partno is not None:
+            p = partition(loopdev, partno)
+            params += [f"--bind-ro={p}", f"--property=DeviceAllow={p}"]
+    return params
 
+
+def write_grub_config(args: CommandLineArguments, root: str) -> None:
     kernel_cmd_line = ' '.join(args.kernel_command_line)
     grub_cmdline = f'GRUB_CMDLINE_LINUX="{kernel_cmd_line}"\n'
     os.makedirs(os.path.join(root, "etc/default"), exist_ok=True, mode=0o755)
@@ -2849,19 +2895,14 @@ def install_grub(args: CommandLineArguments, root: str, loopdev: str, grub: str)
             with open(grub_config, 'a') as f:
                 f.write("GRUB_SERIAL_COMMAND=\"serial --unit=0 --speed 115200\"\n")
 
-    # /dev/disk and /dev/block are required so grub can access the root partition UUID/PARTUUID and add it to
-    # the kernel command line. If we don't do this, it adds root=/dev/loop* which breaks the boot later on
-    # because the device can't be found.
-    nspawn_params = [
-        f"--bind-ro={loopdev}",
-        f"--property=DeviceAllow={loopdev}",
-        "--bind-ro=/dev/block",
-        "--bind-ro=/dev/disk",
-    ]
-    for partno in (args.root_partno, args.xbootldr_partno, args.bios_partno):
-        if partno is not None:
-            p = partition(loopdev, partno)
-            nspawn_params += [f"--bind-ro={p}", f"--property=DeviceAllow={p}"]
+
+def install_grub(args: CommandLineArguments, root: str, loopdev: str, grub: str) -> None:
+    if args.bios_partno is None:
+        return
+
+    write_grub_config(args, root)
+
+    nspawn_params = nspawn_params_for_blockdev_access(args, loopdev)
 
     cmdline = [f"{grub}-install", "--modules=ext2 part_gpt", "--target=i386-pc", loopdev]
     run_workspace_command(args, root, cmdline, nspawn_params=nspawn_params)
@@ -2872,22 +2913,34 @@ def install_grub(args: CommandLineArguments, root: str, loopdev: str, grub: str)
 
 
 def install_boot_loader_clear(args: CommandLineArguments, root: str, loopdev: str) -> None:
-    nspawn_params = [
-        # clr-boot-manager uses blkid in the device backing "/" to
-        # figure out uuid and related parameters.
-        f"--bind-ro={loopdev}",
-        f"--bind-ro=/dev/block",
-        f"--bind-ro=/dev/disk",
-        f"--property=DeviceAllow={loopdev}",
-    ]
-
-    for partno in (args.esp_partno, args.bios_partno, args.root_partno, args.xbootldr_partno):
-        if partno is not None:
-            p = partition(loopdev, partno)
-            nspawn_params += [f"--bind-ro={p}", f"--property=DeviceAllow={p}"]
+    # clr-boot-manager uses blkid in the device backing "/" to
+    # figure out uuid and related parameters.
+    nspawn_params = nspawn_params_for_blockdev_access(args, loopdev)
 
     cmdline = ["/usr/bin/clr-boot-manager", "update", "-i"]
     run_workspace_command(args, root, cmdline, nspawn_params=nspawn_params)
+
+def install_boot_loader_centos_old_efi(args: CommandLineArguments, root: str, loopdev: str) -> None:
+    nspawn_params = nspawn_params_for_blockdev_access(args, loopdev)
+
+    # prepare EFI directory on ESP
+    os.makedirs(os.path.join(root, 'efi/EFI/centos'), exist_ok=True)
+
+    # patch existing or create minimal GRUB_CMDLINE config
+    write_grub_config(args, root)
+
+    # generate grub2 efi boot config
+    cmdline = ['/sbin/grub2-mkconfig', "-o", "/efi/EFI/centos/grub.cfg"]
+    run_workspace_command(args, root, cmdline, nspawn_params=nspawn_params)
+
+    # if /sys/firmware/efi is not present within systemd-nspawn the grub2-mkconfig makes false assumptions, let's fix this
+    def _fix_grub(line: str) -> str:
+        if 'linux16' in line:
+            return line.replace('linux16', 'linuxefi')
+        elif 'initrd16' in line:
+            return line.replace('initrd16', 'initrdefi')
+        return line
+    patch_file(os.path.join(root, 'efi/EFI/centos/grub.cfg'), _fix_grub)
 
 
 def install_boot_loader(args: CommandLineArguments, root: str, loopdev: Optional[str], do_run_build_script: bool, cached: bool) -> None:
@@ -2899,8 +2952,14 @@ def install_boot_loader(args: CommandLineArguments, root: str, loopdev: Optional
         return
 
     with complete_step("Installing boot loader"):
-        if args.esp_partno and args.distribution != Distribution.clear:
-            run_workspace_command(args, root, ["bootctl", "install"])
+        if args.esp_partno:
+            if args.distribution == Distribution.clear:
+                pass
+            elif (args.distribution in (Distribution.centos, Distribution.centos_epel) and
+                  is_older_than_centos8(args.release)):
+                install_boot_loader_centos_old_efi(args, root, loopdev)
+            else:
+                run_workspace_command(args, root, ["bootctl", "install"])
 
         if args.bios_partno and args.distribution != Distribution.clear:
             grub = "grub" if args.distribution in (Distribution.ubuntu, Distribution.debian, Distribution.arch) else "grub2"
@@ -3223,6 +3282,8 @@ def insert_partition(args: CommandLineArguments,
     print_step(f'Inserting partition of {format_bytes(blob_size)}...')
 
     table = "label: gpt\n"
+    if args.gpt_first_lba is not None:
+        table += f"first-lba: {args.gpt_first_lba:d}\n"
 
     for t in old_table:
         table += t + "\n"
@@ -3833,6 +3894,7 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
         'SkeletonTrees': '--skeleton-tree',
         'BuildPackages': '--build-package',
         'PostInstallationScript': '--postinst-script',
+        'GPTFirstLBA': '--gpt-first-lba',
     }
 
     fromfile_prefix_chars = '@'
@@ -3970,6 +4032,7 @@ def create_parser() -> ArgumentParserMkosi:
                        help="Do not install unified kernel images")
     group.add_argument("--with-unified-kernel-images", action=BooleanAction, default=True,
                        help=argparse.SUPPRESS)
+    group.add_argument("--gpt-first-lba", type=int, help='Set the first LBA within GPT Header', metavar='FIRSTLBA')
 
     group = parser.add_argument_group("Packages")
     group.add_argument('-p', "--package", action=CommaDelimitedListAction, dest='packages', default=[],
@@ -4562,10 +4625,13 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
         elif args.distribution == Distribution.openmandriva:
             args.release = "cooker"
 
-    if (args.distribution in (Distribution.centos, Distribution.centos_epel) and
-        args.release == "8" and
-        args.output_format == OutputFormat.gpt_btrfs):
-        die("Sorry, CentOS 8 does not support btrfs")
+    if args.distribution in (Distribution.centos, Distribution.centos_epel):
+        epel_release = int(args.release.split('.')[0])
+        if epel_release <= 8 and args.output_format == OutputFormat.gpt_btrfs:
+            die(f"Sorry, CentOS {epel_release} does not support btrfs")
+        if epel_release <= 7 and args.bootable and 'uefi' in args.boot_protocols and args.with_unified_kernel_images:
+            die(f"Sorry, CentOS {epel_release} does not support unified kernel images. "
+                "You must use --without-unified-kernel-images.")
 
     # Remove once https://github.com/clearlinux/clr-boot-manager/pull/238 is merged and available.
     if args.distribution == Distribution.clear and args.output_format == OutputFormat.gpt_btrfs:
@@ -5065,7 +5131,7 @@ def build_image(args: CommandLineArguments,
                     install_build_dest(args, root, do_run_build_script, for_cache)
                     set_root_password(args, root, do_run_build_script, for_cache)
                     set_serial_terminal(args, root, do_run_build_script, for_cache)
-                    run_postinst_script(args, root, do_run_build_script, for_cache)
+                    run_postinst_script(args, root, loopdev, do_run_build_script, for_cache)
 
                 if cleanup:
                     clean_package_manager_metadata(root)

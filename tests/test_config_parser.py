@@ -63,6 +63,7 @@ class MkosiConfig(object):
             'extra_trees': [],
             'finalize_script': None,
             'force_count': 0,
+            'gpt_first_lba': None,
             'home_size': None,
             'hostname': None,
             'incremental': False,
