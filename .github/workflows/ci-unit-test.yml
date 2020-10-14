@@ -61,8 +61,8 @@ jobs:
 
     - name: Test venv installation
       run: |
-        sudo apt-get install python3-venv
-        mkdir testvenv
+        sudo apt-get update
+        sudo apt-get -y --no-install-recommends install python3-venv
         python3 -m venv testvenv
         testvenv/bin/python3 -m pip install .
         testvenv/bin/mkosi -h
