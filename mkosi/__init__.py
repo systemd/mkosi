@@ -477,8 +477,7 @@ def copy_fd(oldfd: int, newfd: int) -> None:
     except OSError as e:
         if e.errno not in {errno.EXDEV, errno.EOPNOTSUPP}:
             raise
-        shutil.copyfileobj(open(oldfd, 'rb', closefd=False), # type: ignore # Workaround for python/mypy#8962
-                           open(newfd, 'wb', closefd=False))
+        shutil.copyfileobj(open(oldfd, 'rb', closefd=False), open(newfd, 'wb', closefd=False))
 
 
 def copy_file_object(oldobject: BinaryIO, newobject: BinaryIO) -> None:
@@ -487,7 +486,7 @@ def copy_file_object(oldobject: BinaryIO, newobject: BinaryIO) -> None:
     except OSError as e:
         if e.errno not in {errno.EXDEV, errno.EOPNOTSUPP}:
             raise
-        shutil.copyfileobj(oldobject, newobject) # type: ignore # Workaround for python/mypy#8962
+        shutil.copyfileobj(oldobject, newobject)
 
 
 def copy_symlink(oldpath: str, newpath: str) -> None:
