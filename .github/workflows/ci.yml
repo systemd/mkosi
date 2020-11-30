@@ -80,7 +80,8 @@ jobs:
     - name: Boot ${{ matrix.distro }}/${{ matrix.format }}
       # photon boot gets stuck on systemd-networkd-wait-online. See https://github.com/systemd/mkosi/pull/514.
       if: matrix.format != 'tar' &&
-          matrix.distro != 'photon'
+          matrix.distro != 'photon' &&
+          matrix.distro != 'openmandriva'
       run: sudo ./tests/pexpect/boot.py python3 -m mkosi boot
 
     - name: Build ${{ matrix.distro }}/${{ matrix.format }} UEFI UKI
