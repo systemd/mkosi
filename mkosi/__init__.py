@@ -2865,7 +2865,8 @@ def nspawn_params_for_blockdev_access(args: CommandLineArguments, loopdev: str) 
     for partno in (args.esp_partno, args.bios_partno, args.root_partno, args.xbootldr_partno):
         if partno is not None:
             p = partition(loopdev, partno)
-            params += [f"--bind-ro={p}", f"--property=DeviceAllow={p}"]
+            if os.path.exists(p):
+                params += [f"--bind-ro={p}", f"--property=DeviceAllow={p}"]
     return params
 
 
