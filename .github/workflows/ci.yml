@@ -18,14 +18,9 @@ jobs:
           - arch
           - centos
           - centos_epel
-          - clear
           - debian
           - ubuntu
           - fedora
-          - openmandriva
-          - mageia
-          - opensuse
-          - photon
         format:
           - directory
           - tar
@@ -35,16 +30,10 @@ jobs:
           - gpt_squashfs
           - plain_squashfs
         exclude:
-          # CentOS 8 and Clear Linux do not support btrfs.
+          # CentOS 8 does not support btrfs.
           - distro: centos
             format: gpt_btrfs
           - distro: centos_epel
-            format: gpt_btrfs
-          # Remove once https://github.com/clearlinux/clr-boot-manager/pull/238 is merged and available.
-          - distro: clear
-            format: gpt_btrfs
-          # Remove once https://github.com/vmware/tdnf/issues/154 is fixed.
-          - distro: photon
             format: gpt_btrfs
 
     steps:
@@ -61,8 +50,7 @@ jobs:
         systemd-container
 
     - name: Build ${{ matrix.distro }}/${{ matrix.format }}
-      if: matrix.format != 'tar' &&
-          matrix.distro != 'photon'
+      if: matrix.format != 'tar'
       run: |
         tee mkosi.default << EOF
         [Distribution]
@@ -78,19 +66,13 @@ jobs:
         sudo python3 -m mkosi build
 
     - name: Boot ${{ matrix.distro }}/${{ matrix.format }}
-      # photon boot gets stuck on systemd-networkd-wait-online. See https://github.com/systemd/mkosi/pull/514.
-      if: matrix.format != 'tar' &&
-          matrix.distro != 'photon' &&
-          matrix.distro != 'openmandriva'
+      if: matrix.format != 'tar'
       run: sudo ./tests/pexpect/boot.py python3 -m mkosi boot
 
     - name: Build ${{ matrix.distro }}/${{ matrix.format }} UEFI UKI
       if: matrix.format != 'directory' &&
           matrix.format != 'plain_squashfs' &&
-          matrix.format != 'tar' &&
-          matrix.distro != 'clear' &&
-          matrix.distro != 'openmandriva' &&
-          matrix.distro != 'photon'
+          matrix.format != 'tar'
       run: |
         tee mkosi.default << EOF
         [Distribution]
@@ -115,9 +97,6 @@ jobs:
           matrix.format != 'plain_squashfs' &&
           matrix.format != 'gpt_squashfs' &&
           matrix.format != 'tar' &&
-          matrix.distro != 'clear' &&
-          matrix.distro != 'openmandriva' &&
-          matrix.distro != 'photon' &&
           !(matrix.distro == 'ubuntu' && matrix.format == 'gpt_squashfs')
       run: sudo ./tests/pexpect/boot.py python3 -m mkosi qemu
 
