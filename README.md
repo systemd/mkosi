@@ -38,7 +38,7 @@ You can also package mkosi as a
 [zipapp](https://docs.python.org/3/library/zipapp.html) that you can deploy
 anywhere in your `PATH`. Running this will leave a `mkosi` binary in `builddir/`
 ```shell
-tools/generate_zipapp.sh
+tools/generate-zipapp.sh
 ```
 
 ## Python module

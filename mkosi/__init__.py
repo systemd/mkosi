@@ -4000,7 +4000,7 @@ def create_parser() -> ArgumentParserMkosi:
                        help='Make image bootable on EFI (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs)')
     group.add_argument("--boot-protocols", action=CommaDelimitedListAction,
                        help="Boot protocols to use on a bootable image", metavar="PROTOCOLS", default=[])
-    group.add_argument("--kernel-command-line", action=SpaceDelimitedListAction, default=['rhgb', 'quiet', 'selinux=0', 'audit=0', 'rw'],
+    group.add_argument("--kernel-command-line", action=SpaceDelimitedListAction, default=['rhgb', 'quiet', 'selinux=0', 'audit=0'],
                        help='Set the kernel command line (only bootable images)')
     group.add_argument("--kernel-commandline", action=SpaceDelimitedListAction, dest='kernel_command_line', help=argparse.SUPPRESS) # Compatibility option
     group.add_argument("--secure-boot", action=BooleanAction,
@@ -4835,6 +4835,9 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
     if args.bootable and args.distribution == Distribution.mageia:
         # TODO: Remove once dracut 045 is available in mageia.
         args.kernel_command_line.append("root=/dev/gpt-auto-root")
+
+    if not args.read_only:
+        args.kernel_command_line.append("rw")
 
     if args.generated_root() and "bios" in args.boot_protocols:
         die("Sorry, BIOS cannot be combined with --minimize or squashfs filesystems")
