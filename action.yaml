@@ -12,30 +12,35 @@ runs:
     shell: bash
     run: sudo apt-get --assume-yes --no-install-recommends install
           asciidoc
+          autopoint
           check
           debootstrap
+          docbook-xsl
           e2fsprogs
+          gettext
           libarchive-dev
+          libcap-dev
           libcppunit-dev
           libcurl4-openssl-dev
-          libjson-c-dev
+          libdb-dev
+          libgcrypt-dev
           libgpgme-dev
+          libjson-c-dev
+          liblua5.2-dev
           libmagic-dev
-          librpm-dev
+          libpopt-dev
           libsmartcols-dev
           libyaml-dev
           libzstd-dev
           meson
           ninja-build
           python3-gpg
-          python3-rpm
           python3-sphinx
           squashfs-tools
           swig
           systemd-container
           xfsprogs
           xsltproc
-          docbook-xsl
 
   - name: Dependencies
     shell: bash
@@ -58,6 +63,27 @@ runs:
       sudo make -C archlinux-keyring-$ARCHLINUX_KEYRING_VERSION PREFIX=/usr install
       sudo pacman-key --init
       sudo pacman-key --populate archlinux
+
+      wget https://github.com/rpm-software-management/rpm/archive/rpm-$RPM_VERSION-release.tar.gz
+      tar xf rpm-$RPM_VERSION-release.tar.gz
+
+      pushd rpm-rpm-$RPM_VERSION-release
+      ./autogen.sh \
+          --prefix=/usr  \
+          --sysconfdir=/etc  \
+          --localstatedir=/var \
+          --enable-python \
+          --with-external-db \
+          --with-lua \
+          --with-cap \
+          LUA_CFLAGS="`pkg-config --cflags lua5.2`" \
+          LUA_LIBS="`pkg-config --libs lua5.2`"
+      make -j 2
+      sudo make install
+      pushd python
+      sudo python setup.py install --optimize=1
+      popd
+      popd
 
       wget https://github.com/rpm-software-management/libcomps/archive/libcomps-$LIBCOMPS_VERSION.tar.gz
       tar xf libcomps-$LIBCOMPS_VERSION.tar.gz
@@ -182,6 +208,7 @@ runs:
       DNF_VERSION: "4.4.2"
       LIBMETALINK_VERSION: "0.1.3"
       TDNF_VERSION: "2.1.1"
+      RPM_VERSION: "4.16.0"
 
   - name: Install
     shell: bash
