@@ -54,7 +54,7 @@ from typing import (
 from types import FrameType
 
 
-__version__ = '7'
+__version__ = '8'
 
 
 # These types are only generic during type checking and not at runtime, leading
