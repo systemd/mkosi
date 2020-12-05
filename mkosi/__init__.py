@@ -2550,7 +2550,7 @@ def install_arch(args: CommandLineArguments, root: str, do_run_build_script: boo
             # packages from base before anything else. To circumvent this we explicitly install base first.
             run(["pacman", *conf, "--noconfirm", "-Sy", "base"])
             if packages:
-                run(["pacman", *conf, "--noconfirm", "-S", *packages])
+                run(["pacman", *conf, "--noconfirm", "--needed", "-S", *packages])
         finally:
             # Kill the gpg-agent started by pacman and pacman-key.
             run(['gpgconf', '--homedir', os.path.join(root, 'etc/pacman.d/gnupg'), '--kill', 'all'])
