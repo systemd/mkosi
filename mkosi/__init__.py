@@ -5434,6 +5434,7 @@ def run_qemu(args: CommandLineArguments) -> None:
         "-drive", f"format={'qcow2' if args.qcow2 else 'raw'},file={args.output}",
         "-object", "rng-random,filename=/dev/urandom,id=rng0",
         "-device", "virtio-rng-pci,rng=rng0,id=rng-device0",
+        "-boot", "c"
     ]
 
     if args.qemu_headless:
