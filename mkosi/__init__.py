@@ -1359,7 +1359,7 @@ def configure_dracut(args: CommandLineArguments, root: str) -> None:
     os.mkdir(dracut_dir, 0o755)
 
     with open(os.path.join(dracut_dir, "30-mkosi-hostonly.conf"), "w") as f:
-        f.write("hostonly=no\n")
+        f.write(f"hostonly={'yes' if args.hostonly_initrd else 'no'}\n")
 
     with open(os.path.join(dracut_dir, "30-mkosi-systemd-extras.conf"), "w") as f:
         for extra in DRACUT_SYSTEMD_EXTRAS:
@@ -4079,6 +4079,7 @@ def create_parser() -> ArgumentParserMkosi:
     group.add_argument("--with-unified-kernel-images", action=BooleanAction, default=True,
                        help=argparse.SUPPRESS)
     group.add_argument("--gpt-first-lba", type=int, help='Set the first LBA within GPT Header', metavar='FIRSTLBA')
+    group.add_argument("--hostonly-initrd", action=BooleanAction, help="Enable dracut hostonly option")
 
     group = parser.add_argument_group("Packages")
     group.add_argument('-p', "--package", action=CommaDelimitedListAction, dest='packages', default=[],
