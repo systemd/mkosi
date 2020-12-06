@@ -108,6 +108,7 @@ class MkosiConfig(object):
             'qemu_headless': False,
             'network_veth': False,
             'with_unified_kernel_images': True,
+            'hostonly_initrd': False,
         }
 
     def __eq__(self, other: [mkosi.CommandLineArguments]) -> bool:
@@ -220,6 +221,8 @@ class MkosiConfig(object):
                 self.reference_config[job_name]['hostname'] = mk_config_output['Hostname']
             if 'WithUnifiedKernelImages' in mk_config_output:
                 self.reference_config[job_name]['with_unified_kernel_images'] =  mk_config_output['WithUnifiedKernelImages']
+            if 'HostonlyInitrd' in mk_config_output:
+                self.reference_config[job_name]['hostonly_initrd'] = mk_config_output['HostonlyInitrd']
         if 'Packages' in mk_config:
             mk_config_packages = mk_config['Packages']
             if 'Packages' in mk_config_packages:

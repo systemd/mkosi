@@ -365,6 +365,12 @@ details see the table below.
 : If specified, mkosi does not build unified kernel images and instead installs kernels with a separate
   initrd and boot loader config to the efi or bootloader partition.
 
+`--hostonly-initrd`
+
+: If specified, mkosi will run the tool to create the initrd such that a non-generic initrd is created that
+  will only be able to run on the system mkosi is run on. Currently mkosi uses dracut for all supported
+  distributions except Clear Linux and this option translates to enabling dracut's hostonly option.
+
 `--no-chown`
 
 : By default, if `mkosi` is run inside a `sudo` environment all
@@ -740,6 +746,7 @@ which settings file options.
 | `--qcow2`                         | `[Output]`              | `QCow2=`                      |
 | `--hostname=`                     | `[Output]`              | `Hostname=`                   |
 | `--without-unified-kernel-images` | `[Output]`              | `WithUnifiedKernelImages=`    |
+| `--hostonly-initrd`               | `[Output]`              | `HostonlyInitrd=`             |
 | `--package=`                      | `[Packages]`            | `Packages=`                   |
 | `--with-docs`                     | `[Packages]`            | `WithDocs=`                   |
 | `--without-tests`, `-T`           | `[Packages]`            | `WithTests=`                  |
