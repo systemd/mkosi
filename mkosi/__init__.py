@@ -5481,11 +5481,12 @@ def run_qemu(args: CommandLineArguments) -> None:
         "-drive", f"format={'qcow2' if args.qcow2 else 'raw'},file={args.output},if=virtio",
         "-object", "rng-random,filename=/dev/urandom,id=rng0",
         "-device", "virtio-rng-pci,rng=rng0,id=rng-device0",
-        "-boot", "c"
     ]
 
     if args.qemu_headless:
-        cmdline.append("-nographic")
+        # -nodefaults removes the default CDROM device which avoids an error message during boot
+        # -serial mon:stdio adds back the serial device removed by -nodefaults.
+        cmdline += ["-nographic", "-nodefaults", "-serial", "mon:stdio"]
 
     if args.network_veth:
         # On Linux, interface names are limited to 16 characters so we do the same.
