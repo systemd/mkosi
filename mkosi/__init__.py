@@ -2760,12 +2760,16 @@ def set_serial_terminal(args: CommandLineArguments, root: str, do_run_build_scri
     override_dir = os.path.join(root, "etc/systemd/system/serial-getty@ttyS0.service.d")
     os.makedirs(override_dir, mode=0o755, exist_ok=True)
 
+    columns, lines = shutil.get_terminal_size(fallback=(80, 24))
+
     with open(os.path.join(override_dir, "override.conf"), 'w') as f:
         f.write(
             dedent(
                 f"""
                 [Service]
                 Environment=TERM={os.getenv('TERM', 'vt220')}
+                Environment=COLUMNS={columns}
+                Environment=LINES={lines}
                 """
             )
         )
