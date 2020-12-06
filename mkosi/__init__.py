@@ -5426,14 +5426,16 @@ def run_shell(args: CommandLineArguments) -> None:
 
 def run_qemu(args: CommandLineArguments) -> None:
     # Look for the right qemu command line to use
+    has_kvm = os.path.exists("/dev/kvm")
     cmdlines: List[List[str]] = []
     ARCH_BINARIES = {'x86_64': 'qemu-system-x86_64',
                      'i386': 'qemu-system-i386'}
     arch_binary = ARCH_BINARIES.get(platform.machine(), None)
+    accel = "kvm" if has_kvm else "tcg"
     if arch_binary is not None:
-        cmdlines += [[arch_binary, '-machine', 'accel=kvm:tcg']]
+        cmdlines += [[arch_binary, '-machine', f'accel={accel}']]
     cmdlines += [
-        ['qemu', '-machine', 'accel=kvm:tcg'],
+        ['qemu', '-machine', f'accel={accel}'],
         ['qemu-kvm'],
     ]
     for cmdline in cmdlines:
