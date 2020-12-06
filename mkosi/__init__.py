@@ -4097,6 +4097,7 @@ def create_parser() -> ArgumentParserMkosi:
                        help="List of colon-separated paths to look for programs before looking in PATH")
     group.add_argument("--extra-search-paths", dest='extra_search_paths', action=ColonDelimitedListAction, help=argparse.SUPPRESS) # Compatibility option
     group.add_argument("--qemu-headless", action=BooleanAction, help="Configure image for qemu's -nographic mode")
+    group.add_argument("--network-veth", action=BooleanAction, help="Create a virtual Ethernet link between the host and the container/VM")
 
     group = parser.add_argument_group("Additional Configuration")
     group.add_argument('-C', "--directory", help='Change to specified directory before doing anything', metavar='PATH')
@@ -5362,6 +5363,9 @@ def run_shell(args: CommandLineArguments) -> None:
     if args.generated_root() or args.verity:
         cmdline += ('--volatile=overlay',)
 
+    if args.network_veth:
+        cmdline += ('--network-veth',)
+
     if args.cmdline:
         # If the verb is shell, args.cmdline contains the command to run. Otherwise (boot), we assume
         # args.cmdline contains nspawn arguments.
@@ -5427,6 +5431,16 @@ def run_qemu(args: CommandLineArguments) -> None:
 
     if args.qemu_headless:
         cmdline.append("-nographic")
+
+    if args.network_veth:
+        # On Linux, interface names are limited to 16 characters so we do the same.
+        ifname = f"vt-{os.path.splitext(os.path.basename(args.output))[0][:13]}"
+        # vt-<image-name> is the ifname on the host and is automatically picked up by systemd-networkd which
+        # starts a DHCP server on that interface. This gives IP connectivity to the VM. By default, QEMU
+        # itself tries to bring up the vt network interface which conflicts with systemd-networkd which is
+        # trying to do the same. By specifiying script=no and downscript=no, We tell QEMU to not touch vt
+        # after it is created.
+        cmdline += ["-nic", f"tap,script=no,downscript=no,ifname={ifname}"]
 
     cmdline += args.cmdline
 

@@ -695,6 +695,12 @@ details see the table below.
   connects to its serial console from the current terminal instead
   of launching the VM in a separate window.
 
+`--network-veth`
+: When used with the boot or qemu verbs, this option creates a virtual
+  ethernet link between the host and the container/VM. The host
+  interface is automatically picked up by systemd-networkd as documented
+  in systemd-nspawn's man page:
+  https://www.freedesktop.org/software/systemd/man/systemd-nspawn.html#-n
 
 ## Command Line Parameters and their Settings File Counterparts
 
@@ -759,6 +765,7 @@ which settings file options.
 | `--password-is-hashed`            | `[Validation]`          | `PasswordIsHashed=`           |
 | `--extra-search-paths=`           | `[Host]`                | `ExtraSearchPaths=`           |
 | `--qemu-headless`                 | `[Host]`                | `QemuHeadless=`               |
+| `--network-veth`                  | `[Host]`                | `NetworkVeth=`                |
 
 Command line options that take no argument are not suffixed with a `=`
 in their long version in the table above. In the `mkosi.default` file
