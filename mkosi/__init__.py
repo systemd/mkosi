@@ -1475,7 +1475,8 @@ def enable_networkd(root: str) -> None:
     os.remove(os.path.join(root, "etc/resolv.conf"))
     os.symlink("../run/systemd/resolve/stub-resolv.conf", os.path.join(root, "etc/resolv.conf"))
 
-    with open(os.path.join(root, "etc/systemd/network/all-ethernet.network"), "w") as f:
+    network_file = os.path.join(root, "etc/systemd/network/all-ethernet.network")
+    with open(network_file, "w") as f:
         f.write(
             dedent(
                 """\
@@ -1487,6 +1488,8 @@ def enable_networkd(root: str) -> None:
                 """
             )
         )
+
+    os.chmod(network_file, 0o644)
 
 
 def enable_networkmanager(root: str) -> None:
