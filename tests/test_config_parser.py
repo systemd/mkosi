@@ -105,6 +105,7 @@ class MkosiConfig(object):
             'xbootldr_size': None,
             'xz': False,
             'qemu_headless': False,
+            'network_veth': False,
             'with_unified_kernel_images': True,
         }
 
@@ -283,6 +284,8 @@ class MkosiConfig(object):
                 self._append_list('extra_search_paths', mk_config_host['ExtraSearchPaths'], job_name, ':')
             if 'QemuHeadless' in mk_config_host:
                 self.reference_config[job_name]['qemu_headless'] = mk_config_host['QemuHeadless']
+            if 'NetworkVeth' in mk_config_host:
+                self.reference_config[job_name]['network_veth'] = mk_config_host['NetworkVeth']
 
 
 class MkosiConfigOne(MkosiConfig):
@@ -496,6 +499,7 @@ class MkosiConfigManyParams(MkosiConfigOne):
             'Host': {
                 'ExtraSearchPaths': 'search/here:search/there',
                 'QemuHeadless': True,
+                'NetworkVeth': True,
                 }
             }
         self._prepare_mkosi_default(directory, mk_config)
@@ -563,6 +567,7 @@ class MkosiConfigManyParams(MkosiConfigOne):
             'Host': {
                 'ExtraSearchPaths': 'search/ubu',
                 'QemuHeadless': True,
+                'NetworkVeth': True,
                 }
             }
         self._prepare_mkosi_default_d(directory, mk_config, 1)
@@ -630,6 +635,7 @@ class MkosiConfigManyParams(MkosiConfigOne):
             'Host': {
                 'ExtraSearchPaths': 'search/debi',
                 'QemuHeadless': True,
+                'NetworkVeth': True,
                 }
             }
         self._prepare_mkosi_default_d(directory, mk_config, 2)
