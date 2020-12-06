@@ -5470,6 +5470,9 @@ def run_qemu(args: CommandLineArguments) -> None:
 
     cmdline += ["-smp", "2", "-m", "1024"]
 
+    if has_kvm:
+        cmdline += ["-cpu", "host"]
+
     if "uefi" in args.boot_protocols:
         cmdline += ["-drive", f"if=pflash,format=raw,readonly,file={firmware}"]
 
