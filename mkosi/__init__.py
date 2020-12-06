@@ -2754,6 +2754,45 @@ def set_root_password(args: CommandLineArguments, root: str, do_run_build_script
             patch_file(os.path.join(root, 'etc/shadow'), jj)
 
 
+def set_autologin(args: CommandLineArguments, root: str, do_run_build_script: bool, for_cache: bool) -> None:
+    if do_run_build_script or for_cache or not args.autologin:
+        return
+
+    override_dir = os.path.join(root, "etc/systemd/system/console-getty.service.d")
+    os.makedirs(override_dir, mode=0o755, exist_ok=True)
+
+    override_file = os.path.join(override_dir, "autologin.conf")
+    with open(override_file, 'w') as f:
+        f.write(
+            dedent(
+                r"""
+                [Service]
+                ExecStart=
+                ExecStart=-/sbin/agetty -o '-p -- \\u' --noclear --autologin root --keep-baud console 115200,38400,9600 $TERM
+                """
+            )
+        )
+
+    os.chmod(override_file, 0o644)
+
+    override_dir = os.path.join(root, "etc/systemd/system/serial-getty@ttyS0.service.d")
+    os.makedirs(override_dir, mode=0o755, exist_ok=True)
+
+    override_file = os.path.join(override_dir, "autologin.conf")
+    with open(override_file, 'w') as f:
+        f.write(
+            dedent(
+                r"""
+                [Service]
+                ExecStart=
+                ExecStart=-/sbin/agetty -o '-p -- \\u' --autologin root --keep-baud 115200,57600,38400,9600 %I $TERM
+                """
+            )
+        )
+
+    os.chmod(override_file, 0o644)
+
+
 def set_serial_terminal(args: CommandLineArguments, root: str, do_run_build_script: bool, for_cache: bool) -> None:
     """Override TERM for the serial console with the terminal type from the host."""
 
@@ -2765,7 +2804,7 @@ def set_serial_terminal(args: CommandLineArguments, root: str, do_run_build_scri
 
     columns, lines = shutil.get_terminal_size(fallback=(80, 24))
 
-    with open(os.path.join(override_dir, "override.conf"), 'w') as f:
+    with open(os.path.join(override_dir, "term.conf"), 'w') as f:
         f.write(
             dedent(
                 f"""
@@ -4098,6 +4137,7 @@ def create_parser() -> ArgumentParserMkosi:
     group.add_argument("--password", help='Set the root password')
     group.add_argument("--password-is-hashed", action=BooleanAction,
                        help='Indicate that the root password has already been hashed')
+    group.add_argument("--autologin", action=BooleanAction, help="Enable root autologin")
 
     group = parser.add_argument_group("Host configuration")
     group.add_argument("--extra-search-path", dest='extra_search_paths', action=ColonDelimitedListAction, default=[],
@@ -5142,6 +5182,7 @@ def build_image(args: CommandLineArguments,
                     install_build_dest(args, root, do_run_build_script, for_cache)
                     set_root_password(args, root, do_run_build_script, for_cache)
                     set_serial_terminal(args, root, do_run_build_script, for_cache)
+                    set_autologin(args, root, do_run_build_script, for_cache)
                     run_postinst_script(args, root, loopdev, do_run_build_script, for_cache)
 
                 if cleanup:

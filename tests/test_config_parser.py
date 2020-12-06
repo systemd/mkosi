@@ -79,6 +79,7 @@ class MkosiConfig(object):
             'packages': [],
             'password': None,
             'password_is_hashed': False,
+            'autologin': False,
             'skip_final_phase': False,
             'prepare_script': None,
             'postinst_script': None,
@@ -277,6 +278,8 @@ class MkosiConfig(object):
                 self.reference_config[job_name]['password'] = mk_config_validation['Password']
             if 'PasswordIsHashed' in mk_config_validation:
                 self.reference_config[job_name]['password_is_hashed'] = mk_config_validation['PasswordIsHashed']
+            if 'Autologin' in mk_config_validation:
+                self.reference_config[job_name]['autologin'] = mk_config_validation['Autologin']
 
         if 'Host' in mk_config:
             mk_config_host = mk_config['Host']
@@ -495,6 +498,7 @@ class MkosiConfigManyParams(MkosiConfigOne):
                 'Key': 'mykey.gpg',
                 'BMap': False,
                 'Password': "secret1234",
+                'Autologin': True,
                 },
             'Host': {
                 'ExtraSearchPaths': 'search/here:search/there',
@@ -563,6 +567,7 @@ class MkosiConfigManyParams(MkosiConfigOne):
                 'Key': 'mykey-ubu.gpg',
                 'BMap': True,
                 'Password': "secret12345",
+                'Autologin': True,
                 },
             'Host': {
                 'ExtraSearchPaths': 'search/ubu',
@@ -631,6 +636,7 @@ class MkosiConfigManyParams(MkosiConfigOne):
                 'Key': 'mykey-debi.gpg',
                 'BMap': True,
                 'Password': "secret12345",
+                'Autologin': True,
                 },
             'Host': {
                 'ExtraSearchPaths': 'search/debi',

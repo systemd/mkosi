@@ -635,6 +635,10 @@ details see the table below.
   hashed, so that the string supplied with `--password` or `mkosi.rootpw` will
   be written to `/etc/shadow` literally.
 
+`--autologin`
+
+: Enable autologin for the `root` user.
+
 `--extra-search-paths=`
 
 : List of colon-separated paths to look for tools in, before using the
@@ -763,6 +767,7 @@ which settings file options.
 | `--bmap`                          | `[Validation]`          | `BMap=`                       |
 | `--password=`                     | `[Validation]`          | `Password=`                   |
 | `--password-is-hashed`            | `[Validation]`          | `PasswordIsHashed=`           |
+| `--autologin`                     | `[Validation]`          | `Autologin=`                  |
 | `--extra-search-paths=`           | `[Host]`                | `ExtraSearchPaths=`           |
 | `--qemu-headless`                 | `[Host]`                | `QemuHeadless=`               |
 | `--network-veth`                  | `[Host]`                | `NetworkVeth=`                |
