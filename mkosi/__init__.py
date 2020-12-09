@@ -5483,6 +5483,10 @@ def run_qemu(args: CommandLineArguments) -> None:
         # -nodefaults removes the default CDROM device which avoids an error message during boot
         # -serial mon:stdio adds back the serial device removed by -nodefaults.
         cmdline += ["-nographic", "-nodefaults", "-serial", "mon:stdio"]
+        # Fix for https://github.com/systemd/mkosi/issues/559. QEMU gets stuck in a boot loop when using BIOS
+        # if there's no vga device.
+        if "bios" in args.boot_protocols:
+            cmdline += ["-vga", "virtio"]
 
     if args.network_veth:
         # On Linux, interface names are limited to 16 characters so we do the same.
