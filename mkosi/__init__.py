@@ -2058,7 +2058,7 @@ def install_centos_new(args: CommandLineArguments, root: str, epel_release: int)
         baseos_url = f"baseurl={args.mirror}/centos/{args.release}/BaseOS/x86_64/os"
         extras_url = f"baseurl={args.mirror}/centos/{args.release}/extras/x86_64/os"
         centosplus_url = f"baseurl={args.mirror}/centos/{args.release}/centosplus/x86_64/os"
-        epel_url = f"baseurl={args.mirror}/epel/{epel_release}/Everything/x86_64/os"
+        epel_url = f"baseurl={args.mirror}/epel/{epel_release}/Everything/x86_64"
     else:
         appstream_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=AppStream"
         baseos_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=BaseOS"
