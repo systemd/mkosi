@@ -5028,7 +5028,9 @@ def print_summary(args: CommandLineArguments) -> None:
                 sys.stderr.write(" UEFI SecureBoot Cert.: " + args.secure_boot_certificate + "\n")
 
             sys.stderr.write("        Boot Protocols: " + line_join_list(args.boot_protocols) + "\n")
-            sys.stderr.write(" Unified Kernel Images: " + yes_no(args.with_unified_kernel_images))
+            sys.stderr.write(" Unified Kernel Images: " + yes_no(args.with_unified_kernel_images) + "\n")
+            sys.stderr.write("         GPT First LBA: " + str(args.gpt_first_lba) + "\n")
+            sys.stderr.write("       Hostonly Initrd: " + yes_no(args.hostonly_initrd) + "\n")
 
     sys.stderr.write("\nPACKAGES:\n")
     sys.stderr.write("              Packages: " + line_join_list(args.packages) + "\n")
@@ -5047,6 +5049,7 @@ def print_summary(args: CommandLineArguments) -> None:
     sys.stderr.write("         Build Sources: " + none_to_none(args.build_sources) + "\n")
     sys.stderr.write("  Source File Transfer: " + none_to_none(args.source_file_transfer) + "\n")
     sys.stderr.write("       Build Directory: " + none_to_none(args.build_dir) + "\n")
+    sys.stderr.write("     Include Directory: " + none_to_none(args.include_dir) + "\n")
     sys.stderr.write("        Build Packages: " + line_join_list(args.build_packages) + "\n")
     sys.stderr.write("      Skip final phase: " + yes_no(args.skip_final_phase) + "\n")
     sys.stderr.write("    Postinstall Script: " + none_to_none(args.postinst_script) + "\n")
@@ -5074,10 +5077,12 @@ def print_summary(args: CommandLineArguments) -> None:
         sys.stderr.write("                  Sign: " + yes_no(args.sign) + "\n")
         sys.stderr.write("               GPG Key: " + ("default" if args.key is None else args.key) + "\n")
         sys.stderr.write("              Password: " + ("default" if args.password is None else "set") + "\n")
+        sys.stderr.write("             Autologin: " + yes_no(args.autologin) + "\n")
 
     sys.stderr.write("\nHOST CONFIGURATION:\n")
     sys.stderr.write("    Extra search paths: " + line_join_list(args.extra_search_paths) + "\n")
     sys.stderr.write("         QEMU Headless: " + yes_no(args.qemu_headless) + "\n")
+    sys.stderr.write("          Network Veth: " + yes_no(args.network_veth) + "\n")
 
 
 def reuse_cache_tree(args: CommandLineArguments,
