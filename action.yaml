@@ -34,8 +34,10 @@ runs:
           libzstd-dev
           meson
           ninja-build
+          ovmf
           python3-gpg
           python3-sphinx
+          qemu-system-x86-64
           squashfs-tools
           swig
           systemd-container
