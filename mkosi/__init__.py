@@ -3120,7 +3120,8 @@ def install_build_src(args: CommandLineArguments, root: str, do_run_build_script
                                                 '*.cache-pre-inst',
                                                 os.path.basename(args.output_dir)+"/" if args.output_dir else "mkosi.output/",  # NOQA: E501
                                                 os.path.basename(args.cache_path)+"/" if args.cache_path else "mkosi.cache/",  # NOQA: E501
-                                                os.path.basename(args.build_dir)+"/" if args.build_dir else "mkosi.builddir/")  # NOQA: E501
+                                                os.path.basename(args.build_dir)+"/" if args.build_dir else "mkosi.builddir/",  # NOQA: E501
+                                                os.path.basename(args.include_dir)+"/" if args.include_dir else "mkosi.includedir/")  # NOQA: E501
                 shutil.copytree(args.build_sources, target, symlinks=True, ignore=ignore)
 
 
@@ -4094,6 +4095,7 @@ def create_parser() -> ArgumentParserMkosi:
     group.add_argument("--build-sources", help='Path for sources to build', metavar='PATH')
     group.add_argument("--build-dir", help=argparse.SUPPRESS, metavar='PATH')  # Compatibility option
     group.add_argument("--build-directory", dest='build_dir', help='Path to use as persistent build directory', metavar='PATH')
+    group.add_argument("--include-directory", dest='include_dir', help='Path to use as persistent include directory', metavar='PATH')
     group.add_argument("--build-package", action=CommaDelimitedListAction, dest='build_packages', default=[],
                        help='Additional packages needed for build script', metavar='PACKAGE')
     group.add_argument("--skip-final-phase", action=BooleanAction, help='Skip the (second) final image building phase.', default=False)
@@ -4436,6 +4438,10 @@ def unlink_output(args: CommandLineArguments) -> None:
             with complete_step('Clearing out build directory'):
                 empty_directory(args.build_dir)
 
+        if args.include_dir is not None:
+            with complete_step('Clearing out include directory'):
+                empty_directory(args.include_dir)
+
     if remove_package_cache:
         if args.cache_path is not None:
             with complete_step('Clearing out package cache'):
@@ -4613,6 +4619,7 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
     args_find_path(args, 'build_script',    "mkosi.build")
     args_find_path(args, 'build_sources',   ".")
     args_find_path(args, 'build_dir',       "mkosi.builddir/")
+    args_find_path(args, 'include_dir',     "mkosi.includedir/")
     args_find_path(args, 'postinst_script', "mkosi.postinst")
     args_find_path(args, 'prepare_script',  "mkosi.prepare")
     args_find_path(args, 'finalize_script', "mkosi.finalize")
@@ -4803,6 +4810,9 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
 
     if args.build_dir is not None:
         args.build_dir = os.path.abspath(args.build_dir)
+
+    if args.include_dir is not None:
+        args.include_dir = os.path.abspath(args.include_dir)
 
     if args.postinst_script is not None:
         check_valid_script(args.postinst_script)
@@ -5166,6 +5176,10 @@ def build_image(args: CommandLineArguments,
             with mount_image(args, root, loopdev, None if args.generated_root() else encrypted_root,
                              encrypted_home, encrypted_srv, encrypted_var, encrypted_tmp):
                 prepare_tree(args, root, do_run_build_script, cached)
+                if do_run_build_script and args.include_dir:
+                    # We do a recursive unmount of root so we don't need to explicitly unmount this mount
+                    # later.
+                    mount_bind(args.include_dir, os.path.join(root, "usr/include"))
 
                 with mount_cache(args, root):
                     cached_tree = reuse_cache_tree(args, root, do_run_build_script, for_cache, cached)
@@ -5255,6 +5269,9 @@ def run_build_script(args: CommandLineArguments, root: str, raw: Optional[Binary
         if args.build_dir is not None:
             cmdline.append("--setenv=BUILDDIR=/root/build")
             cmdline.append("--bind=" + args.build_dir + ":/root/build")
+
+        if args.include_dir is not None:
+            cmdline.append(f"--bind={args.include_dir}:/usr/include")
 
         if args.with_network:
             # If we're using the host network namespace, use the same resolver
