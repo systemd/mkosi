@@ -5232,6 +5232,8 @@ def run_build_script(args: CommandLineArguments, root: str, raw: Optional[Binary
         target = "--directory=" + root if raw is None else "--image=" + raw.name
 
         cmdline = ["systemd-nspawn",
+                   # TODO: Use --autopipe once systemd v247 is widely available.
+                   f"--console={'interactive' if sys.stdout.isatty() else 'pipe'}",
                    '--quiet',
                    target,
                    "--uuid=" + args.machine_id,
