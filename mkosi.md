@@ -494,6 +494,17 @@ details see the table below.
   but a directory `mkosi.builddir/` exists in the local directory it
   is automatically used for this purpose (also see below).
 
+`--include-directory`
+
+: Takes a path of a directory to use as the include directory. This
+  directory is mounted at /usr/include when building the build image
+  and when running the build script. This means all include files
+  installed to /usr/include will be stored in this directory. This is
+  useful to make include files available on the host system for use by
+  language servers to provide code completion. If this option is not
+  specified, but a directory `mkosi.includedir/` exists in the local
+  directory, it is automatically used for this purpose (also see below).
+
 `--build-package=`
 
 : Similar to `--package=`, but configures packages to install only in
@@ -757,6 +768,7 @@ which settings file options.
 | `--build-sources=`                | `[Packages]`            | `BuildSources=`               |
 | `--source-file-transfer=`         | `[Packages]`            | `SourceFileTransfer=`         |
 | `--build-directory=`              | `[Packages]`            | `BuildDirectory=`             |
+| `--include-directory=`            | `[Packages]`            | `IncludeDirectory=`           |
 | `--build-packages=`               | `[Packages]`            | `BuildPackages=`              |
 | `--skip-final-phase=`             | `[Packages]`            | `SkipFinalPhase=`             |
 | `--postinst-script=`              | `[Packages]`            | `PostInstallationScript=`     |
@@ -1002,6 +1014,14 @@ local directory:
   directory does not exist the `$BUILDDIR` environment variable is not
   set, and it is up to build script to decide whether to do in in-tree
   or an out-of-tree build, and which build directory to use.
+
+* `mkosi.includedir/` may be a directory. If so, it is automatically
+  used as out-of-tree include directory. Specifically, this directory
+  will be mounted into the build container at /usr/include when building
+  the build image and when running the build script. After building the
+  (cached) build image, this directory will contain all the files installed
+  to /usr/include. Language servers or other tools can use these files to
+  provide a better editing experience for developers working on a project.
 
 * `mkosi.rootpw` may be a file containing the password or hashed
   password (if `--password-is-hashed` is set) for the root user of the
