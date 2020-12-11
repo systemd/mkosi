@@ -2206,6 +2206,11 @@ def install_debian_or_ubuntu(args: CommandLineArguments,
         with open(dpkg_conf, "w") as f:
             f.writelines(f'path-exclude {d}/*\n' for d in doc_paths)
 
+    # Either the image builds or it fails and we restart, we don't need safety fsyncs when bootstrapping
+    dpkg_conf = os.path.join(root, "etc/dpkg/dpkg.cfg.d/unsafe_io")
+    with open(dpkg_conf, "w") as f:
+        f.write('force-unsafe-io\n')
+
     cmdline = ["/usr/bin/apt-get", "--assume-yes", "--no-install-recommends", "install", *extra_packages]
     env = {
         'DEBIAN_FRONTEND': 'noninteractive',
