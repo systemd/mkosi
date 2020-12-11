@@ -181,17 +181,30 @@ def delay_interrupt() -> Generator[None, None, None]:
         if interrupted:
             die("Interrupted")
 
+# Borrowed from https://github.com/python/typeshed/blob/3d14016085aed8bcf0cf67e9e5a70790ce1ad8ea/stdlib/3/subprocess.pyi#L24
+_FILE = Union[None, int, IO[Any]]
 
-def run(cmdline: List[str], execvp: bool = False, check: bool = True, **kwargs: Any) -> CompletedProcess:
+def run(cmdline: List[str],
+        execvp: bool = False,
+        check: bool = True,
+        stdout: _FILE = None,
+        stderr: _FILE = None,
+        **kwargs: Any) -> CompletedProcess:
     if 'run' in arg_debug:
         sys.stderr.write('+ ' + ' '.join(shlex.quote(x) for x in cmdline) + '\n')
+
+    if not stdout and not stderr:
+        # Unless explicit redirection is done, print all subprocess output on stderr since we do so as well
+        # for mkosi's own output.
+        stdout = sys.stderr
+
     try:
         if execvp:
             assert not kwargs
             os.execvp(cmdline[0], cmdline)
         else:
             with delay_interrupt():
-                return subprocess.run(cmdline, check=check, **kwargs)
+                return subprocess.run(cmdline, check=check, stdout=stdout, stderr=stderr, **kwargs)
     except FileNotFoundError as e:
         die(f"{cmdline[0]} not found in PATH.")
 
@@ -5322,7 +5335,9 @@ def run_build_script(args: CommandLineArguments, root: str, raw: Optional[Binary
 
         cmdline.append("/root/" + os.path.basename(args.build_script))
 
-        result = run(cmdline, check=False)
+        # build-script output goes to stdout so we can run language servers from within mkosi build-scripts.
+        # See https://github.com/systemd/mkosi/pull/566 for more information.
+        result = run(cmdline, stdout=sys.stdout, check=False)
         if result.returncode != 0:
             if 'build-script' in arg_debug:
                 run(cmdline[:-1], check=False)
