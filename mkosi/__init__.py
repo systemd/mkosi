@@ -2206,6 +2206,11 @@ def install_debian_or_ubuntu(args: CommandLineArguments,
         with open(dpkg_conf, "w") as f:
             f.writelines(f'path-exclude {d}/*\n' for d in doc_paths)
 
+    # Either the image builds or it fails and we restart, we don't need safety fsyncs when bootstrapping
+    dpkg_conf = os.path.join(root, "etc/dpkg/dpkg.cfg.d/unsafe_io")
+    with open(dpkg_conf, "w") as f:
+        f.write('force-unsafe-io\n')
+
     cmdline = ["/usr/bin/apt-get", "--assume-yes", "--no-install-recommends", "install", *extra_packages]
     env = {
         'DEBIAN_FRONTEND': 'noninteractive',
@@ -5235,6 +5240,9 @@ def one_zero(b: bool) -> str:
     return "1" if b else "0"
 
 
+def nspawn_knows_arg(arg: str) -> bool:
+    return bytes("unrecognized option", "UTF-8") not in run(["systemd-nspawn", arg], stderr=PIPE, check=False).stderr
+
 def run_build_script(args: CommandLineArguments, root: str, raw: Optional[BinaryIO]) -> None:
     if args.build_script is None:
         return
@@ -5246,8 +5254,6 @@ def run_build_script(args: CommandLineArguments, root: str, raw: Optional[Binary
         target = "--directory=" + root if raw is None else "--image=" + raw.name
 
         cmdline = ["systemd-nspawn",
-                   # TODO: Use --autopipe once systemd v247 is widely available.
-                   f"--console={'interactive' if sys.stdout.isatty() else 'pipe'}",
                    '--quiet',
                    target,
                    "--uuid=" + args.machine_id,
@@ -5260,6 +5266,11 @@ def run_build_script(args: CommandLineArguments, root: str, raw: Optional[Binary
                    "--setenv=WITH_TESTS=" + one_zero(args.with_tests),
                    "--setenv=WITH_NETWORK=" + one_zero(args.with_network),
                    "--setenv=DESTDIR=/root/dest"]
+
+        # TODO: Use --autopipe once systemd v247 is widely available.
+        console_arg = f"--console={'interactive' if sys.stdout.isatty() else 'pipe'}"
+        if nspawn_knows_arg(console_arg):
+            cmdline.append(console_arg)
 
         if args.default_path is not None:
             cmdline.append("--setenv=MKOSI_DEFAULT=" + args.default_path)
