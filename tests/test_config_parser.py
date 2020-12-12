@@ -68,6 +68,7 @@ class MkosiConfig(object):
             'hostname': None,
             'include_dir': None,
             'incremental': False,
+            'install_dir': None,
             'kernel_command_line': ['rhgb', 'quiet', 'selinux=0', 'audit=0'],
             'key': None,
             'mirror': None,
@@ -248,6 +249,8 @@ class MkosiConfig(object):
                 self.reference_config[job_name]['build_dir'] = mk_config_packages['BuildDirectory']
             if 'IncludeDirectory' in mk_config_packages:
                 self.reference_config[job_name]['include_dir'] = mk_config_packages['IncludeDirectory']
+            if 'InstallDirectory' in mk_config_packages:
+                self.reference_config[job_name]['install_dir'] = mk_config_packages['InstallDirectory']
             if 'BuildPackages' in mk_config_packages:
                 self._append_list('build_packages', mk_config_packages['BuildPackages'], job_name)
             if 'PostInstallationScript' in mk_config_packages:

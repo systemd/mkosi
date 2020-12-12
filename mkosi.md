@@ -505,6 +505,17 @@ details see the table below.
   specified, but a directory `mkosi.includedir/` exists in the local
   directory, it is automatically used for this purpose (also see below).
 
+`--install-directory`
+
+: Takes a path of a directory to use as the install directory. The
+  directory used this way is shared between builds and allows the
+  build system to not have to reinstall files that were already
+  installed by a previous build and didn't change. The build script
+  can find the path to this directory in the `$DESTDIR` environment
+  variable. If this option is not specified, but a directory
+  `mkosi.installdir` exists in the local directory, it is automatically
+  used for this purpose (also see below).
+
 `--build-package=`
 
 : Similar to `--package=`, but configures packages to install only in
@@ -769,6 +780,7 @@ which settings file options.
 | `--source-file-transfer=`         | `[Packages]`            | `SourceFileTransfer=`         |
 | `--build-directory=`              | `[Packages]`            | `BuildDirectory=`             |
 | `--include-directory=`            | `[Packages]`            | `IncludeDirectory=`           |
+| `--install-directory=`            | `[Packages]`            | `InstallDirectory=`           |
 | `--build-packages=`               | `[Packages]`            | `BuildPackages=`              |
 | `--skip-final-phase=`             | `[Packages]`            | `SkipFinalPhase=`             |
 | `--postinst-script=`              | `[Packages]`            | `PostInstallationScript=`     |
@@ -1022,6 +1034,14 @@ local directory:
   (cached) build image, this directory will contain all the files installed
   to /usr/include. Language servers or other tools can use these files to
   provide a better editing experience for developers working on a project.
+
+* `mkosi.installdir/` may be a directory. If so, it is automatically
+  used as the install directory. Specifically, this directory will be
+  mounted into the container at /root/dest when running the build script.
+  After running the build script, the contents of this directory are
+  installed into the final image. This is useful to cache the install
+  step of the build. If used, subsequent builds will only have to
+  reinstall files that have changed since the previous build.
 
 * `mkosi.rootpw` may be a file containing the password or hashed
   password (if `--password-is-hashed` is set) for the root user of the
