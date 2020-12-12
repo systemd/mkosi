@@ -40,8 +40,12 @@ jobs:
     - uses: actions/checkout@v2
     - uses: ./
 
-    - name: Install
+    - name: Install dependencies
       run: sudo apt-get update && sudo apt-get install --no-install-recommends python3-pexpect
+
+    # Do a manual install so we have the latest changes from the pull request available.
+    - name: Install
+      run: sudo python3 -m pip install .
 
     - name: Build ${{ matrix.distro }}/${{ matrix.format }}
       run: |
