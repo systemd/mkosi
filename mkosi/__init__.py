@@ -2229,6 +2229,7 @@ def install_debian_or_ubuntu(args: CommandLineArguments,
 
     run_workspace_command(args, root, cmdline, network=True, env=env)
     os.unlink(policyrcd)
+    os.unlink(dpkg_conf)
     # Debian still has pam_securetty module enabled
     disable_pam_securetty(root)
 
