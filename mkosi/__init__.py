@@ -5189,7 +5189,8 @@ def build_image(args: CommandLineArguments,
             with mount_image(args, root, loopdev, None if args.generated_root() else encrypted_root,
                              encrypted_home, encrypted_srv, encrypted_var, encrypted_tmp):
                 prepare_tree(args, root, do_run_build_script, cached)
-                if do_run_build_script and args.include_dir:
+                if do_run_build_script and args.include_dir and not cached:
+                    empty_directory(args.include_dir)
                     # We do a recursive unmount of root so we don't need to explicitly unmount this mount
                     # later.
                     mount_bind(args.include_dir, os.path.join(root, "usr/include"))
