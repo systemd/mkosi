@@ -39,15 +39,9 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - uses: ./
-      if: matrix.distro != 'debian' && matrix.distro != 'ubuntu'
 
     - name: Install
-      run: sudo apt-get update && sudo apt-get install --no-install-recommends
-        debootstrap
-        ovmf
-        python3-pexpect
-        qemu-system-x86-64
-        systemd-container
+      run: sudo apt-get update && sudo apt-get install --no-install-recommends python3-pexpect
 
     - name: Build ${{ matrix.distro }}/${{ matrix.format }}
       run: |
