@@ -2149,6 +2149,13 @@ def install_debian_or_ubuntu(args: CommandLineArguments,
     if debootstrap_knows_arg("--no-check-valid-until"):
         cmdline.append("--no-check-valid-until")
 
+    # Either the image builds or it fails and we restart, we don't need safety fsyncs when bootstrapping
+    # Add it before debootstrap, as the second stage already uses dpkg from the chroot
+    dpkg_io_conf = os.path.join(root, "etc/dpkg/dpkg.cfg.d/unsafe_io")
+    os.makedirs(os.path.dirname(dpkg_io_conf), mode=0o755, exist_ok=True)
+    with open(dpkg_io_conf, "w") as f:
+        f.write('force-unsafe-io\n')
+
     cmdline += [args.release, root, mirror]
     run(cmdline)
 
@@ -2206,11 +2213,6 @@ def install_debian_or_ubuntu(args: CommandLineArguments,
         with open(dpkg_conf, "w") as f:
             f.writelines(f'path-exclude {d}/*\n' for d in doc_paths)
 
-    # Either the image builds or it fails and we restart, we don't need safety fsyncs when bootstrapping
-    dpkg_conf = os.path.join(root, "etc/dpkg/dpkg.cfg.d/unsafe_io")
-    with open(dpkg_conf, "w") as f:
-        f.write('force-unsafe-io\n')
-
     cmdline = ["/usr/bin/apt-get", "--assume-yes", "--no-install-recommends", "install", *extra_packages]
     env = {
         'DEBIAN_FRONTEND': 'noninteractive',
@@ -2229,7 +2231,7 @@ def install_debian_or_ubuntu(args: CommandLineArguments,
 
     run_workspace_command(args, root, cmdline, network=True, env=env)
     os.unlink(policyrcd)
-    os.unlink(dpkg_conf)
+    os.unlink(dpkg_io_conf)
     # Debian still has pam_securetty module enabled
     disable_pam_securetty(root)
 
