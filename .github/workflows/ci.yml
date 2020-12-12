@@ -50,7 +50,6 @@ jobs:
         systemd-container
 
     - name: Build ${{ matrix.distro }}/${{ matrix.format }}
-      if: matrix.format != 'tar'
       run: |
         tee mkosi.default << EOF
         [Distribution]
