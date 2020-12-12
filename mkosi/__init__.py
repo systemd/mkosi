@@ -1442,6 +1442,10 @@ def prepare_tree(args: CommandLineArguments, root: str, do_run_build_script: boo
         os.mkdir(os.path.join(root, "root"), 0o750)
         os.mkdir(os.path.join(root, "root/dest"), 0o755)
 
+        if args.include_dir is not None:
+            os.mkdir(os.path.join(root, "usr"), 0o755)
+            os.mkdir(os.path.join(root, "usr/include"), 0o755)
+
         if args.build_dir is not None:
             os.mkdir(os.path.join(root, "root/build"), 0o755)
 
