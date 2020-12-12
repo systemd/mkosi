@@ -3133,7 +3133,8 @@ def install_build_src(args: CommandLineArguments, root: str, do_run_build_script
                                                 os.path.basename(args.output_dir)+"/" if args.output_dir else "mkosi.output/",  # NOQA: E501
                                                 os.path.basename(args.cache_path)+"/" if args.cache_path else "mkosi.cache/",  # NOQA: E501
                                                 os.path.basename(args.build_dir)+"/" if args.build_dir else "mkosi.builddir/",  # NOQA: E501
-                                                os.path.basename(args.include_dir)+"/" if args.include_dir else "mkosi.includedir/")  # NOQA: E501
+                                                os.path.basename(args.include_dir)+"/" if args.include_dir else "mkosi.includedir/",  # NOQA: E501
+                                                os.path.basename(args.install_dir)+"/" if args.install_dir else "mkosi.installdir/")  # NOQA: E501
                 shutil.copytree(args.build_sources, target, symlinks=True, ignore=ignore)
 
 
@@ -3146,10 +3147,8 @@ def install_build_dest(args: CommandLineArguments, root: str, do_run_build_scrip
     if args.build_script is None:
         return
 
-    dest = os.path.join(workspace(root), "dest")
-
     with complete_step('Copying in build tree'):
-        copy_path(dest, root)
+        copy_path(install_dir(args, root), root)
 
 
 def make_read_only(args: CommandLineArguments, root: str, for_cache: bool, b: bool = True) -> None:
@@ -4108,6 +4107,7 @@ def create_parser() -> ArgumentParserMkosi:
     group.add_argument("--build-dir", help=argparse.SUPPRESS, metavar='PATH')  # Compatibility option
     group.add_argument("--build-directory", dest='build_dir', help='Path to use as persistent build directory', metavar='PATH')
     group.add_argument("--include-directory", dest='include_dir', help='Path to use as persistent include directory', metavar='PATH')
+    group.add_argument("--install-directory", dest='install_dir', help="Path to use as persistent install directory", metavar='PATH')
     group.add_argument("--build-package", action=CommaDelimitedListAction, dest='build_packages', default=[],
                        help='Additional packages needed for build script', metavar='PACKAGE')
     group.add_argument("--skip-final-phase", action=BooleanAction, help='Skip the (second) final image building phase.', default=False)
@@ -4454,6 +4454,10 @@ def unlink_output(args: CommandLineArguments) -> None:
             with complete_step('Clearing out include directory'):
                 empty_directory(args.include_dir)
 
+        if args.install_dir is not None:
+            with complete_step('Clearing out install directory'):
+                empty_directory(args.install_dir)
+
     if remove_package_cache:
         if args.cache_path is not None:
             with complete_step('Clearing out package cache'):
@@ -4632,6 +4636,7 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
     args_find_path(args, 'build_sources',   ".")
     args_find_path(args, 'build_dir',       "mkosi.builddir/")
     args_find_path(args, 'include_dir',     "mkosi.includedir/")
+    args_find_path(args, 'install_dir',     "mkosi.installdir/")
     args_find_path(args, 'postinst_script', "mkosi.postinst")
     args_find_path(args, 'prepare_script',  "mkosi.prepare")
     args_find_path(args, 'finalize_script', "mkosi.finalize")
@@ -4825,6 +4830,9 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
 
     if args.include_dir is not None:
         args.include_dir = os.path.abspath(args.include_dir)
+
+    if args.install_dir is not None:
+        args.install_dir = os.path.abspath(args.install_dir)
 
     if args.postinst_script is not None:
         check_valid_script(args.postinst_script)
@@ -5062,6 +5070,7 @@ def print_summary(args: CommandLineArguments) -> None:
     sys.stderr.write("  Source File Transfer: " + none_to_none(args.source_file_transfer) + "\n")
     sys.stderr.write("       Build Directory: " + none_to_none(args.build_dir) + "\n")
     sys.stderr.write("     Include Directory: " + none_to_none(args.include_dir) + "\n")
+    sys.stderr.write("     Install Directory: " + none_to_none(args.install_dir) + "\n")
     sys.stderr.write("        Build Packages: " + line_join_list(args.build_packages) + "\n")
     sys.stderr.write("      Skip final phase: " + yes_no(args.skip_final_phase) + "\n")
     sys.stderr.write("    Postinstall Script: " + none_to_none(args.postinst_script) + "\n")
@@ -5253,16 +5262,20 @@ def one_zero(b: bool) -> str:
     return "1" if b else "0"
 
 
+def install_dir(args: CommandLineArguments, root: str) -> str:
+    return args.install_dir or os.path.join(workspace(root), "dest")
+
+
 def nspawn_knows_arg(arg: str) -> bool:
     return bytes("unrecognized option", "UTF-8") not in run(["systemd-nspawn", arg], stderr=PIPE, check=False).stderr
+
 
 def run_build_script(args: CommandLineArguments, root: str, raw: Optional[BinaryIO]) -> None:
     if args.build_script is None:
         return
 
     with complete_step('Running build script'):
-        dest = os.path.join(workspace(root), "dest")
-        os.mkdir(dest, 0o755)
+        os.makedirs(install_dir(args, root), mode=0o755, exist_ok=True)
 
         target = "--directory=" + root if raw is None else "--image=" + raw.name
 
@@ -5273,7 +5286,7 @@ def run_build_script(args: CommandLineArguments, root: str, raw: Optional[Binary
                    "--machine=mkosi-" + uuid.uuid4().hex,
                    "--as-pid2",
                    "--register=no",
-                   "--bind", dest + ":/root/dest",
+                   "--bind", install_dir(args, root) + ":/root/dest",
                    "--bind=" + var_tmp(root) + ":/var/tmp",
                    "--setenv=WITH_DOCS=" + one_zero(args.with_docs),
                    "--setenv=WITH_TESTS=" + one_zero(args.with_tests),
