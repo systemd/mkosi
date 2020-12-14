@@ -296,6 +296,16 @@ class OutputFormat(enum.Enum):
         "The output format can be 'minimized'"
         return self in (OutputFormat.gpt_ext4, OutputFormat.gpt_btrfs)
 
+    def needed_kernel_module(self) -> str:
+        if self == OutputFormat.gpt_btrfs:
+            return "btrfs"
+        elif self == OutputFormat.gpt_squashfs or self == OutputFormat.plain_squashfs:
+            return "squashfs"
+        elif self == OutputFormat.gpt_xfs:
+            return "xfs"
+        else:
+            return "ext4"
+
 
 class Distribution(enum.Enum):
     fedora = 1
@@ -1367,6 +1377,10 @@ def configure_dracut(args: CommandLineArguments, root: str) -> None:
 
     with open(os.path.join(dracut_dir, "30-mkosi-qemu.conf"), "w") as f:
         f.write("add_dracutmodules+=\" qemu \"\n")
+
+    if args.hostonly_initrd:
+        with open(os.path.join(dracut_dir, "30-mkosi-filesystem.conf"), "w") as f:
+            f.write(f"filesystems+=\" {(args.output_format.needed_kernel_module())} \"\n")
 
     # These distros need uefi_stub configured explicitly for dracut to find the systemd-boot uefi stub.
     if args.esp_partno is not None and args.distribution in (Distribution.ubuntu,
