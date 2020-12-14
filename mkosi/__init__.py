@@ -2896,6 +2896,10 @@ def run_postinst_script(args: CommandLineArguments, root: str, loopdev: Optional
         os.unlink(os.path.join(root, "root/postinst"))
 
 
+def output_dir(args: CommandLineArguments) -> str:
+    return args.output_dir or os.getcwd()
+
+
 def run_finalize_script(args: CommandLineArguments, root: str, do_run_build_script: bool, for_cache: bool) -> None:
     if args.finalize_script is None:
         return
@@ -2905,7 +2909,7 @@ def run_finalize_script(args: CommandLineArguments, root: str, do_run_build_scri
     verb = "build" if do_run_build_script else "final"
 
     with complete_step('Running finalize script'):
-        env = collections.ChainMap({'BUILDROOT': root}, os.environ)
+        env = collections.ChainMap({'BUILDROOT': root, 'OUTPUTDIR': output_dir(args)}, os.environ)
         run([args.finalize_script, verb], env=env)
 
 
