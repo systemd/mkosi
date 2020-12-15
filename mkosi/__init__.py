@@ -234,7 +234,7 @@ class CommandLineArguments(argparse.Namespace):
         """Returns whether this configuration means we need to generate a file system from a prepared tree
 
         This is needed for anything squashfs and when root minimization is required."""
-        return self.minimize or self.output_format.is_squashfs()
+        return self.minimize or self.output_format == OutputFormat.gpt_squashfs
 
 
 class SourceFileTransfer(enum.Enum):
@@ -3222,10 +3222,12 @@ def make_tar(args: CommandLineArguments,
     return f
 
 
-def make_squashfs(args: CommandLineArguments, root: str, for_cache: bool) -> Optional[BinaryIO]:
+def make_squashfs(args: CommandLineArguments, root: str, do_run_build_script: bool, for_cache: bool) -> Optional[BinaryIO]:
     if not args.output_format.is_squashfs():
         return None
     if for_cache:
+        return None
+    if do_run_build_script and args.output_format == OutputFormat.plain_squashfs:
         return None
 
     command = args.mksquashfs_tool[0] if args.mksquashfs_tool else 'mksquashfs'
@@ -3289,14 +3291,14 @@ def make_minimal_btrfs(args: CommandLineArguments, root: str, for_cache: bool) -
     return f
 
 
-def make_generated_root(args: CommandLineArguments, root: str, for_cache: bool) -> Optional[BinaryIO]:
+def make_generated_root(args: CommandLineArguments, root: str, do_run_build_script: bool, for_cache: bool) -> Optional[BinaryIO]:
 
     if args.output_format == OutputFormat.gpt_ext4:
         return make_minimal_ext4(args, root, for_cache)
     if args.output_format == OutputFormat.gpt_btrfs:
         return make_minimal_btrfs(args, root, for_cache)
-    if args.output_format.is_squashfs():
-        return make_squashfs(args, root, for_cache)
+    if args.output_format == OutputFormat.gpt_squashfs:
+        return make_squashfs(args, root, do_run_build_script, for_cache)
 
     return None
 
@@ -3652,6 +3654,7 @@ def hash_file(of: TextIO, sf: BinaryIO, fname: str) -> None:
 def calculate_sha256sum(args: CommandLineArguments,
                         raw: Optional[BinaryIO],
                         tar: Optional[BinaryIO],
+                        plain_squashfs: Optional[BinaryIO],
                         root_hash_file: Optional[BinaryIO],
                         nspawn_settings: Optional[BinaryIO]) -> Optional[TextIO]:
     if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
@@ -3668,6 +3671,8 @@ def calculate_sha256sum(args: CommandLineArguments,
             hash_file(f, raw, os.path.basename(args.output))
         if tar is not None:
             hash_file(f, tar, os.path.basename(args.output))
+        if plain_squashfs is not None:
+            hash_file(f, plain_squashfs, os.path.basename(args.output))
         if root_hash_file is not None:
             hash_file(f, root_hash_file, os.path.basename(args.output_root_hash_file))
         if nspawn_settings is not None:
@@ -3717,13 +3722,19 @@ def calculate_bmap(args: CommandLineArguments, raw: Optional[BinaryIO]) -> Optio
 
 
 def save_cache(args: CommandLineArguments, root: str, raw: Optional[str], cache_path: Optional[str]) -> None:
-    if cache_path is None or raw is None:
+    if cache_path is None:
+        return
+
+    # bail out if cache already exists
+    if os.path.exists(cache_path):
         return
 
     with complete_step('Installing cache copy ',
                        'Successfully installed cache copy ' + cache_path):
 
         if args.output_format.is_disk_rw():
+            if raw is None:
+                return
             os.chmod(raw, 0o666 & ~args.original_umask)
             shutil.move(raw, cache_path)
         else:
@@ -4798,7 +4809,7 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
         die("Minimal file systems only supported for ext4 and btrfs.")
 
     if args.generated_root() and args.incremental:
-        die("Sorry, incremental mode is currently not supported for squashfs or minimized file systems.")
+        die("Sorry, incremental mode is currently not supported for gpt_squashfs or minimized file systems.")
 
     if args.bootable:
         if args.output_format in (OutputFormat.directory,
@@ -5229,18 +5240,18 @@ def build_image(args: CommandLineArguments,
                 *,
                 do_run_build_script: bool,
                 for_cache: bool = False,
-                cleanup: bool = False) -> Tuple[Optional[BinaryIO], Optional[BinaryIO], Optional[str]]:
+                cleanup: bool = False) -> Tuple[Optional[BinaryIO], Optional[BinaryIO],  Optional[BinaryIO], Optional[str]]:
     # If there's no build script set, there's no point in executing
     # the build script iteration. Let's quit early.
     if args.build_script is None and do_run_build_script:
-        return None, None, None
+        return None, None, None, None
 
     make_build_dir(args)
 
     raw, cached = reuse_cache_image(args, root, do_run_build_script, for_cache)
     if for_cache and cached:
         # Found existing cache image, exiting build_image
-        return None, None, None
+        return None, None, None, None
 
     if not cached:
         raw = create_image(args, root, for_cache)
@@ -5280,6 +5291,10 @@ def build_image(args: CommandLineArguments,
 
                 with mount_cache(args, root):
                     cached_tree = reuse_cache_tree(args, root, do_run_build_script, for_cache, cached)
+                    if for_cache and cached_tree:
+                        # Found existing cached root tree, exiting build_image
+                        return None, None, None, None
+
                     install_skeleton_trees(args, root, for_cache)
                     install_distribution(args, root, do_run_build_script=do_run_build_script, cached=cached_tree)
                     install_etc_hostname(args, root)
@@ -5300,7 +5315,7 @@ def build_image(args: CommandLineArguments,
                 run_finalize_script(args, root, do_run_build_script, for_cache)
                 make_read_only(args, root, for_cache)
 
-            generated_root = make_generated_root(args, root, for_cache)
+            generated_root = make_generated_root(args, root, do_run_build_script, for_cache)
             insert_generated_root(args, root, raw, loopdev, generated_root, for_cache)
 
             verity, root_hash = make_verity(args, root, encrypted_root, do_run_build_script, for_cache)
@@ -5316,8 +5331,9 @@ def build_image(args: CommandLineArguments,
                 secure_boot_sign(args, root, do_run_build_script, for_cache, cached)
 
     tar = make_tar(args, root, do_run_build_script, for_cache)
+    plain_squashfs = make_squashfs(args, root, do_run_build_script, for_cache)
 
-    return raw or generated_root, tar, root_hash
+    return raw, tar, plain_squashfs, root_hash
 
 
 def workspace(root: str) -> str:
@@ -5411,6 +5427,7 @@ def remove_artifacts(args: CommandLineArguments,
                      root: str,
                      raw: Optional[BinaryIO],
                      tar: Optional[BinaryIO],
+                     plain_squashfs: Optional[BinaryIO],
                      do_run_build_script: bool,
                      for_cache: bool = False) -> None:
     if for_cache:
@@ -5427,6 +5444,10 @@ def remove_artifacts(args: CommandLineArguments,
     if tar is not None:
         with complete_step("Removing tar image from " + what):
             del tar
+
+    if plain_squashfs is not None:
+        with complete_step("Removing tar image from " + what):
+            del plain_squashfs
 
     with complete_step("Removing artifacts from " + what):
         unlink_try_hard(root)
@@ -5458,30 +5479,29 @@ def build_stuff(args: CommandLineArguments) -> None:
             if args.build_script:
                 with complete_step("Running first (development) stage to generate cached copy"):
                     # Generate the cache version of the build image, and store it as "cache-pre-dev"
-                    raw, tar, root_hash = build_image(args, root, do_run_build_script=True, for_cache=True)
+                    raw, tar, plain_squashfs, root_hash = build_image(args, root, do_run_build_script=True, for_cache=True)
                     save_cache(args, root, raw.name if raw is not None else None, args.cache_pre_dev)
 
-                    remove_artifacts(args, root, raw, tar, do_run_build_script=True)
+                    remove_artifacts(args, root, raw, tar, plain_squashfs, do_run_build_script=True)
 
             with complete_step("Running second (final) stage to generate cached copy"):
                 # Generate the cache version of the build image, and store it as "cache-pre-inst"
-                raw, tar, root_hash = build_image(args, root, do_run_build_script=False, for_cache=True)
-                if raw:
-                    save_cache(args, root, raw.name, args.cache_pre_inst)
-                    remove_artifacts(args, root, raw, tar, do_run_build_script=False)
+                raw, tar, plain_squashfs, root_hash = build_image(args, root, do_run_build_script=False, for_cache=True)
+                save_cache(args, root, raw.name if raw is not None else None, args.cache_pre_inst)
+                remove_artifacts(args, root, raw, tar, plain_squashfs, do_run_build_script=False)
 
         if args.build_script:
             with complete_step("Running first (development) stage"):
                 # Run the image builder for the first (development) stage in preparation for the build script
-                raw, tar, root_hash = build_image(args, root, do_run_build_script=True)
+                raw, tar, plain_squashfs, root_hash = build_image(args, root, do_run_build_script=True)
 
                 run_build_script(args, root, raw)
-                remove_artifacts(args, root, raw, tar, do_run_build_script=True)
+                remove_artifacts(args, root, raw, tar, plain_squashfs, do_run_build_script=True)
 
         # Run the image builder for the second (final) stage
         if not args.skip_final_phase:
             with complete_step("Running second (final) stage"):
-                raw, tar, root_hash = build_image(args, root, do_run_build_script=False, cleanup=True)
+                raw, tar, plain_squashfs, root_hash = build_image(args, root, do_run_build_script=False, cleanup=True)
         else:
             print_step('Skipping (second) final image build phase.')
 
@@ -5489,11 +5509,11 @@ def build_stuff(args: CommandLineArguments) -> None:
         raw = xz_output(args, raw)
         root_hash_file = write_root_hash_file(args, root_hash)
         settings = copy_nspawn_settings(args)
-        checksum = calculate_sha256sum(args, raw, tar, root_hash_file, settings)
+        checksum = calculate_sha256sum(args, raw, tar, plain_squashfs, root_hash_file, settings)
         signature = calculate_signature(args, checksum)
         bmap = calculate_bmap(args, raw)
 
-        link_output(args, root, raw or tar)
+        link_output(args, root, raw or tar or plain_squashfs)
         link_output_root_hash_file(args, root_hash_file.name if root_hash_file is not None else None)
         link_output_checksum(args, checksum.name if checksum is not None else None)
         link_output_signature(args, signature.name if signature is not None else None)
