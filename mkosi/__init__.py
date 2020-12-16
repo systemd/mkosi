@@ -1561,7 +1561,7 @@ def run_workspace_command(args: CommandLineArguments,
     if result.returncode != 0:
         if 'workspace-command' in arg_debug:
             run(cmdline, check=False)
-        die(f"Workspace command {' '.join(cmd)} returned non-zero exit code {result.returncode}.")
+        die(f"Workspace command `{' '.join(cmd)}` returned non-zero exit code {result.returncode}.")
 
 
 def check_if_url_exists(url: str) -> bool:
