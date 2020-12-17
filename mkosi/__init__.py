@@ -4924,11 +4924,12 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
     if args.bootable and args.distribution in (Distribution.clear, Distribution.photon):
         die("Sorry, --bootable is not supported on this distro")
 
-    if not args.with_unified_kernel_images and args.distribution in (Distribution.debian,
-                                                                     Distribution.ubuntu,
-                                                                     Distribution.mageia,
-                                                                     Distribution.opensuse):
-        die(f"Sorry, --without-unified-kernel-images is not supported on this distro.")
+    if not args.with_unified_kernel_images and "uefi" in args.boot_protocols:
+        if args.distribution in (Distribution.debian,
+                                 Distribution.ubuntu,
+                                 Distribution.mageia,
+                                 Distribution.opensuse):
+            die(f"Sorry, --without-unified-kernel-images is not supported in UEFI mode on this distro.")
 
     if args.verity and not args.with_unified_kernel_images:
         die("Sorry, --verity can only be used with unified kernel images")

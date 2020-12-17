@@ -139,10 +139,7 @@ jobs:
       if: matrix.format != 'directory' &&
           matrix.format != 'gpt_squashfs' &&
           matrix.format != 'plain_squashfs' &&
-          matrix.format != 'tar' && (
-          matrix.distro == 'arch' ||
-          matrix.distro == 'centos' ||
-          matrix.distro == 'fedora')
+          matrix.format != 'tar'
       run: |
         tee mkosi.default << EOF
         [Distribution]
@@ -152,6 +149,7 @@ jobs:
         Format=${{ matrix.format }}
         Bootable=yes
         BootProtocols=bios
+        WithUnifiedKernelImages=no
 
         [Validation]
         Password=
@@ -166,8 +164,5 @@ jobs:
       if: matrix.format != 'directory' &&
           matrix.format != 'gpt_squashfs' &&
           matrix.format != 'plain_squashfs' &&
-          matrix.format != 'tar' && (
-          matrix.distro == 'arch' ||
-          matrix.distro == 'centos' ||
-          matrix.distro == 'fedora')
+          matrix.format != 'tar'
       run: sudo ./tests/pexpect/boot.py python3 -m mkosi qemu
