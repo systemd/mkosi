@@ -53,6 +53,8 @@ from typing import (
 )
 from types import FrameType
 
+from .printer import MkosiPrinter
+
 
 __version__ = '8'
 
@@ -148,13 +150,9 @@ class MkosiException(Exception):
     """Leads to sys.exit"""
 
 
-def print_step(text: str) -> None:
-    sys.stderr.write("‣ \033[0;1;39m" + text + "\033[0m\n")
-
-
 def print_running_cmd(cmdline: Iterable[str]) -> None:
-    sys.stderr.write("‣ \033[0;1;39mRunning command:\033[0m\n")
-    sys.stderr.write(" ".join(shlex.quote(x) for x in cmdline) + "\n")
+    MkosiPrinter.print_step("Running command:")
+    MkosiPrinter.print_step(" ".join(shlex.quote(x) for x in cmdline) + "\n")
 
 
 @contextlib.contextmanager
@@ -194,7 +192,7 @@ def run(cmdline: List[str],
         stderr: _FILE = None,
         **kwargs: Any) -> CompletedProcess:
     if 'run' in arg_debug:
-        sys.stderr.write('+ ' + ' '.join(shlex.quote(x) for x in cmdline) + '\n')
+        MkosiPrinter.info('+ ' + ' '.join(shlex.quote(x) for x in cmdline))
 
     if not stdout and not stderr:
         # Unless explicit redirection is done, print all subprocess output on stderr since we do so as well
@@ -213,12 +211,12 @@ def run(cmdline: List[str],
 
 
 def die(message: str) -> NoReturn:
-    sys.stderr.write(f"‣ \033[31;1mError: {message}\033[0m\n")
+    MkosiPrinter.warn(f"Error: {message}")
     raise MkosiException(message)
 
 
 def warn(message: str) -> None:
-    sys.stderr.write(f"‣ \033[33;1mWarning: {message}\033[0m\n")
+    MkosiPrinter.warn(f"Warning: {message}")
 
 
 def tmp_dir() -> str:
@@ -578,12 +576,12 @@ def copy_path(oldpath: str, newpath: str) -> None:
 
 @contextlib.contextmanager
 def complete_step(text: str, text2: Optional[str] = None) -> Generator[List[Any], None, None]:
-    print_step(text + '...')
+    MkosiPrinter.print_step(text + '...')
     args: List[Any] = []
     yield args
     if text2 is None:
         text2 = text + ' complete'
-    print_step(text2.format(*args) + '.')
+    MkosiPrinter.print_step(text2.format(*args) + '.')
 
 
 # mypy still has problems with generic decorators:
@@ -611,13 +609,13 @@ def init_namespace(args: CommandLineArguments) -> None:
 
 
 def setup_workspace(args: CommandLineArguments) -> TempDir:
-    print_step("Setting up temporary workspace.")
+    MkosiPrinter.print_step("Setting up temporary workspace.")
     if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
         d = tempfile.TemporaryDirectory(dir=os.path.dirname(args.output), prefix='.mkosi-')
     else:
         d = tempfile.TemporaryDirectory(dir=tmp_dir(), prefix='mkosi-')
 
-    print_step("Temporary workspace in " + d.name + " is now set up.")
+    MkosiPrinter.print_step("Temporary workspace in " + d.name + " is now set up.")
     return d
 
 
@@ -1649,7 +1647,7 @@ def clean_dnf_metadata(root: str) -> None:
     keep_dnf_data = os.access(dnf_path, os.F_OK, follow_symlinks=False)
 
     if not keep_dnf_data:
-        print_step('Cleaning dnf metadata...')
+        MkosiPrinter.print_step('Cleaning dnf metadata...')
         remove_glob(root + '/var/lib/dnf',
                     root + '/var/log/dnf.*',
                     root + '/var/log/hawkey.*',
@@ -1662,7 +1660,7 @@ def clean_yum_metadata(root: str) -> None:
     keep_yum_data = os.access(yum_path, os.F_OK, follow_symlinks=False)
 
     if not keep_yum_data:
-        print_step('Cleaning yum metadata...')
+        MkosiPrinter.print_step('Cleaning yum metadata...')
         remove_glob(root + '/var/lib/yum',
                     root + '/var/log/yum.*',
                     root + '/var/cache/yum')
@@ -1674,7 +1672,7 @@ def clean_rpm_metadata(root: str) -> None:
     keep_rpm_data = os.access(rpm_path, os.F_OK, follow_symlinks=False)
 
     if not keep_rpm_data:
-        print_step('Cleaning rpm metadata...')
+        MkosiPrinter.print_step('Cleaning rpm metadata...')
         remove_glob(root + '/var/lib/rpm')
 
 
@@ -1700,7 +1698,7 @@ def clean_tdnf_metadata(root: str) -> None:
     keep_tdnf_data = os.access(tdnf_path, os.F_OK, follow_symlinks=False)
 
     if not keep_tdnf_data:
-        print_step('Cleaning tdnf metadata...')
+        MkosiPrinter.print_step('Cleaning tdnf metadata...')
         remove_glob(root + '/var/log/tdnf.*',
                     root + '/var/cache/tdnf')
 
@@ -1891,7 +1889,7 @@ def install_fedora(args: CommandLineArguments, root: str, do_run_build_script: b
         args.releasever = last
     elif args.release.startswith('rawhide-'):
         args.release, args.releasever = args.release.split('-')
-        sys.stderr.write(f'Fedora rawhide — release version: {args.releasever}\n')
+        MkosiPrinter.info(f'Fedora rawhide — release version: {args.releasever}')
     else:
         args.releasever = args.release
 
@@ -2287,7 +2285,7 @@ def install_ubuntu(args: CommandLineArguments, root: str, do_run_build_script: b
 @completestep('Installing Arch Linux')
 def install_arch(args: CommandLineArguments, root: str, do_run_build_script: bool) -> None:
     if args.release is not None:
-        sys.stderr.write("Distribution release specification is not supported for Arch Linux, ignoring.\n")
+        MkosiPrinter.info("Distribution release specification is not supported for Arch Linux, ignoring.")
 
     if args.mirror:
         if platform.machine() == "aarch64":
@@ -3366,12 +3364,12 @@ def insert_partition(args: CommandLineArguments,
     luks_extra = 2 * 1024 * 1024 if args.encrypt == "all" else 0
     new_size = last_partition_sector + blob_size + luks_extra + GPT_FOOTER_SIZE
 
-    print_step(f'Resizing disk image to {format_bytes(new_size)}...')
+    MkosiPrinter.print_step(f'Resizing disk image to {format_bytes(new_size)}...')
 
     os.truncate(raw.name, new_size)
     run(["losetup", "--set-capacity", loopdev])
 
-    print_step(f'Inserting partition of {format_bytes(blob_size)}...')
+    MkosiPrinter.print_step(f'Inserting partition of {format_bytes(blob_size)}...')
 
     table = "label: gpt\n"
     if args.gpt_first_lba is not None:
@@ -3395,7 +3393,7 @@ def insert_partition(args: CommandLineArguments,
     run(["sfdisk", "--color=never", loopdev], input=table.encode("utf-8"))
     run(["sync"])
 
-    print_step("Writing partition...")
+    MkosiPrinter.print_step("Writing partition...")
 
     if args.root_partno == partno:
         luks_format_root(args, loopdev, False, True)
@@ -3828,10 +3826,10 @@ def dir_size(path: str) -> int:
 
 def print_output_size(args: CommandLineArguments) -> None:
     if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
-        print_step("Resulting image size is " + format_bytes(dir_size(args.output)) + ".")
+        MkosiPrinter.print_step("Resulting image size is " + format_bytes(dir_size(args.output)) + ".")
     else:
         st = os.stat(args.output)
-        print_step("Resulting image size is " + format_bytes(st.st_size) + ", consumes " + format_bytes(st.st_blocks * 512) + ".")  # NOQA: E501
+        MkosiPrinter.print_step("Resulting image size is " + format_bytes(st.st_size) + ", consumes " + format_bytes(st.st_blocks * 512) + ".")  # NOQA: E501
 
 
 def setup_package_cache(args: CommandLineArguments) -> Optional[TempDir]:
@@ -4649,7 +4647,7 @@ def find_passphrase(args: CommandLineArguments) -> None:
                 args.passphrase = {'type': 'stdin', 'content': passphrase}
                 break
 
-            sys.stderr.write("Passphrase doesn't match confirmation. Please try again.\n")
+            MkosiPrinter.info("Passphrase doesn't match confirmation. Please try again.")
 
 
 def find_password(args: CommandLineArguments) -> None:
@@ -5066,118 +5064,119 @@ def line_join_list(ary: List[str]) -> str:
 
 
 def print_summary(args: CommandLineArguments) -> None:
-    sys.stderr.write("COMMANDS:\n")
-    sys.stderr.write("                  verb: " + args.verb + "\n")
+    # FIXME: normal print
+    MkosiPrinter.info("COMMANDS:")
+    MkosiPrinter.info("                  verb: " + args.verb)
     try:
-        sys.stderr.write("               cmdline: " + ' '.join(args.cmdline) + "\n")
+        MkosiPrinter.info("               cmdline: " + ' '.join(args.cmdline))
     except AttributeError:
         pass
-    sys.stderr.write("DISTRIBUTION:\n")
-    sys.stderr.write("          Distribution: " + args.distribution.name + "\n")
-    sys.stderr.write("               Release: " + none_to_na(args.release) + "\n")
+    MkosiPrinter.info("DISTRIBUTION:")
+    MkosiPrinter.info("          Distribution: " + args.distribution.name)
+    MkosiPrinter.info("               Release: " + none_to_na(args.release))
     if args.architecture:
-        sys.stderr.write("          Architecture: " + args.architecture + "\n")
+        MkosiPrinter.info("          Architecture: " + args.architecture)
     if args.mirror is not None:
-        sys.stderr.write("                Mirror: " + args.mirror + "\n")
+        MkosiPrinter.info("                Mirror: " + args.mirror)
     if args.repositories is not None and len(args.repositories) > 0:
-        sys.stderr.write("          Repositories: " + ','.join(args.repositories) + "\n")
-    sys.stderr.write("\nOUTPUT:\n")
+        MkosiPrinter.info("          Repositories: " + ','.join(args.repositories))
+    MkosiPrinter.info("OUTPUT:\n")
     if args.hostname:
-        sys.stderr.write("              Hostname: " + args.hostname + "\n")
-    sys.stderr.write("         Output Format: " + args.output_format.name + "\n")
+        MkosiPrinter.info("              Hostname: " + args.hostname)
+    MkosiPrinter.info("         Output Format: " + args.output_format.name)
     if args.output_format.can_minimize():
-        sys.stderr.write("              Minimize: " + yes_no(args.minimize) + "\n")
+        MkosiPrinter.info("              Minimize: " + yes_no(args.minimize))
     if args.output_dir:
-        sys.stderr.write("      Output Directory: " + args.output_dir + "\n")
-    sys.stderr.write("                Output: " + args.output + "\n")
-    sys.stderr.write("       Output Checksum: " + none_to_na(args.output_checksum if args.checksum else None) + "\n")
-    sys.stderr.write("      Output Signature: " + none_to_na(args.output_signature if args.sign else None) + "\n")
-    sys.stderr.write("           Output Bmap: " + none_to_na(args.output_bmap if args.bmap else None) + "\n")
-    sys.stderr.write("Output nspawn Settings: " + none_to_na(args.output_nspawn_settings if args.nspawn_settings is not None else None) + "\n")  # NOQA: E501
-    sys.stderr.write("           Incremental: " + yes_no(args.incremental) + "\n")
+        MkosiPrinter.info("      Output Directory: " + args.output_dir)
+    MkosiPrinter.info("                Output: " + args.output)
+    MkosiPrinter.info("       Output Checksum: " + none_to_na(args.output_checksum if args.checksum else None))
+    MkosiPrinter.info("      Output Signature: " + none_to_na(args.output_signature if args.sign else None))
+    MkosiPrinter.info("           Output Bmap: " + none_to_na(args.output_bmap if args.bmap else None))
+    MkosiPrinter.info("Output nspawn Settings: " + none_to_na(args.output_nspawn_settings if args.nspawn_settings is not None else None))  # NOQA: E501
+    MkosiPrinter.info("           Incremental: " + yes_no(args.incremental))
 
-    sys.stderr.write("             Read-only: " + yes_no(args.read_only) + "\n")
+    MkosiPrinter.info("             Read-only: " + yes_no(args.read_only))
     detail = ' ({})'.format(args.compress) if args.compress and not isinstance(args.compress, bool) else ''
-    sys.stderr.write("        FS Compression: " + yes_no(args.compress) + detail + "\n")
+    MkosiPrinter.info("        FS Compression: " + yes_no(args.compress) + detail)
 
-    sys.stderr.write("        XZ Compression: " + yes_no(args.xz) + "\n")
+    MkosiPrinter.info("        XZ Compression: " + yes_no(args.xz))
     if args.mksquashfs_tool:
-        sys.stderr.write("       Mksquashfs tool: " + ' '.join(args.mksquashfs_tool) + "\n")
+        MkosiPrinter.info("       Mksquashfs tool: " + ' '.join(args.mksquashfs_tool))
 
     if args.output_format.is_disk():
-        sys.stderr.write("                 QCow2: " + yes_no(args.qcow2) + "\n")
+        MkosiPrinter.info("                 QCow2: " + yes_no(args.qcow2))
 
-    sys.stderr.write("            Encryption: " + none_to_no(args.encrypt) + "\n")
-    sys.stderr.write("                Verity: " + yes_no(args.verity) + "\n")
+    MkosiPrinter.info("            Encryption: " + none_to_no(args.encrypt))
+    MkosiPrinter.info("                Verity: " + yes_no(args.verity))
 
     if args.output_format.is_disk():
-        sys.stderr.write("              Bootable: " + yes_no(args.bootable) + "\n")
+        MkosiPrinter.info("              Bootable: " + yes_no(args.bootable))
 
         if args.bootable:
-            sys.stderr.write("   Kernel Command Line: " + ' '.join(args.kernel_command_line) + "\n")
-            sys.stderr.write("       UEFI SecureBoot: " + yes_no(args.secure_boot) + "\n")
+            MkosiPrinter.info("   Kernel Command Line: " + ' '.join(args.kernel_command_line))
+            MkosiPrinter.info("       UEFI SecureBoot: " + yes_no(args.secure_boot))
 
             if args.secure_boot:
-                sys.stderr.write("   UEFI SecureBoot Key: " + args.secure_boot_key + "\n")
-                sys.stderr.write(" UEFI SecureBoot Cert.: " + args.secure_boot_certificate + "\n")
+                MkosiPrinter.info("   UEFI SecureBoot Key: " + args.secure_boot_key)
+                MkosiPrinter.info(" UEFI SecureBoot Cert.: " + args.secure_boot_certificate)
 
-            sys.stderr.write("        Boot Protocols: " + line_join_list(args.boot_protocols) + "\n")
-            sys.stderr.write(" Unified Kernel Images: " + yes_no(args.with_unified_kernel_images) + "\n")
-            sys.stderr.write("         GPT First LBA: " + str(args.gpt_first_lba) + "\n")
-            sys.stderr.write("       Hostonly Initrd: " + yes_no(args.hostonly_initrd) + "\n")
+            MkosiPrinter.info("        Boot Protocols: " + line_join_list(args.boot_protocols))
+            MkosiPrinter.info(" Unified Kernel Images: " + yes_no(args.with_unified_kernel_images))
+            MkosiPrinter.info("         GPT First LBA: " + str(args.gpt_first_lba))
+            MkosiPrinter.info("       Hostonly Initrd: " + yes_no(args.hostonly_initrd))
 
-    sys.stderr.write("\nPACKAGES:\n")
-    sys.stderr.write("              Packages: " + line_join_list(args.packages) + "\n")
+    MkosiPrinter.info("PACKAGES:\n")
+    MkosiPrinter.info("              Packages: " + line_join_list(args.packages))
 
     if args.distribution in (Distribution.fedora, Distribution.centos, Distribution.centos_epel, Distribution.mageia):
-        sys.stderr.write("    With Documentation: " + yes_no(args.with_docs) + "\n")
+        MkosiPrinter.info("    With Documentation: " + yes_no(args.with_docs))
 
-    sys.stderr.write("         Package Cache: " + none_to_none(args.cache_path) + "\n")
-    sys.stderr.write("           Extra Trees: " + line_join_list(args.extra_trees) + "\n")
-    sys.stderr.write("        Skeleton Trees: " + line_join_list(args.skeleton_trees) + "\n")
-    sys.stderr.write("          Build Script: " + none_to_none(args.build_script) + "\n")
+    MkosiPrinter.info("         Package Cache: " + none_to_none(args.cache_path))
+    MkosiPrinter.info("           Extra Trees: " + line_join_list(args.extra_trees))
+    MkosiPrinter.info("        Skeleton Trees: " + line_join_list(args.skeleton_trees))
+    MkosiPrinter.info("          Build Script: " + none_to_none(args.build_script))
 
     if args.build_script:
-        sys.stderr.write("             Run tests: " + yes_no(args.with_tests) + "\n")
+        MkosiPrinter.info("             Run tests: " + yes_no(args.with_tests))
 
-    sys.stderr.write("         Build Sources: " + none_to_none(args.build_sources) + "\n")
-    sys.stderr.write("  Source File Transfer: " + none_to_none(args.source_file_transfer) + "\n")
-    sys.stderr.write("       Build Directory: " + none_to_none(args.build_dir) + "\n")
-    sys.stderr.write("     Include Directory: " + none_to_none(args.include_dir) + "\n")
-    sys.stderr.write("     Install Directory: " + none_to_none(args.install_dir) + "\n")
-    sys.stderr.write("        Build Packages: " + line_join_list(args.build_packages) + "\n")
-    sys.stderr.write("      Skip final phase: " + yes_no(args.skip_final_phase) + "\n")
-    sys.stderr.write("    Postinstall Script: " + none_to_none(args.postinst_script) + "\n")
-    sys.stderr.write("        Prepare Script: " + none_to_none(args.prepare_script) + "\n")
-    sys.stderr.write("       Finalize Script: " + none_to_none(args.finalize_script) + "\n")
-    sys.stderr.write("  Scripts with network: " + yes_no(args.with_network) + "\n")
-    sys.stderr.write("       nspawn Settings: " + none_to_none(args.nspawn_settings) + "\n")
+    MkosiPrinter.info("         Build Sources: " + none_to_none(args.build_sources))
+    MkosiPrinter.info("  Source File Transfer: " + none_to_none(args.source_file_transfer))
+    MkosiPrinter.info("       Build Directory: " + none_to_none(args.build_dir))
+    MkosiPrinter.info("     Include Directory: " + none_to_none(args.include_dir))
+    MkosiPrinter.info("     Install Directory: " + none_to_none(args.install_dir))
+    MkosiPrinter.info("        Build Packages: " + line_join_list(args.build_packages))
+    MkosiPrinter.info("      Skip final phase: " + yes_no(args.skip_final_phase))
+    MkosiPrinter.info("    Postinstall Script: " + none_to_none(args.postinst_script))
+    MkosiPrinter.info("        Prepare Script: " + none_to_none(args.prepare_script))
+    MkosiPrinter.info("       Finalize Script: " + none_to_none(args.finalize_script))
+    MkosiPrinter.info("  Scripts with network: " + yes_no(args.with_network))
+    MkosiPrinter.info("       nspawn Settings: " + none_to_none(args.nspawn_settings))
 
     if args.output_format.is_disk():
-        sys.stderr.write("\nPARTITIONS:\n")
-        sys.stderr.write("        Root Partition: " + format_bytes_or_auto(args.root_size) + "\n")
-        sys.stderr.write("        Swap Partition: " + format_bytes_or_disabled(args.swap_size) + "\n")
+        MkosiPrinter.info("PARTITIONS:\n")
+        MkosiPrinter.info("        Root Partition: " + format_bytes_or_auto(args.root_size))
+        MkosiPrinter.info("        Swap Partition: " + format_bytes_or_disabled(args.swap_size))
         if "uefi" in args.boot_protocols:
-            sys.stderr.write("                   ESP: " + format_bytes_or_disabled(args.esp_size) + "\n")
+            MkosiPrinter.info("                   ESP: " + format_bytes_or_disabled(args.esp_size))
         if "bios" in args.boot_protocols:
-            sys.stderr.write("                  BIOS: " + format_bytes_or_disabled(BIOS_PARTITION_SIZE) + "\n")
-        sys.stderr.write("    XBOOTLDR Partition: " + format_bytes_or_disabled(args.xbootldr_size) + "\n")
-        sys.stderr.write("       /home Partition: " + format_bytes_or_disabled(args.home_size) + "\n")
-        sys.stderr.write("        /srv Partition: " + format_bytes_or_disabled(args.srv_size) + "\n")
-        sys.stderr.write("        /var Partition: " + format_bytes_or_disabled(args.var_size) + "\n")
-        sys.stderr.write("    /var/tmp Partition: " + format_bytes_or_disabled(args.tmp_size) + "\n")
+            MkosiPrinter.info("                  BIOS: " + format_bytes_or_disabled(BIOS_PARTITION_SIZE))
+        MkosiPrinter.info("    XBOOTLDR Partition: " + format_bytes_or_disabled(args.xbootldr_size))
+        MkosiPrinter.info("       /home Partition: " + format_bytes_or_disabled(args.home_size))
+        MkosiPrinter.info("        /srv Partition: " + format_bytes_or_disabled(args.srv_size))
+        MkosiPrinter.info("        /var Partition: " + format_bytes_or_disabled(args.var_size))
+        MkosiPrinter.info("    /var/tmp Partition: " + format_bytes_or_disabled(args.tmp_size))
 
-        sys.stderr.write("\nVALIDATION:\n")
-        sys.stderr.write("              Checksum: " + yes_no(args.checksum) + "\n")
-        sys.stderr.write("                  Sign: " + yes_no(args.sign) + "\n")
-        sys.stderr.write("               GPG Key: " + ("default" if args.key is None else args.key) + "\n")
-        sys.stderr.write("              Password: " + ("default" if args.password is None else "set") + "\n")
-        sys.stderr.write("             Autologin: " + yes_no(args.autologin) + "\n")
+        MkosiPrinter.info("VALIDATION:\n")
+        MkosiPrinter.info("              Checksum: " + yes_no(args.checksum))
+        MkosiPrinter.info("                  Sign: " + yes_no(args.sign))
+        MkosiPrinter.info("               GPG Key: " + ("default" if args.key is None else args.key))
+        MkosiPrinter.info("              Password: " + ("default" if args.password is None else "set"))
+        MkosiPrinter.info("             Autologin: " + yes_no(args.autologin))
 
-    sys.stderr.write("\nHOST CONFIGURATION:\n")
-    sys.stderr.write("    Extra search paths: " + line_join_list(args.extra_search_paths) + "\n")
-    sys.stderr.write("         QEMU Headless: " + yes_no(args.qemu_headless) + "\n")
-    sys.stderr.write("          Network Veth: " + yes_no(args.network_veth) + "\n")
+    MkosiPrinter.info("HOST CONFIGURATION:\n")
+    MkosiPrinter.info("    Extra search paths: " + line_join_list(args.extra_search_paths))
+    MkosiPrinter.info("         QEMU Headless: " + yes_no(args.qemu_headless))
+    MkosiPrinter.info("          Network Veth: " + yes_no(args.network_veth))
 
 
 def reuse_cache_tree(args: CommandLineArguments,
@@ -5487,7 +5486,7 @@ def build_stuff(args: CommandLineArguments) -> None:
             with complete_step("Running second (final) stage"):
                 raw, tar, root_hash = build_image(args, root, do_run_build_script=False, cleanup=True)
         else:
-            print_step('Skipping (second) final image build phase.')
+            MkosiPrinter.print_step('Skipping (second) final image build phase.')
 
         raw = qcow2_output(args, raw)
         raw = xz_output(args, raw)
@@ -5505,7 +5504,7 @@ def build_stuff(args: CommandLineArguments) -> None:
         link_output_nspawn_settings(args, settings.name if settings is not None else None)
 
         if root_hash is not None:
-            print_step(f'Root hash is {root_hash}.')
+            MkosiPrinter.print_step(f'Root hash is {root_hash}.')
 
 
 def check_root() -> None:
