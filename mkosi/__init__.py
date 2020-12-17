@@ -164,6 +164,7 @@ def delay_interrupt() -> Generator[None, None, None]:
     # errors when unmounting stuff later on during cleanup. We only delay a single CTRL+C interrupt so that a
     # user can always exit mkosi even if a subprocess hangs by pressing CTRL+C twice.
     interrupted = False
+
     def handler(signal: int, frame: FrameType) -> None:
         nonlocal interrupted
         if interrupted:
@@ -181,8 +182,10 @@ def delay_interrupt() -> Generator[None, None, None]:
         if interrupted:
             die("Interrupted")
 
+
 # Borrowed from https://github.com/python/typeshed/blob/3d14016085aed8bcf0cf67e9e5a70790ce1ad8ea/stdlib/3/subprocess.pyi#L24
 _FILE = Union[None, int, IO[Any]]
+
 
 def run(cmdline: List[str],
         execvp: bool = False,
@@ -205,7 +208,7 @@ def run(cmdline: List[str],
         else:
             with delay_interrupt():
                 return subprocess.run(cmdline, check=check, stdout=stdout, stderr=stderr, **kwargs)
-    except FileNotFoundError as e:
+    except FileNotFoundError:
         die(f"{cmdline[0]} not found in PATH.")
 
 
@@ -382,8 +385,8 @@ FEDORA_KEYS_MAP = {
 
 # 1 MB at the beginning of the disk for the GPT disk label, and
 # another MB at the end (this is actually more than needed.)
-GPT_HEADER_SIZE = 1024*1024
-GPT_FOOTER_SIZE = 1024*1024
+GPT_HEADER_SIZE = 1024 * 1024
+GPT_FOOTER_SIZE = 1024 * 1024
 
 
 # Debian calls their architectures differently, so when calling debootstrap we
@@ -394,6 +397,7 @@ DEBIAN_ARCHITECTURES = {
     'aarch64': 'arm64',
     'armhfp': 'armhf',
 }
+
 
 class GPTRootTypePair(NamedTuple):
     root: uuid.UUID
@@ -430,9 +434,9 @@ def unshare(flags: int) -> None:
 
 
 def format_bytes(num_bytes: int) -> str:
-    if num_bytes >= 1024*1024*1024:
+    if num_bytes >= 1024 * 1024 * 1024:
         return f'{num_bytes/1024**3 :0.1f}G'
-    if num_bytes >= 1024*1024:
+    if num_bytes >= 1024 * 1024:
         return f'{num_bytes/1024**2 :0.1f}M'
     if num_bytes >= 1024:
         return f'{num_bytes/1024 :0.1f}K'
@@ -595,7 +599,7 @@ C = TypeVar('C',
                 Callable[[CommandLineArguments, str, bool], None],
                 Callable[[CommandLineArguments, str, bool, bool], None],
             ]
-)
+            )
 completestep = cast(Callable[[str], Callable[[C], C]], complete_step)
 
 
@@ -947,7 +951,7 @@ def mkfs_generic(args: CommandLineArguments, label: str, mount: str, dev: str) -
 
     if args.output_format == OutputFormat.gpt_ext4:
         if (args.distribution in (Distribution.centos, Distribution.centos_epel) and
-            is_older_than_centos8(args.release)):
+                is_older_than_centos8(args.release)):
             # e2fsprogs in centos7 is too old and doesn't support this feature
             cmdline += ["-O", "^metadata_csum"]
 
@@ -1400,9 +1404,9 @@ def configure_dracut(args: CommandLineArguments, root: str) -> None:
 
     # These distros need uefi_stub configured explicitly for dracut to find the systemd-boot uefi stub.
     if args.esp_partno is not None and args.distribution in (Distribution.ubuntu,
-                                                                Distribution.debian,
-                                                                Distribution.mageia,
-                                                                Distribution.openmandriva):
+                                                             Distribution.debian,
+                                                             Distribution.mageia,
+                                                             Distribution.openmandriva):
         with open(os.path.join(dracut_dir, "30-mkosi-uefi-stub.conf"), "w") as f:
             f.write("uefi_stub=/usr/lib/systemd/boot/efi/linuxx64.efi.stub\n")
 
@@ -1689,6 +1693,7 @@ def clean_package_manager_metadata(root: str) -> None:
     clean_tdnf_metadata(root)
     # FIXME: implement cleanup for other package managers
 
+
 def clean_tdnf_metadata(root: str) -> None:
     """Removes tdnf metadata iff /bin/tdnf is not present in the image"""
     tdnf_path = root + '/usr/bin/tdnf'
@@ -1810,7 +1815,7 @@ def setup_dnf(args: CommandLineArguments, root: str, repos: List[Repo] = []) -> 
 def install_photon(args: CommandLineArguments, root: str, do_run_build_script: bool) -> None:
     release_url = "baseurl=https://dl.bintray.com/vmware/photon_release_$releasever_$basearch"
     updates_url = "baseurl=https://dl.bintray.com/vmware/photon_updates_$releasever_$basearch"
-    gpgpath='/etc/pki/rpm-gpg/VMWARE-RPM-GPG-KEY'
+    gpgpath = '/etc/pki/rpm-gpg/VMWARE-RPM-GPG-KEY'
 
     setup_dnf(args, root, repos=[
         Repo("photon", f"VMware Photon OS {args.release} Release", release_url, gpgpath),
@@ -1829,7 +1834,7 @@ def install_clear(args: CommandLineArguments, root: str, do_run_build_script: bo
     if args.release == "latest":
         release = "clear"
     else:
-        release = "clear/"+args.release
+        release = "clear/" + args.release
 
     packages = ['os-core-plus'] + args.packages
     if do_run_build_script:
@@ -1906,7 +1911,6 @@ def install_fedora(args: CommandLineArguments, root: str, do_run_build_script: b
         updates_url = (f"metalink=https://mirrors.fedoraproject.org/metalink?" +
                        f"repo=updates-released-f{args.release}&arch=$basearch")
 
-
     if args.releasever in FEDORA_KEYS_MAP:
         gpgid = f"keys/{FEDORA_KEYS_MAP[args.releasever]}.txt"
     else:
@@ -1944,7 +1948,7 @@ def install_mageia(args: CommandLineArguments, root: str, do_run_build_script: b
         release_url = f"mirrorlist={baseurl}&repo=release"
         updates_url = f"mirrorlist={baseurl}&repo=updates"
 
-    gpgpath='/etc/pki/rpm-gpg/RPM-GPG-KEY-Mageia'
+    gpgpath = '/etc/pki/rpm-gpg/RPM-GPG-KEY-Mageia'
 
     setup_dnf(args, root, repos=[
         Repo("mageia", f"Mageia {args.release} Core Release", release_url, gpgpath),
@@ -1996,7 +2000,7 @@ def install_openmandriva(args: CommandLineArguments, root: str, do_run_build_scr
         Repo("updates", f"OpenMandriva {release_model} Main Updates", updates_url, gpgpath),
     ])
 
-    packages = ["basesystem-minimal", "systemd"] # well we may use basesystem here, but that pulls lot of stuff
+    packages = ["basesystem-minimal", "systemd"]  # well we may use basesystem here, but that pulls lot of stuff
     packages += args.packages or []
     if not do_run_build_script and args.bootable:
         packages += ["kernel-release-server", "binutils", "systemd-boot", "dracut", "timezone", "systemd-cryptsetup"]
@@ -2050,8 +2054,8 @@ def invoke_dnf_or_yum(args: CommandLineArguments,
 def install_centos_old(args: CommandLineArguments, root: str, epel_release: int) -> List[str]:
     # Repos for CentOS 7 and earlier
 
-    gpgpath=f"/etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-{args.release}"
-    gpgurl=f'https://www.centos.org/keys/RPM-GPG-KEY-CentOS-{args.release}'
+    gpgpath = f"/etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-{args.release}"
+    gpgurl = f'https://www.centos.org/keys/RPM-GPG-KEY-CentOS-{args.release}'
     epel_gpgpath = f"/etc/pki/rpm-gpg/RPM-GPG-KEY-EPEL-{epel_release}"
     epel_gpgurl = f'https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-{epel_release}'
 
@@ -2082,8 +2086,8 @@ def install_centos_old(args: CommandLineArguments, root: str, epel_release: int)
 def install_centos_new(args: CommandLineArguments, root: str, epel_release: int) -> List[str]:
     # Repos for CentOS 8 and later
 
-    gpgpath="/etc/pki/rpm-gpg/RPM-GPG-KEY-centosofficial"
-    gpgurl='https://www.centos.org/keys/RPM-GPG-KEY-CentOS-Official'
+    gpgpath = "/etc/pki/rpm-gpg/RPM-GPG-KEY-centosofficial"
+    gpgurl = 'https://www.centos.org/keys/RPM-GPG-KEY-CentOS-Official'
     epel_gpgpath = f"/etc/pki/rpm-gpg/RPM-GPG-KEY-EPEL-{epel_release}"
     epel_gpgurl = f'https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-{epel_release}'
 
@@ -2544,7 +2548,6 @@ def install_arch(args: CommandLineArguments, root: str, do_run_build_script: boo
                 )
 
             make_executable(vmlinuz_remove_hook)
-
 
     keyring = "archlinux"
     if platform.machine() == "aarch64":
@@ -3008,6 +3011,7 @@ def install_boot_loader_clear(args: CommandLineArguments, root: str, loopdev: st
     cmdline = ["/usr/bin/clr-boot-manager", "update", "-i"]
     run_workspace_command(args, root, cmdline, nspawn_params=nspawn_params)
 
+
 def install_boot_loader_centos_old_efi(args: CommandLineArguments, root: str, loopdev: str) -> None:
     nspawn_params = nspawn_params_for_blockdev_access(args, loopdev)
 
@@ -3105,8 +3109,8 @@ def copy_git_files(src: str, dest: str, *, source_file_transfer: SourceFileTrans
         top = os.path.join(src, ".git/")
         for r, d, f in os.walk(top):
             for fh in f:
-                fp = os.path.join(r, fh) # full path
-                fr = os.path.join(".git/", fp[len(top):]) # relative to top
+                fp = os.path.join(r, fh)  # full path
+                fr = os.path.join(".git/", fp[len(top):])  # relative to top
                 files.add(fr)
 
     # Get submodule files
@@ -3164,11 +3168,11 @@ def install_build_src(args: CommandLineArguments, root: str, do_run_build_script
                                                 '.mkosi-*',
                                                 '*.cache-pre-dev',
                                                 '*.cache-pre-inst',
-                                                os.path.basename(args.output_dir)+"/" if args.output_dir else "mkosi.output/",  # NOQA: E501
-                                                os.path.basename(args.cache_path)+"/" if args.cache_path else "mkosi.cache/",  # NOQA: E501
-                                                os.path.basename(args.build_dir)+"/" if args.build_dir else "mkosi.builddir/",  # NOQA: E501
-                                                os.path.basename(args.include_dir)+"/" if args.include_dir else "mkosi.includedir/",  # NOQA: E501
-                                                os.path.basename(args.install_dir)+"/" if args.install_dir else "mkosi.installdir/")  # NOQA: E501
+                                                os.path.basename(args.output_dir) + "/" if args.output_dir else "mkosi.output/",  # NOQA: E501
+                                                os.path.basename(args.cache_path) + "/" if args.cache_path else "mkosi.cache/",  # NOQA: E501
+                                                os.path.basename(args.build_dir) + "/" if args.build_dir else "mkosi.builddir/",  # NOQA: E501
+                                                os.path.basename(args.include_dir) + "/" if args.include_dir else "mkosi.includedir/",  # NOQA: E501
+                                                os.path.basename(args.install_dir) + "/" if args.install_dir else "mkosi.installdir/")  # NOQA: E501
                 shutil.copytree(args.build_sources, target, symlinks=True, ignore=ignore)
 
 
@@ -3213,9 +3217,9 @@ def make_tar(args: CommandLineArguments,
         f: BinaryIO = cast(BinaryIO, tempfile.NamedTemporaryFile(dir=os.path.dirname(args.output), prefix=".mkosi-"))
         # OpenMandriva defaults to bsdtar(libarchive) which uses POSIX argument list so let's keep a separate list
         if shutil.which('bsdtar') and args.distribution == Distribution.openmandriva:
-           _tar_cmd = ["bsdtar", "-C", root, "-c", "-J", "--xattrs", "-f", "-", "."]
+            _tar_cmd = ["bsdtar", "-C", root, "-c", "-J", "--xattrs", "-f", "-", "."]
         else:
-           _tar_cmd = ["tar", "-C", root, "-c", "-J", "--xattrs", "--xattrs-include=*", "."]
+            _tar_cmd = ["tar", "-C", root, "-c", "-J", "--xattrs", "--xattrs-include=*", "."]
 
         run(_tar_cmd, env={"XZ_OPT": "-T0"}, stdout=f)
 
@@ -3280,7 +3284,7 @@ def make_minimal_btrfs(args: CommandLineArguments, root: str, for_cache: bool) -
         command = ["mkfs.btrfs", "-L", "root", "-d", "single", "-m", "single", "--shrink", "--rootdir", root, f.name]
         try:
             run(command)
-        except subprocess.CalledProcessError as e:
+        except subprocess.CalledProcessError:
             # The --shrink option was added in btrfs-tools 4.14.1, before that it was the default behaviour.
             # If the above fails, let's see if things work if we drop it
             command.remove("--shrink")
@@ -3359,7 +3363,7 @@ def insert_partition(args: CommandLineArguments,
         last_partition_sector = GPT_HEADER_SIZE
 
     blob_size = roundup512(os.stat(blob.name).st_size)
-    luks_extra = 2*1024*1024 if args.encrypt == "all" else 0
+    luks_extra = 2 * 1024 * 1024 if args.encrypt == "all" else 0
     new_size = last_partition_sector + blob_size + luks_extra + GPT_FOOTER_SIZE
 
     print_step(f'Resizing disk image to {format_bytes(new_size)}...')
@@ -3637,7 +3641,7 @@ def copy_nspawn_settings(args: CommandLineArguments) -> Optional[BinaryIO]:
 
 
 def hash_file(of: TextIO, sf: BinaryIO, fname: str) -> None:
-    bs = 16*1024**2
+    bs = 16 * 1024 ** 2
     h = hashlib.sha256()
 
     sf.seek(0)
@@ -3904,7 +3908,7 @@ class BooleanAction(argparse.Action):
     or implicitly --foo. If the parameter name starts with "not-" or "without-" the value gets
     inverted.
     """
-    def __init__(self, # These type-hints are copied from argparse.pyi
+    def __init__(self,  # These type-hints are copied from argparse.pyi
                  option_strings: Sequence[str],
                  dest: str,
                  nargs: Optional[Union[int, str]] = None,
@@ -3915,7 +3919,7 @@ class BooleanAction(argparse.Action):
             raise ValueError("nargs not allowed")
         super(BooleanAction, self).__init__(option_strings, dest, nargs='?', const=const, default=default, **kwargs)
 
-    def __call__(self, # These type-hints are copied from argparse.pyi
+    def __call__(self,  # These type-hints are copied from argparse.pyi
                  parser: argparse.ArgumentParser,
                  namespace: argparse.Namespace,
                  values: Union[str, Sequence[Any], None, bool],
@@ -4090,7 +4094,7 @@ def create_parser() -> ArgumentParserMkosi:
                        help="Boot protocols to use on a bootable image", metavar="PROTOCOLS", default=[])
     group.add_argument("--kernel-command-line", action=SpaceDelimitedListAction, default=['rhgb', 'quiet', 'selinux=0', 'audit=0'],
                        help='Set the kernel command line (only bootable images)')
-    group.add_argument("--kernel-commandline", action=SpaceDelimitedListAction, dest='kernel_command_line', help=argparse.SUPPRESS) # Compatibility option
+    group.add_argument("--kernel-commandline", action=SpaceDelimitedListAction, dest='kernel_command_line', help=argparse.SUPPRESS)  # Compatibility option
     group.add_argument("--secure-boot", action=BooleanAction,
                        help='Sign the resulting kernel/initrd image for UEFI SecureBoot')
     group.add_argument("--secure-boot-key", help="UEFI SecureBoot private key in PEM format", metavar='PATH')
@@ -4187,7 +4191,7 @@ def create_parser() -> ArgumentParserMkosi:
     group = parser.add_argument_group("Host configuration")
     group.add_argument("--extra-search-path", dest='extra_search_paths', action=ColonDelimitedListAction, default=[],
                        help="List of colon-separated paths to look for programs before looking in PATH")
-    group.add_argument("--extra-search-paths", dest='extra_search_paths', action=ColonDelimitedListAction, help=argparse.SUPPRESS) # Compatibility option
+    group.add_argument("--extra-search-paths", dest='extra_search_paths', action=ColonDelimitedListAction, help=argparse.SUPPRESS)  # Compatibility option
     group.add_argument("--qemu-headless", action=BooleanAction, help="Configure image for qemu's -nographic mode")
     group.add_argument("--network-veth", action=BooleanAction, help="Create a virtual Ethernet link between the host and the container/VM")
 
@@ -4199,7 +4203,7 @@ def create_parser() -> ArgumentParserMkosi:
 
     group.add_argument('--debug', action=CommaDelimitedListAction, default=[],
                        help='Turn on debugging output', metavar='SELECTOR',
-                       choices=('run','build-script','workspace-command'))
+                       choices=('run', 'build-script', 'workspace-command'))
     try:
         import argcomplete
         argcomplete.autocomplete(parser)
@@ -4228,7 +4232,7 @@ def load_distribution(args: CommandLineArguments) -> CommandLineArguments:
     return args
 
 
-def parse_args(argv: Optional[List[str]]=None) -> Dict[str, CommandLineArguments]:
+def parse_args(argv: Optional[List[str]] = None) -> Dict[str, CommandLineArguments]:
     """Load default values from files and parse command line arguments
 
     Do all about default files and command line arguments parsing. If --all argument is passed
@@ -4253,7 +4257,7 @@ def parse_args(argv: Optional[List[str]]=None) -> Dict[str, CommandLineArguments
         try:
             v_i = argv.index(verb)
             if v_i > 0:
-                if argv[v_i-1] != '--':
+                if argv[v_i - 1] != '--':
                     argv.insert(v_i, '--')
             found_verb = True
             break
@@ -4271,7 +4275,7 @@ def parse_args(argv: Optional[List[str]]=None) -> Dict[str, CommandLineArguments
 
     # Make sure all paths are absolute and valid.
     # Relative paths are not valid yet since we are not in the final working directory yet.
-    if not args_pre_parsed.directory is None:
+    if args_pre_parsed.directory is not None:
         args_pre_parsed.directory = os.path.abspath(args_pre_parsed.directory)
         directory = args_pre_parsed.directory
     else:
@@ -4323,7 +4327,7 @@ def parse_args(argv: Optional[List[str]]=None) -> Dict[str, CommandLineArguments
 def parse_args_file(argv_post_parsed: List[str], default_path: str) -> CommandLineArguments:
     """Parse just one mkosi.* file (--all mode)
     """
-    argv_post_parsed.insert(1, ArgumentParserMkosi.fromfile_prefix_chars+default_path)
+    argv_post_parsed.insert(1, ArgumentParserMkosi.fromfile_prefix_chars + default_path)
     parser = create_parser()
     # parse all parameters handled by mkosi. Parameters forwarded to subprocesses such as nspawn or qemu end up in cmdline_argv.
     return parser.parse_args(argv_post_parsed, CommandLineArguments())
@@ -4339,9 +4343,9 @@ def parse_args_file_group(argv_post_parsed: List[str], default_path: str) -> Com
         for defaults_file in sorted(os.listdir(defaults_dir)):
             defaults_path = os.path.join(defaults_dir, defaults_file)
             if os.path.isfile(defaults_path):
-                all_defaults_files.append(ArgumentParserMkosi.fromfile_prefix_chars+defaults_path)
+                all_defaults_files.append(ArgumentParserMkosi.fromfile_prefix_chars + defaults_path)
     if os.path.isfile(default_path):
-        all_defaults_files.insert(0, ArgumentParserMkosi.fromfile_prefix_chars+default_path)
+        all_defaults_files.insert(0, ArgumentParserMkosi.fromfile_prefix_chars + default_path)
     argv_post_parsed[0:0] = all_defaults_files
 
     parser = create_parser()
@@ -4936,10 +4940,10 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
     args.swap_size = parse_bytes(args.swap_size)
 
     if args.root_size is None:
-        args.root_size = 3*1024*1024*1024
+        args.root_size = 3 * 1024 * 1024 * 1024
 
     if args.bootable and args.esp_size is None:
-        args.esp_size = 256*1024*1024
+        args.esp_size = 256 * 1024 * 1024
 
     args.verity_size = None
 
@@ -4994,7 +4998,7 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
                                  Distribution.ubuntu,
                                  Distribution.mageia,
                                  Distribution.opensuse):
-            die(f"Sorry, --without-unified-kernel-images is not supported in UEFI mode on this distro.")
+            die("Sorry, --without-unified-kernel-images is not supported in UEFI mode on this distro.")
 
     if args.verity and not args.with_unified_kernel_images:
         die("Sorry, --verity can only be used with unified kernel images")
@@ -5034,7 +5038,7 @@ def format_bytes_or_disabled(sz: Optional[int]) -> str:
     return format_bytes(sz)
 
 
-def format_bytes_or_auto(sz: Optional[int])-> str:
+def format_bytes_or_auto(sz: Optional[int]) -> str:
     if sz is None:
         return "(automatic)"
 
@@ -5446,7 +5450,7 @@ def build_stuff(args: CommandLineArguments) -> None:
 
     # Make sure tmpfiles' aging doesn't interfere with our workspace
     # while we are working on it.
-    with open_close(workspace.name, os.O_RDONLY|os.O_DIRECTORY|os.O_CLOEXEC) as dir_fd, btrfs_forget_stale_devices():
+    with open_close(workspace.name, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC) as dir_fd, btrfs_forget_stale_devices():
         fcntl.flock(dir_fd, fcntl.LOCK_EX)
 
         root = os.path.join(workspace.name, "root")
