@@ -24,4 +24,3 @@ except pexpect.EOF:
 except pexpect.TIMEOUT:
     print("TIMED OUT")
     sys.exit(1)
-
