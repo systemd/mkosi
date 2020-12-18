@@ -15,7 +15,10 @@ jobs:
     - uses: actions/checkout@v2
 
     - name: Install
-      run: python3 -m pip install pytest mypy
+      run: python3 -m pip install pytest mypy black
+
+    - name: Check formatting
+      run: python3 -m black --check mkosi/ tests/
 
     - name: Type Checking
       run: python3 -m mypy mkosi
@@ -49,13 +52,13 @@ jobs:
 
     - name: Test editable user installation
       run: |
-        python3 -m pip install --user --editable .
+        python3 -m pip install --user --no-use-pep517 --editable .
         $HOME/.local/bin/mkosi -h
         python3 -m pip uninstall --yes mkosi
 
     - name: Test editable user installation (sudo call)
       run: |
-        python3 -m pip install --user --editable .
+        python3 -m pip install --user --no-use-pep517 --editable .
         sudo $HOME/.local/bin/mkosi -h
         python3 -m pip uninstall --yes mkosi
 
