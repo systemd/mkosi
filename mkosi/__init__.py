@@ -808,6 +808,24 @@ def create_image(args: CommandLineArguments, root: str, for_cache: bool) -> Opti
     return f
 
 
+def copy_image_temporary(src: str, dir: str) -> BinaryIO:
+    with open(src, "rb") as source:
+        f: BinaryIO = cast(BinaryIO, tempfile.NamedTemporaryFile(prefix=".mkosi-", dir=dir))
+
+        # So on one hand we want CoW off, since this stuff will
+        # have a lot of random write accesses. On the other we
+        # want the copy to be snappy, hence we do want CoW. Let's
+        # ask for both, and let the kernel figure things out:
+        # let's turn off CoW on the file, but start with a CoW
+        # copy. On btrfs that works: the initial copy is made as
+        # CoW but later changes do not result in CoW anymore.
+
+        disable_cow(f.name)
+        copy_file_object(source, f)
+
+        return f
+
+
 def reuse_cache_image(
     args: CommandLineArguments, root: str, do_run_build_script: bool, for_cache: bool
 ) -> Tuple[Optional[BinaryIO], bool]:
@@ -831,27 +849,11 @@ def reuse_cache_image(
     with complete_step("Basing off cached image " + fname, "Copied cached image as {.name}") as output:
 
         try:
-            source = open(fname, "rb")
+            f = copy_image_temporary(src=fname, dir=os.path.dirname(args.output))
         except FileNotFoundError:
             return None, False
 
-        with source:
-            f: BinaryIO = cast(
-                BinaryIO, tempfile.NamedTemporaryFile(prefix=".mkosi-", dir=os.path.dirname(args.output))
-            )
-            output.append(f)
-
-            # So on one hand we want CoW off, since this stuff will
-            # have a lot of random write accesses. On the other we
-            # want the copy to be snappy, hence we do want CoW. Let's
-            # ask for both, and let the kernel figure things out:
-            # let's turn off CoW on the file, but start with a CoW
-            # copy. On btrfs that works: the initial copy is made as
-            # CoW but later changes do not result in CoW anymore.
-
-            disable_cow(f.name)
-            copy_file_object(source, f)
-
+        output.append(f)
         _, run_sfdisk = determine_partition_table(args)
         args.ran_sfdisk = run_sfdisk
 
@@ -4459,6 +4461,12 @@ def create_parser() -> ArgumentParserMkosi:
         action=BooleanAction,
         help="Create a virtual Ethernet link between the host and the container/VM",
     )
+    group.add_argument(
+        "--ephemeral",
+        action=BooleanAction,
+        help="If specified, the container/VM is run with a temporary snapshot of the output image that is "
+        "removed immediately when the container/VM terminates",
+    )
 
     group = parser.add_argument_group("Additional Configuration")
     group.add_argument("-C", "--directory", help="Change to specified directory before doing anything", metavar="PATH")
@@ -5852,6 +5860,9 @@ def run_shell(args: CommandLineArguments) -> None:
     if args.network_veth:
         cmdline.append("--network-veth")
 
+    if args.ephemeral:
+        cmdline.append("--ephemeral")
+
     if args.cmdline:
         # If the verb is shell, args.cmdline contains the command to run. Otherwise (boot), we assume
         # args.cmdline contains nspawn arguments.
@@ -5914,8 +5925,6 @@ def run_qemu(args: CommandLineArguments) -> None:
         cmdline += ["-drive", f"if=pflash,format=raw,readonly,file={firmware}"]
 
     cmdline += [
-        "-drive",
-        f"format={'qcow2' if args.qcow2 else 'raw'},file={args.output},if=virtio",
         "-object",
         "rng-random,filename=/dev/urandom,id=rng0",
         "-device",
@@ -5942,11 +5951,19 @@ def run_qemu(args: CommandLineArguments) -> None:
         # after it is created.
         cmdline += ["-nic", f"tap,script=no,downscript=no,ifname={ifname}"]
 
-    cmdline += args.cmdline
+    with contextlib.ExitStack() as stack:
+        if args.ephemeral:
+            f = stack.enter_context(copy_image_temporary(src=args.output, dir=os.path.dirname(args.output)))
+            fname = f.name
+        else:
+            fname = args.output
 
-    print_running_cmd(cmdline)
+        cmdline += ["-drive", f"format={'qcow2' if args.qcow2 else 'raw'},file={fname},if=virtio"]
+        cmdline += args.cmdline
 
-    run(cmdline, stdout=sys.stdout, stderr=sys.stderr)
+        print_running_cmd(cmdline)
+
+        run(cmdline, stdout=sys.stdout, stderr=sys.stderr)
 
 
 def expand_paths(paths: List[str]) -> List[str]:
