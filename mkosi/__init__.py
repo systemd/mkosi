@@ -5847,33 +5847,33 @@ def check_native(args: CommandLineArguments) -> None:
 
 def run_shell(args: CommandLineArguments) -> None:
     if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
-        target = "--directory=" + args.output
+        target = f"--directory={args.output}"
     else:
-        target = "--image=" + args.output
+        target = f"--image={args.output}"
 
     cmdline = ["systemd-nspawn", target]
 
     if args.read_only:
-        cmdline += ("--read-only",)
+        cmdline.append("--read-only")
 
     # If we copied in a .nspawn file, make sure it's actually honoured
     if args.nspawn_settings is not None:
-        cmdline += ("--settings=trusted",)
+        cmdline.append("--settings=trusted")
 
     if args.verb == "boot":
-        cmdline += ("--boot",)
+        cmdline.append("--boot")
 
     if args.generated_root() or args.verity:
-        cmdline += ("--volatile=overlay",)
+        cmdline.append("--volatile=overlay")
 
     if args.network_veth:
-        cmdline += ("--network-veth",)
+        cmdline.append("--network-veth")
 
     if args.cmdline:
         # If the verb is shell, args.cmdline contains the command to run. Otherwise (boot), we assume
         # args.cmdline contains nspawn arguments.
         if args.verb == "shell":
-            cmdline += ("--",)
+            cmdline.append("--")
         cmdline += args.cmdline
 
     run(cmdline, execvp=True)
