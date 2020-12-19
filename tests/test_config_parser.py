@@ -111,6 +111,7 @@ class MkosiConfig(object):
             "xz": False,
             "qemu_headless": False,
             "network_veth": False,
+            "ephemeral": False,
             "with_unified_kernel_images": True,
             "hostonly_initrd": False,
         }
@@ -305,6 +306,8 @@ class MkosiConfig(object):
                 self.reference_config[job_name]["qemu_headless"] = mk_config_host["QemuHeadless"]
             if "NetworkVeth" in mk_config_host:
                 self.reference_config[job_name]["network_veth"] = mk_config_host["NetworkVeth"]
+            if "Ephemeral" in mk_config_host:
+                self.reference_config[job_name]["ephemeral"] = mk_config_host["Ephemeral"]
 
 
 class MkosiConfigOne(MkosiConfig):

@@ -743,6 +743,13 @@ details see the table below.
   in systemd-nspawn's man page:
   https://www.freedesktop.org/software/systemd/man/systemd-nspawn.html#-n
 
+`--ephemeral`
+: When used with the shell, boot or qemu verbs, this option runs the specified
+  verb on a temporary snapshot of the output image that is removed immediately
+  when the container terminates. Taking the temporary snapshot is more efficient
+  on file systems that support subvolume snapshots or 'reflinks' natively ("btrfs"
+  or new "xfs") than on more traditional file systems that do not ("ext4").
+
 ## Command Line Parameters and their Settings File Counterparts
 
 Most command line parameters may also be placed in an `mkosi.default`
@@ -813,6 +820,7 @@ which settings file options.
 | `--extra-search-paths=`           | `[Host]`                | `ExtraSearchPaths=`           |
 | `--qemu-headless`                 | `[Host]`                | `QemuHeadless=`               |
 | `--network-veth`                  | `[Host]`                | `NetworkVeth=`                |
+| `--ephemeral`                     | `[Host]`                | `Ephemeral=`                  |
 
 Command line options that take no argument are not suffixed with a `=`
 in their long version in the table above. In the `mkosi.default` file
