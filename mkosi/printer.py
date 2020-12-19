@@ -3,7 +3,7 @@
 import sys
 
 
-class MkosiPrinter():
+class MkosiPrinter:
     out_file = sys.stderr
     isatty = out_file.isatty()
 
@@ -23,7 +23,7 @@ class MkosiPrinter():
 
     @classmethod
     def info(cls, text: str) -> None:
-        cls._print(text + '\n')
+        cls._print(text + "\n")
 
     @classmethod
     def warn(cls, text: str) -> None:
