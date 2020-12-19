@@ -54,6 +54,11 @@ when not installed as a zipapp.
 Please note, that the the python module exists solely for the usage of the mkosi
 binary and is not to be considered a public API.
 
+## git blame
+
+When using git blame, be sure to add `--ignore-revs-file .git-blame-ignore-revs` to the arguments to ignore
+irrelevant code formatting commits. This can be set permanently via the `blame.ignoreRevsFile` git option.
+
 # References
 
 * [Primary mkosi git repository on GitHub](https://github.com/systemd/mkosi/)
