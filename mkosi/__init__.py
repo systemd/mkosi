@@ -187,7 +187,6 @@ _FILE = Union[None, int, IO[Any]]
 
 def run(
     cmdline: List[str],
-    execvp: bool = False,
     check: bool = True,
     stdout: _FILE = None,
     stderr: _FILE = None,
@@ -202,12 +201,8 @@ def run(
         stdout = sys.stderr
 
     try:
-        if execvp:
-            assert not kwargs
-            os.execvp(cmdline[0], cmdline)
-        else:
-            with delay_interrupt():
-                return subprocess.run(cmdline, check=check, stdout=stdout, stderr=stderr, **kwargs)
+        with delay_interrupt():
+            return subprocess.run(cmdline, check=check, stdout=stdout, stderr=stderr, **kwargs)
     except FileNotFoundError:
         die(f"{cmdline[0]} not found in PATH.")
 
@@ -5864,7 +5859,7 @@ def run_shell(args: CommandLineArguments) -> None:
             cmdline.append("--")
         cmdline += args.cmdline
 
-    run(cmdline, execvp=True)
+    run(cmdline, stdout=sys.stdout, stderr=sys.stderr)
 
 
 def run_qemu(args: CommandLineArguments) -> None:
@@ -5951,7 +5946,7 @@ def run_qemu(args: CommandLineArguments) -> None:
 
     print_running_cmd(cmdline)
 
-    run(cmdline, execvp=True)
+    run(cmdline, stdout=sys.stdout, stderr=sys.stderr)
 
 
 def expand_paths(paths: List[str]) -> List[str]:
