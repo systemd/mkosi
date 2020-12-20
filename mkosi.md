@@ -766,6 +766,7 @@ which settings file options.
 | `--mksquashfs=`                   | `[Output]`              | `Mksquashfs=`                 |
 | `--xz`                            | `[Output]`              | `XZ=`                         |
 | `--qcow2`                         | `[Output]`              | `QCow2=`                      |
+| `--no-chown`                      | `[Output]`              | `NoChown=`                    |
 | `--hostname=`                     | `[Output]`              | `Hostname=`                   |
 | `--without-unified-kernel-images` | `[Output]`              | `WithUnifiedKernelImages=`    |
 | `--hostonly-initrd`               | `[Output]`              | `HostonlyInitrd=`             |
