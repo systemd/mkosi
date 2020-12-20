@@ -84,6 +84,7 @@ class MkosiConfig(object):
             "password_is_hashed": False,
             "autologin": False,
             "skip_final_phase": False,
+            "tar_strip_selinux_context": False,
             "prepare_script": None,
             "postinst_script": None,
             "qcow2": False,
@@ -219,6 +220,10 @@ class MkosiConfig(object):
                 self.reference_config[job_name]["xz"] = mk_config_output["XZ"]
             if "QCow2" in mk_config_output:
                 self.reference_config[job_name]["qcow2"] = mk_config_output["QCow2"]
+            if "TarStripSELinuxContext" in mk_config_output:
+                self.reference_config[job_name]["tar_strip_selinux_context"] = mk_config_output[
+                    "TarStripSELinuxContext"
+                ]
             if "Hostname" in mk_config_output:
                 self.reference_config[job_name]["hostname"] = mk_config_output["Hostname"]
             if "WithUnifiedKernelImages" in mk_config_output:

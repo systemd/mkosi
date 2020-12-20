@@ -3293,7 +3293,10 @@ def make_tar(args: CommandLineArguments, root: str, do_run_build_script: bool, f
         if shutil.which("bsdtar") and args.distribution == Distribution.openmandriva:
             _tar_cmd = ["bsdtar", "-C", root, "-c", "-J", "--xattrs", "-f", "-", "."]
         else:
-            _tar_cmd = ["tar", "-C", root, "-c", "-J", "--xattrs", "--xattrs-include=*", "."]
+            _tar_cmd = ["tar", "-C", root, "-c", "-J", "--xattrs", "--xattrs-include=*"]
+            if args.tar_strip_selinux_context:
+                _tar_cmd.append("--xattrs-exclude=security.selinux")
+            _tar_cmd.append(".")
 
         run(_tar_cmd, env={"XZ_OPT": "-T0"}, stdout=f)
 
@@ -4120,6 +4123,7 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
         "BuildPackages": "--build-package",
         "PostInstallationScript": "--postinst-script",
         "GPTFirstLBA": "--gpt-first-lba",
+        "TarStripSELinuxContext": "--tar-strip-selinux-context",
     }
 
     fromfile_prefix_chars = "@"
@@ -4302,6 +4306,11 @@ def create_parser() -> ArgumentParserMkosi:
         action=BooleanAction,
         help="When running with sudo, disable reassignment of ownership of the generated files to the original user",
     )  # NOQA: E501
+    group.add_argument(
+        "--tar-strip-selinux-context",
+        action=BooleanAction,
+        help="Do not include SELinux file context information in tar. Not compatible with bsdtar.",
+    )
     group.add_argument(
         "-i", "--incremental", action=BooleanAction, help="Make use of and generate intermediary cache images"
     )
@@ -5064,6 +5073,9 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
 
     if args.distribution == Distribution.clear and "," in args.boot_protocols:
         die("Sorry, Clear Linux does not support hybrid BIOS/UEFI images")
+
+    if shutil.which("bsdtar") and args.distribution == Distribution.openmandriva and args.tar_strip_selinux_context:
+        die("Sorry, bsdtar on OpenMandriva is incompatible with --tar-strip-selinux-context")
 
     find_cache(args)
 
