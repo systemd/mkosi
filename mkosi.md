@@ -378,6 +378,15 @@ details see the table below.
   the user which invoked `sudo`. With this option this may be turned
   off and all generated files are owned by `root`.
 
+`--tar-strip-selinux-context`
+
+: If running on a SELinux-enabled system (Fedora, CentOS), files inside
+  the container are tagged with SELinux context extended attributes
+  (`xattrs`), which may interfere with host SELinux rules in building
+  or further container import stages.  
+  This option strips SELinux context attributes from the resulting
+  tar archive.
+
 `--incremental`, `-i`
 
 : Enable incremental build mode. This only applies if the two-phase
@@ -767,6 +776,7 @@ which settings file options.
 | `--xz`                            | `[Output]`              | `XZ=`                         |
 | `--qcow2`                         | `[Output]`              | `QCow2=`                      |
 | `--no-chown`                      | `[Output]`              | `NoChown=`                    |
+| `--tar-strip-selinux-context`     | `[Output]`              | `TarStripSELinuxContext=`     |
 | `--hostname=`                     | `[Output]`              | `Hostname=`                   |
 | `--without-unified-kernel-images` | `[Output]`              | `WithUnifiedKernelImages=`    |
 | `--hostonly-initrd`               | `[Output]`              | `HostonlyInitrd=`             |
