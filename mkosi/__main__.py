@@ -18,7 +18,10 @@ def main() -> None:
                     os.chdir(work_dir)
                 else:
                     die(f"Error: {work_dir} is not a directory!")
-            with complete_step(f"Processing {job_name}"):
+            if len(args) > 1:
+                with complete_step(f"Processing {job_name}"):
+                    run_verb(a)
+            else:
                 run_verb(a)
     except MkosiException:
         sys.exit(1)
