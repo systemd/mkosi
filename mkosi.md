@@ -383,7 +383,7 @@ details see the table below.
 : If running on a SELinux-enabled system (Fedora, CentOS), files inside
   the container are tagged with SELinux context extended attributes
   (`xattrs`), which may interfere with host SELinux rules in building
-  or further container import stages.  
+  or further container import stages.
   This option strips SELinux context attributes from the resulting
   tar archive.
 
@@ -674,7 +674,8 @@ details see the table below.
 
 `--autologin`
 
-: Enable autologin for the `root` user.
+: Enable autologin for the `root` user on pts/0 (nspawn), tty1 (QEMU) and
+  ttyS0 (QEMU with --qemu-headless) by patching /etc/pam.d/login.
 
 `--extra-search-paths=`
 
