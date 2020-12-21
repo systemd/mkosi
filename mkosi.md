@@ -681,7 +681,8 @@ details see the table below.
 
 `--autologin`
 
-: Enable autologin for the `root` user.
+: Enable autologin for the `root` user on pts/0 (nspawn), tty1 (QEMU) and
+  ttyS0 (QEMU with --qemu-headless) by patching /etc/pam.d/login.
 
 `--extra-search-paths=`
 
