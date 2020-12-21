@@ -2857,6 +2857,14 @@ def set_root_password(args: CommandLineArguments, root: str, do_run_build_script
             patch_file(os.path.join(root, "etc/shadow"), jj)
 
 
+def pam_add_autologin(root: str, tty: str) -> None:
+    with open(os.path.join(root, "etc/pam.d/login"), "r+") as f:
+        original = f.read()
+        f.seek(0)
+        f.write(f"auth sufficient pam_succeed_if.so tty = {tty}\n")
+        f.write(original)
+
+
 def set_autologin(args: CommandLineArguments, root: str, do_run_build_script: bool, for_cache: bool) -> None:
     if do_run_build_script or for_cache or not args.autologin:
         return
@@ -2878,6 +2886,8 @@ def set_autologin(args: CommandLineArguments, root: str, do_run_build_script: bo
 
     os.chmod(override_file, 0o644)
 
+    pam_add_autologin(root, "pts/0")
+
     override_dir = os.path.join(root, "etc/systemd/system/serial-getty@ttyS0.service.d")
     os.makedirs(override_dir, mode=0o755, exist_ok=True)
 
@@ -2894,6 +2904,8 @@ def set_autologin(args: CommandLineArguments, root: str, do_run_build_script: bo
         )
 
     os.chmod(override_file, 0o644)
+
+    pam_add_autologin(root, "ttyS0")
 
 
 def set_serial_terminal(args: CommandLineArguments, root: str, do_run_build_script: bool, for_cache: bool) -> None:
