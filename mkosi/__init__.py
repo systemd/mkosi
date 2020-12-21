@@ -3224,30 +3224,30 @@ def install_build_src(args: CommandLineArguments, root: str, do_run_build_script
     with complete_step("Copying in build script and sources"):
         copy_file(args.build_script, os.path.join(root, "root", os.path.basename(args.build_script)))
 
-        if args.build_sources is not None:
-            target = os.path.join(root, "root/src")
+        if args.build_sources is None:
+            return
 
-            if args.source_file_transfer in (
-                SourceFileTransfer.copy_git_others,
-                SourceFileTransfer.copy_git_cached,
-                SourceFileTransfer.copy_git_more,
-            ):
-                copy_git_files(args.build_sources, target, source_file_transfer=args.source_file_transfer)
-            elif args.source_file_transfer == SourceFileTransfer.copy_all:
-                ignore = shutil.ignore_patterns(
-                    ".git",
-                    ".mkosi-*",
-                    "*.cache-pre-dev",
-                    "*.cache-pre-inst",
-                    os.path.basename(args.output_dir) + "/" if args.output_dir else "mkosi.output/",  # NOQA: E501
-                    os.path.basename(args.cache_path) + "/" if args.cache_path else "mkosi.cache/",  # NOQA: E501
-                    os.path.basename(args.build_dir) + "/" if args.build_dir else "mkosi.builddir/",  # NOQA: E501
-                    os.path.basename(args.include_dir) + "/"
-                    if args.include_dir
-                    else "mkosi.includedir/",  # NOQA: E501
-                    os.path.basename(args.install_dir) + "/" if args.install_dir else "mkosi.installdir/",
-                )  # NOQA: E501
-                shutil.copytree(args.build_sources, target, symlinks=True, ignore=ignore)
+        target = os.path.join(root, "root/src")
+
+        if args.source_file_transfer in (
+            SourceFileTransfer.copy_git_others,
+            SourceFileTransfer.copy_git_cached,
+            SourceFileTransfer.copy_git_more,
+        ):
+            copy_git_files(args.build_sources, target, source_file_transfer=args.source_file_transfer)
+        elif args.source_file_transfer == SourceFileTransfer.copy_all:
+            ignore = shutil.ignore_patterns(
+                ".git",
+                ".mkosi-*",
+                "*.cache-pre-dev",
+                "*.cache-pre-inst",
+                os.path.basename(args.output_dir) + "/" if args.output_dir else "mkosi.output/",
+                os.path.basename(args.cache_path) + "/" if args.cache_path else "mkosi.cache/",
+                os.path.basename(args.build_dir) + "/" if args.build_dir else "mkosi.builddir/",
+                os.path.basename(args.include_dir) + "/" if args.include_dir else "mkosi.includedir/",
+                os.path.basename(args.install_dir) + "/" if args.install_dir else "mkosi.installdir/",
+            )
+            shutil.copytree(args.build_sources, target, symlinks=True, ignore=ignore)
 
 
 def install_build_dest(args: CommandLineArguments, root: str, do_run_build_script: bool, for_cache: bool) -> None:
