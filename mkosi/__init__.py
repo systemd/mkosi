@@ -4397,7 +4397,7 @@ def create_parser() -> ArgumentParserMkosi:
         default=None,
         help="Method used to copy build sources to the build image."
         + "; ".join([f"'{k}': {v}" for k, v in SourceFileTransfer.doc().items()])
-        + " (default: copy-git-cached if in a git repository, otherwise copy-all)",
+        + " (default: copy-git-others if in a git repository, otherwise copy-all)",
     )
     group.add_argument(
         "--with-network",
@@ -5304,7 +5304,7 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
 
     if args.source_file_transfer is None:
         if os.path.exists(".git") or os.path.exists(os.path.join(args.build_sources, ".git")):
-            args.source_file_transfer = SourceFileTransfer.copy_git_cached
+            args.source_file_transfer = SourceFileTransfer.copy_git_others
         else:
             args.source_file_transfer = SourceFileTransfer.copy_all
 
