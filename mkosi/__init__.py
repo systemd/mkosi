@@ -2907,6 +2907,25 @@ def set_autologin(args: CommandLineArguments, root: str, do_run_build_script: bo
 
     pam_add_autologin(root, "ttyS0")
 
+    override_dir = os.path.join(root, "etc/systemd/system/getty@tty1.service.d")
+    os.makedirs(override_dir, mode=0o755, exist_ok=True)
+
+    override_file = os.path.join(override_dir, "autologin.conf")
+    with open(override_file, "w") as f:
+        f.write(
+            dedent(
+                r"""
+                [Service]
+                ExecStart=
+                ExecStart=-/sbin/agetty -o '-p -- \\u' --autologin root --noclear %I $TERM
+                """
+            )
+        )
+
+    os.chmod(override_file, 0o644)
+
+    pam_add_autologin(root, "tty1")
+
 
 def set_serial_terminal(args: CommandLineArguments, root: str, do_run_build_script: bool, for_cache: bool) -> None:
     """Override TERM for the serial console with the terminal type from the host."""
