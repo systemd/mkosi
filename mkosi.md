@@ -383,7 +383,7 @@ details see the table below.
 : If running on a SELinux-enabled system (Fedora, CentOS), files inside
   the container are tagged with SELinux context extended attributes
   (`xattrs`), which may interfere with host SELinux rules in building
-  or further container import stages.  
+  or further container import stages.
   This option strips SELinux context attributes from the resulting
   tar archive.
 
@@ -591,6 +591,13 @@ details see the table below.
   specify `copy-git-more`, it is the same as `copy-git-cached`, except
   it also includes the `.git/` directory.
 
+`--source-file-transfer-final=`
+
+: Same as `--source-file-transfer` but for the final image instead of
+  the build image. Takes the same values as `--source-file-transfer`
+  except `mount`. By default, sources are not copied into the final
+  image.
+
 `--with-network`
 
 : Enables network connectivity while the build script `mkosi.build` is
@@ -796,6 +803,7 @@ which settings file options.
 | `--build-script=`                 | `[Packages]`            | `BuildScript=`                |
 | `--build-sources=`                | `[Packages]`            | `BuildSources=`               |
 | `--source-file-transfer=`         | `[Packages]`            | `SourceFileTransfer=`         |
+| `--source-file-transfer-final=`   | `[Packages]`            | `SourceFileTransferFinal=`    |
 | `--build-directory=`              | `[Packages]`            | `BuildDirectory=`             |
 | `--include-directory=`            | `[Packages]`            | `IncludeDirectory=`           |
 | `--install-directory=`            | `[Packages]`            | `InstallDirectory=`           |

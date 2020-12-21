@@ -98,6 +98,7 @@ class MkosiConfig(object):
             "sign": False,
             "skeleton_trees": [],
             "source_file_transfer": None,
+            "source_file_transfer_final": None,
             "srv_size": None,
             "swap_size": None,
             "tmp_size": None,
@@ -253,6 +254,10 @@ class MkosiConfig(object):
                 self.reference_config[job_name]["build_sources"] = mk_config_packages["BuildSources"]
             if "SourceFileTransfer" in mk_config_packages:
                 self.reference_config[job_name]["source_file_transfer"] = mk_config_packages["SourceFileTransfer"]
+            if "SourceFileTransferFinal" in mk_config_packages:
+                self.reference_config[job_name]["source_file_transfer_final"] = mk_config_packages[
+                    "SourceFileTransferFinal"
+                ]
             if "BuildDirectory" in mk_config_packages:
                 self.reference_config[job_name]["build_dir"] = mk_config_packages["BuildDirectory"]
             if "IncludeDirectory" in mk_config_packages:
