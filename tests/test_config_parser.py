@@ -115,6 +115,7 @@ class MkosiConfig(object):
             "ephemeral": False,
             "with_unified_kernel_images": True,
             "hostonly_initrd": False,
+            "ssh": False,
         }
 
     def __eq__(self, other: [mkosi.CommandLineArguments]) -> bool:
@@ -313,6 +314,8 @@ class MkosiConfig(object):
                 self.reference_config[job_name]["network_veth"] = mk_config_host["NetworkVeth"]
             if "Ephemeral" in mk_config_host:
                 self.reference_config[job_name]["ephemeral"] = mk_config_host["Ephemeral"]
+            if "Ssh" in mk_config_host:
+                self.reference_config[job_name]["ssh"] = mk_config_host["Ssh"]
 
 
 class MkosiConfigOne(MkosiConfig):

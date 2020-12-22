@@ -142,6 +142,14 @@ The following command line verbs are known:
   built with `--bootable` (see below). This command must be executed
   as `root` unless the image already exists and `-f` is not specified.
 
+`ssh`
+
+: When the image is built with the `--ssh` option, this command connects
+  to a booted (`boot`, `qemu` verbs) container/VM via SSH. Make sure to
+  run `mkosi ssh` with the same config as `mkosi build` was run with so
+  that it has the necessary information available to connect to the running
+  container/VM via SSH.
+
 `help`
 
 : This verb is equivalent to the `--help` switch documented below: it
@@ -758,6 +766,13 @@ details see the table below.
   on file systems that support subvolume snapshots or 'reflinks' natively ("btrfs"
   or new "xfs") than on more traditional file systems that do not ("ext4").
 
+`--ssh`
+: If specified, installs and enables sshd in the final image and generates
+  a SSH keypair and adds the public key to root's authorized keys in the final
+  image. The private key is stored in mkosi's output directory. When building
+  with this  option and running the image using `mkosi boot` or `mkosi qemu`,
+  the `mkosi ssh` command can be used to connect to the container/VM via SSH.
+
 ## Command Line Parameters and their Settings File Counterparts
 
 Most command line parameters may also be placed in an `mkosi.default`
@@ -830,6 +845,7 @@ which settings file options.
 | `--qemu-headless`                 | `[Host]`                | `QemuHeadless=`               |
 | `--network-veth`                  | `[Host]`                | `NetworkVeth=`                |
 | `--ephemeral`                     | `[Host]`                | `Ephemeral=`                  |
+| `--ssh`                           | `[Host]`                | `Ssh=`                        |
 
 Command line options that take no argument are not suffixed with a `=`
 in their long version in the table above. In the `mkosi.default` file

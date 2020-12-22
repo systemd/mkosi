@@ -13,6 +13,7 @@ import errno
 import fcntl
 import getpass
 import glob
+import time
 import hashlib
 import os
 import platform
@@ -25,6 +26,7 @@ import string
 import subprocess
 import sys
 import tempfile
+import json
 import urllib.request
 import urllib.parse
 import uuid
@@ -70,9 +72,9 @@ else:
     TempDir = tempfile.TemporaryDirectory
 
 
-MKOSI_COMMANDS_CMDLINE = ("shell", "boot", "qemu")
-MKOSI_COMMANDS_NEED_BUILD = MKOSI_COMMANDS_CMDLINE
-MKOSI_COMMANDS_SUDO = ("build", "clean") + MKOSI_COMMANDS_CMDLINE
+MKOSI_COMMANDS_CMDLINE = ("shell", "boot", "qemu", "ssh")
+MKOSI_COMMANDS_NEED_BUILD = ("shell", "boot", "qemu")
+MKOSI_COMMANDS_SUDO = ("build", "clean", "shell", "boot", "qemu")
 MKOSI_COMMANDS = ("build", "clean", "help", "summary") + MKOSI_COMMANDS_CMDLINE
 
 DRACUT_SYSTEMD_EXTRAS = [
@@ -1497,8 +1499,13 @@ def prepare_tree(args: CommandLineArguments, root: str, do_run_build_script: boo
             cmdline.write(" ".join(args.kernel_command_line))
             cmdline.write("\n")
 
-    if do_run_build_script:
+    if do_run_build_script or args.ssh:
         os.mkdir(os.path.join(root, "root"), 0o750)
+
+    if args.ssh and not do_run_build_script:
+        os.mkdir(os.path.join(root, "root/.ssh"), 0o700)
+
+    if do_run_build_script:
         os.mkdir(os.path.join(root, "root/dest"), 0o755)
 
         if args.include_dir is not None:
@@ -1640,7 +1647,7 @@ def reenable_kernel_install(args: CommandLineArguments, root: str) -> None:
     make_executable(hook_path)
 
 
-def make_rpm_list(args: argparse.Namespace, packages: Set[str]) -> Set[str]:
+def make_rpm_list(args: argparse.Namespace, packages: Set[str], do_run_build_script: bool) -> Set[str]:
     packages = packages.copy()
 
     if args.bootable:
@@ -1662,6 +1669,9 @@ def make_rpm_list(args: argparse.Namespace, packages: Set[str]) -> Set[str]:
                 packages.add("grub2")
             else:
                 packages.add("grub2-pc")
+
+    if not do_run_build_script and args.ssh:
+        packages.add("openssh-server")
 
     return packages
 
@@ -1729,10 +1739,12 @@ def clean_tdnf_metadata(root: str) -> None:
         remove_glob(root + "/var/log/tdnf.*", root + "/var/cache/tdnf")
 
 
-def invoke_dnf(args: CommandLineArguments, root: str, repositories: List[str], packages: Set[str]) -> None:
+def invoke_dnf(
+    args: CommandLineArguments, root: str, repositories: List[str], packages: Set[str], do_run_build_script: bool
+) -> None:
     repos = ["--enablerepo=" + repo for repo in repositories]
     config_file = os.path.join(workspace(root), "dnf.conf")
-    packages = make_rpm_list(args, packages)
+    packages = make_rpm_list(args, packages, do_run_build_script)
 
     cmdline = [
         "dnf",
@@ -1764,11 +1776,16 @@ def invoke_dnf(args: CommandLineArguments, root: str, repositories: List[str], p
 
 
 def invoke_tdnf(
-    args: CommandLineArguments, root: str, repositories: List[str], packages: Set[str], gpgcheck: bool
+    args: CommandLineArguments,
+    root: str,
+    repositories: List[str],
+    packages: Set[str],
+    gpgcheck: bool,
+    do_run_build_script: bool,
 ) -> None:
     repos = ["--enablerepo=" + repo for repo in repositories]
     config_file = os.path.join(workspace(root), "dnf.conf")
-    packages = make_rpm_list(args, packages)
+    packages = make_rpm_list(args, packages, do_run_build_script)
 
     cmdline = [
         "tdnf",
@@ -1856,7 +1873,14 @@ def install_photon(args: CommandLineArguments, root: str, do_run_build_script: b
     if not do_run_build_script and args.bootable:
         packages |= {"linux", "initramfs"}
 
-    invoke_tdnf(args, root, args.repositories or ["photon", "photon-updates"], packages, os.path.exists(gpgpath))
+    invoke_tdnf(
+        args,
+        root,
+        args.repositories or ["photon", "photon-updates"],
+        packages,
+        os.path.exists(gpgpath),
+        do_run_build_script,
+    )
 
 
 @completestep("Installing Clear Linux")
@@ -1871,6 +1895,8 @@ def install_clear(args: CommandLineArguments, root: str, do_run_build_script: bo
         packages.update(args.build_packages)
     if not do_run_build_script and args.bootable:
         packages.add("kernel-native")
+    if not do_run_build_script and args.ssh:
+        packages.add("openssh-server")
 
     swupd_extract = shutil.which("swupd-extract")
 
@@ -1961,7 +1987,7 @@ def install_fedora(args: CommandLineArguments, root: str, do_run_build_script: b
         configure_dracut(args, root)
     if do_run_build_script:
         packages.update(args.build_packages)
-    invoke_dnf(args, root, args.repositories or ["fedora", "updates"], packages)
+    invoke_dnf(args, root, args.repositories or ["fedora", "updates"], packages, do_run_build_script)
 
     with open(os.path.join(root, "etc/locale.conf"), "w") as f:
         f.write("LANG=C.UTF-8\n")
@@ -2001,7 +2027,7 @@ def install_mageia(args: CommandLineArguments, root: str, do_run_build_script: b
             f.write('omit_dracutmodules=""\n')
     if do_run_build_script:
         packages.update(args.build_packages)
-    invoke_dnf(args, root, args.repositories or ["mageia", "updates"], packages)
+    invoke_dnf(args, root, args.repositories or ["mageia", "updates"], packages, do_run_build_script)
 
     disable_pam_securetty(root)
 
@@ -2044,15 +2070,17 @@ def install_openmandriva(args: CommandLineArguments, root: str, do_run_build_scr
         configure_dracut(args, root)
     if do_run_build_script:
         packages.update(args.build_packages)
-    invoke_dnf(args, root, args.repositories or ["openmandriva", "updates"], packages)
+    invoke_dnf(args, root, args.repositories or ["openmandriva", "updates"], packages, do_run_build_script)
 
     disable_pam_securetty(root)
 
 
-def invoke_yum(args: CommandLineArguments, root: str, repositories: List[str], packages: Set[str]) -> None:
+def invoke_yum(
+    args: CommandLineArguments, root: str, repositories: List[str], packages: Set[str], do_run_build_script: bool
+) -> None:
     repos = ["--enablerepo=" + repo for repo in repositories]
     config_file = os.path.join(workspace(root), "dnf.conf")
-    packages = make_rpm_list(args, packages)
+    packages = make_rpm_list(args, packages, do_run_build_script)
 
     cmdline = [
         "yum",
@@ -2077,11 +2105,13 @@ def invoke_yum(args: CommandLineArguments, root: str, repositories: List[str], p
         run(cmdline)
 
 
-def invoke_dnf_or_yum(args: CommandLineArguments, root: str, repositories: List[str], packages: Set[str]) -> None:
+def invoke_dnf_or_yum(
+    args: CommandLineArguments, root: str, repositories: List[str], packages: Set[str], do_run_build_script: bool
+) -> None:
     if shutil.which("dnf") is None:
-        invoke_yum(args, root, repositories, packages)
+        invoke_yum(args, root, repositories, packages, do_run_build_script)
     else:
-        invoke_dnf(args, root, repositories, packages)
+        invoke_dnf(args, root, repositories, packages, do_run_build_script)
 
 
 def install_centos_old(args: CommandLineArguments, root: str, epel_release: int) -> List[str]:
@@ -2211,7 +2241,7 @@ def install_centos(args: CommandLineArguments, root: str, do_run_build_script: b
     if do_run_build_script:
         packages.update(args.build_packages)
 
-    invoke_dnf_or_yum(args, root, repos, packages)
+    invoke_dnf_or_yum(args, root, repos, packages, do_run_build_script)
 
 
 def debootstrap_knows_arg(arg: str) -> bool:
@@ -2269,6 +2299,9 @@ def install_debian_or_ubuntu(args: CommandLineArguments, root: str, *, do_run_bu
 
         if args.output_format == OutputFormat.gpt_btrfs:
             extra_packages.add("btrfs-progs")
+
+    if not do_run_build_script and args.ssh:
+        extra_packages.add("openssh-server")
 
     # Debian policy is to start daemons by default. The policy-rc.d script can be used choose which ones to
     # start. Let's install one that denies all daemon startups.
@@ -2637,6 +2670,9 @@ def install_arch(args: CommandLineArguments, root: str, do_run_build_script: boo
     if do_run_build_script:
         packages.update(args.build_packages)
 
+    if not do_run_build_script and args.ssh:
+        packages.add("openssh")
+
     def run_pacman(packages: Set[str]) -> None:
         conf = ["--config", pacman_conf]
 
@@ -2725,6 +2761,9 @@ def install_opensuse(args: CommandLineArguments, root: str, do_run_build_script:
 
     if do_run_build_script:
         packages.update(args.build_packages)
+
+    if not do_run_build_script and args.ssh:
+        packages.update("openssh-server")
 
     cmdline = [
         "zypper",
@@ -3964,6 +4003,15 @@ def link_output_bmap(args: CommandLineArguments, bmap: Optional[str]) -> None:
         _link_output(args, bmap, args.output_bmap)
 
 
+def link_output_sshkey(args: CommandLineArguments, sshkey: Optional[str]) -> None:
+    if sshkey is None:
+        return
+
+    with complete_step("Linking private ssh key file", f"Successfully linked {args.output_sshkey}"):
+        _link_output(args, sshkey, args.output_sshkey)
+        os.chmod(args.output_sshkey, 0o600)
+
+
 def dir_size(path: str) -> int:
     dir_sum = 0
     for entry in os.scandir(path):
@@ -4518,6 +4566,9 @@ def create_parser() -> ArgumentParserMkosi:
         help="If specified, the container/VM is run with a temporary snapshot of the output image that is "
         "removed immediately when the container/VM terminates",
     )
+    group.add_argument(
+        "--ssh", action=BooleanAction, help="Set up SSH access from the host to the final image via `mkosi ssh`"
+    )
 
     group = parser.add_argument_group("Additional Configuration")
     group.add_argument("-C", "--directory", help="Change to specified directory before doing anything", metavar="PATH")
@@ -4851,6 +4902,9 @@ def unlink_output(args: CommandLineArguments) -> None:
 
             if args.nspawn_settings is not None:
                 unlink_try_hard(args.output_nspawn_settings)
+
+        if args.ssh:
+            unlink_try_hard(args.output_sshkey)
 
     # We remove any cached images if either the user used --force
     # twice, or he/she called "clean" with it passed once. Let's also
@@ -5235,6 +5289,9 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
         args.nspawn_settings = os.path.abspath(args.nspawn_settings)
         args.output_nspawn_settings = build_nspawn_settings_path(args.output)
 
+    # We want this set even if --ssh is not specified so we can find the SSH key when verb == "ssh".
+    args.output_sshkey = os.path.join(os.path.dirname(args.output), "id_rsa")
+
     if args.build_script is not None:
         check_valid_script(args.build_script)
         args.build_script = os.path.abspath(args.build_script)
@@ -5360,6 +5417,9 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
     if args.skip_final_phase and args.verb != "build":
         die("--skip-final-phase can only be used when building an image using `mkosi build`")
 
+    if args.ssh and not args.network_veth:
+        die("--ssh cannot be used without --network-veth")
+
     return args
 
 
@@ -5374,6 +5434,7 @@ def check_output(args: CommandLineArguments) -> None:
         args.output_bmap if args.bmap else None,
         args.output_nspawn_settings if args.nspawn_settings is not None else None,
         args.output_root_hash_file if args.verity else None,
+        args.output_sshkey if args.ssh else None,
     ):
 
         if f is None:
@@ -5454,6 +5515,7 @@ def print_summary(args: CommandLineArguments) -> None:
         "    Output nspawn Settings: "
         + none_to_na(args.output_nspawn_settings if args.nspawn_settings is not None else None)
     )  # NOQA: E501
+    MkosiPrinter.info("            Output SSH key: " + none_to_na(args.output_sshkey if args.ssh else None))
     MkosiPrinter.info("               Incremental: " + yes_no(args.incremental))
 
     MkosiPrinter.info("                 Read-only: " + yes_no(args.read_only))
@@ -5587,20 +5649,54 @@ def make_build_dir(args: CommandLineArguments) -> None:
     mkdir_last(args.build_dir, 0o755)
 
 
+def setup_ssh(args: CommandLineArguments, root: str, do_run_build_script: bool, for_cache: bool) -> Optional[TextIO]:
+    if do_run_build_script or for_cache or not args.ssh:
+        return None
+
+    if args.distribution in (Distribution.debian, Distribution.ubuntu):
+        unit = "ssh"
+    else:
+        unit = "sshd"
+
+    run(["systemctl", "--root", root, "enable", unit])
+
+    f: TextIO = cast(
+        TextIO,
+        tempfile.NamedTemporaryFile(
+            mode="w+", prefix=".mkosi-", encoding="utf-8", dir=os.path.dirname(args.output_sshkey)
+        ),
+    )
+
+    with complete_step("Generating SSH keypair"):
+        # Write a 'y' to confirm to overwrite the file.
+        run(
+            ["ssh-keygen", "-f", f.name, "-N", args.password or "", "-C", "mkosi", "-t", "ed25519"],
+            input=f"y\n",
+            text=True,
+        )
+
+    copy_file(f"{f.name}.pub", os.path.join(root, "root/.ssh/authorized_keys"))
+    os.remove(f"{f.name}.pub")
+
+    os.chmod(os.path.join(root, "root/.ssh/authorized_keys"), 0o600)
+
+    return f
+
+
 def build_image(
     args: CommandLineArguments, root: str, *, do_run_build_script: bool, for_cache: bool = False, cleanup: bool = False
-) -> Tuple[Optional[BinaryIO], Optional[BinaryIO], Optional[str]]:
+) -> Tuple[Optional[BinaryIO], Optional[BinaryIO], Optional[str], Optional[TextIO]]:
     # If there's no build script set, there's no point in executing
     # the build script iteration. Let's quit early.
     if args.build_script is None and do_run_build_script:
-        return None, None, None
+        return None, None, None, None
 
     make_build_dir(args)
 
     raw, cached = reuse_cache_image(args, root, do_run_build_script, for_cache)
     if for_cache and cached:
         # Found existing cache image, exiting build_image
-        return None, None, None
+        return None, None, None, None
 
     if not cached:
         raw = create_image(args, root, for_cache)
@@ -5665,6 +5761,7 @@ def build_image(
                     set_root_password(args, root, do_run_build_script, for_cache)
                     set_serial_terminal(args, root, do_run_build_script, for_cache)
                     set_autologin(args, root, do_run_build_script, for_cache)
+                    sshkey = setup_ssh(args, root, do_run_build_script, for_cache)
                     run_postinst_script(args, root, loopdev, do_run_build_script, for_cache)
 
                 if cleanup:
@@ -5700,7 +5797,7 @@ def build_image(
 
     tar = make_tar(args, root, do_run_build_script, for_cache)
 
-    return raw or generated_root, tar, root_hash
+    return raw or generated_root, tar, root_hash, sshkey
 
 
 def workspace(root: str) -> str:
@@ -5848,14 +5945,14 @@ def build_stuff(args: CommandLineArguments) -> None:
             if args.build_script:
                 with complete_step("Running first (development) stage to generate cached copy"):
                     # Generate the cache version of the build image, and store it as "cache-pre-dev"
-                    raw, tar, root_hash = build_image(args, root, do_run_build_script=True, for_cache=True)
+                    raw, tar, root_hash, sshkey = build_image(args, root, do_run_build_script=True, for_cache=True)
                     save_cache(args, root, raw.name if raw is not None else None, args.cache_pre_dev)
 
                     remove_artifacts(args, root, raw, tar, do_run_build_script=True)
 
             with complete_step("Running second (final) stage to generate cached copy"):
                 # Generate the cache version of the build image, and store it as "cache-pre-inst"
-                raw, tar, root_hash = build_image(args, root, do_run_build_script=False, for_cache=True)
+                raw, tar, root_hash, sshkey = build_image(args, root, do_run_build_script=False, for_cache=True)
                 if raw:
                     save_cache(args, root, raw.name, args.cache_pre_inst)
                     remove_artifacts(args, root, raw, tar, do_run_build_script=False)
@@ -5863,7 +5960,7 @@ def build_stuff(args: CommandLineArguments) -> None:
         if args.build_script:
             with complete_step("Running first (development) stage"):
                 # Run the image builder for the first (development) stage in preparation for the build script
-                raw, tar, root_hash = build_image(args, root, do_run_build_script=True)
+                raw, tar, root_hash, sshkey = build_image(args, root, do_run_build_script=True)
 
                 run_build_script(args, root, raw)
                 remove_artifacts(args, root, raw, tar, do_run_build_script=True)
@@ -5871,7 +5968,7 @@ def build_stuff(args: CommandLineArguments) -> None:
         # Run the image builder for the second (final) stage
         if not args.skip_final_phase:
             with complete_step("Running second (final) stage"):
-                raw, tar, root_hash = build_image(args, root, do_run_build_script=False, cleanup=True)
+                raw, tar, root_hash, sshkey = build_image(args, root, do_run_build_script=False, cleanup=True)
         else:
             MkosiPrinter.print_step("Skipping (second) final image build phase.")
 
@@ -5889,6 +5986,7 @@ def build_stuff(args: CommandLineArguments) -> None:
         link_output_signature(args, signature.name if signature is not None else None)
         link_output_bmap(args, bmap.name if bmap is not None else None)
         link_output_nspawn_settings(args, settings.name if settings is not None else None)
+        link_output_sshkey(args, sshkey.name if sshkey is not None else None)
 
         if root_hash is not None:
             MkosiPrinter.print_step(f"Root hash is {root_hash}.")
@@ -5911,6 +6009,13 @@ def suppress_stacktrace() -> Generator[None, None, None]:
     except subprocess.CalledProcessError as e:
         # MkosiException is silenced in main() so it doesn't print a stacktrace.
         raise MkosiException(e)
+
+
+def virt_name(args: CommandLineArguments) -> str:
+    name = args.hostname or os.path.splitext(os.path.basename(args.output))[0]
+    # Shorten to 13 characters so we can prefix with ve- or vt- for the network veth ifname which is limited
+    # to 16 characters.
+    return cast(str, name[:13])
 
 
 def run_shell(args: CommandLineArguments) -> None:
@@ -5939,6 +6044,8 @@ def run_shell(args: CommandLineArguments) -> None:
 
     if args.ephemeral:
         cmdline.append("--ephemeral")
+
+    cmdline += ["--machine", virt_name(args)]
 
     if args.cmdline:
         # If the verb is shell, args.cmdline contains the command to run. Otherwise (boot), we assume
@@ -6020,8 +6127,8 @@ def run_qemu(args: CommandLineArguments) -> None:
         cmdline += ["-vga", "virtio"]
 
     if args.network_veth:
-        # On Linux, interface names are limited to 16 characters so we do the same.
-        ifname = f"vt-{os.path.splitext(os.path.basename(args.output))[0][:13]}"
+        # Use vt- prefix so we can take advantage of systemd-networkd's builtin network file for VMs.
+        ifname = f"vt-{virt_name(args)}"
         # vt-<image-name> is the ifname on the host and is automatically picked up by systemd-networkd which
         # starts a DHCP server on that interface. This gives IP connectivity to the VM. By default, QEMU
         # itself tries to bring up the vt network interface which conflicts with systemd-networkd which is
@@ -6043,6 +6150,71 @@ def run_qemu(args: CommandLineArguments) -> None:
 
         with suppress_stacktrace():
             run(cmdline, stdout=sys.stdout, stderr=sys.stderr)
+
+
+def interface_exists(dev: str) -> bool:
+    return run(["ip", "link", "show", dev], stdout=DEVNULL, stderr=DEVNULL, check=False).returncode == 0
+
+
+def find_address(args: CommandLineArguments) -> Tuple[str, str]:
+    name = virt_name(args)
+
+    if interface_exists(f"ve-{name}"):
+        dev = f"ve-{name}"
+    elif interface_exists(f"vt-{name}"):
+        dev = f"vt-{name}"
+    else:
+        die("Container/VM interface not found")
+
+    link = json.loads(run(["ip", "-j", "link", "show", "dev", dev], stdout=PIPE, text=True).stdout)[0]
+    if link["operstate"] == "DOWN":
+        die(f"{dev} is not enabled. Make sure systemd-networkd is running so it can manage the interface.")
+
+    # Trigger IPv6 neighbor discovery of which we can access the results via `ip neighbor`. This allows us to
+    # find out the link-local IPv6 address of the container/VM via which we can connect to it.
+    run(["ping", "-c", "1", "-w", "15", f"ff02::1%{dev}"], stdout=DEVNULL)
+
+    for _ in range(50):
+        neighbors = json.loads(run(["ip", "-j", "neighbor", "show", "dev", dev], stdout=PIPE, text=True).stdout)
+
+        for neighbor in neighbors:
+            dst = cast(str, neighbor["dst"])
+            if dst.startswith("fe80"):
+                return dev, dst
+
+        time.sleep(0.2)
+
+    die("Container/VM address not found")
+
+
+def run_ssh(args: CommandLineArguments) -> None:
+    if not os.path.exists(args.output_sshkey):
+        die(
+            f"SSH key not found at {args.output_sshkey}. Are you running from the project's root directory "
+            "and did you build with the --ssh option?"
+        )
+
+    dev, address = find_address(args)
+
+    with suppress_stacktrace():
+        run(
+            [
+                "ssh",
+                "-i",
+                args.output_sshkey,
+                # Silence known hosts file errors/warnings.
+                "-o",
+                "UserKnownHostsFile=/dev/null",
+                "-o",
+                "StrictHostKeyChecking=no",
+                "-o",
+                "LogLevel ERROR",
+                f"root@{address}%{dev}",
+                *args.cmdline,
+            ],
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+        )
 
 
 def expand_paths(paths: List[str]) -> List[str]:
@@ -6112,3 +6284,6 @@ def run_verb(args: CommandLineArguments) -> None:
 
     if args.verb == "qemu":
         run_qemu(args)
+
+    if args.verb == "ssh":
+        run_ssh(args)
