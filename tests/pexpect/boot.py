@@ -2,6 +2,7 @@
 
 import pexpect
 import sys
+import time
 
 
 def run() -> None:
@@ -9,6 +10,11 @@ def run() -> None:
 
     p.expect("login:")
     p.sendline("root")
+
+    time.sleep(30)
+
+    s = pexpect.spawnu("mkosi ssh", logfile=sys.stdout)
+    s.expect("#")
 
     p.expect("#")
     p.sendline("systemctl poweroff")

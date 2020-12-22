@@ -47,9 +47,13 @@ jobs:
     - name: Install
       run: sudo python3 -m pip install .
 
-    - name: Build ${{ matrix.distro }}/${{ matrix.format }}
+    - name: Write shared mkosi config
       run: |
-        tee mkosi.default << EOF
+        sudo systemctl start systemd-networkd
+
+        mkdir -p mkosi.default.d
+
+        tee mkosi.default.d/mkosi.default << EOF
         [Distribution]
         Distribution=${{ matrix.distro }}
 
@@ -58,8 +62,14 @@ jobs:
 
         [Validation]
         Password=
+
+        [Host]
+        Ssh=yes
+        NetworkVeth=yes
         EOF
 
+    - name: Build ${{ matrix.distro }}/${{ matrix.format }}
+      run: |
         sudo python3 -m mkosi build
 
     - name: Boot ${{ matrix.distro }}/${{ matrix.format }}
@@ -72,16 +82,9 @@ jobs:
           matrix.format != 'tar'
       run: |
         tee mkosi.default << EOF
-        [Distribution]
-        Distribution=${{ matrix.distro }}
-
         [Output]
-        Format=${{ matrix.format }}
         Bootable=yes
         BootProtocols=uefi
-
-        [Validation]
-        Password=
 
         [Host]
         QemuHeadless=yes
@@ -106,19 +109,12 @@ jobs:
           matrix.distro == 'fedora')
       run: |
         tee mkosi.default << EOF
-        [Distribution]
-        Distribution=${{ matrix.distro }}
-
         [Output]
-        Format=${{ matrix.format }}
         Bootable=yes
         BootProtocols=uefi
         WithUnifiedKernelImages=no
         # Boot with systemd.volatile=overlay so squashfs images can write to the filesystem
         KernelCommandLine=systemd.volatile=overlay
-
-        [Validation]
-        Password=
 
         [Host]
         QemuHeadless=yes
@@ -142,17 +138,10 @@ jobs:
           matrix.format != 'tar'
       run: |
         tee mkosi.default << EOF
-        [Distribution]
-        Distribution=${{ matrix.distro }}
-
         [Output]
-        Format=${{ matrix.format }}
         Bootable=yes
         BootProtocols=bios
         WithUnifiedKernelImages=no
-
-        [Validation]
-        Password=
 
         [Host]
         QemuHeadless=yes
