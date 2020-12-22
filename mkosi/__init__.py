@@ -5901,6 +5901,15 @@ def check_native(args: CommandLineArguments) -> None:
         die("Cannot (currently) override the architecture and run build commands")
 
 
+@contextlib.contextmanager
+def suppress_stacktrace() -> Generator[None, None, None]:
+    try:
+        yield
+    except subprocess.CalledProcessError as e:
+        # MkosiException is silenced in main() so it doesn't print a stacktrace.
+        raise MkosiException(e)
+
+
 def run_shell(args: CommandLineArguments) -> None:
     if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
         target = f"--directory={args.output}"
@@ -5935,7 +5944,8 @@ def run_shell(args: CommandLineArguments) -> None:
             cmdline.append("--")
         cmdline += args.cmdline
 
-    run(cmdline, stdout=sys.stdout, stderr=sys.stderr)
+    with suppress_stacktrace():
+        run(cmdline, stdout=sys.stdout, stderr=sys.stderr)
 
 
 def run_qemu(args: CommandLineArguments) -> None:
@@ -6028,7 +6038,8 @@ def run_qemu(args: CommandLineArguments) -> None:
 
         print_running_cmd(cmdline)
 
-        run(cmdline, stdout=sys.stdout, stderr=sys.stderr)
+        with suppress_stacktrace():
+            run(cmdline, stdout=sys.stdout, stderr=sys.stderr)
 
 
 def expand_paths(paths: List[str]) -> List[str]:
