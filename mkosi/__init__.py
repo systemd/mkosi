@@ -1640,28 +1640,28 @@ def reenable_kernel_install(args: CommandLineArguments, root: str) -> None:
     make_executable(hook_path)
 
 
-def make_rpm_list(args: argparse.Namespace, packages: List[str]) -> List[str]:
-    packages = list(packages)  # make a copy
+def make_rpm_list(args: argparse.Namespace, packages: Set[str]) -> Set[str]:
+    packages = packages.copy()
 
     if args.bootable:
         # Temporary hack: dracut only adds crypto support to the initrd, if the cryptsetup binary is installed
         if args.encrypt or args.verity:
-            packages += ["cryptsetup"]
+            packages.add("cryptsetup")
 
         if args.output_format == OutputFormat.gpt_ext4:
-            packages += ["e2fsprogs"]
+            packages.add("e2fsprogs")
 
         if args.output_format == OutputFormat.gpt_xfs:
-            packages += ["xfsprogs"]
+            packages.add("xfsprogs")
 
         if args.output_format == OutputFormat.gpt_btrfs:
-            packages += ["btrfs-progs"]
+            packages.add("btrfs-progs")
 
         if args.bios_partno:
             if args.distribution in (Distribution.mageia, Distribution.openmandriva):
-                packages += ["grub2"]
+                packages.add("grub2")
             else:
-                packages += ["grub2-pc"]
+                packages.add("grub2-pc")
 
     return packages
 
@@ -1729,7 +1729,7 @@ def clean_tdnf_metadata(root: str) -> None:
         remove_glob(root + "/var/log/tdnf.*", root + "/var/cache/tdnf")
 
 
-def invoke_dnf(args: CommandLineArguments, root: str, repositories: List[str], packages: List[str]) -> None:
+def invoke_dnf(args: CommandLineArguments, root: str, repositories: List[str], packages: Set[str]) -> None:
     repos = ["--enablerepo=" + repo for repo in repositories]
     config_file = os.path.join(workspace(root), "dnf.conf")
     packages = make_rpm_list(args, packages)
@@ -1764,7 +1764,7 @@ def invoke_dnf(args: CommandLineArguments, root: str, repositories: List[str], p
 
 
 def invoke_tdnf(
-    args: CommandLineArguments, root: str, repositories: List[str], packages: List[str], gpgcheck: bool
+    args: CommandLineArguments, root: str, repositories: List[str], packages: Set[str], gpgcheck: bool
 ) -> None:
     repos = ["--enablerepo=" + repo for repo in repositories]
     config_file = os.path.join(workspace(root), "dnf.conf")
@@ -1852,9 +1852,9 @@ def install_photon(args: CommandLineArguments, root: str, do_run_build_script: b
         ],
     )
 
-    packages = ["minimal"]
+    packages = {"minimal"}
     if not do_run_build_script and args.bootable:
-        packages += ["linux", "initramfs"]
+        packages |= {"linux", "initramfs"}
 
     invoke_tdnf(args, root, args.repositories or ["photon", "photon-updates"], packages, os.path.exists(gpgpath))
 
@@ -1866,11 +1866,11 @@ def install_clear(args: CommandLineArguments, root: str, do_run_build_script: bo
     else:
         release = "clear/" + args.release
 
-    packages = ["os-core-plus"] + args.packages
+    packages = {"os-core-plus", *args.packages}
     if do_run_build_script:
-        packages.extend(args.build_packages)
+        packages |= args.build_packages
     if not do_run_build_script and args.bootable:
-        packages += ["kernel-native"]
+        packages.add("kernel-native")
 
     swupd_extract = shutil.which("swupd-extract")
 
@@ -1955,13 +1955,12 @@ def install_fedora(args: CommandLineArguments, root: str, do_run_build_script: b
         ],
     )
 
-    packages = ["fedora-release", "glibc-minimal-langpack", "systemd"]
-    packages += args.packages or []
+    packages = {"fedora-release", "glibc-minimal-langpack", "systemd", *args.packages}
     if not do_run_build_script and args.bootable:
-        packages += ["kernel-core", "kernel-modules", "systemd-udev", "binutils", "dracut"]
+        packages |= {"kernel-core", "kernel-modules", "systemd-udev", "binutils", "dracut"}
         configure_dracut(args, root)
     if do_run_build_script:
-        packages += args.build_packages or []
+        packages |= args.build_packages
     invoke_dnf(args, root, args.repositories or ["fedora", "updates"], packages)
 
     with open(os.path.join(root, "etc/locale.conf"), "w") as f:
@@ -1990,10 +1989,9 @@ def install_mageia(args: CommandLineArguments, root: str, do_run_build_script: b
         ],
     )
 
-    packages = ["basesystem-minimal"]
-    packages += args.packages or []
+    packages = {"basesystem-minimal", *args.packages}
     if not do_run_build_script and args.bootable:
-        packages += ["kernel-server-latest", "binutils", "dracut"]
+        packages |= {"kernel-server-latest", "binutils", "dracut"}
 
         configure_dracut(args, root)
         # Mageia ships /etc/50-mageia.conf that omits systemd from the initramfs and disables hostonly.
@@ -2002,7 +2000,7 @@ def install_mageia(args: CommandLineArguments, root: str, do_run_build_script: b
             f.write("hostonly=no\n")
             f.write('omit_dracutmodules=""\n')
     if do_run_build_script:
-        packages += args.build_packages or []
+        packages |= args.build_packages
     invoke_dnf(args, root, args.repositories or ["mageia", "updates"], packages)
 
     disable_pam_securetty(root)
@@ -2039,19 +2037,19 @@ def install_openmandriva(args: CommandLineArguments, root: str, do_run_build_scr
         ],
     )
 
-    packages = ["basesystem-minimal", "systemd"]  # well we may use basesystem here, but that pulls lot of stuff
-    packages += args.packages or []
+    # well we may use basesystem here, but that pulls lot of stuff
+    packages = {"basesystem-minimal", "systemd", *args.packages}
     if not do_run_build_script and args.bootable:
-        packages += ["kernel-release-server", "binutils", "systemd-boot", "dracut", "timezone", "systemd-cryptsetup"]
+        packages |= {"kernel-release-server", "binutils", "systemd-boot", "dracut", "timezone", "systemd-cryptsetup"}
         configure_dracut(args, root)
     if do_run_build_script:
-        packages += args.build_packages or []
+        packages |= args.build_packages
     invoke_dnf(args, root, args.repositories or ["openmandriva", "updates"], packages)
 
     disable_pam_securetty(root)
 
 
-def invoke_yum(args: CommandLineArguments, root: str, repositories: List[str], packages: List[str]) -> None:
+def invoke_yum(args: CommandLineArguments, root: str, repositories: List[str], packages: Set[str]) -> None:
     repos = ["--enablerepo=" + repo for repo in repositories]
     config_file = os.path.join(workspace(root), "dnf.conf")
     packages = make_rpm_list(args, packages)
@@ -2079,7 +2077,7 @@ def invoke_yum(args: CommandLineArguments, root: str, repositories: List[str], p
         run(cmdline)
 
 
-def invoke_dnf_or_yum(args: CommandLineArguments, root: str, repositories: List[str], packages: List[str]) -> None:
+def invoke_dnf_or_yum(args: CommandLineArguments, root: str, repositories: List[str], packages: Set[str]) -> None:
     if shutil.which("dnf") is None:
         invoke_yum(args, root, repositories, packages)
     else:
@@ -2191,29 +2189,27 @@ def install_centos(args: CommandLineArguments, root: str, do_run_build_script: b
     else:
         default_repos = install_centos_new(args, root, epel_release)
 
-    packages = ["centos-release", "systemd"]
-    packages += args.packages or []
-
+    packages = {"centos-release", "systemd", *args.packages}
     if not do_run_build_script and args.bootable:
-        packages += ["kernel", "dracut", "binutils"]
+        packages |= {"kernel", "dracut", "binutils"}
         configure_dracut(args, root)
         if old:
-            packages += ["grub2-efi", "grub2-tools", "grub2-efi-x64-modules", "shim-x64", "efibootmgr", "efivar-libs"]
+            packages |= {"grub2-efi", "grub2-tools", "grub2-efi-x64-modules", "shim-x64", "efibootmgr", "efivar-libs"}
         else:
             # this does not exist on CentOS 7
-            packages += ["systemd-udev"]
+            packages.add("systemd-udev")
 
     if do_run_build_script:
-        packages += args.build_packages or []
+        packages |= args.build_packages
 
     repos = args.repositories or default_repos
 
     if args.distribution == Distribution.centos_epel:
         repos += ["epel"]
-        packages += ["epel-release"]
+        packages.add("epel-release")
 
     if do_run_build_script:
-        packages += args.build_packages or []
+        packages |= args.build_packages
 
     invoke_dnf_or_yum(args, root, repos, packages)
 
