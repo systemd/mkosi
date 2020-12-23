@@ -4830,23 +4830,24 @@ def unlink_output(args: CommandLineArguments) -> None:
     if not args.force and args.verb != "clean":
         return
 
-    with complete_step("Removing output files"):
-        unlink_try_hard(args.output)
+    if not args.skip_final_phase:
+        with complete_step("Removing output files"):
+            unlink_try_hard(args.output)
 
-        if args.checksum:
-            unlink_try_hard(args.output_checksum)
+            if args.checksum:
+                unlink_try_hard(args.output_checksum)
 
-        if args.verity:
-            unlink_try_hard(args.output_root_hash_file)
+            if args.verity:
+                unlink_try_hard(args.output_root_hash_file)
 
-        if args.sign:
-            unlink_try_hard(args.output_signature)
+            if args.sign:
+                unlink_try_hard(args.output_signature)
 
-        if args.bmap:
-            unlink_try_hard(args.output_bmap)
+            if args.bmap:
+                unlink_try_hard(args.output_bmap)
 
-        if args.nspawn_settings is not None:
-            unlink_try_hard(args.output_nspawn_settings)
+            if args.nspawn_settings is not None:
+                unlink_try_hard(args.output_nspawn_settings)
 
     # We remove any cached images if either the user used --force
     # twice, or he/she called "clean" with it passed once. Let's also
@@ -5360,6 +5361,9 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
 
 
 def check_output(args: CommandLineArguments) -> None:
+    if args.skip_final_phase:
+        return
+
     for f in (
         args.output,
         args.output_checksum if args.checksum else None,
