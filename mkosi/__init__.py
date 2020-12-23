@@ -1432,6 +1432,7 @@ def configure_dracut(args: CommandLineArguments, root: str) -> None:
     ):
         with open(os.path.join(dracut_dir, "30-mkosi-uefi-stub.conf"), "w") as f:
             f.write("uefi_stub=/usr/lib/systemd/boot/efi/linuxx64.efi.stub\n")
+            f.write('add_drivers+=" efivarfs "\n')
 
 
 @completestep("Setting up OS tree root")
@@ -2866,6 +2867,9 @@ def set_autologin(args: CommandLineArguments, root: str, do_run_build_script: bo
     if do_run_build_script or for_cache or not args.autologin:
         return
 
+    # On Debian, PAM wants the full path to the console device or it will refuse access
+    device_prefix = "/dev/" if args.distribution is Distribution.debian else ""
+
     override_dir = os.path.join(root, "etc/systemd/system/console-getty.service.d")
     os.makedirs(override_dir, mode=0o755, exist_ok=True)
 
@@ -2883,7 +2887,7 @@ def set_autologin(args: CommandLineArguments, root: str, do_run_build_script: bo
 
     os.chmod(override_file, 0o644)
 
-    pam_add_autologin(root, "pts/0")
+    pam_add_autologin(root, f"{device_prefix}pts/0")
 
     override_dir = os.path.join(root, "etc/systemd/system/serial-getty@ttyS0.service.d")
     os.makedirs(override_dir, mode=0o755, exist_ok=True)
@@ -2902,7 +2906,7 @@ def set_autologin(args: CommandLineArguments, root: str, do_run_build_script: bo
 
     os.chmod(override_file, 0o644)
 
-    pam_add_autologin(root, "ttyS0")
+    pam_add_autologin(root, f"{device_prefix}ttyS0")
 
     override_dir = os.path.join(root, "etc/systemd/system/getty@tty1.service.d")
     os.makedirs(override_dir, mode=0o755, exist_ok=True)
@@ -2921,7 +2925,7 @@ def set_autologin(args: CommandLineArguments, root: str, do_run_build_script: bo
 
     os.chmod(override_file, 0o644)
 
-    pam_add_autologin(root, "tty1")
+    pam_add_autologin(root, f"{device_prefix}tty1")
 
 
 def set_serial_terminal(args: CommandLineArguments, root: str, do_run_build_script: bool, for_cache: bool) -> None:
