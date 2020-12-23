@@ -5353,6 +5353,9 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
     if args.source_file_transfer_final == SourceFileTransfer.mount:
         die("Sorry, --source-file-transfer-final=mount is not supported")
 
+    if args.skip_final_phase and args.verb != "build":
+        die("--skip-final-phase can only be used when building an image using `mkosi build`")
+
     return args
 
 
