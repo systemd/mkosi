@@ -16,7 +16,6 @@ jobs:
       matrix:
         distro:
           - arch
-          - centos
           - centos_epel
           - debian
           - ubuntu
