@@ -4635,6 +4635,9 @@ def parse_args(argv: Optional[List[str]] = None) -> Dict[str, CommandLineArgumen
             default_path = args_pre_parsed.default_path
         else:
             default_path = os.path.join(directory, args_pre_parsed.default_path)
+
+        if not os.path.exists(default_path):
+            die(f"No config file found at {default_path}")
     else:
         default_path = os.path.join(directory, "mkosi.default")
 
