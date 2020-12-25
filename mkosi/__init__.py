@@ -1515,6 +1515,10 @@ def prepare_tree(args: CommandLineArguments, root: str, do_run_build_script: boo
         if args.build_dir is not None:
             os.mkdir(os.path.join(root, "root/build"), 0o755)
 
+    if args.network_veth and not do_run_build_script:
+        os.mkdir(os.path.join(root, "etc/systemd"), 0o755)
+        os.mkdir(os.path.join(root, "etc/systemd/network"), 0o755)
+
 
 def patch_file(filepath: str, line_rewriter: Callable[[str], str]) -> None:
     temp_new_filepath = filepath + ".tmp.new"
@@ -1987,6 +1991,8 @@ def install_fedora(args: CommandLineArguments, root: str, do_run_build_script: b
         configure_dracut(args, root)
     if do_run_build_script:
         packages.update(args.build_packages)
+    if not do_run_build_script and args.network_veth:
+        packages.add("systemd-networkd")
     invoke_dnf(args, root, args.repositories or ["fedora", "updates"], packages, do_run_build_script)
 
     with open(os.path.join(root, "etc/locale.conf"), "w") as f:
@@ -2240,6 +2246,9 @@ def install_centos(args: CommandLineArguments, root: str, do_run_build_script: b
 
     if do_run_build_script:
         packages.update(args.build_packages)
+
+    if not do_run_build_script and args.distribution == Distribution.centos_epel and args.network_veth:
+        packages.add("systemd-networkd")
 
     invoke_dnf_or_yum(args, root, repos, packages, do_run_build_script)
 
@@ -5680,6 +5689,37 @@ def setup_ssh(args: CommandLineArguments, root: str, do_run_build_script: bool, 
     return f
 
 
+def setup_network_veth(args: CommandLineArguments, root: str, do_run_build_script: bool, for_cache: bool) -> None:
+    if do_run_build_script or for_cache or not args.network_veth:
+        return
+
+    network_file = os.path.join(root, "etc/systemd/network/80-mkosi-network-veth.network")
+    with open(network_file, "w") as f:
+        # Adapted from https://github.com/systemd/systemd/blob/v247/network/80-container-host0.network
+        f.write(
+            dedent(
+                """\
+                [Match]
+                Virtualization=!container
+                Type=ether
+
+                [Network]
+                DHCP=yes
+                LinkLocalAddressing=yes
+                LLDP=yes
+                EmitLLDP=customer-bridge
+
+                [DHCP]
+                UseTimezone=yes
+                """
+            )
+        )
+
+    os.chmod(network_file, 0o644)
+
+    run(["systemctl", "--root", root, "enable", "systemd-networkd"])
+
+
 def build_image(
     args: CommandLineArguments, root: str, *, do_run_build_script: bool, for_cache: bool = False, cleanup: bool = False
 ) -> Tuple[Optional[BinaryIO], Optional[BinaryIO], Optional[str], Optional[TextIO]]:
@@ -5759,6 +5799,7 @@ def build_image(
                     set_serial_terminal(args, root, do_run_build_script, for_cache)
                     set_autologin(args, root, do_run_build_script, for_cache)
                     sshkey = setup_ssh(args, root, do_run_build_script, for_cache)
+                    setup_network_veth(args, root, do_run_build_script, for_cache)
                     run_postinst_script(args, root, loopdev, do_run_build_script, for_cache)
 
                 if cleanup:
