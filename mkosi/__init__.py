@@ -6059,6 +6059,49 @@ def virt_name(args: CommandLineArguments) -> str:
     return cast(str, name[:13])
 
 
+def has_networkd_vm_vt() -> bool:
+    for path in ["/usr/lib/systemd/network", "/lib/systemd/network", "/etc/systemd/network"]:
+        if os.path.exists(os.path.join(path, "80-vm-vt.network")):
+            return True
+
+    return False
+
+
+def ensure_networkd(args: CommandLineArguments) -> None:
+    networkd_is_running = run(["systemctl", "is-active", "--quiet", "systemd-networkd"], check=False).returncode == 0
+    if not networkd_is_running:
+        die("--network-veth requires systemd-networkd to be running (`systemctl enable --now systemd-networkd`)")
+
+    if args.verb == "qemu" and not has_networkd_vm_vt():
+        die(
+            r"""
+            mkosi didn't find 80-vm-vt.network. This is one of systemd's built-in systemd-networkd config
+            files which configures vt-* interfaces. mkosi needs this file in order for --network-veth to work
+            properly for QEMU virtual machines. The file likely cannot be found because the systemd version
+            on the host is too old (< 246) and it isn't included yet.
+
+            As a workaround until the file is shipped by the systemd package of your distro, add a user
+            network file /etc/systemd/network/80-vm-vt.network with the following contents:
+
+            ```
+            [Match]
+            Name=vt-*
+            Driver=tun
+
+            [Network]
+            # Default to using a /28 prefix, giving up to 13 addresses per VM.
+            Address=0.0.0.0/28
+            LinkLocalAddressing=yes
+            DHCPServer=yes
+            IPMasquerade=yes
+            LLDP=yes
+            EmitLLDP=customer-bridge
+            IPv6PrefixDelegation=yes
+            ```
+            """
+        )
+
+
 def run_shell(args: CommandLineArguments) -> None:
     if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
         target = f"--directory={args.output}"
@@ -6081,6 +6124,7 @@ def run_shell(args: CommandLineArguments) -> None:
         cmdline.append("--volatile=overlay")
 
     if args.network_veth:
+        ensure_networkd(args)
         cmdline.append("--network-veth")
 
     if args.ephemeral:
@@ -6168,6 +6212,7 @@ def run_qemu(args: CommandLineArguments) -> None:
         cmdline += ["-vga", "virtio"]
 
     if args.network_veth:
+        ensure_networkd(args)
         # Use vt- prefix so we can take advantage of systemd-networkd's builtin network file for VMs.
         ifname = f"vt-{virt_name(args)}"
         # vt-<image-name> is the ifname on the host and is automatically picked up by systemd-networkd which
@@ -6223,7 +6268,7 @@ def find_address(args: CommandLineArguments) -> Tuple[str, str]:
             if dst.startswith("fe80"):
                 return dev, dst
 
-        time.sleep(0.2)
+        time.sleep(0.4)
 
     die("Container/VM address not found")
 

@@ -11,7 +11,7 @@ def run() -> None:
     p.expect("login:")
     p.sendline("root")
 
-    time.sleep(30)
+    time.sleep(15)
 
     s = pexpect.spawnu("mkosi ssh", logfile=sys.stdout)
     s.expect("#")
