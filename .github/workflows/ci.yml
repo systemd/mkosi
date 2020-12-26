@@ -48,11 +48,9 @@ jobs:
 
     - name: Write shared mkosi config
       run: |
-        sudo systemctl start systemd-networkd
-
         mkdir -p mkosi.default.d
 
-        tee mkosi.default.d/mkosi.default << EOF
+        tee mkosi.default.d/mkosi.default <<- EOF
         [Distribution]
         Distribution=${{ matrix.distro }}
 
@@ -80,7 +78,7 @@ jobs:
           matrix.format != 'plain_squashfs' &&
           matrix.format != 'tar'
       run: |
-        tee mkosi.default << EOF
+        tee mkosi.default <<- EOF
         [Output]
         Bootable=yes
         BootProtocols=uefi
@@ -107,7 +105,7 @@ jobs:
           matrix.distro == 'centos' ||
           matrix.distro == 'fedora')
       run: |
-        tee mkosi.default << EOF
+        tee mkosi.default <<- EOF
         [Output]
         Bootable=yes
         BootProtocols=uefi
@@ -136,7 +134,7 @@ jobs:
           matrix.format != 'plain_squashfs' &&
           matrix.format != 'tar'
       run: |
-        tee mkosi.default << EOF
+        tee mkosi.default <<- EOF
         [Output]
         Bootable=yes
         BootProtocols=bios
