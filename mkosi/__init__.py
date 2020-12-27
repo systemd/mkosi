@@ -1868,7 +1868,7 @@ def install_clear(args: CommandLineArguments, root: str, do_run_build_script: bo
 
     packages = {"os-core-plus", *args.packages}
     if do_run_build_script:
-        packages |= args.build_packages
+        packages.update(args.build_packages)
     if not do_run_build_script and args.bootable:
         packages.add("kernel-native")
 
@@ -1960,7 +1960,7 @@ def install_fedora(args: CommandLineArguments, root: str, do_run_build_script: b
         packages |= {"kernel-core", "kernel-modules", "systemd-udev", "binutils", "dracut"}
         configure_dracut(args, root)
     if do_run_build_script:
-        packages |= args.build_packages
+        packages.update(args.build_packages)
     invoke_dnf(args, root, args.repositories or ["fedora", "updates"], packages)
 
     with open(os.path.join(root, "etc/locale.conf"), "w") as f:
@@ -2000,7 +2000,7 @@ def install_mageia(args: CommandLineArguments, root: str, do_run_build_script: b
             f.write("hostonly=no\n")
             f.write('omit_dracutmodules=""\n')
     if do_run_build_script:
-        packages |= args.build_packages
+        packages.update(args.build_packages)
     invoke_dnf(args, root, args.repositories or ["mageia", "updates"], packages)
 
     disable_pam_securetty(root)
@@ -2043,7 +2043,7 @@ def install_openmandriva(args: CommandLineArguments, root: str, do_run_build_scr
         packages |= {"kernel-release-server", "binutils", "systemd-boot", "dracut", "timezone", "systemd-cryptsetup"}
         configure_dracut(args, root)
     if do_run_build_script:
-        packages |= args.build_packages
+        packages.update(args.build_packages)
     invoke_dnf(args, root, args.repositories or ["openmandriva", "updates"], packages)
 
     disable_pam_securetty(root)
@@ -2200,7 +2200,7 @@ def install_centos(args: CommandLineArguments, root: str, do_run_build_script: b
             packages.add("systemd-udev")
 
     if do_run_build_script:
-        packages |= args.build_packages
+        packages.update(args.build_packages)
 
     repos = args.repositories or default_repos
 
@@ -2209,7 +2209,7 @@ def install_centos(args: CommandLineArguments, root: str, do_run_build_script: b
         packages.add("epel-release")
 
     if do_run_build_script:
-        packages |= args.build_packages
+        packages.update(args.build_packages)
 
     invoke_dnf_or_yum(args, root, repos, packages)
 
