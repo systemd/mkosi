@@ -4,6 +4,9 @@
 
 ### Highlighted Changes
 
+- Remove Arch Linux network automatic configuration to bring the different
+  distros more in line with each other. To add it back, add a postinstall
+  script to configure your network manager of choice.
 - The mkosi Github action now defaults to the current release of mkosi instead
   of the tip of the master branch.
 - Add a `ssh` verb and accompanying `--ssh` option. The latter sets up SSH keys

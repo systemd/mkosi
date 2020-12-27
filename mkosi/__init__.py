@@ -1542,33 +1542,6 @@ def disable_pam_securetty(root: str) -> None:
     patch_file(os.path.join(root, "etc/pam.d/login"), _rm_securetty)
 
 
-def enable_networkd(root: str) -> None:
-    run(["systemctl", "--root", root, "enable", "systemd-networkd", "systemd-resolved"])
-
-    os.remove(os.path.join(root, "etc/resolv.conf"))
-    os.symlink("../run/systemd/resolve/stub-resolv.conf", os.path.join(root, "etc/resolv.conf"))
-
-    network_file = os.path.join(root, "etc/systemd/network/all-ethernet.network")
-    with open(network_file, "w") as f:
-        f.write(
-            dedent(
-                """\
-                [Match]
-                Type=ether
-
-                [Network]
-                DHCP=yes
-                """
-            )
-        )
-
-    os.chmod(network_file, 0o644)
-
-
-def enable_networkmanager(root: str) -> None:
-    run(["systemctl", "--root", root, "enable", "NetworkManager"])
-
-
 def run_workspace_command(
     args: CommandLineArguments,
     root: str,
@@ -2695,11 +2668,6 @@ def install_arch(args: CommandLineArguments, root: str, do_run_build_script: boo
 
     with mount_api_vfs(args, root):
         run_pacman(packages)
-
-    if "networkmanager" in args.packages:
-        enable_networkmanager(root)
-    else:
-        enable_networkd(root)
 
     with open(os.path.join(root, "etc/locale.gen"), "w") as f:
         f.write("en_US.UTF-8 UTF-8\n")
