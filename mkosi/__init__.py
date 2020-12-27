@@ -2982,8 +2982,8 @@ def set_serial_terminal(args: CommandLineArguments, root: str, do_run_build_scri
     os.makedirs(override_dir, mode=0o755, exist_ok=True)
 
     columns, lines = shutil.get_terminal_size(fallback=(80, 24))
-
-    with open(os.path.join(override_dir, "term.conf"), "w") as f:
+    override_file = os.path.join(override_dir, "term.conf")
+    with open(override_file, "w") as f:
         f.write(
             dedent(
                 f"""
@@ -2994,6 +2994,8 @@ def set_serial_terminal(args: CommandLineArguments, root: str, do_run_build_scri
                 """
             )
         )
+
+    os.chmod(override_file, 0o644)
 
 
 def nspawn_params_for_build_sources(args: CommandLineArguments, sft: SourceFileTransfer) -> List[str]:
