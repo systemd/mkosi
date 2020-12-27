@@ -6220,7 +6220,7 @@ def run_qemu(args: CommandLineArguments) -> None:
         # itself tries to bring up the vt network interface which conflicts with systemd-networkd which is
         # trying to do the same. By specifiying script=no and downscript=no, We tell QEMU to not touch vt
         # after it is created.
-        cmdline += ["-nic", f"tap,script=no,downscript=no,ifname={ifname}"]
+        cmdline += ["-nic", f"tap,script=no,downscript=no,ifname={ifname},model=virtio-net-pci"]
 
     with contextlib.ExitStack() as stack:
         if args.ephemeral:
