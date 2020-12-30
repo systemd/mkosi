@@ -6,8 +6,8 @@ if [ x"$1" == x ] ; then
     exit 1
 fi
 
-sed -ie 's/version=".*",/version="'"$1"'",/' setup.py
-sed -ie "s/__version__ = '.*'/__version__ = '$1'/" mkosi/__init__.py
+sed -i 's/version=".*",/version="'"$1"'",/' setup.py
+sed -i "s/__version__ = '.*'/__version__ = '$1'/" mkosi/__init__.py
 
 git add -p setup.py mkosi
 
