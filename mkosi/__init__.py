@@ -58,7 +58,7 @@ from types import FrameType
 from .printer import MkosiPrinter
 
 
-__version__ = "8"
+__version__ = "9"
 
 
 # These types are only generic during type checking and not at runtime, leading

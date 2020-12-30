@@ -7,9 +7,10 @@ if [ x"$1" == x ] ; then
 fi
 
 sed -i 's/version=".*",/version="'"$1"'",/' setup.py
-sed -i "s/__version__ = '.*'/__version__ = '$1'/" mkosi/__init__.py
+sed -i "s/__version__ = \".*\"/__version__ = \"$1\"/" mkosi/__init__.py
+sed -i "s/MKOSI_TAG: '.*'/MKOSI_TAG: $1/" action.yaml
 
-git add -p setup.py mkosi
+git add -p setup.py mkosi action.yaml
 
 pandoc -t man -s -o man/mkosi.1 mkosi.md
 git add man/mkosi.1
