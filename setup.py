@@ -18,7 +18,7 @@ class BuildManpage(Command):
 
 setup(
     name="mkosi",
-    version="8",
+    version="9",
     description="Create legacy-free OS images",
     url="https://github.com/systemd/mkosi",
     maintainer="mkosi contributors",

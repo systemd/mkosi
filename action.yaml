@@ -230,4 +230,6 @@ runs:
 
   - name: Install
     shell: bash
-    run: sudo python3 -m pip install git+https://github.com/systemd/mkosi.git
+    run: sudo python3 -m pip install git+https://github.com/systemd/mkosi.git@$MKOSI_TAG
+    env:
+      MKOSI_TAG: v9
