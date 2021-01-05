@@ -4687,7 +4687,7 @@ def parse_args(argv: Optional[List[str]] = None) -> Dict[str, CommandLineArgumen
         args = load_distribution(args)
 
         # Parse again with any extra distribution files included.
-        args = parse_args_distribution_group(argv, default_path, str(args.distribution))
+        args = parse_args_distribution_group(argv, str(args.distribution))
 
         args_all["default"] = args
 
@@ -4706,7 +4706,7 @@ def parse_args_file_group(argv_post_parsed: List[str], default_path: str) -> Com
     """Parse a set of mkosi.default and mkosi.default.d/* files."""
     # Add the @ prefixed filenames to current argument list in inverse priority order.
     all_defaults_files = []
-    defaults_dir = default_path + ".d"
+    defaults_dir = "mkosi.default.d"
     if os.path.isdir(defaults_dir):
         for defaults_file in sorted(os.listdir(defaults_dir)):
             defaults_path = os.path.join(defaults_dir, defaults_file)
@@ -4722,13 +4722,9 @@ def parse_args_file_group(argv_post_parsed: List[str], default_path: str) -> Com
     return parser.parse_args(argv_post_parsed, CommandLineArguments())
 
 
-def parse_args_distribution_group(
-    argv_post_parsed: List[str], default_path: str, distribution: str
-) -> CommandLineArguments:
+def parse_args_distribution_group(argv_post_parsed: List[str], distribution: str) -> CommandLineArguments:
     all_defaults_files = []
-    defaults_dir = default_path + ".d"
-
-    distribution_dir = os.path.join(defaults_dir, distribution)
+    distribution_dir = f"mkosi.default.d/{distribution}"
     if os.path.isdir(distribution_dir):
         for distribution_file in sorted(os.listdir(distribution_dir)):
             distribution_path = os.path.join(distribution_dir, distribution_file)
