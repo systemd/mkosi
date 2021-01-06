@@ -8,6 +8,7 @@
 - Change the --default option to not affect the search location of
   mkosi.default.d anymore. mkosi now always searches for mkosi.default.d
   in the working directory.
+- Drop "quiet" from the default kernel command line.
 
 ## v9
 

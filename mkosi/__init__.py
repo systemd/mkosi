@@ -4319,7 +4319,7 @@ def create_parser() -> ArgumentParserMkosi:
     group.add_argument(
         "--kernel-command-line",
         action=SpaceDelimitedListAction,
-        default=["rhgb", "quiet", "selinux=0", "audit=0"],
+        default=["rhgb", "selinux=0", "audit=0"],
         help="Set the kernel command line (only bootable images)",
     )
     group.add_argument(
