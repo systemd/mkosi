@@ -1,5 +1,10 @@
 # mkosi Changelog
 
+## v10
+
+- Add `--root-size-build=` option to set the root partition size of the build
+  image independently of the root partition size of the final image.
+
 ## v9 (unreleased)
 
 ### Highlighted Changes

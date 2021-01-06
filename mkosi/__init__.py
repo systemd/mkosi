@@ -665,11 +665,13 @@ def btrfs_forget_stale_devices() -> Generator[None, None, None]:
             run(["btrfs", "device", "scan", "-u"])
 
 
-def image_size(args: CommandLineArguments) -> int:
+def image_size(args: CommandLineArguments, do_run_build_script: bool) -> int:
     size = GPT_HEADER_SIZE + GPT_FOOTER_SIZE
 
-    if args.root_size is not None:
+    if not do_run_build_script and args.root_size is not None:
         size += args.root_size
+    if do_run_build_script and args.root_size_build is not None:
+        size += args.root_size_build
     if args.home_size is not None:
         size += args.home_size
     if args.srv_size is not None:
@@ -785,7 +787,9 @@ def determine_partition_table(args: CommandLineArguments) -> Tuple[str, bool]:
     return table, run_sfdisk
 
 
-def create_image(args: CommandLineArguments, root: str, for_cache: bool) -> Optional[BinaryIO]:
+def create_image(
+    args: CommandLineArguments, root: str, do_run_build_script: bool, for_cache: bool
+) -> Optional[BinaryIO]:
     if not args.output_format.is_disk():
         return None
 
@@ -797,7 +801,7 @@ def create_image(args: CommandLineArguments, root: str, for_cache: bool) -> Opti
         )
         output.append(f)
         disable_cow(f.name)
-        f.truncate(image_size(args))
+        f.truncate(image_size(args, do_run_build_script))
 
         table, run_sfdisk = determine_partition_table(args)
 
@@ -3373,7 +3377,9 @@ def make_squashfs(args: CommandLineArguments, root: str, for_cache: bool) -> Opt
     return f
 
 
-def make_minimal_ext4(args: CommandLineArguments, root: str, for_cache: bool) -> Optional[BinaryIO]:
+def make_minimal_ext4(
+    args: CommandLineArguments, root: str, do_run_build_script: bool, for_cache: bool
+) -> Optional[BinaryIO]:
     if args.output_format != OutputFormat.gpt_ext4:
         return None
     if not args.minimize:
@@ -3385,7 +3391,7 @@ def make_minimal_ext4(args: CommandLineArguments, root: str, for_cache: bool) ->
         f: BinaryIO = cast(
             BinaryIO, tempfile.NamedTemporaryFile(prefix=".mkosi-mkfs-ext4", dir=os.path.dirname(args.output))
         )
-        f.truncate(args.root_size)
+        f.truncate(args.root_size_build if do_run_build_script else args.root_size)
         run(["mkfs.ext4", "-I", "256", "-L", "root", "-M", "/", "-d", root, f.name])
 
     with complete_step("Minimizing ext4 root file system"):
@@ -3394,7 +3400,9 @@ def make_minimal_ext4(args: CommandLineArguments, root: str, for_cache: bool) ->
     return f
 
 
-def make_minimal_btrfs(args: CommandLineArguments, root: str, for_cache: bool) -> Optional[BinaryIO]:
+def make_minimal_btrfs(
+    args: CommandLineArguments, root: str, do_run_build_script: bool, for_cache: bool
+) -> Optional[BinaryIO]:
     if args.output_format != OutputFormat.gpt_btrfs:
         return None
     if not args.minimize:
@@ -3406,7 +3414,7 @@ def make_minimal_btrfs(args: CommandLineArguments, root: str, for_cache: bool) -
         f: BinaryIO = cast(
             BinaryIO, tempfile.NamedTemporaryFile(prefix=".mkosi-mkfs-btrfs", dir=os.path.dirname(args.output))
         )
-        f.truncate(args.root_size)
+        f.truncate(args.root_size_build if do_run_build_script else args.root_size)
 
         command = ["mkfs.btrfs", "-L", "root", "-d", "single", "-m", "single", "--shrink", "--rootdir", root, f.name]
         try:
@@ -3420,12 +3428,14 @@ def make_minimal_btrfs(args: CommandLineArguments, root: str, for_cache: bool) -
     return f
 
 
-def make_generated_root(args: CommandLineArguments, root: str, for_cache: bool) -> Optional[BinaryIO]:
+def make_generated_root(
+    args: CommandLineArguments, root: str, do_run_build_script: bool, for_cache: bool
+) -> Optional[BinaryIO]:
 
     if args.output_format == OutputFormat.gpt_ext4:
-        return make_minimal_ext4(args, root, for_cache)
+        return make_minimal_ext4(args, root, do_run_build_script, for_cache)
     if args.output_format == OutputFormat.gpt_btrfs:
-        return make_minimal_btrfs(args, root, for_cache)
+        return make_minimal_btrfs(args, root, do_run_build_script, for_cache)
     if args.output_format.is_squashfs():
         return make_squashfs(args, root, for_cache)
 
@@ -3560,7 +3570,7 @@ def insert_generated_root(
     assert image is not None
 
     with complete_step("Inserting generated root partition"):
-        args.root_size = insert_partition(
+        insert_partition(
             args,
             root,
             raw,
@@ -4480,6 +4490,11 @@ def create_parser() -> ArgumentParserMkosi:
         "--root-size", help="Set size of root partition (only gpt_ext4, gpt_xfs, gpt_btrfs)", metavar="BYTES"
     )
     group.add_argument(
+        "--root-size-build",
+        help="Set the size of the root partition for the build image (only gpt_ext4, gpt_xfs, gpt_btrfs)",
+        metavar="BYTES",
+    )
+    group.add_argument(
         "--esp-size",
         help="Set size of EFI system partition (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs)",
         metavar="BYTES",
@@ -5246,6 +5261,7 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
     if args.output_format.is_squashfs():
         args.read_only = True
         args.root_size = None
+        args.root_size_build = None
         if args.compress is False:
             die("Cannot disable compression with squashfs")
         if args.compress is None:
@@ -5311,6 +5327,7 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
             args.skeleton_trees[i] = os.path.abspath(args.skeleton_trees[i])
 
     args.root_size = parse_bytes(args.root_size)
+    args.root_size_build = parse_bytes(args.root_size_build)
     args.home_size = parse_bytes(args.home_size)
     args.srv_size = parse_bytes(args.srv_size)
     args.var_size = parse_bytes(args.var_size)
@@ -5321,6 +5338,9 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
 
     if args.root_size is None:
         args.root_size = 3 * 1024 * 1024 * 1024
+
+    if args.root_size_build is None:
+        args.root_size_build = args.root_size
 
     if args.bootable and args.esp_size is None:
         args.esp_size = 256 * 1024 * 1024
@@ -5557,7 +5577,8 @@ def print_summary(args: CommandLineArguments) -> None:
 
     if args.output_format.is_disk():
         MkosiPrinter.info("\nPARTITIONS:")
-        MkosiPrinter.info("            Root Partition: " + format_bytes_or_auto(args.root_size))
+        MkosiPrinter.info("Root Partition Final Image: " + format_bytes_or_auto(args.root_size))
+        MkosiPrinter.info("Root Partition Build Image: " + format_bytes_or_auto(args.root_size_build))
         MkosiPrinter.info("            Swap Partition: " + format_bytes_or_disabled(args.swap_size))
         if "uefi" in args.boot_protocols:
             MkosiPrinter.info("                       ESP: " + format_bytes_or_disabled(args.esp_size))
@@ -5709,7 +5730,7 @@ def build_image(
         return None, None, None, None
 
     if not cached:
-        raw = create_image(args, root, for_cache)
+        raw = create_image(args, root, do_run_build_script, for_cache)
 
     with attach_image_loopback(args, raw) as loopdev:
 
@@ -5782,7 +5803,7 @@ def build_image(
                 run_finalize_script(args, root, do_run_build_script, for_cache)
                 make_read_only(args, root, for_cache)
 
-            generated_root = make_generated_root(args, root, for_cache)
+            generated_root = make_generated_root(args, root, do_run_build_script, for_cache)
             insert_generated_root(args, root, raw, loopdev, generated_root, for_cache)
 
             verity, root_hash = make_verity(args, root, encrypted_root, do_run_build_script, for_cache)

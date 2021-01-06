@@ -635,6 +635,11 @@ details see the table below.
   output formats `gpt_ext4`, `gpt_xfs`, `gpt_btrfs`. Defaults to 1G,
   except for `gpt_xfs` where it defaults to 1.3G.
 
+`--root-size-build=`
+
+: If specified, sets the build image root partition size to the given
+  value instead of the value from `--root-size`.
+
 `--esp-size=`
 
 : Similar, and configures the size of the UEFI System Partition
@@ -830,6 +835,7 @@ which settings file options.
 | `--with-network`                  | `[Packages]`            | `WithNetwork=`                |
 | `--settings=`                     | `[Packages]`            | `NSpawnSettings=`             |
 | `--root-size=`                    | `[Partitions]`          | `RootSize=`                   |
+| `--root-size-build=`              | `[Partitions]`          | `RootSizeBuild=`              |
 | `--esp-size=`                     | `[Partitions]`          | `ESPSize=`                    |
 | `--swap-size=`                    | `[Partitions]`          | `SwapSize=`                   |
 | `--home-size=`                    | `[Partitions]`          | `HomeSize=`                   |

@@ -92,6 +92,7 @@ class MkosiConfig(object):
             "release": None,
             "repositories": [],
             "root_size": None,
+            "root_size_build": None,
             "secure_boot": False,
             "secure_boot_certificate": None,
             "secure_boot_key": None,
@@ -279,6 +280,8 @@ class MkosiConfig(object):
             mk_config_partitions = mk_config["Partitions"]
             if "RootSize" in mk_config_partitions:
                 self.reference_config[job_name]["root_size"] = mk_config_partitions["RootSize"]
+            if "RootSizeBuild" in mk_config_partitions:
+                self.reference_config[job_name]["root_size_build"] = mk_config_partitions["RootSizeBuild"]
             if "ESPSize" in mk_config_partitions:
                 self.reference_config[job_name]["esp_size"] = mk_config_partitions["ESPSize"]
             if "SwapSize" in mk_config_partitions:
