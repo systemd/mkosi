@@ -5624,8 +5624,8 @@ def make_build_dir(args: CommandLineArguments) -> None:
     mkdir_last(args.build_dir, 0o755)
 
 
-def setup_ssh(args: CommandLineArguments, root: str, do_run_build_script: bool, for_cache: bool) -> Optional[TextIO]:
-    if do_run_build_script or for_cache or not args.ssh:
+def setup_ssh(args: CommandLineArguments, root: str, do_run_build_script: bool, cached: bool) -> Optional[TextIO]:
+    if do_run_build_script or cached or not args.ssh:
         return None
 
     if args.distribution in (Distribution.debian, Distribution.ubuntu):
@@ -5658,8 +5658,8 @@ def setup_ssh(args: CommandLineArguments, root: str, do_run_build_script: bool, 
     return f
 
 
-def setup_network_veth(args: CommandLineArguments, root: str, do_run_build_script: bool, for_cache: bool) -> None:
-    if do_run_build_script or for_cache or not args.network_veth:
+def setup_network_veth(args: CommandLineArguments, root: str, do_run_build_script: bool, cached: bool) -> None:
+    if do_run_build_script or cached or not args.network_veth:
         return
 
     network_file = os.path.join(root, "etc/systemd/network/80-mkosi-network-veth.network")
@@ -5767,8 +5767,8 @@ def build_image(
                     set_root_password(args, root, do_run_build_script, for_cache)
                     set_serial_terminal(args, root, do_run_build_script, for_cache)
                     set_autologin(args, root, do_run_build_script, for_cache)
-                    sshkey = setup_ssh(args, root, do_run_build_script, for_cache)
-                    setup_network_veth(args, root, do_run_build_script, for_cache)
+                    sshkey = setup_ssh(args, root, do_run_build_script, cached_tree)
+                    setup_network_veth(args, root, do_run_build_script, cached_tree)
                     run_postinst_script(args, root, loopdev, do_run_build_script, for_cache)
 
                 if cleanup:
