@@ -70,7 +70,7 @@ class MkosiConfig(object):
             "include_dir": None,
             "incremental": False,
             "install_dir": None,
-            "kernel_command_line": ["rhgb", "quiet", "selinux=0", "audit=0"],
+            "kernel_command_line": ["rhgb", "selinux=0", "audit=0"],
             "key": None,
             "mirror": None,
             "mksquashfs_tool": None,
