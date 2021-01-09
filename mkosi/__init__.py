@@ -52,6 +52,7 @@ from typing import (
     Union,
     cast,
     TYPE_CHECKING,
+    ContextManager,
 )
 from types import FrameType
 
@@ -3659,6 +3660,7 @@ def install_unified_kernel(
     do_run_build_script: bool,
     for_cache: bool,
     cached: bool,
+    mount: Callable[[], ContextManager[None]],
 ) -> None:
     # Iterates through all kernel versions included in the image and generates a combined
     # kernel+initrd+cmdline+osrelease EFI file from it and places it in the /EFI/Linux directory of the ESP.
@@ -3681,7 +3683,7 @@ def install_unified_kernel(
     if do_run_build_script:
         return
 
-    with complete_step("Generating combined kernel + initrd boot file"):
+    with mount(), complete_step("Generating combined kernel + initrd boot file"):
         # Apparently openmandriva hasn't yet completed its usrmerge so we use lib here instead of usr/lib.
         with os.scandir(os.path.join(root, "lib/modules")) as d:
             for kver in d:
@@ -3708,7 +3710,12 @@ def install_unified_kernel(
 
 
 def secure_boot_sign(
-    args: CommandLineArguments, root: str, do_run_build_script: bool, for_cache: bool, cached: bool
+    args: CommandLineArguments,
+    root: str,
+    do_run_build_script: bool,
+    for_cache: bool,
+    cached: bool,
+    mount: Callable[[], ContextManager[None]],
 ) -> None:
     if do_run_build_script:
         return
@@ -3721,29 +3728,30 @@ def secure_boot_sign(
     if cached and not args.verity:
         return
 
-    for path, _, filenames in os.walk(os.path.join(root, "efi")):
-        for i in filenames:
-            if not i.endswith(".efi") and not i.endswith(".EFI"):
-                continue
+    with mount():
+        for path, _, filenames in os.walk(os.path.join(root, "efi")):
+            for i in filenames:
+                if not i.endswith(".efi") and not i.endswith(".EFI"):
+                    continue
 
-            with complete_step(f"Signing EFI binary {i} in ESP"):
-                p = os.path.join(path, i)
+                with complete_step(f"Signing EFI binary {i} in ESP"):
+                    p = os.path.join(path, i)
 
-                run(
-                    [
-                        "sbsign",
-                        "--key",
-                        args.secure_boot_key,
-                        "--cert",
-                        args.secure_boot_certificate,
-                        "--output",
-                        p + ".signed",
-                        p,
-                    ],
-                    check=True,
-                )
+                    run(
+                        [
+                            "sbsign",
+                            "--key",
+                            args.secure_boot_key,
+                            "--cert",
+                            args.secure_boot_certificate,
+                            "--output",
+                            p + ".signed",
+                            p,
+                        ],
+                        check=True,
+                    )
 
-                os.rename(p + ".signed", p)
+                    os.rename(p + ".signed", p)
 
 
 def xz_output(args: CommandLineArguments, raw: Optional[BinaryIO]) -> Optional[BinaryIO]:
@@ -5826,7 +5834,7 @@ def build_image(
             # This time we mount read-only, as we already generated
             # the verity data, and hence really shouldn't modify the
             # image anymore.
-            with mount_image(
+            mount = lambda: mount_image(
                 args,
                 root,
                 loopdev,
@@ -5836,9 +5844,10 @@ def build_image(
                 encrypted_var,
                 encrypted_tmp,
                 root_read_only=True,
-            ):
-                install_unified_kernel(args, root, root_hash, do_run_build_script, for_cache, cached)
-                secure_boot_sign(args, root, do_run_build_script, for_cache, cached)
+            )
+
+            install_unified_kernel(args, root, root_hash, do_run_build_script, for_cache, cached, mount)
+            secure_boot_sign(args, root, do_run_build_script, for_cache, cached, mount)
 
     tar = make_tar(args, root, do_run_build_script, for_cache)
 
