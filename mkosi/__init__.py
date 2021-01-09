@@ -5655,6 +5655,10 @@ def setup_ssh(args: CommandLineArguments, root: str, do_run_build_script: bool, 
 
     os.chmod(os.path.join(root, "root/.ssh/authorized_keys"), 0o600)
 
+    with complete_step("Generating SSH host keys"):
+        # Generate SSH host keys already to speed up the initial boot.
+        run_workspace_command(args, root, ["/usr/bin/ssh-keygen", "-A"])
+
     return f
 
 
