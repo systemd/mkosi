@@ -3268,16 +3268,19 @@ def install_build_src(args: CommandLineArguments, root: str, do_run_build_script
     if args.build_script is None:
         return
 
-    with complete_step("Copying in build script and sources"):
-        if do_run_build_script:
+    if do_run_build_script:
+        with complete_step("Copying in build script"):
             copy_file(args.build_script, os.path.join(root, "root", os.path.basename(args.build_script)))
-            sft = args.source_file_transfer
-        else:
-            sft = args.source_file_transfer_final
 
-        if args.build_sources is None or sft is None:
-            return
+    if do_run_build_script:
+        sft = args.source_file_transfer
+    else:
+        sft = args.source_file_transfer_final
 
+    if args.build_sources is None or sft is None:
+        return
+
+    with complete_step("Copying in sources"):
         target = os.path.join(root, "root/src")
 
         if sft in (
