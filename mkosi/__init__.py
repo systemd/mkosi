@@ -1318,7 +1318,10 @@ def mount_image(
             umount(root)
 
 
-def install_etc_hostname(args: CommandLineArguments, root: str) -> None:
+def install_etc_hostname(args: CommandLineArguments, root: str, cached: bool) -> None:
+    if cached:
+        return
+
     etc_hostname = os.path.join(root, "etc/hostname")
 
     # Always unlink first, so that we don't get in trouble due to a
@@ -2839,12 +2842,12 @@ def reset_random_seed(args: CommandLineArguments, root: str) -> None:
         os.unlink(random_seed)
 
 
-def set_root_password(args: CommandLineArguments, root: str, do_run_build_script: bool, for_cache: bool) -> None:
+def set_root_password(args: CommandLineArguments, root: str, do_run_build_script: bool, cached: bool) -> None:
     "Set the root account password, or just delete it so it's easy to log in"
 
     if do_run_build_script:
         return
-    if for_cache:
+    if cached:
         return
 
     if args.password == "":
@@ -2879,8 +2882,8 @@ def pam_add_autologin(root: str, tty: str) -> None:
         f.write(original)
 
 
-def set_autologin(args: CommandLineArguments, root: str, do_run_build_script: bool, for_cache: bool) -> None:
-    if do_run_build_script or for_cache or not args.autologin:
+def set_autologin(args: CommandLineArguments, root: str, do_run_build_script: bool, cached: bool) -> None:
+    if do_run_build_script or cached or not args.autologin:
         return
 
     # On Debian, PAM wants the full path to the console device or it will refuse access
@@ -2944,10 +2947,10 @@ def set_autologin(args: CommandLineArguments, root: str, do_run_build_script: bo
     pam_add_autologin(root, f"{device_prefix}tty1")
 
 
-def set_serial_terminal(args: CommandLineArguments, root: str, do_run_build_script: bool, for_cache: bool) -> None:
+def set_serial_terminal(args: CommandLineArguments, root: str, do_run_build_script: bool, cached: bool) -> None:
     """Override TERM for the serial console with the terminal type from the host."""
 
-    if do_run_build_script or for_cache or not args.qemu_headless:
+    if do_run_build_script or cached or not args.qemu_headless:
         return
 
     override_dir = os.path.join(root, "etc/systemd/system/serial-getty@ttyS0.service.d")
@@ -5804,15 +5807,15 @@ def build_image(
                 cached_tree = reuse_cache_tree(args, root, do_run_build_script, for_cache, cached)
                 install_skeleton_trees(args, root, for_cache)
                 install_distribution(args, root, do_run_build_script=do_run_build_script, cached=cached_tree)
-                install_etc_hostname(args, root)
+                install_etc_hostname(args, root, cached_tree)
                 install_boot_loader(args, root, loopdev, do_run_build_script, cached_tree)
                 run_prepare_script(args, root, do_run_build_script, cached_tree)
                 install_extra_trees(args, root, for_cache)
                 install_build_src(args, root, do_run_build_script, for_cache)
                 install_build_dest(args, root, do_run_build_script, for_cache)
-                set_root_password(args, root, do_run_build_script, for_cache)
-                set_serial_terminal(args, root, do_run_build_script, for_cache)
-                set_autologin(args, root, do_run_build_script, for_cache)
+                set_root_password(args, root, do_run_build_script, cached_tree)
+                set_serial_terminal(args, root, do_run_build_script, cached_tree)
+                set_autologin(args, root, do_run_build_script, cached_tree)
                 sshkey = setup_ssh(args, root, do_run_build_script, for_cache, cached_tree)
                 setup_network_veth(args, root, do_run_build_script, cached_tree)
                 run_postinst_script(args, root, loopdev, do_run_build_script, for_cache)
