@@ -2792,7 +2792,10 @@ def install_distribution(args: CommandLineArguments, root: str, *, do_run_build_
     }
 
     disable_kernel_install(args, root)
-    install[args.distribution](args, root, do_run_build_script)
+
+    with mount_cache(args, root):
+        install[args.distribution](args, root, do_run_build_script)
+
     reenable_kernel_install(args, root)
 
 
@@ -2992,7 +2995,7 @@ def run_prepare_script(args: CommandLineArguments, root: str, do_run_build_scrip
 
     verb = "build" if do_run_build_script else "final"
 
-    with complete_step("Running prepare script"):
+    with mount_cache(args, root), complete_step("Running prepare script"):
 
         # We copy the prepare script into the build tree. We'd prefer
         # mounting it into the tree, but for that we'd need a good
@@ -3019,7 +3022,7 @@ def run_postinst_script(
 
     verb = "build" if do_run_build_script else "final"
 
-    with complete_step("Running postinstall script"):
+    with mount_cache(args, root), complete_step("Running postinstall script"):
 
         # We copy the postinst script into the build tree. We'd prefer
         # mounting it into the tree, but for that we'd need a good
@@ -5785,22 +5788,21 @@ def build_image(
                     # later.
                     mount_bind(args.include_dir, os.path.join(root, "usr/include"))
 
-                with mount_cache(args, root):
-                    cached_tree = reuse_cache_tree(args, root, do_run_build_script, for_cache, cached)
-                    install_skeleton_trees(args, root, for_cache)
-                    install_distribution(args, root, do_run_build_script=do_run_build_script, cached=cached_tree)
-                    install_etc_hostname(args, root)
-                    install_boot_loader(args, root, loopdev, do_run_build_script, cached_tree)
-                    run_prepare_script(args, root, do_run_build_script, cached_tree)
-                    install_extra_trees(args, root, for_cache)
-                    install_build_src(args, root, do_run_build_script, for_cache)
-                    install_build_dest(args, root, do_run_build_script, for_cache)
-                    set_root_password(args, root, do_run_build_script, for_cache)
-                    set_serial_terminal(args, root, do_run_build_script, for_cache)
-                    set_autologin(args, root, do_run_build_script, for_cache)
-                    sshkey = setup_ssh(args, root, do_run_build_script, for_cache, cached_tree)
-                    setup_network_veth(args, root, do_run_build_script, cached_tree)
-                    run_postinst_script(args, root, loopdev, do_run_build_script, for_cache)
+                cached_tree = reuse_cache_tree(args, root, do_run_build_script, for_cache, cached)
+                install_skeleton_trees(args, root, for_cache)
+                install_distribution(args, root, do_run_build_script=do_run_build_script, cached=cached_tree)
+                install_etc_hostname(args, root)
+                install_boot_loader(args, root, loopdev, do_run_build_script, cached_tree)
+                run_prepare_script(args, root, do_run_build_script, cached_tree)
+                install_extra_trees(args, root, for_cache)
+                install_build_src(args, root, do_run_build_script, for_cache)
+                install_build_dest(args, root, do_run_build_script, for_cache)
+                set_root_password(args, root, do_run_build_script, for_cache)
+                set_serial_terminal(args, root, do_run_build_script, for_cache)
+                set_autologin(args, root, do_run_build_script, for_cache)
+                sshkey = setup_ssh(args, root, do_run_build_script, for_cache, cached_tree)
+                setup_network_veth(args, root, do_run_build_script, cached_tree)
+                run_postinst_script(args, root, loopdev, do_run_build_script, for_cache)
 
                 if cleanup:
                     clean_package_manager_metadata(root)
