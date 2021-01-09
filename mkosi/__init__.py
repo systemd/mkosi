@@ -2886,65 +2886,66 @@ def set_autologin(args: CommandLineArguments, root: str, do_run_build_script: bo
     if do_run_build_script or cached or not args.autologin:
         return
 
-    # On Debian, PAM wants the full path to the console device or it will refuse access
-    device_prefix = "/dev/" if args.distribution is Distribution.debian else ""
+    with complete_step("Setting up autologin"):
+        # On Debian, PAM wants the full path to the console device or it will refuse access
+        device_prefix = "/dev/" if args.distribution is Distribution.debian else ""
 
-    override_dir = os.path.join(root, "etc/systemd/system/console-getty.service.d")
-    os.makedirs(override_dir, mode=0o755, exist_ok=True)
+        override_dir = os.path.join(root, "etc/systemd/system/console-getty.service.d")
+        os.makedirs(override_dir, mode=0o755, exist_ok=True)
 
-    override_file = os.path.join(override_dir, "autologin.conf")
-    with open(override_file, "w") as f:
-        f.write(
-            dedent(
-                r"""
-                [Service]
-                ExecStart=
-                ExecStart=-/sbin/agetty -o '-p -- \\u' --noclear --autologin root --keep-baud console 115200,38400,9600 $TERM
-                """
+        override_file = os.path.join(override_dir, "autologin.conf")
+        with open(override_file, "w") as f:
+            f.write(
+                dedent(
+                    r"""
+                    [Service]
+                    ExecStart=
+                    ExecStart=-/sbin/agetty -o '-p -- \\u' --noclear --autologin root --keep-baud console 115200,38400,9600 $TERM
+                    """
+                )
             )
-        )
 
-    os.chmod(override_file, 0o644)
+        os.chmod(override_file, 0o644)
 
-    pam_add_autologin(root, f"{device_prefix}pts/0")
+        pam_add_autologin(root, f"{device_prefix}pts/0")
 
-    override_dir = os.path.join(root, "etc/systemd/system/serial-getty@ttyS0.service.d")
-    os.makedirs(override_dir, mode=0o755, exist_ok=True)
+        override_dir = os.path.join(root, "etc/systemd/system/serial-getty@ttyS0.service.d")
+        os.makedirs(override_dir, mode=0o755, exist_ok=True)
 
-    override_file = os.path.join(override_dir, "autologin.conf")
-    with open(override_file, "w") as f:
-        f.write(
-            dedent(
-                r"""
-                [Service]
-                ExecStart=
-                ExecStart=-/sbin/agetty -o '-p -- \\u' --autologin root --keep-baud 115200,57600,38400,9600 %I $TERM
-                """
+        override_file = os.path.join(override_dir, "autologin.conf")
+        with open(override_file, "w") as f:
+            f.write(
+                dedent(
+                    r"""
+                    [Service]
+                    ExecStart=
+                    ExecStart=-/sbin/agetty -o '-p -- \\u' --autologin root --keep-baud 115200,57600,38400,9600 %I $TERM
+                    """
+                )
             )
-        )
 
-    os.chmod(override_file, 0o644)
+        os.chmod(override_file, 0o644)
 
-    pam_add_autologin(root, f"{device_prefix}ttyS0")
+        pam_add_autologin(root, f"{device_prefix}ttyS0")
 
-    override_dir = os.path.join(root, "etc/systemd/system/getty@tty1.service.d")
-    os.makedirs(override_dir, mode=0o755, exist_ok=True)
+        override_dir = os.path.join(root, "etc/systemd/system/getty@tty1.service.d")
+        os.makedirs(override_dir, mode=0o755, exist_ok=True)
 
-    override_file = os.path.join(override_dir, "autologin.conf")
-    with open(override_file, "w") as f:
-        f.write(
-            dedent(
-                r"""
-                [Service]
-                ExecStart=
-                ExecStart=-/sbin/agetty -o '-p -- \\u' --autologin root --noclear %I $TERM
-                """
+        override_file = os.path.join(override_dir, "autologin.conf")
+        with open(override_file, "w") as f:
+            f.write(
+                dedent(
+                    r"""
+                    [Service]
+                    ExecStart=
+                    ExecStart=-/sbin/agetty -o '-p -- \\u' --autologin root --noclear %I $TERM
+                    """
+                )
             )
-        )
 
-    os.chmod(override_file, 0o644)
+        os.chmod(override_file, 0o644)
 
-    pam_add_autologin(root, f"{device_prefix}tty1")
+        pam_add_autologin(root, f"{device_prefix}tty1")
 
 
 def set_serial_terminal(args: CommandLineArguments, root: str, do_run_build_script: bool, cached: bool) -> None:
@@ -2953,24 +2954,25 @@ def set_serial_terminal(args: CommandLineArguments, root: str, do_run_build_scri
     if do_run_build_script or cached or not args.qemu_headless:
         return
 
-    override_dir = os.path.join(root, "etc/systemd/system/serial-getty@ttyS0.service.d")
-    os.makedirs(override_dir, mode=0o755, exist_ok=True)
+    with complete_step("Configuring serial tty (ttyS0)"):
+        override_dir = os.path.join(root, "etc/systemd/system/serial-getty@ttyS0.service.d")
+        os.makedirs(override_dir, mode=0o755, exist_ok=True)
 
-    columns, lines = shutil.get_terminal_size(fallback=(80, 24))
-    override_file = os.path.join(override_dir, "term.conf")
-    with open(override_file, "w") as f:
-        f.write(
-            dedent(
-                f"""
-                [Service]
-                Environment=TERM={os.getenv('TERM', 'vt220')}
-                Environment=COLUMNS={columns}
-                Environment=LINES={lines}
-                """
+        columns, lines = shutil.get_terminal_size(fallback=(80, 24))
+        override_file = os.path.join(override_dir, "term.conf")
+        with open(override_file, "w") as f:
+            f.write(
+                dedent(
+                    f"""
+                    [Service]
+                    Environment=TERM={os.getenv('TERM', 'vt220')}
+                    Environment=COLUMNS={columns}
+                    Environment=LINES={lines}
+                    """
+                )
             )
-        )
 
-    os.chmod(override_file, 0o644)
+        os.chmod(override_file, 0o644)
 
 
 def nspawn_params_for_build_sources(args: CommandLineArguments, sft: SourceFileTransfer) -> List[str]:
@@ -5712,31 +5714,32 @@ def setup_network_veth(args: CommandLineArguments, root: str, do_run_build_scrip
     if do_run_build_script or cached or not args.network_veth:
         return
 
-    network_file = os.path.join(root, "etc/systemd/network/80-mkosi-network-veth.network")
-    with open(network_file, "w") as f:
-        # Adapted from https://github.com/systemd/systemd/blob/v247/network/80-container-host0.network
-        f.write(
-            dedent(
-                """\
-                [Match]
-                Virtualization=!container
-                Type=ether
+    with complete_step("Setting up network veth"):
+        network_file = os.path.join(root, "etc/systemd/network/80-mkosi-network-veth.network")
+        with open(network_file, "w") as f:
+            # Adapted from https://github.com/systemd/systemd/blob/v247/network/80-container-host0.network
+            f.write(
+                dedent(
+                    """\
+                    [Match]
+                    Virtualization=!container
+                    Type=ether
 
-                [Network]
-                DHCP=yes
-                LinkLocalAddressing=yes
-                LLDP=yes
-                EmitLLDP=customer-bridge
+                    [Network]
+                    DHCP=yes
+                    LinkLocalAddressing=yes
+                    LLDP=yes
+                    EmitLLDP=customer-bridge
 
-                [DHCP]
-                UseTimezone=yes
-                """
+                    [DHCP]
+                    UseTimezone=yes
+                    """
+                )
             )
-        )
 
-    os.chmod(network_file, 0o644)
+        os.chmod(network_file, 0o644)
 
-    run(["systemctl", "--root", root, "enable", "systemd-networkd"])
+        run(["systemctl", "--root", root, "enable", "systemd-networkd"])
 
 
 def build_image(
