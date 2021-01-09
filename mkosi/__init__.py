@@ -1317,7 +1317,6 @@ def mount_image(
             umount(root)
 
 
-@complete_step("Assigning hostname")
 def install_etc_hostname(args: CommandLineArguments, root: str) -> None:
     etc_hostname = os.path.join(root, "etc/hostname")
 
@@ -1331,7 +1330,8 @@ def install_etc_hostname(args: CommandLineArguments, root: str) -> None:
         pass
 
     if args.hostname:
-        open(etc_hostname, "w").write(args.hostname + "\n")
+        with complete_step("Assigning hostname"):
+            open(etc_hostname, "w").write(args.hostname + "\n")
 
 
 @contextlib.contextmanager
@@ -1419,87 +1419,87 @@ def configure_dracut(args: CommandLineArguments, root: str) -> None:
             f.write('add_drivers+=" efivarfs "\n')
 
 
-@complete_step("Setting up OS tree root")
 def prepare_tree_root(args: CommandLineArguments, root: str) -> None:
     if args.output_format == OutputFormat.subvolume:
-        btrfs_subvol_create(root)
+        with complete_step("Setting up OS tree root"):
+            btrfs_subvol_create(root)
 
 
-@complete_step("Setting up basic OS tree")
 def prepare_tree(args: CommandLineArguments, root: str, do_run_build_script: bool, cached: bool) -> None:
-    if args.output_format is OutputFormat.subvolume or (
-        args.output_format is OutputFormat.gpt_btrfs and not (args.minimize or cached)
-    ):
-        btrfs_subvol_create(os.path.join(root, "home"))
-        btrfs_subvol_create(os.path.join(root, "srv"))
-        btrfs_subvol_create(os.path.join(root, "var"))
-        btrfs_subvol_create(os.path.join(root, "var/tmp"), 0o1777)
-        os.mkdir(os.path.join(root, "var/lib"))
-        btrfs_subvol_create(os.path.join(root, "var/lib/machines"), 0o700)
-
     if cached:
         return
 
-    # We need an initialized machine ID for the build & boot logic to work
-    os.mkdir(os.path.join(root, "etc"), 0o755)
-    with open(os.path.join(root, "etc/machine-id"), "w") as f:
-        f.write(args.machine_id)
-        f.write("\n")
+    with complete_step("Setting up basic OS tree"):
+        if args.output_format is OutputFormat.subvolume or (
+            args.output_format is OutputFormat.gpt_btrfs and not args.minimize
+        ):
+            btrfs_subvol_create(os.path.join(root, "home"))
+            btrfs_subvol_create(os.path.join(root, "srv"))
+            btrfs_subvol_create(os.path.join(root, "var"))
+            btrfs_subvol_create(os.path.join(root, "var/tmp"), 0o1777)
+            os.mkdir(os.path.join(root, "var/lib"))
+            btrfs_subvol_create(os.path.join(root, "var/lib/machines"), 0o700)
 
-    if not do_run_build_script and args.bootable:
-        if args.xbootldr_partno is not None:
-            # Create directories for kernels and entries if this is enabled
-            os.mkdir(os.path.join(root, "boot/EFI"), 0o700)
-            os.mkdir(os.path.join(root, "boot/EFI/Linux"), 0o700)
-            os.mkdir(os.path.join(root, "boot/loader"), 0o700)
-            os.mkdir(os.path.join(root, "boot/loader/entries"), 0o700)
-            os.mkdir(os.path.join(root, "boot", args.machine_id), 0o700)
-        else:
-            # If this is not enabled, let's create an empty directory on /boot
-            os.mkdir(os.path.join(root, "boot"), 0o700)
+        # We need an initialized machine ID for the build & boot logic to work
+        os.mkdir(os.path.join(root, "etc"), 0o755)
+        with open(os.path.join(root, "etc/machine-id"), "w") as f:
+            f.write(args.machine_id)
+            f.write("\n")
 
-        if args.esp_partno is not None:
-            os.mkdir(os.path.join(root, "efi/EFI"), 0o700)
-            os.mkdir(os.path.join(root, "efi/EFI/BOOT"), 0o700)
-            os.mkdir(os.path.join(root, "efi/EFI/systemd"), 0o700)
-            os.mkdir(os.path.join(root, "efi/loader"), 0o700)
+        if not do_run_build_script and args.bootable:
+            if args.xbootldr_partno is not None:
+                # Create directories for kernels and entries if this is enabled
+                os.mkdir(os.path.join(root, "boot/EFI"), 0o700)
+                os.mkdir(os.path.join(root, "boot/EFI/Linux"), 0o700)
+                os.mkdir(os.path.join(root, "boot/loader"), 0o700)
+                os.mkdir(os.path.join(root, "boot/loader/entries"), 0o700)
+                os.mkdir(os.path.join(root, "boot", args.machine_id), 0o700)
+            else:
+                # If this is not enabled, let's create an empty directory on /boot
+                os.mkdir(os.path.join(root, "boot"), 0o700)
 
-            if args.xbootldr_partno is None:
-                # Create directories for kernels and entries, unless the XBOOTLDR partition is turned on
-                os.mkdir(os.path.join(root, "efi/EFI/Linux"), 0o700)
-                os.mkdir(os.path.join(root, "efi/loader/entries"), 0o700)
-                os.mkdir(os.path.join(root, "efi", args.machine_id), 0o700)
+            if args.esp_partno is not None:
+                os.mkdir(os.path.join(root, "efi/EFI"), 0o700)
+                os.mkdir(os.path.join(root, "efi/EFI/BOOT"), 0o700)
+                os.mkdir(os.path.join(root, "efi/EFI/systemd"), 0o700)
+                os.mkdir(os.path.join(root, "efi/loader"), 0o700)
 
-                # Create some compatibility symlinks in /boot in case that is not set up otherwise
-                os.symlink("../efi", os.path.join(root, "boot/efi"))
-                os.symlink("../efi/loader", os.path.join(root, "boot/loader"))
-                os.symlink("../efi/" + args.machine_id, os.path.join(root, "boot", args.machine_id))
+                if args.xbootldr_partno is None:
+                    # Create directories for kernels and entries, unless the XBOOTLDR partition is turned on
+                    os.mkdir(os.path.join(root, "efi/EFI/Linux"), 0o700)
+                    os.mkdir(os.path.join(root, "efi/loader/entries"), 0o700)
+                    os.mkdir(os.path.join(root, "efi", args.machine_id), 0o700)
 
-        os.mkdir(os.path.join(root, "etc/kernel"), 0o755)
+                    # Create some compatibility symlinks in /boot in case that is not set up otherwise
+                    os.symlink("../efi", os.path.join(root, "boot/efi"))
+                    os.symlink("../efi/loader", os.path.join(root, "boot/loader"))
+                    os.symlink("../efi/" + args.machine_id, os.path.join(root, "boot", args.machine_id))
 
-        with open(os.path.join(root, "etc/kernel/cmdline"), "w") as cmdline:
-            cmdline.write(" ".join(args.kernel_command_line))
-            cmdline.write("\n")
+            os.mkdir(os.path.join(root, "etc/kernel"), 0o755)
 
-    if do_run_build_script or args.ssh:
-        os.mkdir(os.path.join(root, "root"), 0o750)
+            with open(os.path.join(root, "etc/kernel/cmdline"), "w") as cmdline:
+                cmdline.write(" ".join(args.kernel_command_line))
+                cmdline.write("\n")
 
-    if args.ssh and not do_run_build_script:
-        os.mkdir(os.path.join(root, "root/.ssh"), 0o700)
+        if do_run_build_script or args.ssh:
+            os.mkdir(os.path.join(root, "root"), 0o750)
 
-    if do_run_build_script:
-        os.mkdir(os.path.join(root, "root/dest"), 0o755)
+        if args.ssh and not do_run_build_script:
+            os.mkdir(os.path.join(root, "root/.ssh"), 0o700)
 
-        if args.include_dir is not None:
-            os.mkdir(os.path.join(root, "usr"), 0o755)
-            os.mkdir(os.path.join(root, "usr/include"), 0o755)
+        if do_run_build_script:
+            os.mkdir(os.path.join(root, "root/dest"), 0o755)
 
-        if args.build_dir is not None:
-            os.mkdir(os.path.join(root, "root/build"), 0o755)
+            if args.include_dir is not None:
+                os.mkdir(os.path.join(root, "usr"), 0o755)
+                os.mkdir(os.path.join(root, "usr/include"), 0o755)
 
-    if args.network_veth and not do_run_build_script:
-        os.mkdir(os.path.join(root, "etc/systemd"), 0o755)
-        os.mkdir(os.path.join(root, "etc/systemd/network"), 0o755)
+            if args.build_dir is not None:
+                os.mkdir(os.path.join(root, "root/build"), 0o755)
+
+        if args.network_veth and not do_run_build_script:
+            os.mkdir(os.path.join(root, "etc/systemd"), 0o755)
+            os.mkdir(os.path.join(root, "etc/systemd/network"), 0o755)
 
 
 def patch_file(filepath: str, line_rewriter: Callable[[str], str]) -> None:
@@ -2830,13 +2830,12 @@ def reset_machine_id(args: CommandLineArguments, root: str, do_run_build_script:
 
 def reset_random_seed(args: CommandLineArguments, root: str) -> None:
     """Remove random seed file, so that it is initialized on first boot"""
+    random_seed = os.path.join(root, "var/lib/systemd/random-seed")
+    if not os.path.exists(random_seed):
+        return
 
     with complete_step("Removing random seed"):
-        random_seed = os.path.join(root, "var/lib/systemd/random-seed")
-        try:
-            os.unlink(random_seed)
-        except FileNotFoundError:
-            pass
+        os.unlink(random_seed)
 
 
 def set_root_password(args: CommandLineArguments, root: str, do_run_build_script: bool, for_cache: bool) -> None:
@@ -3272,16 +3271,19 @@ def install_build_src(args: CommandLineArguments, root: str, do_run_build_script
     if args.build_script is None:
         return
 
-    with complete_step("Copying in build script and sources"):
-        if do_run_build_script:
+    if do_run_build_script:
+        with complete_step("Copying in build script"):
             copy_file(args.build_script, os.path.join(root, "root", os.path.basename(args.build_script)))
-            sft = args.source_file_transfer
-        else:
-            sft = args.source_file_transfer_final
 
-        if args.build_sources is None or sft is None:
-            return
+    if do_run_build_script:
+        sft = args.source_file_transfer
+    else:
+        sft = args.source_file_transfer_final
 
+    if args.build_sources is None or sft is None:
+        return
+
+    with complete_step("Copying in sources"):
         target = os.path.join(root, "root/src")
 
         if sft in (
@@ -4025,6 +4027,9 @@ def print_output_size(args: CommandLineArguments) -> None:
 
 
 def setup_package_cache(args: CommandLineArguments) -> Optional[TempDir]:
+    if args.cache_path and os.path.exists(args.cache_path):
+        return None
+
     d = None
     with complete_step("Setting up package cache", "Setting up package cache {} complete") as output:
         if args.cache_path is None:
