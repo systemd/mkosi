@@ -1642,34 +1642,63 @@ def clean_dnf_metadata(root: str) -> None:
     keeping the dnf metadata, since it's not usable from within the
     image anyway.
     """
-    dnf_path = root + "/bin/dnf"
+    dnf_metadata_paths = [
+        os.path.join(root, "var/lib/dnf"),
+        *glob.glob(f"{os.path.join(root, 'var/log/dnf')}.*"),
+        *glob.glob(f"{os.path.join(root, 'var/log/hawkey')}.*"),
+        os.path.join(root, "var/cache/dnf"),
+    ]
+    dnf_path = os.path.join(root, "bin/dnf")
     keep_dnf_data = os.access(dnf_path, os.F_OK, follow_symlinks=False)
 
-    if not keep_dnf_data:
-        MkosiPrinter.print_step("Cleaning dnf metadata...")
-        remove_glob(
-            root + "/var/lib/dnf", root + "/var/log/dnf.*", root + "/var/log/hawkey.*", root + "/var/cache/dnf"
-        )
+    if not keep_dnf_data or all(not os.path.exists(path) for path in dnf_metadata_paths):
+        return
+
+    with complete_step("Cleaning dnf metadata..."):
+        remove_glob(*dnf_metadata_paths)
 
 
 def clean_yum_metadata(root: str) -> None:
     """Removes yum metadata iff /bin/yum is not present in the image"""
-    yum_path = root + "/bin/yum"
+    yum_metadata_paths = [
+        os.path.join(root, "var/lib/yum"),
+        *glob.glob(f"{os.path.join(root, 'var/log/yum')}.*"),
+        os.path.join(root, "var/cache/yum"),
+    ]
+    yum_path = os.path.join(root, "bin/yum")
     keep_yum_data = os.access(yum_path, os.F_OK, follow_symlinks=False)
 
-    if not keep_yum_data:
-        MkosiPrinter.print_step("Cleaning yum metadata...")
-        remove_glob(root + "/var/lib/yum", root + "/var/log/yum.*", root + "/var/cache/yum")
+    if not keep_yum_data or all(not os.path.exists(path) for path in yum_metadata_paths):
+        return
+
+    with complete_step("Cleaning yum metadata..."):
+        remove_glob(*yum_metadata_paths)
 
 
 def clean_rpm_metadata(root: str) -> None:
     """Removes rpm metadata iff /bin/rpm is not present in the image"""
-    rpm_path = root + "/bin/rpm"
+    rpm_metadata_path = os.path.join(root, "var/lib/rpm")
+    rpm_path = os.path.join(root, "bin/rpm")
     keep_rpm_data = os.access(rpm_path, os.F_OK, follow_symlinks=False)
 
-    if not keep_rpm_data:
-        MkosiPrinter.print_step("Cleaning rpm metadata...")
-        remove_glob(root + "/var/lib/rpm")
+    if not keep_rpm_data or not os.path.exists(rpm_metadata_path):
+        return
+
+    with complete_step("Cleaning rpm metadata..."):
+        remove_glob(rpm_metadata_path)
+
+
+def clean_tdnf_metadata(root: str) -> None:
+    """Removes tdnf metadata iff /bin/tdnf is not present in the image"""
+    tdnf_metadata_paths = [*glob.glob(f"{os.path.join(root, 'var/log/tdnf')}.*"), os.path.join(root, "var/cache/tdnf")]
+    tdnf_path = os.path.join(root, "usr/bin/tdnf")
+    keep_tdnf_data = os.access(tdnf_path, os.F_OK, follow_symlinks=False)
+
+    if not keep_tdnf_data or all(not os.path.exists(path) for path in tdnf_metadata_paths):
+        return
+
+    with complete_step("Cleaning tdnf metadata..."):
+        remove_glob(*tdnf_metadata_paths)
 
 
 def clean_package_manager_metadata(root: str) -> None:
@@ -1686,16 +1715,6 @@ def clean_package_manager_metadata(root: str) -> None:
     clean_rpm_metadata(root)
     clean_tdnf_metadata(root)
     # FIXME: implement cleanup for other package managers
-
-
-def clean_tdnf_metadata(root: str) -> None:
-    """Removes tdnf metadata iff /bin/tdnf is not present in the image"""
-    tdnf_path = root + "/usr/bin/tdnf"
-    keep_tdnf_data = os.access(tdnf_path, os.F_OK, follow_symlinks=False)
-
-    if not keep_tdnf_data:
-        MkosiPrinter.print_step("Cleaning tdnf metadata...")
-        remove_glob(root + "/var/log/tdnf.*", root + "/var/cache/tdnf")
 
 
 def invoke_dnf(
