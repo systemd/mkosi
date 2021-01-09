@@ -2777,7 +2777,7 @@ def install_opensuse(args: CommandLineArguments, root: str, do_run_build_script:
         patch_file(os.path.join(root, "etc/pam.d/common-auth"), jj)
 
 
-def install_distribution(args: CommandLineArguments, root: str, *, do_run_build_script: bool, cached: bool) -> None:
+def install_distribution(args: CommandLineArguments, root: str, do_run_build_script: bool, cached: bool) -> None:
     if cached:
         return
 
@@ -5809,7 +5809,7 @@ def build_image(
 
                 cached_tree = reuse_cache_tree(args, root, do_run_build_script, for_cache, cached)
                 install_skeleton_trees(args, root, for_cache)
-                install_distribution(args, root, do_run_build_script=do_run_build_script, cached=cached_tree)
+                install_distribution(args, root, do_run_build_script, cached_tree)
                 install_etc_hostname(args, root, cached_tree)
                 install_boot_loader(args, root, loopdev, do_run_build_script, cached_tree)
                 run_prepare_script(args, root, do_run_build_script, cached_tree)
