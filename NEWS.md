@@ -9,6 +9,9 @@
   mkosi.default.d anymore. mkosi now always searches for mkosi.default.d
   in the working directory.
 - Drop "quiet" from the default kernel command line.
+- `--source-file-transfer` and `--source-file-transfer-final` now accept the
+  empty string as an argument which can be used to override a previously
+  set value.
 
 ## v9
 
