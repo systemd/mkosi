@@ -4259,6 +4259,15 @@ def parse_compression(value: str) -> Union[str, bool]:
     return parse_boolean(value)
 
 
+def parse_source_file_transfer(value: str) -> Optional[SourceFileTransfer]:
+    if value == "":
+        return None
+    try:
+        return SourceFileTransfer(value)
+    except Exception as exp:
+        raise argparse.ArgumentTypeError(str(exp))
+
+
 def create_parser() -> ArgumentParserMkosi:
     parser = ArgumentParserMkosi(prog="mkosi", description="Build Legacy-Free OS Images", add_help=False)
 
@@ -4452,8 +4461,8 @@ def create_parser() -> ArgumentParserMkosi:
     group.add_argument("--finalize-script", help="Postinstall script to run outside image", metavar="PATH")
     group.add_argument(
         "--source-file-transfer",
-        type=SourceFileTransfer,
-        choices=list(SourceFileTransfer),
+        type=parse_source_file_transfer,
+        choices=[*list(SourceFileTransfer), None],
         default=None,
         help="Method used to copy build sources to the build image."
         + "; ".join([f"'{k}': {v}" for k, v in SourceFileTransfer.doc().items()])
@@ -4461,8 +4470,8 @@ def create_parser() -> ArgumentParserMkosi:
     )
     group.add_argument(
         "--source-file-transfer-final",
-        type=SourceFileTransfer,
-        choices=list(SourceFileTransfer),
+        type=parse_source_file_transfer,
+        choices=[*list(SourceFileTransfer), None],
         default=None,
         help="Method used to copy build sources to the final image."
         + "; ".join([f"'{k}': {v}" for k, v in SourceFileTransfer.doc().items() if k != SourceFileTransfer.mount])
