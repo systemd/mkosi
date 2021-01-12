@@ -584,9 +584,8 @@ def complete_step(text: str, text2: Optional[str] = None) -> Generator[List[Any]
     MkosiPrinter.print_step(text + "...")
     args: List[Any] = []
     yield args
-    if text2 is None:
-        text2 = text + " complete"
-    MkosiPrinter.print_step(text2.format(*args) + ".")
+    if text2 is not None:
+        MkosiPrinter.print_step(text2.format(*args) + ".")
 
 
 @complete_step("Detaching namespace")
