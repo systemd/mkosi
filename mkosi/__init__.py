@@ -588,25 +588,7 @@ def complete_step(text: str, text2: Optional[str] = None) -> Generator[List[Any]
     MkosiPrinter.print_step(text2.format(*args) + ".")
 
 
-# mypy still has problems with generic decorators:
-# https://github.com/python/mypy/issues/1317
-# When running mypy in strict mode it considers the complete_step decorator
-# untyped. Since the signatures of the decorated functions are very regular, it
-# can be typed with the Union of all signatures. This is not optimal and should
-# be revisited with newer mypy releases.
-C = TypeVar(
-    "C",
-    bound=Union[
-        Callable[[CommandLineArguments], None],
-        Callable[[CommandLineArguments, str], None],
-        Callable[[CommandLineArguments, str, bool], None],
-        Callable[[CommandLineArguments, str, bool, bool], None],
-    ],
-)
-completestep = cast(Callable[[str], Callable[[C], C]], complete_step)
-
-
-@completestep("Detaching namespace")
+@complete_step("Detaching namespace")
 def init_namespace(args: CommandLineArguments) -> None:
     args.original_umask = os.umask(0o000)
     unshare(CLONE_NEWNS)
@@ -1335,7 +1317,7 @@ def mount_image(
             umount(root)
 
 
-@completestep("Assigning hostname")
+@complete_step("Assigning hostname")
 def install_etc_hostname(args: CommandLineArguments, root: str) -> None:
     etc_hostname = os.path.join(root, "etc/hostname")
 
@@ -1437,13 +1419,13 @@ def configure_dracut(args: CommandLineArguments, root: str) -> None:
             f.write('add_drivers+=" efivarfs "\n')
 
 
-@completestep("Setting up OS tree root")
+@complete_step("Setting up OS tree root")
 def prepare_tree_root(args: CommandLineArguments, root: str) -> None:
     if args.output_format == OutputFormat.subvolume:
         btrfs_subvol_create(root)
 
 
-@completestep("Setting up basic OS tree")
+@complete_step("Setting up basic OS tree")
 def prepare_tree(args: CommandLineArguments, root: str, do_run_build_script: bool, cached: bool) -> None:
     if args.output_format is OutputFormat.subvolume or (
         args.output_format is OutputFormat.gpt_btrfs and not (args.minimize or cached)
@@ -1831,7 +1813,7 @@ def setup_dnf(args: CommandLineArguments, root: str, repos: List[Repo] = []) -> 
         )
 
 
-@completestep("Installing Photon")
+@complete_step("Installing Photon")
 def install_photon(args: CommandLineArguments, root: str, do_run_build_script: bool) -> None:
     release_url = "baseurl=https://dl.bintray.com/vmware/photon_release_$releasever_$basearch"
     updates_url = "baseurl=https://dl.bintray.com/vmware/photon_updates_$releasever_$basearch"
@@ -1860,7 +1842,7 @@ def install_photon(args: CommandLineArguments, root: str, do_run_build_script: b
     )
 
 
-@completestep("Installing Clear Linux")
+@complete_step("Installing Clear Linux")
 def install_clear(args: CommandLineArguments, root: str, do_run_build_script: bool) -> None:
     if args.release == "latest":
         release = "clear"
@@ -1910,7 +1892,7 @@ def install_clear(args: CommandLineArguments, root: str, do_run_build_script: bo
             args.password = None
 
 
-@completestep("Installing Fedora")
+@complete_step("Installing Fedora")
 def install_fedora(args: CommandLineArguments, root: str, do_run_build_script: bool) -> None:
     if args.release == "rawhide":
         last = sorted(FEDORA_KEYS_MAP)[-1]
@@ -1972,7 +1954,7 @@ def install_fedora(args: CommandLineArguments, root: str, do_run_build_script: b
         f.write("LANG=C.UTF-8\n")
 
 
-@completestep("Installing Mageia")
+@complete_step("Installing Mageia")
 def install_mageia(args: CommandLineArguments, root: str, do_run_build_script: bool) -> None:
     if args.mirror:
         baseurl = f"{args.mirror}/distrib/{args.release}/x86_64/media/core/"
@@ -2011,7 +1993,7 @@ def install_mageia(args: CommandLineArguments, root: str, do_run_build_script: b
     disable_pam_securetty(root)
 
 
-@completestep("Installing OpenMandriva")
+@complete_step("Installing OpenMandriva")
 def install_openmandriva(args: CommandLineArguments, root: str, do_run_build_script: bool) -> None:
     release = args.release.strip("'")
 
@@ -2188,7 +2170,7 @@ def is_older_than_centos8(release: str) -> bool:
         return False
 
 
-@completestep("Installing CentOS")
+@complete_step("Installing CentOS")
 def install_centos(args: CommandLineArguments, root: str, do_run_build_script: bool) -> None:
     old = is_older_than_centos8(args.release)
     epel_release = int(args.release.split(".")[0])
@@ -2336,17 +2318,17 @@ def install_debian_or_ubuntu(args: CommandLineArguments, root: str, *, do_run_bu
     disable_pam_securetty(root)
 
 
-@completestep("Installing Debian")
+@complete_step("Installing Debian")
 def install_debian(args: CommandLineArguments, root: str, do_run_build_script: bool) -> None:
     install_debian_or_ubuntu(args, root, do_run_build_script=do_run_build_script, mirror=args.mirror)
 
 
-@completestep("Installing Ubuntu")
+@complete_step("Installing Ubuntu")
 def install_ubuntu(args: CommandLineArguments, root: str, do_run_build_script: bool) -> None:
     install_debian_or_ubuntu(args, root, do_run_build_script=do_run_build_script, mirror=args.mirror)
 
 
-@completestep("Installing Arch Linux")
+@complete_step("Installing Arch Linux")
 def install_arch(args: CommandLineArguments, root: str, do_run_build_script: bool) -> None:
     if args.release is not None:
         MkosiPrinter.info("Distribution release specification is not supported for Arch Linux, ignoring.")
@@ -2682,7 +2664,7 @@ def install_arch(args: CommandLineArguments, root: str, do_run_build_script: boo
     disable_pam_securetty(root)
 
 
-@completestep("Installing openSUSE")
+@complete_step("Installing openSUSE")
 def install_opensuse(args: CommandLineArguments, root: str, do_run_build_script: bool) -> None:
     release = args.release.strip('"')
 
