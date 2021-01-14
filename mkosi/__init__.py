@@ -5951,6 +5951,8 @@ def build_stuff(args: CommandLineArguments) -> None:
             with complete_step("Running second (final) stage to generate cached copy"):
                 # Generate the cache version of the build image, and store it as "cache-pre-inst"
                 raw, tar, root_hash, sshkey = build_image(args, root, do_run_build_script=False, for_cache=True)
+                link_output_sshkey(args, sshkey.name if sshkey is not None else None)
+
                 if raw:
                     save_cache(args, root, raw.name, args.cache_pre_inst)
                     remove_artifacts(args, root, raw, tar, do_run_build_script=False)
