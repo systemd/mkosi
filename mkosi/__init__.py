@@ -4869,7 +4869,7 @@ def unlink_output(args: CommandLineArguments) -> None:
             if args.nspawn_settings is not None:
                 unlink_try_hard(args.output_nspawn_settings)
 
-        if args.ssh:
+        if args.ssh and not os.path.exists(args.cache_pre_inst):
             unlink_try_hard(args.output_sshkey)
 
     # We remove any cached images if either the user used --force
@@ -4904,6 +4904,8 @@ def unlink_output(args: CommandLineArguments) -> None:
         if args.install_dir is not None:
             with complete_step("Clearing out install directory"):
                 empty_directory(args.install_dir)
+
+        unlink_try_hard(args.output_sshkey)
 
     if remove_package_cache:
         if args.cache_path is not None:
@@ -5400,7 +5402,6 @@ def check_output(args: CommandLineArguments) -> None:
         args.output_bmap if args.bmap else None,
         args.output_nspawn_settings if args.nspawn_settings is not None else None,
         args.output_root_hash_file if args.verity else None,
-        args.output_sshkey if args.ssh else None,
     ):
 
         if f is None:
@@ -5409,6 +5410,11 @@ def check_output(args: CommandLineArguments) -> None:
         if os.path.exists(f):
             die("Output file " + f + " exists already. (Consider invocation with --force.)")
 
+    if not args.ssh:
+        return
+
+    if not os.path.exists(args.cache_pre_inst) and os.path.exists(args.output_sshkey):
+        die(f"Output file {args.output_sshkey} exists already. (Consider invocation with --force.)")
 
 def yes_no(b: bool) -> str:
     return "yes" if b else "no"
