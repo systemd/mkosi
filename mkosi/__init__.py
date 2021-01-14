@@ -5615,8 +5615,8 @@ def make_build_dir(args: CommandLineArguments) -> None:
     mkdir_last(args.build_dir, 0o755)
 
 
-def setup_ssh(args: CommandLineArguments, root: str, do_run_build_script: bool, cached: bool) -> Optional[TextIO]:
-    if do_run_build_script or cached or not args.ssh:
+def setup_ssh(args: CommandLineArguments, root: str, do_run_build_script: bool, for_cache: bool) -> Optional[TextIO]:
+    if do_run_build_script or not args.ssh or for_cache:
         return None
 
     if args.distribution in (Distribution.debian, Distribution.ubuntu):
@@ -5639,6 +5639,7 @@ def setup_ssh(args: CommandLineArguments, root: str, do_run_build_script: bool, 
             ["ssh-keygen", "-f", f.name, "-N", args.password or "", "-C", "mkosi", "-t", "ed25519"],
             input=f"y\n",
             text=True,
+            stdout=DEVNULL,
         )
 
     copy_file(f"{f.name}.pub", os.path.join(root, "root/.ssh/authorized_keys"))
@@ -5758,7 +5759,7 @@ def build_image(
                     set_root_password(args, root, do_run_build_script, for_cache)
                     set_serial_terminal(args, root, do_run_build_script, for_cache)
                     set_autologin(args, root, do_run_build_script, for_cache)
-                    sshkey = setup_ssh(args, root, do_run_build_script, cached_tree)
+                    sshkey = setup_ssh(args, root, do_run_build_script, for_cache)
                     setup_network_veth(args, root, do_run_build_script, cached_tree)
                     run_postinst_script(args, root, loopdev, do_run_build_script, for_cache)
 
@@ -5951,7 +5952,6 @@ def build_stuff(args: CommandLineArguments) -> None:
             with complete_step("Running second (final) stage to generate cached copy"):
                 # Generate the cache version of the build image, and store it as "cache-pre-inst"
                 raw, tar, root_hash, sshkey = build_image(args, root, do_run_build_script=False, for_cache=True)
-                link_output_sshkey(args, sshkey.name if sshkey is not None else None)
 
                 if raw:
                     save_cache(args, root, raw.name, args.cache_pre_inst)
