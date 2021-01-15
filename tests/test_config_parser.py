@@ -49,6 +49,7 @@ class MkosiConfig(object):
             "build_dir": None,
             "build_packages": [],
             "build_script": None,
+            "build_env": [],
             "build_sources": None,
             "cache_path": None,
             "checksum": False,
@@ -251,6 +252,8 @@ class MkosiConfig(object):
                 self._append_list("skeleton_trees", mk_config_packages["SkeletonTrees"], job_name)
             if "BuildScript" in mk_config_packages:
                 self.reference_config[job_name]["build_script"] = mk_config_packages["BuildScript"]
+            if "BuildEnvironment" in mk_config_packages:
+                self.reference_config["build_env"] = mk_config_packages["BuildEnvironment"]
             if "BuildSources" in mk_config_packages:
                 self.reference_config[job_name]["build_sources"] = mk_config_packages["BuildSources"]
             if "SourceFileTransfer" in mk_config_packages:
