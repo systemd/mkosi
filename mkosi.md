@@ -490,6 +490,14 @@ details see the table below.
   `mkosi.build` file found in the local directory it is automatically
   used for this purpose (also see below).
 
+`--build-environment=`
+
+: Adds environment variables to the environment that the build script
+  is executed with. Takes a space-separated list of variable
+  assignments. This option may be  specified more than once, in which
+  case all listed variables will be set. If the same variable is set
+  twice, the later setting will override the earlier setting.
+
 `--build-sources=`
 
 : Takes a path of a source tree to copy into the development image, if
@@ -817,6 +825,7 @@ which settings file options.
 | `--extra-tree=`                   | `[Packages]`            | `ExtraTrees=`                 |
 | `--skeleton-tree=`                | `[Packages]`            | `SkeletonTrees=`              |
 | `--build-script=`                 | `[Packages]`            | `BuildScript=`                |
+| `--build-environment=`            | `[Packages]`            | `BuildEnvironment=`           |
 | `--build-sources=`                | `[Packages]`            | `BuildSources=`               |
 | `--source-file-transfer=`         | `[Packages]`            | `SourceFileTransfer=`         |
 | `--source-file-transfer-final=`   | `[Packages]`            | `SourceFileTransferFinal=`    |

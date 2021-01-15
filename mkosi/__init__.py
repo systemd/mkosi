@@ -17,7 +17,6 @@ import time
 import hashlib
 import os
 import platform
-import re
 import shlex
 import shutil
 import signal
@@ -28,6 +27,7 @@ import sys
 import tempfile
 import json
 import urllib.request
+import re
 import urllib.parse
 import uuid
 from subprocess import DEVNULL, PIPE
@@ -4038,7 +4038,9 @@ class ListAction(argparse.Action):
         if self.delimiter == "," and values.startswith("[") and values.endswith("]"):
             values = values[1:-1]
 
-        new = values.split(self.delimiter)
+        # Make sure delimiters between quotes are ignored by using the csv module.
+        # Inspired by https://stackoverflow.com/a/2787979.
+        new = re.split(f"""{self.delimiter}(?=(?:[^'"]|'[^']*'|"[^"]*")*$)""", values)
 
         for x in new:
             x = x.strip()
@@ -4414,6 +4416,14 @@ def create_parser() -> ArgumentParserMkosi:
         metavar="PATH",
     )
     group.add_argument("--build-script", help="Build script to run inside image", metavar="PATH")
+    group.add_argument(
+        "--build-environment",
+        action=SpaceDelimitedListAction,
+        dest="build_env",
+        default=[],
+        help="Set an environment variable when running the build script",
+        metavar="NAME=VALUE",
+    )
     group.add_argument("--build-sources", help="Path for sources to build", metavar="PATH")
     group.add_argument("--build-dir", help=argparse.SUPPRESS, metavar="PATH")  # Compatibility option
     group.add_argument(
@@ -5524,6 +5534,7 @@ def print_summary(args: CommandLineArguments) -> None:
     MkosiPrinter.info("               Extra Trees: " + line_join_list(args.extra_trees))
     MkosiPrinter.info("            Skeleton Trees: " + line_join_list(args.skeleton_trees))
     MkosiPrinter.info("              Build Script: " + none_to_none(args.build_script))
+    MkosiPrinter.info("         Build Environment: " + line_join_list(args.build_env))
 
     if args.build_script:
         MkosiPrinter.info("             Run tests: " + yes_no(args.with_tests))
@@ -5844,6 +5855,9 @@ def run_build_script(args: CommandLineArguments, root: str, raw: Optional[Binary
             "--setenv=WITH_NETWORK=" + one_zero(args.with_network),
             "--setenv=DESTDIR=/root/dest",
         ]
+
+        for env in args.build_env:
+            cmdline.append(f"--setenv={env}")
 
         # TODO: Use --autopipe once systemd v247 is widely available.
         console_arg = f"--console={'interactive' if sys.stdout.isatty() else 'pipe'}"
