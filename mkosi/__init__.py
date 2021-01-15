@@ -5615,8 +5615,10 @@ def make_build_dir(args: CommandLineArguments) -> None:
     mkdir_last(args.build_dir, 0o755)
 
 
-def setup_ssh(args: CommandLineArguments, root: str, do_run_build_script: bool, for_cache: bool) -> Optional[TextIO]:
-    if do_run_build_script or not args.ssh or for_cache:
+def setup_ssh(
+    args: CommandLineArguments, root: str, do_run_build_script: bool, for_cache: bool, cached: bool
+) -> Optional[TextIO]:
+    if do_run_build_script or not args.ssh:
         return None
 
     if args.distribution in (Distribution.debian, Distribution.ubuntu):
@@ -5624,7 +5626,14 @@ def setup_ssh(args: CommandLineArguments, root: str, do_run_build_script: bool, 
     else:
         unit = "sshd"
 
-    run(["systemctl", "--root", root, "enable", unit])
+    # We cache the enable sshd step but not the keygen step because it creates a separate file on the host
+    # which introduces non-trivial issue when trying to cache it.
+
+    if not cached:
+        run(["systemctl", "--root", root, "enable", unit])
+
+    if for_cache:
+        return None
 
     f: TextIO = cast(
         TextIO,
@@ -5759,7 +5768,7 @@ def build_image(
                     set_root_password(args, root, do_run_build_script, for_cache)
                     set_serial_terminal(args, root, do_run_build_script, for_cache)
                     set_autologin(args, root, do_run_build_script, for_cache)
-                    sshkey = setup_ssh(args, root, do_run_build_script, for_cache)
+                    sshkey = setup_ssh(args, root, do_run_build_script, for_cache, cached_tree)
                     setup_network_veth(args, root, do_run_build_script, cached_tree)
                     run_postinst_script(args, root, loopdev, do_run_build_script, for_cache)
 
