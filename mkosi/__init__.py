@@ -2920,6 +2920,12 @@ def set_autologin(args: CommandLineArguments, root: str, do_run_build_script: bo
     os.chmod(override_file, 0o644)
 
     pam_add_autologin(root, f"{device_prefix}tty1")
+    
+    with open(os.path.join(root, "etc/pam.d/login"), "r+") as f:
+        original = f.read()
+        f.seek(0)
+        f.write(f"auth sufficient pam_rootok.so\n")
+        f.write(original)
 
 
 def set_serial_terminal(args: CommandLineArguments, root: str, do_run_build_script: bool, for_cache: bool) -> None:
