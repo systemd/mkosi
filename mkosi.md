@@ -296,6 +296,17 @@ details see the table below.
 : Path to the X.509 file containing the certificate for the signed
   UEFI kernel image, if `--secure-boot` is used.
 
+`--secure-boot-common-name=`
+
+: Common name to be used when generating SecureBoot keys via mkosi's `genkey`
+  command. Defaults to `mkosi of %u`, where `%u` expands to the username of the
+  user invoking mkosi.
+
+`--secure-boot-valid-days=`
+
+: Number of days that the keys should remain valid when generating SecureBoot
+  keys via mkosi's `genkey` command. Defaults to two years (730 days).
+
 `--read-only`
 
 : Make root file system read-only. Only applies to `gpt_ext4`,
@@ -807,6 +818,8 @@ which settings file options.
 | `--secure-boot`                   | `[Output]`              | `SecureBoot=`                 |
 | `--secure-boot-key=`              | `[Output]`              | `SecureBootKey=`              |
 | `--secure-boot-certificate=`      | `[Output]`              | `SecureBootCertificate=`      |
+| `--secure-boot-valid-days=`       | `[Output]`              | `SecureBootValidDays=`        |
+| `--secure-boot-common-name=`      | `[Output]`              | `SecureBootCommonName=`       |
 | `--read-only`                     | `[Output]`              | `ReadOnly=`                   |
 | `--encrypt=`                      | `[Output]`              | `Encrypt=`                    |
 | `--verity=`                       | `[Output]`              | `Verity=`                     |
