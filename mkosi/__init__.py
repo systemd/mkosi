@@ -1596,8 +1596,11 @@ def disable_kernel_install(args: CommandLineArguments, root: str) -> None:
 
 
 def reenable_kernel_install(args: CommandLineArguments, root: str) -> None:
-    if not args.bootable or args.bios_partno is not None or not args.with_unified_kernel_images:
+    if not args.bootable or not args.with_unified_kernel_images:
         return
+
+    for d in ("etc", "etc/kernel", "etc/kernel/install.d"):
+        mkdir_last(os.path.join(root, d), 0o755)
 
     hook_path = os.path.join(root, "etc/kernel/install.d/50-mkosi-dracut-unified-kernel.install")
     with open(hook_path, "w") as f:
