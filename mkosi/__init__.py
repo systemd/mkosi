@@ -6092,10 +6092,15 @@ def has_networkd_vm_vt() -> bool:
 def ensure_networkd(args: CommandLineArguments) -> None:
     networkd_is_running = run(["systemctl", "is-active", "--quiet", "systemd-networkd"], check=False).returncode == 0
     if not networkd_is_running:
-        die("--network-veth requires systemd-networkd to be running (`systemctl enable --now systemd-networkd`)")
+        warn(
+            """
+            --network-veth requires systemd-networkd to be running to initialize the host interface of the
+            veth link (`systemctl enable --now systemd-networkd`)")
+            """
+        )
 
     if args.verb == "qemu" and not has_networkd_vm_vt():
-        die(
+        warn(
             r"""
             mkosi didn't find 80-vm-vt.network. This is one of systemd's built-in systemd-networkd config
             files which configures vt-* interfaces. mkosi needs this file in order for --network-veth to work
