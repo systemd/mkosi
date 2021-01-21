@@ -1416,6 +1416,10 @@ def configure_dracut(args: CommandLineArguments, root: str) -> None:
     ):
         with open(os.path.join(dracut_dir, "30-mkosi-uefi-stub.conf"), "w") as f:
             f.write("uefi_stub=/usr/lib/systemd/boot/efi/linuxx64.efi.stub\n")
+
+    # efivarfs must be present in order to GPT root discovery work
+    if args.esp_partno is not None:
+        with open(os.path.join(dracut_dir, "30-mkosi-efivarfs.conf"), "w") as f:
             f.write('add_drivers+=" efivarfs "\n')
 
 
