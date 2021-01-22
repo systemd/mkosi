@@ -2945,6 +2945,7 @@ def set_autologin(args: CommandLineArguments, root: str, do_run_build_script: bo
         os.chmod(override_file, 0o644)
 
         pam_add_autologin(root, f"{device_prefix}tty1")
+        pam_add_autologin(root, f"{device_prefix}console")
 
 
 def set_serial_terminal(args: CommandLineArguments, root: str, do_run_build_script: bool, cached: bool) -> None:
