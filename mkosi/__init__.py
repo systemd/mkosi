@@ -4258,7 +4258,7 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
                 continue
             # replace arguments referencing files with the file content
             try:
-                config = configparser.ConfigParser(delimiters="=")
+                config = configparser.RawConfigParser(delimiters="=")
                 config.optionxform = str  # type: ignore
                 with open(arg_string[1:]) as args_file:
                     config.read_file(args_file)

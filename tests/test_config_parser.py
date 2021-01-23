@@ -157,7 +157,7 @@ class MkosiConfig(object):
             os.makedirs(dname)
         if prio < 1000:
             fname = "{:03d}_{}".format(prio, fname)
-        config_parser = configparser.ConfigParser()
+        config_parser = configparser.RawConfigParser()
         config_parser.optionxform = str
 
         # Replace lists in dict before calling config_parser write file
