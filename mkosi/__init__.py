@@ -73,7 +73,7 @@ else:
     TempDir = tempfile.TemporaryDirectory
 
 
-MKOSI_COMMANDS_CMDLINE = ("shell", "boot", "qemu", "ssh")
+MKOSI_COMMANDS_CMDLINE = ("build", "shell", "boot", "qemu", "ssh")
 MKOSI_COMMANDS_NEED_BUILD = ("shell", "boot", "qemu")
 MKOSI_COMMANDS_SUDO = ("build", "clean", "shell", "boot", "qemu")
 MKOSI_COMMANDS = ("build", "clean", "help", "summary") + MKOSI_COMMANDS_CMDLINE
@@ -5385,13 +5385,11 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
                 "UEFI SecureBoot enabled, but couldn't find certificate. (Consider placing it in mkosi.secure-boot.crt?)"
             )  # NOQA: E501
 
-    if args.verb in MKOSI_COMMANDS_CMDLINE:
+    if args.verb in ("shell", "boot"):
         if args.output_format == OutputFormat.tar:
             die("Sorry, can't acquire shell in or boot a tar archive.")
         if args.xz:
             die("Sorry, can't acquire shell in or boot an XZ compressed image.")
-
-    if args.verb in ("shell", "boot"):
         if args.qcow2:
             die("Sorry, can't acquire shell in or boot a qcow2 image.")
 
@@ -5937,6 +5935,7 @@ def run_build_script(args: CommandLineArguments, root: str, raw: Optional[Binary
             cmdline.append("--private-network")
 
         cmdline.append("/root/" + os.path.basename(args.build_script))
+        cmdline += args.cmdline
 
         # build-script output goes to stdout so we can run language servers from within mkosi build-scripts.
         # See https://github.com/systemd/mkosi/pull/566 for more information.
