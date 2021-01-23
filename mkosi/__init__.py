@@ -20,6 +20,7 @@ import platform
 import shlex
 import shutil
 import signal
+import pwd
 import stat
 import string
 import subprocess
@@ -5985,6 +5986,25 @@ def remove_artifacts(
         unlink_try_hard(var_tmp(root))
 
 
+def recursive_chown(args: CommandLineArguments) -> None:
+    user = os.getenv("SUDO_USER")
+    if not user:
+        return
+
+    exclude = [
+        os.path.realpath(p)
+        for p in [args.include_dir, args.build_dir, args.install_dir, args.cache_path, args.output_dir]
+        if p is not None
+    ]
+
+    for dirpath, dirnames, filenames in os.walk(args.build_sources):
+        shutil.chown(dirpath, user)
+        for filename in filenames:
+            shutil.chown(os.path.join(dirpath, filename), user, pwd.getpwnam(user).pw_gid)
+
+        dirnames[:] = [d for d in dirnames if os.path.join(dirpath, d) not in exclude]
+
+
 def build_stuff(args: CommandLineArguments) -> None:
     # Let's define a fixed machine ID for all our build-time
     # runs. We'll strip it off the final image, but some build-time
@@ -6055,6 +6075,9 @@ def build_stuff(args: CommandLineArguments) -> None:
         link_output_bmap(args, bmap.name if bmap is not None else None)
         link_output_nspawn_settings(args, settings.name if settings is not None else None)
         link_output_sshkey(args, sshkey.name if sshkey is not None else None)
+
+        if args.source_file_transfer == SourceFileTransfer.mount:
+            recursive_chown(args)
 
         if root_hash is not None:
             MkosiPrinter.print_step(f"Root hash is {root_hash}.")
