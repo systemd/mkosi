@@ -103,7 +103,8 @@ The following command line verbs are known:
 : This builds the image, based on the settings passed in on the
   command line or read from a `mkosi.default` file, see below. This
   verb is the default if no verb is explicitly specified. This command
-  must be executed as `root`.
+  must be executed as `root`. Any arguments passed after `build` are
+  passed as arguments to the build script (if there is one).
 
 `clean`
 
