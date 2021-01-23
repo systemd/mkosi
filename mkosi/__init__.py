@@ -246,7 +246,7 @@ class SourceFileTransfer(enum.Enum):
     mount = "mount"
 
     def __str__(self) -> str:
-        return cast(str, self.value)
+        return self.value
 
     @classmethod
     def doc(cls) -> Dict["SourceFileTransfer", str]:
