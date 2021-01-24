@@ -13,7 +13,7 @@ Installing mkosi is easy, as it has no runtime Python dependencies (you will
 need all the tools to format filesystems and bootstrap the distribution
 appropriate for your image, though).
 
-If you just want the current master branch you can run
+If you just want the main branch you can run
 ```shell
 python3 -m pip install --user git+https://github.com/systemd/mkosi.git
 ```

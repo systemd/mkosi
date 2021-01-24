@@ -3,10 +3,10 @@ name: CI Unit Test
 on:
   push:
     branches:
-      - master
+      - main
   pull_request:
     branches:
-      - master
+      - main
 
 jobs:
   unit-test:
