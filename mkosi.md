@@ -16,7 +16,7 @@ mkosi - Build Legacy-Free OS Images
 
 `mkosi [options…] shell [command line…]`
 
-`mkosi [options…] boot [command line…]`
+`mkosi [options…] boot [nspawn settings…]`
 
 `mkosi [options…] qemu`
 
@@ -103,7 +103,8 @@ The following command line verbs are known:
 : This builds the image, based on the settings passed in on the
   command line or read from a `mkosi.default` file, see below. This
   verb is the default if no verb is explicitly specified. This command
-  must be executed as `root`.
+  must be executed as `root`. Any arguments passed after `build` are
+  passed as arguments to the build script (if there is one).
 
 `clean`
 
@@ -142,6 +143,14 @@ The following command line verbs are known:
   built with `--bootable` (see below). This command must be executed
   as `root` unless the image already exists and `-f` is not specified.
 
+`ssh`
+
+: When the image is built with the `--ssh` option, this command connects
+  to a booted (`boot`, `qemu` verbs) container/VM via SSH. Make sure to
+  run `mkosi ssh` with the same config as `mkosi build` was run with so
+  that it has the necessary information available to connect to the running
+  container/VM via SSH.
+
 `help`
 
 : This verb is equivalent to the `--help` switch documented below: it
@@ -156,7 +165,7 @@ details see the table below.
 `--distribution=`, `-d`
 : The distribution to install in the image. Takes one of the following
   arguments: `fedora`, `debian`, `ubuntu`, `arch`, `opensuse`,
-  `mageia`, `centos`, `clear`, `photon`. If not specified, defaults to the
+  `mageia`, `centos`, `clear`, `photon`, `openmandriva`. If not specified, defaults to the
   distribution of the host.
 
 `--release=`, `-r`
@@ -237,6 +246,14 @@ details see the table below.
   run, when specified once the incremental cache files are deleted
   too, and when specified twice the package cache is also removed.
 
+`--gpt-first-lba`
+
+: Override the first usable LBA (Logical Block Address) within the
+  GPT header. This defaults to `2048` which is actually the desired value.
+  However, some tools, e.g. the `prl_disk_tool` utility from the
+  Parallels virtualization suite require this to be set to `34`, otherwise
+  they might fail to resize the disk image and/or partitions inside it.
+
 `--bootable`, `-b`
 
 : Generate a bootable image. By default this will generate an image
@@ -287,12 +304,12 @@ details see the table below.
 
 `--minimize`
 
-: Attempt to make the resulting root file system as small as possible,
-  reducing free space on the file system as much as possible. Only
+: Attempt to make the resulting root file system as small as possible by
+  removing free space from the file system. Only
   supported for `gpt_ext4` and `gpt_btrfs`. For ext4 this relies on
   `resize2fs -M`, which reduces the free disk space but is not perfect
-  and thus generally leaves some free space in place. For btrfs the
-  results are perfect, leaving no free space.
+  and generally leaves some free space. For btrfs the
+  results are optimal and no free space is left.
 
 `--encrypt`
 
@@ -352,12 +369,32 @@ details see the table below.
 
 : Set the image's hostname to the specified name.
 
+`--without-unified-kernel-images`
+
+: If specified, mkosi does not build unified kernel images and instead installs kernels with a separate
+  initrd and boot loader config to the efi or bootloader partition.
+
+`--hostonly-initrd`
+
+: If specified, mkosi will run the tool to create the initrd such that a non-generic initrd is created that
+  will only be able to run on the system mkosi is run on. Currently mkosi uses dracut for all supported
+  distributions except Clear Linux and this option translates to enabling dracut's hostonly option.
+
 `--no-chown`
 
 : By default, if `mkosi` is run inside a `sudo` environment all
   generated artifacts have their UNIX user/group ownership changed to
   the user which invoked `sudo`. With this option this may be turned
   off and all generated files are owned by `root`.
+
+`--tar-strip-selinux-context`
+
+: If running on a SELinux-enabled system (Fedora, CentOS), files inside
+  the container are tagged with SELinux context extended attributes
+  (`xattrs`), which may interfere with host SELinux rules in building
+  or further container import stages.
+  This option strips SELinux context attributes from the resulting
+  tar archive.
 
 `--incremental`, `-i`
 
@@ -454,6 +491,14 @@ details see the table below.
   `mkosi.build` file found in the local directory it is automatically
   used for this purpose (also see below).
 
+`--build-environment=`
+
+: Adds environment variables to the environment that the build script
+  is executed with. Takes a space-separated list of variable
+  assignments. This option may be  specified more than once, in which
+  case all listed variables will be set. If the same variable is set
+  twice, the later setting will override the earlier setting.
+
 `--build-sources=`
 
 : Takes a path of a source tree to copy into the development image, if
@@ -475,6 +520,28 @@ details see the table below.
   but a directory `mkosi.builddir/` exists in the local directory it
   is automatically used for this purpose (also see below).
 
+`--include-directory`
+
+: Takes a path of a directory to use as the include directory. This
+  directory is mounted at /usr/include when building the build image
+  and when running the build script. This means all include files
+  installed to /usr/include will be stored in this directory. This is
+  useful to make include files available on the host system for use by
+  language servers to provide code completion. If this option is not
+  specified, but a directory `mkosi.includedir/` exists in the local
+  directory, it is automatically used for this purpose (also see below).
+
+`--install-directory`
+
+: Takes a path of a directory to use as the install directory. The
+  directory used this way is shared between builds and allows the
+  build system to not have to reinstall files that were already
+  installed by a previous build and didn't change. The build script
+  can find the path to this directory in the `$DESTDIR` environment
+  variable. If this option is not specified, but a directory
+  `mkosi.installdir` exists in the local directory, it is automatically
+  used for this purpose (also see below).
+
 `--build-package=`
 
 : Similar to `--package=`, but configures packages to install only in
@@ -494,6 +561,18 @@ details see the table below.
   useful in combination with a build script, for when you care about
   the artifacts that were created locally in `$BUILDDIR`, but
   ultimately plan to discard the final image.
+
+`--prepare-script=`
+
+: Takes a path to an executable that is invoked inside the image
+  right after installing the software packages. It is
+  the last step before the image is cached (if incremental mode is
+  enabled).
+  This script is invoked inside a `systemd-nspawn` container
+  environment, and thus does not have access to host resources.
+  If this option is not used, but an executable script `mkosi.prepare`
+  is found in the local directory, it is automatically used for this
+  purpose (also see below).
 
 `--postinst-script=`
 
@@ -529,13 +608,20 @@ details see the table below.
   specify `copy-git-more`, it is the same as `copy-git-cached`, except
   it also includes the `.git/` directory.
 
+`--source-file-transfer-final=`
+
+: Same as `--source-file-transfer` but for the final image instead of
+  the build image. Takes the same values as `--source-file-transfer`
+  except `mount`. By default, sources are not copied into the final
+  image.
+
 `--with-network`
 
 : Enables network connectivity while the build script `mkosi.build` is
   invoked. By default, the build script runs with networking turned
   off. The `$WITH_NETWORK` environment variable is passed to the
   `mkosi.build` build script indicating whether the build is done with
-  or without this option. If specified as `--with-network=strict` the
+  or without this option. If specified as `--with-network=never` the
   package manager is instructed not to contact the network for
   updating package data. This provides a minimal level of
   reproducibility, as long as the package data cache is already fully
@@ -610,6 +696,11 @@ details see the table below.
   hashed, so that the string supplied with `--password` or `mkosi.rootpw` will
   be written to `/etc/shadow` literally.
 
+`--autologin`
+
+: Enable autologin for the `root` user on pts/0 (nspawn), tty1 (QEMU) and
+  ttyS0 (QEMU with --qemu-headless) by patching /etc/pam.d/login.
+
 `--extra-search-paths=`
 
 : List of colon-separated paths to look for tools in, before using the
@@ -655,6 +746,42 @@ details see the table below.
 `--help`, `-h`
 : Show brief usage information.
 
+`--qemu-headless=`
+
+: When used with the build verb, this option adds `console=ttyS0` to
+  the image's kernel command line and sets the terminal type of the
+  serial console in the image to the terminal type of the host (more
+  specifically, the value of the TERM environment variable passed to
+  mkosi). This makes sure that all terminal features such as colors
+  and shortcuts still work as expected when connecting to the qemu
+  VM over the serial console (for example via `-nographic`).
+
+  When used with the qemu verb, this option adds the `-nographic`
+  option to qemu's command line so qemu starts a headless vm and
+  connects to its serial console from the current terminal instead
+  of launching the VM in a separate window.
+
+`--network-veth`
+: When used with the boot or qemu verbs, this option creates a virtual
+  ethernet link between the host and the container/VM. The host
+  interface is automatically picked up by systemd-networkd as documented
+  in systemd-nspawn's man page:
+  https://www.freedesktop.org/software/systemd/man/systemd-nspawn.html#-n
+
+`--ephemeral`
+: When used with the shell, boot or qemu verbs, this option runs the specified
+  verb on a temporary snapshot of the output image that is removed immediately
+  when the container terminates. Taking the temporary snapshot is more efficient
+  on file systems that support subvolume snapshots or 'reflinks' natively ("btrfs"
+  or new "xfs") than on more traditional file systems that do not ("ext4").
+
+`--ssh`
+: If specified, installs and enables sshd in the final image and generates
+  a SSH keypair and adds the public key to root's authorized keys in the final
+  image. The private key is stored in mkosi's output directory. When building
+  with this  option and running the image using `mkosi boot` or `mkosi qemu`,
+  the `mkosi ssh` command can be used to connect to the container/VM via SSH.
+
 ## Command Line Parameters and their Settings File Counterparts
 
 Most command line parameters may also be placed in an `mkosi.default`
@@ -662,59 +789,73 @@ settings file (or any other file `--default=` is used on). The
 following table shows which command lines parameters correspond with
 which settings file options.
 
-| Command Line Parameter       | `mkosi.default` section | `mkosi.default` setting   |
-|------------------------------|-------------------------|---------------------------|
-| `--distribution=`, `-d`      | `[Distribution]`        | `Distribution=`           |
-| `--release=`, `-r`           | `[Distribution]`        | `Release=`                |
-| `--repositories=`            | `[Distribution]`        | `Repositories=`           |
-| `--mirror=`, `-m`            | `[Distribution]`        | `Mirror=`                 |
-| `--architecture=`            | `[Distribution]`        | `Architecture=`           |
-| `--format=`, `-t`            | `[Output]`              | `Format=`                 |
-| `--output=`, `-o`            | `[Output]`              | `Output=`                 |
-| `--output-dir=`, `-O`        | `[Output]`              | `OutputDirectory=`        |
-| `--force`, `-f`              | `[Output]`              | `Force=`                  |
-| `--bootable`, `-b`           | `[Output]`              | `Bootable=`               |
-| `--boot-protocols=`          | `[Output]`              | `BootProtocols=`          |
-| `--kernel-command-line=`     | `[Output]`              | `KernelCommandLine=`      |
-| `--secure-boot`              | `[Output]`              | `SecureBoot=`             |
-| `--secure-boot-key=`         | `[Output]`              | `SecureBootKey=`          |
-| `--secure-boot-certificate=` | `[Output]`              | `SecureBootCertificate=`  |
-| `--read-only`                | `[Output]`              | `ReadOnly=`               |
-| `--encrypt=`                 | `[Output]`              | `Encrypt=`                |
-| `--verity=`                  | `[Output]`              | `Verity=`                 |
-| `--compress=`                | `[Output]`              | `Compress=`               |
-| `--mksquashfs=`              | `[Output]`              | `Mksquashfs=`             |
-| `--xz`                       | `[Output]`              | `XZ=`                     |
-| `--qcow2`                    | `[Output]`              | `QCow2=`                  |
-| `--hostname=`                | `[Output]`              | `Hostname=`               |
-| `--package=`                 | `[Packages]`            | `Packages=`               |
-| `--with-docs`                | `[Packages]`            | `WithDocs=`               |
-| `--without-tests`, `-T`      | `[Packages]`            | `WithTests=`              |
-| `--cache=`                   | `[Packages]`            | `Cache=`                  |
-| `--extra-tree=`              | `[Packages]`            | `ExtraTrees=`             |
-| `--skeleton-tree=`           | `[Packages]`            | `SkeletonTrees=`          |
-| `--build-script=`            | `[Packages]`            | `BuildScript=`            |
-| `--build-sources=`           | `[Packages]`            | `BuildSources=`           |
-| `--source-file-transfer=`    | `[Packages]`            | `SourceFileTransfer=`     |
-| `--build-directory=`         | `[Packages]`            | `BuildDirectory=`         |
-| `--build-packages=`          | `[Packages]`            | `BuildPackages=`          |
-| `--skip-final-phase=`        | `[Packages]`            | `SkipFinalPhase=`         |
-| `--postinst-script=`         | `[Packages]`            | `PostInstallationScript=` |
-| `--finalize-script=`         | `[Packages]`            | `FinalizeScript=`         |
-| `--with-network`             | `[Packages]`            | `WithNetwork=`            |
-| `--settings=`                | `[Packages]`            | `NSpawnSettings=`         |
-| `--root-size=`               | `[Partitions]`          | `RootSize=`               |
-| `--esp-size=`                | `[Partitions]`          | `ESPSize=`                |
-| `--swap-size=`               | `[Partitions]`          | `SwapSize=`               |
-| `--home-size=`               | `[Partitions]`          | `HomeSize=`               |
-| `--srv-size=`                | `[Partitions]`          | `SrvSize=`                |
-| `--checksum`                 | `[Validation]`          | `CheckSum=`               |
-| `--sign`                     | `[Validation]`          | `Sign=`                   |
-| `--key=`                     | `[Validation]`          | `Key=`                    |
-| `--bmap`                     | `[Validation]`          | `BMap=`                   |
-| `--password=`                | `[Validation]`          | `Password=`               |
-| `--password-is-hashed`       | `[Validation]`          | `PasswordIsHashed=`       |
-| `--extra-search-paths=`      | `[Host]`                | `ExtraSearchPaths=`       |
+| Command Line Parameter            | `mkosi.default` section | `mkosi.default` setting       |
+|-----------------------------------|-------------------------|-------------------------------|
+| `--distribution=`, `-d`           | `[Distribution]`        | `Distribution=`               |
+| `--release=`, `-r`                | `[Distribution]`        | `Release=`                    |
+| `--repositories=`                 | `[Distribution]`        | `Repositories=`               |
+| `--mirror=`, `-m`                 | `[Distribution]`        | `Mirror=`                     |
+| `--architecture=`                 | `[Distribution]`        | `Architecture=`               |
+| `--format=`, `-t`                 | `[Output]`              | `Format=`                     |
+| `--output=`, `-o`                 | `[Output]`              | `Output=`                     |
+| `--output-dir=`, `-O`             | `[Output]`              | `OutputDirectory=`            |
+| `--force`, `-f`                   | `[Output]`              | `Force=`                      |
+| `--bootable`, `-b`                | `[Output]`              | `Bootable=`                   |
+| `--boot-protocols=`               | `[Output]`              | `BootProtocols=`              |
+| `--gpt-first-lba=`                | `[Output]`              | `GPTFirstLBA=`                |
+| `--kernel-command-line=`          | `[Output]`              | `KernelCommandLine=`          |
+| `--secure-boot`                   | `[Output]`              | `SecureBoot=`                 |
+| `--secure-boot-key=`              | `[Output]`              | `SecureBootKey=`              |
+| `--secure-boot-certificate=`      | `[Output]`              | `SecureBootCertificate=`      |
+| `--read-only`                     | `[Output]`              | `ReadOnly=`                   |
+| `--encrypt=`                      | `[Output]`              | `Encrypt=`                    |
+| `--verity=`                       | `[Output]`              | `Verity=`                     |
+| `--compress=`                     | `[Output]`              | `Compress=`                   |
+| `--mksquashfs=`                   | `[Output]`              | `Mksquashfs=`                 |
+| `--xz`                            | `[Output]`              | `XZ=`                         |
+| `--qcow2`                         | `[Output]`              | `QCow2=`                      |
+| `--no-chown`                      | `[Output]`              | `NoChown=`                    |
+| `--tar-strip-selinux-context`     | `[Output]`              | `TarStripSELinuxContext=`     |
+| `--hostname=`                     | `[Output]`              | `Hostname=`                   |
+| `--without-unified-kernel-images` | `[Output]`              | `WithUnifiedKernelImages=`    |
+| `--hostonly-initrd`               | `[Output]`              | `HostonlyInitrd=`             |
+| `--package=`                      | `[Packages]`            | `Packages=`                   |
+| `--with-docs`                     | `[Packages]`            | `WithDocs=`                   |
+| `--without-tests`, `-T`           | `[Packages]`            | `WithTests=`                  |
+| `--cache=`                        | `[Packages]`            | `Cache=`                      |
+| `--extra-tree=`                   | `[Packages]`            | `ExtraTrees=`                 |
+| `--skeleton-tree=`                | `[Packages]`            | `SkeletonTrees=`              |
+| `--build-script=`                 | `[Packages]`            | `BuildScript=`                |
+| `--build-environment=`            | `[Packages]`            | `BuildEnvironment=`           |
+| `--build-sources=`                | `[Packages]`            | `BuildSources=`               |
+| `--source-file-transfer=`         | `[Packages]`            | `SourceFileTransfer=`         |
+| `--source-file-transfer-final=`   | `[Packages]`            | `SourceFileTransferFinal=`    |
+| `--build-directory=`              | `[Packages]`            | `BuildDirectory=`             |
+| `--include-directory=`            | `[Packages]`            | `IncludeDirectory=`           |
+| `--install-directory=`            | `[Packages]`            | `InstallDirectory=`           |
+| `--build-packages=`               | `[Packages]`            | `BuildPackages=`              |
+| `--skip-final-phase=`             | `[Packages]`            | `SkipFinalPhase=`             |
+| `--postinst-script=`              | `[Packages]`            | `PostInstallationScript=`     |
+| `--finalize-script=`              | `[Packages]`            | `FinalizeScript=`             |
+| `--with-network`                  | `[Packages]`            | `WithNetwork=`                |
+| `--settings=`                     | `[Packages]`            | `NSpawnSettings=`             |
+| `--root-size=`                    | `[Partitions]`          | `RootSize=`                   |
+| `--esp-size=`                     | `[Partitions]`          | `ESPSize=`                    |
+| `--swap-size=`                    | `[Partitions]`          | `SwapSize=`                   |
+| `--home-size=`                    | `[Partitions]`          | `HomeSize=`                   |
+| `--srv-size=`                     | `[Partitions]`          | `SrvSize=`                    |
+| `--checksum`                      | `[Validation]`          | `CheckSum=`                   |
+| `--sign`                          | `[Validation]`          | `Sign=`                       |
+| `--key=`                          | `[Validation]`          | `Key=`                        |
+| `--bmap`                          | `[Validation]`          | `BMap=`                       |
+| `--password=`                     | `[Validation]`          | `Password=`                   |
+| `--password-is-hashed`            | `[Validation]`          | `PasswordIsHashed=`           |
+| `--autologin`                     | `[Validation]`          | `Autologin=`                  |
+| `--extra-search-paths=`           | `[Host]`                | `ExtraSearchPaths=`           |
+| `--qemu-headless`                 | `[Host]`                | `QemuHeadless=`               |
+| `--network-veth`                  | `[Host]`                | `NetworkVeth=`                |
+| `--ephemeral`                     | `[Host]`                | `Ephemeral=`                  |
+| `--ssh`                           | `[Host]`                | `Ssh=`                        |
 
 Command line options that take no argument are not suffixed with a `=`
 in their long version in the table above. In the `mkosi.default` file
@@ -744,12 +885,14 @@ following *OS*es.
 
 * *Photon*
 
+* *OpenMandriva*
+
 In theory, any distribution may be used on the host for building
 images containing any other distribution, as long as the necessary
 tools are available. Specifically, any distribution that packages
 `debootstrap` may be used to build *Debian* or *Ubuntu* images. Any
-distribution that packages `dnf` may be used to build *Fedora* or
-*Mageia* images. Any distro that packages `pacstrap` may be used to
+distribution that packages `dnf` may be used to build *Fedora*,
+*Mageia* or *OpenMandriva* images. Any distro that packages `pacstrap` may be used to
 build *Arch Linux* images. Any distribution that packages `zypper` may
 be used to build *openSUSE* images. Any distribution that packages
 `yum` (or the newer replacement `dnf`) may be used to build *CentOS*
@@ -800,7 +943,7 @@ local directory:
 
 * `mkosi.default` may be used to configure mkosi's image building
   process. For example, you may configure the distribution to use
-  (`fedora`, `ubuntu`, `debian`, `arch`, `opensuse`, `mageia`) for the
+  (`fedora`, `ubuntu`, `debian`, `arch`, `opensuse`, `mageia`, `openmandriva`) for the
   image, or additional distribution packages to install. Note that all
   options encoded in this configuration file may also be set on the
   command line, and this file is hence little more than a way to make
@@ -808,9 +951,11 @@ local directory:
   *source* tree is enough to get the right image of your choice set
   up.  Additionally if a `mkosi.default.d` directory exists, each file
   in it is loaded in the same manner adding/overriding the values
-  specified in `mkosi.default`. The file format is inspired by Windows
-  `.ini` files and supports multi-line assignments: any line with
-  initial whitespace is considered a continuation line of the line
+  specified in `mkosi.default`. If `mkosi.default.d` contains a
+  directory named after the distribution being built, each file in
+  that directory is also processed. The file format is inspired by
+  Windows`.ini` files and supports multi-line assignments: any line
+  with initial whitespace is considered a continuation line of the line
   before. Command-line arguments, as shown in the help description,
   have to be included in a configuration block (e.g.  "[Packages]")
   corresponding to the argument group (e.g. "Packages"), and the
@@ -867,6 +1012,22 @@ local directory:
   The `MKOSI_DEFAULT` environment variable will be set inside of this
   script so that you know which `mkosi.default` (if any) was passed in.
 
+* `mkosi.prepare` may be an executable script. If it exists it is
+  invoked directly after the software packages are installed,
+  from within the image context. It is once called for the *development*
+  image (if this is enabled, see above) with the "build" command line
+  parameter, right before copying the extra tree. It is called a second
+  time for the *final* image with the "final" command line parameter.
+  This script has network access and may be used to install packages
+  from other sources than the distro's package manager (e.g. pip, npm, ...),
+  after all software packages are installed but before the image is
+  cached (if incremental mode is enabled). This script is executed within
+  `$SRCDIR`. In contrast to a general purpose installation, it is safe to
+  install packages to the system (`pip install`, `npm install -g`) instead
+  of in `$SRCDIR` itself because the build image is only used for a single
+  project and can easily be thrown away and rebuilt so there's no risk of
+  conflicting dependencies and no risk of polluting the host system.
+
 * `mkosi.postinst` may be an executable script. If it exists it is
   invoked as the penultimate step of preparing an image, from within
   the image context. It is once called for the *development* image (if
@@ -921,6 +1082,22 @@ local directory:
   directory does not exist the `$BUILDDIR` environment variable is not
   set, and it is up to build script to decide whether to do in in-tree
   or an out-of-tree build, and which build directory to use.
+
+* `mkosi.includedir/` may be a directory. If so, it is automatically
+  used as out-of-tree include directory. Specifically, this directory
+  will be mounted into the build container at /usr/include when building
+  the build image and when running the build script. After building the
+  (cached) build image, this directory will contain all the files installed
+  to /usr/include. Language servers or other tools can use these files to
+  provide a better editing experience for developers working on a project.
+
+* `mkosi.installdir/` may be a directory. If so, it is automatically
+  used as the install directory. Specifically, this directory will be
+  mounted into the container at /root/dest when running the build script.
+  After running the build script, the contents of this directory are
+  installed into the final image. This is useful to cache the install
+  step of the build. If used, subsequent builds will only have to
+  reinstall files that have changed since the previous build.
 
 * `mkosi.rootpw` may be a file containing the password or hashed
   password (if `--password-is-hashed` is set) for the root user of the
@@ -1139,7 +1316,7 @@ Hostname=image
 
 # REQUIREMENTS
 
-mkosi is packaged for various distributions: Debian, Ubuntu, Arch (in AUR), Fedora.
+mkosi is packaged for various distributions: Debian, Ubuntu, Arch (in AUR), Fedora, OpenMandriva.
 It is usually easiest to use the distribution package.
 
 The current version requires systemd 233 (or actually, systemd-nspawn of it).

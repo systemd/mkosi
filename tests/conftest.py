@@ -1,14 +1,9 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 import sys
-import os 
-dir_path = os.path.dirname(os.path.realpath(__file__))
+import os
 
-import importlib.util
-spec = importlib.util.spec_from_file_location('mkosi', os.path.join(dir_path, '../mkosi.py'))
-mkosi_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(mkosi_module)
-sys.modules['mkosi'] = mkosi_module
+import mkosi
 
 from tests.test_config_parser import MkosiConfig
 
@@ -22,16 +17,16 @@ class DictDiffer(object):
 
     @property
     def unexpected(self):
-        return [ '%s=%s' % (k, self.current_dict[k]) for k in self.set_current - self.intersect ]
+        return ["%s=%s" % (k, self.current_dict[k]) for k in self.set_current - self.intersect]
 
-    @property 
+    @property
     def missing(self):
-        return [ str(k) for k in self.set_past - self.intersect ]
- 
+        return [str(k) for k in self.set_past - self.intersect]
+
     @property
     def invalid(self):
         inva = set(o for o in self.intersect if self.expected_dict[o] != self.current_dict[o])
-        return [ '%s=%s (exp: %s)' % (k, self.current_dict[k], self.expected_dict[k]) for k in inva ]
+        return ["%s=%s (exp: %s)" % (k, self.current_dict[k], self.expected_dict[k]) for k in inva]
 
     @property
     def valid(self):
@@ -47,15 +42,16 @@ def pytest_assertrepr_compare(op, left, right):
         if not isinstance(vars(r), dict):
             return ["Invalid datatype"]
     if op == "==":
+
         def compare_job_args(job, l_a, r_a):
             ddiff = DictDiffer(l_a, r_a)
-            ret.append('Comparing parsed configuration %s against expected configuration:' % job)
-            ret.append('unexpected:')
-            ret.extend([ '- %s' % i for i in ddiff.unexpected])
-            ret.append('missing:')
-            ret.extend([ '- %s' % i for i in ddiff.missing])
-            ret.append('invalid:')
-            ret.extend([ '- %s' % i for i in ddiff.invalid])
+            ret.append("Comparing parsed configuration %s against expected configuration:" % job)
+            ret.append("unexpected:")
+            ret.extend(["- %s" % i for i in ddiff.unexpected])
+            ret.append("missing:")
+            ret.extend(["- %s" % i for i in ddiff.missing])
+            ret.append("invalid:")
+            ret.extend(["- %s" % i for i in ddiff.invalid])
 
         verified_keys = []
         ret = ["MkosiConfig is not equal to parsed args"]
@@ -63,12 +59,12 @@ def pytest_assertrepr_compare(op, left, right):
             try:
                 left_args = left.reference_config[right_job]
             except KeyError:
-                ret.append('Unexpected job: %s' % right_job)
+                ret.append("Unexpected job: %s" % right_job)
                 continue
             r_v = vars(right_args)
             compare_job_args(right_job, left_args, r_v)
             verified_keys.append(right_job)
         for left_job in left.reference_config:
             if not left_job in verified_keys:
-                ret.append('Missing job: %s' % left_job)
+                ret.append("Missing job: %s" % left_job)
         return ret

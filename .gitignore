@@ -15,4 +15,5 @@
 /mkosi.extra
 /mkosi.nspawn
 /mkosi.rootpw
+/mkosi.default
 __pycache__

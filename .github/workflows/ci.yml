@@ -1,0 +1,154 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  ci:
+    runs-on: ubuntu-20.04
+    strategy:
+      fail-fast: false
+      matrix:
+        distro:
+          - arch
+          - centos_epel
+          - debian
+          - ubuntu
+          - fedora
+        format:
+          - directory
+          - tar
+          - gpt_ext4
+          - gpt_xfs
+          - gpt_btrfs
+          - gpt_squashfs
+          - plain_squashfs
+        exclude:
+          # CentOS 8 does not support btrfs.
+          - distro: centos
+            format: gpt_btrfs
+          - distro: centos_epel
+            format: gpt_btrfs
+
+    steps:
+    - uses: actions/checkout@v2
+    - uses: ./
+
+    - name: Install dependencies
+      run: sudo apt-get update && sudo apt-get install --no-install-recommends python3-pexpect
+
+    # Do a manual install so we have the latest changes from the pull request available.
+    - name: Install
+      run: sudo python3 -m pip install .
+
+    - name: Write shared mkosi config
+      run: |
+        mkdir -p mkosi.default.d
+
+        tee mkosi.default.d/mkosi.default <<- EOF
+        [Distribution]
+        Distribution=${{ matrix.distro }}
+
+        [Output]
+        Format=${{ matrix.format }}
+
+        [Validation]
+        Password=
+
+        [Host]
+        Ssh=yes
+        NetworkVeth=yes
+        EOF
+
+    - name: Build ${{ matrix.distro }}/${{ matrix.format }}
+      run: |
+        sudo python3 -m mkosi build
+
+    - name: Boot ${{ matrix.distro }}/${{ matrix.format }}
+      if: matrix.format != 'tar'
+      run: sudo ./tests/pexpect/boot.py python3 -m mkosi boot
+
+    - name: Build ${{ matrix.distro }}/${{ matrix.format }} UEFI UKI
+      if: matrix.format != 'directory' &&
+          matrix.format != 'plain_squashfs' &&
+          matrix.format != 'tar'
+      run: |
+        tee mkosi.default <<- EOF
+        [Output]
+        Bootable=yes
+        BootProtocols=uefi
+
+        [Host]
+        QemuHeadless=yes
+        EOF
+
+        sudo python3 -m mkosi --force build
+
+    - name: Boot ${{ matrix.distro }}/${{ matrix.format }} UEFI UKI
+      if: matrix.format != 'directory' &&
+          matrix.format != 'plain_squashfs' &&
+          matrix.format != 'gpt_squashfs' &&
+          matrix.format != 'tar' &&
+          !(matrix.distro == 'ubuntu' && matrix.format == 'gpt_squashfs')
+      run: sudo ./tests/pexpect/boot.py python3 -m mkosi qemu
+
+    - name: Build ${{ matrix.distro }}/${{ matrix.format }} UEFI
+      if: matrix.format != 'directory' &&
+          matrix.format != 'plain_squashfs' &&
+          matrix.format != 'tar' && (
+          matrix.distro == 'arch' ||
+          matrix.distro == 'centos' ||
+          matrix.distro == 'fedora')
+      run: |
+        tee mkosi.default <<- EOF
+        [Output]
+        Bootable=yes
+        BootProtocols=uefi
+        WithUnifiedKernelImages=no
+        # Boot with systemd.volatile=overlay so squashfs images can write to the filesystem
+        KernelCommandLine=systemd.volatile=overlay
+
+        [Host]
+        QemuHeadless=yes
+        EOF
+
+        sudo python3 -m mkosi --force build
+
+    - name: Boot ${{ matrix.distro }}/${{ matrix.format }} UEFI
+      if: matrix.format != 'directory' &&
+          matrix.format != 'plain_squashfs' &&
+          matrix.format != 'tar' && (
+          matrix.distro == 'arch' ||
+          matrix.distro == 'centos' ||
+          matrix.distro == 'fedora')
+      run: sudo ./tests/pexpect/boot.py python3 -m mkosi qemu
+
+    - name: Build ${{ matrix.distro }}/${{ matrix.format }} BIOS
+      if: matrix.format != 'directory' &&
+          matrix.format != 'gpt_squashfs' &&
+          matrix.format != 'plain_squashfs' &&
+          matrix.format != 'tar'
+      run: |
+        tee mkosi.default <<- EOF
+        [Output]
+        Bootable=yes
+        BootProtocols=bios
+        WithUnifiedKernelImages=no
+
+        [Host]
+        QemuHeadless=yes
+        EOF
+
+        sudo python3 -m mkosi --force build
+
+    - name: Boot ${{ matrix.distro }}/${{ matrix.format }} BIOS
+      if: matrix.format != 'directory' &&
+          matrix.format != 'gpt_squashfs' &&
+          matrix.format != 'plain_squashfs' &&
+          matrix.format != 'tar'
+      run: sudo ./tests/pexpect/boot.py python3 -m mkosi qemu

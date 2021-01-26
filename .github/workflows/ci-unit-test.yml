@@ -3,20 +3,78 @@ name: CI Unit Test
 on:
   push:
     branches:
-      - master
+      - main
   pull_request:
     branches:
-      - master
+      - main
 
 jobs:
   unit-test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
     - uses: actions/checkout@v2
-    - uses: actions/setup-python@v1
-      with:
-        python-version: '3.x'
-    - name: install unit tester via pip
-      run: python3 -m pip install pytest
-    - name: run unit test
+
+    - name: Install
+      run: python3 -m pip install pytest mypy black
+
+    - name: Check formatting
+      run: python3 -m black --check mkosi/ tests/
+
+    - name: Type Checking
+      run: python3 -m mypy mkosi
+
+    - name: Unit Tests
       run: python3 -m pytest
+
+    - name: Test execution from current working directory
+      run: python3 -m mkosi -h
+
+    - name: Test execution from current working directory (sudo call)
+      run: sudo python3 -m mkosi -h
+
+    - name: Test system installation
+      run: |
+        sudo python3 -m pip install .
+        sudo mkosi -h
+        sudo python3 -m pip uninstall --yes mkosi
+
+    - name: Test user installation
+      run: |
+        python3 -m pip install --user .
+        $HOME/.local/bin/mkosi -h
+        python3 -m pip uninstall --yes mkosi
+
+    - name: Test user installation (sudo call)
+      run: |
+        python3 -m pip install --user .
+        sudo $HOME/.local/bin/mkosi -h
+        python3 -m pip uninstall --yes mkosi
+
+    - name: Test editable user installation
+      run: |
+        python3 -m pip install --user --no-use-pep517 --editable .
+        $HOME/.local/bin/mkosi -h
+        python3 -m pip uninstall --yes mkosi
+
+    - name: Test editable user installation (sudo call)
+      run: |
+        python3 -m pip install --user --no-use-pep517 --editable .
+        sudo $HOME/.local/bin/mkosi -h
+        python3 -m pip uninstall --yes mkosi
+
+    - name: Test venv installation
+      run: |
+        sudo apt-get update
+        sudo apt-get -y --no-install-recommends install python3-venv
+        python3 -m venv testvenv
+        testvenv/bin/python3 -m pip install .
+        testvenv/bin/mkosi -h
+
+    - name: Test venv installation (sudo call)
+      run: |
+        sudo testvenv/bin/mkosi -h
+
+    - name: Test zipapp creation
+      run: |
+        ./tools/generate-zipapp.sh
+        ./builddir/mkosi -h

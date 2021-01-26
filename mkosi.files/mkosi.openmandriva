@@ -2,23 +2,23 @@
 # Let's build an image that is just good enough to build new mkosi images again
 
 [Distribution]
-Distribution=fedora
-Release=32
+Distribution=openmandriva
+Release=cooker
 
 [Output]
 Format=gpt_ext4
-Bootable=yes
-Output=fedora.raw
+Bootable=no
+Output=openmandriva.raw
 
 [Packages]
 Packages=
-        arch-install-scripts
+        basesystem
         btrfs-progs
-        debootstrap
         dnf
         dosfstools
         git-core
         gnupg
         squashfs-tools
-        tar
-        veritysetup
+        bsdtar
+        systemd
+        systemd-cryptsetup

@@ -1,0 +1,235 @@
+name: setup-mkosi
+description: Install mkosi and all its dependencies
+
+runs:
+  using: composite
+  steps:
+  - name: apt-get update
+    shell: bash
+    run: sudo apt-get update
+
+  - name: apt-get install
+    shell: bash
+    run: sudo apt-get --assume-yes --no-install-recommends install
+          asciidoc
+          autopoint
+          check
+          debootstrap
+          docbook-xsl
+          e2fsprogs
+          gettext
+          libarchive-dev
+          libcap-dev
+          libcppunit-dev
+          libcurl4-openssl-dev
+          libdb-dev
+          libgcrypt-dev
+          libgpgme-dev
+          libjson-c-dev
+          liblua5.2-dev
+          libmagic-dev
+          libpopt-dev
+          libsmartcols-dev
+          libyaml-dev
+          libzstd-dev
+          meson
+          ninja-build
+          ovmf
+          python3-gpg
+          python3-sphinx
+          qemu-system-x86-64
+          squashfs-tools
+          swig
+          systemd-container
+          xfsprogs
+          xsltproc
+
+  - name: Dependencies
+    shell: bash
+    run: |
+      wget https://sources.archlinux.org/other/pacman/pacman-$PACMAN_VERSION.tar.gz
+      tar xf pacman-$PACMAN_VERSION.tar.gz
+
+      meson \
+        -Dbuildtype=release \
+        -Ddoc=disabled \
+        -Dscriptlet-shell=/usr/bin/bash \
+        -Dldconfig=/usr/bin/ldconfig \
+        build/pacman \
+        pacman-$PACMAN_VERSION
+      sudo meson install -C build/pacman
+
+      wget https://sources.archlinux.org/other/archlinux-keyring/archlinux-keyring-$ARCHLINUX_KEYRING_VERSION.tar.gz
+      tar xf archlinux-keyring-$ARCHLINUX_KEYRING_VERSION.tar.gz
+
+      sudo make -C archlinux-keyring-$ARCHLINUX_KEYRING_VERSION PREFIX=/usr install
+      sudo pacman-key --init
+      sudo pacman-key --populate archlinux
+
+      wget https://github.com/rpm-software-management/rpm/archive/rpm-$RPM_VERSION-release.tar.gz
+      tar xf rpm-$RPM_VERSION-release.tar.gz
+
+      pushd rpm-rpm-$RPM_VERSION-release
+      ./autogen.sh \
+          --prefix=/usr  \
+          --sysconfdir=/etc  \
+          --localstatedir=/var \
+          --enable-python \
+          --with-external-db \
+          --with-lua \
+          --with-cap \
+          LUA_CFLAGS="`pkg-config --cflags lua5.2`" \
+          LUA_LIBS="`pkg-config --libs lua5.2`"
+      make -j 2
+      sudo make install
+      pushd python
+      sudo python setup.py install --optimize=1
+      popd
+      popd
+
+      wget https://github.com/rpm-software-management/libcomps/archive/libcomps-$LIBCOMPS_VERSION.tar.gz
+      tar xf libcomps-$LIBCOMPS_VERSION.tar.gz
+
+      cmake \
+          -S libcomps-libcomps-$LIBCOMPS_VERSION/libcomps \
+          -B build/libcomps \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_INSTALL_PREFIX=/usr \
+          -DCMAKE_INSTALL_LIBDIR=lib/x86_64-linux-gnu \
+          -DPYTHON_DESIRED=3 \
+          -DENABLE_TESTS=OFF \
+          -DENABLE_DOCS=OFF \
+          -DBUILD_SHARED_LIBS=ON \
+          -Wno-dev
+      cmake --build build/libcomps
+      sudo cmake --install build/libcomps
+
+      wget https://github.com/rpm-software-management/librepo/archive/$LIBREPO_VERSION.tar.gz
+      tar xf $LIBREPO_VERSION.tar.gz
+
+      cmake \
+          -S librepo-$LIBREPO_VERSION \
+          -B build/librepo \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_INSTALL_PREFIX=/usr \
+          -DCMAKE_INSTALL_LIBDIR=lib/x86_64-linux-gnu \
+          -DENABLE_TESTS=OFF \
+          -DENABLE_DOCS=OFF \
+          -DWITH_ZCHUNK=OFF \
+          -DBUILD_SHARED_LIBS=ON
+      cmake --build build/librepo
+      sudo cmake --install build/librepo
+
+      wget https://github.com/fedora-modularity/libmodulemd/archive/libmodulemd-$LIBMODULEMD_VERSION.tar.gz
+      tar xf libmodulemd-$LIBMODULEMD_VERSION.tar.gz
+
+      meson \
+          --prefix /usr \
+          -Dbuildtype=release \
+          -Dlibdir=lib/x86_64-linux-gnu \
+          -Ddeveloper_build=false \
+          -Dwith_docs=false \
+          -Dwith_manpages=disabled \
+          -Dskip_introspection=true \
+          -Dgobject_overrides_dir_py3=override \
+          build/libmodulemd \
+          libmodulemd-libmodulemd-$LIBMODULEMD_VERSION
+      sudo meson install -C build/libmodulemd
+
+      wget https://github.com/openSUSE/libsolv/archive/$LIBSOLV_VERSION.tar.gz
+      tar xf $LIBSOLV_VERSION.tar.gz
+
+      cmake \
+          -S libsolv-$LIBSOLV_VERSION \
+          -B build/libsolv \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_INSTALL_PREFIX=/usr \
+          -DCMAKE_INSTALL_LIBDIR=lib/x86_64-linux-gnu \
+          -DENABLE_RPMDB=ON \
+          -DENABLE_RPMPKG=ON \
+          -DENABLE_PUBKEY=ON \
+          -DENABLE_RPMDB_BYRPMHEADER=ON \
+          -DENABLE_RPMDB_LIBRPM=ON \
+          -DENABLE_RPMPKG_LIBRPM=ON \
+          -DENABLE_RPMMD=ON \
+          -DENABLE_COMPS=ON \
+          -DENABLE_MDKREPO=ON \
+          -DENABLE_COMPLEX_DEPS=ON \
+          -DENABLE_APPDATA=ON \
+          -DENABLE_LZMA_COMPRESSION=ON \
+          -DENABLE_BZIP2_COMPRESSION=ON \
+          -DENABLE_ZSTD_COMPRESSION=ON
+      cmake --build build/libsolv
+      sudo cmake --install build/libsolv
+
+      wget https://github.com/rpm-software-management/libdnf/archive/$LIBDNF_VERSION.tar.gz
+      tar xf $LIBDNF_VERSION.tar.gz
+
+      cp /usr/share/cmake/Modules/FindLibSolv.cmake libdnf-$LIBDNF_VERSION/cmake/modules
+
+      cmake \
+          -S libdnf-$LIBDNF_VERSION \
+          -B build/libdnf \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_INSTALL_PREFIX=/usr \
+          -DCMAKE_INSTALL_LIBDIR=lib/x86_64-linux-gnu \
+          -DWITH_GTKDOC=OFF \
+          -DWITH_HTML=OFF \
+          -DWITH_MAN=OFF \
+          -DWITH_ZCHUNK=OFF \
+          -DBUILD_SHARED_LIBS=ON \
+          -DCMAKE_CXX_FLAGS="-pthread" \
+          -DPYTHON_DESIRED=3
+      cmake --build build/libdnf
+      sudo cmake --install build/libdnf
+
+      wget https://github.com/rpm-software-management/dnf/archive/$DNF_VERSION.tar.gz
+      tar xf $DNF_VERSION.tar.gz
+
+      cmake \
+          -S dnf-$DNF_VERSION \
+          -B build/dnf \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_INSTALL_PREFIX=/usr \
+          -DPYTHON_DESIRED=3 \
+          -DWITH_MAN=0
+      cmake --build build/dnf
+      sudo cmake --install build/dnf
+
+      sudo ln -s /usr/bin/dnf-3 /usr/bin/dnf
+
+      sudo tee /etc/systemd/network/80-vm-vt.network > /dev/null <<- EOF
+      [Match]
+      Name=vt-*
+      Driver=tun
+
+      [Network]
+      # Default to using a /28 prefix, giving up to 13 addresses per VM.
+      Address=0.0.0.0/28
+      LinkLocalAddressing=yes
+      DHCPServer=yes
+      IPMasquerade=yes
+      LLDP=yes
+      EmitLLDP=customer-bridge
+      IPv6PrefixDelegation=yes
+      EOF
+
+      sudo systemctl restart systemd-networkd
+
+    env:
+      CMAKE_GENERATOR: Ninja
+      PACMAN_VERSION: "5.2.2"
+      ARCHLINUX_KEYRING_VERSION: "20201210"
+      LIBCOMPS_VERSION: "0.1.15"
+      LIBREPO_VERSION: "1.12.1"
+      LIBMODULEMD_VERSION: "2.11.1"
+      LIBSOLV_VERSION: "0.7.16"
+      LIBDNF_VERSION: "0.55.2"
+      DNF_VERSION: "4.5.1"
+      RPM_VERSION: "4.16.0"
+
+  - name: Install
+    shell: bash
+    run: sudo python3 -m pip install git+https://github.com/systemd/mkosi.git@$MKOSI_TAG
+    env:
+      MKOSI_TAG: v9

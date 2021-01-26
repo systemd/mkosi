@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+
+# This script calls the main function of the internal mkosi module, which is
+# functionally equivalent to calling "python3 -m mkosi".
+#
+# The reason for eschewing the setuptools entrypoint mechanism for a custom
+# script, is that scripts generated via the console_scripts entrypoint are
+# unable to be called via sudo, which mkosi needs, when installed into a user's
+# home directory via "python3 -m pip install --user"
+#
+# We support installation via:
+# sudo python3 -m pip install <mkosi>
+# python3 -m pip install --user <mkosi>
+# python3 -m pip install --user --editable <mkosi>
+# /path/to/venv/bin/python3 -m pip install <mkosi>
+#
+# In the first and the last case this script is a noop because we leave it up to
+# the python binary to set up its path, in the case of "--user" installation we
+# prepend PYTHON_PATH with the original users
+# ~/.local/lib/pythonX.Y/site-packages or the directory where mkosi has been
+# cloned to, for "--editable" installations, when this script is run via sudo.
+
+PYROOT=$(dirname "$0")
+
+if [[ -x "${PYROOT}/python3" ]]
+then
+    PYTHON="${PYROOT}/python3"
+    SYSTEM_PYTHON_OR_VENV=true
+else
+    PYTHON=$(command -v python3)
+    SYSTEM_PYTHON_OR_VENV=false
+fi
+
+PYVERSION=$($PYTHON --version | cut -d ' ' -f 2 | cut -d '.' -f 1-2)
+
+
+declare PREPEND_PYTHONPATH
+
+if [[ -n $SUDO_USER ]] && \
+       [[ -z $VIRTUAL_ENV ]] && \
+       [[ "$SYSTEM_PYTHON_OR_VENV" == false ]]
+then
+    OTHER_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)
+    SITEDIR="${OTHER_HOME}/.local/lib/python${PYVERSION}/site-packages"
+
+    if [[ -r "${SITEDIR}/mkosi.egg-link" ]]
+    then
+        PREPEND_PYTHONPATH="$(head -n1 "${SITEDIR}/mkosi.egg-link")"
+    else
+        PREPEND_PYTHONPATH="$SITEDIR"
+    fi
+
+    export PYTHONDONTWRITEBYTECODE=1
+fi
+
+
+if [[ -n "$PREPEND_PYTHONPATH" ]] && [[ -n "$PYTHONPATH" ]]
+then
+    PYTHONPATH="${PREPEND_PYTHONPATH}:${PYTHONPATH}"
+    export PYTHONPATH
+elif [[ -n "$PREPEND_PYTHONPATH" ]]
+then
+    PYTHONPATH="${PREPEND_PYTHONPATH}"
+    export PYTHONPATH
+fi
+
+
+exec "$PYTHON" -m mkosi "$@"
