@@ -96,6 +96,8 @@ class MkosiConfig(object):
             "secure_boot": False,
             "secure_boot_certificate": None,
             "secure_boot_key": None,
+            "secure_boot_common_name": "mkosi of %u",
+            "secure_boot_valid_days": "730",
             "sign": False,
             "skeleton_trees": [],
             "source_file_transfer": None,
@@ -157,7 +159,7 @@ class MkosiConfig(object):
             os.makedirs(dname)
         if prio < 1000:
             fname = "{:03d}_{}".format(prio, fname)
-        config_parser = configparser.ConfigParser()
+        config_parser = configparser.RawConfigParser()
         config_parser.optionxform = str
 
         # Replace lists in dict before calling config_parser write file
@@ -210,6 +212,10 @@ class MkosiConfig(object):
                 self.reference_config[job_name]["secure_boot_key"] = mk_config_output["SecureBootKey"]
             if "SecureBootCertificate" in mk_config_output:
                 self.reference_config[job_name]["secure_boot_certificate"] = mk_config_output["SecureBootCertificate"]
+            if "SecureBootCommonName" in mk_config_output:
+                self.reference_config[job_name]["secure_boot_common_name"] = mk_config_output["SecureBootCommonName"]
+            if "SecureBootValidDays" in mk_config_output:
+                self.reference_config[job_name]["secure_boot_valid_days"] = mk_config_output["SecureBootValidDays"]
             if "ReadOnly" in mk_config_output:
                 self.reference_config[job_name]["read_only"] = mk_config_output["ReadOnly"]
             if "Encrypt" in mk_config_output:
@@ -490,6 +496,8 @@ class MkosiConfigManyParams(MkosiConfigOne):
                 "SecureBoot": False,
                 "SecureBootKey": "/foo.pem",
                 "SecureBootCertificate": "bar.crt",
+                "SecureBootCommonName": "mkosi for %u",
+                "SecureBootValidDays": "730",
                 "ReadOnly": False,
                 "Encrypt": "all",
                 "Verity": False,
