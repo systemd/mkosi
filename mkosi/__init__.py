@@ -2678,8 +2678,20 @@ def install_arch(args: CommandLineArguments, root: str, do_run_build_script: boo
     with mount_api_vfs(args, root):
         run_pacman(packages)
 
-    with open(os.path.join(root, "etc/locale.gen"), "w") as f:
-        f.write("en_US.UTF-8 UTF-8\n")
+    # If /etc/locale.gen exists, uncomment the desired locale and leave the rest of the file untouched.
+    # If it doesn’t exist, just write the desired locale in it.
+    try:
+
+        def _enable_locale(line: str) -> str:
+            if line.startswith("#en_US.UTF-8"):
+                return line.replace("#", "")
+            return line
+
+        patch_file(os.path.join(root, "etc/locale.gen"), _enable_locale)
+
+    except FileNotFoundError:
+        with open(os.path.join(root, "etc/locale.gen"), "x") as f:
+            f.write("en_US.UTF-8 UTF-8\n")
 
     run_workspace_command(args, root, ["/usr/bin/locale-gen"])
 
