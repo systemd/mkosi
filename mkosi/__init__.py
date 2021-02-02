@@ -1240,7 +1240,9 @@ def mount_loop(args: CommandLineArguments, dev: str, where: str, read_only: bool
     if not args.output_format.is_squashfs():
         options.append("discard")
 
-    if args.compress and args.output_format == OutputFormat.gpt_btrfs and not where.endswith("/efi"):
+    if args.compress and args.output_format == OutputFormat.gpt_btrfs and not (
+        where.endswith("/efi") or where.endswith("/boot")
+    ):
         if isinstance(args.compress, bool):
             options.append("compress")
         else:
