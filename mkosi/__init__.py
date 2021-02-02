@@ -8,6 +8,7 @@ import copy
 import crypt
 import ctypes
 import ctypes.util
+import datetime
 import enum
 import errno
 import fcntl
@@ -76,7 +77,7 @@ else:
 MKOSI_COMMANDS_CMDLINE = ("build", "shell", "boot", "qemu", "ssh")
 MKOSI_COMMANDS_NEED_BUILD = ("shell", "boot", "qemu")
 MKOSI_COMMANDS_SUDO = ("build", "clean", "shell", "boot", "qemu")
-MKOSI_COMMANDS = ("build", "clean", "help", "summary") + MKOSI_COMMANDS_CMDLINE
+MKOSI_COMMANDS = ("build", "clean", "help", "summary", "genkey") + MKOSI_COMMANDS_CMDLINE
 
 DRACUT_SYSTEMD_EXTRAS = [
     "/usr/lib/systemd/systemd-veritysetup",
@@ -4258,7 +4259,10 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
                 continue
             # replace arguments referencing files with the file content
             try:
-                config = configparser.ConfigParser(delimiters="=")
+                # This used to use configparser.ConfigParser before, but
+                # ConfigParser's interpolation clashes with systemd style
+                # specifier, e.g. %u for user, since both use % as a sigil.
+                config = configparser.RawConfigParser(delimiters="=")
                 config.optionxform = str  # type: ignore
                 with open(arg_string[1:]) as args_file:
                     config.read_file(args_file)
@@ -4367,6 +4371,18 @@ def create_parser() -> ArgumentParserMkosi:
     )
     group.add_argument("--secure-boot-key", help="UEFI SecureBoot private key in PEM format", metavar="PATH")
     group.add_argument("--secure-boot-certificate", help="UEFI SecureBoot certificate in X509 format", metavar="PATH")
+    group.add_argument(
+        "--secure-boot-valid-days",
+        help="Number of days UEFI SecureBoot keys should be valid when generating keys",
+        metavar="DAYS",
+        default="730",
+    )
+    group.add_argument(
+        "--secure-boot-common-name",
+        help="Template for the UEFI SecureBoot CN when generating keys",
+        metavar="CN",
+        default="mkosi of %u",
+    )
     group.add_argument(
         "--read-only",
         action=BooleanAction,
@@ -6334,6 +6350,57 @@ def run_ssh(args: CommandLineArguments) -> None:
         )
 
 
+def generate_secure_boot_key(args: CommandLineArguments) -> NoReturn:
+    """Generate secure boot keys using openssl"""
+    args.secure_boot_key = args.secure_boot_key or "./mkosi.secure-boot.key"
+    args.secure_boot_certificate = args.secure_boot_certificate or "./mkosi.secure-boot.crt"
+
+    keylength = 2048
+    expiration_date = datetime.date.today() + datetime.timedelta(int(args.secure_boot_valid_days))
+    cn = expand_specifier(args.secure_boot_common_name)
+
+    for f in (args.secure_boot_key, args.secure_boot_certificate):
+        if os.path.exists(f) and not args.force:
+            die(
+                dedent(
+                    f"""\
+                    {f} already exists.
+                    If you are sure you want to generate new secure boot keys
+                    remove {args.secure_boot_key} and {args.secure_boot_certificate} first.
+                    """
+                )
+            )
+
+    MkosiPrinter.print_step(f"Generating secure boot keys rsa:{keylength} for CN `{cn}`.")
+    MkosiPrinter.info(
+        dedent(
+            f"""
+            The keys will expire in {args.secure_boot_valid_days} days ({expiration_date:%A %d. %B %Y}).
+            Remember to roll them over to new ones before then.
+            """
+        )
+    )
+
+    cmd = [
+        "openssl",
+        "req",
+        "-new",
+        "-x509",
+        "-newkey",
+        f"rsa:{keylength}",
+        "-keyout",
+        args.secure_boot_key,
+        "-out",
+        args.secure_boot_certificate,
+        "-days",
+        str(args.secure_boot_valid_days),
+        "-subj",
+        f"/CN={cn}/",
+    ]
+
+    os.execvp(cmd[0], cmd)
+
+
 def expand_paths(paths: List[str]) -> List[str]:
     if not paths:
         return []
@@ -6370,6 +6437,12 @@ def prepend_to_environ_path(paths: List[str]) -> None:
         os.environ["PATH"] = new_path + ":" + original_path
 
 
+def expand_specifier(s: str) -> str:
+    user = os.getenv("SUDO_USER") or os.getenv("USER")
+    assert user is not None
+    return s.replace("%u", user)
+
+
 def needs_build(args: CommandLineArguments) -> bool:
     return args.verb == "build" or (not os.path.exists(args.output) and args.verb in MKOSI_COMMANDS_NEED_BUILD)
 
@@ -6378,6 +6451,9 @@ def run_verb(args: CommandLineArguments) -> None:
     load_args(args)
 
     prepend_to_environ_path(args.extra_search_paths)
+
+    if args.verb == "genkey":
+        generate_secure_boot_key(args)
 
     if args.verb in MKOSI_COMMANDS_SUDO:
         check_root()

@@ -12,6 +12,10 @@
 - `--source-file-transfer` and `--source-file-transfer-final` now accept the
   empty string as an argument which can be used to override a previously
   set value.
+- Add a new command `genkey` to mkosi that can be used to generate secure boot
+  keys for usage with mkosi's `--secure-boot` options. The number of days the
+  keys should remain valid can be specified via `--secure-boot-valid-days=` and
+  their CN via `--secure-boot-common-name=`
 
 ## v9
 
