@@ -6174,25 +6174,22 @@ def run_shell(args: CommandLineArguments) -> None:
         run(cmdline, stdout=sys.stdout, stderr=sys.stderr)
 
 
-def run_qemu(args: CommandLineArguments) -> None:
-    # Look for the right qemu command line to use
-    has_kvm = os.path.exists("/dev/kvm")
-    cmdlines: List[List[str]] = []
+def find_qemu_binary() -> str:
     ARCH_BINARIES = {"x86_64": "qemu-system-x86_64", "i386": "qemu-system-i386"}
     arch_binary = ARCH_BINARIES.get(platform.machine(), None)
-    accel = "kvm" if has_kvm else "tcg"
-    if arch_binary is not None:
-        cmdlines += [[arch_binary, "-machine", f"type=q35,accel={accel}"]]
-    cmdlines += [
-        ["qemu", "-machine", f"accel={accel}"],
-        ["qemu-kvm"],
-    ]
-    for cmdline in cmdlines:
-        if shutil.which(cmdline[0]) is not None:
-            break
-    else:
-        die("Couldn't find QEMU/KVM binary")
 
+    binaries: List[str] = []
+    if arch_binary is not None:
+        binaries.append(arch_binary)
+    binaries += ["qemu", "qemu-kvm"]
+    for binary in binaries:
+        if shutil.which(binary) is not None:
+            return binary
+
+    die("Couldn't find QEMU/KVM binary")
+
+
+def find_qemu_firmware() -> str:
     # UEFI firmware blobs are found in a variety of locations,
     # depending on distribution and package.
     FIRMWARE_LOCATIONS = []
@@ -6213,24 +6210,37 @@ def run_qemu(args: CommandLineArguments) -> None:
 
     for firmware in FIRMWARE_LOCATIONS:
         if os.path.exists(firmware):
-            break
-    else:
-        die("Couldn't find OVMF UEFI firmware blob.")
+            return firmware
 
-    cmdline += ["-smp", "2", "-m", "1024"]
+    die("Couldn't find OVMF UEFI firmware blob.")
 
-    if has_kvm:
-        cmdline += ["-cpu", "host"]
 
-    if "uefi" in args.boot_protocols:
-        cmdline += ["-drive", f"if=pflash,format=raw,readonly,file={firmware}"]
+def run_qemu(args: CommandLineArguments) -> None:
+    has_kvm = os.path.exists("/dev/kvm")
+    accel = "kvm" if has_kvm else "tcg"
 
-    cmdline += [
+    cmdline = [
+        find_qemu_binary(),
+        "-machine",
+        f"type=q35,accel={accel}",
+        "-smp",
+        "2",
+        "-m",
+        "1024",
         "-object",
         "rng-random,filename=/dev/urandom,id=rng0",
         "-device",
         "virtio-rng-pci,rng=rng0,id=rng-device0",
     ]
+
+    if has_kvm:
+        cmdline += ["-cpu", "host"]
+
+    if "uefi" in args.boot_protocols:
+        cmdline += [
+            "-drive",
+            f"if=pflash,format=raw,readonly,file={find_qemu_firmware()}",
+        ]
 
     if args.qemu_headless:
         # -nodefaults removes the default CDROM device which avoids an error message during boot
