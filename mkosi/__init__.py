@@ -810,6 +810,13 @@ def copy_image_temporary(src: str, dir: str) -> BinaryIO:
         return f
 
 
+def copy_file_temporary(src: str, dir: str) -> BinaryIO:
+    with open(src, "rb") as source:
+        f = cast(BinaryIO, tempfile.NamedTemporaryFile(prefix=".mkosi-", dir=dir))
+        copy_file_object(source, f)
+        return f
+
+
 def reuse_cache_image(
     args: CommandLineArguments, root: str, do_run_build_script: bool, for_cache: bool
 ) -> Tuple[Optional[BinaryIO], bool]:
@@ -6189,10 +6196,33 @@ def find_qemu_binary() -> str:
     die("Couldn't find QEMU/KVM binary")
 
 
-def find_qemu_firmware() -> str:
+def find_qemu_firmware() -> Tuple[str, bool]:
     # UEFI firmware blobs are found in a variety of locations,
     # depending on distribution and package.
     FIRMWARE_LOCATIONS = []
+
+    if platform.machine() == "x86_64":
+        FIRMWARE_LOCATIONS.append("/usr/share/ovmf/x64/OVMF_CODE.secboot.fd")
+    elif platform.machine() == "i386":
+        FIRMWARE_LOCATIONS.append("/usr/share/edk2/ovmf-ia32/OVMF_CODE.secboot.fd")
+
+    FIRMWARE_LOCATIONS.append("/usr/share/edk2/ovmf/OVMF_CODE.secboot.fd")
+    FIRMWARE_LOCATIONS.append("/usr/share/qemu/OVMF_CODE.secboot.fd")
+    FIRMWARE_LOCATIONS.append("/usr/share/ovmf/OVMF.secboot.fd")
+
+    for firmware in FIRMWARE_LOCATIONS:
+        if os.path.exists(firmware):
+            return firmware, True
+
+    warn(
+        """\
+        Couldn't find OVMF firmware blob with secure boot support,
+        falling back to OVMF firmware blobs without secure boot support.
+        """
+    )
+
+    FIRMWARE_LOCATIONS = []
+
     # First, we look in paths that contain the architecture –
     # if they exist, they’re almost certainly correct.
     if platform.machine() == "x86_64":
@@ -6210,19 +6240,40 @@ def find_qemu_firmware() -> str:
 
     for firmware in FIRMWARE_LOCATIONS:
         if os.path.exists(firmware):
-            return firmware
+            return firmware, False
 
     die("Couldn't find OVMF UEFI firmware blob.")
+
+
+def find_ovmf_vars() -> str:
+    OVMF_VARS_LOCATIONS = []
+
+    if platform.machine() == "x86_64":
+        OVMF_VARS_LOCATIONS.append("/usr/share/ovmf/x64/OVMF_VARS.fd")
+    elif platform.machine() == "i386":
+        OVMF_VARS_LOCATIONS.append("/usr/share/edk2/ovmf-ia32/OVMF_VARS.fd")
+
+    OVMF_VARS_LOCATIONS.append("/usr/share/edk2/ovmf/OVMF_VARS.fd")
+    OVMF_VARS_LOCATIONS.append("/usr/share/qemu/OVMF_VARS.fd")
+    OVMF_VARS_LOCATIONS.append("/usr/share/ovmf/OVMF_VARS.fd")
+
+    for location in OVMF_VARS_LOCATIONS:
+        if os.path.exists(location):
+            return location
+
+    die("Couldn't find OVMF UEFI variables file.")
 
 
 def run_qemu(args: CommandLineArguments) -> None:
     has_kvm = os.path.exists("/dev/kvm")
     accel = "kvm" if has_kvm else "tcg"
 
+    firmware, fw_supports_sb = find_qemu_firmware()
+
     cmdline = [
         find_qemu_binary(),
         "-machine",
-        f"type=q35,accel={accel}",
+        f"type=q35,accel={accel},smm={'on' if fw_supports_sb else 'off'}",
         "-smp",
         "2",
         "-m",
@@ -6235,12 +6286,6 @@ def run_qemu(args: CommandLineArguments) -> None:
 
     if has_kvm:
         cmdline += ["-cpu", "host"]
-
-    if "uefi" in args.boot_protocols:
-        cmdline += [
-            "-drive",
-            f"if=pflash,format=raw,readonly,file={find_qemu_firmware()}",
-        ]
 
     if args.qemu_headless:
         # -nodefaults removes the default CDROM device which avoids an error message during boot
@@ -6263,7 +6308,21 @@ def run_qemu(args: CommandLineArguments) -> None:
         # after it is created.
         cmdline += ["-nic", f"tap,script=no,downscript=no,ifname={ifname},model=virtio-net-pci"]
 
+    if "uefi" in args.boot_protocols:
+        cmdline += ["-drive", f"if=pflash,format=raw,readonly,file={firmware}"]
+
     with contextlib.ExitStack() as stack:
+        if fw_supports_sb:
+            ovmf_vars = stack.enter_context(copy_file_temporary(src=find_ovmf_vars(), dir=tmp_dir()))
+            cmdline += [
+                "-global",
+                "ICH9-LPC.disable_s3=1",
+                "-global",
+                "driver=cfi.pflash01,property=secure,value=on",
+                "-drive",
+                f"file={ovmf_vars.name},if=pflash,format=raw",
+            ]
+
         if args.ephemeral:
             f = stack.enter_context(copy_image_temporary(src=args.output, dir=os.path.dirname(args.output)))
             fname = f.name
