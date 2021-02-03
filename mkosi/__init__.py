@@ -6182,7 +6182,7 @@ def run_qemu(args: CommandLineArguments) -> None:
     arch_binary = ARCH_BINARIES.get(platform.machine(), None)
     accel = "kvm" if has_kvm else "tcg"
     if arch_binary is not None:
-        cmdlines += [[arch_binary, "-machine", f"accel={accel}"]]
+        cmdlines += [[arch_binary, "-machine", f"type=q35,accel={accel}"]]
     cmdlines += [
         ["qemu", "-machine", f"accel={accel}"],
         ["qemu-kvm"],
@@ -6260,7 +6260,15 @@ def run_qemu(args: CommandLineArguments) -> None:
         else:
             fname = args.output
 
-        cmdline += ["-drive", f"format={'qcow2' if args.qcow2 else 'raw'},file={fname},if=virtio"]
+        cmdline += [
+            "-drive",
+            f"if=none,id=hd,file={fname},format={'qcow2' if args.qcow2 else 'raw'}",
+            "-device",
+            "virtio-scsi-pci,id=scsi",
+            "-device",
+            "scsi-hd,drive=hd,bootindex=1",
+        ]
+
         cmdline += args.cmdline
 
         print_running_cmd(cmdline)
