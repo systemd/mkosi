@@ -6183,7 +6183,7 @@ def run_shell(args: CommandLineArguments) -> None:
 
 def find_qemu_binary() -> str:
     ARCH_BINARIES = {"x86_64": "qemu-system-x86_64", "i386": "qemu-system-i386"}
-    arch_binary = ARCH_BINARIES.get(platform.machine(), None)
+    arch_binary = ARCH_BINARIES.get(platform.machine())
 
     binaries: List[str] = []
     if arch_binary is not None:
