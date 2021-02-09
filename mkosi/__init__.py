@@ -1603,6 +1603,9 @@ def prepare_tree(args: CommandLineArguments, root: str, do_run_build_script: boo
                 os.mkdir(os.path.join(root, "efi/EFI/systemd"), 0o700)
                 os.mkdir(os.path.join(root, "efi/loader"), 0o700)
 
+                if args.secure_boot:
+                    os.mkdir(os.path.join(root, "efi/loader/secure-boot"), 0o700)
+
                 if args.xbootldr_partno is None:
                     # Create directories for kernels and entries, unless the XBOOTLDR partition is turned on
                     os.mkdir(os.path.join(root, "efi/EFI/Linux"), 0o700)
@@ -3890,6 +3893,34 @@ def secure_boot_sign(
         return
 
     with mount():
+        for (varname, description) in [("PK", "platform"), ("KEK", "key exchange"), ("db", "database")]:
+            filename = f"{os.path.basename(os.path.splitext(args.secure_boot_key)[0])}.{varname.lower()}.esl"
+            p = os.path.join(root, "efi/loader/secure-boot", filename)
+
+            with complete_step(f"Signing secure boot {description} Key"):
+                run(
+                    [
+                        "cert-to-efi-sig-list",
+                        args.secure_boot_certificate,
+                        p,
+                    ]
+                )
+
+                run(
+                    [
+                        "sign-efi-sig-list",
+                        "-k",
+                        args.secure_boot_key,
+                        "-c",
+                        args.secure_boot_certificate,
+                        varname,
+                        p,
+                        f"{p}.signed",
+                    ]
+                )
+
+            os.rename(f"{p}.signed", p)
+
         for path, _, filenames in os.walk(os.path.join(root, "efi")):
             for i in filenames:
                 if not i.endswith(".efi") and not i.endswith(".EFI"):
