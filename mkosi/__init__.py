@@ -2803,6 +2803,10 @@ def install_opensuse(args: CommandLineArguments, root: str, do_run_build_script:
 
         patch_file(os.path.join(root, "etc/pam.d/common-auth"), jj)
 
+    if args.autologin:
+        # copy now, patch later (in set_autologin())
+        shutil.copy2(os.path.join(root, "usr/etc/pam.d/login"), os.path.join(root, "etc/pam.d/login"))
+
 
 def install_distribution(args: CommandLineArguments, root: str, do_run_build_script: bool, cached: bool) -> None:
     if cached:
