@@ -43,6 +43,7 @@ runs:
           systemd-container
           xfsprogs
           xsltproc
+          zypper
 
   - name: Dependencies
     shell: bash
