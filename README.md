@@ -51,7 +51,7 @@ python -m mkosi
 ```
 when not installed as a zipapp.
 
-Please note, that the the python module exists solely for the usage of the mkosi
+Please note, that the python module exists solely for the usage of the mkosi
 binary and is not to be considered a public API.
 
 ## git blame
