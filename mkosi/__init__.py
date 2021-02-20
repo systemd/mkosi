@@ -2918,8 +2918,8 @@ def set_autologin(args: CommandLineArguments, root: str, do_run_build_script: bo
         return
 
     with complete_step("Setting up autologin"):
-        # On Debian, PAM wants the full path to the console device or it will refuse access
-        device_prefix = "/dev/" if args.distribution is Distribution.debian else ""
+        # On Arch, Debian, PAM wants the full path to the console device or it will refuse access
+        device_prefix = "/dev/" if args.distribution in [Distribution.arch, Distribution.debian] else ""
 
         override_dir = os.path.join(root, "etc/systemd/system/console-getty.service.d")
         os.makedirs(override_dir, mode=0o755, exist_ok=True)
