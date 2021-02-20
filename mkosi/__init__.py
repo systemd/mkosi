@@ -5223,6 +5223,27 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
         elif args.distribution == Distribution.openmandriva:
             args.release = "cooker"
 
+    if args.bootable:
+        if args.output_format in (
+            OutputFormat.directory,
+            OutputFormat.subvolume,
+            OutputFormat.tar,
+            OutputFormat.plain_squashfs,
+        ):
+            die("Directory, subvolume, tar and plain squashfs images cannot be booted.")
+
+        if not args.boot_protocols:
+            args.boot_protocols = ["uefi"]
+
+            if args.distribution == Distribution.photon:
+                args.boot_protocols = ["bios"]
+
+        if not {"uefi", "bios"}.issuperset(args.boot_protocols):
+            die("Not a valid boot protocol")
+
+        if "uefi" in args.boot_protocols and args.distribution == Distribution.photon:
+            die(f"uefi boot not supported for {args.distribution}")
+
     if args.distribution in (Distribution.centos, Distribution.centos_epel):
         epel_release = int(args.release.split(".")[0])
         if epel_release <= 8 and args.output_format == OutputFormat.gpt_btrfs:
@@ -5264,27 +5285,6 @@ def load_args(args: CommandLineArguments) -> CommandLineArguments:
 
     if args.generated_root() and args.incremental:
         die("Sorry, incremental mode is currently not supported for squashfs or minimized file systems.")
-
-    if args.bootable:
-        if args.output_format in (
-            OutputFormat.directory,
-            OutputFormat.subvolume,
-            OutputFormat.tar,
-            OutputFormat.plain_squashfs,
-        ):
-            die("Directory, subvolume, tar and plain squashfs images cannot be booted.")
-
-        if not args.boot_protocols:
-            args.boot_protocols = ["uefi"]
-
-            if args.distribution == Distribution.photon:
-                args.boot_protocols = ["bios"]
-
-        if not {"uefi", "bios"}.issuperset(args.boot_protocols):
-            die("Not a valid boot protocol")
-
-        if "uefi" in args.boot_protocols and args.distribution == Distribution.photon:
-            die(f"uefi boot not supported for {args.distribution}")
 
     if args.encrypt is not None:
         if not args.output_format.is_disk():
