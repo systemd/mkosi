@@ -5601,7 +5601,7 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
     if args.secure_boot_certificate is not None:
         args.secure_boot_certificate = os.path.abspath(args.secure_boot_certificate)
 
-    if args.secure_boot:
+    if args.secure_boot and args.verb != "genkey":
         if args.secure_boot_key is None:
             die(
                 "UEFI SecureBoot enabled, but couldn't find private key. (Consider placing it in mkosi.secure-boot.key?)"
