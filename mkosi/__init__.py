@@ -6645,7 +6645,7 @@ def run_ssh(args: CommandLineArguments) -> None:
         )
 
 
-def generate_secure_boot_key(args: CommandLineArguments) -> NoReturn:
+def generate_secure_boot_key(args: CommandLineArguments) -> None:
     """Generate secure boot keys using openssl"""
     args.secure_boot_key = args.secure_boot_key or "./mkosi.secure-boot.key"
     args.secure_boot_certificate = args.secure_boot_certificate or "./mkosi.secure-boot.crt"
@@ -6691,9 +6691,12 @@ def generate_secure_boot_key(args: CommandLineArguments) -> NoReturn:
         str(args.secure_boot_valid_days),
         "-subj",
         f"/CN={cn}/",
+        "-nodes",
     ]
 
-    os.execvp(cmd[0], cmd)
+    run(cmd)
+
+    os.chmod(args.secure_boot_key, 0o600)
 
 
 def expand_paths(paths: List[str]) -> List[str]:
