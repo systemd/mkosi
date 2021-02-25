@@ -772,6 +772,16 @@ details see the table below.
   connects to its serial console from the current terminal instead
   of launching the VM in a separate window.
 
+`--qemu-smp=`
+
+: When used with the qemu verb, this options sets the qemu's `-smp`
+  argument which controls the number of guest's CPUs. Defaults to `2`.
+
+`--qemu-mem=`
+
+: When used with the qemu verb, this options sets the qemu's `-m`
+  argument which controls the amount of guest's RAM. Defaults to `1G`.
+
 `--network-veth`
 : When used with the boot or qemu verbs, this option creates a virtual
   ethernet link between the host and the container/VM. The host
@@ -866,6 +876,8 @@ which settings file options.
 | `--autologin`                     | `[Validation]`          | `Autologin=`                  |
 | `--extra-search-paths=`           | `[Host]`                | `ExtraSearchPaths=`           |
 | `--qemu-headless`                 | `[Host]`                | `QemuHeadless=`               |
+| `--qemu-smp`                      | `[Host]`                | `QemuSmp=`                    |
+| `--qemu-mem`                      | `[Host]`                | `QemuMem=`                    |
 | `--network-veth`                  | `[Host]`                | `NetworkVeth=`                |
 | `--ephemeral`                     | `[Host]`                | `Ephemeral=`                  |
 | `--ssh`                           | `[Host]`                | `Ssh=`                        |

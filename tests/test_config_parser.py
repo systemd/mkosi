@@ -114,6 +114,8 @@ class MkosiConfig(object):
             "xbootldr_size": None,
             "xz": False,
             "qemu_headless": False,
+            "qemu_smp": "2",
+            "qemu_mem": "1G",
             "network_veth": False,
             "ephemeral": False,
             "with_unified_kernel_images": True,

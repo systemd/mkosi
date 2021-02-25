@@ -399,7 +399,6 @@ class CommandLineArguments:
     password_is_hashed: bool
     autologin: bool
     extra_search_paths: List[str]
-    qemu_headless: bool
     network_veth: bool
     ephemeral: bool
     ssh: bool
@@ -408,6 +407,11 @@ class CommandLineArguments:
     all: bool
     all_directory: Optional[str]
     debug: List[str]
+
+    # QEMU-specific options
+    qemu_headless: bool
+    qemu_smp: str
+    qemu_mem: str
 
     # Some extra stuff that's stored in CommandLineArguments for convenience but isn't populated by arguments
     verity_size: Optional[int]
@@ -4769,6 +4773,8 @@ def create_parser() -> ArgumentParserMkosi:
         "--extra-search-paths", dest="extra_search_paths", action=ColonDelimitedListAction, help=argparse.SUPPRESS
     )  # Compatibility option
     group.add_argument("--qemu-headless", action=BooleanAction, help="Configure image for qemu's -nographic mode")
+    group.add_argument("--qemu-smp", help="Configure guest's SMP settings", metavar="SMP", default="2")
+    group.add_argument("--qemu-mem", help="Configure guest's RAM size", metavar="MEM", default="1G")
     group.add_argument(
         "--network-veth",
         action=BooleanAction,
@@ -6476,9 +6482,9 @@ def run_qemu(args: CommandLineArguments) -> None:
         "-machine",
         f"type=q35,accel={accel},smm={'on' if fw_supports_sb else 'off'}",
         "-smp",
-        "2",
+        args.qemu_smp,
         "-m",
-        "1024",
+        args.qemu_mem,
         "-object",
         "rng-random,filename=/dev/urandom,id=rng0",
         "-device",
