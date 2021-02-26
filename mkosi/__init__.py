@@ -2158,6 +2158,7 @@ def install_mageia(args: CommandLineArguments, root: str, do_run_build_script: b
 @complete_step("Installing OpenMandriva")
 def install_openmandriva(args: CommandLineArguments, root: str, do_run_build_script: bool) -> None:
     release = args.release.strip("'")
+    arch = args.architecture or platform.machine()
 
     if release[0].isdigit():
         release_model = "rock"
@@ -2167,11 +2168,11 @@ def install_openmandriva(args: CommandLineArguments, root: str, do_run_build_scr
         release_model = release
 
     if args.mirror:
-        baseurl = f"{args.mirror}/{release_model}/repository/x86_64/main"
+        baseurl = f"{args.mirror}/{release_model}/repository/{arch}/main"
         release_url = f"baseurl={baseurl}/release/"
         updates_url = f"baseurl={baseurl}/updates/"
     else:
-        baseurl = f"http://mirrors.openmandriva.org/mirrors.php?platform={release_model}&arch=x86_64&repo=main"
+        baseurl = f"http://mirrors.openmandriva.org/mirrors.php?platform={release_model}&arch={arch}&repo=main"
         release_url = f"mirrorlist={baseurl}&release=release"
         updates_url = f"mirrorlist={baseurl}&release=updates"
 
@@ -2191,6 +2192,8 @@ def install_openmandriva(args: CommandLineArguments, root: str, do_run_build_scr
     if not do_run_build_script and args.bootable:
         packages |= {"kernel-release-server", "binutils", "systemd-boot", "dracut", "timezone", "systemd-cryptsetup"}
         configure_dracut(args, root)
+    if args.network_veth:
+        packages |= {"systemd-networkd"}
     if do_run_build_script:
         packages.update(args.build_packages)
     invoke_dnf(args, root, args.repositories or ["openmandriva", "updates"], packages, do_run_build_script)
