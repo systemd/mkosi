@@ -5074,10 +5074,11 @@ def unlink_try_hard(path: Optional[str]) -> None:
     except:  # NOQA: E722
         pass
 
-    try:
-        btrfs_subvol_delete(path)
-    except:  # NOQA: E722
-        pass
+    if shutil.which("btrfs"):
+        try:
+            btrfs_subvol_delete(path)
+        except:  # NOQA: E722
+            pass
 
     try:
         shutil.rmtree(path)
