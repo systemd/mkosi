@@ -1872,11 +1872,12 @@ def invoke_dnf(
         "--allowerasing",
         "--releasever=" + args.release,
         "--installroot=" + root,
-        "--disablerepo=*",
-        *repos,
         "--setopt=keepcache=1",
         "--setopt=install_weak_deps=0",
     ]
+
+    if repos:
+        cmdline += ["--disablerepo=*", *repos]
 
     if args.architecture is not None:
         cmdline += [f"--forcearch={args.architecture}"]
@@ -1908,9 +1909,10 @@ def invoke_tdnf(
         "--config=" + config_file,
         "--releasever=" + args.release,
         "--installroot=" + root,
-        "--disablerepo=*",
-        *repos,
     ]
+
+    if repos:
+        cmdline += ["--disablerepo=*", *repos]
 
     if not gpgcheck:
         cmdline.append("--nogpgcheck")
@@ -1996,7 +1998,7 @@ def install_photon(args: CommandLineArguments, root: str, do_run_build_script: b
     invoke_tdnf(
         args,
         root,
-        args.repositories or ["photon", "photon-updates"],
+        args.repositories,
         packages,
         os.path.exists(gpgpath),
         do_run_build_script,
@@ -2112,7 +2114,7 @@ def install_fedora(args: CommandLineArguments, root: str, do_run_build_script: b
         packages.update(args.build_packages)
     if not do_run_build_script and args.network_veth:
         packages.add("systemd-networkd")
-    invoke_dnf(args, root, args.repositories or ["fedora", "updates"], packages, do_run_build_script)
+    invoke_dnf(args, root, args.repositories, packages, do_run_build_script)
 
     with open(os.path.join(root, "etc/locale.conf"), "w") as f:
         f.write("LANG=C.UTF-8\n")
@@ -2152,7 +2154,7 @@ def install_mageia(args: CommandLineArguments, root: str, do_run_build_script: b
             f.write('omit_dracutmodules=""\n')
     if do_run_build_script:
         packages.update(args.build_packages)
-    invoke_dnf(args, root, args.repositories or ["mageia", "updates"], packages, do_run_build_script)
+    invoke_dnf(args, root, args.repositories, packages, do_run_build_script)
 
     disable_pam_securetty(root)
 
@@ -2195,7 +2197,7 @@ def install_openmandriva(args: CommandLineArguments, root: str, do_run_build_scr
         configure_dracut(args, root)
     if do_run_build_script:
         packages.update(args.build_packages)
-    invoke_dnf(args, root, args.repositories or ["openmandriva", "updates"], packages, do_run_build_script)
+    invoke_dnf(args, root, args.repositories, packages, do_run_build_script)
 
     disable_pam_securetty(root)
 
@@ -2213,10 +2215,11 @@ def invoke_yum(
         "--config=" + config_file,
         "--releasever=" + args.release,
         "--installroot=" + root,
-        "--disablerepo=*",
-        *repos,
         "--setopt=keepcache=1",
     ]
+
+    if repos:
+        cmdline += ["--disablerepo=*", *repos]
 
     if args.architecture is not None:
         cmdline += [f"--forcearch={args.architecture}"]
@@ -2340,9 +2343,9 @@ def install_centos(args: CommandLineArguments, root: str, do_run_build_script: b
     epel_release = int(args.release.split(".")[0])
 
     if old:
-        default_repos = install_centos_old(args, root, epel_release)
+        install_centos_old(args, root, epel_release)
     else:
-        default_repos = install_centos_new(args, root, epel_release)
+        install_centos_new(args, root, epel_release)
 
     packages = {"centos-release", "systemd", *args.packages}
     if not do_run_build_script and args.bootable:
@@ -2357,10 +2360,7 @@ def install_centos(args: CommandLineArguments, root: str, do_run_build_script: b
     if do_run_build_script:
         packages.update(args.build_packages)
 
-    repos = args.repositories or default_repos
-
     if args.distribution == Distribution.centos_epel:
-        repos += ["epel"]
         packages.add("epel-release")
 
     if do_run_build_script:
@@ -2369,7 +2369,7 @@ def install_centos(args: CommandLineArguments, root: str, do_run_build_script: b
     if not do_run_build_script and args.distribution == Distribution.centos_epel and args.network_veth:
         packages.add("systemd-networkd")
 
-    invoke_dnf_or_yum(args, root, repos, packages, do_run_build_script)
+    invoke_dnf_or_yum(args, root, args.repositories, packages, do_run_build_script)
 
 
 def debootstrap_knows_arg(arg: str) -> bool:
