@@ -194,6 +194,16 @@ details see the table below.
   Linux, additional repositories must be passed in the form `<name>::<url>`
   (e.g. `myrepo::https://myrepo.net`).
 
+`--extra-repositories=`
+
+: Additional package repository files to be used during installation.
+  Expects one or more paths to repository files, separated by commas.
+  This option may be used multiple times in which case the list of
+  repository files to use is combined. Use "!\*" to remove all
+  repository files from to the list or use "!repo-file" to remove
+  just one specific repository file. Currently only supported for
+  Fedora, Mageia, CentOS, Photon, OpenMandriva.
+
 `--architecture=`
 
 : The architecture to build the image for. Note that this currently
@@ -805,6 +815,7 @@ which settings file options.
 | `--distribution=`, `-d`           | `[Distribution]`        | `Distribution=`               |
 | `--release=`, `-r`                | `[Distribution]`        | `Release=`                    |
 | `--repositories=`                 | `[Distribution]`        | `Repositories=`               |
+| `--extra-repositories=`           | `[Distribution]`        | `ExtraRepositories=`          |
 | `--mirror=`, `-m`                 | `[Distribution]`        | `Mirror=`                     |
 | `--architecture=`                 | `[Distribution]`        | `Architecture=`               |
 | `--format=`, `-t`                 | `[Output]`              | `Format=`                     |

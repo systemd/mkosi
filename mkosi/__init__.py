@@ -334,6 +334,7 @@ class CommandLineArguments:
     release: str
     mirror: Optional[str]
     repositories: List[str]
+    extra_repositories: List[str]
     architecture: Optional[str]
     output_format: OutputFormat
     output: str
@@ -1930,6 +1931,11 @@ class Repo(NamedTuple):
 
 def setup_dnf(args: CommandLineArguments, root: str, repos: List[Repo] = []) -> None:
     gpgcheck = True
+
+    # Copy extra repository files
+    for extra_repo in args.extra_repositories:
+        # Modify the filename so there's no chance of conflicting with 'temp.repo'
+        shutil.copy2(extra_repo, os.path.join(workspace(root), f"temp_{os.path.basename(extra_repo)}"))
 
     repo_file = os.path.join(workspace(root), "temp.repo")
     with open(repo_file, "w") as f:
@@ -4497,6 +4503,14 @@ def create_parser() -> ArgumentParserMkosi:
         help="Repositories to use",
         metavar="REPOS",
     )
+    group.add_argument(
+        "--extra-repositories",
+        action=CommaDelimitedListAction,
+        dest="extra_repositories",
+        default=[],
+        help="Extra repository files to use",
+        metavar="REPO_FILES",
+    )
     group.add_argument("--architecture", help="Override the architecture of installation")
 
     group = parser.add_argument_group("Output")
@@ -5721,6 +5735,8 @@ def print_summary(args: CommandLineArguments) -> None:
         MkosiPrinter.info("                    Mirror: " + args.mirror)
     if args.repositories is not None and len(args.repositories) > 0:
         MkosiPrinter.info("              Repositories: " + ",".join(args.repositories))
+    if args.extra_repositories is not None and len(args.extra_repositories) > 0:
+        MkosiPrinter.info("        Extra Repositories: " + ",".join(args.extra_repositories))
     MkosiPrinter.info("\nOUTPUT:")
     if args.hostname:
         MkosiPrinter.info("                  Hostname: " + args.hostname)
