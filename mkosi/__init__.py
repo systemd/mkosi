@@ -3694,6 +3694,7 @@ def insert_partition(
 
     run(["sfdisk", "--color=never", loopdev], input=table.encode("utf-8"))
     run(["sync"])
+    run(["partx", "--update", loopdev])
 
     MkosiPrinter.print_step("Writing partition...")
 
