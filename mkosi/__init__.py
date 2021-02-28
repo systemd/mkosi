@@ -3699,7 +3699,7 @@ def insert_partition(
     MkosiPrinter.print_step("Writing partition...")
 
     if args.root_partno == partno:
-        luks_format_root(args, loopdev, False, True)
+        luks_format_root(args, loopdev, False, False, True)
         dev = luks_setup_root(args, loopdev, False, True)
     else:
         dev = None
