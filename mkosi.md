@@ -121,7 +121,7 @@ The following command line verbs are known:
 
 `shell`
 
-: This builds the image if it is not build yet, and then invokes
+: This builds the image if it is not built yet, and then invokes
   `systemd-nspawn` to acquire an interactive shell prompt in it. If
   this verb is used an optional command line may be specified which is
   then invoked in place of the shell in the container. Combine this
