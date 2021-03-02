@@ -4037,6 +4037,8 @@ def calculate_sha256sum(
             assert args.output_nspawn_settings is not None
             hash_file(f, nspawn_settings, os.path.basename(args.output_nspawn_settings))
 
+        f.flush()
+
     return f
 
 
