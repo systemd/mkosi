@@ -652,8 +652,7 @@ details see the table below.
 : Takes a size in bytes for the root file system. The specified
   numeric value may be suffixed with `K`, `M`, `G` to indicate kilo-,
   mega- and gigabytes (all to the base of 1024). This applies to
-  output formats `gpt_ext4`, `gpt_xfs`, `gpt_btrfs`. Defaults to 1G,
-  except for `gpt_xfs` where it defaults to 1.3G.
+  output formats `gpt_ext4`, `gpt_xfs`, `gpt_btrfs`. Defaults to 3G.
 
 `--esp-size=`
 
