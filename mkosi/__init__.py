@@ -5784,7 +5784,7 @@ def print_summary(args: CommandLineArguments) -> None:
     MkosiPrinter.info("                  Packages: " + line_join_list(args.packages))
 
     if args.distribution in (Distribution.fedora, Distribution.centos, Distribution.centos_epel, Distribution.mageia):
-        MkosiPrinter.info("    With Documentation: " + yes_no(args.with_docs))
+        MkosiPrinter.info("        With Documentation: " + yes_no(args.with_docs))
 
     MkosiPrinter.info("             Package Cache: " + none_to_none(args.cache_path))
     MkosiPrinter.info("               Extra Trees: " + line_join_list(args.extra_trees))
@@ -5793,7 +5793,7 @@ def print_summary(args: CommandLineArguments) -> None:
     MkosiPrinter.info("         Build Environment: " + line_join_list(args.build_env))
 
     if args.build_script:
-        MkosiPrinter.info("             Run tests: " + yes_no(args.with_tests))
+        MkosiPrinter.info("                 Run tests: " + yes_no(args.with_tests))
 
     MkosiPrinter.info("             Build Sources: " + none_to_none(args.build_sources))
     MkosiPrinter.info("      Source File Transfer: " + none_to_none(args.source_file_transfer))
