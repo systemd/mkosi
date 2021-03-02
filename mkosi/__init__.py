@@ -36,11 +36,14 @@ import urllib.request
 import uuid
 from subprocess import DEVNULL, PIPE
 from textwrap import dedent
+from types import FrameType
 from typing import (
     IO,
+    TYPE_CHECKING,
     Any,
     BinaryIO,
     Callable,
+    ContextManager,
     Dict,
     Generator,
     Iterable,
@@ -54,13 +57,9 @@ from typing import (
     Tuple,
     Union,
     cast,
-    TYPE_CHECKING,
-    ContextManager,
 )
-from types import FrameType
 
 from .printer import MkosiPrinter
-
 
 __version__ = "9"
 

@@ -3,7 +3,7 @@
 import os
 import sys
 
-from . import parse_args, complete_step, run_verb, die, MkosiException
+from . import MkosiException, complete_step, die, parse_args, run_verb
 
 
 def main() -> None:
