@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
-import dataclasses
 import argparse
 import collections
 import configparser
@@ -9,28 +8,31 @@ import copy
 import crypt
 import ctypes
 import ctypes.util
+import dataclasses
 import datetime
 import enum
 import errno
 import fcntl
 import getpass
 import glob
-import time
 import hashlib
+import http.server
+import json
 import os
 import platform
+import re
 import shlex
 import shutil
 import signal
+import socketserver
 import stat
 import string
 import subprocess
 import sys
 import tempfile
-import json
-import urllib.request
-import re
+import time
 import urllib.parse
+import urllib.request
 import uuid
 from subprocess import DEVNULL, PIPE
 from textwrap import dedent
@@ -75,9 +77,9 @@ else:
 
 
 MKOSI_COMMANDS_CMDLINE = ("build", "shell", "boot", "qemu", "ssh")
-MKOSI_COMMANDS_NEED_BUILD = ("shell", "boot", "qemu")
-MKOSI_COMMANDS_SUDO = ("build", "clean", "shell", "boot", "qemu")
-MKOSI_COMMANDS = ("build", "clean", "help", "summary", "genkey") + MKOSI_COMMANDS_CMDLINE
+MKOSI_COMMANDS_NEED_BUILD = ("shell", "boot", "qemu", "serve")
+MKOSI_COMMANDS_SUDO = ("build", "clean", "shell", "boot", "qemu", "serve")
+MKOSI_COMMANDS = ("build", "clean", "help", "summary", "genkey", "serve") + MKOSI_COMMANDS_CMDLINE
 
 DRACUT_SYSTEMD_EXTRAS = [
     "/usr/lib/systemd/systemd-veritysetup",
@@ -6624,6 +6626,20 @@ def run_ssh(args: CommandLineArguments) -> None:
         )
 
 
+def run_serve(args: CommandLineArguments) -> None:
+    """Serve the output directory via a tiny embedded HTTP server"""
+
+    port = 8081
+    image = os.path.basename(args.output)
+
+    if args.output_dir is not None:
+        os.chdir(args.output_dir)
+
+    with http.server.HTTPServer(("", port), http.server.SimpleHTTPRequestHandler) as httpd:
+        print(f"Serving HTTP on port {port}: http://localhost:{port}/{image}")
+        httpd.serve_forever()
+
+
 def generate_secure_boot_key(args: CommandLineArguments) -> NoReturn:
     """Generate secure boot keys using openssl"""
     args.secure_boot_key = args.secure_boot_key or "./mkosi.secure-boot.key"
@@ -6754,3 +6770,6 @@ def run_verb(raw: argparse.Namespace) -> None:
 
     if args.verb == "ssh":
         run_ssh(args)
+
+    if args.verb == "serve":
+        run_serve(args)
