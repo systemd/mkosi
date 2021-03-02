@@ -151,6 +151,16 @@ The following command line verbs are known:
   that it has the necessary information available to connect to the running
   container/VM via SSH.
 
+`serve`
+
+: This builds the image if it is not built yet, and then serves the
+  output directory (i.e. usually `mkosi.output/`, see below) via a
+  small embedded HTTP server, listening on port 8081. Combine with
+  `-f` in order to rebuild the image unconditionally before serving
+  it. This command is useful for testing network based acquisition of
+  OS images, for example via `machinectl pull-raw …` and `machinectl
+  pull-tar …`.
+
 `help`
 
 : This verb is equivalent to the `--help` switch documented below: it
