@@ -3666,7 +3666,7 @@ def insert_partition(
         last_partition_sector = GPT_HEADER_SIZE
 
     blob_size = roundup512(os.stat(blob.name).st_size)
-    luks_extra = 2 * 1024 * 1024 if args.encrypt == "all" else 0
+    luks_extra = 16 * 1024 * 1024 if args.encrypt == "all" else 0
     new_size = last_partition_sector + blob_size + luks_extra + GPT_FOOTER_SIZE
 
     MkosiPrinter.print_step(f"Resizing disk image to {format_bytes(new_size)}...")
@@ -3695,11 +3695,12 @@ def insert_partition(
 
     run(["sfdisk", "--color=never", loopdev], input=table.encode("utf-8"))
     run(["sync"])
+    run(["partx", "--update", loopdev])
 
     MkosiPrinter.print_step("Writing partition...")
 
     if args.root_partno == partno:
-        luks_format_root(args, loopdev, False, True)
+        luks_format_root(args, loopdev, False, False, True)
         dev = luks_setup_root(args, loopdev, False, True)
     else:
         dev = None
