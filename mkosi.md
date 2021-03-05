@@ -867,6 +867,7 @@ which settings file options.
 | `--install-directory=`            | `[Packages]`            | `InstallDirectory=`           |
 | `--build-packages=`               | `[Packages]`            | `BuildPackages=`              |
 | `--skip-final-phase=`             | `[Packages]`            | `SkipFinalPhase=`             |
+| `--prepare-script=`               | `[Packages]`            | `PrepareScript=`              |
 | `--postinst-script=`              | `[Packages]`            | `PostInstallationScript=`     |
 | `--finalize-script=`              | `[Packages]`            | `FinalizeScript=`             |
 | `--with-network`                  | `[Packages]`            | `WithNetwork=`                |
