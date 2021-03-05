@@ -4250,7 +4250,9 @@ class ListAction(argparse.Action):
 
     def __init__(self, *args: Any, choices: Optional[Iterable[Any]] = None, **kwargs: Any) -> None:
         self.list_choices = choices
-        super().__init__(*args, **kwargs)
+        # mypy doesn't like the following call due to https://github.com/python/mypy/issues/6799,
+        # so let's, temporarily, ignore the error
+        super().__init__(choices=choices, *args, **kwargs)  # type: ignore[misc]
 
     def __call__(
         self,  # These type-hints are copied from argparse.pyi
@@ -4815,7 +4817,6 @@ def create_parser() -> ArgumentParserMkosi:
         action=CommaDelimitedListAction,
         default=[],
         help="Turn on debugging output",
-        metavar="SELECTOR",
         choices=("run", "build-script", "workspace-command"),
     )
     try:
