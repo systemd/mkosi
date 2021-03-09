@@ -489,6 +489,7 @@ FEDORA_KEYS_MAP = {
     "30": "CFC659B9",
     "31": "3C3359C4",
     "32": "12C944D0",
+    "33": "9570FF31",
 }
 
 # 1 MB at the beginning of the disk for the GPT disk label, and
