@@ -48,7 +48,6 @@ from typing import (
     Generator,
     Iterable,
     List,
-    NamedTuple,
     NoReturn,
     Optional,
     Sequence,
@@ -59,7 +58,28 @@ from typing import (
     cast,
 )
 
-from .printer import MkosiPrinter
+from .backend import (
+    ARG_DEBUG,
+    SUPPORTED_DISTRIBUTIONS,
+    CommandLineArguments,
+    DistributionInstaller,
+    MkosiException,
+    MkosiPrinter,
+    OutputFormat,
+    SourceFileTransfer,
+    die,
+    install_grub,
+    mkdir_last,
+    nspawn_params_for_blockdev_access,
+    partition,
+    patch_file,
+    run,
+    run_workspace_command,
+    tmp_dir,
+    var_tmp,
+    warn,
+    workspace,
+)
 
 __version__ = "9"
 
@@ -68,10 +88,8 @@ __version__ = "9"
 # to a TypeError during compilation.
 # Let's be as strict as we can with the description for the usage we have.
 if TYPE_CHECKING:
-    CompletedProcess = subprocess.CompletedProcess[Any]
     TempDir = tempfile.TemporaryDirectory[str]
 else:
-    CompletedProcess = subprocess.CompletedProcess
     TempDir = tempfile.TemporaryDirectory
 
 
@@ -160,313 +178,9 @@ esac
 """
 
 
-# This global should be initialized after parsing arguments
-arg_debug = ()
-
-
-class MkosiException(Exception):
-    """Leads to sys.exit"""
-
-
 def print_running_cmd(cmdline: Iterable[str]) -> None:
     MkosiPrinter.print_step("Running command:")
     MkosiPrinter.print_step(" ".join(shlex.quote(x) for x in cmdline) + "\n")
-
-
-@contextlib.contextmanager
-def delay_interrupt() -> Generator[None, None, None]:
-    # CTRL+C is sent to the entire process group. We delay its handling in mkosi itself so the subprocess can
-    # exit cleanly before doing mkosi's cleanup. If we don't do this, we get device or resource is busy
-    # errors when unmounting stuff later on during cleanup. We only delay a single CTRL+C interrupt so that a
-    # user can always exit mkosi even if a subprocess hangs by pressing CTRL+C twice.
-    interrupted = False
-
-    def handler(signal: int, frame: FrameType) -> None:
-        nonlocal interrupted
-        if interrupted:
-            raise KeyboardInterrupt()
-        else:
-            interrupted = True
-
-    s = signal.signal(signal.SIGINT, handler)
-
-    try:
-        yield
-    finally:
-        signal.signal(signal.SIGINT, s)
-
-        if interrupted:
-            die("Interrupted")
-
-
-# Borrowed from https://github.com/python/typeshed/blob/3d14016085aed8bcf0cf67e9e5a70790ce1ad8ea/stdlib/3/subprocess.pyi#L24
-_FILE = Union[None, int, IO[Any]]
-
-
-def run(
-    cmdline: List[str],
-    check: bool = True,
-    stdout: _FILE = None,
-    stderr: _FILE = None,
-    **kwargs: Any,
-) -> CompletedProcess:
-    if "run" in arg_debug:
-        MkosiPrinter.info("+ " + " ".join(shlex.quote(x) for x in cmdline))
-
-    if not stdout and not stderr:
-        # Unless explicit redirection is done, print all subprocess output on stderr since we do so as well
-        # for mkosi's own output.
-        stdout = sys.stderr
-
-    try:
-        with delay_interrupt():
-            return subprocess.run(cmdline, check=check, stdout=stdout, stderr=stderr, **kwargs)
-    except FileNotFoundError:
-        die(f"{cmdline[0]} not found in PATH.")
-
-
-def die(message: str) -> NoReturn:
-    MkosiPrinter.warn(f"Error: {message}")
-    raise MkosiException(message)
-
-
-def warn(message: str) -> None:
-    MkosiPrinter.warn(f"Warning: {message}")
-
-
-def tmp_dir() -> str:
-    return os.environ.get("TMPDIR") or "/var/tmp"
-
-
-class SourceFileTransfer(enum.Enum):
-    copy_all = "copy-all"
-    copy_git_cached = "copy-git-cached"
-    copy_git_others = "copy-git-others"
-    copy_git_more = "copy-git-more"
-    mount = "mount"
-
-    def __str__(self) -> str:
-        return self.value
-
-    @classmethod
-    def doc(cls) -> Dict["SourceFileTransfer", str]:
-        return {
-            cls.copy_all: "normal file copy",
-            cls.copy_git_cached: "use git-ls-files --cached, ignoring any file that git itself ignores",
-            cls.copy_git_others: "use git-ls-files --others, ignoring any file that git itself ignores",
-            cls.copy_git_more: "use git-ls-files --cached, ignoring any file that git itself ignores, but include the .git/ directory",
-            cls.mount: "bind mount source files into the build image",
-        }
-
-
-class OutputFormat(enum.Enum):
-    directory = enum.auto()
-    subvolume = enum.auto()
-    tar = enum.auto()
-
-    gpt_ext4 = enum.auto()
-    gpt_xfs = enum.auto()
-    gpt_btrfs = enum.auto()
-    gpt_squashfs = enum.auto()
-
-    plain_squashfs = enum.auto()
-
-    # Kept for backwards compatibility
-    raw_ext4 = raw_gpt = gpt_ext4
-    raw_xfs = gpt_xfs
-    raw_btrfs = gpt_btrfs
-    raw_squashfs = gpt_squashfs
-
-    def __repr__(self) -> str:
-        """Return the member name without the class name"""
-        return self.name
-
-    def __str__(self) -> str:
-        """Return the member name without the class name"""
-        return self.name
-
-    @classmethod
-    def from_string(cls, name: str) -> "OutputFormat":
-        """A convenience method to be used with argparse"""
-        try:
-            return cls[name]
-        except KeyError:
-            # this let's argparse generate a proper error message
-            return name  # type: ignore
-
-    def is_disk_rw(self) -> bool:
-        "Output format is a disk image with a parition table and a writable filesystem"
-        return self in (OutputFormat.gpt_ext4, OutputFormat.gpt_xfs, OutputFormat.gpt_btrfs)
-
-    def is_disk(self) -> bool:
-        "Output format is a disk image with a partition table"
-        return self.is_disk_rw() or self == OutputFormat.gpt_squashfs
-
-    def is_squashfs(self) -> bool:
-        "The output format contains a squashfs partition"
-        return self in {OutputFormat.gpt_squashfs, OutputFormat.plain_squashfs}
-
-    def can_minimize(self) -> bool:
-        "The output format can be 'minimized'"
-        return self in (OutputFormat.gpt_ext4, OutputFormat.gpt_btrfs)
-
-    def needed_kernel_module(self) -> str:
-        if self == OutputFormat.gpt_btrfs:
-            return "btrfs"
-        elif self == OutputFormat.gpt_squashfs or self == OutputFormat.plain_squashfs:
-            return "squashfs"
-        elif self == OutputFormat.gpt_xfs:
-            return "xfs"
-        else:
-            return "ext4"
-
-
-class Distribution(enum.Enum):
-    fedora = 1
-    debian = 2
-    ubuntu = 3
-    arch = 4
-    opensuse = 5
-    mageia = 6
-    centos = 7
-    centos_epel = 8
-    clear = 9
-    photon = 10
-    openmandriva = 11
-
-    def __str__(self) -> str:
-        return self.name
-
-
-@dataclasses.dataclass
-class CommandLineArguments:
-    """Type-hinted storage for command line arguments."""
-
-    verb: str
-    cmdline: List[str]
-    distribution: Distribution
-    release: str
-    mirror: Optional[str]
-    repositories: List[str]
-    architecture: Optional[str]
-    output_format: OutputFormat
-    output: str
-    output_dir: Optional[str]
-    force_count: int
-    bootable: bool
-    boot_protocols: List[str]
-    kernel_command_line: List[str]
-    secure_boot: bool
-    secure_boot_key: str
-    secure_boot_certificate: str
-    secure_boot_valid_days: str
-    secure_boot_common_name: str
-    read_only: bool
-    encrypt: Optional[str]
-    verity: bool
-    compress: Union[None, str, bool]
-    mksquashfs_tool: List[str]
-    xz: bool
-    qcow2: bool
-    image_version: Optional[str]
-    image_id: Optional[str]
-    hostname: Optional[str]
-    no_chown: bool
-    tar_strip_selinux_context: bool
-    incremental: bool
-    minimize: bool
-    with_unified_kernel_images: bool
-    gpt_first_lba: Optional[int]
-    hostonly_initrd: bool
-    packages: List[str]
-    with_docs: bool
-    with_tests: bool
-    cache_path: Optional[str]
-    extra_trees: List[str]
-    skeleton_trees: List[str]
-    build_script: Optional[str]
-    build_env: List[str]
-    build_sources: Optional[str]
-    build_dir: Optional[str]
-    include_dir: Optional[str]
-    install_dir: Optional[str]
-    build_packages: List[str]
-    skip_final_phase: bool
-    postinst_script: Optional[str]
-    prepare_script: Optional[str]
-    finalize_script: Optional[str]
-    source_file_transfer: SourceFileTransfer
-    source_file_transfer_final: Optional[SourceFileTransfer]
-    with_network: bool
-    nspawn_settings: Optional[str]
-    root_size: int
-    esp_size: Optional[int]
-    xbootldr_size: Optional[int]
-    swap_size: Optional[int]
-    home_size: Optional[int]
-    srv_size: Optional[int]
-    var_size: Optional[int]
-    tmp_size: Optional[int]
-    usr_only: bool
-    split_artifacts: bool
-    checksum: bool
-    sign: bool
-    key: Optional[str]
-    bmap: bool
-    password: Optional[str]
-    password_is_hashed: bool
-    autologin: bool
-    extra_search_paths: List[str]
-    network_veth: bool
-    ephemeral: bool
-    ssh: bool
-    ssh_key: Optional[str]
-    ssh_timeout: int
-    directory: Optional[str]
-    default_path: Optional[str]
-    all: bool
-    all_directory: Optional[str]
-    debug: List[str]
-    auto_bump: bool
-    workspace_dir: Optional[str]
-
-    # QEMU-specific options
-    qemu_headless: bool
-    qemu_smp: str
-    qemu_mem: str
-
-    # Some extra stuff that's stored in CommandLineArguments for convenience but isn't populated by arguments
-    verity_size: Optional[int]
-    machine_id: str
-    force: bool
-    original_umask: int
-    passphrase: Optional[Dict[str, str]]
-
-    output_checksum: Optional[str] = None
-    output_nspawn_settings: Optional[str] = None
-    output_sshkey: Optional[str] = None
-    output_root_hash_file: Optional[str] = None
-    output_bmap: Optional[str] = None
-    output_split_root: Optional[str] = None
-    output_split_verity: Optional[str] = None
-    output_split_kernel: Optional[str] = None
-    cache_pre_inst: Optional[str] = None
-    cache_pre_dev: Optional[str] = None
-    output_signature: Optional[str] = None
-
-    root_partno: Optional[int] = None
-    swap_partno: Optional[int] = None
-    esp_partno: Optional[int] = None
-    xbootldr_partno: Optional[int] = None
-    bios_partno: Optional[int] = None
-    home_partno: Optional[int] = None
-    srv_partno: Optional[int] = None
-    var_partno: Optional[int] = None
-    tmp_partno: Optional[int] = None
-    verity_partno: Optional[int] = None
-
-    releasever: Optional[str] = None
-    ran_sfdisk: bool = False
 
 
 # fmt: off
@@ -512,38 +226,14 @@ BIOS_PARTITION_SIZE = 1024 * 1024
 
 CLONE_NEWNS = 0x00020000
 
-FEDORA_KEYS_MAP = {
-    "23": "34EC9CBA",
-    "24": "81B46521",
-    "25": "FDB19C98",
-    "26": "64DAB85D",
-    "27": "F5282EE4",
-    "28": "9DB62FB1",
-    "29": "429476B4",
-    "30": "CFC659B9",
-    "31": "3C3359C4",
-    "32": "12C944D0",
-    "33": "9570FF31",
-    "34": "45719A39",
-}
-
 # 1 MB at the beginning of the disk for the GPT disk label, and
 # another MB at the end (this is actually more than needed.)
 GPT_HEADER_SIZE = 1024 * 1024
 GPT_FOOTER_SIZE = 1024 * 1024
 
 
-# Debian calls their architectures differently, so when calling debootstrap we
-# will have to map to their names
-DEBIAN_ARCHITECTURES = {
-    "x86_64": "amd64",
-    "x86": "i386",
-    "aarch64": "arm64",
-    "armhfp": "armhf",
-}
-
-
-class GPTRootTypePair(NamedTuple):
+@dataclasses.dataclass
+class GPTRootTypePair:
     root: uuid.UUID
     verity: uuid.UUID
 
@@ -608,19 +298,6 @@ def format_bytes(num_bytes: int) -> str:
 
 def roundup512(x: int) -> int:
     return (x + 511) & ~511
-
-
-def mkdir_last(path: str, mode: int = 0o777) -> str:
-    """Create directory path
-
-    Only the final component will be created, so this is different than mkdirs().
-    """
-    try:
-        os.mkdir(path, mode)
-    except FileExistsError:
-        if not os.path.isdir(path):
-            raise
-    return path
 
 
 # fmt: off
@@ -1090,10 +767,6 @@ def optional_partition(loopdev: str, partno: Optional[int]) -> Optional[str]:
     return partition(loopdev, partno)
 
 
-def partition(loopdev: str, partno: int) -> str:
-    return loopdev + "p" + str(partno)
-
-
 def prepare_swap(args: CommandLineArguments, loopdev: Optional[str], cached: bool) -> None:
     if loopdev is None:
         return
@@ -1153,11 +826,7 @@ def mkfs_generic(args: CommandLineArguments, label: str, mount: str, dev: str) -
         cmdline = mkfs_ext4_cmd(label, mount)
 
     if args.output_format == OutputFormat.gpt_ext4:
-        if args.distribution in (Distribution.centos, Distribution.centos_epel) and is_older_than_centos8(
-            args.release
-        ):
-            # e2fsprogs in centos7 is too old and doesn't support this feature
-            cmdline += ["-O", "^metadata_csum"]
+        cmdline += args.distribution.mkfs_args
 
         if args.architecture in ("x86_64", "aarch64"):
             # enable 64bit filesystem feature on supported architectures
@@ -1606,24 +1275,10 @@ def mount_cache(args: CommandLineArguments, root: str) -> Generator[None, None, 
 
     # We can't do this in mount_image() yet, as /var itself might have to be created as a subvolume first
     with complete_step("Mounting Package Cache"):
-        if args.distribution in (Distribution.fedora, Distribution.mageia, Distribution.openmandriva):
-            caches = [mount_bind(args.cache_path, os.path.join(root, "var/cache/dnf"))]
-        elif args.distribution in (Distribution.centos, Distribution.centos_epel):
-            # We mount both the YUM and the DNF cache in this case, as
-            # YUM might just be redirected to DNF even if we invoke
-            # the former
-            caches = [
-                mount_bind(os.path.join(args.cache_path, "yum"), os.path.join(root, "var/cache/yum")),
-                mount_bind(os.path.join(args.cache_path, "dnf"), os.path.join(root, "var/cache/dnf")),
-            ]
-        elif args.distribution in (Distribution.debian, Distribution.ubuntu):
-            caches = [mount_bind(args.cache_path, os.path.join(root, "var/cache/apt/archives"))]
-        elif args.distribution == Distribution.arch:
-            caches = [mount_bind(args.cache_path, os.path.join(root, "var/cache/pacman/pkg"))]
-        elif args.distribution == Distribution.opensuse:
-            caches = [mount_bind(args.cache_path, os.path.join(root, "var/cache/zypp/packages"))]
-        elif args.distribution == Distribution.photon:
-            caches = [mount_bind(os.path.join(args.cache_path, "tdnf"), os.path.join(root, "var/cache/tdnf"))]
+        caches = [
+            mount_bind(os.path.join(args.cache_path, os.path.basename(p)), os.path.join(root, p))
+            for p in args.distribution.package_cache
+        ]
     try:
         yield
     finally:
@@ -1634,6 +1289,11 @@ def mount_cache(args: CommandLineArguments, root: str) -> Generator[None, None, 
 
 def umount(where: str) -> None:
     run(["umount", "--recursive", "-n", where])
+
+
+def dracut_configure_uefi_stub(dracut_dir: str) -> None:
+    with open(os.path.join(dracut_dir, "30-mkosi-uefi-stub.conf"), "w") as f:
+        f.write("uefi_stub=/usr/lib/systemd/boot/efi/linuxx64.efi.stub\n")
 
 
 def configure_dracut(args: CommandLineArguments, root: str) -> None:
@@ -1654,22 +1314,15 @@ def configure_dracut(args: CommandLineArguments, root: str) -> None:
         with open(os.path.join(dracut_dir, "30-mkosi-filesystem.conf"), "w") as f:
             f.write(f'filesystems+=" {(args.output_format.needed_kernel_module())} "\n')
 
-    # These distros need uefi_stub configured explicitly for dracut to find the systemd-boot uefi stub.
-    if args.esp_partno is not None and args.distribution in (
-        Distribution.ubuntu,
-        Distribution.debian,
-        Distribution.mageia,
-        Distribution.openmandriva,
-    ):
-        with open(os.path.join(dracut_dir, "30-mkosi-uefi-stub.conf"), "w") as f:
-            f.write("uefi_stub=/usr/lib/systemd/boot/efi/linuxx64.efi.stub\n")
-
     # efivarfs must be present in order to GPT root discovery work
     if args.esp_partno is not None:
         with open(os.path.join(dracut_dir, "30-mkosi-efivarfs.conf"), "w") as f:
             f.write(
                 '[[ $(modinfo -k "$kernel" -F filename efivarfs 2>/dev/null) == /* ]] && add_drivers+=" efivarfs "\n'
             )
+
+    # Install distro specific dracut config
+    args.distribution.configure_dracut(dracut_dir)
 
 
 def prepare_tree_root(args: CommandLineArguments, root: str) -> None:
@@ -1767,19 +1420,6 @@ def prepare_tree(args: CommandLineArguments, root: str, do_run_build_script: boo
             os.mkdir(os.path.join(root, "etc/systemd/network"), 0o755)
 
 
-def patch_file(filepath: str, line_rewriter: Callable[[str], str]) -> None:
-    temp_new_filepath = filepath + ".tmp.new"
-
-    with open(filepath, "r") as old:
-        with open(temp_new_filepath, "w") as new:
-            for line in old:
-                new.write(line_rewriter(line))
-
-    shutil.copystat(filepath, temp_new_filepath)
-    os.remove(filepath)
-    shutil.move(temp_new_filepath, filepath)
-
-
 def disable_pam_securetty(root: str) -> None:
     def _rm_securetty(line: str) -> str:
         if "pam_securetty.so" in line:
@@ -1787,44 +1427,6 @@ def disable_pam_securetty(root: str) -> None:
         return line
 
     patch_file(os.path.join(root, "etc/pam.d/login"), _rm_securetty)
-
-
-def run_workspace_command(
-    args: CommandLineArguments,
-    root: str,
-    cmd: List[str],
-    network: bool = False,
-    env: Dict[str, str] = {},
-    nspawn_params: List[str] = [],
-) -> None:
-    cmdline = [
-        "systemd-nspawn",
-        "--quiet",
-        "--directory=" + root,
-        "--uuid=" + args.machine_id,
-        "--machine=mkosi-" + uuid.uuid4().hex,
-        "--as-pid2",
-        "--register=no",
-        "--bind=" + var_tmp(root) + ":/var/tmp",
-        "--setenv=SYSTEMD_OFFLINE=1",
-    ]
-
-    if network:
-        # If we're using the host network namespace, use the same resolver
-        cmdline += ["--bind-ro=/etc/resolv.conf"]
-    else:
-        cmdline += ["--private-network"]
-
-    cmdline += [f"--setenv={k}={v}" for k, v in env.items()]
-
-    if nspawn_params:
-        cmdline += nspawn_params
-
-    result = run(cmdline + ["--"] + cmd, check=False)
-    if result.returncode != 0:
-        if "workspace-command" in arg_debug:
-            run(cmdline, check=False)
-        die(f"Workspace command `{' '.join(cmd)}` returned non-zero exit code {result.returncode}.")
 
 
 def check_if_url_exists(url: str) -> bool:
@@ -1871,7 +1473,13 @@ def reenable_kernel_install(args: CommandLineArguments, root: str) -> None:
     make_executable(hook_path)
 
 
-def make_rpm_list(args: CommandLineArguments, packages: Set[str], do_run_build_script: bool) -> Set[str]:
+def make_rpm_list(
+    args: CommandLineArguments,
+    packages: Set[str],
+    do_run_build_script: bool,
+    *,
+    grub_package: str = "grub2-pc",
+) -> Set[str]:
     packages = packages.copy()
 
     if args.bootable:
@@ -1889,10 +1497,11 @@ def make_rpm_list(args: CommandLineArguments, packages: Set[str], do_run_build_s
             packages.add("btrfs-progs")
 
         if args.bios_partno:
-            if args.distribution in (Distribution.mageia, Distribution.openmandriva):
-                packages.add("grub2")
-            else:
-                packages.add("grub2-pc")
+            packages.add(grub_package)
+            # if args.distribution in (Distribution.mageia, Distribution.openmandriva):
+            #     packages.add("grub2")
+            # else:
+            #     packages.add("grub2-pc")
 
     if not do_run_build_script and args.ssh:
         packages.add("openssh-server")
@@ -1940,6 +1549,22 @@ def clean_yum_metadata(root: str) -> None:
         remove_glob(*yum_metadata_paths)
 
 
+def clean_package_manager_metadata(root: str) -> None:
+    """Clean up package manager metadata
+
+    Try them all regardless of the distro: metadata is only removed if the
+    package manager is present in the image.
+    """
+
+    # we try then all: metadata will only be touched if any of them are in the
+    # final image
+    clean_dnf_metadata(root)
+    clean_yum_metadata(root)
+    clean_rpm_metadata(root)
+    clean_tdnf_metadata(root)
+    # FIXME: implement cleanup for other package managers
+
+
 def clean_rpm_metadata(root: str) -> None:
     """Removes rpm metadata iff /bin/rpm is not present in the image"""
     rpm_metadata_path = os.path.join(root, "var/lib/rpm")
@@ -1964,22 +1589,6 @@ def clean_tdnf_metadata(root: str) -> None:
 
     with complete_step("Cleaning tdnf metadata..."):
         remove_glob(*tdnf_metadata_paths)
-
-
-def clean_package_manager_metadata(root: str) -> None:
-    """Clean up package manager metadata
-
-    Try them all regardless of the distro: metadata is only removed if the
-    package manager is present in the image.
-    """
-
-    # we try then all: metadata will only be touched if any of them are in the
-    # final image
-    clean_dnf_metadata(root)
-    clean_yum_metadata(root)
-    clean_rpm_metadata(root)
-    clean_tdnf_metadata(root)
-    # FIXME: implement cleanup for other package managers
 
 
 def invoke_dnf(
@@ -2046,7 +1655,8 @@ def invoke_tdnf(
         run(cmdline)
 
 
-class Repo(NamedTuple):
+@dataclasses.dataclass
+class Repo:
     id: str
     name: str
     url: str
@@ -2054,7 +1664,13 @@ class Repo(NamedTuple):
     gpgurl: Optional[str] = None
 
 
-def setup_dnf(args: CommandLineArguments, root: str, repos: List[Repo] = []) -> None:
+def setup_dnf(
+    args: CommandLineArguments,
+    root: str,
+    repos: List[Repo] = [],
+    *,
+    repodir: str = "repodir",
+) -> None:
     gpgcheck = True
 
     repo_file = os.path.join(workspace(root), "temp.repo")
@@ -2083,244 +1699,16 @@ def setup_dnf(args: CommandLineArguments, root: str, repos: List[Repo] = []) -> 
 
     config_file = os.path.join(workspace(root), "dnf.conf")
     with open(config_file, "w") as f:
+        # the repodir key is templated, because in tdnf calls it reposdir
         f.write(
             dedent(
                 f"""\
                 [main]
                 gpgcheck={'1' if gpgcheck else '0'}
-                {"repodir" if args.distribution == Distribution.photon else "reposdir"}={workspace(root)}
+                {repodir}={workspace(root)}
                 """
             )
         )
-
-
-@complete_step("Installing Photon")
-def install_photon(args: CommandLineArguments, root: str, do_run_build_script: bool) -> None:
-    release_url = "baseurl=https://dl.bintray.com/vmware/photon_release_$releasever_$basearch"
-    updates_url = "baseurl=https://dl.bintray.com/vmware/photon_updates_$releasever_$basearch"
-    gpgpath = "/etc/pki/rpm-gpg/VMWARE-RPM-GPG-KEY"
-
-    setup_dnf(
-        args,
-        root,
-        repos=[
-            Repo("photon", f"VMware Photon OS {args.release} Release", release_url, gpgpath),
-            Repo("photon-updates", f"VMware Photon OS {args.release} Updates", updates_url, gpgpath),
-        ],
-    )
-
-    packages = {"minimal"}
-    if not do_run_build_script and args.bootable:
-        packages |= {"linux", "initramfs"}
-
-    invoke_tdnf(
-        args,
-        root,
-        args.repositories or ["photon", "photon-updates"],
-        packages,
-        os.path.exists(gpgpath),
-        do_run_build_script,
-    )
-
-
-@complete_step("Installing Clear Linux")
-def install_clear(args: CommandLineArguments, root: str, do_run_build_script: bool) -> None:
-    if args.release == "latest":
-        release = "clear"
-    else:
-        release = "clear/" + args.release
-
-    packages = {"os-core-plus", *args.packages}
-    if do_run_build_script:
-        packages.update(args.build_packages)
-    if not do_run_build_script and args.bootable:
-        packages.add("kernel-native")
-    if not do_run_build_script and args.ssh:
-        packages.add("openssh-server")
-
-    swupd_extract = shutil.which("swupd-extract")
-
-    if swupd_extract is None:
-        die(
-            dedent(
-                """
-                Couldn't find swupd-extract program, download (or update it) it using:
-
-                  go get -u github.com/clearlinux/mixer-tools/swupd-extract
-
-                and it will be installed by default in ~/go/bin/swupd-extract. Also
-                ensure that you have openssl program in your system.
-                """
-            )
-        )
-
-    cmdline = [swupd_extract, "-output", root]
-    if args.cache_path:
-        cmdline += ["-state", args.cache_path]
-    cmdline += [release, *packages]
-
-    run(cmdline)
-
-    os.symlink("../run/systemd/resolve/resolv.conf", os.path.join(root, "etc/resolv.conf"))
-
-    # Clear Linux doesn't have a /etc/shadow at install time, it gets
-    # created when the root first login. To set the password via
-    # mkosi, create one.
-    if not do_run_build_script and args.password is not None:
-        shadow_file = os.path.join(root, "etc/shadow")
-        with open(shadow_file, "w") as f:
-            f.write("root::::::::")
-        os.chmod(shadow_file, 0o400)
-        # Password is already empty for root, so no need to reset it later.
-        if args.password == "":
-            args.password = None
-
-
-@complete_step("Installing Fedora")
-def install_fedora(args: CommandLineArguments, root: str, do_run_build_script: bool) -> None:
-    if args.release == "rawhide":
-        last = sorted(FEDORA_KEYS_MAP)[-1]
-        warn(f"Assuming rawhide is version {last} — " + "You may specify otherwise with --release=rawhide-<version>")
-        args.releasever = last
-    elif args.release.startswith("rawhide-"):
-        args.release, args.releasever = args.release.split("-")
-        MkosiPrinter.info(f"Fedora rawhide — release version: {args.releasever}")
-    else:
-        args.releasever = args.release
-
-    arch = args.architecture or platform.machine()
-
-    if args.mirror:
-        baseurl = urllib.parse.urljoin(args.mirror, f"releases/{args.release}/Everything/$basearch/os/")
-        media = urllib.parse.urljoin(baseurl.replace("$basearch", arch), "media.repo")
-        if not check_if_url_exists(media):
-            baseurl = urllib.parse.urljoin(args.mirror, f"development/{args.release}/Everything/$basearch/os/")
-
-        release_url = f"baseurl={baseurl}"
-        updates_url = f"baseurl={args.mirror}/updates/{args.release}/Everything/$basearch/"
-    else:
-        release_url = (
-            f"metalink=https://mirrors.fedoraproject.org/metalink?" + f"repo=fedora-{args.release}&arch=$basearch"
-        )
-        updates_url = (
-            f"metalink=https://mirrors.fedoraproject.org/metalink?"
-            + f"repo=updates-released-f{args.release}&arch=$basearch"
-        )
-
-    if args.releasever in FEDORA_KEYS_MAP:
-        gpgid = f"keys/{FEDORA_KEYS_MAP[args.releasever]}.txt"
-    else:
-        gpgid = "fedora.gpg"
-
-    gpgpath = f"/etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-{args.releasever}-{arch}"
-    gpgurl = urllib.parse.urljoin("https://getfedora.org/static/", gpgid)
-
-    setup_dnf(
-        args,
-        root,
-        repos=[
-            Repo("fedora", f"Fedora {args.release.capitalize()} - base", release_url, gpgpath, gpgurl),
-            Repo("updates", f"Fedora {args.release.capitalize()} - updates", updates_url, gpgpath, gpgurl),
-        ],
-    )
-
-    packages = {"fedora-release", "glibc-minimal-langpack", "systemd", *args.packages}
-    if not do_run_build_script and args.bootable:
-        packages |= {"kernel-core", "kernel-modules", "systemd-udev", "binutils", "dracut"}
-        configure_dracut(args, root)
-    if do_run_build_script:
-        packages.update(args.build_packages)
-    if not do_run_build_script and args.network_veth:
-        packages.add("systemd-networkd")
-    invoke_dnf(args, root, args.repositories or ["fedora", "updates"], packages, do_run_build_script)
-
-    with open(os.path.join(root, "etc/locale.conf"), "w") as f:
-        f.write("LANG=C.UTF-8\n")
-
-
-@complete_step("Installing Mageia")
-def install_mageia(args: CommandLineArguments, root: str, do_run_build_script: bool) -> None:
-    if args.mirror:
-        baseurl = f"{args.mirror}/distrib/{args.release}/x86_64/media/core/"
-        release_url = f"baseurl={baseurl}/release/"
-        updates_url = f"baseurl={baseurl}/updates/"
-    else:
-        baseurl = f"https://www.mageia.org/mirrorlist/?release={args.release}&arch=x86_64&section=core"
-        release_url = f"mirrorlist={baseurl}&repo=release"
-        updates_url = f"mirrorlist={baseurl}&repo=updates"
-
-    gpgpath = "/etc/pki/rpm-gpg/RPM-GPG-KEY-Mageia"
-
-    setup_dnf(
-        args,
-        root,
-        repos=[
-            Repo("mageia", f"Mageia {args.release} Core Release", release_url, gpgpath),
-            Repo("updates", f"Mageia {args.release} Core Updates", updates_url, gpgpath),
-        ],
-    )
-
-    packages = {"basesystem-minimal", *args.packages}
-    if not do_run_build_script and args.bootable:
-        packages |= {"kernel-server-latest", "binutils", "dracut"}
-
-        configure_dracut(args, root)
-        # Mageia ships /etc/50-mageia.conf that omits systemd from the initramfs and disables hostonly.
-        # We override that again so our defaults get applied correctly on Mageia as well.
-        with open(os.path.join(root, "etc/dracut.conf.d/51-mkosi-override-mageia.conf"), "w") as f:
-            f.write("hostonly=no\n")
-            f.write('omit_dracutmodules=""\n')
-    if do_run_build_script:
-        packages.update(args.build_packages)
-    invoke_dnf(args, root, args.repositories or ["mageia", "updates"], packages, do_run_build_script)
-
-    disable_pam_securetty(root)
-
-
-@complete_step("Installing OpenMandriva")
-def install_openmandriva(args: CommandLineArguments, root: str, do_run_build_script: bool) -> None:
-    release = args.release.strip("'")
-    arch = args.architecture or platform.machine()
-
-    if release[0].isdigit():
-        release_model = "rock"
-    elif release == "cooker":
-        release_model = "cooker"
-    else:
-        release_model = release
-
-    if args.mirror:
-        baseurl = f"{args.mirror}/{release_model}/repository/{arch}/main"
-        release_url = f"baseurl={baseurl}/release/"
-        updates_url = f"baseurl={baseurl}/updates/"
-    else:
-        baseurl = f"http://mirrors.openmandriva.org/mirrors.php?platform={release_model}&arch={arch}&repo=main"
-        release_url = f"mirrorlist={baseurl}&release=release"
-        updates_url = f"mirrorlist={baseurl}&release=updates"
-
-    gpgpath = "/etc/pki/rpm-gpg/RPM-GPG-KEY-OpenMandriva"
-
-    setup_dnf(
-        args,
-        root,
-        repos=[
-            Repo("openmandriva", f"OpenMandriva {release_model} Main", release_url, gpgpath),
-            Repo("updates", f"OpenMandriva {release_model} Main Updates", updates_url, gpgpath),
-        ],
-    )
-
-    # well we may use basesystem here, but that pulls lot of stuff
-    packages = {"basesystem-minimal", "systemd", *args.packages}
-    if not do_run_build_script and args.bootable:
-        packages |= {"kernel-release-server", "binutils", "systemd-boot", "dracut", "timezone", "systemd-cryptsetup"}
-        configure_dracut(args, root)
-    if args.network_veth:
-        packages |= {"systemd-networkd"}
-    if do_run_build_script:
-        packages.update(args.build_packages)
-    invoke_dnf(args, root, args.repositories or ["openmandriva", "updates"], packages, do_run_build_script)
-
-    disable_pam_securetty(root)
 
 
 def invoke_yum(
@@ -2362,724 +1750,18 @@ def invoke_dnf_or_yum(
         invoke_dnf(args, root, repositories, packages, do_run_build_script)
 
 
-def install_centos_old(args: CommandLineArguments, root: str, epel_release: int) -> List[str]:
-    # Repos for CentOS 7 and earlier
-
-    gpgpath = f"/etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-{args.release}"
-    gpgurl = f"https://www.centos.org/keys/RPM-GPG-KEY-CentOS-{args.release}"
-    epel_gpgpath = f"/etc/pki/rpm-gpg/RPM-GPG-KEY-EPEL-{epel_release}"
-    epel_gpgurl = f"https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-{epel_release}"
-
-    if args.mirror:
-        release_url = f"baseurl={args.mirror}/centos/{args.release}/os/x86_64"
-        updates_url = f"baseurl={args.mirror}/centos/{args.release}/updates/x86_64/"
-        extras_url = f"baseurl={args.mirror}/centos/{args.release}/extras/x86_64/"
-        centosplus_url = f"baseurl={args.mirror}/centos/{args.release}/centosplus/x86_64/"
-        epel_url = f"baseurl={args.mirror}/epel/{epel_release}/x86_64/"
-    else:
-        release_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=os"
-        updates_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=updates"
-        extras_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=extras"
-        centosplus_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=centosplus"
-        epel_url = f"mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=epel-{epel_release}&arch=x86_64"
-
-    setup_dnf(
-        args,
-        root,
-        repos=[
-            Repo("base", f"CentOS-{args.release} - Base", release_url, gpgpath, gpgurl),
-            Repo("updates", f"CentOS-{args.release} - Updates", updates_url, gpgpath, gpgurl),
-            Repo("extras", f"CentOS-{args.release} - Extras", extras_url, gpgpath, gpgurl),
-            Repo("centosplus", f"CentOS-{args.release} - Plus", centosplus_url, gpgpath, gpgurl),
-            Repo(
-                "epel",
-                f"name=Extra Packages for Enterprise Linux {epel_release} - $basearch",
-                epel_url,
-                epel_gpgpath,
-                epel_gpgurl,
-            ),
-        ],
-    )
-
-    return ["base", "updates", "extras", "centosplus"]
-
-
-def install_centos_new(args: CommandLineArguments, root: str, epel_release: int) -> List[str]:
-    # Repos for CentOS 8 and later
-
-    gpgpath = "/etc/pki/rpm-gpg/RPM-GPG-KEY-centosofficial"
-    gpgurl = "https://www.centos.org/keys/RPM-GPG-KEY-CentOS-Official"
-    epel_gpgpath = f"/etc/pki/rpm-gpg/RPM-GPG-KEY-EPEL-{epel_release}"
-    epel_gpgurl = f"https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-{epel_release}"
-
-    if args.mirror:
-        appstream_url = f"baseurl={args.mirror}/centos/{args.release}/AppStream/x86_64/os"
-        baseos_url = f"baseurl={args.mirror}/centos/{args.release}/BaseOS/x86_64/os"
-        extras_url = f"baseurl={args.mirror}/centos/{args.release}/extras/x86_64/os"
-        centosplus_url = f"baseurl={args.mirror}/centos/{args.release}/centosplus/x86_64/os"
-        epel_url = f"baseurl={args.mirror}/epel/{epel_release}/Everything/x86_64"
-    else:
-        appstream_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=AppStream"
-        baseos_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=BaseOS"
-        extras_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=extras"
-        centosplus_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=centosplus"
-        epel_url = f"mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=epel-{epel_release}&arch=x86_64"
-
-    setup_dnf(
-        args,
-        root,
-        repos=[
-            Repo("AppStream", f"CentOS-{args.release} - AppStream", appstream_url, gpgpath, gpgurl),
-            Repo("BaseOS", f"CentOS-{args.release} - Base", baseos_url, gpgpath, gpgurl),
-            Repo("extras", f"CentOS-{args.release} - Extras", extras_url, gpgpath, gpgurl),
-            Repo("centosplus", f"CentOS-{args.release} - Plus", centosplus_url, gpgpath, gpgurl),
-            Repo(
-                "epel",
-                f"name=Extra Packages for Enterprise Linux {epel_release} - $basearch",
-                epel_url,
-                epel_gpgpath,
-                epel_gpgurl,
-            ),
-        ],
-    )
-
-    return ["AppStream", "BaseOS", "extras", "centosplus"]
-
-
-def is_older_than_centos8(release: str) -> bool:
-    # CentOS 7 contains some very old versions of certain libraries
-    # which require workarounds in different places.
-    # Additionally the repositories have been changed between 7 and 8
-    epel_release = release.split(".")[0]
-    try:
-        return int(epel_release) <= 7
-    except ValueError:
-        return False
-
-
-@complete_step("Installing CentOS")
-def install_centos(args: CommandLineArguments, root: str, do_run_build_script: bool) -> None:
-    old = is_older_than_centos8(args.release)
-    epel_release = int(args.release.split(".")[0])
-
-    if old:
-        default_repos = install_centos_old(args, root, epel_release)
-    else:
-        default_repos = install_centos_new(args, root, epel_release)
-
-    packages = {"centos-release", "systemd", *args.packages}
-    if not do_run_build_script and args.bootable:
-        packages |= {"kernel", "dracut", "binutils"}
-        configure_dracut(args, root)
-        if old:
-            packages |= {"grub2-efi", "grub2-tools", "grub2-efi-x64-modules", "shim-x64", "efibootmgr", "efivar-libs"}
-        else:
-            # this does not exist on CentOS 7
-            packages.add("systemd-udev")
-
-    if do_run_build_script:
-        packages.update(args.build_packages)
-
-    repos = args.repositories or default_repos
-
-    if args.distribution == Distribution.centos_epel:
-        repos += ["epel"]
-        packages.add("epel-release")
-
-    if do_run_build_script:
-        packages.update(args.build_packages)
-
-    if not do_run_build_script and args.distribution == Distribution.centos_epel and args.network_veth:
-        packages.add("systemd-networkd")
-
-    invoke_dnf_or_yum(args, root, repos, packages, do_run_build_script)
-
-
 def debootstrap_knows_arg(arg: str) -> bool:
     return bytes("invalid option", "UTF-8") not in run(["debootstrap", arg], stdout=PIPE, check=False).stdout
-
-
-def install_debian_or_ubuntu(args: CommandLineArguments, root: str, *, do_run_build_script: bool) -> None:
-    repos = set(args.repositories) or {"main"}
-    # Ubuntu needs the 'universe' repo to install 'dracut'
-    if args.distribution == Distribution.ubuntu and args.bootable:
-        repos.add("universe")
-
-    cmdline = ["debootstrap", "--variant=minbase", "--merged-usr", f"--components={','.join(repos)}"]
-
-    if args.architecture is not None:
-        debarch = DEBIAN_ARCHITECTURES.get(args.architecture)
-        cmdline += [f"--arch={debarch}"]
-
-    # Let's use --no-check-valid-until only if debootstrap knows it
-    if debootstrap_knows_arg("--no-check-valid-until"):
-        cmdline.append("--no-check-valid-until")
-
-    # Either the image builds or it fails and we restart, we don't need safety fsyncs when bootstrapping
-    # Add it before debootstrap, as the second stage already uses dpkg from the chroot
-    dpkg_io_conf = os.path.join(root, "etc/dpkg/dpkg.cfg.d/unsafe_io")
-    os.makedirs(os.path.dirname(dpkg_io_conf), mode=0o755, exist_ok=True)
-    with open(dpkg_io_conf, "w") as f:
-        f.write("force-unsafe-io\n")
-
-    assert args.mirror is not None
-    cmdline += [args.release, root, args.mirror]
-    run(cmdline)
-
-    # Install extra packages via the secondary APT run, because it is smarter and can deal better with any
-    # conflicts. dbus and libpam-systemd are optional dependencies for systemd in debian so we include them
-    # explicitly.
-    extra_packages = {"systemd", "systemd-sysv", "dbus", "libpam-systemd"}
-    extra_packages.update(args.packages)
-
-    if do_run_build_script:
-        extra_packages.update(args.build_packages)
-
-    if not do_run_build_script and args.bootable:
-        extra_packages.add("dracut")
-        extra_packages.add("binutils")
-
-        configure_dracut(args, root)
-
-        if args.distribution == Distribution.ubuntu:
-            extra_packages.add("linux-generic")
-        else:
-            extra_packages.add("linux-image-amd64")
-
-        if args.bios_partno:
-            extra_packages.add("grub-pc")
-
-        if args.output_format == OutputFormat.gpt_btrfs:
-            extra_packages.add("btrfs-progs")
-
-    if not do_run_build_script and args.ssh:
-        extra_packages.add("openssh-server")
-
-    # Debian policy is to start daemons by default. The policy-rc.d script can be used choose which ones to
-    # start. Let's install one that denies all daemon startups.
-    # See https://people.debian.org/~hmh/invokerc.d-policyrc.d-specification.txt for more information.
-    # Note: despite writing in /usr/sbin, this file is not shipped by the OS and instead should be managed by
-    # the admin.
-    policyrcd = os.path.join(root, "usr/sbin/policy-rc.d")
-    with open(policyrcd, "w") as f:
-        f.write("#!/bin/sh\nexit 101\n")
-    os.chmod(policyrcd, 0o755)
-
-    doc_paths = [
-        "/usr/share/locale",
-        "/usr/share/doc",
-        "/usr/share/man",
-        "/usr/share/groff",
-        "/usr/share/info",
-        "/usr/share/lintian",
-        "/usr/share/linda",
-    ]
-    if not args.with_docs:
-        # Remove documentation installed by debootstrap
-        cmdline = ["/bin/rm", "-rf"] + doc_paths
-        run_workspace_command(args, root, cmdline)
-        # Create dpkg.cfg to ignore documentation on new packages
-        dpkg_conf = os.path.join(root, "etc/dpkg/dpkg.cfg.d/01_nodoc")
-        with open(dpkg_conf, "w") as f:
-            f.writelines(f"path-exclude {d}/*\n" for d in doc_paths)
-
-    cmdline = ["/usr/bin/apt-get", "--assume-yes", "--no-install-recommends", "install", *extra_packages]
-    env = {
-        "DEBIAN_FRONTEND": "noninteractive",
-        "DEBCONF_NONINTERACTIVE_SEEN": "true",
-    }
-
-    if not do_run_build_script and args.bootable and args.with_unified_kernel_images:
-        # Disable dracut postinstall script for this apt-get run.
-        env["INITRD"] = "No"
-
-        if args.distribution == Distribution.debian and args.release == "unstable":
-            # systemd-boot won't boot unified kernel images generated without a BUILD_ID or VERSION_ID in
-            # /etc/os-release.
-            with open(os.path.join(root, "etc/os-release"), "a") as f:
-                f.write("BUILD_ID=unstable\n")
-
-    run_workspace_command(args, root, cmdline, network=True, env=env)
-    os.unlink(policyrcd)
-    os.unlink(dpkg_io_conf)
-    # Debian still has pam_securetty module enabled
-    disable_pam_securetty(root)
-
-
-@complete_step("Installing Debian")
-def install_debian(args: CommandLineArguments, root: str, do_run_build_script: bool) -> None:
-    install_debian_or_ubuntu(args, root, do_run_build_script=do_run_build_script)
-
-
-@complete_step("Installing Ubuntu")
-def install_ubuntu(args: CommandLineArguments, root: str, do_run_build_script: bool) -> None:
-    install_debian_or_ubuntu(args, root, do_run_build_script=do_run_build_script)
-
-
-@complete_step("Installing Arch Linux")
-def install_arch(args: CommandLineArguments, root: str, do_run_build_script: bool) -> None:
-    if args.release is not None:
-        MkosiPrinter.info("Distribution release specification is not supported for Arch Linux, ignoring.")
-
-    if args.mirror:
-        if platform.machine() == "aarch64":
-            server = f"Server = {args.mirror}/$arch/$repo"
-        else:
-            server = f"Server = {args.mirror}/$repo/os/$arch"
-    else:
-        # Instead of harcoding a single mirror, we retrieve a list of mirrors from Arch's mirrorlist
-        # generator ordered by mirror score. This usually results in a solid mirror and also ensures that we
-        # have fallback mirrors available if necessary. Finally, the mirrors will be more likely to be up to
-        # date and we won't end up with a stable release that hardcodes a broken mirror.
-        mirrorlist = os.path.join(workspace(root), "mirrorlist")
-        with urllib.request.urlopen(
-            "https://www.archlinux.org/mirrorlist/?country=all&protocol=https&ip_version=4&use_mirror_status=on"
-        ) as r:
-            with open(mirrorlist, "w") as f:
-                mirrors = r.readlines()
-                uncommented = [line.decode("utf-8")[1:] for line in mirrors]
-                f.writelines(uncommented)
-                server = f"Include = {mirrorlist}"
-
-    # Create base layout for pacman and pacman-key
-    os.makedirs(os.path.join(root, "var/lib/pacman"), 0o755, exist_ok=True)
-    os.makedirs(os.path.join(root, "etc/pacman.d/gnupg"), 0o755, exist_ok=True)
-
-    # Permissions on these directories are all 0o777 because of `mount --bind`
-    # limitations but pacman expects them to be 0o755 so we fix them before
-    # calling pacstrap (except /var/tmp which is 0o1777).
-    fix_permissions_dirs = {
-        "boot": 0o755,
-        "etc": 0o755,
-        "etc/pacman.d": 0o755,
-        "var": 0o755,
-        "var/lib": 0o755,
-        "var/cache": 0o755,
-        "var/cache/pacman": 0o755,
-        "var/tmp": 0o1777,
-        "run": 0o755,
-    }
-
-    for dir, permissions in fix_permissions_dirs.items():
-        path = os.path.join(root, dir)
-        if os.path.exists(path):
-            os.chmod(path, permissions)
-
-    pacman_conf = os.path.join(workspace(root), "pacman.conf")
-    with open(pacman_conf, "w") as f:
-        f.write(
-            dedent(
-                f"""\
-                [options]
-                RootDir     = {root}
-                LogFile     = /dev/null
-                CacheDir    = {root}/var/cache/pacman/pkg/
-                GPGDir      = {root}/etc/pacman.d/gnupg/
-                HookDir     = {root}/etc/pacman.d/hooks/
-                HoldPkg     = pacman glibc
-                Architecture = auto
-                Color
-                CheckSpace
-                SigLevel    = Required DatabaseOptional TrustAll
-
-                [core]
-                {server}
-
-                [extra]
-                {server}
-
-                [community]
-                {server}
-                """
-            )
-        )
-
-        if args.repositories:
-            for repository in args.repositories:
-                # repositories must be passed in the form <repo name>::<repo url>
-                repository_name, repository_server = repository.split("::", 1)
-
-                # note: for additional repositories, signature checking options are set to pacman's default values
-                f.write(
-                    dedent(
-                        f"""\
-
-                        [{repository_name}]
-                        SigLevel = Optional TrustedOnly
-                        Server = {repository_server}
-                        """
-                    )
-                )
-
-    if not do_run_build_script and args.bootable:
-        hooks_dir = os.path.join(root, "etc/pacman.d/hooks")
-        scripts_dir = os.path.join(root, "etc/pacman.d/scripts")
-
-        os.makedirs(hooks_dir, 0o755, exist_ok=True)
-        os.makedirs(scripts_dir, 0o755, exist_ok=True)
-
-        # Disable depmod pacman hook as depmod is handled by kernel-install as well.
-        os.symlink("/dev/null", os.path.join(hooks_dir, "60-depmod.hook"))
-
-        kernel_add_hook = os.path.join(hooks_dir, "90-mkosi-kernel-add.hook")
-        with open(kernel_add_hook, "w") as f:
-            f.write(
-                dedent(
-                    """\
-                    [Trigger]
-                    Operation = Install
-                    Operation = Upgrade
-                    Type = Path
-                    Target = usr/lib/modules/*/vmlinuz
-                    Target = usr/lib/kernel/install.d/*
-                    Target = boot/*-ucode.img
-
-                    [Trigger]
-                    Operation = Install
-                    Operation = Upgrade
-                    Type = Package
-                    Target = systemd
-
-                    [Action]
-                    Description = Adding kernel and initramfs images to /boot...
-                    When = PostTransaction
-                    Exec = /etc/pacman.d/scripts/mkosi-kernel-add
-                    NeedsTargets
-                    """
-                )
-            )
-
-        kernel_add_script = os.path.join(scripts_dir, "mkosi-kernel-add")
-        with open(kernel_add_script, "w") as f:
-            f.write(
-                dedent(
-                    """\
-                    #!/bin/bash -e
-                    shopt -s nullglob
-
-                    declare -a kernel_version
-
-                    # Check the targets passed by the pacman hook.
-                    while read -r line
-                    do
-                        if [[ "$line" =~ usr/lib/modules/([^/]+)/vmlinuz ]]
-                        then
-                            kernel_version+=( "${BASH_REMATCH[1]}" )
-                        else
-                            # If a non-matching line is passed, just rebuild all kernels.
-                            kernel_version=()
-                            for f in /usr/lib/modules/*/vmlinuz
-                            do
-                                kernel_version+=( "$(basename "$(dirname "$f")")" )
-                            done
-                            break
-                        fi
-                    done
-
-                    # (re)build the kernel images.
-                    for kv in "${kernel_version[@]}"
-                    do
-                        kernel-install add "$kv" "/usr/lib/modules/${kv}/vmlinuz"
-                    done
-                    """
-                )
-            )
-
-        make_executable(kernel_add_script)
-
-        kernel_remove_hook = os.path.join(hooks_dir, "60-mkosi-kernel-remove.hook")
-        with open(kernel_remove_hook, "w") as f:
-            f.write(
-                dedent(
-                    """\
-                    [Trigger]
-                    Operation = Upgrade
-                    Operation = Remove
-                    Type = Path
-                    Target = usr/lib/modules/*/vmlinuz
-
-                    [Action]
-                    Description = Removing kernel and initramfs images from /boot...
-                    When = PreTransaction
-                    Exec = /etc/pacman.d/mkosi-kernel-remove
-                    NeedsTargets
-                    """
-                )
-            )
-
-        kernel_remove_script = os.path.join(scripts_dir, "mkosi-kernel-remove")
-        with open(kernel_remove_script, "w") as f:
-            f.write(
-                dedent(
-                    """\
-                    #!/bin/bash -e
-
-                    while read -r f; do
-                        kernel-install remove "$(basename "$(dirname "$f")")"
-                    done
-                    """
-                )
-            )
-
-        make_executable(kernel_remove_script)
-
-        if args.esp_partno is not None:
-            bootctl_update_hook = os.path.join(hooks_dir, "91-mkosi-bootctl-update-hook")
-            with open(bootctl_update_hook, "w") as f:
-                f.write(
-                    dedent(
-                        """\
-                        [Trigger]
-                        Operation = Upgrade
-                        Type = Package
-                        Target = systemd
-
-                        [Action]
-                        Description = Updating systemd-boot...
-                        When = PostTransaction
-                        Exec = /usr/bin/bootctl update
-                        """
-                    )
-                )
-
-        if args.bios_partno is not None:
-            vmlinuz_add_hook = os.path.join(hooks_dir, "90-mkosi-vmlinuz-add.hook")
-            with open(vmlinuz_add_hook, "w") as f:
-                f.write(
-                    """\
-                    [Trigger]
-                    Operation = Install
-                    Operation = Upgrade
-                    Type = Path
-                    Target = usr/lib/modules/*/vmlinuz
-
-                    [Action]
-                    Description = Adding vmlinuz to /boot...
-                    When = PostTransaction
-                    Exec = /bin/bash -c 'while read -r f; do install -Dm644 "$f" "/boot/vmlinuz-$(basename "$(dirname "$f")")"; done'
-                    NeedsTargets
-                    """
-                )
-
-            make_executable(vmlinuz_add_hook)
-
-            vmlinuz_remove_hook = os.path.join(hooks_dir, "60-mkosi-vmlinuz-remove.hook")
-            with open(vmlinuz_remove_hook, "w") as f:
-                f.write(
-                    """\
-                    [Trigger]
-                    Operation = Upgrade
-                    Operation = Remove
-                    Type = Path
-                    Target = usr/lib/modules/*/vmlinuz
-
-                    [Action]
-                    Description = Removing vmlinuz from /boot...
-                    When = PreTransaction
-                    Exec = /bin/bash -c 'while read -r f; do rm -f "/boot/vmlinuz-$(basename "$(dirname "$f")")"; done'
-                    NeedsTargets
-                    """
-                )
-
-            make_executable(vmlinuz_remove_hook)
-
-    keyring = "archlinux"
-    if platform.machine() == "aarch64":
-        keyring += "arm"
-
-    packages = {"base"}
-
-    if not do_run_build_script and args.bootable:
-        if args.output_format == OutputFormat.gpt_btrfs:
-            packages.add("btrfs-progs")
-        elif args.output_format == OutputFormat.gpt_xfs:
-            packages.add("xfsprogs")
-        if args.encrypt:
-            packages.add("cryptsetup")
-            packages.add("device-mapper")
-        if args.bios_partno:
-            packages.add("grub")
-
-        packages.add("dracut")
-        packages.add("binutils")
-
-        configure_dracut(args, root)
-
-    packages.update(args.packages)
-
-    official_kernel_packages = {
-        "linux",
-        "linux-lts",
-        "linux-hardened",
-        "linux-zen",
-    }
-
-    has_kernel_package = official_kernel_packages.intersection(args.packages)
-    if not do_run_build_script and args.bootable and not has_kernel_package:
-        # No user-specified kernel
-        packages.add("linux")
-
-    if do_run_build_script:
-        packages.update(args.build_packages)
-
-    if not do_run_build_script and args.ssh:
-        packages.add("openssh")
-
-    def run_pacman(packages: Set[str]) -> None:
-        conf = ["--config", pacman_conf]
-
-        try:
-            run(["pacman-key", *conf, "--init"])
-            run(["pacman-key", *conf, "--populate"])
-            run(["pacman", *conf, "--noconfirm", "-Sy", *packages])
-        finally:
-            # Kill the gpg-agent started by pacman and pacman-key.
-            run(["gpgconf", "--homedir", os.path.join(root, "etc/pacman.d/gnupg"), "--kill", "all"])
-
-    with mount_api_vfs(args, root):
-        run_pacman(packages)
-
-    # If /etc/locale.gen exists, uncomment the desired locale and leave the rest of the file untouched.
-    # If it doesn’t exist, just write the desired locale in it.
-    try:
-
-        def _enable_locale(line: str) -> str:
-            if line.startswith("#en_US.UTF-8"):
-                return line.replace("#", "")
-            return line
-
-        patch_file(os.path.join(root, "etc/locale.gen"), _enable_locale)
-
-    except FileNotFoundError:
-        with open(os.path.join(root, "etc/locale.gen"), "x") as f:
-            f.write("en_US.UTF-8 UTF-8\n")
-
-    run_workspace_command(args, root, ["/usr/bin/locale-gen"])
-
-    with open(os.path.join(root, "etc/locale.conf"), "w") as f:
-        f.write("LANG=en_US.UTF-8\n")
-
-    # Arch still uses pam_securetty which prevents root login into
-    # systemd-nspawn containers. See https://bugs.archlinux.org/task/45903.
-    disable_pam_securetty(root)
-
-
-@complete_step("Installing openSUSE")
-def install_opensuse(args: CommandLineArguments, root: str, do_run_build_script: bool) -> None:
-    release = args.release.strip('"')
-
-    # If the release looks like a timestamp, it's Tumbleweed. 13.x is legacy (14.x won't ever appear). For
-    # anything else, let's default to Leap.
-    if release.isdigit() or release == "tumbleweed":
-        release_url = f"{args.mirror}/tumbleweed/repo/oss/"
-        updates_url = f"{args.mirror}/update/tumbleweed/"
-    elif release == "leap":
-        release_url = f"{args.mirror}/distribution/leap/15.1/repo/oss/"
-        updates_url = f"{args.mirror}/update/leap/15.1/oss/"
-    elif release == "current":
-        release_url = f"{args.mirror}/distribution/openSUSE-stable/repo/oss/"
-        updates_url = f"{args.mirror}/update/openSUSE-current/"
-    elif release == "stable":
-        release_url = f"{args.mirror}/distribution/openSUSE-stable/repo/oss/"
-        updates_url = f"{args.mirror}/update/openSUSE-stable/"
-    else:
-        release_url = f"{args.mirror}/distribution/leap/{release}/repo/oss/"
-        updates_url = f"{args.mirror}/update/leap/{release}/oss/"
-
-    # Configure the repositories: we need to enable packages caching here to make sure that the package cache
-    # stays populated after "zypper install".
-    run(["zypper", "--root", root, "addrepo", "-ck", release_url, "repo-oss"])
-    run(["zypper", "--root", root, "addrepo", "-ck", updates_url, "repo-update"])
-
-    if not args.with_docs:
-        with open(os.path.join(root, "etc/zypp/zypp.conf"), "w") as f:
-            f.write("rpm.install.excludedocs = yes\n")
-
-    packages = {"systemd", *args.packages}
-
-    if release.startswith("42."):
-        packages.add("patterns-openSUSE-minimal_base")
-    else:
-        packages.add("patterns-base-minimal_base")
-
-    if not do_run_build_script and args.bootable:
-        packages.add("kernel-default")
-        packages.add("dracut")
-        packages.add("binutils")
-
-        configure_dracut(args, root)
-
-        if args.bios_partno is not None:
-            packages.add("grub2")
-
-    if not do_run_build_script and args.encrypt:
-        packages.add("device-mapper")
-
-    if args.output_format in (OutputFormat.subvolume, OutputFormat.gpt_btrfs):
-        packages.add("btrfsprogs")
-
-    if do_run_build_script:
-        packages.update(args.build_packages)
-
-    if not do_run_build_script and args.ssh:
-        packages.update("openssh-server")
-
-    cmdline = [
-        "zypper",
-        "--root",
-        root,
-        "--gpg-auto-import-keys",
-        "install",
-        "-y",
-        "--no-recommends",
-        "--download-in-advance",
-        *packages,
-    ]
-
-    with mount_api_vfs(args, root):
-        run(cmdline)
-
-    # Disable packages caching in the image that was enabled previously to populate the package cache.
-    run(["zypper", "--root", root, "modifyrepo", "-K", "repo-oss"])
-    run(["zypper", "--root", root, "modifyrepo", "-K", "repo-update"])
-
-    if args.password == "":
-        shutil.copy2(os.path.join(root, "usr/etc/pam.d/common-auth"), os.path.join(root, "etc/pam.d/common-auth"))
-
-        def jj(line: str) -> str:
-            if "pam_unix.so" in line:
-                return f"{line.strip()} nullok"
-            return line
-
-        patch_file(os.path.join(root, "etc/pam.d/common-auth"), jj)
-
-    if args.autologin:
-        # copy now, patch later (in set_autologin())
-        shutil.copy2(os.path.join(root, "usr/etc/pam.d/login"), os.path.join(root, "etc/pam.d/login"))
 
 
 def install_distribution(args: CommandLineArguments, root: str, do_run_build_script: bool, cached: bool) -> None:
     if cached:
         return
 
-    install: Dict[Distribution, Callable[[CommandLineArguments, str, bool], None]] = {
-        Distribution.fedora: install_fedora,
-        Distribution.centos: install_centos,
-        Distribution.centos_epel: install_centos,
-        Distribution.mageia: install_mageia,
-        Distribution.debian: install_debian,
-        Distribution.ubuntu: install_ubuntu,
-        Distribution.arch: install_arch,
-        Distribution.opensuse: install_opensuse,
-        Distribution.clear: install_clear,
-        Distribution.photon: install_photon,
-        Distribution.openmandriva: install_openmandriva,
-    }
-
     disable_kernel_install(args, root)
 
-    with mount_cache(args, root):
-        install[args.distribution](args, root, do_run_build_script)
+    with mount_cache(args, root), complete_step("Installing {args.distribution}"):
+        args.distribution.install_distribution(root, do_run_build_script)
 
     reenable_kernel_install(args, root)
 
@@ -3183,8 +1865,7 @@ def set_autologin(args: CommandLineArguments, root: str, do_run_build_script: bo
         return
 
     with complete_step("Setting up autologin"):
-        # On Arch, Debian, PAM wants the full path to the console device or it will refuse access
-        device_prefix = "/dev/" if args.distribution in [Distribution.arch, Distribution.debian] else ""
+        device_prefix = args.distribution.pam_device_prefix
 
         override_dir = os.path.join(root, "etc/systemd/system/console-getty.service.d")
         os.makedirs(override_dir, mode=0o755, exist_ok=True)
@@ -3365,97 +2046,6 @@ def run_finalize_script(args: CommandLineArguments, root: str, do_run_build_scri
         run([args.finalize_script, verb], env=env)
 
 
-def nspawn_params_for_blockdev_access(args: CommandLineArguments, loopdev: str) -> List[str]:
-    params = [
-        f"--bind-ro={loopdev}",
-        f"--bind-ro=/dev/block",
-        f"--bind-ro=/dev/disk",
-        f"--property=DeviceAllow={loopdev}",
-    ]
-    for partno in (args.esp_partno, args.bios_partno, args.root_partno, args.xbootldr_partno):
-        if partno is not None:
-            p = partition(loopdev, partno)
-            if os.path.exists(p):
-                params += [f"--bind-ro={p}", f"--property=DeviceAllow={p}"]
-    return params
-
-
-def write_grub_config(args: CommandLineArguments, root: str) -> None:
-    kernel_cmd_line = " ".join(args.kernel_command_line)
-    grub_cmdline = f'GRUB_CMDLINE_LINUX="{kernel_cmd_line}"\n'
-    os.makedirs(os.path.join(root, "etc/default"), exist_ok=True, mode=0o755)
-    grub_config = os.path.join(root, "etc/default/grub")
-    if not os.path.exists(grub_config):
-        with open(grub_config, "w+") as f:
-            f.write(grub_cmdline)
-    else:
-
-        def jj(line: str) -> str:
-            if line.startswith("GRUB_CMDLINE_LINUX="):
-                return grub_cmdline
-            if args.qemu_headless:
-                if "GRUB_TERMINAL_INPUT" in line:
-                    return 'GRUB_TERMINAL_INPUT="console serial"'
-                if "GRUB_TERMINAL_OUTPUT" in line:
-                    return 'GRUB_TERMINAL_OUTPUT="console serial"'
-            return line
-
-        patch_file(grub_config, jj)
-
-        if args.qemu_headless:
-            with open(grub_config, "a") as f:
-                f.write('GRUB_SERIAL_COMMAND="serial --unit=0 --speed 115200"\n')
-
-
-def install_grub(args: CommandLineArguments, root: str, loopdev: str, grub: str) -> None:
-    if args.bios_partno is None:
-        return
-
-    write_grub_config(args, root)
-
-    nspawn_params = nspawn_params_for_blockdev_access(args, loopdev)
-
-    cmdline = [f"{grub}-install", "--modules=ext2 part_gpt", "--target=i386-pc", loopdev]
-    run_workspace_command(args, root, cmdline, nspawn_params=nspawn_params)
-
-    # TODO: Remove os.path.basename once https://github.com/systemd/systemd/pull/16645 is widely available.
-    cmdline = [f"{grub}-mkconfig", f"--output=/boot/{os.path.basename(grub)}/grub.cfg"]
-    run_workspace_command(args, root, cmdline, nspawn_params=nspawn_params)
-
-
-def install_boot_loader_clear(args: CommandLineArguments, root: str, loopdev: str) -> None:
-    # clr-boot-manager uses blkid in the device backing "/" to
-    # figure out uuid and related parameters.
-    nspawn_params = nspawn_params_for_blockdev_access(args, loopdev)
-
-    cmdline = ["/usr/bin/clr-boot-manager", "update", "-i"]
-    run_workspace_command(args, root, cmdline, nspawn_params=nspawn_params)
-
-
-def install_boot_loader_centos_old_efi(args: CommandLineArguments, root: str, loopdev: str) -> None:
-    nspawn_params = nspawn_params_for_blockdev_access(args, loopdev)
-
-    # prepare EFI directory on ESP
-    os.makedirs(os.path.join(root, "efi/EFI/centos"), exist_ok=True)
-
-    # patch existing or create minimal GRUB_CMDLINE config
-    write_grub_config(args, root)
-
-    # generate grub2 efi boot config
-    cmdline = ["/sbin/grub2-mkconfig", "-o", "/efi/EFI/centos/grub.cfg"]
-    run_workspace_command(args, root, cmdline, nspawn_params=nspawn_params)
-
-    # if /sys/firmware/efi is not present within systemd-nspawn the grub2-mkconfig makes false assumptions, let's fix this
-    def _fix_grub(line: str) -> str:
-        if "linux16" in line:
-            return line.replace("linux16", "linuxefi")
-        elif "initrd16" in line:
-            return line.replace("initrd16", "initrdefi")
-        return line
-
-    patch_file(os.path.join(root, "efi/EFI/centos/grub.cfg"), _fix_grub)
-
-
 def install_boot_loader(
     args: CommandLineArguments, root: str, loopdev: Optional[str], do_run_build_script: bool, cached: bool
 ) -> None:
@@ -3468,29 +2058,10 @@ def install_boot_loader(
 
     with complete_step("Installing boot loader"):
         if args.esp_partno:
-            if args.distribution == Distribution.clear:
-                pass
-            elif args.distribution in (Distribution.centos, Distribution.centos_epel) and is_older_than_centos8(
-                args.release
-            ):
-                install_boot_loader_centos_old_efi(args, root, loopdev)
-            else:
-                run_workspace_command(args, root, ["bootctl", "install"])
+            args.distribution.install_bootloader_efi(root, loopdev)
 
-        if args.bios_partno and args.distribution != Distribution.clear:
-            grub = (
-                "grub"
-                if args.distribution in (Distribution.ubuntu, Distribution.debian, Distribution.arch)
-                else "grub2"
-            )
-            # TODO: Just use "grub" once https://github.com/systemd/systemd/pull/16645 is widely available.
-            if args.distribution in (Distribution.ubuntu, Distribution.debian, Distribution.opensuse):
-                grub = f"/usr/sbin/{grub}"
-
-            install_grub(args, root, loopdev, grub)
-
-        if args.distribution == Distribution.clear:
-            install_boot_loader_clear(args, root, loopdev)
+        if args.bios_partno:
+            args.distribution.install_bootloader_bios(root, loopdev)
 
 
 def install_extra_trees(args: CommandLineArguments, root: str, for_cache: bool) -> None:
@@ -3653,15 +2224,7 @@ def make_tar(args: CommandLineArguments, root: str, do_run_build_script: bool, f
 
     with complete_step("Creating archive"):
         f: BinaryIO = cast(BinaryIO, tempfile.NamedTemporaryFile(dir=os.path.dirname(args.output), prefix=".mkosi-"))
-        # OpenMandriva defaults to bsdtar(libarchive) which uses POSIX argument list so let's keep a separate list
-        if shutil.which("bsdtar") and args.distribution == Distribution.openmandriva:
-            _tar_cmd = ["bsdtar", "-C", tar_root_dir, "-c", "-J", "--xattrs", "-f", "-", "."]
-        else:
-            _tar_cmd = ["tar", "-C", tar_root_dir, "-c", "-J", "--xattrs", "--xattrs-include=*"]
-            if args.tar_strip_selinux_context:
-                _tar_cmd.append("--xattrs-exclude=security.selinux")
-            _tar_cmd.append(".")
-
+        _tar_cmd = args.distribution.tar_cmd(tar_root_dir)
         run(_tar_cmd, env={"XZ_OPT": "-T0"}, stdout=f)
 
     return f
@@ -4755,7 +3318,7 @@ def create_parser() -> ArgumentParserMkosi:
     group.add_argument("--version", action="version", version="%(prog)s " + __version__)
 
     group = parser.add_argument_group("Distribution")
-    group.add_argument("-d", "--distribution", choices=Distribution.__members__, help="Distribution to install")
+    group.add_argument("-d", "--distribution", choices=SUPPORTED_DISTRIBUTIONS.keys(), help="Distribution to install")
     group.add_argument("-r", "--release", help="Distribution release to install")
     group.add_argument("-m", "--mirror", help="Distribution mirror to use")
     group.add_argument(
@@ -5126,7 +3689,7 @@ def create_parser() -> ArgumentParserMkosi:
 
 def load_distribution(args: argparse.Namespace) -> argparse.Namespace:
     if args.distribution is not None:
-        args.distribution = Distribution[args.distribution]
+        args.distribution = SUPPORTED_DISTRIBUTIONS[args.distribution]
 
     if args.distribution is None or args.release is None:
         d, r = detect_distribution()
@@ -5134,7 +3697,7 @@ def load_distribution(args: argparse.Namespace) -> argparse.Namespace:
         if args.distribution is None:
             args.distribution = d
 
-        if args.distribution == d and d != Distribution.clear and args.release is None:
+        if args.distribution == d and issubclass(d, SUPPORTED_DISTRIBUTIONS["clear"]) and args.release is None:
             args.release = r
 
     if args.distribution is None:
@@ -5313,7 +3876,7 @@ def parse_bytes(num_bytes: Optional[str]) -> Optional[int]:
     return result
 
 
-def detect_distribution() -> Tuple[Optional[Distribution], Optional[str]]:
+def detect_distribution() -> Tuple[Optional[DistributionInstaller], Optional[str]]:
     try:
         f = open("/etc/os-release")
     except IOError:
@@ -5349,16 +3912,16 @@ def detect_distribution() -> Tuple[Optional[Distribution], Optional[str]]:
     if dist_id == "clear-linux-os":
         dist_id = "clear"
 
-    d: Optional[Distribution] = None
+    d: Optional[str] = None
     if dist_id is not None:
-        d = Distribution.__members__.get(dist_id, None)
+        d = SUPPORTED_DISTRIBUTIONS.get(dist_id, None)
         if d is None:
             for dist_id in dist_id_like:
-                d = Distribution.__members__.get(dist_id, None)
+                d = SUPPORTED_DISTRIBUTIONS.get(dist_id, None)
                 if d is not None:
                     break
 
-    if (d == Distribution.debian or d == Distribution.ubuntu) and (version_codename or extracted_codename):
+    if issubclass(d, SUPPORTED_DISTRIBUTIONS["debian"]) and (version_codename or extracted_codename):
         # debootstrap needs release codenames, not version numbers
         if version_codename:
             version_id = version_codename
@@ -5532,12 +4095,7 @@ def find_cache(args: argparse.Namespace) -> None:
         return
 
     if os.path.exists("mkosi.cache/"):
-        args.cache_path = "mkosi.cache/" + args.distribution.name
-
-        # Clear has a release number that can be used, however the
-        # cache is valid (and more efficient) across releases.
-        if args.distribution != Distribution.clear and args.release is not None:
-            args.cache_path += "~" + args.release
+        args.cache_path = "mkosi.cache/" + args.distribution.cache_path
 
 
 def require_private_file(name: str, description: str) -> None:
@@ -5656,8 +4214,8 @@ def check_valid_script(path: str) -> None:
 
 
 def load_args(args: argparse.Namespace) -> CommandLineArguments:
-    global arg_debug
-    arg_debug = args.debug
+    global ARG_DEBUG
+    ARG_DEBUG = args.debug
 
     args_find_path(args, "nspawn_settings", "mkosi.nspawn")
     args_find_path(args, "build_script", "mkosi.build")
@@ -5692,26 +4250,7 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
     args = load_distribution(args)
 
     if args.release is None:
-        if args.distribution == Distribution.fedora:
-            args.release = "34"
-        elif args.distribution in (Distribution.centos, Distribution.centos_epel):
-            args.release = "8"
-        elif args.distribution == Distribution.mageia:
-            args.release = "7"
-        elif args.distribution == Distribution.debian:
-            args.release = "unstable"
-        elif args.distribution == Distribution.ubuntu:
-            args.release = "focal"
-        elif args.distribution == Distribution.opensuse:
-            args.release = "tumbleweed"
-        elif args.distribution == Distribution.clear:
-            args.release = "latest"
-        elif args.distribution == Distribution.photon:
-            args.release = "3.0"
-        elif args.distribution == Distribution.openmandriva:
-            args.release = "cooker"
-        else:
-            args.release = "rolling"
+        args.release = args.distribution.release
 
     if args.bootable:
         if args.output_format in (
@@ -5723,52 +4262,12 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
             die("Directory, subvolume, tar and plain squashfs images cannot be booted.")
 
         if not args.boot_protocols:
-            args.boot_protocols = ["uefi"]
-
-            if args.distribution == Distribution.photon:
-                args.boot_protocols = ["bios"]
+            args.boot_protocols = [args.distribution.supported_boot_protocols[0]]
 
         if not {"uefi", "bios"}.issuperset(args.boot_protocols):
             die("Not a valid boot protocol")
 
-        if "uefi" in args.boot_protocols and args.distribution == Distribution.photon:
-            die(f"uefi boot not supported for {args.distribution}")
-
-    if args.distribution in (Distribution.centos, Distribution.centos_epel):
-        epel_release = int(args.release.split(".")[0])
-        if epel_release <= 8 and args.output_format == OutputFormat.gpt_btrfs:
-            die(f"Sorry, CentOS {epel_release} does not support btrfs")
-        if epel_release <= 7 and args.bootable and "uefi" in args.boot_protocols and args.with_unified_kernel_images:
-            die(
-                f"Sorry, CentOS {epel_release} does not support unified kernel images. "
-                "You must use --without-unified-kernel-images."
-            )
-
-    # Remove once https://github.com/clearlinux/clr-boot-manager/pull/238 is merged and available.
-    if args.distribution == Distribution.clear and args.output_format == OutputFormat.gpt_btrfs:
-        die("Sorry, Clear Linux does not support btrfs")
-
-    if args.distribution == Distribution.clear and "," in args.boot_protocols:
-        die("Sorry, Clear Linux does not support hybrid BIOS/UEFI images")
-
-    if shutil.which("bsdtar") and args.distribution == Distribution.openmandriva and args.tar_strip_selinux_context:
-        die("Sorry, bsdtar on OpenMandriva is incompatible with --tar-strip-selinux-context")
-
     find_cache(args)
-
-    if args.mirror is None:
-        if args.distribution in (Distribution.fedora, Distribution.centos):
-            args.mirror = None
-        elif args.distribution == Distribution.debian:
-            args.mirror = "http://deb.debian.org/debian"
-        elif args.distribution == Distribution.ubuntu:
-            args.mirror = "http://archive.ubuntu.com/ubuntu"
-            if platform.machine() == "aarch64":
-                args.mirror = "http://ports.ubuntu.com/"
-        elif args.distribution == Distribution.arch and platform.machine() == "aarch64":
-            args.mirror = "http://mirror.archlinuxarm.org"
-        elif args.distribution == Distribution.opensuse:
-            args.mirror = "http://download.opensuse.org"
 
     if args.minimize and not args.output_format.can_minimize():
         die("Minimal file systems only supported for ext4 and btrfs.")
@@ -5971,13 +4470,6 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
     if is_generated_root(args) and "bios" in args.boot_protocols:
         die("Sorry, BIOS cannot be combined with --minimize or squashfs filesystems")
 
-    if args.bootable and args.distribution in (Distribution.clear, Distribution.photon):
-        die("Sorry, --bootable is not supported on this distro")
-
-    if not args.with_unified_kernel_images and "uefi" in args.boot_protocols:
-        if args.distribution in (Distribution.debian, Distribution.ubuntu, Distribution.mageia, Distribution.opensuse):
-            die("Sorry, --without-unified-kernel-images is not supported in UEFI mode on this distro.")
-
     if args.verity and not args.with_unified_kernel_images:
         die("Sorry, --verity can only be used with unified kernel images")
 
@@ -6160,7 +4652,7 @@ def print_summary(args: CommandLineArguments) -> None:
     MkosiPrinter.info("\nPACKAGES:")
     MkosiPrinter.info("                  Packages: " + line_join_list(args.packages))
 
-    if args.distribution in (Distribution.fedora, Distribution.centos, Distribution.centos_epel, Distribution.mageia):
+    if args.distribution.supports_with_documentation:
         MkosiPrinter.info("        With Documentation: " + yes_no(args.with_docs))
 
     MkosiPrinter.info("             Package Cache: " + none_to_none(args.cache_path))
@@ -6266,10 +4758,7 @@ def setup_ssh(
     if do_run_build_script or not args.ssh:
         return None
 
-    if args.distribution in (Distribution.debian, Distribution.ubuntu):
-        unit = "ssh"
-    else:
-        unit = "sshd"
+    unit = args.distribution.unit_name_ssh
 
     # We cache the enable sshd step but not the keygen step because it creates a separate file on the host
     # which introduces non-trivial issue when trying to cache it.
@@ -6481,14 +4970,6 @@ def build_image(
     return raw or generated_root, tar, root_hash, sshkey, split_root, split_verity, split_kernel
 
 
-def workspace(root: str) -> str:
-    return os.path.dirname(root)
-
-
-def var_tmp(root: str) -> str:
-    return mkdir_last(os.path.join(workspace(root), "var-tmp"))
-
-
 def one_zero(b: bool) -> str:
     return "1" if b else "0"
 
@@ -6568,7 +5049,7 @@ def run_build_script(args: CommandLineArguments, root: str, raw: Optional[Binary
         # See https://github.com/systemd/mkosi/pull/566 for more information.
         result = run(cmdline, stdout=sys.stdout, check=False)
         if result.returncode != 0:
-            if "build-script" in arg_debug:
+            if "build-script" in ARG_DEBUG:
                 run(cmdline[:-1], check=False)
             die(f"Build script returned non-zero exit code {result.returncode}.")
 
