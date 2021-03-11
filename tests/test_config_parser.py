@@ -105,6 +105,7 @@ class MkosiConfig(object):
             "srv_size": None,
             "swap_size": None,
             "tmp_size": None,
+            "usr_only": False,
             "var_size": None,
             "verb": "build",
             "verity": False,
@@ -509,6 +510,7 @@ class MkosiConfigManyParams(MkosiConfigOne):
                 "XZ": False,
                 "QCow2": False,
                 "Hostname": "myhost1",
+                "UsrOnly": False,
             },
             "Packages": {
                 "Packages": ["pkg-foo", "pkg-bar", "pkg-foo1,pkg-bar1"],
@@ -573,6 +575,7 @@ class MkosiConfigManyParams(MkosiConfigOne):
                 "XZ": True,
                 "QCow2": True,
                 "Hostname": "myubuhost1",
+                "UsrOnly": False,
             },
             "Packages": {
                 "Packages": ["add-ubu-1", "add-ubu-2"],
@@ -637,6 +640,7 @@ class MkosiConfigManyParams(MkosiConfigOne):
                 "XZ": True,
                 "QCow2": True,
                 "Hostname": "mydebihost1",
+                "UsrOnly": False,
             },
             "Packages": {
                 "Packages": ["!add-ubu-1", "!add-ubu-2", "add-debi-1", "add-debi-2"],

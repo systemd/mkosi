@@ -394,6 +394,7 @@ class CommandLineArguments:
     srv_size: Optional[int]
     var_size: Optional[int]
     tmp_size: Optional[int]
+    usr_only: bool
     checksum: bool
     sign: bool
     key: Optional[str]
@@ -453,6 +454,11 @@ GPT_ROOT_X86_64        = uuid.UUID("4f68bce3e8cd4db196e7fbcaf984b709")  # NOQA: 
 GPT_ROOT_ARM           = uuid.UUID("69dad7102ce44e3cb16c21a1d49abed3")  # NOQA: E221
 GPT_ROOT_ARM_64        = uuid.UUID("b921b0451df041c3af444c6f280d3fae")  # NOQA: E221
 GPT_ROOT_IA64          = uuid.UUID("993d8d3df80e4225855a9daf8ed7ea97")  # NOQA: E221
+GPT_USR_X86            = uuid.UUID("75250d768cc6458ebd66bd47cc81a812")  # NOQA: E221
+GPT_USR_X86_64         = uuid.UUID("8484680c952148c69c11b0720656f69e")  # NOQA: E221
+GPT_USR_ARM            = uuid.UUID("7d0359a302b34f0a865c654403e70625")  # NOQA: E221
+GPT_USR_ARM_64         = uuid.UUID("b0e01050ee5f4390949a9101b17104e9")  # NOQA: E221
+GPT_USR_IA64           = uuid.UUID("4301d2a64e3b4b2abb949e0b2c4225ea")  # NOQA: E221
 GPT_ESP                = uuid.UUID("c12a7328f81f11d2ba4b00a0c93ec93b")  # NOQA: E221
 GPT_BIOS               = uuid.UUID("2168614864496e6f744e656564454649")  # NOQA: E221
 GPT_SWAP               = uuid.UUID("0657fd6da4ab43c484e50933c84b4f4f")  # NOQA: E221
@@ -464,6 +470,11 @@ GPT_ROOT_X86_64_VERITY = uuid.UUID("2c7357edebd246d9aec123d437ec2bf5")  # NOQA: 
 GPT_ROOT_ARM_VERITY    = uuid.UUID("7386cdf2203c47a9a498f2ecce45a2d6")  # NOQA: E221
 GPT_ROOT_ARM_64_VERITY = uuid.UUID("df3300ced69f4c92978c9bfb0f38d820")  # NOQA: E221
 GPT_ROOT_IA64_VERITY   = uuid.UUID("86ed10d5b60745bb8957d350f23d0571")  # NOQA: E221
+GPT_USR_X86_VERITY     = uuid.UUID("8f461b0d14ee4e819aa9049b6fb97abd")  # NOQA: E221
+GPT_USR_X86_64_VERITY  = uuid.UUID("77ff5f63e7b64633acf41565b864c0e6")  # NOQA: E221
+GPT_USR_ARM_VERITY     = uuid.UUID("c215d7517bcd4649be906627490a4c05")  # NOQA: E221
+GPT_USR_ARM_64_VERITY  = uuid.UUID("6e11a4e7fbca4dedb9e9e1a512bb664e")  # NOQA: E221
+GPT_USR_IA64_VERITY    = uuid.UUID("6a491e033be745458e3883320e0ea880")  # NOQA: E221
 GPT_TMP                = uuid.UUID("7ec6f5573bc54acab29316ef5df639d1")  # NOQA: E221
 GPT_VAR                = uuid.UUID("4d21b016b53445c2a9fb5c16e091fd2d")  # NOQA: E221
 # fmt: on
@@ -515,7 +526,7 @@ class GPTRootTypePair(NamedTuple):
     verity: uuid.UUID
 
 
-def gpt_root_native(arch: Optional[str]) -> GPTRootTypePair:
+def gpt_root_native(arch: Optional[str], usr_only: bool = False) -> GPTRootTypePair:
     """The tag for the native GPT root partition for the given architecture
 
     Returns a tuple of two tags: for the root partition and for the
@@ -523,14 +534,25 @@ def gpt_root_native(arch: Optional[str]) -> GPTRootTypePair:
     """
     if arch is None:
         arch = platform.machine()
-    if arch == "x86_64":
-        return GPTRootTypePair(GPT_ROOT_X86_64, GPT_ROOT_X86_64_VERITY)
-    elif arch == "aarch64":
-        return GPTRootTypePair(GPT_ROOT_ARM_64, GPT_ROOT_ARM_64_VERITY)
-    elif arch == "armv7l":
-        return GPTRootTypePair(GPT_ROOT_ARM, GPT_ROOT_ARM_VERITY)
+
+    if usr_only:
+        if arch == "x86_64":
+            return GPTRootTypePair(GPT_USR_X86_64, GPT_USR_X86_64_VERITY)
+        elif arch == "aarch64":
+            return GPTRootTypePair(GPT_USR_ARM_64, GPT_USR_ARM_64_VERITY)
+        elif arch == "armv7l":
+            return GPTRootTypePair(GPT_USR_ARM, GPT_USR_ARM_VERITY)
+        else:
+            die(f"Unknown architecture {arch}.")
     else:
-        die(f"Unknown architecture {arch}.")
+        if arch == "x86_64":
+            return GPTRootTypePair(GPT_ROOT_X86_64, GPT_ROOT_X86_64_VERITY)
+        elif arch == "aarch64":
+            return GPTRootTypePair(GPT_ROOT_ARM_64, GPT_ROOT_ARM_64_VERITY)
+        elif arch == "armv7l":
+            return GPTRootTypePair(GPT_ROOT_ARM, GPT_ROOT_ARM_VERITY)
+        else:
+            die(f"Unknown architecture {arch}.")
 
 
 def unshare(flags: int) -> None:
@@ -761,7 +783,7 @@ def is_generated_root(args: Union[argparse.Namespace, CommandLineArguments]) -> 
     """Returns whether this configuration means we need to generate a file system from a prepared tree
 
     This is needed for anything squashfs and when root minimization is required."""
-    return args.minimize or args.output_format.is_squashfs()
+    return args.minimize or args.output_format.is_squashfs() or args.usr_only
 
 
 def image_size(args: CommandLineArguments) -> int:
@@ -868,9 +890,10 @@ def determine_partition_table(args: CommandLineArguments) -> Tuple[str, bool]:
             run_sfdisk = True
 
     if not is_generated_root(args):
-        table += 'type={}, attrs={}, name="Root Partition"\n'.format(
-            gpt_root_native(args.architecture).root,
+        table += 'type={}, attrs={}, name="{}"\n'.format(
+            gpt_root_native(args.architecture, args.usr_only).root,
             "GUID:60" if args.read_only and args.output_format != OutputFormat.gpt_btrfs else "",
+            "System Resources Partition" if args.usr_only else "Root Partition",
         )
         run_sfdisk = True
 
@@ -1324,7 +1347,8 @@ def prepare_root(args: CommandLineArguments, dev: Optional[str], cached: bool) -
     if cached:
         return
 
-    with complete_step("Formatting root partition"):
+    what = "usr" if args.usr_only else "root"
+    with complete_step(f"Formatting {what} partition"):
         mkfs_generic(args, "root", "/", dev)
 
 
@@ -3512,13 +3536,15 @@ def make_tar(args: CommandLineArguments, root: str, do_run_build_script: bool, f
     if for_cache:
         return None
 
+    tar_root_dir = f"{root}/usr" if args.usr_only else root
+
     with complete_step("Creating archive"):
         f: BinaryIO = cast(BinaryIO, tempfile.NamedTemporaryFile(dir=os.path.dirname(args.output), prefix=".mkosi-"))
         # OpenMandriva defaults to bsdtar(libarchive) which uses POSIX argument list so let's keep a separate list
         if shutil.which("bsdtar") and args.distribution == Distribution.openmandriva:
-            _tar_cmd = ["bsdtar", "-C", root, "-c", "-J", "--xattrs", "-f", "-", "."]
+            _tar_cmd = ["bsdtar", "-C", tar_root_dir, "-c", "-J", "--xattrs", "-f", "-", "."]
         else:
-            _tar_cmd = ["tar", "-C", root, "-c", "-J", "--xattrs", "--xattrs-include=*"]
+            _tar_cmd = ["tar", "-C", tar_root_dir, "-c", "-J", "--xattrs", "--xattrs-include=*"]
             if args.tar_strip_selinux_context:
                 _tar_cmd.append("--xattrs-exclude=security.selinux")
             _tar_cmd.append(".")
@@ -3528,7 +3554,7 @@ def make_tar(args: CommandLineArguments, root: str, do_run_build_script: bool, f
     return f
 
 
-def make_squashfs(args: CommandLineArguments, root: str, for_cache: bool) -> Optional[BinaryIO]:
+def generate_squashfs(args: CommandLineArguments, root: str, for_cache: bool) -> Optional[BinaryIO]:
     if not args.output_format.is_squashfs():
         return None
     if for_cache:
@@ -3550,10 +3576,8 @@ def make_squashfs(args: CommandLineArguments, root: str, for_cache: bool) -> Opt
     return f
 
 
-def make_minimal_ext4(args: CommandLineArguments, root: str, for_cache: bool) -> Optional[BinaryIO]:
+def generate_ext4(args: CommandLineArguments, root: str, label: str, for_cache: bool) -> Optional[BinaryIO]:
     if args.output_format != OutputFormat.gpt_ext4:
-        return None
-    if not args.minimize:
         return None
     if for_cache:
         return None
@@ -3563,18 +3587,17 @@ def make_minimal_ext4(args: CommandLineArguments, root: str, for_cache: bool) ->
             BinaryIO, tempfile.NamedTemporaryFile(prefix=".mkosi-mkfs-ext4", dir=os.path.dirname(args.output))
         )
         f.truncate(args.root_size)
-        run(["mkfs.ext4", "-I", "256", "-L", "root", "-M", "/", "-d", root, f.name])
+        run(["mkfs.ext4", "-I", "256", "-L", label, "-M", "/", "-d", root, f.name])
 
-    with complete_step("Minimizing ext4 root file system"):
-        run(["resize2fs", "-M", f.name])
+    if args.minimize:
+        with complete_step("Minimizing ext4 root file system"):
+            run(["resize2fs", "-M", f.name])
 
     return f
 
 
-def make_minimal_btrfs(args: CommandLineArguments, root: str, for_cache: bool) -> Optional[BinaryIO]:
+def generate_btrfs(args: CommandLineArguments, root: str, label: str, for_cache: bool) -> Optional[BinaryIO]:
     if args.output_format != OutputFormat.gpt_btrfs:
-        return None
-    if not args.minimize:
         return None
     if for_cache:
         return None
@@ -3585,26 +3608,35 @@ def make_minimal_btrfs(args: CommandLineArguments, root: str, for_cache: bool) -
         )
         f.truncate(args.root_size)
 
-        command = ["mkfs.btrfs", "-L", "root", "-d", "single", "-m", "single", "--shrink", "--rootdir", root, f.name]
-        try:
-            run(command)
-        except subprocess.CalledProcessError:
-            # The --shrink option was added in btrfs-tools 4.14.1, before that it was the default behaviour.
-            # If the above fails, let's see if things work if we drop it
-            command.remove("--shrink")
-            run(command)
+        cmdline = ["mkfs.btrfs", "-L", label, "-d", "single", "-m", "single", "--rootdir", root, f.name]
+
+        if args.minimize:
+            try:
+                run(cmdline + ["--shrink"])
+            except subprocess.CalledProcessError:
+                # The --shrink option was added in btrfs-tools 4.14.1, before that it was the default behaviour.
+                # If the above fails, let's see if things work if we drop it
+                run(cmdline)
+        else:
+            run(cmdline)
 
     return f
 
 
 def make_generated_root(args: CommandLineArguments, root: str, for_cache: bool) -> Optional[BinaryIO]:
 
+    if not is_generated_root(args):
+        return None
+
+    label = "usr" if args.usr_only else "root"
+    patched_root = f"{root}/usr" if args.usr_only else root
+
     if args.output_format == OutputFormat.gpt_ext4:
-        return make_minimal_ext4(args, root, for_cache)
+        return generate_ext4(args, patched_root, label, for_cache)
     if args.output_format == OutputFormat.gpt_btrfs:
-        return make_minimal_btrfs(args, root, for_cache)
+        return generate_btrfs(args, patched_root, label, for_cache)
     if args.output_format.is_squashfs():
-        return make_squashfs(args, root, for_cache)
+        return generate_squashfs(args, patched_root, for_cache)
 
     return None
 
@@ -3746,8 +3778,8 @@ def insert_generated_root(
             loopdev,
             args.root_partno,
             image,
-            "Root Partition",
-            gpt_root_native(args.architecture).root,
+            "System Resources Partition" if args.usr_only else "Root Partition",
+            gpt_root_native(args.architecture, args.usr_only).root,
             args.output_format.is_squashfs(),
         )
 
@@ -4756,6 +4788,9 @@ def create_parser() -> ArgumentParserMkosi:
     )
     group.add_argument(
         "--tmp-size", help="Set size of /var/tmp partition (only gpt_ext4, gpt_xfs, gpt_squashfs)", metavar="BYTES"
+    )
+    group.add_argument(
+        "--usr-only", action=BooleanAction, help="Generate a /usr/ partition instead of a root partition"
     )
 
     group = parser.add_argument_group("Validation (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs, tar)")
@@ -5830,6 +5865,7 @@ def print_summary(args: CommandLineArguments) -> None:
         MkosiPrinter.info("            /srv Partition: " + format_bytes_or_disabled(args.srv_size))
         MkosiPrinter.info("            /var Partition: " + format_bytes_or_disabled(args.var_size))
         MkosiPrinter.info("        /var/tmp Partition: " + format_bytes_or_disabled(args.tmp_size))
+        MkosiPrinter.info("                 /usr only: " + yes_no(args.usr_only))
 
         MkosiPrinter.info("\nVALIDATION:")
         MkosiPrinter.info("                  Checksum: " + yes_no(args.checksum))
