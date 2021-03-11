@@ -86,6 +86,8 @@ DRACUT_SYSTEMD_EXTRAS = [
     "/usr/bin/systemd-repart",
     "/usr/lib/systemd/system/systemd-repart.service",
     "/usr/lib/systemd/system/initrd-root-fs.target.wants/systemd-repart.service",
+    "/usr/lib/systemd/systemd-volatile-root",
+    "/usr/lib/systemd/system/systemd-volatile-root.service",
 ]
 
 DRACUT_UNIFIED_KERNEL_INSTALL = """\
