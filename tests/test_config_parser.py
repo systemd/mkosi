@@ -121,6 +121,7 @@ class MkosiConfig(object):
             "with_unified_kernel_images": True,
             "hostonly_initrd": False,
             "ssh": False,
+            "ssh_key": None,
             "minimize": False,
         }
 

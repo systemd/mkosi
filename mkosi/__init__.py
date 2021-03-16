@@ -405,6 +405,7 @@ class CommandLineArguments:
     network_veth: bool
     ephemeral: bool
     ssh: bool
+    ssh_key: Optional[str]
     directory: Optional[str]
     default_path: Optional[str]
     all: bool
@@ -4801,6 +4802,11 @@ def create_parser() -> ArgumentParserMkosi:
     group.add_argument(
         "--ssh", action=BooleanAction, help="Set up SSH access from the host to the final image via `mkosi ssh`"
     )
+    group.add_argument(
+        "--ssh-key",
+        metavar="PATH",
+        help="Use the specified private key when using `mkosi ssh` (requires a corresponding public key)",
+    )
 
     group = parser.add_argument_group("Additional Configuration")
     group.add_argument("-C", "--directory", help="Change to specified directory before doing anything", metavar="PATH")
@@ -5135,7 +5141,7 @@ def unlink_output(args: CommandLineArguments) -> None:
             if args.nspawn_settings is not None:
                 unlink_try_hard(args.output_nspawn_settings)
 
-        if args.ssh:
+        if args.ssh and args.output_sshkey is not None:
             unlink_try_hard(args.output_sshkey)
 
     # We remove any cached images if either the user used --force
@@ -5524,7 +5530,8 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
         args.output_nspawn_settings = build_nspawn_settings_path(args.output)
 
     # We want this set even if --ssh is not specified so we can find the SSH key when verb == "ssh".
-    args.output_sshkey = os.path.join(os.path.dirname(args.output), "id_rsa")
+    if args.ssh_key is None:
+        args.output_sshkey = os.path.join(os.path.dirname(args.output), "id_rsa")
 
     if args.build_script is not None:
         check_valid_script(args.build_script)
@@ -5755,7 +5762,10 @@ def print_summary(args: CommandLineArguments) -> None:
         "    Output nspawn Settings: "
         + none_to_na(args.output_nspawn_settings if args.nspawn_settings is not None else None)
     )  # NOQA: E501
-    MkosiPrinter.info("            Output SSH key: " + none_to_na(args.output_sshkey if args.ssh else None))
+    MkosiPrinter.info(
+        "                   SSH key: " + none_to_na((args.ssh_key or args.output_sshkey) if args.ssh else None)
+    )
+
     MkosiPrinter.info("               Incremental: " + yes_no(args.incremental))
 
     MkosiPrinter.info("                 Read-only: " + yes_no(args.read_only))
@@ -5910,26 +5920,31 @@ def setup_ssh(
     if for_cache:
         return None
 
-    assert args.output_sshkey is not None
+    f: TextIO
+    if args.ssh_key:
+        f = open(args.ssh_key, mode="r", encoding="utf-8")
+        copy_file(f"{args.ssh_key}.pub", os.path.join(root, "root/.ssh/authorized_keys"))
+    else:
+        assert args.output_sshkey is not None
 
-    f: TextIO = cast(
-        TextIO,
-        tempfile.NamedTemporaryFile(
-            mode="w+", prefix=".mkosi-", encoding="utf-8", dir=os.path.dirname(args.output_sshkey)
-        ),
-    )
-
-    with complete_step("Generating SSH keypair"):
-        # Write a 'y' to confirm to overwrite the file.
-        run(
-            ["ssh-keygen", "-f", f.name, "-N", args.password or "", "-C", "mkosi", "-t", "ed25519"],
-            input=f"y\n",
-            text=True,
-            stdout=DEVNULL,
+        f = cast(
+            TextIO,
+            tempfile.NamedTemporaryFile(
+                mode="w+", prefix=".mkosi-", encoding="utf-8", dir=os.path.dirname(args.output_sshkey)
+            ),
         )
 
-    copy_file(f"{f.name}.pub", os.path.join(root, "root/.ssh/authorized_keys"))
-    os.remove(f"{f.name}.pub")
+        with complete_step("Generating SSH keypair"):
+            # Write a 'y' to confirm to overwrite the file.
+            run(
+                ["ssh-keygen", "-f", f.name, "-N", args.password or "", "-C", "mkosi", "-t", "ed25519"],
+                input=f"y\n",
+                text=True,
+                stdout=DEVNULL,
+            )
+
+        copy_file(f"{f.name}.pub", os.path.join(root, "root/.ssh/authorized_keys"))
+        os.remove(f"{f.name}.pub")
 
     os.chmod(os.path.join(root, "root/.ssh/authorized_keys"), 0o600)
 
@@ -6279,7 +6294,8 @@ def build_stuff(args: CommandLineArguments) -> None:
         link_output_signature(args, signature.name if signature is not None else None)
         link_output_bmap(args, bmap.name if bmap is not None else None)
         link_output_nspawn_settings(args, settings.name if settings is not None else None)
-        link_output_sshkey(args, sshkey.name if sshkey is not None else None)
+        if args.output_sshkey is not None:
+            link_output_sshkey(args, sshkey.name if sshkey is not None else None)
 
         if root_hash is not None:
             MkosiPrinter.print_step(f"Root hash is {root_hash}.")
@@ -6601,11 +6617,12 @@ def find_address(args: CommandLineArguments) -> Tuple[str, str]:
 
 
 def run_ssh(args: CommandLineArguments) -> None:
-    assert args.output_sshkey is not None
+    ssh_key = args.ssh_key or args.output_sshkey
+    assert ssh_key is not None
 
-    if not os.path.exists(args.output_sshkey):
+    if not os.path.exists(ssh_key):
         die(
-            f"SSH key not found at {args.output_sshkey}. Are you running from the project's root directory "
+            f"SSH key not found at {ssh_key}. Are you running from the project's root directory "
             "and did you build with the --ssh option?"
         )
 
@@ -6616,7 +6633,7 @@ def run_ssh(args: CommandLineArguments) -> None:
             [
                 "ssh",
                 "-i",
-                args.output_sshkey,
+                ssh_key,
                 # Silence known hosts file errors/warnings.
                 "-o",
                 "UserKnownHostsFile=/dev/null",

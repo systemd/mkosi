@@ -812,6 +812,12 @@ details see the table below.
   with this  option and running the image using `mkosi boot` or `mkosi qemu`,
   the `mkosi ssh` command can be used to connect to the container/VM via SSH.
 
+`--ssh-key=`
+: If specified, use the given private key when connecting to the guest machine
+  via `mkosi ssh`. This requires the public key counterpart to be present at
+  the same location, suffixed with `.pub` (as done by `ssh-keygen`). If this
+  option is not present `mkosi` generates a new key pair automatically.
+
 ## Command Line Parameters and their Settings File Counterparts
 
 Most command line parameters may also be placed in an `mkosi.default`
@@ -891,6 +897,7 @@ which settings file options.
 | `--network-veth`                  | `[Host]`                | `NetworkVeth=`                |
 | `--ephemeral`                     | `[Host]`                | `Ephemeral=`                  |
 | `--ssh`                           | `[Host]`                | `Ssh=`                        |
+| `--ssh-key=`                      | `[Host]`                | `SshKey=`                     |
 
 Command line options that take no argument are not suffixed with a `=`
 in their long version in the table above. In the `mkosi.default` file
