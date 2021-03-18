@@ -357,6 +357,7 @@ class CommandLineArguments:
     mksquashfs_tool: List[str]
     xz: bool
     qcow2: bool
+    image_version: Optional[str]
     hostname: Optional[str]
     no_chown: bool
     tar_strip_selinux_context: bool
@@ -4758,6 +4759,7 @@ def create_parser() -> ArgumentParserMkosi:
         help="Convert resulting image to qcow2 (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs)",
     )
     group.add_argument("--hostname", help="Set hostname")
+    group.add_argument("--image-version", help="Set version for image")
     group.add_argument(
         "--no-chown",
         action=BooleanAction,
@@ -5484,6 +5486,17 @@ def find_secure_boot(args: argparse.Namespace) -> None:
             args.secure_boot_certificate = "mkosi.secure-boot.crt"
 
 
+def find_image_version(args: argparse.Namespace) -> None:
+    if args.image_version is not None:
+        return
+
+    try:
+        with open("mkosi.version") as f:
+            args.image_version = f.read().strip()
+    except FileNotFoundError:
+        pass
+
+
 def strip_suffixes(path: str) -> str:
     t = path
     while True:
@@ -5535,6 +5548,7 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
     find_password(args)
     find_passphrase(args)
     find_secure_boot(args)
+    find_image_version(args)
 
     args.extra_search_paths = expand_paths(args.extra_search_paths)
 
@@ -5647,12 +5661,14 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
         args.checksum = True
 
     if args.output is None:
+        prefix = f"image_{args.image_version}" if args.image_version is not None else "image"
+
         if args.output_format.is_disk():
-            args.output = "image" + (".qcow2" if args.qcow2 else ".raw") + (".xz" if args.xz else "")
+            args.output = prefix + (".qcow2" if args.qcow2 else ".raw") + (".xz" if args.xz else "")
         elif args.output_format == OutputFormat.tar:
-            args.output = "image.tar.xz"
+            args.output = f"{prefix}.tar.xz"
         else:
-            args.output = "image"
+            args.output = prefix
 
     if args.output_dir is not None:
         args.output_dir = os.path.abspath(args.output_dir)
@@ -5936,6 +5952,8 @@ def print_summary(args: CommandLineArguments) -> None:
     MkosiPrinter.info("\nOUTPUT:")
     if args.hostname:
         MkosiPrinter.info("                  Hostname: " + args.hostname)
+    if args.image_version is not None:
+        MkosiPrinter.info("             Image Version: " + args.image_version)
     MkosiPrinter.info("             Output Format: " + args.output_format.name)
     if args.output_format.can_minimize():
         MkosiPrinter.info("                  Minimize: " + yes_no(args.minimize))
@@ -6374,6 +6392,9 @@ def run_build_script(args: CommandLineArguments, root: str, raw: Optional[Binary
 
         if args.default_path is not None:
             cmdline.append("--setenv=MKOSI_DEFAULT=" + args.default_path)
+
+        if args.image_version is not None:
+            cmdline.append("--setenv=IMAGE_VERSION=" + args.image_version)
 
         cmdline += nspawn_params_for_build_sources(args, args.source_file_transfer)
 
