@@ -1421,7 +1421,10 @@ def mount_loop(args: CommandLineArguments, dev: str, where: str, read_only: bool
     run(cmd)
 
 
-def mount_bind(what: str, where: str) -> str:
+def mount_bind(what: str, where: Optional[str] = None) -> str:
+    if where is None:
+        where = what
+
     os.makedirs(what, 0o755, True)
     os.makedirs(where, 0o755, True)
     run(["mount", "--bind", what, where])
@@ -1448,7 +1451,12 @@ def mount_image(
     with complete_step("Mounting image"):
 
         if root_dev is not None:
-            mount_loop(args, root_dev, root, root_read_only)
+            if args.usr_only:
+                # In UsrOnly mode let's have a bind mount at the top so that umount --recursive works nicely later
+                mount_bind(root)
+                mount_loop(args, root_dev, os.path.join(root, "usr"), root_read_only)
+            else:
+                mount_loop(args, root_dev, root, root_read_only)
         else:
             # always have a root of the tree as a mount point so we can
             # recursively unmount anything that ends up mounted there
@@ -3837,7 +3845,7 @@ def insert_verity(
             args.verity_partno,
             verity,
             "Verity Partition",
-            gpt_root_native(args.architecture).verity,
+            gpt_root_native(args.architecture, args.usr_only).verity,
             True,
             u,
         )
