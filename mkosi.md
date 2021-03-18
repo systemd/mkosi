@@ -161,6 +161,17 @@ The following command line verbs are known:
   OS images, for example via `machinectl pull-raw …` and `machinectl
   pull-tar …`.
 
+`bump`
+
+: Determines the current image version string (as configured with
+  `--image-version=`/`ImageVersion=`), increases its last
+  dot-separated component by one and writes the resulting version
+  string to `mkosi.version`. This is useful for implementing a simple
+  versioning scheme: each time this verb is called the version is
+  bumped in preparation for the subsequent build. Note that
+  `--auto-bump`/`-B` may be used to automatically bump the version
+  after each successful build.
+
 `help`
 
 : This verb is equivalent to the `--help` switch documented below: it
@@ -229,7 +240,12 @@ details see the table below.
   this option nor `--output-dir=` is used (see below), the image is
   generated under the name `image`, but its name suffixed with an
   appropriate file suffix (e.g. `image.raw.xz` in case `gpt_ext4` is
-  used in combination with `--xz`).
+  used in combination with `--xz`). If the `--image-id=` option is
+  configured it is used instead of `image` in the default output
+  name. If an image version is specified (via
+  `--image-version=`/`ImageVersion=`) it is included in the default
+  name, e.g. a specified image version of `7.8` might result in an
+  image file name of `image_7.8.raw.xz`.
 
 `--output-split-root=`, `--output-split-verity=`, `--output-split-kernel=`
 
@@ -397,6 +413,32 @@ details see the table below.
 `--hostname=`
 
 : Set the image's hostname to the specified name.
+
+`--image-version=`
+
+: Configure the image version. This accepts any string, but it is
+  recommended to specify a series of dot separated components. The
+  version may also be configured in a file `mkosi.version` in which
+  case it may be conveniently managed via the `bump` verb or the
+  `--auto-bump` switch. When specified the image version is included
+  in the default output file name, i.e. instead of `image.raw` the
+  default will be `image_0.1.raw` for version `0.1` of the image, and
+  similar. The version is also passed via the `$IMAGE_VERSION` to any
+  build scripts invoked (which may be useful to patch it into
+  `/etc/os-release` or similar, in particular the `IMAGE_VERSION=`
+  field of it).
+
+`--image-id=`
+
+: Configure the image identifier. This accepts a freeform string that
+  shall be used to identify the image with. If set the default output
+  file will be named after it (possibly suffixed with the version). If
+  this option is used the root, `/usr/` and verity partitions in the
+  image will have their labels set to this (possibly suffixed by the
+  image version). The identifier is also passed via the `$IMAGE_ID` to
+  any build scripts invoked (which may be useful to patch it into
+  `/etc/os-release` or similar, in particular the `IMAGE_ID=` field of
+  it).
 
 `--without-unified-kernel-images`
 
@@ -852,6 +894,13 @@ details see the table below.
   in scripted environments where the qemu and ssh verbs are used in a quick
   succession and the veth device might not get enough time to configure itself.
 
+`--auto-bump`, `-B`
+: If specified, after each successful build the the version is bumped
+  in a fashion equivalent to the `bump` verb, in preparation for the
+  next build. This is useful for simple, linear version management:
+  each build in a series will have a version number one higher then
+  the previous one.
+
 ## Command Line Parameters and their Settings File Counterparts
 
 Most command line parameters may also be placed in an `mkosi.default`
@@ -892,6 +941,8 @@ which settings file options.
 | `--no-chown`                      | `[Output]`              | `NoChown=`                    |
 | `--tar-strip-selinux-context`     | `[Output]`              | `TarStripSELinuxContext=`     |
 | `--hostname=`                     | `[Output]`              | `Hostname=`                   |
+| `--image-version=`                | `[Output]`              | `ImageVersion=`               |
+| `--image-id=`                     | `[Output]`              | `ImageId=`                    |
 | `--without-unified-kernel-images` | `[Output]`              | `WithUnifiedKernelImages=`    |
 | `--hostonly-initrd`               | `[Output]`              | `HostonlyInitrd=`             |
 | `--usr-only`                      | `[Output]`              | `UsrOnly=`                    |
