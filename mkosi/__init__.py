@@ -3742,7 +3742,7 @@ def insert_partition(
 
     path = dev if dev is not None else partition(loopdev, partno)
     try:
-        run(["dd", f"if={blob.name}", f"of={path}", "conv=nocreat"])
+        run(["dd", f"if={blob.name}", f"of={path}", "conv=nocreat,sparse"])
     finally:
         luks_close(dev, "Closing LUKS root partition")
 
