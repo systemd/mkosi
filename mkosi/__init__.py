@@ -78,7 +78,7 @@ else:
 MKOSI_COMMANDS_CMDLINE = ("build", "shell", "boot", "qemu", "ssh")
 MKOSI_COMMANDS_NEED_BUILD = ("shell", "boot", "qemu", "serve")
 MKOSI_COMMANDS_SUDO = ("build", "clean", "shell", "boot", "qemu", "serve")
-MKOSI_COMMANDS = ("build", "clean", "help", "summary", "genkey", "serve") + MKOSI_COMMANDS_CMDLINE
+MKOSI_COMMANDS = ("build", "clean", "help", "summary", "genkey", "bump", "serve") + MKOSI_COMMANDS_CMDLINE
 
 DRACUT_SYSTEMD_EXTRAS = [
     "/usr/lib/systemd/systemd-veritysetup",
@@ -6982,6 +6982,29 @@ def generate_secure_boot_key(args: CommandLineArguments) -> NoReturn:
     os.execvp(cmd[0], cmd)
 
 
+def bump_image_version(args: CommandLineArguments) -> None:
+    """Write current image version plus one to mkosi.version"""
+
+    if args.image_version is None or args.image_version == "":
+        print("No version configured so far, starting with version 1.")
+        new_version = "1"
+    else:
+        v = args.image_version.split(".")
+
+        try:
+            m = int(v[-1])
+        except ValueError:
+            new_version = args.image_version + ".2"
+            print(
+                f"Last component of current version is not a decimal integer, appending '.2', bumping '{args.image_version}' → '{new_version}'."
+            )
+        else:
+            new_version = ".".join(v[:-1] + [str(m + 1)])
+            print(f"Increasing last component of version by one, bumping '{args.image_version}' → '{new_version}'.")
+
+    open("mkosi.version", "w").write(new_version + "\n")
+
+
 def expand_paths(paths: List[str]) -> List[str]:
     if not paths:
         return []
@@ -7035,6 +7058,9 @@ def run_verb(raw: argparse.Namespace) -> None:
 
     if args.verb == "genkey":
         generate_secure_boot_key(args)
+
+    if args.verb == "bump":
+        bump_image_version(args)
 
     if args.verb in MKOSI_COMMANDS_SUDO:
         check_root()
