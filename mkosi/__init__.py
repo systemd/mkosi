@@ -5695,7 +5695,7 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
         args.output_signature = os.path.join(os.path.dirname(args.output), "SHA256SUMS.gpg")
 
     if args.bmap:
-        args.output_bmap = args.output + ".bmap"
+        args.output_bmap = build_auxiliary_output_path(args.output, ".bmap")
 
     if args.nspawn_settings is not None:
         args.nspawn_settings = os.path.abspath(args.nspawn_settings)
