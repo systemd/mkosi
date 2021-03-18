@@ -415,6 +415,7 @@ class CommandLineArguments:
     all: bool
     all_directory: Optional[str]
     debug: List[str]
+    auto_bump: bool
 
     # QEMU-specific options
     qemu_headless: bool
@@ -4991,7 +4992,12 @@ def create_parser() -> ArgumentParserMkosi:
         help="Specify path to directory to read settings files from",
         metavar="PATH",
     )
-
+    group.add_argument(
+        "-B",
+        "--auto-bump",
+        action=BooleanAction,
+        help="Automatically bump image version after building",
+    )
     group.add_argument(
         "--debug",
         action=CommaDelimitedListAction,
@@ -7078,6 +7084,9 @@ def run_verb(raw: argparse.Namespace) -> None:
         init_namespace(args)
         build_stuff(args)
         print_output_size(args)
+
+        if args.auto_bump:
+            bump_image_version(args)
 
     if args.verb in ("shell", "boot"):
         run_shell(args)
