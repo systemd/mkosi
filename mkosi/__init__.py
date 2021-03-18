@@ -1597,7 +1597,9 @@ def configure_dracut(args: CommandLineArguments, root: str) -> None:
     # efivarfs must be present in order to GPT root discovery work
     if args.esp_partno is not None:
         with open(os.path.join(dracut_dir, "30-mkosi-efivarfs.conf"), "w") as f:
-            f.write('add_drivers+=" efivarfs "\n')
+            f.write(
+                '[[ $(modinfo -k "$kernel" -F filename efivarfs 2>/dev/null) == /* ]] && add_drivers+=" efivarfs "\n'
+            )
 
 
 def prepare_tree_root(args: CommandLineArguments, root: str) -> None:
