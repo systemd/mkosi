@@ -123,6 +123,7 @@ class MkosiConfig(object):
             "hostonly_initrd": False,
             "ssh": False,
             "ssh_key": None,
+            "ssh_timeout": 0,
             "minimize": False,
         }
 

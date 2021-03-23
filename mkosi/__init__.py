@@ -407,6 +407,7 @@ class CommandLineArguments:
     ephemeral: bool
     ssh: bool
     ssh_key: Optional[str]
+    ssh_timeout: int
     directory: Optional[str]
     default_path: Optional[str]
     all: bool
@@ -4842,6 +4843,13 @@ def create_parser() -> ArgumentParserMkosi:
         metavar="PATH",
         help="Use the specified private key when using `mkosi ssh` (requires a corresponding public key)",
     )
+    group.add_argument(
+        "--ssh-timeout",
+        metavar="SECONDS",
+        type=int,
+        default=0,
+        help="Wait up to SECONDS seconds for the SSH connection to be available when using `mkosi ssh`",
+    )
 
     group = parser.add_argument_group("Additional Configuration")
     group.add_argument("-C", "--directory", help="Change to specified directory before doing anything", metavar="PATH")
@@ -5693,6 +5701,9 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
 
     if args.ssh and not args.network_veth:
         die("--ssh cannot be used without --network-veth")
+
+    if args.ssh_timeout < 0:
+        die("--ssh-timeout must be >= 0")
 
     args.original_umask = os.umask(0o000)
 
@@ -6623,31 +6634,45 @@ def interface_exists(dev: str) -> bool:
 
 def find_address(args: CommandLineArguments) -> Tuple[str, str]:
     name = virt_name(args)
+    timeout = float(args.ssh_timeout)
 
-    if interface_exists(f"ve-{name}"):
-        dev = f"ve-{name}"
-    elif interface_exists(f"vt-{name}"):
-        dev = f"vt-{name}"
-    else:
-        die("Container/VM interface not found")
+    while timeout >= 0:
+        stime = time.time()
+        try:
+            if interface_exists(f"ve-{name}"):
+                dev = f"ve-{name}"
+            elif interface_exists(f"vt-{name}"):
+                dev = f"vt-{name}"
+            else:
+                raise MkosiException("Container/VM interface not found")
 
-    link = json.loads(run(["ip", "-j", "link", "show", "dev", dev], stdout=PIPE, text=True).stdout)[0]
-    if link["operstate"] == "DOWN":
-        die(f"{dev} is not enabled. Make sure systemd-networkd is running so it can manage the interface.")
+            link = json.loads(run(["ip", "-j", "link", "show", "dev", dev], stdout=PIPE, text=True).stdout)[0]
+            if link["operstate"] == "DOWN":
+                raise MkosiException(
+                    f"{dev} is not enabled. Make sure systemd-networkd is running so it can manage the interface."
+                )
 
-    # Trigger IPv6 neighbor discovery of which we can access the results via `ip neighbor`. This allows us to
-    # find out the link-local IPv6 address of the container/VM via which we can connect to it.
-    run(["ping", "-c", "1", "-w", "15", f"ff02::1%{dev}"], stdout=DEVNULL)
+            # Trigger IPv6 neighbor discovery of which we can access the results via `ip neighbor`. This allows us to
+            # find out the link-local IPv6 address of the container/VM via which we can connect to it.
+            run(["ping", "-c", "1", "-w", "15", f"ff02::1%{dev}"], stdout=DEVNULL)
 
-    for _ in range(50):
-        neighbors = json.loads(run(["ip", "-j", "neighbor", "show", "dev", dev], stdout=PIPE, text=True).stdout)
+            for _ in range(50):
+                neighbors = json.loads(
+                    run(["ip", "-j", "neighbor", "show", "dev", dev], stdout=PIPE, text=True).stdout
+                )
 
-        for neighbor in neighbors:
-            dst = cast(str, neighbor["dst"])
-            if dst.startswith("fe80"):
-                return dev, dst
+                for neighbor in neighbors:
+                    dst = cast(str, neighbor["dst"])
+                    if dst.startswith("fe80"):
+                        return dev, dst
 
-        time.sleep(0.4)
+                time.sleep(0.4)
+        except MkosiException as e:
+            if time.time() - stime > timeout:
+                die(str(e))
+
+        time.sleep(1)
+        timeout -= time.time() - stime
 
     die("Container/VM address not found")
 
