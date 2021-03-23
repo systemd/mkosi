@@ -828,6 +828,12 @@ details see the table below.
   the same location, suffixed with `.pub` (as done by `ssh-keygen`). If this
   option is not present `mkosi` generates a new key pair automatically.
 
+`--ssh-timeout=`
+: When used with the ssh verb, `mkosi` will attempt to retry the SSH connection
+  up to given timeout (in seconds) in case it fails. This option is useful mainly
+  in scripted environments where the qemu and ssh verbs are used in a quick
+  succession and the veth device might not get enough time to configure itself.
+
 ## Command Line Parameters and their Settings File Counterparts
 
 Most command line parameters may also be placed in an `mkosi.default`
@@ -909,6 +915,7 @@ which settings file options.
 | `--ephemeral`                     | `[Host]`                | `Ephemeral=`                  |
 | `--ssh`                           | `[Host]`                | `Ssh=`                        |
 | `--ssh-key=`                      | `[Host]`                | `SshKey=`                     |
+| `--ssh-timeout=`                  | `[Host]`                | `SshTimeout=`                 |
 
 Command line options that take no argument are not suffixed with a `=`
 in their long version in the table above. In the `mkosi.default` file
