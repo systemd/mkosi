@@ -3828,7 +3828,7 @@ def insert_generated_root(
             image,
             root_partition_name(args),
             gpt_root_native(args.architecture, args.usr_only).root,
-            args.output_format.is_squashfs(),
+            args.read_only,
         )
 
 
