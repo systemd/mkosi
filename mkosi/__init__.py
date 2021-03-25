@@ -830,6 +830,35 @@ def disable_cow(path: str) -> None:
     run(["chattr", "+C", path], stdout=DEVNULL, stderr=DEVNULL, check=False)
 
 
+def root_partition_name(args: CommandLineArguments, verity: Optional[bool] = False) -> str:
+
+    # We implement two naming regimes for the partitions. If image_id
+    # is specified we assume that there's a naming and maybe
+    # versioning regime for the image in place, and thus use that to
+    # generate the image. If not we pick descriptive names instead.
+
+    # If an image id is specified, let's generate the root, /usr/ or
+    # verity partition name from it, in a uniform way for all three
+    # types. The image ID is after all a great way to identify what is
+    # *in* the image, while the partition type UUID indicates what
+    # *kind* of data it is. If we also have a version we include it
+    # too. The latter is particularly useful for systemd's image
+    # dissection logic, which will always pick the newest root or
+    # /usr/ partition if multiple exist.
+    if args.image_id is not None:
+        if args.image_version is not None:
+            return f"{args.image_id}_{args.image_version}"
+        else:
+            return args.image_id
+
+    # If no image id is specified we just return a descriptive string
+    # for the partition.
+    prefix = "System Resources" if args.usr_only else "Root"
+    if verity:
+        return prefix + " Verity"
+    return prefix + " Partition"
+
+
 def determine_partition_table(args: CommandLineArguments) -> Tuple[str, bool]:
     pn = 1
     table = "label: gpt\n"
@@ -902,7 +931,7 @@ def determine_partition_table(args: CommandLineArguments) -> Tuple[str, bool]:
         table += 'type={}, attrs={}, name="{}"\n'.format(
             gpt_root_native(args.architecture, args.usr_only).root,
             "GUID:60" if args.read_only and args.output_format != OutputFormat.gpt_btrfs else "",
-            "System Resources Partition" if args.usr_only else "Root Partition",
+            root_partition_name(args),
         )
         run_sfdisk = True
 
@@ -3797,7 +3826,7 @@ def insert_generated_root(
             loopdev,
             args.root_partno,
             image,
-            "System Resources Partition" if args.usr_only else "Root Partition",
+            root_partition_name(args),
             gpt_root_native(args.architecture, args.usr_only).root,
             args.output_format.is_squashfs(),
         )
@@ -3853,7 +3882,7 @@ def insert_verity(
             loopdev,
             args.verity_partno,
             verity,
-            "Verity Partition",
+            root_partition_name(args, True),
             gpt_root_native(args.architecture, args.usr_only).verity,
             True,
             u,
