@@ -565,6 +565,13 @@ def gpt_root_native(arch: Optional[str], usr_only: bool = False) -> GPTRootTypeP
             die(f"Unknown architecture {arch}.")
 
 
+def roothash_suffix(usr_only: bool = False) -> str:
+    if usr_only:
+        return ".usrhash"
+
+    return ".roothash"
+
+
 def unshare(flags: int) -> None:
     libc_name = ctypes.util.find_library("c")
     if libc_name is None:
@@ -4100,7 +4107,8 @@ def write_root_hash_file(args: CommandLineArguments, root_hash: Optional[str]) -
 
     assert args.output_root_hash_file is not None
 
-    with complete_step("Writing .roothash file"):
+    suffix = roothash_suffix(args.usr_only)
+    with complete_step(f"Writing {suffix} file"):
         f: BinaryIO = cast(
             BinaryIO,
             tempfile.NamedTemporaryFile(mode="w+b", prefix=".mkosi", dir=os.path.dirname(args.output_root_hash_file)),
@@ -4315,7 +4323,8 @@ def link_output_root_hash_file(args: CommandLineArguments, root_hash_file: Optio
 
     assert args.output_root_hash_file is not None
 
-    with complete_step("Linking .roothash file", "Successfully linked " + args.output_root_hash_file):
+    suffix = roothash_suffix(args.usr_only)
+    with complete_step(f"Linking {suffix} file", "Successfully linked " + args.output_root_hash_file):
         _link_output(args, root_hash_file, args.output_root_hash_file)
 
 
@@ -5741,7 +5750,7 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
 
     if args.verity:
         args.read_only = True
-        args.output_root_hash_file = build_auxiliary_output_path(args.output, ".roothash")
+        args.output_root_hash_file = build_auxiliary_output_path(args.output, roothash_suffix(args.usr_only))
 
     if args.checksum:
         args.output_checksum = os.path.join(os.path.dirname(args.output), "SHA256SUMS")
