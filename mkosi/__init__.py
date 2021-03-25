@@ -358,6 +358,7 @@ class CommandLineArguments:
     xz: bool
     qcow2: bool
     image_version: Optional[str]
+    image_id: Optional[str]
     hostname: Optional[str]
     no_chown: bool
     tar_strip_selinux_context: bool
@@ -4761,6 +4762,7 @@ def create_parser() -> ArgumentParserMkosi:
     )
     group.add_argument("--hostname", help="Set hostname")
     group.add_argument("--image-version", help="Set version for image")
+    group.add_argument("--image-id", help="Set ID for image")
     group.add_argument(
         "--no-chown",
         action=BooleanAction,
@@ -5667,7 +5669,8 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
         args.checksum = True
 
     if args.output is None:
-        prefix = f"image_{args.image_version}" if args.image_version is not None else "image"
+        iid = args.image_id if args.image_id is not None else "image"
+        prefix = f"{iid}_{args.image_version}" if args.image_version is not None else iid
 
         if args.output_format.is_disk():
             args.output = prefix + (".qcow2" if args.qcow2 else ".raw") + (".xz" if args.xz else "")
@@ -5958,6 +5961,8 @@ def print_summary(args: CommandLineArguments) -> None:
     MkosiPrinter.info("\nOUTPUT:")
     if args.hostname:
         MkosiPrinter.info("                  Hostname: " + args.hostname)
+    if args.image_id is not None:
+        MkosiPrinter.info("                  Image ID: " + args.image_id)
     if args.image_version is not None:
         MkosiPrinter.info("             Image Version: " + args.image_version)
     MkosiPrinter.info("             Output Format: " + args.output_format.name)
@@ -6401,6 +6406,9 @@ def run_build_script(args: CommandLineArguments, root: str, raw: Optional[Binary
 
         if args.image_version is not None:
             cmdline.append("--setenv=IMAGE_VERSION=" + args.image_version)
+
+        if args.image_id is not None:
+            cmdline.append("--setenv=IMAGE_ID=" + args.image_id)
 
         cmdline += nspawn_params_for_build_sources(args, args.source_file_transfer)
 
