@@ -3833,7 +3833,7 @@ def insert_generated_root(
 
 
 def make_verity(
-    args: CommandLineArguments, root: str, dev: Optional[str], do_run_build_script: bool, for_cache: bool
+    args: CommandLineArguments, dev: Optional[str], do_run_build_script: bool, for_cache: bool
 ) -> Tuple[Optional[BinaryIO], Optional[str]]:
     if do_run_build_script or not args.verity:
         return None, None
@@ -6343,7 +6343,7 @@ def build_image(
                 else None
             )
 
-            verity, root_hash = make_verity(args, root, encrypted_root, do_run_build_script, for_cache)
+            verity, root_hash = make_verity(args, encrypted_root, do_run_build_script, for_cache)
             patch_root_uuid(args, loopdev, root_hash, for_cache)
             insert_verity(args, root, raw, loopdev, verity, root_hash, for_cache)
             split_verity = verity if args.split_artifacts else None
