@@ -81,13 +81,14 @@ MKOSI_COMMANDS_SUDO = ("build", "clean", "shell", "boot", "qemu", "serve")
 MKOSI_COMMANDS = ("build", "clean", "help", "summary", "genkey", "bump", "serve") + MKOSI_COMMANDS_CMDLINE
 
 DRACUT_SYSTEMD_EXTRAS = [
-    "/usr/lib/systemd/systemd-veritysetup",
-    "/usr/lib/systemd/system-generators/systemd-veritysetup-generator",
     "/usr/bin/systemd-repart",
-    "/usr/lib/systemd/system/systemd-repart.service",
+    "/usr/lib/systemd/system-generators/systemd-veritysetup-generator",
     "/usr/lib/systemd/system/initrd-root-fs.target.wants/systemd-repart.service",
-    "/usr/lib/systemd/systemd-volatile-root",
+    "/usr/lib/systemd/system/initrd-usr-fs.target",
+    "/usr/lib/systemd/system/systemd-repart.service",
     "/usr/lib/systemd/system/systemd-volatile-root.service",
+    "/usr/lib/systemd/systemd-veritysetup",
+    "/usr/lib/systemd/systemd-volatile-root",
 ]
 
 DRACUT_UNIFIED_KERNEL_INSTALL = """\
