@@ -1652,6 +1652,20 @@ def prepare_tree_root(args: CommandLineArguments, root: str) -> None:
             btrfs_subvol_create(root)
 
 
+def root_home(args: CommandLineArguments, root: str) -> str:
+
+    # If UsrOnly= is turned on the /root/ directory (i.e. the root
+    # user's home directory) is not persistent (after all everything
+    # outside of /usr/ is not around). In that case let's mount it in
+    # from an external place, so that we can have persistency. It is
+    # after all where we place our build sources and suchlike.
+
+    if args.usr_only:
+        return os.path.join(workspace(root), "home-root")
+
+    return os.path.join(root, "root")
+
+
 def prepare_tree(args: CommandLineArguments, root: str, do_run_build_script: bool, cached: bool) -> None:
     if cached:
         return
@@ -1709,20 +1723,20 @@ def prepare_tree(args: CommandLineArguments, root: str, do_run_build_script: boo
                 cmdline.write("\n")
 
         if do_run_build_script or args.ssh:
-            os.mkdir(os.path.join(root, "root"), 0o750)
+            os.mkdir(root_home(args, root), 0o750)
 
         if args.ssh and not do_run_build_script:
-            os.mkdir(os.path.join(root, "root/.ssh"), 0o700)
+            os.mkdir(os.path.join(root_home(args, root), ".ssh"), 0o700)
 
         if do_run_build_script:
-            os.mkdir(os.path.join(root, "root/dest"), 0o755)
+            os.mkdir(os.path.join(root_home(args, root), "dest"), 0o755)
 
             if args.include_dir is not None:
                 os.mkdir(os.path.join(root, "usr"), 0o755)
                 os.mkdir(os.path.join(root, "usr/include"), 0o755)
 
             if args.build_dir is not None:
-                os.mkdir(os.path.join(root, "root/build"), 0o755)
+                os.mkdir(os.path.join(root_home(args, root), "build"), 0o755)
 
         if args.network_veth and not do_run_build_script:
             os.mkdir(os.path.join(root, "etc/systemd"), 0o755)
@@ -3251,14 +3265,15 @@ def run_prepare_script(args: CommandLineArguments, root: str, do_run_build_scrip
         # place to mount it to. But if we create that we might as well
         # just copy the file anyway.
 
-        shutil.copy2(args.prepare_script, os.path.join(root, "root/prepare"))
+        shutil.copy2(args.prepare_script, os.path.join(root_home(args, root), "prepare"))
 
         nspawn_params = nspawn_params_for_build_sources(args, SourceFileTransfer.mount)
         run_workspace_command(args, root, ["/root/prepare", verb], network=True, nspawn_params=nspawn_params)
 
-        if os.path.exists(os.path.join(root, "root/src")):
-            os.rmdir(os.path.join(root, "root/src"))
-        os.unlink(os.path.join(root, "root/prepare"))
+        if os.path.exists(os.path.join(root_home(args, root), "src")):
+            os.rmdir(os.path.join(root_home(args, root), "src"))
+
+        os.unlink(os.path.join(root_home(args, root), "prepare"))
 
 
 def run_postinst_script(
@@ -3278,7 +3293,7 @@ def run_postinst_script(
         # place to mount it to. But if we create that we might as well
         # just copy the file anyway.
 
-        shutil.copy2(args.postinst_script, os.path.join(root, "root/postinst"))
+        shutil.copy2(args.postinst_script, os.path.join(root_home(args, root), "postinst"))
 
         nspawn_params = []
         # in order to have full blockdev access, i.e. for making grub2 bootloader changes
@@ -3291,7 +3306,7 @@ def run_postinst_script(
         run_workspace_command(
             args, root, ["/root/postinst", verb], network=args.with_network, nspawn_params=nspawn_params
         )
-        os.unlink(os.path.join(root, "root/postinst"))
+        os.unlink(os.path.join(root_home(args, root), "postinst"))
 
 
 def output_dir(args: CommandLineArguments) -> str:
@@ -3523,7 +3538,7 @@ def install_build_src(args: CommandLineArguments, root: str, do_run_build_script
 
     if do_run_build_script:
         with complete_step("Copying in build script"):
-            copy_file(args.build_script, os.path.join(root, "root", os.path.basename(args.build_script)))
+            copy_file(args.build_script, os.path.join(root_home(args, root), os.path.basename(args.build_script)))
 
     sft: Optional[SourceFileTransfer] = None
     if do_run_build_script:
@@ -3535,7 +3550,7 @@ def install_build_src(args: CommandLineArguments, root: str, do_run_build_script
         return
 
     with complete_step("Copying in sources"):
-        target = os.path.join(root, "root/src")
+        target = os.path.join(root_home(args, root), "src")
 
         if sft in (
             SourceFileTransfer.copy_git_others,
@@ -6189,7 +6204,7 @@ def setup_ssh(
     f: TextIO
     if args.ssh_key:
         f = open(args.ssh_key, mode="r", encoding="utf-8")
-        copy_file(f"{args.ssh_key}.pub", os.path.join(root, "root/.ssh/authorized_keys"))
+        copy_file(f"{args.ssh_key}.pub", os.path.join(root_home(args, root), ".ssh/authorized_keys"))
     else:
         assert args.output_sshkey is not None
 
@@ -6209,10 +6224,10 @@ def setup_ssh(
                 stdout=DEVNULL,
             )
 
-        copy_file(f"{f.name}.pub", os.path.join(root, "root/.ssh/authorized_keys"))
+        copy_file(f"{f.name}.pub", os.path.join(root_home(args, root), ".ssh/authorized_keys"))
         os.remove(f"{f.name}.pub")
 
-    os.chmod(os.path.join(root, "root/.ssh/authorized_keys"), 0o600)
+    os.chmod(os.path.join(root_home(args, root), ".ssh/authorized_keys"), 0o600)
 
     return f
 
@@ -6464,6 +6479,9 @@ def run_build_script(args: CommandLineArguments, root: str, raw: Optional[Binary
         else:
             cmdline.append("--private-network")
 
+        if args.usr_only:
+            cmdline.append("--bind=" + root_home(args, root) + ":/root")
+
         cmdline.append("/root/" + os.path.basename(args.build_script))
         cmdline += args.cmdline
 
@@ -6515,6 +6533,8 @@ def remove_artifacts(
     with complete_step("Removing artifacts from " + what):
         unlink_try_hard(root)
         unlink_try_hard(var_tmp(root))
+        if args.usr_only:
+            unlink_try_hard(root_home(args, root))
 
 
 def build_stuff(args: CommandLineArguments) -> None:
