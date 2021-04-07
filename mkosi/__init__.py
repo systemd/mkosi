@@ -848,7 +848,19 @@ def disable_cow(path: str) -> None:
     run(["chattr", "+C", path], stdout=DEVNULL, stderr=DEVNULL, check=False)
 
 
-def root_partition_name(args: CommandLineArguments, verity: Optional[bool] = False) -> str:
+def root_partition_name(
+    args: Optional[CommandLineArguments],
+    verity: Optional[bool] = False,
+    image_id: Optional[str] = None,
+    image_version: Optional[str] = None,
+    usr_only: Optional[bool] = False,
+) -> str:
+
+    # Support invocation with "args" or with separate parameters (which is useful when invoking it before we allocated a CommandLineArguments object)
+    if args is not None:
+        image_id = args.image_id
+        image_version = args.image_version
+        usr_only = args.usr_only
 
     # We implement two naming regimes for the partitions. If image_id
     # is specified we assume that there's a naming and maybe
@@ -863,15 +875,15 @@ def root_partition_name(args: CommandLineArguments, verity: Optional[bool] = Fal
     # too. The latter is particularly useful for systemd's image
     # dissection logic, which will always pick the newest root or
     # /usr/ partition if multiple exist.
-    if args.image_id is not None:
-        if args.image_version is not None:
-            return f"{args.image_id}_{args.image_version}"
+    if image_id is not None:
+        if image_version is not None:
+            return f"{image_id}_{image_version}"
         else:
-            return args.image_id
+            return image_id
 
     # If no image id is specified we just return a descriptive string
     # for the partition.
-    prefix = "System Resources" if args.usr_only else "Root"
+    prefix = "System Resources" if usr_only else "Root"
     if verity:
         return prefix + " Verity"
     return prefix + " Partition"
@@ -5595,6 +5607,19 @@ def strip_suffixes(path: str) -> str:
     return t
 
 
+def xescape(s: str) -> str:
+    "Escape a string udev-style, for inclusion in /dev/disk/by-*/* symlinks"
+
+    ret = ""
+    for c in s:
+        if ord(c) <= 32 or ord(c) >= 127 or c == "/":
+            ret = ret + "\\x%02x" % ord(c)
+        else:
+            ret = ret + str(c)
+
+    return ret
+
+
 def build_auxiliary_output_path(path: str, suffix: str, xz: Optional[bool] = False) -> str:
     return strip_suffixes(path) + suffix + (".xz" if xz else "")
 
@@ -5902,6 +5927,20 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
 
     if args.qemu_headless and "console=ttyS0" not in args.kernel_command_line:
         args.kernel_command_line.append("console=ttyS0")
+
+    if args.bootable and args.usr_only and not args.verity:
+        # GPT auto-discovery on empty kernel command lines only looks
+        # for root partitions (in order to avoid ambiguities), if we
+        # shall operate without one (and only have a /usr partition)
+        # we thus need to explicitly say which partition to mount.
+        args.kernel_command_line.append(
+            "mount.usr=/dev/disk/by-partlabel/"
+            + xescape(
+                root_partition_name(
+                    args=None, image_id=args.image_id, image_version=args.image_version, usr_only=args.usr_only
+                )
+            )
+        )
 
     if args.bootable and args.distribution == Distribution.mageia:
         # TODO: Remove once dracut 045 is available in mageia.
