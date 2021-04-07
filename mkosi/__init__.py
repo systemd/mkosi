@@ -98,7 +98,6 @@ COMMAND="$1"
 KERNEL_VERSION="$2"
 BOOT_DIR_ABS="$3"
 KERNEL_IMAGE="$4"
-ROOTHASH="${5:-}"
 
 # If KERNEL_INSTALL_MACHINE_ID is defined but empty, BOOT_DIR_ABS is a fake directory so let's skip creating
 # the unified kernel image.
@@ -109,10 +108,19 @@ fi
 # Strip machine ID and kernel version to get the boot directory.
 PREFIX=$(dirname $(dirname "$BOOT_DIR_ABS"))
 
-if [[ -n "$ROOTHASH" ]]; then
-    BOOT_BINARY="${PREFIX}/EFI/Linux/linux-${KERNEL_VERSION}-${ROOTHASH}.efi"
+# Pick a default prefix name for the unified kernel binary
+if [[ -n "$IMAGE_ID" ]] ; then
+    IMAGE_ID=linux
+fi
+
+if [[ -n "$IMAGE_VERSION" ]] ; then
+    BOOT_BINARY="${PREFIX}/EFI/Linux/${IMAGE_ID}_${IMAGE_VERSION}.efi"
+elif [[ -n "$ROOTHASH" ]] ; then
+    BOOT_BINARY="${PREFIX}/EFI/Linux/${IMAGE_ID}-${KERNEL_VERSION}-${ROOTHASH}.efi"
+elif [[ -n "$USRHASH" ]] ; then
+    BOOT_BINARY="${PREFIX}/EFI/Linux/${IMAGE_ID}-${KERNEL_VERSION}-${USRHASH}.efi"
 else
-    BOOT_BINARY="${PREFIX}/EFI/Linux/linux-${KERNEL_VERSION}.efi"
+    BOOT_BINARY="${PREFIX}/EFI/Linux/${IMAGE_ID}-${KERNEL_VERSION}.efi"
 fi
 
 case "$COMMAND" in
@@ -127,6 +135,8 @@ case "$COMMAND" in
 
         if [[ -n "$ROOTHASH" ]]; then
             BOOT_OPTIONS="${BOOT_OPTIONS} roothash=${ROOTHASH}"
+        elif [[ -n "$USRHASH" ]]; then
+            BOOT_OPTIONS="${BOOT_OPTIONS} usrhash=${USRHASH}"
         fi
 
         if [[ -n "$KERNEL_IMAGE" ]]; then
@@ -3995,10 +4005,19 @@ def install_unified_kernel(
                     f"{prefix}/{args.machine_id}/{kver.name}",
                     "",
                 ]
-                if root_hash is not None:
-                    cmdline.append(root_hash)
 
-                run_workspace_command(args, root, cmdline)
+                # Pass some extra meta-info to the script via
+                # environment variables. The script uses this to name
+                # the unified kernel image file
+                env = {}
+                if args.image_id is not None:
+                    env["IMAGE_ID"] = args.image_id
+                if args.image_version is not None:
+                    env["IMAGE_VERSION"] = args.image_version
+                if root_hash is not None:
+                    env["USRHASH" if args.usr_only else "ROOTHASH"] = root_hash
+
+                run_workspace_command(args, root, cmdline, env=env)
 
 
 def secure_boot_sign(
