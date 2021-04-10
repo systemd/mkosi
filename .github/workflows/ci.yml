@@ -20,6 +20,7 @@ jobs:
           - debian
           - ubuntu
           - fedora
+          - gentoo
         format:
           - directory
           - tar
@@ -117,7 +118,8 @@ jobs:
           matrix.format != 'tar' && (
           matrix.distro == 'arch' ||
           matrix.distro == 'centos' ||
-          matrix.distro == 'fedora')
+          matrix.distro == 'fedora' ||
+          matrix.distro == 'gentoo')
       run: |
         tee mkosi.default <<- EOF
         [Output]
@@ -139,7 +141,8 @@ jobs:
           matrix.format != 'tar' && (
           matrix.distro == 'arch' ||
           matrix.distro == 'centos' ||
-          matrix.distro == 'fedora')
+          matrix.distro == 'fedora' ||
+          matrix.distro == 'gentoo')
       run: sudo ./tests/pexpect/boot.py python3 -m mkosi qemu
 
     - name: Build ${{ matrix.distro }}/${{ matrix.format }} BIOS

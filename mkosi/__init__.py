@@ -18,6 +18,7 @@ import glob
 import hashlib
 import http.server
 import json
+import multiprocessing
 import os
 import platform
 import re
@@ -333,6 +334,7 @@ class Distribution(enum.Enum):
     clear = 9
     photon = 10
     openmandriva = 11
+    gentoo = 12
 
     def __str__(self) -> str:
         return self.name
@@ -2319,6 +2321,183 @@ def install_openmandriva(args: CommandLineArguments, root: str, do_run_build_scr
     disable_pam_securetty(root)
 
 
+def fix_gentoo_kernel_bin_make_install(root: str) -> None:
+    regex = re.compile("linux-[0-9.]*-gentoo-dist")
+    kdir = ""
+    src_dir = os.path.join(root, "usr/src")
+    for d in os.listdir(src_dir):
+        if regex.match(d):
+            kdir = os.path.join(src_dir, d)
+            os.environ["KERNEL_DIR"] = kdir
+
+    if kdir == "":
+        die("no kernel_directory")
+
+    kernel_make_install_script = os.path.join(kdir, "arch/x86/boot/install.sh")
+    with open(kernel_make_install_script, "w") as f:
+        f.write(
+            dedent(
+                """\
+                #!/bin/sh
+                #
+                # This file is subject to the terms and conditions of the GNU General Public
+                # License.  See the file "COPYING" in the main directory of this archive
+                # for more details.
+                #
+                # Copyright (C) 1995 by Linus Torvalds
+                #
+                # Adapted from code in arch/i386/boot/Makefile by H. Peter Anvin
+                #
+                # "make install" script for i386 architecture
+                #
+                # Arguments:
+                #   $1 - kernel version
+                #   $2 - kernel image file
+                #   $3 - kernel map file
+                #   $4 - default install path (blank if root directory)
+                #
+
+                verify () {
+	                if [ ! -f "$1" ]; then
+		                echo ""                                                   1>&2
+		                echo " *** Missing file: $1"                              1>&2
+		                echo ' *** You need to run "make" before "make install".' 1>&2
+		                echo ""                                                   1>&2
+		                exit 1
+	                fi
+               }
+
+                # Make sure the files actually exist
+                verify "$2"
+                verify "$3"
+
+                # User may have a custom install script
+
+                if [ -x ~/bin/${INSTALLKERNEL} ]; then exec ~/bin/${INSTALLKERNEL} "$@"; fi
+                if [ -x /sbin/${INSTALLKERNEL} ]; then exec /sbin/${INSTALLKERNEL} "$@"; fi
+
+                # Default install - same as make zlilo
+
+                if [ -f $4/vmlinuz ]; then
+	                mv $4/vmlinuz $4/vmlinuz.old
+                fi
+
+                if [ -f $4/System.map ]; then
+	                mv $4/System.map $4/System.old
+                fi
+
+                cat $2 > $4/vmlinuz
+                cp $3 $4/System.map
+                """
+            )
+        )
+
+        make_executable(kernel_make_install_script)
+        run(["make", "-C", kdir, "install"])
+
+
+@complete_step("Installing Gentoo")
+def install_gentoo(args: CommandLineArguments, root: str, do_run_build_script: bool) -> None:
+    try:
+        from _emerge.actions import load_emerge_config, run_action
+
+        if "build-script" in args.debug:
+            from _emerge.actions import action_info
+    except ImportError:
+        die("You need portage module for Gentoo: https://gitweb.gentoo.org/proj/portage.git")
+
+    jobs = multiprocessing.cpu_count()
+
+    binpkgdir_suffix = args.hostname if args.hostname else "live"
+    pkgdir = os.path.join("/var/cache", "binpkgs-" + binpkgdir_suffix)
+    os.makedirs(pkgdir, exist_ok=True)
+
+    portdir = "/var/db/repos/gentoo"
+
+    os.environ["PORTAGE_CONFIGROOT"] = root
+    os.environ["SYSROOT"] = root
+    os.environ["ROOT"] = root
+    os.environ["EPREFIX"] = "/"
+    os.environ["PORTDIR"] = portdir
+    os.environ["PKGDIR"] = pkgdir
+    os.environ["KERNEL_DIR"] = os.path.join(root, "usr/src/linux")
+    # -user* are required for access to root + "/etc/portage/*"
+    # -pid-sandbox is required for cross compile scenarios
+    os.environ["FEATURES"] = "-userfetch -userpriv -pid-sandbox parallel-install"
+    # systemd is hard dependancy for us at least because of bootctl(1)
+    # sys-boot/systemd-boot could resolve this but then we're complicating life
+    # because USE="systemd" could be set in many places
+    os.environ["USE"] = "systemd"
+
+    emerge_config = load_emerge_config(action="sync", args=[], opts={})
+    run_action(emerge_config)
+
+    os.mkdir(os.path.join(root, "etc/portage/savedconfig"), 0o755)
+
+    GENTOO_ARCHITECTURES = {
+        "x86_64": "amd64",
+        "aarch64": "arm64",
+    }
+
+    gentoo_arch = GENTOO_ARCHITECTURES.get(args.architecture, "amd64")
+
+    profile = os.path.join("profiles/default/linux", gentoo_arch, args.release)
+
+    # don't overwrite user's chosen profile, users may set it in skeleton_trees
+    if not os.path.islink(os.path.join(root, "etc/portage/make.profile")):
+        os.symlink(
+            os.path.join(portdir, profile),
+            os.path.join(root, "etc/portage/make.profile"),
+        )
+
+    opts = {
+        "--root": root,
+        "--config-root": root,
+        "--sysroot": root,
+        "--prefix": "/",
+        "--buildpkg": True,
+        "--usepkg": True,
+        "--keep-going": True,
+        "--jobs": jobs,
+        "--load-average": jobs - 1,
+        "--noreplace": True,
+        "--nodeps": True,
+    }
+
+    # FIXME: is this the right way to check if we're runnin on CI?
+    # if not args.with_tests:
+    #   opts["--ask"] = True
+
+    if "build-script" in args.debug:
+        opts["--verbose"] = True
+        emerge_config = load_emerge_config(action="info", args=[], opts={})
+        run_action(emerge_config)
+    else:
+        opts["--quiet-build"] = True
+
+    kpkgs = ["sys-kernel/gentoo-kernel-bin", "sys-kernel/installkernel-systemd-boot", "sys-kernel/dracut"]
+    emerge_config = load_emerge_config(action="build", args=kpkgs, opts=opts)
+    run_action(emerge_config)
+
+    # FIXME: remove once upstream ships $KERNEL_DIR/arch/$ARCH/boot/install.sh
+    # only tested on x86
+    if not do_run_build_script and args.bootable:
+        fix_gentoo_kernel_bin_make_install(root)
+
+    syspkgs = ["@system", "sys-apps/systemd"]
+    if args.output_format == OutputFormat.gpt_btrfs:
+        syspkgs.append("sys-fs/btrfs-progs")
+    if args.ssh:
+        syspkgs.append("net-misc/openssh")
+    emerge_config = load_emerge_config(args=syspkgs, opts=opts)
+    run_action(emerge_config)
+
+    # now build atoms user asked for
+    if args.packages:
+        emerge_config = load_emerge_config(args=args.packages, opts=opts)
+        run_action(emerge_config)
+
+
 def invoke_yum(
     args: CommandLineArguments, root: str, repositories: List[str], packages: Set[str], do_run_build_script: bool
 ) -> None:
@@ -3070,6 +3249,7 @@ def install_distribution(args: CommandLineArguments, root: str, do_run_build_scr
         Distribution.clear: install_clear,
         Distribution.photon: install_photon,
         Distribution.openmandriva: install_openmandriva,
+        Distribution.gentoo: install_gentoo,
     }
 
     disable_kernel_install(args, root)
@@ -5687,6 +5867,8 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
             args.release = "3.0"
         elif args.distribution == Distribution.openmandriva:
             args.release = "cooker"
+        elif args.distribution == Distribution.gentoo:
+            args.release = "17.1"
         else:
             args.release = "rolling"
 

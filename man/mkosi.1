@@ -161,7 +161,7 @@ The distribution to install in the image.
 Takes one of the following arguments: \f[C]fedora\f[R],
 \f[C]debian\f[R], \f[C]ubuntu\f[R], \f[C]arch\f[R], \f[C]opensuse\f[R],
 \f[C]mageia\f[R], \f[C]centos\f[R], \f[C]clear\f[R], \f[C]photon\f[R],
-\f[C]openmandriva\f[R].
+\f[C]openmandriva\f[R], \f[C]gentoo\f[R].
 If not specified, defaults to the distribution of the host.
 .TP
 \f[B]\f[CB]--release=\f[B]\f[R], \f[B]\f[CB]-r\f[B]\f[R]
@@ -1274,6 +1274,8 @@ Images may be created containing installations of the following
 \f[I]Photon\f[R]
 .IP \[bu] 2
 \f[I]OpenMandriva\f[R]
+.IP \[bu] 2
+\f[I]Gentoo\f[R]
 .PP
 In theory, any distribution may be used on the host for building images
 containing any other distribution, as long as the necessary tools are
@@ -1288,6 +1290,8 @@ Any distribution that packages \f[C]zypper\f[R] may be used to build
 \f[I]openSUSE\f[R] images.
 Any distribution that packages \f[C]yum\f[R] (or the newer replacement
 \f[C]dnf\f[R]) may be used to build \f[I]CentOS\f[R] images.
+Any distribution that packages \f[C]emerge\f[R] may be used to build
+\f[I]Gentoo\f[R] images.
 .PP
 Currently, \f[I]Fedora\f[R] packages all relevant tools as of Fedora 28.
 .SS Compatibility
@@ -1339,8 +1343,8 @@ directory:
 building process.
 For example, you may configure the distribution to use
 (\f[C]fedora\f[R], \f[C]ubuntu\f[R], \f[C]debian\f[R], \f[C]arch\f[R],
-\f[C]opensuse\f[R], \f[C]mageia\f[R], \f[C]openmandriva\f[R]) for the
-image, or additional distribution packages to install.
+\f[C]opensuse\f[R], \f[C]mageia\f[R], \f[C]openmandriva\f[R], \f[C]gentoo\f[R])
+for the image, or additional distribution packages to install.
 Note that all options encoded in this configuration file may also be set
 on the command line, and this file is hence little more than a way to
 make sure simply typing \f[C]mkosi\f[R] without further parameters in
@@ -1779,7 +1783,7 @@ Hostname=image
 .SH REQUIREMENTS
 .PP
 mkosi is packaged for various distributions: Debian, Ubuntu, Arch (in
-AUR), Fedora, OpenMandriva.
+AUR), Fedora, OpenMandriva, Gentoo.
 It is usually easiest to use the distribution package.
 .PP
 The current version requires systemd 233 (or actually, systemd-nspawn of
