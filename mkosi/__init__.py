@@ -322,6 +322,7 @@ class Distribution(enum.Enum):
     clear = 9
     photon = 10
     openmandriva = 11
+    gentoo = 12
 
     def __str__(self) -> str:
         return self.name
@@ -2241,6 +2242,94 @@ def install_openmandriva(args: CommandLineArguments, root: str, do_run_build_scr
     disable_pam_securetty(root)
 
 
+@complete_step("Installing Gentoo")
+def install_gentoo(args: CommandLineArguments, root: str, do_run_build_script: bool) -> None:
+    try:
+        from _emerge.actions import action_build, action_sync, _emerge_config, load_emerge_config
+
+        if "build-script" in args.debug:
+            from _emerge.actions import action_info
+    except ImportError:
+        die("You need portage module for Gentoo: https://gitweb.gentoo.org/proj/portage.git")
+
+    import multiprocessing
+
+    jobs = multiprocessing.cpu_count()
+
+    binpkgdir_suffix = args.hostname if args.hostname else "live"
+    pkgdir = os.path.join("/var/cache", "binpkgs-" + binpkgdir_suffix)
+    os.makedirs(pkgdir, exist_ok=True)
+
+    portdir = "/var/db/repos/gentoo"
+
+    os.environ["PORTAGE_CONFIGROOT"] = root
+    os.environ["SYSROOT"] = root
+    os.environ["ROOT"] = root
+    os.environ["EPREFIX"] = "/"
+    os.environ["PORTDIR"] = portdir
+    os.environ["PKGDIR"] = pkgdir
+    os.environ["KERNEL_DIR"] = os.path.join(root, "usr/src/linux")
+    # -userpriv is required since we're bind-mounted
+    # --buildpkg without FEATURES=buildpkg is no go!
+    os.environ["FEATURES"] = "-userpriv buildpkg parallel-install"
+
+    emerge_config = _emerge_config()
+    emerge_config = load_emerge_config(env=os.environ, args=[], opts={})
+    action_sync(emerge_config)
+
+    GENTOO_ARCHITECTURES = {
+        "x86_64": "amd64",
+        "aarch64": "arm64",
+    }
+
+    if args.architecture:
+        gentoo_arch = GENTOO_ARCHITECTURES.get(args.architecture, "amd64")
+
+    # this should let users hack this flag by passing *flavour* for their image
+    # as in --release=17.1/no-multilib
+    GENTOO_LATEST = "17.1"
+    release = args.release if args.release else GENTOO_LATEST
+
+    profile = os.path.join("profiles/default/linux", gentoo_arch, release)
+
+    # don't overwrite user's chosen profile, users may set it in skeleton_trees
+    if not os.path.islink(os.path.join(root, "etc/portage/make.profile")):
+        os.symlink(
+            os.path.join(portdir, profile),
+            os.path.join(root, "etc/portage/make.profile"),
+        )
+
+    opts = {
+        "--root": root,
+        "--config-root": root,
+        "--sysroot": root,
+        "--prefix": "/",
+        "--buildpkg": "y",
+        "--usepkg": "y",
+        "--keep-going": "y",
+        "--ask": "",
+        "--jobs": jobs,
+        "--load-average": jobs - 1,
+        "--noreplace": "",
+        "--nodeps": "",
+    }
+
+    if "build-script" in args.debug:
+        opts["--verbose"] = ""
+        emerge_config = load_emerge_config(env=os.environ, args=[], opts={})
+        action_info(emerge_config.target_config.settings, emerge_config.trees, emerge_config.opts, emerge_config.args)
+    else:
+        opts["--quiet-build"] = "y"
+
+    packages = ["@system", "sys-kernel/gentoo-kernel-bin", "sys-kernel/installkernel-systemd-boot"]
+    emerge_config = load_emerge_config(env=os.environ, args=packages, opts=opts)
+    action_build(emerge_config)
+
+    # now build atoms user asked for
+    emerge_config = load_emerge_config(env=os.environ, args=args.packages, opts=opts)
+    action_build(emerge_config)
+
+
 def invoke_yum(
     args: CommandLineArguments, root: str, repositories: List[str], packages: Set[str], do_run_build_script: bool
 ) -> None:
@@ -2992,6 +3081,7 @@ def install_distribution(args: CommandLineArguments, root: str, do_run_build_scr
         Distribution.clear: install_clear,
         Distribution.photon: install_photon,
         Distribution.openmandriva: install_openmandriva,
+        Distribution.gentoo: install_gentoo,
     }
 
     disable_kernel_install(args, root)
