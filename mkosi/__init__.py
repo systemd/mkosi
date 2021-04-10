@@ -891,7 +891,7 @@ def determine_partition_table(args: CommandLineArguments) -> Tuple[str, bool]:
             pn += 1
             run_sfdisk = True
 
-    if not is_generated_root(args):
+    if args.usr_only or not is_generated_root(args):
         table += 'type={}, attrs={}, name="{}"\n'.format(
             gpt_root_native(args.architecture, args.usr_only).root,
             "GUID:60" if args.read_only and args.output_format != OutputFormat.gpt_btrfs else "",
@@ -1344,7 +1344,7 @@ def luks_setup_all(
 def prepare_root(args: CommandLineArguments, dev: Optional[str], cached: bool) -> None:
     if dev is None:
         return
-    if is_generated_root(args):
+    if is_generated_root(args) and not args.usr_only:
         return
     if cached:
         return
@@ -1616,12 +1616,13 @@ def prepare_tree(args: CommandLineArguments, root: str, do_run_build_script: boo
         if args.output_format is OutputFormat.subvolume or (
             args.output_format is OutputFormat.gpt_btrfs and not args.minimize
         ):
-            btrfs_subvol_create(os.path.join(root, "home"))
-            btrfs_subvol_create(os.path.join(root, "srv"))
-            btrfs_subvol_create(os.path.join(root, "var"))
-            btrfs_subvol_create(os.path.join(root, "var/tmp"), 0o1777)
-            os.mkdir(os.path.join(root, "var/lib"))
-            btrfs_subvol_create(os.path.join(root, "var/lib/machines"), 0o700)
+            if not is_generated_root(args):
+                btrfs_subvol_create(os.path.join(root, "home"))
+                btrfs_subvol_create(os.path.join(root, "srv"))
+                btrfs_subvol_create(os.path.join(root, "var"))
+                btrfs_subvol_create(os.path.join(root, "var/tmp"), 0o1777)
+                os.mkdir(os.path.join(root, "var/lib"))
+                btrfs_subvol_create(os.path.join(root, "var/lib/machines"), 0o700)
 
         # We need an initialized machine ID for the build & boot logic to work
         os.mkdir(os.path.join(root, "etc"), 0o755)
