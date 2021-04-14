@@ -2244,14 +2244,6 @@ def install_openmandriva(args: CommandLineArguments, root: str, do_run_build_scr
 
 @complete_step("Installing Gentoo")
 def install_gentoo(args: CommandLineArguments, root: str, do_run_build_script: bool) -> None:
-    try:
-        from _emerge.actions import action_build, action_sync, _emerge_config, load_emerge_config
-
-        if "build-script" in args.debug:
-            from _emerge.actions import action_info
-    except ImportError:
-        die("You need portage module for Gentoo: https://gitweb.gentoo.org/proj/portage.git")
-
     import multiprocessing
 
     jobs = multiprocessing.cpu_count()
@@ -2273,9 +2265,7 @@ def install_gentoo(args: CommandLineArguments, root: str, do_run_build_script: b
     # --buildpkg without FEATURES=buildpkg is no go!
     os.environ["FEATURES"] = "-userpriv buildpkg parallel-install"
 
-    emerge_config = _emerge_config()
-    emerge_config = load_emerge_config(env=os.environ, args=[], opts={})
-    action_sync(emerge_config)
+    run(['emerge', '--sync'])
 
     GENTOO_ARCHITECTURES = {
         "x86_64": "amd64",
@@ -2299,35 +2289,41 @@ def install_gentoo(args: CommandLineArguments, root: str, do_run_build_script: b
             os.path.join(root, "etc/portage/make.profile"),
         )
 
-    opts = {
-        "--root": root,
-        "--config-root": root,
-        "--sysroot": root,
-        "--prefix": "/",
-        "--buildpkg": "y",
-        "--usepkg": "y",
-        "--keep-going": "y",
-        "--ask": "",
-        "--jobs": jobs,
-        "--load-average": jobs - 1,
-        "--noreplace": "",
-        "--nodeps": "",
-    }
+    opts = [
+        "--root=" + root,
+        "--config-root=" + root,
+        "--sysroot=" + root,
+        "--prefix=" + "/",
+        "--buildpkg=y",
+        "--usepkg=y",
+        "--keep-going=y",
+        "--ask",
+        "--jobs=" + str(jobs),
+        "--load-average=" + str(jobs - 1),
+        "--noreplace",
+        "--nodeps",
+    ]
 
     if "build-script" in args.debug:
-        opts["--verbose"] = ""
-        emerge_config = load_emerge_config(env=os.environ, args=[], opts={})
-        action_info(emerge_config.target_config.settings, emerge_config.trees, emerge_config.opts, emerge_config.args)
+        opts += ["--verbose"]
+        cmdline = ["emerge", "--info"]
+        cmdline.extend(opts)
+        MkosiPrinter.info(f"{cmdline}")
+        run(cmdline)
     else:
-        opts["--quiet-build"] = "y"
+        opts += ["--quiet-build"]
 
     packages = ["@system", "sys-kernel/gentoo-kernel-bin", "sys-kernel/installkernel-systemd-boot"]
-    emerge_config = load_emerge_config(env=os.environ, args=packages, opts=opts)
-    action_build(emerge_config)
+    cmdline = ["emerge"]
+    cmdline.extend(opts)
+    cmdline.extend(packages)
+    run(cmdline)
 
     # now build atoms user asked for
-    emerge_config = load_emerge_config(env=os.environ, args=args.packages, opts=opts)
-    action_build(emerge_config)
+    cmdline = ["emerge"]
+    cmdline.extend(opts)
+    cmdline.extend(args.packages)
+    run(cmdline)
 
 
 def invoke_yum(
