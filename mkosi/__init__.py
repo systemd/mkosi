@@ -78,7 +78,7 @@ else:
 MKOSI_COMMANDS_CMDLINE = ("build", "shell", "boot", "qemu", "ssh")
 MKOSI_COMMANDS_NEED_BUILD = ("shell", "boot", "qemu", "serve")
 MKOSI_COMMANDS_SUDO = ("build", "clean", "shell", "boot", "qemu", "serve")
-MKOSI_COMMANDS = ("build", "clean", "help", "summary", "genkey", "serve") + MKOSI_COMMANDS_CMDLINE
+MKOSI_COMMANDS = ("build", "clean", "help", "summary", "genkey", "bump", "serve") + MKOSI_COMMANDS_CMDLINE
 
 DRACUT_SYSTEMD_EXTRAS = [
     "/usr/lib/systemd/systemd-veritysetup",
@@ -357,6 +357,8 @@ class CommandLineArguments:
     mksquashfs_tool: List[str]
     xz: bool
     qcow2: bool
+    image_version: Optional[str]
+    image_id: Optional[str]
     hostname: Optional[str]
     no_chown: bool
     tar_strip_selinux_context: bool
@@ -414,6 +416,7 @@ class CommandLineArguments:
     all: bool
     all_directory: Optional[str]
     debug: List[str]
+    auto_bump: bool
 
     # QEMU-specific options
     qemu_headless: bool
@@ -827,6 +830,35 @@ def disable_cow(path: str) -> None:
     run(["chattr", "+C", path], stdout=DEVNULL, stderr=DEVNULL, check=False)
 
 
+def root_partition_name(args: CommandLineArguments, verity: Optional[bool] = False) -> str:
+
+    # We implement two naming regimes for the partitions. If image_id
+    # is specified we assume that there's a naming and maybe
+    # versioning regime for the image in place, and thus use that to
+    # generate the image. If not we pick descriptive names instead.
+
+    # If an image id is specified, let's generate the root, /usr/ or
+    # verity partition name from it, in a uniform way for all three
+    # types. The image ID is after all a great way to identify what is
+    # *in* the image, while the partition type UUID indicates what
+    # *kind* of data it is. If we also have a version we include it
+    # too. The latter is particularly useful for systemd's image
+    # dissection logic, which will always pick the newest root or
+    # /usr/ partition if multiple exist.
+    if args.image_id is not None:
+        if args.image_version is not None:
+            return f"{args.image_id}_{args.image_version}"
+        else:
+            return args.image_id
+
+    # If no image id is specified we just return a descriptive string
+    # for the partition.
+    prefix = "System Resources" if args.usr_only else "Root"
+    if verity:
+        return prefix + " Verity"
+    return prefix + " Partition"
+
+
 def determine_partition_table(args: CommandLineArguments) -> Tuple[str, bool]:
     pn = 1
     table = "label: gpt\n"
@@ -899,7 +931,7 @@ def determine_partition_table(args: CommandLineArguments) -> Tuple[str, bool]:
         table += 'type={}, attrs={}, name="{}"\n'.format(
             gpt_root_native(args.architecture, args.usr_only).root,
             "GUID:60" if args.read_only and args.output_format != OutputFormat.gpt_btrfs else "",
-            "System Resources Partition" if args.usr_only else "Root Partition",
+            root_partition_name(args),
         )
         run_sfdisk = True
 
@@ -3794,7 +3826,7 @@ def insert_generated_root(
             loopdev,
             args.root_partno,
             image,
-            "System Resources Partition" if args.usr_only else "Root Partition",
+            root_partition_name(args),
             gpt_root_native(args.architecture, args.usr_only).root,
             args.output_format.is_squashfs(),
         )
@@ -3850,7 +3882,7 @@ def insert_verity(
             loopdev,
             args.verity_partno,
             verity,
-            "Verity Partition",
+            root_partition_name(args, True),
             gpt_root_native(args.architecture, args.usr_only).verity,
             True,
             u,
@@ -4758,6 +4790,8 @@ def create_parser() -> ArgumentParserMkosi:
         help="Convert resulting image to qcow2 (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs)",
     )
     group.add_argument("--hostname", help="Set hostname")
+    group.add_argument("--image-version", help="Set version for image")
+    group.add_argument("--image-id", help="Set ID for image")
     group.add_argument(
         "--no-chown",
         action=BooleanAction,
@@ -4989,7 +5023,12 @@ def create_parser() -> ArgumentParserMkosi:
         help="Specify path to directory to read settings files from",
         metavar="PATH",
     )
-
+    group.add_argument(
+        "-B",
+        "--auto-bump",
+        action=BooleanAction,
+        help="Automatically bump image version after building",
+    )
     group.add_argument(
         "--debug",
         action=CommaDelimitedListAction,
@@ -5484,6 +5523,17 @@ def find_secure_boot(args: argparse.Namespace) -> None:
             args.secure_boot_certificate = "mkosi.secure-boot.crt"
 
 
+def find_image_version(args: argparse.Namespace) -> None:
+    if args.image_version is not None:
+        return
+
+    try:
+        with open("mkosi.version") as f:
+            args.image_version = f.read().strip()
+    except FileNotFoundError:
+        pass
+
+
 def strip_suffixes(path: str) -> str:
     t = path
     while True:
@@ -5535,6 +5585,7 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
     find_password(args)
     find_passphrase(args)
     find_secure_boot(args)
+    find_image_version(args)
 
     args.extra_search_paths = expand_paths(args.extra_search_paths)
 
@@ -5647,12 +5698,15 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
         args.checksum = True
 
     if args.output is None:
+        iid = args.image_id if args.image_id is not None else "image"
+        prefix = f"{iid}_{args.image_version}" if args.image_version is not None else iid
+
         if args.output_format.is_disk():
-            args.output = "image" + (".qcow2" if args.qcow2 else ".raw") + (".xz" if args.xz else "")
+            args.output = prefix + (".qcow2" if args.qcow2 else ".raw") + (".xz" if args.xz else "")
         elif args.output_format == OutputFormat.tar:
-            args.output = "image.tar.xz"
+            args.output = f"{prefix}.tar.xz"
         else:
-            args.output = "image"
+            args.output = prefix
 
     if args.output_dir is not None:
         args.output_dir = os.path.abspath(args.output_dir)
@@ -5936,6 +5990,10 @@ def print_summary(args: CommandLineArguments) -> None:
     MkosiPrinter.info("\nOUTPUT:")
     if args.hostname:
         MkosiPrinter.info("                  Hostname: " + args.hostname)
+    if args.image_id is not None:
+        MkosiPrinter.info("                  Image ID: " + args.image_id)
+    if args.image_version is not None:
+        MkosiPrinter.info("             Image Version: " + args.image_version)
     MkosiPrinter.info("             Output Format: " + args.output_format.name)
     if args.output_format.can_minimize():
         MkosiPrinter.info("                  Minimize: " + yes_no(args.minimize))
@@ -6374,6 +6432,12 @@ def run_build_script(args: CommandLineArguments, root: str, raw: Optional[Binary
 
         if args.default_path is not None:
             cmdline.append("--setenv=MKOSI_DEFAULT=" + args.default_path)
+
+        if args.image_version is not None:
+            cmdline.append("--setenv=IMAGE_VERSION=" + args.image_version)
+
+        if args.image_id is not None:
+            cmdline.append("--setenv=IMAGE_ID=" + args.image_id)
 
         cmdline += nspawn_params_for_build_sources(args, args.source_file_transfer)
 
@@ -6961,6 +7025,29 @@ def generate_secure_boot_key(args: CommandLineArguments) -> NoReturn:
     os.execvp(cmd[0], cmd)
 
 
+def bump_image_version(args: CommandLineArguments) -> None:
+    """Write current image version plus one to mkosi.version"""
+
+    if args.image_version is None or args.image_version == "":
+        print("No version configured so far, starting with version 1.")
+        new_version = "1"
+    else:
+        v = args.image_version.split(".")
+
+        try:
+            m = int(v[-1])
+        except ValueError:
+            new_version = args.image_version + ".2"
+            print(
+                f"Last component of current version is not a decimal integer, appending '.2', bumping '{args.image_version}' → '{new_version}'."
+            )
+        else:
+            new_version = ".".join(v[:-1] + [str(m + 1)])
+            print(f"Increasing last component of version by one, bumping '{args.image_version}' → '{new_version}'.")
+
+    open("mkosi.version", "w").write(new_version + "\n")
+
+
 def expand_paths(paths: List[str]) -> List[str]:
     if not paths:
         return []
@@ -7015,6 +7102,9 @@ def run_verb(raw: argparse.Namespace) -> None:
     if args.verb == "genkey":
         generate_secure_boot_key(args)
 
+    if args.verb == "bump":
+        bump_image_version(args)
+
     if args.verb in MKOSI_COMMANDS_SUDO:
         check_root()
         unlink_output(args)
@@ -7031,6 +7121,9 @@ def run_verb(raw: argparse.Namespace) -> None:
         init_namespace(args)
         build_stuff(args)
         print_output_size(args)
+
+        if args.auto_bump:
+            bump_image_version(args)
 
     if args.verb in ("shell", "boot"):
         run_shell(args)

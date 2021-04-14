@@ -129,6 +129,9 @@ class MkosiConfig(object):
             "output_split_root": None,
             "output_split_kernel": None,
             "output_split_verity": None,
+            "image_id": None,
+            "image_version": None,
+            "auto_bump": False,
         }
 
     def __eq__(self, other: [mkosi.CommandLineArguments]) -> bool:
