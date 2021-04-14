@@ -231,6 +231,14 @@ details see the table below.
   appropriate file suffix (e.g. `image.raw.xz` in case `gpt_ext4` is
   used in combination with `--xz`).
 
+`--output-split-root=`, `--output-split-verity=`, `--output-split-kernel=`
+
+: Path for the split-out output image files to generate, if the
+  `--split-artifacts` option is used (see below). If unspecified the
+  relevant split artifact files will be named like the main image, but
+  a `.root`, `.verity`, `.efi` suffix is inserted (which is possibly
+  in turn suffixed by `.xz`, if that is enabled).
+
 `--output-dir=`, `-O`
 
 : Path to a directory where to place all generated artifacts (i.e. the
@@ -410,6 +418,16 @@ details see the table below.
   `systemd-tmpfiles`/`systemd-sysusers` and related calls, or systems
   that are originally shipped without root file system, but where
   `systemd-repart` adds one in on first boot.
+
+`--split-artifacts`
+
+: If specified and building an image with a partition table, also
+  write out the root file system partition, its Verity partition (if
+  configured) and the generated unified kernel (if configured) into
+  separate output files. This is useful in A/B update scenarios where
+  an existing disk image shall be augmented with a new version of a
+  root or /usr/ partition along with its Verity partition and unified
+  kernel.
 
 `--no-chown`
 
@@ -850,6 +868,9 @@ which settings file options.
 | `--architecture=`                 | `[Distribution]`        | `Architecture=`               |
 | `--format=`, `-t`                 | `[Output]`              | `Format=`                     |
 | `--output=`, `-o`                 | `[Output]`              | `Output=`                     |
+| `--output-split-root=`            | `[Output]`              | `OutputSplitRoot=`            |
+| `--output-split-verity=`          | `[Output]`              | `OutputSplitVerity=`          |
+| `--output-split-kernel=`          | `[Output]`              | `OutputSplitKernel=`          |
 | `--output-dir=`, `-O`             | `[Output]`              | `OutputDirectory=`            |
 | `--force`, `-f`                   | `[Output]`              | `Force=`                      |
 | `--bootable`, `-b`                | `[Output]`              | `Bootable=`                   |
@@ -874,6 +895,7 @@ which settings file options.
 | `--without-unified-kernel-images` | `[Output]`              | `WithUnifiedKernelImages=`    |
 | `--hostonly-initrd`               | `[Output]`              | `HostonlyInitrd=`             |
 | `--usr-only`                      | `[Output]`              | `UsrOnly=`                    |
+| `--split-artifacts`               | `[Output]`              | `SplitArtifacts=`             |
 | `--package=`                      | `[Packages]`            | `Packages=`                   |
 | `--with-docs`                     | `[Packages]`            | `WithDocs=`                   |
 | `--without-tests`, `-T`           | `[Packages]`            | `WithTests=`                  |

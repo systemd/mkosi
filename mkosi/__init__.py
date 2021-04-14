@@ -395,6 +395,7 @@ class CommandLineArguments:
     var_size: Optional[int]
     tmp_size: Optional[int]
     usr_only: bool
+    split_artifacts: bool
     checksum: bool
     sign: bool
     key: Optional[str]
@@ -431,6 +432,9 @@ class CommandLineArguments:
     output_sshkey: Optional[str] = None
     output_root_hash_file: Optional[str] = None
     output_bmap: Optional[str] = None
+    output_split_root: Optional[str] = None
+    output_split_verity: Optional[str] = None
+    output_split_kernel: Optional[str] = None
     cache_pre_inst: Optional[str] = None
     cache_pre_dev: Optional[str] = None
     output_signature: Optional[str] = None
@@ -3870,6 +3874,22 @@ def patch_root_uuid(
         run(["sfdisk", "--part-uuid", loopdev, str(args.root_partno), str(u)], check=True)
 
 
+def extract_partition(
+    args: CommandLineArguments, dev: Optional[str], do_run_build_script: bool, for_cache: bool
+) -> Optional[BinaryIO]:
+
+    if do_run_build_script or for_cache or not args.split_artifacts:
+        return None
+
+    assert dev is not None
+
+    with complete_step("Extracting partition"):
+        f: BinaryIO = cast(BinaryIO, tempfile.NamedTemporaryFile(dir=os.path.dirname(args.output), prefix=".mkosi-"))
+        run(["dd", f"if={dev}" f"of={f.name}", "conv=nocreat,sparse"])
+
+    return f
+
+
 def install_unified_kernel(
     args: CommandLineArguments,
     root: str,
@@ -3971,19 +3991,57 @@ def secure_boot_sign(
                     os.rename(p + ".signed", p)
 
 
-def xz_output(args: CommandLineArguments, raw: Optional[BinaryIO]) -> Optional[BinaryIO]:
-    if not args.output_format.is_disk():
-        return raw
-    assert raw is not None
+def extract_unified_kernel(
+    args: CommandLineArguments,
+    root: str,
+    do_run_build_script: bool,
+    for_cache: bool,
+    mount: Callable[[], ContextManager[None]],
+) -> Optional[BinaryIO]:
 
+    if do_run_build_script or for_cache or not args.split_artifacts or not args.bootable:
+        return None
+
+    with mount():
+        kernel = None
+
+        for path, _, filenames in os.walk(os.path.join(root, "efi/EFI/Linux")):
+            for i in filenames:
+                if not i.endswith(".efi") and not i.endswith(".EFI"):
+                    continue
+
+                if kernel is not None:
+                    raise ValueError(
+                        f"Multiple kernels found, don't know which one to extract. ({kernel} vs. {path}/{i})"
+                    )
+
+                kernel = os.path.join(path, i)
+
+        if kernel is None:
+            raise ValueError(f"No kernel found in image, can't extract")
+
+        assert args.output_split_kernel is not None
+
+        f = copy_file_temporary(kernel, os.path.dirname(args.output_split_kernel))
+
+    return f
+
+
+def xz_output(
+    args: CommandLineArguments, data: Optional[BinaryIO], suffix: Optional[str] = None
+) -> Optional[BinaryIO]:
+    if data is None:
+        return None
     if not args.xz:
-        return raw
+        return data
 
     xz_binary = "pxz" if shutil.which("pxz") else "xz"
 
-    with complete_step("Compressing image file"):
-        f: BinaryIO = cast(BinaryIO, tempfile.NamedTemporaryFile(prefix=".mkosi-", dir=os.path.dirname(args.output)))
-        run([xz_binary, "-c", raw.name], stdout=f)
+    with complete_step(f"Compressing output file {data.name}"):
+        f: BinaryIO = cast(
+            BinaryIO, tempfile.NamedTemporaryFile(prefix=".mkosi-", suffix=suffix, dir=os.path.dirname(args.output))
+        )
+        run([xz_binary, "-c", data.name], stdout=f)
 
     return f
 
@@ -4057,6 +4115,9 @@ def calculate_sha256sum(
     raw: Optional[BinaryIO],
     tar: Optional[BinaryIO],
     root_hash_file: Optional[BinaryIO],
+    split_root: Optional[BinaryIO],
+    split_verity: Optional[BinaryIO],
+    split_kernel: Optional[BinaryIO],
     nspawn_settings: Optional[BinaryIO],
 ) -> Optional[TextIO]:
     if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
@@ -4082,6 +4143,15 @@ def calculate_sha256sum(
         if root_hash_file is not None:
             assert args.output_root_hash_file is not None
             hash_file(f, root_hash_file, os.path.basename(args.output_root_hash_file))
+        if split_root is not None:
+            assert args.output_split_root is not None
+            hash_file(f, split_root, os.path.basename(args.output_split_root))
+        if split_verity is not None:
+            assert args.output_split_verity is not None
+            hash_file(f, split_verity, os.path.basename(args.output_split_verity))
+        if split_kernel is not None:
+            assert args.output_split_kernel is not None
+            hash_file(f, split_kernel, os.path.basename(args.output_split_kernel))
         if nspawn_settings is not None:
             assert args.output_nspawn_settings is not None
             hash_file(f, nspawn_settings, os.path.basename(args.output_nspawn_settings))
@@ -4245,6 +4315,36 @@ def link_output_sshkey(args: CommandLineArguments, sshkey: Optional[str]) -> Non
     with complete_step("Linking private ssh key file", f"Successfully linked {args.output_sshkey}"):
         _link_output(args, sshkey, args.output_sshkey)
         os.chmod(args.output_sshkey, 0o600)
+
+
+def link_output_split_root(args: CommandLineArguments, split_root: Optional[str]) -> None:
+    if split_root is None:
+        return
+
+    assert args.output_split_root is not None
+
+    with complete_step("Linking split root file system", f"Successfully linked {args.output_split_root}"):
+        _link_output(args, split_root, args.output_split_root)
+
+
+def link_output_split_verity(args: CommandLineArguments, split_verity: Optional[str]) -> None:
+    if split_verity is None:
+        return
+
+    assert args.output_split_verity is not None
+
+    with complete_step("Linking split Verity data", f"Successfully linked {args.output_split_verity}"):
+        _link_output(args, split_verity, args.output_split_verity)
+
+
+def link_output_split_kernel(args: CommandLineArguments, split_kernel: Optional[str]) -> None:
+    if split_kernel is None:
+        return
+
+    assert args.output_split_kernel is not None
+
+    with complete_step("Linking split kernel image", f"Successfully linked {args.output_split_kernel}"):
+        _link_output(args, split_kernel, args.output_split_kernel)
 
 
 def dir_size(path: str) -> int:
@@ -4569,6 +4669,19 @@ def create_parser() -> ArgumentParserMkosi:
         help="Output Format",
     )
     group.add_argument("-o", "--output", help="Output image path", metavar="PATH")
+    group.add_argument(
+        "--output-split-root",
+        help="Output root or /usr/ partition image path (if --split-artifacts is used)",
+        metavar="PATH",
+    )
+    group.add_argument(
+        "--output-split-verity",
+        help="Output Verity partition image path (if --split-artifacts is used)",
+        metavar="PATH",
+    )
+    group.add_argument(
+        "--output-split-kernel", help="Output kernel path (if --split-artifacts is used)", metavar="PATH"
+    )
     group.add_argument("-O", "--output-dir", help="Output root directory", metavar="DIR")
     group.add_argument(
         "-f",
@@ -4669,6 +4782,9 @@ def create_parser() -> ArgumentParserMkosi:
     group.add_argument("--with-unified-kernel-images", action=BooleanAction, default=True, help=argparse.SUPPRESS)
     group.add_argument("--gpt-first-lba", type=int, help="Set the first LBA within GPT Header", metavar="FIRSTLBA")
     group.add_argument("--hostonly-initrd", action=BooleanAction, help="Enable dracut hostonly option")
+    group.add_argument(
+        "--split-artifacts", action=BooleanAction, help="Generate split out root/verity/kernel images, too"
+    )
 
     group = parser.add_argument_group("Packages")
     group.add_argument(
@@ -5191,6 +5307,11 @@ def unlink_output(args: CommandLineArguments) -> None:
             if args.bmap:
                 unlink_try_hard(args.output_bmap)
 
+            if args.split_artifacts:
+                unlink_try_hard(args.output_split_root)
+                unlink_try_hard(args.output_split_verity)
+                unlink_try_hard(args.output_split_kernel)
+
             if args.nspawn_settings is not None:
                 unlink_try_hard(args.output_nspawn_settings)
 
@@ -5380,12 +5501,8 @@ def strip_suffixes(path: str) -> str:
     return t
 
 
-def build_nspawn_settings_path(path: str) -> str:
-    return strip_suffixes(path) + ".nspawn"
-
-
-def build_root_hash_file_path(path: str) -> str:
-    return strip_suffixes(path) + ".roothash"
+def build_auxiliary_output_path(path: str, suffix: str, xz: Optional[bool] = False) -> str:
+    return strip_suffixes(path) + suffix + (".xz" if xz else "")
 
 
 def check_valid_script(path: str) -> None:
@@ -5556,6 +5673,8 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
 
     if args.output_format == OutputFormat.tar:
         args.xz = True
+    if not args.output_format.is_disk():
+        args.split_artifacts = False
 
     if args.output_format.is_squashfs():
         args.read_only = True
@@ -5567,7 +5686,7 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
 
     if args.verity:
         args.read_only = True
-        args.output_root_hash_file = build_root_hash_file_path(args.output)
+        args.output_root_hash_file = build_auxiliary_output_path(args.output, ".roothash")
 
     if args.checksum:
         args.output_checksum = os.path.join(os.path.dirname(args.output), "SHA256SUMS")
@@ -5576,15 +5695,24 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
         args.output_signature = os.path.join(os.path.dirname(args.output), "SHA256SUMS.gpg")
 
     if args.bmap:
-        args.output_bmap = args.output + ".bmap"
+        args.output_bmap = build_auxiliary_output_path(args.output, ".bmap")
 
     if args.nspawn_settings is not None:
         args.nspawn_settings = os.path.abspath(args.nspawn_settings)
-        args.output_nspawn_settings = build_nspawn_settings_path(args.output)
+        args.output_nspawn_settings = build_auxiliary_output_path(args.output, ".nspawn")
 
     # We want this set even if --ssh is not specified so we can find the SSH key when verb == "ssh".
     if args.ssh_key is None:
         args.output_sshkey = os.path.join(os.path.dirname(args.output), "id_rsa")
+
+    if args.split_artifacts:
+        args.output_split_root = build_auxiliary_output_path(
+            args.output, ".usr" if args.usr_only else ".root", args.xz
+        )
+        if args.verity:
+            args.output_split_verity = build_auxiliary_output_path(args.output, ".verity", args.xz)
+        if args.bootable:
+            args.output_split_kernel = build_auxiliary_output_path(args.output, ".efi", args.xz)
 
     if args.build_script is not None:
         check_valid_script(args.build_script)
@@ -5738,6 +5866,9 @@ def check_output(args: CommandLineArguments) -> None:
         args.output_nspawn_settings if args.nspawn_settings is not None else None,
         args.output_root_hash_file if args.verity else None,
         args.output_sshkey if args.ssh else None,
+        args.output_split_root if args.split_artifacts else None,
+        args.output_split_verity if args.split_artifacts else None,
+        args.output_split_kernel if args.split_artifacts else None,
     ):
 
         if f is None:
@@ -5814,6 +5945,16 @@ def print_summary(args: CommandLineArguments) -> None:
     MkosiPrinter.info("           Output Checksum: " + none_to_na(args.output_checksum if args.checksum else None))
     MkosiPrinter.info("          Output Signature: " + none_to_na(args.output_signature if args.sign else None))
     MkosiPrinter.info("               Output Bmap: " + none_to_na(args.output_bmap if args.bmap else None))
+    MkosiPrinter.info("  Generate split artifacts: " + yes_no(args.split_artifacts))
+    MkosiPrinter.info(
+        "      Output Split Root FS: " + none_to_na(args.output_split_root if args.split_artifacts else None)
+    )
+    MkosiPrinter.info(
+        "       Output Split Verity: " + none_to_na(args.output_split_verity if args.split_artifacts else None)
+    )
+    MkosiPrinter.info(
+        "       Output Split Kernel: " + none_to_na(args.output_split_kernel if args.split_artifacts else None)
+    )
     MkosiPrinter.info(
         "    Output nspawn Settings: "
         + none_to_na(args.output_nspawn_settings if args.nspawn_settings is not None else None)
@@ -6042,18 +6183,26 @@ def setup_network_veth(args: CommandLineArguments, root: str, do_run_build_scrip
 
 def build_image(
     args: CommandLineArguments, root: str, *, do_run_build_script: bool, for_cache: bool = False, cleanup: bool = False
-) -> Tuple[Optional[BinaryIO], Optional[BinaryIO], Optional[str], Optional[TextIO]]:
+) -> Tuple[
+    Optional[BinaryIO],
+    Optional[BinaryIO],
+    Optional[str],
+    Optional[TextIO],
+    Optional[BinaryIO],
+    Optional[BinaryIO],
+    Optional[BinaryIO],
+]:
     # If there's no build script set, there's no point in executing
     # the build script iteration. Let's quit early.
     if args.build_script is None and do_run_build_script:
-        return None, None, None, None
+        return None, None, None, None, None, None, None
 
     make_build_dir(args)
 
     raw, cached = reuse_cache_image(args, root, do_run_build_script, for_cache)
     if for_cache and cached:
         # Found existing cache image, exiting build_image
-        return None, None, None, None
+        return None, None, None, None, None, None, None
 
     if not cached:
         raw = create_image(args, root, for_cache)
@@ -6130,10 +6279,16 @@ def build_image(
 
             generated_root = make_generated_root(args, root, for_cache)
             insert_generated_root(args, root, raw, loopdev, generated_root, for_cache)
+            split_root = (
+                (generated_root or extract_partition(args, encrypted_root, do_run_build_script, for_cache))
+                if args.split_artifacts
+                else None
+            )
 
             verity, root_hash = make_verity(args, root, encrypted_root, do_run_build_script, for_cache)
             patch_root_uuid(args, loopdev, root_hash, for_cache)
             insert_verity(args, root, raw, loopdev, verity, root_hash, for_cache)
+            split_verity = verity if args.split_artifacts else None
 
             # This time we mount read-only, as we already generated
             # the verity data, and hence really shouldn't modify the
@@ -6152,10 +6307,15 @@ def build_image(
 
             install_unified_kernel(args, root, root_hash, do_run_build_script, for_cache, cached, mount)
             secure_boot_sign(args, root, do_run_build_script, for_cache, cached, mount)
+            split_kernel = (
+                extract_unified_kernel(args, root, do_run_build_script, for_cache, mount)
+                if args.split_artifacts
+                else None
+            )
 
     tar = make_tar(args, root, do_run_build_script, for_cache)
 
-    return raw or generated_root, tar, root_hash, sshkey
+    return raw or generated_root, tar, root_hash, sshkey, split_root, split_verity, split_kernel
 
 
 def workspace(root: str) -> str:
@@ -6309,14 +6469,18 @@ def build_stuff(args: CommandLineArguments) -> None:
             if args.build_script:
                 with complete_step("Running first (development) stage to generate cached copy"):
                     # Generate the cache version of the build image, and store it as "cache-pre-dev"
-                    raw, tar, root_hash, sshkey = build_image(args, root, do_run_build_script=True, for_cache=True)
+                    raw, tar, root_hash, sshkey, split_root, split_verity, split_kernel = build_image(
+                        args, root, do_run_build_script=True, for_cache=True
+                    )
                     save_cache(args, root, raw.name if raw is not None else None, args.cache_pre_dev)
 
                     remove_artifacts(args, root, raw, tar, do_run_build_script=True)
 
             with complete_step("Running second (final) stage to generate cached copy"):
                 # Generate the cache version of the build image, and store it as "cache-pre-inst"
-                raw, tar, root_hash, sshkey = build_image(args, root, do_run_build_script=False, for_cache=True)
+                raw, tar, root_hash, sshkey, split_root, split_verity, split_kernel = build_image(
+                    args, root, do_run_build_script=False, for_cache=True
+                )
 
                 if raw:
                     save_cache(args, root, raw.name, args.cache_pre_inst)
@@ -6325,7 +6489,9 @@ def build_stuff(args: CommandLineArguments) -> None:
         if args.build_script:
             with complete_step("Running first (development) stage"):
                 # Run the image builder for the first (development) stage in preparation for the build script
-                raw, tar, root_hash, sshkey = build_image(args, root, do_run_build_script=True)
+                raw, tar, root_hash, sshkey, split_root, split_verity, split_kernel = build_image(
+                    args, root, do_run_build_script=True
+                )
 
                 run_build_script(args, root, raw)
                 remove_artifacts(args, root, raw, tar, do_run_build_script=True)
@@ -6333,15 +6499,22 @@ def build_stuff(args: CommandLineArguments) -> None:
         # Run the image builder for the second (final) stage
         if not args.skip_final_phase:
             with complete_step("Running second (final) stage"):
-                raw, tar, root_hash, sshkey = build_image(args, root, do_run_build_script=False, cleanup=True)
+                raw, tar, root_hash, sshkey, split_root, split_verity, split_kernel = build_image(
+                    args, root, do_run_build_script=False, cleanup=True
+                )
         else:
             MkosiPrinter.print_step("Skipping (second) final image build phase.")
 
         raw = qcow2_output(args, raw)
         raw = xz_output(args, raw)
+        split_root = xz_output(args, split_root, ".usr" if args.usr_only else ".root")
+        split_verity = xz_output(args, split_verity, ".verity")
+        split_kernel = xz_output(args, split_kernel, ".efi")
         root_hash_file = write_root_hash_file(args, root_hash)
         settings = copy_nspawn_settings(args)
-        checksum = calculate_sha256sum(args, raw, tar, root_hash_file, settings)
+        checksum = calculate_sha256sum(
+            args, raw, tar, root_hash_file, split_root, split_verity, split_kernel, settings
+        )
         signature = calculate_signature(args, checksum)
         bmap = calculate_bmap(args, raw)
 
@@ -6353,6 +6526,9 @@ def build_stuff(args: CommandLineArguments) -> None:
         link_output_nspawn_settings(args, settings.name if settings is not None else None)
         if args.output_sshkey is not None:
             link_output_sshkey(args, sshkey.name if sshkey is not None else None)
+        link_output_split_root(args, split_root.name if split_root is not None else None)
+        link_output_split_verity(args, split_verity.name if split_verity is not None else None)
+        link_output_split_kernel(args, split_kernel.name if split_kernel is not None else None)
 
         if root_hash is not None:
             MkosiPrinter.print_step(f"Root hash is {root_hash}.")
