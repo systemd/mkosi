@@ -4,7 +4,7 @@
 
 # NAME
 
-mkosi - Build Legacy-Free OS Images
+mkosi - Build Bespoke OS Images
 
 # SYNOPSIS
 
@@ -22,9 +22,9 @@ mkosi - Build Legacy-Free OS Images
 
 # DESCRIPTION
 
-`mkosi` is a tool for easily     building legacy-free OS images. It's a
-fancy wrapper around `dnf --installroot`, `debootstrap`, `pacstrap`
-and `zypper` that may generate disk images with a number of bells and
+`mkosi` is a tool for easily building bespoke OS images. It's a fancy
+wrapper around `dnf --installroot`, `debootstrap`, `pacstrap` and
+`zypper` that may generate disk images with a number of bells and
 whistles.
 
 ## Supported output formats
