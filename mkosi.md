@@ -4,7 +4,7 @@
 
 # NAME
 
-mkosi - Build Legacy-Free OS Images
+mkosi — Build Bespoke OS Images
 
 # SYNOPSIS
 
@@ -22,7 +22,7 @@ mkosi - Build Legacy-Free OS Images
 
 # DESCRIPTION
 
-`mkosi` is a tool for easily     building legacy-free OS images. It's a
+`mkosi` is a tool for easily building customized OS images. It's a
 fancy wrapper around `dnf --installroot`, `debootstrap`, `pacstrap`
 and `zypper` that may generate disk images with a number of bells and
 whistles.
@@ -1035,9 +1035,8 @@ Currently, *Fedora* packages all relevant tools as of Fedora 28.
 
 ## Compatibility
 
-Generated images are *legacy-free*. This means only *GPT* disk labels
-(and no *MBR* disk labels) are supported, and only systemd based
-images may be generated.
+Legacy concepts are avoided: generated images use *GPT* disk labels
+(and no *MBR* labels), and only systemd-based images may be generated.
 
 All generated *GPT* disk images may be booted in a local
 container directly with:

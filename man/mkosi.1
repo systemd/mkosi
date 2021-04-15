@@ -5,7 +5,7 @@
 .hy
 .SH NAME
 .PP
-mkosi - Build Legacy-Free OS Images
+mkosi - Build Bespoke OS Images
 .SH SYNOPSIS
 .PP
 \f[C]mkosi [options\&...] build\f[R]
@@ -21,7 +21,7 @@ mkosi - Build Legacy-Free OS Images
 \f[C]mkosi [options\&...] qemu\f[R]
 .SH DESCRIPTION
 .PP
-\f[C]mkosi\f[R] is a tool for easily building legacy-free OS images.
+\f[C]mkosi\f[R] is a tool for easily building customized OS images.
 It\[cq]s a fancy wrapper around \f[C]dnf --installroot\f[R],
 \f[C]debootstrap\f[R], \f[C]pacstrap\f[R] and \f[C]zypper\f[R] that may
 generate disk images with a number of bells and whistles.
@@ -1292,9 +1292,9 @@ Any distribution that packages \f[C]yum\f[R] (or the newer replacement
 Currently, \f[I]Fedora\f[R] packages all relevant tools as of Fedora 28.
 .SS Compatibility
 .PP
-Generated images are \f[I]legacy-free\f[R].
-This means only \f[I]GPT\f[R] disk labels (and no \f[I]MBR\f[R] disk
-labels) are supported, and only systemd based images may be generated.
+Legacy concepts are avoided: generated images use \f[I]GPT\f[R] disk
+labels (and no \f[I]MBR\f[R] labels), and only systemd-based images
+may be generated.
 .PP
 All generated \f[I]GPT\f[R] disk images may be booted in a local
 container directly with:
