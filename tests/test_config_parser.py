@@ -132,6 +132,7 @@ class MkosiConfig(object):
             "image_id": None,
             "image_version": None,
             "auto_bump": False,
+            "workspace_dir": None,
         }
 
     def __eq__(self, other: [mkosi.CommandLineArguments]) -> bool:

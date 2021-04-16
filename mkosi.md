@@ -264,6 +264,20 @@ details see the table below.
   such a directory does not exist, all output artifacts are placed
   adjacent to the output image file.
 
+`--workspace-dir=`
+
+: Path to a directory where to store data required temporarily while
+  building the image. This directory should have enough space to store
+  a full OS image, though in most modes the actually used disk space
+  is smaller. If not specified, and `mkosi.workspace/` exists, it is
+  used for this purpose. If it doesn't exist and `$TMPDIR` is set, the
+  specified directory is used. If that's not set either, `/var/tmp/`
+  is used. The data in the directory is removed automatically after
+  each build. It's safe to manually remove the contents of this
+  directories should an `mkosi` invocation be aborted abnormally (for
+  example, due to reboot/power failure). If the `btrfs` output modes
+  are selected this directory must be backed by `btrfs` too.
+
 `--force`, `-f`
 
 : Replace the output file if it already exists, when building an
