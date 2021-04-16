@@ -98,7 +98,6 @@ COMMAND="$1"
 KERNEL_VERSION="$2"
 BOOT_DIR_ABS="$3"
 KERNEL_IMAGE="$4"
-ROOTHASH="${5:-}"
 
 # If KERNEL_INSTALL_MACHINE_ID is defined but empty, BOOT_DIR_ABS is a fake directory so let's skip creating
 # the unified kernel image.
@@ -109,10 +108,19 @@ fi
 # Strip machine ID and kernel version to get the boot directory.
 PREFIX=$(dirname $(dirname "$BOOT_DIR_ABS"))
 
-if [[ -n "$ROOTHASH" ]]; then
-    BOOT_BINARY="${PREFIX}/EFI/Linux/linux-${KERNEL_VERSION}-${ROOTHASH}.efi"
+# Pick a default prefix name for the unified kernel binary
+if [[ -n "$IMAGE_ID" ]] ; then
+    IMAGE_ID=linux
+fi
+
+if [[ -n "$IMAGE_VERSION" ]] ; then
+    BOOT_BINARY="${PREFIX}/EFI/Linux/${IMAGE_ID}_${IMAGE_VERSION}.efi"
+elif [[ -n "$ROOTHASH" ]] ; then
+    BOOT_BINARY="${PREFIX}/EFI/Linux/${IMAGE_ID}-${KERNEL_VERSION}-${ROOTHASH}.efi"
+elif [[ -n "$USRHASH" ]] ; then
+    BOOT_BINARY="${PREFIX}/EFI/Linux/${IMAGE_ID}-${KERNEL_VERSION}-${USRHASH}.efi"
 else
-    BOOT_BINARY="${PREFIX}/EFI/Linux/linux-${KERNEL_VERSION}.efi"
+    BOOT_BINARY="${PREFIX}/EFI/Linux/${IMAGE_ID}-${KERNEL_VERSION}.efi"
 fi
 
 case "$COMMAND" in
@@ -127,6 +135,8 @@ case "$COMMAND" in
 
         if [[ -n "$ROOTHASH" ]]; then
             BOOT_OPTIONS="${BOOT_OPTIONS} roothash=${ROOTHASH}"
+        elif [[ -n "$USRHASH" ]]; then
+            BOOT_OPTIONS="${BOOT_OPTIONS} usrhash=${USRHASH}"
         fi
 
         if [[ -n "$KERNEL_IMAGE" ]]; then
@@ -565,6 +575,13 @@ def gpt_root_native(arch: Optional[str], usr_only: bool = False) -> GPTRootTypeP
             die(f"Unknown architecture {arch}.")
 
 
+def roothash_suffix(usr_only: bool = False) -> str:
+    if usr_only:
+        return ".usrhash"
+
+    return ".roothash"
+
+
 def unshare(flags: int) -> None:
     libc_name = ctypes.util.find_library("c")
     if libc_name is None:
@@ -831,7 +848,19 @@ def disable_cow(path: str) -> None:
     run(["chattr", "+C", path], stdout=DEVNULL, stderr=DEVNULL, check=False)
 
 
-def root_partition_name(args: CommandLineArguments, verity: Optional[bool] = False) -> str:
+def root_partition_name(
+    args: Optional[CommandLineArguments],
+    verity: Optional[bool] = False,
+    image_id: Optional[str] = None,
+    image_version: Optional[str] = None,
+    usr_only: Optional[bool] = False,
+) -> str:
+
+    # Support invocation with "args" or with separate parameters (which is useful when invoking it before we allocated a CommandLineArguments object)
+    if args is not None:
+        image_id = args.image_id
+        image_version = args.image_version
+        usr_only = args.usr_only
 
     # We implement two naming regimes for the partitions. If image_id
     # is specified we assume that there's a naming and maybe
@@ -846,15 +875,15 @@ def root_partition_name(args: CommandLineArguments, verity: Optional[bool] = Fal
     # too. The latter is particularly useful for systemd's image
     # dissection logic, which will always pick the newest root or
     # /usr/ partition if multiple exist.
-    if args.image_id is not None:
-        if args.image_version is not None:
-            return f"{args.image_id}_{args.image_version}"
+    if image_id is not None:
+        if image_version is not None:
+            return f"{image_id}_{image_version}"
         else:
-            return args.image_id
+            return image_id
 
     # If no image id is specified we just return a descriptive string
     # for the partition.
-    prefix = "System Resources" if args.usr_only else "Root"
+    prefix = "System Resources" if usr_only else "Root"
     if verity:
         return prefix + " Verity"
     return prefix + " Partition"
@@ -1645,6 +1674,20 @@ def prepare_tree_root(args: CommandLineArguments, root: str) -> None:
             btrfs_subvol_create(root)
 
 
+def root_home(args: CommandLineArguments, root: str) -> str:
+
+    # If UsrOnly= is turned on the /root/ directory (i.e. the root
+    # user's home directory) is not persistent (after all everything
+    # outside of /usr/ is not around). In that case let's mount it in
+    # from an external place, so that we can have persistency. It is
+    # after all where we place our build sources and suchlike.
+
+    if args.usr_only:
+        return os.path.join(workspace(root), "home-root")
+
+    return os.path.join(root, "root")
+
+
 def prepare_tree(args: CommandLineArguments, root: str, do_run_build_script: bool, cached: bool) -> None:
     if cached:
         return
@@ -1702,20 +1745,20 @@ def prepare_tree(args: CommandLineArguments, root: str, do_run_build_script: boo
                 cmdline.write("\n")
 
         if do_run_build_script or args.ssh:
-            os.mkdir(os.path.join(root, "root"), 0o750)
+            os.mkdir(root_home(args, root), 0o750)
 
         if args.ssh and not do_run_build_script:
-            os.mkdir(os.path.join(root, "root/.ssh"), 0o700)
+            os.mkdir(os.path.join(root_home(args, root), ".ssh"), 0o700)
 
         if do_run_build_script:
-            os.mkdir(os.path.join(root, "root/dest"), 0o755)
+            os.mkdir(os.path.join(root_home(args, root), "dest"), 0o755)
 
             if args.include_dir is not None:
                 os.mkdir(os.path.join(root, "usr"), 0o755)
                 os.mkdir(os.path.join(root, "usr/include"), 0o755)
 
             if args.build_dir is not None:
-                os.mkdir(os.path.join(root, "root/build"), 0o755)
+                os.mkdir(os.path.join(root_home(args, root), "build"), 0o755)
 
         if args.network_veth and not do_run_build_script:
             os.mkdir(os.path.join(root, "etc/systemd"), 0o755)
@@ -3244,14 +3287,15 @@ def run_prepare_script(args: CommandLineArguments, root: str, do_run_build_scrip
         # place to mount it to. But if we create that we might as well
         # just copy the file anyway.
 
-        shutil.copy2(args.prepare_script, os.path.join(root, "root/prepare"))
+        shutil.copy2(args.prepare_script, os.path.join(root_home(args, root), "prepare"))
 
         nspawn_params = nspawn_params_for_build_sources(args, SourceFileTransfer.mount)
         run_workspace_command(args, root, ["/root/prepare", verb], network=True, nspawn_params=nspawn_params)
 
-        if os.path.exists(os.path.join(root, "root/src")):
-            os.rmdir(os.path.join(root, "root/src"))
-        os.unlink(os.path.join(root, "root/prepare"))
+        if os.path.exists(os.path.join(root_home(args, root), "src")):
+            os.rmdir(os.path.join(root_home(args, root), "src"))
+
+        os.unlink(os.path.join(root_home(args, root), "prepare"))
 
 
 def run_postinst_script(
@@ -3271,7 +3315,7 @@ def run_postinst_script(
         # place to mount it to. But if we create that we might as well
         # just copy the file anyway.
 
-        shutil.copy2(args.postinst_script, os.path.join(root, "root/postinst"))
+        shutil.copy2(args.postinst_script, os.path.join(root_home(args, root), "postinst"))
 
         nspawn_params = []
         # in order to have full blockdev access, i.e. for making grub2 bootloader changes
@@ -3284,7 +3328,7 @@ def run_postinst_script(
         run_workspace_command(
             args, root, ["/root/postinst", verb], network=args.with_network, nspawn_params=nspawn_params
         )
-        os.unlink(os.path.join(root, "root/postinst"))
+        os.unlink(os.path.join(root_home(args, root), "postinst"))
 
 
 def output_dir(args: CommandLineArguments) -> str:
@@ -3516,7 +3560,7 @@ def install_build_src(args: CommandLineArguments, root: str, do_run_build_script
 
     if do_run_build_script:
         with complete_step("Copying in build script"):
-            copy_file(args.build_script, os.path.join(root, "root", os.path.basename(args.build_script)))
+            copy_file(args.build_script, os.path.join(root_home(args, root), os.path.basename(args.build_script)))
 
     sft: Optional[SourceFileTransfer] = None
     if do_run_build_script:
@@ -3528,7 +3572,7 @@ def install_build_src(args: CommandLineArguments, root: str, do_run_build_script
         return
 
     with complete_step("Copying in sources"):
-        target = os.path.join(root, "root/src")
+        target = os.path.join(root_home(args, root), "src")
 
         if sft in (
             SourceFileTransfer.copy_git_others,
@@ -3973,10 +4017,19 @@ def install_unified_kernel(
                     f"{prefix}/{args.machine_id}/{kver.name}",
                     "",
                 ]
-                if root_hash is not None:
-                    cmdline.append(root_hash)
 
-                run_workspace_command(args, root, cmdline)
+                # Pass some extra meta-info to the script via
+                # environment variables. The script uses this to name
+                # the unified kernel image file
+                env = {}
+                if args.image_id is not None:
+                    env["IMAGE_ID"] = args.image_id
+                if args.image_version is not None:
+                    env["IMAGE_VERSION"] = args.image_version
+                if root_hash is not None:
+                    env["USRHASH" if args.usr_only else "ROOTHASH"] = root_hash
+
+                run_workspace_command(args, root, cmdline, env=env)
 
 
 def secure_boot_sign(
@@ -4100,7 +4153,8 @@ def write_root_hash_file(args: CommandLineArguments, root_hash: Optional[str]) -
 
     assert args.output_root_hash_file is not None
 
-    with complete_step("Writing .roothash file"):
+    suffix = roothash_suffix(args.usr_only)
+    with complete_step(f"Writing {suffix} file"):
         f: BinaryIO = cast(
             BinaryIO,
             tempfile.NamedTemporaryFile(mode="w+b", prefix=".mkosi", dir=os.path.dirname(args.output_root_hash_file)),
@@ -4315,7 +4369,8 @@ def link_output_root_hash_file(args: CommandLineArguments, root_hash_file: Optio
 
     assert args.output_root_hash_file is not None
 
-    with complete_step("Linking .roothash file", "Successfully linked " + args.output_root_hash_file):
+    suffix = roothash_suffix(args.usr_only)
+    with complete_step(f"Linking {suffix} file", "Successfully linked " + args.output_root_hash_file):
         _link_output(args, root_hash_file, args.output_root_hash_file)
 
 
@@ -5552,6 +5607,19 @@ def strip_suffixes(path: str) -> str:
     return t
 
 
+def xescape(s: str) -> str:
+    "Escape a string udev-style, for inclusion in /dev/disk/by-*/* symlinks"
+
+    ret = ""
+    for c in s:
+        if ord(c) <= 32 or ord(c) >= 127 or c == "/":
+            ret = ret + "\\x%02x" % ord(c)
+        else:
+            ret = ret + str(c)
+
+    return ret
+
+
 def build_auxiliary_output_path(path: str, suffix: str, xz: Optional[bool] = False) -> str:
     return strip_suffixes(path) + suffix + (".xz" if xz else "")
 
@@ -5741,7 +5809,7 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
 
     if args.verity:
         args.read_only = True
-        args.output_root_hash_file = build_auxiliary_output_path(args.output, ".roothash")
+        args.output_root_hash_file = build_auxiliary_output_path(args.output, roothash_suffix(args.usr_only))
 
     if args.checksum:
         args.output_checksum = os.path.join(os.path.dirname(args.output), "SHA256SUMS")
@@ -5859,6 +5927,20 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
 
     if args.qemu_headless and "console=ttyS0" not in args.kernel_command_line:
         args.kernel_command_line.append("console=ttyS0")
+
+    if args.bootable and args.usr_only and not args.verity:
+        # GPT auto-discovery on empty kernel command lines only looks
+        # for root partitions (in order to avoid ambiguities), if we
+        # shall operate without one (and only have a /usr partition)
+        # we thus need to explicitly say which partition to mount.
+        args.kernel_command_line.append(
+            "mount.usr=/dev/disk/by-partlabel/"
+            + xescape(
+                root_partition_name(
+                    args=None, image_id=args.image_id, image_version=args.image_version, usr_only=args.usr_only
+                )
+            )
+        )
 
     if args.bootable and args.distribution == Distribution.mageia:
         # TODO: Remove once dracut 045 is available in mageia.
@@ -6180,7 +6262,7 @@ def setup_ssh(
     f: TextIO
     if args.ssh_key:
         f = open(args.ssh_key, mode="r", encoding="utf-8")
-        copy_file(f"{args.ssh_key}.pub", os.path.join(root, "root/.ssh/authorized_keys"))
+        copy_file(f"{args.ssh_key}.pub", os.path.join(root_home(args, root), ".ssh/authorized_keys"))
     else:
         assert args.output_sshkey is not None
 
@@ -6200,10 +6282,10 @@ def setup_ssh(
                 stdout=DEVNULL,
             )
 
-        copy_file(f"{f.name}.pub", os.path.join(root, "root/.ssh/authorized_keys"))
+        copy_file(f"{f.name}.pub", os.path.join(root_home(args, root), ".ssh/authorized_keys"))
         os.remove(f"{f.name}.pub")
 
-    os.chmod(os.path.join(root, "root/.ssh/authorized_keys"), 0o600)
+    os.chmod(os.path.join(root_home(args, root), ".ssh/authorized_keys"), 0o600)
 
     return f
 
@@ -6414,8 +6496,7 @@ def run_build_script(args: CommandLineArguments, root: str, raw: Optional[Binary
             "--machine=mkosi-" + uuid.uuid4().hex,
             "--as-pid2",
             "--register=no",
-            "--bind",
-            install_dir(args, root) + ":/root/dest",
+            "--bind=" + install_dir(args, root) + ":/root/dest",
             "--bind=" + var_tmp(root) + ":/var/tmp",
             "--setenv=WITH_DOCS=" + one_zero(args.with_docs),
             "--setenv=WITH_TESTS=" + one_zero(args.with_tests),
@@ -6454,6 +6535,9 @@ def run_build_script(args: CommandLineArguments, root: str, raw: Optional[Binary
             cmdline.append("--bind-ro=/etc/resolv.conf")
         else:
             cmdline.append("--private-network")
+
+        if args.usr_only:
+            cmdline.append("--bind=" + root_home(args, root) + ":/root")
 
         cmdline.append("/root/" + os.path.basename(args.build_script))
         cmdline += args.cmdline
@@ -6506,6 +6590,8 @@ def remove_artifacts(
     with complete_step("Removing artifacts from " + what):
         unlink_try_hard(root)
         unlink_try_hard(var_tmp(root))
+        if args.usr_only:
+            unlink_try_hard(root_home(args, root))
 
 
 def build_stuff(args: CommandLineArguments) -> None:
