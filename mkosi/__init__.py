@@ -1415,9 +1415,9 @@ def prepare_root(args: CommandLineArguments, dev: Optional[str], cached: bool) -
     if cached:
         return
 
-    what = "usr" if args.usr_only else "root"
+    what, path = ("usr", "/usr") if args.usr_only else ("root", "/")
     with complete_step(f"Formatting {what} partition"):
-        mkfs_generic(args, "root", "/", dev)
+        mkfs_generic(args, what, path, dev)
 
 
 def prepare_home(args: CommandLineArguments, dev: Optional[str], cached: bool) -> None:
