@@ -4723,7 +4723,7 @@ def parse_source_file_transfer(value: str) -> Optional[SourceFileTransfer]:
 
 
 def create_parser() -> ArgumentParserMkosi:
-    parser = ArgumentParserMkosi(prog="mkosi", description="Build Legacy-Free OS Images", add_help=False)
+    parser = ArgumentParserMkosi(prog="mkosi", description="Build Bespoke OS Images", add_help=False)
 
     group = parser.add_argument_group("Commands")
     group.add_argument("verb", choices=MKOSI_COMMANDS, default="build", help="Operation to execute")
