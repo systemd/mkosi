@@ -3154,6 +3154,21 @@ def set_root_password(args: CommandLineArguments, root: str, do_run_build_script
             patch_file(os.path.join(root, "etc/shadow"), jj)
 
 
+def invoke_fstrim(args: CommandLineArguments, root: str, do_run_build_script: bool, for_cache: bool) -> None:
+
+    if do_run_build_script:
+        return
+    if is_generated_root(args):
+        return
+    if not args.output_format.is_disk():
+        return
+    if for_cache:
+        return
+
+    with complete_step("Trimming File System"):
+        run(["fstrim", "-v", root])
+
+
 def pam_add_autologin(root: str, tty: str) -> None:
     with open(os.path.join(root, "etc/pam.d/login"), "r+") as f:
         original = f.read()
@@ -6425,6 +6440,7 @@ def build_image(
                 reset_machine_id(args, root, do_run_build_script, for_cache)
                 reset_random_seed(args, root)
                 run_finalize_script(args, root, do_run_build_script, for_cache)
+                invoke_fstrim(args, root, do_run_build_script, for_cache)
                 make_read_only(args, root, for_cache)
 
             generated_root = make_generated_root(args, root, for_cache)
