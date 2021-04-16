@@ -428,6 +428,7 @@ class CommandLineArguments:
     all_directory: Optional[str]
     debug: List[str]
     auto_bump: bool
+    workspace_dir: Optional[str]
 
     # QEMU-specific options
     qemu_headless: bool
@@ -756,7 +757,9 @@ def init_namespace(args: CommandLineArguments) -> None:
 
 def setup_workspace(args: CommandLineArguments) -> TempDir:
     MkosiPrinter.print_step("Setting up temporary workspace.")
-    if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
+    if args.workspace_dir is not None:
+        d = tempfile.TemporaryDirectory(dir=args.workspace_dir, prefix="")
+    elif args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
         d = tempfile.TemporaryDirectory(dir=os.path.dirname(args.output), prefix=".mkosi-")
     else:
         d = tempfile.TemporaryDirectory(dir=tmp_dir(), prefix="mkosi-")
@@ -3585,6 +3588,7 @@ def install_build_src(args: CommandLineArguments, root: str, do_run_build_script
                 "*.cache-pre-dev",
                 "*.cache-pre-inst",
                 os.path.basename(args.output_dir) + "/" if args.output_dir else "mkosi.output/",
+                os.path.basename(args.workspace_dir) + "/" if args.workspace_dir else "mkosi.workspace/",
                 os.path.basename(args.cache_path) + "/" if args.cache_path else "mkosi.cache/",
                 os.path.basename(args.build_dir) + "/" if args.build_dir else "mkosi.builddir/",
                 os.path.basename(args.include_dir) + "/" if args.include_dir else "mkosi.includedir/",
@@ -4620,6 +4624,7 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
     SPECIAL_MKOSI_DEFAULT_PARAMS = {
         "QCow2": "--qcow2",
         "OutputDirectory": "--output-dir",
+        "WorkspaceDirectory": "--workspace-dir",
         "XZ": "--xz",
         "NSpawnSettings": "--settings",
         "ESPSize": "--esp-size",
@@ -4771,6 +4776,7 @@ def create_parser() -> ArgumentParserMkosi:
         "--output-split-kernel", help="Output kernel path (if --split-artifacts is used)", metavar="PATH"
     )
     group.add_argument("-O", "--output-dir", help="Output root directory", metavar="DIR")
+    group.add_argument("--workspace-dir", help="Workspace directory", metavar="DIR")
     group.add_argument(
         "-f",
         "--force",
@@ -5647,6 +5653,7 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
     args_find_path(args, "prepare_script", "mkosi.prepare")
     args_find_path(args, "finalize_script", "mkosi.finalize")
     args_find_path(args, "output_dir", "mkosi.output/")
+    args_find_path(args, "workspace_dir", "mkosi.workspace/")
     args_find_path(args, "mksquashfs_tool", "mkosi.mksquashfs-tool", type_call=lambda x: [x])
 
     find_extra(args)
@@ -6082,6 +6089,8 @@ def print_summary(args: CommandLineArguments) -> None:
         MkosiPrinter.info("                  Minimize: " + yes_no(args.minimize))
     if args.output_dir:
         MkosiPrinter.info("          Output Directory: " + args.output_dir)
+    if args.workspace_dir:
+        MkosiPrinter.info("       Workspace Directory: " + args.workspace_dir)
     MkosiPrinter.info("                    Output: " + args.output)
     MkosiPrinter.info("           Output Checksum: " + none_to_na(args.output_checksum if args.checksum else None))
     MkosiPrinter.info("          Output Signature: " + none_to_na(args.output_signature if args.sign else None))
