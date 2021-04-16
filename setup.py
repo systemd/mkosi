@@ -19,7 +19,7 @@ class BuildManpage(Command):
 setup(
     name="mkosi",
     version="9",
-    description="Create Bespoke OS Images",
+    description="Build Bespoke OS Images",
     url="https://github.com/systemd/mkosi",
     maintainer="mkosi contributors",
     maintainer_email="systemd-devel@lists.freedesktop.org",
