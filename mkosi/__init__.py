@@ -3963,7 +3963,7 @@ def extract_partition(
 
     with complete_step("Extracting partition"):
         f: BinaryIO = cast(BinaryIO, tempfile.NamedTemporaryFile(dir=os.path.dirname(args.output), prefix=".mkosi-"))
-        run(["dd", f"if={dev}" f"of={f.name}", "conv=nocreat,sparse"])
+        run(["dd", f"if={dev}", f"of={f.name}", "conv=nocreat,sparse"])
 
     return f
 
