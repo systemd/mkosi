@@ -1669,7 +1669,7 @@ def configure_dracut(args: CommandLineArguments, root: str) -> None:
 
 
 def prepare_tree_root(args: CommandLineArguments, root: str) -> None:
-    if args.output_format == OutputFormat.subvolume:
+    if args.output_format == OutputFormat.subvolume and not is_generated_root(args):
         with complete_step("Setting up OS tree root"):
             btrfs_subvol_create(root)
 
@@ -1693,9 +1693,7 @@ def prepare_tree(args: CommandLineArguments, root: str, do_run_build_script: boo
         return
 
     with complete_step("Setting up basic OS tree"):
-        if args.output_format is OutputFormat.subvolume or (
-            args.output_format is OutputFormat.gpt_btrfs and not args.minimize
-        ):
+        if args.output_format in (OutputFormat.subvolume, OutputFormat.gpt_btrfs) and not is_generated_root(args):
             btrfs_subvol_create(os.path.join(root, "home"))
             btrfs_subvol_create(os.path.join(root, "srv"))
             btrfs_subvol_create(os.path.join(root, "var"))
@@ -3615,6 +3613,8 @@ def make_read_only(args: CommandLineArguments, root: str, for_cache: bool, b: bo
         return
 
     if args.output_format not in (OutputFormat.gpt_btrfs, OutputFormat.subvolume):
+        return
+    if is_generated_root(args):
         return
 
     with complete_step("Marking root subvolume read-only"):
