@@ -108,10 +108,10 @@ jobs:
         EOF
 
         mkdir -p mkosi.skeleton/etc/portage
-        # REMOVE_BEFORE_MERGE
+
         tee mkosi.skeleton/etc/portage/binrepos.conf <<- EOF
         [binhost]
-        sync-uri = http://174.89.234.199:8000/binpkgs
+        sync-uri = https://raw.githubusercontent.com/257/binpkgs/main
         EOF
 
     # Ubuntu's systemd-nspawn doesn't support faccessat2() syscall, which is

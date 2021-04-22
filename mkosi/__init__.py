@@ -2876,7 +2876,7 @@ def install_opensuse(args: CommandLineArguments, root: Path, do_run_build_script
         shutil.copy2(root / "usr/etc/pam.d/login", root / "etc/pam.d/login")
 
 
-@complete_step("Installing Gentoo")
+@complete_step("Installing Gentoo…")
 def install_gentoo(
     args: CommandLineArguments,
     root: Path,
@@ -2893,7 +2893,7 @@ def install_gentoo(
     if not do_run_build_script and args.bootable:
         # Please don't move, needs to be called before installing dracut
         # dracut is part of gentoo_pkgs_boot
-        configure_dracut(args, root)
+        configure_dracut(args, packages={"dracut"}, root=root)
         gentoo.invoke_emerge(args, root, pkgs=gentoo.pkgs_boot)
 
     if args.packages:

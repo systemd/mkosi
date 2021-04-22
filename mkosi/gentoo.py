@@ -1,16 +1,17 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
+import contextlib
+import fcntl
 import os
 import re
 import tarfile
-import time
 import urllib.parse
 import urllib.request
 from pathlib import Path
 from textwrap import dedent
-from typing import Dict, List, Sequence
+from typing import Dict, Generator, List, Sequence
 
-from . import copy_path
+from . import copy_path, open_close, unlink_try_hard
 from .backend import (
     ARG_DEBUG,
     CommandLineArguments,
@@ -24,9 +25,18 @@ from .backend import (
 
 ARCHITECTURES = {
     "x86_64": ("amd64", "arch/x86/boot/bzImage"),
-    "aarch64": ("arm64", "arch/arm64/boot/Image.gz"),  # TODO:
-    "armv7l": ("arm", "arch/arm/boot/zImage"),  # TODO:
+    # TODO:
+    "aarch64": ("arm64", "arch/arm64/boot/Image.gz"),
+    # TODO:
+    "armv7l": ("arm", "arch/arm/boot/zImage"),
 }
+
+
+@contextlib.contextmanager
+def flock_path(path: Path) -> Generator[int, None, None]:
+    with open_close(path, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC) as fd:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield fd
 
 
 class Gentoo:
@@ -243,17 +253,21 @@ class Gentoo:
             "USE": " ".join(self.portage_use_flags),
         }
 
-        self.invoke_emerge(args, root, inside_stage3=False, actions=["--sync"])
+        self.sync_portage_tree(args, root)
         self.set_profile(args)
         self.set_default_repo()
         self.unmask_arch()
         self.provide_patches()
         self.set_useflags()
         self.mkosi_conf()
-        self.baselayout(args, root, portage_consts=ret)
+        self.baselayout(args, root)
         self.fetch_fix_stage3(root)
         self.update_stage3(args, root)
         self.depclean(args, root)
+
+    def sync_portage_tree(self, args: CommandLineArguments,
+                          root: Path) -> None:
+        self.invoke_emerge(args, root, inside_stage3=False, actions=["--sync"])
 
     def fetch_fix_stage3(self, root: Path) -> None:
         """usrmerge tracker bug: https://bugs.gentoo.org/690294"""
@@ -296,25 +310,65 @@ class Gentoo:
             stage3_tar_path.parent.mkdir(parents=True, exist_ok=True)
             urllib.request.urlretrieve(stage3_url_path, stage3_tar_path)
 
-        # poor-man's lock; only needed for tests on github
         stage3_tmp_extract.mkdir(parents=True, exist_ok=True)
-        if not stage3_tmp_extract.joinpath(".cache_clean").exists():
-            while (stage3_tmp_extract.joinpath(".cache_clean.lock").exists()):
-                time.sleep(4)
-            stage3_tmp_extract.joinpath(".cache_clean.lock").touch()
 
-            with tarfile.open(stage3_tar_path) as tfd:
-                MkosiPrinter.print_step(f"Extracting {stage3_tar.name} to "
-                                        f"{stage3_tmp_extract}")
-                tfd.extractall(stage3_tmp_extract, numeric_owner=True)
+        with flock_path(stage3_tmp_extract):
+            if not stage3_tmp_extract.joinpath(".cache_isclean").exists():
+                with tarfile.open(stage3_tar_path) as tfd:
+                    MkosiPrinter.print_step(f"Extracting {stage3_tar.name} to "
+                                            f"{stage3_tmp_extract}")
+                    tfd.extractall(stage3_tmp_extract, numeric_owner=True)
 
-            stage3_tmp_extract.joinpath("bin/awk").unlink()
-            root.joinpath("usr/bin/awk").symlink_to(
-                root.joinpath("usr/bin/gawk")
-            )
-            stage3_tmp_extract.joinpath(".cache_clean").touch()
-            stage3_tmp_extract.joinpath(".cache_clean.lock").unlink()
+                # REMOVEME : pathetic attempt have this merged :)
+                # remove once upstream ships the current *baselayout-999*
+                # version alternative would be to mount /sys as tmpfs when
+                # invoking emerge inside stage3; we don't want that.
+                baselaouy_qlist = [
+                    "etc/env.d/50baselayout",
+                    "etc/hosts",
+                    "etc/networks",
+                    "etc/profile",
+                    "etc/protocols",
+                    "etc/services",
+                    "etc/shells",
+                    "etc/filesystems",
+                    "etc/inputrc",
+                    "etc/issue",
+                    "etc/issue.logo",
+                    "etc/gentoo-release",
+                    "lib/modprobe.d/aliases.conf",
+                    "lib/modprobe.d/i386.conf",
+                    "lib/sysctl.d/00protected-links.conf",
+                    "usr/lib/os-release",
+                    "usr/share/baselayout/fstab",
+                    "usr/share/baselayout/group",
+                    "usr/share/baselayout/issue.devfix",
+                    "usr/share/baselayout/passwd",
+                    "usr/share/baselayout/shadow",
+                    "etc/os-release",
+                    "usr/share/applications/javaws.desktop",
+                    "usr/share/pixmaps/java-icon48.png",
+                    "etc/revdep-rebuild/60-java",
+                    "etc/profile.d/java-config-2.csh",
+                    "etc/profile.d/java-config-2.sh",
+                    "etc/env.d/20java-config",
+                    "etc/ssl/certs/java/.keep_sys-apps_baselayout-java-0",
+                    "etc/ca-certificates/update.d/java-cacerts",
+                ]
+                for path in baselaouy_qlist:
+                    if stage3_tmp_extract.joinpath(path).exists():
+                        stage3_tmp_extract.joinpath(path).unlink()
 
+                unlink_try_hard(stage3_tmp_extract.joinpath("dev"))
+                unlink_try_hard(stage3_tmp_extract.joinpath("proc"))
+                unlink_try_hard(stage3_tmp_extract.joinpath("sys"))
+
+                stage3_tmp_extract.joinpath("bin/awk").unlink()
+                root.joinpath("usr/bin/awk").symlink_to("gawk")
+
+                stage3_tmp_extract.joinpath(".cache_isclean").touch()
+
+        MkosiPrinter.print_step(f"Copying {stage3_tmp_extract} to {root}")
         copy_path(stage3_tmp_extract.joinpath("usr"),
                   root.joinpath("usr"))
         dirs = ["bin", "lib", "lib64"]
@@ -331,7 +385,8 @@ class Gentoo:
     def set_profile(self, args: CommandLineArguments) -> None:
         if not self.profile_path.is_symlink():
             MkosiPrinter.print_step(f"{args.distribution} setting Profile")
-            self.profile_path.symlink_to(self.portage_cfg["PORTDIR"] / self.arch_profile)
+            self.profile_path.symlink_to(
+                self.portage_cfg["PORTDIR"] / self.arch_profile)
 
     def set_default_repo(self) -> None:
         eselect_repo_conf = self.portage_cfg_dir / "repos.conf"
@@ -339,12 +394,12 @@ class Gentoo:
         eselect_repo_conf.joinpath("eselect-repo.conf").write_text(
             dedent(
                 f"""\
-                    [gentoo]
-                    location = {self.portage_cfg["PORTDIR"]}
-                    sync-uri = https://anongit.gentoo.org/git/repo/gentoo.git
-                    sync-type = git
-                    sync-dept = 1
-                    """
+                [gentoo]
+                location = {self.portage_cfg["PORTDIR"]}
+                sync-uri = https://anongit.gentoo.org/git/repo/gentoo.git
+                sync-type = git
+                sync-dept = 1
+                """
             )
         )
 
@@ -485,30 +540,34 @@ class Gentoo:
                 nspawn_params=self.DEFAULT_NSPAWN_PARAMS,
             )
 
-    def baselayout(self, args: CommandLineArguments, root: Path,
-                   portage_consts: Dict[str, str]) -> None:
+    def baselayout(self, args: CommandLineArguments, root: Path) -> None:
         # TOTHINK: sticky bizness when when image profile != host profile
         # REMOVE: once upstream has moved this to stable releases of baselaouy
         # https://gitweb.gentoo.org/proj/baselayout.git/commit/?id=57c250e24c70f8f9581860654cdec0d049345292
-        self.invoke_emerge(args, root, inside_stage3=False, opts=["--nodeps"],
+        self.invoke_emerge(args, root, inside_stage3=False,
+                           opts=["--nodeps"],
                            pkgs=["=sys-apps/baselayout-9999"])
 
     def update_stage3(self, args: CommandLineArguments, root: Path) -> None:
         # exclude baselayout, it expects /sys/.keep but nspawn mounts host's
         # /sys for us without the .keep file.
-        opts = self.EMERGE_UPDATE_OPTS + ["--exclude", "sys-apps/baselayout"]
+        self.invoke_emerge(args, root, inside_stage3=True,
+                           opts=["--unmerge"],
+                           pkgs=["=sys-apps/baselayout-2.7"])
+        opts = self.EMERGE_UPDATE_OPTS + ["--exclude",
+                                          "sys-apps/baselayout"]
         self.invoke_emerge(args, root, pkgs=self.pkgs_sys, opts=opts)
-
-        # "build" USE flag can go now, next time users do an update they will
-        # safely merge baselayout without that flag and it should be fine at
-        # that point.
-        self.baselayout_use.unlink()
 
         # FIXME?: without this we get the following
         # Synchronizing state of sshd.service with SysV service script with /lib/systemd/systemd-sysv-install.
         # Executing: /lib/systemd/systemd-sysv-install --root=/var/tmp/mkosi-2b6snh_u/root enable sshd
         # chroot: failed to run command ‘/usr/sbin/update-rc.d’: No such file or directory
         root.joinpath("etc/init.d/sshd").unlink()
+
+        # "build" USE flag can go now, next time users do an update they will
+        # safely merge baselayout without that flag and it should be fine at
+        # that point.
+        self.baselayout_use.unlink()
 
     def depclean(self, args: CommandLineArguments, root: Path) -> None:
         self.invoke_emerge(args, root, actions=["--depclean"])
