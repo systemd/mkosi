@@ -5964,10 +5964,6 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
             )
         )
 
-    if args.bootable and args.distribution == Distribution.mageia:
-        # TODO: Remove once dracut 045 is available in mageia.
-        args.kernel_command_line.append("root=/dev/gpt-auto-root")
-
     if not args.read_only:
         args.kernel_command_line.append("rw")
 
