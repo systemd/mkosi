@@ -524,6 +524,7 @@ FEDORA_KEYS_MAP = {
     "31": "3C3359C4",
     "32": "12C944D0",
     "33": "9570FF31",
+    "34": "45719A39",
 }
 
 # 1 MB at the beginning of the disk for the GPT disk label, and
@@ -5692,7 +5693,7 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
 
     if args.release is None:
         if args.distribution == Distribution.fedora:
-            args.release = "33"
+            args.release = "34"
         elif args.distribution in (Distribution.centos, Distribution.centos_epel):
             args.release = "8"
         elif args.distribution == Distribution.mageia:
@@ -5963,10 +5964,6 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
                 )
             )
         )
-
-    if args.bootable and args.distribution == Distribution.mageia:
-        # TODO: Remove once dracut 045 is available in mageia.
-        args.kernel_command_line.append("root=/dev/gpt-auto-root")
 
     if not args.read_only:
         args.kernel_command_line.append("rw")
