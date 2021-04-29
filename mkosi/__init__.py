@@ -5693,7 +5693,7 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
 
     if args.release is None:
         if args.distribution == Distribution.fedora:
-            args.release = "33"
+            args.release = "34"
         elif args.distribution in (Distribution.centos, Distribution.centos_epel):
             args.release = "8"
         elif args.distribution == Distribution.mageia:
