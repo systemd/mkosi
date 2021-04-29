@@ -109,7 +109,7 @@ fi
 PREFIX=$(dirname $(dirname "$BOOT_DIR_ABS"))
 
 # Pick a default prefix name for the unified kernel binary
-if [[ -n "$IMAGE_ID" ]] ; then
+if [[ -z "$IMAGE_ID" ]] ; then
     IMAGE_ID=linux
 fi
 
