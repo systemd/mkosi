@@ -523,7 +523,7 @@ details see the table below.
 : Install the specified distribution packages (i.e. RPM, DEB, …) in
   the image. Takes a comma separated list of packages. This option may
   be used multiple times in which case the specified package list is
-  combined. Packaged specified this way will be installed both in the
+  combined. Packages specified this way will be installed both in the
   development and the final image (see below). Use `--build-package=`
   (see below) to specify packages that shall only be used for the
   image generated in the build image, but that shall not appear in the
@@ -1430,8 +1430,8 @@ Format=gpt_btrfs
 Bootable=yes
 
 [Packages]
-Packages=openssh-clients httpd
-BuildPackages=make gcc libcurl-devel
+Packages=openssh-clients,httpd
+BuildPackages=make,gcc,libcurl-devel
 EOF
 # cat > mkosi.build <<EOF
 #!/bin/sh
