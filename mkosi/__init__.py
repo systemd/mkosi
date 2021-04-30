@@ -4499,7 +4499,10 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
     # always the same
     args.machine_id = uuid.uuid4().hex
 
-    return CommandLineArguments(**vars(args))
+    # TODO: break this circle
+    retargs = CommandLineArguments(**vars(args))
+    retargs.distribution._args = retargs
+    return retargs
 
 
 def check_output(args: CommandLineArguments) -> None:
