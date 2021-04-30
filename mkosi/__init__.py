@@ -3689,15 +3689,15 @@ def create_parser() -> ArgumentParserMkosi:
 
 def load_distribution(args: argparse.Namespace) -> argparse.Namespace:
     if args.distribution is not None:
-        args.distribution = SUPPORTED_DISTRIBUTIONS[args.distribution]
+        args.distribution = SUPPORTED_DISTRIBUTIONS[args.distribution](args)
 
     if args.distribution is None or args.release is None:
         d, r = detect_distribution()
 
         if args.distribution is None:
-            args.distribution = d
+            args.distribution = d(args)
 
-        if args.distribution == d and issubclass(d, SUPPORTED_DISTRIBUTIONS["clear"]) and args.release is None:
+        if isinstance(args.distribution, d) and issubclass(d, SUPPORTED_DISTRIBUTIONS["clear"]) and args.release is None:
             args.release = r
 
     if args.distribution is None:
