@@ -57,7 +57,7 @@ class DistributionInstaller:
     supported_boot_protocols = ["uefi", "bios"]
 
     # needed for setup_ssh, some distributions call the unit for the SSH server diferently
-    unit_name_ssh = "ssh"
+    unit_name_ssh = "sshd"
 
     # On Arch, Debian, PAM wants the full path to the console device or it will refuse access
     pam_device_prefix = ""

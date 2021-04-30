@@ -31,7 +31,7 @@ DEBIAN_ARCHITECTURES = {
 
 class Debian(DistributionInstaller):
     _default_release = "unstable"
-    unit_name_ssh = "sshd"
+    unit_name_ssh = "ssh"
     pam_device_prefix = "/dev"
 
     _kernel_package = "linux-image-amd64"
