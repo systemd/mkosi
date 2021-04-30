@@ -4511,6 +4511,7 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
     retdist = type(args.distribution)(
         retargs, args.repositories, args.release, args.mirror, args.architecture, args.packages, args.build_packages
     )
+    retargs.distribution = retdist
     return retargs
 
 
