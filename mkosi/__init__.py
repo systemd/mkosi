@@ -54,6 +54,7 @@ from typing import (
     Set,
     TextIO,
     Tuple,
+    Type,
     Union,
     cast,
 )
@@ -3689,19 +3690,25 @@ def create_parser() -> ArgumentParserMkosi:
 
 def load_distribution(args: argparse.Namespace) -> argparse.Namespace:
     if args.distribution is not None:
-        args.distribution = SUPPORTED_DISTRIBUTIONS[args.distribution](args)
+        # ignoring the type here is safe, since we will recreate the whole
+        # object at the end of load_args anyway and this is just a standin.
+        args.distribution = SUPPORTED_DISTRIBUTIONS[args.distribution](args)  # type: ignore
 
     if args.distribution is None or args.release is None:
         d, r = detect_distribution()
 
-        if args.distribution is None:
-            args.distribution = d(args)
+        if args.distribution is None and d is None:
+            die("Couldn't detect distribution.")
+        elif args.distribution is None:
+            args.distribution = d(args)  # type: ignore
 
-        if isinstance(args.distribution, d) and issubclass(d, SUPPORTED_DISTRIBUTIONS["clear"]) and args.release is None:
+        if (
+            args.release is None
+            and d is not None
+            and isinstance(args.distribution, d)
+            and not issubclass(d, SUPPORTED_DISTRIBUTIONS["clear"])
+        ):
             args.release = r
-
-    if args.distribution is None:
-        die("Couldn't detect distribution.")
 
     return args
 
@@ -3876,7 +3883,7 @@ def parse_bytes(num_bytes: Optional[str]) -> Optional[int]:
     return result
 
 
-def detect_distribution() -> Tuple[Optional[DistributionInstaller], Optional[str]]:
+def detect_distribution() -> Tuple[Optional[Type[DistributionInstaller]], Optional[str]]:
     try:
         f = open("/etc/os-release")
     except IOError:
@@ -3912,7 +3919,7 @@ def detect_distribution() -> Tuple[Optional[DistributionInstaller], Optional[str
     if dist_id == "clear-linux-os":
         dist_id = "clear"
 
-    d: Optional[str] = None
+    d: Optional[Type[DistributionInstaller]] = None
     if dist_id is not None:
         d = SUPPORTED_DISTRIBUTIONS.get(dist_id, None)
         if d is None:
@@ -3921,7 +3928,7 @@ def detect_distribution() -> Tuple[Optional[DistributionInstaller], Optional[str
                 if d is not None:
                     break
 
-    if issubclass(d, SUPPORTED_DISTRIBUTIONS["debian"]) and (version_codename or extracted_codename):
+    if d is not None and issubclass(d, SUPPORTED_DISTRIBUTIONS["debian"]) and (version_codename or extracted_codename):
         # debootstrap needs release codenames, not version numbers
         if version_codename:
             version_id = version_codename
@@ -4501,7 +4508,9 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
 
     # TODO: break this circle
     retargs = CommandLineArguments(**vars(args))
-    retargs.distribution._args = retargs
+    retdist = type(args.distribution)(
+        retargs, args.repositories, args.release, args.mirror, args.architecture, args.packages, args.build_packages
+    )
     return retargs
 
 

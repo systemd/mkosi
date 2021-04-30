@@ -26,6 +26,7 @@ from typing import (
     NoReturn,
     Optional,
     Set,
+    Type,
     Union,
 )
 
@@ -207,7 +208,7 @@ class OutputFormat(enum.Enum):
             return "ext4"
 
 
-def find_supported_distributions() -> Dict[str, DistributionInstaller]:
+def find_supported_distributions() -> Dict[str, Type[DistributionInstaller]]:
     dist_module = importlib.import_module("mkosi.distributions")
     distros = {}
     # remove type ignore once mypy issue 1422 is fixed
@@ -224,14 +225,16 @@ def find_supported_distributions() -> Dict[str, DistributionInstaller]:
 
 class LazySupportedDistrosDict:
     def __init__(self) -> None:
-        self._internal: Optional[Dict[str, DistributionInstaller]] = None
+        self._internal: Optional[Dict[str, Type[DistributionInstaller]]] = None
 
-    def __getitem__(self, item: str) -> DistributionInstaller:
+    def __getitem__(self, item: str) -> Type[DistributionInstaller]:
         if self._internal is None:
             self._internal = find_supported_distributions()
         return self._internal[item]
 
-    def get(self, item: str, default: Optional[DistributionInstaller] = None) -> Optional[DistributionInstaller]:
+    def get(
+        self, item: str, default: Optional[Type[DistributionInstaller]] = None
+    ) -> Optional[Type[DistributionInstaller]]:
         if self._internal is None:
             self._internal = find_supported_distributions()
         return self._internal.get(item, default)
