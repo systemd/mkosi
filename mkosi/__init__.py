@@ -532,6 +532,12 @@ FEDORA_KEYS_MAP = {
 GPT_HEADER_SIZE = 1024 * 1024
 GPT_FOOTER_SIZE = 1024 * 1024
 
+# for alternate architectures we need to know which are compatible with host
+# and which are 'foreign' (e.g. aarch64 on x86_64 is foreign)
+ARCHITECTURES_COMPAT = {
+    "x86" : "x86_64",
+    "armhfp" : "aarch64",
+}
 
 # Debian calls their architectures differently, so when calling debootstrap we
 # will have to map to their names
@@ -2510,6 +2516,11 @@ def install_debian_or_ubuntu(args: CommandLineArguments, root: str, *, do_run_bu
     if args.architecture is not None:
         debarch = DEBIAN_ARCHITECTURES.get(args.architecture)
         cmdline += [f"--arch={debarch}"]
+
+    # determine if target architecture is foreign
+    if args.architecture not in ARCHITECTURES_COMPAT:
+        # also lets use the qemu-debootstrap wrapper
+        cmdline[0] = "qemu-debootstrap"
 
     # Let's use --no-check-valid-until only if debootstrap knows it
     if debootstrap_knows_arg("--no-check-valid-until"):
