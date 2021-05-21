@@ -4734,7 +4734,7 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
                 # This used to use configparser.ConfigParser before, but
                 # ConfigParser's interpolation clashes with systemd style
                 # specifier, e.g. %u for user, since both use % as a sigil.
-                config = configparser.RawConfigParser(delimiters="=")
+                config = configparser.RawConfigParser(delimiters="=", inline_comment_prefixes=("#",))
                 config.optionxform = str  # type: ignore
                 with open(arg_string[1:]) as args_file:
                     config.read_file(args_file)
