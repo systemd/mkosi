@@ -3530,11 +3530,10 @@ def copy_git_files(src: str, dest: str, *, source_file_transfer: SourceFileTrans
 
     # Add the .git/ directory in as well.
     if source_file_transfer == SourceFileTransfer.copy_git_more:
-        # r=root, d=directories, f=files
         top = os.path.join(src, ".git/")
-        for r, d, f in os.walk(top):
-            for fh in f:
-                fp = os.path.join(r, fh)  # full path
+        for path, _, filenames in os.walk(top):
+            for filename in filenames:
+                fp = os.path.join(path, filename)  # full path
                 fr = os.path.join(".git/", fp[len(top) :])  # relative to top
                 files.add(fr)
 
