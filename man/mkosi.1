@@ -47,7 +47,10 @@ btrfs subvolume, with separate subvolumes for \f[C]/var\f[R],
 \f[C]/home\f[R], \f[C]/srv\f[R], \f[C]/var/tmp\f[R]
 (\f[I]subvolume\f[R])
 .IP \[bu] 2
-Tarball (\f[I]tar\f[R])
+Tar archive (\f[I]tar\f[R])
+.IP \[bu] 2
+CPIO archive (\f[I]cpio\f[R]) in the format appropriate for a kernel
+initrd
 .PP
 When a \f[I]GPT\f[R] disk image is created, the following additional
 options are available:
@@ -527,7 +530,8 @@ removed first, and then re-created.
 If true, automatically install packages to ensure basic functionality,
 as appropriate for the given image type.
 For example, \f[C]systemd\f[R] is always included,
-\f[C]systemd-udev\f[R] if the image is bootable, and so on.
+\f[C]systemd-udev\f[R] and \f[C]dracut\f[R] if the image is bootable,
+and so on.
 If false, only packages specified with
 \f[C]--package\f[R]/\f[C]Packages\f[R] will be installed.
 If \f[C]conditional\f[R], the list of packages to install will be

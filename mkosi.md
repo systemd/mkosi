@@ -47,7 +47,9 @@ The following output formats are supported:
 * btrfs subvolume, with separate subvolumes for `/var`, `/home`,
   `/srv`, `/var/tmp` (*subvolume*)
 
-* Tarball (*tar*)
+* Tar archive (*tar*)
+
+* CPIO archive (*cpio*) in the format appropriate for a kernel initrd
 
 When a *GPT* disk image is created, the following additional
 options are available:

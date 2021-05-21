@@ -78,6 +78,7 @@ from .backend import (
     patch_file,
     run,
     run_workspace_command,
+    spawn,
     tmp_dir,
     var_tmp,
     warn,
@@ -3308,6 +3309,10 @@ def make_read_only(args: CommandLineArguments, root: str, for_cache: bool, b: bo
         btrfs_subvol_make_ro(root, b)
 
 
+def xz_binary() -> str:
+    return "pxz" if shutil.which("pxz") else "xz"
+
+
 def make_tar(args: CommandLineArguments, root: str, do_run_build_script: bool, for_cache: bool) -> Optional[BinaryIO]:
     if do_run_build_script:
         return None
@@ -3316,20 +3321,61 @@ def make_tar(args: CommandLineArguments, root: str, do_run_build_script: bool, f
     if for_cache:
         return None
 
-    tar_root_dir = f"{root}/usr" if args.usr_only else root
+    root_dir = f"{root}/usr" if args.usr_only else root
 
     with complete_step("Creating archive"):
         f: BinaryIO = cast(BinaryIO, tempfile.NamedTemporaryFile(dir=os.path.dirname(args.output), prefix=".mkosi-"))
         # OpenMandriva defaults to bsdtar(libarchive) which uses POSIX argument list so let's keep a separate list
         if shutil.which("bsdtar") and args.distribution == Distribution.openmandriva:
-            _tar_cmd = ["bsdtar", "-C", tar_root_dir, "-c", "-J", "--xattrs", "-f", "-", "."]
+            cmd = ["bsdtar", "-C", root_dir, "-c", "-J", "--xattrs", "-f", "-", "."]
         else:
-            _tar_cmd = ["tar", "-C", tar_root_dir, "-c", "-J", "--xattrs", "--xattrs-include=*"]
+            cmd = ["tar", "-C", root_dir, "-c", "-J", "--xattrs", "--xattrs-include=*"]
             if args.tar_strip_selinux_context:
-                _tar_cmd.append("--xattrs-exclude=security.selinux")
-            _tar_cmd.append(".")
+                cmd.append("--xattrs-exclude=security.selinux")
+            cmd.append(".")
 
-        run(_tar_cmd, env={"XZ_OPT": "-T0"}, stdout=f)
+        run(cmd, env={"XZ_OPT": "-T0"}, stdout=f)
+
+    return f
+
+
+def find_files(root: str) -> Generator[str, None, None]:
+    """Generate a list of all filepaths relative to @root"""
+    root = root.rstrip("/") + "/"  # make sure the path ends in exactly one '/'
+    prefix_len = len(root)
+    queue = collections.deque([root])
+
+    while queue:
+        for entry in os.scandir(queue.pop()):
+            yield entry.path[prefix_len:]
+            if entry.is_dir(follow_symlinks=False):
+                queue.append(entry.path)
+
+
+def make_cpio(args: CommandLineArguments, root: str, do_run_build_script: bool, for_cache: bool) -> Optional[BinaryIO]:
+    if do_run_build_script:
+        return None
+    if args.output_format != OutputFormat.cpio:
+        return None
+    if for_cache:
+        return None
+
+    root_dir = f"{root}/usr" if args.usr_only else root
+
+    with complete_step("Creating archive"):
+        f: BinaryIO = cast(BinaryIO, tempfile.NamedTemporaryFile(dir=os.path.dirname(args.output), prefix=".mkosi-"))
+
+        compressor = [xz_binary(), "--check=crc32", "--lzma2=dict=1MiB", "-T0"]
+        files = find_files(root_dir)
+        cmd = ["cpio", "-o", "--reproducible", "--null", "-H", "newc", "--quiet", "-D", root_dir]
+
+        with spawn(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE) as cpio:
+            with spawn(compressor, stdin=cpio.stdout, stdout=f, delay_interrupt=False):
+                for file in files:
+                    cpio.stdin.write(file.encode("utf8") + b"\0")
+                cpio.stdin.close()
+        if cpio.wait() != 0:
+            die("Failed to create archive")
 
     return f
 
@@ -3808,13 +3854,11 @@ def xz_output(
     if not args.xz:
         return data
 
-    xz_binary = "pxz" if shutil.which("pxz") else "xz"
-
     with complete_step(f"Compressing output file {data.name}"):
         f: BinaryIO = cast(
             BinaryIO, tempfile.NamedTemporaryFile(prefix=".mkosi-", suffix=suffix, dir=os.path.dirname(args.output))
         )
-        run([xz_binary, "-c", data.name], stdout=f)
+        run([xz_binary(), "-c", data.name], stdout=f)
 
     return f
 
@@ -3887,7 +3931,7 @@ def hash_file(of: TextIO, sf: BinaryIO, fname: str) -> None:
 def calculate_sha256sum(
     args: CommandLineArguments,
     raw: Optional[BinaryIO],
-    tar: Optional[BinaryIO],
+    archive: Optional[BinaryIO],
     root_hash_file: Optional[BinaryIO],
     split_root: Optional[BinaryIO],
     split_verity: Optional[BinaryIO],
@@ -3912,8 +3956,8 @@ def calculate_sha256sum(
 
         if raw is not None:
             hash_file(f, raw, os.path.basename(args.output))
-        if tar is not None:
-            hash_file(f, tar, os.path.basename(args.output))
+        if archive is not None:
+            hash_file(f, archive, os.path.basename(args.output))
         if root_hash_file is not None:
             assert args.output_root_hash_file is not None
             hash_file(f, root_hash_file, os.path.basename(args.output_root_hash_file))
@@ -4025,7 +4069,11 @@ def link_output(args: CommandLineArguments, root: str, artifact: Optional[Binary
             os.rename(root, args.output)
             make_read_only(args, args.output, for_cache=False, b=True)
 
-        elif args.output_format.is_disk() or args.output_format in (OutputFormat.plain_squashfs, OutputFormat.tar):
+        elif args.output_format.is_disk() or args.output_format in (
+            OutputFormat.plain_squashfs,
+            OutputFormat.tar,
+            OutputFormat.cpio,
+        ):
             assert artifact is not None
             _link_output(args, artifact.name, args.output)
 
@@ -4723,7 +4771,7 @@ def create_parser() -> ArgumentParserMkosi:
         "--usr-only", action=BooleanAction, help="Generate a /usr/ partition instead of a root partition"
     )
 
-    group = parser.add_argument_group("Validation (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs, tar)")
+    group = parser.add_argument_group("Validation (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs, tar, cpio)")
     group.add_argument("--checksum", action=BooleanAction, help="Write SHA256SUMS file")
     group.add_argument("--sign", action=BooleanAction, help="Write and sign SHA256SUMS file")
     group.add_argument("--key", help="GPG key to use for signing")
@@ -5291,6 +5339,8 @@ def strip_suffixes(path: str) -> str:
             t = t[:-4]
         elif t.endswith(".tar"):
             t = t[:-4]
+        elif t.endswith(".cpio"):
+            t = t[:-5]
         elif t.endswith(".qcow2"):
             t = t[:-6]
         else:
@@ -5388,9 +5438,10 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
             OutputFormat.directory,
             OutputFormat.subvolume,
             OutputFormat.tar,
+            OutputFormat.cpio,
             OutputFormat.plain_squashfs,
         ):
-            die("Directory, subvolume, tar and plain squashfs images cannot be booted.")
+            die("Directory, subvolume, tar, cpio, and plain squashfs images cannot be booted.")
 
         if not args.boot_protocols:
             args.boot_protocols = ["uefi"]
@@ -5467,6 +5518,8 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
             args.output = prefix + (".qcow2" if args.qcow2 else ".raw") + (".xz" if args.xz else "")
         elif args.output_format == OutputFormat.tar:
             args.output = f"{prefix}.tar.xz"
+        elif args.output_format == OutputFormat.cpio:
+            args.output = f"{prefix}.cpio.xz"
         else:
             args.output = prefix
 
@@ -5605,8 +5658,8 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
 
     if args.verb in ("shell", "boot"):
         opname = "acquire shell" if args.verb == "shell" else "boot"
-        if args.output_format == OutputFormat.tar:
-            die(f"Sorry, can't {opname} with a tar archive.")
+        if args.output_format in (OutputFormat.tar, OutputFormat.cpio):
+            die(f"Sorry, can't {opname} with a {args.output_format} archive.")
         if args.xz:
             die("Sorry, can't {opname} with a compressed image.")
         if args.qcow2:
@@ -6145,9 +6198,11 @@ def build_image(
                 else None
             )
 
-    tar = make_tar(args, root, do_run_build_script, for_cache)
+    archive = make_tar(args, root, do_run_build_script, for_cache) or make_cpio(
+        args, root, do_run_build_script, for_cache
+    )
 
-    return raw or generated_root, tar, root_hash, sshkey, split_root, split_verity, split_kernel
+    return raw or generated_root, archive, root_hash, sshkey, split_root, split_verity, split_kernel
 
 
 def one_zero(b: bool) -> str:
@@ -6251,7 +6306,7 @@ def remove_artifacts(
     args: CommandLineArguments,
     root: str,
     raw: Optional[BinaryIO],
-    tar: Optional[BinaryIO],
+    archive: Optional[BinaryIO],
     do_run_build_script: bool,
     for_cache: bool = False,
 ) -> None:
@@ -6266,9 +6321,9 @@ def remove_artifacts(
         with complete_step("Removing disk image from " + what):
             del raw
 
-    if tar is not None:
-        with complete_step("Removing tar image from " + what):
-            del tar
+    if archive is not None:
+        with complete_step("Removing archive image from " + what):
+            del archive
 
     with complete_step("Removing artifacts from " + what):
         unlink_try_hard(root)
@@ -6284,7 +6339,7 @@ def build_stuff(args: CommandLineArguments) -> None:
 
     root_hash = None
     raw = None
-    tar = None
+    archive = None
     sshkey = None
 
     # Make sure tmpfiles' aging doesn't interfere with our workspace
@@ -6303,37 +6358,38 @@ def build_stuff(args: CommandLineArguments) -> None:
             if args.build_script:
                 with complete_step("Running first (development) stage to generate cached copy"):
                     # Generate the cache version of the build image, and store it as "cache-pre-dev"
-                    raw, tar, root_hash, sshkey, split_root, split_verity, split_kernel = build_image(
+                    raw, archive, root_hash, sshkey, split_root, split_verity, split_kernel = build_image(
                         args, root, do_run_build_script=True, for_cache=True
                     )
+
                     save_cache(args, root, raw.name if raw is not None else None, args.cache_pre_dev)
 
-                    remove_artifacts(args, root, raw, tar, do_run_build_script=True)
+                    remove_artifacts(args, root, raw, archive, do_run_build_script=True)
 
             with complete_step("Running second (final) stage to generate cached copy"):
                 # Generate the cache version of the build image, and store it as "cache-pre-inst"
-                raw, tar, root_hash, sshkey, split_root, split_verity, split_kernel = build_image(
+                raw, archive, root_hash, sshkey, split_root, split_verity, split_kernel = build_image(
                     args, root, do_run_build_script=False, for_cache=True
                 )
 
                 if raw:
                     save_cache(args, root, raw.name, args.cache_pre_inst)
-                    remove_artifacts(args, root, raw, tar, do_run_build_script=False)
+                    remove_artifacts(args, root, raw, archive, do_run_build_script=False)
 
         if args.build_script:
             with complete_step("Running first (development) stage"):
                 # Run the image builder for the first (development) stage in preparation for the build script
-                raw, tar, root_hash, sshkey, split_root, split_verity, split_kernel = build_image(
+                raw, archive, root_hash, sshkey, split_root, split_verity, split_kernel = build_image(
                     args, root, do_run_build_script=True
                 )
 
                 run_build_script(args, root, raw)
-                remove_artifacts(args, root, raw, tar, do_run_build_script=True)
+                remove_artifacts(args, root, raw, archive, do_run_build_script=True)
 
         # Run the image builder for the second (final) stage
         if not args.skip_final_phase:
             with complete_step("Running second (final) stage"):
-                raw, tar, root_hash, sshkey, split_root, split_verity, split_kernel = build_image(
+                raw, archive, root_hash, sshkey, split_root, split_verity, split_kernel = build_image(
                     args, root, do_run_build_script=False, cleanup=True
                 )
         else:
@@ -6347,12 +6403,12 @@ def build_stuff(args: CommandLineArguments) -> None:
         root_hash_file = write_root_hash_file(args, root_hash)
         settings = copy_nspawn_settings(args)
         checksum = calculate_sha256sum(
-            args, raw, tar, root_hash_file, split_root, split_verity, split_kernel, settings
+            args, raw, archive, root_hash_file, split_root, split_verity, split_kernel, settings
         )
         signature = calculate_signature(args, checksum)
         bmap = calculate_bmap(args, raw)
 
-        link_output(args, root, raw or tar)
+        link_output(args, root, raw or archive)
         link_output_root_hash_file(args, root_hash_file.name if root_hash_file is not None else None)
         link_output_checksum(args, checksum.name if checksum is not None else None)
         link_output_signature(args, signature.name if signature is not None else None)

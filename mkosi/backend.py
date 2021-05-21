@@ -86,6 +86,7 @@ class OutputFormat(enum.Enum):
     directory = enum.auto()
     subvolume = enum.auto()
     tar = enum.auto()
+    cpio = enum.auto()
 
     gpt_ext4 = enum.auto()
     gpt_xfs = enum.auto()
