@@ -5600,12 +5600,13 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
             )  # NOQA: E501
 
     if args.verb in ("shell", "boot"):
+        opname = "acquire shell" if args.verb == "shell" else "boot"
         if args.output_format == OutputFormat.tar:
-            die("Sorry, can't acquire shell in or boot a tar archive.")
+            die(f"Sorry, can't {opname} with a tar archive.")
         if args.xz:
-            die("Sorry, can't acquire shell in or boot an XZ compressed image.")
+            die("Sorry, can't {opname} with a compressed image.")
         if args.qcow2:
-            die("Sorry, can't acquire shell in or boot a qcow2 image.")
+            die("Sorry, can't {opname} using a qcow2 image.")
 
     if args.verb == "qemu":
         if not args.output_format.is_disk():
