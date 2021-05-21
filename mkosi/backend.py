@@ -30,8 +30,10 @@ from typing import (
 # Let's be as strict as we can with the description for the usage we have.
 if TYPE_CHECKING:
     CompletedProcess = subprocess.CompletedProcess[Any]
+    Popen = subprocess.Popen[Any]
 else:
     CompletedProcess = subprocess.CompletedProcess
+    Popen = subprocess.Popen
 
 
 class MkosiException(Exception):
@@ -352,7 +354,7 @@ def run_workspace_command(
 
 
 @contextlib.contextmanager
-def delay_interrupt() -> Generator[None, None, None]:
+def do_delay_interrupt() -> Generator[None, None, None]:
     # CTRL+C is sent to the entire process group. We delay its handling in mkosi itself so the subprocess can
     # exit cleanly before doing mkosi's cleanup. If we don't do this, we get device or resource is busy
     # errors when unmounting stuff later on during cleanup. We only delay a single CTRL+C interrupt so that a
@@ -377,13 +379,43 @@ def delay_interrupt() -> Generator[None, None, None]:
             die("Interrupted")
 
 
+@contextlib.contextmanager
+def do_noop() -> Generator[None, None, None]:
+    yield
+
+
 # Borrowed from https://github.com/python/typeshed/blob/3d14016085aed8bcf0cf67e9e5a70790ce1ad8ea/stdlib/3/subprocess.pyi#L24
 _FILE = Union[None, int, IO[Any]]
+
+
+def spawn(
+    cmdline: List[str],
+    delay_interrupt: bool = True,
+    stdout: _FILE = None,
+    stderr: _FILE = None,
+    **kwargs: Any,
+) -> Popen:
+    if "run" in ARG_DEBUG:
+        MkosiPrinter.info("+ " + " ".join(shlex.quote(x) for x in cmdline))
+
+    if not stdout and not stderr:
+        # Unless explicit redirection is done, print all subprocess
+        # output on stderr, since we do so as well for mkosi's own
+        # output.
+        stdout = sys.stderr
+
+    cm = do_delay_interrupt if delay_interrupt else do_noop
+    try:
+        with cm():
+            return subprocess.Popen(cmdline, stdout=stdout, stderr=stderr, **kwargs)
+    except FileNotFoundError:
+        die(f"{cmdline[0]} not found in PATH.")
 
 
 def run(
     cmdline: List[str],
     check: bool = True,
+    delay_interrupt: bool = True,
     stdout: _FILE = None,
     stderr: _FILE = None,
     **kwargs: Any,
@@ -392,12 +424,14 @@ def run(
         MkosiPrinter.info("+ " + " ".join(shlex.quote(x) for x in cmdline))
 
     if not stdout and not stderr:
-        # Unless explicit redirection is done, print all subprocess output on stderr since we do so as well
-        # for mkosi's own output.
+        # Unless explicit redirection is done, print all subprocess
+        # output on stderr, since we do so as well for mkosi's own
+        # output.
         stdout = sys.stderr
 
+    cm = do_delay_interrupt if delay_interrupt else do_noop
     try:
-        with delay_interrupt():
+        with cm():
             return subprocess.run(cmdline, check=check, stdout=stdout, stderr=stderr, **kwargs)
     except FileNotFoundError:
         die(f"{cmdline[0]} not found in PATH.")
