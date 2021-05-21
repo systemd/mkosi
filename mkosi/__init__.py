@@ -4696,6 +4696,15 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
         kwargs["fromfile_prefix_chars"] = ArgumentParserMkosi.fromfile_prefix_chars
         super().__init__(*kargs, **kwargs)
 
+    @staticmethod
+    def _camel_to_arg(camel: str) -> str:
+        s1 = re.sub("(.)([A-Z][a-z]+)", r"\1-\2", camel)
+        return re.sub("([a-z0-9])([A-Z])", r"\1-\2", s1).lower()
+
+    @classmethod
+    def _ini_key_to_cli_arg(cls, key: str) -> str:
+        return cls.SPECIAL_MKOSI_DEFAULT_PARAMS.get(key) or ("--" + cls._camel_to_arg(key))
+
     def _read_args_from_files(self, arg_strings: List[str]) -> List[str]:
         """Convert @ prefixed command line arguments with corresponding file content
 
@@ -4712,16 +4721,6 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
           arg_strings: ['@mkosi.default', '-p', 'httpd']
           return value: ['--distribution', 'fedora', '-p', 'httpd']
         """
-
-        def camel_to_arg(camel: str) -> str:
-            s1 = re.sub("(.)([A-Z][a-z]+)", r"\1-\2", camel)
-            return re.sub("([a-z0-9])([A-Z])", r"\1-\2", s1).lower()
-
-        def ini_key_to_cli_arg(key: str) -> str:
-            try:
-                return ArgumentParserMkosi.SPECIAL_MKOSI_DEFAULT_PARAMS[key]
-            except KeyError:
-                return "--" + camel_to_arg(key)
 
         # expand arguments referencing files
         new_arg_strings = []
@@ -4741,7 +4740,7 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
                     config.read_file(args_file)
                 for section in config.sections():
                     for key, value in config.items(section):
-                        cli_arg = ini_key_to_cli_arg(key)
+                        cli_arg = self._ini_key_to_cli_arg(key)
 
                         # \n in value strings is forwarded. Depending on the action type, \n is considered as a delimiter or needs to be replaced by a ' '
                         for action in self._actions:
