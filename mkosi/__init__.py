@@ -1916,7 +1916,7 @@ def clean_dnf_metadata(root: str) -> None:
     dnf_path = os.path.join(root, "bin/dnf")
     keep_dnf_data = os.access(dnf_path, os.F_OK, follow_symlinks=False)
 
-    if not keep_dnf_data or all(not os.path.exists(path) for path in dnf_metadata_paths):
+    if keep_dnf_data or not any(os.path.exists(path) for path in dnf_metadata_paths):
         return
 
     with complete_step("Cleaning dnf metadata..."):
@@ -1933,7 +1933,7 @@ def clean_yum_metadata(root: str) -> None:
     yum_path = os.path.join(root, "bin/yum")
     keep_yum_data = os.access(yum_path, os.F_OK, follow_symlinks=False)
 
-    if not keep_yum_data or all(not os.path.exists(path) for path in yum_metadata_paths):
+    if keep_yum_data or not any(os.path.exists(path) for path in yum_metadata_paths):
         return
 
     with complete_step("Cleaning yum metadata..."):
@@ -1946,7 +1946,7 @@ def clean_rpm_metadata(root: str) -> None:
     rpm_path = os.path.join(root, "bin/rpm")
     keep_rpm_data = os.access(rpm_path, os.F_OK, follow_symlinks=False)
 
-    if not keep_rpm_data or not os.path.exists(rpm_metadata_path):
+    if keep_rpm_data or not os.path.exists(rpm_metadata_path):
         return
 
     with complete_step("Cleaning rpm metadata..."):
@@ -1959,7 +1959,7 @@ def clean_tdnf_metadata(root: str) -> None:
     tdnf_path = os.path.join(root, "usr/bin/tdnf")
     keep_tdnf_data = os.access(tdnf_path, os.F_OK, follow_symlinks=False)
 
-    if not keep_tdnf_data or all(not os.path.exists(path) for path in tdnf_metadata_paths):
+    if keep_tdnf_data or not any(os.path.exists(path) for path in tdnf_metadata_paths):
         return
 
     with complete_step("Cleaning tdnf metadata..."):
