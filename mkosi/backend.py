@@ -129,6 +129,10 @@ class OutputFormat(enum.Enum):
         "The output format contains a squashfs partition"
         return self in {OutputFormat.gpt_squashfs, OutputFormat.plain_squashfs}
 
+    def is_btrfs(self) -> bool:
+        "The output format contains a btrfs partition"
+        return self in {OutputFormat.gpt_btrfs, OutputFormat.subvolume}
+
     def can_minimize(self) -> bool:
         "The output format can be 'minimized'"
         return self in (OutputFormat.gpt_ext4, OutputFormat.gpt_btrfs)
@@ -143,6 +147,9 @@ class OutputFormat(enum.Enum):
         else:
             return "ext4"
 
+    def has_fs_compression(self) -> bool:
+        return self.is_squashfs() or self.is_btrfs()
+
 
 @dataclasses.dataclass
 class CommandLineArguments:
@@ -150,6 +157,7 @@ class CommandLineArguments:
 
     verb: str
     cmdline: List[str]
+
     distribution: Distribution
     release: str
     mirror: Optional[str]
@@ -171,8 +179,9 @@ class CommandLineArguments:
     encrypt: Optional[str]
     verity: bool
     compress: Union[None, str, bool]
+    compress_fs: Union[None, str, bool]
+    compress_output: Union[None, str, bool]
     mksquashfs_tool: List[str]
-    xz: bool
     qcow2: bool
     image_version: Optional[str]
     image_id: Optional[str]
@@ -274,6 +283,37 @@ class CommandLineArguments:
 
     releasever: Optional[str] = None
     ran_sfdisk: bool = False
+
+
+def should_compress_fs(args: Union[argparse.Namespace, CommandLineArguments]) -> Union[bool, str]:
+    """True for the default compression, a string, or False.
+
+    When explicitly configured with --compress-fs=, just return
+    whatever was specified. When --compress= was used, try to be
+    smart, so that either this function or should_compress_output()
+    returns True as appropriate.
+    """
+    c = args.compress_fs
+    if c is None and args.output_format.has_fs_compression():
+        c = args.compress
+    return False if c is None else c
+
+
+def should_compress_output(args: Union[argparse.Namespace, CommandLineArguments]) -> Union[bool, str]:
+    """A string or False.
+
+    When explicitly configured with --compress-output=, use
+    that. Since we have complete freedom with selecting the outer
+    compression algorithm, pick some default when True. When
+    --compress= was used, try to be smart, so that either this
+    function or should_compress_fs() returns True as appropriate.
+    """
+    c = args.compress_output
+    if c is None and not args.output_format.has_fs_compression():
+        c = args.compress
+    if c is True:
+        return "xz"  # default compression
+    return False if c is None else c
 
 
 def workspace(root: str) -> str:

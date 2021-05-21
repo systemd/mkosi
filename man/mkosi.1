@@ -238,7 +238,8 @@ placed.
 If neither this option nor \f[C]--output-dir=\f[R] is used (see below),
 the image is generated under the name \f[C]image\f[R], but its name
 suffixed with an appropriate file suffix (e.g.\ \f[C]image.raw.xz\f[R]
-in case \f[C]gpt_ext4\f[R] is used in combination with \f[C]--xz\f[R]).
+in case \f[C]gpt_ext4\f[R] is used in combination with \f[C]xz\f[R]
+compression).
 If the \f[C]--image-id=\f[R] option is configured it is used instead of
 \f[C]image\f[R] in the default output name.
 If an image version is specified (via
@@ -392,32 +393,38 @@ against off-line modification, the verification data is placed in an
 additional GPT partition.
 Implies \f[C]--read-only\f[R].
 .TP
-\f[B]\f[CB]--compress=\f[B]\f[R]
-Compress the generated file systems.
-Only applies to \f[C]gpt_btrfs\f[R], \f[C]subvolume\f[R],
-\f[C]gpt_squashfs\f[R], \f[C]plain_squashfs\f[R].
+\f[B]\f[CB]--compress-fs=\f[B]\f[R]
+Enable or disable internal compression in the file system.
+Only applies to output formats with squashfs or btrfs.
 Takes one of \f[C]zlib\f[R], \f[C]lzo\f[R], \f[C]zstd\f[R],
 \f[C]lz4\f[R], \f[C]xz\f[R] or a boolean value as argument.
 If the latter is used compression is enabled/disabled and the default
 algorithm is used.
 In case of the \f[C]squashfs\f[R] output formats compression is implied,
-however this option may be used to select the algorithm.
+but this option may be used to select the algorithm.
+.TP
+\f[B]\f[CB]--compress-output=\f[B]\f[R]
+Configure compression for the resulting image or archive.
+The argument can be either a boolean or a compression algorithm
+(\f[C]xz\f[R], \f[C]zstd\f[R]).
+\f[C]xz\f[R] compression is used by default.
+Note that when applied to block device image types this means the image
+cannot be started directly but needs to be decompressed first.
+This also means that the \f[C]shell\f[R], \f[C]boot\f[R], \f[C]qemu\f[R]
+verbs are not available when this option is used.
+Implied for \f[C]tar\f[R] and \f[C]cpio\f[R].
+.TP
+\f[B]\f[CB]--compress=\f[B]\f[R]
+Enable compression.
+Using this option is equivalent to either \f[C]--compress-fs=\f[R] or
+\f[C]--compress-output=\f[R]; the appropriate type of compression is
+selected automatically.
 .TP
 \f[B]\f[CB]--mksquashfs=\f[B]\f[R]
 Set the path to the \f[C]mksquashfs\f[R] executable to use.
 This is useful in case the parameters for the tool shall be augmented,
 as the tool may be replaced by a script invoking it with the right
 parameters, this way.
-.TP
-\f[B]\f[CB]--xz\f[B]\f[R]
-Compress the resulting image with \f[C]xz\f[R].
-This only applies to \f[C]gpt_ext4\f[R], \f[C]gpt_xfs\f[R],
-\f[C]gpt_btrfs\f[R], \f[C]gpt_squashfs\f[R] and is implied for
-\f[C]tar\f[R].
-Note that when applied to the block device image types this means the
-image cannot be started directly but needs to be decompressed first.
-This also means that the \f[C]shell\f[R], \f[C]boot\f[R], \f[C]qemu\f[R]
-verbs are not available when this option is used.
 .TP
 \f[B]\f[CB]--qcow2\f[B]\f[R]
 Encode the resulting image as QEMU QCOW2 image.
@@ -1149,18 +1156,25 @@ T}@T{
 \f[C]Compress=\f[R]
 T}
 T{
+\f[C]--compress-fs=\f[R]
+T}@T{
+\f[C][Output]\f[R]
+T}@T{
+\f[C]CompressFs=\f[R]
+T}
+T{
+\f[C]--compress-output=\f[R]
+T}@T{
+\f[C][Output]\f[R]
+T}@T{
+\f[C]CompressOutput=\f[R]
+T}
+T{
 \f[C]--mksquashfs=\f[R]
 T}@T{
 \f[C][Output]\f[R]
 T}@T{
 \f[C]Mksquashfs=\f[R]
-T}
-T{
-\f[C]--xz\f[R]
-T}@T{
-\f[C][Output]\f[R]
-T}@T{
-\f[C]XZ=\f[R]
 T}
 T{
 \f[C]--qcow2\f[R]
@@ -2010,7 +2024,7 @@ file, and install \f[I]SSH\f[R] into it:
 .IP
 .nf
 \f[C]
-# mkosi -d fedora -t gpt_squashfs --checksum --xz --package=openssh-clients
+# mkosi -d fedora -t gpt_squashfs --checksum --compress --package=openssh-clients
 \f[R]
 .fi
 .PP

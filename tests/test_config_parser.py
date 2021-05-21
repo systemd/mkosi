@@ -55,6 +55,8 @@ class MkosiConfig(object):
             "checksum": False,
             "cmdline": [],
             "compress": None,
+            "compress_fs": None,
+            "compress_output": None,
             "debug": [],
             "default_path": None,
             "directory": None,
@@ -114,7 +116,6 @@ class MkosiConfig(object):
             "with_network": False,
             "with_tests": True,
             "xbootldr_size": None,
-            "xz": False,
             "qemu_headless": False,
             "qemu_smp": "2",
             "qemu_mem": "1G",
@@ -239,10 +240,12 @@ class MkosiConfig(object):
                 self.reference_config[job_name]["verity"] = mk_config_output["Verity"]
             if "Compress" in mk_config_output:
                 self.reference_config[job_name]["compress"] = mk_config_output["Compress"]
+            if "CompressFs" in mk_config_output:
+                self.reference_config[job_name]["compress_fs"] = mk_config_output["CompressFs"]
+            if "CompressOutput" in mk_config_output:
+                self.reference_config[job_name]["compress_output"] = mk_config_output["CompressOutput"]
             if "Mksquashfs" in mk_config_output:
                 self.reference_config[job_name]["mksquashfs_tool"] = mk_config_output["Mksquashfs"].split()
-            if "XZ" in mk_config_output:
-                self.reference_config[job_name]["xz"] = mk_config_output["XZ"]
             if "QCow2" in mk_config_output:
                 self.reference_config[job_name]["qcow2"] = mk_config_output["QCow2"]
             if "TarStripSELinuxContext" in mk_config_output:
@@ -518,7 +521,6 @@ class MkosiConfigManyParams(MkosiConfigOne):
                 "Verity": False,
                 "Compress": "lz4",
                 "Mksquashfs": "my/fo/sq-tool",
-                "XZ": False,
                 "QCow2": False,
                 "Hostname": "myhost1",
                 "UsrOnly": False,
@@ -584,7 +586,6 @@ class MkosiConfigManyParams(MkosiConfigOne):
                 "Verity": True,
                 "Compress": "zstd",
                 "Mksquashfs": "my/fo/sq-tool-ubu",
-                "XZ": True,
                 "QCow2": True,
                 "Hostname": "myubuhost1",
                 "UsrOnly": False,
@@ -650,7 +651,6 @@ class MkosiConfigManyParams(MkosiConfigOne):
                 "Verity": True,
                 "Compress": "zstd",
                 "Mksquashfs": "my/fo/sq-tool-debi",
-                "XZ": True,
                 "QCow2": True,
                 "Hostname": "mydebihost1",
                 "UsrOnly": False,
