@@ -2889,7 +2889,7 @@ def invoke_fstrim(args: CommandLineArguments, root: str, do_run_build_script: bo
         return
 
     with complete_step("Trimming File System"):
-        run(["fstrim", "-v", root])
+        run(["fstrim", "-v", root], check=False)
 
 
 def pam_add_autologin(root: str, tty: str) -> None:
