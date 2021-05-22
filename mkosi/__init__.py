@@ -323,8 +323,7 @@ class OutputFormat(enum.Enum):
         try:
             return cls[name]
         except KeyError:
-            # this let's argparse generate a proper error message
-            return name  # type: ignore
+            raise argparse.ArgumentTypeError(f"unknown Format: {name!r}")
 
     def is_disk_rw(self) -> bool:
         "Output format is a disk image with a parition table and a writable filesystem"
