@@ -58,7 +58,7 @@ options are available:
 
 * Separate partitions for `/srv` and `/home` may be added in
 
-* The root, /srv and /home partitions may optionally be encrypted with
+* The root, `/srv` and `/home` partitions may optionally be encrypted with
   LUKS.
 
 * A dm-verity partition may be added in that adds runtime integrity
@@ -328,7 +328,7 @@ details see the table below.
   command line arguments passes "console=ttyS0 rw" to the kernel in any
   case. Just adding "console=ttyS0 rw" would append these two arguments
   to the kernel command line created by lower priority configuration
-  files or previous --kernel-command-line command line arguments.
+  files or previous `--kernel-command-line` command line arguments.
 
 `--secure-boot`
 
@@ -482,7 +482,7 @@ details see the table below.
   configured) and the generated unified kernel (if configured) into
   separate output files. This is useful in A/B update scenarios where
   an existing disk image shall be augmented with a new version of a
-  root or /usr/ partition along with its Verity partition and unified
+  root or `/usr` partition along with its Verity partition and unified
   kernel.
 
 `--no-chown`
@@ -628,9 +628,9 @@ details see the table below.
 `--include-directory`
 
 : Takes a path of a directory to use as the include directory. This
-  directory is mounted at /usr/include when building the build image
+  directory is mounted at `/usr/include` when building the build image
   and when running the build script. This means all include files
-  installed to /usr/include will be stored in this directory. This is
+  installed to `/usr/include` will be stored in this directory. This is
   useful to make include files available on the host system for use by
   language servers to provide code completion. If this option is not
   specified, but a directory `mkosi.includedir/` exists in the local
@@ -803,7 +803,7 @@ details see the table below.
 `--autologin`
 
 : Enable autologin for the `root` user on pts/0 (nspawn), tty1 (QEMU) and
-  ttyS0 (QEMU with --qemu-headless) by patching /etc/pam.d/login.
+  ttyS0 (QEMU with `--qemu-headless`) by patching `/etc/pam.d/login`.
 
 `--extra-search-paths=`
 
@@ -1100,13 +1100,13 @@ local directory:
   specified in `mkosi.default`. If `mkosi.default.d` contains a
   directory named after the distribution being built, each file in
   that directory is also processed. The file format is inspired by
-  Windows`.ini` files and supports multi-line assignments: any line
+  Windows `.ini` files and supports multi-line assignments: any line
   with initial whitespace is considered a continuation line of the line
   before. Command-line arguments, as shown in the help description,
-  have to be included in a configuration block (e.g.  "[Packages]")
-  corresponding to the argument group (e.g. "Packages"), and the
-  argument gets converted as follows: "--with-network" becomes
-  "WithNetwork=yes". For further details see the table above.
+  have to be included in a configuration block (e.g.  "`[Packages]`")
+  corresponding to the argument group (e.g. "`Packages`"), and the
+  argument gets converted as follows: "`--with-network`" becomes
+  "`WithNetwork=yes`". For further details see the table above.
 
 * `mkosi.extra/` or `mkosi.extra.tar` may be respectively a directory
   or archive. If any exist all files contained in it are copied over
@@ -1231,15 +1231,15 @@ local directory:
 
 * `mkosi.includedir/` may be a directory. If so, it is automatically
   used as out-of-tree include directory. Specifically, this directory
-  will be mounted into the build container at /usr/include when building
+  will be mounted into the build container at `/usr/include` when building
   the build image and when running the build script. After building the
   (cached) build image, this directory will contain all the files installed
-  to /usr/include. Language servers or other tools can use these files to
+  to `/usr/include`. Language servers or other tools can use these files to
   provide a better editing experience for developers working on a project.
 
 * `mkosi.installdir/` may be a directory. If so, it is automatically
   used as the install directory. Specifically, this directory will be
-  mounted into the container at /root/dest when running the build script.
+  mounted into the container at `/root/dest` when running the build script.
   After running the build script, the contents of this directory are
   installed into the final image. This is useful to cache the install
   step of the build. If used, subsequent builds will only have to
@@ -1256,7 +1256,7 @@ local directory:
 * `mkosi.passphrase` may be a passphrase file to use when LUKS
   encryption is selected. It should contain the passphrase literally,
   and not end in a newline character (i.e. in the same format as
-  cryptsetup and /etc/crypttab expect the passphrase files). The file
+  cryptsetup and `/etc/crypttab` expect the passphrase files). The file
   must have an access mode of 0600 or less. If this file does not
   exist and encryption is requested the user is queried instead.
 

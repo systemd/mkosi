@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 import argparse
+import ast
 import collections
 import configparser
 import contextlib
@@ -13,6 +14,7 @@ import datetime
 import enum
 import errno
 import fcntl
+import functools
 import getpass
 import glob
 import hashlib
@@ -168,6 +170,36 @@ class MkosiException(Exception):
     """Leads to sys.exit"""
 
 
+def dictify(f: Callable[..., Generator[Tuple[str, str], None, None]]) -> Callable[..., Dict[str, str]]:
+    def wrapper(*args: Any, **kwargs: Any) -> Dict[str, str]:
+        return dict(f(*args, **kwargs))
+
+    return functools.update_wrapper(wrapper, f)
+
+
+@dictify
+def read_os_release() -> Generator[Tuple[str, str], None, None]:
+    try:
+        filename = "/etc/os-release"
+        f = open(filename)
+    except FileNotFoundError:
+        filename = "/usr/lib/os-release"
+        f = open(filename)
+
+    for line_number, line in enumerate(f, start=1):
+        line = line.rstrip()
+        if not line or line.startswith("#"):
+            continue
+        m = re.match(r"([A-Z][A-Z_0-9]+)=(.*)", line)
+        if m:
+            name, val = m.groups()
+            if val and val[0] in "\"'":
+                val = ast.literal_eval(val)
+            yield name, val
+        else:
+            print(f"{filename}:{line_number}: bad line {line!r}", file=sys.stderr)
+
+
 def print_running_cmd(cmdline: Iterable[str]) -> None:
     MkosiPrinter.print_step("Running command:")
     MkosiPrinter.print_step(" ".join(shlex.quote(x) for x in cmdline) + "\n")
@@ -291,8 +323,7 @@ class OutputFormat(enum.Enum):
         try:
             return cls[name]
         except KeyError:
-            # this let's argparse generate a proper error message
-            return name  # type: ignore
+            raise argparse.ArgumentTypeError(f"unknown Format: {name!r}")
 
     def is_disk_rw(self) -> bool:
         "Output format is a disk image with a parition table and a writable filesystem"
@@ -3530,11 +3561,10 @@ def copy_git_files(src: str, dest: str, *, source_file_transfer: SourceFileTrans
 
     # Add the .git/ directory in as well.
     if source_file_transfer == SourceFileTransfer.copy_git_more:
-        # r=root, d=directories, f=files
         top = os.path.join(src, ".git/")
-        for r, d, f in os.walk(top):
-            for fh in f:
-                fp = os.path.join(r, fh)  # full path
+        for path, _, filenames in os.walk(top):
+            for filename in filenames:
+                fp = os.path.join(path, filename)  # full path
                 fr = os.path.join(".git/", fp[len(top) :])  # relative to top
                 files.add(fr)
 
@@ -4666,6 +4696,15 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
         kwargs["fromfile_prefix_chars"] = ArgumentParserMkosi.fromfile_prefix_chars
         super().__init__(*kargs, **kwargs)
 
+    @staticmethod
+    def _camel_to_arg(camel: str) -> str:
+        s1 = re.sub("(.)([A-Z][a-z]+)", r"\1-\2", camel)
+        return re.sub("([a-z0-9])([A-Z])", r"\1-\2", s1).lower()
+
+    @classmethod
+    def _ini_key_to_cli_arg(cls, key: str) -> str:
+        return cls.SPECIAL_MKOSI_DEFAULT_PARAMS.get(key) or ("--" + cls._camel_to_arg(key))
+
     def _read_args_from_files(self, arg_strings: List[str]) -> List[str]:
         """Convert @ prefixed command line arguments with corresponding file content
 
@@ -4682,16 +4721,6 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
           arg_strings: ['@mkosi.default', '-p', 'httpd']
           return value: ['--distribution', 'fedora', '-p', 'httpd']
         """
-
-        def camel_to_arg(camel: str) -> str:
-            s1 = re.sub("(.)([A-Z][a-z]+)", r"\1-\2", camel)
-            return re.sub("([a-z0-9])([A-Z])", r"\1-\2", s1).lower()
-
-        def ini_key_to_cli_arg(key: str) -> str:
-            try:
-                return ArgumentParserMkosi.SPECIAL_MKOSI_DEFAULT_PARAMS[key]
-            except KeyError:
-                return "--" + camel_to_arg(key)
 
         # expand arguments referencing files
         new_arg_strings = []
@@ -4711,7 +4740,7 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
                     config.read_file(args_file)
                 for section in config.sections():
                     for key, value in config.items(section):
-                        cli_arg = ini_key_to_cli_arg(key)
+                        cli_arg = self._ini_key_to_cli_arg(key)
 
                         # \n in value strings is forwarded. Depending on the action type, \n is considered as a delimiter or needs to be replaced by a ' '
                         for action in self._actions:
@@ -5315,55 +5344,35 @@ def parse_bytes(num_bytes: Optional[str]) -> Optional[int]:
 
 def detect_distribution() -> Tuple[Optional[Distribution], Optional[str]]:
     try:
-        f = open("/etc/os-release")
-    except IOError:
-        try:
-            f = open("/usr/lib/os-release")
-        except IOError:
-            return None, None
+        os_release = read_os_release()
+    except FileNotFoundError:
+        return None, None
 
-    dist_id = None
-    version_id = None
-    version_codename = None
+    dist_id = os_release.get("ID", "linux")
+    dist_id_like = os_release.get("ID_LIKE", "").split()
+    version = os_release.get("VERSION", None)
+    version_id = os_release.get("VERSION_ID", None)
+    version_codename = os_release.get("VERSION_CODENAME", None)
     extracted_codename = None
-    dist_id_like = []
 
-    for ln in f:
-        if ln.startswith("ID="):
-            dist_id = ln[3:].strip(" \t\n\"'")
-        if ln.startswith("ID_LIKE="):
-            dist_id_like = ln[8:].strip(" \t\n\"'").split()
-        if ln.startswith("VERSION_ID="):
-            version_id = ln[11:].strip(" \t\n\"'")
-        if ln.startswith("VERSION_CODENAME="):
-            version_codename = ln[17:].strip(" \t\n\"'")
-        if ln.startswith("VERSION="):
-            # extract Debian release codename
-            version_str = ln[8:].strip(" \t\n\"'")
-            debian_codename_re = r"\((.*?)\)"
-
-            codename_list = re.findall(debian_codename_re, version_str)
-            if len(codename_list) == 1:
-                extracted_codename = codename_list[0]
+    if version:
+        # extract Debian release codename
+        m = re.search(r"\((.*?)\)", version)
+        if m:
+            extracted_codename = m.group(1)
 
     if dist_id == "clear-linux-os":
         dist_id = "clear"
 
     d: Optional[Distribution] = None
-    if dist_id is not None:
-        d = Distribution.__members__.get(dist_id, None)
-        if d is None:
-            for dist_id in dist_id_like:
-                d = Distribution.__members__.get(dist_id, None)
-                if d is not None:
-                    break
+    for the_id in [dist_id, *dist_id_like]:
+        d = Distribution.__members__.get(the_id, None)
+        if d is not None:
+            break
 
-    if (d == Distribution.debian or d == Distribution.ubuntu) and (version_codename or extracted_codename):
+    if d in {Distribution.debian, Distribution.ubuntu} and (version_codename or extracted_codename):
         # debootstrap needs release codenames, not version numbers
-        if version_codename:
-            version_id = version_codename
-        else:
-            version_id = extracted_codename
+        version_id = version_codename or extracted_codename
 
     return d, version_id
 
