@@ -518,6 +518,27 @@ details see the table below.
   cached images, combined `-i` with `-ff`, which ensures the cached
   images are removed first, and then re-created.
 
+`--base-packages`
+
+: If true, automatically install packages to ensure basic
+  functionality, as appropriate for the given image type. For example,
+  `systemd` is always included, `systemd-udev` and `dracut` if the
+  image is bootable, and so on.
+
+: If false, only packages specified with `--package`/`Packages` will
+  be installed.
+
+: If `conditional`, the list of packages to install will be extended
+  with boolean dependencies
+  (c.f. https://rpm.org/user_doc/boolean_dependencies.html), to
+  install specific packages when *other* packages are in the list. For
+  example, `systemd-udev` may be automatically included if the image
+  is bootable and `systemd` is installed. With this, various "base"
+  packages still need to be specified if they should be included, but
+  the corresponding "extension" packages will be added automatically
+  when appropriate. This feature depends on support in the package
+  manager, so it is not implemented for all distributions.
+
 `--package=`, `-p`
 
 : Install the specified distribution packages (i.e. RPM, DEB, …) in
@@ -528,7 +549,8 @@ details see the table below.
   (see below) to specify packages that shall only be used for the
   image generated in the build image, but that shall not appear in the
   final image.
-  To remove a package e.g. added by a mkosi.default configuration file
+
+: To remove a package e.g. added by a mkosi.default configuration file
   prepend the package name with a ! letter. For example -p "!apache2"
   would remove the apache2 package. To replace the apache2 package by
   the httpd package just add -p "!apache2,httpd" to the command line
@@ -961,6 +983,7 @@ which settings file options.
 | `--hostonly-initrd`               | `[Output]`              | `HostonlyInitrd=`             |
 | `--usr-only`                      | `[Output]`              | `UsrOnly=`                    |
 | `--split-artifacts`               | `[Output]`              | `SplitArtifacts=`             |
+| `--base-packages=`                | `[Packages]`            | `BasePackages=`               |
 | `--package=`                      | `[Packages]`            | `Packages=`                   |
 | `--with-docs`                     | `[Packages]`            | `WithDocs=`                   |
 | `--without-tests`, `-T`           | `[Packages]`            | `WithTests=`                  |
