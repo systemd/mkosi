@@ -2140,7 +2140,7 @@ def install_photon(args: CommandLineArguments, root: str, do_run_build_script: b
         ],
     )
 
-    packages = {"minimal"}
+    packages = {"minimal", *args.packages}
     if not do_run_build_script and args.bootable:
         packages |= {"linux", "initramfs"}
 
