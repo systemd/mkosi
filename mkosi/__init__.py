@@ -1919,6 +1919,14 @@ def add_packages(
             packages.add(f"({name} if {conditional})" if conditional else name)
 
 
+def sort_packages(packages: Set[str]) -> List[str]:
+    """Sorts packages: normal first, paths second, conditional third"""
+
+    m = {"(": 2, "/": 1}
+    sort = lambda name: (m.get(name[0], 0), name)
+    return sorted(packages, key=sort)
+
+
 def make_rpm_list(args: CommandLineArguments, packages: Set[str], do_run_build_script: bool) -> Set[str]:
     packages = packages.copy()
 
@@ -2057,7 +2065,7 @@ def invoke_dnf(
     if not args.with_docs:
         cmdline += ["--nodocs"]
 
-    cmdline += ["install", *packages]
+    cmdline += ["install", *sort_packages(packages)]
 
     with mount_api_vfs(args, root):
         run(cmdline)
@@ -2088,7 +2096,7 @@ def invoke_tdnf(
     if not gpgcheck:
         cmdline.append("--nogpgcheck")
 
-    cmdline += ["install", *packages]
+    cmdline += ["install", *sort_packages(packages)]
 
     with mount_api_vfs(args, root):
         run(cmdline)
@@ -2207,7 +2215,7 @@ def install_clear(args: CommandLineArguments, root: str, do_run_build_script: bo
     cmdline = [swupd_extract, "-output", root]
     if args.cache_path:
         cmdline += ["-state", args.cache_path]
-    cmdline += [release, *packages]
+    cmdline += [release, *sort_packages(packages)]
 
     run(cmdline)
 
@@ -2994,7 +3002,7 @@ def install_arch(args: CommandLineArguments, root: str, do_run_build_script: boo
         try:
             run(["pacman-key", *conf, "--init"])
             run(["pacman-key", *conf, "--populate"])
-            run(["pacman", *conf, "--noconfirm", "-Sy", *packages])
+            run(["pacman", *conf, "--noconfirm", "-Sy", *sort_packages(packages)])
         finally:
             # Kill the gpg-agent started by pacman and pacman-key.
             run(["gpgconf", "--homedir", os.path.join(root, "etc/pacman.d/gnupg"), "--kill", "all"])
@@ -3094,7 +3102,7 @@ def install_opensuse(args: CommandLineArguments, root: str, do_run_build_script:
         "-y",
         "--no-recommends",
         "--download-in-advance",
-        *packages,
+        *sort_packages(packages),
     ]
 
     with mount_api_vfs(args, root):
