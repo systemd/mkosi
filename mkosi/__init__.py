@@ -2689,6 +2689,16 @@ def install_ubuntu(args: CommandLineArguments, root: str, do_run_build_script: b
     install_debian_or_ubuntu(args, root, do_run_build_script=do_run_build_script)
 
 
+def run_pacman(root: str, pacman_conf: str, packages: Set[str]) -> None:
+    try:
+        run(["pacman-key", "--config", pacman_conf, "--init"])
+        run(["pacman-key", "--config", pacman_conf, "--populate"])
+        run(["pacman", "--config", pacman_conf, "--noconfirm", "-Sy", *sort_packages(packages)])
+    finally:
+        # Kill the gpg-agent started by pacman and pacman-key.
+        run(["gpgconf", "--homedir", os.path.join(root, "etc/pacman.d/gnupg"), "--kill", "all"])
+
+
 @complete_step("Installing Arch Linux")
 def install_arch(args: CommandLineArguments, root: str, do_run_build_script: bool) -> None:
     if args.release is not None:
@@ -2996,19 +3006,8 @@ def install_arch(args: CommandLineArguments, root: str, do_run_build_script: boo
     if not do_run_build_script and args.ssh:
         add_packages(args, packages, "openssh")
 
-    def run_pacman(packages: Set[str]) -> None:
-        conf = ["--config", pacman_conf]
-
-        try:
-            run(["pacman-key", *conf, "--init"])
-            run(["pacman-key", *conf, "--populate"])
-            run(["pacman", *conf, "--noconfirm", "-Sy", *sort_packages(packages)])
-        finally:
-            # Kill the gpg-agent started by pacman and pacman-key.
-            run(["gpgconf", "--homedir", os.path.join(root, "etc/pacman.d/gnupg"), "--kill", "all"])
-
     with mount_api_vfs(args, root):
-        run_pacman(packages)
+        run_pacman(root, pacman_conf, packages)
 
     # If /etc/locale.gen exists, uncomment the desired locale and leave the rest of the file untouched.
     # If it doesn’t exist, just write the desired locale in it.
