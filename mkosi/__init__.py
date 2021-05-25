@@ -3053,7 +3053,7 @@ def install_opensuse(args: CommandLineArguments, root: str, do_run_build_script:
         packages.update(args.build_packages)
 
     if not do_run_build_script and args.ssh:
-        packages.update("openssh-server")
+        packages.add("openssh-server")
 
     cmdline = [
         "zypper",
