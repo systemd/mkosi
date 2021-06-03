@@ -57,6 +57,7 @@ from typing import (
     Set,
     TextIO,
     Tuple,
+    TypeVar,
     Union,
     cast,
 )
@@ -170,8 +171,12 @@ class MkosiException(Exception):
     """Leads to sys.exit"""
 
 
-def dictify(f: Callable[..., Generator[Tuple[str, str], None, None]]) -> Callable[..., Dict[str, str]]:
-    def wrapper(*args: Any, **kwargs: Any) -> Dict[str, str]:
+T = TypeVar("T")
+V = TypeVar("V")
+
+
+def dictify(f: Callable[..., Generator[Tuple[T, V], None, None]]) -> Callable[..., Dict[T, V]]:
+    def wrapper(*args: Any, **kwargs: Any) -> Dict[T, V]:
         return dict(f(*args, **kwargs))
 
     return functools.update_wrapper(wrapper, f)
