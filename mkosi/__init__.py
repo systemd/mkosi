@@ -409,6 +409,7 @@ class CommandLineArguments:
     with_unified_kernel_images: bool
     gpt_first_lba: Optional[int]
     hostonly_initrd: bool
+    base_packages: Union[str, bool]
     packages: List[str]
     with_docs: bool
     with_tests: bool
@@ -1902,31 +1903,55 @@ def reenable_kernel_install(args: CommandLineArguments, root: str) -> None:
     make_executable(hook_path)
 
 
+def add_packages(
+    args: CommandLineArguments, packages: Set[str], *names: str, conditional: Optional[str] = None
+) -> None:
+    """Add packages in @names to @packages, if enabled by --base-packages.
+
+    If @conditional is specifed, rpm-specific syntax for boolean
+    dependencies will be used to include @names if @conditional is
+    satisfied.
+    """
+    assert args.base_packages is True or args.base_packages is False or args.base_packages == "conditional"
+
+    if args.base_packages is True or (args.base_packages == "conditional" and conditional):
+        for name in names:
+            packages.add(f"({name} if {conditional})" if conditional else name)
+
+
+def sort_packages(packages: Set[str]) -> List[str]:
+    """Sorts packages: normal first, paths second, conditional third"""
+
+    m = {"(": 2, "/": 1}
+    sort = lambda name: (m.get(name[0], 0), name)
+    return sorted(packages, key=sort)
+
+
 def make_rpm_list(args: CommandLineArguments, packages: Set[str], do_run_build_script: bool) -> Set[str]:
     packages = packages.copy()
 
     if args.bootable:
         # Temporary hack: dracut only adds crypto support to the initrd, if the cryptsetup binary is installed
         if args.encrypt or args.verity:
-            packages.add("cryptsetup")
+            add_packages(args, packages, "cryptsetup", conditional="dracut")
 
         if args.output_format == OutputFormat.gpt_ext4:
-            packages.add("e2fsprogs")
+            add_packages(args, packages, "e2fsprogs")
 
         if args.output_format == OutputFormat.gpt_xfs:
-            packages.add("xfsprogs")
+            add_packages(args, packages, "xfsprogs")
 
         if args.output_format == OutputFormat.gpt_btrfs:
-            packages.add("btrfs-progs")
+            add_packages(args, packages, "btrfs-progs")
 
         if args.bios_partno:
             if args.distribution in (Distribution.mageia, Distribution.openmandriva):
-                packages.add("grub2")
+                add_packages(args, packages, "grub2")
             else:
-                packages.add("grub2-pc")
+                add_packages(args, packages, "grub2-pc")
 
     if not do_run_build_script and args.ssh:
-        packages.add("openssh-server")
+        add_packages(args, packages, "openssh-server")
 
     return packages
 
@@ -2040,7 +2065,7 @@ def invoke_dnf(
     if not args.with_docs:
         cmdline += ["--nodocs"]
 
-    cmdline += ["install", *packages]
+    cmdline += ["install", *sort_packages(packages)]
 
     with mount_api_vfs(args, root):
         run(cmdline)
@@ -2071,7 +2096,7 @@ def invoke_tdnf(
     if not gpgcheck:
         cmdline.append("--nogpgcheck")
 
-    cmdline += ["install", *packages]
+    cmdline += ["install", *sort_packages(packages)]
 
     with mount_api_vfs(args, root):
         run(cmdline)
@@ -2140,9 +2165,10 @@ def install_photon(args: CommandLineArguments, root: str, do_run_build_script: b
         ],
     )
 
-    packages = {"minimal"}
+    packages = {*args.packages}
+    add_packages(args, packages, "minimal")
     if not do_run_build_script and args.bootable:
-        packages |= {"linux", "initramfs"}
+        add_packages(args, packages, "linux", "initramfs")
 
     invoke_tdnf(
         args,
@@ -2161,13 +2187,14 @@ def install_clear(args: CommandLineArguments, root: str, do_run_build_script: bo
     else:
         release = "clear/" + args.release
 
-    packages = {"os-core-plus", *args.packages}
+    packages = {*args.packages}
+    add_packages(args, packages, "os-core-plus")
     if do_run_build_script:
         packages.update(args.build_packages)
     if not do_run_build_script and args.bootable:
-        packages.add("kernel-native")
+        add_packages(args, packages, "kernel-native")
     if not do_run_build_script and args.ssh:
-        packages.add("openssh-server")
+        add_packages(args, packages, "openssh-server")
 
     swupd_extract = shutil.which("swupd-extract")
 
@@ -2188,7 +2215,7 @@ def install_clear(args: CommandLineArguments, root: str, do_run_build_script: bo
     cmdline = [swupd_extract, "-output", root]
     if args.cache_path:
         cmdline += ["-state", args.cache_path]
-    cmdline += [release, *packages]
+    cmdline += [release, *sort_packages(packages)]
 
     run(cmdline)
 
@@ -2255,14 +2282,17 @@ def install_fedora(args: CommandLineArguments, root: str, do_run_build_script: b
         ],
     )
 
-    packages = {"fedora-release", "glibc-minimal-langpack", "systemd", *args.packages}
+    packages = {*args.packages}
+    add_packages(args, packages, "fedora-release", "systemd")
+    add_packages(args, packages, "glibc-minimal-langpack", conditional="glibc")
     if not do_run_build_script and args.bootable:
-        packages |= {"kernel-core", "kernel-modules", "systemd-udev", "binutils", "dracut"}
+        add_packages(args, packages, "kernel-core", "kernel-modules", "binutils", "dracut")
+        add_packages(args, packages, "systemd-udev", conditional="systemd")
         configure_dracut(args, root)
     if do_run_build_script:
         packages.update(args.build_packages)
     if not do_run_build_script and args.network_veth:
-        packages.add("systemd-networkd")
+        add_packages(args, packages, "systemd-networkd", conditional="systemd")
     invoke_dnf(args, root, args.repositories or ["fedora", "updates"], packages, do_run_build_script)
 
     with open(os.path.join(root, "etc/locale.conf"), "w") as f:
@@ -2291,10 +2321,10 @@ def install_mageia(args: CommandLineArguments, root: str, do_run_build_script: b
         ],
     )
 
-    packages = {"basesystem-minimal", *args.packages}
+    packages = {*args.packages}
+    add_packages(args, packages, "basesystem-minimal")
     if not do_run_build_script and args.bootable:
-        packages |= {"kernel-server-latest", "binutils", "dracut"}
-
+        add_packages(args, packages, "kernel-server-latest", "binutils", "dracut")
         configure_dracut(args, root)
         # Mageia ships /etc/50-mageia.conf that omits systemd from the initramfs and disables hostonly.
         # We override that again so our defaults get applied correctly on Mageia as well.
@@ -2340,13 +2370,16 @@ def install_openmandriva(args: CommandLineArguments, root: str, do_run_build_scr
         ],
     )
 
+    packages = {*args.packages}
     # well we may use basesystem here, but that pulls lot of stuff
-    packages = {"basesystem-minimal", "systemd", *args.packages}
+    add_packages(args, packages, "basesystem-minimal", "systemd")
     if not do_run_build_script and args.bootable:
-        packages |= {"kernel-release-server", "binutils", "systemd-boot", "dracut", "timezone", "systemd-cryptsetup"}
+        add_packages(args, packages, "systemd-boot", "systemd-cryptsetup", conditional="systemd")
+        add_packages(args, packages, "kernel-release-server", "binutils", "dracut", "timezone")
         configure_dracut(args, root)
     if args.network_veth:
-        packages |= {"systemd-networkd"}
+        add_packages(args, packages, "systemd-networkd", conditional="systemd")
+
     if do_run_build_script:
         packages.update(args.build_packages)
     invoke_dnf(args, root, args.repositories or ["openmandriva", "updates"], packages, do_run_build_script)
@@ -2498,15 +2531,25 @@ def install_centos(args: CommandLineArguments, root: str, do_run_build_script: b
     else:
         default_repos = install_centos_new(args, root, epel_release)
 
-    packages = {"centos-release", "systemd", *args.packages}
+    packages = {*args.packages}
+    add_packages(args, packages, "centos-release", "systemd")
     if not do_run_build_script and args.bootable:
-        packages |= {"kernel", "dracut", "binutils"}
+        add_packages(args, packages, "kernel", "dracut", "binutils")
         configure_dracut(args, root)
         if old:
-            packages |= {"grub2-efi", "grub2-tools", "grub2-efi-x64-modules", "shim-x64", "efibootmgr", "efivar-libs"}
+            add_packages(
+                args,
+                packages,
+                "grub2-efi",
+                "grub2-tools",
+                "grub2-efi-x64-modules",
+                "shim-x64",
+                "efibootmgr",
+                "efivar-libs",
+            )
         else:
             # this does not exist on CentOS 7
-            packages.add("systemd-udev")
+            add_packages(args, packages, "systemd-udev", conditional="systemd")
 
     if do_run_build_script:
         packages.update(args.build_packages)
@@ -2515,13 +2558,13 @@ def install_centos(args: CommandLineArguments, root: str, do_run_build_script: b
 
     if args.distribution == Distribution.centos_epel:
         repos += ["epel"]
-        packages.add("epel-release")
+        add_packages(args, packages, "epel-release")
 
     if do_run_build_script:
         packages.update(args.build_packages)
 
     if not do_run_build_script and args.distribution == Distribution.centos_epel and args.network_veth:
-        packages.add("systemd-networkd")
+        add_packages(args, packages, "systemd-networkd", conditional="systemd")
 
     invoke_dnf_or_yum(args, root, repos, packages, do_run_build_script)
 
@@ -2560,31 +2603,30 @@ def install_debian_or_ubuntu(args: CommandLineArguments, root: str, *, do_run_bu
     # Install extra packages via the secondary APT run, because it is smarter and can deal better with any
     # conflicts. dbus and libpam-systemd are optional dependencies for systemd in debian so we include them
     # explicitly.
-    extra_packages = {"systemd", "systemd-sysv", "dbus", "libpam-systemd"}
+    extra_packages: Set[str] = set()
+    add_packages(args, extra_packages, "systemd", "systemd-sysv", "dbus", "libpam-systemd")
     extra_packages.update(args.packages)
 
     if do_run_build_script:
         extra_packages.update(args.build_packages)
 
     if not do_run_build_script and args.bootable:
-        extra_packages.add("dracut")
-        extra_packages.add("binutils")
-
+        add_packages(args, extra_packages, "dracut", "binutils")
         configure_dracut(args, root)
 
         if args.distribution == Distribution.ubuntu:
-            extra_packages.add("linux-generic")
+            add_packages(args, extra_packages, "linux-generic")
         else:
-            extra_packages.add("linux-image-amd64")
+            add_packages(args, extra_packages, "linux-image-amd64")
 
         if args.bios_partno:
-            extra_packages.add("grub-pc")
+            add_packages(args, extra_packages, "grub-pc")
 
         if args.output_format == OutputFormat.gpt_btrfs:
-            extra_packages.add("btrfs-progs")
+            add_packages(args, extra_packages, "btrfs-progs")
 
     if not do_run_build_script and args.ssh:
-        extra_packages.add("openssh-server")
+        add_packages(args, extra_packages, "openssh-server")
 
     # Debian policy is to start daemons by default. The policy-rc.d script can be used choose which ones to
     # start. Let's install one that denies all daemon startups.
@@ -2645,6 +2687,16 @@ def install_debian(args: CommandLineArguments, root: str, do_run_build_script: b
 @complete_step("Installing Ubuntu")
 def install_ubuntu(args: CommandLineArguments, root: str, do_run_build_script: bool) -> None:
     install_debian_or_ubuntu(args, root, do_run_build_script=do_run_build_script)
+
+
+def run_pacman(root: str, pacman_conf: str, packages: Set[str]) -> None:
+    try:
+        run(["pacman-key", "--config", pacman_conf, "--init"])
+        run(["pacman-key", "--config", pacman_conf, "--populate"])
+        run(["pacman", "--config", pacman_conf, "--noconfirm", "-Sy", *sort_packages(packages)])
+    finally:
+        # Kill the gpg-agent started by pacman and pacman-key.
+        run(["gpgconf", "--homedir", os.path.join(root, "etc/pacman.d/gnupg"), "--kill", "all"])
 
 
 @complete_step("Installing Arch Linux")
@@ -2918,22 +2970,20 @@ def install_arch(args: CommandLineArguments, root: str, do_run_build_script: boo
     if platform.machine() == "aarch64":
         keyring += "arm"
 
-    packages = {"base"}
+    packages: Set[str] = set()
+    add_packages(args, packages, "base")
 
     if not do_run_build_script and args.bootable:
         if args.output_format == OutputFormat.gpt_btrfs:
-            packages.add("btrfs-progs")
+            add_packages(args, packages, "btrfs-progs")
         elif args.output_format == OutputFormat.gpt_xfs:
-            packages.add("xfsprogs")
+            add_packages(args, packages, "xfsprogs")
         if args.encrypt:
-            packages.add("cryptsetup")
-            packages.add("device-mapper")
+            add_packages(args, packages, "cryptsetup", "device-mapper")
         if args.bios_partno:
-            packages.add("grub")
+            add_packages(args, packages, "grub")
 
-        packages.add("dracut")
-        packages.add("binutils")
-
+        add_packages(args, packages, "dracut", "binutils")
         configure_dracut(args, root)
 
     packages.update(args.packages)
@@ -2948,27 +2998,16 @@ def install_arch(args: CommandLineArguments, root: str, do_run_build_script: boo
     has_kernel_package = official_kernel_packages.intersection(args.packages)
     if not do_run_build_script and args.bootable and not has_kernel_package:
         # No user-specified kernel
-        packages.add("linux")
+        add_packages(args, packages, "linux")
 
     if do_run_build_script:
         packages.update(args.build_packages)
 
     if not do_run_build_script and args.ssh:
-        packages.add("openssh")
-
-    def run_pacman(packages: Set[str]) -> None:
-        conf = ["--config", pacman_conf]
-
-        try:
-            run(["pacman-key", *conf, "--init"])
-            run(["pacman-key", *conf, "--populate"])
-            run(["pacman", *conf, "--noconfirm", "-Sy", *packages])
-        finally:
-            # Kill the gpg-agent started by pacman and pacman-key.
-            run(["gpgconf", "--homedir", os.path.join(root, "etc/pacman.d/gnupg"), "--kill", "all"])
+        add_packages(args, packages, "openssh")
 
     with mount_api_vfs(args, root):
-        run_pacman(packages)
+        run_pacman(root, pacman_conf, packages)
 
     # If /etc/locale.gen exists, uncomment the desired locale and leave the rest of the file untouched.
     # If it doesn’t exist, just write the desired locale in it.
@@ -3026,34 +3065,32 @@ def install_opensuse(args: CommandLineArguments, root: str, do_run_build_script:
         with open(os.path.join(root, "etc/zypp/zypp.conf"), "w") as f:
             f.write("rpm.install.excludedocs = yes\n")
 
-    packages = {"systemd", *args.packages}
+    packages = {*args.packages}
+    add_packages(args, packages, "systemd")
 
     if release.startswith("42."):
-        packages.add("patterns-openSUSE-minimal_base")
+        add_packages(args, packages, "patterns-openSUSE-minimal_base")
     else:
-        packages.add("patterns-base-minimal_base")
+        add_packages(args, packages, "patterns-base-minimal_base")
 
     if not do_run_build_script and args.bootable:
-        packages.add("kernel-default")
-        packages.add("dracut")
-        packages.add("binutils")
-
+        add_packages(args, packages, "kernel-default", "dracut", "binutils")
         configure_dracut(args, root)
 
         if args.bios_partno is not None:
-            packages.add("grub2")
+            add_packages(args, packages, "grub2")
 
     if not do_run_build_script and args.encrypt:
-        packages.add("device-mapper")
+        add_packages(args, packages, "device-mapper")
 
     if args.output_format in (OutputFormat.subvolume, OutputFormat.gpt_btrfs):
-        packages.add("btrfsprogs")
+        add_packages(args, packages, "btrfsprogs")
 
     if do_run_build_script:
         packages.update(args.build_packages)
 
     if not do_run_build_script and args.ssh:
-        packages.update("openssh-server")
+        add_packages(args, packages, "openssh-server")
 
     cmdline = [
         "zypper",
@@ -3064,13 +3101,13 @@ def install_opensuse(args: CommandLineArguments, root: str, do_run_build_script:
         "-y",
         "--no-recommends",
         "--download-in-advance",
-        *packages,
+        *sort_packages(packages),
     ]
 
     with mount_api_vfs(args, root):
         run(cmdline)
 
-    # Disable packages caching in the image that was enabled previously to populate the package cache.
+    # Disable package caching in the image that was enabled previously to populate the package cache.
     run(["zypper", "--root", root, "modifyrepo", "-K", "repo-oss"])
     run(["zypper", "--root", root, "modifyrepo", "-K", "repo-update"])
 
@@ -4772,6 +4809,12 @@ def parse_source_file_transfer(value: str) -> Optional[SourceFileTransfer]:
         raise argparse.ArgumentTypeError(str(exp))
 
 
+def parse_base_packages(value: str) -> Union[str, bool]:
+    if value == "conditional":
+        return value
+    return parse_boolean(value)
+
+
 def create_parser() -> ArgumentParserMkosi:
     parser = ArgumentParserMkosi(prog="mkosi", description="Build Bespoke OS Images", add_help=False)
 
@@ -4928,6 +4971,13 @@ def create_parser() -> ArgumentParserMkosi:
     )
 
     group = parser.add_argument_group("Packages")
+    group.add_argument(
+        "--base-packages",
+        type=parse_base_packages,
+        default=True,
+        help="Automatically inject basic packages in the system (systemd, kernel, …)",
+        metavar="OPTION",
+    )
     group.add_argument(
         "-p",
         "--package",

@@ -523,6 +523,25 @@ In order to force rebuilding of these cached images, combined
 \f[C]-i\f[R] with \f[C]-ff\f[R], which ensures the cached images are
 removed first, and then re-created.
 .TP
+\f[B]\f[CB]--base-packages\f[B]\f[R]
+If true, automatically install packages to ensure basic functionality,
+as appropriate for the given image type.
+For example, \f[C]systemd\f[R] is always included,
+\f[C]systemd-udev\f[R] if the image is bootable, and so on.
+If false, only packages specified with
+\f[C]--package\f[R]/\f[C]Packages\f[R] will be installed.
+If \f[C]conditional\f[R], the list of packages to install will be
+extended with boolean dependencies (c.f.
+https://rpm.org/user_doc/boolean_dependencies.html), to install specific
+packages when \f[I]other\f[R] packages are in the list.
+For example, \f[C]systemd-udev\f[R] may be automatically included if the
+image is bootable and \f[C]systemd\f[R] is installed.
+With this, various \[lq]base\[rq] packages still need to be specified if
+they should be included, but the corresponding \[lq]extension\[rq]
+packages will be added automatically when appropriate.
+This feature depends on support in the package manager, so it is not
+implemented for all distributions.
+.TP
 \f[B]\f[CB]--package=\f[B]\f[R], \f[B]\f[CB]-p\f[B]\f[R]
 Install the specified distribution packages (i.e.\ RPM, DEB, \&...) in
 the image.
@@ -1208,6 +1227,13 @@ T}@T{
 \f[C][Output]\f[R]
 T}@T{
 \f[C]SplitArtifacts=\f[R]
+T}
+T{
+\f[C]--base-packages=\f[R]
+T}@T{
+\f[C][Packages]\f[R]
+T}@T{
+\f[C]BasePackages=\f[R]
 T}
 T{
 \f[C]--package=\f[R]

@@ -80,6 +80,7 @@ class MkosiConfig(object):
             "output": None,
             "output_dir": None,
             "output_format": None,
+            "base_packages": True,
             "packages": [],
             "password": None,
             "password_is_hashed": False,
