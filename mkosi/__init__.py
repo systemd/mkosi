@@ -164,7 +164,7 @@ esac
 
 
 # This global should be initialized after parsing arguments
-arg_debug = ()
+ARG_DEBUG = ()
 
 
 class MkosiException(Exception):
@@ -247,7 +247,7 @@ def run(
     stderr: _FILE = None,
     **kwargs: Any,
 ) -> CompletedProcess:
-    if "run" in arg_debug:
+    if "run" in ARG_DEBUG:
         MkosiPrinter.info("+ " + " ".join(shlex.quote(x) for x in cmdline))
 
     if not stdout and not stderr:
@@ -1859,7 +1859,7 @@ def run_workspace_command(
 
     result = run(cmdline + ["--"] + cmd, check=False)
     if result.returncode != 0:
-        if "workspace-command" in arg_debug:
+        if "workspace-command" in ARG_DEBUG:
             run(cmdline, check=False)
         die(f"Workspace command `{' '.join(cmd)}` returned non-zero exit code {result.returncode}.")
 
@@ -5720,8 +5720,8 @@ def check_valid_script(path: str) -> None:
 
 
 def load_args(args: argparse.Namespace) -> CommandLineArguments:
-    global arg_debug
-    arg_debug = args.debug
+    global ARG_DEBUG
+    ARG_DEBUG = args.debug
 
     args_find_path(args, "nspawn_settings", "mkosi.nspawn")
     args_find_path(args, "build_script", "mkosi.build")
@@ -6632,7 +6632,7 @@ def run_build_script(args: CommandLineArguments, root: str, raw: Optional[Binary
         # See https://github.com/systemd/mkosi/pull/566 for more information.
         result = run(cmdline, stdout=sys.stdout, check=False)
         if result.returncode != 0:
-            if "build-script" in arg_debug:
+            if "build-script" in ARG_DEBUG:
                 run(cmdline[:-1], check=False)
             die(f"Build script returned non-zero exit code {result.returncode}.")
 
