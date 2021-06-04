@@ -3,7 +3,8 @@
 import os
 import sys
 
-from . import MkosiException, complete_step, die, parse_args, run_verb
+from . import complete_step, parse_args, run_verb
+from .backend import MkosiException, die
 
 
 def main() -> None:
