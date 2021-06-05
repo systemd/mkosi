@@ -5735,12 +5735,10 @@ def none_to_none(o: Optional[object]) -> str:
     return "none" if o is None else str(o)
 
 
-def line_join_list(ary: List[str]) -> str:
-
-    if not ary:
+def line_join_list(array: List[str]) -> str:
+    if not array:
         return "none"
-
-    return "\n                        ".join(ary)
+    return "\n                            ".join(array)
 
 
 def print_summary(args: CommandLineArguments) -> None:
