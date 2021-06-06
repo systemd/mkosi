@@ -4697,7 +4697,7 @@ class WithNetworkAction(BooleanAction):
 
 
 class CustomHelpFormatter(argparse.HelpFormatter):
-    def _format_action_invocation(self, action):
+    def _format_action_invocation(self, action: argparse.Action) -> str:
         if not action.option_strings or action.nargs == 0:
             return super()._format_action_invocation(action)
         default = self._get_default_metavar_for_optional(action)
@@ -4744,12 +4744,10 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
         self._ini_file_list_mode = False
 
         # Add config files to be parsed
-        super().__init__(
-            *kargs,
-            **kwargs,
-            fromfile_prefix_chars=ArgumentParserMkosi.fromfile_prefix_chars,
-            formatter_class=CustomHelpFormatter,
-        )
+        kwargs["fromfile_prefix_chars"] = ArgumentParserMkosi.fromfile_prefix_chars
+        kwargs["formatter_class"] = CustomHelpFormatter
+
+        super().__init__(*kargs, **kwargs)
 
     @staticmethod
     def _camel_to_arg(camel: str) -> str:
