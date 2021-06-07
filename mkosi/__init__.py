@@ -3388,6 +3388,9 @@ def make_cpio(args: CommandLineArguments, root: str, do_run_build_script: bool, 
         cmd = ["cpio", "-o", "--reproducible", "--null", "-H", "newc", "--quiet", "-D", root_dir]
 
         with spawn(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE) as cpio:
+            #  https://github.com/python/mypy/issues/10583
+            assert cpio.stdin is not None
+
             with spawn(compressor, stdin=cpio.stdout, stdout=f, delay_interrupt=False):
                 for file in files:
                     cpio.stdin.write(file.encode("utf8") + b"\0")
