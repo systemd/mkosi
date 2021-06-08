@@ -7014,7 +7014,7 @@ def run_qemu(args: CommandLineArguments) -> None:
         cmdline += ["-nic", f"tap,script=no,downscript=no,ifname={ifname},model=virtio-net-pci"]
 
     if "uefi" in args.boot_protocols:
-        cmdline += ["-drive", f"if=pflash,format=raw,readonly,file={firmware}"]
+        cmdline += ["-drive", f"if=pflash,format=raw,readonly=on,file={firmware}"]
 
     with contextlib.ExitStack() as stack:
         if fw_supports_sb:
