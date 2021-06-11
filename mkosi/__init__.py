@@ -4696,6 +4696,15 @@ class WithNetworkAction(BooleanAction):
         super().__call__(parser, namespace, values, option_string)
 
 
+class CustomHelpFormatter(argparse.HelpFormatter):
+    def _format_action_invocation(self, action: argparse.Action) -> str:
+        if not action.option_strings or action.nargs == 0:
+            return super()._format_action_invocation(action)
+        default = self._get_default_metavar_for_optional(action)
+        args_string = self._format_args(action, default)
+        return ", ".join(action.option_strings) + " " + args_string
+
+
 class ArgumentParserMkosi(argparse.ArgumentParser):
     """ArgumentParser with support for mkosi.defaults file(s)
 
@@ -4736,6 +4745,8 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
 
         # Add config files to be parsed
         kwargs["fromfile_prefix_chars"] = ArgumentParserMkosi.fromfile_prefix_chars
+        kwargs["formatter_class"] = CustomHelpFormatter
+
         super().__init__(*kargs, **kwargs)
 
     @staticmethod
