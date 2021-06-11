@@ -2988,8 +2988,12 @@ def install_opensuse(args: CommandLineArguments, root: Path, do_run_build_script
 
     # Configure the repositories: we need to enable packages caching here to make sure that the package cache
     # stays populated after "zypper install".
-    run(["zypper", "--root", root, "addrepo", "-ck", release_url, "repo-oss"])
-    run(["zypper", "--root", root, "addrepo", "-ck", updates_url, "repo-update"])
+    try:
+        run(["zypper", "--root", root, "addrepo", "-ck", release_url, "repo-oss"])
+        run(["zypper", "--root", root, "addrepo", "-ck", updates_url, "repo-update"])
+    except subprocess.CalledProcessError as e:
+        run(["cat", "/var/log/zypper.log"])
+        raise e
 
     if not args.with_docs:
         root.joinpath("etc/zypp/zypp.conf").write_text("rpm.install.excludedocs = yes\n")
