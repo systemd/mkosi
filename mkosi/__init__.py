@@ -53,6 +53,7 @@ from typing import (
     NamedTuple,
     NoReturn,
     Optional,
+    ParamSpec,
     Sequence,
     Set,
     TextIO,
@@ -186,10 +187,11 @@ esac
 
 T = TypeVar("T")
 V = TypeVar("V")
+P = ParamSpec("P")
 
 
-def dictify(f: Callable[..., Generator[Tuple[T, V], None, None]]) -> Callable[..., Dict[T, V]]:
-    def wrapper(*args: Any, **kwargs: Any) -> Dict[T, V]:
+def dictify(f: Callable[P, Generator[Tuple[T, V], None, None]]) -> Callable[P, Dict[T, V]]:
+    def wrapper(*args: P.args, **kwargs: P.kwargs) -> Dict[T, V]:
         return dict(f(*args, **kwargs))
 
     return functools.update_wrapper(wrapper, f)
