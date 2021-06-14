@@ -179,6 +179,113 @@ The following command line verbs are known:
 : This verb is equivalent to the `--help` switch documented below: it
   shows a brief usage explanation.
 
+## Execution flow
+
+Execution flow for `mkosi build`. Columns represent the execution context.
+Default values/calls are shown in parentheses.
+When building with `--incremental` mkosi creates a cache of the distribution
+installation for both images if not already existing and replaces the
+distribution installation in consecutive runs with data from the cached one.
+
+```
+            HOST            .          BUILD          .          FINAL
+                            .          IMAGE          .          IMAGE
+                            .                         .
+   start                    .                         .
+     |                      .                         .
+     v                      .                         .
+build script?  -------exists----->     copy           .
+     |                      .      skeleton trees     .
+     |                      .     (mkosi.skeleton/)   .
+    none                    .            |            .
+     |                      .            v            .
+     v                      .         install         .
+    skip                    .       distribution,     .
+ build image                .       packages and      .
+     |                      .      build packages,    .
+     |                      .           run           .
+     |                      .      prepare script     .
+     |                      .   (mkosi.prepare build) .
+     |                      .     or if incremental   .
+     |                      .  use cached build image .
+     |                      .            |            .
+     |                      .            v            .
+     |                      .          copy           .
+     |                      .       extra trees       .
+     |                      .      (mkosi.extra/)     .
+     |                      .            |            .
+     |                      .            v            .
+     |                      .          copy           .
+     |                      .      build sources      .
+     |                      .          (./)           .
+     |                      .            |            .
+     |                      .            v            .
+     |                      .           run           .
+     |                      .    postinstall script   .
+     |                      .  (mkosi.postinst build) .
+     |                      .            |            .
+     |         .-------------------------'            .
+     |         |            .                         .
+     |         v            .                         .
+     |        run           .                         .
+     |   finalize script    .                         .
+     |(mkosi.finalize build).                         .
+     |         |            .                         .
+     |         '-------------------------.            .
+     |                      .            |            .
+     |                      .            v            .
+     |                      .           run           .
+     |                      .       build script      .
+     |                      .      (mkosi.build)      .
+     |                      .            |            .
+     '-----------------------------------+------------------------.
+                            .                         .           |
+                            .                         .           v
+                            .                         .          copy
+                            .                         .     skeleton trees
+                            .                         .    (mkosi.skeleton/)
+                            .                         .           |
+                            .                         .           v
+                            .                         .        install
+                            .                         .      distribution
+                            .                         .      and packages,
+                            .                         .          run
+                            .                         .     prepare script
+                            .                         .  (mkosi.prepare final)
+                            .                         .    or if incremental
+                            .                         . use cached final image
+                            .                         .           |
+                            .                         .           v
+                            .                         .         copy
+                            .                         .      extra trees
+                            .                         .     (mkosi.extra/)
+                            .                         .           |
+                            .                         .           v
+                            .                         .         copy
+                            .                         .     build results
+                            .                         .           |
+                            .                         .           v
+                            .                         .          run
+                            .                         .    postinstall script
+                            .                         .  (mkosi.postinst final)
+                            .                         .           |
+               .--------------------------------------------------'
+               |            .                         .
+               v            .                         .
+              run           .                         .
+        finalize script     .                         .
+    (mkosi.finalize final)  .                         .
+               |            .                         .
+     .---------'            .                         .
+     |                      .                         .
+     v                      .                         .
+    end                     .                         .
+                            .                         .
+            HOST            .          BUILD          .          FINAL
+                            .          IMAGE          .          IMAGE
+                            .                         .
+```
+
 ## Command Line Parameters
 
 The following command line parameters are understood. Note that many
