@@ -5607,8 +5607,15 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
             warn("Ignoring configured output directory as output file is a qualified path.")
 
     if args.incremental or args.verb == "clean":
-        args.cache_pre_dev = args.output + ".cache-pre-dev"
-        args.cache_pre_inst = args.output + ".cache-pre-inst"
+        if args.image_id is not None:
+            # If the image ID is specified, use cache file names that are independent of the image versions, so that
+            # rebuilding and bumping versions is cheap and reuses previous versions if cached.
+            args.cache_pre_dev = os.path.join(args.output_dir, args.image_id + ".cache-pre-dev")
+            args.cache_pre_inst = os.path.join(args.output_dir, args.image_id + ".cache-pre-inst")
+        else:
+            # Otherwise, derive the cache file names directly from the output file names.
+            args.cache_pre_dev = args.output + ".cache-pre-dev"
+            args.cache_pre_inst = args.output + ".cache-pre-inst"
     else:
         args.cache_pre_dev = None
         args.cache_pre_inst = None
