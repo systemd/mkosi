@@ -3326,6 +3326,17 @@ def compressor_command(option: Union[str, bool]) -> List[str]:
         die(f"Unknown compression {option}")
 
 
+def tar_binary() -> str:
+    # Some distros (Mandriva) install BSD tar as "tar", hence prefer
+    # "gtar" if it exists, which should be GNU tar wherever it exists.
+    # We are interested in exposing same behaviour everywhere hence
+    # it's preferable to use the same implementation of tar
+    # everywhere. In particular given the limited/different SELinux
+    # support in BSD tar and the different command line syntax
+    # compared to GNU tar.
+    return "gtar" if shutil.which("gtar") else "tar"
+
+
 def make_tar(args: CommandLineArguments, root: str, do_run_build_script: bool, for_cache: bool) -> Optional[BinaryIO]:
     if do_run_build_script:
         return None
@@ -3338,13 +3349,10 @@ def make_tar(args: CommandLineArguments, root: str, do_run_build_script: bool, f
 
     with complete_step("Creating archive"):
         f: BinaryIO = cast(BinaryIO, tempfile.NamedTemporaryFile(dir=os.path.dirname(args.output), prefix=".mkosi-"))
-        # OpenMandriva defaults to bsdtar(libarchive) which uses POSIX argument list so let's keep a separate list
-        if shutil.which("bsdtar") and args.distribution == Distribution.openmandriva:
-            cmd = ["bsdtar", "-C", root_dir, "-c", "--xattrs", "-f", "-"]
-        else:
-            cmd = ["tar", "-C", root_dir, "-c", "--xattrs", "--xattrs-include=*"]
-            if args.tar_strip_selinux_context:
-                cmd += ["--xattrs-exclude=security.selinux"]
+
+        cmd = [tar_binary(), "-C", root_dir, "-c", "--xattrs", "--xattrs-include=*"]
+        if args.tar_strip_selinux_context:
+            cmd += ["--xattrs-exclude=security.selinux"]
 
         compress = should_compress_output(args)
         if compress:
