@@ -3746,9 +3746,17 @@ def install_unified_kernel(
 
     if not args.bootable or args.esp_partno is None or not args.with_unified_kernel_images:
         return
-    if for_cache and args.verity:
-        return
-    if cached and not args.verity:
+
+    # Don't run dracut if this is for the cache. The unified kernel
+    # typically includes the image ID, roothash and other data that
+    # differs between cached version and final result. Moreover, we
+    # want that the initrd for the image actually takes the changes we
+    # make to the image into account (e.g. when we build a systemd
+    # test image with this we want that the systemd we just built is
+    # in the initrd, and not one from the cache. Hence even though
+    # dracut is slow we invoke it only during the last final build,
+    # never for the cached builds.
+    if for_cache:
         return
 
     # Don't bother running dracut if this is a development build. Strictly speaking it would probably be a
