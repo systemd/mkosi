@@ -47,7 +47,9 @@ The following output formats are supported:
 * btrfs subvolume, with separate subvolumes for `/var`, `/home`,
   `/srv`, `/var/tmp` (*subvolume*)
 
-* Tarball (*tar*)
+* Tar archive (*tar*)
+
+* CPIO archive (*cpio*) in the format appropriate for a kernel initrd
 
 When a *GPT* disk image is created, the following additional
 options are available:
@@ -240,9 +242,9 @@ details see the table below.
   this option nor `--output-dir=` is used (see below), the image is
   generated under the name `image`, but its name suffixed with an
   appropriate file suffix (e.g. `image.raw.xz` in case `gpt_ext4` is
-  used in combination with `--xz`). If the `--image-id=` option is
-  configured it is used instead of `image` in the default output
-  name. If an image version is specified (via
+  used in combination with `xz` compression). If the `--image-id=`
+  option is configured it is used instead of `image` in the default
+  output name. If an image version is specified (via
   `--image-version=`/`ImageVersion=`) it is included in the default
   name, e.g. a specified image version of `7.8` might result in an
   image file name of `image_7.8.raw.xz`.
@@ -390,15 +392,31 @@ details see the table below.
   modification, the verification data is placed in an additional GPT
   partition. Implies `--read-only`.
 
+`--compress-fs=`
+
+: Enable or disable internal compression in the file system. Only
+  applies to output formats with squashfs or btrfs. Takes one of
+  `zlib`, `lzo`, `zstd`, `lz4`, `xz` or a boolean value as argument.
+  If the latter is used compression is enabled/disabled and the
+  default algorithm is used. In case of the `squashfs` output formats
+  compression is implied, but this option may be used to select the
+  algorithm.
+
+`--compress-output=`
+
+: Configure compression for the resulting image or archive. The
+  argument can be either a boolean or a compression algorithm (`xz`,
+  `zstd`). `xz` compression is used by default. Note that when applied
+  to block device image types this means the image cannot be started
+  directly but needs to be decompressed first. This also means that
+  the `shell`, `boot`, `qemu` verbs are not available when this option
+  is used. Implied for `tar` and `cpio`.
+
 `--compress=`
 
-: Compress the generated file systems. Only applies to `gpt_btrfs`,
-  `subvolume`, `gpt_squashfs`, `plain_squashfs`. Takes one of `zlib`,
-  `lzo`, `zstd`, `lz4`, `xz` or a boolean value as argument. If the
-  latter is used compression is enabled/disabled and the default
-  algorithm is used. In case of the `squashfs` output formats
-  compression is implied, however this option may be used to select
-  the algorithm.
+: Enable compression. Using this option is equivalent to either
+  `--compress-fs=` or `--compress-output=`; the appropriate type
+  of compression is selected automatically.
 
 `--mksquashfs=`
 
@@ -406,15 +424,6 @@ details see the table below.
   in case the parameters for the tool shall be augmented, as the tool
   may be replaced by a script invoking it with the right parameters,
   this way.
-
-`--xz`
-
-: Compress the resulting image with `xz`. This only applies to
-  `gpt_ext4`, `gpt_xfs`, `gpt_btrfs`, `gpt_squashfs` and is implied
-  for `tar`. Note that when applied to the block device image types
-  this means the image cannot be started directly but needs to be
-  decompressed first. This also means that the `shell`, `boot`, `qemu`
-  verbs are not available when this option is used.
 
 `--qcow2`
 
@@ -971,8 +980,9 @@ which settings file options.
 | `--encrypt=`                      | `[Output]`              | `Encrypt=`                    |
 | `--verity=`                       | `[Output]`              | `Verity=`                     |
 | `--compress=`                     | `[Output]`              | `Compress=`                   |
+| `--compress-fs=`                  | `[Output]`              | `CompressFs=`                 |
+| `--compress-output=`              | `[Output]`              | `CompressOutput=`             |
 | `--mksquashfs=`                   | `[Output]`              | `Mksquashfs=`                 |
-| `--xz`                            | `[Output]`              | `XZ=`                         |
 | `--qcow2`                         | `[Output]`              | `QCow2=`                      |
 | `--no-chown`                      | `[Output]`              | `NoChown=`                    |
 | `--tar-strip-selinux-context`     | `[Output]`              | `TarStripSELinuxContext=`     |
@@ -1434,7 +1444,7 @@ Create a compressed image `image.raw.xz` and add a checksum file, and
 install *SSH* into it:
 
 ```bash
-# mkosi -d fedora -t gpt_squashfs --checksum --xz --package=openssh-clients
+# mkosi -d fedora -t gpt_squashfs --checksum --compress --package=openssh-clients
 ```
 
 Inside the source directory of an `automake`-based project,

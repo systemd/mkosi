@@ -23,6 +23,7 @@ jobs:
         format:
           - directory
           - tar
+          - cpio
           - gpt_ext4
           - gpt_xfs
           - gpt_btrfs
@@ -84,13 +85,15 @@ jobs:
         sudo python3 -m mkosi build
 
     - name: Boot ${{ matrix.distro }}/${{ matrix.format }}
-      if: matrix.format != 'tar'
+      if: matrix.format != 'tar' &&
+          matrix.format != 'cpio'
       run: sudo ./tests/pexpect/boot.py python3 -m mkosi boot
 
     - name: Build ${{ matrix.distro }}/${{ matrix.format }} UEFI UKI
       if: matrix.format != 'directory' &&
           matrix.format != 'plain_squashfs' &&
-          matrix.format != 'tar'
+          matrix.format != 'tar' &&
+          matrix.format != 'cpio'
       run: |
         tee mkosi.default <<- EOF
         [Output]
@@ -108,13 +111,15 @@ jobs:
           matrix.format != 'plain_squashfs' &&
           matrix.format != 'gpt_squashfs' &&
           matrix.format != 'tar' &&
+          matrix.format != 'cpio' &&
           !(matrix.distro == 'ubuntu' && matrix.format == 'gpt_squashfs')
       run: sudo ./tests/pexpect/boot.py python3 -m mkosi qemu
 
     - name: Build ${{ matrix.distro }}/${{ matrix.format }} UEFI
       if: matrix.format != 'directory' &&
           matrix.format != 'plain_squashfs' &&
-          matrix.format != 'tar' && (
+          matrix.format != 'tar' &&
+          matrix.format != 'cpio' && (
           matrix.distro == 'arch' ||
           matrix.distro == 'centos' ||
           matrix.distro == 'fedora')
@@ -136,6 +141,7 @@ jobs:
     - name: Boot ${{ matrix.distro }}/${{ matrix.format }} UEFI
       if: matrix.format != 'directory' &&
           matrix.format != 'plain_squashfs' &&
+          matrix.format != 'cpio' &&
           matrix.format != 'tar' && (
           matrix.distro == 'arch' ||
           matrix.distro == 'centos' ||
@@ -146,7 +152,8 @@ jobs:
       if: matrix.format != 'directory' &&
           matrix.format != 'gpt_squashfs' &&
           matrix.format != 'plain_squashfs' &&
-          matrix.format != 'tar'
+          matrix.format != 'tar' &&
+          matrix.format != 'cpio'
       run: |
         tee mkosi.default <<- EOF
         [Output]
@@ -164,5 +171,6 @@ jobs:
       if: matrix.format != 'directory' &&
           matrix.format != 'gpt_squashfs' &&
           matrix.format != 'plain_squashfs' &&
+          matrix.format != 'cpio' &&
           matrix.format != 'tar'
       run: sudo ./tests/pexpect/boot.py python3 -m mkosi qemu

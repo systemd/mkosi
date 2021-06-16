@@ -30,8 +30,10 @@ from typing import (
 # Let's be as strict as we can with the description for the usage we have.
 if TYPE_CHECKING:
     CompletedProcess = subprocess.CompletedProcess[Any]
+    Popen = subprocess.Popen[Any]
 else:
     CompletedProcess = subprocess.CompletedProcess
+    Popen = subprocess.Popen
 
 
 class MkosiException(Exception):
@@ -84,6 +86,7 @@ class OutputFormat(enum.Enum):
     directory = enum.auto()
     subvolume = enum.auto()
     tar = enum.auto()
+    cpio = enum.auto()
 
     gpt_ext4 = enum.auto()
     gpt_xfs = enum.auto()
@@ -126,6 +129,10 @@ class OutputFormat(enum.Enum):
         "The output format contains a squashfs partition"
         return self in {OutputFormat.gpt_squashfs, OutputFormat.plain_squashfs}
 
+    def is_btrfs(self) -> bool:
+        "The output format contains a btrfs partition"
+        return self in {OutputFormat.gpt_btrfs, OutputFormat.subvolume}
+
     def can_minimize(self) -> bool:
         "The output format can be 'minimized'"
         return self in (OutputFormat.gpt_ext4, OutputFormat.gpt_btrfs)
@@ -140,6 +147,9 @@ class OutputFormat(enum.Enum):
         else:
             return "ext4"
 
+    def has_fs_compression(self) -> bool:
+        return self.is_squashfs() or self.is_btrfs()
+
 
 @dataclasses.dataclass
 class CommandLineArguments:
@@ -147,6 +157,7 @@ class CommandLineArguments:
 
     verb: str
     cmdline: List[str]
+
     distribution: Distribution
     release: str
     mirror: Optional[str]
@@ -168,8 +179,9 @@ class CommandLineArguments:
     encrypt: Optional[str]
     verity: bool
     compress: Union[None, str, bool]
+    compress_fs: Union[None, str, bool]
+    compress_output: Union[None, str, bool]
     mksquashfs_tool: List[str]
-    xz: bool
     qcow2: bool
     image_version: Optional[str]
     image_id: Optional[str]
@@ -273,6 +285,37 @@ class CommandLineArguments:
     ran_sfdisk: bool = False
 
 
+def should_compress_fs(args: Union[argparse.Namespace, CommandLineArguments]) -> Union[bool, str]:
+    """True for the default compression, a string, or False.
+
+    When explicitly configured with --compress-fs=, just return
+    whatever was specified. When --compress= was used, try to be
+    smart, so that either this function or should_compress_output()
+    returns True as appropriate.
+    """
+    c = args.compress_fs
+    if c is None and args.output_format.has_fs_compression():
+        c = args.compress
+    return False if c is None else c
+
+
+def should_compress_output(args: Union[argparse.Namespace, CommandLineArguments]) -> Union[bool, str]:
+    """A string or False.
+
+    When explicitly configured with --compress-output=, use
+    that. Since we have complete freedom with selecting the outer
+    compression algorithm, pick some default when True. When
+    --compress= was used, try to be smart, so that either this
+    function or should_compress_fs() returns True as appropriate.
+    """
+    c = args.compress_output
+    if c is None and not args.output_format.has_fs_compression():
+        c = args.compress
+    if c is True:
+        return "xz"  # default compression
+    return False if c is None else c
+
+
 def workspace(root: str) -> str:
     return os.path.dirname(root)
 
@@ -352,7 +395,7 @@ def run_workspace_command(
 
 
 @contextlib.contextmanager
-def delay_interrupt() -> Generator[None, None, None]:
+def do_delay_interrupt() -> Generator[None, None, None]:
     # CTRL+C is sent to the entire process group. We delay its handling in mkosi itself so the subprocess can
     # exit cleanly before doing mkosi's cleanup. If we don't do this, we get device or resource is busy
     # errors when unmounting stuff later on during cleanup. We only delay a single CTRL+C interrupt so that a
@@ -377,13 +420,43 @@ def delay_interrupt() -> Generator[None, None, None]:
             die("Interrupted")
 
 
+@contextlib.contextmanager
+def do_noop() -> Generator[None, None, None]:
+    yield
+
+
 # Borrowed from https://github.com/python/typeshed/blob/3d14016085aed8bcf0cf67e9e5a70790ce1ad8ea/stdlib/3/subprocess.pyi#L24
 _FILE = Union[None, int, IO[Any]]
+
+
+def spawn(
+    cmdline: List[str],
+    delay_interrupt: bool = True,
+    stdout: _FILE = None,
+    stderr: _FILE = None,
+    **kwargs: Any,
+) -> Popen:
+    if "run" in ARG_DEBUG:
+        MkosiPrinter.info("+ " + " ".join(shlex.quote(x) for x in cmdline))
+
+    if not stdout and not stderr:
+        # Unless explicit redirection is done, print all subprocess
+        # output on stderr, since we do so as well for mkosi's own
+        # output.
+        stdout = sys.stderr
+
+    cm = do_delay_interrupt if delay_interrupt else do_noop
+    try:
+        with cm():
+            return subprocess.Popen(cmdline, stdout=stdout, stderr=stderr, **kwargs)
+    except FileNotFoundError:
+        die(f"{cmdline[0]} not found in PATH.")
 
 
 def run(
     cmdline: List[str],
     check: bool = True,
+    delay_interrupt: bool = True,
     stdout: _FILE = None,
     stderr: _FILE = None,
     **kwargs: Any,
@@ -392,12 +465,14 @@ def run(
         MkosiPrinter.info("+ " + " ".join(shlex.quote(x) for x in cmdline))
 
     if not stdout and not stderr:
-        # Unless explicit redirection is done, print all subprocess output on stderr since we do so as well
-        # for mkosi's own output.
+        # Unless explicit redirection is done, print all subprocess
+        # output on stderr, since we do so as well for mkosi's own
+        # output.
         stdout = sys.stderr
 
+    cm = do_delay_interrupt if delay_interrupt else do_noop
     try:
-        with delay_interrupt():
+        with cm():
             return subprocess.run(cmdline, check=check, stdout=stdout, stderr=stderr, **kwargs)
     except FileNotFoundError:
         die(f"{cmdline[0]} not found in PATH.")
