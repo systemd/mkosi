@@ -1912,12 +1912,10 @@ def install_fedora(args: CommandLineArguments, root: str, do_run_build_script: b
         release_url = f"baseurl={baseurl}"
         updates_url = f"baseurl={args.mirror}/updates/{args.release}/Everything/$basearch/"
     else:
-        release_url = (
-            f"metalink=https://mirrors.fedoraproject.org/metalink?" + f"repo=fedora-{args.release}&arch=$basearch"
-        )
+        release_url = f"metalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-{args.release}&arch=$basearch"
         updates_url = (
-            f"metalink=https://mirrors.fedoraproject.org/metalink?"
-            + f"repo=updates-released-f{args.release}&arch=$basearch"
+            "metalink=https://mirrors.fedoraproject.org/metalink?"
+            f"repo=updates-released-f{args.release}&arch=$basearch"
         )
 
     if args.releasever in FEDORA_KEYS_MAP:
@@ -3866,7 +3864,7 @@ def extract_unified_kernel(
                 kernel = os.path.join(path, i)
 
         if kernel is None:
-            raise ValueError(f"No kernel found in image, can't extract")
+            raise ValueError("No kernel found in image, can't extract")
 
         assert args.output_split_kernel is not None
 
@@ -6076,7 +6074,7 @@ def setup_ssh(
             # Write a 'y' to confirm to overwrite the file.
             run(
                 ["ssh-keygen", "-f", f.name, "-N", args.password or "", "-C", "mkosi", "-t", "ed25519"],
-                input=f"y\n",
+                input="y\n",
                 text=True,
                 stdout=DEVNULL,
             )

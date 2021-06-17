@@ -344,9 +344,9 @@ def partition(loopdev: str, partno: int) -> str:
 def nspawn_params_for_blockdev_access(args: CommandLineArguments, loopdev: str) -> List[str]:
     params = [
         f"--bind-ro={loopdev}",
-        f"--bind-ro=/dev/block",
-        f"--bind-ro=/dev/disk",
         f"--property=DeviceAllow={loopdev}",
+        "--bind-ro=/dev/block",
+        "--bind-ro=/dev/disk",
     ]
     for partno in (args.esp_partno, args.bios_partno, args.root_partno, args.xbootldr_partno):
         if partno is not None:
