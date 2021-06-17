@@ -725,7 +725,7 @@ def determine_partition_table(args: CommandLineArguments) -> Tuple[str, bool]:
     return table, run_sfdisk
 
 
-def create_image(args: CommandLineArguments, root: str, for_cache: bool) -> Optional[BinaryIO]:
+def create_image(args: CommandLineArguments, for_cache: bool) -> Optional[BinaryIO]:
     if not args.output_format.is_disk():
         return None
 
@@ -776,7 +776,7 @@ def copy_file_temporary(src: str, dir: str) -> BinaryIO:
 
 
 def reuse_cache_image(
-    args: CommandLineArguments, root: str, do_run_build_script: bool, for_cache: bool
+    args: CommandLineArguments, do_run_build_script: bool, for_cache: bool
 ) -> Tuple[Optional[BinaryIO], bool]:
     if not args.incremental:
         return None, False
@@ -3536,7 +3536,6 @@ def read_partition_table(loopdev: str) -> Tuple[List[str], int]:
 
 def insert_partition(
     args: CommandLineArguments,
-    root: str,
     raw: BinaryIO,
     loopdev: str,
     partno: int,
@@ -3606,7 +3605,6 @@ def insert_partition(
 
 def insert_generated_root(
     args: CommandLineArguments,
-    root: str,
     raw: Optional[BinaryIO],
     loopdev: Optional[str],
     image: Optional[BinaryIO],
@@ -3626,7 +3624,6 @@ def insert_generated_root(
     with complete_step("Inserting generated root partition"):
         args.root_size = insert_partition(
             args,
-            root,
             raw,
             loopdev,
             args.root_partno,
@@ -3660,7 +3657,6 @@ def make_verity(
 
 def insert_verity(
     args: CommandLineArguments,
-    root: str,
     raw: Optional[BinaryIO],
     loopdev: Optional[str],
     verity: Optional[BinaryIO],
@@ -3682,7 +3678,6 @@ def insert_verity(
     with complete_step("Inserting verity partition"):
         insert_partition(
             args,
-            root,
             raw,
             loopdev,
             args.verity_partno,
@@ -6137,13 +6132,13 @@ def build_image(
 
     make_build_dir(args)
 
-    raw, cached = reuse_cache_image(args, root, do_run_build_script, for_cache)
+    raw, cached = reuse_cache_image(args, do_run_build_script, for_cache)
     if for_cache and cached:
         # Found existing cache image, exiting build_image
         return None, None, None, None, None, None, None
 
     if not cached:
-        raw = create_image(args, root, for_cache)
+        raw = create_image(args, for_cache)
 
     with attach_image_loopback(args, raw) as loopdev:
 
@@ -6217,7 +6212,7 @@ def build_image(
                 make_read_only(args, root, for_cache)
 
             generated_root = make_generated_root(args, root, for_cache)
-            insert_generated_root(args, root, raw, loopdev, generated_root, for_cache)
+            insert_generated_root(args, raw, loopdev, generated_root, for_cache)
             split_root = (
                 (generated_root or extract_partition(args, encrypted_root, do_run_build_script, for_cache))
                 if args.split_artifacts
@@ -6226,7 +6221,7 @@ def build_image(
 
             verity, root_hash = make_verity(args, encrypted_root, do_run_build_script, for_cache)
             patch_root_uuid(args, loopdev, root_hash, for_cache)
-            insert_verity(args, root, raw, loopdev, verity, root_hash, for_cache)
+            insert_verity(args, raw, loopdev, verity, root_hash, for_cache)
             split_verity = verity if args.split_artifacts else None
 
             # This time we mount read-only, as we already generated
