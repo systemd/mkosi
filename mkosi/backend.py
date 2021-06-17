@@ -140,7 +140,7 @@ class OutputFormat(enum.Enum):
     def needed_kernel_module(self) -> str:
         if self == OutputFormat.gpt_btrfs:
             return "btrfs"
-        elif self == OutputFormat.gpt_squashfs or self == OutputFormat.plain_squashfs:
+        elif self in (OutputFormat.gpt_squashfs, OutputFormat.plain_squashfs):
             return "squashfs"
         elif self == OutputFormat.gpt_xfs:
             return "xfs"
