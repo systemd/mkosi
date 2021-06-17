@@ -361,8 +361,8 @@ def run_workspace_command(
     root: str,
     cmd: List[str],
     network: bool = False,
-    env: Dict[str, str] = {},
-    nspawn_params: List[str] = [],
+    env: Optional[Dict[str, str]] = None,
+    nspawn_params: Optional[List[str]] = None,
 ) -> None:
     cmdline = [
         "systemd-nspawn",
@@ -382,7 +382,8 @@ def run_workspace_command(
     else:
         cmdline += ["--private-network"]
 
-    cmdline += [f"--setenv={k}={v}" for k, v in env.items()]
+    if env:
+        cmdline += [f"--setenv={k}={v}" for k, v in env.items()]
 
     if nspawn_params:
         cmdline += nspawn_params
