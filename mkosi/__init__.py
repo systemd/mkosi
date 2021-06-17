@@ -1765,7 +1765,7 @@ class Repo(NamedTuple):
     gpgurl: Optional[str] = None
 
 
-def setup_dnf(args: CommandLineArguments, root: str, repos: List[Repo] = []) -> None:
+def setup_dnf(args: CommandLineArguments, root: str, repos: Sequence[Repo] = ()) -> None:
     gpgcheck = True
 
     repo_file = os.path.join(workspace(root), "temp.repo")
