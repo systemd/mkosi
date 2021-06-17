@@ -3175,7 +3175,7 @@ def install_extra_trees(args: CommandLineArguments, root: str, for_cache: bool) 
                 shutil.unpack_archive(d, root)
 
 
-def install_skeleton_trees(args: CommandLineArguments, root: str, for_cache: bool) -> None:
+def install_skeleton_trees(args: CommandLineArguments, root: str) -> None:
     if not args.skeleton_trees:
         return
 
@@ -6188,7 +6188,7 @@ def build_image(
                     mount_bind(args.include_dir, os.path.join(root, "usr/include"))
 
                 cached_tree = reuse_cache_tree(args, root, do_run_build_script, for_cache, cached)
-                install_skeleton_trees(args, root, for_cache)
+                install_skeleton_trees(args, root)
                 install_distribution(args, root, do_run_build_script, cached_tree)
                 install_etc_hostname(args, root, cached_tree)
                 install_boot_loader(args, root, loopdev, do_run_build_script, cached_tree)
