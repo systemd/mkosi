@@ -4322,7 +4322,7 @@ class BooleanAction(argparse.Action):
     ) -> None:
         if nargs is not None:
             raise ValueError("nargs not allowed")
-        super(BooleanAction, self).__init__(option_strings, dest, nargs="?", const=const, default=default, **kwargs)
+        super().__init__(option_strings, dest, nargs="?", const=const, default=default, **kwargs)
 
     def __call__(
         self,  # These type-hints are copied from argparse.pyi
