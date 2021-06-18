@@ -6874,14 +6874,21 @@ def run_qemu(args: CommandLineArguments) -> None:
         else:
             fname = args.output
 
-        cmdline += [
-            "-drive",
-            f"if=none,id=hd,file={fname},format={'qcow2' if args.qcow2 else 'raw'}",
-            "-device",
-            "virtio-scsi-pci,id=scsi",
-            "-device",
-            "scsi-hd,drive=hd,bootindex=1",
-        ]
+        # Debian images fail to boot with virtio-scsi, see: https://github.com/systemd/mkosi/issues/725
+        if args.distribution == Distribution.debian:
+            cmdline += [
+                "-drive",
+                f"if=virtio,id=hd,file={fname},format={'qcow2' if args.qcow2 else 'raw'}",
+            ]
+        else:
+            cmdline += [
+                "-drive",
+                f"if=none,id=hd,file={fname},format={'qcow2' if args.qcow2 else 'raw'}",
+                "-device",
+                "virtio-scsi-pci,id=scsi",
+                "-device",
+                "scsi-hd,drive=hd,bootindex=1",
+            ]
 
         cmdline += args.cmdline
 
