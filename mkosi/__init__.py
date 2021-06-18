@@ -725,7 +725,7 @@ def determine_partition_table(args: CommandLineArguments) -> Tuple[str, bool]:
     return table, run_sfdisk
 
 
-def create_image(args: CommandLineArguments, root: str, for_cache: bool) -> Optional[BinaryIO]:
+def create_image(args: CommandLineArguments, for_cache: bool) -> Optional[BinaryIO]:
     if not args.output_format.is_disk():
         return None
 
@@ -776,7 +776,7 @@ def copy_file_temporary(src: str, dir: str) -> BinaryIO:
 
 
 def reuse_cache_image(
-    args: CommandLineArguments, root: str, do_run_build_script: bool, for_cache: bool
+    args: CommandLineArguments, do_run_build_script: bool, for_cache: bool
 ) -> Tuple[Optional[BinaryIO], bool]:
     if not args.incremental:
         return None, False
@@ -1765,7 +1765,7 @@ class Repo(NamedTuple):
     gpgurl: Optional[str] = None
 
 
-def setup_dnf(args: CommandLineArguments, root: str, repos: List[Repo] = []) -> None:
+def setup_dnf(args: CommandLineArguments, root: str, repos: Sequence[Repo] = ()) -> None:
     gpgcheck = True
 
     repo_file = os.path.join(workspace(root), "temp.repo")
@@ -1912,12 +1912,10 @@ def install_fedora(args: CommandLineArguments, root: str, do_run_build_script: b
         release_url = f"baseurl={baseurl}"
         updates_url = f"baseurl={args.mirror}/updates/{args.release}/Everything/$basearch/"
     else:
-        release_url = (
-            f"metalink=https://mirrors.fedoraproject.org/metalink?" + f"repo=fedora-{args.release}&arch=$basearch"
-        )
+        release_url = f"metalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-{args.release}&arch=$basearch"
         updates_url = (
-            f"metalink=https://mirrors.fedoraproject.org/metalink?"
-            + f"repo=updates-released-f{args.release}&arch=$basearch"
+            "metalink=https://mirrors.fedoraproject.org/metalink?"
+            f"repo=updates-released-f{args.release}&arch=$basearch"
         )
 
     if args.releasever in FEDORA_KEYS_MAP:
@@ -3177,7 +3175,7 @@ def install_extra_trees(args: CommandLineArguments, root: str, for_cache: bool) 
                 shutil.unpack_archive(d, root)
 
 
-def install_skeleton_trees(args: CommandLineArguments, root: str, for_cache: bool) -> None:
+def install_skeleton_trees(args: CommandLineArguments, root: str) -> None:
     if not args.skeleton_trees:
         return
 
@@ -3538,7 +3536,6 @@ def read_partition_table(loopdev: str) -> Tuple[List[str], int]:
 
 def insert_partition(
     args: CommandLineArguments,
-    root: str,
     raw: BinaryIO,
     loopdev: str,
     partno: int,
@@ -3608,7 +3605,6 @@ def insert_partition(
 
 def insert_generated_root(
     args: CommandLineArguments,
-    root: str,
     raw: Optional[BinaryIO],
     loopdev: Optional[str],
     image: Optional[BinaryIO],
@@ -3628,7 +3624,6 @@ def insert_generated_root(
     with complete_step("Inserting generated root partition"):
         args.root_size = insert_partition(
             args,
-            root,
             raw,
             loopdev,
             args.root_partno,
@@ -3662,7 +3657,6 @@ def make_verity(
 
 def insert_verity(
     args: CommandLineArguments,
-    root: str,
     raw: Optional[BinaryIO],
     loopdev: Optional[str],
     verity: Optional[BinaryIO],
@@ -3684,7 +3678,6 @@ def insert_verity(
     with complete_step("Inserting verity partition"):
         insert_partition(
             args,
-            root,
             raw,
             loopdev,
             args.verity_partno,
@@ -3866,7 +3859,7 @@ def extract_unified_kernel(
                 kernel = os.path.join(path, i)
 
         if kernel is None:
-            raise ValueError(f"No kernel found in image, can't extract")
+            raise ValueError("No kernel found in image, can't extract")
 
         assert args.output_split_kernel is not None
 
@@ -4324,7 +4317,7 @@ class BooleanAction(argparse.Action):
     ) -> None:
         if nargs is not None:
             raise ValueError("nargs not allowed")
-        super(BooleanAction, self).__init__(option_strings, dest, nargs="?", const=const, default=default, **kwargs)
+        super().__init__(option_strings, dest, nargs="?", const=const, default=default, **kwargs)
 
     def __call__(
         self,  # These type-hints are copied from argparse.pyi
@@ -6076,7 +6069,7 @@ def setup_ssh(
             # Write a 'y' to confirm to overwrite the file.
             run(
                 ["ssh-keygen", "-f", f.name, "-N", args.password or "", "-C", "mkosi", "-t", "ed25519"],
-                input=f"y\n",
+                input="y\n",
                 text=True,
                 stdout=DEVNULL,
             )
@@ -6139,13 +6132,13 @@ def build_image(
 
     make_build_dir(args)
 
-    raw, cached = reuse_cache_image(args, root, do_run_build_script, for_cache)
+    raw, cached = reuse_cache_image(args, do_run_build_script, for_cache)
     if for_cache and cached:
         # Found existing cache image, exiting build_image
         return None, None, None, None, None, None, None
 
     if not cached:
-        raw = create_image(args, root, for_cache)
+        raw = create_image(args, for_cache)
 
     with attach_image_loopback(args, raw) as loopdev:
 
@@ -6195,7 +6188,7 @@ def build_image(
                     mount_bind(args.include_dir, os.path.join(root, "usr/include"))
 
                 cached_tree = reuse_cache_tree(args, root, do_run_build_script, for_cache, cached)
-                install_skeleton_trees(args, root, for_cache)
+                install_skeleton_trees(args, root)
                 install_distribution(args, root, do_run_build_script, cached_tree)
                 install_etc_hostname(args, root, cached_tree)
                 install_boot_loader(args, root, loopdev, do_run_build_script, cached_tree)
@@ -6219,7 +6212,7 @@ def build_image(
                 make_read_only(args, root, for_cache)
 
             generated_root = make_generated_root(args, root, for_cache)
-            insert_generated_root(args, root, raw, loopdev, generated_root, for_cache)
+            insert_generated_root(args, raw, loopdev, generated_root, for_cache)
             split_root = (
                 (generated_root or extract_partition(args, encrypted_root, do_run_build_script, for_cache))
                 if args.split_artifacts
@@ -6228,7 +6221,7 @@ def build_image(
 
             verity, root_hash = make_verity(args, encrypted_root, do_run_build_script, for_cache)
             patch_root_uuid(args, loopdev, root_hash, for_cache)
-            insert_verity(args, root, raw, loopdev, verity, root_hash, for_cache)
+            insert_verity(args, raw, loopdev, verity, root_hash, for_cache)
             split_verity = verity if args.split_artifacts else None
 
             # This time we mount read-only, as we already generated

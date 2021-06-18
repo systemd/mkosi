@@ -140,7 +140,7 @@ class OutputFormat(enum.Enum):
     def needed_kernel_module(self) -> str:
         if self == OutputFormat.gpt_btrfs:
             return "btrfs"
-        elif self == OutputFormat.gpt_squashfs or self == OutputFormat.plain_squashfs:
+        elif self in (OutputFormat.gpt_squashfs, OutputFormat.plain_squashfs):
             return "squashfs"
         elif self == OutputFormat.gpt_xfs:
             return "xfs"
@@ -344,9 +344,9 @@ def partition(loopdev: str, partno: int) -> str:
 def nspawn_params_for_blockdev_access(args: CommandLineArguments, loopdev: str) -> List[str]:
     params = [
         f"--bind-ro={loopdev}",
-        f"--bind-ro=/dev/block",
-        f"--bind-ro=/dev/disk",
         f"--property=DeviceAllow={loopdev}",
+        "--bind-ro=/dev/block",
+        "--bind-ro=/dev/disk",
     ]
     for partno in (args.esp_partno, args.bios_partno, args.root_partno, args.xbootldr_partno):
         if partno is not None:
@@ -361,8 +361,8 @@ def run_workspace_command(
     root: str,
     cmd: List[str],
     network: bool = False,
-    env: Dict[str, str] = {},
-    nspawn_params: List[str] = [],
+    env: Optional[Dict[str, str]] = None,
+    nspawn_params: Optional[List[str]] = None,
 ) -> None:
     cmdline = [
         "systemd-nspawn",
@@ -382,7 +382,8 @@ def run_workspace_command(
     else:
         cmdline += ["--private-network"]
 
-    cmdline += [f"--setenv={k}={v}" for k, v in env.items()]
+    if env:
+        cmdline += [f"--setenv={k}={v}" for k, v in env.items()]
 
     if nspawn_params:
         cmdline += nspawn_params
