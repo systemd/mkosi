@@ -617,6 +617,11 @@ details see the table below.
   instead of a directory a `tar` file may be used too, and
   `mkosi.skeleton.tar` is automatically used.
 
+`--remove-files=`
+
+: Takes a comma-separated list of globs. Files in the image matching
+  the globs will be purged at the end.
+
 `--build-script=`
 
 : Takes a path to an executable that is used as build script for this
@@ -1000,6 +1005,7 @@ which settings file options.
 | `--cache=`                        | `[Packages]`            | `Cache=`                      |
 | `--extra-tree=`                   | `[Packages]`            | `ExtraTrees=`                 |
 | `--skeleton-tree=`                | `[Packages]`            | `SkeletonTrees=`              |
+| `--remove-files=`                 | `[Packages]`            | `RemoveFiles=`                |
 | `--build-script=`                 | `[Packages]`            | `BuildScript=`                |
 | `--build-environment=`            | `[Packages]`            | `BuildEnvironment=`           |
 | `--build-sources=`                | `[Packages]`            | `BuildSources=`               |
