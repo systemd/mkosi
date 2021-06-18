@@ -2348,6 +2348,12 @@ def install_debian_or_ubuntu(args: CommandLineArguments, root: str, *, do_run_bu
     # Debian still has pam_securetty module enabled
     disable_pam_securetty(root)
 
+    if args.distribution == Distribution.debian:
+        # The default resolv.conf points to 127.0.0.1, and resolved is disabled
+        os.unlink(os.path.join(root, "etc/resolv.conf"))
+        os.symlink("../run/systemd/resolve/resolv.conf", os.path.join(root, "etc/resolv.conf"))
+        run(["systemctl", "--root", root, "enable", "systemd-resolved"])
+
 
 @complete_step("Installing Debian")
 def install_debian(args: CommandLineArguments, root: str, do_run_build_script: bool) -> None:
