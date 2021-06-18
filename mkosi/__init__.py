@@ -6555,7 +6555,7 @@ def has_networkd_vm_vt() -> bool:
     return False
 
 
-def ensure_networkd(args: CommandLineArguments) -> None:
+def ensure_networkd(args: CommandLineArguments) -> bool:
     networkd_is_running = run(["systemctl", "is-active", "--quiet", "systemd-networkd"], check=False).returncode == 0
     if not networkd_is_running:
         warn(
@@ -6564,6 +6564,7 @@ def ensure_networkd(args: CommandLineArguments) -> None:
             veth link (`systemctl enable --now systemd-networkd`)")
             """
         )
+        return False
 
     if args.verb == "qemu" and not has_networkd_vm_vt():
         warn(
@@ -6593,6 +6594,9 @@ def ensure_networkd(args: CommandLineArguments) -> None:
             ```
             """
         )
+        return False
+
+    return True
 
 
 def run_shell(args: CommandLineArguments) -> None:
@@ -6753,15 +6757,18 @@ def run_qemu(args: CommandLineArguments) -> None:
         cmdline += ["-vga", "virtio"]
 
     if args.network_veth:
-        ensure_networkd(args)
-        # Use vt- prefix so we can take advantage of systemd-networkd's builtin network file for VMs.
-        ifname = f"vt-{virt_name(args)}"
-        # vt-<image-name> is the ifname on the host and is automatically picked up by systemd-networkd which
-        # starts a DHCP server on that interface. This gives IP connectivity to the VM. By default, QEMU
-        # itself tries to bring up the vt network interface which conflicts with systemd-networkd which is
-        # trying to do the same. By specifiying script=no and downscript=no, We tell QEMU to not touch vt
-        # after it is created.
-        cmdline += ["-nic", f"tap,script=no,downscript=no,ifname={ifname},model=virtio-net-pci"]
+        if not ensure_networkd(args):
+            # Fall back to usermode networking if the host doesn't have networkd (eg: Debian)
+            cmdline += ["-nic", f"user,model=virtio-net-pci"]
+        else:
+            # Use vt- prefix so we can take advantage of systemd-networkd's builtin network file for VMs.
+            ifname = f"vt-{virt_name(args)}"
+            # vt-<image-name> is the ifname on the host and is automatically picked up by systemd-networkd which
+            # starts a DHCP server on that interface. This gives IP connectivity to the VM. By default, QEMU
+            # itself tries to bring up the vt network interface which conflicts with systemd-networkd which is
+            # trying to do the same. By specifiying script=no and downscript=no, We tell QEMU to not touch vt
+            # after it is created.
+            cmdline += ["-nic", f"tap,script=no,downscript=no,ifname={ifname},model=virtio-net-pci"]
 
     if "uefi" in args.boot_protocols:
         cmdline += ["-drive", f"if=pflash,format=raw,readonly=on,file={firmware}"]
