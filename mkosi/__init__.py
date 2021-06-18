@@ -4277,7 +4277,7 @@ class ListAction(argparse.Action):
             if self.delimiter == "," and values.startswith("[") and values.endswith("]"):
                 values = values[1:-1]
 
-            # Make sure delimiters between quotes are ignored by using the csv module.
+            # Make sure delimiters between quotes are ignored.
             # Inspired by https://stackoverflow.com/a/2787979.
             values = [x.strip() for x in re.split(f"""{self.delimiter}(?=(?:[^'"]|'[^']*'|"[^"]*")*$)""", values) if x]
 
