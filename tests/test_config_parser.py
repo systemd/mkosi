@@ -48,6 +48,7 @@ class MkosiConfig(object):
             "bootable": False,
             "build_dir": None,
             "build_packages": [],
+            "remove_files": [],
             "build_script": None,
             "build_env": [],
             "build_sources": None,
@@ -274,6 +275,8 @@ class MkosiConfig(object):
                 self._append_list("extra_trees", mk_config_packages["ExtraTrees"], job_name)
             if "SkeletonTrees" in mk_config_packages:
                 self._append_list("skeleton_trees", mk_config_packages["SkeletonTrees"], job_name)
+            if "RemoveFiles" in mk_config_packages:
+                self.reference_config[job_name]["remove_files"] = mk_config_packages["RemoveFiles"]
             if "BuildScript" in mk_config_packages:
                 self.reference_config[job_name]["build_script"] = mk_config_packages["BuildScript"]
             if "BuildEnvironment" in mk_config_packages:

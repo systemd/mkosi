@@ -1693,6 +1693,19 @@ def clean_package_manager_metadata(root: str) -> None:
     # FIXME: implement cleanup for other package managers
 
 
+def remove_files(args: CommandLineArguments, root: str) -> None:
+    """Remove files based on user-specified patterns"""
+
+    if not args.remove_files:
+        return
+
+    with complete_step("Removing files..."):
+        # Note: os.path.join('/foo', '/bar')=='/bar'. We need to strip the slash.
+        # https://bugs.python.org/issue44452
+        paths = (os.path.join(root, p.lstrip("/")) for p in args.remove_files)
+        remove_glob(*paths)
+
+
 def invoke_dnf(
     args: CommandLineArguments, root: str, repositories: List[str], packages: Set[str], do_run_build_script: bool
 ) -> None:
@@ -4255,28 +4268,25 @@ class ListAction(argparse.Action):
         values: Union[str, Sequence[Any], None],
         option_string: Optional[str] = None,
     ) -> None:
-        assert isinstance(values, str)
         ary = getattr(namespace, self.dest)
         if ary is None:
             ary = []
 
-        # Support list syntax for comma separated lists as well
-        if self.delimiter == "," and values.startswith("[") and values.endswith("]"):
-            values = values[1:-1]
+        if isinstance(values, str):
+            # Support list syntax for comma separated lists as well
+            if self.delimiter == "," and values.startswith("[") and values.endswith("]"):
+                values = values[1:-1]
 
-        # Make sure delimiters between quotes are ignored by using the csv module.
-        # Inspired by https://stackoverflow.com/a/2787979.
-        new = re.split(f"""{self.delimiter}(?=(?:[^'"]|'[^']*'|"[^"]*")*$)""", values)
+            # Make sure delimiters between quotes are ignored.
+            # Inspired by https://stackoverflow.com/a/2787979.
+            values = [x.strip() for x in re.split(f"""{self.delimiter}(?=(?:[^'"]|'[^']*'|"[^"]*")*$)""", values) if x]
 
-        for x in new:
-            x = x.strip()
-            if not x:  # ignore empty entries
-                continue
+        for x in values or ():
             if self.list_choices is not None and x not in self.list_choices:
                 raise ValueError(f"Unknown value {x!r}")
 
             # Remove ! prefixed list entries from list. !* removes all entries. This works for strings only now.
-            if x.startswith("!*"):
+            if x == "!*":
                 ary = []
             elif x.startswith("!"):
                 if x[1:] in ary:
@@ -4498,6 +4508,16 @@ def parse_base_packages(value: str) -> Union[str, bool]:
     return parse_boolean(value)
 
 
+def parse_remove_files(value: str) -> List[str]:
+    """Normalize paths as relative to / to ensure we don't go outside of our root."""
+
+    # os.path.normpath() leaves leading '//' untouched, even though it normalizes '///'.
+    # This follows POSIX specification, see
+    # https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap04.html#tag_04_13.
+    # Let's use lstrip() to handle zero or more leading slashes correctly.
+    return ["/" + os.path.normpath(p).lstrip("/") for p in value.split(",") if p]
+
+
 def create_parser() -> ArgumentParserMkosi:
     parser = ArgumentParserMkosi(prog="mkosi", description="Build Bespoke OS Images", add_help=False)
 
@@ -4716,6 +4736,14 @@ def create_parser() -> ArgumentParserMkosi:
         default=[],
         help="Use a skeleton tree to bootstrap the image before installing anything",
         metavar="PATH",
+    )
+    group.add_argument(
+        "--remove-files",
+        action=CommaDelimitedListAction,
+        default=[],
+        type=parse_remove_files,
+        help="Remove files from built image",
+        metavar="GLOB",
     )
     group.add_argument("--build-script", help="Build script to run inside image", metavar="PATH")
     group.add_argument(
@@ -5937,6 +5965,8 @@ def print_summary(args: CommandLineArguments) -> None:
     MkosiPrinter.info("             Package Cache: " + none_to_none(args.cache_path))
     MkosiPrinter.info("               Extra Trees: " + line_join_list(args.extra_trees))
     MkosiPrinter.info("            Skeleton Trees: " + line_join_list(args.skeleton_trees))
+    if args.remove_files:
+        MkosiPrinter.info("              Remove Files: " + line_join_list(args.remove_files))
     MkosiPrinter.info("              Build Script: " + none_to_none(args.build_script))
     MkosiPrinter.info("         Build Environment: " + line_join_list(args.build_env))
 
@@ -6205,6 +6235,7 @@ def build_image(
 
                 if cleanup:
                     clean_package_manager_metadata(root)
+                    remove_files(args, root)
                 reset_machine_id(args, root, do_run_build_script, for_cache)
                 reset_random_seed(args, root)
                 run_finalize_script(args, root, do_run_build_script, for_cache)

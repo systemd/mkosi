@@ -626,6 +626,10 @@ As with the extra tree logic above, instead of a directory a
 \f[C]tar\f[R] file may be used too, and \f[C]mkosi.skeleton.tar\f[R] is
 automatically used.
 .TP
+\f[B]\f[CB]--remove-files=\f[B]\f[R]
+Takes a path glob.
+Files in the image matching the glob will be removed at the end.
+.TP
 \f[B]\f[CB]--build-script=\f[B]\f[R]
 Takes a path to an executable that is used as build script for this
 image.
@@ -1294,6 +1298,13 @@ T}@T{
 \f[C][Packages]\f[R]
 T}@T{
 \f[C]SkeletonTrees=\f[R]
+T}
+T{
+\f[C]--remove-files=\f[R]
+T}@T{
+\f[C][Packages]\f[R]
+T}@T{
+\f[C]RemoveFiles=\f[R]
 T}
 T{
 \f[C]--build-script=\f[R]

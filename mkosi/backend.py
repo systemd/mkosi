@@ -200,6 +200,7 @@ class CommandLineArguments:
     cache_path: Optional[str]
     extra_trees: List[str]
     skeleton_trees: List[str]
+    remove_files: List[str]
     build_script: Optional[str]
     build_env: List[str]
     build_sources: Optional[str]
