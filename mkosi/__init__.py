@@ -6621,8 +6621,8 @@ def run_shell(args: CommandLineArguments) -> None:
         cmdline.append("--volatile=overlay")
 
     if args.network_veth:
-        ensure_networkd(args)
-        cmdline.append("--network-veth")
+        if ensure_networkd(args):
+            cmdline.append("--network-veth")
 
     if args.ephemeral:
         cmdline.append("--ephemeral")
