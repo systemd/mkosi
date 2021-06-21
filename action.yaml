@@ -227,7 +227,7 @@ runs:
       LIBSOLV_VERSION: "0.7.16"
       LIBDNF_VERSION: "0.55.2"
       DNF_VERSION: "4.5.1"
-      RPM_VERSION: "4.16.0"
+      RPM_VERSION: "4.16.1.2"
 
   - name: Install
     shell: bash
