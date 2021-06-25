@@ -769,6 +769,18 @@ Takes the same values as \f[C]--source-file-transfer\f[R] except
 \f[C]mount\f[R].
 By default, sources are not copied into the final image.
 .TP
+\f[B]\f[CB]--source-resolve-symlinks\f[B]\f[R]
+If given, any symbolic links in the source file tree are resolved and
+the file contents are copied to the build image.
+If not given, they are left as symbolic links.
+This only applies if \f[C]--source-file-transfer\f[R] is
+\f[C]copy-all\f[R].
+Defaults to leaving them as symbolic links.
+.TP
+\f[B]\f[CB]--source-resolve-symlinks-final\f[B]\f[R]
+Same as \f[C]--source-resolve-symlinks\f[R] but for the final image
+instead of the build image.
+.TP
 \f[B]\f[CB]--with-network\f[B]\f[R]
 Enables network connectivity while the build script
 \f[C]mkosi.build\f[R] is invoked.
@@ -1340,6 +1352,20 @@ T}@T{
 \f[C][Packages]\f[R]
 T}@T{
 \f[C]SourceFileTransferFinal=\f[R]
+T}
+T{
+\f[C]--source-resolve-symlinks\f[R]
+T}@T{
+\f[C][Packages]\f[R]
+T}@T{
+\f[C]SourceResolveSymlinks=\f[R]
+T}
+T{
+\f[C]--source-resolve-symlinks-final\f[R]
+T}@T{
+\f[C][Packages]\f[R]
+T}@T{
+\f[C]SourceResolveSymlinksFinal=\f[R]
 T}
 T{
 \f[C]--build-directory=\f[R]

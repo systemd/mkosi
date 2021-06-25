@@ -104,6 +104,8 @@ class MkosiConfig(object):
             "secure_boot_valid_days": "730",
             "sign": False,
             "skeleton_trees": [],
+            "source_resolve_symlinks": False,
+            "source_resolve_symlinks_final": False,
             "source_file_transfer": None,
             "source_file_transfer_final": None,
             "srv_size": None,
