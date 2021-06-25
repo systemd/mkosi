@@ -756,6 +756,18 @@ details see the table below.
   except `mount`. By default, sources are not copied into the final
   image.
 
+`--source-resolve-symlinks`
+
+: If given, any symbolic links in the source file tree are resolved and the
+  file contents are copied to the build image. If not given, they are left as
+  symbolic links. This only applies if `--source-file-transfer` is `copy-all`.
+  Defaults to leaving them as symbolic links.
+
+`--source-resolve-symlinks-final`
+
+: Same as `--source-resolve-symlinks` but for the final image instead of
+  the build image.
+
 `--with-network`
 
 : Enables network connectivity while the build script `mkosi.build` is
@@ -1011,6 +1023,8 @@ which settings file options.
 | `--build-sources=`                | `[Packages]`            | `BuildSources=`               |
 | `--source-file-transfer=`         | `[Packages]`            | `SourceFileTransfer=`         |
 | `--source-file-transfer-final=`   | `[Packages]`            | `SourceFileTransferFinal=`    |
+| `--source-resolve-symlinks`       | `[Packages]`            | `SourceResolveSymlinks=`      |
+| `--source-resolve-symlinks-final` | `[Packages]`            | `SourceResolveSymlinksFinal=` |
 | `--build-directory=`              | `[Packages]`            | `BuildDirectory=`             |
 | `--include-directory=`            | `[Packages]`            | `IncludeDirectory=`           |
 | `--install-directory=`            | `[Packages]`            | `InstallDirectory=`           |

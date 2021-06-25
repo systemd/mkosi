@@ -214,6 +214,8 @@ class CommandLineArguments:
     finalize_script: Optional[str]
     source_file_transfer: SourceFileTransfer
     source_file_transfer_final: Optional[SourceFileTransfer]
+    source_resolve_symlinks: bool
+    source_resolve_symlinks_final: bool
     with_network: bool
     nspawn_settings: Optional[str]
     root_size: int

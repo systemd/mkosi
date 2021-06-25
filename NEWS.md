@@ -17,6 +17,9 @@
   keys for usage with mkosi's `--secure-boot` options. The number of days the
   keys should remain valid can be specified via `--secure-boot-valid-days=` and
   their CN via `--secure-boot-common-name=`
+- Add `--source-resolve-symlinks` and `--source-resolve-symlinks-final` options
+  to control how symlinks in the build sources are handled when
+  `--source-file-transfer[-final]=copy-all`.
 
 ## v9
 

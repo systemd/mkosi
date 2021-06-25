@@ -3259,10 +3259,13 @@ def install_build_src(args: CommandLineArguments, root: str, do_run_build_script
             copy_file(args.build_script, os.path.join(root_home(args, root), os.path.basename(args.build_script)))
 
     sft: Optional[SourceFileTransfer] = None
+    resolve_symlinks: bool = False
     if do_run_build_script:
         sft = args.source_file_transfer
+        resolve_symlinks = args.source_resolve_symlinks
     else:
         sft = args.source_file_transfer_final
+        resolve_symlinks = args.source_resolve_symlinks_final
 
     if args.build_sources is None or sft is None:
         return
@@ -3289,7 +3292,7 @@ def install_build_src(args: CommandLineArguments, root: str, do_run_build_script
                 os.path.basename(args.include_dir) + "/" if args.include_dir else "mkosi.includedir/",
                 os.path.basename(args.install_dir) + "/" if args.install_dir else "mkosi.installdir/",
             )
-            shutil.copytree(args.build_sources, target, symlinks=True, ignore=ignore)
+            shutil.copytree(args.build_sources, target, symlinks=not resolve_symlinks, ignore=ignore)
 
 
 def install_build_dest(args: CommandLineArguments, root: str, do_run_build_script: bool, for_cache: bool) -> None:
@@ -4798,6 +4801,20 @@ def create_parser() -> ArgumentParserMkosi:
         help="Method used to copy build sources to the final image."
         + "; ".join([f"'{k}': {v}" for k, v in SourceFileTransfer.doc().items() if k != SourceFileTransfer.mount])
         + " (default: None)",
+    )
+    group.add_argument(
+        "--source-resolve-symlinks",
+        action=BooleanAction,
+        help="If given, any symbolic links in the build sources are resolved and the file contents copied to the"
+        + " build image. If not given, they are left as symbolic links in the build image."
+        + " Only applies if --source-file-transfer is set to 'copy-all'. (default: keep as symbolic links)",
+    )
+    group.add_argument(
+        "--source-resolve-symlinks-final",
+        action=BooleanAction,
+        help="If given, any symbolic links in the build sources are resolved and the file contents copied to the"
+        + " final image. If not given, they are left as symbolic links in the final image."
+        + " Only applies if --source-file-transfer-final is set to 'copy-all'. (default: keep as symbolic links)",
     )
     group.add_argument(
         "--with-network",
