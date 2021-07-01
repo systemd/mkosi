@@ -725,11 +725,24 @@ def determine_partition_table(args: CommandLineArguments) -> Tuple[str, bool]:
     return table, run_sfdisk
 
 
+def exec_sfdisk(args: CommandLineArguments, f: BinaryIO) -> None:
+
+    table, run_sfdisk = determine_partition_table(args)
+
+    if run_sfdisk:
+        run(["sfdisk", "--color=never", f.name], input=table.encode("utf-8"))
+        run(["sync"])
+
+    args.ran_sfdisk = run_sfdisk
+
+
 def create_image(args: CommandLineArguments, for_cache: bool) -> Optional[BinaryIO]:
     if not args.output_format.is_disk():
         return None
 
-    with complete_step("Creating partition table", "Created partition table as {.name}") as output:
+    with complete_step(
+        "Creating image with partition table", "Created image with partition table as {.name}"
+    ) as output:
 
         f: BinaryIO = cast(
             BinaryIO,
@@ -739,15 +752,63 @@ def create_image(args: CommandLineArguments, for_cache: bool) -> Optional[Binary
         disable_cow(f.name)
         f.truncate(image_size(args))
 
-        table, run_sfdisk = determine_partition_table(args)
-
-        if run_sfdisk:
-            run(["sfdisk", "--color=never", f.name], input=table.encode("utf-8"))
-            run(["sync"])
-
-        args.ran_sfdisk = run_sfdisk
+        exec_sfdisk(args, f)
 
     return f
+
+
+def refresh_partition_table(args: CommandLineArguments, f: BinaryIO) -> None:
+    if not args.output_format.is_disk():
+        return
+
+    # Let's refresh all UUIDs and labels to match the new build. This
+    # is called whenever we reuse a cached image, to ensure that the
+    # UUIDs/labels of partitions are generated the same way as for
+    # non-cached builds. Note that we refresh the UUIDs/labels simply
+    # by invoking sfdisk again. If the build parameters didn't change
+    # this should have the effect that offsets and sizes should remain
+    # identical, and we thus only update the UUIDs and labels.
+    #
+    # FIXME: One of those days we should generate the UUIDs as hashes
+    # of the used configuration, so that they remain stable as the
+    # configuration is identical.
+
+    with complete_step("Refreshing partition table", "Refreshed partition table") as output:
+        exec_sfdisk(args, f)
+
+
+def refresh_file_system(args: CommandLineArguments, dev: Optional[str], cached: bool) -> None:
+
+    if dev is None:
+        return
+    if not cached:
+        return
+
+    # Similar to refresh_partition_table() but refreshes the UUIDs of
+    # the file systems themselves. We want that build artifacts from
+    # cached builds are as similar as possible to those from uncached
+    # builds, and hence we want to randomize UUIDs explicitly like
+    # they are for uncached builds. This is particularly relevant for
+    # btrfs since it prohibits mounting multiple file systems at the
+    # same time that carry the same UUID.
+    #
+    # FIXME: One of those days we should generate the UUIDs as hashes
+    # of the used configuration, so that they remain stable as the
+    # configuration is identical.
+
+    with complete_step(f"Refreshing file system {dev}."):
+        if args.output_format == OutputFormat.gpt_btrfs:
+            # We use -M instead of -m here, for compatibility with
+            # older btrfs, where -M didn't exist yet.
+            run(["btrfstune", "-M", str(uuid.uuid4()), dev])
+        elif args.output_format == OutputFormat.gpt_ext4:
+            # We connect stdin to /dev/null since tune2fs otherwise
+            # asks an unnecessary safety question on stdin, and we
+            # don't want that, our script doesn't operate on essential
+            # file systems anyway, but just our build images.
+            run(["tune2fs", "-U", "random", dev], stdin=subprocess.DEVNULL)
+        elif args.output_format == OutputFormat.gpt_xfs:
+            run(["xfs_admin", "-U", "generate", dev])
 
 
 def copy_image_temporary(src: str, dir: str) -> BinaryIO:
@@ -5630,8 +5691,15 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
             warn("Ignoring configured output directory as output file is a qualified path.")
 
     if args.incremental or args.verb == "clean":
-        args.cache_pre_dev = args.output + ".cache-pre-dev"
-        args.cache_pre_inst = args.output + ".cache-pre-inst"
+        if args.image_id is not None:
+            # If the image ID is specified, use cache file names that are independent of the image versions, so that
+            # rebuilding and bumping versions is cheap and reuses previous versions if cached.
+            args.cache_pre_dev = os.path.join(args.output_dir, args.image_id + ".cache-pre-dev")
+            args.cache_pre_inst = os.path.join(args.output_dir, args.image_id + ".cache-pre-inst")
+        else:
+            # Otherwise, derive the cache file names directly from the output file names.
+            args.cache_pre_dev = args.output + ".cache-pre-dev"
+            args.cache_pre_inst = args.output + ".cache-pre-inst"
     else:
         args.cache_pre_dev = None
         args.cache_pre_inst = None
@@ -6190,7 +6258,10 @@ def build_image(
         # Found existing cache image, exiting build_image
         return None, None, None, None, None, None, None
 
-    if not cached:
+    if cached:
+        assert raw is not None
+        refresh_partition_table(args, raw)
+    else:
         raw = create_image(args, for_cache)
 
     with attach_image_loopback(args, raw) as loopdev:
@@ -6219,6 +6290,9 @@ def build_image(
             prepare_srv(args, encrypted_srv, cached)
             prepare_var(args, encrypted_var, cached)
             prepare_tmp(args, encrypted_tmp, cached)
+
+            for dev in (encrypted_root, encrypted_home, encrypted_srv, encrypted_var, encrypted_tmp):
+                refresh_file_system(args, dev, cached)
 
             # Mount everything together, but let's not mount the root
             # dir if we still have to generate the root image here
