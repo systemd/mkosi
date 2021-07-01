@@ -2577,7 +2577,7 @@ def install_arch(args: CommandLineArguments, root: str, do_run_build_script: boo
         make_executable(kernel_remove_script)
 
         if args.esp_partno is not None:
-            bootctl_update_hook = os.path.join(hooks_dir, "91-mkosi-bootctl-update-hook")
+            bootctl_update_hook = os.path.join(hooks_dir, "91-mkosi-bootctl-update.hook")
             with open(bootctl_update_hook, "w") as f:
                 f.write(
                     dedent(
