@@ -164,6 +164,8 @@ case "$COMMAND" in
             BOOT_OPTIONS="${BOOT_OPTIONS} roothash=${ROOTHASH}"
         elif [[ -n "$USRHASH" ]]; then
             BOOT_OPTIONS="${BOOT_OPTIONS} usrhash=${USRHASH}"
+        elif [[ -n "$IMAGE_VERSION" ]]; then
+            BOOT_OPTIONS="${BOOT_OPTIONS} root=PARTLABEL=${IMAGE_ID}_${IMAGE_VERSION}"
         fi
 
         if [[ -n "$KERNEL_IMAGE" ]]; then
