@@ -6621,7 +6621,8 @@ def suppress_stacktrace() -> Generator[None, None, None]:
 
 
 def virt_name(args: CommandLineArguments) -> str:
-    name = args.hostname or os.path.splitext(os.path.basename(args.output))[0]
+
+    name = args.hostname or args.image_id or os.path.splitext(os.path.basename(args.output))[0].partition("_")[0]
     # Shorten to 13 characters so we can prefix with ve- or vt- for the network veth ifname which is limited
     # to 16 characters.
     return name[:13]
