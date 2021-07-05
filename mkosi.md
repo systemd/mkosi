@@ -1515,7 +1515,7 @@ Hostname=image
 
 # REQUIREMENTS
 
-mkosi is packaged for various distributions: Debian, Ubuntu, Arch (in AUR), Fedora, OpenMandriva.
+mkosi is packaged for various distributions: Debian, Ubuntu, Arch Linux, Fedora, OpenMandriva.
 It is usually easiest to use the distribution package.
 
 The current version requires systemd 233 (or actually, systemd-nspawn of it).
