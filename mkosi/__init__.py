@@ -6742,46 +6742,44 @@ def find_qemu_binary() -> str:
 
 
 def find_qemu_firmware() -> Tuple[str, bool]:
-    # UEFI firmware blobs are found in a variety of locations,
-    # depending on distribution and package.
-    FIRMWARE_LOCATIONS = []
-
-    if platform.machine() == "x86_64":
-        FIRMWARE_LOCATIONS.append("/usr/share/ovmf/x64/OVMF_CODE.secboot.fd")
-    elif platform.machine() == "i386":
-        FIRMWARE_LOCATIONS.append("/usr/share/edk2/ovmf-ia32/OVMF_CODE.secboot.fd")
-
-    FIRMWARE_LOCATIONS.append("/usr/share/edk2/ovmf/OVMF_CODE.secboot.fd")
-    FIRMWARE_LOCATIONS.append("/usr/share/qemu/OVMF_CODE.secboot.fd")
-    FIRMWARE_LOCATIONS.append("/usr/share/ovmf/OVMF.secboot.fd")
+    FIRMWARE_LOCATIONS = [
+        # UEFI firmware blobs are found in a variety of locations,
+        # depending on distribution and package.
+        *{
+            "x86_64": ["/usr/share/ovmf/x64/OVMF_CODE.secboot.fd"],
+            "i386": ["/usr/share/edk2/ovmf-ia32/OVMF_CODE.secboot.fd"],
+        }.get(platform.machine(), []),
+        "/usr/share/edk2/ovmf/OVMF_CODE.secboot.fd",
+        "/usr/share/qemu/OVMF_CODE.secboot.fd",
+        "/usr/share/ovmf/OVMF.secboot.fd",
+    ]
 
     for firmware in FIRMWARE_LOCATIONS:
         if os.path.exists(firmware):
             return firmware, True
 
     warn(
-        """\
-        Couldn't find OVMF firmware blob with secure boot support,
-        falling back to OVMF firmware blobs without secure boot support.
-        """
+        "Couldn't find OVMF firmware blob with secure boot support, "
+        "falling back to OVMF firmware blobs without secure boot support."
     )
 
-    FIRMWARE_LOCATIONS = []
-
-    # First, we look in paths that contain the architecture –
-    # if they exist, they’re almost certainly correct.
-    if platform.machine() == "x86_64":
-        FIRMWARE_LOCATIONS.append("/usr/share/ovmf/ovmf_code_x64.bin")
-        FIRMWARE_LOCATIONS.append("/usr/share/ovmf/x64/OVMF_CODE.fd")
-        FIRMWARE_LOCATIONS.append("/usr/share/qemu/ovmf-x86_64.bin")
-    elif platform.machine() == "i386":
-        FIRMWARE_LOCATIONS.append("/usr/share/ovmf/ovmf_code_ia32.bin")
-        FIRMWARE_LOCATIONS.append("/usr/share/edk2/ovmf-ia32/OVMF_CODE.fd")
-    # After that, we try some generic paths and hope that if they exist,
-    # they’ll correspond to the current architecture, thanks to the package manager.
-    FIRMWARE_LOCATIONS.append("/usr/share/edk2/ovmf/OVMF_CODE.fd")
-    FIRMWARE_LOCATIONS.append("/usr/share/qemu/OVMF_CODE.fd")
-    FIRMWARE_LOCATIONS.append("/usr/share/ovmf/OVMF.fd")
+    FIRMWARE_LOCATIONS = [
+        # First, we look in paths that contain the architecture –
+        # if they exist, they’re almost certainly correct.
+        *{
+            "x86_64": [
+                "/usr/share/ovmf/ovmf_code_x64.bin",
+                "/usr/share/ovmf/x64/OVMF_CODE.fd",
+                "/usr/share/qemu/ovmf-x86_64.bin",
+            ],
+            "i386": ["/usr/share/ovmf/ovmf_code_ia32.bin", "/usr/share/edk2/ovmf-ia32/OVMF_CODE.fd"],
+        }.get(platform.machine(), []),
+        # After that, we try some generic paths and hope that if they exist,
+        # they’ll correspond to the current architecture, thanks to the package manager.
+        "/usr/share/edk2/ovmf/OVMF_CODE.fd",
+        "/usr/share/qemu/OVMF_CODE.fd",
+        "/usr/share/ovmf/OVMF.fd",
+    ]
 
     for firmware in FIRMWARE_LOCATIONS:
         if os.path.exists(firmware):
