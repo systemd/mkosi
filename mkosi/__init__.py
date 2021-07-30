@@ -88,7 +88,7 @@ from .backend import (
     write_grub_config,
 )
 
-__version__ = "9"
+__version__ = "10"
 
 
 # These types are only generic during type checking and not at runtime, leading

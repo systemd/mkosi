@@ -18,7 +18,7 @@ class BuildManpage(Command):
 
 setup(
     name="mkosi",
-    version="9",
+    version="10",
     description="Build Bespoke OS Images",
     url="https://github.com/systemd/mkosi",
     maintainer="mkosi contributors",
