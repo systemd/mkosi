@@ -2438,6 +2438,23 @@ def run_pacman(root: str, pacman_conf: str, packages: Set[str]) -> None:
         run(["gpgconf", "--homedir", os.path.join(root, "etc/pacman.d/gnupg"), "--kill", "all"])
 
 
+def patch_locale_gen(args: CommandLineArguments, root: str) -> None:
+    # If /etc/locale.gen exists, uncomment the desired locale and leave the rest of the file untouched.
+    # If it doesn’t exist, just write the desired locale in it.
+    try:
+
+        def _patch_line(line: str) -> str:
+            if line.startswith("#en_US.UTF-8"):
+                return line[1:]
+            return line
+
+        patch_file(os.path.join(root, "etc/locale.gen"), _patch_line)
+
+    except FileNotFoundError:
+        with open(os.path.join(root, "etc/locale.gen"), "x") as f:
+            f.write("en_US.UTF-8 UTF-8\n")
+
+
 @complete_step("Installing Arch Linux")
 def install_arch(args: CommandLineArguments, root: str, do_run_build_script: bool) -> None:
     if args.release is not None:
@@ -2748,21 +2765,7 @@ def install_arch(args: CommandLineArguments, root: str, do_run_build_script: boo
     with mount_api_vfs(args, root):
         run_pacman(root, pacman_conf, packages)
 
-    # If /etc/locale.gen exists, uncomment the desired locale and leave the rest of the file untouched.
-    # If it doesn’t exist, just write the desired locale in it.
-    try:
-
-        def _enable_locale(line: str) -> str:
-            if line.startswith("#en_US.UTF-8"):
-                return line.replace("#", "")
-            return line
-
-        patch_file(os.path.join(root, "etc/locale.gen"), _enable_locale)
-
-    except FileNotFoundError:
-        with open(os.path.join(root, "etc/locale.gen"), "x") as f:
-            f.write("en_US.UTF-8 UTF-8\n")
-
+    patch_locale_gen(args, root)
     run_workspace_command(args, root, ["/usr/bin/locale-gen"])
 
     with open(os.path.join(root, "etc/locale.conf"), "w") as f:
@@ -6739,46 +6742,44 @@ def find_qemu_binary() -> str:
 
 
 def find_qemu_firmware() -> Tuple[str, bool]:
-    # UEFI firmware blobs are found in a variety of locations,
-    # depending on distribution and package.
-    FIRMWARE_LOCATIONS = []
-
-    if platform.machine() == "x86_64":
-        FIRMWARE_LOCATIONS.append("/usr/share/ovmf/x64/OVMF_CODE.secboot.fd")
-    elif platform.machine() == "i386":
-        FIRMWARE_LOCATIONS.append("/usr/share/edk2/ovmf-ia32/OVMF_CODE.secboot.fd")
-
-    FIRMWARE_LOCATIONS.append("/usr/share/edk2/ovmf/OVMF_CODE.secboot.fd")
-    FIRMWARE_LOCATIONS.append("/usr/share/qemu/OVMF_CODE.secboot.fd")
-    FIRMWARE_LOCATIONS.append("/usr/share/ovmf/OVMF.secboot.fd")
+    FIRMWARE_LOCATIONS = [
+        # UEFI firmware blobs are found in a variety of locations,
+        # depending on distribution and package.
+        *{
+            "x86_64": ["/usr/share/ovmf/x64/OVMF_CODE.secboot.fd"],
+            "i386": ["/usr/share/edk2/ovmf-ia32/OVMF_CODE.secboot.fd"],
+        }.get(platform.machine(), []),
+        "/usr/share/edk2/ovmf/OVMF_CODE.secboot.fd",
+        "/usr/share/qemu/OVMF_CODE.secboot.fd",
+        "/usr/share/ovmf/OVMF.secboot.fd",
+    ]
 
     for firmware in FIRMWARE_LOCATIONS:
         if os.path.exists(firmware):
             return firmware, True
 
     warn(
-        """\
-        Couldn't find OVMF firmware blob with secure boot support,
-        falling back to OVMF firmware blobs without secure boot support.
-        """
+        "Couldn't find OVMF firmware blob with secure boot support, "
+        "falling back to OVMF firmware blobs without secure boot support."
     )
 
-    FIRMWARE_LOCATIONS = []
-
-    # First, we look in paths that contain the architecture –
-    # if they exist, they’re almost certainly correct.
-    if platform.machine() == "x86_64":
-        FIRMWARE_LOCATIONS.append("/usr/share/ovmf/ovmf_code_x64.bin")
-        FIRMWARE_LOCATIONS.append("/usr/share/ovmf/x64/OVMF_CODE.fd")
-        FIRMWARE_LOCATIONS.append("/usr/share/qemu/ovmf-x86_64.bin")
-    elif platform.machine() == "i386":
-        FIRMWARE_LOCATIONS.append("/usr/share/ovmf/ovmf_code_ia32.bin")
-        FIRMWARE_LOCATIONS.append("/usr/share/edk2/ovmf-ia32/OVMF_CODE.fd")
-    # After that, we try some generic paths and hope that if they exist,
-    # they’ll correspond to the current architecture, thanks to the package manager.
-    FIRMWARE_LOCATIONS.append("/usr/share/edk2/ovmf/OVMF_CODE.fd")
-    FIRMWARE_LOCATIONS.append("/usr/share/qemu/OVMF_CODE.fd")
-    FIRMWARE_LOCATIONS.append("/usr/share/ovmf/OVMF.fd")
+    FIRMWARE_LOCATIONS = [
+        # First, we look in paths that contain the architecture –
+        # if they exist, they’re almost certainly correct.
+        *{
+            "x86_64": [
+                "/usr/share/ovmf/ovmf_code_x64.bin",
+                "/usr/share/ovmf/x64/OVMF_CODE.fd",
+                "/usr/share/qemu/ovmf-x86_64.bin",
+            ],
+            "i386": ["/usr/share/ovmf/ovmf_code_ia32.bin", "/usr/share/edk2/ovmf-ia32/OVMF_CODE.fd"],
+        }.get(platform.machine(), []),
+        # After that, we try some generic paths and hope that if they exist,
+        # they’ll correspond to the current architecture, thanks to the package manager.
+        "/usr/share/edk2/ovmf/OVMF_CODE.fd",
+        "/usr/share/qemu/OVMF_CODE.fd",
+        "/usr/share/ovmf/OVMF.fd",
+    ]
 
     for firmware in FIRMWARE_LOCATIONS:
         if os.path.exists(firmware):
