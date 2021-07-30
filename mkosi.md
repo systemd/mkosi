@@ -481,8 +481,8 @@ details see the table below.
   for fully stateless systems that come up pristine on every single
   boot, where `/etc/` and `/var/` are populated by
   `systemd-tmpfiles`/`systemd-sysusers` and related calls, or systems
-  that are originally shipped without root file system, but where
-  `systemd-repart` adds one in on first boot.
+  that are originally shipped without a root file system, but where
+  `systemd-repart` adds one on the first boot.
 
 `--split-artifacts`
 
