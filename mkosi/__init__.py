@@ -2438,6 +2438,23 @@ def run_pacman(root: str, pacman_conf: str, packages: Set[str]) -> None:
         run(["gpgconf", "--homedir", os.path.join(root, "etc/pacman.d/gnupg"), "--kill", "all"])
 
 
+def patch_locale_gen(args: CommandLineArguments, root: str) -> None:
+    # If /etc/locale.gen exists, uncomment the desired locale and leave the rest of the file untouched.
+    # If it doesn’t exist, just write the desired locale in it.
+    try:
+
+        def _patch_line(line: str) -> str:
+            if line.startswith("#en_US.UTF-8"):
+                return line[1:]
+            return line
+
+        patch_file(os.path.join(root, "etc/locale.gen"), _patch_line)
+
+    except FileNotFoundError:
+        with open(os.path.join(root, "etc/locale.gen"), "x") as f:
+            f.write("en_US.UTF-8 UTF-8\n")
+
+
 @complete_step("Installing Arch Linux")
 def install_arch(args: CommandLineArguments, root: str, do_run_build_script: bool) -> None:
     if args.release is not None:
@@ -2748,21 +2765,7 @@ def install_arch(args: CommandLineArguments, root: str, do_run_build_script: boo
     with mount_api_vfs(args, root):
         run_pacman(root, pacman_conf, packages)
 
-    # If /etc/locale.gen exists, uncomment the desired locale and leave the rest of the file untouched.
-    # If it doesn’t exist, just write the desired locale in it.
-    try:
-
-        def _enable_locale(line: str) -> str:
-            if line.startswith("#en_US.UTF-8"):
-                return line.replace("#", "")
-            return line
-
-        patch_file(os.path.join(root, "etc/locale.gen"), _enable_locale)
-
-    except FileNotFoundError:
-        with open(os.path.join(root, "etc/locale.gen"), "x") as f:
-            f.write("en_US.UTF-8 UTF-8\n")
-
+    patch_locale_gen(args, root)
     run_workspace_command(args, root, ["/usr/bin/locale-gen"])
 
     with open(os.path.join(root, "etc/locale.conf"), "w") as f:
