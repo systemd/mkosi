@@ -1883,8 +1883,8 @@ def setup_dnf(args: CommandLineArguments, root: str, repos: Sequence[Repo] = ())
 
 @complete_step("Installing Photon")
 def install_photon(args: CommandLineArguments, root: str, do_run_build_script: bool) -> None:
-    release_url = "baseurl=https://dl.bintray.com/vmware/photon_release_$releasever_$basearch"
-    updates_url = "baseurl=https://dl.bintray.com/vmware/photon_updates_$releasever_$basearch"
+    release_url = "baseurl=https://packages.vmware.com/photon/$releasever/photon_release_$releasever_$basearch"
+    updates_url = "baseurl=https://packages.vmware.com/photon/$releasever/photon_updates_$releasever_$basearch"
     gpgpath = "/etc/pki/rpm-gpg/VMWARE-RPM-GPG-KEY"
 
     setup_dnf(
