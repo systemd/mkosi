@@ -5924,7 +5924,7 @@ def check_output(args: CommandLineArguments) -> None:
             continue
 
         if os.path.exists(f):
-            die("Output file " + f + " exists already. (Consider invocation with --force.)")
+            die(f"Output path {f} exists already. (Consider invocation with --force.)")
 
 
 def yes_no(b: Optional[bool]) -> str:
