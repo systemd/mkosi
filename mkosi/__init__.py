@@ -5239,20 +5239,20 @@ def unlink_try_hard(path: Optional[str]) -> None:
         return
 
     try:
-        os.unlink(path)
-    except:  # NOQA: E722
+        return os.unlink(path)
+    except FileNotFoundError:
+        return
+    except Exception:
         pass
 
     if shutil.which("btrfs"):
         try:
             btrfs_subvol_delete(path)
-        except:  # NOQA: E722
+            return
+        except Exception:
             pass
 
-    try:
-        shutil.rmtree(path)
-    except:  # NOQA: E722
-        pass
+    shutil.rmtree(path)
 
 
 def remove_glob(*patterns: str) -> None:
