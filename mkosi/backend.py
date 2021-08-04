@@ -569,7 +569,7 @@ class MkosiPrinter:
 
     @classmethod
     def print_step(cls, text: str) -> None:
-        prefix = cls.prefix + ' ' * cls.level
+        prefix = cls.prefix + " " * cls.level
         if sys.exc_info()[0]:
             # We are falling through exception handling blocks.
             # De-emphasize this step here, so the user can tell more
@@ -590,7 +590,7 @@ class MkosiPrinter:
     @classmethod
     @contextlib.contextmanager
     def complete_step(cls, text: str, text2: Optional[str] = None) -> Generator[List[Any], None, None]:
-        cls.print_step(text + "...")
+        cls.print_step(text)
 
         cls.level += 1
         try:
@@ -601,4 +601,4 @@ class MkosiPrinter:
             assert cls.level >= 0
 
         if text2 is not None:
-            cls.print_step(text2.format(*args) + ".")
+            cls.print_step(text2.format(*args))
