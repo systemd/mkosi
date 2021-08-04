@@ -6132,11 +6132,9 @@ def reuse_cache_tree(
     if fname is None:
         return False
 
-    with complete_step("Copying in cached tree " + fname):
-        try:
+    if os.path.exists(fname):
+        with complete_step("Copying in cached tree " + fname):
             copy_path(fname, root)
-        except FileNotFoundError:
-            return False
 
     return True
 
