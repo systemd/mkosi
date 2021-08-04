@@ -1765,7 +1765,7 @@ def remove_files(args: CommandLineArguments, root: str) -> None:
 def invoke_dnf(
     args: CommandLineArguments, root: str, repositories: List[str], packages: Set[str], do_run_build_script: bool
 ) -> None:
-    repos = ["--enablerepo=" + repo for repo in repositories]
+    repos = [f"--enablerepo={repo}" for repo in repositories]
     config_file = os.path.join(workspace(root), "dnf.conf")
     packages = make_rpm_list(args, packages, do_run_build_script)
 
@@ -4295,13 +4295,9 @@ def print_output_size(args: CommandLineArguments) -> None:
         MkosiPrinter.print_step("Resulting image size is " + format_bytes(dir_size(args.output)) + ".")
     else:
         st = os.stat(args.output)
-        MkosiPrinter.print_step(
-            "Resulting image size is "
-            + format_bytes(st.st_size)
-            + ", consumes "
-            + format_bytes(st.st_blocks * 512)
-            + "."
-        )  # NOQA: E501
+        size = format_bytes(st.st_size)
+        space = format_bytes(st.st_blocks * 512)
+        MkosiPrinter.print_step(f"Resulting image size is {size}, consumes {space}.")
 
 
 def setup_package_cache(args: CommandLineArguments) -> Optional[TempDir]:
