@@ -583,3 +583,12 @@ class MkosiPrinter:
     @classmethod
     def warn(cls, text: str) -> None:
         cls._print(f"{cls.prefix}{cls.red}{text}{cls.reset}\n")
+
+    @classmethod
+    @contextlib.contextmanager
+    def complete_step(cls, text: str, text2: Optional[str] = None) -> Generator[List[Any], None, None]:
+        cls.print_step(text + "...")
+        args: List[Any] = []
+        yield args
+        if text2 is not None:
+            cls.print_step(text2.format(*args) + ".")

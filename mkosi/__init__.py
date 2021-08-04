@@ -88,6 +88,8 @@ from .backend import (
     write_grub_config,
 )
 
+complete_step = MkosiPrinter.complete_step
+
 __version__ = "10"
 
 
@@ -485,15 +487,6 @@ def copy_path(oldpath: str, newpath: str) -> None:
                 print("Ignoring", entry.path)
                 continue
     shutil.copystat(oldpath, newpath, follow_symlinks=True)
-
-
-@contextlib.contextmanager
-def complete_step(text: str, text2: Optional[str] = None) -> Generator[List[Any], None, None]:
-    MkosiPrinter.print_step(text + "...")
-    args: List[Any] = []
-    yield args
-    if text2 is not None:
-        MkosiPrinter.print_step(text2.format(*args) + ".")
 
 
 @complete_step("Detaching namespace")
