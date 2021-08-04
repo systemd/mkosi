@@ -103,6 +103,7 @@ else:
     CompletedProcess = subprocess.CompletedProcess
     TempDir = tempfile.TemporaryDirectory
 
+SomeIO = Union[BinaryIO, TextIO]
 
 MKOSI_COMMANDS_CMDLINE = ("build", "shell", "boot", "qemu", "ssh")
 MKOSI_COMMANDS_NEED_BUILD = ("shell", "boot", "qemu", "serve")
@@ -4154,6 +4155,9 @@ def save_cache(args: CommandLineArguments, root: str, raw: Optional[str], cache_
 
 
 def _link_output(args: CommandLineArguments, oldpath: str, newpath: str) -> None:
+    assert oldpath is not None
+    assert newpath is not None
+
     os.chmod(oldpath, 0o666 & ~args.original_umask)
     os.link(oldpath, newpath)
     if args.no_chown:
@@ -4190,96 +4194,69 @@ def link_output(args: CommandLineArguments, root: str, artifact: Optional[Binary
             _link_output(args, artifact.name, args.output)
 
 
-def link_output_nspawn_settings(args: CommandLineArguments, path: Optional[str]) -> None:
-    if path is None:
-        return
-
-    assert args.output_nspawn_settings is not None
-
-    with complete_step("Linking nspawn settings file…", f"Successfully linked {args.output_nspawn_settings}"):
-        _link_output(args, path, args.output_nspawn_settings)
+def link_output_nspawn_settings(args: CommandLineArguments, path: Optional[SomeIO]) -> None:
+    if path:
+        assert args.output_nspawn_settings
+        with complete_step("Linking nspawn settings file…", f"Successfully linked {args.output_nspawn_settings}"):
+            _link_output(args, path.name, args.output_nspawn_settings)
 
 
-def link_output_checksum(args: CommandLineArguments, checksum: Optional[str]) -> None:
-    if checksum is None:
-        return
-
-    assert args.output_checksum is not None
-
-    with complete_step("Linking SHA256SUMS file…", f"Successfully linked {args.output_checksum}"):
-        _link_output(args, checksum, args.output_checksum)
+def link_output_checksum(args: CommandLineArguments, checksum: Optional[SomeIO]) -> None:
+    if checksum:
+        assert args.output_checksum
+        with complete_step("Linking SHA256SUMS file…", f"Successfully linked {args.output_checksum}"):
+            _link_output(args, checksum.name, args.output_checksum)
 
 
-def link_output_root_hash_file(args: CommandLineArguments, root_hash_file: Optional[str]) -> None:
-    if root_hash_file is None:
-        return
-
-    assert args.output_root_hash_file is not None
-
-    suffix = roothash_suffix(args.usr_only)
-    with complete_step(f"Linking {suffix} file…", f"Successfully linked {args.output_root_hash_file}"):
-        _link_output(args, root_hash_file, args.output_root_hash_file)
+def link_output_root_hash_file(args: CommandLineArguments, root_hash_file: Optional[SomeIO]) -> None:
+    if root_hash_file:
+        assert args.output_root_hash_file
+        suffix = roothash_suffix(args.usr_only)
+        with complete_step(f"Linking {suffix} file…", f"Successfully linked {args.output_root_hash_file}"):
+            _link_output(args, root_hash_file.name, args.output_root_hash_file)
 
 
-def link_output_signature(args: CommandLineArguments, signature: Optional[str]) -> None:
-    if signature is None:
-        return
-
-    assert args.output_signature is not None
-
-    with complete_step("Linking SHA256SUMS.gpg file…", f"Successfully linked {args.output_signature}"):
-        _link_output(args, signature, args.output_signature)
+def link_output_signature(args: CommandLineArguments, signature: Optional[SomeIO]) -> None:
+    if signature:
+        assert args.output_signature is not None
+        with complete_step("Linking SHA256SUMS.gpg file…", f"Successfully linked {args.output_signature}"):
+            _link_output(args, signature.name, args.output_signature)
 
 
-def link_output_bmap(args: CommandLineArguments, bmap: Optional[str]) -> None:
-    if bmap is None:
-        return
-
-    assert args.output_bmap is not None
-
-    with complete_step("Linking .bmap file…", f"Successfully linked {args.output_bmap}"):
-        _link_output(args, bmap, args.output_bmap)
+def link_output_bmap(args: CommandLineArguments, bmap: Optional[SomeIO]) -> None:
+    if bmap:
+        assert args.output_bmap
+        with complete_step("Linking .bmap file…", f"Successfully linked {args.output_bmap}"):
+            _link_output(args, bmap.name, args.output_bmap)
 
 
-def link_output_sshkey(args: CommandLineArguments, sshkey: Optional[str]) -> None:
-    if sshkey is None:
-        return
-
-    assert args.output_sshkey is not None
-
-    with complete_step("Linking private ssh key file…", f"Successfully linked {args.output_sshkey}"):
-        _link_output(args, sshkey, args.output_sshkey)
-        os.chmod(args.output_sshkey, 0o600)
+def link_output_sshkey(args: CommandLineArguments, sshkey: Optional[SomeIO]) -> None:
+    if sshkey:
+        assert args.output_sshkey
+        with complete_step("Linking private ssh key file…", f"Successfully linked {args.output_sshkey}"):
+            _link_output(args, sshkey.name, args.output_sshkey)
+            os.chmod(args.output_sshkey, 0o600)
 
 
-def link_output_split_root(args: CommandLineArguments, split_root: Optional[str]) -> None:
-    if split_root is None:
-        return
-
-    assert args.output_split_root is not None
-
-    with complete_step("Linking split root file system…", f"Successfully linked {args.output_split_root}"):
-        _link_output(args, split_root, args.output_split_root)
+def link_output_split_root(args: CommandLineArguments, split_root: Optional[SomeIO]) -> None:
+    if split_root:
+        assert args.output_split_root
+        with complete_step("Linking split root file system…", f"Successfully linked {args.output_split_root}"):
+            _link_output(args, split_root.name, args.output_split_root)
 
 
-def link_output_split_verity(args: CommandLineArguments, split_verity: Optional[str]) -> None:
-    if split_verity is None:
-        return
-
-    assert args.output_split_verity is not None
-
-    with complete_step("Linking split Verity data…", f"Successfully linked {args.output_split_verity}"):
-        _link_output(args, split_verity, args.output_split_verity)
+def link_output_split_verity(args: CommandLineArguments, split_verity: Optional[SomeIO]) -> None:
+    if split_verity:
+        assert args.output_split_verity
+        with complete_step("Linking split Verity data…", f"Successfully linked {args.output_split_verity}"):
+            _link_output(args, split_verity.name, args.output_split_verity)
 
 
-def link_output_split_kernel(args: CommandLineArguments, split_kernel: Optional[str]) -> None:
-    if split_kernel is None:
-        return
-
-    assert args.output_split_kernel is not None
-
-    with complete_step("Linking split kernel image…", f"Successfully linked {args.output_split_kernel}"):
-        _link_output(args, split_kernel, args.output_split_kernel)
+def link_output_split_kernel(args: CommandLineArguments, split_kernel: Optional[SomeIO]) -> None:
+    if split_kernel:
+        assert args.output_split_kernel
+        with complete_step("Linking split kernel image…", f"Successfully linked {args.output_split_kernel}"):
+            _link_output(args, split_kernel.name, args.output_split_kernel)
 
 
 def dir_size(path: str) -> int:
@@ -6580,16 +6557,16 @@ def build_stuff(args: CommandLineArguments) -> None:
         bmap = calculate_bmap(args, raw)
 
         link_output(args, root, raw or image.archive)
-        link_output_root_hash_file(args, root_hash_file.name if root_hash_file is not None else None)
-        link_output_checksum(args, checksum.name if checksum is not None else None)
-        link_output_signature(args, signature.name if signature is not None else None)
-        link_output_bmap(args, bmap.name if bmap is not None else None)
-        link_output_nspawn_settings(args, settings.name if settings is not None else None)
+        link_output_root_hash_file(args, root_hash_file)
+        link_output_checksum(args, checksum)
+        link_output_signature(args, signature)
+        link_output_bmap(args, bmap)
+        link_output_nspawn_settings(args, settings)
         if args.output_sshkey is not None:
-            link_output_sshkey(args, image.sshkey.name if image.sshkey is not None else None)
-        link_output_split_root(args, split_root.name if split_root is not None else None)
-        link_output_split_verity(args, split_verity.name if split_verity is not None else None)
-        link_output_split_kernel(args, split_kernel.name if split_kernel is not None else None)
+            link_output_sshkey(args, image.sshkey)
+        link_output_split_root(args, split_root)
+        link_output_split_verity(args, split_verity)
+        link_output_split_kernel(args, split_kernel)
 
         if image.root_hash is not None:
             MkosiPrinter.print_step(f"Root hash is {image.root_hash}.")
