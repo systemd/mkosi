@@ -330,7 +330,7 @@ def var_tmp(root: str) -> str:
 def mkdir_last(path: str, mode: int = 0o777) -> str:
     """Create directory path
 
-    Only the final component will be created, so this is different than mkdirs().
+    Only the final component will be created, so this is different than os.makedirs().
     """
     try:
         os.mkdir(path, mode)
