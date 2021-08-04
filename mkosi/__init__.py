@@ -6234,28 +6234,38 @@ def setup_network_veth(args: CommandLineArguments, root: str, do_run_build_scrip
         run(["systemctl", "--root", root, "enable", "systemd-networkd"])
 
 
+@dataclasses.dataclass
+class BuildOutput:
+    raw: Optional[BinaryIO]
+    archive: Optional[BinaryIO]
+    root_hash: Optional[str]
+    sshkey: Optional[TextIO]
+    split_root: Optional[BinaryIO]
+    split_verity: Optional[BinaryIO]
+    split_kernel: Optional[BinaryIO]
+
+    def raw_name(self) -> Optional[str]:
+        return self.raw.name if self.raw is not None else None
+
+    @classmethod
+    def empty(cls) -> "BuildOutput":
+        return cls(None, None, None, None, None, None, None)
+
+
 def build_image(
     args: CommandLineArguments, root: str, *, do_run_build_script: bool, for_cache: bool = False, cleanup: bool = False
-) -> Tuple[
-    Optional[BinaryIO],
-    Optional[BinaryIO],
-    Optional[str],
-    Optional[TextIO],
-    Optional[BinaryIO],
-    Optional[BinaryIO],
-    Optional[BinaryIO],
-]:
+) -> BuildOutput:
     # If there's no build script set, there's no point in executing
     # the build script iteration. Let's quit early.
     if args.build_script is None and do_run_build_script:
-        return None, None, None, None, None, None, None
+        return BuildOutput.empty()
 
     make_build_dir(args)
 
     raw, cached = reuse_cache_image(args, do_run_build_script, for_cache)
     if for_cache and cached:
         # Found existing cache image, exiting build_image
-        return None, None, None, None, None, None, None
+        return BuildOutput.empty()
 
     if cached:
         assert raw is not None
@@ -6378,7 +6388,7 @@ def build_image(
         args, root, do_run_build_script, for_cache
     )
 
-    return raw or generated_root, archive, root_hash, sshkey, split_root, split_verity, split_kernel
+    return BuildOutput(raw or generated_root, archive, root_hash, sshkey, split_root, split_verity, split_kernel)
 
 
 def one_zero(b: bool) -> str:
@@ -6513,10 +6523,7 @@ def build_stuff(args: CommandLineArguments) -> None:
     setup_package_cache(args)
     workspace = setup_workspace(args)
 
-    root_hash = None
-    raw = None
-    archive = None
-    sshkey = None
+    image = BuildOutput.empty()
 
     # Make sure tmpfiles' aging doesn't interfere with our workspace
     # while we are working on it.
@@ -6534,69 +6541,58 @@ def build_stuff(args: CommandLineArguments) -> None:
             if args.build_script:
                 with complete_step("Running first (development) stage to generate cached copy…"):
                     # Generate the cache version of the build image, and store it as "cache-pre-dev"
-                    raw, archive, root_hash, sshkey, split_root, split_verity, split_kernel = build_image(
-                        args, root, do_run_build_script=True, for_cache=True
-                    )
-
-                    save_cache(args, root, raw.name if raw is not None else None, args.cache_pre_dev)
-
-                    remove_artifacts(args, root, raw, archive, do_run_build_script=True)
+                    image = build_image(args, root, do_run_build_script=True, for_cache=True)
+                    save_cache(args, root, image.raw_name(), args.cache_pre_dev)
+                    remove_artifacts(args, root, image.raw, image.archive, do_run_build_script=True)
 
             with complete_step("Running second (final) stage to generate cached copy…"):
                 # Generate the cache version of the build image, and store it as "cache-pre-inst"
-                raw, archive, root_hash, sshkey, split_root, split_verity, split_kernel = build_image(
-                    args, root, do_run_build_script=False, for_cache=True
-                )
-
-                save_cache(args, root, raw.name if raw else None, args.cache_pre_inst)
-                remove_artifacts(args, root, raw, archive, do_run_build_script=False)
+                image = build_image(args, root, do_run_build_script=False, for_cache=True)
+                save_cache(args, root, image.raw_name(), args.cache_pre_inst)
+                remove_artifacts(args, root, image.raw, image.archive, do_run_build_script=False)
 
         if args.build_script:
             with complete_step("Running first (development) stage…"):
                 # Run the image builder for the first (development) stage in preparation for the build script
-                raw, archive, root_hash, sshkey, split_root, split_verity, split_kernel = build_image(
-                    args, root, do_run_build_script=True
-                )
+                image = build_image(args, root, do_run_build_script=True)
 
-                run_build_script(args, root, raw)
-                remove_artifacts(args, root, raw, archive, do_run_build_script=True)
+                run_build_script(args, root, image.raw)
+                remove_artifacts(args, root, image.raw, image.archive, do_run_build_script=True)
 
         # Run the image builder for the second (final) stage
         if not args.skip_final_phase:
             with complete_step("Running second (final) stage…"):
-                raw, archive, root_hash, sshkey, split_root, split_verity, split_kernel = build_image(
-                    args, root, do_run_build_script=False, cleanup=True
-                )
+                image = build_image(args, root, do_run_build_script=False, cleanup=True)
         else:
             MkosiPrinter.print_step("Skipping (second) final image build phase.")
 
-        raw = qcow2_output(args, raw)
+        raw = qcow2_output(args, image.raw)
         raw = compress_output(args, raw)
-        split_root = compress_output(args, split_root, ".usr" if args.usr_only else ".root")
-        split_verity = compress_output(args, split_verity, ".verity")
-        split_kernel = compress_output(args, split_kernel, ".efi")
-        root_hash_file = write_root_hash_file(args, root_hash)
+        split_root = compress_output(args, image.split_root, ".usr" if args.usr_only else ".root")
+        split_verity = compress_output(args, image.split_verity, ".verity")
+        split_kernel = compress_output(args, image.split_kernel, ".efi")
+        root_hash_file = write_root_hash_file(args, image.root_hash)
         settings = copy_nspawn_settings(args)
         checksum = calculate_sha256sum(
-            args, raw, archive, root_hash_file, split_root, split_verity, split_kernel, settings
+            args, raw, image.archive, root_hash_file, split_root, split_verity, split_kernel, settings
         )
         signature = calculate_signature(args, checksum)
         bmap = calculate_bmap(args, raw)
 
-        link_output(args, root, raw or archive)
+        link_output(args, root, raw or image.archive)
         link_output_root_hash_file(args, root_hash_file.name if root_hash_file is not None else None)
         link_output_checksum(args, checksum.name if checksum is not None else None)
         link_output_signature(args, signature.name if signature is not None else None)
         link_output_bmap(args, bmap.name if bmap is not None else None)
         link_output_nspawn_settings(args, settings.name if settings is not None else None)
         if args.output_sshkey is not None:
-            link_output_sshkey(args, sshkey.name if sshkey is not None else None)
+            link_output_sshkey(args, image.sshkey.name if image.sshkey is not None else None)
         link_output_split_root(args, split_root.name if split_root is not None else None)
         link_output_split_verity(args, split_verity.name if split_verity is not None else None)
         link_output_split_kernel(args, split_kernel.name if split_kernel is not None else None)
 
-        if root_hash is not None:
-            MkosiPrinter.print_step(f"Root hash is {root_hash}.")
+        if image.root_hash is not None:
+            MkosiPrinter.print_step(f"Root hash is {image.root_hash}.")
 
 
 def check_root() -> None:
