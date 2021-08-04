@@ -1789,6 +1789,9 @@ def invoke_dnf(
         "--setopt=install_weak_deps=0",
     ]
 
+    if args.with_network == "never":
+        cmdline += ["-C"]
+
     if args.architecture is not None:
         cmdline += [f"--forcearch={args.architecture}"]
 
