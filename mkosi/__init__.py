@@ -4134,15 +4134,22 @@ def calculate_bmap(args: CommandLineArguments, raw: Optional[BinaryIO]) -> Optio
 
 
 def save_cache(args: CommandLineArguments, root: str, raw: Optional[str], cache_path: Optional[str]) -> None:
-    if cache_path is None or raw is None:
-        return
+    disk_rw = args.output_format.is_disk_rw()
+    if disk_rw:
+        if raw is None or cache_path is None:
+            return
+    else:
+        if cache_path is None:
+            return
 
     with complete_step("Installing cache copy…", f"Successfully installed cache copy {cache_path}"):
 
-        if args.output_format.is_disk_rw():
+        if disk_rw:
+            assert raw is not None
             os.chmod(raw, 0o666 & ~args.original_umask)
             shutil.move(raw, cache_path)
         else:
+            unlink_try_hard(cache_path)
             shutil.move(root, cache_path)
 
 
@@ -6541,9 +6548,8 @@ def build_stuff(args: CommandLineArguments) -> None:
                     args, root, do_run_build_script=False, for_cache=True
                 )
 
-                if raw:
-                    save_cache(args, root, raw.name, args.cache_pre_inst)
-                    remove_artifacts(args, root, raw, archive, do_run_build_script=False)
+                save_cache(args, root, raw.name if raw else None, args.cache_pre_inst)
+                remove_artifacts(args, root, raw, archive, do_run_build_script=False)
 
         if args.build_script:
             with complete_step("Running first (development) stage…"):
