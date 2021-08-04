@@ -516,7 +516,7 @@ details see the table below.
   `mkosi.build` build script logic is used. In this mode, a copy of
   the OS image is created immediately after all OS packages are
   unpacked but before the `mkosi.build` script is invoked in the
-  development container. Similar a copy of the final image is created
+  development container. Similarly, a copy of the final image is created
   immediately before the build artifacts from the `mkosi.build` script
   are copied in. On subsequent invocations of `mkosi` with the `-i`
   switch these cached images may be used to skip the OS package
@@ -524,8 +524,8 @@ details see the table below.
   that when this is used and a pair of cached incremental images
   exists they are not automatically regenerated, even if options such
   as `--packages=` are modified. In order to force rebuilding of these
-  cached images, combined `-i` with `-ff`, which ensures the cached
-  images are removed first, and then re-created.
+  cached images, combine `-i` with `-ff` to ensure cached images are
+  first removed and then re-created.
 
 `--base-packages`
 

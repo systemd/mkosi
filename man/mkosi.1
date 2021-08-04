@@ -522,7 +522,7 @@ logic is used.
 In this mode, a copy of the OS image is created immediately after all OS
 packages are unpacked but before the \f[C]mkosi.build\f[R] script is
 invoked in the development container.
-Similar a copy of the final image is created immediately before the
+Similarly, a copy of the final image is created immediately before the
 build artifacts from the \f[C]mkosi.build\f[R] script are copied in.
 On subsequent invocations of \f[C]mkosi\f[R] with the \f[C]-i\f[R]
 switch these cached images may be used to skip the OS package unpacking,
@@ -530,9 +530,9 @@ thus drastically speeding up repetitive build times.
 Note that when this is used and a pair of cached incremental images
 exists they are not automatically regenerated, even if options such as
 \f[C]--packages=\f[R] are modified.
-In order to force rebuilding of these cached images, combined
-\f[C]-i\f[R] with \f[C]-ff\f[R], which ensures the cached images are
-removed first, and then re-created.
+In order to force rebuilding of these cached images, combine
+\f[C]-i\f[R] with \f[C]-ff\f[R] to ensure cached images are first
+removed and then re-created.
 .TP
 \f[B]\f[CB]--base-packages\f[B]\f[R]
 If true, automatically install packages to ensure basic functionality,
