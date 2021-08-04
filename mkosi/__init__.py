@@ -7009,7 +7009,7 @@ def generate_secure_boot_key(args: CommandLineArguments) -> NoReturn:
                 )
             )
 
-    MkosiPrinter.print_step(f"Generating secure boot keys rsa:{keylength} for CN `{cn}`.")
+    MkosiPrinter.print_step(f"Generating secure boot keys rsa:{keylength} for CN {cn!r}.")
     MkosiPrinter.info(
         dedent(
             f"""
