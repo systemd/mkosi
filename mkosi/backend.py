@@ -567,7 +567,14 @@ class MkosiPrinter:
 
     @classmethod
     def print_step(cls, text: str) -> None:
-        cls._print(f"{cls.prefix}{cls.bold}{text}{cls.reset}\n")
+        if sys.exc_info()[0]:
+            # We are falling through exception handling blocks.
+            # De-emphasize this step here, so the user can tell more
+            # easily which step generated the exception. The exception
+            # or error will only be printed after we finish cleanup.
+            cls._print(f"{cls.prefix}({text})\n")
+        else:
+            cls._print(f"{cls.prefix}{cls.bold}{text}{cls.reset}\n")
 
     @classmethod
     def info(cls, text: str) -> None:
