@@ -1507,7 +1507,7 @@ def prepare_tree(args: CommandLineArguments, root: str, do_run_build_script: boo
             btrfs_subvol_create(os.path.join(root, "var/lib/machines"), 0o700)
 
         # We need an initialized machine ID for the build & boot logic to work
-        os.mkdir(os.path.join(root, "etc"), 0o755)
+        mkdir_last(os.path.join(root, "etc"), 0o755)
         with open(os.path.join(root, "etc/machine-id"), "w") as f:
             f.write(args.machine_id)
             f.write("\n")
