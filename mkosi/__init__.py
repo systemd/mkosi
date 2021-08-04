@@ -2029,7 +2029,7 @@ def install_fedora(args: CommandLineArguments, root: str, do_run_build_script: b
 
     # FIXME: should this be conditionalized on args.with_docs like in install_debian_or_ubuntu()?
     #        But we set LANG=C.UTF-8 anyway.
-    shutil.rmtree(os.path.join(root, "usr/share/locale"))
+    shutil.rmtree(os.path.join(root, "usr/share/locale"), ignore_errors=True)
 
 
 @complete_step("Installing Mageia")
