@@ -496,15 +496,15 @@ def init_namespace(args: CommandLineArguments) -> None:
 
 
 def setup_workspace(args: CommandLineArguments) -> TempDir:
-    MkosiPrinter.print_step("Setting up temporary workspace.")
-    if args.workspace_dir is not None:
-        d = tempfile.TemporaryDirectory(dir=args.workspace_dir, prefix="")
-    elif args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
-        d = tempfile.TemporaryDirectory(dir=os.path.dirname(args.output), prefix=".mkosi-")
-    else:
-        d = tempfile.TemporaryDirectory(dir=tmp_dir(), prefix="mkosi-")
+    with complete_step("Setting up temporary workspace.", "Temporary workspace set up in {.name}") as output:
+        if args.workspace_dir is not None:
+            d = tempfile.TemporaryDirectory(dir=args.workspace_dir, prefix="")
+        elif args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
+            d = tempfile.TemporaryDirectory(dir=os.path.dirname(args.output), prefix=".mkosi-")
+        else:
+            d = tempfile.TemporaryDirectory(dir=tmp_dir(), prefix="mkosi-")
+        output.append(d)
 
-    MkosiPrinter.print_step("Temporary workspace in " + d.name + " is now set up.")
     return d
 
 
