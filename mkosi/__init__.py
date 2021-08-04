@@ -1169,12 +1169,24 @@ def luks_setup_tmp(args: CommandLineArguments, loopdev: str, do_run_build_script
         return luks_open(partition(loopdev, args.tmp_partno), args.passphrase)
 
 
+class LuksSetupOutput(NamedTuple):
+    root: Optional[str]
+    home: Optional[str]
+    srv: Optional[str]
+    var: Optional[str]
+    tmp: Optional[str]
+
+    @classmethod
+    def empty(cls) -> "LuksSetupOutput":
+        return cls(None, None, None, None, None)
+
+
 @contextlib.contextmanager
 def luks_setup_all(
     args: CommandLineArguments, loopdev: Optional[str], do_run_build_script: bool
-) -> Generator[Tuple[Optional[str], Optional[str], Optional[str], Optional[str], Optional[str]], None, None]:
+) -> Generator[LuksSetupOutput, None, None]:
     if not args.output_format.is_disk():
-        yield (None, None, None, None, None)
+        yield LuksSetupOutput.empty()
         return
     assert loopdev is not None
 
@@ -1189,7 +1201,7 @@ def luks_setup_all(
                     try:
                         tmp = luks_setup_tmp(args, loopdev, do_run_build_script)
 
-                        yield (
+                        yield LuksSetupOutput(
                             optional_partition(loopdev, args.root_partno) if root is None else root,
                             optional_partition(loopdev, args.home_partno) if home is None else home,
                             optional_partition(loopdev, args.srv_partno) if srv is None else srv,
@@ -6263,21 +6275,14 @@ def build_image(
             luks_format_var(args, loopdev, do_run_build_script, cached)
             luks_format_tmp(args, loopdev, do_run_build_script, cached)
 
-        with luks_setup_all(args, loopdev, do_run_build_script) as (
-            encrypted_root,
-            encrypted_home,
-            encrypted_srv,
-            encrypted_var,
-            encrypted_tmp,
-        ):
+        with luks_setup_all(args, loopdev, do_run_build_script) as encrypted:
+            prepare_root(args, encrypted.root, cached)
+            prepare_home(args, encrypted.home, cached)
+            prepare_srv(args, encrypted.srv, cached)
+            prepare_var(args, encrypted.var, cached)
+            prepare_tmp(args, encrypted.tmp, cached)
 
-            prepare_root(args, encrypted_root, cached)
-            prepare_home(args, encrypted_home, cached)
-            prepare_srv(args, encrypted_srv, cached)
-            prepare_var(args, encrypted_var, cached)
-            prepare_tmp(args, encrypted_tmp, cached)
-
-            for dev in (encrypted_root, encrypted_home, encrypted_srv, encrypted_var, encrypted_tmp):
+            for dev in encrypted:
                 refresh_file_system(args, dev, cached)
 
             # Mount everything together, but let's not mount the root
@@ -6287,11 +6292,11 @@ def build_image(
                 args,
                 root,
                 loopdev,
-                None if is_generated_root(args) else encrypted_root,
-                encrypted_home,
-                encrypted_srv,
-                encrypted_var,
-                encrypted_tmp,
+                None if is_generated_root(args) else encrypted.root,
+                encrypted.home,
+                encrypted.srv,
+                encrypted.var,
+                encrypted.tmp,
             ):
                 prepare_tree(args, root, do_run_build_script, cached)
                 if do_run_build_script and args.include_dir and not cached:
@@ -6328,12 +6333,12 @@ def build_image(
             generated_root = make_generated_root(args, root, for_cache)
             insert_generated_root(args, raw, loopdev, generated_root, for_cache)
             split_root = (
-                (generated_root or extract_partition(args, encrypted_root, do_run_build_script, for_cache))
+                (generated_root or extract_partition(args, encrypted.root, do_run_build_script, for_cache))
                 if args.split_artifacts
                 else None
             )
 
-            verity, root_hash = make_verity(args, encrypted_root, do_run_build_script, for_cache)
+            verity, root_hash = make_verity(args, encrypted.root, do_run_build_script, for_cache)
             patch_root_uuid(args, loopdev, root_hash, for_cache)
             insert_verity(args, raw, loopdev, verity, root_hash, for_cache)
             split_verity = verity if args.split_artifacts else None
@@ -6345,11 +6350,11 @@ def build_image(
                 args,
                 root,
                 loopdev,
-                None if is_generated_root(args) and for_cache else encrypted_root,
-                encrypted_home,
-                encrypted_srv,
-                encrypted_var,
-                encrypted_tmp,
+                None if is_generated_root(args) and for_cache else encrypted.root,
+                encrypted.home,
+                encrypted.srv,
+                encrypted.var,
+                encrypted.tmp,
                 root_read_only=True,
             )
 
