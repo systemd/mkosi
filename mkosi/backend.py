@@ -561,20 +561,23 @@ class MkosiPrinter:
 
     prefix = "‣ "
 
+    level = 0
+
     @classmethod
     def _print(cls, text: str) -> None:
         cls.out_file.write(text)
 
     @classmethod
     def print_step(cls, text: str) -> None:
+        prefix = cls.prefix + ' ' * cls.level
         if sys.exc_info()[0]:
             # We are falling through exception handling blocks.
             # De-emphasize this step here, so the user can tell more
             # easily which step generated the exception. The exception
             # or error will only be printed after we finish cleanup.
-            cls._print(f"{cls.prefix}({text})\n")
+            cls._print(f"{prefix}({text})\n")
         else:
-            cls._print(f"{cls.prefix}{cls.bold}{text}{cls.reset}\n")
+            cls._print(f"{prefix}{cls.bold}{text}{cls.reset}\n")
 
     @classmethod
     def info(cls, text: str) -> None:
@@ -588,7 +591,14 @@ class MkosiPrinter:
     @contextlib.contextmanager
     def complete_step(cls, text: str, text2: Optional[str] = None) -> Generator[List[Any], None, None]:
         cls.print_step(text + "...")
-        args: List[Any] = []
-        yield args
+
+        cls.level += 1
+        try:
+            args: List[Any] = []
+            yield args
+        finally:
+            cls.level -= 1
+            assert cls.level >= 0
+
         if text2 is not None:
             cls.print_step(text2.format(*args) + ".")
