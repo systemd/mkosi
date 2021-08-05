@@ -42,7 +42,7 @@ The following output formats are supported:
 * Plain squashfs image, without partition table, as read-only root
   (*plain_squashfs*)
 
-* Plain directory, containing the *OS* tree (*directory*)
+* Plain directory, containing the OS tree (*directory*)
 
 * btrfs subvolume, with separate subvolumes for `/var`, `/home`,
   `/srv`, `/var/tmp` (*subvolume*)
@@ -295,14 +295,14 @@ details see the table below.
 `--distribution=`, `-d`
 : The distribution to install in the image. Takes one of the following
   arguments: `fedora`, `debian`, `ubuntu`, `arch`, `opensuse`,
-  `mageia`, `centos`, `clear`, `photon`, `openmandriva`. If not specified, defaults to the
-  distribution of the host.
+  `mageia`, `centos`, `clear`, `photon`, `openmandriva`. If not
+  specified, defaults to the distribution of the host.
 
 `--release=`, `-r`
 
 : The release of the distribution to install in the image. The precise
   syntax of the argument this takes depends on the distribution used,
-  and is either a numeric string (in case of Fedora, CentOS, …,
+  and is either a numeric string (in case of Fedora Linux, CentOS, …,
   e.g. `29`), or a distribution version name (in case of Debian,
   Ubuntu, …, e.g. `artful`). If neither this option, not
   `--distribution=` is specified, defaults to the distribution version
@@ -433,7 +433,7 @@ details see the table below.
   images. By default command line arguments get appended. To remove all
   arguments from the current list pass "!\*". To remove specific arguments
   add a space separated list of "!" prefixed arguments.
-  For example adding "!\* console=ttyS0 rw" to a mkosi.default file or the
+  For example adding "!\* console=ttyS0 rw" to a `mkosi.default` file or the
   command line arguments passes "console=ttyS0 rw" to the kernel in any
   case. Just adding "console=ttyS0 rw" would append these two arguments
   to the kernel command line created by lower priority configuration
@@ -610,12 +610,11 @@ details see the table below.
 
 `--tar-strip-selinux-context`
 
-: If running on a SELinux-enabled system (Fedora, CentOS), files inside
-  the container are tagged with SELinux context extended attributes
-  (`xattrs`), which may interfere with host SELinux rules in building
-  or further container import stages.
-  This option strips SELinux context attributes from the resulting
-  tar archive.
+: If running on a SELinux-enabled system (Fedora Linux, CentOS), files
+  inside the container are tagged with SELinux context extended
+  attributes (`xattrs`), which may interfere with host SELinux rules
+  in building or further container import stages.  This option strips
+  SELinux context attributes from the resulting tar archive.
 
 `--incremental`, `-i`
 
@@ -623,7 +622,7 @@ details see the table below.
   `mkosi.build` build script logic is used. In this mode, a copy of
   the OS image is created immediately after all OS packages are
   unpacked but before the `mkosi.build` script is invoked in the
-  development container. Similar a copy of the final image is created
+  development container. Similarly, a copy of the final image is created
   immediately before the build artifacts from the `mkosi.build` script
   are copied in. On subsequent invocations of `mkosi` with the `-i`
   switch these cached images may be used to skip the OS package
@@ -631,8 +630,8 @@ details see the table below.
   that when this is used and a pair of cached incremental images
   exists they are not automatically regenerated, even if options such
   as `--packages=` are modified. In order to force rebuilding of these
-  cached images, combined `-i` with `-ff`, which ensures the cached
-  images are removed first, and then re-created.
+  cached images, combine `-i` with `-ff` to ensure cached images are
+  first removed and then re-created.
 
 `--base-packages`
 
@@ -666,7 +665,7 @@ details see the table below.
   image generated in the build image, but that shall not appear in the
   final image.
 
-: To remove a package e.g. added by a mkosi.default configuration file
+: To remove a package e.g. added by a `mkosi.default` configuration file
   prepend the package name with a ! letter. For example -p "!apache2"
   would remove the apache2 package. To replace the apache2 package by
   the httpd package just add -p "!apache2,httpd" to the command line
@@ -1172,9 +1171,9 @@ they are modeled as boolean option that take either `1`, `yes`,
 ## Supported distributions
 
 Images may be created containing installations of the
-following *OS*es.
+following operating systems:
 
-* *Fedora*
+* *Fedora Linux*
 
 * *Debian*
 
@@ -1198,14 +1197,14 @@ In theory, any distribution may be used on the host for building
 images containing any other distribution, as long as the necessary
 tools are available. Specifically, any distribution that packages
 `debootstrap` may be used to build *Debian* or *Ubuntu* images. Any
-distribution that packages `dnf` may be used to build *Fedora*,
+distribution that packages `dnf` may be used to build *Fedora Linux*,
 *Mageia* or *OpenMandriva* images. Any distro that packages `pacstrap` may be used to
 build *Arch Linux* images. Any distribution that packages `zypper` may
 be used to build *openSUSE* images. Any distribution that packages
 `yum` (or the newer replacement `dnf`) may be used to build *CentOS*
 images.
 
-Currently, *Fedora* packages all relevant tools as of Fedora 28.
+Currently, *Fedora Linux* packages all relevant tools as of Fedora 28.
 
 ## Compatibility
 
@@ -1247,50 +1246,58 @@ under the assumption that it is invoked from a *source*
 tree. Specifically, the following files are used if they exist in the
 local directory:
 
-* `mkosi.default` may be used to configure mkosi's image building
-  process. For example, you may configure the distribution to use
-  (`fedora`, `ubuntu`, `debian`, `arch`, `opensuse`, `mageia`, `openmandriva`) for the
-  image, or additional distribution packages to install. Note that all
-  options encoded in this configuration file may also be set on the
-  command line, and this file is hence little more than a way to make
-  sure simply typing `mkosi` without further parameters in your
-  *source* tree is enough to get the right image of your choice set
-  up.  Additionally if a `mkosi.default.d` directory exists, each file
+* The **`mkosi.default`** file provides the default configuration for
+  the image building process. For example, it may specify the
+  distribution to use (`fedora`, `ubuntu`, `debian`, `arch`,
+  `opensuse`, `mageia`, `openmandriva`) for the image, or additional
+  distribution packages to install. Note that all options encoded in
+  this configuration file may also be set on the command line, and
+  this file is hence little more than a way to make sure invoking
+  `mkosi` without further parameters in your *source* tree is enough
+  to get the right image of your choice set up.
+
+  Additionally, if a *`mkosi.default.d/`* directory exists, each file
   in it is loaded in the same manner adding/overriding the values
-  specified in `mkosi.default`. If `mkosi.default.d` contains a
+  specified in `mkosi.default`. If `mkosi.default.d/` contains a
   directory named after the distribution being built, each file in
-  that directory is also processed. The file format is inspired by
-  Windows `.ini` files and supports multi-line assignments: any line
-  with initial whitespace is considered a continuation line of the line
-  before. Command-line arguments, as shown in the help description,
-  have to be included in a configuration block (e.g.  "`[Packages]`")
-  corresponding to the argument group (e.g. "`Packages`"), and the
-  argument gets converted as follows: "`--with-network`" becomes
-  "`WithNetwork=yes`". For further details see the table above.
+  that directory is also processed.
 
-* `mkosi.extra/` or `mkosi.extra.tar` may be respectively a directory
-  or archive. If any exist all files contained in it are copied over
-  the directory tree of the image after the *OS* was installed. This
-  may be used to add in additional files to an image, on top of what
-  the distribution includes in its packages. When using a directory
-  file ownership is not preserved: all files copied will be owned by
-  root. To preserve ownership use a tar archive.
+  The file format is inspired by Windows `.ini` files and supports
+  multi-line assignments: any line with initial whitespace is
+  considered a continuation line of the line before. Command-line
+  arguments, as shown in the help description, have to be included in
+  a configuration block (e.g.  "`[Packages]`") corresponding to the
+  argument group (e.g. "`Packages`"), and the argument gets converted
+  as follows: "`--with-network`" becomes "`WithNetwork=yes`". For
+  further details see the table above.
 
-* `mkosi.skeleton/` or `mkosi.skeleton.tar` may be respectively a
-  directory or archive, and they work in the same way as
-  `mkosi.extra`/`mkosi.skeleton.tar`. However the files are copied
-  before anything else so to have a skeleton tree for the OS. This
-  allows to change the package manager and create files that need to
-  be there before anything is installed. When using a directory file
-  ownership is not preserved: all files copied will be owned by
-  root. To preserve ownership use a tar archive.
+* The **`mkosi.skeleton/`** directory or **`mkosi.skeleton.tar`**
+  archive may be used to insert files into the image. The files are
+  copied *before* the distribution packages are installed into the
+  image.  This allows creation of files that need to be provided
+  early, for example to configure the package manager or set systemd
+  presets.
 
-* `mkosi.build` may be an executable script. If it exists the image
-  will be built twice: the first iteration will be the *development*
-  image, the second iteration will be the *final* image. The
-  *development* image is used to build the project in the current
-  working directory (the *source* tree). For that the whole directory
-  is copied into the image, along with the mkosi.build build
+  When using the directory, file ownership is not preserved: all files
+  copied will be owned by root. To preserve ownership, use a tar
+  archive.
+
+* The **`mkosi.extra/`** directory or **`mkosi.extra.tar`** archive
+  may be used to insert additional files into the image, on top of
+  what the distribution includes in its packages. They are similar to
+  `mkosi.skeleton/` and `mkosi.skeleton.tar`, but the files are copied
+  into the directory tree of the image *after* the OS was installed.
+
+  When using the directory, file ownership is not preserved: all files
+  copied will be owned by root. To preserve ownership, use a tar
+  archive.
+
+* **`mkosi.build`** may be an executable script. If it exists, the
+  image will be built twice: the first iteration will be the
+  *development* image, the second iteration will be the *final*
+  image. The *development* image is used to build the project in the
+  current working directory (the *source* tree). For that the whole
+  directory is copied into the image, along with the `mkosi.build`
   script. The script is then invoked inside the image (via
   `systemd-nspawn`), with `$SRCDIR` pointing to the *source*
   tree. `$DESTDIR` points to a directory where the script should place
@@ -1307,75 +1314,77 @@ local directory:
   copied, except for `mkosi.builddir/`, `mkosi.cache/` and
   `mkosi.output/`. That said, `.gitignore` is respected if the source
   tree is a `git` checkout. If multiple different images shall be
-  built from the same source tree it's essential to exclude their
+  built from the same source tree it is essential to exclude their
   output files from this copy operation, as otherwise a version of an
   image built earlier might be included in a later build, which is
   usually not intended. An alternative to excluding these built images
-  via `.gitignore` entries is making use of the `mkosi.output/`
-  directory (see below), which is an easy way to exclude all build
-  artifacts.
+  via `.gitignore` entries is to use the `mkosi.output/` directory
+  (see below), which is an easy way to exclude all build artifacts.
 
-  The `MKOSI_DEFAULT` environment variable will be set inside of this
-  script so that you know which `mkosi.default` (if any) was passed in.
+  The `$MKOSI_DEFAULT` environment variable will be set inside of this
+  script so that you know which `mkosi.default` (if any) was passed
+  in.
 
-* `mkosi.prepare` may be an executable script. If it exists it is
-  invoked directly after the software packages are installed,
-  from within the image context. It is once called for the *development*
-  image (if this is enabled, see above) with the "build" command line
-  parameter, right before copying the extra tree. It is called a second
-  time for the *final* image with the "final" command line parameter.
-  This script has network access and may be used to install packages
-  from other sources than the distro's package manager (e.g. pip, npm, ...),
+* The **`mkosi.prepare`** script is invoked directly after the
+  software packages are installed, from within the image context, if
+  it exists. It is once called for the *development* image (if this is
+  enabled, see above) with the "build" command line parameter, right
+  before copying the extra tree. It is called a second time for the
+  *final* image with the "final" command line parameter. This script
+  has network access and may be used to install packages from other
+  sources than the distro's package manager (e.g. `pip`, `npm`, ...),
   after all software packages are installed but before the image is
-  cached (if incremental mode is enabled). This script is executed within
-  `$SRCDIR`. In contrast to a general purpose installation, it is safe to
-  install packages to the system (`pip install`, `npm install -g`) instead
-  of in `$SRCDIR` itself because the build image is only used for a single
-  project and can easily be thrown away and rebuilt so there's no risk of
-  conflicting dependencies and no risk of polluting the host system.
+  cached (if incremental mode is enabled). This script is executed
+  within `$SRCDIR`. In contrast to a general purpose installation, it
+  is safe to install packages to the system (`pip install`, `npm
+  install -g`) instead of in `$SRCDIR` itself because the build image
+  is only used for a single project and can easily be thrown away and
+  rebuilt so there's no risk of conflicting dependencies and no risk
+  of polluting the host system.
 
-* `mkosi.postinst` may be an executable script. If it exists it is
-  invoked as the penultimate step of preparing an image, from within
-  the image context. It is once called for the *development* image (if
-  this is enabled, see above) with the "build" command line parameter,
-  right before invoking the build script. It is called a second time
-  for the *final* image with the "final" command line parameter, right
-  before the image is considered complete. This script may be used to
+* The **`mkosi.postinst`** script is invoked as the penultimate step
+  of preparing an image, from within the image context, if it exists.
+  It is called first for the *development* image (if this is enabled,
+  see above) with the "build" command line parameter, right before
+  invoking the build script. It is called a second time for the
+  *final* image with the "final" command line parameter, right before
+  the image is considered complete. This script may be used to alter
+  the images without any restrictions, after all software packages and
+  built sources have been installed. Note that this script is executed
+  directly in the image context with the final root directory in
+  place, without any `$SRCDIR`/`$DESTDIR` setup.
+
+* The **`mkosi.finalize`** script, if it exists, is invoked as last
+  step of preparing an image, from the host system.  It is once called
+  for the *development* image (if this is enabled, see above) with the
+  "build" command line parameter, as the last step before invoking the
+  build script, after the `mkosi.postinst` script is invoked. It is
+  called the second time with the "final" command line parameter as
+  the last step before the image is considered complete. The
+  environment variable `$BUILDROOT` points to the root directory of
+  the installation image. Additional verbs may be added in the future,
+  the script should be prepared for that. This script may be used to
   alter the images without any restrictions, after all software
-  packages and built sources have been installed. Note that this
-  script is executed directly in the image context with the final root
-  directory in place, without any `$SRCDIR`/`$DESTDIR` setup.
+  packages and built sources have been installed. This script is more
+  flexible than `mkosi.postinst` in two regards: it has access to the
+  host file system so it's easier to copy in additional files or to
+  modify the image based on external configuration, and the script is
+  run in the host, so it can be used even without emulation even if
+  the image has a foreign architecture.
 
-* `mkosi.finalize` may be an executable script. If it exists it is
-  invoked as last step of preparing an image, from the host system.
-  It is once called for the *development* image (if this is enabled,
-  see above) with the "build" command line parameter, as the last step
-  before invoking the build script, after the `mkosi.postinst` script
-  is invoked.  It is called the second time with the "final" command
-  line parameter as the last step before the image is considered
-  complete. The environment variable `$BUILDROOT` points to the root
-  directory of the installation image. Additional verbs may be added
-  in the future, the script should be prepared for that. This script
-  may be used to alter the images without any restrictions, after all
-  software packages and built sources have been installed. This script
-  is more flexible than `mkosi.postinst` in two regards: it has access
-  to the host file system so it's easier to copy in additional files
-  or to modify the image based on external configuration, and the
-  script is run in the host, so it can be used even without emulation
-  even if the image has a foreign architecture.
+* The **`mkosi.mksquashfs-tool`** script, if it exists, will be called
+  wherever `mksquashfs` would be called.
 
-* `mkosi.mksquashfs-tool` may be an executable script. If it exists is
-  is called instead of `mksquashfs`.
+* The **`mkosi.nspawn`** nspawn settings file will be copied into the
+  same place as the output image file, if it exists. This is useful since nspawn
+  looks for settings files next to image files it boots, for
+  additional container runtime settings.
 
-* `mkosi.nspawn` may be an nspawn settings file. If this exists it
-  will be copied into the same place as the output image file. This is
-  useful since nspawn looks for settings files next to image files it
-  boots, for additional container runtime settings.
+* The **`mkosi.cache/`** directory, if it exists, is automatically
+  used as package download cache, in order to speed repeated runs of
+  the tool.
 
-* `mkosi.cache/` may be a directory. If so, it is automatically used as
-  package download cache, in order to speed repeated runs of the tool.
-
-* `mkosi.builddir/` may be a directory. If so, it is automatically
+* The **`mkosi.builddir/`** directory, if it exists, is automatically
   used as out-of-tree build directory, if the build commands in the
   `mkosi.build` script support it. Specifically, this directory will
   be mounted into the build container, and the `$BUILDDIR` environment
@@ -1383,60 +1392,65 @@ local directory:
   build script may then use this directory as build directory, for
   automake-style or ninja-style out-of-tree builds. This speeds up
   builds considerably, in particular when `mkosi` is used in
-  incremental mode (`-i`): not only the disk images but also the build
-  tree is reused between subsequent invocations. Note that if this
-  directory does not exist the `$BUILDDIR` environment variable is not
-  set, and it is up to build script to decide whether to do in in-tree
-  or an out-of-tree build, and which build directory to use.
+  incremental mode (`-i`): not only the disk images, but also the
+  build tree is reused between subsequent invocations. Note that if
+  this directory does not exist the `$BUILDDIR` environment variable
+  is not set, and it is up to build script to decide whether to do in
+  in-tree or an out-of-tree build, and which build directory to use.
 
-* `mkosi.includedir/` may be a directory. If so, it is automatically
-  used as out-of-tree include directory. Specifically, this directory
-  will be mounted into the build container at `/usr/include` when building
-  the build image and when running the build script. After building the
-  (cached) build image, this directory will contain all the files installed
-  to `/usr/include`. Language servers or other tools can use these files to
-  provide a better editing experience for developers working on a project.
+* The **`mkosi.includedir/`** directory, if it exists, is
+  automatically used as an out-of-tree include directory for header
+  files.  Specifically, it will be mounted in the build container at
+  `/usr/include/` when building the build image and when running the
+  build script. After building the (cached) build image, this
+  directory will contain all the files installed to
+  `/usr/include`. Language servers or other tools can use these files
+  to provide a better editing experience for developers working on a
+  project.
 
-* `mkosi.installdir/` may be a directory. If so, it is automatically
-  used as the install directory. Specifically, this directory will be
-  mounted into the container at `/root/dest` when running the build script.
-  After running the build script, the contents of this directory are
-  installed into the final image. This is useful to cache the install
-  step of the build. If used, subsequent builds will only have to
-  reinstall files that have changed since the previous build.
+* The **`mkosi.installdir/`** directory, if it exists, is
+  automatically used as the install directory. Specifically, this
+  directory will be mounted into the container at `/root/dest` when
+  running the build script. After running the build script, the
+  contents of this directory are installed into the final image. This
+  is useful to cache the install step of the build. If used,
+  subsequent builds will only have to reinstall files that have
+  changed since the previous build.
 
-* `mkosi.rootpw` may be a file containing the password or hashed
-  password (if `--password-is-hashed` is set) for the root user of the
-  image to set. The password may optionally be followed by a newline
+* The **`mkosi.rootpw`** file can be used to provide the password or
+  hashed password (if `--password-is-hashed` is set) for the root user
+  of the image.  The password may optionally be followed by a newline
   character which is implicitly removed. The file must have an access
-  mode of 0600 or less. If this file does not exist the distribution's
-  default root password is set (which usually means access to the root
-  user is blocked).
+  mode of 0600 or less. If this file does not exist, the
+  distribution's default root password is set (which usually means
+  access to the root user is blocked).
 
-* `mkosi.passphrase` may be a passphrase file to use when LUKS
-  encryption is selected. It should contain the passphrase literally,
-  and not end in a newline character (i.e. in the same format as
-  cryptsetup and `/etc/crypttab` expect the passphrase files). The file
-  must have an access mode of 0600 or less. If this file does not
-  exist and encryption is requested the user is queried instead.
+* The **`mkosi.passphrase`** file provides the passphrase to use when
+  LUKS encryption is selected. It should contain the passphrase
+  literally, and not end in a newline character (i.e. in the same
+  format as cryptsetup and `/etc/crypttab` expect the passphrase
+  files). The file must have an access mode of 0600 or less. If this
+  file does not exist and encryption is requested, the user is queried
+  instead.
 
-* `mkosi.secure-boot.crt` and `mkosi.secure-boot.key` may contain an
-  X.509 certificate and PEM private key to use when UEFI SecureBoot
-  support is enabled. All EFI binaries included in the image's ESP are
-  signed with this key, as a late step in the build process.
+* The **`mkosi.secure-boot.crt`** and **`mkosi.secure-boot.key`**
+  files contain an X.509 certificate and PEM private key to use when
+  UEFI SecureBoot support is enabled. All EFI binaries included in the
+  image's ESP are signed with this key, as a late step in the build
+  process.
 
-* `mkosi.output/` may be a directory. If it exists, and the image
-  output path is not configured (i.e. no `--output=` setting
-  specified), or configured to a filename (i.e. a path containing no
-  `/` character) all build artifacts (that is: the image itself, the
-  root hash file in case Verity is used, the checksum and its
+* The **`mkosi.output/`** directory will be used for all build
+  artifacts, if the image output path is not configured (i.e. no
+  `--output=` setting specified), or configured to a filename (i.e. a
+  path containing no `/` character). This includes the image itself,
+  the root hash file in case Verity is used, the checksum and its
   signature if that's enabled, and the nspawn settings file if there
-  is any) are placed in this directory. Note that this directory is
-  not used if the image output path contains at least one slash, and
-  has no effect in that case. This setting is particularly useful if
-  multiple different images shall be built from the same working
-  directory, as otherwise the build result of a preceding run might be
-  copied into a build image as part of the source tree (see above).
+  is any. Note that this directory is not used if the image output
+  path contains at least one slash, and has no effect in that case.
+  This setting is particularly useful if multiple different images
+  shall be built from the same working directory, as otherwise the
+  build result of a preceding run might be copied into a build image
+  as part of the source tree (see above).
 
 All these files are optional.
 
@@ -1560,7 +1574,7 @@ Create and run a bootable btrfs *GPT* image, as `foobar.raw`:
 # qemu-kvm -m 512 -smp 2 -bios /usr/share/edk2/ovmf/OVMF_CODE.fd -drive format=raw,file=foobar.raw
 ```
 
-Create and run a *Fedora* image into a plain directory:
+Create and run a *Fedora Linux* image into a plain directory:
 
 ```bash
 # mkosi -d fedora -t directory -o quux
@@ -1574,13 +1588,13 @@ install *SSH* into it:
 # mkosi -d fedora -t gpt_squashfs --checksum --compress --package=openssh-clients
 ```
 
-Inside the source directory of an `automake`-based project,
-configure *mkosi* so that simply invoking `mkosi` without any
-parameters builds an *OS* image containing a built version of
-the project in its current state:
+Inside the source directory of an `automake`-based project, configure
+*mkosi* so that simply invoking `mkosi` without any parameters builds
+an OS image containing a built version of the project in its current
+state:
 
 ```bash
-# cat > mkosi.default <<EOF
+# cat >mkosi.default <<EOF
 [Distribution]
 Distribution=fedora
 Release=24
@@ -1593,7 +1607,7 @@ Bootable=yes
 Packages=openssh-clients,httpd
 BuildPackages=make,gcc,libcurl-devel
 EOF
-# cat > mkosi.build <<EOF
+# cat >mkosi.build <<EOF
 #!/bin/sh
 cd $SRCDIR
 ./autogen.sh
@@ -1606,7 +1620,7 @@ EOF
 # systemd-nspawn -bi image.raw
 ```
 
-To create a *Fedora* image with hostname:
+To create a *Fedora Linux* image with hostname:
 ```bash
 # mkosi -d fedora --hostname image
 ```
@@ -1622,13 +1636,14 @@ Hostname=image
 
 # REQUIREMENTS
 
-mkosi is packaged for various distributions: Debian, Ubuntu, Arch Linux, Fedora, OpenMandriva.
-It is usually easiest to use the distribution package.
+mkosi is packaged for various distributions: Debian, Ubuntu, Arch
+Linux, Fedora Linux, OpenMandriva. It is usually easiest to use the
+distribution package.
 
 The current version requires systemd 233 (or actually, systemd-nspawn of it).
 
 When not using distribution packages make sure to install the
-necessary dependencies. For example, on *Fedora* you need:
+necessary dependencies. For example, on *Fedora Linux* you need:
 
 ```bash
 dnf install arch-install-scripts btrfs-progs debootstrap dosfstools edk2-ovmf e2fsprogs squashfs-tools gnupg python3 tar veritysetup xfsprogs xz zypper sbsigntools

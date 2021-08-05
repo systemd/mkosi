@@ -1965,7 +1965,7 @@ def install_clear(args: CommandLineArguments, root: str, do_run_build_script: bo
             args.password = None
 
 
-@complete_step("Installing Fedora")
+@complete_step("Installing Fedora Linux")
 def install_fedora(args: CommandLineArguments, root: str, do_run_build_script: bool) -> None:
     if args.release == "rawhide":
         last = sorted(FEDORA_KEYS_MAP)[-1]

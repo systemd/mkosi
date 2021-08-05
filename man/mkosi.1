@@ -41,7 +41,7 @@ Raw \f[I]GPT\f[R] disk image, with squashfs as read-only root
 Plain squashfs image, without partition table, as read-only root
 (\f[I]plain_squashfs\f[R])
 .IP \[bu] 2
-Plain directory, containing the \f[I]OS\f[R] tree (\f[I]directory\f[R])
+Plain directory, containing the OS tree (\f[I]directory\f[R])
 .IP \[bu] 2
 btrfs subvolume, with separate subvolumes for \f[C]/var\f[R],
 \f[C]/home\f[R], \f[C]/srv\f[R], \f[C]/var/tmp\f[R]
@@ -193,9 +193,9 @@ If not specified, defaults to the distribution of the host.
 \f[B]\f[CB]--release=\f[B]\f[R], \f[B]\f[CB]-r\f[B]\f[R]
 The release of the distribution to install in the image.
 The precise syntax of the argument this takes depends on the
-distribution used, and is either a numeric string (in case of Fedora,
-CentOS, \&..., e.g.\ \f[C]29\f[R]), or a distribution version name (in
-case of Debian, Ubuntu, \&..., e.g.\ \f[C]artful\f[R]).
+distribution used, and is either a numeric string (in case of Fedora
+Linux, CentOS, \&..., e.g.\ \f[C]29\f[R]), or a distribution version
+name (in case of Debian, Ubuntu, \&..., e.g.\ \f[C]artful\f[R]).
 If neither this option, not \f[C]--distribution=\f[R] is specified,
 defaults to the distribution version of the host.
 If the distribution is specified, defaults to a recent version of it.
@@ -329,9 +329,9 @@ By default command line arguments get appended.
 To remove all arguments from the current list pass \[lq]!*\[rq].
 To remove specific arguments add a space separated list of \[lq]!\[rq]
 prefixed arguments.
-For example adding \[lq]!* console=ttyS0 rw\[rq] to a mkosi.default file
-or the command line arguments passes \[lq]console=ttyS0 rw\[rq] to the
-kernel in any case.
+For example adding \[lq]!* console=ttyS0 rw\[rq] to a
+\f[C]mkosi.default\f[R] file or the command line arguments passes
+\[lq]console=ttyS0 rw\[rq] to the kernel in any case.
 Just adding \[lq]console=ttyS0 rw\[rq] would append these two arguments
 to the kernel command line created by lower priority configuration files
 or previous \f[C]--kernel-command-line\f[R] command line arguments.
@@ -508,8 +508,8 @@ With this option this may be turned off and all generated files are
 owned by \f[C]root\f[R].
 .TP
 \f[B]\f[CB]--tar-strip-selinux-context\f[B]\f[R]
-If running on a SELinux-enabled system (Fedora, CentOS), files inside
-the container are tagged with SELinux context extended attributes
+If running on a SELinux-enabled system (Fedora Linux, CentOS), files
+inside the container are tagged with SELinux context extended attributes
 (\f[C]xattrs\f[R]), which may interfere with host SELinux rules in
 building or further container import stages.
 This option strips SELinux context attributes from the resulting tar
@@ -522,7 +522,7 @@ logic is used.
 In this mode, a copy of the OS image is created immediately after all OS
 packages are unpacked but before the \f[C]mkosi.build\f[R] script is
 invoked in the development container.
-Similar a copy of the final image is created immediately before the
+Similarly, a copy of the final image is created immediately before the
 build artifacts from the \f[C]mkosi.build\f[R] script are copied in.
 On subsequent invocations of \f[C]mkosi\f[R] with the \f[C]-i\f[R]
 switch these cached images may be used to skip the OS package unpacking,
@@ -530,9 +530,9 @@ thus drastically speeding up repetitive build times.
 Note that when this is used and a pair of cached incremental images
 exists they are not automatically regenerated, even if options such as
 \f[C]--packages=\f[R] are modified.
-In order to force rebuilding of these cached images, combined
-\f[C]-i\f[R] with \f[C]-ff\f[R], which ensures the cached images are
-removed first, and then re-created.
+In order to force rebuilding of these cached images, combine
+\f[C]-i\f[R] with \f[C]-ff\f[R] to ensure cached images are first
+removed and then re-created.
 .TP
 \f[B]\f[CB]--base-packages\f[B]\f[R]
 If true, automatically install packages to ensure basic functionality,
@@ -565,8 +565,8 @@ and the final image (see below).
 Use \f[C]--build-package=\f[R] (see below) to specify packages that
 shall only be used for the image generated in the build image, but that
 shall not appear in the final image.
-To remove a package e.g.\ added by a mkosi.default configuration file
-prepend the package name with a ! letter.
+To remove a package e.g.\ added by a \f[C]mkosi.default\f[R]
+configuration file prepend the package name with a ! letter.
 For example -p \[lq]!apache2\[rq] would remove the apache2 package.
 To replace the apache2 package by the httpd package just add -p
 \[lq]!apache2,httpd\[rq] to the command line arguments.
@@ -1595,9 +1595,9 @@ enabling, and \f[C]0\f[R], \f[C]no\f[R], \f[C]false\f[R] for disabling.
 .SS Supported distributions
 .PP
 Images may be created containing installations of the following
-\f[I]OS\f[R]es.
+operating systems:
 .IP \[bu] 2
-\f[I]Fedora\f[R]
+\f[I]Fedora Linux\f[R]
 .IP \[bu] 2
 \f[I]Debian\f[R]
 .IP \[bu] 2
@@ -1623,7 +1623,8 @@ available.
 Specifically, any distribution that packages \f[C]debootstrap\f[R] may
 be used to build \f[I]Debian\f[R] or \f[I]Ubuntu\f[R] images.
 Any distribution that packages \f[C]dnf\f[R] may be used to build
-\f[I]Fedora\f[R], \f[I]Mageia\f[R] or \f[I]OpenMandriva\f[R] images.
+\f[I]Fedora Linux\f[R], \f[I]Mageia\f[R] or \f[I]OpenMandriva\f[R]
+images.
 Any distro that packages \f[C]pacstrap\f[R] may be used to build
 \f[I]Arch Linux\f[R] images.
 Any distribution that packages \f[C]zypper\f[R] may be used to build
@@ -1631,7 +1632,8 @@ Any distribution that packages \f[C]zypper\f[R] may be used to build
 Any distribution that packages \f[C]yum\f[R] (or the newer replacement
 \f[C]dnf\f[R]) may be used to build \f[I]CentOS\f[R] images.
 .PP
-Currently, \f[I]Fedora\f[R] packages all relevant tools as of Fedora 28.
+Currently, \f[I]Fedora Linux\f[R] packages all relevant tools as of
+Fedora 28.
 .SS Compatibility
 .PP
 Legacy concepts are avoided: generated images use \f[I]GPT\f[R] disk
@@ -1677,22 +1679,25 @@ under the assumption that it is invoked from a \f[I]source\f[R] tree.
 Specifically, the following files are used if they exist in the local
 directory:
 .IP \[bu] 2
-\f[C]mkosi.default\f[R] may be used to configure mkosi\[cq]s image
-building process.
-For example, you may configure the distribution to use
-(\f[C]fedora\f[R], \f[C]ubuntu\f[R], \f[C]debian\f[R], \f[C]arch\f[R],
-\f[C]opensuse\f[R], \f[C]mageia\f[R], \f[C]openmandriva\f[R]) for the
-image, or additional distribution packages to install.
+The \f[B]\f[CB]mkosi.default\f[B]\f[R] file provides the default
+configuration for the image building process.
+For example, it may specify the distribution to use (\f[C]fedora\f[R],
+\f[C]ubuntu\f[R], \f[C]debian\f[R], \f[C]arch\f[R], \f[C]opensuse\f[R],
+\f[C]mageia\f[R], \f[C]openmandriva\f[R]) for the image, or additional
+distribution packages to install.
 Note that all options encoded in this configuration file may also be set
 on the command line, and this file is hence little more than a way to
-make sure simply typing \f[C]mkosi\f[R] without further parameters in
-your \f[I]source\f[R] tree is enough to get the right image of your
-choice set up.
-Additionally if a \f[C]mkosi.default.d\f[R] directory exists, each file
-in it is loaded in the same manner adding/overriding the values
-specified in \f[C]mkosi.default\f[R].
-If \f[C]mkosi.default.d\f[R] contains a directory named after the
+make sure invoking \f[C]mkosi\f[R] without further parameters in your
+\f[I]source\f[R] tree is enough to get the right image of your choice
+set up.
+.RS 2
+.PP
+Additionally, if a \f[I]\f[CI]mkosi.default.d/\f[I]\f[R] directory
+exists, each file in it is loaded in the same manner adding/overriding
+the values specified in \f[C]mkosi.default\f[R].
+If \f[C]mkosi.default.d/\f[R] contains a directory named after the
 distribution being built, each file in that directory is also processed.
+.PP
 The file format is inspired by Windows \f[C].ini\f[R] files and supports
 multi-line assignments: any line with initial whitespace is considered a
 continuation line of the line before.
@@ -1703,36 +1708,44 @@ corresponding to the argument group
 follows: \[lq]\f[C]--with-network\f[R]\[rq] becomes
 \[lq]\f[C]WithNetwork=yes\f[R]\[rq].
 For further details see the table above.
+.RE
 .IP \[bu] 2
-\f[C]mkosi.extra/\f[R] or \f[C]mkosi.extra.tar\f[R] may be respectively
-a directory or archive.
-If any exist all files contained in it are copied over the directory
-tree of the image after the \f[I]OS\f[R] was installed.
-This may be used to add in additional files to an image, on top of what
-the distribution includes in its packages.
-When using a directory file ownership is not preserved: all files copied
-will be owned by root.
-To preserve ownership use a tar archive.
+The \f[B]\f[CB]mkosi.skeleton/\f[B]\f[R] directory or
+\f[B]\f[CB]mkosi.skeleton.tar\f[B]\f[R] archive may be used to insert
+files into the image.
+The files are copied \f[I]before\f[R] the distribution packages are
+installed into the image.
+This allows creation of files that need to be provided early, for
+example to configure the package manager or set systemd presets.
+.RS 2
+.PP
+When using the directory, file ownership is not preserved: all files
+copied will be owned by root.
+To preserve ownership, use a tar archive.
+.RE
 .IP \[bu] 2
-\f[C]mkosi.skeleton/\f[R] or \f[C]mkosi.skeleton.tar\f[R] may be
-respectively a directory or archive, and they work in the same way as
-\f[C]mkosi.extra\f[R]/\f[C]mkosi.skeleton.tar\f[R].
-However the files are copied before anything else so to have a skeleton
-tree for the OS.
-This allows to change the package manager and create files that need to
-be there before anything is installed.
-When using a directory file ownership is not preserved: all files copied
-will be owned by root.
-To preserve ownership use a tar archive.
+The \f[B]\f[CB]mkosi.extra/\f[B]\f[R] directory or
+\f[B]\f[CB]mkosi.extra.tar\f[B]\f[R] archive may be used to insert
+additional files into the image, on top of what the distribution
+includes in its packages.
+They are similar to \f[C]mkosi.skeleton/\f[R] and
+\f[C]mkosi.skeleton.tar\f[R], but the files are copied into the
+directory tree of the image \f[I]after\f[R] the OS was installed.
+.RS 2
+.PP
+When using the directory, file ownership is not preserved: all files
+copied will be owned by root.
+To preserve ownership, use a tar archive.
+.RE
 .IP \[bu] 2
-\f[C]mkosi.build\f[R] may be an executable script.
-If it exists the image will be built twice: the first iteration will be
+\f[B]\f[CB]mkosi.build\f[B]\f[R] may be an executable script.
+If it exists, the image will be built twice: the first iteration will be
 the \f[I]development\f[R] image, the second iteration will be the
 \f[I]final\f[R] image.
 The \f[I]development\f[R] image is used to build the project in the
 current working directory (the \f[I]source\f[R] tree).
 For that the whole directory is copied into the image, along with the
-mkosi.build build script.
+\f[C]mkosi.build\f[R] script.
 The script is then invoked inside the image (via
 \f[C]systemd-nspawn\f[R]), with \f[C]$SRCDIR\f[R] pointing to the
 \f[I]source\f[R] tree.
@@ -1755,43 +1768,44 @@ are copied, except for \f[C]mkosi.builddir/\f[R], \f[C]mkosi.cache/\f[R]
 and \f[C]mkosi.output/\f[R].
 That said, \f[C].gitignore\f[R] is respected if the source tree is a
 \f[C]git\f[R] checkout.
-If multiple different images shall be built from the same source tree
-it\[cq]s essential to exclude their output files from this copy
-operation, as otherwise a version of an image built earlier might be
-included in a later build, which is usually not intended.
+If multiple different images shall be built from the same source tree it
+is essential to exclude their output files from this copy operation, as
+otherwise a version of an image built earlier might be included in a
+later build, which is usually not intended.
 An alternative to excluding these built images via \f[C].gitignore\f[R]
-entries is making use of the \f[C]mkosi.output/\f[R] directory (see
-below), which is an easy way to exclude all build artifacts.
+entries is to use the \f[C]mkosi.output/\f[R] directory (see below),
+which is an easy way to exclude all build artifacts.
 .PP
-The \f[C]MKOSI_DEFAULT\f[R] environment variable will be set inside of
+The \f[C]$MKOSI_DEFAULT\f[R] environment variable will be set inside of
 this script so that you know which \f[C]mkosi.default\f[R] (if any) was
 passed in.
 .RE
 .IP \[bu] 2
-\f[C]mkosi.prepare\f[R] may be an executable script.
-If it exists it is invoked directly after the software packages are
-installed, from within the image context.
+The \f[B]\f[CB]mkosi.prepare\f[B]\f[R] script is invoked directly after
+the software packages are installed, from within the image context, if
+it exists.
 It is once called for the \f[I]development\f[R] image (if this is
 enabled, see above) with the \[lq]build\[rq] command line parameter,
 right before copying the extra tree.
 It is called a second time for the \f[I]final\f[R] image with the
 \[lq]final\[rq] command line parameter.
 This script has network access and may be used to install packages from
-other sources than the distro\[cq]s package manager (e.g.\ pip, npm,
-\&...), after all software packages are installed but before the image
-is cached (if incremental mode is enabled).
+other sources than the distro\[cq]s package manager
+(e.g.\ \f[C]pip\f[R], \f[C]npm\f[R], \&...), after all software packages
+are installed but before the image is cached (if incremental mode is
+enabled).
 This script is executed within \f[C]$SRCDIR\f[R].
 In contrast to a general purpose installation, it is safe to install
-packages to the system (\f[C]pip install\f[R], \f[C]npm install -g\f[R])
-instead of in \f[C]$SRCDIR\f[R] itself because the build image is only
-used for a single project and can easily be thrown away and rebuilt so
-there\[cq]s no risk of conflicting dependencies and no risk of polluting
-the host system.
+packages to the system (\f[C]pip install\f[R],
+\f[C]npm   install -g\f[R]) instead of in \f[C]$SRCDIR\f[R] itself
+because the build image is only used for a single project and can easily
+be thrown away and rebuilt so there\[cq]s no risk of conflicting
+dependencies and no risk of polluting the host system.
 .IP \[bu] 2
-\f[C]mkosi.postinst\f[R] may be an executable script.
-If it exists it is invoked as the penultimate step of preparing an
-image, from within the image context.
-It is once called for the \f[I]development\f[R] image (if this is
+The \f[B]\f[CB]mkosi.postinst\f[B]\f[R] script is invoked as the
+penultimate step of preparing an image, from within the image context,
+if it exists.
+It is called first for the \f[I]development\f[R] image (if this is
 enabled, see above) with the \[lq]build\[rq] command line parameter,
 right before invoking the build script.
 It is called a second time for the \f[I]final\f[R] image with the
@@ -1803,9 +1817,8 @@ Note that this script is executed directly in the image context with the
 final root directory in place, without any
 \f[C]$SRCDIR\f[R]/\f[C]$DESTDIR\f[R] setup.
 .IP \[bu] 2
-\f[C]mkosi.finalize\f[R] may be an executable script.
-If it exists it is invoked as last step of preparing an image, from the
-host system.
+The \f[B]\f[CB]mkosi.finalize\f[B]\f[R] script, if it exists, is invoked
+as last step of preparing an image, from the host system.
 It is once called for the \f[I]development\f[R] image (if this is
 enabled, see above) with the \[lq]build\[rq] command line parameter, as
 the last step before invoking the build script, after the
@@ -1824,47 +1837,46 @@ copy in additional files or to modify the image based on external
 configuration, and the script is run in the host, so it can be used even
 without emulation even if the image has a foreign architecture.
 .IP \[bu] 2
-\f[C]mkosi.mksquashfs-tool\f[R] may be an executable script.
-If it exists is is called instead of \f[C]mksquashfs\f[R].
+The \f[B]\f[CB]mkosi.mksquashfs-tool\f[B]\f[R] script, if it exists,
+will be called wherever \f[C]mksquashfs\f[R] would be called.
 .IP \[bu] 2
-\f[C]mkosi.nspawn\f[R] may be an nspawn settings file.
-If this exists it will be copied into the same place as the output image
-file.
+The \f[B]\f[CB]mkosi.nspawn\f[B]\f[R] nspawn settings file will be
+copied into the same place as the output image file, if it exists.
 This is useful since nspawn looks for settings files next to image files
 it boots, for additional container runtime settings.
 .IP \[bu] 2
-\f[C]mkosi.cache/\f[R] may be a directory.
-If so, it is automatically used as package download cache, in order to
-speed repeated runs of the tool.
+The \f[B]\f[CB]mkosi.cache/\f[B]\f[R] directory, if it exists, is
+automatically used as package download cache, in order to speed repeated
+runs of the tool.
 .IP \[bu] 2
-\f[C]mkosi.builddir/\f[R] may be a directory.
-If so, it is automatically used as out-of-tree build directory, if the
-build commands in the \f[C]mkosi.build\f[R] script support it.
+The \f[B]\f[CB]mkosi.builddir/\f[B]\f[R] directory, if it exists, is
+automatically used as out-of-tree build directory, if the build commands
+in the \f[C]mkosi.build\f[R] script support it.
 Specifically, this directory will be mounted into the build container,
 and the \f[C]$BUILDDIR\f[R] environment variable will be set to it when
 the build script is invoked.
 The build script may then use this directory as build directory, for
 automake-style or ninja-style out-of-tree builds.
 This speeds up builds considerably, in particular when \f[C]mkosi\f[R]
-is used in incremental mode (\f[C]-i\f[R]): not only the disk images but
-also the build tree is reused between subsequent invocations.
+is used in incremental mode (\f[C]-i\f[R]): not only the disk images,
+but also the build tree is reused between subsequent invocations.
 Note that if this directory does not exist the \f[C]$BUILDDIR\f[R]
 environment variable is not set, and it is up to build script to decide
 whether to do in in-tree or an out-of-tree build, and which build
 directory to use.
 .IP \[bu] 2
-\f[C]mkosi.includedir/\f[R] may be a directory.
-If so, it is automatically used as out-of-tree include directory.
-Specifically, this directory will be mounted into the build container at
-\f[C]/usr/include\f[R] when building the build image and when running
+The \f[B]\f[CB]mkosi.includedir/\f[B]\f[R] directory, if it exists, is
+automatically used as an out-of-tree include directory for header files.
+Specifically, it will be mounted in the build container at
+\f[C]/usr/include/\f[R] when building the build image and when running
 the build script.
 After building the (cached) build image, this directory will contain all
 the files installed to \f[C]/usr/include\f[R].
 Language servers or other tools can use these files to provide a better
 editing experience for developers working on a project.
 .IP \[bu] 2
-\f[C]mkosi.installdir/\f[R] may be a directory.
-If so, it is automatically used as the install directory.
+The \f[B]\f[CB]mkosi.installdir/\f[B]\f[R] directory, if it exists, is
+automatically used as the install directory.
 Specifically, this directory will be mounted into the container at
 \f[C]/root/dest\f[R] when running the build script.
 After running the build script, the contents of this directory are
@@ -1873,37 +1885,39 @@ This is useful to cache the install step of the build.
 If used, subsequent builds will only have to reinstall files that have
 changed since the previous build.
 .IP \[bu] 2
-\f[C]mkosi.rootpw\f[R] may be a file containing the password or hashed
-password (if \f[C]--password-is-hashed\f[R] is set) for the root user of
-the image to set.
+The \f[B]\f[CB]mkosi.rootpw\f[B]\f[R] file can be used to provide the
+password or hashed password (if \f[C]--password-is-hashed\f[R] is set)
+for the root user of the image.
 The password may optionally be followed by a newline character which is
 implicitly removed.
 The file must have an access mode of 0600 or less.
-If this file does not exist the distribution\[cq]s default root password
-is set (which usually means access to the root user is blocked).
+If this file does not exist, the distribution\[cq]s default root
+password is set (which usually means access to the root user is
+blocked).
 .IP \[bu] 2
-\f[C]mkosi.passphrase\f[R] may be a passphrase file to use when LUKS
-encryption is selected.
+The \f[B]\f[CB]mkosi.passphrase\f[B]\f[R] file provides the passphrase
+to use when LUKS encryption is selected.
 It should contain the passphrase literally, and not end in a newline
 character (i.e.\ in the same format as cryptsetup and
 \f[C]/etc/crypttab\f[R] expect the passphrase files).
 The file must have an access mode of 0600 or less.
-If this file does not exist and encryption is requested the user is
+If this file does not exist and encryption is requested, the user is
 queried instead.
 .IP \[bu] 2
-\f[C]mkosi.secure-boot.crt\f[R] and \f[C]mkosi.secure-boot.key\f[R] may
-contain an X.509 certificate and PEM private key to use when UEFI
-SecureBoot support is enabled.
+The \f[B]\f[CB]mkosi.secure-boot.crt\f[B]\f[R] and
+\f[B]\f[CB]mkosi.secure-boot.key\f[B]\f[R] files contain an X.509
+certificate and PEM private key to use when UEFI SecureBoot support is
+enabled.
 All EFI binaries included in the image\[cq]s ESP are signed with this
 key, as a late step in the build process.
 .IP \[bu] 2
-\f[C]mkosi.output/\f[R] may be a directory.
-If it exists, and the image output path is not configured (i.e.\ no
+The \f[B]\f[CB]mkosi.output/\f[B]\f[R] directory will be used for all
+build artifacts, if the image output path is not configured (i.e.\ no
 \f[C]--output=\f[R] setting specified), or configured to a filename
-(i.e.\ a path containing no \f[C]/\f[R] character) all build artifacts
-(that is: the image itself, the root hash file in case Verity is used,
-the checksum and its signature if that\[cq]s enabled, and the nspawn
-settings file if there is any) are placed in this directory.
+(i.e.\ a path containing no \f[C]/\f[R] character).
+This includes the image itself, the root hash file in case Verity is
+used, the checksum and its signature if that\[cq]s enabled, and the
+nspawn settings file if there is any.
 Note that this directory is not used if the image output path contains
 at least one slash, and has no effect in that case.
 This setting is particularly useful if multiple different images shall
@@ -2048,7 +2062,7 @@ Create and run a bootable btrfs \f[I]GPT\f[R] image, as
 \f[R]
 .fi
 .PP
-Create and run a \f[I]Fedora\f[R] image into a plain directory:
+Create and run a \f[I]Fedora Linux\f[R] image into a plain directory:
 .IP
 .nf
 \f[C]
@@ -2068,12 +2082,12 @@ file, and install \f[I]SSH\f[R] into it:
 .PP
 Inside the source directory of an \f[C]automake\f[R]-based project,
 configure \f[I]mkosi\f[R] so that simply invoking \f[C]mkosi\f[R]
-without any parameters builds an \f[I]OS\f[R] image containing a built
-version of the project in its current state:
+without any parameters builds an OS image containing a built version of
+the project in its current state:
 .IP
 .nf
 \f[C]
-# cat > mkosi.default <<EOF
+# cat >mkosi.default <<EOF
 [Distribution]
 Distribution=fedora
 Release=24
@@ -2086,7 +2100,7 @@ Bootable=yes
 Packages=openssh-clients,httpd
 BuildPackages=make,gcc,libcurl-devel
 EOF
-# cat > mkosi.build <<EOF
+# cat >mkosi.build <<EOF
 #!/bin/sh
 cd $SRCDIR
 \&./autogen.sh
@@ -2100,7 +2114,7 @@ EOF
 \f[R]
 .fi
 .PP
-To create a \f[I]Fedora\f[R] image with hostname:
+To create a \f[I]Fedora Linux\f[R] image with hostname:
 .IP
 .nf
 \f[C]
@@ -2122,7 +2136,7 @@ Hostname=image
 .SH REQUIREMENTS
 .PP
 mkosi is packaged for various distributions: Debian, Ubuntu, Arch Linux,
-Fedora, OpenMandriva.
+Fedora Linux, OpenMandriva.
 It is usually easiest to use the distribution package.
 .PP
 The current version requires systemd 233 (or actually, systemd-nspawn of
@@ -2130,7 +2144,7 @@ it).
 .PP
 When not using distribution packages make sure to install the necessary
 dependencies.
-For example, on \f[I]Fedora\f[R] you need:
+For example, on \f[I]Fedora Linux\f[R] you need:
 .IP
 .nf
 \f[C]
