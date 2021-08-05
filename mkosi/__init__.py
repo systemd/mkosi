@@ -2493,7 +2493,7 @@ def install_arch(args: CommandLineArguments, root: str, do_run_build_script: boo
     os.makedirs(os.path.join(root, "var/lib/pacman"), 0o755, exist_ok=True)
     os.makedirs(os.path.join(root, "etc/pacman.d/gnupg"), 0o755, exist_ok=True)
 
-    # Permissions on these directories are all 0o777 because of `mount --bind`
+    # Permissions on these directories are all 0o777 because of 'mount --bind'
     # limitations but pacman expects them to be 0o755 so we fix them before
     # calling pacstrap (except /var/tmp which is 0o1777).
     fix_permissions_dirs = {
@@ -4959,19 +4959,19 @@ def create_parser() -> ArgumentParserMkosi:
         "removed immediately when the container/VM terminates",
     )
     group.add_argument(
-        "--ssh", action=BooleanAction, help="Set up SSH access from the host to the final image via `mkosi ssh`"
+        "--ssh", action=BooleanAction, help="Set up SSH access from the host to the final image via 'mkosi ssh'"
     )
     group.add_argument(
         "--ssh-key",
         metavar="PATH",
-        help="Use the specified private key when using `mkosi ssh` (requires a corresponding public key)",
+        help="Use the specified private key when using 'mkosi ssh' (requires a corresponding public key)",
     )
     group.add_argument(
         "--ssh-timeout",
         metavar="SECONDS",
         type=int,
         default=0,
-        help="Wait up to SECONDS seconds for the SSH connection to be available when using `mkosi ssh`",
+        help="Wait up to SECONDS seconds for the SSH connection to be available when using 'mkosi ssh'",
     )
 
     group = parser.add_argument_group("Additional Configuration")
@@ -5872,7 +5872,7 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
         die("Sorry, --source-file-transfer-final=mount is not supported")
 
     if args.skip_final_phase and args.verb != "build":
-        die("--skip-final-phase can only be used when building an image using `mkosi build`")
+        die("--skip-final-phase can only be used when building an image using 'mkosi build'")
 
     if args.ssh and not args.network_veth:
         die("--ssh cannot be used without --network-veth")
@@ -6613,7 +6613,7 @@ def ensure_networkd(args: CommandLineArguments) -> bool:
         warn(
             """
             --network-veth requires systemd-networkd to be running to initialize the host interface of the
-            veth link (`systemctl enable --now systemd-networkd`)")
+            veth link ('systemctl enable --now systemd-networkd')")
             """
         )
         return False
@@ -6889,7 +6889,7 @@ def find_address(args: CommandLineArguments) -> Tuple[str, str]:
                     f"{dev} is not enabled. Make sure systemd-networkd is running so it can manage the interface."
                 )
 
-            # Trigger IPv6 neighbor discovery of which we can access the results via `ip neighbor`. This allows us to
+            # Trigger IPv6 neighbor discovery of which we can access the results via 'ip neighbor'. This allows us to
             # find out the link-local IPv6 address of the container/VM via which we can connect to it.
             run(["ping", "-c", "1", "-w", "15", f"ff02::1%{dev}"], stdout=DEVNULL)
 
