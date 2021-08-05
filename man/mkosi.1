@@ -193,9 +193,9 @@ If not specified, defaults to the distribution of the host.
 \f[B]\f[CB]--release=\f[B]\f[R], \f[B]\f[CB]-r\f[B]\f[R]
 The release of the distribution to install in the image.
 The precise syntax of the argument this takes depends on the
-distribution used, and is either a numeric string (in case of Fedora,
-CentOS, \&..., e.g.\ \f[C]29\f[R]), or a distribution version name (in
-case of Debian, Ubuntu, \&..., e.g.\ \f[C]artful\f[R]).
+distribution used, and is either a numeric string (in case of Fedora
+Linux, CentOS, \&..., e.g.\ \f[C]29\f[R]), or a distribution version
+name (in case of Debian, Ubuntu, \&..., e.g.\ \f[C]artful\f[R]).
 If neither this option, not \f[C]--distribution=\f[R] is specified,
 defaults to the distribution version of the host.
 If the distribution is specified, defaults to a recent version of it.
@@ -508,8 +508,8 @@ With this option this may be turned off and all generated files are
 owned by \f[C]root\f[R].
 .TP
 \f[B]\f[CB]--tar-strip-selinux-context\f[B]\f[R]
-If running on a SELinux-enabled system (Fedora, CentOS), files inside
-the container are tagged with SELinux context extended attributes
+If running on a SELinux-enabled system (Fedora Linux, CentOS), files
+inside the container are tagged with SELinux context extended attributes
 (\f[C]xattrs\f[R]), which may interfere with host SELinux rules in
 building or further container import stages.
 This option strips SELinux context attributes from the resulting tar
@@ -1597,7 +1597,7 @@ enabling, and \f[C]0\f[R], \f[C]no\f[R], \f[C]false\f[R] for disabling.
 Images may be created containing installations of the following
 operating systems:
 .IP \[bu] 2
-\f[I]Fedora\f[R]
+\f[I]Fedora Linux\f[R]
 .IP \[bu] 2
 \f[I]Debian\f[R]
 .IP \[bu] 2
@@ -1623,7 +1623,8 @@ available.
 Specifically, any distribution that packages \f[C]debootstrap\f[R] may
 be used to build \f[I]Debian\f[R] or \f[I]Ubuntu\f[R] images.
 Any distribution that packages \f[C]dnf\f[R] may be used to build
-\f[I]Fedora\f[R], \f[I]Mageia\f[R] or \f[I]OpenMandriva\f[R] images.
+\f[I]Fedora Linux\f[R], \f[I]Mageia\f[R] or \f[I]OpenMandriva\f[R]
+images.
 Any distro that packages \f[C]pacstrap\f[R] may be used to build
 \f[I]Arch Linux\f[R] images.
 Any distribution that packages \f[C]zypper\f[R] may be used to build
@@ -1631,7 +1632,8 @@ Any distribution that packages \f[C]zypper\f[R] may be used to build
 Any distribution that packages \f[C]yum\f[R] (or the newer replacement
 \f[C]dnf\f[R]) may be used to build \f[I]CentOS\f[R] images.
 .PP
-Currently, \f[I]Fedora\f[R] packages all relevant tools as of Fedora 28.
+Currently, \f[I]Fedora Linux\f[R] packages all relevant tools as of
+Fedora 28.
 .SS Compatibility
 .PP
 Legacy concepts are avoided: generated images use \f[I]GPT\f[R] disk
@@ -2060,7 +2062,7 @@ Create and run a bootable btrfs \f[I]GPT\f[R] image, as
 \f[R]
 .fi
 .PP
-Create and run a \f[I]Fedora\f[R] image into a plain directory:
+Create and run a \f[I]Fedora Linux\f[R] image into a plain directory:
 .IP
 .nf
 \f[C]
@@ -2112,7 +2114,7 @@ EOF
 \f[R]
 .fi
 .PP
-To create a \f[I]Fedora\f[R] image with hostname:
+To create a \f[I]Fedora Linux\f[R] image with hostname:
 .IP
 .nf
 \f[C]
@@ -2134,7 +2136,7 @@ Hostname=image
 .SH REQUIREMENTS
 .PP
 mkosi is packaged for various distributions: Debian, Ubuntu, Arch Linux,
-Fedora, OpenMandriva.
+Fedora Linux, OpenMandriva.
 It is usually easiest to use the distribution package.
 .PP
 The current version requires systemd 233 (or actually, systemd-nspawn of
@@ -2142,7 +2144,7 @@ it).
 .PP
 When not using distribution packages make sure to install the necessary
 dependencies.
-For example, on \f[I]Fedora\f[R] you need:
+For example, on \f[I]Fedora Linux\f[R] you need:
 .IP
 .nf
 \f[C]

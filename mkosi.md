@@ -188,14 +188,14 @@ details see the table below.
 `--distribution=`, `-d`
 : The distribution to install in the image. Takes one of the following
   arguments: `fedora`, `debian`, `ubuntu`, `arch`, `opensuse`,
-  `mageia`, `centos`, `clear`, `photon`, `openmandriva`. If not specified, defaults to the
-  distribution of the host.
+  `mageia`, `centos`, `clear`, `photon`, `openmandriva`. If not
+  specified, defaults to the distribution of the host.
 
 `--release=`, `-r`
 
 : The release of the distribution to install in the image. The precise
   syntax of the argument this takes depends on the distribution used,
-  and is either a numeric string (in case of Fedora, CentOS, …,
+  and is either a numeric string (in case of Fedora Linux, CentOS, …,
   e.g. `29`), or a distribution version name (in case of Debian,
   Ubuntu, …, e.g. `artful`). If neither this option, not
   `--distribution=` is specified, defaults to the distribution version
@@ -503,12 +503,11 @@ details see the table below.
 
 `--tar-strip-selinux-context`
 
-: If running on a SELinux-enabled system (Fedora, CentOS), files inside
-  the container are tagged with SELinux context extended attributes
-  (`xattrs`), which may interfere with host SELinux rules in building
-  or further container import stages.
-  This option strips SELinux context attributes from the resulting
-  tar archive.
+: If running on a SELinux-enabled system (Fedora Linux, CentOS), files
+  inside the container are tagged with SELinux context extended
+  attributes (`xattrs`), which may interfere with host SELinux rules
+  in building or further container import stages.  This option strips
+  SELinux context attributes from the resulting tar archive.
 
 `--incremental`, `-i`
 
@@ -1067,7 +1066,7 @@ they are modeled as boolean option that take either `1`, `yes`,
 Images may be created containing installations of the
 following operating systems:
 
-* *Fedora*
+* *Fedora Linux*
 
 * *Debian*
 
@@ -1091,14 +1090,14 @@ In theory, any distribution may be used on the host for building
 images containing any other distribution, as long as the necessary
 tools are available. Specifically, any distribution that packages
 `debootstrap` may be used to build *Debian* or *Ubuntu* images. Any
-distribution that packages `dnf` may be used to build *Fedora*,
+distribution that packages `dnf` may be used to build *Fedora Linux*,
 *Mageia* or *OpenMandriva* images. Any distro that packages `pacstrap` may be used to
 build *Arch Linux* images. Any distribution that packages `zypper` may
 be used to build *openSUSE* images. Any distribution that packages
 `yum` (or the newer replacement `dnf`) may be used to build *CentOS*
 images.
 
-Currently, *Fedora* packages all relevant tools as of Fedora 28.
+Currently, *Fedora Linux* packages all relevant tools as of Fedora 28.
 
 ## Compatibility
 
@@ -1468,7 +1467,7 @@ Create and run a bootable btrfs *GPT* image, as `foobar.raw`:
 # qemu-kvm -m 512 -smp 2 -bios /usr/share/edk2/ovmf/OVMF_CODE.fd -drive format=raw,file=foobar.raw
 ```
 
-Create and run a *Fedora* image into a plain directory:
+Create and run a *Fedora Linux* image into a plain directory:
 
 ```bash
 # mkosi -d fedora -t directory -o quux
@@ -1514,7 +1513,7 @@ EOF
 # systemd-nspawn -bi image.raw
 ```
 
-To create a *Fedora* image with hostname:
+To create a *Fedora Linux* image with hostname:
 ```bash
 # mkosi -d fedora --hostname image
 ```
@@ -1530,13 +1529,14 @@ Hostname=image
 
 # REQUIREMENTS
 
-mkosi is packaged for various distributions: Debian, Ubuntu, Arch Linux, Fedora, OpenMandriva.
-It is usually easiest to use the distribution package.
+mkosi is packaged for various distributions: Debian, Ubuntu, Arch
+Linux, Fedora Linux, OpenMandriva. It is usually easiest to use the
+distribution package.
 
 The current version requires systemd 233 (or actually, systemd-nspawn of it).
 
 When not using distribution packages make sure to install the
-necessary dependencies. For example, on *Fedora* you need:
+necessary dependencies. For example, on *Fedora Linux* you need:
 
 ```bash
 dnf install arch-install-scripts btrfs-progs debootstrap dosfstools edk2-ovmf e2fsprogs squashfs-tools gnupg python3 tar veritysetup xfsprogs xz zypper sbsigntools
