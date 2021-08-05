@@ -1180,6 +1180,13 @@ class LuksSetupOutput(NamedTuple):
     def empty(cls) -> "LuksSetupOutput":
         return cls(None, None, None, None, None)
 
+    def without_generated_root(self, args: CommandLineArguments) -> "LuksSetupOutput":
+        "A copy of self with .root optionally supressed"
+        return LuksSetupOutput(
+            None if is_generated_root(args) else self.root,
+            *self[1:],
+        )
+
 
 @contextlib.contextmanager
 def luks_setup_all(
@@ -1318,38 +1325,34 @@ def mount_image(
     args: CommandLineArguments,
     root: str,
     loopdev: Optional[str],
-    root_dev: Optional[str],
-    home_dev: Optional[str],
-    srv_dev: Optional[str],
-    var_dev: Optional[str],
-    tmp_dev: Optional[str],
+    image: LuksSetupOutput,
     root_read_only: bool = False,
 ) -> Generator[None, None, None]:
     with complete_step("Mounting image…"):
 
-        if root_dev is not None:
+        if image.root is not None:
             if args.usr_only:
                 # In UsrOnly mode let's have a bind mount at the top so that umount --recursive works nicely later
                 mount_bind(root)
-                mount_loop(args, root_dev, os.path.join(root, "usr"), root_read_only)
+                mount_loop(args, image.root, os.path.join(root, "usr"), root_read_only)
             else:
-                mount_loop(args, root_dev, root, root_read_only)
+                mount_loop(args, image.root, root, root_read_only)
         else:
             # always have a root of the tree as a mount point so we can
             # recursively unmount anything that ends up mounted there
             mount_bind(root, root)
 
-        if home_dev is not None:
-            mount_loop(args, home_dev, os.path.join(root, "home"))
+        if image.home is not None:
+            mount_loop(args, image.home, os.path.join(root, "home"))
 
-        if srv_dev is not None:
-            mount_loop(args, srv_dev, os.path.join(root, "srv"))
+        if image.srv is not None:
+            mount_loop(args, image.srv, os.path.join(root, "srv"))
 
-        if var_dev is not None:
-            mount_loop(args, var_dev, os.path.join(root, "var"))
+        if image.var is not None:
+            mount_loop(args, image.var, os.path.join(root, "var"))
 
-        if tmp_dev is not None:
-            mount_loop(args, tmp_dev, os.path.join(root, "var/tmp"))
+        if image.tmp is not None:
+            mount_loop(args, image.tmp, os.path.join(root, "var/tmp"))
 
         if args.esp_partno is not None and loopdev is not None:
             mount_loop(args, partition(loopdev, args.esp_partno), os.path.join(root, "efi"))
@@ -6292,11 +6295,7 @@ def build_image(
                 args,
                 root,
                 loopdev,
-                None if is_generated_root(args) else encrypted.root,
-                encrypted.home,
-                encrypted.srv,
-                encrypted.var,
-                encrypted.tmp,
+                encrypted.without_generated_root(args),
             ):
                 prepare_tree(args, root, do_run_build_script, cached)
                 if do_run_build_script and args.include_dir and not cached:
@@ -6350,11 +6349,7 @@ def build_image(
                 args,
                 root,
                 loopdev,
-                None if is_generated_root(args) and for_cache else encrypted.root,
-                encrypted.home,
-                encrypted.srv,
-                encrypted.var,
-                encrypted.tmp,
+                encrypted.without_generated_root(args),
                 root_read_only=True,
             )
 
