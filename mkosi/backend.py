@@ -25,6 +25,14 @@ from typing import (
     Union,
 )
 
+if sys.version_info >= (3, 8):
+    shell_join = shlex.join
+else:
+
+    def shell_join(cmd: List[str]) -> str:
+        return " ".join(shlex.quote(x) for x in cmd)
+
+
 # These types are only generic during type checking and not at runtime, leading
 # to a TypeError during compilation.
 # Let's be as strict as we can with the description for the usage we have.
@@ -395,7 +403,7 @@ def run_workspace_command(
     if result.returncode != 0:
         if "workspace-command" in ARG_DEBUG:
             run(cmdline, check=False)
-        die(f"Workspace command `{' '.join(cmd)}` returned non-zero exit code {result.returncode}.")
+        die(f"Workspace command {shell_join(cmd)} returned non-zero exit code {result.returncode}.")
 
 
 @contextlib.contextmanager
@@ -441,7 +449,7 @@ def spawn(
     **kwargs: Any,
 ) -> Popen:
     if "run" in ARG_DEBUG:
-        MkosiPrinter.info("+ " + " ".join(shlex.quote(x) for x in cmdline))
+        MkosiPrinter.info("+ {shell_join(cmdline)")
 
     if not stdout and not stderr:
         # Unless explicit redirection is done, print all subprocess
@@ -466,7 +474,7 @@ def run(
     **kwargs: Any,
 ) -> CompletedProcess:
     if "run" in ARG_DEBUG:
-        MkosiPrinter.info("+ " + " ".join(shlex.quote(x) for x in cmdline))
+        MkosiPrinter.info("+ {shell_join(cmdline)")
 
     if not stdout and not stderr:
         # Unless explicit redirection is done, print all subprocess
