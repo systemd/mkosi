@@ -1570,14 +1570,14 @@ def disable_pam_securetty(root: str) -> None:
     patch_file(os.path.join(root, "etc/pam.d/login"), _rm_securetty)
 
 
-def check_if_url_exists(url: str) -> bool:
+def url_exists(url: str) -> bool:
     req = urllib.request.Request(url, method="HEAD")
     try:
         if urllib.request.urlopen(req):
             return True
-        return False
-    except:  # NOQA: E722
-        return False
+    except Exception:
+        pass
+    return False
 
 
 def make_executable(path: str) -> None:
@@ -1975,7 +1975,7 @@ def install_fedora(args: CommandLineArguments, root: str, do_run_build_script: b
     if args.mirror:
         baseurl = urllib.parse.urljoin(args.mirror, f"releases/{args.release}/Everything/$basearch/os/")
         media = urllib.parse.urljoin(baseurl.replace("$basearch", arch), "media.repo")
-        if not check_if_url_exists(media):
+        if not url_exists(media):
             baseurl = urllib.parse.urljoin(args.mirror, f"development/{args.release}/Everything/$basearch/os/")
 
         release_url = f"baseurl={baseurl}"
