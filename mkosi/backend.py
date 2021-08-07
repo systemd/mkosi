@@ -25,6 +25,14 @@ from typing import (
     Union,
 )
 
+if sys.version_info >= (3, 8):
+    shell_join = shlex.join
+else:
+
+    def shell_join(cmd: List[str]) -> str:
+        return " ".join(shlex.quote(x) for x in cmd)
+
+
 # These types are only generic during type checking and not at runtime, leading
 # to a TypeError during compilation.
 # Let's be as strict as we can with the description for the usage we have.
@@ -330,7 +338,7 @@ def var_tmp(root: str) -> str:
 def mkdir_last(path: str, mode: int = 0o777) -> str:
     """Create directory path
 
-    Only the final component will be created, so this is different than mkdirs().
+    Only the final component will be created, so this is different than os.makedirs().
     """
     try:
         os.mkdir(path, mode)
@@ -395,7 +403,7 @@ def run_workspace_command(
     if result.returncode != 0:
         if "workspace-command" in ARG_DEBUG:
             run(cmdline, check=False)
-        die(f"Workspace command `{' '.join(cmd)}` returned non-zero exit code {result.returncode}.")
+        die(f"Workspace command {shell_join(cmd)} returned non-zero exit code {result.returncode}.")
 
 
 @contextlib.contextmanager
@@ -441,7 +449,7 @@ def spawn(
     **kwargs: Any,
 ) -> Popen:
     if "run" in ARG_DEBUG:
-        MkosiPrinter.info("+ " + " ".join(shlex.quote(x) for x in cmdline))
+        MkosiPrinter.info("+ {shell_join(cmdline)")
 
     if not stdout and not stderr:
         # Unless explicit redirection is done, print all subprocess
@@ -466,7 +474,7 @@ def run(
     **kwargs: Any,
 ) -> CompletedProcess:
     if "run" in ARG_DEBUG:
-        MkosiPrinter.info("+ " + " ".join(shlex.quote(x) for x in cmdline))
+        MkosiPrinter.info("+ {shell_join(cmdline)")
 
     if not stdout and not stderr:
         # Unless explicit redirection is done, print all subprocess
@@ -561,13 +569,23 @@ class MkosiPrinter:
 
     prefix = "‣ "
 
+    level = 0
+
     @classmethod
     def _print(cls, text: str) -> None:
         cls.out_file.write(text)
 
     @classmethod
     def print_step(cls, text: str) -> None:
-        cls._print(f"{cls.prefix}{cls.bold}{text}{cls.reset}\n")
+        prefix = cls.prefix + " " * cls.level
+        if sys.exc_info()[0]:
+            # We are falling through exception handling blocks.
+            # De-emphasize this step here, so the user can tell more
+            # easily which step generated the exception. The exception
+            # or error will only be printed after we finish cleanup.
+            cls._print(f"{prefix}({text})\n")
+        else:
+            cls._print(f"{prefix}{cls.bold}{text}{cls.reset}\n")
 
     @classmethod
     def info(cls, text: str) -> None:
@@ -576,3 +594,19 @@ class MkosiPrinter:
     @classmethod
     def warn(cls, text: str) -> None:
         cls._print(f"{cls.prefix}{cls.red}{text}{cls.reset}\n")
+
+    @classmethod
+    @contextlib.contextmanager
+    def complete_step(cls, text: str, text2: Optional[str] = None) -> Generator[List[Any], None, None]:
+        cls.print_step(text)
+
+        cls.level += 1
+        try:
+            args: List[Any] = []
+            yield args
+        finally:
+            cls.level -= 1
+            assert cls.level >= 0
+
+        if text2 is not None:
+            cls.print_step(text2.format(*args))
