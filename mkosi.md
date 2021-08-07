@@ -740,13 +740,14 @@ details see the table below.
 
 `--environment=`
 
-: Adds environment variables to the environment that the build script
-  is executed with. Takes a space-separated list of variable
-  assignments or just variable names. In the latter case, the values
-  of those variables will be passed through from the environment in
-  which `mkosi` was invoked. This option may be specified more than
-  once, in which case all listed variables will be set. If the same
-  variable is set twice, the later setting overrides the earlier one.
+: Adds variables to the environment that the
+  build/prepare/postinstall/finalize scripts are executed with. Takes
+  a space-separated list of variable assignments or just variable
+  names. In the latter case, the values of those variables will be
+  passed through from the environment in which `mkosi` was
+  invoked. This option may be specified more than once, in which case
+  all listed variables will be set. If the same variable is set twice,
+  the later setting overrides the earlier one.
 
 `--build-sources=`
 
