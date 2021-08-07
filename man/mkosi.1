@@ -755,11 +755,14 @@ below).
 \f[B]\f[CB]--build-environment=\f[B]\f[R]
 Adds environment variables to the environment that the build script is
 executed with.
-Takes a space-separated list of variable assignments.
+Takes a space-separated list of variable assignments or just variable
+names.
+In the latter case, the values of those variables will be passed through
+from the environment in which \f[C]mkosi\f[R] was invoked.
 This option may be specified more than once, in which case all listed
 variables will be set.
-If the same variable is set twice, the later setting will override the
-earlier setting.
+If the same variable is set twice, the later setting overrides the
+earlier one.
 .TP
 \f[B]\f[CB]--build-sources=\f[B]\f[R]
 Takes a path of a source tree to copy into the development image, if a

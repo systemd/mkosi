@@ -742,9 +742,11 @@ details see the table below.
 
 : Adds environment variables to the environment that the build script
   is executed with. Takes a space-separated list of variable
-  assignments. This option may be  specified more than once, in which
-  case all listed variables will be set. If the same variable is set
-  twice, the later setting will override the earlier setting.
+  assignments or just variable names. In the latter case, the values
+  of those variables will be passed through from the environment in
+  which `mkosi` was invoked. This option may be specified more than
+  once, in which case all listed variables will be set. If the same
+  variable is set twice, the later setting overrides the earlier one.
 
 `--build-sources=`
 

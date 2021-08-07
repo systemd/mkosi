@@ -4815,7 +4815,7 @@ def create_parser() -> ArgumentParserMkosi:
         dest="build_env",
         default=[],
         help="Set an environment variable when running the build script",
-        metavar="NAME=VALUE",
+        metavar="NAME[=VALUE]",
     )
     group.add_argument("--build-sources", help="Path for sources to build", metavar="PATH")
     group.add_argument("--build-dir", help=argparse.SUPPRESS, metavar="PATH")  # Compatibility option
@@ -5767,6 +5767,11 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
     if args.finalize_script is not None:
         check_valid_script(args.finalize_script)
         args.finalize_script = os.path.abspath(args.finalize_script)
+
+    for i in range(len(args.build_env)):
+        if "=" not in args.build_env[i]:
+            value = os.getenv(args.build_env[i], "")
+            args.build_env[i] += f"={value}"
 
     if args.cache_path is not None:
         args.cache_path = os.path.abspath(args.cache_path)
