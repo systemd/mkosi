@@ -210,7 +210,7 @@ class CommandLineArguments:
     skeleton_trees: List[str]
     remove_files: List[str]
     build_script: Optional[str]
-    build_env: List[str]
+    environment: List[str]
     build_sources: Optional[str]
     build_dir: Optional[str]
     include_dir: Optional[str]

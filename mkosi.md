@@ -738,7 +738,7 @@ details see the table below.
   `mkosi.build` file found in the local directory it is automatically
   used for this purpose (also see below).
 
-`--build-environment=`
+`--environment=`
 
 : Adds environment variables to the environment that the build script
   is executed with. Takes a space-separated list of variable
@@ -1127,7 +1127,7 @@ which settings file options.
 | `--skeleton-tree=`                | `[Packages]`            | `SkeletonTrees=`              |
 | `--remove-files=`                 | `[Packages]`            | `RemoveFiles=`                |
 | `--build-script=`                 | `[Packages]`            | `BuildScript=`                |
-| `--build-environment=`            | `[Packages]`            | `BuildEnvironment=`           |
+| `--environment=`                  | `[Packages]`            | `Environment=`                |
 | `--build-sources=`                | `[Packages]`            | `BuildSources=`               |
 | `--source-file-transfer=`         | `[Packages]`            | `SourceFileTransfer=`         |
 | `--source-file-transfer-final=`   | `[Packages]`            | `SourceFileTransferFinal=`    |

@@ -50,7 +50,7 @@ class MkosiConfig(object):
             "build_packages": [],
             "remove_files": [],
             "build_script": None,
-            "build_env": [],
+            "environment": [],
             "build_sources": None,
             "cache_path": None,
             "checksum": False,
@@ -282,7 +282,7 @@ class MkosiConfig(object):
             if "BuildScript" in mk_config_packages:
                 self.reference_config[job_name]["build_script"] = mk_config_packages["BuildScript"]
             if "BuildEnvironment" in mk_config_packages:
-                self.reference_config["build_env"] = mk_config_packages["BuildEnvironment"]
+                self.reference_config["environment"] = mk_config_packages["Environment"]
             if "BuildSources" in mk_config_packages:
                 self.reference_config[job_name]["build_sources"] = mk_config_packages["BuildSources"]
             if "SourceFileTransfer" in mk_config_packages:
