@@ -15,7 +15,9 @@ jobs:
     - uses: actions/checkout@v2
 
     - name: Install
-      run: python3 -m pip install pytest mypy types-dataclasses black isort
+      run: |
+        python3 -m pip install pytest mypy black isort
+        npm install -g pyright
 
     - name: Check formatting
       run: python3 -m black --check mkosi/ tests/
@@ -23,8 +25,11 @@ jobs:
     - name: Check that imports are sorted
       run: python3 -m isort --verbose --check-only mkosi/
 
-    - name: Type Checking
-      run: python3 -m mypy mkosi
+    - name: Type Checking (mypy)
+      run: python3 -m mypy --python-version 3.7 mkosi
+
+    - name: Type Checking (pyright)
+      run: pyright .
 
     - name: Unit Tests
       run: python3 -m pytest
@@ -67,8 +72,6 @@ jobs:
 
     - name: Test venv installation
       run: |
-        sudo apt-get update
-        sudo apt-get -y --no-install-recommends install python3-venv
         python3 -m venv testvenv
         testvenv/bin/python3 -m pip install .
         testvenv/bin/mkosi -h
