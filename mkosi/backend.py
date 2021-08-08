@@ -418,7 +418,7 @@ def do_delay_interrupt() -> Generator[None, None, None]:
     # user can always exit mkosi even if a subprocess hangs by pressing CTRL+C twice.
     interrupted = False
 
-    def handler(signal: int, frame: FrameType) -> None:
+    def handler(signal: int, frame: Optional[FrameType]) -> None:
         nonlocal interrupted
         if interrupted:
             raise KeyboardInterrupt()

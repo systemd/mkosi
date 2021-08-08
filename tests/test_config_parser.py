@@ -4,6 +4,7 @@ import configparser
 import copy
 import os
 
+from typing import Mapping, Any
 import pytest
 
 import mkosi
@@ -140,7 +141,7 @@ class MkosiConfig(object):
             "workspace_dir": None,
         }
 
-    def __eq__(self, other: [mkosi.CommandLineArguments]) -> bool:
+    def __eq__(self, other: Mapping[str, Any]) -> bool:
         """Compare the configuration returned by parse_args against self.reference_config"""
         if len(self.reference_config) != len(other):
             return False
@@ -179,7 +180,7 @@ class MkosiConfig(object):
         if prio < 1000:
             fname = "{:03d}_{}".format(prio, fname)
         config_parser = configparser.RawConfigParser()
-        config_parser.optionxform = str
+        config_parser.optionxform = lambda optionstr: str(optionstr)
 
         # Replace lists in dict before calling config_parser write file
         config_all_normalized = copy.deepcopy(config)
@@ -875,7 +876,7 @@ def test_builtin(tested_config, tmpdir):
     """Test if builtin config and reference config match"""
     with ChangeCwd(tmpdir.strpath):
         if "--all" in tested_config.cli_arguments:
-            with pytest.raises(mkosi.MkosiParseException):
+            with pytest.raises(mkosi.MkosiException):
                 args = mkosi.parse_args(tested_config.cli_arguments)
         else:
             args = mkosi.parse_args(tested_config.cli_arguments)
