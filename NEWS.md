@@ -1,5 +1,11 @@
 # mkosi Changelog
 
+## v11 (unreleased)
+
+- The `--build-environemnt` option was renamed to `--environment` and
+  extended to cover *all* invoked scripts, not just the `mkosi.build`.
+  The old name is still understood.
+
 ## v10
 
 - Minimum supported Python version is now 3.7.

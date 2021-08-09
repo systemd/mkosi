@@ -176,6 +176,116 @@ automatically bump the version after each successful build.
 \f[B]\f[CB]help\f[B]\f[R]
 This verb is equivalent to the \f[C]--help\f[R] switch documented below:
 it shows a brief usage explanation.
+.SS Execution flow
+.PP
+Execution flow for \f[C]mkosi build\f[R].
+Columns represent the execution context.
+Default values/calls are shown in parentheses.
+When building with \f[C]--incremental\f[R] mkosi creates a cache of the
+distribution installation for both images if not already existing and
+replaces the distribution installation in consecutive runs with data
+from the cached one.
+.IP
+.nf
+\f[C]
+            HOST            .          BUILD          .          FINAL
+                            .          IMAGE          .          IMAGE
+                            .                         .
+   start                    .                         .
+     |                      .                         .
+     v                      .                         .
+build script?  -------exists----->     copy           .
+     |                      .      skeleton trees     .
+     |                      .     (mkosi.skeleton/)   .
+    none                    .            |            .
+     |                      .            v            .
+     v                      .         install         .
+    skip                    .       distribution,     .
+ build image                .       packages and      .
+     |                      .      build packages,    .
+     |                      .           run           .
+     |                      .      prepare script     .
+     |                      .   (mkosi.prepare build) .
+     |                      .     or if incremental   .
+     |                      .  use cached build image .
+     |                      .            |            .
+     |                      .            v            .
+     |                      .          copy           .
+     |                      .       extra trees       .
+     |                      .      (mkosi.extra/)     .
+     |                      .            |            .
+     |                      .            v            .
+     |                      .          copy           .
+     |                      .      build sources      .
+     |                      .          (./)           .
+     |                      .            |            .
+     |                      .            v            .
+     |                      .           run           .
+     |                      .    postinstall script   .
+     |                      .  (mkosi.postinst build) .
+     |                      .            |            .
+     |         .-------------------------\[aq]            .
+     |         |            .                         .
+     |         v            .                         .
+     |        run           .                         .
+     |   finalize script    .                         .
+     |(mkosi.finalize build).                         .
+     |         |            .                         .
+     |         \[aq]-------------------------.            .
+     |                      .            |            .
+     |                      .            v            .
+     |                      .           run           .
+     |                      .       build script      .
+     |                      .      (mkosi.build)      .
+     |                      .            |            .
+     \[aq]-----------------------------------+------------------------.
+                            .                         .           |
+                            .                         .           v
+                            .                         .          copy
+                            .                         .     skeleton trees
+                            .                         .    (mkosi.skeleton/)
+                            .                         .           |
+                            .                         .           v
+                            .                         .        install
+                            .                         .      distribution
+                            .                         .      and packages,
+                            .                         .          run
+                            .                         .     prepare script
+                            .                         .  (mkosi.prepare final)
+                            .                         .    or if incremental
+                            .                         . use cached final image
+                            .                         .           |
+                            .                         .           v
+                            .                         .         copy
+                            .                         .      extra trees
+                            .                         .     (mkosi.extra/)
+                            .                         .           |
+                            .                         .           v
+                            .                         .         copy
+                            .                         .     build results
+                            .                         .           |
+                            .                         .           v
+                            .                         .          run
+                            .                         .    postinstall script
+                            .                         .  (mkosi.postinst final)
+                            .                         .           |
+               .--------------------------------------------------\[aq]
+               |            .                         .
+               v            .                         .
+              run           .                         .
+        finalize script     .                         .
+    (mkosi.finalize final)  .                         .
+               |            .                         .
+     .---------\[aq]            .                         .
+     |                      .                         .
+     v                      .                         .
+    end                     .                         .
+                            .                         .
+            HOST            .          BUILD          .          FINAL
+                            .          IMAGE          .          IMAGE
+                            .                         .
+\f[R]
+.fi
 .SS Command Line Parameters
 .PP
 The following command line parameters are understood.
@@ -642,14 +752,17 @@ If this option is not used, but the \f[C]mkosi.build\f[R] file found in
 the local directory it is automatically used for this purpose (also see
 below).
 .TP
-\f[B]\f[CB]--build-environment=\f[B]\f[R]
+\f[B]\f[CB]--environment=\f[B]\f[R]
 Adds environment variables to the environment that the build script is
 executed with.
-Takes a space-separated list of variable assignments.
+Takes a space-separated list of variable assignments or just variable
+names.
+In the latter case, the values of those variables will be passed through
+from the environment in which \f[C]mkosi\f[R] was invoked.
 This option may be specified more than once, in which case all listed
 variables will be set.
-If the same variable is set twice, the later setting will override the
-earlier setting.
+If the same variable is set twice, the later setting overrides the
+earlier one.
 .TP
 \f[B]\f[CB]--build-sources=\f[B]\f[R]
 Takes a path of a source tree to copy into the development image, if a
@@ -1327,11 +1440,11 @@ T}@T{
 \f[C]BuildScript=\f[R]
 T}
 T{
-\f[C]--build-environment=\f[R]
+\f[C]--environment=\f[R]
 T}@T{
 \f[C][Packages]\f[R]
 T}@T{
-\f[C]BuildEnvironment=\f[R]
+\f[C]Environment=\f[R]
 T}
 T{
 \f[C]--build-sources=\f[R]

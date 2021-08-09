@@ -738,13 +738,16 @@ details see the table below.
   `mkosi.build` file found in the local directory it is automatically
   used for this purpose (also see below).
 
-`--build-environment=`
+`--environment=`
 
-: Adds environment variables to the environment that the build script
-  is executed with. Takes a space-separated list of variable
-  assignments. This option may be  specified more than once, in which
-  case all listed variables will be set. If the same variable is set
-  twice, the later setting will override the earlier setting.
+: Adds variables to the environment that the
+  build/prepare/postinstall/finalize scripts are executed with. Takes
+  a space-separated list of variable assignments or just variable
+  names. In the latter case, the values of those variables will be
+  passed through from the environment in which `mkosi` was
+  invoked. This option may be specified more than once, in which case
+  all listed variables will be set. If the same variable is set twice,
+  the later setting overrides the earlier one.
 
 `--build-sources=`
 
@@ -1125,7 +1128,7 @@ which settings file options.
 | `--skeleton-tree=`                | `[Packages]`            | `SkeletonTrees=`              |
 | `--remove-files=`                 | `[Packages]`            | `RemoveFiles=`                |
 | `--build-script=`                 | `[Packages]`            | `BuildScript=`                |
-| `--build-environment=`            | `[Packages]`            | `BuildEnvironment=`           |
+| `--environment=`                  | `[Packages]`            | `Environment=`                |
 | `--build-sources=`                | `[Packages]`            | `BuildSources=`               |
 | `--source-file-transfer=`         | `[Packages]`            | `SourceFileTransfer=`         |
 | `--source-file-transfer-final=`   | `[Packages]`            | `SourceFileTransferFinal=`    |

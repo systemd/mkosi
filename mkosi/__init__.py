@@ -3098,12 +3098,14 @@ def nspawn_params_for_build_sources(args: CommandLineArguments, sft: SourceFileT
         params.append("--setenv=SRCDIR=/root/src")
         params.append("--chdir=/root/src")
         if sft == SourceFileTransfer.mount:
-            params.append("--bind=" + args.build_sources + ":/root/src")
+            params.append(f"--bind={args.build_sources}:/root/src")
 
         if args.read_only:
             params.append("--overlay=+/root/src::/root/src")
     else:
         params.append("--chdir=/root")
+
+    params.extend(f"--setenv={env}" for env in args.environment)
 
     return params
 
@@ -3180,7 +3182,8 @@ def run_finalize_script(args: CommandLineArguments, root: str, do_run_build_scri
     verb = "build" if do_run_build_script else "final"
 
     with complete_step("Running finalize script…"):
-        env = collections.ChainMap({"BUILDROOT": root, "OUTPUTDIR": output_dir(args)}, os.environ)
+        env = dict(cast(Tuple[str, str], v.split("=", maxsplit=1)) for v in args.environment)
+        env = collections.ChainMap(dict(BUILDROOT=root, OUTPUTDIR=output_dir(args)), env, os.environ)
         run([args.finalize_script, verb], env=env)
 
 
@@ -4810,12 +4813,19 @@ def create_parser() -> ArgumentParserMkosi:
     )
     group.add_argument("--build-script", help="Build script to run inside image", metavar="PATH")
     group.add_argument(
-        "--build-environment",
+        "--environment",
+        "-E",
         action=SpaceDelimitedListAction,
-        dest="build_env",
         default=[],
-        help="Set an environment variable when running the build script",
-        metavar="NAME=VALUE",
+        help="Set an environment variable when running scripts",
+        metavar="NAME[=VALUE]",
+    )
+    group.add_argument(
+        "--build-environment",  # Compatibility option
+        action=SpaceDelimitedListAction,
+        default=[],
+        dest="environment",
+        help=argparse.SUPPRESS,
     )
     group.add_argument("--build-sources", help="Path for sources to build", metavar="PATH")
     group.add_argument("--build-dir", help=argparse.SUPPRESS, metavar="PATH")  # Compatibility option
@@ -5768,6 +5778,11 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
         check_valid_script(args.finalize_script)
         args.finalize_script = os.path.abspath(args.finalize_script)
 
+    for i in range(len(args.environment)):
+        if "=" not in args.environment[i]:
+            value = os.getenv(args.environment[i], "")
+            args.environment[i] += f"={value}"
+
     if args.cache_path is not None:
         args.cache_path = os.path.abspath(args.cache_path)
 
@@ -6052,7 +6067,7 @@ def print_summary(args: CommandLineArguments) -> None:
     if args.remove_files:
         MkosiPrinter.info("              Remove Files: " + line_join_list(args.remove_files))
     MkosiPrinter.info("              Build Script: " + none_to_none(args.build_script))
-    MkosiPrinter.info("         Build Environment: " + line_join_list(args.build_env))
+    MkosiPrinter.info("        Script Environment: " + line_join_list(args.environment))
 
     if args.build_script:
         MkosiPrinter.info("                 Run tests: " + yes_no(args.with_tests))
@@ -6405,8 +6420,7 @@ def run_build_script(args: CommandLineArguments, root: str, raw: Optional[Binary
             "--setenv=DESTDIR=/root/dest",
         ]
 
-        for env in args.build_env:
-            cmdline.append(f"--setenv={env}")
+        cmdline.extend(f"--setenv={env}" for env in args.environment)
 
         # TODO: Use --autopipe once systemd v247 is widely available.
         console_arg = f"--console={'interactive' if sys.stdout.isatty() else 'pipe'}"
