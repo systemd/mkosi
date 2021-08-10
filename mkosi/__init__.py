@@ -87,6 +87,7 @@ from .backend import (
     workspace,
     write_grub_config,
 )
+from .manifest import Manifest
 
 complete_step = MkosiPrinter.complete_step
 
@@ -4292,6 +4293,23 @@ def dir_size(path: str) -> int:
     return dir_sum
 
 
+def save_manifest(args: CommandLineArguments, manifest: Manifest) -> None:
+    if manifest.has_data():
+        with complete_step(f"Saving manifest {args.output}.manifest"):
+            f: TextIO = cast(
+                TextIO,
+                tempfile.NamedTemporaryFile(
+                    mode="w+",
+                    encoding="utf-8",
+                    prefix=".mkosi-",
+                    dir=os.path.dirname(args.output),
+                ),
+            )
+            with f:
+                manifest.write_json(f)
+                _link_output(args, f.name, f"{args.output}.manifest")
+
+
 def print_output_size(args: CommandLineArguments) -> None:
     if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
         MkosiPrinter.print_step("Resulting image size is " + format_bytes(dir_size(args.output)) + ".")
@@ -5286,6 +5304,7 @@ def unlink_output(args: CommandLineArguments) -> None:
     if not args.skip_final_phase:
         with complete_step("Removing output files…"):
             unlink_try_hard(args.output)
+            unlink_try_hard(f"{args.output}.manifest")
 
             if args.checksum:
                 unlink_try_hard(args.output_checksum)
@@ -6260,7 +6279,13 @@ class BuildOutput:
 
 
 def build_image(
-    args: CommandLineArguments, root: str, *, do_run_build_script: bool, for_cache: bool = False, cleanup: bool = False
+    args: CommandLineArguments,
+    root: str,
+    *,
+    manifest: Optional[Manifest] = None,
+    do_run_build_script: bool,
+    for_cache: bool = False,
+    cleanup: bool = False,
 ) -> BuildOutput:
     # If there's no build script set, there's no point in executing
     # the build script iteration. Let's quit early.
@@ -6334,6 +6359,10 @@ def build_image(
                 sshkey = setup_ssh(args, root, do_run_build_script, for_cache, cached_tree)
                 setup_network_veth(args, root, do_run_build_script, cached_tree)
                 run_postinst_script(args, root, loopdev, do_run_build_script, for_cache)
+
+                if manifest:
+                    with complete_step("Recording packages in manifest…"):
+                        manifest.record_packages(root)
 
                 if cleanup:
                     clean_package_manager_metadata(root)
@@ -6509,12 +6538,13 @@ def remove_artifacts(
             unlink_try_hard(root_home(args, root))
 
 
-def build_stuff(args: CommandLineArguments) -> None:
+def build_stuff(args: CommandLineArguments) -> Manifest:
     make_output_dir(args)
     setup_package_cache(args)
     workspace = setup_workspace(args)
 
     image = BuildOutput.empty()
+    manifest = Manifest(args)
 
     # Make sure tmpfiles' aging doesn't interfere with our workspace
     # while we are working on it.
@@ -6553,7 +6583,7 @@ def build_stuff(args: CommandLineArguments) -> None:
         # Run the image builder for the second (final) stage
         if not args.skip_final_phase:
             with complete_step("Running second (final) stage…"):
-                image = build_image(args, root, do_run_build_script=False, cleanup=True)
+                image = build_image(args, root, manifest=manifest, do_run_build_script=False, cleanup=True)
         else:
             MkosiPrinter.print_step("Skipping (second) final image build phase.")
 
@@ -6584,6 +6614,8 @@ def build_stuff(args: CommandLineArguments) -> None:
 
         if image.root_hash is not None:
             MkosiPrinter.print_step(f"Root hash is {image.root_hash}.")
+
+        return manifest
 
 
 def check_root() -> None:
@@ -7120,11 +7152,14 @@ def run_verb(raw: argparse.Namespace) -> None:
         check_root()
         check_native(args)
         init_namespace(args)
-        build_stuff(args)
-        print_output_size(args)
+        manifest = build_stuff(args)
 
         if args.auto_bump:
             bump_image_version(args)
+
+        save_manifest(args, manifest)
+
+        print_output_size(args)
 
     if args.verb in ("shell", "boot"):
         run_shell(args)
