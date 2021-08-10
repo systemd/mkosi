@@ -31,9 +31,34 @@ class PackageManifest:
 
 
 @dataclasses.dataclass
+class SourcePackageManifest:
+    name: str
+    changelog: Optional[str]
+    packages: List[PackageManifest] = dataclasses.field(default_factory=list)
+
+    def add(self, package: PackageManifest) -> None:
+        self.packages.append(package)
+
+    def report(self) -> str:
+        size = sum(p.size for p in self.packages)
+
+        t = dedent(
+            f"""\
+            SourcePackage: {self.name}
+            Packages:      {" ".join(p.name for p in self.packages)}
+            Size:          {size}
+            """
+        )
+        if self.changelog:
+            t += f"""\nChangelog:\n{self.changelog}\n"""
+        return t
+
+
+@dataclasses.dataclass
 class Manifest:
     args: CommandLineArguments
     packages: List[PackageManifest] = dataclasses.field(default_factory=list)
+    source_packages: Dict[str, SourcePackageManifest] = dataclasses.field(default_factory=dict)
 
     def record_packages(self, root: str) -> None:
         if cast(Any, self.args.distribution).package_type == PackageType.rpm:
@@ -58,8 +83,21 @@ class Manifest:
 
             size = int(size)
 
+            source = self.source_packages.get(srpm)
+            if source is None:
+                c = run(
+                    ["rpm", f"--root={root}", "-q", "--changelog", nevra],
+                    stdout=PIPE,
+                    stderr=DEVNULL,
+                    universal_newlines=True,
+                )
+                changelog = c.stdout.strip()
+                source = SourcePackageManifest(srpm, changelog)
+                self.source_packages[srpm] = source
+
             package = PackageManifest("rpm", name, evra, size)
             self.packages.append(package)
+            source.add(package)
 
     def has_data(self) -> bool:
         # We might add more data in the future
@@ -72,3 +110,18 @@ class Manifest:
 
     def write_json(self, out: IO[str]) -> None:
         json.dump(self.as_dict(), out, indent=2)
+
+    def write_package_report(self, out: IO[str]) -> None:
+        """Create a human-readable report about packages
+
+        This is modelled after "Fedora compose reports" that are sent
+        to fedora-devel. The format describes added and removed
+        packages, and includes the changelogs. A diff between two such
+        reports shows what changed *in* the packages quite nicely.
+        """
+        print(f"Packages: {len(self.packages)}", file=out)
+        print(f"Size:     {sum(p.size for p in self.packages)}", file=out)
+
+        for package in self.source_packages.values():
+            print(f"\n{80*'-'}\n", file=out)
+            out.write(package.report())

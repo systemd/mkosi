@@ -4309,6 +4309,20 @@ def save_manifest(args: CommandLineArguments, manifest: Manifest) -> None:
                 manifest.write_json(f)
                 _link_output(args, f.name, f"{args.output}.manifest")
 
+        with complete_step(f"Saving report {args.output}.packages"):
+            g: TextIO = cast(
+                TextIO,
+                tempfile.NamedTemporaryFile(
+                    mode="w+",
+                    encoding="utf-8",
+                    prefix=".mkosi-",
+                    dir=os.path.dirname(args.output),
+                ),
+            )
+            with g:
+                manifest.write_package_report(g)
+                _link_output(args, g.name, f"{args.output}.packages")
+
 
 def print_output_size(args: CommandLineArguments) -> None:
     if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
@@ -5305,6 +5319,7 @@ def unlink_output(args: CommandLineArguments) -> None:
         with complete_step("Removing output files…"):
             unlink_try_hard(args.output)
             unlink_try_hard(f"{args.output}.manifest")
+            unlink_try_hard(f"{args.output}.packages")
 
             if args.checksum:
                 unlink_try_hard(args.output_checksum)
