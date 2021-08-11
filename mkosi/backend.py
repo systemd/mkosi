@@ -23,6 +23,7 @@ from typing import (
     NoReturn,
     Optional,
     Union,
+    cast,
 )
 
 if sys.version_info >= (3, 8):
@@ -52,18 +53,34 @@ class MkosiException(Exception):
 ARG_DEBUG = ()
 
 
+class PackageType(enum.Enum):
+    rpm = 1
+    deb = 2
+    pkg = 3
+    bundle = 4
+
+
 class Distribution(enum.Enum):
-    fedora = 1
-    debian = 2
-    ubuntu = 3
-    arch = 4
-    opensuse = 5
-    mageia = 6
-    centos = 7
-    centos_epel = 8
-    clear = 9
-    photon = 10
-    openmandriva = 11
+    fedora = 0, PackageType.rpm
+    debian = 1, PackageType.deb
+    ubuntu = 2, PackageType.deb
+    arch = 3, PackageType.pkg
+    opensuse = 4, PackageType.rpm
+    mageia = 5, PackageType.rpm
+    centos = 6, PackageType.rpm
+    centos_epel = 7, PackageType.rpm
+    clear = 8, PackageType.bundle
+    photon = 9, PackageType.rpm
+    openmandriva = 10, PackageType.rpm
+
+    def __new__(cls, number: int, package_type: PackageType) -> "Distribution":
+        # This turns the list above into enum entries with .package_type attributes.
+        # See https://docs.python.org/3.9/library/enum.html#when-to-use-new-vs-init
+        # for an explanation.
+        entry = object.__new__(cls)
+        entry._value_ = number
+        entry.package_type = package_type
+        return cast("Distribution", entry)
 
     def __str__(self) -> str:
         return self.name
