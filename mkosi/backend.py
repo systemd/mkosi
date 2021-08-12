@@ -72,6 +72,10 @@ class Parseable:
         except KeyError:
             raise argparse.ArgumentTypeError(f"unknown Format: {name!r}")
 
+    @classmethod
+    def parse_list(cls: Any, string: str) -> List[Any]:
+        return [cls.from_string(p) for p in string.split(",") if p]
+
 
 class PackageType(enum.Enum):
     rpm = 1
@@ -180,6 +184,11 @@ class OutputFormat(Parseable, enum.Enum):
         return self.is_squashfs() or self.is_btrfs()
 
 
+class ManifestFormat(Parseable, enum.Enum):
+    json = "json"  # the standard manifest in json format
+    changelog = "changelog"  # human-readable text file with package changelogs
+
+
 @dataclasses.dataclass
 class CommandLineArguments:
     """Type-hinted storage for command line arguments."""
@@ -193,6 +202,7 @@ class CommandLineArguments:
     repositories: List[str]
     architecture: Optional[str]
     output_format: OutputFormat
+    manifest_format: List[ManifestFormat]
     output: str
     output_dir: Optional[str]
     force_count: int

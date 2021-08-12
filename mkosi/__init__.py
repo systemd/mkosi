@@ -66,6 +66,7 @@ from .backend import (
     ARG_DEBUG,
     CommandLineArguments,
     Distribution,
+    ManifestFormat,
     MkosiException,
     MkosiPrinter,
     OutputFormat,
@@ -4304,33 +4305,35 @@ def save_manifest(args: CommandLineArguments, manifest: Manifest) -> None:
     if manifest.has_data():
         relpath = path_relative_to_cwd(args.output)
 
-        with complete_step(f"Saving manifest {relpath}.manifest"):
-            f: TextIO = cast(
-                TextIO,
-                tempfile.NamedTemporaryFile(
-                    mode="w+",
-                    encoding="utf-8",
-                    prefix=".mkosi-",
-                    dir=os.path.dirname(args.output),
-                ),
-            )
-            with f:
-                manifest.write_json(f)
-                _link_output(args, f.name, f"{args.output}.manifest")
+        if ManifestFormat.json in args.manifest_format:
+            with complete_step(f"Saving manifest {relpath}.manifest"):
+                f: TextIO = cast(
+                    TextIO,
+                    tempfile.NamedTemporaryFile(
+                        mode="w+",
+                        encoding="utf-8",
+                        prefix=".mkosi-",
+                        dir=os.path.dirname(args.output),
+                    ),
+                )
+                with f:
+                    manifest.write_json(f)
+                    _link_output(args, f.name, f"{args.output}.manifest")
 
-        with complete_step(f"Saving report {relpath}.packages"):
-            g: TextIO = cast(
-                TextIO,
-                tempfile.NamedTemporaryFile(
-                    mode="w+",
-                    encoding="utf-8",
-                    prefix=".mkosi-",
-                    dir=os.path.dirname(args.output),
-                ),
-            )
-            with g:
-                manifest.write_package_report(g)
-                _link_output(args, g.name, f"{relpath}.packages")
+        if ManifestFormat.changelog in args.manifest_format:
+            with complete_step(f"Saving report {relpath}.packages"):
+                g: TextIO = cast(
+                    TextIO,
+                    tempfile.NamedTemporaryFile(
+                        mode="w+",
+                        encoding="utf-8",
+                        prefix=".mkosi-",
+                        dir=os.path.dirname(args.output),
+                    ),
+                )
+                with g:
+                    manifest.write_package_report(g)
+                    _link_output(args, g.name, f"{relpath}.packages")
 
 
 def print_output_size(args: CommandLineArguments) -> None:
@@ -4666,6 +4669,12 @@ def create_parser() -> ArgumentParserMkosi:
         choices=OutputFormat,
         type=OutputFormat.from_string,
         help="Output Format",
+    )
+    group.add_argument(
+        "--manifest-format",
+        action=CommaDelimitedListAction,
+        type=cast(Callable[[str], ManifestFormat], ManifestFormat.parse_list),
+        help="Manifest Format",
     )
     group.add_argument("-o", "--output", help="Output image path", metavar="PATH")
     group.add_argument(
@@ -5736,6 +5745,9 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
         else:
             args.output = prefix
 
+    if args.manifest_format is None:
+        args.manifest_format = [ManifestFormat.json]
+
     if args.output_dir is not None:
         args.output_dir = os.path.abspath(args.output_dir)
 
@@ -6046,6 +6058,8 @@ def print_summary(args: CommandLineArguments) -> None:
     if args.image_version is not None:
         MkosiPrinter.info("             Image Version: " + args.image_version)
     MkosiPrinter.info("             Output Format: " + args.output_format.name)
+    maniformats = (" ".join(str(i) for i in args.manifest_format)) or "(none)"
+    MkosiPrinter.info("          Manifest Formats: " + maniformats)
     if args.output_format.can_minimize():
         MkosiPrinter.info("                  Minimize: " + yes_no(args.minimize))
     if args.output_dir:

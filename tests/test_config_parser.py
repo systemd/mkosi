@@ -76,6 +76,7 @@ class MkosiConfig(object):
             "install_dir": None,
             "kernel_command_line": ["rhgb", "selinux=0", "audit=0"],
             "key": None,
+            "manifest_format": None,
             "mirror": None,
             "mksquashfs_tool": [],
             "no_chown": False,
@@ -215,6 +216,8 @@ class MkosiConfig(object):
                 self.reference_config[job_name]["output_format"] = mkosi.OutputFormat.from_string(
                     mk_config_output["Format"]
                 )
+            if "ManifestFormat" in mk_config_output:
+                self.reference_config[job_name]["manifest_format"] = mk_config_output["ManifestFormat"]
             if "Output" in mk_config_output:
                 self.reference_config[job_name]["output"] = mk_config_output["Output"]
             if "Force" in mk_config_output:
@@ -512,6 +515,7 @@ class MkosiConfigManyParams(MkosiConfigOne):
             "Output": {
                 "Format": "gpt_ext4",
                 "Output": "test_image.raw",
+                "ManifestFormat": [mkosi.backend.ManifestFormat.json],
                 #                 # 'OutputDirectory': '',
                 "Bootable": False,
                 "BootProtocols": "uefi",
