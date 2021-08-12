@@ -7113,7 +7113,7 @@ def run_verb(raw: argparse.Namespace) -> None:
     if args.verb == "build":
         check_output(args)
 
-    if args.verb == "summary" or (needs_build(args) and need_cache_images(args)):
+    if args.verb == "summary":
         print_summary(args)
 
     if needs_build(args):
