@@ -4359,6 +4359,12 @@ def setup_package_cache(args: CommandLineArguments) -> Optional[TempDir]:
     return d
 
 
+def remove_duplicates(items: List[T]) -> List[T]:
+    "Return list with any repetitions removed"
+    # We use a dictionary to simulate an ordered set
+    return list({x: None for x in items})
+
+
 class ListAction(argparse.Action):
     delimiter: str
 
@@ -4395,11 +4401,13 @@ class ListAction(argparse.Action):
             # Remove ! prefixed list entries from list. !* removes all entries. This works for strings only now.
             if x == "!*":
                 ary = []
-            elif x.startswith("!"):
+            elif isinstance(x, str) and x.startswith("!"):
                 if x[1:] in ary:
                     ary.remove(x[1:])
             else:
                 ary.append(x)
+
+        ary = remove_duplicates(ary)
         setattr(namespace, self.dest, ary)
 
 

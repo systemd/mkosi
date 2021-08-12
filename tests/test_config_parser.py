@@ -168,7 +168,7 @@ class MkosiConfig(object):
             if isinstance(arg, str) and arg.startswith("!"):
                 if arg[1:] in self.reference_config[job_name][ref_entry]:
                     self.reference_config[job_name][ref_entry].remove(arg[1:])
-            else:
+            elif arg not in self.reference_config[job_name][ref_entry]:
                 self.reference_config[job_name][ref_entry].append(arg)
 
     @staticmethod
@@ -186,7 +186,7 @@ class MkosiConfig(object):
         for section, key_val in config_all_normalized.items():
             for key, val in key_val.items():
                 if isinstance(val, list):
-                    config_all_normalized[section][key] = os.linesep.join(val)
+                    config_all_normalized[section][key] = os.linesep.join(str(item) for item in val)
 
         config_parser.read_dict(config_all_normalized)
         with open(os.path.join(dname, fname), "w") as f_ini:
