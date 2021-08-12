@@ -76,6 +76,7 @@ from .backend import (
     nspawn_params_for_blockdev_access,
     partition,
     patch_file,
+    path_relative_to_cwd,
     run,
     run_workspace_command,
     should_compress_fs,
@@ -4162,7 +4163,7 @@ def save_cache(args: CommandLineArguments, root: str, raw: Optional[str], cache_
         if cache_path is None:
             return
 
-    with complete_step("Installing cache copy…", f"Successfully installed cache copy {cache_path}"):
+    with complete_step("Installing cache copy…", f"Installed cache copy {path_relative_to_cwd(cache_path)}"):
 
         if disk_rw:
             assert raw is not None
@@ -4187,16 +4188,18 @@ def _link_output(args: CommandLineArguments, oldpath: str, newpath: str) -> None
     if not (sudo_uid and sudo_gid):
         return
 
+    relpath = path_relative_to_cwd(newpath)
+
     sudo_user = os.getenv("SUDO_USER", default=sudo_uid)
     with complete_step(
-        f"Changing ownership of output file {newpath} to user {sudo_user} (acquired from sudo)…",
-        f"Successfully changed ownership of {newpath}",
+        f"Changing ownership of output file {relpath} to user {sudo_user} (acquired from sudo)…",
+        f"Changed ownership of {relpath}",
     ):
         os.chown(newpath, int(sudo_uid), int(sudo_gid))
 
 
 def link_output(args: CommandLineArguments, root: str, artifact: Optional[BinaryIO]) -> None:
-    with complete_step("Linking image file…", f"Successfully linked {args.output}"):
+    with complete_step("Linking image file…", f"Linked {path_relative_to_cwd(args.output)}"):
         if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
             assert artifact is None
 
@@ -4216,14 +4219,16 @@ def link_output(args: CommandLineArguments, root: str, artifact: Optional[Binary
 def link_output_nspawn_settings(args: CommandLineArguments, path: Optional[SomeIO]) -> None:
     if path:
         assert args.output_nspawn_settings
-        with complete_step("Linking nspawn settings file…", f"Successfully linked {args.output_nspawn_settings}"):
+        with complete_step(
+            "Linking nspawn settings file…", f"Linked {path_relative_to_cwd(args.output_nspawn_settings)}"
+        ):
             _link_output(args, path.name, args.output_nspawn_settings)
 
 
 def link_output_checksum(args: CommandLineArguments, checksum: Optional[SomeIO]) -> None:
     if checksum:
         assert args.output_checksum
-        with complete_step("Linking SHA256SUMS file…", f"Successfully linked {args.output_checksum}"):
+        with complete_step("Linking SHA256SUMS file…", f"Linked {path_relative_to_cwd(args.output_checksum)}"):
             _link_output(args, checksum.name, args.output_checksum)
 
 
@@ -4231,28 +4236,28 @@ def link_output_root_hash_file(args: CommandLineArguments, root_hash_file: Optio
     if root_hash_file:
         assert args.output_root_hash_file
         suffix = roothash_suffix(args.usr_only)
-        with complete_step(f"Linking {suffix} file…", f"Successfully linked {args.output_root_hash_file}"):
+        with complete_step(f"Linking {suffix} file…", f"Linked {path_relative_to_cwd(args.output_root_hash_file)}"):
             _link_output(args, root_hash_file.name, args.output_root_hash_file)
 
 
 def link_output_signature(args: CommandLineArguments, signature: Optional[SomeIO]) -> None:
     if signature:
         assert args.output_signature is not None
-        with complete_step("Linking SHA256SUMS.gpg file…", f"Successfully linked {args.output_signature}"):
+        with complete_step("Linking SHA256SUMS.gpg file…", f"Linked {path_relative_to_cwd(args.output_signature)}"):
             _link_output(args, signature.name, args.output_signature)
 
 
 def link_output_bmap(args: CommandLineArguments, bmap: Optional[SomeIO]) -> None:
     if bmap:
         assert args.output_bmap
-        with complete_step("Linking .bmap file…", f"Successfully linked {args.output_bmap}"):
+        with complete_step("Linking .bmap file…", f"Linked {path_relative_to_cwd(args.output_bmap)}"):
             _link_output(args, bmap.name, args.output_bmap)
 
 
 def link_output_sshkey(args: CommandLineArguments, sshkey: Optional[SomeIO]) -> None:
     if sshkey:
         assert args.output_sshkey
-        with complete_step("Linking private ssh key file…", f"Successfully linked {args.output_sshkey}"):
+        with complete_step("Linking private ssh key file…", f"Linked {path_relative_to_cwd(args.output_sshkey)}"):
             _link_output(args, sshkey.name, args.output_sshkey)
             os.chmod(args.output_sshkey, 0o600)
 
@@ -4260,21 +4265,23 @@ def link_output_sshkey(args: CommandLineArguments, sshkey: Optional[SomeIO]) -> 
 def link_output_split_root(args: CommandLineArguments, split_root: Optional[SomeIO]) -> None:
     if split_root:
         assert args.output_split_root
-        with complete_step("Linking split root file system…", f"Successfully linked {args.output_split_root}"):
+        with complete_step(
+            "Linking split root file system…", f"Linked {path_relative_to_cwd(args.output_split_root)}"
+        ):
             _link_output(args, split_root.name, args.output_split_root)
 
 
 def link_output_split_verity(args: CommandLineArguments, split_verity: Optional[SomeIO]) -> None:
     if split_verity:
         assert args.output_split_verity
-        with complete_step("Linking split Verity data…", f"Successfully linked {args.output_split_verity}"):
+        with complete_step("Linking split Verity data…", f"Linked {path_relative_to_cwd(args.output_split_verity)}"):
             _link_output(args, split_verity.name, args.output_split_verity)
 
 
 def link_output_split_kernel(args: CommandLineArguments, split_kernel: Optional[SomeIO]) -> None:
     if split_kernel:
         assert args.output_split_kernel
-        with complete_step("Linking split kernel image…", f"Successfully linked {args.output_split_kernel}"):
+        with complete_step("Linking split kernel image…", f"Linked {path_relative_to_cwd(args.output_split_kernel)}"):
             _link_output(args, split_kernel.name, args.output_split_kernel)
 
 
@@ -4295,7 +4302,9 @@ def dir_size(path: str) -> int:
 
 def save_manifest(args: CommandLineArguments, manifest: Manifest) -> None:
     if manifest.has_data():
-        with complete_step(f"Saving manifest {args.output}.manifest"):
+        relpath = path_relative_to_cwd(args.output)
+
+        with complete_step(f"Saving manifest {relpath}.manifest"):
             f: TextIO = cast(
                 TextIO,
                 tempfile.NamedTemporaryFile(
@@ -4309,7 +4318,7 @@ def save_manifest(args: CommandLineArguments, manifest: Manifest) -> None:
                 manifest.write_json(f)
                 _link_output(args, f.name, f"{args.output}.manifest")
 
-        with complete_step(f"Saving report {args.output}.packages"):
+        with complete_step(f"Saving report {relpath}.packages"):
             g: TextIO = cast(
                 TextIO,
                 tempfile.NamedTemporaryFile(
@@ -4321,7 +4330,7 @@ def save_manifest(args: CommandLineArguments, manifest: Manifest) -> None:
             )
             with g:
                 manifest.write_package_report(g)
-                _link_output(args, g.name, f"{args.output}.packages")
+                _link_output(args, g.name, f"{relpath}.packages")
 
 
 def print_output_size(args: CommandLineArguments) -> None:

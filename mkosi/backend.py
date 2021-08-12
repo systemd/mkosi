@@ -5,6 +5,7 @@ import contextlib
 import dataclasses
 import enum
 import os
+import pathlib
 import shlex
 import shutil
 import signal
@@ -526,6 +527,16 @@ def patch_file(filepath: str, line_rewriter: Callable[[str], str]) -> None:
     shutil.copystat(filepath, temp_new_filepath)
     os.remove(filepath)
     shutil.move(temp_new_filepath, filepath)
+
+
+def path_relative_to_cwd(path: str) -> pathlib.Path:
+    "Return path as relative to $PWD if underneath, absolute path otherwise"
+
+    path = pathlib.Path(path)
+    try:
+        return path.relative_to(os.getcwd())
+    except ValueError:
+        return path
 
 
 def write_grub_config(args: CommandLineArguments, root: str) -> None:
