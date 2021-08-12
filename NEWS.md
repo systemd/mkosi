@@ -2,7 +2,7 @@
 
 ## v11 (unreleased)
 
-- The `--build-environemnt` option was renamed to `--environment` and
+- The `--build-environment=` option was renamed to `--environment=` and
   extended to cover *all* invoked scripts, not just the `mkosi.build`.
   The old name is still understood.
 
