@@ -54,6 +54,25 @@ class MkosiException(Exception):
 ARG_DEBUG = ()
 
 
+class Parseable:
+    "A mix-in to provide conversions for argparse"
+
+    def __repr__(self) -> str:
+        """Return the member name without the class name"""
+        return cast(str, getattr(self, "name"))
+
+    def __str__(self) -> str:
+        return self.__repr__()
+
+    @classmethod
+    def from_string(cls: Any, name: str) -> Any:
+        """A convenience method to be used with argparse"""
+        try:
+            return cls[name]
+        except KeyError:
+            raise argparse.ArgumentTypeError(f"unknown Format: {name!r}")
+
+
 class PackageType(enum.Enum):
     rpm = 1
     deb = 2
@@ -108,7 +127,7 @@ class SourceFileTransfer(enum.Enum):
         }
 
 
-class OutputFormat(enum.Enum):
+class OutputFormat(Parseable, enum.Enum):
     directory = enum.auto()
     subvolume = enum.auto()
     tar = enum.auto()
@@ -126,22 +145,6 @@ class OutputFormat(enum.Enum):
     raw_xfs = gpt_xfs
     raw_btrfs = gpt_btrfs
     raw_squashfs = gpt_squashfs
-
-    def __repr__(self) -> str:
-        """Return the member name without the class name"""
-        return self.name
-
-    def __str__(self) -> str:
-        """Return the member name without the class name"""
-        return self.name
-
-    @classmethod
-    def from_string(cls, name: str) -> "OutputFormat":
-        """A convenience method to be used with argparse"""
-        try:
-            return cls[name]
-        except KeyError:
-            raise argparse.ArgumentTypeError(f"unknown Format: {name!r}")
 
     def is_disk_rw(self) -> bool:
         "Output format is a disk image with a parition table and a writable filesystem"
