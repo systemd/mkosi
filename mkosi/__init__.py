@@ -4654,7 +4654,6 @@ def create_parser() -> ArgumentParserMkosi:
     group.add_argument(
         "--repositories",
         action=CommaDelimitedListAction,
-        dest="repositories",
         default=[],
         help="Repositories to use",
         metavar="REPOS",
