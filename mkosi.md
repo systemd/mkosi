@@ -315,7 +315,7 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   syntax of the argument this takes depends on the distribution used,
   and is either a numeric string (in case of Fedora Linux, CentOS, …,
   e.g. `29`), or a distribution version name (in case of Debian,
-  Ubuntu, …, e.g. `artful`). If neither this option, not
+  Ubuntu, …, e.g. `artful`). If neither this option, nor
   `Distribution=` is specified, defaults to the distribution version
   of the host. If the distribution is specified, defaults to a recent
   version of it.
@@ -386,11 +386,12 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 `OutputDirectory=`, `--output-dir=`, `-O`
 
 : Path to a directory where to place all generated artifacts (i.e. the
-  `SHA256SUMS` file and similar). If this is not specified and a
-  directory `mkosi.output/` exists in the local directory it is
-  automatically used for this purpose. If this is not specified and
-  such a directory does not exist, all output artifacts are placed
-  adjacent to the output image file.
+  generated image when an output path is not given, `SHA256SUMS` file,
+  etc.). If this is not specified and the directory `mkosi.output/`
+  exists in the local directory, it is automatically used for this
+  purpose. If the setting is not used and `mkosi.output/` does not
+  exist, all output artifacts are placed adjacent to the output image
+  file.
 
 `WorkspaceDirectory=`, `--workspace-dir=`
 
@@ -402,7 +403,7 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   subdirectory in the temporary storage area is used (`$TMPDIR` if
   set, `/var/tmp/` otherwise).
 
-: The data in the directory is removed automatically after each
+: The data in this directory is removed automatically after each
   build. It's safe to manually remove the contents of this directory
   should an `mkosi` invocation be aborted abnormally (for example, due
   to reboot/power failure). If the `btrfs` output modes are selected
@@ -430,7 +431,7 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 `GPTFirstLBA=`, `--gpt-first-lba=`
 
 : Override the first usable LBA (Logical Block Address) within the
-  GPT header. This defaults to `2048` which is actually the desired value.
+  GPT header. This defaults to `2048`, which is actually the desired value.
   However, some tools, e.g. the `prl_disk_tool` utility from the
   Parallels virtualization suite require this to be set to `34`, otherwise
   they might fail to resize the disk image and/or partitions inside it.
@@ -491,7 +492,7 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 `ReadOnly=`, `--read-only`
 
 : Make root file system read-only. Only applies to `gpt_ext4`,
-  `gpt_xfs`, `gpt_btrfs`, `subvolume` output formats, and implied on
+  `gpt_xfs`, `gpt_btrfs`, `subvolume` output formats, and is implied on
   `gpt_squashfs` and `plain_squashfs`.
 
 `Minimize=`, `--minimize`
@@ -506,9 +507,9 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 `Encrypt=`, `--encrypt`
 
 : Encrypt all partitions in the file system or just the root file
-  system. Takes either `all` or `data` as argument. If `all` the root,
+  system. Takes either `all` or `data` as argument. If `all`, the root,
   `/home` and `/srv` file systems will be encrypted using
-  dm-crypt/LUKS (with its default settings). If `data` the root file
+  dm-crypt/LUKS (with its default settings). If `data`, the root file
   system will be left unencrypted, but `/home` and `/srv` will be
   encrypted. The passphrase to use is read from the `mkosi.passphrase`
   file in the current working directory. Note that the
@@ -596,14 +597,17 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 
 `WithUnifiedKernelImages=`, `--without-unified-kernel-images`
 
-: If specified, mkosi does not build unified kernel images and instead installs kernels with a separate
-  initrd and boot loader config to the efi or bootloader partition.
+: If specified, mkosi does not build unified kernel images and instead
+  installs kernels with a separate initrd and boot loader config to
+  the efi or bootloader partition.
 
 `HostonlyInitrd=`, `--hostonly-initrd`
 
-: If specified, mkosi will run the tool to create the initrd such that a non-generic initrd is created that
-  will only be able to run on the system mkosi is run on. Currently mkosi uses dracut for all supported
-  distributions except Clear Linux and this option translates to enabling dracut's hostonly option.
+: If specified, mkosi will run the tool to create the initrd such that
+  a non-generic initrd is created that will only be able to run on the
+  system mkosi is run on. Currently mkosi uses dracut for all
+  supported distributions except Clear Linux and this option
+  translates to enabling dracut's hostonly option.
 
 `UsrOnly=`, `--usr-only`
 
@@ -668,14 +672,14 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 
 : Install the specified distribution packages (i.e. RPM, DEB, …) in
   the image. Takes a comma separated list of packages. This option may
-  be used multiple times in which case the specified package list is
+  be used multiple times in which case the specified package lists are
   combined. Packages specified this way will be installed both in the
   development and the final image. Use `BuildPackages=` to
   specify packages that shall only be used for the image generated in
   the build image, but that shall not appear in the final image.
 
-: To remove a package e.g. added by a `mkosi.default` configuration file
-  prepend the package name with a ! letter. For example -p "!apache2"
+: To remove a package e.g. added by a `mkosi.default` configuration
+  file prepend the package name with `!`. For example -p "!apache2"
   would remove the apache2 package. To replace the apache2 package by
   the httpd package just add -p "!apache2,httpd" to the command line
   arguments. To remove all packages use "!\*".
@@ -756,10 +760,10 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   build/prepare/postinstall/finalize scripts are executed with. Takes
   a space-separated list of variable assignments or just variable
   names. In the latter case, the values of those variables will be
-  passed through from the environment in which `mkosi` was
-  invoked. This option may be specified more than once, in which case
-  all listed variables will be set. If the same variable is set twice,
-  the later setting overrides the earlier one.
+  passed through from the environment in which `mkosi` was invoked.
+  This option may be specified more than once, in which case all
+  listed variables will be set. If the same variable is set twice, the
+  later setting overrides the earlier one.
 
 `BuildSources=`, `--build-sources=`
 
@@ -787,9 +791,9 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 
 : Takes a path of a directory to use as the include directory. This
   directory is mounted at `/usr/include` when building the build image
-  and when running the build script. This means all include files
-  installed to `/usr/include` will be stored in this directory. This is
-  useful to make include files available on the host system for use by
+  and running the build script. This means all include files installed
+  to `/usr/include` will be stored in this directory. This is useful
+  to make include files available on the host system for use by
   language servers to provide code completion. If this option is not
   specified, but a directory `mkosi.includedir/` exists in the local
   directory, it is automatically used for this purpose (also see the
@@ -953,8 +957,8 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 
 `Key=`, `--key=`
 
-: Select the `gpg` key to use for signing `SHA256SUMS`. This key
-  is required to exist in the `gpg` keyring already.
+: Select the `gpg` key to use for signing `SHA256SUMS`. This key must
+  be already present in the `gpg` keyring.
 
 `BMap=`, `--bmap`
 
