@@ -8,6 +8,6 @@ Release=bionic
 Format=gpt_ext4
 Output=ubuntu.raw
 
-[Packages]
+[Content]
 Packages=
         tzdata

@@ -644,7 +644,7 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   in building or further container import stages.  This option strips
   SELinux context attributes from the resulting tar archive.
 
-### [Packages] Section
+### [Content] Section
 
 `BasePackages=`, `--base-packages`
 
@@ -1227,8 +1227,8 @@ local directory:
   multi-line assignments: any line with initial whitespace is
   considered a continuation line of the line before. Command-line
   arguments, as shown in the help description, have to be included in
-  a configuration block (e.g.  "`[Packages]`") corresponding to the
-  argument group (e.g. "`Packages`"), and the argument gets converted
+  a configuration block (e.g.  "`[Content]`") corresponding to the
+  argument group (e.g. "`Content`"), and the argument gets converted
   as follows: "`--with-network`" becomes "`WithNetwork=yes`". For
   further details see the table above.
 
@@ -1564,7 +1564,7 @@ Release=24
 Format=gpt_btrfs
 Bootable=yes
 
-[Packages]
+[Content]
 Packages=openssh-clients,httpd
 BuildPackages=make,gcc,libcurl-devel
 EOF

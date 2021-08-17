@@ -4586,6 +4586,12 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
                 config.optionxform = str  # type: ignore
                 with open(arg_string[1:]) as args_file:
                     config.read_file(args_file)
+
+                # Rename old [Packages] section to [Content]
+                if config.has_section("Packages") and not config.has_section("Content"):
+                    config.read_dict({"Content": dict(config.items("Packages"))})
+                    config.remove_section("Packages")
+
                 for section in config.sections():
                     for key, value in config.items(section):
                         cli_arg = self._ini_key_to_cli_arg(key)
@@ -4814,7 +4820,7 @@ def create_parser() -> ArgumentParserMkosi:
         "--split-artifacts", action=BooleanAction, help="Generate split out root/verity/kernel images, too"
     )
 
-    group = parser.add_argument_group("Packages")
+    group = parser.add_argument_group("Content")
     group.add_argument(
         "--base-packages",
         type=parse_base_packages,
@@ -6119,7 +6125,7 @@ def print_summary(args: CommandLineArguments) -> None:
             MkosiPrinter.info("             GPT First LBA: " + str(args.gpt_first_lba))
             MkosiPrinter.info("           Hostonly Initrd: " + yes_no(args.hostonly_initrd))
 
-    MkosiPrinter.info("\nPACKAGES:")
+    MkosiPrinter.info("\nCONTENT:")
     MkosiPrinter.info("                  Packages: " + line_join_list(args.packages))
 
     if args.distribution in (Distribution.fedora, Distribution.centos, Distribution.centos_epel, Distribution.mageia):
