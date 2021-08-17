@@ -710,22 +710,6 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   way is mounted into both the development and the final image while
   the package manager is running.
 
-`ExtraTree=`, `--extra-tree=`
-
-: Takes a path to a directory to copy on top of the OS tree the
-  package manager generated. Use this to override any default
-  configuration files shipped with the distribution. If this option is
-  not used, but the `mkosi.extra/` directory is found in the local
-  directory it is automatically used for this purpose (also see
-  below). Instead of a directory a `tar` file may be specified too. In
-  this case it is unpacked into the OS tree before the package manager
-  is invoked. This mode of operation allows setting permissions and
-  file ownership explicitly, in particular for projects stored in a
-  version control system such as `git` which does retain full file
-  ownership and access mode metadata for committed files. If a tar file
-  `mkosi.extra.tar` is found in the local directory it automatically
-  used for this purpose.
-
 `SkeletonTree=`, `--skeleton-tree=`
 
 : Takes a path to a directory to copy into the OS tree before invoking
@@ -733,11 +717,29 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   the OS tree before the package manager installs any packages. If
   this option is not used, but the `mkosi.skeleton/` directory is
   found in the local directory it is automatically used for this
-  purpose (also see below). As with the extra tree logic above,
-  instead of a directory a `tar` file may be used too, and
-  `mkosi.skeleton.tar` is automatically used.
+  purpose (also see the "Files" section below).
 
-<!-- FIXME: invert order here -->
+: Instead of a directory, a tar file may be provided. In this case
+  it is unpacked into the OS tree before the package manager is
+  invoked. This mode of operation allows setting permissions and file
+  ownership explicitly, in particular for projects stored in a version
+  control system such as `git` which retain full file ownership and
+  access mode metadata for committed files. If the tar file
+  `mkosi.skeleton.tar` is found in the local directory it will be
+  automatically used for this purpose.
+
+`ExtraTree=`, `--extra-tree=`
+
+: Takes a path to a directory to copy on top of the OS tree the
+  package manager generated. Use this to override any default
+  configuration files shipped with the distribution. If this option is
+  not used, but the `mkosi.extra/` directory is found in the local
+  directory it is automatically used for this purpose (also see the
+  "Files" section below).
+
+: As with the skeleton tree logic above, instead of a directory, a tar
+  file may be provided too. `mkosi.skeleton.tar` will be automatically
+  used if found in the local directory.
 
 `RemoveFiles=`, `--remove-files=`
 
