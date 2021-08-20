@@ -1441,6 +1441,7 @@ def configure_dracut(args: CommandLineArguments, root: str) -> None:
 
     with open(os.path.join(dracut_dir, "30-mkosi-hostonly.conf"), "w") as f:
         f.write(f"hostonly={'yes' if args.hostonly_initrd else 'no'}\n")
+        f.write("hostonly_default_device=no\n")
 
     with open(os.path.join(dracut_dir, "30-mkosi-systemd-extras.conf"), "w") as f:
         for extra in DRACUT_SYSTEMD_EXTRAS:
