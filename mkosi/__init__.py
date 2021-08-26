@@ -538,7 +538,7 @@ def btrfs_subvol_make_ro(path: str, b: bool = True) -> None:
 
 
 @contextlib.contextmanager
-def btrfs_forget_stale_devices() -> Generator[None, None, None]:
+def btrfs_forget_stale_devices(args: CommandLineArguments) -> Generator[None, None, None]:
     # When using cached images (-i), mounting btrfs images would sometimes fail
     # with EEXIST. This is likely because a stale device is leftover somewhere
     # from the previous run. To fix this, we make sure to always clean up stale
@@ -546,7 +546,7 @@ def btrfs_forget_stale_devices() -> Generator[None, None, None]:
     try:
         yield
     finally:
-        if shutil.which("btrfs"):
+        if args.output_format.is_btrfs() and shutil.which("btrfs"):
             run(["btrfs", "device", "scan", "-u"])
 
 
@@ -6514,9 +6514,9 @@ def build_stuff(args: CommandLineArguments) -> None:
 
     # Make sure tmpfiles' aging doesn't interfere with our workspace
     # while we are working on it.
-    with open_close(
-        workspace.name, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC
-    ) as dir_fd, btrfs_forget_stale_devices():
+    with open_close(workspace.name, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC) as dir_fd, btrfs_forget_stale_devices(
+        args
+    ):
         fcntl.flock(dir_fd, fcntl.LOCK_EX)
 
         root = os.path.join(workspace.name, "root")
