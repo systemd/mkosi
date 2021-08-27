@@ -3154,7 +3154,7 @@ def run_postinst_script(
             nspawn_params += nspawn_params_for_blockdev_access(args, loopdev)
 
         run_workspace_command(
-            args, root, ["/root/postinst", verb], network=args.with_network, nspawn_params=nspawn_params
+            args, root, ["/root/postinst", verb], network=(args.with_network is True), nspawn_params=nspawn_params
         )
         os.unlink(os.path.join(root_home(args, root), "postinst"))
 
@@ -6079,7 +6079,7 @@ def print_summary(args: CommandLineArguments) -> None:
     MkosiPrinter.info("        Postinstall Script: " + none_to_none(args.postinst_script))
     MkosiPrinter.info("            Prepare Script: " + none_to_none(args.prepare_script))
     MkosiPrinter.info("           Finalize Script: " + none_to_none(args.finalize_script))
-    MkosiPrinter.info("      Scripts with network: " + yes_no(args.with_network))
+    MkosiPrinter.info("      Scripts with network: " + yes_no_or(args.with_network))
     MkosiPrinter.info("           nspawn Settings: " + none_to_none(args.nspawn_settings))
 
     if args.output_format.is_disk():
@@ -6400,6 +6400,8 @@ def run_build_script(args: CommandLineArguments, root: str, raw: Optional[Binary
 
         target = "--directory=" + root if raw is None else "--image=" + raw.name
 
+        with_network = 1 if args.with_network is True else 0
+
         cmdline = [
             "systemd-nspawn",
             "--quiet",
@@ -6412,7 +6414,7 @@ def run_build_script(args: CommandLineArguments, root: str, raw: Optional[Binary
             "--bind=" + var_tmp(root) + ":/var/tmp",
             "--setenv=WITH_DOCS=" + one_zero(args.with_docs),
             "--setenv=WITH_TESTS=" + one_zero(args.with_tests),
-            "--setenv=WITH_NETWORK=" + one_zero(args.with_network),
+            f"--setenv=WITH_NETWORK={with_network}",
             "--setenv=DESTDIR=/root/dest",
         ]
 
@@ -6441,7 +6443,7 @@ def run_build_script(args: CommandLineArguments, root: str, raw: Optional[Binary
         if args.include_dir is not None:
             cmdline.append(f"--bind={args.include_dir}:/usr/include")
 
-        if args.with_network:
+        if args.with_network is True:
             # If we're using the host network namespace, use the same resolver
             cmdline.append("--bind-ro=/etc/resolv.conf")
         else:

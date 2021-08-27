@@ -224,7 +224,7 @@ class CommandLineArguments:
     source_file_transfer_final: Optional[SourceFileTransfer]
     source_resolve_symlinks: bool
     source_resolve_symlinks_final: bool
-    with_network: bool
+    with_network: Union[bool, str]
     nspawn_settings: Optional[str]
     root_size: int
     esp_size: Optional[int]
