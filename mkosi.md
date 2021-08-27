@@ -825,6 +825,25 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   Packages are appended to the list. Packages prefixed with "!" are
   removed from the list. "!\*" removes all packages from the list.
 
+`Password=`, `--password=`
+
+: Set the password of the `root` user. By default the `root` account
+  is locked. If this option is not used, but a file `mkosi.rootpw`
+  exists in the local directory, the root password is automatically
+  read from it.
+
+`PasswordIsHashed=`, `--password-is-hashed`
+
+: Indicate that the password supplied for the `root` user has already been
+  hashed, so that the string supplied with `Password=` or `mkosi.rootpw` will
+  be written to `/etc/shadow` literally.
+
+`Autologin=`, `--autologin`
+
+: Enable autologin for the `root` user on `/dev/pts/0` (nspawn),
+  `/dev/tty1` (QEMU) and `/dev/ttyS0` (QEMU with `QemuHeadless=yes`)
+  by patching `/etc/pam.d/login`.
+
 `SkipFinalPhase=`, `--skip-final-phase=`
 
 : Causes the (second) final image build stage to be skipped. This is
@@ -916,6 +935,8 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   an `mkosi.nspawn` file found in the local directory it is
   automatically used for this purpose.
 
+<!-- FIXME: shouldn't this be in [Host] ? -->
+
 ### [Partitions] Section
 
 `RootSize=`, `--root-size=`
@@ -966,26 +987,6 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 
 : Generate a `bmap` file for usage with `bmaptool` from the generated
   image file.
-
-`Password=`, `--password=`
-
-: Set the password of the `root` user. By default the `root` account
-  is locked. If this option is not used but a file `mkosi.rootpw` exists
-  in the local directory the root password is automatically read from it.
-
-`PasswordIsHashed=`, `--password-is-hashed`
-
-: Indicate that the password supplied for the `root` user has already been
-  hashed, so that the string supplied with `Password=` or `mkosi.rootpw` will
-  be written to `/etc/shadow` literally.
-
-`Autologin=`, `--autologin`
-
-: Enable autologin for the `root` user on `/dev/pts/0` (nspawn),
-  `/dev/tty1` (QEMU) and `/dev/ttyS0` (QEMU with `QemuHeadless=yes`)
-  by patching `/etc/pam.d/login`.
-
-<!-- FIXME: why are all those settings in [Validation] ?! -->
 
 ### [Host] Section
 

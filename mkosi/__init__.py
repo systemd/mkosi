@@ -4849,6 +4849,13 @@ def create_parser() -> ArgumentParserMkosi:
     group.add_argument(
         "--with-tests", action=BooleanAction, default=True, help=argparse.SUPPRESS
     )  # Compatibility option
+
+    group.add_argument("--password", help="Set the root password")
+    group.add_argument(
+        "--password-is-hashed", action=BooleanAction, help="Indicate that the root password has already been hashed"
+    )
+    group.add_argument("--autologin", action=BooleanAction, help="Enable root autologin")
+
     group.add_argument("--cache", dest="cache_path", help="Package cache path", metavar="PATH")
     group.add_argument(
         "--extra-tree",
@@ -5000,11 +5007,6 @@ def create_parser() -> ArgumentParserMkosi:
         action=BooleanAction,
         help="Write block map file (.bmap) for bmaptool usage (only gpt_ext4, gpt_btrfs)",
     )
-    group.add_argument("--password", help="Set the root password")
-    group.add_argument(
-        "--password-is-hashed", action=BooleanAction, help="Indicate that the root password has already been hashed"
-    )
-    group.add_argument("--autologin", action=BooleanAction, help="Enable root autologin")
 
     group = parser.add_argument_group("Host configuration")
     group.add_argument(
@@ -6142,6 +6144,9 @@ def print_summary(args: CommandLineArguments) -> None:
     if args.build_script:
         MkosiPrinter.info("                 Run tests: " + yes_no(args.with_tests))
 
+    MkosiPrinter.info("                  Password: " + ("default" if args.password is None else "set"))
+    MkosiPrinter.info("                 Autologin: " + yes_no(args.autologin))
+
     MkosiPrinter.info("             Build Sources: " + none_to_none(args.build_sources))
     MkosiPrinter.info("      Source File Transfer: " + none_to_none(args.source_file_transfer))
     MkosiPrinter.info("Source File Transfer Final: " + none_to_none(args.source_file_transfer_final))
@@ -6175,8 +6180,6 @@ def print_summary(args: CommandLineArguments) -> None:
         MkosiPrinter.info("                  Checksum: " + yes_no(args.checksum))
         MkosiPrinter.info("                      Sign: " + yes_no(args.sign))
         MkosiPrinter.info("                   GPG Key: " + ("default" if args.key is None else args.key))
-        MkosiPrinter.info("                  Password: " + ("default" if args.password is None else "set"))
-        MkosiPrinter.info("                 Autologin: " + yes_no(args.autologin))
 
     MkosiPrinter.info("\nHOST CONFIGURATION:")
     MkosiPrinter.info("        Extra search paths: " + line_join_list(args.extra_search_paths))
