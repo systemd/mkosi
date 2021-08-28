@@ -1198,14 +1198,15 @@ def luks_setup_all(
     if not args.output_format.is_disk():
         yield LuksSetupOutput.empty()
         return
+
     assert loopdev is not None
 
-    with contextlib.ExitStack() as stack:
-        root = stack.enter_context(luks_setup_root(args, loopdev, do_run_build_script))
-        home = stack.enter_context(luks_setup_home(args, loopdev, do_run_build_script))
-        srv = stack.enter_context(luks_setup_srv(args, loopdev, do_run_build_script))
-        var = stack.enter_context(luks_setup_var(args, loopdev, do_run_build_script))
-        tmp = stack.enter_context(luks_setup_tmp(args, loopdev, do_run_build_script))
+    # fmt: off
+    with luks_setup_root(args, loopdev, do_run_build_script) as root, \
+         luks_setup_home(args, loopdev, do_run_build_script) as home, \
+         luks_setup_srv(args, loopdev, do_run_build_script) as srv, \
+         luks_setup_var(args, loopdev, do_run_build_script) as var, \
+         luks_setup_tmp(args, loopdev, do_run_build_script) as tmp:
 
         yield LuksSetupOutput(
             optional_partition(loopdev, args.root_partno) if root is None else root,
@@ -1214,6 +1215,7 @@ def luks_setup_all(
             optional_partition(loopdev, args.var_partno) if var is None else var,
             optional_partition(loopdev, args.tmp_partno) if tmp is None else tmp,
         )
+    # fmt: on
 
 
 def prepare_root(args: CommandLineArguments, dev: Optional[str], cached: bool) -> None:
@@ -3676,13 +3678,13 @@ def insert_partition(
 
     MkosiPrinter.print_step("Writing partition...")
 
-    with contextlib.ExitStack() as stack:
-        if args.root_partno == partno:
-            luks_format_root(args, loopdev, False, False, True)
-            dev = stack.enter_context(luks_setup_root(args, loopdev, False, True))
-        else:
-            dev = None
+    if args.root_partno == partno:
+        luks_format_root(args, loopdev, False, False, True)
+        cm = luks_setup_root(args, loopdev, False, True)
+    else:
+        cm = contextlib.nullcontext()
 
+    with cm as dev:
         path = dev if dev is not None else partition(loopdev, partno)
         run(["dd", f"if={blob.name}", f"of={path}", "conv=nocreat,sparse"])
 
