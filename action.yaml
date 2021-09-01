@@ -49,7 +49,7 @@ runs:
     shell: bash
     run: |
       wget https://sources.archlinux.org/other/pacman/pacman-$PACMAN_VERSION.tar.xz
-      tar tar -xvf pacman-$PACMAN_VERSION.tar.xz
+      tar -xvf pacman-$PACMAN_VERSION.tar.xz
 
       meson \
         -Dbuildtype=release \
