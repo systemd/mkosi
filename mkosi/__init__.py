@@ -5,7 +5,6 @@ import ast
 import collections
 import configparser
 import contextlib
-import copy
 import crypt
 import ctypes
 import ctypes.util
@@ -5119,7 +5118,7 @@ def load_distribution(args: argparse.Namespace) -> argparse.Namespace:
     return args
 
 
-def parse_args(input: Optional[List[str]] = None) -> Dict[str, argparse.Namespace]:
+def parse_args(argv: Optional[List[str]] = None) -> Dict[str, argparse.Namespace]:
     """Load default values from files and parse command line arguments
 
     Do all about default files and command line arguments parsing. If --all argument is passed
@@ -5128,33 +5127,29 @@ def parse_args(input: Optional[List[str]] = None) -> Dict[str, argparse.Namespac
     """
     parser = create_parser()
 
-    # always work on a copy, argv will be altered which might has some side effects e.g. in unit tests.
-    if input is None:
-        argv = copy.deepcopy(sys.argv[1:])
-    else:
-        argv = copy.deepcopy(input)
+    if argv is None:
+        argv = sys.argv[1:]
+    argv = list(argv)  # make a copy 'cause we'll be modifying the list later on
 
     # If ArgumentParserMkosi loads settings from mkosi.default files, the settings from files
     # are converted to command line arguments. This breaks ArgumentParser's support for default
     # values of positional arguments. Make sure the verb command gets explicitly passed.
     # Insert a -- before the positional verb argument otherwise it might be considered as an argument of
     # a parameter with nargs='?'. For example mkosi -i summary would be treated as -i=summary.
-    found_verb = False
     for verb in MKOSI_COMMANDS:
         try:
             v_i = argv.index(verb)
-            if v_i > 0:
-                if argv[v_i - 1] != "--":
-                    argv.insert(v_i, "--")
-            found_verb = True
-            break
         except ValueError:
-            pass
-    if found_verb is False:
-        argv.extend(["--", "build"])
+            continue
+
+        if v_i > 0 and argv[v_i - 1] != "--":
+            argv.insert(v_i, "--")
+        break
+    else:
+        argv += ["--", "build"]
 
     # First run of command line arguments parsing to get the directory of mkosi.default file and the verb argument.
-    args_pre_parsed, _ = parser.parse_known_args(copy.deepcopy(argv))
+    args_pre_parsed, _ = parser.parse_known_args(argv)
 
     if args_pre_parsed.verb == "help":
         parser.print_help()
@@ -5198,7 +5193,7 @@ def parse_args(input: Optional[List[str]] = None) -> Dict[str, argparse.Namespac
         for f in os.scandir(all_directory):
             if not f.name.startswith("mkosi."):
                 continue
-            args = parse_args_file(copy.deepcopy(argv), f.path)
+            args = parse_args_file(argv, f.path)
             args_all[f.name] = args
     # Parse everything in normal mode
     else:
@@ -5206,61 +5201,53 @@ def parse_args(input: Optional[List[str]] = None) -> Dict[str, argparse.Namespac
 
         args = load_distribution(args)
 
-        # Parse again with any extra distribution files included.
-        args = parse_args_distribution_group(argv, str(args.distribution))
+        if args.distribution:
+            # Parse again with any extra distribution files included.
+            args = parse_args_file_group(argv, default_path, args.distribution)
 
         args_all["default"] = args
 
     return args_all
 
 
-def parse_args_file(argv_post_parsed: List[str], default_path: str) -> argparse.Namespace:
-    """Parse just one mkosi.* file (--all mode)"""
-    argv_post_parsed.insert(1, ArgumentParserMkosi.fromfile_prefix_chars + default_path)
-    parser = create_parser()
-    # parse all parameters handled by mkosi. Parameters forwarded to subprocesses such as nspawn or qemu end up in cmdline_argv.
-    return parser.parse_args(argv_post_parsed)
+def parse_args_file(argv: List[str], default_path: str) -> argparse.Namespace:
+    """Parse just one mkosi.* file (--all mode)."""
+
+    # Parse all parameters handled by mkosi.
+    # Parameters forwarded to subprocesses such as nspawn or qemu end up in cmdline_argv.
+    argv = argv[:1] + [f"{ArgumentParserMkosi.fromfile_prefix_chars}{default_path}"] + argv[1:]
+
+    return create_parser().parse_args(argv)
 
 
-def parse_args_file_group(argv_post_parsed: List[str], default_path: str) -> argparse.Namespace:
+def parse_args_file_group(
+    argv: List[str], default_path: str, distribution: Optional[Distribution] = None
+) -> argparse.Namespace:
     """Parse a set of mkosi.default and mkosi.default.d/* files."""
     # Add the @ prefixed filenames to current argument list in inverse priority order.
-    all_defaults_files = []
+    defaults_files = []
+
+    if os.path.isfile(default_path):
+        defaults_files += [f"{ArgumentParserMkosi.fromfile_prefix_chars}{default_path}"]
+
     defaults_dir = "mkosi.default.d"
     if os.path.isdir(defaults_dir):
-        for defaults_file in sorted(os.listdir(defaults_dir)):
-            defaults_path = os.path.join(defaults_dir, defaults_file)
-            if os.path.isfile(defaults_path):
-                all_defaults_files.append(ArgumentParserMkosi.fromfile_prefix_chars + defaults_path)
-    if os.path.isfile(default_path):
-        all_defaults_files.insert(0, ArgumentParserMkosi.fromfile_prefix_chars + default_path)
-    argv_post_parsed[0:0] = all_defaults_files
+        for file in sorted(os.listdir(defaults_dir)):
+            path = os.path.join(defaults_dir, file)
+            if os.path.isfile(path):
+                defaults_files += [f"{ArgumentParserMkosi.fromfile_prefix_chars}{path}"]
 
-    parser = create_parser()
+    if distribution is not None:
+        distribution_dir = f"mkosi.default.d/{distribution}"
+        if os.path.isdir(distribution_dir):
+            for subdir in sorted(os.listdir(distribution_dir)):
+                path = os.path.join(distribution_dir, subdir)
+                if os.path.isfile(path):
+                    defaults_files += [f"{ArgumentParserMkosi.fromfile_prefix_chars}{path}"]
 
-    # parse all parameters handled by mkosi. Parameters forwarded to subprocesses such as nspawn or qemu end up in cmdline_argv.
-    return parser.parse_args(argv_post_parsed)
-
-
-def parse_args_distribution_group(argv_post_parsed: List[str], distribution: str) -> argparse.Namespace:
-    all_defaults_files = []
-    distribution_dir = f"mkosi.default.d/{distribution}"
-    if os.path.isdir(distribution_dir):
-        for distribution_file in sorted(os.listdir(distribution_dir)):
-            distribution_path = os.path.join(distribution_dir, distribution_file)
-            if os.path.isfile(distribution_path):
-                all_defaults_files.append(ArgumentParserMkosi.fromfile_prefix_chars + distribution_path)
-
-    # Insert the distro specific config files after the rest of the config files so they override these.
-    for i, v in enumerate(argv_post_parsed):
-        if not v.startswith(ArgumentParserMkosi.fromfile_prefix_chars):
-            argv_post_parsed[i:i] = all_defaults_files
-            break
-    else:
-        # Append to the end if the args only contain files and no regular args.
-        argv_post_parsed += all_defaults_files
-
-    return create_parser().parse_args(argv_post_parsed)
+    # Parse all parameters handled by mkosi.
+    # Parameters forwarded to subprocesses such as nspawn or qemu end up in cmdline_argv.
+    return create_parser().parse_args(defaults_files + argv)
 
 
 def parse_bytes(num_bytes: Optional[str]) -> Optional[int]:
