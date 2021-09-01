@@ -48,7 +48,7 @@ runs:
   - name: Dependencies
     shell: bash
     run: |
-      wget https://sources.archlinux.org/other/pacman/pacman-$PACMAN_VERSION.tar.gz
+      wget https://sources.archlinux.org/other/pacman/pacman-$PACMAN_VERSION.tar.xz
       tar xf pacman-$PACMAN_VERSION.tar.gz
 
       meson \
