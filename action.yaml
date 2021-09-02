@@ -18,7 +18,6 @@ runs:
           docbook-xsl
           e2fsprogs
           gettext
-          gobject-introspection
           libarchive-dev
           libcap-dev
           libcppunit-dev
@@ -26,7 +25,6 @@ runs:
           libdb-dev
           libgcrypt-dev
           libgpgme-dev
-          libgirepository1.0-dev
           libjson-c-dev
           liblua5.2-dev
           libmagic-dev
@@ -38,8 +36,8 @@ runs:
           ninja-build
           ovmf
           python3-gpg
+          python3-gi
           python3-sphinx
-          python-gobject-2-dev
           qemu-system-x86-64
           squashfs-tools
           swig
