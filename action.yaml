@@ -36,7 +36,6 @@ runs:
           ninja-build
           ovmf
           python3-gpg
-          python3-gi
           python3-sphinx
           qemu-system-x86-64
           squashfs-tools
@@ -45,6 +44,10 @@ runs:
           xfsprogs
           xsltproc
           zypper
+
+  - name: pip3 install
+    shell: bash
+    run: sudo pip3 install PyGObject
 
   - name: Dependencies
     shell: bash
