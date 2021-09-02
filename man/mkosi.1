@@ -341,6 +341,13 @@ system), \f[C]gpt_btrfs\f[R] (similar, but with an btrfs file system),
 \f[C]plain_squashfs\f[R] (a plain squashfs file system without a
 partition table).
 .TP
+\f[B]\f[CB]--manifest-format=\f[B]\f[R]
+The manifest format type or types to generate.
+A comma-delimited list consisting of \f[C]json\f[R] (the standard JSON
+output format that describes the packages installed),
+\f[C]changelog\f[R] (a human-readable text format designed for diffing).
+Defaults to \f[C]json\f[R].
+.TP
 \f[B]\f[CB]--output=\f[B]\f[R], \f[B]\f[CB]-o\f[B]\f[R]
 Path for the output image file to generate.
 Takes a relative or absolute path where the generated image will be
@@ -753,8 +760,8 @@ the local directory it is automatically used for this purpose (also see
 below).
 .TP
 \f[B]\f[CB]--environment=\f[B]\f[R]
-Adds environment variables to the environment that the build script is
-executed with.
+Adds variables to the environment that the
+build/prepare/postinstall/finalize scripts are executed with.
 Takes a space-separated list of variable assignments or just variable
 names.
 In the latter case, the values of those variables will be passed through
@@ -1151,6 +1158,13 @@ T}@T{
 \f[C][Output]\f[R]
 T}@T{
 \f[C]Format=\f[R]
+T}
+T{
+\f[C]--manifest-format=\f[R]
+T}@T{
+\f[C][Output]\f[R]
+T}@T{
+\f[C]ManifestFormat=\f[R]
 T}
 T{
 \f[C]--output=\f[R], \f[C]-o\f[R]

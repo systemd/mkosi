@@ -342,6 +342,13 @@ details see the table below.
   squashfs file system), `plain_squashfs` (a plain squashfs file
   system without a partition table).
 
+`--manifest-format=`
+
+: The manifest format type or types to generate. A comma-delimited
+  list consisting of `json` (the standard JSON output format that
+  describes the packages installed), `changelog` (a human-readable
+  text format designed for diffing). Defaults to `json`.
+
 `--output=`, `-o`
 
 : Path for the output image file to generate. Takes a relative or
@@ -1087,6 +1094,7 @@ which settings file options.
 | `--mirror=`, `-m`                 | `[Distribution]`        | `Mirror=`                     |
 | `--architecture=`                 | `[Distribution]`        | `Architecture=`               |
 | `--format=`, `-t`                 | `[Output]`              | `Format=`                     |
+| `--manifest-format=`              | `[Output]`              | `ManifestFormat=`             |
 | `--output=`, `-o`                 | `[Output]`              | `Output=`                     |
 | `--output-split-root=`            | `[Output]`              | `OutputSplitRoot=`            |
 | `--output-split-verity=`          | `[Output]`              | `OutputSplitVerity=`          |

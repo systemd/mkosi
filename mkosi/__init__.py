@@ -66,6 +66,7 @@ from .backend import (
     ARG_DEBUG,
     CommandLineArguments,
     Distribution,
+    ManifestFormat,
     MkosiException,
     MkosiPrinter,
     OutputFormat,
@@ -76,6 +77,7 @@ from .backend import (
     nspawn_params_for_blockdev_access,
     partition,
     patch_file,
+    path_relative_to_cwd,
     run,
     run_workspace_command,
     should_compress_fs,
@@ -87,6 +89,7 @@ from .backend import (
     workspace,
     write_grub_config,
 )
+from .manifest import Manifest
 
 complete_step = MkosiPrinter.complete_step
 
@@ -4160,7 +4163,7 @@ def save_cache(args: CommandLineArguments, root: str, raw: Optional[str], cache_
         if cache_path is None:
             return
 
-    with complete_step("Installing cache copy…", f"Successfully installed cache copy {cache_path}"):
+    with complete_step("Installing cache copy…", f"Installed cache copy {path_relative_to_cwd(cache_path)}"):
 
         if disk_rw:
             assert raw is not None
@@ -4185,16 +4188,18 @@ def _link_output(args: CommandLineArguments, oldpath: str, newpath: str) -> None
     if not (sudo_uid and sudo_gid):
         return
 
+    relpath = path_relative_to_cwd(newpath)
+
     sudo_user = os.getenv("SUDO_USER", default=sudo_uid)
     with complete_step(
-        f"Changing ownership of output file {newpath} to user {sudo_user} (acquired from sudo)…",
-        f"Successfully changed ownership of {newpath}",
+        f"Changing ownership of output file {relpath} to user {sudo_user} (acquired from sudo)…",
+        f"Changed ownership of {relpath}",
     ):
         os.chown(newpath, int(sudo_uid), int(sudo_gid))
 
 
 def link_output(args: CommandLineArguments, root: str, artifact: Optional[BinaryIO]) -> None:
-    with complete_step("Linking image file…", f"Successfully linked {args.output}"):
+    with complete_step("Linking image file…", f"Linked {path_relative_to_cwd(args.output)}"):
         if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
             assert artifact is None
 
@@ -4214,14 +4219,16 @@ def link_output(args: CommandLineArguments, root: str, artifact: Optional[Binary
 def link_output_nspawn_settings(args: CommandLineArguments, path: Optional[SomeIO]) -> None:
     if path:
         assert args.output_nspawn_settings
-        with complete_step("Linking nspawn settings file…", f"Successfully linked {args.output_nspawn_settings}"):
+        with complete_step(
+            "Linking nspawn settings file…", f"Linked {path_relative_to_cwd(args.output_nspawn_settings)}"
+        ):
             _link_output(args, path.name, args.output_nspawn_settings)
 
 
 def link_output_checksum(args: CommandLineArguments, checksum: Optional[SomeIO]) -> None:
     if checksum:
         assert args.output_checksum
-        with complete_step("Linking SHA256SUMS file…", f"Successfully linked {args.output_checksum}"):
+        with complete_step("Linking SHA256SUMS file…", f"Linked {path_relative_to_cwd(args.output_checksum)}"):
             _link_output(args, checksum.name, args.output_checksum)
 
 
@@ -4229,28 +4236,28 @@ def link_output_root_hash_file(args: CommandLineArguments, root_hash_file: Optio
     if root_hash_file:
         assert args.output_root_hash_file
         suffix = roothash_suffix(args.usr_only)
-        with complete_step(f"Linking {suffix} file…", f"Successfully linked {args.output_root_hash_file}"):
+        with complete_step(f"Linking {suffix} file…", f"Linked {path_relative_to_cwd(args.output_root_hash_file)}"):
             _link_output(args, root_hash_file.name, args.output_root_hash_file)
 
 
 def link_output_signature(args: CommandLineArguments, signature: Optional[SomeIO]) -> None:
     if signature:
         assert args.output_signature is not None
-        with complete_step("Linking SHA256SUMS.gpg file…", f"Successfully linked {args.output_signature}"):
+        with complete_step("Linking SHA256SUMS.gpg file…", f"Linked {path_relative_to_cwd(args.output_signature)}"):
             _link_output(args, signature.name, args.output_signature)
 
 
 def link_output_bmap(args: CommandLineArguments, bmap: Optional[SomeIO]) -> None:
     if bmap:
         assert args.output_bmap
-        with complete_step("Linking .bmap file…", f"Successfully linked {args.output_bmap}"):
+        with complete_step("Linking .bmap file…", f"Linked {path_relative_to_cwd(args.output_bmap)}"):
             _link_output(args, bmap.name, args.output_bmap)
 
 
 def link_output_sshkey(args: CommandLineArguments, sshkey: Optional[SomeIO]) -> None:
     if sshkey:
         assert args.output_sshkey
-        with complete_step("Linking private ssh key file…", f"Successfully linked {args.output_sshkey}"):
+        with complete_step("Linking private ssh key file…", f"Linked {path_relative_to_cwd(args.output_sshkey)}"):
             _link_output(args, sshkey.name, args.output_sshkey)
             os.chmod(args.output_sshkey, 0o600)
 
@@ -4258,21 +4265,23 @@ def link_output_sshkey(args: CommandLineArguments, sshkey: Optional[SomeIO]) -> 
 def link_output_split_root(args: CommandLineArguments, split_root: Optional[SomeIO]) -> None:
     if split_root:
         assert args.output_split_root
-        with complete_step("Linking split root file system…", f"Successfully linked {args.output_split_root}"):
+        with complete_step(
+            "Linking split root file system…", f"Linked {path_relative_to_cwd(args.output_split_root)}"
+        ):
             _link_output(args, split_root.name, args.output_split_root)
 
 
 def link_output_split_verity(args: CommandLineArguments, split_verity: Optional[SomeIO]) -> None:
     if split_verity:
         assert args.output_split_verity
-        with complete_step("Linking split Verity data…", f"Successfully linked {args.output_split_verity}"):
+        with complete_step("Linking split Verity data…", f"Linked {path_relative_to_cwd(args.output_split_verity)}"):
             _link_output(args, split_verity.name, args.output_split_verity)
 
 
 def link_output_split_kernel(args: CommandLineArguments, split_kernel: Optional[SomeIO]) -> None:
     if split_kernel:
         assert args.output_split_kernel
-        with complete_step("Linking split kernel image…", f"Successfully linked {args.output_split_kernel}"):
+        with complete_step("Linking split kernel image…", f"Linked {path_relative_to_cwd(args.output_split_kernel)}"):
             _link_output(args, split_kernel.name, args.output_split_kernel)
 
 
@@ -4289,6 +4298,41 @@ def dir_size(path: str) -> int:
         elif entry.is_dir():
             dir_sum += dir_size(entry.path)
     return dir_sum
+
+
+def save_manifest(args: CommandLineArguments, manifest: Manifest) -> None:
+    if manifest.has_data():
+        relpath = path_relative_to_cwd(args.output)
+
+        if ManifestFormat.json in args.manifest_format:
+            with complete_step(f"Saving manifest {relpath}.manifest"):
+                f: TextIO = cast(
+                    TextIO,
+                    tempfile.NamedTemporaryFile(
+                        mode="w+",
+                        encoding="utf-8",
+                        prefix=".mkosi-",
+                        dir=os.path.dirname(args.output),
+                    ),
+                )
+                with f:
+                    manifest.write_json(f)
+                    _link_output(args, f.name, f"{args.output}.manifest")
+
+        if ManifestFormat.changelog in args.manifest_format:
+            with complete_step(f"Saving report {relpath}.packages"):
+                g: TextIO = cast(
+                    TextIO,
+                    tempfile.NamedTemporaryFile(
+                        mode="w+",
+                        encoding="utf-8",
+                        prefix=".mkosi-",
+                        dir=os.path.dirname(args.output),
+                    ),
+                )
+                with g:
+                    manifest.write_package_report(g)
+                    _link_output(args, g.name, f"{relpath}.packages")
 
 
 def print_output_size(args: CommandLineArguments) -> None:
@@ -4315,6 +4359,12 @@ def setup_package_cache(args: CommandLineArguments) -> Optional[TempDir]:
         output.append(args.cache_path)
 
     return d
+
+
+def remove_duplicates(items: List[T]) -> List[T]:
+    "Return list with any repetitions removed"
+    # We use a dictionary to simulate an ordered set
+    return list({x: None for x in items})
 
 
 class ListAction(argparse.Action):
@@ -4353,11 +4403,13 @@ class ListAction(argparse.Action):
             # Remove ! prefixed list entries from list. !* removes all entries. This works for strings only now.
             if x == "!*":
                 ary = []
-            elif x.startswith("!"):
+            elif isinstance(x, str) and x.startswith("!"):
                 if x[1:] in ary:
                     ary.remove(x[1:])
             else:
                 ary.append(x)
+
+        ary = remove_duplicates(ary)
         setattr(namespace, self.dest, ary)
 
 
@@ -4601,7 +4653,6 @@ def create_parser() -> ArgumentParserMkosi:
     group.add_argument(
         "--repositories",
         action=CommaDelimitedListAction,
-        dest="repositories",
         default=[],
         help="Repositories to use",
         metavar="REPOS",
@@ -4616,6 +4667,12 @@ def create_parser() -> ArgumentParserMkosi:
         choices=OutputFormat,
         type=OutputFormat.from_string,
         help="Output Format",
+    )
+    group.add_argument(
+        "--manifest-format",
+        action=CommaDelimitedListAction,
+        type=cast(Callable[[str], ManifestFormat], ManifestFormat.parse_list),
+        help="Manifest Format",
     )
     group.add_argument("-o", "--output", help="Output image path", metavar="PATH")
     group.add_argument(
@@ -5285,6 +5342,8 @@ def unlink_output(args: CommandLineArguments) -> None:
     if not args.skip_final_phase:
         with complete_step("Removing output files…"):
             unlink_try_hard(args.output)
+            unlink_try_hard(f"{args.output}.manifest")
+            unlink_try_hard(f"{args.output}.packages")
 
             if args.checksum:
                 unlink_try_hard(args.output_checksum)
@@ -5684,6 +5743,9 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
         else:
             args.output = prefix
 
+    if args.manifest_format is None:
+        args.manifest_format = [ManifestFormat.json]
+
     if args.output_dir is not None:
         args.output_dir = os.path.abspath(args.output_dir)
 
@@ -5994,6 +6056,8 @@ def print_summary(args: CommandLineArguments) -> None:
     if args.image_version is not None:
         MkosiPrinter.info("             Image Version: " + args.image_version)
     MkosiPrinter.info("             Output Format: " + args.output_format.name)
+    maniformats = (" ".join(str(i) for i in args.manifest_format)) or "(none)"
+    MkosiPrinter.info("          Manifest Formats: " + maniformats)
     if args.output_format.can_minimize():
         MkosiPrinter.info("                  Minimize: " + yes_no(args.minimize))
     if args.output_dir:
@@ -6259,7 +6323,13 @@ class BuildOutput:
 
 
 def build_image(
-    args: CommandLineArguments, root: str, *, do_run_build_script: bool, for_cache: bool = False, cleanup: bool = False
+    args: CommandLineArguments,
+    root: str,
+    *,
+    manifest: Optional[Manifest] = None,
+    do_run_build_script: bool,
+    for_cache: bool = False,
+    cleanup: bool = False,
 ) -> BuildOutput:
     # If there's no build script set, there's no point in executing
     # the build script iteration. Let's quit early.
@@ -6333,6 +6403,10 @@ def build_image(
                 sshkey = setup_ssh(args, root, do_run_build_script, for_cache, cached_tree)
                 setup_network_veth(args, root, do_run_build_script, cached_tree)
                 run_postinst_script(args, root, loopdev, do_run_build_script, for_cache)
+
+                if manifest:
+                    with complete_step("Recording packages in manifest…"):
+                        manifest.record_packages(root)
 
                 if cleanup:
                     clean_package_manager_metadata(root)
@@ -6510,12 +6584,13 @@ def remove_artifacts(
             unlink_try_hard(root_home(args, root))
 
 
-def build_stuff(args: CommandLineArguments) -> None:
+def build_stuff(args: CommandLineArguments) -> Manifest:
     make_output_dir(args)
     setup_package_cache(args)
     workspace = setup_workspace(args)
 
     image = BuildOutput.empty()
+    manifest = Manifest(args)
 
     # Make sure tmpfiles' aging doesn't interfere with our workspace
     # while we are working on it.
@@ -6554,7 +6629,7 @@ def build_stuff(args: CommandLineArguments) -> None:
         # Run the image builder for the second (final) stage
         if not args.skip_final_phase:
             with complete_step("Running second (final) stage…"):
-                image = build_image(args, root, do_run_build_script=False, cleanup=True)
+                image = build_image(args, root, manifest=manifest, do_run_build_script=False, cleanup=True)
         else:
             MkosiPrinter.print_step("Skipping (second) final image build phase.")
 
@@ -6585,6 +6660,8 @@ def build_stuff(args: CommandLineArguments) -> None:
 
         if image.root_hash is not None:
             MkosiPrinter.print_step(f"Root hash is {image.root_hash}.")
+
+        return manifest
 
 
 def check_root() -> None:
@@ -7121,11 +7198,14 @@ def run_verb(raw: argparse.Namespace) -> None:
         check_root()
         check_native(args)
         init_namespace(args)
-        build_stuff(args)
-        print_output_size(args)
+        manifest = build_stuff(args)
 
         if args.auto_bump:
             bump_image_version(args)
+
+        save_manifest(args, manifest)
+
+        print_output_size(args)
 
     if args.verb in ("shell", "boot"):
         run_shell(args)

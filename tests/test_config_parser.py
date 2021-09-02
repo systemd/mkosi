@@ -77,6 +77,7 @@ class MkosiConfig(object):
             "install_dir": None,
             "kernel_command_line": ["rhgb", "selinux=0", "audit=0"],
             "key": None,
+            "manifest_format": None,
             "mirror": None,
             "mksquashfs_tool": [],
             "no_chown": False,
@@ -169,7 +170,7 @@ class MkosiConfig(object):
             if isinstance(arg, str) and arg.startswith("!"):
                 if arg[1:] in self.reference_config[job_name][ref_entry]:
                     self.reference_config[job_name][ref_entry].remove(arg[1:])
-            else:
+            elif arg not in self.reference_config[job_name][ref_entry]:
                 self.reference_config[job_name][ref_entry].append(arg)
 
     @staticmethod
@@ -187,7 +188,7 @@ class MkosiConfig(object):
         for section, key_val in config_all_normalized.items():
             for key, val in key_val.items():
                 if isinstance(val, list):
-                    config_all_normalized[section][key] = os.linesep.join(val)
+                    config_all_normalized[section][key] = os.linesep.join(str(item) for item in val)
 
         config_parser.read_dict(config_all_normalized)
         with open(os.path.join(dname, fname), "w") as f_ini:
@@ -216,6 +217,8 @@ class MkosiConfig(object):
                 self.reference_config[job_name]["output_format"] = mkosi.OutputFormat.from_string(
                     mk_config_output["Format"]
                 )
+            if "ManifestFormat" in mk_config_output:
+                self.reference_config[job_name]["manifest_format"] = mk_config_output["ManifestFormat"]
             if "Output" in mk_config_output:
                 self.reference_config[job_name]["output"] = mk_config_output["Output"]
             if "Force" in mk_config_output:
@@ -513,6 +516,7 @@ class MkosiConfigManyParams(MkosiConfigOne):
             "Output": {
                 "Format": "gpt_ext4",
                 "Output": "test_image.raw",
+                "ManifestFormat": [mkosi.backend.ManifestFormat.json],
                 #                 # 'OutputDirectory': '',
                 "Bootable": False,
                 "BootProtocols": "uefi",

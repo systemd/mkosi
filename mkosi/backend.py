@@ -5,6 +5,7 @@ import contextlib
 import dataclasses
 import enum
 import os
+import pathlib
 import shlex
 import shutil
 import signal
@@ -23,6 +24,7 @@ from typing import (
     NoReturn,
     Optional,
     Union,
+    cast,
 )
 
 if sys.version_info >= (3, 8):
@@ -52,18 +54,57 @@ class MkosiException(Exception):
 ARG_DEBUG = ()
 
 
+class Parseable:
+    "A mix-in to provide conversions for argparse"
+
+    def __repr__(self) -> str:
+        """Return the member name without the class name"""
+        return cast(str, getattr(self, "name"))
+
+    def __str__(self) -> str:
+        return self.__repr__()
+
+    @classmethod
+    def from_string(cls: Any, name: str) -> Any:
+        """A convenience method to be used with argparse"""
+        try:
+            return cls[name]
+        except KeyError:
+            raise argparse.ArgumentTypeError(f"unknown Format: {name!r}")
+
+    @classmethod
+    def parse_list(cls: Any, string: str) -> List[Any]:
+        return [cls.from_string(p) for p in string.split(",") if p]
+
+
+class PackageType(enum.Enum):
+    rpm = 1
+    deb = 2
+    pkg = 3
+    bundle = 4
+
+
 class Distribution(enum.Enum):
-    fedora = 1
-    debian = 2
-    ubuntu = 3
-    arch = 4
-    opensuse = 5
-    mageia = 6
-    centos = 7
-    centos_epel = 8
-    clear = 9
-    photon = 10
-    openmandriva = 11
+    fedora = 0, PackageType.rpm
+    debian = 1, PackageType.deb
+    ubuntu = 2, PackageType.deb
+    arch = 3, PackageType.pkg
+    opensuse = 4, PackageType.rpm
+    mageia = 5, PackageType.rpm
+    centos = 6, PackageType.rpm
+    centos_epel = 7, PackageType.rpm
+    clear = 8, PackageType.bundle
+    photon = 9, PackageType.rpm
+    openmandriva = 10, PackageType.rpm
+
+    def __new__(cls, number: int, package_type: PackageType) -> "Distribution":
+        # This turns the list above into enum entries with .package_type attributes.
+        # See https://docs.python.org/3.9/library/enum.html#when-to-use-new-vs-init
+        # for an explanation.
+        entry = object.__new__(cls)
+        entry._value_ = number
+        entry.package_type = package_type
+        return cast("Distribution", entry)
 
     def __str__(self) -> str:
         return self.name
@@ -90,7 +131,7 @@ class SourceFileTransfer(enum.Enum):
         }
 
 
-class OutputFormat(enum.Enum):
+class OutputFormat(Parseable, enum.Enum):
     directory = enum.auto()
     subvolume = enum.auto()
     tar = enum.auto()
@@ -108,22 +149,6 @@ class OutputFormat(enum.Enum):
     raw_xfs = gpt_xfs
     raw_btrfs = gpt_btrfs
     raw_squashfs = gpt_squashfs
-
-    def __repr__(self) -> str:
-        """Return the member name without the class name"""
-        return self.name
-
-    def __str__(self) -> str:
-        """Return the member name without the class name"""
-        return self.name
-
-    @classmethod
-    def from_string(cls, name: str) -> "OutputFormat":
-        """A convenience method to be used with argparse"""
-        try:
-            return cls[name]
-        except KeyError:
-            raise argparse.ArgumentTypeError(f"unknown Format: {name!r}")
 
     def is_disk_rw(self) -> bool:
         "Output format is a disk image with a parition table and a writable filesystem"
@@ -159,6 +184,11 @@ class OutputFormat(enum.Enum):
         return self.is_squashfs() or self.is_btrfs()
 
 
+class ManifestFormat(Parseable, enum.Enum):
+    json = "json"  # the standard manifest in json format
+    changelog = "changelog"  # human-readable text file with package changelogs
+
+
 @dataclasses.dataclass
 class CommandLineArguments:
     """Type-hinted storage for command line arguments."""
@@ -172,6 +202,7 @@ class CommandLineArguments:
     repositories: List[str]
     architecture: Optional[str]
     output_format: OutputFormat
+    manifest_format: List[ManifestFormat]
     output: str
     output_dir: Optional[str]
     force_count: int
@@ -509,6 +540,16 @@ def patch_file(filepath: str, line_rewriter: Callable[[str], str]) -> None:
     shutil.copystat(filepath, temp_new_filepath)
     os.remove(filepath)
     shutil.move(temp_new_filepath, filepath)
+
+
+def path_relative_to_cwd(path: str) -> pathlib.Path:
+    "Return path as relative to $PWD if underneath, absolute path otherwise"
+
+    path = pathlib.Path(path)
+    try:
+        return path.relative_to(os.getcwd())
+    except ValueError:
+        return path
 
 
 def write_grub_config(args: CommandLineArguments, root: str) -> None:
