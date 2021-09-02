@@ -37,6 +37,7 @@ runs:
           ovmf
           python3-gpg
           python3-sphinx
+          python3-pip
           qemu-system-x86-64
           squashfs-tools
           swig
