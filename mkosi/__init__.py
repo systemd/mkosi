@@ -6099,10 +6099,7 @@ def print_summary(args: CommandLineArguments) -> None:
     # FIXME: normal print
     MkosiPrinter.info("COMMANDS:")
     MkosiPrinter.info("                      verb: " + args.verb)
-    try:
-        MkosiPrinter.info("                   cmdline: " + " ".join(args.cmdline))
-    except AttributeError:
-        pass
+    MkosiPrinter.info("                   cmdline: " + " ".join(args.cmdline))
     MkosiPrinter.info("\nDISTRIBUTION:")
     MkosiPrinter.info("              Distribution: " + args.distribution.name)
     MkosiPrinter.info("                   Release: " + none_to_na(args.release))
