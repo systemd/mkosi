@@ -23,6 +23,7 @@ from typing import (
     List,
     NoReturn,
     Optional,
+    Set,
     Union,
     cast,
 )
@@ -51,7 +52,7 @@ class MkosiException(Exception):
 
 
 # This global should be initialized after parsing arguments
-ARG_DEBUG = ()
+ARG_DEBUG: Set[str] = set()
 
 
 class Parseable:
@@ -484,7 +485,7 @@ def spawn(
     **kwargs: Any,
 ) -> Popen:
     if "run" in ARG_DEBUG:
-        MkosiPrinter.info("+ {shell_join(cmdline)")
+        MkosiPrinter.info(f"+ {shell_join(cmdline)}")
 
     if not stdout and not stderr:
         # Unless explicit redirection is done, print all subprocess
@@ -509,7 +510,7 @@ def run(
     **kwargs: Any,
 ) -> CompletedProcess:
     if "run" in ARG_DEBUG:
-        MkosiPrinter.info("+ {shell_join(cmdline)")
+        MkosiPrinter.info(f"+ {shell_join(cmdline)}")
 
     if not stdout and not stderr:
         # Unless explicit redirection is done, print all subprocess
