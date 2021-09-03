@@ -6783,8 +6783,8 @@ def run_shell(args: CommandLineArguments) -> None:
     cmdline += ["--machine", virt_name(args)]
 
     if args.cmdline:
-        # If the verb is shell, args.cmdline contains the command to run. Otherwise (boot), we assume
-        # args.cmdline contains nspawn arguments.
+        # If the verb is 'shell', args.cmdline contains the command to run.
+        # Otherwise, the verb is 'boot', and we assume args.cmdline contains nspawn arguments.
         if args.verb == "shell":
             cmdline.append("--")
         cmdline += args.cmdline
