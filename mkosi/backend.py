@@ -484,7 +484,7 @@ def spawn(
     **kwargs: Any,
 ) -> Popen:
     if "run" in ARG_DEBUG:
-        MkosiPrinter.info("+ {shell_join(cmdline)")
+        MkosiPrinter.info(f"+ {shell_join(cmdline)}")
 
     if not stdout and not stderr:
         # Unless explicit redirection is done, print all subprocess
@@ -509,7 +509,7 @@ def run(
     **kwargs: Any,
 ) -> CompletedProcess:
     if "run" in ARG_DEBUG:
-        MkosiPrinter.info("+ {shell_join(cmdline)")
+        MkosiPrinter.info(f"+ {shell_join(cmdline)}")
 
     if not stdout and not stderr:
         # Unless explicit redirection is done, print all subprocess
