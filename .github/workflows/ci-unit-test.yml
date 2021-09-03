@@ -25,6 +25,9 @@ jobs:
     - name: Run pyflakes
       run: python3 -m pyflakes mkosi/ tests/
 
+    - name: Check that tabs are not used in code
+      run: sh -c '! git grep -P "\\t" "*.py"'
+
     - name: Type Checking (mypy)
       run: python3 -m mypy --python-version 3.7 mkosi
 
