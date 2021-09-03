@@ -741,6 +741,14 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   file may be provided too. `mkosi.skeleton.tar` will be automatically
   used if found in the local directory.
 
+`CleanPackageMetadata=`, `--clean-package-metadata=`
+
+: Enable/disable removal of package manager databases, caches, and
+  logs at the end of installation. Can be specifed as true, false, or
+  "`auto`" (the default). With "`auto`", files will be removed if the
+  respective package manager executable is *not* present at the end of
+  the installation.
+
 `RemoveFiles=`, `--remove-files=`
 
 : Takes a comma-separated list of globs. Files in the image matching

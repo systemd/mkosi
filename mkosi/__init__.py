@@ -1680,8 +1680,8 @@ def make_rpm_list(args: CommandLineArguments, packages: Set[str], do_run_build_s
     return packages
 
 
-def clean_dnf_metadata(root: Path) -> None:
-    """Removes dnf metadata iff /bin/dnf is not present in the image
+def clean_dnf_metadata(root: Path, always: bool) -> None:
+    """Remove dnf metadata if /bin/dnf is not present in the image
 
     If dnf is not installed, there doesn't seem to be much use in
     keeping the dnf metadata, since it's not usable from within the
@@ -1693,71 +1693,79 @@ def clean_dnf_metadata(root: Path) -> None:
         *root.glob("var/log/hawkey.*"),
         root / "var/cache/dnf",
     ]
-    keep_dnf_data = os.access(root / "bin/dnf", os.F_OK, follow_symlinks=False)
 
-    if keep_dnf_data or not any(os.path.exists(path) for path in dnf_metadata_paths):
+    cond = always or os.access(root / "bin/dnf", os.F_OK, follow_symlinks=False)
+
+    if  not cond or not any(os.path.exists(path) for path in dnf_metadata_paths):
         return
 
     with complete_step("Cleaning dnf metadata…"):
         remove_glob(*dnf_metadata_paths)
 
 
-def clean_yum_metadata(root: Path) -> None:
-    """Removes yum metadata iff /bin/yum is not present in the image"""
+def clean_yum_metadata(root: Path, always: bool) -> None:
+    """Remove yum metadata if /bin/yum is not present in the image"""
     yum_metadata_paths = [
         root / "var/lib/yum",
         *root.glob("var/log/yum.*"),
         root / "var/cache/yum",
     ]
-    keep_yum_data = os.access(root / "bin/yum", os.F_OK, follow_symlinks=False)
 
-    if keep_yum_data or not any(os.path.exists(path) for path in yum_metadata_paths):
+    cond = always or os.access(root / "bin/yum", os.F_OK, follow_symlinks=False)
+
+    if not cond or not any(os.path.exists(path) for path in yum_metadata_paths):
         return
 
     with complete_step("Cleaning yum metadata…"):
         remove_glob(*yum_metadata_paths)
 
 
-def clean_rpm_metadata(root: Path) -> None:
-    """Removes rpm metadata iff /bin/rpm is not present in the image"""
+def clean_rpm_metadata(root: Path, always: bool) -> None:
+    """Remove rpm metadata if /bin/rpm is not present in the image"""
     rpm_metadata_path = root / "var/lib/rpm"
-    keep_rpm_data = os.access(root / "bin/rpm", os.F_OK, follow_symlinks=False)
 
-    if keep_rpm_data or not rpm_metadata_path.exists():
+    cond = always or os.access(root / "bin/rpm", os.F_OK, follow_symlinks=False)
+
+    if not cond or not rpm_metadata_path.exists():
         return
 
     with complete_step("Cleaning rpm metadata…"):
         remove_glob(rpm_metadata_path)
 
 
-def clean_tdnf_metadata(root: Path) -> None:
-    """Removes tdnf metadata iff /bin/tdnf is not present in the image"""
+def clean_tdnf_metadata(root: Path, always: bool) -> None:
+    """Remove tdnf metadata if /bin/tdnf is not present in the image"""
     tdnf_metadata_paths = [
         *root.glob("var/log/tdnf.*"),
         root / "var/cache/tdnf",
     ]
-    keep_tdnf_data = os.access(root / "usr/bin/tdnf", os.F_OK, follow_symlinks=False)
 
-    if keep_tdnf_data or not any(os.path.exists(path) for path in tdnf_metadata_paths):
+    cond = always or os.access(root / "usr/bin/tdnf", os.F_OK, follow_symlinks=False)
+
+    if not cond or not any(os.path.exists(path) for path in tdnf_metadata_paths):
         return
 
     with complete_step("Cleaning tdnf metadata…"):
         remove_glob(*tdnf_metadata_paths)
 
 
-def clean_package_manager_metadata(root: Path) -> None:
-    """Clean up package manager metadata
+def clean_package_manager_metadata(args: CommandLineArguments, root: Path) -> None:
+    """Remove package manager metadata
 
     Try them all regardless of the distro: metadata is only removed if the
     package manager is present in the image.
     """
 
+    assert args.clean_package_metadata in (False, True, 'auto')
+    if args.clean_package_metadata is False:
+        return
+
     # we try then all: metadata will only be touched if any of them are in the
     # final image
-    clean_dnf_metadata(root)
-    clean_yum_metadata(root)
-    clean_rpm_metadata(root)
-    clean_tdnf_metadata(root)
+    clean_dnf_metadata(root, always=args.clean_package_metadata is True)
+    clean_yum_metadata(root, always=args.clean_package_metadata is True)
+    clean_rpm_metadata(root, always=args.clean_package_metadata is True)
+    clean_tdnf_metadata(root, always=args.clean_package_metadata is True)
     # FIXME: implement cleanup for other package managers
 
 
@@ -4481,6 +4489,21 @@ class BooleanAction(argparse.Action):
         setattr(namespace, self.dest, new_value)
 
 
+class CleanPackageMetadataAction(BooleanAction):
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: Union[str, Sequence[Any], None, bool],
+        option_string: Optional[str] = None,
+    ) -> None:
+
+        if isinstance(values, str) and values == "auto":
+            setattr(namespace, self.dest, "auto")
+        else:
+            super().__call__(parser, namespace, values, option_string)
+
+
 class WithNetworkAction(BooleanAction):
     def __call__(
         self,
@@ -4490,12 +4513,10 @@ class WithNetworkAction(BooleanAction):
         option_string: Optional[str] = None,
     ) -> None:
 
-        if isinstance(values, str):
-            if values == "never":
-                setattr(namespace, self.dest, "never")
-                return
-
-        super().__call__(parser, namespace, values, option_string)
+        if isinstance(values, str) and values == "never":
+            setattr(namespace, self.dest, "never")
+        else:
+            super().__call__(parser, namespace, values, option_string)
 
 
 class CustomHelpFormatter(argparse.HelpFormatter):
@@ -4913,6 +4934,11 @@ def create_parser() -> ArgumentParserMkosi:
         help="Use a skeleton tree to bootstrap the image before installing anything",
         type=Path,
         metavar="PATH",
+    )
+    group.add_argument(
+        "--clean-package-metadata",
+        action=CleanPackageMetadataAction,
+        help="Remove package manager database and other files",
     )
     group.add_argument(
         "--remove-files",
@@ -6190,6 +6216,7 @@ def print_summary(args: CommandLineArguments) -> None:
     MkosiPrinter.info("             Package Cache: " + none_to_none(args.cache_path))
     MkosiPrinter.info("               Extra Trees: " + line_join_list(args.extra_trees))
     MkosiPrinter.info("            Skeleton Trees: " + line_join_list(args.skeleton_trees))
+    MkosiPrinter.info("      CleanPackageMetadata: " + yes_no_or(args.clean_package_metadata))
     if args.remove_files:
         MkosiPrinter.info("              Remove Files: " + line_join_list(args.remove_files))
     MkosiPrinter.info("              Build Script: " + none_to_none(args.build_script))
@@ -6472,7 +6499,7 @@ def build_image(
                         manifest.record_packages(root)
 
                 if cleanup:
-                    clean_package_manager_metadata(root)
+                    clean_package_manager_metadata(args, root)
                     remove_files(args, root)
                 reset_machine_id(args, root, do_run_build_script, for_cache)
                 reset_random_seed(args, root)

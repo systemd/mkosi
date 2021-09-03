@@ -240,6 +240,7 @@ class CommandLineArguments:
     cache_path: Optional[Path]
     extra_trees: List[Path]
     skeleton_trees: List[Path]
+    clean_package_metadata: Union[bool, str]
     remove_files: List[Path]
     build_script: Optional[Path]
     environment: List[str]
