@@ -736,7 +736,7 @@ class MkosiConfigIniLists1(MkosiConfigOne):
             "[Distribution]",
             "Distribution=fedora",
             "",
-            "[Packages]",
+            "[Content]",
             "Packages=openssh-clients",
             "  httpd",
             "  tar",
@@ -751,7 +751,7 @@ class MkosiConfigIniLists1(MkosiConfigOne):
             "[Distribution]",
             "Distribution=ubuntu",
             "",
-            "[Packages]",
+            "[Content]",
             "Packages=   ",
             "          !httpd",
             "           apache2",
@@ -772,7 +772,7 @@ class MkosiConfigIniLists1(MkosiConfigOne):
 
     def prepare_mkosi_default_d_2(self, directory: str) -> None:
         ini_lines = [
-            "[Packages]",
+            "[Content]",
             "Packages=[ vim,!vi",
             "  ca-certificates, bzip ]" "",
             "[Output]",

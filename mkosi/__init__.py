@@ -4585,6 +4585,12 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
                 config.optionxform = str  # type: ignore
                 with open(arg_string[1:]) as args_file:
                     config.read_file(args_file)
+
+                # Rename old [Packages] section to [Content]
+                if config.has_section("Packages") and not config.has_section("Content"):
+                    config.read_dict({"Content": dict(config.items("Packages"))})
+                    config.remove_section("Packages")
+
                 for section in config.sections():
                     for key, value in config.items(section):
                         cli_arg = self._ini_key_to_cli_arg(key)
@@ -4813,7 +4819,7 @@ def create_parser() -> ArgumentParserMkosi:
         "--split-artifacts", action=BooleanAction, help="Generate split out root/verity/kernel images, too"
     )
 
-    group = parser.add_argument_group("Packages")
+    group = parser.add_argument_group("Content")
     group.add_argument(
         "--base-packages",
         type=parse_base_packages,
@@ -4842,6 +4848,13 @@ def create_parser() -> ArgumentParserMkosi:
     group.add_argument(
         "--with-tests", action=BooleanAction, default=True, help=argparse.SUPPRESS
     )  # Compatibility option
+
+    group.add_argument("--password", help="Set the root password")
+    group.add_argument(
+        "--password-is-hashed", action=BooleanAction, help="Indicate that the root password has already been hashed"
+    )
+    group.add_argument("--autologin", action=BooleanAction, help="Enable root autologin")
+
     group.add_argument("--cache", dest="cache_path", help="Package cache path", metavar="PATH")
     group.add_argument(
         "--extra-tree",
@@ -4993,11 +5006,6 @@ def create_parser() -> ArgumentParserMkosi:
         action=BooleanAction,
         help="Write block map file (.bmap) for bmaptool usage (only gpt_ext4, gpt_btrfs)",
     )
-    group.add_argument("--password", help="Set the root password")
-    group.add_argument(
-        "--password-is-hashed", action=BooleanAction, help="Indicate that the root password has already been hashed"
-    )
-    group.add_argument("--autologin", action=BooleanAction, help="Enable root autologin")
 
     group = parser.add_argument_group("Host configuration")
     group.add_argument(
@@ -6118,7 +6126,7 @@ def print_summary(args: CommandLineArguments) -> None:
             MkosiPrinter.info("             GPT First LBA: " + str(args.gpt_first_lba))
             MkosiPrinter.info("           Hostonly Initrd: " + yes_no(args.hostonly_initrd))
 
-    MkosiPrinter.info("\nPACKAGES:")
+    MkosiPrinter.info("\nCONTENT:")
     MkosiPrinter.info("                  Packages: " + line_join_list(args.packages))
 
     if args.distribution in (Distribution.fedora, Distribution.centos, Distribution.centos_epel, Distribution.mageia):
@@ -6134,6 +6142,9 @@ def print_summary(args: CommandLineArguments) -> None:
 
     if args.build_script:
         MkosiPrinter.info("                 Run tests: " + yes_no(args.with_tests))
+
+    MkosiPrinter.info("                  Password: " + ("default" if args.password is None else "set"))
+    MkosiPrinter.info("                 Autologin: " + yes_no(args.autologin))
 
     MkosiPrinter.info("             Build Sources: " + none_to_none(args.build_sources))
     MkosiPrinter.info("      Source File Transfer: " + none_to_none(args.source_file_transfer))
@@ -6168,8 +6179,6 @@ def print_summary(args: CommandLineArguments) -> None:
         MkosiPrinter.info("                  Checksum: " + yes_no(args.checksum))
         MkosiPrinter.info("                      Sign: " + yes_no(args.sign))
         MkosiPrinter.info("                   GPG Key: " + ("default" if args.key is None else args.key))
-        MkosiPrinter.info("                  Password: " + ("default" if args.password is None else "set"))
-        MkosiPrinter.info("                 Autologin: " + yes_no(args.autologin))
 
     MkosiPrinter.info("\nHOST CONFIGURATION:")
     MkosiPrinter.info("        Extra search paths: " + line_join_list(args.extra_search_paths))

@@ -75,7 +75,7 @@ options are available:
   with the result.
 
 * Optionally, build a local project's *source* tree in the image
-  and add the result to the generated image (see below).
+  and add the result to the generated image.
 
 * Optionally, share *RPM*/*DEB* package cache between multiple runs,
   in order to optimize build speeds.
@@ -92,9 +92,9 @@ options are available:
   created subvolumes.
 
 * By default images are created without all files marked as
-  documentation in the packages, on distributions where the
-  package manager supports this. Use the `--with-docs` flag to
-  build an image with docs added.
+  documentation in the packages, on distributions where the package
+  manager supports this. Use the `WithDocs=yes` flag to build an image
+  with docs added.
 
 ## Command Line Verbs
 
@@ -103,7 +103,7 @@ The following command line verbs are known:
 `build`
 
 : This builds the image, based on the settings passed in on the
-  command line or read from a `mkosi.default` file, see below. This
+  command line or read from a `mkosi.default` file. This
   verb is the default if no verb is explicitly specified. This command
   must be executed as `root`. Any arguments passed after `build` are
   passed as arguments to the build script (if there is one).
@@ -142,12 +142,12 @@ The following command line verbs are known:
 : Similar to `boot` but uses `qemu` to boot up the image, i.e. instead
   of container virtualization VM virtualization is used. This verb is
   only supported on images that contain a boot loader, i.e. those
-  built with `--bootable` (see below). This command must be executed
+  built with `Bootable=yes` (see below). This command must be executed
   as `root` unless the image already exists and `-f` is not specified.
 
 `ssh`
 
-: When the image is built with the `--ssh` option, this command connects
+: When the image is built with the `Ssh=yes` option, this command connects
   to a booted (`boot`, `qemu` verbs) container/VM via SSH. Make sure to
   run `mkosi ssh` with the same config as `mkosi build` was run with so
   that it has the necessary information available to connect to the running
@@ -166,7 +166,7 @@ The following command line verbs are known:
 `bump`
 
 : Determines the current image version string (as configured with
-  `--image-version=`/`ImageVersion=`), increases its last
+  `ImageVersion=`/`--image-version=`), increases its last
   dot-separated component by one and writes the resulting version
   string to `mkosi.version`. This is useful for implementing a simple
   versioning scheme: each time this verb is called the version is
@@ -286,35 +286,46 @@ build script?  -------exists----->     copy           .
                             .                         .
 ```
 
-## Command Line Parameters
+## Configuration Settings
 
-The following command line parameters are understood. Note that many
-of these parameters can also be set in the `mkosi.default` file, for
-details see the table below.
+The following settings can be set through configuration files (the
+syntax with `SomeSetting=value`) and on the command line (the syntax
+with `--some-setting=value`). For some command line parameters, a
+single-letter shortcut is also allowed. In the configuration files,
+the setting must be in the appropriate section, so the settings are
+grouped by section below.
 
-`--distribution=`, `-d`
+Command line options that take no argument are shown without "=" in
+their long version. In the config files, they should be specified with
+a boolean argument: either "1", "yes", or "true" to enable, or "0",
+"no", "false" to disable.
+
+### [Distribution] Section
+
+`Distribution=`, `--distribution=`, `-d`
+
 : The distribution to install in the image. Takes one of the following
   arguments: `fedora`, `debian`, `ubuntu`, `arch`, `opensuse`,
   `mageia`, `centos`, `clear`, `photon`, `openmandriva`. If not
   specified, defaults to the distribution of the host.
 
-`--release=`, `-r`
+`Release=`, `--release=`, `-r`
 
 : The release of the distribution to install in the image. The precise
   syntax of the argument this takes depends on the distribution used,
   and is either a numeric string (in case of Fedora Linux, CentOS, …,
   e.g. `29`), or a distribution version name (in case of Debian,
-  Ubuntu, …, e.g. `artful`). If neither this option, not
-  `--distribution=` is specified, defaults to the distribution version
+  Ubuntu, …, e.g. `artful`). If neither this option, nor
+  `Distribution=` is specified, defaults to the distribution version
   of the host. If the distribution is specified, defaults to a recent
   version of it.
 
-`--mirror=`, `-m`
+`Mirror=`, `--mirror=`, `-m`
 
 : The mirror to use for downloading the distribution packages. Expects
   a mirror URL as argument.
 
-`--repositories=`
+`Repositories=`, `--repositories=`
 
 : Additional package repositories to use during installation. Expects
   one or more URLs as argument, separated by commas. This option may
@@ -324,13 +335,15 @@ details see the table below.
   Linux, additional repositories must be passed in the form `<name>::<url>`
   (e.g. `myrepo::https://myrepo.net`).
 
-`--architecture=`
+`Architecture=`, `--architecture=`
 
 : The architecture to build the image for. Note that this currently
   only works for architectures compatible with the host's
   architecture.
 
-`--format=`, `-t`
+### [Output] Section
+
+`Format=`, `--format=`, `-t`
 
 : The image format type to generate. One of `directory` (for
   generating OS images inside a local directory), `subvolume`
@@ -342,99 +355,104 @@ details see the table below.
   squashfs file system), `plain_squashfs` (a plain squashfs file
   system without a partition table).
 
-`--manifest-format=`
+`ManifestFormat=`, `--manifest-format=`
 
 : The manifest format type or types to generate. A comma-delimited
   list consisting of `json` (the standard JSON output format that
   describes the packages installed), `changelog` (a human-readable
   text format designed for diffing). Defaults to `json`.
 
-`--output=`, `-o`
+`Output=`, `--output=`, `-o`
 
 : Path for the output image file to generate. Takes a relative or
   absolute path where the generated image will be placed. If neither
-  this option nor `--output-dir=` is used (see below), the image is
+  this option nor `OutputDirectory=` is used, the image is
   generated under the name `image`, but its name suffixed with an
   appropriate file suffix (e.g. `image.raw.xz` in case `gpt_ext4` is
-  used in combination with `xz` compression). If the `--image-id=`
-  option is configured it is used instead of `image` in the default
-  output name. If an image version is specified (via
-  `--image-version=`/`ImageVersion=`) it is included in the default
-  name, e.g. a specified image version of `7.8` might result in an
-  image file name of `image_7.8.raw.xz`.
+  used in combination with `xz` compression). If the `ImageId=` option
+  is configured it is used instead of `image` in the default output
+  name. If an image version is specified via `ImageVersion=`, it is
+  included in the default name, e.g. a specified image version of
+  `7.8` might result in an image file name of `image_7.8.raw.xz`.
 
-`--output-split-root=`, `--output-split-verity=`, `--output-split-kernel=`
+`OutputSplitRoot=`, `--output-split-root=`, `OutputSplitVerify=`, `--output-split-verity=`, `OutputSplitKernel=`, `--output-split-kernel=`
 
-: Path for the split-out output image files to generate, if the
-  `--split-artifacts` option is used (see below). If unspecified the
-  relevant split artifact files will be named like the main image, but
-  a `.root`, `.verity`, `.efi` suffix is inserted (which is possibly
-  in turn suffixed by `.xz`, if that is enabled).
+: Paths for the split-out output image files, when
+  `SplitArtifacts=yes` is used. If unspecified, the relevant split
+  artifact files will be named like the main image, but with `.root`,
+  `.verity`, and `.efi` suffixes inserted (and in turn possibly
+  suffixed by compression suffix, if compression is enabled).
 
-`--output-dir=`, `-O`
+`OutputDirectory=`, `--output-dir=`, `-O`
 
 : Path to a directory where to place all generated artifacts (i.e. the
-  `SHA256SUMS` file and similar). If this is not specified and a
-  directory `mkosi.output/` exists in the local directory it is
-  automatically used for this purpose. If this is not specified and
-  such a directory does not exist, all output artifacts are placed
-  adjacent to the output image file.
+  generated image when an output path is not given, `SHA256SUMS` file,
+  etc.). If this is not specified and the directory `mkosi.output/`
+  exists in the local directory, it is automatically used for this
+  purpose. If the setting is not used and `mkosi.output/` does not
+  exist, all output artifacts are placed adjacent to the output image
+  file.
 
-`--workspace-dir=`
+`WorkspaceDirectory=`, `--workspace-dir=`
 
 : Path to a directory where to store data required temporarily while
   building the image. This directory should have enough space to store
-  a full OS image, though in most modes the actually used disk space
-  is smaller. If not specified, and `mkosi.workspace/` exists, it is
-  used for this purpose. If it doesn't exist and `$TMPDIR` is set, the
-  specified directory is used. If that's not set either, `/var/tmp/`
-  is used. The data in the directory is removed automatically after
-  each build. It's safe to manually remove the contents of this
-  directories should an `mkosi` invocation be aborted abnormally (for
-  example, due to reboot/power failure). If the `btrfs` output modes
-  are selected this directory must be backed by `btrfs` too.
+  the full OS image, though in most modes the actually used disk space
+  is smaller. If not specified, and `mkosi.workspace/` exists in the
+  local directory, it is used for this purpose. Otherwise, a
+  subdirectory in the temporary storage area is used (`$TMPDIR` if
+  set, `/var/tmp/` otherwise).
 
-`--force`, `-f`
+: The data in this directory is removed automatically after each
+  build. It's safe to manually remove the contents of this directory
+  should an `mkosi` invocation be aborted abnormally (for example, due
+  to reboot/power failure). If the `btrfs` output modes are selected
+  this directory must be backed by `btrfs` too.
+
+`Force=`, `--force`, `-f`
 
 : Replace the output file if it already exists, when building an
   image. By default when building an image and an output artifact
-  already exists `mkosi` will refuse operation. Specify `-f` to delete
-  all build artifacts from a previous run before re-building the
-  image. If incremental builds are enabled (see below), specifying
-  this option twice will ensure the intermediary cache files are
-  removed, too, before the re-build is initiated. If a package cache
-  is used (see below), specifying this option thrice will ensure the
-  package cache is removed too, before the re-build is initiated. For
-  the `clean` operation `-f` has a slightly different effect: by
-  default the verb will only remove build artifacts from a previous
-  run, when specified once the incremental cache files are deleted
-  too, and when specified twice the package cache is also removed.
+  already exists `mkosi` will refuse operation. Specify this option
+  once to delete all build artifacts from a previous run before
+  re-building the image. If incremental builds are enabled,
+  specifying this option twice will ensure the intermediary
+  cache files are removed, too, before the re-build is initiated. If a
+  package cache is used (also see the "Files" section below),
+  specifying this option thrice will ensure the package cache is
+  removed too, before the re-build is initiated. For the `clean`
+  operation this option has a slightly different effect: by default
+  the verb will only remove build artifacts from a previous run, when
+  specified once the incremental cache files are deleted too, and when
+  specified twice the package cache is also removed.
 
-`--gpt-first-lba`
+  <!--  FIXME: allow `Force=<n>` -->
+
+`GPTFirstLBA=`, `--gpt-first-lba=`
 
 : Override the first usable LBA (Logical Block Address) within the
-  GPT header. This defaults to `2048` which is actually the desired value.
+  GPT header. This defaults to `2048`, which is actually the desired value.
   However, some tools, e.g. the `prl_disk_tool` utility from the
   Parallels virtualization suite require this to be set to `34`, otherwise
   they might fail to resize the disk image and/or partitions inside it.
 
-`--bootable`, `-b`
+`Bootable=`, `--bootable`, `-b`
 
 : Generate a bootable image. By default this will generate an image
-  bootable on UEFI systems. Use `--boot-protocols=` to select support
+  bootable on UEFI systems. Use `BootProtocols=` to select support
   for a different boot protocol.
 
-`--boot-protocols=`
+`BootProtocols=`, `--boot-protocols=`
 
 : Pick one or more boot protocols to support when generating a
-  bootable image, as enabled with `--bootable` above. Takes a
-  comma-separated list of `uefi` or `bios`. May be specified more than
-  once in which case the specified lists are merged. If `uefi` is
-  specified the `sd-boot` UEFI boot loader is used, if `bios` is
-  specified the GNU Grub boot loader is used. Use "!\*" to remove all
-  previously added protocols or "!protocol" to remove one protocol.
+  bootable image, as enabled with `Bootable=`. Takes a comma-separated
+  list of `uefi` or `bios`. May be specified more than once in which
+  case the specified lists are merged. If `uefi` is specified the
+  `sd-boot` UEFI boot loader is used, if `bios` is specified the GNU
+  Grub boot loader is used. Use "!\*" to remove all previously added
+  protocols or "!protocol" to remove one protocol.
 
-`--kernel-command-line=`
+`KernelCommandLine=`, `--kernel-command-line=`
 
 : Use the specified kernel command line when building bootable
   images. By default command line arguments get appended. To remove all
@@ -444,40 +462,40 @@ details see the table below.
   command line arguments passes "console=ttyS0 rw" to the kernel in any
   case. Just adding "console=ttyS0 rw" would append these two arguments
   to the kernel command line created by lower priority configuration
-  files or previous `--kernel-command-line` command line arguments.
+  files or previous `KernelCommandLine=` command line arguments.
 
-`--secure-boot`
+`SecureBoot=`, `--secure-boot`
 
-: Sign the resulting kernel/initrd image for UEFI SecureBoot
+: Sign the resulting kernel/initrd image for UEFI SecureBoot.
 
-`--secure-boot-key=`
+`SecureBootKey=`, `--secure-boot-key=`
 
 : Path to the PEM file containing the secret key for signing the
-  UEFI kernel image, if `--secure-boot` is used.
+  UEFI kernel image, if `SecureBoot=` is used.
 
-`--secure-boot-certificate=`
+`SecureBootCertificate=`, `--secure-boot-certificate=`
 
 : Path to the X.509 file containing the certificate for the signed
-  UEFI kernel image, if `--secure-boot` is used.
+  UEFI kernel image, if `SecureBoot=` is used.
 
-`--secure-boot-common-name=`
+`SecureBootCommonName=`, `--secure-boot-common-name=`
 
 : Common name to be used when generating SecureBoot keys via mkosi's `genkey`
   command. Defaults to `mkosi of %u`, where `%u` expands to the username of the
   user invoking mkosi.
 
-`--secure-boot-valid-days=`
+`SecureBootValidDays=`, `--secure-boot-valid-days=`
 
 : Number of days that the keys should remain valid when generating SecureBoot
   keys via mkosi's `genkey` command. Defaults to two years (730 days).
 
-`--read-only`
+`ReadOnly=`, `--read-only`
 
 : Make root file system read-only. Only applies to `gpt_ext4`,
-  `gpt_xfs`, `gpt_btrfs`, `subvolume` output formats, and implied on
+  `gpt_xfs`, `gpt_btrfs`, `subvolume` output formats, and is implied on
   `gpt_squashfs` and `plain_squashfs`.
 
-`--minimize`
+`Minimize=`, `--minimize`
 
 : Attempt to make the resulting root file system as small as possible by
   removing free space from the file system. Only
@@ -486,27 +504,27 @@ details see the table below.
   and generally leaves some free space. For btrfs the
   results are optimal and no free space is left.
 
-`--encrypt`
+`Encrypt=`, `--encrypt`
 
 : Encrypt all partitions in the file system or just the root file
-  system. Takes either `all` or `data` as argument. If `all` the root,
+  system. Takes either `all` or `data` as argument. If `all`, the root,
   `/home` and `/srv` file systems will be encrypted using
-  dm-crypt/LUKS (with its default settings). If `data` the root file
+  dm-crypt/LUKS (with its default settings). If `data`, the root file
   system will be left unencrypted, but `/home` and `/srv` will be
   encrypted. The passphrase to use is read from the `mkosi.passphrase`
-  file in the current working directory (see below). Note that the
+  file in the current working directory. Note that the
   UEFI System Partition (ESP) containing the boot loader and kernel to
   boot is never encrypted since it needs to be accessible by the
   firmware.
 
-`--verity`
+`Verity=`, `--verity`
 
 : Add an "Verity" integrity partition to the image. If enabled, the
   root partition is protected with `dm-verity` against off-line
   modification, the verification data is placed in an additional GPT
-  partition. Implies `--read-only`.
+  partition. Implies `ReadOnly=yes`.
 
-`--compress-fs=`
+`CompressFs=`, `--compress-fs=`
 
 : Enable or disable internal compression in the file system. Only
   applies to output formats with squashfs or btrfs. Takes one of
@@ -516,7 +534,7 @@ details see the table below.
   compression is implied, but this option may be used to select the
   algorithm.
 
-`--compress-output=`
+`CompressOutput=`, `--compress-output=`
 
 : Configure compression for the resulting image or archive. The
   argument can be either a boolean or a compression algorithm (`xz`,
@@ -526,20 +544,20 @@ details see the table below.
   the `shell`, `boot`, `qemu` verbs are not available when this option
   is used. Implied for `tar` and `cpio`.
 
-`--compress=`
+`Compress=`, `--compress=`
 
 : Enable compression. Using this option is equivalent to either
-  `--compress-fs=` or `--compress-output=`; the appropriate type
-  of compression is selected automatically.
+  `CompressFs=` or `CompressOutput=`; the appropriate type of
+  compression is selected automatically.
 
-`--mksquashfs=`
+`Mksquashfs=`, `--mksquashfs=`
 
 : Set the path to the `mksquashfs` executable to use. This is useful
   in case the parameters for the tool shall be augmented, as the tool
   may be replaced by a script invoking it with the right parameters,
   this way.
 
-`--qcow2`
+`QCow2=`, `--qcow2`
 
 : Encode the resulting image as QEMU QCOW2 image. This only applies to
   `gpt_ext4`, `gpt_xfs`, `gpt_btrfs`, `gpt_squashfs`. QCOW2 images can
@@ -547,11 +565,11 @@ details see the table below.
   the `shell` and `boot` verbs are not available when this option is
   used, however `qemu` will work.
 
-`--hostname=`
+`Hostname=`, `--hostname=`
 
 : Set the image's hostname to the specified name.
 
-`--image-version=`
+`ImageVersion=`, `--image-version=`
 
 : Configure the image version. This accepts any string, but it is
   recommended to specify a series of dot separated components. The
@@ -565,7 +583,7 @@ details see the table below.
   `/etc/os-release` or similar, in particular the `IMAGE_VERSION=`
   field of it).
 
-`--image-id=`
+`ImageId=`, `--image-id=`
 
 : Configure the image identifier. This accepts a freeform string that
   shall be used to identify the image with. If set the default output
@@ -577,18 +595,21 @@ details see the table below.
   `/etc/os-release` or similar, in particular the `IMAGE_ID=` field of
   it).
 
-`--without-unified-kernel-images`
+`WithUnifiedKernelImages=`, `--without-unified-kernel-images`
 
-: If specified, mkosi does not build unified kernel images and instead installs kernels with a separate
-  initrd and boot loader config to the efi or bootloader partition.
+: If specified, mkosi does not build unified kernel images and instead
+  installs kernels with a separate initrd and boot loader config to
+  the efi or bootloader partition.
 
-`--hostonly-initrd`
+`HostonlyInitrd=`, `--hostonly-initrd`
 
-: If specified, mkosi will run the tool to create the initrd such that a non-generic initrd is created that
-  will only be able to run on the system mkosi is run on. Currently mkosi uses dracut for all supported
-  distributions except Clear Linux and this option translates to enabling dracut's hostonly option.
+: If specified, mkosi will run the tool to create the initrd such that
+  a non-generic initrd is created that will only be able to run on the
+  system mkosi is run on. Currently mkosi uses dracut for all
+  supported distributions except Clear Linux and this option
+  translates to enabling dracut's hostonly option.
 
-`--usr-only`
+`UsrOnly=`, `--usr-only`
 
 : If specified, `mkosi` will only add the `/usr/` directory tree
   (instead of the whole root file system) to the image. This is useful
@@ -598,7 +619,7 @@ details see the table below.
   that are originally shipped without a root file system, but where
   `systemd-repart` adds one on the first boot.
 
-`--split-artifacts`
+`SplitArtifacts=`, `--split-artifacts`
 
 : If specified and building an image with a partition table, also
   write out the root file system partition, its Verity partition (if
@@ -608,14 +629,14 @@ details see the table below.
   root or `/usr` partition along with its Verity partition and unified
   kernel.
 
-`--no-chown`
+`NoChown=`, `--no-chown`
 
 : By default, if `mkosi` is run inside a `sudo` environment all
   generated artifacts have their UNIX user/group ownership changed to
   the user which invoked `sudo`. With this option this may be turned
   off and all generated files are owned by `root`.
 
-`--tar-strip-selinux-context`
+`TarStripSELinuxContext=`, `--tar-strip-selinux-context`
 
 : If running on a SELinux-enabled system (Fedora Linux, CentOS), files
   inside the container are tagged with SELinux context extended
@@ -623,32 +644,18 @@ details see the table below.
   in building or further container import stages.  This option strips
   SELinux context attributes from the resulting tar archive.
 
-`--incremental`, `-i`
+### [Content] Section
 
-: Enable incremental build mode. This only applies if the two-phase
-  `mkosi.build` build script logic is used. In this mode, a copy of
-  the OS image is created immediately after all OS packages are
-  unpacked but before the `mkosi.build` script is invoked in the
-  development container. Similarly, a copy of the final image is created
-  immediately before the build artifacts from the `mkosi.build` script
-  are copied in. On subsequent invocations of `mkosi` with the `-i`
-  switch these cached images may be used to skip the OS package
-  unpacking, thus drastically speeding up repetitive build times. Note
-  that when this is used and a pair of cached incremental images
-  exists they are not automatically regenerated, even if options such
-  as `--packages=` are modified. In order to force rebuilding of these
-  cached images, combine `-i` with `-ff` to ensure cached images are
-  first removed and then re-created.
+`BasePackages=`, `--base-packages`
 
-`--base-packages`
+: Takes a boolean or the special value `conditional`. If true,
+  automatically install packages to ensure basic functionality, as
+  appropriate for the given image type. For example, `systemd` is
+  always included, `systemd-udev` and `dracut` if the image is
+  bootable, and so on.
 
-: If true, automatically install packages to ensure basic
-  functionality, as appropriate for the given image type. For example,
-  `systemd` is always included, `systemd-udev` and `dracut` if the
-  image is bootable, and so on.
-
-: If false, only packages specified with `--package`/`Packages` will
-  be installed.
+: If false, only packages specified with `Packages=` will be
+  installed.
 
 : If `conditional`, the list of packages to install will be extended
   with boolean dependencies
@@ -661,110 +668,114 @@ details see the table below.
   when appropriate. This feature depends on support in the package
   manager, so it is not implemented for all distributions.
 
-`--package=`, `-p`
+`Packages=`, `--package=`, `-p`
 
 : Install the specified distribution packages (i.e. RPM, DEB, …) in
   the image. Takes a comma separated list of packages. This option may
-  be used multiple times in which case the specified package list is
+  be used multiple times in which case the specified package lists are
   combined. Packages specified this way will be installed both in the
-  development and the final image (see below). Use `--build-package=`
-  (see below) to specify packages that shall only be used for the
-  image generated in the build image, but that shall not appear in the
-  final image.
+  development and the final image. Use `BuildPackages=` to
+  specify packages that shall only be used for the image generated in
+  the build image, but that shall not appear in the final image.
 
-: To remove a package e.g. added by a `mkosi.default` configuration file
-  prepend the package name with a ! letter. For example -p "!apache2"
+: To remove a package e.g. added by a `mkosi.default` configuration
+  file prepend the package name with `!`. For example -p "!apache2"
   would remove the apache2 package. To replace the apache2 package by
   the httpd package just add -p "!apache2,httpd" to the command line
   arguments. To remove all packages use "!\*".
 
-`--with-docs`
+`WithDocs=`, `--with-docs`
 
 : Include documentation in the image built. By default if the
   underlying distribution package manager supports it documentation is
   not included in the image built. The `$WITH_DOCS` environment
   variable passed to the `mkosi.build` script indicates whether this
-  option was used or not, see below.
+  option was used or not.
 
-`--without-tests`, `-T`
+`WithTests=`, `--without-tests`, `-T`
 
-: If set the `$WITH_TESTS` environment variable is set to `0` when the
+: If set to false (or when the command-line option is used), the
+  `$WITH_TESTS` environment variable is set to `0` when the
   `mkosi.build` script is invoked. This is supposed to be used by the
   build script to bypass any unit or integration tests that are
   normally run during the source build process. Note that this option
   has no effect unless the `mkosi.build` build script honors it.
 
-`--cache=`
+`Cache=`, `--cache=`
 
 : Takes a path to a directory to use as package cache for the
   distribution package manager used. If this option is not used, but a
   `mkosi.cache/` directory is found in the local directory it is
-  automatically used for this purpose (also see below). The directory
-  configured this way is mounted into both the development and the
-  final image while the package manager is running.
+  automatically used for this purpose. The directory configured this
+  way is mounted into both the development and the final image while
+  the package manager is running.
 
-`--extra-tree=`
-
-: Takes a path to a directory to copy on top of the OS tree the
-  package manager generated. Use this to override any default
-  configuration files shipped with the distribution. If this option is
-  not used, but the `mkosi.extra/` directory is found in the local
-  directory it is automatically used for this purpose (also see
-  below). Instead of a directory a `tar` file may be specified too. In
-  this case it is unpacked into the OS tree before the package manager
-  is invoked. This mode of operation allows setting permissions and
-  file ownership explicitly, in particular for projects stored in a
-  version control system such as `git` which does retain full file
-  ownership and access mode metadata for committed files. If a tar file
-  `mkosi.extra.tar` is found in the local directory it automatically
-  used for this purpose.
-
-`--skeleton-tree=`
+`SkeletonTree=`, `--skeleton-tree=`
 
 : Takes a path to a directory to copy into the OS tree before invoking
   the package manager. Use this to insert files and directories into
   the OS tree before the package manager installs any packages. If
   this option is not used, but the `mkosi.skeleton/` directory is
   found in the local directory it is automatically used for this
-  purpose (also see below). As with the extra tree logic above,
-  instead of a directory a `tar` file may be used too, and
-  `mkosi.skeleton.tar` is automatically used.
+  purpose (also see the "Files" section below).
 
-`--remove-files=`
+: Instead of a directory, a tar file may be provided. In this case
+  it is unpacked into the OS tree before the package manager is
+  invoked. This mode of operation allows setting permissions and file
+  ownership explicitly, in particular for projects stored in a version
+  control system such as `git` which retain full file ownership and
+  access mode metadata for committed files. If the tar file
+  `mkosi.skeleton.tar` is found in the local directory it will be
+  automatically used for this purpose.
+
+`ExtraTree=`, `--extra-tree=`
+
+: Takes a path to a directory to copy on top of the OS tree the
+  package manager generated. Use this to override any default
+  configuration files shipped with the distribution. If this option is
+  not used, but the `mkosi.extra/` directory is found in the local
+  directory it is automatically used for this purpose (also see the
+  "Files" section below).
+
+: As with the skeleton tree logic above, instead of a directory, a tar
+  file may be provided too. `mkosi.skeleton.tar` will be automatically
+  used if found in the local directory.
+
+`RemoveFiles=`, `--remove-files=`
 
 : Takes a comma-separated list of globs. Files in the image matching
   the globs will be purged at the end.
 
-`--build-script=`
+`BuildScript=`, `--build-script=`
 
 : Takes a path to an executable that is used as build script for this
   image. If this option is used the build process will be two-phased
-  instead of single-phased (see below). The specified script is copied
-  onto the development image and executed inside an `systemd-nspawn`
-  container environment. If this option is not used, but the
-  `mkosi.build` file found in the local directory it is automatically
-  used for this purpose (also see below).
+  instead of single-phased. The specified script is copied onto the
+  development image and executed inside an `systemd-nspawn` container
+  environment. If this option is not used, but the `mkosi.build` file
+  found in the local directory it is automatically used for this
+  purpose (also see the "Files" section below).
 
-`--environment=`
+`Environment=`, `--environment=`
 
 : Adds variables to the environment that the
   build/prepare/postinstall/finalize scripts are executed with. Takes
   a space-separated list of variable assignments or just variable
   names. In the latter case, the values of those variables will be
-  passed through from the environment in which `mkosi` was
-  invoked. This option may be specified more than once, in which case
-  all listed variables will be set. If the same variable is set twice,
-  the later setting overrides the earlier one.
+  passed through from the environment in which `mkosi` was invoked.
+  This option may be specified more than once, in which case all
+  listed variables will be set. If the same variable is set twice, the
+  later setting overrides the earlier one.
 
-`--build-sources=`
+`BuildSources=`, `--build-sources=`
 
-: Takes a path of a source tree to copy into the development image, if
-  a build script is used. This only applies if a build script is used,
-  and defaults to the local directory. Use `--source-file-transfer=`
+: Takes a path to a source tree to copy into the development image, if
+  the build script is used. This only applies if a build script is
+  used, and defaults to the local directory. Use `SourceFileTransfer=`
   to configure how the files are transferred from the host to the
   container image.
 
-`--build-dir=`
+`BuildDirectory=`, `--build-dir=`
 
 : Takes a path of a directory to use as build directory for build
   systems that support out-of-tree builds (such as Meson). The
@@ -775,20 +786,22 @@ details see the table below.
   invoked. The build script can find the path to this directory in the
   `$BUILDDIR` environment variable. If this option is not specified,
   but a directory `mkosi.builddir/` exists in the local directory it
-  is automatically used for this purpose (also see below).
+  is automatically used for this purpose (also see the "Files" section
+  below).
 
-`--include-directory`
+`IncludeDirectory=`, `--include-directory=`
 
 : Takes a path of a directory to use as the include directory. This
   directory is mounted at `/usr/include` when building the build image
-  and when running the build script. This means all include files
-  installed to `/usr/include` will be stored in this directory. This is
-  useful to make include files available on the host system for use by
+  and running the build script. This means all include files installed
+  to `/usr/include` will be stored in this directory. This is useful
+  to make include files available on the host system for use by
   language servers to provide code completion. If this option is not
   specified, but a directory `mkosi.includedir/` exists in the local
-  directory, it is automatically used for this purpose (also see below).
+  directory, it is automatically used for this purpose (also see the
+  "Files" section below).
 
-`--install-directory`
+`InstallDirectory=`, `--install-directory=`
 
 : Takes a path of a directory to use as the install directory. The
   directory used this way is shared between builds and allows the
@@ -797,41 +810,58 @@ details see the table below.
   can find the path to this directory in the `$DESTDIR` environment
   variable. If this option is not specified, but a directory
   `mkosi.installdir` exists in the local directory, it is automatically
-  used for this purpose (also see below).
+  used for this purpose (also see the "Files" section below).
 
-`--build-package=`
+`BuildPackages=`, `--build-package=`
 
-: Similar to `--package=`, but configures packages to install only in
+: Similar to `Packages=`, but configures packages to install only in
   the first phase of the build, into the development image. This
   option should be used to list packages containing header files,
   compilers, build systems, linkers and other build tools the
   `mkosi.build` script requires to operate. Note that packages listed
   here are only included in the image created during the first phase
-  of the build, and are absent in the final image. use `--package=` to
+  of the build, and are absent in the final image. Use `Packages=` to
   list packages that shall be included in both.
   Packages are appended to the list. Packages prefixed with "!" are
   removed from the list. "!\*" removes all packages from the list.
 
-`--skip-final-phase=`
+`Password=`, `--password=`
+
+: Set the password of the `root` user. By default the `root` account
+  is locked. If this option is not used, but a file `mkosi.rootpw`
+  exists in the local directory, the root password is automatically
+  read from it.
+
+`PasswordIsHashed=`, `--password-is-hashed`
+
+: Indicate that the password supplied for the `root` user has already been
+  hashed, so that the string supplied with `Password=` or `mkosi.rootpw` will
+  be written to `/etc/shadow` literally.
+
+`Autologin=`, `--autologin`
+
+: Enable autologin for the `root` user on `/dev/pts/0` (nspawn),
+  `/dev/tty1` (QEMU) and `/dev/ttyS0` (QEMU with `QemuHeadless=yes`)
+  by patching `/etc/pam.d/login`.
+
+`SkipFinalPhase=`, `--skip-final-phase=`
 
 : Causes the (second) final image build stage to be skipped. This is
   useful in combination with a build script, for when you care about
   the artifacts that were created locally in `$BUILDDIR`, but
   ultimately plan to discard the final image.
 
-`--prepare-script=`
+`PrepareScript=`, `--prepare-script=`
 
-: Takes a path to an executable that is invoked inside the image
-  right after installing the software packages. It is
-  the last step before the image is cached (if incremental mode is
-  enabled).
-  This script is invoked inside a `systemd-nspawn` container
-  environment, and thus does not have access to host resources.
-  If this option is not used, but an executable script `mkosi.prepare`
-  is found in the local directory, it is automatically used for this
-  purpose (also see below).
+: Takes a path to an executable that is invoked inside the image right
+  after installing the software packages. It is the last step before
+  the image is cached (if incremental mode is enabled).  This script
+  is invoked inside a `systemd-nspawn` container environment, and thus
+  does not have access to host resources.  If this option is not used,
+  but an executable script `mkosi.prepare` is found in the local
+  directory, it is automatically used for this purpose.
 
-`--postinst-script=`
+`PostInstallationScript=`, `--postinst-script=`
 
 : Takes a path to an executable that is invoked inside the final image
   right after copying in the build artifacts generated in the first
@@ -839,140 +869,199 @@ details see the table below.
   container environment, and thus does not have access to host
   resources. If this option is not used, but an executable
   `mkosi.postinst` is found in the local directory, it is
-  automatically used for this purpose (also see below).
+  automatically used for this purpose.
 
-`--finalize-script=`
+`FinalizeScript=`, `--finalize-script=`
 
 : Takes a path to an executable that is invoked outside the final
   image right after copying in the build artifacts generated in the
   first phase of the build, and after having executed the
-  `mkosi.postinst` script (see above). This script is invoked directly
-  in the host environment, and hence has full access to the host's
-  resources. If this option is not used, but an executable
-  `mkosi.finalize` is found in the local directory, it is
-  automatically used for this purpose (also see below).
+  `mkosi.postinst` script (see `PostInstallationScript=`). This script
+  is invoked directly in the host environment, and hence has full
+  access to the host's resources. If this option is not used, but an
+  executable `mkosi.finalize` is found in the local directory, it is
+  automatically used for this purpose.
 
-`--source-file-transfer=`
+`SourceFileTransfer=`, `--source-file-transfer=`
 
 : Configures how the source file tree (as configured with
-  `--build-sources=`) is transferred into the container image
-  during the first phase of the build. Takes one of `copy-all` (to
-  copy all files from the source tree), `copy-git-cached` (to copy
-  only those files `git-ls-files --cached` lists), `copy-git-others`
-  (to copy only those files `git-ls-files --others` lists), `mount` to
-  bind mount the source tree directly. Defaults to `copy-git-cached`
-  if a `git` source tree is detected, otherwise `copy-all`. When you
-  specify `copy-git-more`, it is the same as `copy-git-cached`, except
-  it also includes the `.git/` directory.
+  `BuildSources=`) is transferred into the container image during the
+  first phase of the build. Takes one of `copy-all` (to copy all files
+  from the source tree), `copy-git-cached` (to copy only those files
+  `git-ls-files --cached` lists), `copy-git-others` (to copy only
+  those files `git-ls-files --others` lists), `mount` to bind mount
+  the source tree directly. Defaults to `copy-git-cached` if a `git`
+  source tree is detected, otherwise `copy-all`. When you specify
+  `copy-git-more`, it is the same as `copy-git-cached`, except it also
+  includes the `.git/` directory.
 
-`--source-file-transfer-final=`
+`SourceFileTransferFinal=`, `--source-file-transfer-final=`
 
-: Same as `--source-file-transfer` but for the final image instead of
-  the build image. Takes the same values as `--source-file-transfer`
+: Same as `SourceFileTransfer=`, but for the final image instead of
+  the build image. Takes the same values as `SourceFileFransfer=`
   except `mount`. By default, sources are not copied into the final
   image.
 
-`--source-resolve-symlinks`
+`SourceResolveSymlinks=`, `--source-resolve-symlinks`
 
 : If given, any symbolic links in the source file tree are resolved and the
   file contents are copied to the build image. If not given, they are left as
-  symbolic links. This only applies if `--source-file-transfer` is `copy-all`.
+  symbolic links. This only applies if `SourceFileTransfer=` is `copy-all`.
   Defaults to leaving them as symbolic links.
 
-`--source-resolve-symlinks-final`
+`SourceResolveSymlinksFinal=`, `--source-resolve-symlinks-final`
 
-: Same as `--source-resolve-symlinks` but for the final image instead of
+: Same as `SourceResolveSymlinks=`, but for the final image instead of
   the build image.
 
-`--with-network`
+`WithNetwork=`, `--with-network`
 
-: Enables network connectivity while the build script `mkosi.build` is
-  invoked. By default, the build script runs with networking turned
-  off. The `$WITH_NETWORK` environment variable is passed to the
-  `mkosi.build` build script indicating whether the build is done with
-  or without this option. If specified as `--with-network=never` the
+: When true, enables network connectivity while the build script
+  `mkosi.build` is invoked. By default, the build script runs with
+  networking turned off. The `$WITH_NETWORK` environment variable is
+  passed to the `mkosi.build` build script indicating whether the
+  build is done with or without network. If specified as `never`, the
   package manager is instructed not to contact the network for
   updating package data. This provides a minimal level of
   reproducibility, as long as the package data cache is already fully
   populated.
 
-`--settings=`
+`Settings=`, `--settings=`
 
 : Specifies a `.nspawn` settings file for `systemd-nspawn` to use in
   the `boot` and `shell` verbs, and to place next to the generated
   image file. This is useful to configure the `systemd-nspawn`
   environment when the image is run. If this setting is not used but
   an `mkosi.nspawn` file found in the local directory it is
-  automatically used for this purpose (also see below).
+  automatically used for this purpose.
 
-`--root-size=`
+<!-- FIXME: shouldn't this be in [Host] ? -->
+
+### [Partitions] Section
+
+`RootSize=`, `--root-size=`
 
 : Takes a size in bytes for the root file system. The specified
   numeric value may be suffixed with `K`, `M`, `G` to indicate kilo-,
   mega- and gigabytes (all to the base of 1024). This applies to
   output formats `gpt_ext4`, `gpt_xfs`, `gpt_btrfs`. Defaults to 3G.
 
-`--esp-size=`
+`ESPSize=`, `--esp-size=`
 
-: Similar, and configures the size of the UEFI System Partition
-  (ESP). This is only relevant if the `--bootable` option is used to
-  generate a bootable image. Defaults to 256M.
+: Similar to `RootSize=`, configures the size of the UEFI System
+  Partition (ESP). This is only relevant if the `Bootable=` option is
+  used to generate a bootable image. Defaults to 256 MB.
 
-`--swap-size=`
+`SwapSize=`, `--swap-size=`
 
-: Similar, and configures the size of a swap partition on the
-  image. If omitted no swap partition is created.
+: Similar to `RootSize=`, configures the size of a swap partition on
+  the image. If omitted, no swap partition is created.
 
-`--home-size=`
+`HomeSize=`, `--home-size=`
 
-: Similar, and configures the size of the `/home` partition. If
-  omitted no separate `/home` partition is created.
+: Similar to `RootSize=`, configures the size of the `/home`
+  partition. If omitted, no separate `/home` partition is created.
 
-`--srv-size=`
+`SrvSize=`, `--srv-size=`
 
-: Similar, and configures the size of the `/srv` partition. If
-  omitted no separate `/srv` partition is created.
+: Similar to `RootSize=`, configures the size of the `/srv`
+  partition. If omitted, no separate `/srv` partition is created.
 
-`--checksum`
+### [Validation] Section
+
+`Checksum=`, `--checksum`
 
 : Generate a `SHA256SUMS` file of all generated artifacts after the
   build is complete.
 
-`--sign`
+`Sign=`, `--sign`
 
 : Sign the generated `SHA256SUMS` using `gpg` after completion.
 
-`--key=`
+`Key=`, `--key=`
 
-: Select the `gpg` key to use for signing `SHA256SUMS`. This key
-  is required to exist in the `gpg` keyring already.
+: Select the `gpg` key to use for signing `SHA256SUMS`. This key must
+  be already present in the `gpg` keyring.
 
-`--bmap`
+`BMap=`, `--bmap`
 
 : Generate a `bmap` file for usage with `bmaptool` from the generated
   image file.
 
-`--password=`
+### [Host] Section
 
-: Set the password of the `root` user. By default the `root` account
-  is locked. If this option is not used but a file `mkosi.rootpw` exists
-  in the local directory the root password is automatically read from it.
-
-`--password-is-hashed`
-
-: Indicate that the password supplied for the `root` user has already been
-  hashed, so that the string supplied with `--password` or `mkosi.rootpw` will
-  be written to `/etc/shadow` literally.
-
-`--autologin`
-
-: Enable autologin for the `root` user on pts/0 (nspawn), tty1 (QEMU) and
-  ttyS0 (QEMU with `--qemu-headless`) by patching `/etc/pam.d/login`.
-
-`--extra-search-paths=`
+`ExtraSearchPaths=`, `--extra-search-paths=`
 
 : List of colon-separated paths to look for tools in, before using the
   regular `$PATH` search path.
+
+`QemuHeadless=`, `--qemu-headless=`
+
+: When used with the `build` verb, this option adds `console=ttyS0` to
+  the image's kernel command line and sets the terminal type of the
+  serial console in the image to the terminal type of the host (more
+  specifically, the value of the `$TERM` environment variable passed
+  to mkosi). This makes sure that all terminal features such as colors
+  and shortcuts still work as expected when connecting to the qemu VM
+  over the serial console (for example via `-nographic`).
+
+: When used with the `qemu` verb, this option adds the `-nographic`
+  option to `qemu`'s command line so qemu starts a headless vm and
+  connects to its serial console from the current terminal instead of
+  launching the VM in a separate window.
+
+`QemuSmp=`, `--qemu-smp=`
+
+: When used with the `qemu` verb, this options sets `qemu`'s `-smp`
+  argument which controls the number of guest's CPUs. Defaults to `2`.
+
+`QemuMem=`, `--qemu-mem=`
+
+: When used with the `qemu` verb, this options sets `qemu`'s `-m`
+  argument which controls the amount of guest's RAM. Defaults to `1G`.
+
+`NetworkVeth=`, `--network-veth`
+
+: When used with the boot or qemu verbs, this option creates a virtual
+  ethernet link between the host and the container/VM. The host
+  interface is automatically picked up by systemd-networkd as documented
+  in systemd-nspawn's man page:
+  https://www.freedesktop.org/software/systemd/man/systemd-nspawn.html#-n
+
+`Ephemeral=`, `--ephemeral`
+
+: When used with the `shell`, `boot`, or `qemu` verbs, this option
+  runs the specified verb on a temporary snapshot of the output image
+  that is removed immediately when the container terminates. Taking
+  the temporary snapshot is more efficient on file systems that
+  support subvolume snapshots or 'reflinks' natively ("btrfs" or new
+  "xfs") than on more traditional file systems that do not ("ext4").
+
+`Ssh=`, `--ssh`
+
+: If specified, installs and enables `sshd` in the final image and generates
+  a SSH keypair and adds the public key to root's `authorized_keys` in the final
+  image. The private key is stored in mkosi's output directory. When building
+  with this  option and running the image using `mkosi boot` or `mkosi qemu`,
+  the `mkosi ssh` command can be used to connect to the container/VM via SSH.
+
+`SshKey=`, `--ssh-key=`
+
+: If specified, use the given private key when connecting to the guest machine
+  via `mkosi ssh`. This requires the public key counterpart to be present in
+  the same location, suffixed with `.pub` (as done by `ssh-keygen`). If this
+  option is not present, `mkosi` generates a new key pair automatically.
+
+`SshTimeout=`, `--ssh-timeout=`
+
+: When used with the `ssh` verb, `mkosi` will attempt to retry the SSH connection
+  up to given timeout (in seconds) in case it fails. This option is useful mainly
+  in scripted environments where the `qemu` and `ssh` verbs are used in a quick
+  succession and the veth device might not get enough time to configure itself.
+
+### Commandline-only Options
+
+Those settings cannot be configured in the configuration files.
 
 `--directory=`, `-C`
 
@@ -1006,178 +1095,40 @@ details see the table below.
 
 : If specified, overrides the directory the `--all` logic described
   above looks for settings files in. If unspecified, defaults to
-  `mkosi.files/` in the current working directory (see above).
+  `mkosi.files/` in the current working directory.
+
+`--incremental`, `-i`
+
+: Enable incremental build mode. This only applies if the two-phase
+  `mkosi.build` build script logic is used. In this mode, a copy of
+  the OS image is created immediately after all OS packages are
+  unpacked but before the `mkosi.build` script is invoked in the
+  development container. Similarly, a copy of the final image is
+  created immediately before the build artifacts from the
+  `mkosi.build` script are copied in. On subsequent invocations of
+  `mkosi` with the `-i` switch these cached images may be used to skip
+  the OS package unpacking, thus drastically speeding up repetitive
+  build times. Note that when this is used and a pair of cached
+  incremental images exists they are not automatically regenerated,
+  even if options such as `Packages=` are modified. In order to force
+  rebuilding of these cached images, combine `-i` with `-ff` to ensure
+  cached images are first removed and then re-created.
 
 `--version`
+
 : Show package version.
 
 `--help`, `-h`
+
 : Show brief usage information.
 
-`--qemu-headless=`
-
-: When used with the build verb, this option adds `console=ttyS0` to
-  the image's kernel command line and sets the terminal type of the
-  serial console in the image to the terminal type of the host (more
-  specifically, the value of the TERM environment variable passed to
-  mkosi). This makes sure that all terminal features such as colors
-  and shortcuts still work as expected when connecting to the qemu
-  VM over the serial console (for example via `-nographic`).
-
-  When used with the qemu verb, this option adds the `-nographic`
-  option to qemu's command line so qemu starts a headless vm and
-  connects to its serial console from the current terminal instead
-  of launching the VM in a separate window.
-
-`--qemu-smp=`
-
-: When used with the qemu verb, this options sets the qemu's `-smp`
-  argument which controls the number of guest's CPUs. Defaults to `2`.
-
-`--qemu-mem=`
-
-: When used with the qemu verb, this options sets the qemu's `-m`
-  argument which controls the amount of guest's RAM. Defaults to `1G`.
-
-`--network-veth`
-: When used with the boot or qemu verbs, this option creates a virtual
-  ethernet link between the host and the container/VM. The host
-  interface is automatically picked up by systemd-networkd as documented
-  in systemd-nspawn's man page:
-  https://www.freedesktop.org/software/systemd/man/systemd-nspawn.html#-n
-
-`--ephemeral`
-: When used with the shell, boot or qemu verbs, this option runs the specified
-  verb on a temporary snapshot of the output image that is removed immediately
-  when the container terminates. Taking the temporary snapshot is more efficient
-  on file systems that support subvolume snapshots or 'reflinks' natively ("btrfs"
-  or new "xfs") than on more traditional file systems that do not ("ext4").
-
-`--ssh`
-: If specified, installs and enables sshd in the final image and generates
-  a SSH keypair and adds the public key to root's authorized keys in the final
-  image. The private key is stored in mkosi's output directory. When building
-  with this  option and running the image using `mkosi boot` or `mkosi qemu`,
-  the `mkosi ssh` command can be used to connect to the container/VM via SSH.
-
-`--ssh-key=`
-: If specified, use the given private key when connecting to the guest machine
-  via `mkosi ssh`. This requires the public key counterpart to be present at
-  the same location, suffixed with `.pub` (as done by `ssh-keygen`). If this
-  option is not present `mkosi` generates a new key pair automatically.
-
-`--ssh-timeout=`
-: When used with the ssh verb, `mkosi` will attempt to retry the SSH connection
-  up to given timeout (in seconds) in case it fails. This option is useful mainly
-  in scripted environments where the qemu and ssh verbs are used in a quick
-  succession and the veth device might not get enough time to configure itself.
-
 `--auto-bump`, `-B`
+
 : If specified, after each successful build the the version is bumped
   in a fashion equivalent to the `bump` verb, in preparation for the
   next build. This is useful for simple, linear version management:
   each build in a series will have a version number one higher then
   the previous one.
-
-## Command Line Parameters and their Settings File Counterparts
-
-Most command line parameters may also be placed in an `mkosi.default`
-settings file (or any other file `--default=` is used on). The
-following table shows which command lines parameters correspond with
-which settings file options.
-
-| Command Line Parameter            | `mkosi.default` section | `mkosi.default` setting       |
-|-----------------------------------|-------------------------|-------------------------------|
-| `--distribution=`, `-d`           | `[Distribution]`        | `Distribution=`               |
-| `--release=`, `-r`                | `[Distribution]`        | `Release=`                    |
-| `--repositories=`                 | `[Distribution]`        | `Repositories=`               |
-| `--mirror=`, `-m`                 | `[Distribution]`        | `Mirror=`                     |
-| `--architecture=`                 | `[Distribution]`        | `Architecture=`               |
-| `--format=`, `-t`                 | `[Output]`              | `Format=`                     |
-| `--manifest-format=`              | `[Output]`              | `ManifestFormat=`             |
-| `--output=`, `-o`                 | `[Output]`              | `Output=`                     |
-| `--output-split-root=`            | `[Output]`              | `OutputSplitRoot=`            |
-| `--output-split-verity=`          | `[Output]`              | `OutputSplitVerity=`          |
-| `--output-split-kernel=`          | `[Output]`              | `OutputSplitKernel=`          |
-| `--output-dir=`, `-O`             | `[Output]`              | `OutputDirectory=`            |
-| `--force`, `-f`                   | `[Output]`              | `Force=`                      |
-| `--bootable`, `-b`                | `[Output]`              | `Bootable=`                   |
-| `--boot-protocols=`               | `[Output]`              | `BootProtocols=`              |
-| `--gpt-first-lba=`                | `[Output]`              | `GPTFirstLBA=`                |
-| `--kernel-command-line=`          | `[Output]`              | `KernelCommandLine=`          |
-| `--secure-boot`                   | `[Output]`              | `SecureBoot=`                 |
-| `--secure-boot-key=`              | `[Output]`              | `SecureBootKey=`              |
-| `--secure-boot-certificate=`      | `[Output]`              | `SecureBootCertificate=`      |
-| `--secure-boot-valid-days=`       | `[Output]`              | `SecureBootValidDays=`        |
-| `--secure-boot-common-name=`      | `[Output]`              | `SecureBootCommonName=`       |
-| `--read-only`                     | `[Output]`              | `ReadOnly=`                   |
-| `--encrypt=`                      | `[Output]`              | `Encrypt=`                    |
-| `--verity=`                       | `[Output]`              | `Verity=`                     |
-| `--compress=`                     | `[Output]`              | `Compress=`                   |
-| `--compress-fs=`                  | `[Output]`              | `CompressFs=`                 |
-| `--compress-output=`              | `[Output]`              | `CompressOutput=`             |
-| `--mksquashfs=`                   | `[Output]`              | `Mksquashfs=`                 |
-| `--qcow2`                         | `[Output]`              | `QCow2=`                      |
-| `--no-chown`                      | `[Output]`              | `NoChown=`                    |
-| `--tar-strip-selinux-context`     | `[Output]`              | `TarStripSELinuxContext=`     |
-| `--hostname=`                     | `[Output]`              | `Hostname=`                   |
-| `--image-version=`                | `[Output]`              | `ImageVersion=`               |
-| `--image-id=`                     | `[Output]`              | `ImageId=`                    |
-| `--without-unified-kernel-images` | `[Output]`              | `WithUnifiedKernelImages=`    |
-| `--hostonly-initrd`               | `[Output]`              | `HostonlyInitrd=`             |
-| `--usr-only`                      | `[Output]`              | `UsrOnly=`                    |
-| `--split-artifacts`               | `[Output]`              | `SplitArtifacts=`             |
-| `--base-packages=`                | `[Packages]`            | `BasePackages=`               |
-| `--package=`                      | `[Packages]`            | `Packages=`                   |
-| `--with-docs`                     | `[Packages]`            | `WithDocs=`                   |
-| `--without-tests`, `-T`           | `[Packages]`            | `WithTests=`                  |
-| `--cache=`                        | `[Packages]`            | `Cache=`                      |
-| `--extra-tree=`                   | `[Packages]`            | `ExtraTrees=`                 |
-| `--skeleton-tree=`                | `[Packages]`            | `SkeletonTrees=`              |
-| `--remove-files=`                 | `[Packages]`            | `RemoveFiles=`                |
-| `--build-script=`                 | `[Packages]`            | `BuildScript=`                |
-| `--environment=`                  | `[Packages]`            | `Environment=`                |
-| `--build-sources=`                | `[Packages]`            | `BuildSources=`               |
-| `--source-file-transfer=`         | `[Packages]`            | `SourceFileTransfer=`         |
-| `--source-file-transfer-final=`   | `[Packages]`            | `SourceFileTransferFinal=`    |
-| `--source-resolve-symlinks`       | `[Packages]`            | `SourceResolveSymlinks=`      |
-| `--source-resolve-symlinks-final` | `[Packages]`            | `SourceResolveSymlinksFinal=` |
-| `--build-directory=`              | `[Packages]`            | `BuildDirectory=`             |
-| `--include-directory=`            | `[Packages]`            | `IncludeDirectory=`           |
-| `--install-directory=`            | `[Packages]`            | `InstallDirectory=`           |
-| `--build-packages=`               | `[Packages]`            | `BuildPackages=`              |
-| `--skip-final-phase=`             | `[Packages]`            | `SkipFinalPhase=`             |
-| `--prepare-script=`               | `[Packages]`            | `PrepareScript=`              |
-| `--postinst-script=`              | `[Packages]`            | `PostInstallationScript=`     |
-| `--finalize-script=`              | `[Packages]`            | `FinalizeScript=`             |
-| `--with-network`                  | `[Packages]`            | `WithNetwork=`                |
-| `--settings=`                     | `[Packages]`            | `NSpawnSettings=`             |
-| `--root-size=`                    | `[Partitions]`          | `RootSize=`                   |
-| `--esp-size=`                     | `[Partitions]`          | `ESPSize=`                    |
-| `--swap-size=`                    | `[Partitions]`          | `SwapSize=`                   |
-| `--home-size=`                    | `[Partitions]`          | `HomeSize=`                   |
-| `--srv-size=`                     | `[Partitions]`          | `SrvSize=`                    |
-| `--checksum`                      | `[Validation]`          | `CheckSum=`                   |
-| `--sign`                          | `[Validation]`          | `Sign=`                       |
-| `--key=`                          | `[Validation]`          | `Key=`                        |
-| `--bmap`                          | `[Validation]`          | `BMap=`                       |
-| `--password=`                     | `[Validation]`          | `Password=`                   |
-| `--password-is-hashed`            | `[Validation]`          | `PasswordIsHashed=`           |
-| `--autologin`                     | `[Validation]`          | `Autologin=`                  |
-| `--extra-search-paths=`           | `[Host]`                | `ExtraSearchPaths=`           |
-| `--qemu-headless`                 | `[Host]`                | `QemuHeadless=`               |
-| `--qemu-smp`                      | `[Host]`                | `QemuSmp=`                    |
-| `--qemu-mem`                      | `[Host]`                | `QemuMem=`                    |
-| `--network-veth`                  | `[Host]`                | `NetworkVeth=`                |
-| `--ephemeral`                     | `[Host]`                | `Ephemeral=`                  |
-| `--ssh`                           | `[Host]`                | `Ssh=`                        |
-| `--ssh-key=`                      | `[Host]`                | `SshKey=`                     |
-| `--ssh-timeout=`                  | `[Host]`                | `SshTimeout=`                 |
-
-Command line options that take no argument are not suffixed with a `=`
-in their long version in the table above. In the `mkosi.default` file
-they are modeled as boolean option that take either `1`, `yes`,
-`true` for enabling, and `0`, `no`, `false` for disabling.
 
 ## Supported distributions
 
@@ -1249,7 +1200,7 @@ with:
 systemd-nspawn -bD image
 ```
 
-# FILES
+# Files
 
 To make it easy to build images for development versions of your
 projects, mkosi can read configuration data from the local directory,
@@ -1277,8 +1228,8 @@ local directory:
   multi-line assignments: any line with initial whitespace is
   considered a continuation line of the line before. Command-line
   arguments, as shown in the help description, have to be included in
-  a configuration block (e.g.  "`[Packages]`") corresponding to the
-  argument group (e.g. "`Packages`"), and the argument gets converted
+  a configuration block (e.g.  "`[Content]`") corresponding to the
+  argument group (e.g. "`Content`"), and the argument gets converted
   as follows: "`--with-network`" becomes "`WithNetwork=yes`". For
   further details see the table above.
 
@@ -1329,8 +1280,8 @@ local directory:
   output files from this copy operation, as otherwise a version of an
   image built earlier might be included in a later build, which is
   usually not intended. An alternative to excluding these built images
-  via `.gitignore` entries is to use the `mkosi.output/` directory
-  (see below), which is an easy way to exclude all build artifacts.
+  via `.gitignore` entries is to use the `mkosi.output/` directory,
+  which is an easy way to exclude all build artifacts.
 
   The `$MKOSI_DEFAULT` environment variable will be set inside of this
   script so that you know which `mkosi.default` (if any) was passed
@@ -1494,10 +1445,10 @@ clean and comprehensive environment, while at the same the final image
 remains minimal and contains only those packages necessary at runtime,
 but avoiding those necessary at build-time.
 
-Note that only the package cache `mkosi.cache/` (see below) is shared
-between the two phases. The distribution package manager is executed
-exactly once in each phase, always starting from a directory tree that
-is populated with `mkosi.skeleton` but nothing else.
+Note that only the package cache `mkosi.cache/` is shared between the
+two phases. The distribution package manager is executed exactly once
+in each phase, always starting from a directory tree that is populated
+with `mkosi.skeleton` but nothing else.
 
 # CACHING
 
@@ -1512,17 +1463,17 @@ re-building of images. Specifically:
    unpacked.
 
 2. If an `mkosi.build` script is used, by enabling incremental build
-   mode with `--incremental` (see above) a cached copy of the
-   development and final images can be made immediately before the
-   build sources are copied in (for the development image) or the
-   artifacts generated by `mkosi.build` are copied in (in case of the
-   final image). This form of caching allows bypassing the
-   time-consuming package unpacking step of the distribution package
-   managers, but is only effective if the list of packages to use
-   remains stable, but the build sources and its scripts change
-   regularly. Note that this cache requires manual flushing: whenever
-   the package list is modified the cached images need to be
-   explicitly removed before the next re-build, using the `-f` switch.
+   mode with `--incremental`, a cached copy of the development and
+   final images can be made immediately before the build sources are
+   copied in (for the development image) or the artifacts generated by
+   `mkosi.build` are copied in (in case of the final image). This form
+   of caching allows bypassing the time-consuming package unpacking
+   step of the distribution package managers, but is only effective if
+   the list of packages to use remains stable, but the build sources
+   and its scripts change regularly. Note that this cache requires
+   manual flushing: whenever the package list is modified the cached
+   images need to be explicitly removed before the next re-build,
+   using the `-f` switch.
 
 3. Finally, between multiple builds the build artifact directory may
    be shared, using the `mkosi.builddir/` directory. This directory
@@ -1553,20 +1504,20 @@ variables:
   previous runs.
 
 * `$WITH_DOCS` is either `0` or `1` depending on whether a build
-  without or with installed documentation was requested (see
-  `--with-docs` above). The build script should suppress installation
-  of any package documentation to `$DESTDIR` in case `$WITH_DOCS` is
-  set to `0`.
+  without or with installed documentation was requested
+  (`WithDocs=yes`). The build script should suppress installation of
+  any package documentation to `$DESTDIR` in case `$WITH_DOCS` is set
+  to `0`.
 
 * `$WITH_TESTS` is either `0`or `1` depending on whether a build
-  without or with running the test suite was requested (see
-  `--without-tests` above). The build script should avoid running any
-  unit or integration tests in case `$WITH_TESTS` is `0`.
+  without or with running the test suite was requested
+  (`WithTests=no`). The build script should avoid running any unit or
+  integration tests in case `$WITH_TESTS` is `0`.
 
 * `$WITH_NETWORK` is either `0`or `1` depending on whether a build
-  without or with networking is being executed (see `--with-network`
-  above). The build script should avoid any network communication in
-  case `$WITH_NETWORK` is `0`.
+  without or with networking is being executed (`WithNetwork=no`).
+  The build script should avoid any network communication in case
+  `$WITH_NETWORK` is `0`.
 
 # EXAMPLES
 
@@ -1614,7 +1565,7 @@ Release=24
 Format=gpt_btrfs
 Bootable=yes
 
-[Packages]
+[Content]
 Packages=openssh-clients,httpd
 BuildPackages=make,gcc,libcurl-devel
 EOF

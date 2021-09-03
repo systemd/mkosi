@@ -10,7 +10,7 @@ Format=gpt_ext4
 Bootable=yes
 Output=fedora.raw
 
-[Packages]
+[Content]
 Packages=
         arch-install-scripts
         btrfs-progs
