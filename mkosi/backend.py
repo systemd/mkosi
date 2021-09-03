@@ -364,20 +364,9 @@ def workspace(root: Path) -> Path:
 
 
 def var_tmp(root: Path) -> Path:
-    return mkdir_last(workspace(root) / "var-tmp")
-
-
-def mkdir_last(path: Path, mode: int = 0o777) -> Path:
-    """Create directory path
-
-    Only the final component will be created, so this is different than os.makedirs().
-    """
-    try:
-        os.mkdir(path, mode)
-    except FileExistsError:
-        if not os.path.isdir(path):
-            raise
-    return path
+    p = workspace(root) / "var-tmp"
+    p.mkdir(exist_ok=True)
+    return p
 
 
 def partition(loopdev: Path, partno: int) -> Path:

@@ -69,7 +69,6 @@ from .backend import (
     SourceFileTransfer,
     die,
     install_grub,
-    mkdir_last,
     nspawn_params_for_blockdev_access,
     partition,
     patch_file,
@@ -479,11 +478,11 @@ def symlink_f(target: str, path: Path) -> None:
 
 def copy_path(oldpath: PathString, newpath: Path) -> None:
     try:
-        mkdir_last(newpath)
+        newpath.mkdir(exist_ok=True)
     except FileExistsError:
         # something that is not a directory already exists
         newpath.unlink()
-        mkdir_last(newpath)
+        newpath.mkdir()
 
     for entry in os.scandir(oldpath):
         newentry = newpath / entry.name
@@ -1519,7 +1518,7 @@ def prepare_tree(args: CommandLineArguments, root: Path, do_run_build_script: bo
             btrfs_subvol_create(root / "var/lib/machines", 0o700)
 
         # We need an initialized machine ID for the build & boot logic to work
-        mkdir_last(root / "etc", 0o755)
+        root.joinpath("etc").mkdir(mode=0o755, exist_ok=True)
         root.joinpath("etc/machine-id").write_text(f"{args.machine_id}\n")
 
         if not do_run_build_script and args.bootable:
@@ -1610,8 +1609,8 @@ def disable_kernel_install(args: CommandLineArguments, root: Path) -> None:
     if not args.bootable or args.bios_partno is not None or not args.with_unified_kernel_images:
         return
 
-    for d in ("etc", "etc/kernel", "etc/kernel/install.d"):
-        mkdir_last(root / d, 0o755)
+    for subdir in ("etc", "etc/kernel", "etc/kernel/install.d"):
+        root.joinpath(subdir).mkdir(mode=0o755, exist_ok=True)
 
     for f in ("50-dracut.install", "51-dracut-rescue.install", "90-loaderentry.install"):
         root.joinpath("etc/kernel/install.d", f).symlink_to("/dev/null")
@@ -6271,7 +6270,7 @@ def make_output_dir(args: CommandLineArguments) -> None:
     if args.output_dir is None:
         return
 
-    mkdir_last(args.output_dir, 0o755)
+    args.output_dir.mkdir(mode=0o755, exist_ok=True)
 
 
 def make_build_dir(args: CommandLineArguments) -> None:
@@ -6279,7 +6278,7 @@ def make_build_dir(args: CommandLineArguments) -> None:
     if args.build_dir is None:
         return
 
-    mkdir_last(args.build_dir, 0o755)
+    args.build_dir.mkdir(mode=0o755, exist_ok=True)
 
 
 def setup_ssh(
