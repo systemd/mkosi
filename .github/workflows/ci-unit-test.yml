@@ -16,11 +16,8 @@ jobs:
 
     - name: Install
       run: |
-        python3 -m pip install pytest mypy black isort
+        python3 -m pip install pytest mypy isort
         npm install -g pyright
-
-    - name: Check formatting
-      run: python3 -m black --check mkosi/ tests/
 
     - name: Check that imports are sorted
       run: python3 -m isort --verbose --check-only mkosi/
