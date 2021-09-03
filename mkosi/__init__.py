@@ -1289,14 +1289,14 @@ def mount_loop(args: CommandLineArguments, dev: Path, where: Path, read_only: bo
 
     options = []
     if not args.output_format.is_squashfs():
-        options.append("discard")
+        options += ["discard"]
 
     compress = should_compress_fs(args)
     if compress and args.output_format == OutputFormat.gpt_btrfs and where.name not in {"efi", "boot"}:
-        options.append("compress" if compress is True else f"compress={compress}")
+        options += ["compress" if compress is True else f"compress={compress}"]
 
     if read_only:
-        options.append("ro")
+        options += ["ro"]
 
     cmd: List[PathString] = ["mount", "-n", dev, where]
     if options:
@@ -1831,7 +1831,7 @@ def invoke_tdnf(
     ]
 
     if not gpgcheck:
-        cmdline.append("--nogpgcheck")
+        cmdline += ["--nogpgcheck"]
 
     cmdline += ["install", *sort_packages(packages)]
 
@@ -2147,7 +2147,7 @@ def invoke_yum(
         cmdline += [f"--forcearch={args.architecture}"]
 
     if not args.with_docs:
-        cmdline.append("--setopt=tsflags=nodocs")
+        cmdline += ["--setopt=tsflags=nodocs"]
 
     cmdline += ["install", *packages]
 
@@ -3084,15 +3084,15 @@ def nspawn_params_for_build_sources(args: CommandLineArguments, sft: SourceFileT
     params = []
 
     if args.build_sources is not None:
-        params.append("--setenv=SRCDIR=/root/src")
-        params.append("--chdir=/root/src")
+        params += ["--setenv=SRCDIR=/root/src",
+                   "--chdir=/root/src"]
         if sft == SourceFileTransfer.mount:
-            params.append(f"--bind={args.build_sources}:/root/src")
+            params += [f"--bind={args.build_sources}:/root/src"]
 
         if args.read_only:
-            params.append("--overlay=+/root/src::/root/src")
+            params += ["--overlay=+/root/src::/root/src"]
     else:
-        params.append("--chdir=/root")
+        params += ["--chdir=/root"]
 
     params += [f"--setenv={env}" for env in args.environment]
 
@@ -3610,7 +3610,7 @@ def read_partition_table(loopdev: Path) -> Tuple[List[str], int]:
         if not in_body:
             continue
 
-        table.append(stripped)
+        table += [stripped]
 
         _, rest = stripped.split(":", 1)
         fields = rest.split(",")
@@ -6558,36 +6558,36 @@ def run_build_script(args: CommandLineArguments, root: Path, raw: Optional[Binar
         # TODO: Use --autopipe once systemd v247 is widely available.
         console_arg = f"--console={'interactive' if sys.stdout.isatty() else 'pipe'}"
         if nspawn_knows_arg(console_arg):
-            cmdline.append(console_arg)
+            cmdline += [console_arg]
 
         if args.default_path is not None:
-            cmdline.append(f"--setenv=MKOSI_DEFAULT={args.default_path}")
+            cmdline += [f"--setenv=MKOSI_DEFAULT={args.default_path}"]
 
         if args.image_version is not None:
-            cmdline.append(f"--setenv=IMAGE_VERSION={args.image_version}")
+            cmdline += [f"--setenv=IMAGE_VERSION={args.image_version}"]
 
         if args.image_id is not None:
-            cmdline.append(f"--setenv=IMAGE_ID={args.image_id}")
+            cmdline += [f"--setenv=IMAGE_ID={args.image_id}"]
 
         cmdline += nspawn_params_for_build_sources(args, args.source_file_transfer)
 
         if args.build_dir is not None:
-            cmdline.append("--setenv=BUILDDIR=/root/build")
-            cmdline.append(f"--bind={args.build_dir}:/root/build")
+            cmdline += ["--setenv=BUILDDIR=/root/build",
+                        f"--bind={args.build_dir}:/root/build"]
 
         if args.include_dir is not None:
-            cmdline.append(f"--bind={args.include_dir}:/usr/include")
+            cmdline += [f"--bind={args.include_dir}:/usr/include"]
 
         if args.with_network is True:
             # If we're using the host network namespace, use the same resolver
-            cmdline.append("--bind-ro=/etc/resolv.conf")
+            cmdline += ["--bind-ro=/etc/resolv.conf"]
         else:
-            cmdline.append("--private-network")
+            cmdline += ["--private-network"]
 
         if args.usr_only:
-            cmdline.append(f"--bind={root_home(args, root)}:/root")
+            cmdline += [f"--bind={root_home(args, root)}:/root"]
 
-        cmdline.append(f"/root/{args.build_script.name}")
+        cmdline += [f"/root/{args.build_script.name}"]
         cmdline += args.cmdline
 
         # build-script output goes to stdout so we can run language servers from within mkosi build-scripts.
@@ -6803,24 +6803,24 @@ def run_shell(args: CommandLineArguments) -> None:
     cmdline = ["systemd-nspawn", target]
 
     if args.read_only:
-        cmdline.append("--read-only")
+        cmdline += ["--read-only"]
 
     # If we copied in a .nspawn file, make sure it's actually honoured
     if args.nspawn_settings is not None:
-        cmdline.append("--settings=trusted")
+        cmdline += ["--settings=trusted"]
 
     if args.verb == "boot":
-        cmdline.append("--boot")
+        cmdline += ["--boot"]
 
     if is_generated_root(args) or args.verity:
-        cmdline.append("--volatile=overlay")
+        cmdline += ["--volatile=overlay"]
 
     if args.network_veth:
         if ensure_networkd(args):
-            cmdline.append("--network-veth")
+            cmdline += ["--network-veth"]
 
     if args.ephemeral:
-        cmdline.append("--ephemeral")
+        cmdline += ["--ephemeral"]
 
     cmdline += ["--machine", virt_name(args)]
 
@@ -6828,7 +6828,7 @@ def run_shell(args: CommandLineArguments) -> None:
         # If the verb is 'shell', args.cmdline contains the command to run.
         # Otherwise, the verb is 'boot', and we assume args.cmdline contains nspawn arguments.
         if args.verb == "shell":
-            cmdline.append("--")
+            cmdline += ["--"]
         cmdline += args.cmdline
 
     with suppress_stacktrace():
@@ -6841,7 +6841,7 @@ def find_qemu_binary() -> str:
 
     binaries: List[str] = []
     if arch_binary is not None:
-        binaries.append(arch_binary)
+        binaries += [arch_binary]
     binaries += ["qemu", "qemu-kvm"]
     for binary in binaries:
         if shutil.which(binary) is not None:
@@ -6899,13 +6899,13 @@ def find_ovmf_vars() -> Path:
     OVMF_VARS_LOCATIONS = []
 
     if platform.machine() == "x86_64":
-        OVMF_VARS_LOCATIONS.append("/usr/share/ovmf/x64/OVMF_VARS.fd")
+        OVMF_VARS_LOCATIONS += ["/usr/share/ovmf/x64/OVMF_VARS.fd"]
     elif platform.machine() == "i386":
-        OVMF_VARS_LOCATIONS.append("/usr/share/edk2/ovmf-ia32/OVMF_VARS.fd")
+        OVMF_VARS_LOCATIONS += ["/usr/share/edk2/ovmf-ia32/OVMF_VARS.fd"]
 
-    OVMF_VARS_LOCATIONS.append("/usr/share/edk2/ovmf/OVMF_VARS.fd")
-    OVMF_VARS_LOCATIONS.append("/usr/share/qemu/OVMF_VARS.fd")
-    OVMF_VARS_LOCATIONS.append("/usr/share/ovmf/OVMF_VARS.fd")
+    OVMF_VARS_LOCATIONS += ["/usr/share/edk2/ovmf/OVMF_VARS.fd",
+                            "/usr/share/qemu/OVMF_VARS.fd",
+                            "/usr/share/ovmf/OVMF_VARS.fd"]
 
     for location in OVMF_VARS_LOCATIONS:
         if os.path.exists(location):
@@ -7191,8 +7191,7 @@ def expand_paths(paths: List[str]) -> List[str]:
     expanded = []
     for path in paths:
         try:
-            path = string.Template(path).substitute(environ)
-            expanded.append(path)
+            expanded += [string.Template(path).substitute(environ)]
         except KeyError:
             # Skip path if it uses a variable not defined.
             pass
