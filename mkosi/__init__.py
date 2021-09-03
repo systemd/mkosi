@@ -11,7 +11,6 @@ import ctypes
 import ctypes.util
 import dataclasses
 import datetime
-import enum
 import errno
 import fcntl
 import functools
@@ -25,8 +24,6 @@ import platform
 import re
 import shlex
 import shutil
-import signal
-import socketserver
 import stat
 import string
 import subprocess
@@ -38,7 +35,6 @@ import urllib.request
 import uuid
 from subprocess import DEVNULL, PIPE
 from textwrap import dedent
-from types import FrameType
 from typing import (
     IO,
     TYPE_CHECKING,
@@ -772,7 +768,7 @@ def refresh_partition_table(args: CommandLineArguments, f: BinaryIO) -> None:
     # of the used configuration, so that they remain stable as the
     # configuration is identical.
 
-    with complete_step("Refreshing partition table…", "Refreshed partition table.") as output:
+    with complete_step("Refreshing partition table…", "Refreshed partition table."):
         exec_sfdisk(args, f)
 
 
@@ -6912,7 +6908,7 @@ def run_qemu(args: CommandLineArguments) -> None:
     if args.network_veth:
         if not ensure_networkd(args):
             # Fall back to usermode networking if the host doesn't have networkd (eg: Debian)
-            cmdline += ["-nic", f"user,model=virtio-net-pci"]
+            cmdline += ["-nic", "user,model=virtio-net-pci"]
         else:
             # Use vt- prefix so we can take advantage of systemd-networkd's builtin network file for VMs.
             ifname = f"vt-{virt_name(args)}"
