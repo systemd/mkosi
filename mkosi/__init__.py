@@ -762,6 +762,23 @@ def attach_image_loopback(image: Optional[BinaryIO]) -> Generator[Optional[Path]
         with complete_step(f"Detaching {loopdev}"):
             run(["losetup", "--detach", loopdev])
 
+@contextlib.contextmanager
+def attach_base_image(base_image: Optional[Path]) -> Generator[Optional[Path], None, None]:
+    """Context manager that attaches/detaches the base image directory or device"""
+
+    if base_image is None:
+        yield None
+        return
+
+    with complete_step(f"Using {base_image} as the base image"):
+        if base_image.is_dir():
+            yield base_image
+        else:
+            with base_image.open('rb') as f, \
+                 attach_image_loopback(f) as loopdev:
+
+                yield loopdev
+
 
 def prepare_swap(args: CommandLineArguments, loopdev: Optional[Path], cached: bool) -> None:
     if loopdev is None:
@@ -1205,17 +1222,75 @@ def mount_tmpfs(where: Path) -> None:
     do_mount("tmpfs", where, type="tmpfs")
 
 
+def mount_overlay(
+    args: CommandLineArguments,
+    base_image: Path,  # the path to the mounted base image root
+    root: Path,        # the path to the destination image root
+    read_only: bool = False,
+) -> Tuple[Path, TempDir]:
+    """Set up the overlay mount on `root` with `base_image` as the lower layer.
+
+    Sadly the overlay cannot be mounted onto the root directly, because the
+    workdir must be on the same filesystem as "upperdir", but cannot be its
+    subdirectory. Thus, we set up the overlay and then bind-mount the overlay
+    structure into the expected location.
+    """
+
+    workdir = tempfile.TemporaryDirectory(dir=root, prefix='overlayfs-workdir')
+    realroot = root / 'mkosi-real-root'
+
+    options = [f'lowerdir={base_image}',
+               f'upperdir={realroot}',
+               f'workdir={workdir.name}']
+
+    do_mount("overlay", realroot, options, type="overlay", read_only=read_only)
+    mount_bind(realroot, root)
+    return realroot, workdir
+
+
+@complete_step("Cleaning up overlayfs")
+def clean_up_overlay(root: Path, realroot: Path, workdir: TempDir) -> None:
+    """Destroy the overlayfs structure set up by `mount_overlay`.
+
+    When this function returns, the contents of the root file system have been
+    moved into root, and `realroot` and `workdir` are gone.
+
+    If `realroot` is set, it means we mounted `root` twice: the first mount is
+    the overlayfs mount, and the second is a bind-mount to adjust the location
+    one level up. Thus we need unmount twice too; after the first unmount here,
+    the image remains mounted at `root`.
+    """
+
+    umount(root)
+    umount(realroot)
+
+    workdir.cleanup()
+
+    # Let's now move the contents of realroot into root
+    for entry in os.scandir(realroot):
+        os.rename(realroot / entry.name, root / entry.name)
+    realroot.rmdir()
+
+
 @contextlib.contextmanager
 def mount_image(
     args: CommandLineArguments,
     root: Path,
+    base_image: Optional[Path],  # the path to the mounted base image root
     loopdev: Optional[Path],
     image: LuksSetupOutput,
     root_read_only: bool = False,
 ) -> Generator[None, None, None]:
     with complete_step("Mounting image…"):
 
-        if image.root is not None:
+        realroot: Optional[Path] = None
+        workdir: Optional[TempDir] = None
+
+        if base_image is not None:
+            mount_bind(root)
+            realroot, workdir = mount_overlay(args, base_image, root, root_read_only)
+
+        elif image.root is not None:
             if args.usr_only:
                 # In UsrOnly mode let's have a bind mount at the top so that umount --recursive works nicely later
                 mount_bind(root)
@@ -1257,6 +1332,10 @@ def mount_image(
     try:
         yield
     finally:
+        if realroot is not None:
+            assert workdir is not None
+            clean_up_overlay(root, realroot, workdir)
+
         with complete_step("Unmounting image"):
             umount(root)
 
@@ -1526,6 +1605,7 @@ def reenable_kernel_install(args: CommandLineArguments, root: Path) -> None:
 def add_packages(
     args: CommandLineArguments, packages: Set[str], *names: str, conditional: Optional[str] = None
 ) -> None:
+
     """Add packages in @names to @packages, if enabled by --base-packages.
 
     If @conditional is specifed, rpm-specific syntax for boolean
@@ -5137,6 +5217,10 @@ def create_parser() -> ArgumentParserMkosi:
     )
 
     group = parser.add_argument_group("Partitions")
+    group.add_argument('--base-image',
+                       help='Use the given image as base (e.g. lower sysext layer)',
+                       type=Path,
+                       metavar='IMAGE')
     group.add_argument(
         "--root-size", help="Set size of root partition (only gpt_ext4, gpt_xfs, gpt_btrfs)", metavar="BYTES"
     )
@@ -6561,7 +6645,8 @@ def build_image(
     else:
         raw = create_image(args, for_cache)
 
-    with attach_image_loopback(args, raw) as loopdev:
+    with attach_base_image(args.base_image) as base_image, \
+         attach_image_loopback(raw) as loopdev:
 
         prepare_swap(args, loopdev, cached)
         prepare_esp(args, loopdev, cached)
@@ -6587,12 +6672,9 @@ def build_image(
             # Mount everything together, but let's not mount the root
             # dir if we still have to generate the root image here
             prepare_tree_root(args, root)
-            with mount_image(
-                args,
-                root,
-                loopdev,
-                encrypted.without_generated_root(args),
-            ):
+
+            with mount_image(args, root, base_image, loopdev, encrypted.without_generated_root(args)):
+
                 prepare_tree(args, root, do_run_build_script, cached)
                 if do_run_build_script and args.include_dir and not cached:
                     empty_directory(args.include_dir)
@@ -6649,13 +6731,9 @@ def build_image(
             # This time we mount read-only, as we already generated
             # the verity data, and hence really shouldn't modify the
             # image anymore.
-            mount = lambda: mount_image(
-                args,
-                root,
-                loopdev,
-                encrypted.without_generated_root(args),
-                root_read_only=True,
-            )
+            mount = lambda: mount_image(args, root, base_image, loopdev,
+                                        encrypted.without_generated_root(args),
+                                        root_read_only=True)
 
             install_unified_kernel(args, root, root_hash, do_run_build_script, for_cache, cached, mount)
             secure_boot_sign(args, root, do_run_build_script, for_cache, cached, mount)
