@@ -887,8 +887,10 @@ def attach_image_loopback(
         return
 
     with complete_step("Attaching image file…", "Attached image file as {}") as output:
-        c = run(["losetup", "--find", "--show", "--partscan", raw.name], stdout=PIPE)
-        loopdev = Path(c.stdout.decode("utf-8").strip())
+        c = run(["losetup", "--find", "--show", "--partscan", raw.name],
+                stdout=PIPE,
+                universal_newlines=True)
+        loopdev = Path(c.stdout.strip())
         output.append(loopdev)
 
     try:
@@ -3598,33 +3600,35 @@ def read_partition_table(loopdev: Path) -> Tuple[List[str], int]:
     table = []
     last_sector = 0
 
-    c = run(["sfdisk", "--dump", loopdev], stdout=PIPE)
+    c = run(["sfdisk", "--dump", loopdev],
+            stdout=PIPE,
+            universal_newlines=True)
 
     in_body = False
-    for line in c.stdout.decode("utf-8").split("\n"):
-        stripped = line.strip()
+    for line in c.stdout.splitlines():
+        line = line.strip()
 
-        if stripped == "":  # empty line is where the body begins
+        if line == "":  # empty line is where the body begins
             in_body = True
             continue
         if not in_body:
             continue
 
-        table += [stripped]
+        table += [line]
 
-        _, rest = stripped.split(":", 1)
+        _, rest = line.split(":", 1)
         fields = rest.split(",")
 
         start = None
         size = None
 
         for field in fields:
-            f = field.strip()
+            field = field.strip()
 
-            if f.startswith("start="):
-                start = int(f[6:])
-            if f.startswith("size="):
-                size = int(f[5:])
+            if field.startswith("start="):
+                start = int(field[6:])
+            if field.startswith("size="):
+                size = int(field[5:])
 
         if start is not None and size is not None:
             end = start + size
