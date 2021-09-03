@@ -230,7 +230,6 @@ def print_running_cmd(cmdline: Iterable[str]) -> None:
     MkosiPrinter.print_step(" ".join(shlex.quote(x) for x in cmdline) + "\n")
 
 
-# fmt: off
 GPT_ROOT_X86           = uuid.UUID("44479540f29741b29af7d131d5f0458a")  # NOQA: E221
 GPT_ROOT_X86_64        = uuid.UUID("4f68bce3e8cd4db196e7fbcaf984b709")  # NOQA: E221
 GPT_ROOT_ARM           = uuid.UUID("69dad7102ce44e3cb16c21a1d49abed3")  # NOQA: E221
@@ -259,7 +258,6 @@ GPT_USR_ARM_64_VERITY  = uuid.UUID("6e11a4e7fbca4dedb9e9e1a512bb664e")  # NOQA: 
 GPT_USR_IA64_VERITY    = uuid.UUID("6a491e033be745458e3883320e0ea880")  # NOQA: E221
 GPT_TMP                = uuid.UUID("7ec6f5573bc54acab29316ef5df639d1")  # NOQA: E221
 GPT_VAR                = uuid.UUID("4d21b016b53445c2a9fb5c16e091fd2d")  # NOQA: E221
-# fmt: on
 
 
 # This is a non-formatted partition used to store the second stage
@@ -371,7 +369,6 @@ def roundup512(x: int) -> int:
     return (x + 511) & ~511
 
 
-# fmt: off
 _IOC_NRBITS   =  8  # NOQA: E221,E222
 _IOC_TYPEBITS =  8  # NOQA: E221,E222
 _IOC_SIZEBITS = 14  # NOQA: E221,E222
@@ -385,7 +382,6 @@ _IOC_DIRSHIFT  = _IOC_SIZESHIFT + _IOC_SIZEBITS  # NOQA: E221
 _IOC_NONE  = 0  # NOQA: E221
 _IOC_WRITE = 1  # NOQA: E221
 _IOC_READ  = 2  # NOQA: E221
-# fmt: on
 
 
 def _IOC(dir_rw: int, type_drv: int, nr: int, argtype: str) -> int:
@@ -1200,7 +1196,6 @@ def luks_setup_all(
 
     assert loopdev is not None
 
-    # fmt: off
     with luks_setup_root(args, loopdev, do_run_build_script) as root, \
          luks_setup_home(args, loopdev, do_run_build_script) as home, \
          luks_setup_srv(args, loopdev, do_run_build_script) as srv, \
@@ -1214,7 +1209,6 @@ def luks_setup_all(
             optional_partition(loopdev, args.var_partno) if var is None else var,
             optional_partition(loopdev, args.tmp_partno) if tmp is None else tmp,
         )
-    # fmt: on
 
 
 def prepare_root(args: CommandLineArguments, dev: Optional[str], cached: bool) -> None:
@@ -1729,7 +1723,10 @@ def clean_rpm_metadata(root: str) -> None:
 
 def clean_tdnf_metadata(root: str) -> None:
     """Removes tdnf metadata iff /bin/tdnf is not present in the image"""
-    tdnf_metadata_paths = [*glob.glob(f"{os.path.join(root, 'var/log/tdnf')}.*"), os.path.join(root, "var/cache/tdnf")]
+    tdnf_metadata_paths = [
+        *glob.glob(f"{os.path.join(root, 'var/log/tdnf')}.*"),
+        os.path.join(root, "var/cache/tdnf"),
+    ]
     tdnf_path = os.path.join(root, "usr/bin/tdnf")
     keep_tdnf_data = os.access(tdnf_path, os.F_OK, follow_symlinks=False)
 
@@ -2067,6 +2064,7 @@ def install_mageia(args: CommandLineArguments, root: str, do_run_build_script: b
         with open(os.path.join(root, "etc/dracut.conf.d/51-mkosi-override-mageia.conf"), "w") as f:
             f.write("hostonly=no\n")
             f.write('omit_dracutmodules=""\n')
+
     if do_run_build_script:
         packages.update(args.build_packages)
     invoke_dnf(args, root, args.repositories or ["mageia", "updates"], packages, do_run_build_script)
@@ -5482,14 +5480,10 @@ def find_cache(args: argparse.Namespace) -> None:
 def require_private_file(name: str, description: str) -> None:
     mode = os.stat(name).st_mode & 0o777
     if mode & 0o007:
-        warn(
-            dedent(
-                f"""
-                Permissions of '{name}' of '{mode:04o}' are too open.
-                When creating {description} files use an access mode that restricts access to the owner only.\
-                """
-            )
-        )
+        warn(dedent(f"""\
+            Permissions of '{name}' of '{mode:04o}' are too open.
+            When creating {description} files use an access mode that restricts access to the owner only.
+        """))
 
 
 def find_passphrase(args: argparse.Namespace) -> None:
@@ -6456,9 +6450,8 @@ def build_image(
                 else None
             )
 
-    archive = make_tar(args, root, do_run_build_script, for_cache) or make_cpio(
-        args, root, do_run_build_script, for_cache
-    )
+    archive = make_tar(args, root, do_run_build_script, for_cache) or \
+              make_cpio(args, root, do_run_build_script, for_cache)
 
     return BuildOutput(raw or generated_root, archive, root_hash, sshkey, split_root, split_verity, split_kernel)
 
@@ -6601,9 +6594,9 @@ def build_stuff(args: CommandLineArguments) -> Manifest:
 
     # Make sure tmpfiles' aging doesn't interfere with our workspace
     # while we are working on it.
-    with open_close(workspace.name, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC) as dir_fd, btrfs_forget_stale_devices(
-        args
-    ):
+    with open_close(workspace.name, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC) as dir_fd, \
+         btrfs_forget_stale_devices(args):
+
         fcntl.flock(dir_fd, fcntl.LOCK_EX)
 
         root = os.path.join(workspace.name, "root")
@@ -6647,9 +6640,8 @@ def build_stuff(args: CommandLineArguments) -> Manifest:
         split_kernel = compress_output(args, image.split_kernel, ".efi")
         root_hash_file = write_root_hash_file(args, image.root_hash)
         settings = copy_nspawn_settings(args)
-        checksum = calculate_sha256sum(
-            args, raw, image.archive, root_hash_file, split_root, split_verity, split_kernel, settings
-        )
+        checksum = calculate_sha256sum(args, raw, image.archive, root_hash_file,
+                                       split_root, split_verity, split_kernel, settings)
         signature = calculate_signature(args, checksum)
         bmap = calculate_bmap(args, raw)
 
@@ -6709,26 +6701,22 @@ def has_networkd_vm_vt() -> bool:
 def ensure_networkd(args: CommandLineArguments) -> bool:
     networkd_is_running = run(["systemctl", "is-active", "--quiet", "systemd-networkd"], check=False).returncode == 0
     if not networkd_is_running:
-        warn(
-            """
-            --network-veth requires systemd-networkd to be running to initialize the host interface of the
-            veth link ('systemctl enable --now systemd-networkd')")
-            """
-        )
+        warn("--network-veth requires systemd-networkd to be running to initialize the host interface "
+             "of the veth link ('systemctl enable --now systemd-networkd')")
         return False
 
     if args.verb == "qemu" and not has_networkd_vm_vt():
-        warn(
-            r"""
-            mkosi didn't find 80-vm-vt.network. This is one of systemd's built-in systemd-networkd config
-            files which configures vt-* interfaces. mkosi needs this file in order for --network-veth to work
-            properly for QEMU virtual machines. The file likely cannot be found because the systemd version
+        warn(dedent(r"""\
+            mkosi didn't find 80-vm-vt.network. This is one of systemd's built-in
+            systemd-networkd config files which configures vt-* interfaces.
+            mkosi needs this file in order for --network-veth to work properly for QEMU
+            virtual machines. The file likely cannot be found because the systemd version
             on the host is too old (< 246) and it isn't included yet.
 
-            As a workaround until the file is shipped by the systemd package of your distro, add a user
-            network file /etc/systemd/network/80-vm-vt.network with the following contents:
+            As a workaround until the file is shipped by the systemd package of your distro,
+            add a network file /etc/systemd/network/80-vm-vt.network with the following
+            contents:
 
-            ```
             [Match]
             Name=vt-*
             Driver=tun
@@ -6742,9 +6730,8 @@ def ensure_networkd(args: CommandLineArguments) -> bool:
             LLDP=yes
             EmitLLDP=customer-bridge
             IPv6PrefixDelegation=yes
-            ```
             """
-        )
+        ))
         return False
 
     return True
@@ -6823,10 +6810,8 @@ def find_qemu_firmware() -> Tuple[str, bool]:
         if os.path.exists(firmware):
             return firmware, True
 
-    warn(
-        "Couldn't find OVMF firmware blob with secure boot support, "
-        "falling back to OVMF firmware blobs without secure boot support."
-    )
+    warn("Couldn't find OVMF firmware blob with secure boot support, "
+         "falling back to OVMF firmware blobs without secure boot support.")
 
     FIRMWARE_LOCATIONS = [
         # First, we look in paths that contain the architecture –
