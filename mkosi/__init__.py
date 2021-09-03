@@ -744,24 +744,22 @@ def reuse_cache_image(
 
 
 @contextlib.contextmanager
-def attach_image_loopback(
-    args: CommandLineArguments, raw: Optional[BinaryIO]
-) -> Generator[Optional[Path], None, None]:
-    if raw is None:
+def attach_image_loopback(image: Optional[BinaryIO]) -> Generator[Optional[Path], None, None]:
+    if image is None:
         yield None
         return
 
-    with complete_step("Attaching image file…", "Attached image file as {}") as output:
-        c = run(["losetup", "--find", "--show", "--partscan", raw.name],
+    with complete_step(f"Attaching {image.name} as loopback…", "Attached {}") as output:
+        c = run(["losetup", "--find", "--show", "--partscan", image.name],
                 stdout=PIPE,
                 text=True)
         loopdev = Path(c.stdout.strip())
-        output.append(loopdev)
+        output += [loopdev]
 
     try:
         yield loopdev
     finally:
-        with complete_step("Detaching image file"):
+        with complete_step(f"Detaching {loopdev}"):
             run(["losetup", "--detach", loopdev])
 
 
@@ -1158,9 +1156,30 @@ def prepare_tmp(args: CommandLineArguments, dev: Optional[Path], cached: bool) -
         mkfs_generic(args, "tmp", "/var/tmp", dev)
 
 
-def mount_loop(args: CommandLineArguments, dev: Path, where: Path, read_only: bool = False) -> None:
+def do_mount(
+        what: PathString,
+        where: Path,
+        options: Sequence[str] = (),
+        type: Optional[str] = None,
+        read_only: bool = False,
+) -> None:
     os.makedirs(where, 0o755, True)
 
+    if read_only:
+        options = ["ro", *options]
+
+    cmd: List[PathString] = ["mount", "-n", what, where]
+
+    if type:
+        cmd += ["-t", type]
+
+    if options:
+        cmd += ["-o", ",".join(options)]
+
+    run(cmd)
+
+
+def mount_loop(args: CommandLineArguments, dev: Path, where: Path, read_only: bool = False) -> None:
     options = []
     if not args.output_format.is_squashfs():
         options += ["discard"]
@@ -1169,14 +1188,7 @@ def mount_loop(args: CommandLineArguments, dev: Path, where: Path, read_only: bo
     if compress and args.output_format == OutputFormat.gpt_btrfs and where.name not in {"efi", "boot"}:
         options += ["compress" if compress is True else f"compress={compress}"]
 
-    if read_only:
-        options += ["ro"]
-
-    cmd: List[PathString] = ["mount", "-n", dev, where]
-    if options:
-        cmd += ["-o", ",".join(options)]
-
-    run(cmd)
+    do_mount(dev, where, options, read_only=read_only)
 
 
 def mount_bind(what: Path, where: Optional[Path] = None) -> Path:
@@ -1190,8 +1202,7 @@ def mount_bind(what: Path, where: Optional[Path] = None) -> Path:
 
 
 def mount_tmpfs(where: Path) -> None:
-    os.makedirs(where, 0o755, True)
-    run(["mount", "tmpfs", "-t", "tmpfs", where])
+    do_mount("tmpfs", where, type="tmpfs")
 
 
 @contextlib.contextmanager
@@ -1214,7 +1225,7 @@ def mount_image(
         else:
             # always have a root of the tree as a mount point so we can
             # recursively unmount anything that ends up mounted there
-            mount_bind(root, root)
+            mount_bind(root)
 
         if image.home is not None:
             mount_loop(args, image.home, root / "home")
