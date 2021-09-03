@@ -5604,7 +5604,7 @@ def check_valid_script(path: str) -> None:
 
 def load_args(args: argparse.Namespace) -> CommandLineArguments:
     global ARG_DEBUG
-    ARG_DEBUG = args.debug
+    ARG_DEBUG.update(args.debug)
 
     args_find_path(args, "nspawn_settings", "mkosi.nspawn")
     args_find_path(args, "build_script", "mkosi.build")

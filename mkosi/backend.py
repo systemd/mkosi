@@ -23,6 +23,7 @@ from typing import (
     List,
     NoReturn,
     Optional,
+    Set,
     Union,
     cast,
 )
@@ -51,7 +52,7 @@ class MkosiException(Exception):
 
 
 # This global should be initialized after parsing arguments
-ARG_DEBUG = ()
+ARG_DEBUG: Set[str] = set()
 
 
 class Parseable:
