@@ -278,6 +278,22 @@ BIOS_PARTITION_SIZE = 1024 * 1024
 CLONE_NEWNS = 0x00020000
 
 FEDORA_KEYS_MAP = {
+    "7": "4F2A6FD2",
+    "8": "6DF2196F",
+    "9": "6DF2196F",
+    "10": "4EBFC273",
+    "11": "D22E77F2",
+    "12": "57BBCCBA",
+    "13": "E8E40FDE",
+    "14": "97A1071F",
+    "15": "069C8460",
+    "16": "A82BA4B7",
+    "17": "1ACA3465",
+    "18": "DE7F38BD",
+    "19": "FB4B18E6",
+    "20": "246110C1",
+    "21": "95A43F54",
+    "22": "8E1431D5",
     "23": "34EC9CBA",
     "24": "81B46521",
     "25": "FDB19C98",
@@ -290,6 +306,8 @@ FEDORA_KEYS_MAP = {
     "32": "12C944D0",
     "33": "9570FF31",
     "34": "45719A39",
+    "35": "9867C58F",
+    "36": "38AB71F4",
 }
 
 # 1 MB at the beginning of the disk for the GPT disk label, and
