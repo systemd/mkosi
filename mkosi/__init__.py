@@ -4948,7 +4948,6 @@ def create_parser() -> ArgumentParserMkosi:
         type=parse_remove_files,
         metavar="GLOB",
     )
-    group.add_argument("--build-script", help="Build script to run inside image", metavar="PATH")
     group.add_argument(
         "--environment",
         "-E",
@@ -5009,21 +5008,27 @@ def create_parser() -> ArgumentParserMkosi:
         "--skip-final-phase", action=BooleanAction, help="Skip the (second) final image building phase.", default=False
     )
     group.add_argument(
-        "--postinst-script",
-        help="Postinstall script to run inside image",
-        type=Path,
+        "--build-script",
+        help="Build script to run inside image",
+        type=script_path,
         metavar="PATH",
     )
     group.add_argument(
         "--prepare-script",
         help="Prepare script to run inside the image before it is cached",
-        type=Path,
+        type=script_path,
+        metavar="PATH",
+    )
+    group.add_argument(
+        "--postinst-script",
+        help="Postinstall script to run inside image",
+        type=script_path,
         metavar="PATH",
     )
     group.add_argument(
         "--finalize-script",
         help="Postinstall script to run outside image",
-        type=Path,
+        type=script_path,
         metavar="PATH",
     )
     group.add_argument(
@@ -5680,13 +5685,29 @@ def build_auxiliary_output_path(args: argparse.Namespace, suffix: str, can_compr
     return output.with_name(f"{output.name}{suffix}{compression or ''}")
 
 
-def check_valid_script(path: Path) -> None:
+DISABLED = Path('DISABLED')  # A placeholder value to suppress autodetection.
+                             # This is used as a singleton, i.e. should be compared with
+                             # 'is' in other parts of the code.
+
+def script_path(value: Optional[str]) -> Optional[Path]:
+    if value is None:
+        return None
+    if value == '':
+        return DISABLED
+    return Path(value)
+
+
+def normalize_script(path: Optional[Path]) -> Optional[Path]:
+    if not path or path is DISABLED:
+        return None
+    path = Path(path).absolute()
     if not path.exists():
         die(f"{path} does not exist")
     if not path.is_file():
         die(f"{path} is not a file")
     if not os.access(path, os.X_OK):
         die(f"{path} is not executable")
+    return path
 
 
 def load_args(args: argparse.Namespace) -> CommandLineArguments:
@@ -5907,10 +5928,6 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
         if args.bootable:
             args.output_split_kernel = build_auxiliary_output_path(args, ".efi", True)
 
-    if args.build_script is not None:
-        check_valid_script(args.build_script)
-        args.build_script = args.build_script.absolute()
-
     if args.build_sources is not None:
         args.build_sources = args.build_sources.absolute()
 
@@ -5923,17 +5940,10 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
     if args.install_dir is not None:
         args.install_dir = args.install_dir.absolute()
 
-    if args.postinst_script is not None:
-        check_valid_script(args.postinst_script)
-        args.postinst_script = args.postinst_script.absolute()
-
-    if args.prepare_script is not None:
-        check_valid_script(args.prepare_script)
-        args.prepare_script = args.prepare_script.absolute()
-
-    if args.finalize_script is not None:
-        check_valid_script(args.finalize_script)
-        args.finalize_script = args.finalize_script.absolute()
+    args.build_script = normalize_script(args.build_script)
+    args.prepare_script = normalize_script(args.prepare_script)
+    args.postinst_script = normalize_script(args.postinst_script)
+    args.finalize_script = normalize_script(args.finalize_script)
 
     for i in range(len(args.environment)):
         if "=" not in args.environment[i]:

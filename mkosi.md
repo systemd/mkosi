@@ -754,16 +754,6 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 : Takes a comma-separated list of globs. Files in the image matching
   the globs will be purged at the end.
 
-`BuildScript=`, `--build-script=`
-
-: Takes a path to an executable that is used as build script for this
-  image. If this option is used the build process will be two-phased
-  instead of single-phased. The specified script is copied onto the
-  development image and executed inside an `systemd-nspawn` container
-  environment. If this option is not used, but the `mkosi.build` file
-  found in the local directory it is automatically used for this
-  purpose (also see the "Files" section below).
-
 `Environment=`, `--environment=`
 
 : Adds variables to the environment that the
@@ -859,6 +849,17 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   the artifacts that were created locally in `$BUILDDIR`, but
   ultimately plan to discard the final image.
 
+`BuildScript=`, `--build-script=`
+
+: Takes a path to an executable that is used as build script for this
+  image. If this option is used the build process will be two-phased
+  instead of single-phased. The specified script is copied onto the
+  development image and executed inside an `systemd-nspawn` container
+  environment. If this option is not used, but the `mkosi.build` file
+  found in the local directory it is automatically used for this
+  purpose (also see the "Files" section below). Specify an empty value
+  to disable automatic detection.
+
 `PrepareScript=`, `--prepare-script=`
 
 : Takes a path to an executable that is invoked inside the image right
@@ -867,7 +868,8 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   is invoked inside a `systemd-nspawn` container environment, and thus
   does not have access to host resources.  If this option is not used,
   but an executable script `mkosi.prepare` is found in the local
-  directory, it is automatically used for this purpose.
+  directory, it is automatically used for this purpose. Specify an
+  empty value to disable automatic detection.
 
 `PostInstallationScript=`, `--postinst-script=`
 
@@ -877,7 +879,8 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   container environment, and thus does not have access to host
   resources. If this option is not used, but an executable
   `mkosi.postinst` is found in the local directory, it is
-  automatically used for this purpose.
+  automatically used for this purpose. Specify an empty value to
+  disable automatic detection.
 
 `FinalizeScript=`, `--finalize-script=`
 
@@ -888,7 +891,8 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   is invoked directly in the host environment, and hence has full
   access to the host's resources. If this option is not used, but an
   executable `mkosi.finalize` is found in the local directory, it is
-  automatically used for this purpose.
+  automatically used for this purpose. Specify an empty value to
+  disable automatic detection.
 
 `SourceFileTransfer=`, `--source-file-transfer=`
 
