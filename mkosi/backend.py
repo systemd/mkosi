@@ -5,13 +5,13 @@ import contextlib
 import dataclasses
 import enum
 import os
-import pathlib
 import shlex
 import shutil
 import signal
 import subprocess
 import sys
 import uuid
+from pathlib import Path
 from types import FrameType
 from typing import (
     IO,
@@ -23,17 +23,17 @@ from typing import (
     List,
     NoReturn,
     Optional,
+    Sequence,
     Set,
     Union,
     cast,
 )
 
-if sys.version_info >= (3, 8):
-    shell_join = shlex.join
-else:
+PathString = Union[Path, str]
 
-    def shell_join(cmd: List[str]) -> str:
-        return " ".join(shlex.quote(x) for x in cmd)
+
+def shell_join(cmd: Sequence[PathString]) -> str:
+    return " ".join(shlex.quote(str(x)) for x in cmd)
 
 
 # These types are only generic during type checking and not at runtime, leading
@@ -204,15 +204,15 @@ class CommandLineArguments:
     architecture: Optional[str]
     output_format: OutputFormat
     manifest_format: List[ManifestFormat]
-    output: str
-    output_dir: Optional[str]
+    output: Path
+    output_dir: Optional[Path]
     force_count: int
     bootable: bool
     boot_protocols: List[str]
     kernel_command_line: List[str]
     secure_boot: bool
-    secure_boot_key: str
-    secure_boot_certificate: str
+    secure_boot_key: Path
+    secure_boot_certificate: Path
     secure_boot_valid_days: str
     secure_boot_common_name: str
     read_only: bool
@@ -221,7 +221,7 @@ class CommandLineArguments:
     compress: Union[None, str, bool]
     compress_fs: Union[None, str, bool]
     compress_output: Union[None, str, bool]
-    mksquashfs_tool: List[str]
+    mksquashfs_tool: List[PathString]
     qcow2: bool
     image_version: Optional[str]
     image_id: Optional[str]
@@ -237,27 +237,27 @@ class CommandLineArguments:
     packages: List[str]
     with_docs: bool
     with_tests: bool
-    cache_path: Optional[str]
-    extra_trees: List[str]
-    skeleton_trees: List[str]
-    remove_files: List[str]
-    build_script: Optional[str]
+    cache_path: Optional[Path]
+    extra_trees: List[Path]
+    skeleton_trees: List[Path]
+    remove_files: List[Path]
+    build_script: Optional[Path]
     environment: List[str]
-    build_sources: Optional[str]
-    build_dir: Optional[str]
-    include_dir: Optional[str]
-    install_dir: Optional[str]
+    build_sources: Optional[Path]
+    build_dir: Optional[Path]
+    include_dir: Optional[Path]
+    install_dir: Optional[Path]
     build_packages: List[str]
     skip_final_phase: bool
-    postinst_script: Optional[str]
-    prepare_script: Optional[str]
-    finalize_script: Optional[str]
+    postinst_script: Optional[Path]
+    prepare_script: Optional[Path]
+    finalize_script: Optional[Path]
     source_file_transfer: SourceFileTransfer
     source_file_transfer_final: Optional[SourceFileTransfer]
     source_resolve_symlinks: bool
     source_resolve_symlinks_final: bool
     with_network: Union[bool, str]
-    nspawn_settings: Optional[str]
+    nspawn_settings: Optional[Path]
     root_size: int
     esp_size: Optional[int]
     xbootldr_size: Optional[int]
@@ -275,19 +275,19 @@ class CommandLineArguments:
     password: Optional[str]
     password_is_hashed: bool
     autologin: bool
-    extra_search_paths: List[str]
+    extra_search_paths: List[Path]
     network_veth: bool
     ephemeral: bool
     ssh: bool
-    ssh_key: Optional[str]
+    ssh_key: Optional[Path]
     ssh_timeout: int
-    directory: Optional[str]
-    default_path: Optional[str]
+    directory: Optional[Path]
+    default_path: Optional[Path]
     all: bool
-    all_directory: Optional[str]
+    all_directory: Optional[Path]
     debug: List[str]
     auto_bump: bool
-    workspace_dir: Optional[str]
+    workspace_dir: Optional[Path]
 
     # QEMU-specific options
     qemu_headless: bool
@@ -301,17 +301,17 @@ class CommandLineArguments:
     original_umask: int
     passphrase: Optional[Dict[str, str]]
 
-    output_checksum: Optional[str] = None
-    output_nspawn_settings: Optional[str] = None
-    output_sshkey: Optional[str] = None
-    output_root_hash_file: Optional[str] = None
-    output_bmap: Optional[str] = None
-    output_split_root: Optional[str] = None
-    output_split_verity: Optional[str] = None
-    output_split_kernel: Optional[str] = None
-    cache_pre_inst: Optional[str] = None
-    cache_pre_dev: Optional[str] = None
-    output_signature: Optional[str] = None
+    output_checksum: Optional[Path] = None
+    output_nspawn_settings: Optional[Path] = None
+    output_sshkey: Optional[Path] = None
+    output_root_hash_file: Optional[Path] = None
+    output_bmap: Optional[Path] = None
+    output_split_root: Optional[Path] = None
+    output_split_verity: Optional[Path] = None
+    output_split_kernel: Optional[Path] = None
+    cache_pre_inst: Optional[Path] = None
+    cache_pre_dev: Optional[Path] = None
+    output_signature: Optional[Path] = None
 
     root_partno: Optional[int] = None
     swap_partno: Optional[int] = None
@@ -359,32 +359,21 @@ def should_compress_output(args: Union[argparse.Namespace, CommandLineArguments]
     return False if c is None else c
 
 
-def workspace(root: str) -> str:
-    return os.path.dirname(root)
+def workspace(root: Path) -> Path:
+    return root.parent
 
 
-def var_tmp(root: str) -> str:
-    return mkdir_last(os.path.join(workspace(root), "var-tmp"))
+def var_tmp(root: Path) -> Path:
+    p = workspace(root) / "var-tmp"
+    p.mkdir(exist_ok=True)
+    return p
 
 
-def mkdir_last(path: str, mode: int = 0o777) -> str:
-    """Create directory path
-
-    Only the final component will be created, so this is different than os.makedirs().
-    """
-    try:
-        os.mkdir(path, mode)
-    except FileExistsError:
-        if not os.path.isdir(path):
-            raise
-    return path
+def partition(loopdev: Path, partno: int) -> Path:
+    return Path(f"{loopdev}p{partno}")
 
 
-def partition(loopdev: str, partno: int) -> str:
-    return loopdev + "p" + str(partno)
-
-
-def nspawn_params_for_blockdev_access(args: CommandLineArguments, loopdev: str) -> List[str]:
+def nspawn_params_for_blockdev_access(args: CommandLineArguments, loopdev: Path) -> List[str]:
     params = [
         f"--bind-ro={loopdev}",
         f"--property=DeviceAllow={loopdev}",
@@ -395,50 +384,50 @@ def nspawn_params_for_blockdev_access(args: CommandLineArguments, loopdev: str) 
     for partno in (args.esp_partno, args.bios_partno, args.root_partno, args.xbootldr_partno):
         if partno is not None:
             p = partition(loopdev, partno)
-            if os.path.exists(p):
+            if p.exists():
                 params += [f"--bind-ro={p}", f"--property=DeviceAllow={p}"]
 
-    params.extend(f"--setenv={env}" for env in args.environment)
+    params += [f"--setenv={env}" for env in args.environment]
 
     return params
 
 
 def run_workspace_command(
     args: CommandLineArguments,
-    root: str,
-    cmd: List[str],
+    root: Path,
+    cmd: Sequence[PathString],
     network: bool = False,
     env: Optional[Dict[str, str]] = None,
     nspawn_params: Optional[List[str]] = None,
 ) -> None:
-    cmdline = [
+    nspawn = [
         "systemd-nspawn",
         "--quiet",
-        "--directory=" + root,
+        f"--directory={root}",
         "--uuid=" + args.machine_id,
         "--machine=mkosi-" + uuid.uuid4().hex,
         "--as-pid2",
         "--register=no",
-        "--bind=" + var_tmp(root) + ":/var/tmp",
+        f"--bind={var_tmp(root)}:/var/tmp",
         "--setenv=SYSTEMD_OFFLINE=1",
     ]
 
     if network:
         # If we're using the host network namespace, use the same resolver
-        cmdline += ["--bind-ro=/etc/resolv.conf"]
+        nspawn += ["--bind-ro=/etc/resolv.conf"]
     else:
-        cmdline += ["--private-network"]
+        nspawn += ["--private-network"]
 
     if env:
-        cmdline += [f"--setenv={k}={v}" for k, v in env.items()]
+        nspawn += [f"--setenv={k}={v}" for k, v in env.items()]
 
     if nspawn_params:
-        cmdline += nspawn_params
+        nspawn += nspawn_params
 
-    result = run(cmdline + ["--"] + cmd, check=False)
+    result = run([*nspawn, "--", *cmd], check=False)
     if result.returncode != 0:
         if "workspace-command" in ARG_DEBUG:
-            run(cmdline, check=False)
+            run(nspawn, check=False)
         die(f"Workspace command {shell_join(cmd)} returned non-zero exit code {result.returncode}.")
 
 
@@ -478,7 +467,7 @@ _FILE = Union[None, int, IO[Any]]
 
 
 def spawn(
-    cmdline: List[str],
+    cmdline: Sequence[PathString],
     delay_interrupt: bool = True,
     stdout: _FILE = None,
     stderr: _FILE = None,
@@ -502,13 +491,15 @@ def spawn(
 
 
 def run(
-    cmdline: List[str],
+    cmdline: Sequence[PathString],
     check: bool = True,
     delay_interrupt: bool = True,
     stdout: _FILE = None,
     stderr: _FILE = None,
     **kwargs: Any,
 ) -> CompletedProcess:
+    cmdline = [str(x) for x in cmdline]
+
     if "run" in ARG_DEBUG:
         MkosiPrinter.info(f"+ {shell_join(cmdline)}")
 
@@ -526,41 +517,40 @@ def run(
         die(f"{cmdline[0]} not found in PATH.")
 
 
-def tmp_dir() -> str:
-    return os.environ.get("TMPDIR") or "/var/tmp"
+def tmp_dir() -> Path:
+    path = os.environ.get("TMPDIR") or "/var/tmp"
+    return Path(path)
 
 
-def patch_file(filepath: str, line_rewriter: Callable[[str], str]) -> None:
-    temp_new_filepath = filepath + ".tmp.new"
+def patch_file(filepath: Path, line_rewriter: Callable[[str], str]) -> None:
+    temp_new_filepath = filepath.with_suffix(filepath.suffix + ".tmp.new")
 
-    with open(filepath, "r") as old:
-        with open(temp_new_filepath, "w") as new:
-            for line in old:
-                new.write(line_rewriter(line))
+    with filepath.open("r") as old, temp_new_filepath.open("w") as new:
+        for line in old:
+            new.write(line_rewriter(line))
 
     shutil.copystat(filepath, temp_new_filepath)
     os.remove(filepath)
-    shutil.move(temp_new_filepath, filepath)
+    shutil.move(str(temp_new_filepath), filepath)
 
 
-def path_relative_to_cwd(path: str) -> pathlib.Path:
+def path_relative_to_cwd(path: PathString) -> Path:
     "Return path as relative to $PWD if underneath, absolute path otherwise"
+    path = Path(path)
 
-    path = pathlib.Path(path)
     try:
         return path.relative_to(os.getcwd())
     except ValueError:
         return path
 
 
-def write_grub_config(args: CommandLineArguments, root: str) -> None:
+def write_grub_config(args: CommandLineArguments, root: Path) -> None:
     kernel_cmd_line = " ".join(args.kernel_command_line)
     grub_cmdline = f'GRUB_CMDLINE_LINUX="{kernel_cmd_line}"\n'
-    os.makedirs(os.path.join(root, "etc/default"), exist_ok=True, mode=0o755)
-    grub_config = os.path.join(root, "etc/default/grub")
+    os.makedirs(root / "etc/default", exist_ok=True, mode=0o755)
+    grub_config = root / "etc/default/grub"
     if not os.path.exists(grub_config):
-        with open(grub_config, "w+") as f:
-            f.write(grub_cmdline)
+        grub_config.write_text(grub_cmdline)
     else:
 
         def jj(line: str) -> str:
@@ -580,7 +570,7 @@ def write_grub_config(args: CommandLineArguments, root: str) -> None:
                 f.write('GRUB_SERIAL_COMMAND="serial --unit=0 --speed 115200"\n')
 
 
-def install_grub(args: CommandLineArguments, root: str, loopdev: str, grub: str) -> None:
+def install_grub(args: CommandLineArguments, root: Path, loopdev: Path, grub: str) -> None:
     if args.bios_partno is None:
         return
 
@@ -588,7 +578,7 @@ def install_grub(args: CommandLineArguments, root: str, loopdev: str, grub: str)
 
     nspawn_params = nspawn_params_for_blockdev_access(args, loopdev)
 
-    cmdline = [f"{grub}-install", "--modules=ext2 part_gpt", "--target=i386-pc", loopdev]
+    cmdline: Sequence[PathString] = [f"{grub}-install", "--modules=ext2 part_gpt", "--target=i386-pc", loopdev]
     run_workspace_command(args, root, cmdline, nspawn_params=nspawn_params)
 
     # TODO: Remove os.path.basename once https://github.com/systemd/systemd/pull/16645 is widely available.

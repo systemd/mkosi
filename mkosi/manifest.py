@@ -2,6 +2,7 @@
 
 import dataclasses
 import json
+from pathlib import Path
 from subprocess import DEVNULL, PIPE
 from textwrap import dedent
 from typing import IO, Any, Dict, List, Optional, cast
@@ -60,12 +61,12 @@ class Manifest:
     packages: List[PackageManifest] = dataclasses.field(default_factory=list)
     source_packages: Dict[str, SourcePackageManifest] = dataclasses.field(default_factory=dict)
 
-    def record_packages(self, root: str) -> None:
+    def record_packages(self, root: Path) -> None:
         if cast(Any, self.args.distribution).package_type == PackageType.rpm:
             self.record_rpm_packages(root)
         # TODO: add implementations for other package managers
 
-    def record_rpm_packages(self, root: str) -> None:
+    def record_rpm_packages(self, root: Path) -> None:
         c = run(
             ["rpm", f"--root={root}", "-qa", "--qf", r"%{NEVRA}\t%{SOURCERPM}\t%{NAME}\t%{SIZE}\n"],
             stdout=PIPE,
