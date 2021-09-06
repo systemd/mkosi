@@ -1173,6 +1173,23 @@ def prepare_tmp(args: CommandLineArguments, dev: Optional[Path], cached: bool) -
         mkfs_generic(args, "tmp", "/var/tmp", dev)
 
 
+def stat_is_whiteout(st: os.stat_result) -> bool:
+    return stat.S_ISCHR(st.st_mode) and st.st_rdev == 0
+
+
+def delete_whiteout_files(path: Path) -> None:
+    """Delete any char(0,0) device nodes underneath @path
+
+    Overlayfs uses such files to mark "whiteouts" (files present in
+    the lower layers, but removed in the upper one).
+    """
+
+    with complete_step("Removing overlay whiteout files…"):
+        for entry in cast(Generator[os.DirEntry[str], None, None], scandir_recursive(path)):
+            if stat_is_whiteout(entry.stat(follow_symlinks=False)):
+                os.unlink(entry.path)
+
+
 def do_mount(
         what: PathString,
         where: Path,
@@ -1270,6 +1287,8 @@ def clean_up_overlay(root: Path, realroot: Path, workdir: TempDir) -> None:
     for entry in os.scandir(realroot):
         os.rename(realroot / entry.name, root / entry.name)
     realroot.rmdir()
+
+    delete_whiteout_files(root)
 
 
 @contextlib.contextmanager
