@@ -16,14 +16,17 @@ jobs:
 
     - name: Install
       run: |
-        python3 -m pip install pytest mypy black isort
+        python3 -m pip install pytest mypy isort pyflakes
         npm install -g pyright
-
-    - name: Check formatting
-      run: python3 -m black --check mkosi/ tests/
 
     - name: Check that imports are sorted
       run: python3 -m isort --verbose --check-only mkosi/
+
+    - name: Run pyflakes
+      run: python3 -m pyflakes mkosi/ tests/
+
+    - name: Check that tabs are not used in code
+      run: sh -c '! git grep -P "\\t" "*.py"'
 
     - name: Type Checking (mypy)
       run: python3 -m mypy --python-version 3.7 mkosi

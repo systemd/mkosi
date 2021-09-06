@@ -1,10 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
-import sys
-import os
-
-import mkosi
-
 from tests.test_config_parser import MkosiConfig
 
 
