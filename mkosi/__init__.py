@@ -3532,9 +3532,12 @@ def generate_squashfs(args: CommandLineArguments, root: str, for_cache: bool) ->
     command = args.mksquashfs_tool[0] if args.mksquashfs_tool else "mksquashfs"
     comp_args = args.mksquashfs_tool[1:] if args.mksquashfs_tool and args.mksquashfs_tool[1:] else ["-noappend"]
 
-    if args.compress is not True:
-        assert args.compress is not False
-        comp_args += ["-comp", cast(str, args.compress)]
+    compress = should_compress_fs(args)
+    # mksquashfs default is true, so no need to specify anything to have the default compression.
+    if isinstance(compress, str):
+        comp_args += ["-comp", compress]
+    elif compress is False:
+        comp_args += ["-noI", "-noD", "-noF", "-noX"]
 
     with complete_step("Creating squashfs file system…"):
         f: BinaryIO = cast(
