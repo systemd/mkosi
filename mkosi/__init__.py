@@ -3468,15 +3468,26 @@ def make_tar(args: CommandLineArguments, root: Path, do_run_build_script: bool, 
     return f
 
 
-def find_files(root: Path) -> Generator[Path, None, None]:
-    """Generate a list of all filepaths relative to @root"""
+def scandir_recursive(
+        root: Path,
+        filter: Optional[Callable[[os.DirEntry[str]], T]] = None,
+) -> Generator[T, None, None]:
+    """Recursively walk the tree starting at @root, optionally apply filter, yield non-none values"""
     queue: Deque[Union[str, Path]] = collections.deque([root])
 
     while queue:
         for entry in os.scandir(queue.pop()):
-            yield Path(entry.path).relative_to(root)
+            pred = filter(entry) if filter is not None else entry
+            if pred is not None:
+                yield cast(T, pred)
             if entry.is_dir(follow_symlinks=False):
                 queue.append(entry.path)
+
+
+def find_files(root: Path) -> Generator[Path, None, None]:
+    """Generate a list of all filepaths relative to @root"""
+    yield from scandir_recursive(root,
+                                 lambda entry: Path(entry.path).relative_to(root))
 
 
 def make_cpio(
