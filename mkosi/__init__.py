@@ -1687,7 +1687,7 @@ def clean_dnf_metadata(root: Path, always: bool) -> None:
     keeping the dnf metadata, since it's not usable from within the
     image anyway.
     """
-    dnf_metadata_paths = [
+    paths = [
         root / "var/lib/dnf",
         *root.glob("var/log/dnf.*"),
         *root.glob("var/log/hawkey.*"),
@@ -1696,16 +1696,17 @@ def clean_dnf_metadata(root: Path, always: bool) -> None:
 
     cond = always or os.access(root / "bin/dnf", os.F_OK, follow_symlinks=False)
 
-    if  not cond or not any(os.path.exists(path) for path in dnf_metadata_paths):
+    if not cond or not any(path.exists() for path in paths):
         return
 
     with complete_step("Cleaning dnf metadata…"):
-        remove_glob(*dnf_metadata_paths)
+        for path in paths:
+            unlink_try_hard(path)
 
 
 def clean_yum_metadata(root: Path, always: bool) -> None:
     """Remove yum metadata if /bin/yum is not present in the image"""
-    yum_metadata_paths = [
+    paths = [
         root / "var/lib/yum",
         *root.glob("var/log/yum.*"),
         root / "var/cache/yum",
@@ -1713,40 +1714,42 @@ def clean_yum_metadata(root: Path, always: bool) -> None:
 
     cond = always or os.access(root / "bin/yum", os.F_OK, follow_symlinks=False)
 
-    if not cond or not any(os.path.exists(path) for path in yum_metadata_paths):
+    if not cond or not any(path.exists() for path in paths):
         return
 
     with complete_step("Cleaning yum metadata…"):
-        remove_glob(*yum_metadata_paths)
+        for path in paths:
+            unlink_try_hard(path)
 
 
 def clean_rpm_metadata(root: Path, always: bool) -> None:
     """Remove rpm metadata if /bin/rpm is not present in the image"""
-    rpm_metadata_path = root / "var/lib/rpm"
+    path = root / "var/lib/rpm"
 
     cond = always or os.access(root / "bin/rpm", os.F_OK, follow_symlinks=False)
 
-    if not cond or not rpm_metadata_path.exists():
+    if not cond or not path.exists():
         return
 
     with complete_step("Cleaning rpm metadata…"):
-        remove_glob(rpm_metadata_path)
+        unlink_try_hard(path)
 
 
 def clean_tdnf_metadata(root: Path, always: bool) -> None:
     """Remove tdnf metadata if /bin/tdnf is not present in the image"""
-    tdnf_metadata_paths = [
+    paths = [
         *root.glob("var/log/tdnf.*"),
         root / "var/cache/tdnf",
     ]
 
     cond = always or os.access(root / "usr/bin/tdnf", os.F_OK, follow_symlinks=False)
 
-    if not cond or not any(os.path.exists(path) for path in tdnf_metadata_paths):
+    if not cond or not any(path.exists() for path in paths):
         return
 
     with complete_step("Cleaning tdnf metadata…"):
-        remove_glob(*tdnf_metadata_paths)
+        for path in paths:
+            unlink_try_hard(path)
 
 
 def clean_package_manager_metadata(args: CommandLineArguments, root: Path) -> None:
