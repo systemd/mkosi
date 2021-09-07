@@ -226,7 +226,7 @@ runs:
       LIBMODULEMD_VERSION: "2.13.0"
       LIBSOLV_VERSION: "0.7.19"
       LIBDNF_VERSION: "0.63.1"
-      DNF_VERSION: "4.5.1"
+      DNF_VERSION: "4.8.0"
       RPM_VERSION: "4.17.0"
 
   - name: Install
