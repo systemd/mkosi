@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import base64
 import collections
 import configparser
 import contextlib
@@ -35,6 +36,7 @@ import time
 import urllib.parse
 import urllib.request
 import uuid
+
 from pathlib import Path
 from subprocess import DEVNULL, PIPE
 from textwrap import dedent
@@ -179,30 +181,38 @@ def print_running_cmd(cmdline: Iterable[str]) -> None:
     MkosiPrinter.print_step(" ".join(shlex.quote(x) for x in cmdline) + "\n")
 
 
-GPT_ROOT_X86           = uuid.UUID("44479540f29741b29af7d131d5f0458a")  # NOQA: E221
-GPT_ROOT_X86_64        = uuid.UUID("4f68bce3e8cd4db196e7fbcaf984b709")  # NOQA: E221
-GPT_ROOT_ARM           = uuid.UUID("69dad7102ce44e3cb16c21a1d49abed3")  # NOQA: E221
-GPT_ROOT_ARM_64        = uuid.UUID("b921b0451df041c3af444c6f280d3fae")  # NOQA: E221
-GPT_USR_X86            = uuid.UUID("75250d768cc6458ebd66bd47cc81a812")  # NOQA: E221
-GPT_USR_X86_64         = uuid.UUID("8484680c952148c69c11b0720656f69e")  # NOQA: E221
-GPT_USR_ARM            = uuid.UUID("7d0359a302b34f0a865c654403e70625")  # NOQA: E221
-GPT_USR_ARM_64         = uuid.UUID("b0e01050ee5f4390949a9101b17104e9")  # NOQA: E221
-GPT_ESP                = uuid.UUID("c12a7328f81f11d2ba4b00a0c93ec93b")  # NOQA: E221
-GPT_BIOS               = uuid.UUID("2168614864496e6f744e656564454649")  # NOQA: E221
-GPT_SWAP               = uuid.UUID("0657fd6da4ab43c484e50933c84b4f4f")  # NOQA: E221
-GPT_HOME               = uuid.UUID("933ac7e12eb44f13b8440e14e2aef915")  # NOQA: E221
-GPT_SRV                = uuid.UUID("3b8f842520e04f3b907f1a25a76f98e8")  # NOQA: E221
-GPT_XBOOTLDR           = uuid.UUID("bc13c2ff59e64262a352b275fd6f7172")  # NOQA: E221
-GPT_ROOT_X86_VERITY    = uuid.UUID("d13c5d3bb5d1422ab29f9454fdc89d76")  # NOQA: E221
-GPT_ROOT_X86_64_VERITY = uuid.UUID("2c7357edebd246d9aec123d437ec2bf5")  # NOQA: E221
-GPT_ROOT_ARM_VERITY    = uuid.UUID("7386cdf2203c47a9a498f2ecce45a2d6")  # NOQA: E221
-GPT_ROOT_ARM_64_VERITY = uuid.UUID("df3300ced69f4c92978c9bfb0f38d820")  # NOQA: E221
-GPT_USR_X86_VERITY     = uuid.UUID("8f461b0d14ee4e819aa9049b6fb97abd")  # NOQA: E221
-GPT_USR_X86_64_VERITY  = uuid.UUID("77ff5f63e7b64633acf41565b864c0e6")  # NOQA: E221
-GPT_USR_ARM_VERITY     = uuid.UUID("c215d7517bcd4649be906627490a4c05")  # NOQA: E221
-GPT_USR_ARM_64_VERITY  = uuid.UUID("6e11a4e7fbca4dedb9e9e1a512bb664e")  # NOQA: E221
-GPT_TMP                = uuid.UUID("7ec6f5573bc54acab29316ef5df639d1")  # NOQA: E221
-GPT_VAR                = uuid.UUID("4d21b016b53445c2a9fb5c16e091fd2d")  # NOQA: E221
+GPT_ROOT_X86               = uuid.UUID("44479540f29741b29af7d131d5f0458a")  # NOQA: E221
+GPT_ROOT_X86_64            = uuid.UUID("4f68bce3e8cd4db196e7fbcaf984b709")  # NOQA: E221
+GPT_ROOT_ARM               = uuid.UUID("69dad7102ce44e3cb16c21a1d49abed3")  # NOQA: E221
+GPT_ROOT_ARM_64            = uuid.UUID("b921b0451df041c3af444c6f280d3fae")  # NOQA: E221
+GPT_USR_X86                = uuid.UUID("75250d768cc6458ebd66bd47cc81a812")  # NOQA: E221
+GPT_USR_X86_64             = uuid.UUID("8484680c952148c69c11b0720656f69e")  # NOQA: E221
+GPT_USR_ARM                = uuid.UUID("7d0359a302b34f0a865c654403e70625")  # NOQA: E221
+GPT_USR_ARM_64             = uuid.UUID("b0e01050ee5f4390949a9101b17104e9")  # NOQA: E221
+GPT_ESP                    = uuid.UUID("c12a7328f81f11d2ba4b00a0c93ec93b")  # NOQA: E221
+GPT_BIOS                   = uuid.UUID("2168614864496e6f744e656564454649")  # NOQA: E221
+GPT_SWAP                   = uuid.UUID("0657fd6da4ab43c484e50933c84b4f4f")  # NOQA: E221
+GPT_HOME                   = uuid.UUID("933ac7e12eb44f13b8440e14e2aef915")  # NOQA: E221
+GPT_SRV                    = uuid.UUID("3b8f842520e04f3b907f1a25a76f98e8")  # NOQA: E221
+GPT_XBOOTLDR               = uuid.UUID("bc13c2ff59e64262a352b275fd6f7172")  # NOQA: E221
+GPT_ROOT_X86_VERITY        = uuid.UUID("d13c5d3bb5d1422ab29f9454fdc89d76")  # NOQA: E221
+GPT_ROOT_X86_64_VERITY     = uuid.UUID("2c7357edebd246d9aec123d437ec2bf5")  # NOQA: E221
+GPT_ROOT_ARM_VERITY        = uuid.UUID("7386cdf2203c47a9a498f2ecce45a2d6")  # NOQA: E221
+GPT_ROOT_ARM_64_VERITY     = uuid.UUID("df3300ced69f4c92978c9bfb0f38d820")  # NOQA: E221
+GPT_USR_X86_VERITY         = uuid.UUID("8f461b0d14ee4e819aa9049b6fb97abd")  # NOQA: E221
+GPT_USR_X86_64_VERITY      = uuid.UUID("77ff5f63e7b64633acf41565b864c0e6")  # NOQA: E221
+GPT_USR_ARM_VERITY         = uuid.UUID("c215d7517bcd4649be906627490a4c05")  # NOQA: E221
+GPT_USR_ARM_64_VERITY      = uuid.UUID("6e11a4e7fbca4dedb9e9e1a512bb664e")  # NOQA: E221
+GPT_ROOT_X86_VERITY_SIG    = uuid.UUID("5996fc05109c48de808b23fa0830b676")  # NOQA: E221
+GPT_ROOT_X86_64_VERITY_SIG = uuid.UUID("41092b059fc84523994f2def0408b176")  # NOQA: E221
+GPT_ROOT_ARM_VERITY_SIG    = uuid.UUID("42b0455feb11491d98d356145ba9d037")  # NOQA: E221
+GPT_ROOT_ARM_64_VERITY_SIG = uuid.UUID("6db69de629f44758a7a5962190f00ce3")  # NOQA: E221
+GPT_USR_X86_VERITY_SIG     = uuid.UUID("974a71c0de4143c3be5d5c5ccd1ad2c0")  # NOQA: E221
+GPT_USR_X86_64_VERITY_SIG  = uuid.UUID("e7bb33fb06cf4e818273e543b413e2e2")  # NOQA: E221
+GPT_USR_ARM_VERITY_SIG     = uuid.UUID("d7ff812f37d14902a810d76ba57b975a")  # NOQA: E221
+GPT_USR_ARM_64_VERITY_SIG  = uuid.UUID("c23ce4ff44bd4b00b2d4b41b3419e02a")  # NOQA: E221
+GPT_TMP                    = uuid.UUID("7ec6f5573bc54acab29316ef5df639d1")  # NOQA: E221
+GPT_VAR                    = uuid.UUID("4d21b016b53445c2a9fb5c16e091fd2d")  # NOQA: E221
 
 
 # This is a non-formatted partition used to store the second stage
@@ -260,40 +270,42 @@ DEBIAN_ARCHITECTURES = {
 }
 
 
-class GPTRootTypePair(NamedTuple):
+class GPTRootTypeTriplet(NamedTuple):
     root: uuid.UUID
     verity: uuid.UUID
+    verity_sig: uuid.UUID
 
 
-def gpt_root_native(arch: Optional[str], usr_only: bool = False) -> GPTRootTypePair:
-    """The tag for the native GPT root partition for the given architecture
+def gpt_root_native(arch: Optional[str], usr_only: bool = False) -> GPTRootTypeTriplet:
+    """The type UUID for the native GPT root partition for the given architecture
 
-    Returns a tuple of two tags: for the root partition and for the
-    matching verity partition.
+    Returns a tuple of three UUIDs: for the root partition, for the
+    matching verity partition, and for the matching Verity signature
+    partition.
     """
     if arch is None:
         arch = platform.machine()
 
     if usr_only:
         if arch in ("i386", "i486", "i586", "i686"):
-            return GPTRootTypePair(GPT_USR_X86, GPT_USR_X86_VERITY)
+            return GPTRootTypeTriplet(GPT_USR_X86, GPT_USR_X86_VERITY, GPT_USR_X86_VERITY_SIG)
         elif arch == "x86_64":
-            return GPTRootTypePair(GPT_USR_X86_64, GPT_USR_X86_64_VERITY)
+            return GPTRootTypeTriplet(GPT_USR_X86_64, GPT_USR_X86_64_VERITY, GPT_USR_X86_64_VERITY_SIG)
         elif arch == "aarch64":
-            return GPTRootTypePair(GPT_USR_ARM_64, GPT_USR_ARM_64_VERITY)
+            return GPTRootTypeTriplet(GPT_USR_ARM_64, GPT_USR_ARM_64_VERITY, GPT_USR_ARM_64_VERITY_SIG)
         elif arch == "armv7l":
-            return GPTRootTypePair(GPT_USR_ARM, GPT_USR_ARM_VERITY)
+            return GPTRootTypeTriplet(GPT_USR_ARM, GPT_USR_ARM_VERITY, GPT_USR_ARM_VERITY_SIG)
         else:
             die(f"Unknown architecture {arch}.")
     else:
         if arch in ("i386", "i486", "i586", "i686"):
-            return GPTRootTypePair(GPT_ROOT_X86, GPT_ROOT_X86_VERITY)
+            return GPTRootTypeTriplet(GPT_ROOT_X86, GPT_ROOT_X86_VERITY, GPT_ROOT_X86_VERITY_SIG)
         elif arch == "x86_64":
-            return GPTRootTypePair(GPT_ROOT_X86_64, GPT_ROOT_X86_64_VERITY)
+            return GPTRootTypeTriplet(GPT_ROOT_X86_64, GPT_ROOT_X86_64_VERITY, GPT_ROOT_X86_64_VERITY_SIG)
         elif arch == "aarch64":
-            return GPTRootTypePair(GPT_ROOT_ARM_64, GPT_ROOT_ARM_64_VERITY)
+            return GPTRootTypeTriplet(GPT_ROOT_ARM_64, GPT_ROOT_ARM_64_VERITY, GPT_ROOT_ARM_64_VERITY_SIG)
         elif arch == "armv7l":
-            return GPTRootTypePair(GPT_ROOT_ARM, GPT_ROOT_ARM_VERITY)
+            return GPTRootTypeTriplet(GPT_ROOT_ARM, GPT_ROOT_ARM_VERITY, GPT_ROOT_ARM_VERITY_SIG)
         else:
             die(f"Unknown architecture {arch}.")
 
@@ -303,6 +315,10 @@ def roothash_suffix(usr_only: bool = False) -> str:
         return ".usrhash"
 
     return ".roothash"
+
+
+def roothash_p7s_suffix(usr_only: bool = False) -> str:
+    return roothash_suffix(usr_only) + ".p7s"
 
 
 def unshare(flags: int) -> None:
@@ -535,6 +551,8 @@ def image_size(args: CommandLineArguments) -> int:
         size += args.swap_size
     if args.verity_size is not None:
         size += args.verity_size
+    if args.verity_sig_size is not None:
+        size += args.verity_sig_size
 
     return size
 
@@ -547,7 +565,7 @@ def disable_cow(path: PathString) -> None:
 
 def root_partition_name(
     args: Optional[CommandLineArguments],
-    verity: Optional[bool] = False,
+    suffix: Optional[str] = None,
     image_id: Optional[str] = None,
     image_version: Optional[str] = None,
     usr_only: Optional[bool] = False,
@@ -581,9 +599,7 @@ def root_partition_name(
     # If no image id is specified we just return a descriptive string
     # for the partition.
     prefix = "System Resources" if usr_only else "Root"
-    if verity:
-        return prefix + " Verity"
-    return prefix + " Partition"
+    return prefix + ' ' + (suffix if suffix is not None else 'Partition')
 
 
 def determine_partition_table(args: CommandLineArguments) -> Tuple[str, bool]:
@@ -670,6 +686,12 @@ def determine_partition_table(args: CommandLineArguments) -> Tuple[str, bool]:
         pn += 1
     else:
         args.verity_partno = None
+
+    if args.verity == "signed":
+        args.verity_sig_partno = pn
+        pn += 1
+    else:
+        args.verity_sig_partno = None
 
     return table, run_sfdisk
 
@@ -3535,7 +3557,7 @@ def insert_generated_root(
 def make_verity(
     args: CommandLineArguments, dev: Optional[Path], do_run_build_script: bool, for_cache: bool
 ) -> Tuple[Optional[BinaryIO], Optional[str]]:
-    if do_run_build_script or not args.verity:
+    if do_run_build_script or args.verity is False:
         return None, None
     if for_cache:
         return None, None
@@ -3580,8 +3602,115 @@ def insert_verity(
             loopdev,
             args.verity_partno,
             verity,
-            root_partition_name(args, True),
+            root_partition_name(args, "Verity"),
             gpt_root_native(args.architecture, args.usr_only).verity,
+            True,
+            u,
+        )
+
+
+PKCS7_NOCERTS  = 0x2    # Don't include signature certificates in result
+PKCS7_DETACHED = 0x40   # Don't include data to sign in result
+PKCS7_BINARY   = 0x80   # Don't mangle newlines for MIME canonical format
+PKCS7_NOATTR   = 0x100  # Don't include signature time, … in result
+
+
+def make_verity_sig(
+    args: CommandLineArguments, root_hash: Optional[str], do_run_build_script: bool, for_cache: bool
+) -> Tuple[Optional[BinaryIO], Optional[bytes], Optional[str]]:
+
+    if do_run_build_script or args.verity != "signed":
+        return None, None, None
+    if for_cache:
+        return None, None, None
+
+    assert root_hash is not None
+
+    try:
+        from OpenSSL import crypto
+    except ImportError:
+        die("Python OpenSSL package is not installed.");
+
+    with complete_step("Signing verity root hash…"):
+
+        key = crypto.load_privatekey(crypto.FILETYPE_PEM, args.secure_boot_key.read_bytes())
+        certificate = crypto.load_certificate(crypto.FILETYPE_PEM, args.secure_boot_certificate.read_bytes())
+
+        # Note that the library returns the SHA256 digest in an
+        # uppecase format with : as byte separators. Let's convert to
+        # classic lowercase series of unseparated hex digits
+        fingerprint = certificate.digest("sha256").decode("ascii").replace(":", "").lower()
+
+        bio_in = crypto._new_mem_buf(root_hash.encode("utf-8"))
+        pkcs7 = crypto._lib.PKCS7_sign(
+            certificate._x509,
+            key._pkey,
+            crypto._ffi.NULL,
+            bio_in,
+            PKCS7_DETACHED | PKCS7_NOCERTS | PKCS7_NOATTR | PKCS7_BINARY,
+        )
+        bio_out = crypto._new_mem_buf()
+        crypto._lib.i2d_PKCS7_bio(bio_out, pkcs7)
+        sigbytes = crypto._bio_to_string(bio_out)
+
+        b64encoded = base64.b64encode(sigbytes).decode("ascii")
+
+        # This is supposed to be extensible, but care should be taken
+        # not to include unprotected data here.
+        j = json.dumps({
+                "rootHash": root_hash,
+                "certificateFingerprint": fingerprint,
+                "signature": b64encoded
+            }).encode("utf-8")
+
+        # Pad to next multiple of 4K with NUL bytes
+        padded = j + b"\0" * (roundup(len(j), 4096) - len(j))
+
+        f: BinaryIO = cast(BinaryIO, tempfile.NamedTemporaryFile(mode="w+b", dir=args.output.parent, prefix=".mkosi-"))
+        f.write(padded)
+        f.flush()
+
+        # Returns a file with zero-padded JSON data to insert as
+        # signature partition as first element, and the DER PKCS7
+        # signature bytes as second argument (to store as detached
+        # PKCS7 file), and finally the SHA256 fingerprint of the
+        # certificate used (which is used to deterministically
+        # generate the partition UUID for the signature partition).
+
+        return f, sigbytes, fingerprint
+
+
+def insert_verity_sig(
+    args: CommandLineArguments,
+    raw: Optional[BinaryIO],
+    loopdev: Optional[Path],
+    verity_sig: Optional[BinaryIO],
+    root_hash: Optional[str],
+    fingerprint: Optional[str],
+    for_cache: bool,
+) -> None:
+    if verity_sig is None:
+        return
+    if for_cache:
+        return
+    assert loopdev is not None
+    assert raw is not None
+    assert root_hash is not None
+    assert fingerprint is not None
+    assert args.verity_sig_partno is not None
+
+    # Hash the concatenation of verity roothash and the X509 certificate fingerprint to generate a UUID for the signature partition
+    u = uuid.UUID(hashlib.sha256(bytes.fromhex(root_hash) + bytes.fromhex(fingerprint)).hexdigest()[:32])
+
+    with complete_step("Inserting verity signature partition…"):
+        insert_partition(
+            args,
+            raw,
+            loopdev,
+            args.verity_sig_partno,
+            verity_sig,
+            root_partition_name(args, "Signature"),
+            gpt_root_native(args.architecture, args.usr_only).verity_sig,
             True,
             u,
         )
@@ -3709,7 +3838,7 @@ def secure_boot_sign(
         return
     if for_cache and args.verity:
         return
-    if cached and not args.verity:
+    if cached and args.verity is False:
         return
 
     with mount():
@@ -3825,6 +3954,25 @@ def write_root_hash_file(args: CommandLineArguments, root_hash: Optional[str]) -
     return f
 
 
+def write_root_hash_p7s_file(args: CommandLineArguments, root_hash_p7s: Optional[bytes]) -> Optional[BinaryIO]:
+    if root_hash_p7s is None:
+        return None
+
+    assert args.output_root_hash_p7s_file is not None
+
+    suffix = roothash_p7s_suffix(args.usr_only)
+    with complete_step(f"Writing {suffix} file…"):
+        f: BinaryIO = cast(
+            BinaryIO,
+            tempfile.NamedTemporaryFile(
+                mode="w+b", prefix=".mkosi", dir=args.output_root_hash_p7s_file.parent
+            ),
+        )
+        f.write(root_hash_p7s)
+
+    return f
+
+
 def copy_nspawn_settings(args: CommandLineArguments) -> Optional[BinaryIO]:
     if args.nspawn_settings is None:
         return None
@@ -3863,8 +4011,10 @@ def calculate_sha256sum(
     raw: Optional[BinaryIO],
     archive: Optional[BinaryIO],
     root_hash_file: Optional[BinaryIO],
+    root_hash_p7s_file: Optional[BinaryIO],
     split_root: Optional[BinaryIO],
     split_verity: Optional[BinaryIO],
+    split_verity_sig: Optional[BinaryIO],
     split_kernel: Optional[BinaryIO],
     nspawn_settings: Optional[BinaryIO],
 ) -> Optional[TextIO]:
@@ -3891,12 +4041,18 @@ def calculate_sha256sum(
         if root_hash_file is not None:
             assert args.output_root_hash_file is not None
             hash_file(f, root_hash_file, os.path.basename(args.output_root_hash_file))
+        if root_hash_p7s_file is not None:
+            assert args.output_root_hash_p7s_file is not None
+            hash_file(f, root_hash_p7s_file, args.output_root_hash_p7s_file.name)
         if split_root is not None:
             assert args.output_split_root is not None
             hash_file(f, split_root, os.path.basename(args.output_split_root))
         if split_verity is not None:
             assert args.output_split_verity is not None
             hash_file(f, split_verity, os.path.basename(args.output_split_verity))
+        if split_verity_sig is not None:
+            assert args.output_split_verity_sig is not None
+            hash_file(f, split_verity_sig, args.output_split_verity_sig.name)
         if split_kernel is not None:
             assert args.output_split_kernel is not None
             hash_file(f, split_kernel, os.path.basename(args.output_split_kernel))
@@ -4044,6 +4200,16 @@ def link_output_root_hash_file(args: CommandLineArguments, root_hash_file: Optio
             _link_output(args, root_hash_file.name, args.output_root_hash_file)
 
 
+def link_output_root_hash_p7s_file(args: CommandLineArguments, root_hash_p7s_file: Optional[SomeIO]) -> None:
+    if root_hash_p7s_file:
+        assert args.output_root_hash_p7s_file
+        suffix = roothash_p7s_suffix(args.usr_only)
+        with complete_step(
+            f"Linking {suffix} file…", f"Linked {path_relative_to_cwd(args.output_root_hash_p7s_file)}"
+        ):
+            _link_output(args, root_hash_p7s_file.name, args.output_root_hash_p7s_file)
+
+
 def link_output_signature(args: CommandLineArguments, signature: Optional[SomeIO]) -> None:
     if signature:
         assert args.output_signature is not None
@@ -4080,6 +4246,15 @@ def link_output_split_verity(args: CommandLineArguments, split_verity: Optional[
         assert args.output_split_verity
         with complete_step("Linking split Verity data…", f"Linked {path_relative_to_cwd(args.output_split_verity)}"):
             _link_output(args, split_verity.name, args.output_split_verity)
+
+
+def link_output_split_verity_sig(args: CommandLineArguments, split_verity_sig: Optional[SomeIO]) -> None:
+    if split_verity_sig:
+        assert args.output_split_verity_sig
+        with complete_step(
+            "Linking split Verity Signature data…", f"Linked {path_relative_to_cwd(args.output_split_verity_sig)}"
+        ):
+            _link_output(args, split_verity_sig.name, args.output_split_verity_sig)
 
 
 def link_output_split_kernel(args: CommandLineArguments, split_kernel: Optional[SomeIO]) -> None:
@@ -4310,6 +4485,23 @@ class WithNetworkAction(BooleanAction):
             super().__call__(parser, namespace, values, option_string)
 
 
+class VerityAction(BooleanAction):
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: Union[str, Sequence[Any], None, bool],
+        option_string: Optional[str] = None,
+    ) -> None:
+
+        if isinstance(values, str):
+            if values == "signed":
+                setattr(namespace, self.dest, "signed")
+                return
+
+        super().__call__(parser, namespace, values, option_string)
+
+
 class CustomHelpFormatter(argparse.HelpFormatter):
     def _format_action_invocation(self, action: argparse.Action) -> str:
         if not action.option_strings or action.nargs == 0:
@@ -4520,6 +4712,12 @@ def create_parser() -> ArgumentParserMkosi:
         metavar="PATH",
     )
     group.add_argument(
+        "--output-split-verity-sig",
+        help="Output Verity Signature partition image path (if --split-artifacts is used)",
+        type=Path,
+        metavar="PATH",
+    )
+    group.add_argument(
         "--output-split-kernel",
         help="Output kernel path (if --split-artifacts is used)",
         type=Path,
@@ -4602,7 +4800,11 @@ def create_parser() -> ArgumentParserMkosi:
     group.add_argument(
         "--encrypt", choices=("all", "data"), help='Encrypt everything except: ESP ("all") or ESP and root ("data")'
     )
-    group.add_argument("--verity", action=BooleanAction, help="Add integrity partition (implies --read-only)")
+    group.add_argument(
+        "--verity",
+        action=VerityAction,
+        help="Add integrity partition, and optionally sign it (implies --read-only)",
+    )
     group.add_argument(
         "--compress",
         type=parse_compression,
@@ -5257,6 +5459,8 @@ def unlink_output(args: CommandLineArguments) -> None:
 
             if args.verity:
                 unlink_try_hard(args.output_root_hash_file)
+            if args.verity == "signed":
+                unlink_try_hard(args.output_root_hash_p7s_file)
 
             if args.sign:
                 unlink_try_hard(args.output_signature)
@@ -5267,6 +5471,7 @@ def unlink_output(args: CommandLineArguments) -> None:
             if args.split_artifacts:
                 unlink_try_hard(args.output_split_root)
                 unlink_try_hard(args.output_split_verity)
+                unlink_try_hard(args.output_split_verity_sig)
                 unlink_try_hard(args.output_split_kernel)
 
             if args.nspawn_settings is not None:
@@ -5424,7 +5629,7 @@ def find_password(args: argparse.Namespace) -> None:
 
 
 def find_secure_boot(args: argparse.Namespace) -> None:
-    if not args.secure_boot:
+    if not args.secure_boot and args.verity != "signed":
         return
 
     if args.secure_boot_key is None:
@@ -5705,6 +5910,9 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
         args.read_only = True
         args.output_root_hash_file = build_auxiliary_output_path(args, roothash_suffix(args.usr_only))
 
+        if args.verity == "signed":
+            args.output_root_hash_p7s_file = build_auxiliary_output_path(args, roothash_p7s_suffix(args.usr_only))
+
     if args.checksum:
         args.output_checksum = args.output.with_name("SHA256SUMS")
 
@@ -5726,6 +5934,8 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
         args.output_split_root = build_auxiliary_output_path(args, ".usr" if args.usr_only else ".root", True)
         if args.verity:
             args.output_split_verity = build_auxiliary_output_path(args, ".verity", True)
+            if args.verity == "signed":
+                args.output_split_verity_sig = build_auxiliary_output_path(args, ".verity-sig", True)
         if args.bootable:
             args.output_split_kernel = build_auxiliary_output_path(args, ".efi", True)
 
@@ -5778,6 +5988,7 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
         args.esp_size = 256 * 1024 * 1024
 
     args.verity_size = None
+    args.verity_sig_size = None
 
     if args.secure_boot_key is not None:
         args.secure_boot_key = args.secure_boot_key.absolute()
@@ -5785,15 +5996,15 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
     if args.secure_boot_certificate is not None:
         args.secure_boot_certificate = args.secure_boot_certificate.absolute()
 
-    if args.secure_boot:
+    if args.secure_boot or args.verity == "signed":
         if args.secure_boot_key is None:
             die(
-                "UEFI SecureBoot enabled, but couldn't find private key. (Consider placing it in mkosi.secure-boot.key?)"
+                "UEFI SecureBoot or signed Verity enabled, but couldn't find private key. (Consider placing it in mkosi.secure-boot.key?)"
             )  # NOQA: E501
 
         if args.secure_boot_certificate is None:
             die(
-                "UEFI SecureBoot enabled, but couldn't find certificate. (Consider placing it in mkosi.secure-boot.crt?)"
+                "UEFI SecureBoot or signed Verity enabled, but couldn't find certificate. (Consider placing it in mkosi.secure-boot.crt?)"
             )  # NOQA: E501
 
     if args.verb in ("shell", "boot"):
@@ -5888,6 +6099,7 @@ def check_output(args: CommandLineArguments) -> None:
         args.output_sshkey if args.ssh else None,
         args.output_split_root if args.split_artifacts else None,
         args.output_split_verity if args.split_artifacts else None,
+        args.output_split_verity_sig if args.split_artifacts else None,
         args.output_split_kernel if args.split_artifacts else None,
     ):
 
@@ -5978,6 +6190,9 @@ def print_summary(args: CommandLineArguments) -> None:
         f"       Output Split Verity: {none_to_na(args.output_split_verity if args.split_artifacts else None)}"
     )
     MkosiPrinter.info(
+        f"  Output Split Verity Sig.: {none_to_na(args.output_split_verity_sig if args.split_artifacts else None)}"
+    )
+    MkosiPrinter.info(
         f"       Output Split Kernel: {none_to_na(args.output_split_kernel if args.split_artifacts else None)}"
     )
     MkosiPrinter.info(
@@ -6001,7 +6216,7 @@ def print_summary(args: CommandLineArguments) -> None:
         MkosiPrinter.info("                     QCow2: " + yes_no(args.qcow2))
 
     MkosiPrinter.info("                Encryption: " + none_to_no(args.encrypt))
-    MkosiPrinter.info("                    Verity: " + yes_no(args.verity))
+    MkosiPrinter.info("                    Verity: " + yes_no_or(args.verity))
 
     if args.output_format.is_disk():
         MkosiPrinter.info("                  Bootable: " + yes_no(args.bootable))
@@ -6010,14 +6225,14 @@ def print_summary(args: CommandLineArguments) -> None:
             MkosiPrinter.info("       Kernel Command Line: " + " ".join(args.kernel_command_line))
             MkosiPrinter.info("           UEFI SecureBoot: " + yes_no(args.secure_boot))
 
-            if args.secure_boot:
-                MkosiPrinter.info(f"       UEFI SecureBoot Key: {args.secure_boot_key}")
-                MkosiPrinter.info(f"     UEFI SecureBoot Cert.: {args.secure_boot_certificate}")
-
             MkosiPrinter.info("            Boot Protocols: " + line_join_list(args.boot_protocols))
             MkosiPrinter.info("     Unified Kernel Images: " + yes_no(args.with_unified_kernel_images))
             MkosiPrinter.info("             GPT First LBA: " + str(args.gpt_first_lba))
             MkosiPrinter.info("           Hostonly Initrd: " + yes_no(args.hostonly_initrd))
+
+    if args.secure_boot or args.verity == "sign":
+        MkosiPrinter.info(f"SecureBoot/Verity Sign Key: {args.secure_boot_key}")
+        MkosiPrinter.info(f"   SecureBoot/verity Cert.: {args.secure_boot_certificate}")
 
     MkosiPrinter.info("\nCONTENT:")
     MkosiPrinter.info("                  Packages: " + line_join_list(args.packages))
@@ -6211,9 +6426,13 @@ class BuildOutput:
     raw: Optional[BinaryIO]
     archive: Optional[BinaryIO]
     root_hash: Optional[str]
+    root_hash_p7s: Optional[bytes]
     sshkey: Optional[TextIO]
+
+    # Partition contents
     split_root: Optional[BinaryIO]
     split_verity: Optional[BinaryIO]
+    split_verity_sig: Optional[BinaryIO]
     split_kernel: Optional[BinaryIO]
 
     def raw_name(self) -> Optional[str]:
@@ -6221,7 +6440,7 @@ class BuildOutput:
 
     @classmethod
     def empty(cls) -> BuildOutput:
-        return cls(None, None, None, None, None, None, None)
+        return cls(None, None, None, None, None, None, None, None, None)
 
 
 def build_image(
@@ -6332,6 +6551,10 @@ def build_image(
             insert_verity(args, raw, loopdev, verity, root_hash, for_cache)
             split_verity = verity if args.split_artifacts else None
 
+            verity_sig, root_hash_p7s, fingerprint = make_verity_sig(args, root_hash, do_run_build_script, for_cache)
+            insert_verity_sig(args, raw, loopdev, verity_sig, root_hash, fingerprint, for_cache)
+            split_verity_sig = verity_sig if args.split_artifacts else None
+
             # This time we mount read-only, as we already generated
             # the verity data, and hence really shouldn't modify the
             # image anymore.
@@ -6354,7 +6577,17 @@ def build_image(
     archive = make_tar(args, root, do_run_build_script, for_cache) or \
               make_cpio(args, root, do_run_build_script, for_cache)
 
-    return BuildOutput(raw or generated_root, archive, root_hash, sshkey, split_root, split_verity, split_kernel)
+    return BuildOutput(
+        raw or generated_root,
+        archive,
+        root_hash,
+        root_hash_p7s,
+        sshkey,
+        split_root,
+        split_verity,
+        split_verity_sig,
+        split_kernel,
+    )
 
 
 def one_zero(b: bool) -> str:
@@ -6538,16 +6771,29 @@ def build_stuff(args: CommandLineArguments) -> Manifest:
         raw = compress_output(args, raw)
         split_root = compress_output(args, image.split_root, ".usr" if args.usr_only else ".root")
         split_verity = compress_output(args, image.split_verity, ".verity")
+        split_verity_sig = compress_output(args, image.split_verity_sig, ".verity-sig")
         split_kernel = compress_output(args, image.split_kernel, ".efi")
         root_hash_file = write_root_hash_file(args, image.root_hash)
+        root_hash_p7s_file = write_root_hash_p7s_file(args, image.root_hash_p7s)
         settings = copy_nspawn_settings(args)
-        checksum = calculate_sha256sum(args, raw, image.archive, root_hash_file,
-                                       split_root, split_verity, split_kernel, settings)
+        checksum = calculate_sha256sum(
+            args,
+            raw,
+            image.archive,
+            root_hash_file,
+            root_hash_p7s_file,
+            split_root,
+            split_verity,
+            split_verity_sig,
+            split_kernel,
+            settings,
+        )
         signature = calculate_signature(args, checksum)
         bmap = calculate_bmap(args, raw)
 
         link_output(args, root, raw or image.archive)
         link_output_root_hash_file(args, root_hash_file)
+        link_output_root_hash_p7s_file(args, root_hash_p7s_file)
         link_output_checksum(args, checksum)
         link_output_signature(args, signature)
         link_output_bmap(args, bmap)
@@ -6556,6 +6802,7 @@ def build_stuff(args: CommandLineArguments) -> Manifest:
             link_output_sshkey(args, image.sshkey)
         link_output_split_root(args, split_root)
         link_output_split_verity(args, split_verity)
+        link_output_split_verity_sig(args, split_verity_sig)
         link_output_split_kernel(args, split_kernel)
 
         if image.root_hash is not None:

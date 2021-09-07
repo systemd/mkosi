@@ -316,7 +316,7 @@ class CommandLineArguments:
     secure_boot_common_name: str
     read_only: bool
     encrypt: Optional[str]
-    verity: bool
+    verity: Union[bool, str]
     compress: Union[None, str, bool]
     compress_fs: Union[None, str, bool]
     compress_output: Union[None, str, bool]
@@ -396,6 +396,7 @@ class CommandLineArguments:
 
     # Some extra stuff that's stored in CommandLineArguments for convenience but isn't populated by arguments
     verity_size: Optional[int]
+    verity_sig_size: Optional[int]
     machine_id: str
     force: bool
     original_umask: int
@@ -405,9 +406,11 @@ class CommandLineArguments:
     output_nspawn_settings: Optional[Path] = None
     output_sshkey: Optional[Path] = None
     output_root_hash_file: Optional[Path] = None
+    output_root_hash_p7s_file: Optional[Path] = None
     output_bmap: Optional[Path] = None
     output_split_root: Optional[Path] = None
     output_split_verity: Optional[Path] = None
+    output_split_verity_sig: Optional[Path] = None
     output_split_kernel: Optional[Path] = None
     cache_pre_inst: Optional[Path] = None
     cache_pre_dev: Optional[Path] = None
@@ -423,6 +426,7 @@ class CommandLineArguments:
     var_partno: Optional[int] = None
     tmp_partno: Optional[int] = None
     verity_partno: Optional[int] = None
+    verity_sig_partno: Optional[int] = None
 
     releasever: Optional[str] = None
     ran_sfdisk: bool = False
