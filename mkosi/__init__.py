@@ -6054,7 +6054,7 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
         die("Sorry, --verity can only be used with unified kernel images")
 
     if args.source_file_transfer is None:
-        if os.path.exists(".git") or args.build_sources.joinpaths(".git").exists():
+        if os.path.exists(".git") or args.build_sources.joinpath(".git").exists():
             args.source_file_transfer = SourceFileTransfer.copy_git_others
         else:
             args.source_file_transfer = SourceFileTransfer.copy_all
