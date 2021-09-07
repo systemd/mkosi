@@ -7251,7 +7251,7 @@ def prepend_to_environ_path(paths: List[Path]) -> None:
     if not paths:
         return
 
-    news = [str(path) for path in paths]
+    news = [os.fspath(path) for path in paths]
     olds = os.getenv("PATH", "").split(":")
     os.environ["PATH"] = ":".join(news + olds)
 
