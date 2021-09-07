@@ -42,6 +42,7 @@ from typing import (
     BinaryIO,
     Callable,
     ContextManager,
+    Deque,
     Dict,
     Generator,
     Iterable,
@@ -3471,15 +3472,13 @@ def make_tar(args: CommandLineArguments, root: Path, do_run_build_script: bool, 
     return f
 
 
-def find_files(root: Path) -> Generator[str, None, None]:
+def find_files(root: Path) -> Generator[Path, None, None]:
     """Generate a list of all filepaths relative to @root"""
-    root: str = str(root).rstrip("/") + "/"  # make sure the path ends in exactly one '/'
-    prefix_len: int = len(root)
-    queue = collections.deque([root])
+    queue: Deque[Union[str, Path]] = collections.deque([root])
 
     while queue:
         for entry in os.scandir(queue.pop()):
-            yield entry.path[prefix_len:]
+            yield Path(entry.path).relative_to(root)
             if entry.is_dir(follow_symlinks=False):
                 queue.append(entry.path)
 
@@ -3511,7 +3510,7 @@ def make_cpio(
 
             with spawn(compressor, stdin=cpio.stdout, stdout=f, delay_interrupt=False):
                 for file in files:
-                    cpio.stdin.write(file.encode("utf8") + b"\0")
+                    cpio.stdin.write(os.fspath(file).encode("utf8") + b"\0")
                 cpio.stdin.close()
         if cpio.wait() != 0:
             die("Failed to create archive")
