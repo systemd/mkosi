@@ -7183,7 +7183,7 @@ def generate_secure_boot_key(args: CommandLineArguments) -> NoReturn:
         )
     )
 
-    cmd: List[Union[os.PathLike[str], str]] = [
+    cmd: List[str] = [
         "openssl",
         "req",
         "-new",
@@ -7191,9 +7191,9 @@ def generate_secure_boot_key(args: CommandLineArguments) -> NoReturn:
         "-newkey",
         f"rsa:{keylength}",
         "-keyout",
-        args.secure_boot_key,
+        str(args.secure_boot_key),
         "-out",
-        args.secure_boot_certificate,
+        str(args.secure_boot_certificate),
         "-days",
         str(args.secure_boot_valid_days),
         "-subj",
