@@ -3,6 +3,7 @@
 import configparser
 import copy
 import os
+from pathlib import Path
 
 from typing import Mapping, Any
 import pytest
@@ -49,6 +50,7 @@ class MkosiConfig(object):
             "bootable": False,
             "build_dir": None,
             "build_packages": [],
+            "clean_package_metadata": "auto",
             "remove_files": [],
             "build_script": None,
             "environment": [],
@@ -165,7 +167,10 @@ class MkosiConfig(object):
             args_list = new_args.split(separator)
         else:
             for arg in new_args:
-                args_list.extend(arg.split(separator))
+                if isinstance(arg, str):
+                    args_list.extend(arg.split(separator))
+                else:
+                    args_list.append(arg)
         for arg in args_list:
             if isinstance(arg, str) and arg.startswith("!"):
                 if arg[1:] in self.reference_config[job_name][ref_entry]:
@@ -220,7 +225,7 @@ class MkosiConfig(object):
             if "ManifestFormat" in mk_config_output:
                 self.reference_config[job_name]["manifest_format"] = mk_config_output["ManifestFormat"]
             if "Output" in mk_config_output:
-                self.reference_config[job_name]["output"] = mk_config_output["Output"]
+                self.reference_config[job_name]["output"] = Path(mk_config_output["Output"])
             if "Force" in mk_config_output:
                 self.reference_config[job_name]["force_count"] += 1
             if "Bootable" in mk_config_output:
@@ -232,9 +237,9 @@ class MkosiConfig(object):
             if "SecureBoot" in mk_config_output:
                 self.reference_config[job_name]["secure_boot"] = mk_config_output["SecureBoot"]
             if "SecureBootKey" in mk_config_output:
-                self.reference_config[job_name]["secure_boot_key"] = mk_config_output["SecureBootKey"]
+                self.reference_config[job_name]["secure_boot_key"] = Path(mk_config_output["SecureBootKey"])
             if "SecureBootCertificate" in mk_config_output:
-                self.reference_config[job_name]["secure_boot_certificate"] = mk_config_output["SecureBootCertificate"]
+                self.reference_config[job_name]["secure_boot_certificate"] = Path(mk_config_output["SecureBootCertificate"])
             if "SecureBootCommonName" in mk_config_output:
                 self.reference_config[job_name]["secure_boot_common_name"] = mk_config_output["SecureBootCommonName"]
             if "SecureBootValidDays" in mk_config_output:
@@ -276,19 +281,21 @@ class MkosiConfig(object):
             if "WithTests" in mk_config_packages:
                 self.reference_config[job_name]["with_tests"] = mk_config_packages["WithTests"]
             if "Cache" in mk_config_packages:
-                self.reference_config[job_name]["cache_path"] = mk_config_packages["Cache"]
+                self.reference_config[job_name]["cache_path"] = Path(mk_config_packages["Cache"])
             if "ExtraTrees" in mk_config_packages:
-                self._append_list("extra_trees", mk_config_packages["ExtraTrees"], job_name)
+                self._append_list("extra_trees", [Path(mk_config_packages["ExtraTrees"])], job_name)
             if "SkeletonTrees" in mk_config_packages:
-                self._append_list("skeleton_trees", mk_config_packages["SkeletonTrees"], job_name)
+                self._append_list("skeleton_trees", [Path(mk_config_packages["SkeletonTrees"])], job_name)
+            if "CleanupPackageMetadata" in mk_config_packages:
+                self.reference_config[job_name]["clean_package_metadata"] = mk_config_packages["CleanPackageMetadata"]
             if "RemoveFiles" in mk_config_packages:
                 self.reference_config[job_name]["remove_files"] = mk_config_packages["RemoveFiles"]
             if "BuildScript" in mk_config_packages:
-                self.reference_config[job_name]["build_script"] = mk_config_packages["BuildScript"]
+                self.reference_config[job_name]["build_script"] = Path(mk_config_packages["BuildScript"])
             if "BuildEnvironment" in mk_config_packages:
                 self.reference_config["environment"] = mk_config_packages["Environment"]
             if "BuildSources" in mk_config_packages:
-                self.reference_config[job_name]["build_sources"] = mk_config_packages["BuildSources"]
+                self.reference_config[job_name]["build_sources"] = Path(mk_config_packages["BuildSources"])
             if "SourceFileTransfer" in mk_config_packages:
                 self.reference_config[job_name]["source_file_transfer"] = mk_config_packages["SourceFileTransfer"]
             if "SourceFileTransferFinal" in mk_config_packages:
@@ -296,21 +303,21 @@ class MkosiConfig(object):
                     "SourceFileTransferFinal"
                 ]
             if "BuildDirectory" in mk_config_packages:
-                self.reference_config[job_name]["build_dir"] = mk_config_packages["BuildDirectory"]
+                self.reference_config[job_name]["build_dir"] = Path(mk_config_packages["BuildDirectory"])
             if "IncludeDirectory" in mk_config_packages:
-                self.reference_config[job_name]["include_dir"] = mk_config_packages["IncludeDirectory"]
+                self.reference_config[job_name]["include_dir"] = Path(mk_config_packages["IncludeDirectory"])
             if "InstallDirectory" in mk_config_packages:
-                self.reference_config[job_name]["install_dir"] = mk_config_packages["InstallDirectory"]
+                self.reference_config[job_name]["install_dir"] = Path(mk_config_packages["InstallDirectory"])
             if "BuildPackages" in mk_config_packages:
                 self._append_list("build_packages", mk_config_packages["BuildPackages"], job_name)
             if "PostInstallationScript" in mk_config_packages:
-                self.reference_config[job_name]["postinst_script"] = mk_config_packages["PostInstallationScript"]
+                self.reference_config[job_name]["postinst_script"] = Path(mk_config_packages["PostInstallationScript"])
             if "FinalizeScript" in mk_config_packages:
-                self.reference_config[job_name]["finalize_script"] = mk_config_packages["FinalizeScript"]
+                self.reference_config[job_name]["finalize_script"] = Path(mk_config_packages["FinalizeScript"])
             if "WithNetwork" in mk_config_packages:
                 self.reference_config[job_name]["with_network"] = mk_config_packages["WithNetwork"]
             if "NSpawnSettings" in mk_config_packages:
-                self.reference_config[job_name]["nspawn_settings"] = mk_config_packages["NSpawnSettings"]
+                self.reference_config[job_name]["nspawn_settings"] = Path(mk_config_packages["NSpawnSettings"])
         if "Partitions" in mk_config:
             mk_config_partitions = mk_config["Partitions"]
             if "RootSize" in mk_config_partitions:
