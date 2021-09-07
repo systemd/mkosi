@@ -50,6 +50,7 @@ class MkosiConfig(object):
             "bootable": False,
             "build_dir": None,
             "build_packages": [],
+            "clean_package_metadata": "auto",
             "remove_files": [],
             "build_script": None,
             "environment": [],
@@ -285,6 +286,8 @@ class MkosiConfig(object):
                 self._append_list("extra_trees", [Path(mk_config_packages["ExtraTrees"])], job_name)
             if "SkeletonTrees" in mk_config_packages:
                 self._append_list("skeleton_trees", [Path(mk_config_packages["SkeletonTrees"])], job_name)
+            if "CleanupPackageMetadata" in mk_config_packages:
+                self.reference_config[job_name]["clean_package_metadata"] = mk_config_packages["CleanPackageMetadata"]
             if "RemoveFiles" in mk_config_packages:
                 self.reference_config[job_name]["remove_files"] = mk_config_packages["RemoveFiles"]
             if "BuildScript" in mk_config_packages:

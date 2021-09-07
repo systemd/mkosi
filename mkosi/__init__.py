@@ -4947,6 +4947,7 @@ def create_parser() -> ArgumentParserMkosi:
         "--clean-package-metadata",
         action=CleanPackageMetadataAction,
         help="Remove package manager database and other files",
+        default='auto',
     )
     group.add_argument(
         "--remove-files",
