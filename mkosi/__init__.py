@@ -4417,18 +4417,21 @@ class ListAction(argparse.Action):
             # Inspired by https://stackoverflow.com/a/2787979.
             values = [x.strip() for x in re.split(f"""{self.delimiter}(?=(?:[^'"]|'[^']*'|"[^"]*")*$)""", values) if x]
 
-        for x in values or ():
-            if self.list_choices is not None and x not in self.list_choices:
-                raise ValueError(f"Unknown value {x!r}")
+        if isinstance(values, list):
+            for x in values:
+                if self.list_choices is not None and x not in self.list_choices:
+                    raise ValueError(f"Unknown value {x!r}")
 
-            # Remove ! prefixed list entries from list. !* removes all entries. This works for strings only now.
-            if x == "!*":
-                ary = []
-            elif isinstance(x, str) and x.startswith("!"):
-                if x[1:] in ary:
-                    ary.remove(x[1:])
-            else:
-                ary.append(x)
+                # Remove ! prefixed list entries from list. !* removes all entries. This works for strings only now.
+                if x == "!*":
+                    ary = []
+                elif isinstance(x, str) and x.startswith("!"):
+                    if x[1:] in ary:
+                        ary.remove(x[1:])
+                else:
+                    ary.append(x)
+        else:
+            ary.append(values)
 
         ary = remove_duplicates(ary)
         setattr(namespace, self.dest, ary)
