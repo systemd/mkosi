@@ -20,6 +20,7 @@ import glob
 import hashlib
 import http.server
 import json
+import math
 import os
 import platform
 import re
@@ -303,11 +304,6 @@ FEDORA_KEYS_MAP = {
     "36": "53DED2CB922D8B8D9E63FD18999F7CBF38AB71F4",
 }
 
-# 1 MB at the beginning of the disk for the GPT disk label, and
-# another MB at the end (this is actually more than needed.)
-GPT_HEADER_SIZE = 1024 * 1024
-GPT_FOOTER_SIZE = 1024 * 1024
-
 
 # Debian calls their architectures differently, so when calling debootstrap we
 # will have to map to their names
@@ -386,8 +382,8 @@ def format_bytes(num_bytes: int) -> str:
     return f"{num_bytes}B"
 
 
-def roundup512(x: int) -> int:
-    return (x + 511) & ~511
+def roundup(x: int, step: int) -> int:
+    return ((x + step - 1) // step) * step
 
 
 _IOC_NRBITS   =  8  # NOQA: E221,E222
@@ -573,7 +569,8 @@ def is_generated_root(args: Union[argparse.Namespace, CommandLineArguments]) -> 
 
 
 def image_size(args: CommandLineArguments) -> int:
-    size = GPT_HEADER_SIZE + GPT_FOOTER_SIZE
+    gpt = PartitionTable.empty(args.gpt_first_lba)
+    size = gpt.first_usable_offset() + gpt.footer_size()
 
     if args.root_size is not None:
         size += args.root_size
@@ -3650,12 +3647,18 @@ def make_generated_root(args: CommandLineArguments, root: Path, for_cache: bool)
 @dataclasses.dataclass
 class PartitionTable:
     partitions: List[str]
-    last_partition_sector: int
+    last_partition_sector: Optional[int]
+    sector_size: int
+    first_lba: Optional[int]
+
+    grain: int = 4096
 
     @classmethod
     def read(cls, loopdev: Path) -> PartitionTable:
         table = []
         last_sector = 0
+        sector_size = 512
+        first_lba = None
 
         c = run(["sfdisk", "--dump", loopdev],
                 stdout=PIPE,
@@ -3664,6 +3667,11 @@ class PartitionTable:
         in_body = False
         for line in c.stdout.splitlines():
             line = line.strip()
+
+            if line.startswith('sector-size:'):
+                sector_size = int(line[12:])
+            if line.startswith('first-lba:'):
+                sector_size = int(line[10:])
 
             if line == "":  # empty line is where the body begins
                 in_body = True
@@ -3689,14 +3697,30 @@ class PartitionTable:
 
             if start is not None and size is not None:
                 end = start + size
-                if end > last_sector:
-                    last_sector = end
+                last_sector = max(last_sector, end)
 
-        return cls(table, last_sector * 512)
+        return cls(table, last_sector * sector_size, sector_size, first_lba)
 
     @classmethod
-    def empty(cls) -> PartitionTable:
-        return cls([], GPT_HEADER_SIZE)
+    def empty(cls, first_lba: Optional[int] = None) -> PartitionTable:
+        return cls([], None, 512, first_lba)
+
+    def first_usable_offset(self, max_partitions: int = 128) -> int:
+        if self.last_partition_sector:
+            return roundup(self.last_partition_sector, self.grain)
+        elif self.first_lba is not None:
+            # No rounding here, we honour the specified value exactly.
+            return self.first_lba * self.sector_size
+        else:
+            # The header is like the footer, but we have a one-sector "protective MBR" at offset 0
+            return roundup(self.sector_size + self.footer_size(), self.grain)
+
+    def footer_size(self, max_partitions: int = 128) -> int:
+        # The footer must have enough space for the GPT header (one sector),
+        # and the GPT parition entry area. PEA size of 16384 (128 partitions)
+        # is recommended.
+        pea_sectors = math.ceil(max_partitions * 128 / self.sector_size)
+        return (1 + pea_sectors) * self.sector_size
 
 
 def insert_partition(
@@ -3714,11 +3738,12 @@ def insert_partition(
         old_table = PartitionTable.read(loopdev)
     else:
         # No partition table yet? Then let's fake one...
-        old_table = PartitionTable.empty()
+        old_table = PartitionTable.empty(args.gpt_first_lba)
 
-    blob_size = roundup512(os.stat(blob.name).st_size)
+    blob_size = roundup(os.stat(blob.name).st_size, 512)
     luks_extra = 16 * 1024 * 1024 if args.encrypt == "all" else 0
-    new_size = old_table.last_partition_sector + blob_size + luks_extra + GPT_FOOTER_SIZE
+    partition_offset = old_table.first_usable_offset()
+    new_size = roundup(partition_offset + blob_size + luks_extra + old_table.footer_size(), 4096)
 
     MkosiPrinter.print_step(f"Resizing disk image to {format_bytes(new_size)}...")
 
@@ -3726,6 +3751,13 @@ def insert_partition(
     run(["losetup", "--set-capacity", loopdev])
 
     MkosiPrinter.print_step(f"Inserting partition of {format_bytes(blob_size)}...")
+
+    if args.gpt_first_lba is not None:
+        first_lba: Optional[int] = args.gpt_first_lba
+    elif old_table.partitions:
+        first_lba = None   # no need to specify this if we already have partitions
+    else:
+        first_lba = partition_offset // old_table.sector_size
 
     new = []
     if uuid_opt is not None:
@@ -3737,9 +3769,10 @@ def insert_partition(
             f'attrs={"GUID:60" if read_only else ""}',
             f'name="{name}"']
 
-    table = ["label: gpt"]
-    if args.gpt_first_lba is not None:
-        table += [f"first-lba: {args.gpt_first_lba:d}"]
+    table = ["label: gpt",
+             f"grain: {old_table.grain}"]
+    if first_lba is not None:
+        table += [f"first-lba: {first_lba}"]
 
     table += [*old_table.partitions,
               ', '.join(new)]
