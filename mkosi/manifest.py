@@ -7,7 +7,7 @@ from subprocess import DEVNULL, PIPE
 from textwrap import dedent
 from typing import IO, Any, Dict, List, Optional, cast
 
-from .backend import CommandLineArguments, PackageType, run
+from .backend import CommandLineArguments, ManifestFormat, PackageType, run
 
 
 @dataclasses.dataclass
@@ -61,6 +61,9 @@ class Manifest:
     packages: List[PackageManifest] = dataclasses.field(default_factory=list)
     source_packages: Dict[str, SourcePackageManifest] = dataclasses.field(default_factory=dict)
 
+    def need_source_info(self) -> bool:
+        return ManifestFormat.changelog in self.args.manifest_format
+
     def record_packages(self, root: Path) -> None:
         if cast(Any, self.args.distribution).package_type == PackageType.rpm:
             self.record_rpm_packages(root)
@@ -84,20 +87,22 @@ class Manifest:
 
             size = int(size)
 
+            package = PackageManifest("rpm", name, evra, size)
+            self.packages.append(package)
+
+            if not self.need_source_info():
+                continue
+
             source = self.source_packages.get(srpm)
             if source is None:
-                c = run(
-                    ["rpm", f"--root={root}", "-q", "--changelog", nevra],
-                    stdout=PIPE,
-                    stderr=DEVNULL,
-                    universal_newlines=True,
-                )
+                c = run(["rpm", f"--root={root}", "-q", "--changelog", nevra],
+                        stdout=PIPE,
+                        stderr=DEVNULL,
+                        universal_newlines=True)
                 changelog = c.stdout.strip()
                 source = SourcePackageManifest(srpm, changelog)
                 self.source_packages[srpm] = source
 
-            package = PackageManifest("rpm", name, evra, size)
-            self.packages.append(package)
             source.add(package)
 
     def has_data(self) -> bool:
