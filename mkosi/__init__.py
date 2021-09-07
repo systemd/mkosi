@@ -331,7 +331,9 @@ def gpt_root_native(arch: Optional[str], usr_only: bool = False) -> GPTRootTypeP
         arch = platform.machine()
 
     if usr_only:
-        if arch == "x86_64":
+        if arch in ("i386", "i486", "i586", "i686"):
+            return GPTRootTypePair(GPT_USR_X86, GPT_USR_X86_VERITY)
+        elif arch == "x86_64":
             return GPTRootTypePair(GPT_USR_X86_64, GPT_USR_X86_64_VERITY)
         elif arch == "aarch64":
             return GPTRootTypePair(GPT_USR_ARM_64, GPT_USR_ARM_64_VERITY)
@@ -340,7 +342,9 @@ def gpt_root_native(arch: Optional[str], usr_only: bool = False) -> GPTRootTypeP
         else:
             die(f"Unknown architecture {arch}.")
     else:
-        if arch == "x86_64":
+        if arch in ("i386", "i486", "i586", "i686"):
+            return GPTRootTypePair(GPT_ROOT_X86, GPT_ROOT_X86_VERITY)
+        elif arch == "x86_64":
             return GPTRootTypePair(GPT_ROOT_X86_64, GPT_ROOT_X86_64_VERITY)
         elif arch == "aarch64":
             return GPTRootTypePair(GPT_ROOT_ARM_64, GPT_ROOT_ARM_64_VERITY)
