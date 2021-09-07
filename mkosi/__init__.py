@@ -5548,9 +5548,9 @@ def find_extra(args: argparse.Namespace) -> None:
         return
 
     if os.path.isdir("mkosi.extra"):
-        args.extra_trees.append("mkosi.extra")
+        args.extra_trees.append(Path("mkosi.extra"))
     if os.path.isfile("mkosi.extra.tar"):
-        args.extra_trees.append("mkosi.extra.tar")
+        args.extra_trees.append(Path("mkosi.extra.tar"))
 
 
 def find_skeleton(args: argparse.Namespace) -> None:
@@ -5559,9 +5559,9 @@ def find_skeleton(args: argparse.Namespace) -> None:
         return
 
     if os.path.isdir("mkosi.skeleton"):
-        args.skeleton_trees.append("mkosi.skeleton")
+        args.skeleton_trees.append(Path("mkosi.skeleton"))
     if os.path.isfile("mkosi.skeleton.tar"):
-        args.skeleton_trees.append("mkosi.skeleton.tar")
+        args.skeleton_trees.append(Path("mkosi.skeleton.tar"))
 
 
 def args_find_path(args: argparse.Namespace, name: str, path: str, *, as_list: bool = False) -> None:
