@@ -887,8 +887,10 @@ def attach_image_loopback(
         return
 
     with complete_step("Attaching image file…", "Attached image file as {}") as output:
-        c = run(["losetup", "--find", "--show", "--partscan", raw.name], stdout=PIPE)
-        loopdev = Path(c.stdout.decode("utf-8").strip())
+        c = run(["losetup", "--find", "--show", "--partscan", raw.name],
+                stdout=PIPE,
+                universal_newlines=True)
+        loopdev = Path(c.stdout.strip())
         output.append(loopdev)
 
     try:
@@ -1289,14 +1291,14 @@ def mount_loop(args: CommandLineArguments, dev: Path, where: Path, read_only: bo
 
     options = []
     if not args.output_format.is_squashfs():
-        options.append("discard")
+        options += ["discard"]
 
     compress = should_compress_fs(args)
     if compress and args.output_format == OutputFormat.gpt_btrfs and where.name not in {"efi", "boot"}:
-        options.append("compress" if compress is True else f"compress={compress}")
+        options += ["compress" if compress is True else f"compress={compress}"]
 
     if read_only:
-        options.append("ro")
+        options += ["ro"]
 
     cmd: List[PathString] = ["mount", "-n", dev, where]
     if options:
@@ -1678,84 +1680,95 @@ def make_rpm_list(args: CommandLineArguments, packages: Set[str], do_run_build_s
     return packages
 
 
-def clean_dnf_metadata(root: Path) -> None:
-    """Removes dnf metadata iff /bin/dnf is not present in the image
+def clean_dnf_metadata(root: Path, always: bool) -> None:
+    """Remove dnf metadata if /bin/dnf is not present in the image
 
     If dnf is not installed, there doesn't seem to be much use in
     keeping the dnf metadata, since it's not usable from within the
     image anyway.
     """
-    dnf_metadata_paths = [
+    paths = [
         root / "var/lib/dnf",
         *root.glob("var/log/dnf.*"),
         *root.glob("var/log/hawkey.*"),
         root / "var/cache/dnf",
     ]
-    keep_dnf_data = os.access(root / "bin/dnf", os.F_OK, follow_symlinks=False)
 
-    if keep_dnf_data or not any(os.path.exists(path) for path in dnf_metadata_paths):
+    cond = always or os.access(root / "bin/dnf", os.F_OK, follow_symlinks=False)
+
+    if not cond or not any(path.exists() for path in paths):
         return
 
     with complete_step("Cleaning dnf metadata…"):
-        remove_glob(*dnf_metadata_paths)
+        for path in paths:
+            unlink_try_hard(path)
 
 
-def clean_yum_metadata(root: Path) -> None:
-    """Removes yum metadata iff /bin/yum is not present in the image"""
-    yum_metadata_paths = [
+def clean_yum_metadata(root: Path, always: bool) -> None:
+    """Remove yum metadata if /bin/yum is not present in the image"""
+    paths = [
         root / "var/lib/yum",
         *root.glob("var/log/yum.*"),
         root / "var/cache/yum",
     ]
-    keep_yum_data = os.access(root / "bin/yum", os.F_OK, follow_symlinks=False)
 
-    if keep_yum_data or not any(os.path.exists(path) for path in yum_metadata_paths):
+    cond = always or os.access(root / "bin/yum", os.F_OK, follow_symlinks=False)
+
+    if not cond or not any(path.exists() for path in paths):
         return
 
     with complete_step("Cleaning yum metadata…"):
-        remove_glob(*yum_metadata_paths)
+        for path in paths:
+            unlink_try_hard(path)
 
 
-def clean_rpm_metadata(root: Path) -> None:
-    """Removes rpm metadata iff /bin/rpm is not present in the image"""
-    rpm_metadata_path = root / "var/lib/rpm"
-    keep_rpm_data = os.access(root / "bin/rpm", os.F_OK, follow_symlinks=False)
+def clean_rpm_metadata(root: Path, always: bool) -> None:
+    """Remove rpm metadata if /bin/rpm is not present in the image"""
+    path = root / "var/lib/rpm"
 
-    if keep_rpm_data or not rpm_metadata_path.exists():
+    cond = always or os.access(root / "bin/rpm", os.F_OK, follow_symlinks=False)
+
+    if not cond or not path.exists():
         return
 
     with complete_step("Cleaning rpm metadata…"):
-        remove_glob(rpm_metadata_path)
+        unlink_try_hard(path)
 
 
-def clean_tdnf_metadata(root: Path) -> None:
-    """Removes tdnf metadata iff /bin/tdnf is not present in the image"""
-    tdnf_metadata_paths = [
+def clean_tdnf_metadata(root: Path, always: bool) -> None:
+    """Remove tdnf metadata if /bin/tdnf is not present in the image"""
+    paths = [
         *root.glob("var/log/tdnf.*"),
         root / "var/cache/tdnf",
     ]
-    keep_tdnf_data = os.access(root / "usr/bin/tdnf", os.F_OK, follow_symlinks=False)
 
-    if keep_tdnf_data or not any(os.path.exists(path) for path in tdnf_metadata_paths):
+    cond = always or os.access(root / "usr/bin/tdnf", os.F_OK, follow_symlinks=False)
+
+    if not cond or not any(path.exists() for path in paths):
         return
 
     with complete_step("Cleaning tdnf metadata…"):
-        remove_glob(*tdnf_metadata_paths)
+        for path in paths:
+            unlink_try_hard(path)
 
 
-def clean_package_manager_metadata(root: Path) -> None:
-    """Clean up package manager metadata
+def clean_package_manager_metadata(args: CommandLineArguments, root: Path) -> None:
+    """Remove package manager metadata
 
     Try them all regardless of the distro: metadata is only removed if the
     package manager is present in the image.
     """
 
+    assert args.clean_package_metadata in (False, True, 'auto')
+    if args.clean_package_metadata is False:
+        return
+
     # we try then all: metadata will only be touched if any of them are in the
     # final image
-    clean_dnf_metadata(root)
-    clean_yum_metadata(root)
-    clean_rpm_metadata(root)
-    clean_tdnf_metadata(root)
+    clean_dnf_metadata(root, always=args.clean_package_metadata is True)
+    clean_yum_metadata(root, always=args.clean_package_metadata is True)
+    clean_rpm_metadata(root, always=args.clean_package_metadata is True)
+    clean_tdnf_metadata(root, always=args.clean_package_metadata is True)
     # FIXME: implement cleanup for other package managers
 
 
@@ -1831,7 +1844,7 @@ def invoke_tdnf(
     ]
 
     if not gpgcheck:
-        cmdline.append("--nogpgcheck")
+        cmdline += ["--nogpgcheck"]
 
     cmdline += ["install", *sort_packages(packages)]
 
@@ -2149,7 +2162,7 @@ def invoke_yum(
         cmdline += [f"--forcearch={args.architecture}"]
 
     if not args.with_docs:
-        cmdline.append("--setopt=tsflags=nodocs")
+        cmdline += ["--setopt=tsflags=nodocs"]
 
     cmdline += ["install", *packages]
 
@@ -3086,15 +3099,15 @@ def nspawn_params_for_build_sources(args: CommandLineArguments, sft: SourceFileT
     params = []
 
     if args.build_sources is not None:
-        params.append("--setenv=SRCDIR=/root/src")
-        params.append("--chdir=/root/src")
+        params += ["--setenv=SRCDIR=/root/src",
+                   "--chdir=/root/src"]
         if sft == SourceFileTransfer.mount:
-            params.append(f"--bind={args.build_sources}:/root/src")
+            params += [f"--bind={args.build_sources}:/root/src"]
 
         if args.read_only:
-            params.append("--overlay=+/root/src::/root/src")
+            params += ["--overlay=+/root/src::/root/src"]
     else:
-        params.append("--chdir=/root")
+        params += ["--chdir=/root"]
 
     params += [f"--setenv={env}" for env in args.environment]
 
@@ -3600,33 +3613,35 @@ def read_partition_table(loopdev: Path) -> Tuple[List[str], int]:
     table = []
     last_sector = 0
 
-    c = run(["sfdisk", "--dump", loopdev], stdout=PIPE)
+    c = run(["sfdisk", "--dump", loopdev],
+            stdout=PIPE,
+            universal_newlines=True)
 
     in_body = False
-    for line in c.stdout.decode("utf-8").split("\n"):
-        stripped = line.strip()
+    for line in c.stdout.splitlines():
+        line = line.strip()
 
-        if stripped == "":  # empty line is where the body begins
+        if line == "":  # empty line is where the body begins
             in_body = True
             continue
         if not in_body:
             continue
 
-        table.append(stripped)
+        table += [line]
 
-        _, rest = stripped.split(":", 1)
+        _, rest = line.split(":", 1)
         fields = rest.split(",")
 
         start = None
         size = None
 
         for field in fields:
-            f = field.strip()
+            field = field.strip()
 
-            if f.startswith("start="):
-                start = int(f[6:])
-            if f.startswith("size="):
-                size = int(f[5:])
+            if field.startswith("start="):
+                start = int(field[6:])
+            if field.startswith("size="):
+                size = int(field[5:])
 
         if start is not None and size is not None:
             end = start + size
@@ -4479,6 +4494,21 @@ class BooleanAction(argparse.Action):
         setattr(namespace, self.dest, new_value)
 
 
+class CleanPackageMetadataAction(BooleanAction):
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: Union[str, Sequence[Any], None, bool],
+        option_string: Optional[str] = None,
+    ) -> None:
+
+        if isinstance(values, str) and values == "auto":
+            setattr(namespace, self.dest, "auto")
+        else:
+            super().__call__(parser, namespace, values, option_string)
+
+
 class WithNetworkAction(BooleanAction):
     def __call__(
         self,
@@ -4488,12 +4518,10 @@ class WithNetworkAction(BooleanAction):
         option_string: Optional[str] = None,
     ) -> None:
 
-        if isinstance(values, str):
-            if values == "never":
-                setattr(namespace, self.dest, "never")
-                return
-
-        super().__call__(parser, namespace, values, option_string)
+        if isinstance(values, str) and values == "never":
+            setattr(namespace, self.dest, "never")
+        else:
+            super().__call__(parser, namespace, values, option_string)
 
 
 class CustomHelpFormatter(argparse.HelpFormatter):
@@ -4913,6 +4941,11 @@ def create_parser() -> ArgumentParserMkosi:
         metavar="PATH",
     )
     group.add_argument(
+        "--clean-package-metadata",
+        action=CleanPackageMetadataAction,
+        help="Remove package manager database and other files",
+    )
+    group.add_argument(
         "--remove-files",
         action=CommaDelimitedListAction,
         default=[],
@@ -4920,7 +4953,6 @@ def create_parser() -> ArgumentParserMkosi:
         type=parse_remove_files,
         metavar="GLOB",
     )
-    group.add_argument("--build-script", help="Build script to run inside image", metavar="PATH")
     group.add_argument(
         "--environment",
         "-E",
@@ -4981,21 +5013,27 @@ def create_parser() -> ArgumentParserMkosi:
         "--skip-final-phase", action=BooleanAction, help="Skip the (second) final image building phase.", default=False
     )
     group.add_argument(
-        "--postinst-script",
-        help="Postinstall script to run inside image",
-        type=Path,
+        "--build-script",
+        help="Build script to run inside image",
+        type=script_path,
         metavar="PATH",
     )
     group.add_argument(
         "--prepare-script",
         help="Prepare script to run inside the image before it is cached",
-        type=Path,
+        type=script_path,
+        metavar="PATH",
+    )
+    group.add_argument(
+        "--postinst-script",
+        help="Postinstall script to run inside image",
+        type=script_path,
         metavar="PATH",
     )
     group.add_argument(
         "--finalize-script",
         help="Postinstall script to run outside image",
-        type=Path,
+        type=script_path,
         metavar="PATH",
     )
     group.add_argument(
@@ -5652,13 +5690,29 @@ def build_auxiliary_output_path(args: argparse.Namespace, suffix: str, can_compr
     return output.with_name(f"{output.name}{suffix}{compression or ''}")
 
 
-def check_valid_script(path: Path) -> None:
+DISABLED = Path('DISABLED')  # A placeholder value to suppress autodetection.
+                             # This is used as a singleton, i.e. should be compared with
+                             # 'is' in other parts of the code.
+
+def script_path(value: Optional[str]) -> Optional[Path]:
+    if value is None:
+        return None
+    if value == '':
+        return DISABLED
+    return Path(value)
+
+
+def normalize_script(path: Optional[Path]) -> Optional[Path]:
+    if not path or path is DISABLED:
+        return None
+    path = Path(path).absolute()
     if not path.exists():
         die(f"{path} does not exist")
     if not path.is_file():
         die(f"{path} is not a file")
     if not os.access(path, os.X_OK):
         die(f"{path} is not executable")
+    return path
 
 
 def load_args(args: argparse.Namespace) -> CommandLineArguments:
@@ -5879,10 +5933,6 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
         if args.bootable:
             args.output_split_kernel = build_auxiliary_output_path(args, ".efi", True)
 
-    if args.build_script is not None:
-        check_valid_script(args.build_script)
-        args.build_script = args.build_script.absolute()
-
     if args.build_sources is not None:
         args.build_sources = args.build_sources.absolute()
 
@@ -5895,17 +5945,10 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
     if args.install_dir is not None:
         args.install_dir = args.install_dir.absolute()
 
-    if args.postinst_script is not None:
-        check_valid_script(args.postinst_script)
-        args.postinst_script = args.postinst_script.absolute()
-
-    if args.prepare_script is not None:
-        check_valid_script(args.prepare_script)
-        args.prepare_script = args.prepare_script.absolute()
-
-    if args.finalize_script is not None:
-        check_valid_script(args.finalize_script)
-        args.finalize_script = args.finalize_script.absolute()
+    args.build_script = normalize_script(args.build_script)
+    args.prepare_script = normalize_script(args.prepare_script)
+    args.postinst_script = normalize_script(args.postinst_script)
+    args.finalize_script = normalize_script(args.finalize_script)
 
     for i in range(len(args.environment)):
         if "=" not in args.environment[i]:
@@ -6188,6 +6231,7 @@ def print_summary(args: CommandLineArguments) -> None:
     MkosiPrinter.info("             Package Cache: " + none_to_none(args.cache_path))
     MkosiPrinter.info("               Extra Trees: " + line_join_list(args.extra_trees))
     MkosiPrinter.info("            Skeleton Trees: " + line_join_list(args.skeleton_trees))
+    MkosiPrinter.info("      CleanPackageMetadata: " + yes_no_or(args.clean_package_metadata))
     if args.remove_files:
         MkosiPrinter.info("              Remove Files: " + line_join_list(args.remove_files))
     MkosiPrinter.info("              Build Script: " + none_to_none(args.build_script))
@@ -6470,7 +6514,7 @@ def build_image(
                         manifest.record_packages(root)
 
                 if cleanup:
-                    clean_package_manager_metadata(root)
+                    clean_package_manager_metadata(args, root)
                     remove_files(args, root)
                 reset_machine_id(args, root, do_run_build_script, for_cache)
                 reset_random_seed(args, root)
@@ -6560,36 +6604,36 @@ def run_build_script(args: CommandLineArguments, root: Path, raw: Optional[Binar
         # TODO: Use --autopipe once systemd v247 is widely available.
         console_arg = f"--console={'interactive' if sys.stdout.isatty() else 'pipe'}"
         if nspawn_knows_arg(console_arg):
-            cmdline.append(console_arg)
+            cmdline += [console_arg]
 
         if args.default_path is not None:
-            cmdline.append(f"--setenv=MKOSI_DEFAULT={args.default_path}")
+            cmdline += [f"--setenv=MKOSI_DEFAULT={args.default_path}"]
 
         if args.image_version is not None:
-            cmdline.append(f"--setenv=IMAGE_VERSION={args.image_version}")
+            cmdline += [f"--setenv=IMAGE_VERSION={args.image_version}"]
 
         if args.image_id is not None:
-            cmdline.append(f"--setenv=IMAGE_ID={args.image_id}")
+            cmdline += [f"--setenv=IMAGE_ID={args.image_id}"]
 
         cmdline += nspawn_params_for_build_sources(args, args.source_file_transfer)
 
         if args.build_dir is not None:
-            cmdline.append("--setenv=BUILDDIR=/root/build")
-            cmdline.append(f"--bind={args.build_dir}:/root/build")
+            cmdline += ["--setenv=BUILDDIR=/root/build",
+                        f"--bind={args.build_dir}:/root/build"]
 
         if args.include_dir is not None:
-            cmdline.append(f"--bind={args.include_dir}:/usr/include")
+            cmdline += [f"--bind={args.include_dir}:/usr/include"]
 
         if args.with_network is True:
             # If we're using the host network namespace, use the same resolver
-            cmdline.append("--bind-ro=/etc/resolv.conf")
+            cmdline += ["--bind-ro=/etc/resolv.conf"]
         else:
-            cmdline.append("--private-network")
+            cmdline += ["--private-network"]
 
         if args.usr_only:
-            cmdline.append(f"--bind={root_home(args, root)}:/root")
+            cmdline += [f"--bind={root_home(args, root)}:/root"]
 
-        cmdline.append(f"/root/{args.build_script.name}")
+        cmdline += [f"/root/{args.build_script.name}"]
         cmdline += args.cmdline
 
         # build-script output goes to stdout so we can run language servers from within mkosi build-scripts.
@@ -6805,24 +6849,24 @@ def run_shell(args: CommandLineArguments) -> None:
     cmdline = ["systemd-nspawn", target]
 
     if args.read_only:
-        cmdline.append("--read-only")
+        cmdline += ["--read-only"]
 
     # If we copied in a .nspawn file, make sure it's actually honoured
     if args.nspawn_settings is not None:
-        cmdline.append("--settings=trusted")
+        cmdline += ["--settings=trusted"]
 
     if args.verb == "boot":
-        cmdline.append("--boot")
+        cmdline += ["--boot"]
 
     if is_generated_root(args) or args.verity:
-        cmdline.append("--volatile=overlay")
+        cmdline += ["--volatile=overlay"]
 
     if args.network_veth:
         if ensure_networkd(args):
-            cmdline.append("--network-veth")
+            cmdline += ["--network-veth"]
 
     if args.ephemeral:
-        cmdline.append("--ephemeral")
+        cmdline += ["--ephemeral"]
 
     cmdline += ["--machine", virt_name(args)]
 
@@ -6830,7 +6874,7 @@ def run_shell(args: CommandLineArguments) -> None:
         # If the verb is 'shell', args.cmdline contains the command to run.
         # Otherwise, the verb is 'boot', and we assume args.cmdline contains nspawn arguments.
         if args.verb == "shell":
-            cmdline.append("--")
+            cmdline += ["--"]
         cmdline += args.cmdline
 
     with suppress_stacktrace():
@@ -6843,7 +6887,7 @@ def find_qemu_binary() -> str:
 
     binaries: List[str] = []
     if arch_binary is not None:
-        binaries.append(arch_binary)
+        binaries += [arch_binary]
     binaries += ["qemu", "qemu-kvm"]
     for binary in binaries:
         if shutil.which(binary) is not None:
@@ -6901,13 +6945,13 @@ def find_ovmf_vars() -> Path:
     OVMF_VARS_LOCATIONS = []
 
     if platform.machine() == "x86_64":
-        OVMF_VARS_LOCATIONS.append("/usr/share/ovmf/x64/OVMF_VARS.fd")
+        OVMF_VARS_LOCATIONS += ["/usr/share/ovmf/x64/OVMF_VARS.fd"]
     elif platform.machine() == "i386":
-        OVMF_VARS_LOCATIONS.append("/usr/share/edk2/ovmf-ia32/OVMF_VARS.fd")
+        OVMF_VARS_LOCATIONS += ["/usr/share/edk2/ovmf-ia32/OVMF_VARS.fd"]
 
-    OVMF_VARS_LOCATIONS.append("/usr/share/edk2/ovmf/OVMF_VARS.fd")
-    OVMF_VARS_LOCATIONS.append("/usr/share/qemu/OVMF_VARS.fd")
-    OVMF_VARS_LOCATIONS.append("/usr/share/ovmf/OVMF_VARS.fd")
+    OVMF_VARS_LOCATIONS += ["/usr/share/edk2/ovmf/OVMF_VARS.fd",
+                            "/usr/share/qemu/OVMF_VARS.fd",
+                            "/usr/share/ovmf/OVMF_VARS.fd"]
 
     for location in OVMF_VARS_LOCATIONS:
         if os.path.exists(location):
@@ -7193,8 +7237,7 @@ def expand_paths(paths: List[str]) -> List[str]:
     expanded = []
     for path in paths:
         try:
-            path = string.Template(path).substitute(environ)
-            expanded.append(path)
+            expanded += [string.Template(path).substitute(environ)]
         except KeyError:
             # Skip path if it uses a variable not defined.
             pass

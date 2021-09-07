@@ -240,8 +240,8 @@ class CommandLineArguments:
     cache_path: Optional[Path]
     extra_trees: List[Path]
     skeleton_trees: List[Path]
+    clean_package_metadata: Union[bool, str]
     remove_files: List[Path]
-    build_script: Optional[Path]
     environment: List[str]
     build_sources: Optional[Path]
     build_dir: Optional[Path]
@@ -249,8 +249,9 @@ class CommandLineArguments:
     install_dir: Optional[Path]
     build_packages: List[str]
     skip_final_phase: bool
-    postinst_script: Optional[Path]
+    build_script: Optional[Path]
     prepare_script: Optional[Path]
+    postinst_script: Optional[Path]
     finalize_script: Optional[Path]
     source_file_transfer: SourceFileTransfer
     source_file_transfer_final: Optional[SourceFileTransfer]
