@@ -3473,8 +3473,8 @@ def make_tar(args: CommandLineArguments, root: Path, do_run_build_script: bool, 
 
 def find_files(root: Path) -> Generator[str, None, None]:
     """Generate a list of all filepaths relative to @root"""
-    root = str(root).rstrip("/") + "/"  # make sure the path ends in exactly one '/'
-    prefix_len = len(root)
+    root: str = str(root).rstrip("/") + "/"  # make sure the path ends in exactly one '/'
+    prefix_len: int = len(root)
     queue = collections.deque([root])
 
     while queue:
@@ -5299,17 +5299,17 @@ def parse_args(argv: Optional[List[str]] = None) -> Dict[str, argparse.Namespace
         for f in os.scandir(all_directory):
             if not f.name.startswith("mkosi."):
                 continue
-            args = parse_args_file(argv, f.path)
+            args = parse_args_file(argv, Path(f.path))
             args_all[f.name] = args
     # Parse everything in normal mode
     else:
-        args = parse_args_file_group(argv, default_path)
+        args = parse_args_file_group(argv, os.fspath(default_path))
 
         args = load_distribution(args)
 
         if args.distribution:
             # Parse again with any extra distribution files included.
-            args = parse_args_file_group(argv, default_path, args.distribution)
+            args = parse_args_file_group(argv, os.fspath(default_path), args.distribution)
 
         args_all["default"] = args
 
@@ -5571,9 +5571,9 @@ def find_skeleton(args: argparse.Namespace) -> None:
 def args_find_path(args: argparse.Namespace, name: str, path: str, *, as_list: bool = False) -> None:
     if getattr(args, name) is not None:
         return
-    path = Path(path).absolute()
-    if path.exists():
-        setattr(args, name, [path] if as_list else path)
+    abspath = Path(path).absolute()
+    if abspath.exists():
+        setattr(args, name, [abspath] if as_list else abspath)
 
 
 def find_cache(args: argparse.Namespace) -> None:
@@ -7191,9 +7191,9 @@ def generate_secure_boot_key(args: CommandLineArguments) -> NoReturn:
         "-newkey",
         f"rsa:{keylength}",
         "-keyout",
-        str(args.secure_boot_key),
+        os.fspath(args.secure_boot_key),
         "-out",
-        str(args.secure_boot_certificate),
+        os.fspath(args.secure_boot_certificate),
         "-days",
         str(args.secure_boot_valid_days),
         "-subj",
