@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
+from __future__ import annotations
+
 import argparse
 import ast
 import collections
@@ -3645,46 +3647,56 @@ def make_generated_root(args: CommandLineArguments, root: Path, for_cache: bool)
     return None
 
 
-def read_partition_table(loopdev: Path) -> Tuple[List[str], int]:
-    table = []
-    last_sector = 0
+@dataclasses.dataclass
+class PartitionTable:
+    partitions: List[str]
+    last_partition_sector: int
 
-    c = run(["sfdisk", "--dump", loopdev],
-            stdout=PIPE,
-            universal_newlines=True)
+    @classmethod
+    def read(cls, loopdev: Path) -> PartitionTable:
+        table = []
+        last_sector = 0
 
-    in_body = False
-    for line in c.stdout.splitlines():
-        line = line.strip()
+        c = run(["sfdisk", "--dump", loopdev],
+                stdout=PIPE,
+                universal_newlines=True)
 
-        if line == "":  # empty line is where the body begins
-            in_body = True
-            continue
-        if not in_body:
-            continue
+        in_body = False
+        for line in c.stdout.splitlines():
+            line = line.strip()
 
-        table += [line]
+            if line == "":  # empty line is where the body begins
+                in_body = True
+                continue
+            if not in_body:
+                continue
 
-        _, rest = line.split(":", 1)
-        fields = rest.split(",")
+            table += [line]
 
-        start = None
-        size = None
+            _, rest = line.split(":", 1)
+            fields = rest.split(",")
 
-        for field in fields:
-            field = field.strip()
+            start = None
+            size = None
 
-            if field.startswith("start="):
-                start = int(field[6:])
-            if field.startswith("size="):
-                size = int(field[5:])
+            for field in fields:
+                field = field.strip()
 
-        if start is not None and size is not None:
-            end = start + size
-            if end > last_sector:
-                last_sector = end
+                if field.startswith("start="):
+                    start = int(field[6:])
+                if field.startswith("size="):
+                    size = int(field[5:])
 
-    return table, last_sector * 512
+            if start is not None and size is not None:
+                end = start + size
+                if end > last_sector:
+                    last_sector = end
+
+        return cls(table, last_sector * 512)
+
+    @classmethod
+    def empty(cls) -> PartitionTable:
+        return cls([], GPT_HEADER_SIZE)
 
 
 def insert_partition(
@@ -3699,15 +3711,14 @@ def insert_partition(
     uuid_opt: Optional[uuid.UUID] = None,
 ) -> int:
     if args.ran_sfdisk:
-        old_table, last_partition_sector = read_partition_table(loopdev)
+        old_table = PartitionTable.read(loopdev)
     else:
         # No partition table yet? Then let's fake one...
-        old_table = []
-        last_partition_sector = GPT_HEADER_SIZE
+        old_table = PartitionTable.empty()
 
     blob_size = roundup512(os.stat(blob.name).st_size)
     luks_extra = 16 * 1024 * 1024 if args.encrypt == "all" else 0
-    new_size = last_partition_sector + blob_size + luks_extra + GPT_FOOTER_SIZE
+    new_size = old_table.last_partition_sector + blob_size + luks_extra + GPT_FOOTER_SIZE
 
     MkosiPrinter.print_step(f"Resizing disk image to {format_bytes(new_size)}...")
 
@@ -3716,24 +3727,26 @@ def insert_partition(
 
     MkosiPrinter.print_step(f"Inserting partition of {format_bytes(blob_size)}...")
 
-    table = "label: gpt\n"
-    if args.gpt_first_lba is not None:
-        table += f"first-lba: {args.gpt_first_lba:d}\n"
-
-    for t in old_table:
-        table += t + "\n"
-
+    new = []
     if uuid_opt is not None:
-        table += "uuid=" + str(uuid_opt) + ", "
+        new += [f'uuid={uuid_opt}']
 
     n_sectors = (blob_size + luks_extra) // 512
-    table += 'size={}, type={}, attrs={}, name="{}"\n'.format(
-        n_sectors, type_uuid, "GUID:60" if read_only else "", name
-    )
+    new += [f'size={n_sectors}',
+            f'type={type_uuid}',
+            f'attrs={"GUID:60" if read_only else ""}',
+            f'name="{name}"']
+
+    table = ["label: gpt"]
+    if args.gpt_first_lba is not None:
+        table += [f"first-lba: {args.gpt_first_lba:d}"]
+
+    table += [*old_table.partitions,
+              ', '.join(new)]
 
     print(table)
 
-    run(["sfdisk", "--color=never", loopdev], input=table.encode("utf-8"))
+    run(["sfdisk", "--color=never", loopdev], input='\n'.join(table).encode("utf-8"))
     run(["sync"])
     run(["partx", "--update", loopdev])
 
