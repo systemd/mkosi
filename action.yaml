@@ -67,7 +67,7 @@ runs:
       sudo pacman-key --init
       sudo pacman-key --populate archlinux
 
-      wget https://github.com/rpm-software-management/rpm/archive/rpm-$RPM_VERSION-release.tar.gz
+      wget https://github.com/rpm-software-management/rpm/archive/rpm-$RPM_VERSION.tar.gz
       tar xf rpm-$RPM_VERSION-release.tar.gz
 
       pushd rpm-rpm-$RPM_VERSION-release
