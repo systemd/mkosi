@@ -3779,7 +3779,8 @@ def insert_partition(
 
     print(table)
 
-    run(["sfdisk", "--color=never", loopdev], input='\n'.join(table).encode("utf-8"))
+    run(["sfdisk", "--color=never", "--no-reread", "--no-tell-kernel", loopdev],
+        input='\n'.join(table).encode("utf-8"))
     run(["sync"])
     run(["blockdev", "--rereadpt", loopdev])
 
