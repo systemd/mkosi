@@ -235,12 +235,10 @@ GPT_ROOT_X86           = uuid.UUID("44479540f29741b29af7d131d5f0458a")  # NOQA: 
 GPT_ROOT_X86_64        = uuid.UUID("4f68bce3e8cd4db196e7fbcaf984b709")  # NOQA: E221
 GPT_ROOT_ARM           = uuid.UUID("69dad7102ce44e3cb16c21a1d49abed3")  # NOQA: E221
 GPT_ROOT_ARM_64        = uuid.UUID("b921b0451df041c3af444c6f280d3fae")  # NOQA: E221
-GPT_ROOT_IA64          = uuid.UUID("993d8d3df80e4225855a9daf8ed7ea97")  # NOQA: E221
 GPT_USR_X86            = uuid.UUID("75250d768cc6458ebd66bd47cc81a812")  # NOQA: E221
 GPT_USR_X86_64         = uuid.UUID("8484680c952148c69c11b0720656f69e")  # NOQA: E221
 GPT_USR_ARM            = uuid.UUID("7d0359a302b34f0a865c654403e70625")  # NOQA: E221
 GPT_USR_ARM_64         = uuid.UUID("b0e01050ee5f4390949a9101b17104e9")  # NOQA: E221
-GPT_USR_IA64           = uuid.UUID("4301d2a64e3b4b2abb949e0b2c4225ea")  # NOQA: E221
 GPT_ESP                = uuid.UUID("c12a7328f81f11d2ba4b00a0c93ec93b")  # NOQA: E221
 GPT_BIOS               = uuid.UUID("2168614864496e6f744e656564454649")  # NOQA: E221
 GPT_SWAP               = uuid.UUID("0657fd6da4ab43c484e50933c84b4f4f")  # NOQA: E221
@@ -251,12 +249,10 @@ GPT_ROOT_X86_VERITY    = uuid.UUID("d13c5d3bb5d1422ab29f9454fdc89d76")  # NOQA: 
 GPT_ROOT_X86_64_VERITY = uuid.UUID("2c7357edebd246d9aec123d437ec2bf5")  # NOQA: E221
 GPT_ROOT_ARM_VERITY    = uuid.UUID("7386cdf2203c47a9a498f2ecce45a2d6")  # NOQA: E221
 GPT_ROOT_ARM_64_VERITY = uuid.UUID("df3300ced69f4c92978c9bfb0f38d820")  # NOQA: E221
-GPT_ROOT_IA64_VERITY   = uuid.UUID("86ed10d5b60745bb8957d350f23d0571")  # NOQA: E221
 GPT_USR_X86_VERITY     = uuid.UUID("8f461b0d14ee4e819aa9049b6fb97abd")  # NOQA: E221
 GPT_USR_X86_64_VERITY  = uuid.UUID("77ff5f63e7b64633acf41565b864c0e6")  # NOQA: E221
 GPT_USR_ARM_VERITY     = uuid.UUID("c215d7517bcd4649be906627490a4c05")  # NOQA: E221
 GPT_USR_ARM_64_VERITY  = uuid.UUID("6e11a4e7fbca4dedb9e9e1a512bb664e")  # NOQA: E221
-GPT_USR_IA64_VERITY    = uuid.UUID("6a491e033be745458e3883320e0ea880")  # NOQA: E221
 GPT_TMP                = uuid.UUID("7ec6f5573bc54acab29316ef5df639d1")  # NOQA: E221
 GPT_VAR                = uuid.UUID("4d21b016b53445c2a9fb5c16e091fd2d")  # NOQA: E221
 
@@ -336,7 +332,9 @@ def gpt_root_native(arch: Optional[str], usr_only: bool = False) -> GPTRootTypeP
         arch = platform.machine()
 
     if usr_only:
-        if arch == "x86_64":
+        if arch in ("i386", "i486", "i586", "i686"):
+            return GPTRootTypePair(GPT_USR_X86, GPT_USR_X86_VERITY)
+        elif arch == "x86_64":
             return GPTRootTypePair(GPT_USR_X86_64, GPT_USR_X86_64_VERITY)
         elif arch == "aarch64":
             return GPTRootTypePair(GPT_USR_ARM_64, GPT_USR_ARM_64_VERITY)
@@ -345,7 +343,9 @@ def gpt_root_native(arch: Optional[str], usr_only: bool = False) -> GPTRootTypeP
         else:
             die(f"Unknown architecture {arch}.")
     else:
-        if arch == "x86_64":
+        if arch in ("i386", "i486", "i586", "i686"):
+            return GPTRootTypePair(GPT_ROOT_X86, GPT_ROOT_X86_VERITY)
+        elif arch == "x86_64":
             return GPTRootTypePair(GPT_ROOT_X86_64, GPT_ROOT_X86_64_VERITY)
         elif arch == "aarch64":
             return GPTRootTypePair(GPT_ROOT_ARM_64, GPT_ROOT_ARM_64_VERITY)
