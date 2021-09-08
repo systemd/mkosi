@@ -23,3 +23,6 @@
 
 * --format gpt_mksquashfs --minimize throws an error. It should just
   silently ignore --minimize, since it's implied.
+
+* --debug=help should list known options and exit. Same for other
+  options which accept a fixed list of choices.

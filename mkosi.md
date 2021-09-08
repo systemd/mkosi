@@ -1126,6 +1126,12 @@ Those settings cannot be configured in the configuration files.
   rebuilding of these cached images, combine `-i` with `-ff` to ensure
   cached images are first removed and then re-created.
 
+`--debug=`
+
+: Enable additional debugging output. Takes a comma-separated list of
+  arguments specifying the area of interest. Pass any invalid value
+  (e.g. empty) to list currently accepted values.
+
 `--version`
 
 : Show package version.
