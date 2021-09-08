@@ -199,6 +199,13 @@ T = TypeVar("T")
 V = TypeVar("V")
 
 
+def print_between_lines(s: str) -> None:
+    size = os.get_terminal_size()
+    print('-' * size.columns)
+    print(s.rstrip('\n'))
+    print('-' * size.columns)
+
+
 def dictify(f: Callable[..., Generator[Tuple[T, V], None, None]]) -> Callable[..., Dict[T, V]]:
     def wrapper(*args: Any, **kwargs: Any) -> Dict[T, V]:
         return dict(f(*args, **kwargs))
@@ -3664,6 +3671,9 @@ class PartitionTable:
                 stdout=PIPE,
                 universal_newlines=True)
 
+        if 'disk' in ARG_DEBUG:
+            print_between_lines(c.stdout)
+
         in_body = False
         for line in c.stdout.splitlines():
             line = line.strip()
@@ -3745,12 +3755,14 @@ def insert_partition(
     partition_offset = old_table.first_usable_offset()
     new_size = roundup(partition_offset + blob_size + luks_extra + old_table.footer_size(), 4096)
 
-    MkosiPrinter.print_step(f"Resizing disk image to {format_bytes(new_size)}...")
+    ss = f" ({new_size // old_table.sector_size} sectors)" if 'disk' in ARG_DEBUG else ""
+    MkosiPrinter.print_step(f"Resizing disk image to {format_bytes(new_size)}{ss}")
 
     os.truncate(raw.name, new_size)
     run(["losetup", "--set-capacity", loopdev])
 
-    MkosiPrinter.print_step(f"Inserting partition of {format_bytes(blob_size)}...")
+    ss = f" ({blob_size // old_table.sector_size} sectors)" if 'disk' in ARG_DEBUG else ""
+    MkosiPrinter.print_step(f"Inserting partition of {format_bytes(blob_size)}{ss}...")
 
     if args.gpt_first_lba is not None:
         first_lba: Optional[int] = args.gpt_first_lba
@@ -3777,7 +3789,8 @@ def insert_partition(
     table += [*old_table.partitions,
               ', '.join(new)]
 
-    print(table)
+    if 'disk' in ARG_DEBUG:
+        print_between_lines('\n'.join(table))
 
     run(["sfdisk", "--color=never", "--no-reread", "--no-tell-kernel", loopdev],
         input='\n'.join(table).encode("utf-8"))
@@ -5290,7 +5303,7 @@ def create_parser() -> ArgumentParserMkosi:
         action=CommaDelimitedListAction,
         default=[],
         help="Turn on debugging output",
-        choices=("run", "build-script", "workspace-command"),
+        choices=("run", "build-script", "workspace-command", "disk"),
     )
     try:
         import argcomplete
