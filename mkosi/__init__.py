@@ -42,6 +42,7 @@ from typing import (
     BinaryIO,
     Callable,
     ContextManager,
+    Deque,
     Dict,
     Generator,
     Iterable,
@@ -3471,15 +3472,13 @@ def make_tar(args: CommandLineArguments, root: Path, do_run_build_script: bool, 
     return f
 
 
-def find_files(root: Path) -> Generator[str, None, None]:
+def find_files(root: Path) -> Generator[Path, None, None]:
     """Generate a list of all filepaths relative to @root"""
-    root = str(root).rstrip("/") + "/"  # make sure the path ends in exactly one '/'
-    prefix_len = len(root)
-    queue = collections.deque([root])
+    queue: Deque[Union[str, Path]] = collections.deque([root])
 
     while queue:
         for entry in os.scandir(queue.pop()):
-            yield entry.path[prefix_len:]
+            yield Path(entry.path).relative_to(root)
             if entry.is_dir(follow_symlinks=False):
                 queue.append(entry.path)
 
@@ -3511,7 +3510,7 @@ def make_cpio(
 
             with spawn(compressor, stdin=cpio.stdout, stdout=f, delay_interrupt=False):
                 for file in files:
-                    cpio.stdin.write(file.encode("utf8") + b"\0")
+                    cpio.stdin.write(os.fspath(file).encode("utf8") + b"\0")
                 cpio.stdin.close()
         if cpio.wait() != 0:
             die("Failed to create archive")
@@ -5299,17 +5298,17 @@ def parse_args(argv: Optional[List[str]] = None) -> Dict[str, argparse.Namespace
         for f in os.scandir(all_directory):
             if not f.name.startswith("mkosi."):
                 continue
-            args = parse_args_file(argv, f.path)
+            args = parse_args_file(argv, Path(f.path))
             args_all[f.name] = args
     # Parse everything in normal mode
     else:
-        args = parse_args_file_group(argv, default_path)
+        args = parse_args_file_group(argv, os.fspath(default_path))
 
         args = load_distribution(args)
 
         if args.distribution:
             # Parse again with any extra distribution files included.
-            args = parse_args_file_group(argv, default_path, args.distribution)
+            args = parse_args_file_group(argv, os.fspath(default_path), args.distribution)
 
         args_all["default"] = args
 
@@ -5571,9 +5570,9 @@ def find_skeleton(args: argparse.Namespace) -> None:
 def args_find_path(args: argparse.Namespace, name: str, path: str, *, as_list: bool = False) -> None:
     if getattr(args, name) is not None:
         return
-    path = Path(path).absolute()
-    if path.exists():
-        setattr(args, name, [path] if as_list else path)
+    abspath = Path(path).absolute()
+    if abspath.exists():
+        setattr(args, name, [abspath] if as_list else abspath)
 
 
 def find_cache(args: argparse.Namespace) -> None:
@@ -7183,7 +7182,7 @@ def generate_secure_boot_key(args: CommandLineArguments) -> NoReturn:
         )
     )
 
-    cmd: List[Union[os.PathLike[str], str]] = [
+    cmd: List[str] = [
         "openssl",
         "req",
         "-new",
@@ -7191,9 +7190,9 @@ def generate_secure_boot_key(args: CommandLineArguments) -> NoReturn:
         "-newkey",
         f"rsa:{keylength}",
         "-keyout",
-        args.secure_boot_key,
+        os.fspath(args.secure_boot_key),
         "-out",
-        args.secure_boot_certificate,
+        os.fspath(args.secure_boot_certificate),
         "-days",
         str(args.secure_boot_valid_days),
         "-subj",
@@ -7252,7 +7251,7 @@ def prepend_to_environ_path(paths: List[Path]) -> None:
     if not paths:
         return
 
-    news = [str(path) for path in paths]
+    news = [os.fspath(path) for path in paths]
     olds = os.getenv("PATH", "").split(":")
     os.environ["PATH"] = ":".join(news + olds)
 

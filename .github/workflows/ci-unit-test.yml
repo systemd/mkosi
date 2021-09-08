@@ -29,7 +29,7 @@ jobs:
       run: sh -c '! git grep -P "\\t" "*.py"'
 
     - name: Type Checking (mypy)
-      run: python3 -m mypy --python-version 3.7 mkosi
+      run: python3 -m mypy mkosi
 
     - name: Type Checking (pyright)
       run: pyright .

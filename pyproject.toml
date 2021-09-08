@@ -6,3 +6,6 @@ target-version = ['py37']
 profile = "black"
 multi_line_output = 3
 py_version = "37"
+
+[tool.pyright]
+pythonVersion = "3.7"
