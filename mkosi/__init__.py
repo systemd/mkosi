@@ -1695,7 +1695,7 @@ def clean_dnf_metadata(root: Path, always: bool) -> None:
         root / "var/cache/dnf",
     ]
 
-    cond = always or os.access(root / "bin/dnf", os.F_OK, follow_symlinks=False)
+    cond = always or not os.access(root / "bin/dnf", os.F_OK, follow_symlinks=False)
 
     if not cond or not any(path.exists() for path in paths):
         return
@@ -1713,7 +1713,7 @@ def clean_yum_metadata(root: Path, always: bool) -> None:
         root / "var/cache/yum",
     ]
 
-    cond = always or os.access(root / "bin/yum", os.F_OK, follow_symlinks=False)
+    cond = always or not os.access(root / "bin/yum", os.F_OK, follow_symlinks=False)
 
     if not cond or not any(path.exists() for path in paths):
         return
@@ -1727,7 +1727,7 @@ def clean_rpm_metadata(root: Path, always: bool) -> None:
     """Remove rpm metadata if /bin/rpm is not present in the image"""
     path = root / "var/lib/rpm"
 
-    cond = always or os.access(root / "bin/rpm", os.F_OK, follow_symlinks=False)
+    cond = always or not os.access(root / "bin/rpm", os.F_OK, follow_symlinks=False)
 
     if not cond or not path.exists():
         return
@@ -1743,7 +1743,7 @@ def clean_tdnf_metadata(root: Path, always: bool) -> None:
         root / "var/cache/tdnf",
     ]
 
-    cond = always or os.access(root / "usr/bin/tdnf", os.F_OK, follow_symlinks=False)
+    cond = always or not os.access(root / "usr/bin/tdnf", os.F_OK, follow_symlinks=False)
 
     if not cond or not any(path.exists() for path in paths):
         return
