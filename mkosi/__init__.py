@@ -5640,11 +5640,11 @@ def find_secure_boot(args: argparse.Namespace) -> None:
 
     if args.secure_boot_key is None:
         if os.path.exists("mkosi.secure-boot.key"):
-            args.secure_boot_key = "mkosi.secure-boot.key"
+            args.secure_boot_key = Path("mkosi.secure-boot.key")
 
     if args.secure_boot_certificate is None:
         if os.path.exists("mkosi.secure-boot.crt"):
-            args.secure_boot_certificate = "mkosi.secure-boot.crt"
+            args.secure_boot_certificate = Path("mkosi.secure-boot.crt")
 
 
 def find_image_version(args: argparse.Namespace) -> None:
@@ -5883,8 +5883,12 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
         if args.image_id is not None:
             # If the image ID is specified, use cache file names that are independent of the image versions, so that
             # rebuilding and bumping versions is cheap and reuses previous versions if cached.
-            args.cache_pre_dev = args.output_dir / f"{args.image_id}.cache-pre-dev"
-            args.cache_pre_inst = args.output_dir / f"{args.image_id}.cache-pre-inst"
+            if args.output_dir:
+                args.cache_pre_dev = args.output_dir / f"{args.image_id}.cache-pre-dev"
+                args.cache_pre_inst = args.output_dir / f"{args.image_id}.cache-pre-inst"
+            else:
+                args.cache_pre_dev = Path(f"{args.image_id}.cache-pre-dev")
+                args.cache_pre_inst = Path(f"{args.image_id}.cache-pre-inst")
         else:
             # Otherwise, derive the cache file names directly from the output file names.
             args.cache_pre_dev = Path(f"{args.output}.cache-pre-dev")
