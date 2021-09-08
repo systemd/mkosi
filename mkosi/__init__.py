@@ -7194,6 +7194,7 @@ def generate_secure_boot_key(args: CommandLineArguments) -> NoReturn:
         str(args.secure_boot_valid_days),
         "-subj",
         f"/CN={cn}/",
+        "-nodes",
     ]
 
     os.execvp(cmd[0], cmd)
