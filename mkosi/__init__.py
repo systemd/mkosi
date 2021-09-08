@@ -1695,7 +1695,7 @@ def clean_dnf_metadata(root: Path, always: bool) -> None:
         root / "var/cache/dnf",
     ]
 
-    cond = always or os.access(root / "bin/dnf", os.F_OK, follow_symlinks=False)
+    cond = always or not os.access(root / "bin/dnf", os.F_OK, follow_symlinks=False)
 
     if not cond or not any(path.exists() for path in paths):
         return
@@ -1713,7 +1713,7 @@ def clean_yum_metadata(root: Path, always: bool) -> None:
         root / "var/cache/yum",
     ]
 
-    cond = always or os.access(root / "bin/yum", os.F_OK, follow_symlinks=False)
+    cond = always or not os.access(root / "bin/yum", os.F_OK, follow_symlinks=False)
 
     if not cond or not any(path.exists() for path in paths):
         return
@@ -1727,7 +1727,7 @@ def clean_rpm_metadata(root: Path, always: bool) -> None:
     """Remove rpm metadata if /bin/rpm is not present in the image"""
     path = root / "var/lib/rpm"
 
-    cond = always or os.access(root / "bin/rpm", os.F_OK, follow_symlinks=False)
+    cond = always or not os.access(root / "bin/rpm", os.F_OK, follow_symlinks=False)
 
     if not cond or not path.exists():
         return
@@ -1743,12 +1743,47 @@ def clean_tdnf_metadata(root: Path, always: bool) -> None:
         root / "var/cache/tdnf",
     ]
 
-    cond = always or os.access(root / "usr/bin/tdnf", os.F_OK, follow_symlinks=False)
+    cond = always or not os.access(root / "usr/bin/tdnf", os.F_OK, follow_symlinks=False)
 
     if not cond or not any(path.exists() for path in paths):
         return
 
     with complete_step("Cleaning tdnf metadata…"):
+        for path in paths:
+            unlink_try_hard(path)
+
+
+def clean_apt_metadata(root: Path, always: bool) -> None:
+    """Remove apt metadata if /usr/bin/apt is not present in the image"""
+    paths = [
+        root / "var/lib/apt",
+        root / "var/log/apt",
+        root / "var/cache/apt",
+    ]
+
+    cond = always or not os.access(root / "usr/bin/apt", os.F_OK, follow_symlinks=False)
+
+    if not cond or not any(path.exists() for path in paths):
+        return
+
+    with complete_step("Cleaning apt metadata…"):
+        for path in paths:
+            unlink_try_hard(path)
+
+
+def clean_dpkg_metadata(root: Path, always: bool) -> None:
+    """Remove dpkg metadata if /usr/bin/dpkg is not present in the image"""
+    paths = [
+        root / "var/lib/dpkg",
+        root / "var/log/dpkg.log",
+    ]
+
+    cond = always or not os.access(root / "usr/bin/dpkg", os.F_OK, follow_symlinks=False)
+
+    if not cond or not any(path.exists() for path in paths):
+        return
+
+    with complete_step("Cleaning dpkg metadata…"):
         for path in paths:
             unlink_try_hard(path)
 
@@ -1770,6 +1805,8 @@ def clean_package_manager_metadata(args: CommandLineArguments, root: Path) -> No
     clean_yum_metadata(root, always=args.clean_package_metadata is True)
     clean_rpm_metadata(root, always=args.clean_package_metadata is True)
     clean_tdnf_metadata(root, always=args.clean_package_metadata is True)
+    clean_apt_metadata(root, always=args.clean_package_metadata is True)
+    clean_dpkg_metadata(root, always=args.clean_package_metadata is True)
     # FIXME: implement cleanup for other package managers
 
 
