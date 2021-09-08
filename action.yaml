@@ -67,27 +67,6 @@ runs:
       sudo pacman-key --init
       sudo pacman-key --populate archlinux
 
-      wget https://github.com/rpm-software-management/rpm/archive/rpm-$RPM_VERSION-release.tar.gz
-      tar xf rpm-$RPM_VERSION-release.tar.gz
-
-      pushd rpm-rpm-$RPM_VERSION-release
-      ./autogen.sh \
-          --prefix=/usr  \
-          --sysconfdir=/etc  \
-          --localstatedir=/var \
-          --enable-python \
-          --with-external-db \
-          --with-lua \
-          --with-cap \
-          LUA_CFLAGS="`pkg-config --cflags lua5.2`" \
-          LUA_LIBS="`pkg-config --libs lua5.2`"
-      make -j 2
-      sudo make install
-      pushd python
-      sudo python setup.py install --optimize=1
-      popd
-      popd
-
       wget https://github.com/rpm-software-management/libcomps/archive/libcomps-$LIBCOMPS_VERSION.tar.gz
       tar xf libcomps-$LIBCOMPS_VERSION.tar.gz
 
@@ -136,32 +115,6 @@ runs:
           build/libmodulemd \
           libmodulemd-libmodulemd-$LIBMODULEMD_VERSION
       sudo meson install -C build/libmodulemd
-
-      wget https://github.com/openSUSE/libsolv/archive/$LIBSOLV_VERSION.tar.gz
-      tar xf $LIBSOLV_VERSION.tar.gz
-
-      cmake \
-          -S libsolv-$LIBSOLV_VERSION \
-          -B build/libsolv \
-          -DCMAKE_BUILD_TYPE=Release \
-          -DCMAKE_INSTALL_PREFIX=/usr \
-          -DCMAKE_INSTALL_LIBDIR=lib/x86_64-linux-gnu \
-          -DENABLE_RPMDB=ON \
-          -DENABLE_RPMPKG=ON \
-          -DENABLE_PUBKEY=ON \
-          -DENABLE_RPMDB_BYRPMHEADER=ON \
-          -DENABLE_RPMDB_LIBRPM=ON \
-          -DENABLE_RPMPKG_LIBRPM=ON \
-          -DENABLE_RPMMD=ON \
-          -DENABLE_COMPS=ON \
-          -DENABLE_MDKREPO=ON \
-          -DENABLE_COMPLEX_DEPS=ON \
-          -DENABLE_APPDATA=ON \
-          -DENABLE_LZMA_COMPRESSION=ON \
-          -DENABLE_BZIP2_COMPRESSION=ON \
-          -DENABLE_ZSTD_COMPRESSION=ON
-      cmake --build build/libsolv
-      sudo cmake --install build/libsolv
 
       wget https://github.com/rpm-software-management/libdnf/archive/$LIBDNF_VERSION.tar.gz
       tar xf $LIBDNF_VERSION.tar.gz
@@ -224,10 +177,8 @@ runs:
       LIBCOMPS_VERSION: "0.1.15"
       LIBREPO_VERSION: "1.12.1"
       LIBMODULEMD_VERSION: "2.11.1"
-      LIBSOLV_VERSION: "0.7.16"
       LIBDNF_VERSION: "0.55.2"
       DNF_VERSION: "4.5.1"
-      RPM_VERSION: "4.16.1.2"
 
   - name: Install
     shell: bash
