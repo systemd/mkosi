@@ -68,9 +68,9 @@ runs:
       sudo pacman-key --populate archlinux
 
       wget https://github.com/rpm-software-management/rpm/archive/rpm-$RPM_VERSION.tar.gz
-      tar xf rpm-$RPM_VERSION-release.tar.gz
+      tar xf rpm-$RPM_VERSION.tar.gz
 
-      pushd rpm-rpm-$RPM_VERSION-release
+      pushd rpm-rpm-$RPM_VERSION
       ./autogen.sh \
           --prefix=/usr  \
           --sysconfdir=/etc  \
