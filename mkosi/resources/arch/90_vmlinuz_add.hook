@@ -1,0 +1,11 @@
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Path
+Target = usr/lib/modules/*/vmlinuz
+
+[Action]
+Description = Adding vmlinuz to /boot...
+When = PostTransaction
+Exec = /bin/bash -c 'while read -r f; do install -Dm644 "$f" "/boot/vmlinuz-$(basename "$(dirname "$f")")"; done'
+NeedsTargets

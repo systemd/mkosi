@@ -1,0 +1,11 @@
+[Trigger]
+Operation = Upgrade
+Operation = Remove
+Type = Path
+Target = usr/lib/modules/*/vmlinuz
+
+[Action]
+Description = Removing vmlinuz from /boot...
+When = PreTransaction
+Exec = /bin/bash -c 'while read -r f; do rm -f "/boot/vmlinuz-$(basename "$(dirname "$f")")"; done'
+NeedsTargets
