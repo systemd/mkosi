@@ -78,6 +78,7 @@ from .backend import (
     patch_file,
     path_relative_to_cwd,
     run,
+    run_with_backoff,
     run_workspace_command,
     should_compress_fs,
     should_compress_output,
@@ -3795,7 +3796,7 @@ def insert_partition(
     run(["sfdisk", "--color=never", "--no-reread", "--no-tell-kernel", loopdev],
         input='\n'.join(table).encode("utf-8"))
     run(["sync"])
-    run(["blockdev", "--rereadpt", loopdev])
+    run_with_backoff(["blockdev", "--rereadpt", loopdev], attempts=10)
 
     MkosiPrinter.print_step("Writing partition...")
 

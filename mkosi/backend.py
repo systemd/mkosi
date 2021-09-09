@@ -10,6 +10,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import time
 import uuid
 from pathlib import Path
 from types import FrameType
@@ -517,6 +518,29 @@ def run(
             return subprocess.run(cmdline, check=check, stdout=stdout, stderr=stderr, **kwargs)
     except FileNotFoundError:
         die(f"{cmdline[0]} not found in PATH.")
+
+
+def run_with_backoff(
+    cmdline: Sequence[PathString],
+    check: bool = True,
+    delay_interrupt: bool = True,
+    stdout: _FILE = None,
+    stderr: _FILE = None,
+    *,
+    attempts: int,
+    **kwargs: Any,
+) -> CompletedProcess:
+    delay = 0.0
+    for attempt in range(attempts):
+        try:
+            return run(cmdline, check, delay_interrupt, stdout, stderr, **kwargs)
+        except subprocess.CalledProcessError:
+            if attempt == attempts - 1:
+                raise
+            time.sleep(delay)
+            delay = min(delay * 2 + 0.01, 1)
+
+    assert False  # make mypy happy
 
 
 def tmp_dir() -> Path:
