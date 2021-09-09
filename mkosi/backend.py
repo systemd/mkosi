@@ -202,6 +202,7 @@ class CommandLineArguments:
     release: str
     mirror: Optional[str]
     repositories: List[str]
+    use_system_repositories: bool
     architecture: Optional[str]
     output_format: OutputFormat
     manifest_format: List[ManifestFormat]

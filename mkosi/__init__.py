@@ -1925,13 +1925,18 @@ def setup_dnf(args: CommandLineArguments, root: Path, repos: Sequence[Repo] = ()
                 )
             )
 
+    if args.use_system_repositories:
+        default_repos  = ""
+    else:
+        default_repos  = f"{'repodir' if args.distribution == Distribution.photon else 'reposdir'}={workspace(root)}"
+
     config_file = workspace(root) / "dnf.conf"
     config_file.write_text(
         dedent(
             f"""\
             [main]
             gpgcheck={'1' if gpgcheck else '0'}
-            {"repodir" if args.distribution == Distribution.photon else "reposdir"}={workspace(root)}
+            {default_repos }
             """
         )
     )
@@ -4732,6 +4737,9 @@ def create_parser() -> ArgumentParserMkosi:
     group.add_argument(
         "--repositories", action=CommaDelimitedListAction, default=[], help="Repositories to use", metavar="REPOS"
     )
+    group.add_argument(
+        "--use-system-repositories", action=BooleanAction, help="Use existing software package repositories"
+    )
     group.add_argument("--architecture", help="Override the architecture of installation")
 
     group = parser.add_argument_group("Output")
@@ -6197,6 +6205,7 @@ def print_summary(args: CommandLineArguments) -> None:
         MkosiPrinter.info("                    Mirror: " + args.mirror)
     if args.repositories is not None and len(args.repositories) > 0:
         MkosiPrinter.info("              Repositories: " + ",".join(args.repositories))
+    MkosiPrinter.info("   Use System Repositories: " + yes_no(args.use_system_repositories))
     MkosiPrinter.info("\nOUTPUT:")
     if args.hostname:
         MkosiPrinter.info("                  Hostname: " + args.hostname)
