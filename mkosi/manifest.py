@@ -2,6 +2,7 @@
 
 import dataclasses
 import json
+from datetime import datetime
 from pathlib import Path
 from subprocess import DEVNULL, PIPE
 from textwrap import dedent
@@ -61,6 +62,8 @@ class Manifest:
     packages: List[PackageManifest] = dataclasses.field(default_factory=list)
     source_packages: Dict[str, SourcePackageManifest] = dataclasses.field(default_factory=dict)
 
+    _init_timestamp: datetime = dataclasses.field(init=False, default_factory=datetime.now)
+
     def need_source_info(self) -> bool:
         return ManifestFormat.changelog in self.args.manifest_format
 
@@ -71,7 +74,8 @@ class Manifest:
 
     def record_rpm_packages(self, root: Path) -> None:
         c = run(
-            ["rpm", f"--root={root}", "-qa", "--qf", r"%{NEVRA}\t%{SOURCERPM}\t%{NAME}\t%{SIZE}\n"],
+            ["rpm", f"--root={root}", "-qa", "--qf",
+             r"%{NEVRA}\t%{SOURCERPM}\t%{NAME}\t%{SIZE}\t%{INSTALLTIME}\n"],
             stdout=PIPE,
             stderr=DEVNULL,
             text=True,
@@ -80,12 +84,19 @@ class Manifest:
         packages = sorted(c.stdout.splitlines())
 
         for package in packages:
-            nevra, srpm, name, size = package.split("\t")
+            nevra, srpm, name, size, installtime = package.split("\t")
 
             assert nevra.startswith(f"{name}-")
             evra = nevra[len(name) + 1 :]
 
             size = int(size)
+            installtime = datetime.fromtimestamp(int(installtime))
+
+            # If we are creating a layer based on a BaseImage=, e.g. a sysext, filter by
+            # packages that were installed in this execution of mkosi. We assume that the
+            # upper layer is put together in one go, which currently is always true.
+            if self.args.base_image and installtime < self._init_timestamp:
+                continue
 
             package = PackageManifest("rpm", name, evra, size)
             self.packages.append(package)
