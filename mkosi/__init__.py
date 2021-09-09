@@ -4468,7 +4468,7 @@ def save_manifest(args: CommandLineArguments, manifest: Manifest) -> None:
                     _link_output(args, f.name, f"{args.output}.manifest")
 
         if ManifestFormat.changelog in args.manifest_format:
-            with complete_step(f"Saving report {relpath}.packages"):
+            with complete_step(f"Saving report {relpath}.changelog"):
                 g: TextIO = cast(
                     TextIO,
                     tempfile.NamedTemporaryFile(
@@ -4480,7 +4480,7 @@ def save_manifest(args: CommandLineArguments, manifest: Manifest) -> None:
                 )
                 with g:
                     manifest.write_package_report(g)
-                    _link_output(args, g.name, f"{relpath}.packages")
+                    _link_output(args, g.name, f"{relpath}.changelog")
 
 
 def print_output_size(args: CommandLineArguments) -> None:
@@ -5625,7 +5625,7 @@ def unlink_output(args: CommandLineArguments) -> None:
         with complete_step("Removing output files…"):
             unlink_try_hard(args.output)
             unlink_try_hard(f"{args.output}.manifest")
-            unlink_try_hard(f"{args.output}.packages")
+            unlink_try_hard(f"{args.output}.changelog")
 
             if args.checksum:
                 unlink_try_hard(args.output_checksum)

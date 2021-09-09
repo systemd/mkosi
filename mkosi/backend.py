@@ -215,7 +215,7 @@ class OutputFormat(Parseable, enum.Enum):
 
 
 class ManifestFormat(Parseable, enum.Enum):
-    json = "json"  # the standard manifest in json format
+    json      = "json"       # the standard manifest in json format
     changelog = "changelog"  # human-readable text file with package changelogs
 
 
