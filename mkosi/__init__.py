@@ -123,6 +123,17 @@ DRACUT_SYSTEMD_EXTRAS = [
 ]
 
 
+def write_resource(
+        where: Path, resource: str, key: str, *, executable: bool = False, mode: Optional[int] = None
+) -> None:
+    text = importlib.resources.read_text(resource, key)
+    where.write_text(text)
+    if mode is not None:
+        where.chmod(mode)
+    elif executable:
+        make_executable(where)
+
+
 T = TypeVar("T")
 V = TypeVar("V")
 
@@ -1554,9 +1565,12 @@ def reenable_kernel_install(args: CommandLineArguments, root: Path) -> None:
     if not args.bootable or args.bios_partno is not None or not args.with_unified_kernel_images:
         return
 
-    hook_path = root / "etc/kernel/install.d/50-mkosi-dracut-unified-kernel.install"
-    hook_path.write_text(importlib.resources.read_text("mkosi.resources", "dracut_unified_kernel_install.sh"))
-    make_executable(hook_path)
+    write_resource(
+        root / "etc/kernel/install.d/50-mkosi-dracut-unified-kernel.install",
+        "mkosi.resources",
+        "dracut_unified_kernel_install.sh",
+        executable=True,
+    )
 
 
 def add_packages(
@@ -2551,37 +2565,20 @@ def install_arch(args: CommandLineArguments, root: Path, do_run_build_script: bo
         # Disable depmod pacman hook as depmod is handled by kernel-install as well.
         hooks_dir.joinpath("60-depmod.hook").symlink_to("/dev/null")
 
-        hooks_dir.joinpath("90-mkosi-kernel-add.hook").write_text(
-            importlib.resources.read_text("mkosi.resources.arch", "90_kernel_add.hook")
-        )
+        write_resource(hooks_dir / "90-mkosi-kernel-add.hook", "mkosi.resources.arch", "90_kernel_add.hook")
+        write_resource(scripts_dir / "mkosi-kernel-add", "mkosi.resources.arch", "kernel_add.sh",
+                       executable=True)
 
-        kernel_add_script = scripts_dir / "mkosi-kernel-add"
-        kernel_add_script.write_text(importlib.resources.read_text("mkosi.resources.arch", "kernel_add.sh"))
-        make_executable(kernel_add_script)
-
-        kernel_remove_hook = hooks_dir / "60-mkosi-kernel-remove.hook"
-        kernel_remove_hook.write_text(importlib.resources.read_text("mkosi.resources.arch", "60_kernel_remove.hook"))
-
-        kernel_remove_script = scripts_dir / "mkosi-kernel-remove"
-        kernel_remove_script.write_text(importlib.resources.read_text("mkosi.resources.arch", "kernel_remove.sh"))
-        make_executable(kernel_remove_script)
+        write_resource(hooks_dir / "60-mkosi-kernel-remove.hook", "mkosi.resources.arch", "60_kernel_remove.hook")
+        write_resource(scripts_dir / "mkosi-kernel-remove", "mkosi.resources.arch", "kernel_remove.sh",
+                       executable=True)
 
         if args.esp_partno is not None:
-            bootctl_update_hook = hooks_dir / "91-mkosi-bootctl-update.hook"
-            bootctl_update_hook.write_text(
-                importlib.resources.read_text("mkosi.resources.arch", "91_bootctl_update.hook")
-            )
+            write_resource(hooks_dir / "91-mkosi-bootctl-update.hook", "mkosi.resources.arch", "91_bootctl_update.hook")
 
         if args.bios_partno is not None:
-            vmlinuz_add_hook = hooks_dir / "90-mkosi-vmlinuz-add.hook"
-            vmlinuz_add_hook.write_text(importlib.resources.read_text("mkosi.resources.arch", "90_vmlinuz_add.hook"))
-            make_executable(vmlinuz_add_hook)
-
-            vmlinuz_remove_hook = hooks_dir / "60-mkosi-vmlinuz-remove.hook"
-            vmlinuz_remove_hook.write_text(
-                importlib.resources.read_text("mkosi.resources.arch", "60_vmlinuz_remove.hook")
-            )
-            make_executable(vmlinuz_remove_hook)
+            write_resource(hooks_dir / "90-mkosi-vmlinuz-add.hook", "mkosi.resources.arch", "90_vmlinuz_add.hook")
+            write_resource(hooks_dir / "60-mkosi-vmlinuz-remove.hook", "mkosi.resources.arch", "60_vmlinuz_remove.hook")
 
     keyring = "archlinux"
     if platform.machine() == "aarch64":
@@ -2857,29 +2854,23 @@ def set_autologin(args: CommandLineArguments, root: Path, do_run_build_script: b
         device_prefix = "/dev/" if args.distribution in [Distribution.arch, Distribution.debian] else ""
 
         override_dir = root / "etc/systemd/system/console-getty.service.d"
-        os.makedirs(override_dir, mode=0o755, exist_ok=True)
-
-        override_file = override_dir / "autologin.conf"
-        override_file.write_text(importlib.resources.read_text("mkosi.resources", "console_getty_autologin.conf"))
-        override_file.chmod(0o644)
+        override_dir.mkdir(mode=0o755, parents=True, exist_ok=True)
+        write_resource(override_dir / "autologin.conf", "mkosi.resources", "console_getty_autologin.conf",
+                       mode=0o644)
 
         pam_add_autologin(root, f"{device_prefix}pts/0")
 
         override_dir = root / "etc/systemd/system/serial-getty@ttyS0.service.d"
-        os.makedirs(override_dir, mode=0o755, exist_ok=True)
-
-        override_file = override_dir / "autologin.conf"
-        override_file.write_text(importlib.resources.read_text("mkosi.resources", "serial_getty_autologin.conf"))
-        override_file.chmod(0o644)
+        override_dir.mkdir(mode=0o755, parents=True, exist_ok=True)
+        write_resource(override_dir / "autologin.conf", "mkosi.resources", "serial_getty_autologin.conf",
+                       mode=0o644)
 
         pam_add_autologin(root, f"{device_prefix}ttyS0")
 
         override_dir = root / "etc/systemd/system/getty@tty1.service.d"
-        os.makedirs(override_dir, mode=0o755, exist_ok=True)
-
-        override_file = override_dir / "autologin.conf"
-        override_file.write_text(importlib.resources.read_text("mkosi.resources", "getty_autologin.conf"))
-        override_file.chmod(0o644)
+        override_dir.mkdir(mode=0o755, parents=True, exist_ok=True)
+        write_resource(override_dir / "autologin.conf", "mkosi.resources", "getty_autologin.conf",
+                       mode=0o644)
 
         pam_add_autologin(root, f"{device_prefix}tty1")
         pam_add_autologin(root, f"{device_prefix}console")
