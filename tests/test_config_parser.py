@@ -98,6 +98,7 @@ class MkosiConfig(object):
             "read_only": False,
             "release": None,
             "repositories": [],
+            "use_system_repositories": False,
             "root_size": None,
             "secure_boot": False,
             "secure_boot_certificate": None,
@@ -210,6 +211,8 @@ class MkosiConfig(object):
                 self.reference_config[job_name]["release"] = mk_config_distro["Release"]
             if "Repositories" in mk_config_distro:
                 self._append_list("repositories", mk_config_distro["Repositories"], job_name)
+            if "UseSystemRepositories" in mk_config_distro:
+                self.reference_config[job_name]["use_system_repositories"] = mk_config_distro["UseSystemRepositories"]
             if "Mirror" in mk_config_distro:
                 self.reference_config[job_name]["mirror"] = mk_config_distro["Mirror"]
             if "Architecture" in mk_config_distro:
@@ -515,6 +518,7 @@ class MkosiConfigManyParams(MkosiConfigOne):
                 "Distribution": "fedora",
                 "Release": "28",
                 "Repositories": "http://fedora/repos",
+                "UseSystemRepositories": False,
                 "Mirror": "http://fedora/mirror",
                 "Architecture": "i386",
             },
@@ -583,6 +587,7 @@ class MkosiConfigManyParams(MkosiConfigOne):
                 "Distribution": "ubuntu",
                 "Release": "18.04",
                 "Repositories": "http://ubuntu/repos",
+                "UseSystemRepositories": False,
                 "Mirror": "http://ubuntu/mirror",
                 "Architecture": "x86_64",
             },
@@ -648,6 +653,7 @@ class MkosiConfigManyParams(MkosiConfigOne):
                 "Distribution": "debian",
                 "Release": "unstable",
                 "Repositories": "http://debian/repos",
+                "UseSystemRepositories": False,
                 "Mirror": "http://ubuntu/mirror",
                 "Architecture": "x86_64",
             },
