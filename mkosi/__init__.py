@@ -1973,7 +1973,7 @@ def install_clear(args: CommandLineArguments, root: Path, do_run_build_script: b
 @complete_step("Installing Fedora Linux…")
 def install_fedora(args: CommandLineArguments, root: Path, do_run_build_script: bool) -> None:
     if args.release == "rawhide":
-        last = sorted(FEDORA_KEYS_MAP)[-1]
+        last = list(FEDORA_KEYS_MAP)[-1]
         warn(f"Assuming rawhide is version {last} — " + "You may specify otherwise with --release=rawhide-<version>")
         args.releasever = last
     elif args.release.startswith("rawhide-"):
