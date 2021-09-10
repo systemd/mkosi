@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
+from __future__ import annotations
+
 import argparse
 import contextlib
 import dataclasses
@@ -100,7 +102,7 @@ class Distribution(enum.Enum):
     photon = 9, PackageType.rpm
     openmandriva = 10, PackageType.rpm
 
-    def __new__(cls, number: int, package_type: PackageType) -> "Distribution":
+    def __new__(cls, number: int, package_type: PackageType) -> Distribution:
         # This turns the list above into enum entries with .package_type attributes.
         # See https://docs.python.org/3.9/library/enum.html#when-to-use-new-vs-init
         # for an explanation.

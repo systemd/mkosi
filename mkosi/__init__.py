@@ -1205,10 +1205,10 @@ class LuksSetupOutput(NamedTuple):
     tmp: Optional[Path]
 
     @classmethod
-    def empty(cls) -> "LuksSetupOutput":
+    def empty(cls) -> LuksSetupOutput:
         return cls(None, None, None, None, None)
 
-    def without_generated_root(self, args: CommandLineArguments) -> "LuksSetupOutput":
+    def without_generated_root(self, args: CommandLineArguments) -> LuksSetupOutput:
         "A copy of self with .root optionally supressed"
         return LuksSetupOutput(
             None if is_generated_root(args) else self.root,
@@ -6528,7 +6528,7 @@ class BuildOutput:
         return self.raw.name if self.raw is not None else None
 
     @classmethod
-    def empty(cls) -> "BuildOutput":
+    def empty(cls) -> BuildOutput:
         return cls(None, None, None, None, None, None, None)
 
 
