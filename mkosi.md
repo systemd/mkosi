@@ -211,13 +211,13 @@ build script?  -------exists----->     copy           .
      |                      .            |            .
      |                      .            v            .
      |                      .          copy           .
-     |                      .       extra trees       .
-     |                      .      (mkosi.extra/)     .
+     |                      .      build sources      .
+     |                      .          (./)           .
      |                      .            |            .
      |                      .            v            .
      |                      .          copy           .
-     |                      .      build sources      .
-     |                      .          (./)           .
+     |                      .       extra trees       .
+     |                      .      (mkosi.extra/)     .
      |                      .            |            .
      |                      .            v            .
      |                      .           run           .
@@ -257,12 +257,12 @@ build script?  -------exists----->     copy           .
                             .                         .           |
                             .                         .           v
                             .                         .         copy
-                            .                         .      extra trees
-                            .                         .     (mkosi.extra/)
+                            .                         .     build results
                             .                         .           |
                             .                         .           v
                             .                         .         copy
-                            .                         .     build results
+                            .                         .      extra trees
+                            .                         .     (mkosi.extra/)
                             .                         .           |
                             .                         .           v
                             .                         .          run
