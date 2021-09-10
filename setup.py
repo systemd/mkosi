@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 # SPDX-License-Identifier: LGPL-2.1+
 
-from setuptools import setup, Command
+from setuptools import setup, Command, find_packages
 
 class BuildManpage(Command):
     description = ('builds the manpage')
@@ -25,7 +25,9 @@ setup(
     maintainer_email="systemd-devel@lists.freedesktop.org",
     license="LGPLv2+",
     python_requires=">=3.7",
-    packages = ["mkosi"],
+    packages = find_packages(".", exclude=["tests"]),
+    package_data = {"": ["*.sh", "*.hook", "*.conf"]},
+    include_package_data = True,
     scripts = ["bin/mkosi"],
     cmdclass = { "man": BuildManpage },
     data_files = [('share/man/man1', ["man/mkosi.1"])],

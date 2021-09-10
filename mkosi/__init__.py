@@ -17,6 +17,7 @@ import getpass
 import glob
 import hashlib
 import http.server
+import importlib.resources
 import json
 import os
 import platform
@@ -121,75 +122,16 @@ DRACUT_SYSTEMD_EXTRAS = [
     "/usr/lib/systemd/systemd-volatile-root",
 ]
 
-DRACUT_UNIFIED_KERNEL_INSTALL = """\
-#!/bin/bash -e
 
-COMMAND="$1"
-KERNEL_VERSION="$2"
-BOOT_DIR_ABS="$3"
-KERNEL_IMAGE="$4"
-
-# If KERNEL_INSTALL_MACHINE_ID is defined but empty, BOOT_DIR_ABS is a fake directory so let's skip creating
-# the unified kernel image.
-if [[ -z "${KERNEL_INSTALL_MACHINE_ID-unset}" ]]; then
-    exit 0
-fi
-
-# Strip machine ID and kernel version to get the boot directory.
-PREFIX=$(dirname $(dirname "$BOOT_DIR_ABS"))
-
-# Pick a default prefix name for the unified kernel binary
-if [[ -z "$IMAGE_ID" ]] ; then
-    IMAGE_ID=linux
-fi
-
-if [[ -n "$IMAGE_VERSION" ]] ; then
-    BOOT_BINARY="${PREFIX}/EFI/Linux/${IMAGE_ID}_${IMAGE_VERSION}.efi"
-elif [[ -n "$ROOTHASH" ]] ; then
-    BOOT_BINARY="${PREFIX}/EFI/Linux/${IMAGE_ID}-${KERNEL_VERSION}-${ROOTHASH}.efi"
-elif [[ -n "$USRHASH" ]] ; then
-    BOOT_BINARY="${PREFIX}/EFI/Linux/${IMAGE_ID}-${KERNEL_VERSION}-${USRHASH}.efi"
-else
-    BOOT_BINARY="${PREFIX}/EFI/Linux/${IMAGE_ID}-${KERNEL_VERSION}.efi"
-fi
-
-case "$COMMAND" in
-    add)
-        if [[ -f /etc/kernel/cmdline ]]; then
-            read -r -d '' BOOT_OPTIONS < /etc/kernel/cmdline || true
-        elif [[ -f /usr/lib/kernel/cmdline ]]; then
-            read -r -d '' BOOT_OPTIONS < /usr/lib/kernel/cmdline || true
-        else
-            read -r -d '' BOOT_OPTIONS < /proc/cmdline || true
-        fi
-
-        if [[ -n "$ROOTHASH" ]]; then
-            BOOT_OPTIONS="${BOOT_OPTIONS} roothash=${ROOTHASH}"
-        elif [[ -n "$USRHASH" ]]; then
-            BOOT_OPTIONS="${BOOT_OPTIONS} usrhash=${USRHASH}"
-        elif [[ -n "$IMAGE_VERSION" ]]; then
-            BOOT_OPTIONS="${BOOT_OPTIONS} root=PARTLABEL=${IMAGE_ID}_${IMAGE_VERSION}"
-        fi
-
-        if [[ -n "$KERNEL_IMAGE" ]]; then
-            DRACUT_KERNEL_IMAGE_OPTION="--kernel-image ${KERNEL_IMAGE}"
-        else
-            DRACUT_KERNEL_IMAGE_OPTION=""
-        fi
-
-        dracut \\
-            --uefi \\
-            --kver "$KERNEL_VERSION" \\
-            $DRACUT_KERNEL_IMAGE_OPTION \\
-            --kernel-cmdline "$BOOT_OPTIONS" \\
-            --force \\
-            "$BOOT_BINARY"
-        ;;
-    remove)
-        rm -f -- "$BOOT_BINARY"
-        ;;
-esac
-"""
+def write_resource(
+        where: Path, resource: str, key: str, *, executable: bool = False, mode: Optional[int] = None
+) -> None:
+    text = importlib.resources.read_text(resource, key)
+    where.write_text(text)
+    if mode is not None:
+        where.chmod(mode)
+    elif executable:
+        make_executable(where)
 
 
 T = TypeVar("T")
@@ -1623,9 +1565,12 @@ def reenable_kernel_install(args: CommandLineArguments, root: Path) -> None:
     if not args.bootable or args.bios_partno is not None or not args.with_unified_kernel_images:
         return
 
-    hook_path = root / "etc/kernel/install.d/50-mkosi-dracut-unified-kernel.install"
-    hook_path.write_text(DRACUT_UNIFIED_KERNEL_INSTALL)
-    make_executable(hook_path)
+    write_resource(
+        root / "etc/kernel/install.d/50-mkosi-dracut-unified-kernel.install",
+        "mkosi.resources",
+        "dracut_unified_kernel_install.sh",
+        executable=True,
+    )
 
 
 def add_packages(
@@ -2625,163 +2570,20 @@ def install_arch(args: CommandLineArguments, root: Path, do_run_build_script: bo
         # Disable depmod pacman hook as depmod is handled by kernel-install as well.
         hooks_dir.joinpath("60-depmod.hook").symlink_to("/dev/null")
 
-        hooks_dir.joinpath("90-mkosi-kernel-add.hook").write_text(
-            dedent(
-                """\
-                [Trigger]
-                Operation = Install
-                Operation = Upgrade
-                Type = Path
-                Target = usr/lib/modules/*/vmlinuz
-                Target = usr/lib/kernel/install.d/*
-                Target = boot/*-ucode.img
+        write_resource(hooks_dir / "90-mkosi-kernel-add.hook", "mkosi.resources.arch", "90_kernel_add.hook")
+        write_resource(scripts_dir / "mkosi-kernel-add", "mkosi.resources.arch", "kernel_add.sh",
+                       executable=True)
 
-                [Trigger]
-                Operation = Install
-                Operation = Upgrade
-                Type = Package
-                Target = systemd
-
-                [Action]
-                Description = Adding kernel and initramfs images to /boot...
-                When = PostTransaction
-                Exec = /etc/pacman.d/scripts/mkosi-kernel-add
-                NeedsTargets
-                """
-            )
-        )
-
-        kernel_add_script = scripts_dir / "mkosi-kernel-add"
-        kernel_add_script.write_text(
-            dedent(
-                """\
-                #!/bin/bash -e
-                shopt -s nullglob
-
-                declare -a kernel_version
-
-                # Check the targets passed by the pacman hook.
-                while read -r line
-                do
-                    if [[ "$line" =~ usr/lib/modules/([^/]+)/vmlinuz ]]
-                    then
-                        kernel_version+=( "${BASH_REMATCH[1]}" )
-                    else
-                        # If a non-matching line is passed, just rebuild all kernels.
-                        kernel_version=()
-                        for f in /usr/lib/modules/*/vmlinuz
-                        do
-                            kernel_version+=( "$(basename "$(dirname "$f")")" )
-                        done
-                        break
-                    fi
-                done
-
-                # (re)build the kernel images.
-                for kv in "${kernel_version[@]}"
-                do
-                    kernel-install add "$kv" "/usr/lib/modules/${kv}/vmlinuz"
-                done
-                """
-            )
-        )
-
-        make_executable(kernel_add_script)
-
-        kernel_remove_hook = hooks_dir / "60-mkosi-kernel-remove.hook"
-        kernel_remove_hook.write_text(
-            dedent(
-                """\
-                [Trigger]
-                Operation = Upgrade
-                Operation = Remove
-                Type = Path
-                Target = usr/lib/modules/*/vmlinuz
-
-                [Action]
-                Description = Removing kernel and initramfs images from /boot...
-                When = PreTransaction
-                Exec = /etc/pacman.d/mkosi-kernel-remove
-                NeedsTargets
-                """
-            )
-        )
-
-        kernel_remove_script = scripts_dir / "mkosi-kernel-remove"
-        kernel_remove_script.write_text(
-            dedent(
-                """\
-                #!/bin/bash -e
-
-                while read -r f; do
-                    kernel-install remove "$(basename "$(dirname "$f")")"
-                done
-                """
-            )
-        )
-
-        make_executable(kernel_remove_script)
+        write_resource(hooks_dir / "60-mkosi-kernel-remove.hook", "mkosi.resources.arch", "60_kernel_remove.hook")
+        write_resource(scripts_dir / "mkosi-kernel-remove", "mkosi.resources.arch", "kernel_remove.sh",
+                       executable=True)
 
         if args.esp_partno is not None:
-            bootctl_update_hook = hooks_dir / "91-mkosi-bootctl-update.hook"
-            bootctl_update_hook.write_text(
-                dedent(
-                    """\
-                    [Trigger]
-                    Operation = Upgrade
-                    Type = Package
-                    Target = systemd
-
-                    [Action]
-                    Description = Updating systemd-boot...
-                    When = PostTransaction
-                    Exec = /usr/bin/bootctl update
-                    """
-                )
-            )
+            write_resource(hooks_dir / "91-mkosi-bootctl-update.hook", "mkosi.resources.arch", "91_bootctl_update.hook")
 
         if args.bios_partno is not None:
-            vmlinuz_add_hook = hooks_dir / "90-mkosi-vmlinuz-add.hook"
-            vmlinuz_add_hook.write_text(
-                dedent(
-                    """\
-                    [Trigger]
-                    Operation = Install
-                    Operation = Upgrade
-                    Type = Path
-                    Target = usr/lib/modules/*/vmlinuz
-
-                    [Action]
-                    Description = Adding vmlinuz to /boot...
-                    When = PostTransaction
-                    Exec = /bin/bash -c 'while read -r f; do install -Dm644 "$f" "/boot/vmlinuz-$(basename "$(dirname "$f")")"; done'
-                    NeedsTargets
-                    """
-                )
-            )
-
-            make_executable(vmlinuz_add_hook)
-
-            vmlinuz_remove_hook = hooks_dir / "60-mkosi-vmlinuz-remove.hook"
-            vmlinuz_remove_hook.write_text(
-                dedent(
-                    """\
-                    [Trigger]
-                    Operation = Upgrade
-                    Operation = Remove
-                    Type = Path
-                    Target = usr/lib/modules/*/vmlinuz
-
-                    [Action]
-                    Description = Removing vmlinuz from /boot...
-                    When = PreTransaction
-                    Exec = /bin/bash -c 'while read -r f; do rm -f "/boot/vmlinuz-$(basename "$(dirname "$f")")"; done'
-                    NeedsTargets
-                    """
-                )
-            )
-
-            make_executable(vmlinuz_remove_hook)
+            write_resource(hooks_dir / "90-mkosi-vmlinuz-add.hook", "mkosi.resources.arch", "90_vmlinuz_add.hook")
+            write_resource(hooks_dir / "60-mkosi-vmlinuz-remove.hook", "mkosi.resources.arch", "60_vmlinuz_remove.hook")
 
     keyring = "archlinux"
     if platform.machine() == "aarch64":
@@ -3057,56 +2859,23 @@ def set_autologin(args: CommandLineArguments, root: Path, do_run_build_script: b
         device_prefix = "/dev/" if args.distribution in [Distribution.arch, Distribution.debian] else ""
 
         override_dir = root / "etc/systemd/system/console-getty.service.d"
-        os.makedirs(override_dir, mode=0o755, exist_ok=True)
-
-        override_file = override_dir / "autologin.conf"
-        override_file.write_text(
-            dedent(
-                r"""\
-                [Service]
-                ExecStart=
-                ExecStart=-/sbin/agetty -o '-p -- \\u' --noclear --autologin root --keep-baud console 115200,38400,9600 $TERM
-                """
-            )
-        )
-
-        override_file.chmod(0o644)
+        override_dir.mkdir(mode=0o755, parents=True, exist_ok=True)
+        write_resource(override_dir / "autologin.conf", "mkosi.resources", "console_getty_autologin.conf",
+                       mode=0o644)
 
         pam_add_autologin(root, f"{device_prefix}pts/0")
 
         override_dir = root / "etc/systemd/system/serial-getty@ttyS0.service.d"
-        os.makedirs(override_dir, mode=0o755, exist_ok=True)
-
-        override_file = override_dir / "autologin.conf"
-        override_file.write_text(
-            dedent(
-                r"""\
-                [Service]
-                ExecStart=
-                ExecStart=-/sbin/agetty -o '-p -- \\u' --autologin root --keep-baud 115200,57600,38400,9600 %I $TERM
-                """
-            )
-        )
-
-        override_file.chmod(0o644)
+        override_dir.mkdir(mode=0o755, parents=True, exist_ok=True)
+        write_resource(override_dir / "autologin.conf", "mkosi.resources", "serial_getty_autologin.conf",
+                       mode=0o644)
 
         pam_add_autologin(root, f"{device_prefix}ttyS0")
 
         override_dir = root / "etc/systemd/system/getty@tty1.service.d"
-        os.makedirs(override_dir, mode=0o755, exist_ok=True)
-
-        override_file = override_dir / "autologin.conf"
-        override_file.write_text(
-            dedent(
-                r"""\
-                [Service]
-                ExecStart=
-                ExecStart=-/sbin/agetty -o '-p -- \\u' --autologin root --noclear %I $TERM
-                """
-            )
-        )
-
-        override_file.chmod(0o644)
+        override_dir.mkdir(mode=0o755, parents=True, exist_ok=True)
+        write_resource(override_dir / "autologin.conf", "mkosi.resources", "getty_autologin.conf",
+                       mode=0o644)
 
         pam_add_autologin(root, f"{device_prefix}tty1")
         pam_add_autologin(root, f"{device_prefix}console")

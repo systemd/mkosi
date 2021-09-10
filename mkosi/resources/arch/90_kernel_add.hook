@@ -1,0 +1,19 @@
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Path
+Target = usr/lib/modules/*/vmlinuz
+Target = usr/lib/kernel/install.d/*
+Target = boot/*-ucode.img
+
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = systemd
+
+[Action]
+Description = Adding kernel and initramfs images to /boot...
+When = PostTransaction
+Exec = /etc/pacman.d/scripts/mkosi-kernel-add
+NeedsTargets
