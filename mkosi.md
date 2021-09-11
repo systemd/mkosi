@@ -335,11 +335,11 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   Linux, additional repositories must be passed in the form `<name>::<url>`
   (e.g. `myrepo::https://myrepo.net`).
 
-`UseSystemRepositories=`, `--use-system-repositories`
+`UseHostRepositories=`, `--use-host-repositories`
 
 : This option is only applicable for dnf-based distributions:
   *CentOS*, *Fedora Linux*, *Mageia*, *Photon*, and *OpenMandriva*.
-  Allows use of the system's existing dnf repositories.
+  Allows use of the host's existing dnf repositories.
   By default, a hardcoded set of default dnf repositories is generated and used.
   Use `--repositories=` to identify a custom set of repositories to be enabled
   and used for the build.

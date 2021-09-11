@@ -1870,7 +1870,7 @@ def setup_dnf(args: CommandLineArguments, root: Path, repos: Sequence[Repo] = ()
                 )
             )
 
-    if args.use_system_repositories:
+    if args.use_host_repositories:
         default_repos  = ""
     else:
         default_repos  = f"{'repodir' if args.distribution == Distribution.photon else 'reposdir'}={workspace(root)}"
@@ -4507,7 +4507,9 @@ def create_parser() -> ArgumentParserMkosi:
         "--repositories", action=CommaDelimitedListAction, default=[], help="Repositories to use", metavar="REPOS"
     )
     group.add_argument(
-        "--use-system-repositories", action=BooleanAction, help="Use existing software package repositories"
+        "--use-host-repositories",
+        action=BooleanAction,
+        help="Use host's existing software repositories (only for dnf-based distributions)",
     )
     group.add_argument("--architecture", help="Override the architecture of installation")
 
@@ -5974,7 +5976,7 @@ def print_summary(args: CommandLineArguments) -> None:
         MkosiPrinter.info("                    Mirror: " + args.mirror)
     if args.repositories is not None and len(args.repositories) > 0:
         MkosiPrinter.info("              Repositories: " + ",".join(args.repositories))
-    MkosiPrinter.info("   Use System Repositories: " + yes_no(args.use_system_repositories))
+    MkosiPrinter.info("   Use Host Repositories: " + yes_no(args.use_host_repositories))
     MkosiPrinter.info("\nOUTPUT:")
     if args.hostname:
         MkosiPrinter.info("                  Hostname: " + args.hostname)
