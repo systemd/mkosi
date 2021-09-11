@@ -257,6 +257,14 @@ FEDORA_KEYS_MAP = {
     "36": "53DED2CB922D8B8D9E63FD18999F7CBF38AB71F4",
 }
 
+def fedora_release_cmp(a: str, b: str) -> int:
+    """Return negative if a<b, 0 if a==b, positive otherwise"""
+
+    # This will throw ValueError on non-integer strings
+    anum = 1000 if a == "rawhide" else int(a)
+    bnum = 1000 if b == "rawhide" else int(b)
+    return anum - bnum
+
 
 # Debian calls their architectures differently, so when calling debootstrap we
 # will have to map to their names
@@ -2068,7 +2076,10 @@ def install_fedora(args: CommandLineArguments, root: Path, do_run_build_script: 
 
     packages = {*args.packages}
     add_packages(args, packages, "fedora-release", "systemd")
-    add_packages(args, packages, "glibc-minimal-langpack", conditional="glibc")
+
+    if fedora_release_cmp(args.release, "34") < 0:
+        add_packages(args, packages, "glibc-minimal-langpack", conditional="glibc")
+
     if not do_run_build_script and args.bootable:
         add_packages(args, packages, "kernel-core", "kernel-modules", "binutils", "dracut")
         add_packages(args, packages, "systemd-udev", conditional="systemd")
