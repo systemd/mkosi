@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
+from __future__ import annotations
+
 import argparse
 import contextlib
 import dataclasses
@@ -10,6 +12,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import time
 import uuid
 from pathlib import Path
 from types import FrameType
@@ -99,7 +102,7 @@ class Distribution(enum.Enum):
     photon = 9, PackageType.rpm
     openmandriva = 10, PackageType.rpm
 
-    def __new__(cls, number: int, package_type: PackageType) -> "Distribution":
+    def __new__(cls, number: int, package_type: PackageType) -> Distribution:
         # This turns the list above into enum entries with .package_type attributes.
         # See https://docs.python.org/3.9/library/enum.html#when-to-use-new-vs-init
         # for an explanation.
@@ -518,6 +521,29 @@ def run(
             return subprocess.run(cmdline, check=check, stdout=stdout, stderr=stderr, **kwargs)
     except FileNotFoundError:
         die(f"{cmdline[0]} not found in PATH.")
+
+
+def run_with_backoff(
+    cmdline: Sequence[PathString],
+    check: bool = True,
+    delay_interrupt: bool = True,
+    stdout: _FILE = None,
+    stderr: _FILE = None,
+    *,
+    attempts: int,
+    **kwargs: Any,
+) -> CompletedProcess:
+    delay = 0.0
+    for attempt in range(attempts):
+        try:
+            return run(cmdline, check, delay_interrupt, stdout, stderr, **kwargs)
+        except subprocess.CalledProcessError:
+            if attempt == attempts - 1:
+                raise
+            time.sleep(delay)
+            delay = min(delay * 2 + 0.01, 1)
+
+    assert False  # make mypy happy
 
 
 def tmp_dir() -> Path:

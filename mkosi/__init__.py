@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
+from __future__ import annotations
+
 import argparse
 import ast
 import collections
@@ -19,6 +21,7 @@ import hashlib
 import http.server
 import importlib.resources
 import json
+import math
 import os
 import platform
 import re
@@ -76,6 +79,7 @@ from .backend import (
     patch_file,
     path_relative_to_cwd,
     run,
+    run_with_backoff,
     run_workspace_command,
     should_compress_fs,
     should_compress_output,
@@ -136,6 +140,13 @@ def write_resource(
 
 T = TypeVar("T")
 V = TypeVar("V")
+
+
+def print_between_lines(s: str) -> None:
+    size = os.get_terminal_size()
+    print('-' * size.columns)
+    print(s.rstrip('\n'))
+    print('-' * size.columns)
 
 
 def dictify(f: Callable[..., Generator[Tuple[T, V], None, None]]) -> Callable[..., Dict[T, V]]:
@@ -243,11 +254,6 @@ FEDORA_KEYS_MAP = {
     "36": "53DED2CB922D8B8D9E63FD18999F7CBF38AB71F4",
 }
 
-# 1 MB at the beginning of the disk for the GPT disk label, and
-# another MB at the end (this is actually more than needed.)
-GPT_HEADER_SIZE = 1024 * 1024
-GPT_FOOTER_SIZE = 1024 * 1024
-
 
 # Debian calls their architectures differently, so when calling debootstrap we
 # will have to map to their names
@@ -326,8 +332,8 @@ def format_bytes(num_bytes: int) -> str:
     return f"{num_bytes}B"
 
 
-def roundup512(x: int) -> int:
-    return (x + 511) & ~511
+def roundup(x: int, step: int) -> int:
+    return ((x + step - 1) // step) * step
 
 
 _IOC_NRBITS   =  8  # NOQA: E221,E222
@@ -513,7 +519,8 @@ def is_generated_root(args: Union[argparse.Namespace, CommandLineArguments]) -> 
 
 
 def image_size(args: CommandLineArguments) -> int:
-    size = GPT_HEADER_SIZE + GPT_FOOTER_SIZE
+    gpt = PartitionTable.empty(args.gpt_first_lba)
+    size = gpt.first_usable_offset() + gpt.footer_size()
 
     if args.root_size is not None:
         size += args.root_size
@@ -1140,10 +1147,10 @@ class LuksSetupOutput(NamedTuple):
     tmp: Optional[Path]
 
     @classmethod
-    def empty(cls) -> "LuksSetupOutput":
+    def empty(cls) -> LuksSetupOutput:
         return cls(None, None, None, None, None)
 
-    def without_generated_root(self, args: CommandLineArguments) -> "LuksSetupOutput":
+    def without_generated_root(self, args: CommandLineArguments) -> LuksSetupOutput:
         "A copy of self with .root optionally supressed"
         return LuksSetupOutput(
             None if is_generated_root(args) else self.root,
@@ -3422,46 +3429,86 @@ def make_generated_root(args: CommandLineArguments, root: Path, for_cache: bool)
     return None
 
 
-def read_partition_table(loopdev: Path) -> Tuple[List[str], int]:
-    table = []
-    last_sector = 0
+@dataclasses.dataclass
+class PartitionTable:
+    partitions: List[str]
+    last_partition_sector: Optional[int]
+    sector_size: int
+    first_lba: Optional[int]
 
-    c = run(["sfdisk", "--dump", loopdev],
-            stdout=PIPE,
-            universal_newlines=True)
+    grain: int = 4096
 
-    in_body = False
-    for line in c.stdout.splitlines():
-        line = line.strip()
+    @classmethod
+    def read(cls, loopdev: Path) -> PartitionTable:
+        table = []
+        last_sector = 0
+        sector_size = 512
+        first_lba = None
 
-        if line == "":  # empty line is where the body begins
-            in_body = True
-            continue
-        if not in_body:
-            continue
+        c = run(["sfdisk", "--dump", loopdev],
+                stdout=PIPE,
+                universal_newlines=True)
 
-        table += [line]
+        if 'disk' in ARG_DEBUG:
+            print_between_lines(c.stdout)
 
-        _, rest = line.split(":", 1)
-        fields = rest.split(",")
+        in_body = False
+        for line in c.stdout.splitlines():
+            line = line.strip()
 
-        start = None
-        size = None
+            if line.startswith('sector-size:'):
+                sector_size = int(line[12:])
+            if line.startswith('first-lba:'):
+                sector_size = int(line[10:])
 
-        for field in fields:
-            field = field.strip()
+            if line == "":  # empty line is where the body begins
+                in_body = True
+                continue
+            if not in_body:
+                continue
 
-            if field.startswith("start="):
-                start = int(field[6:])
-            if field.startswith("size="):
-                size = int(field[5:])
+            table += [line]
 
-        if start is not None and size is not None:
-            end = start + size
-            if end > last_sector:
-                last_sector = end
+            _, rest = line.split(":", 1)
+            fields = rest.split(",")
 
-    return table, last_sector * 512
+            start = None
+            size = None
+
+            for field in fields:
+                field = field.strip()
+
+                if field.startswith("start="):
+                    start = int(field[6:])
+                if field.startswith("size="):
+                    size = int(field[5:])
+
+            if start is not None and size is not None:
+                end = start + size
+                last_sector = max(last_sector, end)
+
+        return cls(table, last_sector * sector_size, sector_size, first_lba)
+
+    @classmethod
+    def empty(cls, first_lba: Optional[int] = None) -> PartitionTable:
+        return cls([], None, 512, first_lba)
+
+    def first_usable_offset(self, max_partitions: int = 128) -> int:
+        if self.last_partition_sector:
+            return roundup(self.last_partition_sector, self.grain)
+        elif self.first_lba is not None:
+            # No rounding here, we honour the specified value exactly.
+            return self.first_lba * self.sector_size
+        else:
+            # The header is like the footer, but we have a one-sector "protective MBR" at offset 0
+            return roundup(self.sector_size + self.footer_size(), self.grain)
+
+    def footer_size(self, max_partitions: int = 128) -> int:
+        # The footer must have enough space for the GPT header (one sector),
+        # and the GPT parition entry area. PEA size of 16384 (128 partitions)
+        # is recommended.
+        pea_sectors = math.ceil(max_partitions * 128 / self.sector_size)
+        return (1 + pea_sectors) * self.sector_size
 
 
 def insert_partition(
@@ -3476,43 +3523,57 @@ def insert_partition(
     uuid_opt: Optional[uuid.UUID] = None,
 ) -> int:
     if args.ran_sfdisk:
-        old_table, last_partition_sector = read_partition_table(loopdev)
+        old_table = PartitionTable.read(loopdev)
     else:
         # No partition table yet? Then let's fake one...
-        old_table = []
-        last_partition_sector = GPT_HEADER_SIZE
+        old_table = PartitionTable.empty(args.gpt_first_lba)
 
-    blob_size = roundup512(os.stat(blob.name).st_size)
+    blob_size = roundup(os.stat(blob.name).st_size, 512)
     luks_extra = 16 * 1024 * 1024 if args.encrypt == "all" else 0
-    new_size = last_partition_sector + blob_size + luks_extra + GPT_FOOTER_SIZE
+    partition_offset = old_table.first_usable_offset()
+    new_size = roundup(partition_offset + blob_size + luks_extra + old_table.footer_size(), 4096)
 
-    MkosiPrinter.print_step(f"Resizing disk image to {format_bytes(new_size)}...")
+    ss = f" ({new_size // old_table.sector_size} sectors)" if 'disk' in ARG_DEBUG else ""
+    MkosiPrinter.print_step(f"Resizing disk image to {format_bytes(new_size)}{ss}")
 
     os.truncate(raw.name, new_size)
     run(["losetup", "--set-capacity", loopdev])
 
-    MkosiPrinter.print_step(f"Inserting partition of {format_bytes(blob_size)}...")
+    ss = f" ({blob_size // old_table.sector_size} sectors)" if 'disk' in ARG_DEBUG else ""
+    MkosiPrinter.print_step(f"Inserting partition of {format_bytes(blob_size)}{ss}...")
 
-    table = "label: gpt\n"
     if args.gpt_first_lba is not None:
-        table += f"first-lba: {args.gpt_first_lba:d}\n"
+        first_lba: Optional[int] = args.gpt_first_lba
+    elif old_table.partitions:
+        first_lba = None   # no need to specify this if we already have partitions
+    else:
+        first_lba = partition_offset // old_table.sector_size
 
-    for t in old_table:
-        table += t + "\n"
-
+    new = []
     if uuid_opt is not None:
-        table += "uuid=" + str(uuid_opt) + ", "
+        new += [f'uuid={uuid_opt}']
 
     n_sectors = (blob_size + luks_extra) // 512
-    table += 'size={}, type={}, attrs={}, name="{}"\n'.format(
-        n_sectors, type_uuid, "GUID:60" if read_only else "", name
-    )
+    new += [f'size={n_sectors}',
+            f'type={type_uuid}',
+            f'attrs={"GUID:60" if read_only else ""}',
+            f'name="{name}"']
 
-    print(table)
+    table = ["label: gpt",
+             f"grain: {old_table.grain}"]
+    if first_lba is not None:
+        table += [f"first-lba: {first_lba}"]
 
-    run(["sfdisk", "--color=never", loopdev], input=table.encode("utf-8"))
+    table += [*old_table.partitions,
+              ', '.join(new)]
+
+    if 'disk' in ARG_DEBUG:
+        print_between_lines('\n'.join(table))
+
+    run(["sfdisk", "--color=never", "--no-reread", "--no-tell-kernel", loopdev],
+        input='\n'.join(table).encode("utf-8"))
     run(["sync"])
-    run(["partx", "--update", loopdev])
+    run_with_backoff(["blockdev", "--rereadpt", loopdev], attempts=10)
 
     MkosiPrinter.print_step("Writing partition...")
 
@@ -5025,7 +5086,7 @@ def create_parser() -> ArgumentParserMkosi:
         action=CommaDelimitedListAction,
         default=[],
         help="Turn on debugging output",
-        choices=("run", "build-script", "workspace-command"),
+        choices=("run", "build-script", "workspace-command", "disk"),
     )
     try:
         import argcomplete
@@ -6250,7 +6311,7 @@ class BuildOutput:
         return self.raw.name if self.raw is not None else None
 
     @classmethod
-    def empty(cls) -> "BuildOutput":
+    def empty(cls) -> BuildOutput:
         return cls(None, None, None, None, None, None, None)
 
 
