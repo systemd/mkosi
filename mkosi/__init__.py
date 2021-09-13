@@ -3459,7 +3459,7 @@ class PartitionTable:
             if line.startswith('sector-size:'):
                 sector_size = int(line[12:])
             if line.startswith('first-lba:'):
-                sector_size = int(line[10:])
+                first_lba = int(line[10:])
 
             if line == "":  # empty line is where the body begins
                 in_body = True
