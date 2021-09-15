@@ -21,7 +21,6 @@ import hashlib
 import http.server
 import importlib.resources
 import json
-import math
 import os
 import platform
 import re
@@ -71,6 +70,7 @@ from .backend import (
     MkosiException,
     MkosiPrinter,
     OutputFormat,
+    PartitionTable,
     SourceFileTransfer,
     die,
     install_grub,
@@ -78,6 +78,8 @@ from .backend import (
     partition,
     patch_file,
     path_relative_to_cwd,
+    print_between_lines,
+    roundup,
     run,
     run_with_backoff,
     run_workspace_command,
@@ -140,13 +142,6 @@ def write_resource(
 
 T = TypeVar("T")
 V = TypeVar("V")
-
-
-def print_between_lines(s: str) -> None:
-    size = os.get_terminal_size()
-    print('-' * size.columns)
-    print(s.rstrip('\n'))
-    print('-' * size.columns)
 
 
 def dictify(f: Callable[..., Generator[Tuple[T, V], None, None]]) -> Callable[..., Dict[T, V]]:
@@ -330,10 +325,6 @@ def format_bytes(num_bytes: int) -> str:
         return f"{num_bytes/1024 :0.1f}K"
 
     return f"{num_bytes}B"
-
-
-def roundup(x: int, step: int) -> int:
-    return ((x + step - 1) // step) * step
 
 
 _IOC_NRBITS   =  8  # NOQA: E221,E222
@@ -3427,88 +3418,6 @@ def make_generated_root(args: CommandLineArguments, root: Path, for_cache: bool)
         return generate_squashfs(args, patched_root, for_cache)
 
     return None
-
-
-@dataclasses.dataclass
-class PartitionTable:
-    partitions: List[str]
-    last_partition_sector: Optional[int]
-    sector_size: int
-    first_lba: Optional[int]
-
-    grain: int = 4096
-
-    @classmethod
-    def read(cls, loopdev: Path) -> PartitionTable:
-        table = []
-        last_sector = 0
-        sector_size = 512
-        first_lba = None
-
-        c = run(["sfdisk", "--dump", loopdev],
-                stdout=PIPE,
-                universal_newlines=True)
-
-        if 'disk' in ARG_DEBUG:
-            print_between_lines(c.stdout)
-
-        in_body = False
-        for line in c.stdout.splitlines():
-            line = line.strip()
-
-            if line.startswith('sector-size:'):
-                sector_size = int(line[12:])
-            if line.startswith('first-lba:'):
-                first_lba = int(line[10:])
-
-            if line == "":  # empty line is where the body begins
-                in_body = True
-                continue
-            if not in_body:
-                continue
-
-            table += [line]
-
-            _, rest = line.split(":", 1)
-            fields = rest.split(",")
-
-            start = None
-            size = None
-
-            for field in fields:
-                field = field.strip()
-
-                if field.startswith("start="):
-                    start = int(field[6:])
-                if field.startswith("size="):
-                    size = int(field[5:])
-
-            if start is not None and size is not None:
-                end = start + size
-                last_sector = max(last_sector, end)
-
-        return cls(table, last_sector * sector_size, sector_size, first_lba)
-
-    @classmethod
-    def empty(cls, first_lba: Optional[int] = None) -> PartitionTable:
-        return cls([], None, 512, first_lba)
-
-    def first_usable_offset(self, max_partitions: int = 128) -> int:
-        if self.last_partition_sector:
-            return roundup(self.last_partition_sector, self.grain)
-        elif self.first_lba is not None:
-            # No rounding here, we honour the specified value exactly.
-            return self.first_lba * self.sector_size
-        else:
-            # The header is like the footer, but we have a one-sector "protective MBR" at offset 0
-            return roundup(self.sector_size + self.footer_size(), self.grain)
-
-    def footer_size(self, max_partitions: int = 128) -> int:
-        # The footer must have enough space for the GPT header (one sector),
-        # and the GPT parition entry area. PEA size of 16384 (128 partitions)
-        # is recommended.
-        pea_sectors = math.ceil(max_partitions * 128 / self.sector_size)
-        return (1 + pea_sectors) * self.sector_size
 
 
 def insert_partition(
