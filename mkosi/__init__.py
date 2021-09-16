@@ -1370,7 +1370,12 @@ def mount_cache(args: CommandLineArguments, root: Path) -> Generator[None, None,
     with complete_step("Mounting Package Cache"):
         if args.distribution in (Distribution.fedora, Distribution.mageia, Distribution.openmandriva):
             caches = [mount_bind(args.cache_path, root / "var/cache/dnf")]
-        elif args.distribution in (Distribution.centos, Distribution.centos_epel):
+        elif args.distribution in (
+            Distribution.centos,
+            Distribution.centos_epel,
+            Distribution.rocky,
+            Distribution.rocky_epel,
+        ):
             # We mount both the YUM and the DNF cache in this case, as
             # YUM might just be redirected to DNF even if we invoke
             # the former
@@ -2216,6 +2221,49 @@ def install_centos_old(args: CommandLineArguments, root: Path, epel_release: int
     return ["base", "updates", "extras", "centosplus"]
 
 
+def install_rocky_repos(args: CommandLineArguments, root: Path, epel_release: int) -> List[str]:
+    # Repos for Rocky Linux 8 and later
+    gpgpath = Path("/etc/pki/rpm-gpg/RPM-GPG-KEY-rockyofficial")
+    gpgurl = "https://download.rockylinux.org/pub/rocky/RPM-GPG-KEY-rockyofficial"
+    epel_gpgpath = Path(f"/etc/pki/rpm-gpg/RPM-GPG-KEY-EPEL-{epel_release}")
+    epel_gpgurl = f"https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-{epel_release}"
+
+    if args.mirror:
+        appstream_url = f"baseurl={args.mirror}/rocky/{args.release}/AppStream/x86_64/os"
+        baseos_url = f"baseurl={args.mirror}/rocky/{args.release}/BaseOS/x86_64/os"
+        extras_url = f"baseurl={args.mirror}/rocky/{args.release}/extras/x86_64/os"
+        plus_url = f"baseurl={args.mirror}/rocky/{args.release}/plus/x86_64/os"
+        epel_url = f"baseurl={args.mirror}/epel/{epel_release}/Everything/x86_64"
+    else:
+        appstream_url = (
+            f"mirrorlist=https://mirrors.rockylinux.org/mirrorlist?arch=x86_64&repo=AppStream-{args.release}"
+        )
+        baseos_url = f"mirrorlist=https://mirrors.rockylinux.org/mirrorlist?arch=x86_64&repo=BaseOS-{args.release}"
+        extras_url = f"mirrorlist=https://mirrors.rockylinux.org/mirrorlist?arch=x86_64&repo=extras-{args.release}"
+        plus_url = f"mirrorlist=https://mirrors.rockylinux.org/mirrorlist?arch=x86_64&repo=rockyplus-{args.release}"
+        epel_url = f"mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=epel-{epel_release}&arch=x86_64"
+
+    setup_dnf(
+        args,
+        root,
+        repos=[
+            Repo("AppStream", f"Rocky-{args.release} - AppStream", appstream_url, gpgpath, gpgurl),
+            Repo("BaseOS", f"Rocky-{args.release} - Base", baseos_url, gpgpath, gpgurl),
+            Repo("extras", f"Rocky-{args.release} - Extras", extras_url, gpgpath, gpgurl),
+            Repo("plus", f"Rocky-{args.release} - Plus", plus_url, gpgpath, gpgurl),
+            Repo(
+                "epel",
+                f"name=Extra Packages for Enterprise Linux {epel_release} - $basearch",
+                epel_url,
+                epel_gpgpath,
+                epel_gpgurl,
+            ),
+        ],
+    )
+
+    return ["AppStream", "BaseOS", "extras", "plus"]
+
+
 def install_centos_new(args: CommandLineArguments, root: Path, epel_release: int) -> List[str]:
     # Repos for CentOS 8 and later
 
@@ -2315,6 +2363,37 @@ def install_centos(args: CommandLineArguments, root: Path, do_run_build_script: 
         add_packages(args, packages, "systemd-networkd", conditional="systemd")
 
     invoke_dnf_or_yum(args, root, repos, packages, do_run_build_script)
+
+
+@complete_step("Installing Rocky Linux…")
+def install_rocky(args: CommandLineArguments, root: Path, do_run_build_script: bool) -> None:
+    epel_release = int(args.release.split(".")[0])
+    default_repos = install_rocky_repos(args, root, epel_release)
+
+    packages = {*args.packages}
+    add_packages(args, packages, "rocky-release", "systemd")
+    if not do_run_build_script and args.bootable:
+        add_packages(args, packages, "kernel", "dracut", "binutils")
+        configure_dracut(args, root)
+        add_packages(args, packages, "systemd-udev", conditional="systemd")
+
+    if do_run_build_script:
+        packages.update(args.build_packages)
+
+    repos = args.repositories or default_repos
+
+    if args.distribution == Distribution.rocky_epel:
+        repos += ["epel"]
+        add_packages(args, packages, "epel-release")
+
+    if do_run_build_script:
+        packages.update(args.build_packages)
+
+    if not do_run_build_script and args.distribution == Distribution.rocky_epel and args.network_veth:
+        add_packages(args, packages, "systemd-networkd", conditional="systemd")
+
+    invoke_dnf_or_yum(args, root, repos, packages, do_run_build_script)
+
 
 
 def debootstrap_knows_arg(arg: str) -> bool:
@@ -2752,6 +2831,8 @@ def install_distribution(args: CommandLineArguments, root: Path, do_run_build_sc
         Distribution.clear: install_clear,
         Distribution.photon: install_photon,
         Distribution.openmandriva: install_openmandriva,
+        Distribution.rocky: install_rocky,
+        Distribution.rocky_epel: install_rocky,
     }
 
     disable_kernel_install(args, root)
@@ -5639,6 +5720,8 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
             args.release = "34"
         elif args.distribution in (Distribution.centos, Distribution.centos_epel):
             args.release = "8"
+        elif args.distribution in (Distribution.rocky, Distribution.rocky_epel):
+            args.release = "8"
         elif args.distribution == Distribution.mageia:
             args.release = "7"
         elif args.distribution == Distribution.debian:
@@ -5688,6 +5771,11 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
                 "You must use --without-unified-kernel-images."
             )
 
+    if args.distribution in (Distribution.rocky, Distribution.rocky_epel):
+        epel_release = int(args.release.split(".")[0])
+        if epel_release == 8 and args.output_format == OutputFormat.gpt_btrfs:
+            die(f"Sorry, Rocky {epel_release} does not support btrfs")
+
     # Remove once https://github.com/clearlinux/clr-boot-manager/pull/238 is merged and available.
     if args.distribution == Distribution.clear and args.output_format == OutputFormat.gpt_btrfs:
         die("Sorry, Clear Linux does not support btrfs")
@@ -5713,6 +5801,8 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
             args.mirror = "http://mirror.archlinuxarm.org"
         elif args.distribution == Distribution.opensuse:
             args.mirror = "http://download.opensuse.org"
+        elif args.distribution in (Distribution.rocky, Distribution.rocky_epel):
+            args.mirror = None
 
     if args.minimize and not args.output_format.can_minimize():
         die("Minimal file systems only supported for ext4 and btrfs.")
@@ -6113,7 +6203,14 @@ def print_summary(args: CommandLineArguments) -> None:
     MkosiPrinter.info("\nCONTENT:")
     MkosiPrinter.info("                  Packages: " + line_join_list(args.packages))
 
-    if args.distribution in (Distribution.fedora, Distribution.centos, Distribution.centos_epel, Distribution.mageia):
+    if args.distribution in (
+        Distribution.fedora,
+        Distribution.centos,
+        Distribution.centos_epel,
+        Distribution.mageia,
+        Distribution.rocky,
+        Distribution.rocky_epel,
+    ):
         MkosiPrinter.info("        With Documentation: " + yes_no(args.with_docs))
 
     MkosiPrinter.info("             Package Cache: " + none_to_none(args.cache_path))
