@@ -338,7 +338,7 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 `UseHostRepositories=`, `--use-host-repositories`
 
 : This option is only applicable for dnf-based distributions:
-  *CentOS*, *Fedora Linux*, *Mageia*, *Photon*, *Rocky*, and *OpenMandriva*.
+  *CentOS*, *Fedora Linux*, *Mageia*, *Photon*, *Rocky Linux*, and *OpenMandriva*.
   Allows use of the host's existing dnf repositories.
   By default, a hardcoded set of default dnf repositories is generated and used.
   Use `--repositories=` to identify a custom set of repositories to be enabled
@@ -647,7 +647,7 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 
 `TarStripSELinuxContext=`, `--tar-strip-selinux-context`
 
-: If running on a SELinux-enabled system (Fedora Linux, CentOS, Rocky), files
+: If running on a SELinux-enabled system (Fedora Linux, CentOS, Rocky Linux), files
   inside the container are tagged with SELinux context extended
   attributes (`xattrs`), which may interfere with host SELinux rules
   in building or further container import stages.  This option strips
@@ -1192,7 +1192,7 @@ distribution that packages `dnf` may be used to build *Fedora Linux*,
 *Mageia* or *OpenMandriva* images. Any distro that packages `pacstrap` may be used to
 build *Arch Linux* images. Any distribution that packages `zypper` may
 be used to build *openSUSE* images. Any distribution that packages
-`yum` (or the newer replacement `dnf`) may be used to build *CentOS* or *Rocky*
+`yum` (or the newer replacement `dnf`) may be used to build *CentOS* or *Rocky Linux*
 images.
 
 Currently, *Fedora Linux* packages all relevant tools as of Fedora 28.
