@@ -2413,6 +2413,9 @@ def install_debian_or_ubuntu(args: CommandLineArguments, root: Path, *, do_run_b
         f"--components={','.join(repos)}",
     ]
 
+    # ca-certificates is needed for extra repos using https
+    cmdline += ["--include=ca-certificates"]
+
     if args.architecture is not None:
         debarch = DEBIAN_ARCHITECTURES.get(args.architecture)
         cmdline += [f"--arch={debarch}"]
@@ -2485,6 +2488,10 @@ def install_debian_or_ubuntu(args: CommandLineArguments, root: Path, *, do_run_b
         dpkg_conf = root / "etc/dpkg/dpkg.cfg.d/01_nodoc"
         with dpkg_conf.open("w") as f:
             f.writelines(f"path-exclude {d}/*\n" for d in doc_paths)
+
+    # Update repo list, needed when /etc/apt/sources.list.d/*.list is non empty
+    cmdline = ["/usr/bin/apt-get", "update"]
+    run_workspace_command(args, root, cmdline, network=True)
 
     cmdline = ["/usr/bin/apt-get", "--assume-yes", "--no-install-recommends", "install", *extra_packages]
     env = {
