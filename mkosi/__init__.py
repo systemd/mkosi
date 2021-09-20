@@ -6218,18 +6218,14 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
         args.kernel_command_line.append("console=ttyS0")
 
     if args.bootable and args.usr_only and not args.verity:
-        # GPT auto-discovery on empty kernel command lines only looks
-        # for root partitions (in order to avoid ambiguities), if we
-        # shall operate without one (and only have a /usr partition)
-        # we thus need to explicitly say which partition to mount.
-        args.kernel_command_line.append(
-            "mount.usr=/dev/disk/by-partlabel/"
-            + xescape(
-                root_partition_description(
-                    args=None, image_id=args.image_id, image_version=args.image_version, usr_only=args.usr_only
-                )
-            )
-        )
+        # GPT auto-discovery on empty kernel command lines only looks for root partitions
+        # (in order to avoid ambiguities), if we shall operate without one (and only have
+        # a /usr partition) we thus need to explicitly say which partition to mount.
+        name = root_partition_description(args=None,
+                                          image_id=args.image_id,
+                                          image_version=args.image_version,
+                                          usr_only=args.usr_only)
+        args.kernel_command_line.append(f"mount.usr=/dev/disk/by-partlabel/{xescape(name)}")
 
     if not args.read_only:
         args.kernel_command_line.append("rw")
