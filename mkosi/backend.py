@@ -103,6 +103,8 @@ class Distribution(enum.Enum):
     openmandriva = 10, PackageType.rpm
     rocky = 11, PackageType.rpm
     rocky_epel = 12, PackageType.rpm
+    alma = 13, PackageType.rpm
+    alma_epel = 14, PackageType.rpm
 
     def __new__(cls, number: int, package_type: PackageType) -> Distribution:
         # This turns the list above into enum entries with .package_type attributes.

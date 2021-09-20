@@ -21,6 +21,7 @@ jobs:
           - ubuntu
           - fedora
           - rocky_epel
+          - alma_epel
         format:
           - directory
           - tar
@@ -31,7 +32,7 @@ jobs:
           - gpt_squashfs
           - plain_squashfs
         exclude:
-          # CentOS 8/Rocky does not support btrfs.
+          # CentOS 8/Rocky/Alma Linux does not support btrfs.
           - distro: centos
             format: gpt_btrfs
           - distro: centos_epel
@@ -39,6 +40,10 @@ jobs:
           - distro: rocky
             format: gpt_btrfs
           - distro: rocky_epel
+            format: gpt_btrfs
+          - distro: alma
+            format: gpt_btrfs
+          - distro: alma_epel
             format: gpt_btrfs
 
     steps:
@@ -128,6 +133,7 @@ jobs:
           matrix.distro == 'arch' ||
           matrix.distro == 'centos' ||
           matrix.distro == 'rocky' ||
+          matrix.distro == 'alma' ||
           matrix.distro == 'fedora')
       run: |
         tee mkosi.default <<- EOF
@@ -152,6 +158,7 @@ jobs:
           matrix.distro == 'arch' ||
           matrix.distro == 'centos' ||
           matrix.distro == 'rocky' ||
+          matrix.distro == 'alma' ||
           matrix.distro == 'fedora')
       run: sudo ./tests/pexpect/boot.py python3 -m mkosi qemu
 
