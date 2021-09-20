@@ -72,18 +72,17 @@ from .backend import (
     MkosiException,
     MkosiPrinter,
     OutputFormat,
+    Partition,
+    PartitionIdentifier,
     PartitionTable,
     SourceFileTransfer,
     die,
     install_grub,
     nspawn_params_for_blockdev_access,
-    partition,
     patch_file,
     path_relative_to_cwd,
-    print_between_lines,
     roundup,
     run,
-    run_with_backoff,
     run_workspace_command,
     should_compress_fs,
     should_compress_output,
@@ -525,38 +524,6 @@ def is_generated_root(args: Union[argparse.Namespace, CommandLineArguments]) -> 
     return args.minimize or args.output_format.is_squashfs() or args.usr_only
 
 
-def image_size(args: CommandLineArguments) -> int:
-    gpt = PartitionTable.empty(args.gpt_first_lba)
-    size = gpt.first_usable_offset() + gpt.footer_size()
-
-    if args.root_size is not None:
-        size += args.root_size
-    if args.home_size is not None:
-        size += args.home_size
-    if args.srv_size is not None:
-        size += args.srv_size
-    if args.var_size is not None:
-        size += args.var_size
-    if args.tmp_size is not None:
-        size += args.tmp_size
-    if args.bootable:
-        if "uefi" in args.boot_protocols:
-            assert args.esp_size
-            size += args.esp_size
-        if "bios" in args.boot_protocols:
-            size += BIOS_PARTITION_SIZE
-    if args.xbootldr_size is not None:
-        size += args.xbootldr_size
-    if args.swap_size is not None:
-        size += args.swap_size
-    if args.verity_size is not None:
-        size += args.verity_size
-    if args.verity_sig_size is not None:
-        size += args.verity_sig_size
-
-    return size
-
-
 def disable_cow(path: PathString) -> None:
     """Disable copy-on-write if applicable on filesystem"""
 
@@ -602,118 +569,52 @@ def root_partition_name(
     return prefix + ' ' + (suffix if suffix is not None else 'Partition')
 
 
-def determine_partition_table(args: CommandLineArguments) -> Tuple[str, bool]:
-    pn = 1
-    table = "label: gpt\n"
-    if args.gpt_first_lba is not None:
-        table += f"first-lba: {args.gpt_first_lba:d}\n"
-    run_sfdisk = False
-    args.esp_partno = None
-    args.bios_partno = None
+def initialize_partition_table(args: CommandLineArguments) -> None:
+    if args.partition_table is not None:
+        return
 
-    if args.bootable:
-        if "uefi" in args.boot_protocols:
-            assert args.esp_size is not None
-            table += f'size={args.esp_size // 512}, type={GPT_ESP}, name="ESP System Partition"\n'
-            args.esp_partno = pn
-            pn += 1
+    if not args.output_format.is_disk():
+        return
 
-        if "bios" in args.boot_protocols:
-            table += f'size={BIOS_PARTITION_SIZE // 512}, type={GPT_BIOS}, name="BIOS Boot Partition"\n'
-            args.bios_partno = pn
-            pn += 1
+    table = PartitionTable(first_lba=args.gpt_first_lba)
+    no_btrfs = args.output_format != OutputFormat.gpt_btrfs
 
-        run_sfdisk = True
+    for condition, label, size, type_uuid, name, read_only in (
+            (args.bootable and "uefi" in args.boot_protocols,
+             PartitionIdentifier.esp, args.esp_size, GPT_ESP, "ESP System Partition", False),
+            (args.bootable and "bios" in args.boot_protocols,
+             PartitionIdentifier.bios, BIOS_PARTITION_SIZE, GPT_BIOS, "BIOS Boot Partition", False),
+            (args.xbootldr_size is not None,
+             PartitionIdentifier.xbootldr, args.xbootldr_size, GPT_XBOOTLDR, "Boot Loader Partition", False),
+            (args.swap_size is not None,
+             PartitionIdentifier.swap, args.swap_size, GPT_SWAP, "Swap Partition", False),
+            (no_btrfs and args.home_size is not None,
+             PartitionIdentifier.home, args.home_size, GPT_HOME, "Home Partition", False),
+            (no_btrfs and args.srv_size is not None,
+             PartitionIdentifier.srv, args.srv_size, GPT_SRV, "Server Data Partition", False),
+            (no_btrfs and args.var_size is not None,
+             PartitionIdentifier.var, args.var_size, GPT_VAR, "Variable Data Partition", False),
+            (no_btrfs and args.tmp_size is not None,
+             PartitionIdentifier.tmp, args.tmp_size, GPT_TMP, "Temporary Data Partition", False),
+            (not is_generated_root(args),
+             PartitionIdentifier.root, args.root_size,
+             gpt_root_native(args.architecture, args.usr_only).root,
+             root_partition_name(args),
+             args.read_only)):
 
-    if args.xbootldr_size is not None:
-        table += f'size={args.xbootldr_size // 512}, type={GPT_XBOOTLDR}, name="Boot Loader Partition"\n'
-        args.xbootldr_partno = pn
-        pn += 1
-    else:
-        args.xbootldr_partno = None
+        if condition and size is not None:
+            table.add(label, size, type_uuid, name, read_only=read_only)
 
-    if args.swap_size is not None:
-        table += f'size={args.swap_size // 512}, type={GPT_SWAP}, name="Swap Partition"\n'
-        args.swap_partno = pn
-        pn += 1
-        run_sfdisk = True
-    else:
-        args.swap_partno = None
-
-    args.home_partno = None
-    args.srv_partno = None
-    args.var_partno = None
-    args.tmp_partno = None
-
-    if args.output_format != OutputFormat.gpt_btrfs:
-        if args.home_size is not None:
-            table += f'size={args.home_size // 512}, type={GPT_HOME}, name="Home Partition"\n'
-            args.home_partno = pn
-            pn += 1
-            run_sfdisk = True
-
-        if args.srv_size is not None:
-            table += f'size={args.srv_size // 512}, type={GPT_SRV}, name="Server Data Partition"\n'
-            args.srv_partno = pn
-            pn += 1
-            run_sfdisk = True
-
-        if args.var_size is not None:
-            table += f'size={args.var_size // 512}, type={GPT_VAR}, name="Variable Data Partition"\n'
-            args.var_partno = pn
-            pn += 1
-            run_sfdisk = True
-
-        if args.tmp_size is not None:
-            table += f'size={args.tmp_size // 512}, type={GPT_TMP}, name="Temporary Data Partition"\n'
-            args.tmp_partno = pn
-            pn += 1
-            run_sfdisk = True
-
-    if not is_generated_root(args):
-        table += 'type={}, attrs={}, name="{}"\n'.format(
-            gpt_root_native(args.architecture, args.usr_only).root,
-            "GUID:60" if args.read_only and args.output_format != OutputFormat.gpt_btrfs else "",
-            root_partition_name(args),
-        )
-        run_sfdisk = True
-
-    args.root_partno = pn
-    pn += 1
-
-    if args.verity:
-        args.verity_partno = pn
-        pn += 1
-    else:
-        args.verity_partno = None
-
-    if args.verity == "signed":
-        args.verity_sig_partno = pn
-        pn += 1
-    else:
-        args.verity_sig_partno = None
-
-    return table, run_sfdisk
-
-
-def exec_sfdisk(args: CommandLineArguments, f: BinaryIO) -> None:
-
-    table, run_sfdisk = determine_partition_table(args)
-
-    if run_sfdisk:
-        run(["sfdisk", "--color=never", f.name], input=table.encode("utf-8"))
-        run(["sync"])
-
-    args.ran_sfdisk = run_sfdisk
+    args.partition_table = table
 
 
 def create_image(args: CommandLineArguments, for_cache: bool) -> Optional[BinaryIO]:
-    if not args.output_format.is_disk():
+    initialize_partition_table(args)
+    if args.partition_table is None:
         return None
 
-    with complete_step(
-        "Creating image with partition table…", "Created image with partition table as {.name}"
-    ) as output:
+    with complete_step("Creating image with partition table…",
+                       "Created image with partition table as {.name}") as output:
 
         f: BinaryIO = cast(
             BinaryIO,
@@ -721,15 +622,18 @@ def create_image(args: CommandLineArguments, for_cache: bool) -> Optional[Binary
         )
         output.append(f)
         disable_cow(f.name)
-        f.truncate(image_size(args))
+        disk_size = args.partition_table.disk_size()
+        f.truncate(disk_size)
 
-        exec_sfdisk(args, f)
+        if args.partition_table.partitions:
+            args.partition_table.run_sfdisk(f.name)
 
     return f
 
 
 def refresh_partition_table(args: CommandLineArguments, f: BinaryIO) -> None:
-    if not args.output_format.is_disk():
+    initialize_partition_table(args)
+    if args.partition_table is None:
         return
 
     # Let's refresh all UUIDs and labels to match the new build. This
@@ -745,7 +649,8 @@ def refresh_partition_table(args: CommandLineArguments, f: BinaryIO) -> None:
     # configuration is identical.
 
     with complete_step("Refreshing partition table…", "Refreshed partition table."):
-        exec_sfdisk(args, f)
+        if args.partition_table.partitions:
+            args.partition_table.run_sfdisk(f.name)
 
 
 def refresh_file_system(args: CommandLineArguments, dev: Optional[Path], cached: bool) -> None:
@@ -835,8 +740,6 @@ def reuse_cache_image(
             return None, False
 
         output.append(f)
-        _, run_sfdisk = determine_partition_table(args)
-        args.ran_sfdisk = run_sfdisk
 
     return f, True
 
@@ -863,23 +766,17 @@ def attach_image_loopback(
             run(["losetup", "--detach", loopdev])
 
 
-def optional_partition(loopdev: Path, partno: Optional[int]) -> Optional[Path]:
-    if partno is None:
-        return None
-
-    return partition(loopdev, partno)
-
-
 def prepare_swap(args: CommandLineArguments, loopdev: Optional[Path], cached: bool) -> None:
     if loopdev is None:
         return
     if cached:
         return
-    if args.swap_partno is None:
+    part = args.get_partition(PartitionIdentifier.swap)
+    if not part:
         return
 
     with complete_step("Formatting swap partition"):
-        run(["mkswap", "-Lswap", partition(loopdev, args.swap_partno)])
+        run(["mkswap", "-Lswap", part.blockdev(loopdev)])
 
 
 def prepare_esp(args: CommandLineArguments, loopdev: Optional[Path], cached: bool) -> None:
@@ -887,11 +784,12 @@ def prepare_esp(args: CommandLineArguments, loopdev: Optional[Path], cached: boo
         return
     if cached:
         return
-    if args.esp_partno is None:
+    part = args.get_partition(PartitionIdentifier.esp)
+    if not part:
         return
 
     with complete_step("Formatting ESP partition"):
-        run(["mkfs.fat", "-nEFI", "-F32", partition(loopdev, args.esp_partno)])
+        run(["mkfs.fat", "-nEFI", "-F32", part.blockdev(loopdev)])
 
 
 def prepare_xbootldr(args: CommandLineArguments, loopdev: Optional[Path], cached: bool) -> None:
@@ -899,11 +797,13 @@ def prepare_xbootldr(args: CommandLineArguments, loopdev: Optional[Path], cached
         return
     if cached:
         return
-    if args.xbootldr_partno is None:
+
+    part = args.get_partition(PartitionIdentifier.xbootldr)
+    if not part:
         return
 
     with complete_step("Formatting XBOOTLDR partition"):
-        run(["mkfs.fat", "-nXBOOTLDR", "-F32", partition(loopdev, args.xbootldr_partno)])
+        run(["mkfs.fat", "-nXBOOTLDR", "-F32", part.blockdev(loopdev)])
 
 
 def mkfs_ext4_cmd(label: str, mount: PathString) -> List[str]:
@@ -984,7 +884,8 @@ def luks_format_root(
 ) -> None:
     if args.encrypt != "all":
         return
-    if args.root_partno is None:
+    part = args.get_partition(PartitionIdentifier.root)
+    if not part:
         return
     if is_generated_root(args) and not inserting_generated_root:
         return
@@ -994,14 +895,15 @@ def luks_format_root(
         return
     assert args.passphrase is not None
 
-    with complete_step("Setting up LUKS on root partition…"):
-        luks_format(partition(loopdev, args.root_partno), args.passphrase)
+    with complete_step(f"Setting up LUKS on {part.name}…"):
+        luks_format(part.blockdev(loopdev), args.passphrase)
 
 
 def luks_format_home(args: CommandLineArguments, loopdev: Path, do_run_build_script: bool, cached: bool) -> None:
     if args.encrypt is None:
         return
-    if args.home_partno is None:
+    part = args.get_partition(PartitionIdentifier.home)
+    if not part:
         return
     if do_run_build_script:
         return
@@ -1009,14 +911,15 @@ def luks_format_home(args: CommandLineArguments, loopdev: Path, do_run_build_scr
         return
     assert args.passphrase is not None
 
-    with complete_step("Setting up LUKS on home partition…"):
-        luks_format(partition(loopdev, args.home_partno), args.passphrase)
+    with complete_step(f"Setting up LUKS on {part.name}…"):
+        luks_format(part.blockdev(loopdev), args.passphrase)
 
 
 def luks_format_srv(args: CommandLineArguments, loopdev: Path, do_run_build_script: bool, cached: bool) -> None:
     if args.encrypt is None:
         return
-    if args.srv_partno is None:
+    part = args.get_partition(PartitionIdentifier.srv)
+    if not part:
         return
     if do_run_build_script:
         return
@@ -1024,14 +927,15 @@ def luks_format_srv(args: CommandLineArguments, loopdev: Path, do_run_build_scri
         return
     assert args.passphrase is not None
 
-    with complete_step("Setting up LUKS on server data partition…"):
-        luks_format(partition(loopdev, args.srv_partno), args.passphrase)
+    with complete_step(f"Setting up LUKS on {part.name}…"):
+        luks_format(part.blockdev(loopdev), args.passphrase)
 
 
 def luks_format_var(args: CommandLineArguments, loopdev: Path, do_run_build_script: bool, cached: bool) -> None:
     if args.encrypt is None:
         return
-    if args.var_partno is None:
+    part = args.get_partition(PartitionIdentifier.var)
+    if not part:
         return
     if do_run_build_script:
         return
@@ -1039,14 +943,15 @@ def luks_format_var(args: CommandLineArguments, loopdev: Path, do_run_build_scri
         return
     assert args.passphrase is not None
 
-    with complete_step("Setting up LUKS on variable data partition…"):
-        luks_format(partition(loopdev, args.var_partno), args.passphrase)
+    with complete_step(f"Setting up LUKS on {part.name}…"):
+        luks_format(part.blockdev(loopdev), args.passphrase)
 
 
 def luks_format_tmp(args: CommandLineArguments, loopdev: Path, do_run_build_script: bool, cached: bool) -> None:
     if args.encrypt is None:
         return
-    if args.tmp_partno is None:
+    part = args.get_partition(PartitionIdentifier.tmp)
+    if not part:
         return
     if do_run_build_script:
         return
@@ -1054,16 +959,16 @@ def luks_format_tmp(args: CommandLineArguments, loopdev: Path, do_run_build_scri
         return
     assert args.passphrase is not None
 
-    with complete_step("Setting up LUKS on temporary data partition…"):
-        luks_format(partition(loopdev, args.tmp_partno), args.passphrase)
+    with complete_step(f"Setting up LUKS on {part.name}…"):
+        luks_format(part.blockdev(loopdev), args.passphrase)
 
 
 @contextlib.contextmanager
-def luks_open(dev: Path, passphrase: Dict[str, str], partition: str) -> Generator[Path, None, None]:
+def luks_open(part: Partition, loopdev: Path, passphrase: Dict[str, str]) -> Generator[Path, None, None]:
     name = str(uuid.uuid4())
-    # FIXME: partition is only used in messages, rename it?
+    dev = part.blockdev(loopdev)
 
-    with complete_step(f"Setting up LUKS on {partition}…"):
+    with complete_step(f"Setting up LUKS on {part.name}…"):
         if passphrase["type"] == "stdin":
             passphrase_content = (passphrase["content"] + "\n").encode("utf-8")
             run(["cryptsetup", "open", "--type", "luks", dev, name], input=passphrase_content)
@@ -1076,7 +981,7 @@ def luks_open(dev: Path, passphrase: Dict[str, str], partition: str) -> Generato
     try:
         yield path
     finally:
-        with complete_step(f"Closing LUKS {partition}"):
+        with complete_step(f"Closing LUKS on {part.name}"):
             run(["cryptsetup", "close", path])
 
 
@@ -1085,7 +990,8 @@ def luks_setup_root(
 ) -> ContextManager[Optional[Path]]:
     if args.encrypt != "all":
         return contextlib.nullcontext()
-    if args.root_partno is None:
+    part = args.get_partition(PartitionIdentifier.root)
+    if not part:
         return contextlib.nullcontext()
     if is_generated_root(args) and not inserting_generated_root:
         return contextlib.nullcontext()
@@ -1093,7 +999,7 @@ def luks_setup_root(
         return contextlib.nullcontext()
     assert args.passphrase is not None
 
-    return luks_open(partition(loopdev, args.root_partno), args.passphrase, "root partition")
+    return luks_open(part, loopdev, args.passphrase)
 
 
 def luks_setup_home(
@@ -1101,13 +1007,14 @@ def luks_setup_home(
 ) -> ContextManager[Optional[Path]]:
     if args.encrypt is None:
         return contextlib.nullcontext()
-    if args.home_partno is None:
+    part = args.get_partition(PartitionIdentifier.home)
+    if not part:
         return contextlib.nullcontext()
     if do_run_build_script:
         return contextlib.nullcontext()
     assert args.passphrase is not None
 
-    return luks_open(partition(loopdev, args.home_partno), args.passphrase, "home partition")
+    return luks_open(part, loopdev, args.passphrase)
 
 
 def luks_setup_srv(
@@ -1115,13 +1022,14 @@ def luks_setup_srv(
 ) -> ContextManager[Optional[Path]]:
     if args.encrypt is None:
         return contextlib.nullcontext()
-    if args.srv_partno is None:
+    part = args.get_partition(PartitionIdentifier.srv)
+    if not part:
         return contextlib.nullcontext()
     if do_run_build_script:
         return contextlib.nullcontext()
     assert args.passphrase is not None
 
-    return luks_open(partition(loopdev, args.srv_partno), args.passphrase, "server data partition")
+    return luks_open(part, loopdev, args.passphrase)
 
 
 def luks_setup_var(
@@ -1129,13 +1037,14 @@ def luks_setup_var(
 ) -> ContextManager[Optional[Path]]:
     if args.encrypt is None:
         return contextlib.nullcontext()
-    if args.var_partno is None:
+    part = args.get_partition(PartitionIdentifier.var)
+    if not part:
         return contextlib.nullcontext()
     if do_run_build_script:
         return contextlib.nullcontext()
     assert args.passphrase is not None
 
-    return luks_open(partition(loopdev, args.var_partno), args.passphrase, "variable data partition")
+    return luks_open(part, loopdev, args.passphrase)
 
 
 def luks_setup_tmp(
@@ -1143,13 +1052,14 @@ def luks_setup_tmp(
 ) -> ContextManager[Optional[Path]]:
     if args.encrypt is None:
         return contextlib.nullcontext()
-    if args.tmp_partno is None:
+    part = args.get_partition(PartitionIdentifier.tmp)
+    if not part:
         return contextlib.nullcontext()
     if do_run_build_script:
         return contextlib.nullcontext()
     assert args.passphrase is not None
 
-    return luks_open(partition(loopdev, args.tmp_partno), args.passphrase, "temporary data partition")
+    return luks_open(part, loopdev, args.passphrase)
 
 
 class LuksSetupOutput(NamedTuple):
@@ -1180,6 +1090,7 @@ def luks_setup_all(
         return
 
     assert loopdev is not None
+    assert args.partition_table is not None
 
     with luks_setup_root(args, loopdev, do_run_build_script) as root, \
          luks_setup_home(args, loopdev, do_run_build_script) as home, \
@@ -1188,12 +1099,11 @@ def luks_setup_all(
          luks_setup_tmp(args, loopdev, do_run_build_script) as tmp:
 
         yield LuksSetupOutput(
-            optional_partition(loopdev, args.root_partno) if root is None else root,
-            optional_partition(loopdev, args.home_partno) if home is None else home,
-            optional_partition(loopdev, args.srv_partno) if srv is None else srv,
-            optional_partition(loopdev, args.var_partno) if var is None else var,
-            optional_partition(loopdev, args.tmp_partno) if tmp is None else tmp,
-        )
+            root or args.partition_table.partition_path(PartitionIdentifier.root, loopdev),
+            home or args.partition_table.partition_path(PartitionIdentifier.home, loopdev),
+            srv or args.partition_table.partition_path(PartitionIdentifier.srv, loopdev),
+            var or args.partition_table.partition_path(PartitionIdentifier.var, loopdev),
+            tmp or args.partition_table.partition_path(PartitionIdentifier.tmp, loopdev))
 
 
 def prepare_root(args: CommandLineArguments, dev: Optional[Path], cached: bool) -> None:
@@ -1319,11 +1229,16 @@ def mount_image(
         if image.tmp is not None:
             mount_loop(args, image.tmp, root / "var/tmp")
 
-        if args.esp_partno is not None and loopdev is not None:
-            mount_loop(args, partition(loopdev, args.esp_partno), root / "efi")
+        if loopdev is not None:
+            assert args.partition_table is not None
+            path = args.partition_table.partition_path(PartitionIdentifier.esp, loopdev)
 
-        if args.xbootldr_partno is not None and loopdev is not None:
-            mount_loop(args, partition(loopdev, args.xbootldr_partno), root / "boot")
+            if path:
+                mount_loop(args, path, root / "efi")
+
+            path = args.partition_table.partition_path(PartitionIdentifier.xbootldr, loopdev)
+            if path:
+                mount_loop(args, path, root / "boot")
 
         # Make sure /tmp and /run are not part of the image
         mount_tmpfs(root / "run")
@@ -1431,19 +1346,17 @@ def configure_dracut(args: CommandLineArguments, root: Path) -> None:
             f'filesystems+=" {(args.output_format.needed_kernel_module())} "\n'
         )
 
-    # These distros need uefi_stub configured explicitly for dracut to find the systemd-boot uefi stub.
-    if args.esp_partno is not None and args.distribution in (
-        Distribution.ubuntu,
-        Distribution.debian,
-        Distribution.mageia,
-        Distribution.openmandriva,
-    ):
-        dracut_dir.joinpath("30-mkosi-uefi-stub.conf").write_text(
-            "uefi_stub=/usr/lib/systemd/boot/efi/linuxx64.efi.stub\n"
-        )
+    if args.get_partition(PartitionIdentifier.esp):
+        # These distros need uefi_stub configured explicitly for dracut to find the systemd-boot uefi stub.
+        if args.distribution in (Distribution.ubuntu,
+                                 Distribution.debian,
+                                 Distribution.mageia,
+                                 Distribution.openmandriva):
+            dracut_dir.joinpath("30-mkosi-uefi-stub.conf").write_text(
+                "uefi_stub=/usr/lib/systemd/boot/efi/linuxx64.efi.stub\n"
+            )
 
-    # efivarfs must be present in order to GPT root discovery work
-    if args.esp_partno is not None:
+        # efivarfs must be present in order to GPT root discovery work
         dracut_dir.joinpath("30-mkosi-efivarfs.conf").write_text(
             '[[ $(modinfo -k "$kernel" -F filename efivarfs 2>/dev/null) == /* ]] && add_drivers+=" efivarfs "\n'
         )
@@ -1487,7 +1400,7 @@ def prepare_tree(args: CommandLineArguments, root: Path, do_run_build_script: bo
         root.joinpath("etc/machine-id").write_text(f"{args.machine_id}\n")
 
         if not do_run_build_script and args.bootable:
-            if args.xbootldr_partno is not None:
+            if args.get_partition(PartitionIdentifier.xbootldr):
                 # Create directories for kernels and entries if this is enabled
                 root.joinpath("boot/EFI").mkdir(mode=0o700)
                 root.joinpath("boot/EFI/Linux").mkdir(mode=0o700)
@@ -1498,13 +1411,13 @@ def prepare_tree(args: CommandLineArguments, root: Path, do_run_build_script: bo
                 # If this is not enabled, let's create an empty directory on /boot
                 root.joinpath("boot").mkdir(mode=0o700)
 
-            if args.esp_partno is not None:
+            if args.get_partition(PartitionIdentifier.esp):
                 root.joinpath("efi/EFI").mkdir(mode=0o700)
                 root.joinpath("efi/EFI/BOOT").mkdir(mode=0o700)
                 root.joinpath("efi/EFI/systemd").mkdir(mode=0o700)
                 root.joinpath("efi/loader").mkdir(mode=0o700)
 
-                if args.xbootldr_partno is None:
+                if not args.get_partition(PartitionIdentifier.xbootldr):
                     # Create directories for kernels and entries, unless the XBOOTLDR partition is turned on
                     root.joinpath("efi/EFI/Linux").mkdir(mode=0o700)
                     root.joinpath("efi/loader/entries").mkdir(mode=0o700)
@@ -1571,7 +1484,7 @@ def disable_kernel_install(args: CommandLineArguments, root: Path) -> None:
     # off any kernel installation beforehand.
     #
     # For BIOS mode, we don't have that option, so do not mask the units.
-    if not args.bootable or args.bios_partno is not None or not args.with_unified_kernel_images:
+    if not args.bootable or args.get_partition(PartitionIdentifier.bios) or not args.with_unified_kernel_images:
         return
 
     for subdir in ("etc", "etc/kernel", "etc/kernel/install.d"):
@@ -1582,7 +1495,7 @@ def disable_kernel_install(args: CommandLineArguments, root: Path) -> None:
 
 
 def reenable_kernel_install(args: CommandLineArguments, root: Path) -> None:
-    if not args.bootable or args.bios_partno is not None or not args.with_unified_kernel_images:
+    if not args.bootable or args.get_partition(PartitionIdentifier.bios) or not args.with_unified_kernel_images:
         return
 
     write_resource(
@@ -1634,7 +1547,7 @@ def make_rpm_list(args: CommandLineArguments, packages: Set[str], do_run_build_s
         if args.output_format == OutputFormat.gpt_btrfs:
             add_packages(args, packages, "btrfs-progs")
 
-        if args.bios_partno:
+        if args.get_partition(PartitionIdentifier.bios):
             if args.distribution in (Distribution.mageia, Distribution.openmandriva):
                 add_packages(args, packages, "grub2")
             else:
@@ -2384,7 +2297,7 @@ def install_debian_or_ubuntu(args: CommandLineArguments, root: Path, *, do_run_b
         else:
             add_packages(args, extra_packages, "linux-image-amd64")
 
-        if args.bios_partno:
+        if args.get_partition(PartitionIdentifier.bios):
             add_packages(args, extra_packages, "grub-pc")
 
         if args.output_format == OutputFormat.gpt_btrfs:
@@ -2598,10 +2511,10 @@ def install_arch(args: CommandLineArguments, root: Path, do_run_build_script: bo
         write_resource(scripts_dir / "mkosi-kernel-remove", "mkosi.resources.arch", "kernel_remove.sh",
                        executable=True)
 
-        if args.esp_partno is not None:
+        if args.get_partition(PartitionIdentifier.esp):
             write_resource(hooks_dir / "91-mkosi-bootctl-update.hook", "mkosi.resources.arch", "91_bootctl_update.hook")
 
-        if args.bios_partno is not None:
+        if args.get_partition(PartitionIdentifier.bios):
             write_resource(hooks_dir / "90-mkosi-vmlinuz-add.hook", "mkosi.resources.arch", "90_vmlinuz_add.hook")
             write_resource(hooks_dir / "60-mkosi-vmlinuz-remove.hook", "mkosi.resources.arch", "60_vmlinuz_remove.hook")
 
@@ -2619,7 +2532,7 @@ def install_arch(args: CommandLineArguments, root: Path, do_run_build_script: bo
             add_packages(args, packages, "xfsprogs")
         if args.encrypt:
             add_packages(args, packages, "cryptsetup", "device-mapper")
-        if args.bios_partno:
+        if args.get_partition(PartitionIdentifier.bios):
             add_packages(args, packages, "grub")
 
         add_packages(args, packages, "dracut", "binutils")
@@ -2700,7 +2613,7 @@ def install_opensuse(args: CommandLineArguments, root: Path, do_run_build_script
         add_packages(args, packages, "kernel-default", "dracut", "binutils")
         configure_dracut(args, root)
 
-        if args.bios_partno is not None:
+        if args.get_partition(PartitionIdentifier.bios):
             add_packages(args, packages, "grub2")
 
     if not do_run_build_script and args.encrypt:
@@ -3068,7 +2981,7 @@ def install_boot_loader(
         return
 
     with complete_step("Installing boot loader…"):
-        if args.esp_partno:
+        if args.get_partition(PartitionIdentifier.esp):
             if args.distribution == Distribution.clear:
                 pass
             elif args.distribution in (Distribution.centos, Distribution.centos_epel) and is_older_than_centos8(
@@ -3078,7 +2991,7 @@ def install_boot_loader(
             else:
                 run_workspace_command(args, root, ["bootctl", "install"])
 
-        if args.bios_partno and args.distribution != Distribution.clear:
+        if args.get_partition(PartitionIdentifier.bios) and args.distribution != Distribution.clear:
             grub = (
                 "grub"
                 if args.distribution in (Distribution.ubuntu, Distribution.debian, Distribution.arch)
@@ -3446,79 +3359,41 @@ def insert_partition(
     args: CommandLineArguments,
     raw: BinaryIO,
     loopdev: Path,
-    partno: int,
     blob: BinaryIO,
+    ident: PartitionIdentifier,
     name: str,
     type_uuid: uuid.UUID,
     read_only: bool,
-    uuid_opt: Optional[uuid.UUID] = None,
+    part_uuid: Optional[uuid.UUID] = None,
 ) -> int:
-    if args.ran_sfdisk:
-        old_table = PartitionTable.read(loopdev)
-    else:
-        # No partition table yet? Then let's fake one...
-        old_table = PartitionTable.empty(args.gpt_first_lba)
 
-    blob_size = roundup(os.stat(blob.name).st_size, 512)
+    assert args.partition_table is not None
+
     luks_extra = 16 * 1024 * 1024 if args.encrypt == "all" else 0
-    partition_offset = old_table.first_usable_offset()
-    new_size = roundup(partition_offset + blob_size + luks_extra + old_table.footer_size(), 4096)
+    blob_size = os.stat(blob.name).st_size
+    part = args.partition_table.add(ident, blob_size + luks_extra, type_uuid, name, part_uuid)
 
-    ss = f" ({new_size // old_table.sector_size} sectors)" if 'disk' in ARG_DEBUG else ""
-    MkosiPrinter.print_step(f"Resizing disk image to {format_bytes(new_size)}{ss}")
+    disk_size = args.partition_table.disk_size()
+    ss = f" ({disk_size // args.partition_table.sector_size} sectors)" if 'disk' in ARG_DEBUG else ""
+    with complete_step(f"Resizing disk image to {format_bytes(disk_size)}{ss}"):
+        os.truncate(raw.name, disk_size)
+        run(["losetup", "--set-capacity", loopdev])
 
-    os.truncate(raw.name, new_size)
-    run(["losetup", "--set-capacity", loopdev])
+    part_size = part.n_sectors * args.partition_table.sector_size
+    ss = f" ({part.n_sectors} sectors)" if 'disk' in ARG_DEBUG else ""
+    with complete_step(f"Inserting partition of {format_bytes(part_size)}{ss}..."):
+        args.partition_table.run_sfdisk(loopdev)
 
-    ss = f" ({blob_size // old_table.sector_size} sectors)" if 'disk' in ARG_DEBUG else ""
-    MkosiPrinter.print_step(f"Inserting partition of {format_bytes(blob_size)}{ss}...")
+    with complete_step("Writing partition..."):
+        if ident == PartitionIdentifier.root:
+            luks_format_root(args, loopdev, False, False, True)
+            cm = luks_setup_root(args, loopdev, False, True)
+        else:
+            cm = contextlib.nullcontext()
 
-    if args.gpt_first_lba is not None:
-        first_lba: Optional[int] = args.gpt_first_lba
-    elif old_table.partitions:
-        first_lba = None   # no need to specify this if we already have partitions
-    else:
-        first_lba = partition_offset // old_table.sector_size
-
-    new = []
-    if uuid_opt is not None:
-        new += [f'uuid={uuid_opt}']
-
-    n_sectors = (blob_size + luks_extra) // 512
-    new += [f'size={n_sectors}',
-            f'type={type_uuid}',
-            f'attrs={"GUID:60" if read_only else ""}',
-            f'name="{name}"']
-
-    table = ["label: gpt",
-             f"grain: {old_table.grain}"]
-    if first_lba is not None:
-        table += [f"first-lba: {first_lba}"]
-
-    table += [*old_table.partitions,
-              ', '.join(new)]
-
-    if 'disk' in ARG_DEBUG:
-        print_between_lines('\n'.join(table))
-
-    run(["sfdisk", "--color=never", "--no-reread", "--no-tell-kernel", loopdev],
-        input='\n'.join(table).encode("utf-8"))
-    run(["sync"])
-    run_with_backoff(["blockdev", "--rereadpt", loopdev], attempts=10)
-
-    MkosiPrinter.print_step("Writing partition...")
-
-    if args.root_partno == partno:
-        luks_format_root(args, loopdev, False, False, True)
-        cm = luks_setup_root(args, loopdev, False, True)
-    else:
-        cm = contextlib.nullcontext()
-
-    with cm as dev:
-        path = dev if dev is not None else partition(loopdev, partno)
-        run(["dd", f"if={blob.name}", f"of={path}", "conv=nocreat,sparse"])
-
-    args.ran_sfdisk = True
+        with cm as dev:
+            path = dev if dev is not None else part.blockdev(loopdev)
+            run(["dd", f"if={blob.name}", f"of={path}", "conv=nocreat,sparse"])
 
     return blob_size
 
@@ -3539,19 +3414,17 @@ def insert_generated_root(
     assert raw is not None
     assert loopdev is not None
     assert image is not None
-    assert args.root_partno is not None
+    assert args.partition_table is not None
 
     with complete_step("Inserting generated root partition…"):
-        args.root_size = insert_partition(
-            args,
-            raw,
-            loopdev,
-            args.root_partno,
-            image,
-            root_partition_name(args),
-            gpt_root_native(args.architecture, args.usr_only).root,
-            args.read_only,
-        )
+        insert_partition(args,
+                         raw,
+                         loopdev,
+                         image,
+                         PartitionIdentifier.root,
+                         root_partition_name(args),
+                         type_uuid=gpt_root_native(args.architecture, args.usr_only).root,
+                         read_only=args.read_only)
 
 
 def make_verity(
@@ -3590,23 +3463,21 @@ def insert_verity(
     assert loopdev is not None
     assert raw is not None
     assert root_hash is not None
-    assert args.verity_partno is not None
+    assert args.partition_table is not None
 
     # Use the final 128 bit of the root hash as partition UUID of the verity partition
     u = uuid.UUID(root_hash[-32:])
 
     with complete_step("Inserting verity partition…"):
-        insert_partition(
-            args,
-            raw,
-            loopdev,
-            args.verity_partno,
-            verity,
-            root_partition_name(args, "Verity"),
-            gpt_root_native(args.architecture, args.usr_only).verity,
-            True,
-            u,
-        )
+        insert_partition(args,
+                         raw,
+                         loopdev,
+                         verity,
+                         PartitionIdentifier.verity,
+                         root_partition_name(args, "Verity"),
+                         gpt_root_native(args.architecture, args.usr_only).verity,
+                         read_only=True,
+                         part_uuid=u)
 
 
 def make_verity_sig(
@@ -3697,23 +3568,21 @@ def insert_verity_sig(
     assert raw is not None
     assert root_hash is not None
     assert fingerprint is not None
-    assert args.verity_sig_partno is not None
+    assert args.partition_table is not None
 
     # Hash the concatenation of verity roothash and the X509 certificate fingerprint to generate a UUID for the signature partition
     u = uuid.UUID(hashlib.sha256(bytes.fromhex(root_hash) + bytes.fromhex(fingerprint)).hexdigest()[:32])
 
     with complete_step("Inserting verity signature partition…"):
-        insert_partition(
-            args,
-            raw,
-            loopdev,
-            args.verity_sig_partno,
-            verity_sig,
-            root_partition_name(args, "Signature"),
-            gpt_root_native(args.architecture, args.usr_only).verity_sig,
-            True,
-            u,
-        )
+        insert_partition(args,
+                         raw,
+                         loopdev,
+                         verity_sig,
+                         PartitionIdentifier.verity_sig,
+                         root_partition_name(args, "Signature"),
+                         gpt_root_native(args.architecture, args.usr_only).verity_sig,
+                         read_only=True,
+                         part_uuid=u)
 
 
 def patch_root_uuid(
@@ -3730,7 +3599,11 @@ def patch_root_uuid(
     u = uuid.UUID(root_hash[:32])
 
     with complete_step("Patching root partition UUID…"):
-        run(["sfdisk", "--part-uuid", loopdev, str(args.root_partno), str(u)], check=True)
+        part = args.get_partition(PartitionIdentifier.root)
+        assert part is not None
+
+        run(["sfdisk", "--part-uuid", loopdev, str(part.number), str(u)],
+            check=True)
 
 
 def extract_partition(
@@ -3764,7 +3637,9 @@ def install_unified_kernel(
     # benefit that they can be signed like normal EFI binaries, and can encode everything necessary to boot a
     # specific root device, including the root hash.
 
-    if not args.bootable or args.esp_partno is None or not args.with_unified_kernel_images:
+    if not (args.bootable and
+            args.get_partition(PartitionIdentifier.esp) and
+            args.with_unified_kernel_images):
         return
 
     # Don't run dracut if this is for the cache. The unified kernel
@@ -3794,7 +3669,7 @@ def install_unified_kernel(
                 if not (kver.is_dir() and os.path.isfile(os.path.join(kver, "modules.dep"))):
                     continue
 
-                prefix = "/boot" if args.xbootldr_partno is not None else "/efi"
+                prefix = "/boot" if args.get_partition(PartitionIdentifier.xbootldr) else "/efi"
                 # While the kernel version can generally be found as a directory under /usr/lib/modules, the
                 # kernel image files can be found either in /usr/lib/modules/<kernel-version>/vmlinuz or in
                 # /boot depending on the distro. By invoking the kernel-install script directly, we can pass
