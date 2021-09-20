@@ -829,9 +829,9 @@ def mkfs_generic(args: CommandLineArguments, label: str, mount: PathString, dev:
         cmdline = mkfs_ext4_cmd(label, mount)
 
     if args.output_format == OutputFormat.gpt_ext4:
-        if args.distribution in (Distribution.centos, Distribution.centos_epel) and is_older_than_centos8(
-            args.release
-        ):
+        if (args.distribution in (Distribution.centos, Distribution.centos_epel) and
+            is_older_than_centos8(args.release)):
+
             # e2fsprogs in centos7 is too old and doesn't support this feature
             cmdline += ["-O", "^metadata_csum"]
 
@@ -2984,9 +2984,8 @@ def install_boot_loader(
         if args.get_partition(PartitionIdentifier.esp):
             if args.distribution == Distribution.clear:
                 pass
-            elif args.distribution in (Distribution.centos, Distribution.centos_epel) and is_older_than_centos8(
-                args.release
-            ):
+            elif (args.distribution in (Distribution.centos, Distribution.centos_epel) and
+                  is_older_than_centos8(args.release)):
                 install_boot_loader_centos_old_efi(args, root, loopdev)
             else:
                 run_workspace_command(args, root, ["bootctl", "install"])
@@ -3570,7 +3569,8 @@ def insert_verity_sig(
     assert fingerprint is not None
     assert args.partition_table is not None
 
-    # Hash the concatenation of verity roothash and the X509 certificate fingerprint to generate a UUID for the signature partition
+    # Hash the concatenation of verity roothash and the X509 certificate
+    # fingerprint to generate a UUID for the signature partition.
     u = uuid.UUID(hashlib.sha256(bytes.fromhex(root_hash) + bytes.fromhex(fingerprint)).hexdigest()[:32])
 
     with complete_step("Inserting verity signature partition…"):
