@@ -704,7 +704,7 @@ def create_image(args: CommandLineArguments, for_cache: bool) -> Optional[Binary
 
         f: BinaryIO = cast(
             BinaryIO,
-            tempfile.NamedTemporaryFile(prefix=".mkosi-", delete=not for_cache, dir=os.path.dirname(args.output)),
+            tempfile.NamedTemporaryFile(prefix=".mkosi-", delete=not for_cache, dir=args.output.parent),
         )
         output.append(f)
         disable_cow(f.name)
@@ -6130,7 +6130,7 @@ def print_summary(args: CommandLineArguments) -> None:
         MkosiPrinter.info("                    Mirror: " + args.mirror)
     if args.repositories is not None and len(args.repositories) > 0:
         MkosiPrinter.info("              Repositories: " + ",".join(args.repositories))
-    MkosiPrinter.info("   Use Host Repositories: " + yes_no(args.use_host_repositories))
+    MkosiPrinter.info("     Use Host Repositories: " + yes_no(args.use_host_repositories))
     MkosiPrinter.info("\nOUTPUT:")
     if args.hostname:
         MkosiPrinter.info("                  Hostname: " + args.hostname)
