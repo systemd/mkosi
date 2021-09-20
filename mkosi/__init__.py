@@ -704,7 +704,7 @@ def create_image(args: CommandLineArguments, for_cache: bool) -> Optional[Binary
 
         f: BinaryIO = cast(
             BinaryIO,
-            tempfile.NamedTemporaryFile(prefix=".mkosi-", delete=not for_cache, dir=os.path.dirname(args.output)),
+            tempfile.NamedTemporaryFile(prefix=".mkosi-", delete=not for_cache, dir=args.output.parent),
         )
         output.append(f)
         disable_cow(f.name)
