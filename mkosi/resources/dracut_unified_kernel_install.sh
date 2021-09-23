@@ -15,7 +15,13 @@ fi
 PREFIX=$(dirname $(dirname "$BOOT_DIR_ABS"))
 
 # Pick a default prefix name for the unified kernel binary
-if [[ -z "$IMAGE_ID" ]] ; then
+if [[ -n "$IMAGE_ID" ]] ; then
+    if [[ -n "$IMAGE_VERSION" ]]; then
+        PARTLABEL="${IMAGE_ID}_${IMAGE_VERSION}"
+    else
+        PARTLABEL="${IMAGE_ID}"
+    fi
+else
     IMAGE_ID=linux
 fi
 
@@ -43,8 +49,8 @@ case "$COMMAND" in
             BOOT_OPTIONS="${BOOT_OPTIONS} roothash=${ROOTHASH}"
         elif [[ -n "$USRHASH" ]]; then
             BOOT_OPTIONS="${BOOT_OPTIONS} usrhash=${USRHASH}"
-        elif [[ -n "$IMAGE_VERSION" ]]; then
-            BOOT_OPTIONS="${BOOT_OPTIONS} root=PARTLABEL=${IMAGE_ID}_${IMAGE_VERSION}"
+        elif [[ -n "$PARTLABEL" ]]; then
+            BOOT_OPTIONS="${BOOT_OPTIONS} root=PARTLABEL=${PARTLABEL}"
         fi
 
         if [[ -n "$KERNEL_IMAGE" ]]; then
