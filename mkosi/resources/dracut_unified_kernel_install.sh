@@ -12,7 +12,7 @@ if [[ -z "${KERNEL_INSTALL_MACHINE_ID-unset}" ]]; then
 fi
 
 # Strip machine ID and kernel version to get the boot directory.
-PREFIX=$(dirname $(dirname "$BOOT_DIR_ABS"))
+PREFIX=$(dirname "$(dirname "$BOOT_DIR_ABS")")
 
 # Pick a default prefix name for the unified kernel binary
 if [[ -n "$IMAGE_ID" ]] ; then
@@ -59,6 +59,7 @@ case "$COMMAND" in
             DRACUT_KERNEL_IMAGE_OPTION=""
         fi
 
+        # shellcheck disable=SC2086
         dracut \
             --uefi \
             --kver "$KERNEL_VERSION" \
