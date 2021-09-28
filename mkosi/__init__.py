@@ -36,7 +36,6 @@ import time
 import urllib.parse
 import urllib.request
 import uuid
-
 from pathlib import Path
 from subprocess import DEVNULL, PIPE
 from textwrap import dedent
@@ -3491,8 +3490,7 @@ def make_verity_sig(
     assert root_hash is not None
 
     from cryptography import x509
-    from cryptography.hazmat.primitives import hashes
-    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives import hashes, serialization
     from cryptography.hazmat.primitives.serialization import pkcs7
 
     with complete_step("Signing verity root hash…"):
