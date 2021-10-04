@@ -478,12 +478,12 @@ def btrfs_subvol_create(path: Path, mode: int = 0o755) -> None:
 
 def btrfs_subvol_delete(path: Path) -> None:
     # Extract the path of the subvolume relative to the filesystem
-    c = run(["btrfs", "subvol", "show", path], stdout=PIPE, stderr=DEVNULL, universal_newlines=True)
+    c = run(["btrfs", "subvol", "show", path], stdout=PIPE, stderr=DEVNULL, text=True)
     subvol_path = c.stdout.splitlines()[0]
     # Make the subvolume RW again if it was set RO by btrfs_subvol_delete
     run(["btrfs", "property", "set", path, "ro", "false"])
     # Recursively delete the direct children of the subvolume
-    c = run(["btrfs", "subvol", "list", "-o", path], stdout=PIPE, stderr=DEVNULL, universal_newlines=True)
+    c = run(["btrfs", "subvol", "list", "-o", path], stdout=PIPE, stderr=DEVNULL, text=True)
     for line in c.stdout.splitlines():
         if not line:
             continue
@@ -839,7 +839,7 @@ def attach_image_loopback(
     with complete_step("Attaching image file…", "Attached image file as {}") as output:
         c = run(["losetup", "--find", "--show", "--partscan", raw.name],
                 stdout=PIPE,
-                universal_newlines=True)
+                text=True)
         loopdev = Path(c.stdout.strip())
         output.append(loopdev)
 
@@ -3280,7 +3280,7 @@ def copy_git_files(src: Path, dest: Path, *, source_file_transfer: SourceFileTra
     if source_file_transfer == SourceFileTransfer.copy_git_others:
         what_files += ["--others", "--exclude=.mkosi-*"]
 
-    c = run(["git", "-C", src, "ls-files", "-z", *what_files], stdout=PIPE, universal_newlines=False, check=True)
+    c = run(["git", "-C", src, "ls-files", "-z", *what_files], stdout=PIPE, text=False, check=True)
     files = {x.decode("utf-8") for x in c.stdout.rstrip(b"\0").split(b"\0")}
 
     # Add the .git/ directory in as well.
@@ -3293,7 +3293,7 @@ def copy_git_files(src: Path, dest: Path, *, source_file_transfer: SourceFileTra
                 files.add(fr)
 
     # Get submodule files
-    c = run(["git", "-C", src, "submodule", "status", "--recursive"], stdout=PIPE, universal_newlines=True, check=True)
+    c = run(["git", "-C", src, "submodule", "status", "--recursive"], stdout=PIPE, text=True, check=True)
     submodules = {x.split()[1] for x in c.stdout.splitlines()}
 
     # workaround for git-ls-files returning the path of submodules that we will
@@ -3304,7 +3304,7 @@ def copy_git_files(src: Path, dest: Path, *, source_file_transfer: SourceFileTra
         c = run(
             ["git", "-C", os.path.join(src, sm), "ls-files", "-z"] + what_files,
             stdout=PIPE,
-            universal_newlines=False,
+            text=False,
             check=True,
         )
         files |= {os.path.join(sm, x.decode("utf-8")) for x in c.stdout.rstrip(b"\0").split(b"\0")}

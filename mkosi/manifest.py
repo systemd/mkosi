@@ -74,7 +74,7 @@ class Manifest:
             ["rpm", f"--root={root}", "-qa", "--qf", r"%{NEVRA}\t%{SOURCERPM}\t%{NAME}\t%{SIZE}\n"],
             stdout=PIPE,
             stderr=DEVNULL,
-            universal_newlines=True,
+            text=True,
         )
 
         packages = sorted(c.stdout.splitlines())
@@ -98,7 +98,7 @@ class Manifest:
                 c = run(["rpm", f"--root={root}", "-q", "--changelog", nevra],
                         stdout=PIPE,
                         stderr=DEVNULL,
-                        universal_newlines=True)
+                        text=True)
                 changelog = c.stdout.strip()
                 source = SourcePackageManifest(srpm, changelog)
                 self.source_packages[srpm] = source
