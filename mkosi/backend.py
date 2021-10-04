@@ -130,7 +130,7 @@ class SourceFileTransfer(enum.Enum):
         return self.value
 
     @classmethod
-    def doc(cls) -> Dict["SourceFileTransfer", str]:
+    def doc(cls) -> Dict[SourceFileTransfer, str]:
         return {
             cls.copy_all: "normal file copy",
             cls.copy_git_cached: "use git-ls-files --cached, ignoring any file that git itself ignores",
