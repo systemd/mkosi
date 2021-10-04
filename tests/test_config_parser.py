@@ -26,7 +26,7 @@ def change_cwd(path: Path) -> Generator[None, None, None]:
 DEFAULT_JOB_NAME = "default"
 
 
-class MkosiConfig(object):
+class MkosiConfig:
     """Base class for mkosi test and reference configuration generators"""
 
     def __init__(self):

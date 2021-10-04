@@ -3,7 +3,7 @@
 from tests.test_config_parser import MkosiConfig
 
 
-class DictDiffer(object):
+class DictDiffer:
     def __init__(self, expected_dict, current_dict):
         self.current_dict = current_dict
         self.expected_dict = expected_dict
@@ -20,12 +20,12 @@ class DictDiffer(object):
 
     @property
     def invalid(self):
-        inva = set(o for o in self.intersect if self.expected_dict[o] != self.current_dict[o])
+        inva = {o for o in self.intersect if self.expected_dict[o] != self.current_dict[o]}
         return ["%s=%s (exp: %s)" % (k, self.current_dict[k], self.expected_dict[k]) for k in inva]
 
     @property
     def valid(self):
-        return set(o for o in self.intersect if self.expected_dict[o] == self.current_dict[o])
+        return {o for o in self.intersect if self.expected_dict[o] == self.current_dict[o]}
 
 
 def pytest_assertrepr_compare(op, left, right):
