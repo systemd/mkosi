@@ -529,7 +529,7 @@ def disable_cow(path: PathString) -> None:
     run(["chattr", "+C", path], stdout=DEVNULL, stderr=DEVNULL, check=False)
 
 
-def root_partition_name(
+def root_partition_description(
     args: Optional[CommandLineArguments],
     suffix: Optional[str] = None,
     image_id: Optional[str] = None,
@@ -598,7 +598,7 @@ def initialize_partition_table(args: CommandLineArguments) -> None:
             (not is_generated_root(args),
              PartitionIdentifier.root, args.root_size,
              gpt_root_native(args.architecture, args.usr_only).root,
-             root_partition_name(args),
+             root_partition_description(args),
              args.read_only)):
 
         if condition and size is not None:
@@ -894,7 +894,7 @@ def luks_format_root(
         return
     assert args.passphrase is not None
 
-    with complete_step(f"Setting up LUKS on {part.name}…"):
+    with complete_step(f"Setting up LUKS on {part.description}…"):
         luks_format(part.blockdev(loopdev), args.passphrase)
 
 
@@ -910,7 +910,7 @@ def luks_format_home(args: CommandLineArguments, loopdev: Path, do_run_build_scr
         return
     assert args.passphrase is not None
 
-    with complete_step(f"Setting up LUKS on {part.name}…"):
+    with complete_step(f"Setting up LUKS on {part.description}…"):
         luks_format(part.blockdev(loopdev), args.passphrase)
 
 
@@ -926,7 +926,7 @@ def luks_format_srv(args: CommandLineArguments, loopdev: Path, do_run_build_scri
         return
     assert args.passphrase is not None
 
-    with complete_step(f"Setting up LUKS on {part.name}…"):
+    with complete_step(f"Setting up LUKS on {part.description}…"):
         luks_format(part.blockdev(loopdev), args.passphrase)
 
 
@@ -942,7 +942,7 @@ def luks_format_var(args: CommandLineArguments, loopdev: Path, do_run_build_scri
         return
     assert args.passphrase is not None
 
-    with complete_step(f"Setting up LUKS on {part.name}…"):
+    with complete_step(f"Setting up LUKS on {part.description}…"):
         luks_format(part.blockdev(loopdev), args.passphrase)
 
 
@@ -958,7 +958,7 @@ def luks_format_tmp(args: CommandLineArguments, loopdev: Path, do_run_build_scri
         return
     assert args.passphrase is not None
 
-    with complete_step(f"Setting up LUKS on {part.name}…"):
+    with complete_step(f"Setting up LUKS on {part.description}…"):
         luks_format(part.blockdev(loopdev), args.passphrase)
 
 
@@ -967,7 +967,7 @@ def luks_open(part: Partition, loopdev: Path, passphrase: Dict[str, str]) -> Gen
     name = str(uuid.uuid4())
     dev = part.blockdev(loopdev)
 
-    with complete_step(f"Setting up LUKS on {part.name}…"):
+    with complete_step(f"Setting up LUKS on {part.description}…"):
         if passphrase["type"] == "stdin":
             passphrase_content = (passphrase["content"] + "\n").encode("utf-8")
             run(["cryptsetup", "open", "--type", "luks", dev, name], input=passphrase_content)
@@ -980,7 +980,7 @@ def luks_open(part: Partition, loopdev: Path, passphrase: Dict[str, str]) -> Gen
     try:
         yield path
     finally:
-        with complete_step(f"Closing LUKS on {part.name}"):
+        with complete_step(f"Closing LUKS on {part.description}"):
             run(["cryptsetup", "close", path])
 
 
@@ -3359,7 +3359,7 @@ def insert_partition(
     loopdev: Path,
     blob: BinaryIO,
     ident: PartitionIdentifier,
-    name: str,
+    description: str,
     type_uuid: uuid.UUID,
     read_only: bool,
     part_uuid: Optional[uuid.UUID] = None,
@@ -3369,7 +3369,7 @@ def insert_partition(
 
     luks_extra = 16 * 1024 * 1024 if args.encrypt == "all" else 0
     blob_size = os.stat(blob.name).st_size
-    part = args.partition_table.add(ident, blob_size + luks_extra, type_uuid, name, part_uuid)
+    part = args.partition_table.add(ident, blob_size + luks_extra, type_uuid, description, part_uuid)
 
     disk_size = args.partition_table.disk_size()
     ss = f" ({disk_size // args.partition_table.sector_size} sectors)" if 'disk' in ARG_DEBUG else ""
@@ -3420,7 +3420,7 @@ def insert_generated_root(
                          loopdev,
                          image,
                          PartitionIdentifier.root,
-                         root_partition_name(args),
+                         root_partition_description(args),
                          type_uuid=gpt_root_native(args.architecture, args.usr_only).root,
                          read_only=args.read_only)
 
@@ -3472,7 +3472,7 @@ def insert_verity(
                          loopdev,
                          verity,
                          PartitionIdentifier.verity,
-                         root_partition_name(args, "Verity"),
+                         root_partition_description(args, "Verity"),
                          gpt_root_native(args.architecture, args.usr_only).verity,
                          read_only=True,
                          part_uuid=u)
@@ -3577,7 +3577,7 @@ def insert_verity_sig(
                          loopdev,
                          verity_sig,
                          PartitionIdentifier.verity_sig,
-                         root_partition_name(args, "Signature"),
+                         root_partition_description(args, "Signature"),
                          gpt_root_native(args.architecture, args.usr_only).verity_sig,
                          read_only=True,
                          part_uuid=u)
@@ -5907,7 +5907,7 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
         args.kernel_command_line.append(
             "mount.usr=/dev/disk/by-partlabel/"
             + xescape(
-                root_partition_name(
+                root_partition_description(
                     args=None, image_id=args.image_id, image_version=args.image_version, usr_only=args.usr_only
                 )
             )

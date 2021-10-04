@@ -229,7 +229,7 @@ class Partition:
     part_uuid: Optional[uuid.UUID]
     read_only: Optional[bool]
 
-    name: str
+    description: str
 
     def blockdev(self, loopdev: Path) -> Path:
         return Path(f"{loopdev}p{self.number}")
@@ -238,7 +238,7 @@ class Partition:
         desc = [f'size={self.n_sectors}',
                 f'type={self.type_uuid}',
                 f'attrs={"GUID:60" if self.read_only else ""}',
-                f'name="{self.name}"',
+                f'name="{self.description}"',
                 f'uuid={self.part_uuid}' if self.part_uuid is not None else None]
         return ', '.join(filter(None, desc))
 
@@ -280,17 +280,17 @@ class PartitionTable:
             ident: PartitionIdentifier,
             size: int,
             type_uuid: uuid.UUID,
-            name: str,
+            description: str,
             part_uuid: Optional[uuid.UUID] = None,
             read_only: Optional[bool] = False) -> Partition:
 
-        assert '"' not in name
+        assert '"' not in description
 
         size = roundup(size, self.grain)
         n_sectors = size // self.sector_size
 
         part = Partition(len(self.partitions) + 1,
-                         n_sectors, type_uuid, part_uuid, read_only, name)
+                         n_sectors, type_uuid, part_uuid, read_only, description)
         self.partitions[ident] = part
 
         self.last_partition_sector = self.last_partition_offset() // self.sector_size + n_sectors
