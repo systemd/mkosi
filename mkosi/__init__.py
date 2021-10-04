@@ -3167,7 +3167,7 @@ def run_finalize_script(args: CommandLineArguments, root: Path, do_run_build_scr
 
     with complete_step("Running finalize script…"):
         env = dict(cast(Tuple[str, str], v.split("=", maxsplit=1)) for v in args.environment)
-        env = collections.ChainMap(dict(BUILDROOT=root, OUTPUTDIR=output_dir(args)), env, os.environ)
+        env = collections.ChainMap(dict(BUILDROOT=str(root), OUTPUTDIR=str(output_dir(args))), env, os.environ)
         run([args.finalize_script, verb], env=env)
 
 
