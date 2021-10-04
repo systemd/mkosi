@@ -3913,7 +3913,7 @@ def install_unified_kernel(
         # Apparently openmandriva hasn't yet completed its usrmerge so we use lib here instead of usr/lib.
         with os.scandir(root / "lib/modules") as d:
             for kver in d:
-                if not (kver.is_dir() and os.path.isfile(os.path.join(kver, "modules.dep"))):
+                if not (kver.is_dir() and os.path.isfile(os.path.join(kver, "modules.dep"))): # type: ignore
                     continue
 
                 prefix = "/boot" if args.xbootldr_partno is not None else "/efi"
