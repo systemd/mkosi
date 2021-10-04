@@ -183,7 +183,7 @@ class MkosiConfig:
         if not os.path.exists(dname):
             os.makedirs(dname)
         if prio < 1000:
-            fname = "{:03d}_{}".format(prio, fname)
+            fname = f"{prio:03d}_{fname}"
         config_parser = configparser.RawConfigParser()
         config_parser.optionxform = lambda optionstr: str(optionstr)
 

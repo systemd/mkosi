@@ -4520,7 +4520,7 @@ class BooleanAction(argparse.Action):
         elif isinstance(values, bool):  # Assign const
             new_value = values
         else:
-            raise argparse.ArgumentError(self, "Invalid argument for %s %s" % (str(option_string), str(values)))
+            raise argparse.ArgumentError(self, f"Invalid argument for {option_string}: {values}")
 
         # invert the value if the argument name starts with "not" or "without"
         for option in self.option_strings:

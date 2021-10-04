@@ -12,7 +12,7 @@ class DictDiffer:
 
     @property
     def unexpected(self):
-        return ["%s=%s" % (k, self.current_dict[k]) for k in self.set_current - self.intersect]
+        return [f"{k}={self.current_dict[k]}" for k in self.set_current - self.intersect]
 
     @property
     def missing(self):
@@ -21,7 +21,7 @@ class DictDiffer:
     @property
     def invalid(self):
         inva = {o for o in self.intersect if self.expected_dict[o] != self.current_dict[o]}
-        return ["%s=%s (exp: %s)" % (k, self.current_dict[k], self.expected_dict[k]) for k in inva]
+        return [f"{k}={self.current_dict[k]} (exp: {self.expected_dict[k]})" for k in inva]
 
     @property
     def valid(self):
