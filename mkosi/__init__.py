@@ -3167,7 +3167,7 @@ def run_finalize_script(args: CommandLineArguments, root: Path, do_run_build_scr
 
     with complete_step("Running finalize script…"):
         env = dict(cast(Tuple[str, str], v.split("=", maxsplit=1)) for v in args.environment)
-        env = collections.ChainMap(dict(BUILDROOT=root, OUTPUTDIR=output_dir(args)), env, os.environ)
+        env = collections.ChainMap(dict(BUILDROOT=str(root), OUTPUTDIR=str(output_dir(args))), env, os.environ)
         run([args.finalize_script, verb], env=env)
 
 
@@ -3913,7 +3913,7 @@ def install_unified_kernel(
         # Apparently openmandriva hasn't yet completed its usrmerge so we use lib here instead of usr/lib.
         with os.scandir(root / "lib/modules") as d:
             for kver in d:
-                if not (kver.is_dir() and os.path.isfile(os.path.join(kver, "modules.dep"))):
+                if not (kver.is_dir() and os.path.isfile(os.path.join(kver, "modules.dep"))): # type: ignore
                     continue
 
                 prefix = "/boot" if args.xbootldr_partno is not None else "/efi"
