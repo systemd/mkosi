@@ -7,6 +7,10 @@ bells and whistles.
 For a longer description and available features and options, see the
 [man page](mkosi.md).
 
+<a href="https://repology.org/project/mkosi/versions">
+    <img align="right" src="https://repology.org/badge/vertical-allrepos/mkosi.svg" alt="Packaging status">
+</a>
+
 # Installation
 
 Installing mkosi is easy, as it has no runtime Python dependencies (you will
