@@ -3644,7 +3644,7 @@ def insert_partition(
     type_uuid: uuid.UUID,
     read_only: bool,
     part_uuid: Optional[uuid.UUID] = None,
-) -> int:
+) -> Partition:
 
     assert args.partition_table is not None
 
@@ -3677,7 +3677,7 @@ def insert_partition(
             run(["blkdiscard", path])
             run(["dd", f"if={blob.name}", f"of={path}", "conv=nocreat,sparse"])
 
-    return blob_size
+    return part
 
 
 def insert_generated_root(
@@ -3686,27 +3686,28 @@ def insert_generated_root(
     loopdev: Optional[Path],
     image: Optional[BinaryIO],
     for_cache: bool,
-) -> None:
+) -> Optional[Partition]:
     if not is_generated_root(args):
-        return
+        return None
     if not args.output_format.is_disk():
-        return
+        return None
     if for_cache:
-        return
+        return None
     assert raw is not None
     assert loopdev is not None
     assert image is not None
     assert args.partition_table is not None
 
     with complete_step("Inserting generated root partition…"):
-        insert_partition(args,
-                         raw,
-                         loopdev,
-                         image,
-                         PartitionIdentifier.root,
-                         root_partition_description(args),
-                         type_uuid=gpt_root_native(args.architecture, args.usr_only).root,
-                         read_only=args.read_only)
+        return insert_partition(
+            args,
+            raw,
+            loopdev,
+            image,
+            PartitionIdentifier.root,
+            root_partition_description(args),
+            type_uuid=gpt_root_native(args.architecture, args.usr_only).root,
+            read_only=args.read_only)
 
 
 def make_verity(
@@ -3737,11 +3738,11 @@ def insert_verity(
     verity: Optional[BinaryIO],
     root_hash: Optional[str],
     for_cache: bool,
-) -> None:
+) -> Optional[Partition]:
     if verity is None:
-        return
+        return None
     if for_cache:
-        return
+        return None
     assert loopdev is not None
     assert raw is not None
     assert root_hash is not None
@@ -3751,15 +3752,16 @@ def insert_verity(
     u = uuid.UUID(root_hash[-32:])
 
     with complete_step("Inserting verity partition…"):
-        insert_partition(args,
-                         raw,
-                         loopdev,
-                         verity,
-                         PartitionIdentifier.verity,
-                         root_partition_description(args, "Verity"),
-                         gpt_root_native(args.architecture, args.usr_only).verity,
-                         read_only=True,
-                         part_uuid=u)
+        return insert_partition(
+            args,
+            raw,
+            loopdev,
+            verity,
+            PartitionIdentifier.verity,
+            root_partition_description(args, "Verity"),
+            gpt_root_native(args.architecture, args.usr_only).verity,
+            read_only=True,
+            part_uuid=u)
 
 
 def make_verity_sig(
@@ -3840,11 +3842,11 @@ def insert_verity_sig(
     root_hash: Optional[str],
     fingerprint: Optional[str],
     for_cache: bool,
-) -> None:
+) -> Optional[Partition]:
     if verity_sig is None:
-        return
+        return None
     if for_cache:
-        return
+        return None
     assert loopdev is not None
     assert raw is not None
     assert root_hash is not None
@@ -3856,15 +3858,16 @@ def insert_verity_sig(
     u = uuid.UUID(hashlib.sha256(bytes.fromhex(root_hash) + bytes.fromhex(fingerprint)).hexdigest()[:32])
 
     with complete_step("Inserting verity signature partition…"):
-        insert_partition(args,
-                         raw,
-                         loopdev,
-                         verity_sig,
-                         PartitionIdentifier.verity_sig,
-                         root_partition_description(args, "Signature"),
-                         gpt_root_native(args.architecture, args.usr_only).verity_sig,
-                         read_only=True,
-                         part_uuid=u)
+        return insert_partition(
+            args,
+            raw,
+            loopdev,
+            verity_sig,
+            PartitionIdentifier.verity_sig,
+            root_partition_description(args, "Signature"),
+            gpt_root_native(args.architecture, args.usr_only).verity_sig,
+            read_only=True,
+            part_uuid=u)
 
 
 def patch_root_uuid(
