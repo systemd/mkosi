@@ -304,6 +304,9 @@ class CommandLineArguments:
     qemu_smp: str
     qemu_mem: str
 
+    # nspawn options
+    binds: Sequence[str]
+
     # Some extra stuff that's stored in CommandLineArguments for convenience but isn't populated by arguments
     verity_size: Optional[int]
     machine_id: str
@@ -421,6 +424,8 @@ def run_workspace_command(
         f"--bind={var_tmp(root)}:/var/tmp",
         "--setenv=SYSTEMD_OFFLINE=1",
     ]
+
+    nspawn += [f"--bind={bind}" for bind in args.binds]
 
     if network:
         # If we're using the host network namespace, use the same resolver

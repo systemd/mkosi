@@ -4599,6 +4599,7 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
         "PostInstallationScript": "--postinst-script",
         "GPTFirstLBA": "--gpt-first-lba",
         "TarStripSELinuxContext": "--tar-strip-selinux-context",
+        "Binds": "--bind",
     }
 
     fromfile_prefix_chars: str = "@"
@@ -5183,6 +5184,14 @@ def create_parser() -> ArgumentParserMkosi:
     group.add_argument("--qemu-headless", action=BooleanAction, help="Configure image for qemu's -nographic mode")
     group.add_argument("--qemu-smp", help="Configure guest's SMP settings", metavar="SMP", default="2")
     group.add_argument("--qemu-mem", help="Configure guest's RAM size", metavar="MEM", default="1G")
+    group.add_argument(
+        "--bind",
+        action=SpaceDelimitedListAction,
+        dest="binds",
+        default=[],
+        help="Bind-mount the given file or directory (in nspawn --bind format) from the host into any guests spawned by mkosi",
+        metavar="BIND",
+    )
     group.add_argument(
         "--network-veth",
         action=BooleanAction,
@@ -6356,6 +6365,7 @@ def print_summary(args: CommandLineArguments) -> None:
     MkosiPrinter.info("        Extra search paths: " + line_join_list(args.extra_search_paths))
     MkosiPrinter.info("             QEMU Headless: " + yes_no(args.qemu_headless))
     MkosiPrinter.info("              Network Veth: " + yes_no(args.network_veth))
+    MkosiPrinter.info("                     Binds: " + line_join_list(args.binds))
 
 
 def reuse_cache_tree(
@@ -6674,7 +6684,8 @@ def run_build_script(args: CommandLineArguments, root: Path, raw: Optional[Binar
             "--setenv=DESTDIR=/root/dest",
         ]
 
-        cmdline.extend(f"--setenv={env}" for env in args.environment)
+        cmdline += [f"--setenv={env}" for env in args.environment]
+        cmdline += [f"--bind={bind}" for bind in args.binds]
 
         # TODO: Use --autopipe once systemd v247 is widely available.
         console_arg = f"--console={'interactive' if sys.stdout.isatty() else 'pipe'}"
@@ -6944,6 +6955,7 @@ def run_shell(args: CommandLineArguments) -> None:
         cmdline += ["--ephemeral"]
 
     cmdline += ["--machine", virt_name(args)]
+    cmdline += [f"--bind={bind}" for bind in args.binds]
 
     if args.cmdline:
         # If the verb is 'shell', args.cmdline contains the command to run.

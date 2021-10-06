@@ -141,6 +141,7 @@ class MkosiConfig:
             "image_version": None,
             "auto_bump": False,
             "workspace_dir": None,
+            "binds": [],
         }
 
     def __eq__(self, other: Mapping[str, Any]) -> bool:
@@ -360,6 +361,8 @@ class MkosiConfig:
                 self.reference_config[job_name]["ephemeral"] = mk_config_host["Ephemeral"]
             if "Ssh" in mk_config_host:
                 self.reference_config[job_name]["ssh"] = mk_config_host["Ssh"]
+            if "Binds" in mk_config_host:
+                self.reference_config[job_name]["binds"] = mk_config_host["Binds"]
 
 
 class MkosiConfigOne(MkosiConfig):

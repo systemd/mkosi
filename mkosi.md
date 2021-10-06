@@ -1083,6 +1083,12 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   in scripted environments where the `qemu` and `ssh` verbs are used in a quick
   succession and the veth device might not get enough time to configure itself.
 
+`Binds=`, `--bind=`
+
+: Bind mounts the given file or directory into any nspawn containers or QEMU VMs
+  spawned by mkosi. Takes a space separated list of mount strings. The format is
+  the same as the --bind option for systemd-nspawn.
+
 ### Commandline-only Options
 
 Those settings cannot be configured in the configuration files.
