@@ -6125,7 +6125,10 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
     if args.ssh_timeout < 0:
         die("--ssh-timeout must be >= 0")
 
-    args.original_umask = os.umask(0o000)
+    # We set a reasonable umask so that files that are created in the image
+    # will have reasonable permissions. We don't want those permissions to be
+    # influenced by the caller's umask which will be used only for output files.
+    args.original_umask = os.umask(0o022)
 
     # Let's define a fixed machine ID for all our build-time
     # runs. We'll strip it off the final image, but some build-time
