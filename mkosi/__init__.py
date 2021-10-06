@@ -80,7 +80,6 @@ from .backend import (
     nspawn_params_for_blockdev_access,
     patch_file,
     path_relative_to_cwd,
-    roundup,
     run,
     run_workspace_command,
     set_umask,
@@ -3648,6 +3647,8 @@ def insert_partition(
 
     assert args.partition_table is not None
 
+    blob.seek(0)
+
     luks_extra = 16 * 1024 * 1024 if args.encrypt == "all" else 0
     blob_size = os.stat(blob.name).st_size
     part = args.partition_table.add(ident, blob_size + luks_extra, type_uuid, description, part_uuid)
@@ -3675,7 +3676,7 @@ def insert_partition(
             # Let's discard the partition block device first, to ensure the GPT partition table footer that
             # likely is stored in it is flushed out. After all we want to write with dd's sparse option.
             run(["blkdiscard", path])
-            run(["dd", f"if={blob.name}", f"of={path}", "conv=nocreat,sparse"])
+            path.write_bytes(blob.read())
 
     return part
 
@@ -3802,34 +3803,28 @@ def make_verity_sig(
             encoding=serialization.Encoding.DER
         )
 
-        # We base64 the DER result, because we want to include it in
-        # JSON. This is not PEM (i.e. not header/footer line, no line
-        # breaks), but just base64 encapsulated DER).
+        # We base64 the DER result, because we want to include it in JSON. This is not PEM
+        # (i.e. no header/footer line, no line breaks), but just base64 encapsulated DER).
         b64encoded = base64.b64encode(sigbytes).decode("ascii")
 
         print(b64encoded)
 
-        # This is supposed to be extensible, but care should be taken
-        # not to include unprotected data here.
+        # This is supposed to be extensible, but care should be taken not to include unprotected
+        # data here.
         j = json.dumps({
                 "rootHash": root_hash,
                 "certificateFingerprint": fingerprint,
                 "signature": b64encoded
             }).encode("utf-8")
 
-        # Pad to next multiple of 4K with NUL bytes
-        padded = j + b"\0" * (roundup(len(j), 4096) - len(j))
-
         f: BinaryIO = cast(BinaryIO, tempfile.NamedTemporaryFile(mode="w+b", dir=args.output.parent, prefix=".mkosi-"))
-        f.write(padded)
+        f.write(j)
         f.flush()
 
-        # Returns a file with zero-padded JSON data to insert as
-        # signature partition as first element, and the DER PKCS7
-        # signature bytes as second argument (to store as detached
-        # PKCS7 file), and finally the SHA256 fingerprint of the
-        # certificate used (which is used to deterministically
-        # generate the partition UUID for the signature partition).
+        # Returns a file with JSON data to insert as signature partition as the first element, and
+        # the DER PKCS7 signature bytes as second argument (to store as a detached PKCS7 file), and
+        # finally the SHA256 fingerprint of the certificate used (which is used to
+        # deterministically generate the partition UUID for the signature partition).
 
         return f, sigbytes, fingerprint
 
