@@ -40,6 +40,15 @@ def shell_join(cmd: Sequence[PathString]) -> str:
     return " ".join(shlex.quote(str(x)) for x in cmd)
 
 
+@contextlib.contextmanager
+def set_umask(mask: int) -> Generator[int, None, None]:
+    old = os.umask(mask)
+    try:
+        yield old
+    finally:
+        os.umask(old)
+
+
 def print_between_lines(s: str) -> None:
     size = os.get_terminal_size()
     print('-' * size.columns)

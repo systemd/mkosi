@@ -83,6 +83,7 @@ from .backend import (
     roundup,
     run,
     run_workspace_command,
+    set_umask,
     should_compress_fs,
     should_compress_output,
     spawn,
@@ -476,9 +477,8 @@ def setup_workspace(args: CommandLineArguments) -> TempDir:
 
 
 def btrfs_subvol_create(path: Path, mode: int = 0o755) -> None:
-    m = os.umask(~mode & 0o7777)
-    run(["btrfs", "subvol", "create", path])
-    os.umask(m)
+    with set_umask(~mode & 0o7777):
+        run(["btrfs", "subvol", "create", path])
 
 
 def btrfs_subvol_delete(path: Path) -> None:
