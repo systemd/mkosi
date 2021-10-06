@@ -3055,11 +3055,14 @@ def invoke_fstrim(args: CommandLineArguments, root: Path, do_run_build_script: b
         run(["fstrim", "-v", root], check=False)
 
 
-def pam_add_autologin(root: Path, tty: str) -> None:
+def pam_add_autologin(root: Path, ttys: List[str]) -> None:
     with open(root / "etc/pam.d/login", "r+") as f:
         original = f.read()
         f.seek(0)
-        f.write(f"auth sufficient pam_succeed_if.so tty = {tty}\n")
+        for tty in ttys:
+            # Some PAM versions require the /dev/ prefix, others don't. Just add both variants.
+            f.write(f"auth sufficient pam_succeed_if.so tty = {tty}\n")
+            f.write(f"auth sufficient pam_succeed_if.so tty = /dev/{tty}\n")
         f.write(original)
 
 
@@ -3068,30 +3071,30 @@ def set_autologin(args: CommandLineArguments, root: Path, do_run_build_script: b
         return
 
     with complete_step("Setting up autologin…"):
-        # On Arch, Debian, PAM wants the full path to the console device or it will refuse access
-        device_prefix = "/dev/" if args.distribution in [Distribution.arch, Distribution.debian] else ""
-
         override_dir = root / "etc/systemd/system/console-getty.service.d"
         override_dir.mkdir(mode=0o755, parents=True, exist_ok=True)
         write_resource(override_dir / "autologin.conf", "mkosi.resources", "console_getty_autologin.conf",
                        mode=0o644)
 
-        pam_add_autologin(root, f"{device_prefix}pts/0")
+        ttys = []
+        ttys += ["pts/0"]
 
         override_dir = root / "etc/systemd/system/serial-getty@ttyS0.service.d"
         override_dir.mkdir(mode=0o755, parents=True, exist_ok=True)
         write_resource(override_dir / "autologin.conf", "mkosi.resources", "serial_getty_autologin.conf",
                        mode=0o644)
 
-        pam_add_autologin(root, f"{device_prefix}ttyS0")
+        ttys += ["ttyS0"]
 
         override_dir = root / "etc/systemd/system/getty@tty1.service.d"
         override_dir.mkdir(mode=0o755, parents=True, exist_ok=True)
         write_resource(override_dir / "autologin.conf", "mkosi.resources", "getty_autologin.conf",
                        mode=0o644)
 
-        pam_add_autologin(root, f"{device_prefix}tty1")
-        pam_add_autologin(root, f"{device_prefix}console")
+        ttys += ["tty1"]
+        ttys += ["console"]
+
+        pam_add_autologin(root, ttys)
 
 
 def set_serial_terminal(args: CommandLineArguments, root: Path, do_run_build_script: bool, cached: bool) -> None:
