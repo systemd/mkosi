@@ -6745,15 +6745,25 @@ def build_image(
                 make_read_only(args, root, for_cache)
 
             generated_root = make_generated_root(args, root, for_cache)
-            insert_generated_root(args, raw, loopdev, generated_root, for_cache)
+            generated_root_part = insert_generated_root(args, raw, loopdev, generated_root, for_cache)
             split_root = (
                 (generated_root or extract_partition(args, encrypted.root, do_run_build_script, for_cache))
                 if args.split_artifacts
                 else None
             )
 
-            verity, root_hash = make_verity(args, encrypted.root, do_run_build_script, for_cache)
+            if args.verity:
+                root_for_verity = encrypted.root
+                if root_for_verity is None and generated_root_part is not None:
+                    assert loopdev is not None
+                    root_for_verity = generated_root_part.blockdev(loopdev)
+            else:
+                root_for_verity = None
+
+            verity, root_hash = make_verity(args, root_for_verity, do_run_build_script, for_cache)
+
             patch_root_uuid(args, loopdev, root_hash, for_cache)
+
             insert_verity(args, raw, loopdev, verity, root_hash, for_cache)
             split_verity = verity if args.split_artifacts else None
 
