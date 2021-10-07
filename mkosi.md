@@ -530,10 +530,24 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 
 `Verity=`, `--verity`
 
-: Add an "Verity" integrity partition to the image. If enabled, the
-  root partition is protected with `dm-verity` against off-line
-  modification, the verification data is placed in an additional GPT
-  partition. Implies `ReadOnly=yes`.
+: Add a "Verity" integrity partition to the image. Takes a boolean or
+  the special value `signed`, and defaults to disabled. If enabled,
+  the root partition (or `/usr/` partition, in case `UsrOnly=` is
+  enabled) is protected with `dm-verity` against offline modification,
+  the verification data is placed in an additional GPT
+  partition. Implies `ReadOnly=yes`. If this is enabled, the Verity
+  root hash is written to an output file with `.roothash` or
+  `.usrhash` suffix. If set to `signed`, Verity is also enabled, but
+  the resulting root hash is then also signed (in PKCS#7 format) with
+  the signature key configured with `SecureBootKey=`. Or in other
+  words: the SecureBoot key pair is then used to both sign the kernel,
+  if that is enabled, and the root/`/usr/` file system. This signature
+  is then stored in an additional output file with the `.roothash.p7s`
+  or `.usrhash.p7s` suffix in DER format. It is also written to an
+  additional partition in the image. The latter allows generating
+  self-contained signed disk images, implementing the Verity
+  provisions described in the [Discoverable Partitions
+  Specification](https://systemd.io/DISCOVERABLE_PARTITIONS).
 
 `CompressFs=`, `--compress-fs=`
 
@@ -599,7 +613,7 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 : Configure the image identifier. This accepts a freeform string that
   shall be used to identify the image with. If set the default output
   file will be named after it (possibly suffixed with the version). If
-  this option is used the root, `/usr/` and verity partitions in the
+  this option is used the root, `/usr/` and Verity partitions in the
   image will have their labels set to this (possibly suffixed by the
   image version). The identifier is also passed via the `$IMAGE_ID` to
   any build scripts invoked (which may be useful to patch it into

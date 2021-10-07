@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import base64
 import collections
 import configparser
 import contextlib
@@ -21,7 +22,6 @@ import hashlib
 import http.server
 import importlib.resources
 import json
-import math
 import os
 import platform
 import re
@@ -71,15 +71,17 @@ from .backend import (
     MkosiException,
     MkosiPrinter,
     OutputFormat,
+    Partition,
+    PartitionIdentifier,
+    PartitionTable,
     SourceFileTransfer,
     die,
     install_grub,
     nspawn_params_for_blockdev_access,
-    partition,
     patch_file,
     path_relative_to_cwd,
+    roundup,
     run,
-    run_with_backoff,
     run_workspace_command,
     should_compress_fs,
     should_compress_output,
@@ -142,13 +144,6 @@ T = TypeVar("T")
 V = TypeVar("V")
 
 
-def print_between_lines(s: str) -> None:
-    size = os.get_terminal_size()
-    print('-' * size.columns)
-    print(s.rstrip('\n'))
-    print('-' * size.columns)
-
-
 def dictify(f: Callable[..., Generator[Tuple[T, V], None, None]]) -> Callable[..., Dict[T, V]]:
     def wrapper(*args: Any, **kwargs: Any) -> Dict[T, V]:
         return dict(f(*args, **kwargs))
@@ -184,30 +179,38 @@ def print_running_cmd(cmdline: Iterable[str]) -> None:
     MkosiPrinter.print_step(" ".join(shlex.quote(x) for x in cmdline) + "\n")
 
 
-GPT_ROOT_X86           = uuid.UUID("44479540f29741b29af7d131d5f0458a")  # NOQA: E221
-GPT_ROOT_X86_64        = uuid.UUID("4f68bce3e8cd4db196e7fbcaf984b709")  # NOQA: E221
-GPT_ROOT_ARM           = uuid.UUID("69dad7102ce44e3cb16c21a1d49abed3")  # NOQA: E221
-GPT_ROOT_ARM_64        = uuid.UUID("b921b0451df041c3af444c6f280d3fae")  # NOQA: E221
-GPT_USR_X86            = uuid.UUID("75250d768cc6458ebd66bd47cc81a812")  # NOQA: E221
-GPT_USR_X86_64         = uuid.UUID("8484680c952148c69c11b0720656f69e")  # NOQA: E221
-GPT_USR_ARM            = uuid.UUID("7d0359a302b34f0a865c654403e70625")  # NOQA: E221
-GPT_USR_ARM_64         = uuid.UUID("b0e01050ee5f4390949a9101b17104e9")  # NOQA: E221
-GPT_ESP                = uuid.UUID("c12a7328f81f11d2ba4b00a0c93ec93b")  # NOQA: E221
-GPT_BIOS               = uuid.UUID("2168614864496e6f744e656564454649")  # NOQA: E221
-GPT_SWAP               = uuid.UUID("0657fd6da4ab43c484e50933c84b4f4f")  # NOQA: E221
-GPT_HOME               = uuid.UUID("933ac7e12eb44f13b8440e14e2aef915")  # NOQA: E221
-GPT_SRV                = uuid.UUID("3b8f842520e04f3b907f1a25a76f98e8")  # NOQA: E221
-GPT_XBOOTLDR           = uuid.UUID("bc13c2ff59e64262a352b275fd6f7172")  # NOQA: E221
-GPT_ROOT_X86_VERITY    = uuid.UUID("d13c5d3bb5d1422ab29f9454fdc89d76")  # NOQA: E221
-GPT_ROOT_X86_64_VERITY = uuid.UUID("2c7357edebd246d9aec123d437ec2bf5")  # NOQA: E221
-GPT_ROOT_ARM_VERITY    = uuid.UUID("7386cdf2203c47a9a498f2ecce45a2d6")  # NOQA: E221
-GPT_ROOT_ARM_64_VERITY = uuid.UUID("df3300ced69f4c92978c9bfb0f38d820")  # NOQA: E221
-GPT_USR_X86_VERITY     = uuid.UUID("8f461b0d14ee4e819aa9049b6fb97abd")  # NOQA: E221
-GPT_USR_X86_64_VERITY  = uuid.UUID("77ff5f63e7b64633acf41565b864c0e6")  # NOQA: E221
-GPT_USR_ARM_VERITY     = uuid.UUID("c215d7517bcd4649be906627490a4c05")  # NOQA: E221
-GPT_USR_ARM_64_VERITY  = uuid.UUID("6e11a4e7fbca4dedb9e9e1a512bb664e")  # NOQA: E221
-GPT_TMP                = uuid.UUID("7ec6f5573bc54acab29316ef5df639d1")  # NOQA: E221
-GPT_VAR                = uuid.UUID("4d21b016b53445c2a9fb5c16e091fd2d")  # NOQA: E221
+GPT_ROOT_X86               = uuid.UUID("44479540f29741b29af7d131d5f0458a")  # NOQA: E221
+GPT_ROOT_X86_64            = uuid.UUID("4f68bce3e8cd4db196e7fbcaf984b709")  # NOQA: E221
+GPT_ROOT_ARM               = uuid.UUID("69dad7102ce44e3cb16c21a1d49abed3")  # NOQA: E221
+GPT_ROOT_ARM_64            = uuid.UUID("b921b0451df041c3af444c6f280d3fae")  # NOQA: E221
+GPT_USR_X86                = uuid.UUID("75250d768cc6458ebd66bd47cc81a812")  # NOQA: E221
+GPT_USR_X86_64             = uuid.UUID("8484680c952148c69c11b0720656f69e")  # NOQA: E221
+GPT_USR_ARM                = uuid.UUID("7d0359a302b34f0a865c654403e70625")  # NOQA: E221
+GPT_USR_ARM_64             = uuid.UUID("b0e01050ee5f4390949a9101b17104e9")  # NOQA: E221
+GPT_ESP                    = uuid.UUID("c12a7328f81f11d2ba4b00a0c93ec93b")  # NOQA: E221
+GPT_BIOS                   = uuid.UUID("2168614864496e6f744e656564454649")  # NOQA: E221
+GPT_SWAP                   = uuid.UUID("0657fd6da4ab43c484e50933c84b4f4f")  # NOQA: E221
+GPT_HOME                   = uuid.UUID("933ac7e12eb44f13b8440e14e2aef915")  # NOQA: E221
+GPT_SRV                    = uuid.UUID("3b8f842520e04f3b907f1a25a76f98e8")  # NOQA: E221
+GPT_XBOOTLDR               = uuid.UUID("bc13c2ff59e64262a352b275fd6f7172")  # NOQA: E221
+GPT_ROOT_X86_VERITY        = uuid.UUID("d13c5d3bb5d1422ab29f9454fdc89d76")  # NOQA: E221
+GPT_ROOT_X86_64_VERITY     = uuid.UUID("2c7357edebd246d9aec123d437ec2bf5")  # NOQA: E221
+GPT_ROOT_ARM_VERITY        = uuid.UUID("7386cdf2203c47a9a498f2ecce45a2d6")  # NOQA: E221
+GPT_ROOT_ARM_64_VERITY     = uuid.UUID("df3300ced69f4c92978c9bfb0f38d820")  # NOQA: E221
+GPT_USR_X86_VERITY         = uuid.UUID("8f461b0d14ee4e819aa9049b6fb97abd")  # NOQA: E221
+GPT_USR_X86_64_VERITY      = uuid.UUID("77ff5f63e7b64633acf41565b864c0e6")  # NOQA: E221
+GPT_USR_ARM_VERITY         = uuid.UUID("c215d7517bcd4649be906627490a4c05")  # NOQA: E221
+GPT_USR_ARM_64_VERITY      = uuid.UUID("6e11a4e7fbca4dedb9e9e1a512bb664e")  # NOQA: E221
+GPT_ROOT_X86_VERITY_SIG    = uuid.UUID("5996fc05109c48de808b23fa0830b676")  # NOQA: E221
+GPT_ROOT_X86_64_VERITY_SIG = uuid.UUID("41092b059fc84523994f2def0408b176")  # NOQA: E221
+GPT_ROOT_ARM_VERITY_SIG    = uuid.UUID("42b0455feb11491d98d356145ba9d037")  # NOQA: E221
+GPT_ROOT_ARM_64_VERITY_SIG = uuid.UUID("6db69de629f44758a7a5962190f00ce3")  # NOQA: E221
+GPT_USR_X86_VERITY_SIG     = uuid.UUID("974a71c0de4143c3be5d5c5ccd1ad2c0")  # NOQA: E221
+GPT_USR_X86_64_VERITY_SIG  = uuid.UUID("e7bb33fb06cf4e818273e543b413e2e2")  # NOQA: E221
+GPT_USR_ARM_VERITY_SIG     = uuid.UUID("d7ff812f37d14902a810d76ba57b975a")  # NOQA: E221
+GPT_USR_ARM_64_VERITY_SIG  = uuid.UUID("c23ce4ff44bd4b00b2d4b41b3419e02a")  # NOQA: E221
+GPT_TMP                    = uuid.UUID("7ec6f5573bc54acab29316ef5df639d1")  # NOQA: E221
+GPT_VAR                    = uuid.UUID("4d21b016b53445c2a9fb5c16e091fd2d")  # NOQA: E221
 
 
 # This is a non-formatted partition used to store the second stage
@@ -265,40 +268,42 @@ DEBIAN_ARCHITECTURES = {
 }
 
 
-class GPTRootTypePair(NamedTuple):
+class GPTRootTypeTriplet(NamedTuple):
     root: uuid.UUID
     verity: uuid.UUID
+    verity_sig: uuid.UUID
 
 
-def gpt_root_native(arch: Optional[str], usr_only: bool = False) -> GPTRootTypePair:
-    """The tag for the native GPT root partition for the given architecture
+def gpt_root_native(arch: Optional[str], usr_only: bool = False) -> GPTRootTypeTriplet:
+    """The type UUID for the native GPT root partition for the given architecture
 
-    Returns a tuple of two tags: for the root partition and for the
-    matching verity partition.
+    Returns a tuple of three UUIDs: for the root partition, for the
+    matching verity partition, and for the matching Verity signature
+    partition.
     """
     if arch is None:
         arch = platform.machine()
 
     if usr_only:
         if arch in ("i386", "i486", "i586", "i686"):
-            return GPTRootTypePair(GPT_USR_X86, GPT_USR_X86_VERITY)
+            return GPTRootTypeTriplet(GPT_USR_X86, GPT_USR_X86_VERITY, GPT_USR_X86_VERITY_SIG)
         elif arch == "x86_64":
-            return GPTRootTypePair(GPT_USR_X86_64, GPT_USR_X86_64_VERITY)
+            return GPTRootTypeTriplet(GPT_USR_X86_64, GPT_USR_X86_64_VERITY, GPT_USR_X86_64_VERITY_SIG)
         elif arch == "aarch64":
-            return GPTRootTypePair(GPT_USR_ARM_64, GPT_USR_ARM_64_VERITY)
+            return GPTRootTypeTriplet(GPT_USR_ARM_64, GPT_USR_ARM_64_VERITY, GPT_USR_ARM_64_VERITY_SIG)
         elif arch == "armv7l":
-            return GPTRootTypePair(GPT_USR_ARM, GPT_USR_ARM_VERITY)
+            return GPTRootTypeTriplet(GPT_USR_ARM, GPT_USR_ARM_VERITY, GPT_USR_ARM_VERITY_SIG)
         else:
             die(f"Unknown architecture {arch}.")
     else:
         if arch in ("i386", "i486", "i586", "i686"):
-            return GPTRootTypePair(GPT_ROOT_X86, GPT_ROOT_X86_VERITY)
+            return GPTRootTypeTriplet(GPT_ROOT_X86, GPT_ROOT_X86_VERITY, GPT_ROOT_X86_VERITY_SIG)
         elif arch == "x86_64":
-            return GPTRootTypePair(GPT_ROOT_X86_64, GPT_ROOT_X86_64_VERITY)
+            return GPTRootTypeTriplet(GPT_ROOT_X86_64, GPT_ROOT_X86_64_VERITY, GPT_ROOT_X86_64_VERITY_SIG)
         elif arch == "aarch64":
-            return GPTRootTypePair(GPT_ROOT_ARM_64, GPT_ROOT_ARM_64_VERITY)
+            return GPTRootTypeTriplet(GPT_ROOT_ARM_64, GPT_ROOT_ARM_64_VERITY, GPT_ROOT_ARM_64_VERITY_SIG)
         elif arch == "armv7l":
-            return GPTRootTypePair(GPT_ROOT_ARM, GPT_ROOT_ARM_VERITY)
+            return GPTRootTypeTriplet(GPT_ROOT_ARM, GPT_ROOT_ARM_VERITY, GPT_ROOT_ARM_VERITY_SIG)
         else:
             die(f"Unknown architecture {arch}.")
 
@@ -308,6 +313,10 @@ def roothash_suffix(usr_only: bool = False) -> str:
         return ".usrhash"
 
     return ".roothash"
+
+
+def roothash_p7s_suffix(usr_only: bool = False) -> str:
+    return roothash_suffix(usr_only) + ".p7s"
 
 
 def unshare(flags: int) -> None:
@@ -330,10 +339,6 @@ def format_bytes(num_bytes: int) -> str:
         return f"{num_bytes/1024 :0.1f}K"
 
     return f"{num_bytes}B"
-
-
-def roundup(x: int, step: int) -> int:
-    return ((x + step - 1) // step) * step
 
 
 _IOC_NRBITS   =  8  # NOQA: E221,E222
@@ -518,45 +523,15 @@ def is_generated_root(args: Union[argparse.Namespace, CommandLineArguments]) -> 
     return args.minimize or args.output_format.is_squashfs() or args.usr_only
 
 
-def image_size(args: CommandLineArguments) -> int:
-    gpt = PartitionTable.empty(args.gpt_first_lba)
-    size = gpt.first_usable_offset() + gpt.footer_size()
-
-    if args.root_size is not None:
-        size += args.root_size
-    if args.home_size is not None:
-        size += args.home_size
-    if args.srv_size is not None:
-        size += args.srv_size
-    if args.var_size is not None:
-        size += args.var_size
-    if args.tmp_size is not None:
-        size += args.tmp_size
-    if args.bootable:
-        if "uefi" in args.boot_protocols:
-            assert args.esp_size
-            size += args.esp_size
-        if "bios" in args.boot_protocols:
-            size += BIOS_PARTITION_SIZE
-    if args.xbootldr_size is not None:
-        size += args.xbootldr_size
-    if args.swap_size is not None:
-        size += args.swap_size
-    if args.verity_size is not None:
-        size += args.verity_size
-
-    return size
-
-
 def disable_cow(path: PathString) -> None:
     """Disable copy-on-write if applicable on filesystem"""
 
     run(["chattr", "+C", path], stdout=DEVNULL, stderr=DEVNULL, check=False)
 
 
-def root_partition_name(
+def root_partition_description(
     args: Optional[CommandLineArguments],
-    verity: Optional[bool] = False,
+    suffix: Optional[str] = None,
     image_id: Optional[str] = None,
     image_version: Optional[str] = None,
     usr_only: Optional[bool] = False,
@@ -590,117 +565,55 @@ def root_partition_name(
     # If no image id is specified we just return a descriptive string
     # for the partition.
     prefix = "System Resources" if usr_only else "Root"
-    if verity:
-        return prefix + " Verity"
-    return prefix + " Partition"
+    return prefix + ' ' + (suffix if suffix is not None else 'Partition')
 
 
-def determine_partition_table(args: CommandLineArguments) -> Tuple[str, bool]:
-    pn = 1
-    table = "label: gpt\n"
-    if args.gpt_first_lba is not None:
-        table += f"first-lba: {args.gpt_first_lba:d}\n"
-    run_sfdisk = False
-    args.esp_partno = None
-    args.bios_partno = None
+def initialize_partition_table(args: CommandLineArguments) -> None:
+    if args.partition_table is not None:
+        return
 
-    if args.bootable:
-        if "uefi" in args.boot_protocols:
-            assert args.esp_size is not None
-            table += f'size={args.esp_size // 512}, type={GPT_ESP}, name="ESP System Partition"\n'
-            args.esp_partno = pn
-            pn += 1
+    if not args.output_format.is_disk():
+        return
 
-        if "bios" in args.boot_protocols:
-            table += f'size={BIOS_PARTITION_SIZE // 512}, type={GPT_BIOS}, name="BIOS Boot Partition"\n'
-            args.bios_partno = pn
-            pn += 1
+    table = PartitionTable(first_lba=args.gpt_first_lba)
+    no_btrfs = args.output_format != OutputFormat.gpt_btrfs
 
-        run_sfdisk = True
+    for condition, label, size, type_uuid, name, read_only in (
+            (args.bootable and "uefi" in args.boot_protocols,
+             PartitionIdentifier.esp, args.esp_size, GPT_ESP, "ESP System Partition", False),
+            (args.bootable and "bios" in args.boot_protocols,
+             PartitionIdentifier.bios, BIOS_PARTITION_SIZE, GPT_BIOS, "BIOS Boot Partition", False),
+            (args.xbootldr_size is not None,
+             PartitionIdentifier.xbootldr, args.xbootldr_size, GPT_XBOOTLDR, "Boot Loader Partition", False),
+            (args.swap_size is not None,
+             PartitionIdentifier.swap, args.swap_size, GPT_SWAP, "Swap Partition", False),
+            (no_btrfs and args.home_size is not None,
+             PartitionIdentifier.home, args.home_size, GPT_HOME, "Home Partition", False),
+            (no_btrfs and args.srv_size is not None,
+             PartitionIdentifier.srv, args.srv_size, GPT_SRV, "Server Data Partition", False),
+            (no_btrfs and args.var_size is not None,
+             PartitionIdentifier.var, args.var_size, GPT_VAR, "Variable Data Partition", False),
+            (no_btrfs and args.tmp_size is not None,
+             PartitionIdentifier.tmp, args.tmp_size, GPT_TMP, "Temporary Data Partition", False),
+            (not is_generated_root(args),
+             PartitionIdentifier.root, args.root_size,
+             gpt_root_native(args.architecture, args.usr_only).root,
+             root_partition_description(args),
+             args.read_only)):
 
-    if args.xbootldr_size is not None:
-        table += f'size={args.xbootldr_size // 512}, type={GPT_XBOOTLDR}, name="Boot Loader Partition"\n'
-        args.xbootldr_partno = pn
-        pn += 1
-    else:
-        args.xbootldr_partno = None
+        if condition and size is not None:
+            table.add(label, size, type_uuid, name, read_only=read_only)
 
-    if args.swap_size is not None:
-        table += f'size={args.swap_size // 512}, type={GPT_SWAP}, name="Swap Partition"\n'
-        args.swap_partno = pn
-        pn += 1
-        run_sfdisk = True
-    else:
-        args.swap_partno = None
-
-    args.home_partno = None
-    args.srv_partno = None
-    args.var_partno = None
-    args.tmp_partno = None
-
-    if args.output_format != OutputFormat.gpt_btrfs:
-        if args.home_size is not None:
-            table += f'size={args.home_size // 512}, type={GPT_HOME}, name="Home Partition"\n'
-            args.home_partno = pn
-            pn += 1
-            run_sfdisk = True
-
-        if args.srv_size is not None:
-            table += f'size={args.srv_size // 512}, type={GPT_SRV}, name="Server Data Partition"\n'
-            args.srv_partno = pn
-            pn += 1
-            run_sfdisk = True
-
-        if args.var_size is not None:
-            table += f'size={args.var_size // 512}, type={GPT_VAR}, name="Variable Data Partition"\n'
-            args.var_partno = pn
-            pn += 1
-            run_sfdisk = True
-
-        if args.tmp_size is not None:
-            table += f'size={args.tmp_size // 512}, type={GPT_TMP}, name="Temporary Data Partition"\n'
-            args.tmp_partno = pn
-            pn += 1
-            run_sfdisk = True
-
-    if not is_generated_root(args):
-        table += 'type={}, attrs={}, name="{}"\n'.format(
-            gpt_root_native(args.architecture, args.usr_only).root,
-            "GUID:60" if args.read_only and args.output_format != OutputFormat.gpt_btrfs else "",
-            root_partition_name(args),
-        )
-        run_sfdisk = True
-
-    args.root_partno = pn
-    pn += 1
-
-    if args.verity:
-        args.verity_partno = pn
-        pn += 1
-    else:
-        args.verity_partno = None
-
-    return table, run_sfdisk
-
-
-def exec_sfdisk(args: CommandLineArguments, f: BinaryIO) -> None:
-
-    table, run_sfdisk = determine_partition_table(args)
-
-    if run_sfdisk:
-        run(["sfdisk", "--color=never", f.name], input=table.encode("utf-8"))
-        run(["sync"])
-
-    args.ran_sfdisk = run_sfdisk
+    args.partition_table = table
 
 
 def create_image(args: CommandLineArguments, for_cache: bool) -> Optional[BinaryIO]:
-    if not args.output_format.is_disk():
+    initialize_partition_table(args)
+    if args.partition_table is None:
         return None
 
-    with complete_step(
-        "Creating image with partition table…", "Created image with partition table as {.name}"
-    ) as output:
+    with complete_step("Creating image with partition table…",
+                       "Created image with partition table as {.name}") as output:
 
         f: BinaryIO = cast(
             BinaryIO,
@@ -708,15 +621,18 @@ def create_image(args: CommandLineArguments, for_cache: bool) -> Optional[Binary
         )
         output.append(f)
         disable_cow(f.name)
-        f.truncate(image_size(args))
+        disk_size = args.partition_table.disk_size()
+        f.truncate(disk_size)
 
-        exec_sfdisk(args, f)
+        if args.partition_table.partitions:
+            args.partition_table.run_sfdisk(f.name)
 
     return f
 
 
 def refresh_partition_table(args: CommandLineArguments, f: BinaryIO) -> None:
-    if not args.output_format.is_disk():
+    initialize_partition_table(args)
+    if args.partition_table is None:
         return
 
     # Let's refresh all UUIDs and labels to match the new build. This
@@ -732,7 +648,8 @@ def refresh_partition_table(args: CommandLineArguments, f: BinaryIO) -> None:
     # configuration is identical.
 
     with complete_step("Refreshing partition table…", "Refreshed partition table."):
-        exec_sfdisk(args, f)
+        if args.partition_table.partitions:
+            args.partition_table.run_sfdisk(f.name)
 
 
 def refresh_file_system(args: CommandLineArguments, dev: Optional[Path], cached: bool) -> None:
@@ -822,8 +739,6 @@ def reuse_cache_image(
             return None, False
 
         output.append(f)
-        _, run_sfdisk = determine_partition_table(args)
-        args.ran_sfdisk = run_sfdisk
 
     return f, True
 
@@ -850,23 +765,17 @@ def attach_image_loopback(
             run(["losetup", "--detach", loopdev])
 
 
-def optional_partition(loopdev: Path, partno: Optional[int]) -> Optional[Path]:
-    if partno is None:
-        return None
-
-    return partition(loopdev, partno)
-
-
 def prepare_swap(args: CommandLineArguments, loopdev: Optional[Path], cached: bool) -> None:
     if loopdev is None:
         return
     if cached:
         return
-    if args.swap_partno is None:
+    part = args.get_partition(PartitionIdentifier.swap)
+    if not part:
         return
 
     with complete_step("Formatting swap partition"):
-        run(["mkswap", "-Lswap", partition(loopdev, args.swap_partno)])
+        run(["mkswap", "-Lswap", part.blockdev(loopdev)])
 
 
 def prepare_esp(args: CommandLineArguments, loopdev: Optional[Path], cached: bool) -> None:
@@ -874,11 +783,12 @@ def prepare_esp(args: CommandLineArguments, loopdev: Optional[Path], cached: boo
         return
     if cached:
         return
-    if args.esp_partno is None:
+    part = args.get_partition(PartitionIdentifier.esp)
+    if not part:
         return
 
     with complete_step("Formatting ESP partition"):
-        run(["mkfs.fat", "-nEFI", "-F32", partition(loopdev, args.esp_partno)])
+        run(["mkfs.fat", "-nEFI", "-F32", part.blockdev(loopdev)])
 
 
 def prepare_xbootldr(args: CommandLineArguments, loopdev: Optional[Path], cached: bool) -> None:
@@ -886,11 +796,13 @@ def prepare_xbootldr(args: CommandLineArguments, loopdev: Optional[Path], cached
         return
     if cached:
         return
-    if args.xbootldr_partno is None:
+
+    part = args.get_partition(PartitionIdentifier.xbootldr)
+    if not part:
         return
 
     with complete_step("Formatting XBOOTLDR partition"):
-        run(["mkfs.fat", "-nXBOOTLDR", "-F32", partition(loopdev, args.xbootldr_partno)])
+        run(["mkfs.fat", "-nXBOOTLDR", "-F32", part.blockdev(loopdev)])
 
 
 def mkfs_ext4_cmd(label: str, mount: PathString) -> List[str]:
@@ -916,9 +828,9 @@ def mkfs_generic(args: CommandLineArguments, label: str, mount: PathString, dev:
         cmdline = mkfs_ext4_cmd(label, mount)
 
     if args.output_format == OutputFormat.gpt_ext4:
-        if args.distribution in (Distribution.centos, Distribution.centos_epel) and is_older_than_centos8(
-            args.release
-        ):
+        if (args.distribution in (Distribution.centos, Distribution.centos_epel) and
+            is_older_than_centos8(args.release)):
+
             # e2fsprogs in centos7 is too old and doesn't support this feature
             cmdline += ["-O", "^metadata_csum"]
 
@@ -971,7 +883,8 @@ def luks_format_root(
 ) -> None:
     if args.encrypt != "all":
         return
-    if args.root_partno is None:
+    part = args.get_partition(PartitionIdentifier.root)
+    if not part:
         return
     if is_generated_root(args) and not inserting_generated_root:
         return
@@ -981,14 +894,15 @@ def luks_format_root(
         return
     assert args.passphrase is not None
 
-    with complete_step("Setting up LUKS on root partition…"):
-        luks_format(partition(loopdev, args.root_partno), args.passphrase)
+    with complete_step(f"Setting up LUKS on {part.description}…"):
+        luks_format(part.blockdev(loopdev), args.passphrase)
 
 
 def luks_format_home(args: CommandLineArguments, loopdev: Path, do_run_build_script: bool, cached: bool) -> None:
     if args.encrypt is None:
         return
-    if args.home_partno is None:
+    part = args.get_partition(PartitionIdentifier.home)
+    if not part:
         return
     if do_run_build_script:
         return
@@ -996,14 +910,15 @@ def luks_format_home(args: CommandLineArguments, loopdev: Path, do_run_build_scr
         return
     assert args.passphrase is not None
 
-    with complete_step("Setting up LUKS on home partition…"):
-        luks_format(partition(loopdev, args.home_partno), args.passphrase)
+    with complete_step(f"Setting up LUKS on {part.description}…"):
+        luks_format(part.blockdev(loopdev), args.passphrase)
 
 
 def luks_format_srv(args: CommandLineArguments, loopdev: Path, do_run_build_script: bool, cached: bool) -> None:
     if args.encrypt is None:
         return
-    if args.srv_partno is None:
+    part = args.get_partition(PartitionIdentifier.srv)
+    if not part:
         return
     if do_run_build_script:
         return
@@ -1011,14 +926,15 @@ def luks_format_srv(args: CommandLineArguments, loopdev: Path, do_run_build_scri
         return
     assert args.passphrase is not None
 
-    with complete_step("Setting up LUKS on server data partition…"):
-        luks_format(partition(loopdev, args.srv_partno), args.passphrase)
+    with complete_step(f"Setting up LUKS on {part.description}…"):
+        luks_format(part.blockdev(loopdev), args.passphrase)
 
 
 def luks_format_var(args: CommandLineArguments, loopdev: Path, do_run_build_script: bool, cached: bool) -> None:
     if args.encrypt is None:
         return
-    if args.var_partno is None:
+    part = args.get_partition(PartitionIdentifier.var)
+    if not part:
         return
     if do_run_build_script:
         return
@@ -1026,14 +942,15 @@ def luks_format_var(args: CommandLineArguments, loopdev: Path, do_run_build_scri
         return
     assert args.passphrase is not None
 
-    with complete_step("Setting up LUKS on variable data partition…"):
-        luks_format(partition(loopdev, args.var_partno), args.passphrase)
+    with complete_step(f"Setting up LUKS on {part.description}…"):
+        luks_format(part.blockdev(loopdev), args.passphrase)
 
 
 def luks_format_tmp(args: CommandLineArguments, loopdev: Path, do_run_build_script: bool, cached: bool) -> None:
     if args.encrypt is None:
         return
-    if args.tmp_partno is None:
+    part = args.get_partition(PartitionIdentifier.tmp)
+    if not part:
         return
     if do_run_build_script:
         return
@@ -1041,16 +958,16 @@ def luks_format_tmp(args: CommandLineArguments, loopdev: Path, do_run_build_scri
         return
     assert args.passphrase is not None
 
-    with complete_step("Setting up LUKS on temporary data partition…"):
-        luks_format(partition(loopdev, args.tmp_partno), args.passphrase)
+    with complete_step(f"Setting up LUKS on {part.description}…"):
+        luks_format(part.blockdev(loopdev), args.passphrase)
 
 
 @contextlib.contextmanager
-def luks_open(dev: Path, passphrase: Dict[str, str], partition: str) -> Generator[Path, None, None]:
+def luks_open(part: Partition, loopdev: Path, passphrase: Dict[str, str]) -> Generator[Path, None, None]:
     name = str(uuid.uuid4())
-    # FIXME: partition is only used in messages, rename it?
+    dev = part.blockdev(loopdev)
 
-    with complete_step(f"Setting up LUKS on {partition}…"):
+    with complete_step(f"Setting up LUKS on {part.description}…"):
         if passphrase["type"] == "stdin":
             passphrase_content = (passphrase["content"] + "\n").encode("utf-8")
             run(["cryptsetup", "open", "--type", "luks", dev, name], input=passphrase_content)
@@ -1063,7 +980,7 @@ def luks_open(dev: Path, passphrase: Dict[str, str], partition: str) -> Generato
     try:
         yield path
     finally:
-        with complete_step(f"Closing LUKS {partition}"):
+        with complete_step(f"Closing LUKS on {part.description}"):
             run(["cryptsetup", "close", path])
 
 
@@ -1072,7 +989,8 @@ def luks_setup_root(
 ) -> ContextManager[Optional[Path]]:
     if args.encrypt != "all":
         return contextlib.nullcontext()
-    if args.root_partno is None:
+    part = args.get_partition(PartitionIdentifier.root)
+    if not part:
         return contextlib.nullcontext()
     if is_generated_root(args) and not inserting_generated_root:
         return contextlib.nullcontext()
@@ -1080,7 +998,7 @@ def luks_setup_root(
         return contextlib.nullcontext()
     assert args.passphrase is not None
 
-    return luks_open(partition(loopdev, args.root_partno), args.passphrase, "root partition")
+    return luks_open(part, loopdev, args.passphrase)
 
 
 def luks_setup_home(
@@ -1088,13 +1006,14 @@ def luks_setup_home(
 ) -> ContextManager[Optional[Path]]:
     if args.encrypt is None:
         return contextlib.nullcontext()
-    if args.home_partno is None:
+    part = args.get_partition(PartitionIdentifier.home)
+    if not part:
         return contextlib.nullcontext()
     if do_run_build_script:
         return contextlib.nullcontext()
     assert args.passphrase is not None
 
-    return luks_open(partition(loopdev, args.home_partno), args.passphrase, "home partition")
+    return luks_open(part, loopdev, args.passphrase)
 
 
 def luks_setup_srv(
@@ -1102,13 +1021,14 @@ def luks_setup_srv(
 ) -> ContextManager[Optional[Path]]:
     if args.encrypt is None:
         return contextlib.nullcontext()
-    if args.srv_partno is None:
+    part = args.get_partition(PartitionIdentifier.srv)
+    if not part:
         return contextlib.nullcontext()
     if do_run_build_script:
         return contextlib.nullcontext()
     assert args.passphrase is not None
 
-    return luks_open(partition(loopdev, args.srv_partno), args.passphrase, "server data partition")
+    return luks_open(part, loopdev, args.passphrase)
 
 
 def luks_setup_var(
@@ -1116,13 +1036,14 @@ def luks_setup_var(
 ) -> ContextManager[Optional[Path]]:
     if args.encrypt is None:
         return contextlib.nullcontext()
-    if args.var_partno is None:
+    part = args.get_partition(PartitionIdentifier.var)
+    if not part:
         return contextlib.nullcontext()
     if do_run_build_script:
         return contextlib.nullcontext()
     assert args.passphrase is not None
 
-    return luks_open(partition(loopdev, args.var_partno), args.passphrase, "variable data partition")
+    return luks_open(part, loopdev, args.passphrase)
 
 
 def luks_setup_tmp(
@@ -1130,13 +1051,14 @@ def luks_setup_tmp(
 ) -> ContextManager[Optional[Path]]:
     if args.encrypt is None:
         return contextlib.nullcontext()
-    if args.tmp_partno is None:
+    part = args.get_partition(PartitionIdentifier.tmp)
+    if not part:
         return contextlib.nullcontext()
     if do_run_build_script:
         return contextlib.nullcontext()
     assert args.passphrase is not None
 
-    return luks_open(partition(loopdev, args.tmp_partno), args.passphrase, "temporary data partition")
+    return luks_open(part, loopdev, args.passphrase)
 
 
 class LuksSetupOutput(NamedTuple):
@@ -1167,6 +1089,7 @@ def luks_setup_all(
         return
 
     assert loopdev is not None
+    assert args.partition_table is not None
 
     with luks_setup_root(args, loopdev, do_run_build_script) as root, \
          luks_setup_home(args, loopdev, do_run_build_script) as home, \
@@ -1175,12 +1098,11 @@ def luks_setup_all(
          luks_setup_tmp(args, loopdev, do_run_build_script) as tmp:
 
         yield LuksSetupOutput(
-            optional_partition(loopdev, args.root_partno) if root is None else root,
-            optional_partition(loopdev, args.home_partno) if home is None else home,
-            optional_partition(loopdev, args.srv_partno) if srv is None else srv,
-            optional_partition(loopdev, args.var_partno) if var is None else var,
-            optional_partition(loopdev, args.tmp_partno) if tmp is None else tmp,
-        )
+            root or args.partition_table.partition_path(PartitionIdentifier.root, loopdev),
+            home or args.partition_table.partition_path(PartitionIdentifier.home, loopdev),
+            srv or args.partition_table.partition_path(PartitionIdentifier.srv, loopdev),
+            var or args.partition_table.partition_path(PartitionIdentifier.var, loopdev),
+            tmp or args.partition_table.partition_path(PartitionIdentifier.tmp, loopdev))
 
 
 def prepare_root(args: CommandLineArguments, dev: Optional[Path], cached: bool) -> None:
@@ -1306,11 +1228,16 @@ def mount_image(
         if image.tmp is not None:
             mount_loop(args, image.tmp, root / "var/tmp")
 
-        if args.esp_partno is not None and loopdev is not None:
-            mount_loop(args, partition(loopdev, args.esp_partno), root / "efi")
+        if loopdev is not None:
+            assert args.partition_table is not None
+            path = args.partition_table.partition_path(PartitionIdentifier.esp, loopdev)
 
-        if args.xbootldr_partno is not None and loopdev is not None:
-            mount_loop(args, partition(loopdev, args.xbootldr_partno), root / "boot")
+            if path:
+                mount_loop(args, path, root / "efi")
+
+            path = args.partition_table.partition_path(PartitionIdentifier.xbootldr, loopdev)
+            if path:
+                mount_loop(args, path, root / "boot")
 
         # Make sure /tmp and /run are not part of the image
         mount_tmpfs(root / "run")
@@ -1425,19 +1352,17 @@ def configure_dracut(args: CommandLineArguments, root: Path) -> None:
             f'filesystems+=" {(args.output_format.needed_kernel_module())} "\n'
         )
 
-    # These distros need uefi_stub configured explicitly for dracut to find the systemd-boot uefi stub.
-    if args.esp_partno is not None and args.distribution in (
-        Distribution.ubuntu,
-        Distribution.debian,
-        Distribution.mageia,
-        Distribution.openmandriva,
-    ):
-        dracut_dir.joinpath("30-mkosi-uefi-stub.conf").write_text(
-            "uefi_stub=/usr/lib/systemd/boot/efi/linuxx64.efi.stub\n"
-        )
+    if args.get_partition(PartitionIdentifier.esp):
+        # These distros need uefi_stub configured explicitly for dracut to find the systemd-boot uefi stub.
+        if args.distribution in (Distribution.ubuntu,
+                                 Distribution.debian,
+                                 Distribution.mageia,
+                                 Distribution.openmandriva):
+            dracut_dir.joinpath("30-mkosi-uefi-stub.conf").write_text(
+                "uefi_stub=/usr/lib/systemd/boot/efi/linuxx64.efi.stub\n"
+            )
 
-    # efivarfs must be present in order to GPT root discovery work
-    if args.esp_partno is not None:
+        # efivarfs must be present in order to GPT root discovery work
         dracut_dir.joinpath("30-mkosi-efivarfs.conf").write_text(
             '[[ $(modinfo -k "$kernel" -F filename efivarfs 2>/dev/null) == /* ]] && add_drivers+=" efivarfs "\n'
         )
@@ -1481,7 +1406,7 @@ def prepare_tree(args: CommandLineArguments, root: Path, do_run_build_script: bo
         root.joinpath("etc/machine-id").write_text(f"{args.machine_id}\n")
 
         if not do_run_build_script and args.bootable:
-            if args.xbootldr_partno is not None:
+            if args.get_partition(PartitionIdentifier.xbootldr):
                 # Create directories for kernels and entries if this is enabled
                 root.joinpath("boot/EFI").mkdir(mode=0o700)
                 root.joinpath("boot/EFI/Linux").mkdir(mode=0o700)
@@ -1492,13 +1417,13 @@ def prepare_tree(args: CommandLineArguments, root: Path, do_run_build_script: bo
                 # If this is not enabled, let's create an empty directory on /boot
                 root.joinpath("boot").mkdir(mode=0o700)
 
-            if args.esp_partno is not None:
+            if args.get_partition(PartitionIdentifier.esp):
                 root.joinpath("efi/EFI").mkdir(mode=0o700)
                 root.joinpath("efi/EFI/BOOT").mkdir(mode=0o700)
                 root.joinpath("efi/EFI/systemd").mkdir(mode=0o700)
                 root.joinpath("efi/loader").mkdir(mode=0o700)
 
-                if args.xbootldr_partno is None:
+                if not args.get_partition(PartitionIdentifier.xbootldr):
                     # Create directories for kernels and entries, unless the XBOOTLDR partition is turned on
                     root.joinpath("efi/EFI/Linux").mkdir(mode=0o700)
                     root.joinpath("efi/loader/entries").mkdir(mode=0o700)
@@ -1565,7 +1490,7 @@ def disable_kernel_install(args: CommandLineArguments, root: Path) -> None:
     # off any kernel installation beforehand.
     #
     # For BIOS mode, we don't have that option, so do not mask the units.
-    if not args.bootable or args.bios_partno is not None or not args.with_unified_kernel_images:
+    if not args.bootable or args.get_partition(PartitionIdentifier.bios) or not args.with_unified_kernel_images:
         return
 
     for subdir in ("etc", "etc/kernel", "etc/kernel/install.d"):
@@ -1576,7 +1501,7 @@ def disable_kernel_install(args: CommandLineArguments, root: Path) -> None:
 
 
 def reenable_kernel_install(args: CommandLineArguments, root: Path) -> None:
-    if not args.bootable or args.bios_partno is not None or not args.with_unified_kernel_images:
+    if not args.bootable or args.get_partition(PartitionIdentifier.bios) or not args.with_unified_kernel_images:
         return
 
     write_resource(
@@ -1628,7 +1553,7 @@ def make_rpm_list(args: CommandLineArguments, packages: Set[str], do_run_build_s
         if args.output_format == OutputFormat.gpt_btrfs:
             add_packages(args, packages, "btrfs-progs")
 
-        if args.bios_partno:
+        if args.get_partition(PartitionIdentifier.bios):
             if args.distribution in (Distribution.mageia, Distribution.openmandriva):
                 add_packages(args, packages, "grub2")
             else:
@@ -2527,7 +2452,7 @@ def install_debian_or_ubuntu(args: CommandLineArguments, root: Path, *, do_run_b
         else:
             add_packages(args, extra_packages, "linux-image-amd64")
 
-        if args.bios_partno:
+        if args.get_partition(PartitionIdentifier.bios):
             add_packages(args, extra_packages, "grub-pc")
 
         if args.output_format == OutputFormat.gpt_btrfs:
@@ -2741,10 +2666,10 @@ def install_arch(args: CommandLineArguments, root: Path, do_run_build_script: bo
         write_resource(scripts_dir / "mkosi-kernel-remove", "mkosi.resources.arch", "kernel_remove.sh",
                        executable=True)
 
-        if args.esp_partno is not None:
+        if args.get_partition(PartitionIdentifier.esp):
             write_resource(hooks_dir / "91-mkosi-bootctl-update.hook", "mkosi.resources.arch", "91_bootctl_update.hook")
 
-        if args.bios_partno is not None:
+        if args.get_partition(PartitionIdentifier.bios):
             write_resource(hooks_dir / "90-mkosi-vmlinuz-add.hook", "mkosi.resources.arch", "90_vmlinuz_add.hook")
             write_resource(hooks_dir / "60-mkosi-vmlinuz-remove.hook", "mkosi.resources.arch", "60_vmlinuz_remove.hook")
 
@@ -2762,7 +2687,7 @@ def install_arch(args: CommandLineArguments, root: Path, do_run_build_script: bo
             add_packages(args, packages, "xfsprogs")
         if args.encrypt:
             add_packages(args, packages, "cryptsetup", "device-mapper")
-        if args.bios_partno:
+        if args.get_partition(PartitionIdentifier.bios):
             add_packages(args, packages, "grub")
 
         add_packages(args, packages, "dracut", "binutils")
@@ -2843,7 +2768,7 @@ def install_opensuse(args: CommandLineArguments, root: Path, do_run_build_script
         add_packages(args, packages, "kernel-default", "dracut", "binutils")
         configure_dracut(args, root)
 
-        if args.bios_partno is not None:
+        if args.get_partition(PartitionIdentifier.bios):
             add_packages(args, packages, "grub2")
 
     if not do_run_build_script and args.encrypt:
@@ -3215,17 +3140,16 @@ def install_boot_loader(
         return
 
     with complete_step("Installing boot loader…"):
-        if args.esp_partno:
+        if args.get_partition(PartitionIdentifier.esp):
             if args.distribution == Distribution.clear:
                 pass
-            elif args.distribution in (Distribution.centos, Distribution.centos_epel) and is_older_than_centos8(
-                args.release
-            ):
+            elif (args.distribution in (Distribution.centos, Distribution.centos_epel) and
+                  is_older_than_centos8(args.release)):
                 install_boot_loader_centos_old_efi(args, root, loopdev)
             else:
                 run_workspace_command(args, root, ["bootctl", "install"])
 
-        if args.bios_partno and args.distribution != Distribution.clear:
+        if args.get_partition(PartitionIdentifier.bios) and args.distribution != Distribution.clear:
             grub = (
                 "grub"
                 if args.distribution in (Distribution.ubuntu, Distribution.debian, Distribution.arch)
@@ -3589,165 +3513,45 @@ def make_generated_root(args: CommandLineArguments, root: Path, for_cache: bool)
     return None
 
 
-@dataclasses.dataclass
-class PartitionTable:
-    partitions: List[str]
-    last_partition_sector: Optional[int]
-    sector_size: int
-    first_lba: Optional[int]
-
-    grain: int = 4096
-
-    @classmethod
-    def read(cls, loopdev: Path) -> PartitionTable:
-        table = []
-        last_sector = 0
-        sector_size = 512
-        first_lba = None
-
-        c = run(["sfdisk", "--dump", loopdev],
-                stdout=PIPE,
-                universal_newlines=True)
-
-        if 'disk' in ARG_DEBUG:
-            print_between_lines(c.stdout)
-
-        in_body = False
-        for line in c.stdout.splitlines():
-            line = line.strip()
-
-            if line.startswith('sector-size:'):
-                sector_size = int(line[12:])
-            if line.startswith('first-lba:'):
-                first_lba = int(line[10:])
-
-            if line == "":  # empty line is where the body begins
-                in_body = True
-                continue
-            if not in_body:
-                continue
-
-            table += [line]
-
-            _, rest = line.split(":", 1)
-            fields = rest.split(",")
-
-            start = None
-            size = None
-
-            for field in fields:
-                field = field.strip()
-
-                if field.startswith("start="):
-                    start = int(field[6:])
-                if field.startswith("size="):
-                    size = int(field[5:])
-
-            if start is not None and size is not None:
-                end = start + size
-                last_sector = max(last_sector, end)
-
-        return cls(table, last_sector * sector_size, sector_size, first_lba)
-
-    @classmethod
-    def empty(cls, first_lba: Optional[int] = None) -> PartitionTable:
-        return cls([], None, 512, first_lba)
-
-    def first_usable_offset(self, max_partitions: int = 128) -> int:
-        if self.last_partition_sector:
-            return roundup(self.last_partition_sector, self.grain)
-        elif self.first_lba is not None:
-            # No rounding here, we honour the specified value exactly.
-            return self.first_lba * self.sector_size
-        else:
-            # The header is like the footer, but we have a one-sector "protective MBR" at offset 0
-            return roundup(self.sector_size + self.footer_size(), self.grain)
-
-    def footer_size(self, max_partitions: int = 128) -> int:
-        # The footer must have enough space for the GPT header (one sector),
-        # and the GPT parition entry area. PEA size of 16384 (128 partitions)
-        # is recommended.
-        pea_sectors = math.ceil(max_partitions * 128 / self.sector_size)
-        return (1 + pea_sectors) * self.sector_size
-
-
 def insert_partition(
     args: CommandLineArguments,
     raw: BinaryIO,
     loopdev: Path,
-    partno: int,
     blob: BinaryIO,
-    name: str,
+    ident: PartitionIdentifier,
+    description: str,
     type_uuid: uuid.UUID,
     read_only: bool,
-    uuid_opt: Optional[uuid.UUID] = None,
+    part_uuid: Optional[uuid.UUID] = None,
 ) -> int:
-    if args.ran_sfdisk:
-        old_table = PartitionTable.read(loopdev)
-    else:
-        # No partition table yet? Then let's fake one...
-        old_table = PartitionTable.empty(args.gpt_first_lba)
 
-    blob_size = roundup(os.stat(blob.name).st_size, 512)
+    assert args.partition_table is not None
+
     luks_extra = 16 * 1024 * 1024 if args.encrypt == "all" else 0
-    partition_offset = old_table.first_usable_offset()
-    new_size = roundup(partition_offset + blob_size + luks_extra + old_table.footer_size(), 4096)
+    blob_size = os.stat(blob.name).st_size
+    part = args.partition_table.add(ident, blob_size + luks_extra, type_uuid, description, part_uuid)
 
-    ss = f" ({new_size // old_table.sector_size} sectors)" if 'disk' in ARG_DEBUG else ""
-    MkosiPrinter.print_step(f"Resizing disk image to {format_bytes(new_size)}{ss}")
+    disk_size = args.partition_table.disk_size()
+    ss = f" ({disk_size // args.partition_table.sector_size} sectors)" if 'disk' in ARG_DEBUG else ""
+    with complete_step(f"Resizing disk image to {format_bytes(disk_size)}{ss}"):
+        os.truncate(raw.name, disk_size)
+        run(["losetup", "--set-capacity", loopdev])
 
-    os.truncate(raw.name, new_size)
-    run(["losetup", "--set-capacity", loopdev])
+    part_size = part.n_sectors * args.partition_table.sector_size
+    ss = f" ({part.n_sectors} sectors)" if 'disk' in ARG_DEBUG else ""
+    with complete_step(f"Inserting partition of {format_bytes(part_size)}{ss}..."):
+        args.partition_table.run_sfdisk(loopdev)
 
-    ss = f" ({blob_size // old_table.sector_size} sectors)" if 'disk' in ARG_DEBUG else ""
-    MkosiPrinter.print_step(f"Inserting partition of {format_bytes(blob_size)}{ss}...")
+    with complete_step("Writing partition..."):
+        if ident == PartitionIdentifier.root:
+            luks_format_root(args, loopdev, False, False, True)
+            cm = luks_setup_root(args, loopdev, False, True)
+        else:
+            cm = contextlib.nullcontext()
 
-    if args.gpt_first_lba is not None:
-        first_lba: Optional[int] = args.gpt_first_lba
-    elif old_table.partitions:
-        first_lba = None   # no need to specify this if we already have partitions
-    else:
-        first_lba = partition_offset // old_table.sector_size
-
-    new = []
-    if uuid_opt is not None:
-        new += [f'uuid={uuid_opt}']
-
-    n_sectors = (blob_size + luks_extra) // 512
-    new += [f'size={n_sectors}',
-            f'type={type_uuid}',
-            f'attrs={"GUID:60" if read_only else ""}',
-            f'name="{name}"']
-
-    table = ["label: gpt",
-             f"grain: {old_table.grain}"]
-    if first_lba is not None:
-        table += [f"first-lba: {first_lba}"]
-
-    table += [*old_table.partitions,
-              ', '.join(new)]
-
-    if 'disk' in ARG_DEBUG:
-        print_between_lines('\n'.join(table))
-
-    run(["sfdisk", "--color=never", "--no-reread", "--no-tell-kernel", loopdev],
-        input='\n'.join(table).encode("utf-8"))
-    run(["sync"])
-    run_with_backoff(["blockdev", "--rereadpt", loopdev], attempts=10)
-
-    MkosiPrinter.print_step("Writing partition...")
-
-    if args.root_partno == partno:
-        luks_format_root(args, loopdev, False, False, True)
-        cm = luks_setup_root(args, loopdev, False, True)
-    else:
-        cm = contextlib.nullcontext()
-
-    with cm as dev:
-        path = dev if dev is not None else partition(loopdev, partno)
-        run(["dd", f"if={blob.name}", f"of={path}", "conv=nocreat,sparse"])
-
-    args.ran_sfdisk = True
+        with cm as dev:
+            path = dev if dev is not None else part.blockdev(loopdev)
+            run(["dd", f"if={blob.name}", f"of={path}", "conv=nocreat,sparse"])
 
     return blob_size
 
@@ -3768,25 +3572,23 @@ def insert_generated_root(
     assert raw is not None
     assert loopdev is not None
     assert image is not None
-    assert args.root_partno is not None
+    assert args.partition_table is not None
 
     with complete_step("Inserting generated root partition…"):
-        args.root_size = insert_partition(
-            args,
-            raw,
-            loopdev,
-            args.root_partno,
-            image,
-            root_partition_name(args),
-            gpt_root_native(args.architecture, args.usr_only).root,
-            args.read_only,
-        )
+        insert_partition(args,
+                         raw,
+                         loopdev,
+                         image,
+                         PartitionIdentifier.root,
+                         root_partition_description(args),
+                         type_uuid=gpt_root_native(args.architecture, args.usr_only).root,
+                         read_only=args.read_only)
 
 
 def make_verity(
     args: CommandLineArguments, dev: Optional[Path], do_run_build_script: bool, for_cache: bool
 ) -> Tuple[Optional[BinaryIO], Optional[str]]:
-    if do_run_build_script or not args.verity:
+    if do_run_build_script or args.verity is False:
         return None, None
     if for_cache:
         return None, None
@@ -3819,23 +3621,126 @@ def insert_verity(
     assert loopdev is not None
     assert raw is not None
     assert root_hash is not None
-    assert args.verity_partno is not None
+    assert args.partition_table is not None
 
     # Use the final 128 bit of the root hash as partition UUID of the verity partition
     u = uuid.UUID(root_hash[-32:])
 
     with complete_step("Inserting verity partition…"):
-        insert_partition(
-            args,
-            raw,
-            loopdev,
-            args.verity_partno,
-            verity,
-            root_partition_name(args, True),
-            gpt_root_native(args.architecture, args.usr_only).verity,
-            True,
-            u,
+        insert_partition(args,
+                         raw,
+                         loopdev,
+                         verity,
+                         PartitionIdentifier.verity,
+                         root_partition_description(args, "Verity"),
+                         gpt_root_native(args.architecture, args.usr_only).verity,
+                         read_only=True,
+                         part_uuid=u)
+
+
+def make_verity_sig(
+    args: CommandLineArguments, root_hash: Optional[str], do_run_build_script: bool, for_cache: bool
+) -> Tuple[Optional[BinaryIO], Optional[bytes], Optional[str]]:
+
+    if do_run_build_script or args.verity != "signed":
+        return None, None, None
+    if for_cache:
+        return None, None, None
+
+    assert root_hash is not None
+
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.serialization import pkcs7
+
+    with complete_step("Signing verity root hash…"):
+
+        key = serialization.load_pem_private_key(args.secure_boot_key.read_bytes(), password=None)
+        certificate = x509.load_pem_x509_certificate(args.secure_boot_certificate.read_bytes())
+
+        fingerprint = certificate.fingerprint(hashes.SHA256()).hex()
+
+        sigbytes = pkcs7.PKCS7SignatureBuilder().add_signer(
+            certificate,
+            key,
+            hashes.SHA256()
+        ).set_data(
+            root_hash.encode("utf-8")
+        ).sign(
+            options=[
+                pkcs7.PKCS7Options.DetachedSignature,
+                pkcs7.PKCS7Options.NoCerts,
+                pkcs7.PKCS7Options.NoAttributes,
+                pkcs7.PKCS7Options.Binary
+            ],
+            encoding=serialization.Encoding.DER
         )
+
+        # We base64 the DER result, because we want to include it in
+        # JSON. This is not PEM (i.e. not header/footer line, no line
+        # breaks), but just base64 encapsulated DER).
+        b64encoded = base64.b64encode(sigbytes).decode("ascii")
+
+        print(b64encoded)
+
+        # This is supposed to be extensible, but care should be taken
+        # not to include unprotected data here.
+        j = json.dumps({
+                "rootHash": root_hash,
+                "certificateFingerprint": fingerprint,
+                "signature": b64encoded
+            }).encode("utf-8")
+
+        # Pad to next multiple of 4K with NUL bytes
+        padded = j + b"\0" * (roundup(len(j), 4096) - len(j))
+
+        f: BinaryIO = cast(BinaryIO, tempfile.NamedTemporaryFile(mode="w+b", dir=args.output.parent, prefix=".mkosi-"))
+        f.write(padded)
+        f.flush()
+
+        # Returns a file with zero-padded JSON data to insert as
+        # signature partition as first element, and the DER PKCS7
+        # signature bytes as second argument (to store as detached
+        # PKCS7 file), and finally the SHA256 fingerprint of the
+        # certificate used (which is used to deterministically
+        # generate the partition UUID for the signature partition).
+
+        return f, sigbytes, fingerprint
+
+
+def insert_verity_sig(
+    args: CommandLineArguments,
+    raw: Optional[BinaryIO],
+    loopdev: Optional[Path],
+    verity_sig: Optional[BinaryIO],
+    root_hash: Optional[str],
+    fingerprint: Optional[str],
+    for_cache: bool,
+) -> None:
+    if verity_sig is None:
+        return
+    if for_cache:
+        return
+    assert loopdev is not None
+    assert raw is not None
+    assert root_hash is not None
+    assert fingerprint is not None
+    assert args.partition_table is not None
+
+    # Hash the concatenation of verity roothash and the X509 certificate
+    # fingerprint to generate a UUID for the signature partition.
+    u = uuid.UUID(hashlib.sha256(bytes.fromhex(root_hash) + bytes.fromhex(fingerprint)).hexdigest()[:32])
+
+    with complete_step("Inserting verity signature partition…"):
+        insert_partition(args,
+                         raw,
+                         loopdev,
+                         verity_sig,
+                         PartitionIdentifier.verity_sig,
+                         root_partition_description(args, "Signature"),
+                         gpt_root_native(args.architecture, args.usr_only).verity_sig,
+                         read_only=True,
+                         part_uuid=u)
 
 
 def patch_root_uuid(
@@ -3852,7 +3757,11 @@ def patch_root_uuid(
     u = uuid.UUID(root_hash[:32])
 
     with complete_step("Patching root partition UUID…"):
-        run(["sfdisk", "--part-uuid", loopdev, str(args.root_partno), str(u)], check=True)
+        part = args.get_partition(PartitionIdentifier.root)
+        assert part is not None
+
+        run(["sfdisk", "--part-uuid", loopdev, str(part.number), str(u)],
+            check=True)
 
 
 def extract_partition(
@@ -3886,7 +3795,9 @@ def install_unified_kernel(
     # benefit that they can be signed like normal EFI binaries, and can encode everything necessary to boot a
     # specific root device, including the root hash.
 
-    if not args.bootable or args.esp_partno is None or not args.with_unified_kernel_images:
+    if not (args.bootable and
+            args.get_partition(PartitionIdentifier.esp) and
+            args.with_unified_kernel_images):
         return
 
     # Don't run dracut if this is for the cache. The unified kernel
@@ -3916,7 +3827,7 @@ def install_unified_kernel(
                 if not (kver.is_dir() and os.path.isfile(os.path.join(kver, "modules.dep"))): # type: ignore
                     continue
 
-                prefix = "/boot" if args.xbootldr_partno is not None else "/efi"
+                prefix = "/boot" if args.get_partition(PartitionIdentifier.xbootldr) else "/efi"
                 # While the kernel version can generally be found as a directory under /usr/lib/modules, the
                 # kernel image files can be found either in /usr/lib/modules/<kernel-version>/vmlinuz or in
                 # /boot depending on the distro. By invoking the kernel-install script directly, we can pass
@@ -3960,7 +3871,7 @@ def secure_boot_sign(
         return
     if for_cache and args.verity:
         return
-    if cached and not args.verity:
+    if cached and args.verity is False:
         return
 
     with mount():
@@ -4076,6 +3987,25 @@ def write_root_hash_file(args: CommandLineArguments, root_hash: Optional[str]) -
     return f
 
 
+def write_root_hash_p7s_file(args: CommandLineArguments, root_hash_p7s: Optional[bytes]) -> Optional[BinaryIO]:
+    if root_hash_p7s is None:
+        return None
+
+    assert args.output_root_hash_p7s_file is not None
+
+    suffix = roothash_p7s_suffix(args.usr_only)
+    with complete_step(f"Writing {suffix} file…"):
+        f: BinaryIO = cast(
+            BinaryIO,
+            tempfile.NamedTemporaryFile(
+                mode="w+b", prefix=".mkosi", dir=args.output_root_hash_p7s_file.parent
+            ),
+        )
+        f.write(root_hash_p7s)
+
+    return f
+
+
 def copy_nspawn_settings(args: CommandLineArguments) -> Optional[BinaryIO]:
     if args.nspawn_settings is None:
         return None
@@ -4114,8 +4044,10 @@ def calculate_sha256sum(
     raw: Optional[BinaryIO],
     archive: Optional[BinaryIO],
     root_hash_file: Optional[BinaryIO],
+    root_hash_p7s_file: Optional[BinaryIO],
     split_root: Optional[BinaryIO],
     split_verity: Optional[BinaryIO],
+    split_verity_sig: Optional[BinaryIO],
     split_kernel: Optional[BinaryIO],
     nspawn_settings: Optional[BinaryIO],
 ) -> Optional[TextIO]:
@@ -4142,12 +4074,18 @@ def calculate_sha256sum(
         if root_hash_file is not None:
             assert args.output_root_hash_file is not None
             hash_file(f, root_hash_file, os.path.basename(args.output_root_hash_file))
+        if root_hash_p7s_file is not None:
+            assert args.output_root_hash_p7s_file is not None
+            hash_file(f, root_hash_p7s_file, args.output_root_hash_p7s_file.name)
         if split_root is not None:
             assert args.output_split_root is not None
             hash_file(f, split_root, os.path.basename(args.output_split_root))
         if split_verity is not None:
             assert args.output_split_verity is not None
             hash_file(f, split_verity, os.path.basename(args.output_split_verity))
+        if split_verity_sig is not None:
+            assert args.output_split_verity_sig is not None
+            hash_file(f, split_verity_sig, args.output_split_verity_sig.name)
         if split_kernel is not None:
             assert args.output_split_kernel is not None
             hash_file(f, split_kernel, os.path.basename(args.output_split_kernel))
@@ -4295,6 +4233,16 @@ def link_output_root_hash_file(args: CommandLineArguments, root_hash_file: Optio
             _link_output(args, root_hash_file.name, args.output_root_hash_file)
 
 
+def link_output_root_hash_p7s_file(args: CommandLineArguments, root_hash_p7s_file: Optional[SomeIO]) -> None:
+    if root_hash_p7s_file:
+        assert args.output_root_hash_p7s_file
+        suffix = roothash_p7s_suffix(args.usr_only)
+        with complete_step(
+            f"Linking {suffix} file…", f"Linked {path_relative_to_cwd(args.output_root_hash_p7s_file)}"
+        ):
+            _link_output(args, root_hash_p7s_file.name, args.output_root_hash_p7s_file)
+
+
 def link_output_signature(args: CommandLineArguments, signature: Optional[SomeIO]) -> None:
     if signature:
         assert args.output_signature is not None
@@ -4331,6 +4279,15 @@ def link_output_split_verity(args: CommandLineArguments, split_verity: Optional[
         assert args.output_split_verity
         with complete_step("Linking split Verity data…", f"Linked {path_relative_to_cwd(args.output_split_verity)}"):
             _link_output(args, split_verity.name, args.output_split_verity)
+
+
+def link_output_split_verity_sig(args: CommandLineArguments, split_verity_sig: Optional[SomeIO]) -> None:
+    if split_verity_sig:
+        assert args.output_split_verity_sig
+        with complete_step(
+            "Linking split Verity Signature data…", f"Linked {path_relative_to_cwd(args.output_split_verity_sig)}"
+        ):
+            _link_output(args, split_verity_sig.name, args.output_split_verity_sig)
 
 
 def link_output_split_kernel(args: CommandLineArguments, split_kernel: Optional[SomeIO]) -> None:
@@ -4561,6 +4518,23 @@ class WithNetworkAction(BooleanAction):
             super().__call__(parser, namespace, values, option_string)
 
 
+class VerityAction(BooleanAction):
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: Union[str, Sequence[Any], None, bool],
+        option_string: Optional[str] = None,
+    ) -> None:
+
+        if isinstance(values, str):
+            if values == "signed":
+                setattr(namespace, self.dest, "signed")
+                return
+
+        super().__call__(parser, namespace, values, option_string)
+
+
 class CustomHelpFormatter(argparse.HelpFormatter):
     def _format_action_invocation(self, action: argparse.Action) -> str:
         if not action.option_strings or action.nargs == 0:
@@ -4771,6 +4745,12 @@ def create_parser() -> ArgumentParserMkosi:
         metavar="PATH",
     )
     group.add_argument(
+        "--output-split-verity-sig",
+        help="Output Verity Signature partition image path (if --split-artifacts is used)",
+        type=Path,
+        metavar="PATH",
+    )
+    group.add_argument(
         "--output-split-kernel",
         help="Output kernel path (if --split-artifacts is used)",
         type=Path,
@@ -4853,7 +4833,11 @@ def create_parser() -> ArgumentParserMkosi:
     group.add_argument(
         "--encrypt", choices=("all", "data"), help='Encrypt everything except: ESP ("all") or ESP and root ("data")'
     )
-    group.add_argument("--verity", action=BooleanAction, help="Add integrity partition (implies --read-only)")
+    group.add_argument(
+        "--verity",
+        action=VerityAction,
+        help="Add integrity partition, and optionally sign it (implies --read-only)",
+    )
     group.add_argument(
         "--compress",
         type=parse_compression,
@@ -5508,6 +5492,8 @@ def unlink_output(args: CommandLineArguments) -> None:
 
             if args.verity:
                 unlink_try_hard(args.output_root_hash_file)
+            if args.verity == "signed":
+                unlink_try_hard(args.output_root_hash_p7s_file)
 
             if args.sign:
                 unlink_try_hard(args.output_signature)
@@ -5518,6 +5504,7 @@ def unlink_output(args: CommandLineArguments) -> None:
             if args.split_artifacts:
                 unlink_try_hard(args.output_split_root)
                 unlink_try_hard(args.output_split_verity)
+                unlink_try_hard(args.output_split_verity_sig)
                 unlink_try_hard(args.output_split_kernel)
 
             if args.nspawn_settings is not None:
@@ -5675,7 +5662,7 @@ def find_password(args: argparse.Namespace) -> None:
 
 
 def find_secure_boot(args: argparse.Namespace) -> None:
-    if not args.secure_boot:
+    if not args.secure_boot and args.verity != "signed":
         return
 
     if args.secure_boot_key is None:
@@ -5974,6 +5961,9 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
         args.read_only = True
         args.output_root_hash_file = build_auxiliary_output_path(args, roothash_suffix(args.usr_only))
 
+        if args.verity == "signed":
+            args.output_root_hash_p7s_file = build_auxiliary_output_path(args, roothash_p7s_suffix(args.usr_only))
+
     if args.checksum:
         args.output_checksum = args.output.with_name("SHA256SUMS")
 
@@ -5995,6 +5985,8 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
         args.output_split_root = build_auxiliary_output_path(args, ".usr" if args.usr_only else ".root", True)
         if args.verity:
             args.output_split_verity = build_auxiliary_output_path(args, ".verity", True)
+            if args.verity == "signed":
+                args.output_split_verity_sig = build_auxiliary_output_path(args, ".verity-sig", True)
         if args.bootable:
             args.output_split_kernel = build_auxiliary_output_path(args, ".efi", True)
 
@@ -6047,6 +6039,7 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
         args.esp_size = 256 * 1024 * 1024
 
     args.verity_size = None
+    args.verity_sig_size = None
 
     if args.secure_boot_key is not None:
         args.secure_boot_key = args.secure_boot_key.absolute()
@@ -6054,15 +6047,15 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
     if args.secure_boot_certificate is not None:
         args.secure_boot_certificate = args.secure_boot_certificate.absolute()
 
-    if args.secure_boot:
+    if args.secure_boot or args.verity == "signed":
         if args.secure_boot_key is None:
             die(
-                "UEFI SecureBoot enabled, but couldn't find private key. (Consider placing it in mkosi.secure-boot.key?)"
+                "UEFI SecureBoot or signed Verity enabled, but couldn't find private key. (Consider placing it in mkosi.secure-boot.key?)"
             )  # NOQA: E501
 
         if args.secure_boot_certificate is None:
             die(
-                "UEFI SecureBoot enabled, but couldn't find certificate. (Consider placing it in mkosi.secure-boot.crt?)"
+                "UEFI SecureBoot or signed Verity enabled, but couldn't find certificate. (Consider placing it in mkosi.secure-boot.crt?)"
             )  # NOQA: E501
 
     if args.verb in ("shell", "boot"):
@@ -6092,7 +6085,7 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
         args.kernel_command_line.append(
             "mount.usr=/dev/disk/by-partlabel/"
             + xescape(
-                root_partition_name(
+                root_partition_description(
                     args=None, image_id=args.image_id, image_version=args.image_version, usr_only=args.usr_only
                 )
             )
@@ -6157,6 +6150,7 @@ def check_output(args: CommandLineArguments) -> None:
         args.output_sshkey if args.ssh else None,
         args.output_split_root if args.split_artifacts else None,
         args.output_split_verity if args.split_artifacts else None,
+        args.output_split_verity_sig if args.split_artifacts else None,
         args.output_split_kernel if args.split_artifacts else None,
     ):
 
@@ -6247,6 +6241,9 @@ def print_summary(args: CommandLineArguments) -> None:
         f"       Output Split Verity: {none_to_na(args.output_split_verity if args.split_artifacts else None)}"
     )
     MkosiPrinter.info(
+        f"  Output Split Verity Sig.: {none_to_na(args.output_split_verity_sig if args.split_artifacts else None)}"
+    )
+    MkosiPrinter.info(
         f"       Output Split Kernel: {none_to_na(args.output_split_kernel if args.split_artifacts else None)}"
     )
     MkosiPrinter.info(
@@ -6270,7 +6267,7 @@ def print_summary(args: CommandLineArguments) -> None:
         MkosiPrinter.info("                     QCow2: " + yes_no(args.qcow2))
 
     MkosiPrinter.info("                Encryption: " + none_to_no(args.encrypt))
-    MkosiPrinter.info("                    Verity: " + yes_no(args.verity))
+    MkosiPrinter.info("                    Verity: " + yes_no_or(args.verity))
 
     if args.output_format.is_disk():
         MkosiPrinter.info("                  Bootable: " + yes_no(args.bootable))
@@ -6279,14 +6276,14 @@ def print_summary(args: CommandLineArguments) -> None:
             MkosiPrinter.info("       Kernel Command Line: " + " ".join(args.kernel_command_line))
             MkosiPrinter.info("           UEFI SecureBoot: " + yes_no(args.secure_boot))
 
-            if args.secure_boot:
-                MkosiPrinter.info(f"       UEFI SecureBoot Key: {args.secure_boot_key}")
-                MkosiPrinter.info(f"     UEFI SecureBoot Cert.: {args.secure_boot_certificate}")
-
             MkosiPrinter.info("            Boot Protocols: " + line_join_list(args.boot_protocols))
             MkosiPrinter.info("     Unified Kernel Images: " + yes_no(args.with_unified_kernel_images))
             MkosiPrinter.info("             GPT First LBA: " + str(args.gpt_first_lba))
             MkosiPrinter.info("           Hostonly Initrd: " + yes_no(args.hostonly_initrd))
+
+    if args.secure_boot or args.verity == "sign":
+        MkosiPrinter.info(f"SecureBoot/Verity Sign Key: {args.secure_boot_key}")
+        MkosiPrinter.info(f"   SecureBoot/verity Cert.: {args.secure_boot_certificate}")
 
     MkosiPrinter.info("\nCONTENT:")
     MkosiPrinter.info("                  Packages: " + line_join_list(args.packages))
@@ -6489,9 +6486,13 @@ class BuildOutput:
     raw: Optional[BinaryIO]
     archive: Optional[BinaryIO]
     root_hash: Optional[str]
+    root_hash_p7s: Optional[bytes]
     sshkey: Optional[TextIO]
+
+    # Partition contents
     split_root: Optional[BinaryIO]
     split_verity: Optional[BinaryIO]
+    split_verity_sig: Optional[BinaryIO]
     split_kernel: Optional[BinaryIO]
 
     def raw_name(self) -> Optional[str]:
@@ -6499,7 +6500,7 @@ class BuildOutput:
 
     @classmethod
     def empty(cls) -> BuildOutput:
-        return cls(None, None, None, None, None, None, None)
+        return cls(None, None, None, None, None, None, None, None, None)
 
 
 def build_image(
@@ -6610,6 +6611,10 @@ def build_image(
             insert_verity(args, raw, loopdev, verity, root_hash, for_cache)
             split_verity = verity if args.split_artifacts else None
 
+            verity_sig, root_hash_p7s, fingerprint = make_verity_sig(args, root_hash, do_run_build_script, for_cache)
+            insert_verity_sig(args, raw, loopdev, verity_sig, root_hash, fingerprint, for_cache)
+            split_verity_sig = verity_sig if args.split_artifacts else None
+
             # This time we mount read-only, as we already generated
             # the verity data, and hence really shouldn't modify the
             # image anymore.
@@ -6632,7 +6637,17 @@ def build_image(
     archive = make_tar(args, root, do_run_build_script, for_cache) or \
               make_cpio(args, root, do_run_build_script, for_cache)
 
-    return BuildOutput(raw or generated_root, archive, root_hash, sshkey, split_root, split_verity, split_kernel)
+    return BuildOutput(
+        raw or generated_root,
+        archive,
+        root_hash,
+        root_hash_p7s,
+        sshkey,
+        split_root,
+        split_verity,
+        split_verity_sig,
+        split_kernel,
+    )
 
 
 def one_zero(b: bool) -> str:
@@ -6816,16 +6831,29 @@ def build_stuff(args: CommandLineArguments) -> Manifest:
         raw = compress_output(args, raw)
         split_root = compress_output(args, image.split_root, ".usr" if args.usr_only else ".root")
         split_verity = compress_output(args, image.split_verity, ".verity")
+        split_verity_sig = compress_output(args, image.split_verity_sig, ".verity-sig")
         split_kernel = compress_output(args, image.split_kernel, ".efi")
         root_hash_file = write_root_hash_file(args, image.root_hash)
+        root_hash_p7s_file = write_root_hash_p7s_file(args, image.root_hash_p7s)
         settings = copy_nspawn_settings(args)
-        checksum = calculate_sha256sum(args, raw, image.archive, root_hash_file,
-                                       split_root, split_verity, split_kernel, settings)
+        checksum = calculate_sha256sum(
+            args,
+            raw,
+            image.archive,
+            root_hash_file,
+            root_hash_p7s_file,
+            split_root,
+            split_verity,
+            split_verity_sig,
+            split_kernel,
+            settings,
+        )
         signature = calculate_signature(args, checksum)
         bmap = calculate_bmap(args, raw)
 
         link_output(args, root, raw or image.archive)
         link_output_root_hash_file(args, root_hash_file)
+        link_output_root_hash_p7s_file(args, root_hash_p7s_file)
         link_output_checksum(args, checksum)
         link_output_signature(args, signature)
         link_output_bmap(args, bmap)
@@ -6834,6 +6862,7 @@ def build_stuff(args: CommandLineArguments) -> Manifest:
             link_output_sshkey(args, image.sshkey)
         link_output_split_root(args, split_root)
         link_output_split_verity(args, split_verity)
+        link_output_split_verity_sig(args, split_verity_sig)
         link_output_split_kernel(args, split_kernel)
 
         if image.root_hash is not None:

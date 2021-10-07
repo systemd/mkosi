@@ -16,7 +16,7 @@ jobs:
 
     - name: Install
       run: |
-        python3 -m pip install pytest mypy isort pyflakes
+        python3 -m pip install pytest mypy types-cryptography isort pyflakes
         npm install -g pyright
 
     - name: Check that imports are sorted

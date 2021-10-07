@@ -6,6 +6,7 @@ import argparse
 import contextlib
 import dataclasses
 import enum
+import math
 import os
 import shlex
 import shutil
@@ -37,6 +38,17 @@ PathString = Union[Path, str]
 
 def shell_join(cmd: Sequence[PathString]) -> str:
     return " ".join(shlex.quote(str(x)) for x in cmd)
+
+
+def print_between_lines(s: str) -> None:
+    size = os.get_terminal_size()
+    print('-' * size.columns)
+    print(s.rstrip('\n'))
+    print('-' * size.columns)
+
+
+def roundup(x: int, step: int) -> int:
+    return ((x + step - 1) // step) * step
 
 
 # These types are only generic during type checking and not at runtime, leading
@@ -198,6 +210,126 @@ class ManifestFormat(Parseable, enum.Enum):
     changelog = "changelog"  # human-readable text file with package changelogs
 
 
+class PartitionIdentifier(enum.Enum):
+    esp        = 'esp'
+    bios       = 'bios'
+    xbootldr   = 'xbootldr'
+    root       = 'root'
+    swap       = 'swap'
+    home       = 'home'
+    srv        = 'srv'
+    var        = 'var'
+    tmp        = 'tmp'
+    verity     = 'verity'
+    verity_sig = 'verity-sig'
+
+
+@dataclasses.dataclass
+class Partition:
+    number: int
+
+    n_sectors: int
+    type_uuid: uuid.UUID
+    part_uuid: Optional[uuid.UUID]
+    read_only: Optional[bool]
+
+    description: str
+
+    def blockdev(self, loopdev: Path) -> Path:
+        return Path(f"{loopdev}p{self.number}")
+
+    def sfdisk_spec(self) -> str:
+        desc = [f'size={self.n_sectors}',
+                f'type={self.type_uuid}',
+                f'attrs={"GUID:60" if self.read_only else ""}',
+                f'name="{self.description}"',
+                f'uuid={self.part_uuid}' if self.part_uuid is not None else None]
+        return ', '.join(filter(None, desc))
+
+
+@dataclasses.dataclass
+class PartitionTable:
+    partitions: Dict[PartitionIdentifier, Partition] = dataclasses.field(default_factory=dict)
+    last_partition_sector: Optional[int] = None
+    sector_size: int = 512
+    first_lba: Optional[int] = None
+
+    grain: int = 4096
+
+    def first_partition_offset(self, max_partitions: int = 128) -> int:
+        if self.first_lba is not None:
+            # No rounding here, we honour the specified value exactly.
+            return self.first_lba * self.sector_size
+        else:
+            # The header is like the footer, but we have a one-sector "protective MBR" at offset 0
+            return roundup(self.sector_size + self.footer_size(), self.grain)
+
+    def last_partition_offset(self, max_partitions: int = 128) -> int:
+        if self.last_partition_sector:
+            return roundup(self.last_partition_sector * self.sector_size, self.grain)
+        else:
+            return self.first_partition_offset(max_partitions)
+
+    def footer_size(self, max_partitions: int = 128) -> int:
+        # The footer must have enough space for the GPT header (one sector),
+        # and the GPT parition entry area. PEA size of 16384 (128 partitions)
+        # is recommended.
+        pea_sectors = math.ceil(max_partitions * 128 / self.sector_size)
+        return (1 + pea_sectors) * self.sector_size
+
+    def disk_size(self) -> int:
+        return roundup(self.last_partition_offset() + self.footer_size(), self.grain)
+
+    def add(self,
+            ident: PartitionIdentifier,
+            size: int,
+            type_uuid: uuid.UUID,
+            description: str,
+            part_uuid: Optional[uuid.UUID] = None,
+            read_only: Optional[bool] = False) -> Partition:
+
+        assert '"' not in description
+
+        size = roundup(size, self.grain)
+        n_sectors = size // self.sector_size
+
+        part = Partition(len(self.partitions) + 1,
+                         n_sectors, type_uuid, part_uuid, read_only, description)
+        self.partitions[ident] = part
+
+        self.last_partition_sector = self.last_partition_offset() // self.sector_size + n_sectors
+
+        return part
+
+    def partition_path(self, ident: PartitionIdentifier, loopdev: Path) -> Optional[Path]:
+        part = self.partitions.get(ident)
+        if part is None:
+            return None
+
+        return part.blockdev(loopdev)
+
+    def sfdisk_spec(self) -> str:
+        table = ["label: gpt",
+                 f"grain: {self.grain}",
+                 f"first-lba: {self.first_partition_offset() // self.sector_size}",
+                 *(p.sfdisk_spec() for p in self.partitions.values())]
+        return '\n'.join(table)
+
+    def run_sfdisk(self, device: PathString) -> None:
+        spec = self.sfdisk_spec()
+        device = Path(device)
+
+        if 'disk' in ARG_DEBUG:
+            print_between_lines(spec)
+
+        run(["sfdisk", "--color=never", "--no-reread", "--no-tell-kernel", device],
+            input=spec.encode("utf-8"))
+
+        if device.is_block_device():
+            run(["sync"])
+            run_with_backoff(["blockdev", "--rereadpt", device], attempts=10)
+
+
 @dataclasses.dataclass
 class CommandLineArguments:
     """Type-hinted storage for command line arguments."""
@@ -226,7 +358,7 @@ class CommandLineArguments:
     secure_boot_common_name: str
     read_only: bool
     encrypt: Optional[str]
-    verity: bool
+    verity: Union[bool, str]
     compress: Union[None, str, bool]
     compress_fs: Union[None, str, bool]
     compress_output: Union[None, str, bool]
@@ -306,6 +438,7 @@ class CommandLineArguments:
 
     # Some extra stuff that's stored in CommandLineArguments for convenience but isn't populated by arguments
     verity_size: Optional[int]
+    verity_sig_size: Optional[int]
     machine_id: str
     force: bool
     original_umask: int
@@ -315,27 +448,26 @@ class CommandLineArguments:
     output_nspawn_settings: Optional[Path] = None
     output_sshkey: Optional[Path] = None
     output_root_hash_file: Optional[Path] = None
+    output_root_hash_p7s_file: Optional[Path] = None
     output_bmap: Optional[Path] = None
     output_split_root: Optional[Path] = None
     output_split_verity: Optional[Path] = None
+    output_split_verity_sig: Optional[Path] = None
     output_split_kernel: Optional[Path] = None
     cache_pre_inst: Optional[Path] = None
     cache_pre_dev: Optional[Path] = None
     output_signature: Optional[Path] = None
 
-    root_partno: Optional[int] = None
-    swap_partno: Optional[int] = None
-    esp_partno: Optional[int] = None
-    xbootldr_partno: Optional[int] = None
-    bios_partno: Optional[int] = None
-    home_partno: Optional[int] = None
-    srv_partno: Optional[int] = None
-    var_partno: Optional[int] = None
-    tmp_partno: Optional[int] = None
-    verity_partno: Optional[int] = None
+    partition_table: Optional[PartitionTable] = None
 
     releasever: Optional[str] = None
     ran_sfdisk: bool = False
+
+    def get_partition(self, ident: PartitionIdentifier) -> Optional[Partition]:
+        "A shortcut to check that we have a partition table and extract the partition object"
+        if self.partition_table is None:
+            return None
+        return self.partition_table.partitions.get(ident)
 
 
 def should_compress_fs(args: Union[argparse.Namespace, CommandLineArguments]) -> Union[bool, str]:
@@ -379,11 +511,9 @@ def var_tmp(root: Path) -> Path:
     return p
 
 
-def partition(loopdev: Path, partno: int) -> Path:
-    return Path(f"{loopdev}p{partno}")
-
-
 def nspawn_params_for_blockdev_access(args: CommandLineArguments, loopdev: Path) -> List[str]:
+    assert args.partition_table is not None
+
     params = [
         f"--bind-ro={loopdev}",
         f"--property=DeviceAllow={loopdev}",
@@ -391,11 +521,13 @@ def nspawn_params_for_blockdev_access(args: CommandLineArguments, loopdev: Path)
         "--bind-ro=/dev/disk",
     ]
 
-    for partno in (args.esp_partno, args.bios_partno, args.root_partno, args.xbootldr_partno):
-        if partno is not None:
-            p = partition(loopdev, partno)
-            if p.exists():
-                params += [f"--bind-ro={p}", f"--property=DeviceAllow={p}"]
+    for ident in (PartitionIdentifier.esp,
+                  PartitionIdentifier.bios,
+                  PartitionIdentifier.root,
+                  PartitionIdentifier.xbootldr):
+        path = args.partition_table.partition_path(ident, loopdev)
+        if path and path.exists():
+            params += [f"--bind-ro={path}", f"--property=DeviceAllow={path}"]
 
     params += [f"--setenv={env}" for env in args.environment]
 
@@ -604,7 +736,10 @@ def write_grub_config(args: CommandLineArguments, root: Path) -> None:
 
 
 def install_grub(args: CommandLineArguments, root: Path, loopdev: Path, grub: str) -> None:
-    if args.bios_partno is None:
+    assert args.partition_table is not None
+
+    part = args.get_partition(PartitionIdentifier.bios)
+    if not part:
         return
 
     write_grub_config(args, root)
