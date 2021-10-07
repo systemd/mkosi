@@ -4167,12 +4167,22 @@ def save_cache(args: CommandLineArguments, root: Path, raw: Optional[str], cache
             shutil.move(cast(str, root), cache_path)  # typing bug, .move() accepts Path
 
 
-def _link_output(args: CommandLineArguments, oldpath: PathString, newpath: PathString) -> None:
+def _link_output(
+        args: CommandLineArguments,
+        oldpath: PathString,
+        newpath: PathString,
+        mode: int = 0o666,
+) -> None:
+
     assert oldpath is not None
     assert newpath is not None
 
-    os.chmod(oldpath, 0o666 & ~args.original_umask)
+    # Temporary files created by tempfile have mode trimmed to the user.
+    # After we are done writing files, adjust the mode to the default specified by umask.
+    os.chmod(oldpath, mode & ~args.original_umask)
+
     os.link(oldpath, newpath)
+
     if args.no_chown:
         return
 
@@ -4261,8 +4271,7 @@ def link_output_sshkey(args: CommandLineArguments, sshkey: Optional[SomeIO]) -> 
     if sshkey:
         assert args.output_sshkey
         with complete_step("Linking private ssh key file…", f"Linked {path_relative_to_cwd(args.output_sshkey)}"):
-            _link_output(args, sshkey.name, args.output_sshkey)
-            os.chmod(args.output_sshkey, 0o600)
+            _link_output(args, sshkey.name, args.output_sshkey, mode=0o600)
 
 
 def link_output_split_root(args: CommandLineArguments, split_root: Optional[SomeIO]) -> None:
