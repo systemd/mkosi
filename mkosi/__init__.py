@@ -3942,11 +3942,16 @@ def extract_unified_kernel(
 def compress_output(
     args: CommandLineArguments, data: Optional[BinaryIO], suffix: Optional[str] = None
 ) -> Optional[BinaryIO]:
+
     if data is None:
         return None
     compress = should_compress_output(args)
 
     if not compress:
+        # If we shan't compress, then at least make the output file sparse
+        with complete_step(f"Digging holes into output file {data.name}…"):
+            run(["fallocate", "--dig-holes", data.name])
+
         return data
 
     with complete_step(f"Compressing output file {data.name}…"):
