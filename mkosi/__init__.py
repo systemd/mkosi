@@ -3551,6 +3551,9 @@ def insert_partition(
 
         with cm as dev:
             path = dev if dev is not None else part.blockdev(loopdev)
+            # Let's discard the partition block device first, to ensure the GPT partition table footer that
+            # likely is stored in it is flushed out. After all we want to write with dd's sparse option.
+            run(["blkdiscard", path])
             run(["dd", f"if={blob.name}", f"of={path}", "conv=nocreat,sparse"])
 
     return blob_size
@@ -3939,11 +3942,16 @@ def extract_unified_kernel(
 def compress_output(
     args: CommandLineArguments, data: Optional[BinaryIO], suffix: Optional[str] = None
 ) -> Optional[BinaryIO]:
+
     if data is None:
         return None
     compress = should_compress_output(args)
 
     if not compress:
+        # If we shan't compress, then at least make the output file sparse
+        with complete_step(f"Digging holes into output file {data.name}…"):
+            run(["fallocate", "--dig-holes", data.name])
+
         return data
 
     with complete_step(f"Compressing output file {data.name}…"):
