@@ -83,6 +83,7 @@ from .backend import (
     roundup,
     run,
     run_workspace_command,
+    set_umask,
     should_compress_fs,
     should_compress_output,
     spawn,
@@ -476,9 +477,8 @@ def setup_workspace(args: CommandLineArguments) -> TempDir:
 
 
 def btrfs_subvol_create(path: Path, mode: int = 0o755) -> None:
-    m = os.umask(~mode & 0o7777)
-    run(["btrfs", "subvol", "create", path])
-    os.umask(m)
+    with set_umask(~mode & 0o7777):
+        run(["btrfs", "subvol", "create", path])
 
 
 def btrfs_subvol_delete(path: Path) -> None:
@@ -4175,12 +4175,22 @@ def save_cache(args: CommandLineArguments, root: Path, raw: Optional[str], cache
             shutil.move(cast(str, root), cache_path)  # typing bug, .move() accepts Path
 
 
-def _link_output(args: CommandLineArguments, oldpath: PathString, newpath: PathString) -> None:
+def _link_output(
+        args: CommandLineArguments,
+        oldpath: PathString,
+        newpath: PathString,
+        mode: int = 0o666,
+) -> None:
+
     assert oldpath is not None
     assert newpath is not None
 
-    os.chmod(oldpath, 0o666 & ~args.original_umask)
+    # Temporary files created by tempfile have mode trimmed to the user.
+    # After we are done writing files, adjust the mode to the default specified by umask.
+    os.chmod(oldpath, mode & ~args.original_umask)
+
     os.link(oldpath, newpath)
+
     if args.no_chown:
         return
 
@@ -4269,8 +4279,7 @@ def link_output_sshkey(args: CommandLineArguments, sshkey: Optional[SomeIO]) -> 
     if sshkey:
         assert args.output_sshkey
         with complete_step("Linking private ssh key file…", f"Linked {path_relative_to_cwd(args.output_sshkey)}"):
-            _link_output(args, sshkey.name, args.output_sshkey)
-            os.chmod(args.output_sshkey, 0o600)
+            _link_output(args, sshkey.name, args.output_sshkey, mode=0o600)
 
 
 def link_output_split_root(args: CommandLineArguments, split_root: Optional[SomeIO]) -> None:
@@ -6133,7 +6142,10 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
     if args.ssh_timeout < 0:
         die("--ssh-timeout must be >= 0")
 
-    args.original_umask = os.umask(0o000)
+    # We set a reasonable umask so that files that are created in the image
+    # will have reasonable permissions. We don't want those permissions to be
+    # influenced by the caller's umask which will be used only for output files.
+    args.original_umask = os.umask(0o022)
 
     # Let's define a fixed machine ID for all our build-time
     # runs. We'll strip it off the final image, but some build-time
