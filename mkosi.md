@@ -502,9 +502,17 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 
 `ReadOnly=`, `--read-only`
 
-: Make root file system read-only. Only applies to `gpt_ext4`,
-  `gpt_xfs`, `gpt_btrfs`, `subvolume` output formats, and is implied on
-  `gpt_squashfs` and `plain_squashfs`.
+: Set the read-only flag on the root partition in the partition table.
+  Only applies to `gpt_ext4`, `gpt_xfs`, `gpt_btrfs`, `subvolume`
+  output formats, and is implied on `gpt_squashfs` and `plain_squashfs`.
+
+: The read-only flag is essentially a hint to tools using the image
+  (see https://systemd.io/DISCOVERABLE_PARTITIONS/). In particular,
+  all systemd tools like `systemd-nspawn` and
+  `systemd-gpt-auto-generator` will mount such partitions read-only,
+  but tools from other project may ignore the flag.
+
+[//]: # (Please add external tools to the list here.)
 
 `Minimize=`, `--minimize`
 

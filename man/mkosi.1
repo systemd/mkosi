@@ -497,10 +497,15 @@ SecureBoot keys via mkosi\[cq]s \f[C]genkey\f[R] command.
 Defaults to two years (730 days).
 .TP
 \f[B]\f[CB]ReadOnly=\f[B]\f[R], \f[B]\f[CB]--read-only\f[B]\f[R]
-Make root file system read-only.
+Set the read-only flag on the root partition in the partition table.
 Only applies to \f[C]gpt_ext4\f[R], \f[C]gpt_xfs\f[R],
 \f[C]gpt_btrfs\f[R], \f[C]subvolume\f[R] output formats, and is implied
 on \f[C]gpt_squashfs\f[R] and \f[C]plain_squashfs\f[R].
+The read-only flag is essentially a hint to tools using the image (see
+https://systemd.io/DISCOVERABLE_PARTITIONS/).
+In particular, all systemd tools like \f[C]systemd-nspawn\f[R] and
+\f[C]systemd-gpt-auto-generator\f[R] will mount such partitions
+read-only, but tools from other project may ignore the flag.
 .TP
 \f[B]\f[CB]Minimize=\f[B]\f[R], \f[B]\f[CB]--minimize\f[B]\f[R]
 Attempt to make the resulting root file system as small as possible by
