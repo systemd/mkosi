@@ -648,7 +648,7 @@ def refresh_partition_table(args: CommandLineArguments, f: BinaryIO) -> None:
 
     with complete_step("Refreshing partition table…", "Refreshed partition table."):
         if args.partition_table.partitions:
-            args.partition_table.run_sfdisk(f.name)
+            args.partition_table.run_sfdisk(f.name, quiet=True)
 
 
 def refresh_file_system(args: CommandLineArguments, dev: Optional[Path], cached: bool) -> None:

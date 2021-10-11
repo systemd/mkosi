@@ -324,15 +324,18 @@ class PartitionTable:
                  *(p.sfdisk_spec() for p in self.partitions.values())]
         return '\n'.join(table)
 
-    def run_sfdisk(self, device: PathString) -> None:
+    def run_sfdisk(self, device: PathString, *, quiet: bool = False) -> None:
         spec = self.sfdisk_spec()
         device = Path(device)
 
         if 'disk' in ARG_DEBUG:
             print_between_lines(spec)
 
-        run(["sfdisk", "--color=never", "--no-reread", "--no-tell-kernel", device],
-            input=spec.encode("utf-8"))
+        cmd: List[PathString] = ["sfdisk", "--color=never", "--no-reread", "--no-tell-kernel", device]
+        if quiet:
+            cmd += ["--quiet"]
+
+        run(cmd, input=spec.encode("utf-8"))
 
         if device.is_block_device():
             run(["sync"])
