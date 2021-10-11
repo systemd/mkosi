@@ -409,6 +409,7 @@ class CommandLineArguments:
     source_resolve_symlinks_final: bool
     with_network: Union[bool, str]
     nspawn_settings: Optional[Path]
+    base_image: Optional[Path]
     root_size: int
     esp_size: Optional[int]
     xbootldr_size: Optional[int]

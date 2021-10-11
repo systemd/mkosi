@@ -99,6 +99,7 @@ class MkosiConfig:
             "release": None,
             "repositories": [],
             "use_host_repositories": False,
+            "base_image": None,
             "root_size": None,
             "secure_boot": False,
             "secure_boot_certificate": None,
@@ -322,6 +323,8 @@ class MkosiConfig:
                 self.reference_config[job_name]["nspawn_settings"] = Path(mk_config_packages["NSpawnSettings"])
         if "Partitions" in mk_config:
             mk_config_partitions = mk_config["Partitions"]
+            if "BaseImage" in mk_config_partitions:
+                self.reference_config[job_name]["base_image"] = mk_config_partitions["BaseImage"]
             if "RootSize" in mk_config_partitions:
                 self.reference_config[job_name]["root_size"] = mk_config_partitions["RootSize"]
             if "ESPSize" in mk_config_partitions:

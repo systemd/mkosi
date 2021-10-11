@@ -80,7 +80,6 @@ from .backend import (
     nspawn_params_for_blockdev_access,
     patch_file,
     path_relative_to_cwd,
-    roundup,
     run,
     run_workspace_command,
     set_umask,
@@ -744,25 +743,40 @@ def reuse_cache_image(
 
 
 @contextlib.contextmanager
-def attach_image_loopback(
-    args: CommandLineArguments, raw: Optional[BinaryIO]
-) -> Generator[Optional[Path], None, None]:
-    if raw is None:
+def attach_image_loopback(image: Optional[BinaryIO]) -> Generator[Optional[Path], None, None]:
+    if image is None:
         yield None
         return
 
-    with complete_step("Attaching image file…", "Attached image file as {}") as output:
-        c = run(["losetup", "--find", "--show", "--partscan", raw.name],
+    with complete_step(f"Attaching {image.name} as loopback…", "Attached {}") as output:
+        c = run(["losetup", "--find", "--show", "--partscan", image.name],
                 stdout=PIPE,
                 text=True)
         loopdev = Path(c.stdout.strip())
-        output.append(loopdev)
+        output += [loopdev]
 
     try:
         yield loopdev
     finally:
-        with complete_step("Detaching image file"):
+        with complete_step(f"Detaching {loopdev}"):
             run(["losetup", "--detach", loopdev])
+
+@contextlib.contextmanager
+def attach_base_image(base_image: Optional[Path]) -> Generator[Optional[Path], None, None]:
+    """Context manager that attaches/detaches the base image directory or device"""
+
+    if base_image is None:
+        yield None
+        return
+
+    with complete_step(f"Using {base_image} as the base image"):
+        if base_image.is_dir():
+            yield base_image
+        else:
+            with base_image.open('rb') as f, \
+                 attach_image_loopback(f) as loopdev:
+
+                yield loopdev
 
 
 def prepare_swap(args: CommandLineArguments, loopdev: Optional[Path], cached: bool) -> None:
@@ -1158,9 +1172,47 @@ def prepare_tmp(args: CommandLineArguments, dev: Optional[Path], cached: bool) -
         mkfs_generic(args, "tmp", "/var/tmp", dev)
 
 
-def mount_loop(args: CommandLineArguments, dev: Path, where: Path, read_only: bool = False) -> None:
+def stat_is_whiteout(st: os.stat_result) -> bool:
+    return stat.S_ISCHR(st.st_mode) and st.st_rdev == 0
+
+
+def delete_whiteout_files(path: Path) -> None:
+    """Delete any char(0,0) device nodes underneath @path
+
+    Overlayfs uses such files to mark "whiteouts" (files present in
+    the lower layers, but removed in the upper one).
+    """
+
+    with complete_step("Removing overlay whiteout files…"):
+        for entry in cast(Generator[os.DirEntry[str], None, None], scandir_recursive(path)):
+            if stat_is_whiteout(entry.stat(follow_symlinks=False)):
+                os.unlink(entry.path)
+
+
+def do_mount(
+        what: PathString,
+        where: Path,
+        options: Sequence[str] = (),
+        type: Optional[str] = None,
+        read_only: bool = False,
+) -> None:
     os.makedirs(where, 0o755, True)
 
+    if read_only:
+        options = ["ro", *options]
+
+    cmd: List[PathString] = ["mount", "-n", what, where]
+
+    if type:
+        cmd += ["-t", type]
+
+    if options:
+        cmd += ["-o", ",".join(options)]
+
+    run(cmd)
+
+
+def mount_loop(args: CommandLineArguments, dev: Path, where: Path, read_only: bool = False) -> None:
     options = []
     if not args.output_format.is_squashfs():
         options += ["discard"]
@@ -1169,14 +1221,7 @@ def mount_loop(args: CommandLineArguments, dev: Path, where: Path, read_only: bo
     if compress and args.output_format == OutputFormat.gpt_btrfs and where.name not in {"efi", "boot"}:
         options += ["compress" if compress is True else f"compress={compress}"]
 
-    if read_only:
-        options += ["ro"]
-
-    cmd: List[PathString] = ["mount", "-n", dev, where]
-    if options:
-        cmd += ["-o", ",".join(options)]
-
-    run(cmd)
+    do_mount(dev, where, options, read_only=read_only)
 
 
 def mount_bind(what: Path, where: Optional[Path] = None) -> Path:
@@ -1190,21 +1235,80 @@ def mount_bind(what: Path, where: Optional[Path] = None) -> Path:
 
 
 def mount_tmpfs(where: Path) -> None:
-    os.makedirs(where, 0o755, True)
-    run(["mount", "tmpfs", "-t", "tmpfs", where])
+    do_mount("tmpfs", where, type="tmpfs")
+
+
+def mount_overlay(
+    args: CommandLineArguments,
+    base_image: Path,  # the path to the mounted base image root
+    root: Path,        # the path to the destination image root
+    read_only: bool = False,
+) -> Tuple[Path, TempDir]:
+    """Set up the overlay mount on `root` with `base_image` as the lower layer.
+
+    Sadly the overlay cannot be mounted onto the root directly, because the
+    workdir must be on the same filesystem as "upperdir", but cannot be its
+    subdirectory. Thus, we set up the overlay and then bind-mount the overlay
+    structure into the expected location.
+    """
+
+    workdir = tempfile.TemporaryDirectory(dir=root, prefix='overlayfs-workdir')
+    realroot = root / 'mkosi-real-root'
+
+    options = [f'lowerdir={base_image}',
+               f'upperdir={realroot}',
+               f'workdir={workdir.name}']
+
+    do_mount("overlay", realroot, options, type="overlay", read_only=read_only)
+    mount_bind(realroot, root)
+    return realroot, workdir
+
+
+@complete_step("Cleaning up overlayfs")
+def clean_up_overlay(root: Path, realroot: Path, workdir: TempDir) -> None:
+    """Destroy the overlayfs structure set up by `mount_overlay`.
+
+    When this function returns, the contents of the root file system have been
+    moved into root, and `realroot` and `workdir` are gone.
+
+    If `realroot` is set, it means we mounted `root` twice: the first mount is
+    the overlayfs mount, and the second is a bind-mount to adjust the location
+    one level up. Thus we need unmount twice too; after the first unmount here,
+    the image remains mounted at `root`.
+    """
+
+    umount(root)
+    umount(realroot)
+
+    workdir.cleanup()
+
+    # Let's now move the contents of realroot into root
+    for entry in os.scandir(realroot):
+        os.rename(realroot / entry.name, root / entry.name)
+    realroot.rmdir()
+
+    delete_whiteout_files(root)
 
 
 @contextlib.contextmanager
 def mount_image(
     args: CommandLineArguments,
     root: Path,
+    base_image: Optional[Path],  # the path to the mounted base image root
     loopdev: Optional[Path],
     image: LuksSetupOutput,
     root_read_only: bool = False,
 ) -> Generator[None, None, None]:
     with complete_step("Mounting image…"):
 
-        if image.root is not None:
+        realroot: Optional[Path] = None
+        workdir: Optional[TempDir] = None
+
+        if base_image is not None:
+            mount_bind(root)
+            realroot, workdir = mount_overlay(args, base_image, root, root_read_only)
+
+        elif image.root is not None:
             if args.usr_only:
                 # In UsrOnly mode let's have a bind mount at the top so that umount --recursive works nicely later
                 mount_bind(root)
@@ -1214,7 +1318,7 @@ def mount_image(
         else:
             # always have a root of the tree as a mount point so we can
             # recursively unmount anything that ends up mounted there
-            mount_bind(root, root)
+            mount_bind(root)
 
         if image.home is not None:
             mount_loop(args, image.home, root / "home")
@@ -1246,6 +1350,10 @@ def mount_image(
     try:
         yield
     finally:
+        if realroot is not None:
+            assert workdir is not None
+            clean_up_overlay(root, realroot, workdir)
+
         with complete_step("Unmounting image"):
             umount(root)
 
@@ -1515,6 +1623,7 @@ def reenable_kernel_install(args: CommandLineArguments, root: Path) -> None:
 def add_packages(
     args: CommandLineArguments, packages: Set[str], *names: str, conditional: Optional[str] = None
 ) -> None:
+
     """Add packages in @names to @packages, if enabled by --base-packages.
 
     If @conditional is specifed, rpm-specific syntax for boolean
@@ -3377,15 +3486,26 @@ def make_tar(args: CommandLineArguments, root: Path, do_run_build_script: bool, 
     return f
 
 
-def find_files(root: Path) -> Generator[Path, None, None]:
-    """Generate a list of all filepaths relative to @root"""
+def scandir_recursive(
+        root: Path,
+        filter: Optional[Callable[[os.DirEntry[str]], T]] = None,
+) -> Generator[T, None, None]:
+    """Recursively walk the tree starting at @root, optionally apply filter, yield non-none values"""
     queue: Deque[Union[str, Path]] = collections.deque([root])
 
     while queue:
         for entry in os.scandir(queue.pop()):
-            yield Path(entry.path).relative_to(root)
+            pred = filter(entry) if filter is not None else entry
+            if pred is not None:
+                yield cast(T, pred)
             if entry.is_dir(follow_symlinks=False):
                 queue.append(entry.path)
+
+
+def find_files(root: Path) -> Generator[Path, None, None]:
+    """Generate a list of all filepaths relative to @root"""
+    yield from scandir_recursive(root,
+                                 lambda entry: Path(entry.path).relative_to(root))
 
 
 def make_cpio(
@@ -3523,9 +3643,11 @@ def insert_partition(
     type_uuid: uuid.UUID,
     read_only: bool,
     part_uuid: Optional[uuid.UUID] = None,
-) -> int:
+) -> Partition:
 
     assert args.partition_table is not None
+
+    blob.seek(0)
 
     luks_extra = 16 * 1024 * 1024 if args.encrypt == "all" else 0
     blob_size = os.stat(blob.name).st_size
@@ -3554,9 +3676,9 @@ def insert_partition(
             # Let's discard the partition block device first, to ensure the GPT partition table footer that
             # likely is stored in it is flushed out. After all we want to write with dd's sparse option.
             run(["blkdiscard", path])
-            run(["dd", f"if={blob.name}", f"of={path}", "conv=nocreat,sparse"])
+            path.write_bytes(blob.read())
 
-    return blob_size
+    return part
 
 
 def insert_generated_root(
@@ -3565,27 +3687,28 @@ def insert_generated_root(
     loopdev: Optional[Path],
     image: Optional[BinaryIO],
     for_cache: bool,
-) -> None:
+) -> Optional[Partition]:
     if not is_generated_root(args):
-        return
+        return None
     if not args.output_format.is_disk():
-        return
+        return None
     if for_cache:
-        return
+        return None
     assert raw is not None
     assert loopdev is not None
     assert image is not None
     assert args.partition_table is not None
 
     with complete_step("Inserting generated root partition…"):
-        insert_partition(args,
-                         raw,
-                         loopdev,
-                         image,
-                         PartitionIdentifier.root,
-                         root_partition_description(args),
-                         type_uuid=gpt_root_native(args.architecture, args.usr_only).root,
-                         read_only=args.read_only)
+        return insert_partition(
+            args,
+            raw,
+            loopdev,
+            image,
+            PartitionIdentifier.root,
+            root_partition_description(args),
+            type_uuid=gpt_root_native(args.architecture, args.usr_only).root,
+            read_only=args.read_only)
 
 
 def make_verity(
@@ -3616,11 +3739,11 @@ def insert_verity(
     verity: Optional[BinaryIO],
     root_hash: Optional[str],
     for_cache: bool,
-) -> None:
+) -> Optional[Partition]:
     if verity is None:
-        return
+        return None
     if for_cache:
-        return
+        return None
     assert loopdev is not None
     assert raw is not None
     assert root_hash is not None
@@ -3630,15 +3753,16 @@ def insert_verity(
     u = uuid.UUID(root_hash[-32:])
 
     with complete_step("Inserting verity partition…"):
-        insert_partition(args,
-                         raw,
-                         loopdev,
-                         verity,
-                         PartitionIdentifier.verity,
-                         root_partition_description(args, "Verity"),
-                         gpt_root_native(args.architecture, args.usr_only).verity,
-                         read_only=True,
-                         part_uuid=u)
+        return insert_partition(
+            args,
+            raw,
+            loopdev,
+            verity,
+            PartitionIdentifier.verity,
+            root_partition_description(args, "Verity"),
+            gpt_root_native(args.architecture, args.usr_only).verity,
+            read_only=True,
+            part_uuid=u)
 
 
 def make_verity_sig(
@@ -3679,34 +3803,28 @@ def make_verity_sig(
             encoding=serialization.Encoding.DER
         )
 
-        # We base64 the DER result, because we want to include it in
-        # JSON. This is not PEM (i.e. not header/footer line, no line
-        # breaks), but just base64 encapsulated DER).
+        # We base64 the DER result, because we want to include it in JSON. This is not PEM
+        # (i.e. no header/footer line, no line breaks), but just base64 encapsulated DER).
         b64encoded = base64.b64encode(sigbytes).decode("ascii")
 
         print(b64encoded)
 
-        # This is supposed to be extensible, but care should be taken
-        # not to include unprotected data here.
+        # This is supposed to be extensible, but care should be taken not to include unprotected
+        # data here.
         j = json.dumps({
                 "rootHash": root_hash,
                 "certificateFingerprint": fingerprint,
                 "signature": b64encoded
             }).encode("utf-8")
 
-        # Pad to next multiple of 4K with NUL bytes
-        padded = j + b"\0" * (roundup(len(j), 4096) - len(j))
-
         f: BinaryIO = cast(BinaryIO, tempfile.NamedTemporaryFile(mode="w+b", dir=args.output.parent, prefix=".mkosi-"))
-        f.write(padded)
+        f.write(j)
         f.flush()
 
-        # Returns a file with zero-padded JSON data to insert as
-        # signature partition as first element, and the DER PKCS7
-        # signature bytes as second argument (to store as detached
-        # PKCS7 file), and finally the SHA256 fingerprint of the
-        # certificate used (which is used to deterministically
-        # generate the partition UUID for the signature partition).
+        # Returns a file with JSON data to insert as signature partition as the first element, and
+        # the DER PKCS7 signature bytes as second argument (to store as a detached PKCS7 file), and
+        # finally the SHA256 fingerprint of the certificate used (which is used to
+        # deterministically generate the partition UUID for the signature partition).
 
         return f, sigbytes, fingerprint
 
@@ -3719,11 +3837,11 @@ def insert_verity_sig(
     root_hash: Optional[str],
     fingerprint: Optional[str],
     for_cache: bool,
-) -> None:
+) -> Optional[Partition]:
     if verity_sig is None:
-        return
+        return None
     if for_cache:
-        return
+        return None
     assert loopdev is not None
     assert raw is not None
     assert root_hash is not None
@@ -3735,15 +3853,16 @@ def insert_verity_sig(
     u = uuid.UUID(hashlib.sha256(bytes.fromhex(root_hash) + bytes.fromhex(fingerprint)).hexdigest()[:32])
 
     with complete_step("Inserting verity signature partition…"):
-        insert_partition(args,
-                         raw,
-                         loopdev,
-                         verity_sig,
-                         PartitionIdentifier.verity_sig,
-                         root_partition_description(args, "Signature"),
-                         gpt_root_native(args.architecture, args.usr_only).verity_sig,
-                         read_only=True,
-                         part_uuid=u)
+        return insert_partition(
+            args,
+            raw,
+            loopdev,
+            verity_sig,
+            PartitionIdentifier.verity_sig,
+            root_partition_description(args, "Signature"),
+            gpt_root_native(args.architecture, args.usr_only).verity_sig,
+            read_only=True,
+            part_uuid=u)
 
 
 def patch_root_uuid(
@@ -5126,6 +5245,10 @@ def create_parser() -> ArgumentParserMkosi:
     )
 
     group = parser.add_argument_group("Partitions")
+    group.add_argument('--base-image',
+                       help='Use the given image as base (e.g. lower sysext layer)',
+                       type=Path,
+                       metavar='IMAGE')
     group.add_argument(
         "--root-size", help="Set size of root partition (only gpt_ext4, gpt_xfs, gpt_btrfs)", metavar="BYTES"
     )
@@ -6550,7 +6673,8 @@ def build_image(
     else:
         raw = create_image(args, for_cache)
 
-    with attach_image_loopback(args, raw) as loopdev:
+    with attach_base_image(args.base_image) as base_image, \
+         attach_image_loopback(raw) as loopdev:
 
         prepare_swap(args, loopdev, cached)
         prepare_esp(args, loopdev, cached)
@@ -6576,12 +6700,9 @@ def build_image(
             # Mount everything together, but let's not mount the root
             # dir if we still have to generate the root image here
             prepare_tree_root(args, root)
-            with mount_image(
-                args,
-                root,
-                loopdev,
-                encrypted.without_generated_root(args),
-            ):
+
+            with mount_image(args, root, base_image, loopdev, encrypted.without_generated_root(args)):
+
                 prepare_tree(args, root, do_run_build_script, cached)
                 if do_run_build_script and args.include_dir and not cached:
                     empty_directory(args.include_dir)
@@ -6619,15 +6740,25 @@ def build_image(
                 make_read_only(args, root, for_cache)
 
             generated_root = make_generated_root(args, root, for_cache)
-            insert_generated_root(args, raw, loopdev, generated_root, for_cache)
+            generated_root_part = insert_generated_root(args, raw, loopdev, generated_root, for_cache)
             split_root = (
                 (generated_root or extract_partition(args, encrypted.root, do_run_build_script, for_cache))
                 if args.split_artifacts
                 else None
             )
 
-            verity, root_hash = make_verity(args, encrypted.root, do_run_build_script, for_cache)
+            if args.verity:
+                root_for_verity = encrypted.root
+                if root_for_verity is None and generated_root_part is not None:
+                    assert loopdev is not None
+                    root_for_verity = generated_root_part.blockdev(loopdev)
+            else:
+                root_for_verity = None
+
+            verity, root_hash = make_verity(args, root_for_verity, do_run_build_script, for_cache)
+
             patch_root_uuid(args, loopdev, root_hash, for_cache)
+
             insert_verity(args, raw, loopdev, verity, root_hash, for_cache)
             split_verity = verity if args.split_artifacts else None
 
@@ -6638,13 +6769,9 @@ def build_image(
             # This time we mount read-only, as we already generated
             # the verity data, and hence really shouldn't modify the
             # image anymore.
-            mount = lambda: mount_image(
-                args,
-                root,
-                loopdev,
-                encrypted.without_generated_root(args),
-                root_read_only=True,
-            )
+            mount = lambda: mount_image(args, root, base_image, loopdev,
+                                        encrypted.without_generated_root(args),
+                                        root_read_only=True)
 
             install_unified_kernel(args, root, root_hash, do_run_build_script, for_cache, cached, mount)
             secure_boot_sign(args, root, do_run_build_script, for_cache, cached, mount)

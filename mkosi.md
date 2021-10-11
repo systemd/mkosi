@@ -977,6 +977,20 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 
 ### [Partitions] Section
 
+`BaseImage=`, `--base-image=`
+
+: Use the specified directory or file system image as the base image,
+  and create the output image that consists only of changes from this
+  base. The base image is attached as the lower file system in an
+  overlayfs structure, and the output filesystem becomes the upper
+  layer, initially empty. Thus files that are not modified compared to
+  the base image are not present in the output image.
+
+: This option may be used to create systemd "system extensions" or
+  portable services. See
+  https://systemd.io/PORTABLE_SERVICES/#extension-images for more
+  information.
+
 `RootSize=`, `--root-size=`
 
 : Takes a size in bytes for the root file system. The specified
