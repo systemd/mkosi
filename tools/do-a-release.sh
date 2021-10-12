@@ -1,7 +1,7 @@
 #!/bin/sh
 # SPDX-License-Identifier: LGPL-2.1+
 
-if [ x"$1" == x ] ; then
+if [ -z "$1" ] ; then
     echo "Version number not specified."
     exit 1
 fi
