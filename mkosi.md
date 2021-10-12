@@ -356,15 +356,14 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 
 `Format=`, `--format=`, `-t`
 
-: The image format type to generate. One of `directory` (for
-  generating OS images inside a local directory), `subvolume`
-  (similar, but as a btrfs subvolume), `tar` (similar, but a tarball
-  of the image is generated), `gpt_ext4` (a block device image with an
-  ext4 file system inside a GPT partition table), `gpt_xfs`
-  (similar, but with an xfs file system), `gpt_btrfs` (similar, but
-  with an btrfs file system), `gpt_squashfs` (similar, but with a
-  squashfs file system), `plain_squashfs` (a plain squashfs file
-  system without a partition table).
+: The image format type to generate. One of `directory` (for generating OS
+  images inside a local directory), `subvolume` (similar, but as a btrfs
+  subvolume), `tar` (similar, but a tarball of the image is generated), `cpio`
+  (similar, but a cpio archive is generated), `gpt_ext4` (a block device image
+  with an ext4 file system inside a GPT partition table), `gpt_xfs` (similar,
+  but with an xfs file system), `gpt_btrfs` (similar, but with an btrfs file
+  system), `gpt_squashfs` (similar, but with a squashfs file system),
+  `plain_squashfs` (a plain squashfs file system without a partition table).
 
 `ManifestFormat=`, `--manifest-format=`
 
