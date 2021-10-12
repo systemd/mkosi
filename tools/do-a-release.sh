@@ -8,7 +8,6 @@ fi
 
 sed -i 's/version=".*",/version="'"$1"'",/' setup.py
 sed -i "s/__version__ = \".*\"/__version__ = \"$1\"/" mkosi/__init__.py
-sed -i "s/MKOSI_TAG: '.*'/MKOSI_TAG: $1/" action.yaml
 
 git add -p setup.py mkosi action.yaml
 
