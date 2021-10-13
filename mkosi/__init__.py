@@ -78,6 +78,7 @@ from .backend import (
     die,
     install_grub,
     nspawn_params_for_blockdev_access,
+    nspawn_rlimit_params,
     patch_file,
     path_relative_to_cwd,
     run,
@@ -6834,6 +6835,7 @@ def run_build_script(args: CommandLineArguments, root: Path, raw: Optional[Binar
             f"--setenv=WITH_TESTS={one_zero(args.with_tests)}",
             f"--setenv=WITH_NETWORK={with_network}",
             "--setenv=DESTDIR=/root/dest",
+            *nspawn_rlimit_params(),
         ]
 
         cmdline.extend(f"--setenv={env}" for env in args.environment)
@@ -7108,6 +7110,8 @@ def run_shell(args: CommandLineArguments) -> None:
 
     if args.verb == "boot":
         cmdline += ["--boot"]
+    else:
+        cmdline += nspawn_rlimit_params()
 
     if is_generated_root(args) or args.verity:
         cmdline += ["--volatile=overlay"]
