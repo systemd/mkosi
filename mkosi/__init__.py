@@ -4479,7 +4479,7 @@ def save_manifest(args: CommandLineArguments, manifest: Manifest) -> None:
                     _link_output(args, f.name, f"{args.output}.manifest")
 
         if ManifestFormat.changelog in args.manifest_format:
-            with complete_step(f"Saving report {relpath}.packages"):
+            with complete_step(f"Saving report {relpath}.changelog"):
                 g: TextIO = cast(
                     TextIO,
                     tempfile.NamedTemporaryFile(
@@ -4491,7 +4491,7 @@ def save_manifest(args: CommandLineArguments, manifest: Manifest) -> None:
                 )
                 with g:
                     manifest.write_package_report(g)
-                    _link_output(args, g.name, f"{relpath}.packages")
+                    _link_output(args, g.name, f"{relpath}.changelog")
 
 
 def print_output_size(args: CommandLineArguments) -> None:
@@ -5636,7 +5636,7 @@ def unlink_output(args: CommandLineArguments) -> None:
         with complete_step("Removing output files…"):
             unlink_try_hard(args.output)
             unlink_try_hard(f"{args.output}.manifest")
-            unlink_try_hard(f"{args.output}.packages")
+            unlink_try_hard(f"{args.output}.changelog")
 
             if args.checksum:
                 unlink_try_hard(args.output_checksum)
@@ -6229,18 +6229,14 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
         args.kernel_command_line.append("console=ttyS0")
 
     if args.bootable and args.usr_only and not args.verity:
-        # GPT auto-discovery on empty kernel command lines only looks
-        # for root partitions (in order to avoid ambiguities), if we
-        # shall operate without one (and only have a /usr partition)
-        # we thus need to explicitly say which partition to mount.
-        args.kernel_command_line.append(
-            "mount.usr=/dev/disk/by-partlabel/"
-            + xescape(
-                root_partition_description(
-                    args=None, image_id=args.image_id, image_version=args.image_version, usr_only=args.usr_only
-                )
-            )
-        )
+        # GPT auto-discovery on empty kernel command lines only looks for root partitions
+        # (in order to avoid ambiguities), if we shall operate without one (and only have
+        # a /usr partition) we thus need to explicitly say which partition to mount.
+        name = root_partition_description(args=None,
+                                          image_id=args.image_id,
+                                          image_version=args.image_version,
+                                          usr_only=args.usr_only)
+        args.kernel_command_line.append(f"mount.usr=/dev/disk/by-partlabel/{xescape(name)}")
 
     if not args.read_only:
         args.kernel_command_line.append("rw")
