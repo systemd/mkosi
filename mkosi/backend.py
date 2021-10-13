@@ -8,6 +8,7 @@ import dataclasses
 import enum
 import math
 import os
+import resource
 import shlex
 import shutil
 import signal
@@ -547,6 +548,20 @@ def nspawn_params_for_blockdev_access(args: CommandLineArguments, loopdev: Path)
     return params
 
 
+def format_rlimit(rlimit: int) -> str:
+        limits = resource.getrlimit(rlimit)
+        soft = "infinity" if limits[0] == resource.RLIM_INFINITY else str(limits[0])
+        hard = "infinity" if limits[1] == resource.RLIM_INFINITY else str(limits[1])
+        return f"{soft}:{hard}"
+
+
+def nspawn_rlimit_params() -> Sequence[str]:
+    return [
+        f"--rlimit=RLIMIT_CORE={format_rlimit(resource.RLIMIT_CORE)}",
+        f"--rlimit=RLIMIT_NOFILE={format_rlimit(resource.RLIMIT_NOFILE)}",
+    ]
+
+
 def run_workspace_command(
     args: CommandLineArguments,
     root: Path,
@@ -565,6 +580,7 @@ def run_workspace_command(
         "--register=no",
         f"--bind={var_tmp(root)}:/var/tmp",
         "--setenv=SYSTEMD_OFFLINE=1",
+        *nspawn_rlimit_params(),
     ]
 
     if network:
