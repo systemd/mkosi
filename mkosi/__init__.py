@@ -1826,14 +1826,23 @@ def remove_files(args: CommandLineArguments, root: Path) -> None:
 
 
 def invoke_dnf(
-    args: CommandLineArguments, root: Path, repositories: List[str], packages: Set[str], do_run_build_script: bool
+    args: CommandLineArguments,
+    root: Path,
+    default_repositories: List[str],
+    command: str,
+    packages: Set[str],
+    extra_repos: Sequence[str] = (),
 ) -> None:
+
+    repositories = (args.repositories or default_repositories) + list(extra_repos)
+
     repos = [f"--enablerepo={repo}" for repo in repositories]
     config_file = workspace(root) / "dnf.conf"
-    packages = make_rpm_list(args, packages, do_run_build_script)
+
+    cmd = 'dnf' if shutil.which('dnf') else 'yum'
 
     cmdline = [
-        "dnf",
+        cmd,
         "-y",
         f"--config={config_file}",
         "--best",
@@ -1855,20 +1864,37 @@ def invoke_dnf(
     if not args.with_docs:
         cmdline += ["--nodocs"]
 
-    cmdline += ["install", *sort_packages(packages)]
+    cmdline += [command, *sort_packages(packages)]
 
     with mount_api_vfs(args, root):
         run(cmdline)
 
 
+def install_packages_dnf(
+    args: CommandLineArguments,
+    root: Path,
+    default_repositories: List[str],
+    packages: Set[str],
+    do_run_build_script: bool,
+    extra_repos: Sequence[str] = (),
+) -> None:
+
+    packages = make_rpm_list(args, packages, do_run_build_script)
+    invoke_dnf(args, root, default_repositories, 'install', packages, extra_repos)
+
+
 def invoke_tdnf(
     args: CommandLineArguments,
     root: Path,
-    repositories: List[str],
+    default_repositories: List[str],
+    command: str,
     packages: Set[str],
     gpgcheck: bool,
     do_run_build_script: bool,
 ) -> None:
+
+    repositories = args.repositories or default_repositories
+
     repos = [f"--enablerepo={repo}" for repo in repositories]
     config_file = workspace(root) / "dnf.conf"
     packages = make_rpm_list(args, packages, do_run_build_script)
@@ -1886,10 +1912,23 @@ def invoke_tdnf(
     if not gpgcheck:
         cmdline += ["--nogpgcheck"]
 
-    cmdline += ["install", *sort_packages(packages)]
+    cmdline += [command, *sort_packages(packages)]
 
     with mount_api_vfs(args, root):
         run(cmdline)
+
+
+def install_packages_tdnf(
+    args: CommandLineArguments,
+    root: Path,
+    default_repositories: List[str],
+    packages: Set[str],
+    gpgcheck: bool,
+    do_run_build_script: bool,
+) -> None:
+
+    packages = make_rpm_list(args, packages, do_run_build_script)
+    invoke_tdnf(args, root, default_repositories, 'install', packages, gpgcheck, do_run_build_script)
 
 
 class Repo(NamedTuple):
@@ -1964,10 +2003,10 @@ def install_photon(args: CommandLineArguments, root: Path, do_run_build_script: 
     if not do_run_build_script and args.bootable:
         add_packages(args, packages, "linux", "initramfs")
 
-    invoke_tdnf(
+    install_packages_tdnf(
         args,
         root,
-        args.repositories or ["photon", "photon-updates"],
+        ["photon", "photon-updates"],
         packages,
         gpgpath.exists(),
         do_run_build_script,
@@ -2089,7 +2128,7 @@ def install_fedora(args: CommandLineArguments, root: Path, do_run_build_script: 
         packages.update(args.build_packages)
     if not do_run_build_script and args.network_veth:
         add_packages(args, packages, "systemd-networkd", conditional="systemd")
-    invoke_dnf(args, root, args.repositories or ["fedora", "updates"], packages, do_run_build_script)
+    install_packages_dnf(args, root, ["fedora", "updates"], packages, do_run_build_script)
 
     root.joinpath("etc/locale.conf").write_text("LANG=C.UTF-8\n")
 
@@ -2134,7 +2173,7 @@ def install_mageia(args: CommandLineArguments, root: Path, do_run_build_script: 
 
     if do_run_build_script:
         packages.update(args.build_packages)
-    invoke_dnf(args, root, args.repositories or ["mageia", "updates"], packages, do_run_build_script)
+    install_packages_dnf(args, root, ["mageia", "updates"], packages, do_run_build_script)
 
     disable_pam_securetty(root)
 
@@ -2183,51 +2222,12 @@ def install_openmandriva(args: CommandLineArguments, root: Path, do_run_build_sc
 
     if do_run_build_script:
         packages.update(args.build_packages)
-    invoke_dnf(args, root, args.repositories or ["openmandriva", "updates"], packages, do_run_build_script)
+    install_packages_dnf(args, root, ["openmandriva", "updates"], packages, do_run_build_script)
 
     disable_pam_securetty(root)
 
 
-def invoke_yum(
-    args: CommandLineArguments, root: Path, repositories: List[str], packages: Set[str], do_run_build_script: bool
-) -> None:
-    repos = ["--enablerepo=" + repo for repo in repositories]
-    config_file = workspace(root) / "dnf.conf"
-    packages = make_rpm_list(args, packages, do_run_build_script)
-
-    cmdline = [
-        "yum",
-        "-y",
-        f"--config={config_file}",
-        f"--releasever={args.release}",
-        f"--installroot={root}",
-        "--disablerepo=*",
-        *repos,
-        "--setopt=keepcache=1",
-    ]
-
-    if args.architecture is not None:
-        cmdline += [f"--forcearch={args.architecture}"]
-
-    if not args.with_docs:
-        cmdline += ["--setopt=tsflags=nodocs"]
-
-    cmdline += ["install", *packages]
-
-    with mount_api_vfs(args, root):
-        run(cmdline)
-
-
-def invoke_dnf_or_yum(
-    args: CommandLineArguments, root: Path, repositories: List[str], packages: Set[str], do_run_build_script: bool
-) -> None:
-    if shutil.which("dnf") is None:
-        invoke_yum(args, root, repositories, packages, do_run_build_script)
-    else:
-        invoke_dnf(args, root, repositories, packages, do_run_build_script)
-
-
-def install_centos_old(args: CommandLineArguments, root: Path, epel_release: int) -> List[str]:
+def install_centos_repos_old(args: CommandLineArguments, root: Path, epel_release: int) -> List[str]:
     # Repos for CentOS 7 and earlier
 
     gpgpath = Path(f"/etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-{args.release}")
@@ -2357,7 +2357,7 @@ def install_alma_repos(args: CommandLineArguments, root: Path, epel_release: int
 
     return ["AppStream", "BaseOS", "extras", "Powertools", "HighAvailability"]
 
-def install_centos_new(args: CommandLineArguments, root: Path, epel_release: int) -> List[str]:
+def install_centos_repos_new(args: CommandLineArguments, root: Path, epel_release: int) -> List[str]:
     # Repos for CentOS 8 and later
 
     gpgpath = Path("/etc/pki/rpm-gpg/RPM-GPG-KEY-centosofficial")
@@ -2416,9 +2416,10 @@ def install_centos(args: CommandLineArguments, root: Path, do_run_build_script: 
     epel_release = int(args.release.split(".")[0])
 
     if old:
-        default_repos = install_centos_old(args, root, epel_release)
+        default_repos = install_centos_repos_old(args, root, epel_release)
     else:
-        default_repos = install_centos_new(args, root, epel_release)
+        default_repos = install_centos_repos_new(args, root, epel_release)
+    extra_repos = []
 
     packages = {*args.packages}
     add_packages(args, packages, "centos-release", "systemd")
@@ -2443,10 +2444,8 @@ def install_centos(args: CommandLineArguments, root: Path, do_run_build_script: 
     if do_run_build_script:
         packages.update(args.build_packages)
 
-    repos = args.repositories or default_repos
-
     if args.distribution == Distribution.centos_epel:
-        repos += ["epel"]
+        extra_repos += ["epel"]
         add_packages(args, packages, "epel-release")
 
     if do_run_build_script:
@@ -2455,13 +2454,14 @@ def install_centos(args: CommandLineArguments, root: Path, do_run_build_script: 
     if not do_run_build_script and args.distribution == Distribution.centos_epel and args.network_veth:
         add_packages(args, packages, "systemd-networkd", conditional="systemd")
 
-    invoke_dnf_or_yum(args, root, repos, packages, do_run_build_script)
+    install_packages_dnf(args, root, default_repos, packages, do_run_build_script, extra_repos)
 
 
 @complete_step("Installing Rocky Linux…")
 def install_rocky(args: CommandLineArguments, root: Path, do_run_build_script: bool) -> None:
     epel_release = int(args.release.split(".")[0])
     default_repos = install_rocky_repos(args, root, epel_release)
+    extra_repos = []
 
     packages = {*args.packages}
     add_packages(args, packages, "rocky-release", "systemd")
@@ -2473,10 +2473,8 @@ def install_rocky(args: CommandLineArguments, root: Path, do_run_build_script: b
     if do_run_build_script:
         packages.update(args.build_packages)
 
-    repos = args.repositories or default_repos
-
     if args.distribution == Distribution.rocky_epel:
-        repos += ["epel"]
+        extra_repos += ["epel"]
         add_packages(args, packages, "epel-release")
 
     if do_run_build_script:
@@ -2485,7 +2483,7 @@ def install_rocky(args: CommandLineArguments, root: Path, do_run_build_script: b
     if not do_run_build_script and args.distribution == Distribution.rocky_epel and args.network_veth:
         add_packages(args, packages, "systemd-networkd", conditional="systemd")
 
-    invoke_dnf_or_yum(args, root, repos, packages, do_run_build_script)
+    install_packages_dnf(args, root, default_repos, packages, do_run_build_script, extra_repos)
 
 
 
@@ -2493,6 +2491,7 @@ def install_rocky(args: CommandLineArguments, root: Path, do_run_build_script: b
 def install_alma(args: CommandLineArguments, root: Path, do_run_build_script: bool) -> None:
     epel_release = int(args.release.split(".")[0])
     default_repos = install_alma_repos(args, root, epel_release)
+    extra_repos = []
 
     packages = {*args.packages}
     add_packages(args, packages, "almalinux-release", "systemd")
@@ -2504,10 +2503,8 @@ def install_alma(args: CommandLineArguments, root: Path, do_run_build_script: bo
     if do_run_build_script:
         packages.update(args.build_packages)
 
-    repos = args.repositories or default_repos
-
     if args.distribution == Distribution.alma_epel:
-        repos += ["epel"]
+        extra_repos += ["epel"]
         add_packages(args, packages, "epel-release")
 
     if do_run_build_script:
@@ -2516,7 +2513,7 @@ def install_alma(args: CommandLineArguments, root: Path, do_run_build_script: bo
     if not do_run_build_script and args.distribution == Distribution.alma_epel and args.network_veth:
         add_packages(args, packages, "systemd-networkd", conditional="systemd")
 
-    invoke_dnf_or_yum(args, root, repos, packages, do_run_build_script)
+    install_packages_dnf(args, root, default_repos, packages, do_run_build_script, extra_repos)
 
 
 def debootstrap_knows_arg(arg: str) -> bool:
