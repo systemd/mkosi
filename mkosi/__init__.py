@@ -2034,9 +2034,8 @@ def install_clear(args: CommandLineArguments, root: Path, do_run_build_script: b
 
     root.joinpath("etc/resolv.conf").symlink_to("../run/systemd/resolve/resolv.conf")
 
-    # Clear Linux doesn't have a /etc/shadow at install time, it gets
-    # created when the root first login. To set the password via
-    # mkosi, create one.
+    # Clear Linux doesn't have a /etc/shadow at install time, it gets created
+    # when the root first logs in. To set the password via mkosi, create one.
     if not do_run_build_script and args.password is not None:
         shadow_file = root / "etc/shadow"
         shadow_file.write_text("root::::::::\n")
