@@ -112,6 +112,7 @@ class PackageType(enum.Enum):
 
 class Distribution(enum.Enum):
     package_type: PackageType
+
     fedora = 0, PackageType.rpm
     debian = 1, PackageType.deb
     ubuntu = 2, PackageType.deb
@@ -389,6 +390,7 @@ class CommandLineArguments:
     hostonly_initrd: bool
     base_packages: Union[str, bool]
     packages: List[str]
+    remove_packages: List[str]
     with_docs: bool
     with_tests: bool
     cache_path: Optional[Path]

@@ -71,6 +71,7 @@ from .backend import (
     MkosiException,
     MkosiPrinter,
     OutputFormat,
+    PackageType,
     Partition,
     PartitionIdentifier,
     PartitionTable,
@@ -1646,7 +1647,7 @@ def add_packages(
             packages.add(f"({name} if {conditional})" if conditional else name)
 
 
-def sort_packages(packages: Set[str]) -> List[str]:
+def sort_packages(packages: Iterable[str]) -> List[str]:
     """Sorts packages: normal first, paths second, conditional third"""
 
     m = {"(": 2, "/": 1}
@@ -1829,7 +1830,7 @@ def invoke_dnf(
     args: CommandLineArguments,
     root: Path,
     command: str,
-    packages: Set[str],
+    packages: Iterable[str],
 ) -> None:
 
     config_file = workspace(root) / "dnf.conf"
@@ -2889,6 +2890,23 @@ def install_distribution(args: CommandLineArguments, root: Path, do_run_build_sc
         install[args.distribution](args, root, do_run_build_script)
 
     reenable_kernel_install(args, root)
+
+
+def remove_packages(args: CommandLineArguments, root: Path) -> None:
+    """Remove packages listed in args.remove_packages"""
+
+    remove: Callable[[List[str]], None]
+
+    if (args.distribution.package_type == PackageType.rpm and
+        args.distribution != Distribution.photon):
+        remove = lambda p: invoke_dnf(args, root, 'remove', p)
+    else:
+        # FIXME: add implementations for other distros
+        return
+
+    if args.remove_packages:
+        with complete_step(f"Removing {len(args.packages)} packages…"):
+            remove(args.remove_packages)
 
 
 def reset_machine_id(args: CommandLineArguments, root: Path, do_run_build_script: bool, for_cache: bool) -> None:
@@ -4638,6 +4656,7 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
         "CheckSum": "--checksum",
         "BMap": "--bmap",
         "Packages": "--package",
+        "RemovePackages": "--remove-package",
         "ExtraTrees": "--extra-tree",
         "SkeletonTrees": "--skeleton-tree",
         "BuildPackages": "--build-package",
@@ -4991,6 +5010,14 @@ def create_parser() -> ArgumentParserMkosi:
         dest="packages",
         default=[],
         help="Add an additional package to the OS image",
+        metavar="PACKAGE",
+    )
+    group.add_argument(
+        "--remove-package",
+        action=CommaDelimitedListAction,
+        dest="remove_packages",
+        default=[],
+        help="Remove package from the image OS image after installation",
         metavar="PACKAGE",
     )
     group.add_argument("--with-docs", action=BooleanAction, help="Install documentation")
@@ -6380,6 +6407,8 @@ def print_summary(args: CommandLineArguments) -> None:
     MkosiPrinter.info("      CleanPackageMetadata: " + yes_no_or(args.clean_package_metadata))
     if args.remove_files:
         MkosiPrinter.info("              Remove Files: " + line_join_list(args.remove_files))
+    if args.remove_packages:
+        MkosiPrinter.info("           Remove Packages: " + line_join_list(args.remove_packages))
     MkosiPrinter.info("              Build Script: " + none_to_none(args.build_script))
     MkosiPrinter.info("        Script Environment: " + line_join_list(args.environment))
 
@@ -6656,6 +6685,9 @@ def build_image(
                 sshkey = setup_ssh(args, root, do_run_build_script, for_cache, cached_tree)
                 setup_network_veth(args, root, do_run_build_script, cached_tree)
                 run_postinst_script(args, root, loopdev, do_run_build_script, for_cache)
+
+                if cleanup:
+                    remove_packages(args, root)
 
                 if manifest:
                     with complete_step("Recording packages in manifest…"):

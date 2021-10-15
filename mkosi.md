@@ -269,6 +269,12 @@ build script?  -------exists----->     copy           .
                             .                         .    postinstall script
                             .                         .  (mkosi.postinst final)
                             .                         .           |
+                            .                         .           v
+                            .                         .           |
+                            .                         .     perform cleanup
+                            .                         . (remove files, packages,
+                            .                         .     package metadata)
+                            .                         .           |
                .--------------------------------------------------'
                |            .                         .
                v            .                         .
@@ -803,6 +809,14 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 
 : Takes a comma-separated list of globs. Files in the image matching
   the globs will be purged at the end.
+
+`RemovePackages=`, `--remove-package=`
+
+: Takes a comma-separated list of package specifications for removal, in the
+  same format as `Packages=`. The removal will be performed as one of the last
+  steps. This step is skipped if `CleanPackageMetadata=no` is used.
+  
+: This option is currently only implemented for distributions using `dnf`.
 
 `Environment=`, `--environment=`
 
