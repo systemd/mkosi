@@ -703,19 +703,36 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 
 `Packages=`, `--package=`, `-p`
 
-: Install the specified distribution packages (i.e. RPM, DEB, …) in
-  the image. Takes a comma separated list of packages. This option may
-  be used multiple times in which case the specified package lists are
+: Install the specified distribution packages (i.e. RPM, DEB, …) in the
+  image. Takes a comma separated list of package specifications. This option
+  may be used multiple times in which case the specified package lists are
   combined. Packages specified this way will be installed both in the
-  development and the final image. Use `BuildPackages=` to
-  specify packages that shall only be used for the image generated in
-  the build image, but that shall not appear in the final image.
+  development and the final image. Use `BuildPackages=` to specify packages
+  that shall only be used for the image generated in the build image, but that
+  shall not appear in the final image.
+
+: The types and syntax of "package specifications" that are allowed depend on
+  the package installer (e.g. `dnf` or `yum` for `rpm`-based distros or `apt`
+  for `deb`-based distros), but may include package names, package names with
+  version and/or architecture, package name globs, paths to packages in the
+  file system, package groups, and virtual provides, including file paths.
 
 : To remove a package e.g. added by a `mkosi.default` configuration
   file prepend the package name with `!`. For example -p "!apache2"
   would remove the apache2 package. To replace the apache2 package by
   the httpd package just add -p "!apache2,httpd" to the command line
   arguments. To remove all packages use "!\*".
+
+: Example: when using an distro that uses `dnf`,
+  `Packages=meson libfdisk-devel.i686 git-* prebuilt/rpms/systemd-249-rc1.local.rpm /usr/bin/ld @development-tools python3dist(mypy)`
+  would install
+  the `meson` package (in the latest version),
+  the 32-bit version of the `libfdisk-devel` package,
+  all available packages that start with the `git-` prefix,
+  a `systemd` rpm from the local file system,
+  one of the packages that provides `/usr/bin/ld`,
+  the packages in the "Development Tools" group,
+  and the package that contains the `mypy` python module.
 
 `WithDocs=`, `--with-docs`
 
@@ -853,7 +870,8 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   here are only included in the image created during the first phase
   of the build, and are absent in the final image. Use `Packages=` to
   list packages that shall be included in both.
-  Packages are appended to the list. Packages prefixed with "!" are
+
+: Packages are appended to the list. Packages prefixed with "!" are
   removed from the list. "!\*" removes all packages from the list.
 
 `Password=`, `--password=`
