@@ -558,7 +558,6 @@ def format_rlimit(rlimit: int) -> str:
 def nspawn_rlimit_params() -> Sequence[str]:
     return [
         f"--rlimit=RLIMIT_CORE={format_rlimit(resource.RLIMIT_CORE)}",
-        f"--rlimit=RLIMIT_NOFILE={format_rlimit(resource.RLIMIT_NOFILE)}",
     ]
 
 
