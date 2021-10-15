@@ -2084,8 +2084,11 @@ def install_fedora(args: CommandLineArguments, root: Path, do_run_build_script: 
     gpgpath = Path(f"/etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-{args.releasever}-{arch}")
     gpgurl = urllib.parse.urljoin("https://getfedora.org/static/", gpgid)
 
-    repos = [Repo("fedora", f"Fedora {args.release.capitalize()} - base", release_url, gpgpath, gpgurl),
-             Repo("updates", f"Fedora {args.release.capitalize()} - updates", updates_url, gpgpath, gpgurl)]
+    repos = [Repo("fedora", f"Fedora {args.release.capitalize()} - base", release_url, gpgpath, gpgurl)]
+    if args.release != 'rawhide':
+        # On rawhide, the "updates" repo is the same as the "fedora" repo.
+        # In other versions, the "fedora" repo is frozen at release, and "updates" provides any new packages.
+        repos += [Repo("updates", f"Fedora {args.release.capitalize()} - updates", updates_url, gpgpath, gpgurl)]
 
     setup_dnf(args, root, repos)
 
