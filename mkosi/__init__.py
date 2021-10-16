@@ -2451,35 +2451,37 @@ def debootstrap_knows_arg(arg: str) -> bool:
 
 
 def install_debian_or_ubuntu(args: CommandLineArguments, root: Path, *, do_run_build_script: bool) -> None:
-    repos = set(args.repositories) or {"main"}
-    # Ubuntu needs the 'universe' repo to install 'dracut'
-    if args.distribution == Distribution.ubuntu and args.bootable:
-        repos.add("universe")
-
-    cmdline: List[PathString] = [
-        "debootstrap",
-        "--variant=minbase",
-        "--merged-usr",
-        f"--components={','.join(repos)}",
-    ]
-
-    if args.architecture is not None:
-        debarch = DEBIAN_ARCHITECTURES.get(args.architecture)
-        cmdline += [f"--arch={debarch}"]
-
-    # Let's use --no-check-valid-until only if debootstrap knows it
-    if debootstrap_knows_arg("--no-check-valid-until"):
-        cmdline += ["--no-check-valid-until"]
-
     # Either the image builds or it fails and we restart, we don't need safety fsyncs when bootstrapping
     # Add it before debootstrap, as the second stage already uses dpkg from the chroot
     dpkg_io_conf = root / "etc/dpkg/dpkg.cfg.d/unsafe_io"
     os.makedirs(dpkg_io_conf.parent, mode=0o755, exist_ok=True)
     dpkg_io_conf.write_text("force-unsafe-io\n")
 
-    assert args.mirror is not None
-    cmdline += [args.release, root, args.mirror]
-    run(cmdline)
+    # debootstrap fails if a base image is used with an already populated root, so skip it.
+    if args.base_image is None:
+        repos = set(args.repositories) or {"main"}
+        # Ubuntu needs the 'universe' repo to install 'dracut'
+        if args.distribution == Distribution.ubuntu and args.bootable:
+            repos.add("universe")
+
+        cmdline: List[PathString] = [
+            "debootstrap",
+            "--variant=minbase",
+            "--merged-usr",
+            f"--components={','.join(repos)}",
+        ]
+
+        if args.architecture is not None:
+            debarch = DEBIAN_ARCHITECTURES.get(args.architecture)
+            cmdline += [f"--arch={debarch}"]
+
+        # Let's use --no-check-valid-until only if debootstrap knows it
+        if debootstrap_knows_arg("--no-check-valid-until"):
+            cmdline += ["--no-check-valid-until"]
+
+        assert args.mirror is not None
+        cmdline += [args.release, root, args.mirror]
+        run(cmdline)
 
     # Install extra packages via the secondary APT run, because it is smarter and can deal better with any
     # conflicts. dbus and libpam-systemd are optional dependencies for systemd in debian so we include them
@@ -2532,8 +2534,8 @@ def install_debian_or_ubuntu(args: CommandLineArguments, root: Path, *, do_run_b
         cmdline = ["/bin/rm", "-rf", *doc_paths]
         run_workspace_command(args, root, cmdline)
         # Create dpkg.cfg to ignore documentation on new packages
-        dpkg_conf = root / "etc/dpkg/dpkg.cfg.d/01_nodoc"
-        with dpkg_conf.open("w") as f:
+        dpkg_nodoc_conf = root / "etc/dpkg/dpkg.cfg.d/01_nodoc"
+        with dpkg_nodoc_conf.open("w") as f:
             f.writelines(f"path-exclude {d}/*\n" for d in doc_paths)
 
     cmdline = ["/usr/bin/apt-get", "--assume-yes", "--no-install-recommends", "install", *extra_packages]
@@ -2546,7 +2548,7 @@ def install_debian_or_ubuntu(args: CommandLineArguments, root: Path, *, do_run_b
         # Disable dracut postinstall script for this apt-get run.
         env["INITRD"] = "No"
 
-        if args.distribution == Distribution.debian and args.release == "unstable":
+        if args.distribution == Distribution.debian and args.release == "unstable" and args.base_image is None:
             # systemd-boot won't boot unified kernel images generated without a BUILD_ID or VERSION_ID in
             # /etc/os-release.
             with root.joinpath("etc/os-release").open("a") as f:
@@ -2555,11 +2557,17 @@ def install_debian_or_ubuntu(args: CommandLineArguments, root: Path, *, do_run_b
     run_workspace_command(args, root, cmdline, network=True, env=env)
     policyrcd.unlink()
     dpkg_io_conf.unlink()
-    # Debian still has pam_securetty module enabled
-    disable_pam_securetty(root)
+    if not args.with_docs and args.base_image is not None:
+        # Don't ship dpkg config files in extensions, they belong with dpkg in the base image.
+        dpkg_nodoc_conf.unlink() # type: ignore
 
-    if args.distribution == Distribution.debian:
-        # The default resolv.conf points to 127.0.0.1, and resolved is disabled
+    if args.base_image is None:
+        # Debian still has pam_securetty module enabled, disable it in the base image.
+        disable_pam_securetty(root)
+
+    if args.distribution == Distribution.debian and args.base_image is None:
+        # The default resolv.conf points to 127.0.0.1, and resolved is disabled, fix it in
+        # the base image.
         root.joinpath("etc/resolv.conf").unlink()
         root.joinpath("etc/resolv.conf").symlink_to("../run/systemd/resolve/resolv.conf")
         run(["systemctl", "--root", root, "enable", "systemd-resolved"])
