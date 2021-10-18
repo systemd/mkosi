@@ -50,6 +50,7 @@ class MkosiConfig:
             "build_packages": [],
             "clean_package_metadata": "auto",
             "remove_files": [],
+            "remove_packages": [],
             "build_script": None,
             "environment": [],
             "build_sources": None,
@@ -293,6 +294,8 @@ class MkosiConfig:
                 self.reference_config[job_name]["clean_package_metadata"] = mk_config_packages["CleanPackageMetadata"]
             if "RemoveFiles" in mk_config_packages:
                 self.reference_config[job_name]["remove_files"] = mk_config_packages["RemoveFiles"]
+            if "RemovePackages" in mk_config_packages:
+                self.reference_config[job_name]["remove_packages"] = mk_config_packages["RemovePackages"]
             if "BuildScript" in mk_config_packages:
                 self.reference_config[job_name]["build_script"] = Path(mk_config_packages["BuildScript"])
             if "BuildEnvironment" in mk_config_packages:

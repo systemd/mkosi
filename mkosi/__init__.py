@@ -71,6 +71,7 @@ from .backend import (
     MkosiException,
     MkosiPrinter,
     OutputFormat,
+    PackageType,
     Partition,
     PartitionIdentifier,
     PartitionTable,
@@ -1646,7 +1647,7 @@ def add_packages(
             packages.add(f"({name} if {conditional})" if conditional else name)
 
 
-def sort_packages(packages: Set[str]) -> List[str]:
+def sort_packages(packages: Iterable[str]) -> List[str]:
     """Sorts packages: normal first, paths second, conditional third"""
 
     m = {"(": 2, "/": 1}
@@ -1809,7 +1810,7 @@ def clean_package_manager_metadata(args: CommandLineArguments, root: Path) -> No
     clean_tdnf_metadata(root, always=args.clean_package_metadata is True)
     clean_apt_metadata(root, always=args.clean_package_metadata is True)
     clean_dpkg_metadata(root, always=args.clean_package_metadata is True)
-    # FIXME: implement cleanup for other package managers
+    # FIXME: implement cleanup for other package managers: swupd, pacman
 
 
 def remove_files(args: CommandLineArguments, root: Path) -> None:
@@ -1826,25 +1827,30 @@ def remove_files(args: CommandLineArguments, root: Path) -> None:
 
 
 def invoke_dnf(
-    args: CommandLineArguments, root: Path, repositories: List[str], packages: Set[str], do_run_build_script: bool
+    args: CommandLineArguments,
+    root: Path,
+    command: str,
+    packages: Iterable[str],
 ) -> None:
-    repos = [f"--enablerepo={repo}" for repo in repositories]
+
     config_file = workspace(root) / "dnf.conf"
-    packages = make_rpm_list(args, packages, do_run_build_script)
+
+    cmd = 'dnf' if shutil.which('dnf') else 'yum'
 
     cmdline = [
-        "dnf",
+        cmd,
         "-y",
         f"--config={config_file}",
         "--best",
         "--allowerasing",
         f"--releasever={args.release}",
         f"--installroot={root}",
-        "--disablerepo=*",
-        *repos,
         "--setopt=keepcache=1",
         "--setopt=install_weak_deps=0",
     ]
+
+    if args.repositories:
+        cmdline += ["--disablerepo=*"] + [f"--enablerepo={repo}" for repo in args.repositories]
 
     if args.with_network == "never":
         cmdline += ["-C"]
@@ -1855,21 +1861,32 @@ def invoke_dnf(
     if not args.with_docs:
         cmdline += ["--nodocs"]
 
-    cmdline += ["install", *sort_packages(packages)]
+    cmdline += [command, *sort_packages(packages)]
 
     with mount_api_vfs(args, root):
         run(cmdline)
 
 
+def install_packages_dnf(
+    args: CommandLineArguments,
+    root: Path,
+    packages: Set[str],
+    do_run_build_script: bool,
+) -> None:
+
+    packages = make_rpm_list(args, packages, do_run_build_script)
+    invoke_dnf(args, root, 'install', packages)
+
+
 def invoke_tdnf(
     args: CommandLineArguments,
     root: Path,
-    repositories: List[str],
+    command: str,
     packages: Set[str],
     gpgcheck: bool,
     do_run_build_script: bool,
 ) -> None:
-    repos = [f"--enablerepo={repo}" for repo in repositories]
+
     config_file = workspace(root) / "dnf.conf"
     packages = make_rpm_list(args, packages, do_run_build_script)
 
@@ -1879,17 +1896,30 @@ def invoke_tdnf(
         f"--config={config_file}",
         f"--releasever={args.release}",
         f"--installroot={root}",
-        "--disablerepo=*",
-        *repos,
     ]
+
+    if args.repositories:
+        cmdline += ["--disablerepo=*"] + [f"--enablerepo={repo}" for repo in args.repositories]
 
     if not gpgcheck:
         cmdline += ["--nogpgcheck"]
 
-    cmdline += ["install", *sort_packages(packages)]
+    cmdline += [command, *sort_packages(packages)]
 
     with mount_api_vfs(args, root):
         run(cmdline)
+
+
+def install_packages_tdnf(
+    args: CommandLineArguments,
+    root: Path,
+    packages: Set[str],
+    gpgcheck: bool,
+    do_run_build_script: bool,
+) -> None:
+
+    packages = make_rpm_list(args, packages, do_run_build_script)
+    invoke_tdnf(args, root, 'install', packages, gpgcheck, do_run_build_script)
 
 
 class Repo(NamedTuple):
@@ -1903,7 +1933,7 @@ class Repo(NamedTuple):
 def setup_dnf(args: CommandLineArguments, root: Path, repos: Sequence[Repo] = ()) -> None:
     gpgcheck = True
 
-    repo_file = workspace(root) / "temp.repo"
+    repo_file = workspace(root) / "mkosi.repo"
     with repo_file.open("w") as f:
         for repo in repos:
             gpgkey: Optional[str] = None
@@ -1923,6 +1953,7 @@ def setup_dnf(args: CommandLineArguments, root: Path, repos: Sequence[Repo] = ()
                     name={repo.name}
                     {repo.url}
                     gpgkey={gpgkey or ''}
+                    enabled=1
                     """
                 )
             )
@@ -1950,28 +1981,17 @@ def install_photon(args: CommandLineArguments, root: Path, do_run_build_script: 
     updates_url = "baseurl=https://packages.vmware.com/photon/$releasever/photon_updates_$releasever_$basearch"
     gpgpath = Path("/etc/pki/rpm-gpg/VMWARE-RPM-GPG-KEY")
 
-    setup_dnf(
-        args,
-        root,
-        repos=[
-            Repo("photon", f"VMware Photon OS {args.release} Release", release_url, gpgpath),
-            Repo("photon-updates", f"VMware Photon OS {args.release} Updates", updates_url, gpgpath),
-        ],
-    )
+    repos = [Repo("photon", f"VMware Photon OS {args.release} Release", release_url, gpgpath),
+             Repo("photon-updates", f"VMware Photon OS {args.release} Updates", updates_url, gpgpath)]
+
+    setup_dnf(args, root, repos)
 
     packages = {*args.packages}
     add_packages(args, packages, "minimal")
     if not do_run_build_script and args.bootable:
         add_packages(args, packages, "linux", "initramfs")
 
-    invoke_tdnf(
-        args,
-        root,
-        args.repositories or ["photon", "photon-updates"],
-        packages,
-        gpgpath.exists(),
-        do_run_build_script,
-    )
+    install_packages_tdnf(args, root, packages, gpgpath.exists(), do_run_build_script)
 
 
 @complete_step("Installing Clear Linux…")
@@ -2015,9 +2035,8 @@ def install_clear(args: CommandLineArguments, root: Path, do_run_build_script: b
 
     root.joinpath("etc/resolv.conf").symlink_to("../run/systemd/resolve/resolv.conf")
 
-    # Clear Linux doesn't have a /etc/shadow at install time, it gets
-    # created when the root first login. To set the password via
-    # mkosi, create one.
+    # Clear Linux doesn't have a /etc/shadow at install time, it gets created
+    # when the root first logs in. To set the password via mkosi, create one.
     if not do_run_build_script and args.password is not None:
         shadow_file = root / "etc/shadow"
         shadow_file.write_text("root::::::::\n")
@@ -2066,14 +2085,13 @@ def install_fedora(args: CommandLineArguments, root: Path, do_run_build_script: 
     gpgpath = Path(f"/etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-{args.releasever}-{arch}")
     gpgurl = urllib.parse.urljoin("https://getfedora.org/static/", gpgid)
 
-    setup_dnf(
-        args,
-        root,
-        repos=[
-            Repo("fedora", f"Fedora {args.release.capitalize()} - base", release_url, gpgpath, gpgurl),
-            Repo("updates", f"Fedora {args.release.capitalize()} - updates", updates_url, gpgpath, gpgurl),
-        ],
-    )
+    repos = [Repo("fedora", f"Fedora {args.release.capitalize()} - base", release_url, gpgpath, gpgurl)]
+    if args.release != 'rawhide':
+        # On rawhide, the "updates" repo is the same as the "fedora" repo.
+        # In other versions, the "fedora" repo is frozen at release, and "updates" provides any new packages.
+        repos += [Repo("updates", f"Fedora {args.release.capitalize()} - updates", updates_url, gpgpath, gpgurl)]
+
+    setup_dnf(args, root, repos)
 
     packages = {*args.packages}
     add_packages(args, packages, "fedora-release", "systemd")
@@ -2089,7 +2107,7 @@ def install_fedora(args: CommandLineArguments, root: Path, do_run_build_script: 
         packages.update(args.build_packages)
     if not do_run_build_script and args.network_veth:
         add_packages(args, packages, "systemd-networkd", conditional="systemd")
-    invoke_dnf(args, root, args.repositories or ["fedora", "updates"], packages, do_run_build_script)
+    install_packages_dnf(args, root, packages, do_run_build_script)
 
     root.joinpath("etc/locale.conf").write_text("LANG=C.UTF-8\n")
 
@@ -2111,14 +2129,10 @@ def install_mageia(args: CommandLineArguments, root: Path, do_run_build_script: 
 
     gpgpath = Path("/etc/pki/rpm-gpg/RPM-GPG-KEY-Mageia")
 
-    setup_dnf(
-        args,
-        root,
-        repos=[
-            Repo("mageia", f"Mageia {args.release} Core Release", release_url, gpgpath),
-            Repo("updates", f"Mageia {args.release} Core Updates", updates_url, gpgpath),
-        ],
-    )
+    repos = [Repo("mageia", f"Mageia {args.release} Core Release", release_url, gpgpath),
+             Repo("updates", f"Mageia {args.release} Core Updates", updates_url, gpgpath)]
+
+    setup_dnf(args, root, repos)
 
     packages = {*args.packages}
     add_packages(args, packages, "basesystem-minimal")
@@ -2134,7 +2148,7 @@ def install_mageia(args: CommandLineArguments, root: Path, do_run_build_script: 
 
     if do_run_build_script:
         packages.update(args.build_packages)
-    invoke_dnf(args, root, args.repositories or ["mageia", "updates"], packages, do_run_build_script)
+    install_packages_dnf(args, root, packages, do_run_build_script)
 
     disable_pam_securetty(root)
 
@@ -2162,14 +2176,10 @@ def install_openmandriva(args: CommandLineArguments, root: Path, do_run_build_sc
 
     gpgpath = Path("/etc/pki/rpm-gpg/RPM-GPG-KEY-OpenMandriva")
 
-    setup_dnf(
-        args,
-        root,
-        repos=[
-            Repo("openmandriva", f"OpenMandriva {release_model} Main", release_url, gpgpath),
-            Repo("updates", f"OpenMandriva {release_model} Main Updates", updates_url, gpgpath),
-        ],
-    )
+    repos = [Repo("openmandriva", f"OpenMandriva {release_model} Main", release_url, gpgpath),
+             Repo("updates", f"OpenMandriva {release_model} Main Updates", updates_url, gpgpath)]
+
+    setup_dnf(args, root, repos)
 
     packages = {*args.packages}
     # well we may use basesystem here, but that pulls lot of stuff
@@ -2183,51 +2193,12 @@ def install_openmandriva(args: CommandLineArguments, root: Path, do_run_build_sc
 
     if do_run_build_script:
         packages.update(args.build_packages)
-    invoke_dnf(args, root, args.repositories or ["openmandriva", "updates"], packages, do_run_build_script)
+    install_packages_dnf(args, root, packages, do_run_build_script)
 
     disable_pam_securetty(root)
 
 
-def invoke_yum(
-    args: CommandLineArguments, root: Path, repositories: List[str], packages: Set[str], do_run_build_script: bool
-) -> None:
-    repos = ["--enablerepo=" + repo for repo in repositories]
-    config_file = workspace(root) / "dnf.conf"
-    packages = make_rpm_list(args, packages, do_run_build_script)
-
-    cmdline = [
-        "yum",
-        "-y",
-        f"--config={config_file}",
-        f"--releasever={args.release}",
-        f"--installroot={root}",
-        "--disablerepo=*",
-        *repos,
-        "--setopt=keepcache=1",
-    ]
-
-    if args.architecture is not None:
-        cmdline += [f"--forcearch={args.architecture}"]
-
-    if not args.with_docs:
-        cmdline += ["--setopt=tsflags=nodocs"]
-
-    cmdline += ["install", *packages]
-
-    with mount_api_vfs(args, root):
-        run(cmdline)
-
-
-def invoke_dnf_or_yum(
-    args: CommandLineArguments, root: Path, repositories: List[str], packages: Set[str], do_run_build_script: bool
-) -> None:
-    if shutil.which("dnf") is None:
-        invoke_yum(args, root, repositories, packages, do_run_build_script)
-    else:
-        invoke_dnf(args, root, repositories, packages, do_run_build_script)
-
-
-def install_centos_old(args: CommandLineArguments, root: Path, epel_release: int) -> List[str]:
+def install_centos_repos_old(args: CommandLineArguments, root: Path, epel_release: int) -> None:
     # Repos for CentOS 7 and earlier
 
     gpgpath = Path(f"/etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-{args.release}")
@@ -2248,28 +2219,52 @@ def install_centos_old(args: CommandLineArguments, root: Path, epel_release: int
         centosplus_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=centosplus"
         epel_url = f"mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=epel-{epel_release}&arch=x86_64"
 
-    setup_dnf(
-        args,
-        root,
-        repos=[
-            Repo("base", f"CentOS-{args.release} - Base", release_url, gpgpath, gpgurl),
-            Repo("updates", f"CentOS-{args.release} - Updates", updates_url, gpgpath, gpgurl),
-            Repo("extras", f"CentOS-{args.release} - Extras", extras_url, gpgpath, gpgurl),
-            Repo("centosplus", f"CentOS-{args.release} - Plus", centosplus_url, gpgpath, gpgurl),
-            Repo(
-                "epel",
-                f"name=Extra Packages for Enterprise Linux {epel_release} - $basearch",
-                epel_url,
-                epel_gpgpath,
-                epel_gpgurl,
-            ),
-        ],
-    )
+    repos = [Repo("base", f"CentOS-{args.release} - Base", release_url, gpgpath, gpgurl),
+             Repo("updates", f"CentOS-{args.release} - Updates", updates_url, gpgpath, gpgurl),
+             Repo("extras", f"CentOS-{args.release} - Extras", extras_url, gpgpath, gpgurl),
+             Repo("centosplus", f"CentOS-{args.release} - Plus", centosplus_url, gpgpath, gpgurl)]
 
-    return ["base", "updates", "extras", "centosplus"]
+    if 'epel' in args.distribution.name:
+        repos += [Repo("epel", f"name=Extra Packages for Enterprise Linux {epel_release} - $basearch",
+                       epel_url, epel_gpgpath, epel_gpgurl)]
+
+    setup_dnf(args, root, repos)
 
 
-def install_rocky_repos(args: CommandLineArguments, root: Path, epel_release: int) -> List[str]:
+def install_centos_repos_new(args: CommandLineArguments, root: Path, epel_release: int) -> None:
+    # Repos for CentOS 8 and later
+
+    gpgpath = Path("/etc/pki/rpm-gpg/RPM-GPG-KEY-centosofficial")
+    gpgurl = "https://www.centos.org/keys/RPM-GPG-KEY-CentOS-Official"
+    epel_gpgpath = Path(f"/etc/pki/rpm-gpg/RPM-GPG-KEY-EPEL-{epel_release}")
+    epel_gpgurl = f"https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-{epel_release}"
+
+    if args.mirror:
+        appstream_url = f"baseurl={args.mirror}/centos/{args.release}/AppStream/x86_64/os"
+        baseos_url = f"baseurl={args.mirror}/centos/{args.release}/BaseOS/x86_64/os"
+        extras_url = f"baseurl={args.mirror}/centos/{args.release}/extras/x86_64/os"
+        centosplus_url = f"baseurl={args.mirror}/centos/{args.release}/centosplus/x86_64/os"
+        epel_url = f"baseurl={args.mirror}/epel/{epel_release}/Everything/x86_64"
+    else:
+        appstream_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=AppStream"
+        baseos_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=BaseOS"
+        extras_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=extras"
+        centosplus_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=centosplus"
+        epel_url = f"mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=epel-{epel_release}&arch=x86_64"
+
+    repos = [Repo("AppStream", f"CentOS-{args.release} - AppStream", appstream_url, gpgpath, gpgurl),
+             Repo("BaseOS", f"CentOS-{args.release} - Base", baseos_url, gpgpath, gpgurl),
+             Repo("extras", f"CentOS-{args.release} - Extras", extras_url, gpgpath, gpgurl),
+             Repo("centosplus", f"CentOS-{args.release} - Plus", centosplus_url, gpgpath, gpgurl)]
+
+    if 'epel' in args.distribution.name:
+        repos += [Repo("epel", f"name=Extra Packages for Enterprise Linux {epel_release} - $basearch",
+                       epel_url, epel_gpgpath, epel_gpgurl)]
+
+    setup_dnf(args, root, repos)
+
+
+def install_rocky_repos(args: CommandLineArguments, root: Path, epel_release: int) -> None:
     # Repos for Rocky Linux 8 and later
     gpgpath = Path("/etc/pki/rpm-gpg/RPM-GPG-KEY-rockyofficial")
     gpgurl = "https://download.rockylinux.org/pub/rocky/RPM-GPG-KEY-rockyofficial"
@@ -2291,28 +2286,18 @@ def install_rocky_repos(args: CommandLineArguments, root: Path, epel_release: in
         plus_url = f"mirrorlist=https://mirrors.rockylinux.org/mirrorlist?arch=x86_64&repo=rockyplus-{args.release}"
         epel_url = f"mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=epel-{epel_release}&arch=x86_64"
 
-    setup_dnf(
-        args,
-        root,
-        repos=[
-            Repo("AppStream", f"Rocky-{args.release} - AppStream", appstream_url, gpgpath, gpgurl),
-            Repo("BaseOS", f"Rocky-{args.release} - Base", baseos_url, gpgpath, gpgurl),
-            Repo("extras", f"Rocky-{args.release} - Extras", extras_url, gpgpath, gpgurl),
-            Repo("plus", f"Rocky-{args.release} - Plus", plus_url, gpgpath, gpgurl),
-            Repo(
-                "epel",
-                f"name=Extra Packages for Enterprise Linux {epel_release} - $basearch",
-                epel_url,
-                epel_gpgpath,
-                epel_gpgurl,
-            ),
-        ],
-    )
+    repos = [Repo("AppStream", f"Rocky-{args.release} - AppStream", appstream_url, gpgpath, gpgurl),
+             Repo("BaseOS", f"Rocky-{args.release} - Base", baseos_url, gpgpath, gpgurl),
+             Repo("extras", f"Rocky-{args.release} - Extras", extras_url, gpgpath, gpgurl),
+             Repo("plus", f"Rocky-{args.release} - Plus", plus_url, gpgpath, gpgurl)]
+    if 'epel' in args.distribution.name:
+        repos += [Repo("epel", f"name=Extra Packages for Enterprise Linux {epel_release} - $basearch",
+                       epel_url, epel_gpgpath, epel_gpgurl)]
 
-    return ["AppStream", "BaseOS", "extras", "plus"]
+    setup_dnf(args, root, repos)
 
 
-def install_alma_repos(args: CommandLineArguments, root: Path, epel_release: int) -> List[str]:
+def install_alma_repos(args: CommandLineArguments, root: Path, epel_release: int) -> None:
     # Repos for Alma Linux 8 and later
     gpgpath = Path("/etc/pki/rpm-gpg/RPM-GPG-KEY-AlmaLinux")
     gpgurl = "https://repo.almalinux.org/almalinux/RPM-GPG-KEY-AlmaLinux"
@@ -2327,76 +2312,24 @@ def install_alma_repos(args: CommandLineArguments, root: Path, epel_release: int
         ha_url = f"baseurl={args.mirror}/almalinux/{args.release}/HighAvailability/x86_64/os"
         epel_url = f"baseurl={args.mirror}/epel/{epel_release}/Everything/x86_64"
     else:
-        appstream_url = (
-            f"mirrorlist=https://mirrors.almalinux.org/mirrorlist/{args.release}/appstream"
-        )
+        appstream_url = f"mirrorlist=https://mirrors.almalinux.org/mirrorlist/{args.release}/appstream"
         baseos_url = f"mirrorlist=https://mirrors.almalinux.org/mirrorlist/{args.release}/baseos"
         extras_url = f"mirrorlist=https://mirrors.almalinux.org/mirrorlist/{args.release}/extras"
         powertools_url = f"mirrorlist=https://mirrors.almalinux.org/mirrorlist/{args.release}/powertools"
         ha_url = f"mirrorlist=https://mirrors.almalinux.org/mirrorlist/{args.release}/ha"
         epel_url = f"mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=epel-{epel_release}&arch=x86_64"
 
-    setup_dnf(
-        args,
-        root,
-        repos=[
-            Repo("AppStream", f"AlmaLinux-{args.release} - AppStream", appstream_url, gpgpath, gpgurl),
-            Repo("BaseOS", f"AlmaLinux-{args.release} - Base", baseos_url, gpgpath, gpgurl),
-            Repo("extras", f"AlmaLinux-{args.release} - Extras", extras_url, gpgpath, gpgurl),
-            Repo("Powertools", f"AlmaLinux-{args.release} - Powertools", powertools_url, gpgpath, gpgurl),
-            Repo("HighAvailability", f"AlmaLinux-{args.release} - HighAvailability", ha_url, gpgpath, gpgurl),
-            Repo(
-                "epel",
-                f"name=Extra Packages for Enterprise Linux {epel_release} - $basearch",
-                epel_url,
-                epel_gpgpath,
-                epel_gpgurl,
-            ),
-        ],
-    )
+    repos = [Repo("AppStream", f"AlmaLinux-{args.release} - AppStream", appstream_url, gpgpath, gpgurl),
+             Repo("BaseOS", f"AlmaLinux-{args.release} - Base", baseos_url, gpgpath, gpgurl),
+             Repo("extras", f"AlmaLinux-{args.release} - Extras", extras_url, gpgpath, gpgurl),
+             Repo("Powertools", f"AlmaLinux-{args.release} - Powertools", powertools_url, gpgpath, gpgurl),
+             Repo("HighAvailability", f"AlmaLinux-{args.release} - HighAvailability", ha_url, gpgpath, gpgurl)]
 
-    return ["AppStream", "BaseOS", "extras", "Powertools", "HighAvailability"]
+    if 'epel' in args.distribution.name:
+        repos += [Repo("epel", f"name=Extra Packages for Enterprise Linux {epel_release} - $basearch",
+                       epel_url, epel_gpgpath, epel_gpgurl)]
 
-def install_centos_new(args: CommandLineArguments, root: Path, epel_release: int) -> List[str]:
-    # Repos for CentOS 8 and later
-
-    gpgpath = Path("/etc/pki/rpm-gpg/RPM-GPG-KEY-centosofficial")
-    gpgurl = "https://www.centos.org/keys/RPM-GPG-KEY-CentOS-Official"
-    epel_gpgpath = Path(f"/etc/pki/rpm-gpg/RPM-GPG-KEY-EPEL-{epel_release}")
-    epel_gpgurl = f"https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-{epel_release}"
-
-    if args.mirror:
-        appstream_url = f"baseurl={args.mirror}/centos/{args.release}/AppStream/x86_64/os"
-        baseos_url = f"baseurl={args.mirror}/centos/{args.release}/BaseOS/x86_64/os"
-        extras_url = f"baseurl={args.mirror}/centos/{args.release}/extras/x86_64/os"
-        centosplus_url = f"baseurl={args.mirror}/centos/{args.release}/centosplus/x86_64/os"
-        epel_url = f"baseurl={args.mirror}/epel/{epel_release}/Everything/x86_64"
-    else:
-        appstream_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=AppStream"
-        baseos_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=BaseOS"
-        extras_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=extras"
-        centosplus_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=centosplus"
-        epel_url = f"mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=epel-{epel_release}&arch=x86_64"
-
-    setup_dnf(
-        args,
-        root,
-        repos=[
-            Repo("AppStream", f"CentOS-{args.release} - AppStream", appstream_url, gpgpath, gpgurl),
-            Repo("BaseOS", f"CentOS-{args.release} - Base", baseos_url, gpgpath, gpgurl),
-            Repo("extras", f"CentOS-{args.release} - Extras", extras_url, gpgpath, gpgurl),
-            Repo("centosplus", f"CentOS-{args.release} - Plus", centosplus_url, gpgpath, gpgurl),
-            Repo(
-                "epel",
-                f"name=Extra Packages for Enterprise Linux {epel_release} - $basearch",
-                epel_url,
-                epel_gpgpath,
-                epel_gpgurl,
-            ),
-        ],
-    )
-
-    return ["AppStream", "BaseOS", "extras", "centosplus"]
+    setup_dnf(args, root, repos)
 
 
 def is_older_than_centos8(release: str) -> bool:
@@ -2416,9 +2349,9 @@ def install_centos(args: CommandLineArguments, root: Path, do_run_build_script: 
     epel_release = int(args.release.split(".")[0])
 
     if old:
-        default_repos = install_centos_old(args, root, epel_release)
+        install_centos_repos_old(args, root, epel_release)
     else:
-        default_repos = install_centos_new(args, root, epel_release)
+        install_centos_repos_new(args, root, epel_release)
 
     packages = {*args.packages}
     add_packages(args, packages, "centos-release", "systemd")
@@ -2443,10 +2376,7 @@ def install_centos(args: CommandLineArguments, root: Path, do_run_build_script: 
     if do_run_build_script:
         packages.update(args.build_packages)
 
-    repos = args.repositories or default_repos
-
     if args.distribution == Distribution.centos_epel:
-        repos += ["epel"]
         add_packages(args, packages, "epel-release")
 
     if do_run_build_script:
@@ -2455,13 +2385,13 @@ def install_centos(args: CommandLineArguments, root: Path, do_run_build_script: 
     if not do_run_build_script and args.distribution == Distribution.centos_epel and args.network_veth:
         add_packages(args, packages, "systemd-networkd", conditional="systemd")
 
-    invoke_dnf_or_yum(args, root, repos, packages, do_run_build_script)
+    install_packages_dnf(args, root, packages, do_run_build_script)
 
 
 @complete_step("Installing Rocky Linux…")
 def install_rocky(args: CommandLineArguments, root: Path, do_run_build_script: bool) -> None:
     epel_release = int(args.release.split(".")[0])
-    default_repos = install_rocky_repos(args, root, epel_release)
+    install_rocky_repos(args, root, epel_release)
 
     packages = {*args.packages}
     add_packages(args, packages, "rocky-release", "systemd")
@@ -2473,10 +2403,7 @@ def install_rocky(args: CommandLineArguments, root: Path, do_run_build_script: b
     if do_run_build_script:
         packages.update(args.build_packages)
 
-    repos = args.repositories or default_repos
-
     if args.distribution == Distribution.rocky_epel:
-        repos += ["epel"]
         add_packages(args, packages, "epel-release")
 
     if do_run_build_script:
@@ -2485,14 +2412,14 @@ def install_rocky(args: CommandLineArguments, root: Path, do_run_build_script: b
     if not do_run_build_script and args.distribution == Distribution.rocky_epel and args.network_veth:
         add_packages(args, packages, "systemd-networkd", conditional="systemd")
 
-    invoke_dnf_or_yum(args, root, repos, packages, do_run_build_script)
+    install_packages_dnf(args, root, packages, do_run_build_script)
 
 
 
 @complete_step("Installing Alma Linux…")
 def install_alma(args: CommandLineArguments, root: Path, do_run_build_script: bool) -> None:
     epel_release = int(args.release.split(".")[0])
-    default_repos = install_alma_repos(args, root, epel_release)
+    install_alma_repos(args, root, epel_release)
 
     packages = {*args.packages}
     add_packages(args, packages, "almalinux-release", "systemd")
@@ -2504,10 +2431,7 @@ def install_alma(args: CommandLineArguments, root: Path, do_run_build_script: bo
     if do_run_build_script:
         packages.update(args.build_packages)
 
-    repos = args.repositories or default_repos
-
     if args.distribution == Distribution.alma_epel:
-        repos += ["epel"]
         add_packages(args, packages, "epel-release")
 
     if do_run_build_script:
@@ -2516,7 +2440,7 @@ def install_alma(args: CommandLineArguments, root: Path, do_run_build_script: bo
     if not do_run_build_script and args.distribution == Distribution.alma_epel and args.network_veth:
         add_packages(args, packages, "systemd-networkd", conditional="systemd")
 
-    invoke_dnf_or_yum(args, root, repos, packages, do_run_build_script)
+    install_packages_dnf(args, root, packages, do_run_build_script)
 
 
 def debootstrap_knows_arg(arg: str) -> bool:
@@ -2966,6 +2890,23 @@ def install_distribution(args: CommandLineArguments, root: Path, do_run_build_sc
         install[args.distribution](args, root, do_run_build_script)
 
     reenable_kernel_install(args, root)
+
+
+def remove_packages(args: CommandLineArguments, root: Path) -> None:
+    """Remove packages listed in args.remove_packages"""
+
+    remove: Callable[[List[str]], None]
+
+    if (args.distribution.package_type == PackageType.rpm and
+        args.distribution != Distribution.photon):
+        remove = lambda p: invoke_dnf(args, root, 'remove', p)
+    else:
+        # FIXME: implement removal for other package managers: apt, tdnf, swupd, pacman
+        return
+
+    if args.remove_packages:
+        with complete_step(f"Removing {len(args.packages)} packages…"):
+            remove(args.remove_packages)
 
 
 def reset_machine_id(args: CommandLineArguments, root: Path, do_run_build_script: bool, for_cache: bool) -> None:
@@ -4718,6 +4659,7 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
         "CheckSum": "--checksum",
         "BMap": "--bmap",
         "Packages": "--package",
+        "RemovePackages": "--remove-package",
         "ExtraTrees": "--extra-tree",
         "SkeletonTrees": "--skeleton-tree",
         "BuildPackages": "--build-package",
@@ -5071,6 +5013,14 @@ def create_parser() -> ArgumentParserMkosi:
         dest="packages",
         default=[],
         help="Add an additional package to the OS image",
+        metavar="PACKAGE",
+    )
+    group.add_argument(
+        "--remove-package",
+        action=CommaDelimitedListAction,
+        dest="remove_packages",
+        default=[],
+        help="Remove package from the image OS image after installation",
         metavar="PACKAGE",
     )
     group.add_argument("--with-docs", action=BooleanAction, help="Install documentation")
@@ -6460,6 +6410,8 @@ def print_summary(args: CommandLineArguments) -> None:
     MkosiPrinter.info("      CleanPackageMetadata: " + yes_no_or(args.clean_package_metadata))
     if args.remove_files:
         MkosiPrinter.info("              Remove Files: " + line_join_list(args.remove_files))
+    if args.remove_packages:
+        MkosiPrinter.info("           Remove Packages: " + line_join_list(args.remove_packages))
     MkosiPrinter.info("              Build Script: " + none_to_none(args.build_script))
     MkosiPrinter.info("        Script Environment: " + line_join_list(args.environment))
 
@@ -6736,6 +6688,9 @@ def build_image(
                 sshkey = setup_ssh(args, root, do_run_build_script, for_cache, cached_tree)
                 setup_network_veth(args, root, do_run_build_script, cached_tree)
                 run_postinst_script(args, root, loopdev, do_run_build_script, for_cache)
+
+                if cleanup:
+                    remove_packages(args, root)
 
                 if manifest:
                     with complete_step("Recording packages in manifest…"):
