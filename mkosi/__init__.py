@@ -1810,7 +1810,7 @@ def clean_package_manager_metadata(args: CommandLineArguments, root: Path) -> No
     clean_tdnf_metadata(root, always=args.clean_package_metadata is True)
     clean_apt_metadata(root, always=args.clean_package_metadata is True)
     clean_dpkg_metadata(root, always=args.clean_package_metadata is True)
-    # FIXME: implement cleanup for other package managers
+    # FIXME: implement cleanup for other package managers: swupd, pacman
 
 
 def remove_files(args: CommandLineArguments, root: Path) -> None:
@@ -2901,7 +2901,7 @@ def remove_packages(args: CommandLineArguments, root: Path) -> None:
         args.distribution != Distribution.photon):
         remove = lambda p: invoke_dnf(args, root, 'remove', p)
     else:
-        # FIXME: add implementations for other distros
+        # FIXME: implement removal for other package managers: apt, tdnf, swupd, pacman
         return
 
     if args.remove_packages:
