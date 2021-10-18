@@ -24,7 +24,7 @@ from typing import (
     Any,
     Callable,
     Dict,
-    Generator,
+    Iterator,
     List,
     NoReturn,
     Optional,
@@ -42,7 +42,7 @@ def shell_join(cmd: Sequence[PathString]) -> str:
 
 
 @contextlib.contextmanager
-def set_umask(mask: int) -> Generator[int, None, None]:
+def set_umask(mask: int) -> Iterator[int]:
     old = os.umask(mask)
     try:
         yield old
@@ -604,7 +604,7 @@ def run_workspace_command(
 
 
 @contextlib.contextmanager
-def do_delay_interrupt() -> Generator[None, None, None]:
+def do_delay_interrupt() -> Iterator[None]:
     # CTRL+C is sent to the entire process group. We delay its handling in mkosi itself so the subprocess can
     # exit cleanly before doing mkosi's cleanup. If we don't do this, we get device or resource is busy
     # errors when unmounting stuff later on during cleanup. We only delay a single CTRL+C interrupt so that a
@@ -630,7 +630,7 @@ def do_delay_interrupt() -> Generator[None, None, None]:
 
 
 @contextlib.contextmanager
-def do_noop() -> Generator[None, None, None]:
+def do_noop() -> Iterator[None]:
     yield
 
 
@@ -831,7 +831,7 @@ class MkosiPrinter:
 
     @classmethod
     @contextlib.contextmanager
-    def complete_step(cls, text: str, text2: Optional[str] = None) -> Generator[List[Any], None, None]:
+    def complete_step(cls, text: str, text2: Optional[str] = None) -> Iterator[List[Any]]:
         cls.print_step(text)
 
         cls.level += 1
