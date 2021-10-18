@@ -48,8 +48,8 @@ from typing import (
     ContextManager,
     Deque,
     Dict,
-    Generator,
     Iterable,
+    Iterator,
     List,
     NamedTuple,
     NoReturn,
@@ -146,7 +146,7 @@ T = TypeVar("T")
 V = TypeVar("V")
 
 
-def dictify(f: Callable[..., Generator[Tuple[T, V], None, None]]) -> Callable[..., Dict[T, V]]:
+def dictify(f: Callable[..., Iterator[Tuple[T, V]]]) -> Callable[..., Dict[T, V]]:
     def wrapper(*args: Any, **kwargs: Any) -> Dict[T, V]:
         return dict(f(*args, **kwargs))
 
@@ -154,7 +154,7 @@ def dictify(f: Callable[..., Generator[Tuple[T, V], None, None]]) -> Callable[..
 
 
 @dictify
-def read_os_release() -> Generator[Tuple[str, str], None, None]:
+def read_os_release() -> Iterator[Tuple[str, str]]:
     try:
         filename = "/etc/os-release"
         f = open(filename)
@@ -379,7 +379,7 @@ FICLONE = _IOW(0x94, 9, "int")
 
 
 @contextlib.contextmanager
-def open_close(path: PathString, flags: int, mode: int = 0o664) -> Generator[int, None, None]:
+def open_close(path: PathString, flags: int, mode: int = 0o664) -> Iterator[int]:
     fd = os.open(path, flags | os.O_CLOEXEC, mode)
     try:
         yield fd
@@ -513,7 +513,7 @@ def btrfs_subvol_make_ro(path: Path, b: bool = True) -> None:
 
 
 @contextlib.contextmanager
-def btrfs_forget_stale_devices(args: CommandLineArguments) -> Generator[None, None, None]:
+def btrfs_forget_stale_devices(args: CommandLineArguments) -> Iterator[None]:
     # When using cached images (-i), mounting btrfs images would sometimes fail
     # with EEXIST. This is likely because a stale device is leftover somewhere
     # from the previous run. To fix this, we make sure to always clean up stale
@@ -753,7 +753,7 @@ def reuse_cache_image(
 
 
 @contextlib.contextmanager
-def attach_image_loopback(image: Optional[BinaryIO]) -> Generator[Optional[Path], None, None]:
+def attach_image_loopback(image: Optional[BinaryIO]) -> Iterator[Optional[Path]]:
     if image is None:
         yield None
         return
@@ -772,7 +772,7 @@ def attach_image_loopback(image: Optional[BinaryIO]) -> Generator[Optional[Path]
             run(["losetup", "--detach", loopdev])
 
 @contextlib.contextmanager
-def attach_base_image(base_image: Optional[Path]) -> Generator[Optional[Path], None, None]:
+def attach_base_image(base_image: Optional[Path]) -> Iterator[Optional[Path]]:
     """Context manager that attaches/detaches the base image directory or device"""
 
     if base_image is None:
@@ -987,7 +987,7 @@ def luks_format_tmp(args: CommandLineArguments, loopdev: Path, do_run_build_scri
 
 
 @contextlib.contextmanager
-def luks_open(part: Partition, loopdev: Path, passphrase: Dict[str, str]) -> Generator[Path, None, None]:
+def luks_open(part: Partition, loopdev: Path, passphrase: Dict[str, str]) -> Iterator[Path]:
     name = str(uuid.uuid4())
     dev = part.blockdev(loopdev)
 
@@ -1107,7 +1107,7 @@ class LuksSetupOutput(NamedTuple):
 @contextlib.contextmanager
 def luks_setup_all(
     args: CommandLineArguments, loopdev: Optional[Path], do_run_build_script: bool
-) -> Generator[LuksSetupOutput, None, None]:
+) -> Iterator[LuksSetupOutput]:
     if not args.output_format.is_disk():
         yield LuksSetupOutput.empty()
         return
@@ -1194,7 +1194,7 @@ def delete_whiteout_files(path: Path) -> None:
     """
 
     with complete_step("Removing overlay whiteout files…"):
-        for entry in cast(Generator[os.DirEntry[str], None, None], scandir_recursive(path)):
+        for entry in cast(Iterator[os.DirEntry[str]], scandir_recursive(path)):
             if stat_is_whiteout(entry.stat(follow_symlinks=False)):
                 os.unlink(entry.path)
 
@@ -1308,7 +1308,7 @@ def mount_image(
     loopdev: Optional[Path],
     image: LuksSetupOutput,
     root_read_only: bool = False,
-) -> Generator[None, None, None]:
+) -> Iterator[None]:
     with complete_step("Mounting image…"):
 
         realroot: Optional[Path] = None
@@ -1389,7 +1389,7 @@ def install_etc_hostname(args: CommandLineArguments, root: Path, cached: bool) -
 
 
 @contextlib.contextmanager
-def mount_api_vfs(args: CommandLineArguments, root: Path) -> Generator[None, None, None]:
+def mount_api_vfs(args: CommandLineArguments, root: Path) -> Iterator[None]:
     subdirs = ("proc", "dev", "sys")
 
     with complete_step("Mounting API VFS"):
@@ -1404,7 +1404,7 @@ def mount_api_vfs(args: CommandLineArguments, root: Path) -> Generator[None, Non
 
 
 @contextlib.contextmanager
-def mount_cache(args: CommandLineArguments, root: Path) -> Generator[None, None, None]:
+def mount_cache(args: CommandLineArguments, root: Path) -> Iterator[None]:
     if args.cache_path is None:
         yield
         return
@@ -3445,7 +3445,7 @@ def make_tar(args: CommandLineArguments, root: Path, do_run_build_script: bool, 
 def scandir_recursive(
         root: Path,
         filter: Optional[Callable[[os.DirEntry[str]], T]] = None,
-) -> Generator[T, None, None]:
+) -> Iterator[T]:
     """Recursively walk the tree starting at @root, optionally apply filter, yield non-none values"""
     queue: Deque[Union[str, Path]] = collections.deque([root])
 
@@ -3458,7 +3458,7 @@ def scandir_recursive(
                 queue.append(entry.path)
 
 
-def find_files(root: Path) -> Generator[Path, None, None]:
+def find_files(root: Path) -> Iterator[Path]:
     """Generate a list of all filepaths relative to @root"""
     yield from scandir_recursive(root,
                                  lambda entry: Path(entry.path).relative_to(root))
@@ -6996,7 +6996,7 @@ def check_native(args: CommandLineArguments) -> None:
 
 
 @contextlib.contextmanager
-def suppress_stacktrace() -> Generator[None, None, None]:
+def suppress_stacktrace() -> Iterator[None]:
     try:
         yield
     except subprocess.CalledProcessError as e:
