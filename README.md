@@ -8,7 +8,7 @@ For a longer description and available features and options, see the
 [man page](mkosi.md).
 
 <a href="https://repology.org/project/mkosi/versions">
-    <img align="right" src="https://repology.org/badge/vertical-allrepos/mkosi.svg" alt="Packaging status">
+    <img align="right" src="https://repology.org/badge/vertical-allrepos/mkosi.svg?exclude_sources=site&exclude_unsupported=1" alt="Packaging status">
 </a>
 
 # Installation
