@@ -1450,7 +1450,10 @@ def umount(where: Path) -> None:
     run(["umount", "--recursive", "-n", where])
 
 
-def configure_dracut(args: CommandLineArguments, root: Path) -> None:
+def configure_dracut(args: CommandLineArguments, packages: Set[str], root: Path) -> None:
+    if "dracut" not in packages:
+        return
+
     dracut_dir = root / "etc/dracut.conf.d"
     dracut_dir.mkdir(mode=0o755)
 
@@ -2102,7 +2105,7 @@ def install_fedora(args: CommandLineArguments, root: Path, do_run_build_script: 
     if not do_run_build_script and args.bootable:
         add_packages(args, packages, "kernel-core", "kernel-modules", "binutils", "dracut")
         add_packages(args, packages, "systemd-udev", conditional="systemd")
-        configure_dracut(args, root)
+        configure_dracut(args, packages, root)
     if do_run_build_script:
         packages.update(args.build_packages)
     if not do_run_build_script and args.network_veth:
@@ -2138,7 +2141,7 @@ def install_mageia(args: CommandLineArguments, root: Path, do_run_build_script: 
     add_packages(args, packages, "basesystem-minimal")
     if not do_run_build_script and args.bootable:
         add_packages(args, packages, "kernel-server-latest", "binutils", "dracut")
-        configure_dracut(args, root)
+        configure_dracut(args, packages, root)
         # Mageia ships /etc/50-mageia.conf that omits systemd from the initramfs and disables hostonly.
         # We override that again so our defaults get applied correctly on Mageia as well.
         root.joinpath("etc/dracut.conf.d/51-mkosi-override-mageia.conf").write_text(
@@ -2187,7 +2190,7 @@ def install_openmandriva(args: CommandLineArguments, root: Path, do_run_build_sc
     if not do_run_build_script and args.bootable:
         add_packages(args, packages, "systemd-boot", "systemd-cryptsetup", conditional="systemd")
         add_packages(args, packages, "kernel-release-server", "binutils", "dracut", "timezone")
-        configure_dracut(args, root)
+        configure_dracut(args, packages, root)
     if args.network_veth:
         add_packages(args, packages, "systemd-networkd", conditional="systemd")
 
@@ -2357,7 +2360,7 @@ def install_centos(args: CommandLineArguments, root: Path, do_run_build_script: 
     add_packages(args, packages, "centos-release", "systemd")
     if not do_run_build_script and args.bootable:
         add_packages(args, packages, "kernel", "dracut", "binutils")
-        configure_dracut(args, root)
+        configure_dracut(args, packages, root)
         if old:
             add_packages(
                 args,
@@ -2397,7 +2400,7 @@ def install_rocky(args: CommandLineArguments, root: Path, do_run_build_script: b
     add_packages(args, packages, "rocky-release", "systemd")
     if not do_run_build_script and args.bootable:
         add_packages(args, packages, "kernel", "dracut", "binutils")
-        configure_dracut(args, root)
+        configure_dracut(args, packages, root)
         add_packages(args, packages, "systemd-udev", conditional="systemd")
 
     if do_run_build_script:
@@ -2425,7 +2428,7 @@ def install_alma(args: CommandLineArguments, root: Path, do_run_build_script: bo
     add_packages(args, packages, "almalinux-release", "systemd")
     if not do_run_build_script and args.bootable:
         add_packages(args, packages, "kernel", "dracut", "binutils")
-        configure_dracut(args, root)
+        configure_dracut(args, packages, root)
         add_packages(args, packages, "systemd-udev", conditional="systemd")
 
     if do_run_build_script:
@@ -2490,7 +2493,7 @@ def install_debian_or_ubuntu(args: CommandLineArguments, root: Path, *, do_run_b
 
     if not do_run_build_script and args.bootable:
         add_packages(args, extra_packages, "dracut", "binutils")
-        configure_dracut(args, root)
+        configure_dracut(args, extra_packages, root)
 
         if args.distribution == Distribution.ubuntu:
             add_packages(args, extra_packages, "linux-generic")
@@ -2736,7 +2739,7 @@ def install_arch(args: CommandLineArguments, root: Path, do_run_build_script: bo
             add_packages(args, packages, "grub")
 
         add_packages(args, packages, "dracut", "binutils")
-        configure_dracut(args, root)
+        configure_dracut(args, packages, root)
 
     packages.update(args.packages)
 
@@ -2811,7 +2814,7 @@ def install_opensuse(args: CommandLineArguments, root: Path, do_run_build_script
 
     if not do_run_build_script and args.bootable:
         add_packages(args, packages, "kernel-default", "dracut", "binutils")
-        configure_dracut(args, root)
+        configure_dracut(args, packages, root)
 
         if args.get_partition(PartitionIdentifier.bios):
             add_packages(args, packages, "grub2")
