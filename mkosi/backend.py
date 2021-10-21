@@ -108,7 +108,6 @@ class PackageType(enum.Enum):
     deb = 2
     pkg = 3
     bundle = 4
-    ebuild = 5
 
 
 class Distribution(enum.Enum):
@@ -129,7 +128,6 @@ class Distribution(enum.Enum):
     rocky_epel = 12, PackageType.rpm
     alma = 13, PackageType.rpm
     alma_epel = 14, PackageType.rpm
-    gentoo = 15, PackageType.ebuild
 
     def __new__(cls, number: int, package_type: PackageType) -> Distribution:
         # This turns the list above into enum entries with .package_type attributes.
@@ -751,11 +749,13 @@ def write_grub_config(args: CommandLineArguments, root: Path) -> None:
     else:
 
         def jj(line: str) -> str:
-            if line.startswith(("GRUB_CMDLINE_LINUX=", "#GRUB_CMDLINE_LINUX=")):  # GENTOO:
+            if line.startswith("GRUB_CMDLINE_LINUX="):
                 return grub_cmdline
             if args.qemu_headless:
-                if "GRUB_TERMINAL" in line:
-                    return line.strip('#').split('=')[0] + '="console serial"'
+                if "GRUB_TERMINAL_INPUT" in line:
+                    return 'GRUB_TERMINAL_INPUT="console serial"'
+                if "GRUB_TERMINAL_OUTPUT" in line:
+                    return 'GRUB_TERMINAL_OUTPUT="console serial"'
             return line
 
         patch_file(grub_config, jj)

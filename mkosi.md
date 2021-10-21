@@ -1256,8 +1256,6 @@ following operating systems:
 
 * *Alma Linux*
 
-* *Gentoo*
-
 In theory, any distribution may be used on the host for building
 images containing any other distribution, as long as the necessary
 tools are available. Specifically, any distribution that packages
@@ -1267,8 +1265,8 @@ distribution that packages `dnf` may be used to build *Fedora Linux*,
 build *Arch Linux* images. Any distribution that packages `zypper` may
 be used to build *openSUSE* images. Any distribution that packages
 `yum` (or the newer replacement `dnf`) may be used to build *CentOS*, *Rocky Linux*,
-or *Alma Linux* images. Any distribution that packages `emerge` may be used to build
-*Gentoo* images.
+or *Alma Linux*
+images.
 
 Currently, *Fedora Linux* packages all relevant tools as of Fedora 28.
 
@@ -1315,7 +1313,7 @@ local directory:
 * The **`mkosi.default`** file provides the default configuration for
   the image building process. For example, it may specify the
   distribution to use (`fedora`, `ubuntu`, `debian`, `arch`,
-  `opensuse`, `mageia`, `openmandriva`, `gentoo`) for the image, or additional
+  `opensuse`, `mageia`, `openmandriva`) for the image, or additional
   distribution packages to install. Note that all options encoded in
   this configuration file may also be set on the command line, and
   this file is hence little more than a way to make sure invoking
@@ -1703,7 +1701,7 @@ Hostname=image
 # REQUIREMENTS
 
 mkosi is packaged for various distributions: Debian, Ubuntu, Arch
-Linux, Fedora Linux, OpenMandriva, Gentoo. It is usually easiest to use the
+Linux, Fedora Linux, OpenMandriva. It is usually easiest to use the
 distribution package.
 
 The current version requires systemd 233 (or actually, systemd-nspawn of it).

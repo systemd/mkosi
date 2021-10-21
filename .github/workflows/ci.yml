@@ -22,7 +22,6 @@ jobs:
           - fedora
           - rocky_epel
           - alma_epel
-          - gentoo
         format:
           - directory
           - tar
@@ -54,36 +53,6 @@ jobs:
     - name: Install dependencies
       run: sudo apt-get update && sudo apt-get install --no-install-recommends python3-pexpect
 
-    - name: Install Gentoo dependencies (portage)
-      if: ${{ matrix.distro == 'gentoo' }}
-      run: |
-        sudo tee /usr/lib/sysusers.d/acct-user-portage.conf > /dev/null <<- EOF
-        # /usr/lib/sysusers.d/portage.conf
-        u portage - "Portage system user" /var/lib/portage/home -
-        EOF
-        sudo systemd-sysusers --no-pager
-
-        sudo install --owner=portage --group=portage --mode=0755 --directory /var/db/repos
-        sudo install --owner=portage --group=portage --mode=0755 --directory /etc/portage/repos.conf
-        sudo install --owner=portage --group=portage --mode=0755 --directory /var/cache/binpkgs
-        sudo tee /etc/portage/repos.conf/eselect-repo.conf > /dev/null <<- EOF
-        [gentoo]
-        location = /var/db/repos/gentoo
-        sync-type = git
-        sync-uri = https://anongit.gentoo.org/git/repo/gentoo.git
-        EOF
-
-        git clone https://anongit.gentoo.org/git/proj/portage.git --depth=1
-        cd portage
-        tee setup.cfg > /dev/null <<- EOF
-        [build_ext]
-        portage-ext-modules=true
-        EOF
-
-        sudo python setup.py install
-
-        sudo ln -s --relative /var/db/repos/gentoo/profiles/default/linux/amd64/17.1/no-multilib/systemd /etc/portage/make.profile
-
     # Do a manual install so we have the latest changes from the pull request available.
     - name: Install
       run: sudo python3 -m pip install .
@@ -105,13 +74,6 @@ jobs:
         [Host]
         Ssh=yes
         NetworkVeth=yes
-        EOF
-
-        mkdir -p mkosi.skeleton/etc/portage
-
-        tee mkosi.skeleton/etc/portage/binrepos.conf <<- EOF
-        [binhost]
-        sync-uri = https://raw.githubusercontent.com/257/binpkgs/main
         EOF
 
     # Ubuntu's systemd-nspawn doesn't support faccessat2() syscall, which is
@@ -172,8 +134,7 @@ jobs:
           matrix.distro == 'centos' ||
           matrix.distro == 'rocky' ||
           matrix.distro == 'alma' ||
-          matrix.distro == 'fedora' ||
-          matrix.distro == 'gentoo')
+          matrix.distro == 'fedora')
       run: |
         tee mkosi.default <<- EOF
         [Output]
@@ -198,8 +159,7 @@ jobs:
           matrix.distro == 'centos' ||
           matrix.distro == 'rocky' ||
           matrix.distro == 'alma' ||
-          matrix.distro == 'fedora' ||
-          matrix.distro == 'gentoo')
+          matrix.distro == 'fedora')
       run: sudo ./tests/pexpect/boot.py python3 -m mkosi qemu
 
     - name: Build ${{ matrix.distro }}/${{ matrix.format }} BIOS
