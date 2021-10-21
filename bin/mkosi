@@ -9,16 +9,18 @@
 # home directory via "python3 -m pip install --user"
 #
 # We support installation via:
-# sudo python3 -m pip install <mkosi>
-# python3 -m pip install --user <mkosi>
-# python3 -m pip install --user --editable <mkosi>
-# /path/to/venv/bin/python3 -m pip install <mkosi>
+#   sudo python3 -m pip install <mkosi>
+#   python3 -m pip install --user <mkosi>
+#   python3 -m pip install --user --editable <mkosi>
+#   /path/to/venv/bin/python3 -m pip install <mkosi>
+# and running directly from the source checkout.
 #
-# In the first and the last case this script is a noop because we leave it up to
-# the python binary to set up its path, in the case of "--user" installation we
-# prepend PYTHON_PATH with the original users
+# In the first and the next-to-last cases this script is a noop because we leave
+# it up to the python binary to set up its path. In the case of '--user'
+# installation we prepend PYTHON_PATH with the original user's
 # ~/.local/lib/pythonX.Y/site-packages or the directory where mkosi has been
 # cloned to, for "--editable" installations, when this script is run via sudo.
+# When running from a source checkout, we prepend that directory to the path.
 
 PYROOT=$(dirname "$0")
 
@@ -36,7 +38,10 @@ PYVERSION=$($PYTHON --version | cut -d ' ' -f 2 | cut -d '.' -f 1-2)
 
 declare PREPEND_PYTHONPATH
 
-if [[ -n $SUDO_USER ]] && \
+if [[ -e "${PYROOT}/../setup.py" ]]
+then
+    PREPEND_PYTHONPATH="$(dirname ${PYROOT})"
+elif [[ -n $SUDO_USER ]] && \
        [[ -z $VIRTUAL_ENV ]] && \
        [[ "$SYSTEM_PYTHON_OR_VENV" == false ]]
 then
