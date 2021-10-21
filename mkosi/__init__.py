@@ -2450,6 +2450,27 @@ def debootstrap_knows_arg(arg: str) -> bool:
     return bytes("invalid option", "UTF-8") not in run(["debootstrap", arg], stdout=PIPE, check=False).stdout
 
 
+def invoke_apt(
+    args: CommandLineArguments,
+    do_run_build_script: bool,
+    root: Path,
+    command: str,
+    packages: Iterable[str],
+) -> None:
+
+    cmdline = ["/usr/bin/apt-get", "--assume-yes", "--no-install-recommends", "--auto-remove", command, *packages]
+    env = {
+        "DEBIAN_FRONTEND": "noninteractive",
+        "DEBCONF_NONINTERACTIVE_SEEN": "true",
+    }
+
+    if not do_run_build_script and args.bootable and args.with_unified_kernel_images:
+        # Disable dracut postinstall script for this apt-get run.
+        env["INITRD"] = "No"
+
+    run_workspace_command(args, root, cmdline, network=True, env=env)
+
+
 def install_debian_or_ubuntu(args: CommandLineArguments, root: Path, *, do_run_build_script: bool) -> None:
     # Either the image builds or it fails and we restart, we don't need safety fsyncs when bootstrapping
     # Add it before debootstrap, as the second stage already uses dpkg from the chroot
@@ -2538,23 +2559,15 @@ def install_debian_or_ubuntu(args: CommandLineArguments, root: Path, *, do_run_b
         with dpkg_nodoc_conf.open("w") as f:
             f.writelines(f"path-exclude {d}/*\n" for d in doc_paths)
 
-    cmdline = ["/usr/bin/apt-get", "--assume-yes", "--no-install-recommends", "install", *extra_packages]
-    env = {
-        "DEBIAN_FRONTEND": "noninteractive",
-        "DEBCONF_NONINTERACTIVE_SEEN": "true",
-    }
+    if (not do_run_build_script and args.bootable and args.with_unified_kernel_images and
+       args.distribution == Distribution.debian and args.release == "unstable" and args.base_image is None):
+        # systemd-boot won't boot unified kernel images generated without a BUILD_ID or VERSION_ID in
+        # /etc/os-release.
+        with root.joinpath("etc/os-release").open("a") as f:
+            f.write("BUILD_ID=unstable\n")
 
-    if not do_run_build_script and args.bootable and args.with_unified_kernel_images:
-        # Disable dracut postinstall script for this apt-get run.
-        env["INITRD"] = "No"
+    invoke_apt(args, do_run_build_script, root, "install", extra_packages)
 
-        if args.distribution == Distribution.debian and args.release == "unstable" and args.base_image is None:
-            # systemd-boot won't boot unified kernel images generated without a BUILD_ID or VERSION_ID in
-            # /etc/os-release.
-            with root.joinpath("etc/os-release").open("a") as f:
-                f.write("BUILD_ID=unstable\n")
-
-    run_workspace_command(args, root, cmdline, network=True, env=env)
     policyrcd.unlink()
     dpkg_io_conf.unlink()
     if not args.with_docs and args.base_image is not None:
@@ -2911,8 +2924,10 @@ def remove_packages(args: CommandLineArguments, root: Path) -> None:
     if (args.distribution.package_type == PackageType.rpm and
         args.distribution != Distribution.photon):
         remove = lambda p: invoke_dnf(args, root, 'remove', p)
+    elif args.distribution.package_type == PackageType.deb:
+        remove = lambda p: invoke_apt(args, False, root, "purge", p)
     else:
-        # FIXME: implement removal for other package managers: apt, tdnf, swupd, pacman
+        # FIXME: implement removal for other package managers: tdnf, swupd, pacman
         return
 
     if args.remove_packages:
