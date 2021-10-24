@@ -572,7 +572,8 @@ def run_workspace_command(
     network: bool = False,
     env: Optional[Dict[str, str]] = None,
     nspawn_params: Optional[List[str]] = None,
-) -> None:
+    capture_stdout: bool = False,
+) -> Optional[str]:
     nspawn = [
         "systemd-nspawn",
         "--quiet",
@@ -585,6 +586,7 @@ def run_workspace_command(
         "--setenv=SYSTEMD_OFFLINE=1",
         *nspawn_rlimit_params(),
     ]
+    stdout = None
 
     if network:
         # If we're using the host network namespace, use the same resolver
@@ -598,11 +600,17 @@ def run_workspace_command(
     if nspawn_params:
         nspawn += nspawn_params
 
-    result = run([*nspawn, "--", *cmd], check=False)
+    if capture_stdout:
+        stdout = subprocess.PIPE
+        nspawn += ["--console=pipe"]
+
+    result = run([*nspawn, "--", *cmd], check=False, stdout=stdout, text=capture_stdout)
     if result.returncode != 0:
         if "workspace-command" in ARG_DEBUG:
             run(nspawn, check=False)
         die(f"Workspace command {shell_join(cmd)} returned non-zero exit code {result.returncode}.")
+
+    return result.stdout.strip() if capture_stdout else None
 
 
 @contextlib.contextmanager
