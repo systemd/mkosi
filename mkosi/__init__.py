@@ -3119,6 +3119,8 @@ def set_serial_terminal(args: CommandLineArguments, root: Path, do_run_build_scr
                           Environment=TERM={os.getenv('TERM', 'vt220')}
                           Environment=COLUMNS={columns}
                           Environment=LINES={lines}
+                          TTYColumns={columns}
+                          TTYRows={lines}
                           """)
 
 
