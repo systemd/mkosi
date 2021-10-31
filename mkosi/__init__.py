@@ -4132,6 +4132,7 @@ def write_root_hash_file(args: CommandLineArguments, root_hash: Optional[str]) -
             tempfile.NamedTemporaryFile(mode="w+b", prefix=".mkosi", dir=os.path.dirname(args.output_root_hash_file)),
         )
         f.write((root_hash + "\n").encode())
+        f.flush()
 
     return f
 
@@ -4151,6 +4152,7 @@ def write_root_hash_p7s_file(args: CommandLineArguments, root_hash_p7s: Optional
             ),
         )
         f.write(root_hash_p7s)
+        f.flush()
 
     return f
 
@@ -4171,6 +4173,7 @@ def copy_nspawn_settings(args: CommandLineArguments) -> Optional[BinaryIO]:
 
         with open(args.nspawn_settings, "rb") as c:
             f.write(c.read())
+            f.flush()
 
     return f
 
