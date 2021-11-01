@@ -4846,6 +4846,28 @@ def parse_remove_files(value: str) -> List[str]:
     return ["/" + os.path.normpath(p).lstrip("/") for p in value.split(",") if p]
 
 
+def parse_ssh_agent(value: Optional[str]) -> Optional[Path]:
+    """Will return None or a path to a socket."""
+
+    if value is None:
+        return None
+
+    try:
+        if not parse_boolean(value):
+            return None
+    except ValueError:
+        pass
+    else:
+        value = os.getenv("SSH_AUTH_SOCK")
+        if not value:
+            die("--ssh-agent=true but $SSH_AUTH_SOCK is not set (consider running 'sudo' with '-E')")
+
+    sock = Path(value)
+    if not sock.is_socket():
+        die(f"SSH agent socket {sock} is not an AF_UNIX socket")
+    return sock
+
+
 def create_parser() -> ArgumentParserMkosi:
     parser = ArgumentParserMkosi(prog="mkosi", description="Build Bespoke OS Images", add_help=False)
 
@@ -5365,6 +5387,13 @@ def create_parser() -> ArgumentParserMkosi:
         type=int,
         default=0,
         help="Wait up to SECONDS seconds for the SSH connection to be available when using 'mkosi ssh'",
+    )
+    group.add_argument(
+        "--ssh-agent",
+        type=parse_ssh_agent,
+        default=None,
+        metavar="PATH",
+        help="Path to the ssh agent socket, or true to use $SSH_AUTH_SOCK.",
     )
 
     group = parser.add_argument_group("Additional Configuration")
@@ -6156,7 +6185,7 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
         args.output_nspawn_settings = build_auxiliary_output_path(args, ".nspawn")
 
     # We want this set even if --ssh is not specified so we can find the SSH key when verb == "ssh".
-    if args.ssh_key is None:
+    if args.ssh_key is None and args.ssh_agent is None:
         args.output_sshkey = args.output.with_name("id_rsa")
 
     if args.split_artifacts:
@@ -6432,7 +6461,7 @@ def print_summary(args: CommandLineArguments) -> None:
         f"    Output nspawn Settings: {none_to_na(args.output_nspawn_settings if args.nspawn_settings is not None else None)}"
     )
     MkosiPrinter.info(
-        f"                   SSH key: {none_to_na((args.ssh_key or args.output_sshkey) if args.ssh else None)}"
+        f"                   SSH key: {none_to_na((args.ssh_key or args.output_sshkey or args.ssh_agent) if args.ssh else None)}"
     )
 
     MkosiPrinter.info("               Incremental: " + yes_no(args.incremental))
@@ -6604,10 +6633,15 @@ def setup_ssh(
         return None
 
     authorized_keys = root_home(args, root) / ".ssh/authorized_keys"
-    f: TextIO
+    f: Optional[TextIO]
     if args.ssh_key:
         f = open(args.ssh_key, mode="r", encoding="utf-8")
         copy_file(f"{args.ssh_key}.pub", authorized_keys)
+    elif args.ssh_agent is not None:
+        env = {"SSH_AUTH_SOCK": args.ssh_agent}
+        result = run(["ssh-add", "-L"], env=env, text=True, stdout=subprocess.PIPE)
+        authorized_keys.write_text(result.stdout)
+        f = None
     else:
         assert args.output_sshkey is not None
 
@@ -7403,36 +7437,33 @@ def find_address(args: CommandLineArguments) -> Tuple[str, str]:
 
 
 def run_ssh(args: CommandLineArguments) -> None:
-    ssh_key = args.ssh_key or args.output_sshkey
-    assert ssh_key is not None
+    cmd = [
+            "ssh",
+            # Silence known hosts file errors/warnings.
+            "-o", "UserKnownHostsFile=/dev/null",
+            "-o", "StrictHostKeyChecking=no",
+            "-o", "LogLevel=ERROR",
+        ]
 
-    if not ssh_key.exists():
-        die(
-            f"SSH key not found at {ssh_key}. Are you running from the project's root directory "
-            "and did you build with the --ssh option?"
-        )
+    if args.ssh_agent is None:
+        ssh_key = args.ssh_key or args.output_sshkey
+        assert ssh_key is not None
+
+        if not ssh_key.exists():
+            die(
+                f"SSH key not found at {ssh_key}. Are you running from the project's root directory "
+                "and did you build with the --ssh option?"
+            )
+
+        cmd += ["-i", cast(str, ssh_key)]
+    else:
+        cmd += ["-o", f"IdentityAgent={args.ssh_agent}"]
 
     dev, address = find_address(args)
+    cmd += [f"root@{address}%{dev}", *args.cmdline]
 
     with suppress_stacktrace():
-        run(
-            [
-                "ssh",
-                "-i",
-                ssh_key,
-                # Silence known hosts file errors/warnings.
-                "-o",
-                "UserKnownHostsFile=/dev/null",
-                "-o",
-                "StrictHostKeyChecking=no",
-                "-o",
-                "LogLevel ERROR",
-                f"root@{address}%{dev}",
-                *args.cmdline,
-            ],
-            stdout=sys.stdout,
-            stderr=sys.stderr,
-        )
+        run(cmd, stdout=sys.stdout, stderr=sys.stderr)
 
 
 def run_serve(args: CommandLineArguments) -> None:
