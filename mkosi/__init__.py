@@ -6590,7 +6590,7 @@ def setup_ssh(
         return None
 
     if args.distribution in (Distribution.debian, Distribution.ubuntu):
-        unit = "ssh"
+        unit = "ssh.socket"
     else:
         unit = "sshd"
 
