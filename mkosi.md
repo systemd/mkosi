@@ -1152,6 +1152,11 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   authorized keys in the built image. The `ssh` invocation done by `mkosi ssh`
   will inherit `$SSH_AUTH_SOCK` for authentication purposes.
 
+`SshPort=`, `--ssh-port=`
+
+: In the image, sshd will be configured to listen on this port. `mkosi ssh` will
+  connect to this port.
+
 `SshTimeout=`, `--ssh-timeout=`
 
 : When used with the `ssh` verb, `mkosi` will attempt to retry the SSH connection

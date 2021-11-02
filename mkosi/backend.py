@@ -442,6 +442,7 @@ class CommandLineArguments:
     ssh_key: Optional[Path]
     ssh_agent: Optional[Path]
     ssh_timeout: int
+    ssh_port: int
     directory: Optional[Path]
     default_path: Optional[Path]
     all: bool

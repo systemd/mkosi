@@ -5395,6 +5395,13 @@ def create_parser() -> ArgumentParserMkosi:
         metavar="PATH",
         help="Path to the ssh agent socket, or true to use $SSH_AUTH_SOCK.",
     )
+    group.add_argument(
+        "--ssh-port",
+        type=int,
+        default=22,
+        metavar="PORT",
+        help="If specified, 'mkosi ssh' will use this port to connect",
+    )
 
     group = parser.add_argument_group("Additional Configuration")
     group.add_argument(
@@ -6322,11 +6329,11 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
     if args.skip_final_phase and args.verb != "build":
         die("--skip-final-phase can only be used when building an image using 'mkosi build'")
 
-    if args.ssh and not args.network_veth:
-        die("--ssh cannot be used without --network-veth")
-
     if args.ssh_timeout < 0:
         die("--ssh-timeout must be >= 0")
+
+    if args.ssh_port <= 0:
+        die("--ssh-port must be > 0")
 
     # We set a reasonable umask so that files that are created in the image
     # will have reasonable permissions. We don't want those permissions to be
@@ -6463,6 +6470,8 @@ def print_summary(args: CommandLineArguments) -> None:
     MkosiPrinter.info(
         f"                   SSH key: {none_to_na((args.ssh_key or args.output_sshkey or args.ssh_agent) if args.ssh else None)}"
     )
+    if args.ssh_port != 22:
+        MkosiPrinter.info(f"                  SSH port: {args.ssh_port}")
 
     MkosiPrinter.info("               Incremental: " + yes_no(args.incremental))
 
@@ -6620,6 +6629,14 @@ def setup_ssh(
 
     if args.distribution in (Distribution.debian, Distribution.ubuntu):
         unit = "ssh.socket"
+
+        if args.ssh_port != 22:
+            add_dropin_config(root, unit, "port",
+                              f"""\
+                              [Socket]
+                              ListenStream=
+                              ListenStream={args.ssh_port}
+                              """)
     else:
         unit = "sshd"
 
@@ -7331,7 +7348,8 @@ def run_qemu(args: CommandLineArguments) -> None:
     if args.network_veth:
         if not ensure_networkd(args):
             # Fall back to usermode networking if the host doesn't have networkd (eg: Debian)
-            cmdline += ["-nic", "user,model=virtio-net-pci"]
+            fwd = f",hostfwd=tcp::{args.ssh_port}-:{args.ssh_port}" if args.ssh_port != 22 else ""
+            cmdline += ["-nic", f"user,model=virtio-net-pci{fwd}"]
         else:
             # Use vt- prefix so we can take advantage of systemd-networkd's builtin network file for VMs.
             ifname = f"vt-{virt_name(args)}"
@@ -7392,6 +7410,9 @@ def interface_exists(dev: str) -> bool:
 
 
 def find_address(args: CommandLineArguments) -> Tuple[str, str]:
+    if not ensure_networkd(args) and args.ssh_port != 22:
+        return "", "127.0.0.1"
+
     name = virt_name(args)
     timeout = float(args.ssh_timeout)
 
@@ -7423,7 +7444,7 @@ def find_address(args: CommandLineArguments) -> Tuple[str, str]:
                 for neighbor in neighbors:
                     dst = cast(str, neighbor["dst"])
                     if dst.startswith("fe80"):
-                        return dev, dst
+                        return f"%{dev}", dst
 
                 time.sleep(0.4)
         except MkosiException as e:
@@ -7459,8 +7480,11 @@ def run_ssh(args: CommandLineArguments) -> None:
     else:
         cmd += ["-o", f"IdentityAgent={args.ssh_agent}"]
 
+    if args.ssh_port != 22:
+        cmd += ["-p", f"{args.ssh_port}"]
+
     dev, address = find_address(args)
-    cmd += [f"root@{address}%{dev}", *args.cmdline]
+    cmd += [f"root@{address}{dev}", *args.cmdline]
 
     with suppress_stacktrace():
         run(cmd, stdout=sys.stdout, stderr=sys.stderr)
