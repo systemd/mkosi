@@ -3329,7 +3329,7 @@ def copy_git_files(src: Path, dest: Path, *, source_file_transfer: SourceFileTra
     if source_file_transfer == SourceFileTransfer.copy_git_others:
         what_files += ["--others", "--exclude=.mkosi-*"]
 
-    c = run(["git", "-C", src, "ls-files", "-z", *what_files], stdout=PIPE, text=False, check=True)
+    c = run(["git", "-C", src, "ls-files", "-z", *what_files], stdout=PIPE, text=False)
     files = {x.decode("utf-8") for x in c.stdout.rstrip(b"\0").split(b"\0")}
 
     # Add the .git/ directory in as well.
@@ -3342,7 +3342,7 @@ def copy_git_files(src: Path, dest: Path, *, source_file_transfer: SourceFileTra
                 files.add(fr)
 
     # Get submodule files
-    c = run(["git", "-C", src, "submodule", "status", "--recursive"], stdout=PIPE, text=True, check=True)
+    c = run(["git", "-C", src, "submodule", "status", "--recursive"], stdout=PIPE, text=True)
     submodules = {x.split()[1] for x in c.stdout.splitlines()}
 
     # workaround for git-ls-files returning the path of submodules that we will
@@ -3354,7 +3354,6 @@ def copy_git_files(src: Path, dest: Path, *, source_file_transfer: SourceFileTra
             ["git", "-C", os.path.join(src, sm), "ls-files", "-z"] + what_files,
             stdout=PIPE,
             text=False,
-            check=True,
         )
         files |= {os.path.join(sm, x.decode("utf-8")) for x in c.stdout.rstrip(b"\0").split(b"\0")}
         files -= submodules
@@ -3898,8 +3897,7 @@ def patch_root_uuid(
         part = args.get_partition(PartitionIdentifier.root)
         assert part is not None
 
-        run(["sfdisk", "--part-uuid", loopdev, str(part.number), str(u)],
-            check=True)
+        run(["sfdisk", "--part-uuid", loopdev, str(part.number), str(u)])
 
 
 def extract_partition(
@@ -4038,7 +4036,6 @@ def secure_boot_sign(
                             p + ".signed",
                             p,
                         ],
-                        check=True,
                     )
 
                     os.rename(p + ".signed", p)
