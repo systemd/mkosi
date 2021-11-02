@@ -2597,7 +2597,7 @@ def install_debian_or_ubuntu(args: CommandLineArguments, root: Path, *, do_run_b
         # Debian still has pam_securetty module enabled, disable it in the base image.
         disable_pam_securetty(root)
 
-    if args.distribution == Distribution.debian and args.base_image is None:
+    if args.distribution == Distribution.debian and "systemd" in extra_packages:
         # The default resolv.conf points to 127.0.0.1, and resolved is disabled, fix it in
         # the base image.
         root.joinpath("etc/resolv.conf").unlink()
