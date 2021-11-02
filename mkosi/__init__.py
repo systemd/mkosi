@@ -7151,8 +7151,11 @@ def has_networkd_vm_vt() -> bool:
 def ensure_networkd(args: CommandLineArguments) -> bool:
     networkd_is_running = run(["systemctl", "is-active", "--quiet", "systemd-networkd"], check=False).returncode == 0
     if not networkd_is_running:
-        warn("--network-veth requires systemd-networkd to be running to initialize the host interface "
-             "of the veth link ('systemctl enable --now systemd-networkd')")
+        if args.verb != "ssh":
+            # Some programs will use 'mkosi ssh' with pexpect, so don't print warnings that will break
+            # them.
+            warn("--network-veth requires systemd-networkd to be running to initialize the host interface "
+                 "of the veth link ('systemctl enable --now systemd-networkd')")
         return False
 
     if args.verb == "qemu" and not has_networkd_vm_vt():
