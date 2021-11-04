@@ -29,6 +29,7 @@ class PackageManifest:
     type: str
     name: str
     version: str
+    architecture: str
     size: int
 
     def as_dict(self) -> Dict[str, str]:
@@ -36,6 +37,7 @@ class PackageManifest:
             "type": self.type,
             "name": self.name,
             "version": self.version,
+            "architecture": self.architecture,
         }
 
 
@@ -84,7 +86,7 @@ class Manifest:
     def record_rpm_packages(self, root: Path) -> None:
         c = run(
             ["rpm", f"--root={root}", "-qa", "--qf",
-             r"%{NEVRA}\t%{SOURCERPM}\t%{NAME}\t%{SIZE}\t%{INSTALLTIME}\n"],
+             r"%{NEVRA}\t%{SOURCERPM}\t%{NAME}\t%{ARCH}\t%{SIZE}\t%{INSTALLTIME}\n"],
             stdout=PIPE,
             stderr=DEVNULL,
             text=True,
@@ -93,10 +95,18 @@ class Manifest:
         packages = sorted(c.stdout.splitlines())
 
         for package in packages:
-            nevra, srpm, name, size, installtime = package.split("\t")
+            nevra, srpm, name, arch, size, installtime = package.split("\t")
 
             assert nevra.startswith(f"{name}-")
             evra = nevra[len(name) + 1 :]
+            # Some packages have architecture '(none)', and it's not part of NEVRA, e.g.:
+            # gpg-pubkey-45719a39-5f2c0192 gpg-pubkey (none) 0 1635985199
+            if arch != "(none)":
+                assert nevra.endswith(f".{arch}")
+                evr = evra[: len(arch) + 1]
+            else:
+                evr = evra
+                arch = ""
 
             size = int(size)
             installtime = datetime.fromtimestamp(int(installtime))
@@ -107,7 +117,7 @@ class Manifest:
             if self.args.base_image and installtime < self._init_timestamp:
                 continue
 
-            package = PackageManifest("rpm", name, evra, size)
+            package = PackageManifest("rpm", name, evr, arch, size)
             self.packages.append(package)
 
             if not self.need_source_info():
@@ -128,7 +138,7 @@ class Manifest:
     def record_deb_packages(self, root: Path) -> None:
         c = run(
             ["dpkg-query", f"--admindir={root}/var/lib/dpkg", "--show", "--showformat",
-             r'${Package}\t${source:Package}\t${Version}_${Architecture}\t${Installed-Size}\t${db-fsys:Last-Modified}\n'],
+             r'${Package}\t${source:Package}\t${Version}\t${Architecture}\t${Installed-Size}\t${db-fsys:Last-Modified}\n'],
             stdout=PIPE,
             stderr=DEVNULL,
             text=True,
@@ -137,7 +147,7 @@ class Manifest:
         packages = sorted(c.stdout.splitlines())
 
         for package in packages:
-            name, source, version, size, installtime = package.split("\t")
+            name, source, version, arch, size, installtime = package.split("\t")
 
             # dpkg records the size in KBs
             size = int(size) * 1024
@@ -149,7 +159,7 @@ class Manifest:
             if self.args.base_image and installtime < self._init_timestamp:
                 continue
 
-            package = PackageManifest("deb", name, version, size)
+            package = PackageManifest("deb", name, version, arch, size)
             self.packages.append(package)
 
             if not self.need_source_info():
