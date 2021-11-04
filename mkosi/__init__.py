@@ -142,6 +142,22 @@ def write_resource(
         make_executable(where)
 
 
+def add_dropin_config(root: Path, unit: str, name: str, content: str) -> None:
+    """Add a dropin config `name.conf` in /etc/systemd/system for `unit`."""
+    dropin = root / f"etc/systemd/system/{unit}.d/{name}.conf"
+    dropin.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
+    dropin.write_text(dedent(content))
+    dropin.chmod(0o644)
+
+
+def add_dropin_config_from_resource(
+    root: Path, unit: str, name: str, resource: str, key: str
+) -> None:
+    dropin = root / f"etc/systemd/system/{unit}.d/{name}.conf"
+    dropin.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
+    write_resource(dropin, resource, key, mode=0o644)
+
+
 T = TypeVar("T")
 V = TypeVar("V")
 
@@ -3069,25 +3085,19 @@ def set_autologin(args: CommandLineArguments, root: Path, do_run_build_script: b
         return
 
     with complete_step("Setting up autologin…"):
-        override_dir = root / "etc/systemd/system/console-getty.service.d"
-        override_dir.mkdir(mode=0o755, parents=True, exist_ok=True)
-        write_resource(override_dir / "autologin.conf", "mkosi.resources", "console_getty_autologin.conf",
-                       mode=0o644)
+        add_dropin_config_from_resource(root, "console-getty.service", "autologin",
+                                        "mkosi.resources", "console_getty_autologin.conf")
 
         ttys = []
         ttys += ["pts/0"]
 
-        override_dir = root / "etc/systemd/system/serial-getty@ttyS0.service.d"
-        override_dir.mkdir(mode=0o755, parents=True, exist_ok=True)
-        write_resource(override_dir / "autologin.conf", "mkosi.resources", "serial_getty_autologin.conf",
-                       mode=0o644)
+        add_dropin_config_from_resource(root, "serial-getty@ttyS0.service", "autologin",
+                                        "mkosi.resources", "serial_getty_autologin.conf")
 
         ttys += ["ttyS0"]
 
-        override_dir = root / "etc/systemd/system/getty@tty1.service.d"
-        override_dir.mkdir(mode=0o755, parents=True, exist_ok=True)
-        write_resource(override_dir / "autologin.conf", "mkosi.resources", "getty_autologin.conf",
-                       mode=0o644)
+        add_dropin_config_from_resource(root, "getty@tty1.service", "autologin",
+                                        "mkosi.resources", "getty_autologin.conf")
 
         ttys += ["tty1"]
         ttys += ["console"]
@@ -3102,23 +3112,14 @@ def set_serial_terminal(args: CommandLineArguments, root: Path, do_run_build_scr
         return
 
     with complete_step("Configuring serial tty (/dev/ttyS0)…"):
-        override_dir = root / "etc/systemd/system/serial-getty@ttyS0.service.d"
-        os.makedirs(override_dir, mode=0o755, exist_ok=True)
-
         columns, lines = shutil.get_terminal_size(fallback=(80, 24))
-        override_file = override_dir / "term.conf"
-        override_file.write_text(
-            dedent(
-                f"""\
-                [Service]
-                Environment=TERM={os.getenv('TERM', 'vt220')}
-                Environment=COLUMNS={columns}
-                Environment=LINES={lines}
-                """
-            )
-        )
-
-        override_file.chmod(0o644)
+        add_dropin_config(root, "serial-getty@ttyS0.service", "term",
+                          f"""\
+                          [Service]
+                          Environment=TERM={os.getenv('TERM', 'vt220')}
+                          Environment=COLUMNS={columns}
+                          Environment=LINES={lines}
+                          """)
 
 
 def nspawn_params_for_build_sources(args: CommandLineArguments, sft: SourceFileTransfer) -> List[str]:
