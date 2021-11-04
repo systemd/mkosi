@@ -6312,7 +6312,7 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
 
     # If we are building a sysext we don't want to add base packages to the
     # extension image, as they will already be in the base image.
-    if args.base_image is not None and args.base_packages is None:
+    if args.base_image is not None:
         args.base_packages = False
 
     return CommandLineArguments(**vars(args))
