@@ -1143,6 +1143,20 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   the same location, suffixed with `.pub` (as done by `ssh-keygen`). If this
   option is not present, `mkosi` generates a new key pair automatically.
 
+`SshAgent=`, `--ssh-agent=`
+
+: If specified as a path, use the given socket to connect to the ssh agent when
+  building an image and when connecting via `mkosi ssh` instead of hard-coding
+  a key. If specified as `true`, `$SSH_AUTH_SOCK` will be parsed instead (hint:
+  use `sudo` with `-E`). The keys listed by `ssh-add -L` will be installed as
+  authorized keys in the built image. The `ssh` invocation done by `mkosi ssh`
+  will inherit `$SSH_AUTH_SOCK` for authentication purposes.
+
+`SshPort=`, `--ssh-port=`
+
+: In the image, sshd will be configured to listen on this port. `mkosi ssh` will
+  connect to this port.
+
 `SshTimeout=`, `--ssh-timeout=`
 
 : When used with the `ssh` verb, `mkosi` will attempt to retry the SSH connection

@@ -134,6 +134,8 @@ class MkosiConfig:
             "ssh": False,
             "ssh_key": None,
             "ssh_timeout": 0,
+            "ssh_agent": None,
+            "ssh_port": 22,
             "minimize": False,
             "split_artifacts": False,
             "output_split_root": None,
