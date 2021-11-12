@@ -6293,6 +6293,12 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
     if args.qemu_headless and "console=ttyS0" not in args.kernel_command_line:
         args.kernel_command_line.append("console=ttyS0")
 
+    # By default, the serial console gets spammed with kernel log messages.
+    # Let's up the log level to only show warning and error messages when
+    # --qemu-headless is enabled to avoid this spam.
+    if args.qemu_headless and not any("loglevel" in x for x in args.kernel_command_line):
+        args.kernel_command_line.append("loglevel=4")
+
     if args.bootable and args.usr_only and not args.verity:
         # GPT auto-discovery on empty kernel command lines only looks for root partitions
         # (in order to avoid ambiguities), if we shall operate without one (and only have
