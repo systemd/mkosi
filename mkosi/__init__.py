@@ -197,38 +197,132 @@ def print_running_cmd(cmdline: Iterable[str]) -> None:
     MkosiPrinter.print_step(" ".join(shlex.quote(x) for x in cmdline) + "\n")
 
 
-GPT_ROOT_X86               = uuid.UUID("44479540f29741b29af7d131d5f0458a")  # NOQA: E221
-GPT_ROOT_X86_64            = uuid.UUID("4f68bce3e8cd4db196e7fbcaf984b709")  # NOQA: E221
-GPT_ROOT_ARM               = uuid.UUID("69dad7102ce44e3cb16c21a1d49abed3")  # NOQA: E221
-GPT_ROOT_ARM_64            = uuid.UUID("b921b0451df041c3af444c6f280d3fae")  # NOQA: E221
-GPT_USR_X86                = uuid.UUID("75250d768cc6458ebd66bd47cc81a812")  # NOQA: E221
-GPT_USR_X86_64             = uuid.UUID("8484680c952148c69c11b0720656f69e")  # NOQA: E221
-GPT_USR_ARM                = uuid.UUID("7d0359a302b34f0a865c654403e70625")  # NOQA: E221
-GPT_USR_ARM_64             = uuid.UUID("b0e01050ee5f4390949a9101b17104e9")  # NOQA: E221
-GPT_ESP                    = uuid.UUID("c12a7328f81f11d2ba4b00a0c93ec93b")  # NOQA: E221
-GPT_BIOS                   = uuid.UUID("2168614864496e6f744e656564454649")  # NOQA: E221
-GPT_SWAP                   = uuid.UUID("0657fd6da4ab43c484e50933c84b4f4f")  # NOQA: E221
-GPT_HOME                   = uuid.UUID("933ac7e12eb44f13b8440e14e2aef915")  # NOQA: E221
-GPT_SRV                    = uuid.UUID("3b8f842520e04f3b907f1a25a76f98e8")  # NOQA: E221
-GPT_XBOOTLDR               = uuid.UUID("bc13c2ff59e64262a352b275fd6f7172")  # NOQA: E221
-GPT_ROOT_X86_VERITY        = uuid.UUID("d13c5d3bb5d1422ab29f9454fdc89d76")  # NOQA: E221
-GPT_ROOT_X86_64_VERITY     = uuid.UUID("2c7357edebd246d9aec123d437ec2bf5")  # NOQA: E221
-GPT_ROOT_ARM_VERITY        = uuid.UUID("7386cdf2203c47a9a498f2ecce45a2d6")  # NOQA: E221
-GPT_ROOT_ARM_64_VERITY     = uuid.UUID("df3300ced69f4c92978c9bfb0f38d820")  # NOQA: E221
-GPT_USR_X86_VERITY         = uuid.UUID("8f461b0d14ee4e819aa9049b6fb97abd")  # NOQA: E221
-GPT_USR_X86_64_VERITY      = uuid.UUID("77ff5f63e7b64633acf41565b864c0e6")  # NOQA: E221
-GPT_USR_ARM_VERITY         = uuid.UUID("c215d7517bcd4649be906627490a4c05")  # NOQA: E221
-GPT_USR_ARM_64_VERITY      = uuid.UUID("6e11a4e7fbca4dedb9e9e1a512bb664e")  # NOQA: E221
-GPT_ROOT_X86_VERITY_SIG    = uuid.UUID("5996fc05109c48de808b23fa0830b676")  # NOQA: E221
-GPT_ROOT_X86_64_VERITY_SIG = uuid.UUID("41092b059fc84523994f2def0408b176")  # NOQA: E221
-GPT_ROOT_ARM_VERITY_SIG    = uuid.UUID("42b0455feb11491d98d356145ba9d037")  # NOQA: E221
-GPT_ROOT_ARM_64_VERITY_SIG = uuid.UUID("6db69de629f44758a7a5962190f00ce3")  # NOQA: E221
-GPT_USR_X86_VERITY_SIG     = uuid.UUID("974a71c0de4143c3be5d5c5ccd1ad2c0")  # NOQA: E221
-GPT_USR_X86_64_VERITY_SIG  = uuid.UUID("e7bb33fb06cf4e818273e543b413e2e2")  # NOQA: E221
-GPT_USR_ARM_VERITY_SIG     = uuid.UUID("d7ff812f37d14902a810d76ba57b975a")  # NOQA: E221
-GPT_USR_ARM_64_VERITY_SIG  = uuid.UUID("c23ce4ff44bd4b00b2d4b41b3419e02a")  # NOQA: E221
-GPT_TMP                    = uuid.UUID("7ec6f5573bc54acab29316ef5df639d1")  # NOQA: E221
-GPT_VAR                    = uuid.UUID("4d21b016b53445c2a9fb5c16e091fd2d")  # NOQA: E221
+GPT_ROOT_ALPHA                  = uuid.UUID("6523f8ae3eb14e2aa05a18b695ae656f")  # NOQA: E221
+GPT_ROOT_ARC                    = uuid.UUID("d27f46ed29194cb8bd259531f3c16534")  # NOQA: E221
+GPT_ROOT_ARM                    = uuid.UUID("69dad7102ce44e3cb16c21a1d49abed3")  # NOQA: E221
+GPT_ROOT_ARM64                  = uuid.UUID("b921b0451df041c3af444c6f280d3fae")  # NOQA: E221
+GPT_ROOT_IA64                   = uuid.UUID("993d8d3df80e4225855a9daf8ed7ea97")  # NOQA: E221
+GPT_ROOT_LOONGARCH64            = uuid.UUID("77055800792c4f94b39a98c91b762bb6")  # NOQA: E221
+GPT_ROOT_MIPS_LE                = uuid.UUID("37c58c8ad9134156a25f48b1b64e07f0")  # NOQA: E221
+GPT_ROOT_MIPS64_LE              = uuid.UUID("700bda437a344507b179eeb93d7a7ca3")  # NOQA: E221
+GPT_ROOT_PPC                    = uuid.UUID("1de3f1effa9847b58dcd4a860a654d78")  # NOQA: E221
+GPT_ROOT_PPC64                  = uuid.UUID("912ade1da83949138964a10eee08fbd2")  # NOQA: E221
+GPT_ROOT_PPC64LE                = uuid.UUID("c31c45e63f39412e80fb4809c4980599")  # NOQA: E221
+GPT_ROOT_RISCV32                = uuid.UUID("60d5a7fe8e7d435cb7143dd8162144e1")  # NOQA: E221
+GPT_ROOT_RISCV64                = uuid.UUID("72ec70a6cf7440e6bd494bda08e8f224")  # NOQA: E221
+GPT_ROOT_S390                   = uuid.UUID("08a7acea624c4a2091e86e0fa67d23f9")  # NOQA: E221
+GPT_ROOT_S390X                  = uuid.UUID("5eead9a9fe094a1ea1d7520d00531306")  # NOQA: E221
+GPT_ROOT_TILEGX                 = uuid.UUID("c50cdd7038624cc390e1809a8c93ee2c")  # NOQA: E221
+GPT_ROOT_X86                    = uuid.UUID("44479540f29741b29af7d131d5f0458a")  # NOQA: E221
+GPT_ROOT_X86_64                 = uuid.UUID("4f68bce3e8cd4db196e7fbcaf984b709")  # NOQA: E221
+
+GPT_USR_ALPHA                   = uuid.UUID("e18cf08c33ec4c0d8246c6c6fb3da024")  # NOQA: E221
+GPT_USR_ARC                     = uuid.UUID("7978a68363164922bbee38bff5a2fecc")  # NOQA: E221
+GPT_USR_ARM                     = uuid.UUID("7d0359a302b34f0a865c654403e70625")  # NOQA: E221
+GPT_USR_ARM64                   = uuid.UUID("b0e01050ee5f4390949a9101b17104e9")  # NOQA: E221
+GPT_USR_IA64                    = uuid.UUID("4301d2a64e3b4b2abb949e0b2c4225ea")  # NOQA: E221
+GPT_USR_LOONGARCH64             = uuid.UUID("e611c702575c4cbe9a46434fa0bf7e3f")  # NOQA: E221
+GPT_USR_MIPS_LE                 = uuid.UUID("0f4868e999524706979f3ed3a473e947")  # NOQA: E221
+GPT_USR_MIPS64_LE               = uuid.UUID("c97c1f32ba0640b49f22236061b08aa8")  # NOQA: E221
+GPT_USR_PPC                     = uuid.UUID("7d14fec5cc71415d9d6c06bf0b3c3eaf")  # NOQA: E221
+GPT_USR_PPC64                   = uuid.UUID("2c9739e2f06846b39fd001c5a9afbcca")  # NOQA: E221
+GPT_USR_PPC64LE                 = uuid.UUID("15bb03af77e74d4ab12bc0d084f7491c")  # NOQA: E221
+GPT_USR_RISCV32                 = uuid.UUID("b933fb225c3f4f91af90e2bb0fa50702")  # NOQA: E221
+GPT_USR_RISCV64                 = uuid.UUID("beaec34b8442439ba40b984381ed097d")  # NOQA: E221
+GPT_USR_S390                    = uuid.UUID("cd0f869bd0fb4ca0b1419ea87cc78d66")  # NOQA: E221
+GPT_USR_S390X                   = uuid.UUID("8a4f577050aa4ed3874a99b710db6fea")  # NOQA: E221
+GPT_USR_TILEGX                  = uuid.UUID("55497029c7c144ccaa39815ed1558630")  # NOQA: E221
+GPT_USR_X86                     = uuid.UUID("75250d768cc6458ebd66bd47cc81a812")  # NOQA: E221
+GPT_USR_X86_64                  = uuid.UUID("8484680c952148c69c11b0720656f69e")  # NOQA: E221
+
+GPT_ROOT_ALPHA_VERITY           = uuid.UUID("fc56d9e9e6e54c06be32e74407ce09a5")  # NOQA: E221
+GPT_ROOT_ARC_VERITY             = uuid.UUID("24b2d9750f974521afa1cd531e421b8d")  # NOQA: E221
+GPT_ROOT_ARM_VERITY             = uuid.UUID("7386cdf2203c47a9a498f2ecce45a2d6")  # NOQA: E221
+GPT_ROOT_ARM64_VERITY           = uuid.UUID("df3300ced69f4c92978c9bfb0f38d820")  # NOQA: E221
+GPT_ROOT_IA64_VERITY            = uuid.UUID("86ed10d5b60745bb8957d350f23d0571")  # NOQA: E221
+GPT_ROOT_LOONGARCH64_VERITY     = uuid.UUID("f3393b22e9af4613a9489d3bfbd0c535")  # NOQA: E221
+GPT_ROOT_MIPS_LE_VERITY         = uuid.UUID("d7d150d22a044a338f1216651205ff7b")  # NOQA: E221
+GPT_ROOT_MIPS64_LE_VERITY       = uuid.UUID("16b417f83e064f578dd29b5232f41aa6")  # NOQA: E221
+GPT_ROOT_PPC64LE_VERITY         = uuid.UUID("906bd94445894aaea4e4dd983917446a")  # NOQA: E221
+GPT_ROOT_PPC64_VERITY           = uuid.UUID("9225a9a33c194d89b4f6eeff88f17631")  # NOQA: E221
+GPT_ROOT_PPC_VERITY             = uuid.UUID("98cfe649158846dcb2f0add147424925")  # NOQA: E221
+GPT_ROOT_RISCV32_VERITY         = uuid.UUID("ae0253be11674007ac6843926c14c5de")  # NOQA: E221
+GPT_ROOT_RISCV64_VERITY         = uuid.UUID("b6ed5582440b4209b8da5ff7c419ea3d")  # NOQA: E221
+GPT_ROOT_S390X_VERITY           = uuid.UUID("b325bfbec7be4ab88357139e652d2f6b")  # NOQA: E221
+GPT_ROOT_S390_VERITY            = uuid.UUID("7ac63b47b25c463b8df8b4a94e6c90e1")  # NOQA: E221
+GPT_ROOT_TILEGX_VERITY          = uuid.UUID("966061ec28e44b2eb4a51f0a825a1d84")  # NOQA: E221
+GPT_ROOT_X86_64_VERITY          = uuid.UUID("2c7357edebd246d9aec123d437ec2bf5")  # NOQA: E221
+GPT_ROOT_X86_VERITY             = uuid.UUID("d13c5d3bb5d1422ab29f9454fdc89d76")  # NOQA: E221
+
+GPT_USR_ALPHA_VERITY            = uuid.UUID("8cce0d25c0d04a44bd8746331bf1df67")  # NOQA: E221
+GPT_USR_ARC_VERITY              = uuid.UUID("fca0598cd88045918c164eda05c7347c")  # NOQA: E221
+GPT_USR_ARM_VERITY              = uuid.UUID("c215d7517bcd4649be906627490a4c05")  # NOQA: E221
+GPT_USR_ARM64_VERITY            = uuid.UUID("6e11a4e7fbca4dedb9e9e1a512bb664e")  # NOQA: E221
+GPT_USR_IA64_VERITY             = uuid.UUID("6a491e033be745458e3883320e0ea880")  # NOQA: E221
+GPT_USR_LOONGARCH64_VERITY      = uuid.UUID("f46b2c2659ae48f09106c50ed47f673d")  # NOQA: E221
+GPT_USR_MIPS_LE_VERITY          = uuid.UUID("46b98d8db55c4e8faab337fca7f80752")  # NOQA: E221
+GPT_USR_MIPS64_LE_VERITY        = uuid.UUID("3c3d61feb5f3414dbb718739a694a4ef")  # NOQA: E221
+GPT_USR_PPC64LE_VERITY          = uuid.UUID("ee2b998321e8415386d9b6901a54d1ce")  # NOQA: E221
+GPT_USR_PPC64_VERITY            = uuid.UUID("bdb528a5a259475fa87dda53fa736a07")  # NOQA: E221
+GPT_USR_PPC_VERITY              = uuid.UUID("df765d00270e49e5bc75f47bb2118b09")  # NOQA: E221
+GPT_USR_RISCV32_VERITY          = uuid.UUID("cb1ee4e38cd04136a0a4aa61a32e8730")  # NOQA: E221
+GPT_USR_RISCV64_VERITY          = uuid.UUID("8f1056be9b0547c481d6be53128e5b54")  # NOQA: E221
+GPT_USR_S390X_VERITY            = uuid.UUID("31741cc41a2a4111a581e00b447d2d06")  # NOQA: E221
+GPT_USR_S390_VERITY             = uuid.UUID("b663c618e7bc4d6d90aa11b756bb1797")  # NOQA: E221
+GPT_USR_TILEGX_VERITY           = uuid.UUID("2fb4bf5607fa42da81326b139f2026ae")  # NOQA: E221
+GPT_USR_X86_64_VERITY           = uuid.UUID("77ff5f63e7b64633acf41565b864c0e6")  # NOQA: E221
+GPT_USR_X86_VERITY              = uuid.UUID("8f461b0d14ee4e819aa9049b6fb97abd")  # NOQA: E221
+
+GPT_ROOT_ALPHA_VERITY_SIG       = uuid.UUID("d46495b7a053414f80f7700c99921ef8")  # NOQA: E221
+GPT_ROOT_ARC_VERITY_SIG         = uuid.UUID("143a70bacbd34f06919f6c05683a78bc")  # NOQA: E221
+GPT_ROOT_ARM_VERITY_SIG         = uuid.UUID("42b0455feb11491d98d356145ba9d037")  # NOQA: E221
+GPT_ROOT_ARM64_VERITY_SIG       = uuid.UUID("6db69de629f44758a7a5962190f00ce3")  # NOQA: E221
+GPT_ROOT_IA64_VERITY_SIG        = uuid.UUID("e98b36ee32ba48829b120ce14655f46a")  # NOQA: E221
+GPT_ROOT_LOONGARCH64_VERITY_SIG = uuid.UUID("5afb67ebecc84f85ae8eac1e7c50e7d0")  # NOQA: E221
+GPT_ROOT_MIPS_LE_VERITY_SIG     = uuid.UUID("c919cc1f44564eff918cf75e94525ca5")  # NOQA: E221
+GPT_ROOT_MIPS64_LE_VERITY_SIG   = uuid.UUID("904e58ef5c654a319c576af5fc7c5de7")  # NOQA: E221
+GPT_ROOT_PPC64LE_VERITY_SIG     = uuid.UUID("d4a236e7e8734c07bf1dbf6cf7f1c3c6")  # NOQA: E221
+GPT_ROOT_PPC64_VERITY_SIG       = uuid.UUID("f5e2c20c45b24ffabce92a60737e1aaf")  # NOQA: E221
+GPT_ROOT_PPC_VERITY_SIG         = uuid.UUID("1b31b5aaadd9463ab2edbd467fc857e7")  # NOQA: E221
+GPT_ROOT_RISCV32_VERITY_SIG     = uuid.UUID("3a112a7587294380b4cf764d79934448")  # NOQA: E221
+GPT_ROOT_RISCV64_VERITY_SIG     = uuid.UUID("efe0f087ea8d4469821a4c2a96a8386a")  # NOQA: E221
+GPT_ROOT_S390X_VERITY_SIG       = uuid.UUID("c80187a573a3491a901a017c3fa953e9")  # NOQA: E221
+GPT_ROOT_S390_VERITY_SIG        = uuid.UUID("3482388e4254435aa241766a065f9960")  # NOQA: E221
+GPT_ROOT_TILEGX_VERITY_SIG      = uuid.UUID("b367143997b04a5390f72d5a8f3ad47b")  # NOQA: E221
+GPT_ROOT_X86_64_VERITY_SIG      = uuid.UUID("41092b059fc84523994f2def0408b176")  # NOQA: E221
+GPT_ROOT_X86_VERITY_SIG         = uuid.UUID("5996fc05109c48de808b23fa0830b676")  # NOQA: E221
+
+GPT_USR_ALPHA_VERITY_SIG        = uuid.UUID("5c6e1c76076a457aa0fef3b4cd21ce6e")  # NOQA: E221
+GPT_USR_ARC_VERITY_SIG          = uuid.UUID("94f9a9a19971427aa40050cb297f0f35")  # NOQA: E221
+GPT_USR_ARM_VERITY_SIG          = uuid.UUID("d7ff812f37d14902a810d76ba57b975a")  # NOQA: E221
+GPT_USR_ARM64_VERITY_SIG        = uuid.UUID("c23ce4ff44bd4b00b2d4b41b3419e02a")  # NOQA: E221
+GPT_USR_IA64_VERITY_SIG         = uuid.UUID("8de58bc22a43460db14ea76e4a17b47f")  # NOQA: E221
+GPT_USR_LOONGARCH64_VERITY_SIG  = uuid.UUID("b024f315d330444c846144bbde524e99")  # NOQA: E221
+GPT_USR_MIPS_LE_VERITY_SIG      = uuid.UUID("3e23ca0ba4bc4b4e80875ab6a26aa8a9")  # NOQA: E221
+GPT_USR_MIPS64_LE_VERITY_SIG    = uuid.UUID("f2c2c7eeadcc4351b5c6ee9816b66e16")  # NOQA: E221
+GPT_USR_PPC64LE_VERITY_SIG      = uuid.UUID("c8bfbd1e268e45218bbabf314c399557")  # NOQA: E221
+GPT_USR_PPC64_VERITY_SIG        = uuid.UUID("0b888863d7f84d9e9766239fce4d58af")  # NOQA: E221
+GPT_USR_PPC_VERITY_SIG          = uuid.UUID("7007891dd3714a8086a45cb875b9302e")  # NOQA: E221
+GPT_USR_RISCV32_VERITY_SIG      = uuid.UUID("c3836a13313745bab583b16c50fe5eb4")  # NOQA: E221
+GPT_USR_RISCV64_VERITY_SIG      = uuid.UUID("d2f9000a7a18453fb5cd4d32f77a7b32")  # NOQA: E221
+GPT_USR_S390X_VERITY_SIG        = uuid.UUID("3f324816667b46ae86ee9b0c0c6c11b4")  # NOQA: E221
+GPT_USR_S390_VERITY_SIG         = uuid.UUID("17440e4fa8d0467fa46e3912ae6ef2c5")  # NOQA: E221
+GPT_USR_TILEGX_VERITY_SIG       = uuid.UUID("4ede75e26ccc4cc8b9c770334b087510")  # NOQA: E221
+GPT_USR_X86_64_VERITY_SIG       = uuid.UUID("e7bb33fb06cf4e818273e543b413e2e2")  # NOQA: E221
+GPT_USR_X86_VERITY_SIG          = uuid.UUID("974a71c0de4143c3be5d5c5ccd1ad2c0")  # NOQA: E221
+
+GPT_ESP                         = uuid.UUID("c12a7328f81f11d2ba4b00a0c93ec93b")  # NOQA: E221
+GPT_XBOOTLDR                    = uuid.UUID("bc13c2ff59e64262a352b275fd6f7172")  # NOQA: E221
+GPT_SWAP                        = uuid.UUID("0657fd6da4ab43c484e50933c84b4f4f")  # NOQA: E221
+GPT_HOME                        = uuid.UUID("933ac7e12eb44f13b8440e14e2aef915")  # NOQA: E221
+GPT_SRV                         = uuid.UUID("3b8f842520e04f3b907f1a25a76f98e8")  # NOQA: E221
+GPT_VAR                         = uuid.UUID("4d21b016b53445c2a9fb5c16e091fd2d")  # NOQA: E221
+GPT_TMP                         = uuid.UUID("7ec6f5573bc54acab29316ef5df639d1")  # NOQA: E221
+GPT_USER_HOME                   = uuid.UUID("773f91ef66d449b5bd83d683bf40ad16")  # NOQA: E221
+GPT_LINUX_GENERIC               = uuid.UUID("0fc63daf848347728e793d69d8477de4")  # NOQA: E221
+
+# Mkosi specific addition to support BIOS images
+GPT_BIOS                        = uuid.UUID("2168614864496e6f744e656564454649")  # NOQA: E221
 
 
 # This is a non-formatted partition used to store the second stage
@@ -311,25 +405,81 @@ def gpt_root_native(arch: Optional[str], usr_only: bool = False) -> GPTRootTypeT
         arch = platform.machine()
 
     if usr_only:
-        if arch in ("i386", "i486", "i586", "i686"):
+        if arch == "alpha":
+            return GPTRootTypeTriplet(GPT_USR_ALPHA, GPT_USR_ALPHA_VERITY, GPT_USR_ALPHA_VERITY_SIG)
+        elif arch == "arc":
+            return GPTRootTypeTriplet(GPT_USR_ARC, GPT_USR_ARC_VERITY, GPT_USR_ARC_VERITY_SIG)
+        elif arch.startswith("armv"):
+            return GPTRootTypeTriplet(GPT_USR_ARM, GPT_USR_ARM_VERITY, GPT_USR_ARM_VERITY_SIG)
+        elif arch == "aarch64":
+            return GPTRootTypeTriplet(GPT_USR_ARM64, GPT_USR_ARM64_VERITY, GPT_USR_ARM64_VERITY_SIG)
+        elif arch == "ia64":
+            return GPTRootTypeTriplet(GPT_USR_IA64, GPT_USR_IA64_VERITY, GPT_USR_IA64_VERITY_SIG)
+        elif arch == "loongarch64":
+            return GPTRootTypeTriplet(GPT_USR_LOONGARCH64, GPT_USR_LOONGARCH64_VERITY, GPT_USR_LOONGARCH64_VERITY_SIG)
+        elif arch == "mipsel":
+            return GPTRootTypeTriplet(GPT_USR_MIPS_LE, GPT_USR_MIPS_LE_VERITY, GPT_USR_MIPS_LE_VERITY_SIG)
+        elif arch == "mipsel64":
+            return GPTRootTypeTriplet(GPT_USR_MIPS64_LE, GPT_USR_MIPS64_LE_VERITY, GPT_USR_MIPS64_LE_VERITY_SIG)
+        elif arch == "ppc":
+            return GPTRootTypeTriplet(GPT_USR_PPC, GPT_USR_PPC_VERITY, GPT_USR_PPC_VERITY_SIG)
+        elif arch == "ppc64":
+            return GPTRootTypeTriplet(GPT_USR_PPC64, GPT_USR_PPC64_VERITY, GPT_USR_PPC64_VERITY_SIG)
+        elif arch == "ppc64le":
+            return GPTRootTypeTriplet(GPT_USR_PPC64LE, GPT_USR_PPC64LE_VERITY, GPT_USR_PPC64LE_VERITY_SIG)
+        elif arch == "riscv32":
+            return GPTRootTypeTriplet(GPT_USR_RISCV32, GPT_USR_RISCV32_VERITY, GPT_USR_RISCV32_VERITY_SIG)
+        elif arch == "riscv64":
+            return GPTRootTypeTriplet(GPT_USR_RISCV64, GPT_USR_RISCV64_VERITY, GPT_USR_RISCV64_VERITY_SIG)
+        elif arch == "s390":
+            return GPTRootTypeTriplet(GPT_USR_S390, GPT_USR_S390_VERITY, GPT_USR_S390X)
+        elif arch == "s390x":
+            return GPTRootTypeTriplet(GPT_USR_S390X, GPT_USR_S390X_VERITY, GPT_USR_S390X_VERITY_SIG)
+        elif arch == "tilegx":
+            return GPTRootTypeTriplet(GPT_USR_TILEGX, GPT_USR_TILEGX_VERITY, GPT_USR_TILEGX_VERITY_SIG)
+        elif arch in ("i386", "i486", "i586", "i686"):
             return GPTRootTypeTriplet(GPT_USR_X86, GPT_USR_X86_VERITY, GPT_USR_X86_VERITY_SIG)
         elif arch == "x86_64":
             return GPTRootTypeTriplet(GPT_USR_X86_64, GPT_USR_X86_64_VERITY, GPT_USR_X86_64_VERITY_SIG)
-        elif arch == "aarch64":
-            return GPTRootTypeTriplet(GPT_USR_ARM_64, GPT_USR_ARM_64_VERITY, GPT_USR_ARM_64_VERITY_SIG)
-        elif arch == "armv7l":
-            return GPTRootTypeTriplet(GPT_USR_ARM, GPT_USR_ARM_VERITY, GPT_USR_ARM_VERITY_SIG)
         else:
             die(f"Unknown architecture {arch}.")
     else:
-        if arch in ("i386", "i486", "i586", "i686"):
+        if arch == "alpha":
+            return GPTRootTypeTriplet(GPT_ROOT_ALPHA, GPT_ROOT_ALPHA_VERITY, GPT_ROOT_ALPHA_VERITY_SIG)
+        elif arch == "arc":
+            return GPTRootTypeTriplet(GPT_ROOT_ARC, GPT_ROOT_ARC_VERITY, GPT_ROOT_ARC_VERITY_SIG)
+        elif arch.startswith("armv"):
+            return GPTRootTypeTriplet(GPT_ROOT_ARM, GPT_ROOT_ARM_VERITY, GPT_ROOT_ARM_VERITY_SIG)
+        elif arch == "aarch64":
+            return GPTRootTypeTriplet(GPT_ROOT_ARM64, GPT_ROOT_ARM64_VERITY, GPT_ROOT_ARM64_VERITY_SIG)
+        elif arch == "ia64":
+            return GPTRootTypeTriplet(GPT_ROOT_IA64, GPT_ROOT_IA64_VERITY, GPT_ROOT_IA64_VERITY_SIG)
+        elif arch == "loongarch64":
+            return GPTRootTypeTriplet(GPT_ROOT_LOONGARCH64, GPT_ROOT_LOONGARCH64_VERITY, GPT_ROOT_LOONGARCH64_VERITY_SIG)
+        elif arch == "mipsel":
+            return GPTRootTypeTriplet(GPT_ROOT_MIPS_LE, GPT_ROOT_MIPS_LE_VERITY, GPT_ROOT_MIPS_LE_VERITY_SIG)
+        elif arch == "mipsel64":
+            return GPTRootTypeTriplet(GPT_ROOT_MIPS64_LE, GPT_ROOT_MIPS64_LE_VERITY, GPT_ROOT_MIPS64_LE_VERITY_SIG)
+        elif arch == "ppc":
+            return GPTRootTypeTriplet(GPT_ROOT_PPC, GPT_ROOT_PPC_VERITY, GPT_ROOT_PPC_VERITY_SIG)
+        elif arch == "ppc64":
+            return GPTRootTypeTriplet(GPT_ROOT_PPC64, GPT_ROOT_PPC64_VERITY, GPT_ROOT_PPC64_VERITY_SIG)
+        elif arch == "ppc64le":
+            return GPTRootTypeTriplet(GPT_ROOT_PPC64LE, GPT_ROOT_PPC64LE_VERITY, GPT_ROOT_PPC64LE_VERITY_SIG)
+        elif arch == "riscv32":
+            return GPTRootTypeTriplet(GPT_ROOT_RISCV32, GPT_ROOT_RISCV32_VERITY, GPT_ROOT_RISCV32_VERITY_SIG)
+        elif arch == "riscv64":
+            return GPTRootTypeTriplet(GPT_ROOT_RISCV64, GPT_ROOT_RISCV64_VERITY, GPT_ROOT_RISCV64_VERITY_SIG)
+        elif arch == "s390":
+            return GPTRootTypeTriplet(GPT_ROOT_S390, GPT_ROOT_S390_VERITY, GPT_ROOT_S390X)
+        elif arch == "s390x":
+            return GPTRootTypeTriplet(GPT_ROOT_S390X, GPT_ROOT_S390X_VERITY, GPT_ROOT_S390X_VERITY_SIG)
+        elif arch == "tilegx":
+            return GPTRootTypeTriplet(GPT_ROOT_TILEGX, GPT_ROOT_TILEGX_VERITY, GPT_ROOT_TILEGX_VERITY_SIG)
+        elif arch in ("i386", "i486", "i586", "i686"):
             return GPTRootTypeTriplet(GPT_ROOT_X86, GPT_ROOT_X86_VERITY, GPT_ROOT_X86_VERITY_SIG)
         elif arch == "x86_64":
             return GPTRootTypeTriplet(GPT_ROOT_X86_64, GPT_ROOT_X86_64_VERITY, GPT_ROOT_X86_64_VERITY_SIG)
-        elif arch == "aarch64":
-            return GPTRootTypeTriplet(GPT_ROOT_ARM_64, GPT_ROOT_ARM_64_VERITY, GPT_ROOT_ARM_64_VERITY_SIG)
-        elif arch == "armv7l":
-            return GPTRootTypeTriplet(GPT_ROOT_ARM, GPT_ROOT_ARM_VERITY, GPT_ROOT_ARM_VERITY_SIG)
         else:
             die(f"Unknown architecture {arch}.")
 
