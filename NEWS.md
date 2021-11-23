@@ -2,9 +2,54 @@
 
 ## v11 (unreleased)
 
+- Support for Rocky Linux, Alma Linux, and Gentoo has been added!
+- A new `ManifestFormat=` option can be used to generate "manifest" files that
+  describe what packages were installed. With `json`, a JSON file that shows
+  the names and versions of all installed packages will be created. With
+  `changelog`, a longer human-readable file that shows package descriptions and
+  changelogs will be generated. This latter format should be considered
+  experimental and likely to change in later versions.
+- A new `RemovePackages=` option can be used to uninstall packages after the
+  build and finalize scripts have been done. This is useful for the case where
+  packages are required by the build scripts, or pulled in as dependencies
+  for scriptlets of other packages, but are not necessary in the final image.
+- A new `BaseImage=` option can be used to build "system extensions" a.k.a.
+  "sysexts" — partial images which are mounted on top of an existing system
+  to provide additional files under `/usr/`. See the
+  [systemd-sysext man page](https://www.freedesktop.org/software/systemd/man/systemd-sysext.html)
+  for more information.
+- A new `CleanPackageMetadata=` option can be used to force or disable the
+  removal of package manager files. When this option is not used, they are
+  removed when the package manager is not installed in the final image.
+- A new `UseHostRepositories=` option instructs mkosi to use repository
+  configuration from the host system, instead of the internal list.
+- A new `SshAgent=` option configures the path to the ssh agent.
+- A new `SshPort=` option overrides the port used for ssh.
+- The `Verity=` setting supports a new value `signed`. When set, verity data
+  will be signed and the result inserted as an additional partition in the
+  image. See https://systemd.io/DISCOVERABLE_PARTITIONS for details about
+  signed disk images. This information is used by `systemd-nspawn`,
+  `systemd-dissect`, `systemd-sysext`, `systemd-portabled` and `systemd`'s
+  `RootImage=` setting (among others) to cryptographically validate the image
+  file systems before use.
 - The `--build-environment=` option was renamed to `--environment=` and
   extended to cover *all* invoked scripts, not just the `mkosi.build`.
   The old name is still understood.
+- With `--with-network=never`, `dnf` is called with `--cacheonly`, so that the
+  package lists are not refreshed. This gives a degree of reproducibility when
+  doing repeated installs with the same package set (and also makes installs
+  significantly faster).
+- The `--debug=` option gained a new value `disk` to show information about disk
+  sized and partition allocations.
+- Some sections and settings have been renamed for clarity: [Packages] is now
+  [Content], `Password=`, `PasswordIsHashed=`, and `Autologin=` are now in
+  [Content]. The old names are still supported, but not documented.
+- When `--prepare-script=`/`--build-script=`/`--finalize-script=` is used with
+  an empty argument, the corresponding script will not be called.
+- Python 3.7 is the minimal supported version.
+- Note to packagers: the Python `cryptography` module is needed for signing
+  of verity data.
+
 
 ## v10
 
