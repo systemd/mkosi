@@ -1,6 +1,6 @@
 # mkosi Changelog
 
-## v11 (unreleased)
+## v11
 
 - Support for Rocky Linux, Alma Linux, and Gentoo has been added!
 - A new `ManifestFormat=` option can be used to generate "manifest" files that
