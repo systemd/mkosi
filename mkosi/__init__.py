@@ -1808,7 +1808,7 @@ def add_packages(
 
     """Add packages in @names to @packages, if enabled by --base-packages.
 
-    If @conditional is specifed, rpm-specific syntax for boolean
+    If @conditional is specified, rpm-specific syntax for boolean
     dependencies will be used to include @names if @conditional is
     satisfied.
     """
