@@ -261,7 +261,7 @@ class Gentoo:
         self.set_useflags()
         self.mkosi_conf()
         self.baselayout(args, root)
-        self.fetch_fix_stage3(root)
+        self.fetch_fix_stage3(args, root)
         self.update_stage3(args, root)
         self.depclean(args, root)
 
@@ -269,7 +269,7 @@ class Gentoo:
                           root: Path) -> None:
         self.invoke_emerge(args, root, inside_stage3=False, actions=["--sync"])
 
-    def fetch_fix_stage3(self, root: Path) -> None:
+    def fetch_fix_stage3(self, args: CommandLineArguments, root: Path) -> None:
         """usrmerge tracker bug: https://bugs.gentoo.org/690294"""
 
         # e.g.:
@@ -323,41 +323,8 @@ class Gentoo:
                 # remove once upstream ships the current *baselayout-999*
                 # version alternative would be to mount /sys as tmpfs when
                 # invoking emerge inside stage3; we don't want that.
-                baselaouy_qlist = [
-                    "etc/env.d/50baselayout",
-                    "etc/hosts",
-                    "etc/networks",
-                    "etc/profile",
-                    "etc/protocols",
-                    "etc/services",
-                    "etc/shells",
-                    "etc/filesystems",
-                    "etc/inputrc",
-                    "etc/issue",
-                    "etc/issue.logo",
-                    "etc/gentoo-release",
-                    "lib/modprobe.d/aliases.conf",
-                    "lib/modprobe.d/i386.conf",
-                    "lib/sysctl.d/00protected-links.conf",
-                    "usr/lib/os-release",
-                    "usr/share/baselayout/fstab",
-                    "usr/share/baselayout/group",
-                    "usr/share/baselayout/issue.devfix",
-                    "usr/share/baselayout/passwd",
-                    "usr/share/baselayout/shadow",
-                    "etc/os-release",
-                    "usr/share/applications/javaws.desktop",
-                    "usr/share/pixmaps/java-icon48.png",
-                    "etc/revdep-rebuild/60-java",
-                    "etc/profile.d/java-config-2.csh",
-                    "etc/profile.d/java-config-2.sh",
-                    "etc/env.d/20java-config",
-                    "etc/ssl/certs/java/.keep_sys-apps_baselayout-java-0",
-                    "etc/ca-certificates/update.d/java-cacerts",
-                ]
-                for path in baselaouy_qlist:
-                    if stage3_tmp_extract.joinpath(path).exists():
-                        stage3_tmp_extract.joinpath(path).unlink()
+                self.invoke_emerge(args, stage3_tmp_extract, inside_stage3=True,
+                        opts=["--unmerge"], pkgs=["sys-apps/baselayout"])
 
                 unlink_try_hard(stage3_tmp_extract.joinpath("dev"))
                 unlink_try_hard(stage3_tmp_extract.joinpath("proc"))
@@ -551,9 +518,6 @@ class Gentoo:
     def update_stage3(self, args: CommandLineArguments, root: Path) -> None:
         # exclude baselayout, it expects /sys/.keep but nspawn mounts host's
         # /sys for us without the .keep file.
-        self.invoke_emerge(args, root, inside_stage3=True,
-                           opts=["--unmerge"],
-                           pkgs=["=sys-apps/baselayout-2.7"])
         opts = self.EMERGE_UPDATE_OPTS + ["--exclude",
                                           "sys-apps/baselayout"]
         self.invoke_emerge(args, root, pkgs=self.pkgs_sys, opts=opts)
