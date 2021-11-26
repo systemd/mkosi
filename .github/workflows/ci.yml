@@ -18,24 +18,10 @@ jobs:
       fail-fast: false
       matrix:
         distro:
-          - arch
-          - centos_epel
-          - debian
-          - ubuntu
-          - fedora
-          - rocky_epel
-          - alma_epel
-          - gentoo
           - opensuse
         format:
           - directory
-          - tar
-          - cpio
-          - gpt_ext4
-          - gpt_xfs
           - gpt_btrfs
-          - gpt_squashfs
-          - plain_squashfs
         exclude:
           # CentOS 8/Rocky/Alma Linux does not support btrfs.
           - distro: centos
