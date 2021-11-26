@@ -3,7 +3,7 @@ set -e
 
 PACMAN_VERSION="6.0.1"
 ARCHLINUX_KEYRING_VERSION="20210902"
-RPM_VERSION="4.16.1.3"
+RPM_VERSION="4.17.0"
 LIBCOMPS_VERSION="0.1.17"
 LIBREPO_VERSION="1.14.2"
 LIBMODULEMD_VERSION="2.13.0"
@@ -107,12 +107,12 @@ fi
 
 make -C archlinux-keyring-$ARCHLINUX_KEYRING_VERSION PREFIX=/usr install
 
-if [ ! -f rpm-$RPM_VERSION.tar.gz ]; then
-    wget https://github.com/rpm-software-management/rpm/archive/refs/tags/rpm-$RPM_VERSION.tar.gz
-    tar xf rpm-$RPM_VERSION.tar.gz
+if [ ! -f rpm-$RPM_VERSION-release.tar.gz ]; then
+    wget https://github.com/rpm-software-management/rpm/archive/refs/tags/rpm-$RPM_VERSION-release.tar.gz
+    tar xf rpm-$RPM_VERSION-release.tar.gz
 fi
 
-pushd rpm-rpm-$RPM_VERSION
+pushd rpm-rpm-$RPM_VERSION-release
 
 if [ ! -f Makefile ]; then
     ./autogen.sh \
