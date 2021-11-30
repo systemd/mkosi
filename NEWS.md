@@ -1,5 +1,10 @@
 # mkosi Changelog
 
+## v12
+
+- Fix handling of baselayout in Gentoo installations.
+
+
 ## v11
 
 - Support for Rocky Linux, Alma Linux, and Gentoo has been added!
