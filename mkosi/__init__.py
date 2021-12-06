@@ -2248,9 +2248,13 @@ def install_fedora(args: CommandLineArguments, root: Path, do_run_build_script: 
         )
 
     if args.releasever in FEDORA_KEYS_MAP:
-        # The website uses short identifiers: https://pagure.io/fedora-web/websites/issue/196
-        shortid = FEDORA_KEYS_MAP[args.releasever][-8:]
-        gpgid = f"keys/{shortid}.txt"
+        key = FEDORA_KEYS_MAP[args.releasever]
+
+        # The website uses short identifiers for Fedora < 35: https://pagure.io/fedora-web/websites/issue/196
+        if int(args.releasever) < 35:
+            key = FEDORA_KEYS_MAP[args.releasever][-8:]
+
+        gpgid = f"keys/{key}.txt"
     else:
         gpgid = "fedora.gpg"
 
