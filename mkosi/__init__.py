@@ -2376,7 +2376,7 @@ def install_openmandriva(args: MkosiArgs, root: Path, do_run_build_script: bool)
 
 
 def install_centos_repos_old(args: MkosiArgs, root: Path, epel_release: int) -> None:
-    # Repos for CentOS 7 and earlier
+    # Repos for CentOS Linux 7 and earlier
 
     gpgpath = Path(f"/etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-{args.release}")
     gpgurl = f"https://www.centos.org/keys/RPM-GPG-KEY-CentOS-{args.release}"
@@ -2409,7 +2409,7 @@ def install_centos_repos_old(args: MkosiArgs, root: Path, epel_release: int) -> 
 
 
 def install_centos_repos_new(args: MkosiArgs, root: Path, epel_release: int) -> None:
-    # Repos for CentOS 8 and later
+    # Repos for CentOS Linux 8 and CentOS Stream 8
 
     gpgpath = Path("/etc/pki/rpm-gpg/RPM-GPG-KEY-centosofficial")
     gpgurl = "https://www.centos.org/keys/RPM-GPG-KEY-CentOS-Official"
@@ -2433,6 +2433,38 @@ def install_centos_repos_new(args: MkosiArgs, root: Path, epel_release: int) -> 
              Repo("BaseOS", f"CentOS-{args.release} - Base", baseos_url, gpgpath, gpgurl),
              Repo("extras", f"CentOS-{args.release} - Extras", extras_url, gpgpath, gpgurl),
              Repo("centosplus", f"CentOS-{args.release} - Plus", centosplus_url, gpgpath, gpgurl)]
+
+    if 'epel' in args.distribution.name:
+        repos += [Repo("epel", f"name=Extra Packages for Enterprise Linux {epel_release} - $basearch",
+                       epel_url, epel_gpgpath, epel_gpgurl)]
+
+    setup_dnf(args, root, repos)
+
+
+def install_centos_stream_repos(args: MkosiArgs, root: Path, epel_release: int) -> None:
+    # Repos for CentOS Stream 9 and later
+
+    gpgpath = Path("/etc/pki/rpm-gpg/RPM-GPG-KEY-centosofficial")
+    gpgurl = "https://www.centos.org/keys/RPM-GPG-KEY-CentOS-Official"
+    epel_gpgpath = Path(f"/etc/pki/rpm-gpg/RPM-GPG-KEY-EPEL-{epel_release}")
+    epel_gpgurl = f"https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-{epel_release}"
+
+    release = f"{epel_release}-stream"
+
+    if args.mirror:
+        appstream_url = f"baseurl={args.mirror}/centos-stream/{release}/AppStream/x86_64/os"
+        baseos_url = f"baseurl={args.mirror}/centos-stream/{release}/BaseOS/x86_64/os"
+        crb_url = f"baseurl={args.mirror}/centos-stream/{release}/CRB/x86_64/os"
+        epel_url = f"baseurl={args.mirror}/epel/{epel_release}/Everything/x86_64"
+    else:
+        appstream_url = f"metalink=https://mirrors.centos.org/metalink?repo=centos-appstream-{release}&arch=$basearch"
+        baseos_url = f"metalink=https://mirrors.centos.org/metalink?repo=centos-baseos-{release}&arch=$basearch"
+        crb_url = f"metalink=https://mirrors.centos.org/metalink?repo=centos-crb-{release}&arch=$basearch"
+        epel_url = f"mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=epel-{epel_release}&arch=x86_64"
+
+    repos = [Repo("AppStream", f"CentOS Stream {release} - AppStream", appstream_url, gpgpath, gpgurl),
+             Repo("BaseOS", f"CentOS Stream {release} - BaseOS", baseos_url, gpgpath, gpgurl),
+             Repo("CRB", f"CentOS Stream {release} - CRB", crb_url, gpgpath, gpgurl)]
 
     if 'epel' in args.distribution.name:
         repos += [Repo("epel", f"name=Extra Packages for Enterprise Linux {epel_release} - $basearch",
@@ -2509,33 +2541,41 @@ def install_alma_repos(args: MkosiArgs, root: Path, epel_release: int) -> None:
     setup_dnf(args, root, repos)
 
 
+def parse_epel_release(release: str) -> int:
+    fields = release.split(".")
+    if fields[0].endswith("-stream"):
+        epel_release = fields[0].split("-")[0]
+    else:
+        epel_release = fields[0]
+
+    return int(epel_release)
+
+
 def is_older_than_centos8(release: str) -> bool:
     # CentOS 7 contains some very old versions of certain libraries
     # which require workarounds in different places.
     # Additionally the repositories have been changed between 7 and 8
-    epel_release = release.split(".")[0]
-    try:
-        return int(epel_release) <= 7
-    except ValueError:
-        return False
+    epel_release = parse_epel_release(release)
+    return epel_release <= 7
 
 
 @complete_step("Installing CentOS…")
 def install_centos(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None:
-    old = is_older_than_centos8(args.release)
-    epel_release = int(args.release.split(".")[0])
+    epel_release = parse_epel_release(args.release)
 
-    if old:
+    if epel_release <= 7:
         install_centos_repos_old(args, root, epel_release)
-    else:
+    elif epel_release <= 8:
         install_centos_repos_new(args, root, epel_release)
+    else:
+        install_centos_stream_repos(args, root, epel_release)
 
     packages = {*args.packages}
     add_packages(args, packages, "centos-release", "systemd")
     if not do_run_build_script and args.bootable:
         add_packages(args, packages, "kernel", "dracut", "binutils")
         configure_dracut(args, packages, root)
-        if old:
+        if epel_release <= 7:
             add_packages(
                 args,
                 packages,
@@ -6207,8 +6247,8 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
             die(f"uefi boot not supported for {args.distribution}")
 
     if args.distribution in (Distribution.centos, Distribution.centos_epel):
-        epel_release = int(args.release.split(".")[0])
-        if epel_release <= 8 and args.output_format == OutputFormat.gpt_btrfs:
+        epel_release = parse_epel_release(args.release)
+        if epel_release <= 9 and args.output_format == OutputFormat.gpt_btrfs:
             die(f"Sorry, CentOS {epel_release} does not support btrfs")
         if epel_release <= 7 and args.bootable and "uefi" in args.boot_protocols and args.with_unified_kernel_images:
             die(
