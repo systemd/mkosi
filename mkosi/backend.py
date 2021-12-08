@@ -363,7 +363,6 @@ class CommandLineArguments:
     manifest_format: List[ManifestFormat]
     output: Path
     output_dir: Optional[Path]
-    force_count: int
     bootable: bool
     boot_protocols: List[str]
     kernel_command_line: List[str]
@@ -460,7 +459,7 @@ class CommandLineArguments:
     verity_size: Optional[int]
     verity_sig_size: Optional[int]
     machine_id: str
-    force: bool
+    force: int
     original_umask: int
     passphrase: Optional[Dict[str, str]]
 

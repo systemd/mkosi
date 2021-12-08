@@ -69,7 +69,7 @@ class MkosiConfig:
             "extra_search_paths": [],
             "extra_trees": [],
             "finalize_script": None,
-            "force_count": 0,
+            "force": 0,
             "gpt_first_lba": None,
             "home_size": None,
             "hostname": None,
@@ -233,7 +233,7 @@ class MkosiConfig:
             if "Output" in mk_config_output:
                 self.reference_config[job_name]["output"] = Path(mk_config_output["Output"])
             if "Force" in mk_config_output:
-                self.reference_config[job_name]["force_count"] += 1
+                self.reference_config[job_name]["force"] += 1
             if "Bootable" in mk_config_output:
                 self.reference_config[job_name]["bootable"] = mk_config_output["Bootable"]
             if "BootProtocols" in mk_config_output:
@@ -736,7 +736,7 @@ class MkosiConfigManyParams(MkosiConfigOne):
             ref_c["distribution"] = "arch"
             ref_c["release"] = "7"
             self._append_list("repositories", "centos/repos", j)
-            ref_c["force_count"] += 1
+            ref_c["force"] += 1
             ref_c["read_only"] = False
             ref_c["incremental"] = True
 

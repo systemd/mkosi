@@ -5110,7 +5110,7 @@ def create_parser() -> ArgumentParserMkosi:
         "-f",
         "--force",
         action="count",
-        dest="force_count",
+        dest="force",
         default=0,
         help="Remove existing image file before operation",
     )
@@ -5887,11 +5887,11 @@ def unlink_output(args: CommandLineArguments) -> None:
     # additional "--force".
 
     if args.verb == "clean":
-        remove_build_cache = args.force_count > 0
-        remove_package_cache = args.force_count > 1
+        remove_build_cache = args.force > 0
+        remove_package_cache = args.force > 1
     else:
-        remove_build_cache = args.force_count > 1
-        remove_package_cache = args.force_count > 2
+        remove_build_cache = args.force > 1
+        remove_package_cache = args.force > 2
 
     if remove_build_cache:
         if args.cache_pre_dev is not None or args.cache_pre_inst is not None:
@@ -6141,8 +6141,6 @@ def load_args(args: argparse.Namespace) -> CommandLineArguments:
 
     if args.cmdline and args.verb not in MKOSI_COMMANDS_CMDLINE:
         die("Additional parameters only accepted for " + str(MKOSI_COMMANDS_CMDLINE)[1:-1] + " invocations.")
-
-    args.force = args.force_count > 0
 
     if args.output_format is None:
         args.output_format = OutputFormat.gpt_ext4
@@ -7144,7 +7142,7 @@ def need_cache_images(args: CommandLineArguments) -> bool:
     if not args.incremental:
         return False
 
-    if args.force_count > 1:
+    if args.force > 1:
         return True
 
     assert args.cache_pre_dev
