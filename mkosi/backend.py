@@ -347,11 +347,12 @@ class PartitionTable:
 
 
 @dataclasses.dataclass
-class CommandLineArguments:
+class MkosiArgs:
     """Type-hinted storage for command line arguments."""
 
     verb: str
     cmdline: List[str]
+    force: int
 
     distribution: Distribution
     release: str
@@ -455,11 +456,10 @@ class CommandLineArguments:
     qemu_smp: str
     qemu_mem: str
 
-    # Some extra stuff that's stored in CommandLineArguments for convenience but isn't populated by arguments
+    # Some extra stuff that's stored in MkosiArgs for convenience but isn't populated by arguments
     verity_size: Optional[int]
     verity_sig_size: Optional[int]
     machine_id: str
-    force: int
     original_umask: int
     passphrase: Optional[Dict[str, str]]
 
@@ -489,7 +489,7 @@ class CommandLineArguments:
         return self.partition_table.partitions.get(ident)
 
 
-def should_compress_fs(args: Union[argparse.Namespace, CommandLineArguments]) -> Union[bool, str]:
+def should_compress_fs(args: Union[argparse.Namespace, MkosiArgs]) -> Union[bool, str]:
     """True for the default compression, a string, or False.
 
     When explicitly configured with --compress-fs=, just return
@@ -503,7 +503,7 @@ def should_compress_fs(args: Union[argparse.Namespace, CommandLineArguments]) ->
     return False if c is None else c
 
 
-def should_compress_output(args: Union[argparse.Namespace, CommandLineArguments]) -> Union[bool, str]:
+def should_compress_output(args: Union[argparse.Namespace, MkosiArgs]) -> Union[bool, str]:
     """A string or False.
 
     When explicitly configured with --compress-output=, use
@@ -530,7 +530,7 @@ def var_tmp(root: Path) -> Path:
     return p
 
 
-def nspawn_params_for_blockdev_access(args: CommandLineArguments, loopdev: Path) -> List[str]:
+def nspawn_params_for_blockdev_access(args: MkosiArgs, loopdev: Path) -> List[str]:
     assert args.partition_table is not None
 
     params = [
@@ -567,7 +567,7 @@ def nspawn_rlimit_params() -> Sequence[str]:
 
 
 def run_workspace_command(
-    args: CommandLineArguments,
+    args: MkosiArgs,
     root: Path,
     cmd: Sequence[PathString],
     network: bool = False,
@@ -750,7 +750,7 @@ def path_relative_to_cwd(path: PathString) -> Path:
         return path
 
 
-def write_grub_config(args: CommandLineArguments, root: Path) -> None:
+def write_grub_config(args: MkosiArgs, root: Path) -> None:
     kernel_cmd_line = " ".join(args.kernel_command_line)
     grub_cmdline = f'GRUB_CMDLINE_LINUX="{kernel_cmd_line}"\n'
     os.makedirs(root / "etc/default", exist_ok=True, mode=0o755)
@@ -774,7 +774,7 @@ def write_grub_config(args: CommandLineArguments, root: Path) -> None:
                 f.write('GRUB_SERIAL_COMMAND="serial --unit=0 --speed 115200"\n')
 
 
-def install_grub(args: CommandLineArguments, root: Path, loopdev: Path, grub: str) -> None:
+def install_grub(args: MkosiArgs, root: Path, loopdev: Path, grub: str) -> None:
     assert args.partition_table is not None
 
     part = args.get_partition(PartitionIdentifier.bios)

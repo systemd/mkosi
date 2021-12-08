@@ -9,9 +9,9 @@ from textwrap import dedent
 from typing import IO, Any, Dict, List, Optional, cast
 
 from .backend import (
-    CommandLineArguments,
     Distribution,
     ManifestFormat,
+    MkosiArgs,
     PackageType,
     run,
     run_workspace_command,
@@ -67,7 +67,7 @@ class SourcePackageManifest:
 
 @dataclasses.dataclass
 class Manifest:
-    args: CommandLineArguments
+    args: MkosiArgs
     packages: List[PackageManifest] = dataclasses.field(default_factory=list)
     source_packages: Dict[str, SourcePackageManifest] = dataclasses.field(default_factory=dict)
 
