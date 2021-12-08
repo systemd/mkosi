@@ -6406,9 +6406,6 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
     if args.bootable and args.esp_size is None:
         args.esp_size = 256 * 1024 * 1024
 
-    args.verity_size = None
-    args.verity_sig_size = None
-
     if args.secure_boot_key is not None:
         args.secure_boot_key = args.secure_boot_key.absolute()
 

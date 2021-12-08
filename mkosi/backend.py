@@ -457,8 +457,6 @@ class MkosiArgs:
     qemu_mem: str
 
     # Some extra stuff that's stored in MkosiArgs for convenience but isn't populated by arguments
-    verity_size: Optional[int]
-    verity_sig_size: Optional[int]
     machine_id: str
     original_umask: int
     passphrase: Optional[Dict[str, str]]
