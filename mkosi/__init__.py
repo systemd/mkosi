@@ -3950,12 +3950,16 @@ def make_verity_sig(
 
     from cryptography import x509
     from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import ec, rsa
     from cryptography.hazmat.primitives.serialization import pkcs7
 
     with complete_step("Signing verity root hash…"):
 
         key = serialization.load_pem_private_key(args.secure_boot_key.read_bytes(), password=None)
         certificate = x509.load_pem_x509_certificate(args.secure_boot_certificate.read_bytes())
+
+        if not isinstance(key, (ec.EllipticCurvePrivateKey, rsa.RSAPrivateKey)):
+            die(f"Secure boot key has unsupported type {type(key)}")
 
         fingerprint = certificate.fingerprint(hashes.SHA256()).hex()
 
