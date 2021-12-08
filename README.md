@@ -32,11 +32,9 @@ python3 -m pip install --user --no-use-pep517 --editable .
 This will install mkosi in editable mode to `~/.local/bin/mkosi`, allowing you
 to use your own changes right away.
 
-For development you also need [mypy](https://github.com/python/mypy), for type
-checking, [pytest](https://github.com/pytest-dev/pytest), to run tests, and
-[black](https://github.com/psf/black), for code formatting. We check tests,
-typing and code formatting in CI (see `.github/workflows`), but you can run the
-tests locally as well.
+For development you also need [mypy](https://github.com/python/mypy) for type
+checking. We check tests and typing in CI (see `.github/workflows`), but you can
+run the tests locally as well.
 
 ## zipapp
 

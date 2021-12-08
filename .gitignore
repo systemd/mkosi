@@ -4,7 +4,6 @@
 .mypy_cache/
 .project
 .pydevproject
-.pytest_cache/
 /.mkosi-*
 /SHA256SUMS
 /SHA256SUMS.gpg
