@@ -30,10 +30,7 @@ jobs:
           - directory
           - tar
           - cpio
-          - gpt_ext4
-          - gpt_xfs
           - gpt_btrfs
-          - gpt_squashfs
           - plain_squashfs
         exclude:
           # CentOS 8/Rocky/Alma Linux does not support btrfs.
