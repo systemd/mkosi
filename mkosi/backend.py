@@ -479,7 +479,6 @@ class MkosiArgs:
 
     partition_table: Optional[PartitionTable] = None
 
-    releasever: Optional[str] = None
     ran_sfdisk: bool = False
 
     def get_partition(self, ident: PartitionIdentifier) -> Optional[Partition]:

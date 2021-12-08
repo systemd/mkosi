@@ -2223,12 +2223,12 @@ def install_fedora(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
     if args.release == "rawhide":
         last = list(FEDORA_KEYS_MAP)[-1]
         warn(f"Assuming rawhide is version {last} — " + "You may specify otherwise with --release=rawhide-<version>")
-        args.releasever = last
+        releasever = last
     elif args.release.startswith("rawhide-"):
-        args.release, args.releasever = args.release.split("-")
-        MkosiPrinter.info(f"Fedora rawhide — release version: {args.releasever}")
+        args.release, releasever = args.release.split("-")
+        MkosiPrinter.info(f"Fedora rawhide — release version: {releasever}")
     else:
-        args.releasever = args.release
+        releasever = args.release
 
     arch = args.architecture or platform.machine()
 
@@ -2247,18 +2247,18 @@ def install_fedora(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
             f"repo=updates-released-f{args.release}&arch=$basearch"
         )
 
-    if args.releasever in FEDORA_KEYS_MAP:
-        key = FEDORA_KEYS_MAP[args.releasever]
+    if releasever in FEDORA_KEYS_MAP:
+        key = FEDORA_KEYS_MAP[releasever]
 
         # The website uses short identifiers for Fedora < 35: https://pagure.io/fedora-web/websites/issue/196
-        if int(args.releasever) < 35:
-            key = FEDORA_KEYS_MAP[args.releasever][-8:]
+        if int(releasever) < 35:
+            key = FEDORA_KEYS_MAP[releasever][-8:]
 
         gpgid = f"keys/{key}.txt"
     else:
         gpgid = "fedora.gpg"
 
-    gpgpath = Path(f"/etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-{args.releasever}-{arch}")
+    gpgpath = Path(f"/etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-{releasever}-{arch}")
     gpgurl = urllib.parse.urljoin("https://getfedora.org/static/", gpgid)
 
     repos = [Repo("fedora", f"Fedora {args.release.capitalize()} - base", release_url, gpgpath, gpgurl)]
