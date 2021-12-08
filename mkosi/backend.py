@@ -479,8 +479,6 @@ class MkosiArgs:
 
     partition_table: Optional[PartitionTable] = None
 
-    ran_sfdisk: bool = False
-
     def get_partition(self, ident: PartitionIdentifier) -> Optional[Partition]:
         "A shortcut to check that we have a partition table and extract the partition object"
         if self.partition_table is None:
