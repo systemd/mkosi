@@ -14,7 +14,7 @@ from typing import Dict, Generator, List, Sequence
 from . import copy_path, open_close, unlink_try_hard
 from .backend import (
     ARG_DEBUG,
-    CommandLineArguments,
+    MkosiArgs,
     MkosiException,
     MkosiPrinter,
     OutputFormat,
@@ -159,7 +159,7 @@ class Gentoo:
 
     def __init__(
         self,
-        args: CommandLineArguments,
+        args: MkosiArgs,
         root: Path,
         do_run_build_script: bool,
     ) -> None:
@@ -265,11 +265,11 @@ class Gentoo:
         self.update_stage3(args, root)
         self.depclean(args, root)
 
-    def sync_portage_tree(self, args: CommandLineArguments,
+    def sync_portage_tree(self, args: MkosiArgs,
                           root: Path) -> None:
         self.invoke_emerge(args, root, inside_stage3=False, actions=["--sync"])
 
-    def fetch_fix_stage3(self, args: CommandLineArguments, root: Path) -> None:
+    def fetch_fix_stage3(self, args: MkosiArgs, root: Path) -> None:
         """usrmerge tracker bug: https://bugs.gentoo.org/690294"""
 
         # e.g.:
@@ -349,7 +349,7 @@ class Gentoo:
         copy_path(stage3_tmp_extract.joinpath("sbin"),
                   root.joinpath("usr/bin"))
 
-    def set_profile(self, args: CommandLineArguments) -> None:
+    def set_profile(self, args: MkosiArgs) -> None:
         if not self.profile_path.is_symlink():
             MkosiPrinter.print_step(f"{args.distribution} setting Profile")
             self.profile_path.symlink_to(
@@ -472,7 +472,7 @@ class Gentoo:
 
     def invoke_emerge(
         self,
-        args: CommandLineArguments,
+        args: MkosiArgs,
         root: Path,
         inside_stage3: bool = True,
         pkgs: Sequence[str] = (),
@@ -507,7 +507,7 @@ class Gentoo:
                 nspawn_params=self.DEFAULT_NSPAWN_PARAMS,
             )
 
-    def baselayout(self, args: CommandLineArguments, root: Path) -> None:
+    def baselayout(self, args: MkosiArgs, root: Path) -> None:
         # TOTHINK: sticky bizness when when image profile != host profile
         # REMOVE: once upstream has moved this to stable releases of baselaouy
         # https://gitweb.gentoo.org/proj/baselayout.git/commit/?id=57c250e24c70f8f9581860654cdec0d049345292
@@ -515,7 +515,7 @@ class Gentoo:
                            opts=["--nodeps"],
                            pkgs=["=sys-apps/baselayout-9999"])
 
-    def update_stage3(self, args: CommandLineArguments, root: Path) -> None:
+    def update_stage3(self, args: MkosiArgs, root: Path) -> None:
         # exclude baselayout, it expects /sys/.keep but nspawn mounts host's
         # /sys for us without the .keep file.
         opts = self.EMERGE_UPDATE_OPTS + ["--exclude",
@@ -533,10 +533,10 @@ class Gentoo:
         # that point.
         self.baselayout_use.unlink()
 
-    def depclean(self, args: CommandLineArguments, root: Path) -> None:
+    def depclean(self, args: MkosiArgs, root: Path) -> None:
         self.invoke_emerge(args, root, actions=["--depclean"])
 
-    def _dbg(self, args: CommandLineArguments, root: Path) -> None:
+    def _dbg(self, args: MkosiArgs, root: Path) -> None:
         """this is for dropping into shell to see what's wrong"""
 
         cmdline = ["/bin/sh"]
