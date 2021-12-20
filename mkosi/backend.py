@@ -138,7 +138,7 @@ class Distribution(enum.Enum):
         entry = object.__new__(cls)
         entry._value_ = number
         entry.package_type = package_type
-        return cast("Distribution", entry)
+        return entry
 
     def __str__(self) -> str:
         return self.name
