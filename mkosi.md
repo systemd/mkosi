@@ -66,36 +66,6 @@ options are available:
 * A dm-verity partition may be added in that adds runtime integrity
   data for the root partition
 
-## Other features
-
-* Optionally, create an *SHA256SUMS* checksum file for the result,
-  possibly even signed via `gpg`.
-
-* Optionally, place a specific `.nspawn` settings file along
-  with the result.
-
-* Optionally, build a local project's *source* tree in the image
-  and add the result to the generated image.
-
-* Optionally, share *RPM*/*DEB* package cache between multiple runs,
-  in order to optimize build speeds.
-
-* Optionally, the resulting image may be compressed with *XZ*.
-
-* Optionally, the resulting image may be converted into a *QCOW2* file
-  suitable for `qemu` storage.
-
-* Optionally, btrfs' read-only flag for the root subvolume may be
-  set.
-
-* Optionally, btrfs' compression may be enabled for all
-  created subvolumes.
-
-* By default images are created without all files marked as
-  documentation in the packages, on distributions where the package
-  manager supports this. Use the `WithDocs=yes` flag to build an image
-  with docs added.
-
 ## Command Line Verbs
 
 The following command line verbs are known:
@@ -815,7 +785,7 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 : Takes a comma-separated list of package specifications for removal, in the
   same format as `Packages=`. The removal will be performed as one of the last
   steps. This step is skipped if `CleanPackageMetadata=no` is used.
-  
+
 : This option is currently only implemented for distributions using `dnf`.
 
 `Environment=`, `--environment=`
