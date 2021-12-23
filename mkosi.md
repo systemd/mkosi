@@ -27,45 +27,6 @@ fancy wrapper around `dnf --installroot`, `debootstrap`, `pacstrap`
 and `zypper` that may generate disk images with a number of bells and
 whistles.
 
-## Supported output formats
-
-The following output formats are supported:
-
-* Raw *GPT* disk image, with ext4 as root (*gpt_ext4*)
-
-* Raw *GPT* disk image, with xfs as root (*gpt_xfs*)
-
-* Raw *GPT* disk image, with btrfs as root (*gpt_btrfs*)
-
-* Raw *GPT* disk image, with squashfs as read-only root (*gpt_squashfs*)
-
-* Plain squashfs image, without partition table, as read-only root
-  (*plain_squashfs*)
-
-* Plain directory, containing the OS tree (*directory*)
-
-* btrfs subvolume, with separate subvolumes for `/var`, `/home`,
-  `/srv`, `/var/tmp` (*subvolume*)
-
-* Tar archive (*tar*)
-
-* CPIO archive (*cpio*) in the format appropriate for a kernel initrd
-
-When a *GPT* disk image is created, the following additional
-options are available:
-
-* A swap partition may be added in
-
-* The image may be made bootable on *EFI* and *BIOS* systems
-
-* Separate partitions for `/srv` and `/home` may be added in
-
-* The root, `/srv` and `/home` partitions may optionally be encrypted with
-  LUKS.
-
-* A dm-verity partition may be added in that adds runtime integrity
-  data for the root partition
-
 ## Command Line Verbs
 
 The following command line verbs are known:
@@ -261,6 +222,45 @@ build script?  -------exists----->     copy           .
                             .          IMAGE          .          IMAGE
                             .                         .
 ```
+
+## Supported output formats
+
+The following output formats are supported:
+
+* Raw *GPT* disk image, with ext4 as root (*gpt_ext4*)
+
+* Raw *GPT* disk image, with xfs as root (*gpt_xfs*)
+
+* Raw *GPT* disk image, with btrfs as root (*gpt_btrfs*)
+
+* Raw *GPT* disk image, with squashfs as read-only root (*gpt_squashfs*)
+
+* Plain squashfs image, without partition table, as read-only root
+  (*plain_squashfs*)
+
+* Plain directory, containing the OS tree (*directory*)
+
+* btrfs subvolume, with separate subvolumes for `/var`, `/home`,
+  `/srv`, `/var/tmp` (*subvolume*)
+
+* Tar archive (*tar*)
+
+* CPIO archive (*cpio*) in the format appropriate for a kernel initrd
+
+When a *GPT* disk image is created, the following additional
+options are available:
+
+* A swap partition may be added in
+
+* The image may be made bootable on *EFI* and *BIOS* systems
+
+* Separate partitions for `/srv` and `/home` may be added in
+
+* The root, `/srv` and `/home` partitions may optionally be encrypted with
+  LUKS.
+
+* A dm-verity partition may be added in that adds runtime integrity
+  data for the root partition
 
 ## Configuration Settings
 
