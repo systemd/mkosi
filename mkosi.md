@@ -1612,30 +1612,28 @@ variables:
 Create and run a raw *GPT* image with *ext4*, as `image.raw`:
 
 ```bash
-# mkosi
-# systemd-nspawn -b -i image.raw
+# mkosi --bootable --incremental boot
 ```
 
 Create and run a bootable btrfs *GPT* image, as `foobar.raw`:
 
 ```bash
-# mkosi -t gpt_btrfs --bootable -o foobar.raw
-# systemd-nspawn -b -i foobar.raw
-# qemu-kvm -m 512 -smp 2 -bios /usr/share/edk2/ovmf/OVMF_CODE.fd -drive format=raw,file=foobar.raw
+# mkosi --format gpt_btrfs --bootable -o foobar.raw
+# mkosi --output foobar.raw boot
+# mkosi --output foobar.raw qemu
 ```
 
 Create and run a *Fedora Linux* image into a plain directory:
 
 ```bash
-# mkosi -d fedora -t directory -o quux
-# systemd-nspawn -b -D quux
+# mkosi --distribution fedora --format directory boot
 ```
 
 Create a compressed image `image.raw.xz` and add a checksum file, and
 install *SSH* into it:
 
 ```bash
-# mkosi -d fedora -t gpt_squashfs --checksum --compress --package=openssh-clients
+# mkosi --distribution fedora --format gpt_squashfs --checksum --compress --package=openssh-clients
 ```
 
 Inside the source directory of an `automake`-based project, configure
@@ -1666,13 +1664,13 @@ make -j `nproc`
 make install
 EOF
 # chmod +x mkosi.build
-# mkosi
+# mkosi --bootable --incremental boot
 # systemd-nspawn -bi image.raw
 ```
 
 To create a *Fedora Linux* image with hostname:
 ```bash
-# mkosi -d fedora --hostname image
+# mkosi --distribution fedora --hostname image
 ```
 
 Also you could set hostname in configuration file:
