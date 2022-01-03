@@ -6,6 +6,7 @@ import argparse
 import contextlib
 import dataclasses
 import enum
+import functools
 import math
 import os
 import resource
@@ -260,6 +261,18 @@ class Partition:
         return ', '.join(filter(None, desc))
 
 
+@functools.lru_cache(maxsize=None)
+def sfdisk_grain_is_supported() -> bool:
+    cmd: List[PathString] = ["sfdisk", "--no-reread", "--no-act", "--quiet", "/dev/full"]
+
+    try:
+        run(cmd, text=True, input='\n'.join(["label: gpt", "grain: 4096", "quit"]), stderr=subprocess.DEVNULL)
+    except subprocess.CalledProcessError:
+        return False
+
+    return True
+
+
 @dataclasses.dataclass
 class PartitionTable:
     partitions: Dict[PartitionIdentifier, Partition] = dataclasses.field(default_factory=dict)
@@ -268,6 +281,10 @@ class PartitionTable:
     first_lba: Optional[int] = None
 
     grain: int = 4096
+
+    def __post_init__(self) -> None:
+        if not sfdisk_grain_is_supported():
+            self.grain = 1024 ** 2 # Use sfdisk default grain size of 1 MiB.
 
     def first_partition_offset(self, max_partitions: int = 128) -> int:
         if self.first_lba is not None:
@@ -323,7 +340,7 @@ class PartitionTable:
 
     def sfdisk_spec(self) -> str:
         table = ["label: gpt",
-                 f"grain: {self.grain}",
+                 f"grain: {self.grain}" if sfdisk_grain_is_supported() else '\n',
                  f"first-lba: {self.first_partition_offset() // self.sector_size}",
                  *(p.sfdisk_spec() for p in self.partitions.values())]
         return '\n'.join(table)
