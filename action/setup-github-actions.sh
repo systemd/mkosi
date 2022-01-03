@@ -210,6 +210,21 @@ DESTDIR="" meson install -C libmodulemd-$LIBMODULEMD_VERSION-build
 if [ ! -f $LIBSOLV_VERSION.tar.gz ]; then
     wget https://github.com/openSUSE/libsolv/archive/$LIBSOLV_VERSION.tar.gz
     tar xf $LIBSOLV_VERSION.tar.gz
+    patch -d libsolv-$LIBSOLV_VERSION -p1 <<'EOF'
+diff --git a/ext/repo_rpmdb_librpm.h b/ext/repo_rpmdb_librpm.h
+index 3f9798c2..e1b30a0f 100644
+--- a/ext/repo_rpmdb_librpm.h
++++ b/ext/repo_rpmdb_librpm.h
+@@ -136,7 +136,7 @@ opendbenv(struct rpmdbstate *state)
+       return 0;
+     }
+ #ifndef HAVE_RPMDBNEXTITERATORHEADERBLOB
+-  if (!strcmp(RPMVERSION, "4.16.0"))
++  if (!strcmp(RPMVERSION, "4.16.0") || !strcmp(RPMVERSION, "4.17.0"))
+     set_db_backend();
+ #endif
+   if (rpmtsOpenDB(ts, O_RDONLY))
+EOF
 fi
 
 if [ ! -f libsolv-$LIBSOLV_VERSION-build/build.ninja ]; then
