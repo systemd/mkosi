@@ -27,75 +27,6 @@ fancy wrapper around `dnf --installroot`, `debootstrap`, `pacstrap`
 and `zypper` that may generate disk images with a number of bells and
 whistles.
 
-## Supported output formats
-
-The following output formats are supported:
-
-* Raw *GPT* disk image, with ext4 as root (*gpt_ext4*)
-
-* Raw *GPT* disk image, with xfs as root (*gpt_xfs*)
-
-* Raw *GPT* disk image, with btrfs as root (*gpt_btrfs*)
-
-* Raw *GPT* disk image, with squashfs as read-only root (*gpt_squashfs*)
-
-* Plain squashfs image, without partition table, as read-only root
-  (*plain_squashfs*)
-
-* Plain directory, containing the OS tree (*directory*)
-
-* btrfs subvolume, with separate subvolumes for `/var`, `/home`,
-  `/srv`, `/var/tmp` (*subvolume*)
-
-* Tar archive (*tar*)
-
-* CPIO archive (*cpio*) in the format appropriate for a kernel initrd
-
-When a *GPT* disk image is created, the following additional
-options are available:
-
-* A swap partition may be added in
-
-* The image may be made bootable on *EFI* and *BIOS* systems
-
-* Separate partitions for `/srv` and `/home` may be added in
-
-* The root, `/srv` and `/home` partitions may optionally be encrypted with
-  LUKS.
-
-* A dm-verity partition may be added in that adds runtime integrity
-  data for the root partition
-
-## Other features
-
-* Optionally, create an *SHA256SUMS* checksum file for the result,
-  possibly even signed via `gpg`.
-
-* Optionally, place a specific `.nspawn` settings file along
-  with the result.
-
-* Optionally, build a local project's *source* tree in the image
-  and add the result to the generated image.
-
-* Optionally, share *RPM*/*DEB* package cache between multiple runs,
-  in order to optimize build speeds.
-
-* Optionally, the resulting image may be compressed with *XZ*.
-
-* Optionally, the resulting image may be converted into a *QCOW2* file
-  suitable for `qemu` storage.
-
-* Optionally, btrfs' read-only flag for the root subvolume may be
-  set.
-
-* Optionally, btrfs' compression may be enabled for all
-  created subvolumes.
-
-* By default images are created without all files marked as
-  documentation in the packages, on distributions where the package
-  manager supports this. Use the `WithDocs=yes` flag to build an image
-  with docs added.
-
 ## Command Line Verbs
 
 The following command line verbs are known:
@@ -291,6 +222,45 @@ build script?  -------exists----->     copy           .
                             .          IMAGE          .          IMAGE
                             .                         .
 ```
+
+## Supported output formats
+
+The following output formats are supported:
+
+* Raw *GPT* disk image, with ext4 as root (*gpt_ext4*)
+
+* Raw *GPT* disk image, with xfs as root (*gpt_xfs*)
+
+* Raw *GPT* disk image, with btrfs as root (*gpt_btrfs*)
+
+* Raw *GPT* disk image, with squashfs as read-only root (*gpt_squashfs*)
+
+* Plain squashfs image, without partition table, as read-only root
+  (*plain_squashfs*)
+
+* Plain directory, containing the OS tree (*directory*)
+
+* btrfs subvolume, with separate subvolumes for `/var`, `/home`,
+  `/srv`, `/var/tmp` (*subvolume*)
+
+* Tar archive (*tar*)
+
+* CPIO archive (*cpio*) in the format appropriate for a kernel initrd
+
+When a *GPT* disk image is created, the following additional
+options are available:
+
+* A swap partition may be added in
+
+* The image may be made bootable on *EFI* and *BIOS* systems
+
+* Separate partitions for `/srv` and `/home` may be added in
+
+* The root, `/srv` and `/home` partitions may optionally be encrypted with
+  LUKS.
+
+* A dm-verity partition may be added in that adds runtime integrity
+  data for the root partition
 
 ## Configuration Settings
 
@@ -815,7 +785,7 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 : Takes a comma-separated list of package specifications for removal, in the
   same format as `Packages=`. The removal will be performed as one of the last
   steps. This step is skipped if `CleanPackageMetadata=no` is used.
-  
+
 : This option is currently only implemented for distributions using `dnf`.
 
 `Environment=`, `--environment=`
@@ -1642,30 +1612,28 @@ variables:
 Create and run a raw *GPT* image with *ext4*, as `image.raw`:
 
 ```bash
-# mkosi
-# systemd-nspawn -b -i image.raw
+# mkosi --bootable --incremental boot
 ```
 
 Create and run a bootable btrfs *GPT* image, as `foobar.raw`:
 
 ```bash
-# mkosi -t gpt_btrfs --bootable -o foobar.raw
-# systemd-nspawn -b -i foobar.raw
-# qemu-kvm -m 512 -smp 2 -bios /usr/share/edk2/ovmf/OVMF_CODE.fd -drive format=raw,file=foobar.raw
+# mkosi --format gpt_btrfs --bootable -o foobar.raw
+# mkosi --output foobar.raw boot
+# mkosi --output foobar.raw qemu
 ```
 
 Create and run a *Fedora Linux* image into a plain directory:
 
 ```bash
-# mkosi -d fedora -t directory -o quux
-# systemd-nspawn -b -D quux
+# mkosi --distribution fedora --format directory boot
 ```
 
 Create a compressed image `image.raw.xz` and add a checksum file, and
 install *SSH* into it:
 
 ```bash
-# mkosi -d fedora -t gpt_squashfs --checksum --compress --package=openssh-clients
+# mkosi --distribution fedora --format gpt_squashfs --checksum --compress --package=openssh-clients
 ```
 
 Inside the source directory of an `automake`-based project, configure
@@ -1696,13 +1664,13 @@ make -j `nproc`
 make install
 EOF
 # chmod +x mkosi.build
-# mkosi
+# mkosi --bootable --incremental boot
 # systemd-nspawn -bi image.raw
 ```
 
 To create a *Fedora Linux* image with hostname:
 ```bash
-# mkosi -d fedora --hostname image
+# mkosi --distribution fedora --hostname image
 ```
 
 Also you could set hostname in configuration file:
