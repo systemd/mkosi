@@ -7617,14 +7617,8 @@ def run_shell(args: MkosiArgs) -> None:
     run(run_shell_cmdline(args, pipe=not sys.stdout.isatty()), stdout=sys.stdout, stderr=sys.stderr)
 
 
-def find_qemu_binary() -> str:
-    ARCH_BINARIES = {"x86_64": "qemu-system-x86_64", "i386": "qemu-system-i386"}
-    arch_binary = ARCH_BINARIES.get(platform.machine())
-
-    binaries: List[str] = []
-    if arch_binary is not None:
-        binaries += [arch_binary]
-    binaries += ["qemu", "qemu-kvm"]
+def find_qemu_binary(args: MkosiArgs) -> str:
+    binaries = ["qemu", "qemu-kvm", f"qemu-system-{args.architecture or platform.machine()}"]
     for binary in binaries:
         if shutil.which(binary) is not None:
             return binary
@@ -7718,7 +7712,7 @@ def run_qemu_cmdline(args: MkosiArgs) -> Iterator[List[str]]:
     firmware, fw_supports_sb = find_qemu_firmware()
 
     cmdline = [
-        find_qemu_binary(),
+        find_qemu_binary(args),
         "-machine",
         f"type=q35,accel={accel},smm={'on' if fw_supports_sb else 'off'}",
         "-smp",
