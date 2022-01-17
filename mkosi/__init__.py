@@ -178,18 +178,19 @@ def read_os_release() -> Iterator[Tuple[str, str]]:
         filename = "/usr/lib/os-release"
         f = open(filename)
 
-    for line_number, line in enumerate(f, start=1):
-        line = line.rstrip()
-        if not line or line.startswith("#"):
-            continue
-        m = re.match(r"([A-Z][A-Z_0-9]+)=(.*)", line)
-        if m:
-            name, val = m.groups()
-            if val and val[0] in "\"'":
-                val = ast.literal_eval(val)
-            yield name, val
-        else:
-            print(f"{filename}:{line_number}: bad line {line!r}", file=sys.stderr)
+    with f:
+        for line_number, line in enumerate(f, start=1):
+            line = line.rstrip()
+            if not line or line.startswith("#"):
+                continue
+            m = re.match(r"([A-Z][A-Z_0-9]+)=(.*)", line)
+            if m:
+                name, val = m.groups()
+                if val and val[0] in "\"'":
+                    val = ast.literal_eval(val)
+                yield name, val
+            else:
+                print(f"{filename}:{line_number}: bad line {line!r}", file=sys.stderr)
 
 
 def print_running_cmd(cmdline: Iterable[str]) -> None:
