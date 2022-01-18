@@ -2733,12 +2733,13 @@ def install_debian_or_ubuntu(args: MkosiArgs, root: Path, *, do_run_build_script
         with dpkg_nodoc_conf.open("w") as f:
             f.writelines(f"path-exclude {d}/*\n" for d in doc_paths)
 
-    if (not do_run_build_script and args.bootable and args.with_unified_kernel_images and
-       args.distribution == Distribution.debian and args.release == "unstable" and args.base_image is None):
+    if not do_run_build_script and args.bootable and args.with_unified_kernel_images and args.base_image is None:
         # systemd-boot won't boot unified kernel images generated without a BUILD_ID or VERSION_ID in
-        # /etc/os-release.
-        with root.joinpath("etc/os-release").open("a") as f:
-            f.write("BUILD_ID=unstable\n")
+        # /etc/os-release. Build one with the mtime of os-release if we don't find them.
+        with root.joinpath("etc/os-release").open("r+") as f:
+            os_release = f.read()
+            if "VERSION_ID" not in os_release and "BUILD_ID" not in os_release:
+                f.write(f"BUILD_ID=mkosi-{args.release}\n")
 
     invoke_apt(args, do_run_build_script, root, "install", extra_packages)
 
