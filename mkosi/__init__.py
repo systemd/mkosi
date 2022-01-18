@@ -3150,12 +3150,13 @@ def reset_machine_id(args: MkosiArgs, root: Path, do_run_build_script: bool, for
         return
 
     with complete_step("Resetting machine ID"):
-        machine_id = root / "etc/machine-id"
-        try:
-            machine_id.unlink()
-        except FileNotFoundError:
-            pass
-        machine_id.touch()
+        if not args.machine_id_is_fixed:
+            machine_id = root / "etc/machine-id"
+            try:
+                machine_id.unlink()
+            except FileNotFoundError:
+                pass
+            machine_id.touch()
 
         dbus_machine_id = root / "var/lib/dbus/machine-id"
         try:
@@ -4893,6 +4894,7 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
         "PostInstallationScript": "--postinst-script",
         "GPTFirstLBA": "--gpt-first-lba",
         "TarStripSELinuxContext": "--tar-strip-selinux-context",
+        "MachineID": "--machine-id"
     }
 
     fromfile_prefix_chars: str = "@"
@@ -5284,6 +5286,11 @@ def create_parser() -> ArgumentParserMkosi:
     group.add_argument(
         "--with-tests", action=BooleanAction, default=True, help=argparse.SUPPRESS
     )  # Compatibility option
+    group.add_argument(
+        "--machine-id",
+        help="Defines a fixed machine ID for all our build-time runs.",
+        metavar="MACHINE_ID"
+    )
 
     group.add_argument("--password", help="Set the root password")
     group.add_argument(
@@ -6505,7 +6512,15 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
     # runs. We'll strip it off the final image, but some build-time
     # tools (dracut...) want a fixed one, hence provide one, and
     # always the same
-    args.machine_id = uuid.uuid4().hex
+    if args.machine_id is None:
+        args.machine_id = uuid.uuid4().hex
+        args.machine_id_is_fixed = False
+    else:
+        args.machine_id_is_fixed = True
+        try:
+            uuid.UUID(hex=args.machine_id)
+        except ValueError:
+            die(f"Sorry, {args.machine_id} is not a valid machine ID.")
 
     # If we are building a sysext we don't want to add base packages to the
     # extension image, as they will already be in the base image.
@@ -6665,6 +6680,8 @@ def print_summary(args: MkosiArgs) -> None:
     if args.secure_boot or args.verity == "sign":
         MkosiPrinter.info(f"SecureBoot/Verity Sign Key: {args.secure_boot_key}")
         MkosiPrinter.info(f"   SecureBoot/verity Cert.: {args.secure_boot_certificate}")
+
+    MkosiPrinter.info("                Machine ID: " + args.machine_id)
 
     MkosiPrinter.info("\nCONTENT:")
     MkosiPrinter.info("                  Packages: " + line_join_list(args.packages))

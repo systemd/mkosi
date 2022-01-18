@@ -653,6 +653,12 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   in building or further container import stages.  This option strips
   SELinux context attributes from the resulting tar archive.
 
+`MachineID=`, `--machine-id`
+
+: Set the machine's ID to the specified value. If unused, a random ID will
+be used while building the image and the final image will be shipped without
+a machine ID.
+
 ### [Content] Section
 
 `BasePackages=`, `--base-packages`

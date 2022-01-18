@@ -88,6 +88,7 @@ class MkosiConfig:
             "output_format": None,
             "base_packages": True,
             "packages": [],
+            "machine_id": None,
             "password": None,
             "password_is_hashed": False,
             "autologin": False,
@@ -278,6 +279,8 @@ class MkosiConfig:
                 ]
             if "HostonlyInitrd" in mk_config_output:
                 self.reference_config[job_name]["hostonly_initrd"] = mk_config_output["HostonlyInitrd"]
+            if "MachineID" in mk_config_output:
+                self.reference_config[job_name]["MachineID"] = mk_config_output["MachineID"]
         if "Packages" in mk_config:
             mk_config_packages = mk_config["Packages"]
             if "Packages" in mk_config_packages:

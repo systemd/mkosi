@@ -467,6 +467,7 @@ class MkosiArgs:
     debug: List[str]
     auto_bump: bool
     workspace_dir: Optional[Path]
+    machine_id: str
 
     # QEMU-specific options
     qemu_headless: bool
@@ -474,7 +475,7 @@ class MkosiArgs:
     qemu_mem: str
 
     # Some extra stuff that's stored in MkosiArgs for convenience but isn't populated by arguments
-    machine_id: str
+    machine_id_is_fixed: bool
     original_umask: int
     passphrase: Optional[Dict[str, str]]
 
