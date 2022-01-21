@@ -6441,9 +6441,9 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
         if args.output_format in (OutputFormat.tar, OutputFormat.cpio):
             die(f"Sorry, can't {opname} with a {args.output_format} archive.")
         if should_compress_output(args):
-            die("Sorry, can't {opname} with a compressed image.")
+            die(f"Sorry, can't {opname} with a compressed image.")
         if args.qcow2:
-            die("Sorry, can't {opname} using a qcow2 image.")
+            die(f"Sorry, can't {opname} using a qcow2 image.")
 
     if args.verb == "qemu":
         if not args.output_format.is_disk():
