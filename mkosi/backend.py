@@ -502,6 +502,9 @@ class MkosiArgs:
     qemu_smp: str
     qemu_mem: str
 
+    # systemd-nspawn specific options
+    nspawn_keep_unit: bool
+
     # Some extra stuff that's stored in MkosiArgs for convenience but isn't populated by arguments
     machine_id_is_fixed: bool
     original_umask: int
@@ -645,6 +648,9 @@ def run_workspace_command(
     if capture_stdout:
         stdout = subprocess.PIPE
         nspawn += ["--console=pipe"]
+
+    if args.nspawn_keep_unit:
+        nspawn += ["--keep-unit"]
 
     result = run([*nspawn, "--", *cmd], check=False, stdout=stdout, text=capture_stdout)
     if result.returncode != 0:
