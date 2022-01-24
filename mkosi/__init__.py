@@ -5711,10 +5711,6 @@ def parse_args(argv: Optional[List[str]] = None) -> Dict[str, argparse.Namespace
             # Parse again with any extra distribution files included.
             args = parse_args_file_group(argv, os.fspath(default_path), args.distribution)
 
-            if args.distribution == "gentoo":
-                from .gentoo import Gentoo
-                Gentoo.try_import_portage()
-
         args_all["default"] = args
 
     return args_all
