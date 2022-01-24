@@ -1095,6 +1095,13 @@ a machine ID.
 : When used with the `qemu` verb, this options sets `qemu`'s `-m`
   argument which controls the amount of guest's RAM. Defaults to `1G`.
 
+`NspawnKeepUnit=`, `--nspawn-keep-unit`
+
+: When used, this option instructs underlying calls of systemd-nspawn to
+  use the current unit scope, instead of creating a dedicated transcient
+  scope unit for the containers. This option should be used when mkosi is
+  run by a service unit.
+
 `Netdev=`, `--netdev`
 
 : When used with the boot or qemu verbs, this option creates a virtual

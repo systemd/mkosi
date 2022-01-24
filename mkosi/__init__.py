@@ -5631,6 +5631,11 @@ def create_parser() -> ArgumentParserMkosi:
     group.add_argument("--qemu-smp", help="Configure guest's SMP settings", metavar="SMP", default="2")
     group.add_argument("--qemu-mem", help="Configure guest's RAM size", metavar="MEM", default="1G")
     group.add_argument(
+        "--nspawn-keep-unit",
+        action=BooleanAction,
+        help="If specified, underlying systemd-nspawn containers use the ressources of the current unit."
+    )
+    group.add_argument(
         "--network-veth",
         dest="netdev",
         action=BooleanAction,
@@ -7258,6 +7263,9 @@ def run_build_script(args: MkosiArgs, root: Path, raw: Optional[BinaryIO]) -> No
         if args.usr_only:
             cmdline += [f"--bind={root_home(args, root)}:/root"]
 
+        if args.nspawn_keep_unit:
+            cmdline += ["--keep-unit"]
+
         cmdline += [f"/root/{args.build_script.name}"]
         cmdline += args.cmdline
 
@@ -7518,6 +7526,9 @@ def run_shell_cmdline(args: MkosiArgs, pipe: bool = False, commands: Optional[Se
         cmdline += ["--ephemeral"]
 
     cmdline += ["--machine", virt_name(args)]
+
+    if args.nspawn_keep_unit:
+        cmdline += ["--keep-unit"]
 
     if commands or args.cmdline:
         # If the verb is 'shell', args.cmdline contains the command to run.
