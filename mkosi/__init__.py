@@ -64,6 +64,7 @@ from typing import (
 )
 
 from .backend import (
+    _FILE,
     ARG_DEBUG,
     Distribution,
     ManifestFormat,
@@ -7415,7 +7416,7 @@ def ensure_networkd(args: MkosiArgs) -> bool:
     return True
 
 
-def run_shell(args: MkosiArgs) -> None:
+def run_shell_cmdline(args: MkosiArgs) -> List[str]:
     if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
         target = f"--directory={args.output}"
     else:
@@ -7454,8 +7455,12 @@ def run_shell(args: MkosiArgs) -> None:
             cmdline += ["--"]
         cmdline += args.cmdline
 
+    return cmdline
+
+
+def run_shell(args: MkosiArgs) -> None:
     with suppress_stacktrace():
-        run(cmdline, stdout=sys.stdout, stderr=sys.stderr)
+        run(run_shell_cmdline(args), stdout=sys.stdout, stderr=sys.stderr)
 
 
 def find_qemu_binary() -> str:
@@ -7540,7 +7545,8 @@ def find_ovmf_vars() -> Path:
     die("Couldn't find OVMF UEFI variables file.")
 
 
-def run_qemu(args: MkosiArgs) -> None:
+@contextlib.contextmanager
+def run_qemu_cmdline(args: MkosiArgs) -> Iterator[List[str]]:
     has_kvm = os.path.exists("/dev/kvm")
     accel = "kvm" if has_kvm else "tcg"
 
@@ -7628,7 +7634,11 @@ def run_qemu(args: MkosiArgs) -> None:
         cmdline += args.cmdline
 
         print_running_cmd(cmdline)
+        yield cmdline
 
+
+def run_qemu(args: MkosiArgs) -> None:
+    with run_qemu_cmdline(args) as cmdline:
         with suppress_stacktrace():
             run(cmdline, stdout=sys.stdout, stderr=sys.stderr)
 
@@ -7685,7 +7695,16 @@ def find_address(args: MkosiArgs) -> Tuple[str, str]:
     die("Container/VM address not found")
 
 
-def run_ssh(args: MkosiArgs) -> None:
+def run_command_image(args: MkosiArgs, commands: Sequence[str], timeout: int, check: bool, stdout: _FILE = sys.stdout, stderr: _FILE = sys.stderr) -> CompletedProcess:
+    if args.verb == "qemu":
+        return run_ssh(args, commands, check, stdout, stderr, timeout)
+    else:
+        cmdline = ["systemd-run", "--quiet", "--wait", "--pipe", "-M", virt_name(args), "/usr/bin/env", *commands]
+        with suppress_stacktrace():
+            return run(cmdline, check=check, stdout=stdout, stderr=stderr, text=True, timeout=timeout)
+
+
+def run_ssh_cmdline(args: MkosiArgs, commands: Optional[Sequence[str]] = None) -> Sequence[str]:
     cmd = [
             "ssh",
             # Silence known hosts file errors/warnings.
@@ -7712,10 +7731,22 @@ def run_ssh(args: MkosiArgs) -> None:
         cmd += ["-p", f"{args.ssh_port}"]
 
     dev, address = find_address(args)
-    cmd += [f"root@{address}{dev}", *args.cmdline]
+    cmd += [f"root@{address}{dev}"]
+    cmd += commands or args.cmdline
 
+    return cmd
+
+
+def run_ssh(
+    args: MkosiArgs,
+    commands: Optional[Sequence[str]] = None,
+    check: bool = True,
+    stdout: _FILE = sys.stdout,
+    stderr: _FILE = sys.stderr,
+    timeout: Optional[int] = None,
+) -> CompletedProcess:
     with suppress_stacktrace():
-        run(cmd, stdout=sys.stdout, stderr=sys.stderr)
+        return run(run_ssh_cmdline(args, commands), check=check, stdout=stdout, stderr=stderr, text=True, timeout=timeout)
 
 
 def run_serve(args: MkosiArgs) -> None:
