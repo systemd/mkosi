@@ -103,15 +103,29 @@ jobs:
       group: ${{ github.workflow }}-${{ github.ref }}
       cancel-in-progress: true
 
+    strategy:
+      matrix:
+        distro:
+        - fedora
+
     steps:
     - uses: actions/checkout@v2
     - uses: ./
+
+    - name: Configure test distribution
+      run: |
+        mkdir -p mkosi.default.d
+
+        tee mkosi.default.d/test-distribution.conf <<- EOF
+        [Distribution]
+        Distribution=${{ matrix.distro }}
+        EOF
 
     - name: Install dependencies
       run: sudo apt-get update && sudo apt-get install --no-install-recommends python3-pexpect python3-pytest
 
     - name: Run integration tests
-      run: sudo python3 -m pytest tests
+      run: sudo python3 -m pytest -m integration tests
 
   integration-test:
     runs-on: ubuntu-20.04
