@@ -2599,8 +2599,11 @@ def install_centos(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
     if do_run_build_script:
         packages.update(args.build_packages)
 
-    if not do_run_build_script and args.distribution == Distribution.centos_epel and args.network_veth:
-        add_packages(args, packages, "systemd-networkd", conditional="systemd")
+    if not do_run_build_script and args.distribution == Distribution.centos_epel:
+        if args.network_veth:
+            add_packages(args, packages, "systemd-networkd", conditional="systemd")
+        if epel_release >= 9:
+            add_packages(args, packages, "systemd-boot", conditional="systemd")
 
     install_packages_dnf(args, root, packages, do_run_build_script)
 
@@ -6200,7 +6203,7 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
         if args.distribution == Distribution.fedora:
             args.release = "35"
         elif args.distribution in (Distribution.centos, Distribution.centos_epel):
-            args.release = "8-stream"
+            args.release = "9-stream"
         elif args.distribution in (Distribution.rocky, Distribution.rocky_epel):
             args.release = "8"
         elif args.distribution in (Distribution.alma, Distribution.alma_epel):
