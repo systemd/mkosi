@@ -5638,7 +5638,7 @@ def load_distribution(args: argparse.Namespace) -> argparse.Namespace:
     return args
 
 
-def parse_args(argv: Optional[List[str]] = None) -> Dict[str, argparse.Namespace]:
+def parse_args(argv: Optional[Sequence[str]] = None) -> Dict[str, argparse.Namespace]:
     """Load default values from files and parse command line arguments
 
     Do all about default files and command line arguments parsing. If --all argument is passed
