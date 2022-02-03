@@ -19,7 +19,7 @@ jobs:
 
     - name: Install
       run: |
-        sudo python3 -m pip install pytest mypy types-cryptography isort pyflakes
+        python3 -m pip install pytest mypy types-cryptography isort pyflakes
         npm install -g pyright
 
     - name: Check that imports are sorted
@@ -38,7 +38,7 @@ jobs:
       run: pyright .
 
     - name: Unit Tests
-      run: sudo python3 -m pytest
+      run: python3 -m pytest tests
 
     - name: Test execution from current working directory
       run: python3 -m mkosi -h
@@ -95,6 +95,23 @@ jobs:
       run: |
         sudo apt-get update && sudo apt-get install --no-install-recommends shellcheck
         bash -c 'set globstar; shellcheck mkosi/**/*.sh'
+
+  python-integration-test:
+    runs-on: ubuntu-20.04
+    needs: unit-test
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
+
+    steps:
+    - uses: actions/checkout@v2
+    - uses: ./
+
+    - name: Install dependencies
+      run: sudo apt-get update && sudo apt-get install --no-install-recommends python3-pexpect python3-pytest
+
+    - name: Run integration tests
+      run: sudo python3 -m pytest tests
 
   integration-test:
     runs-on: ubuntu-20.04
