@@ -3122,7 +3122,10 @@ def install_gentoo(
         # Please don't move, needs to be called before installing dracut
         # dracut is part of gentoo_pkgs_boot
         configure_dracut(args, packages={"dracut"}, root=root)
-        gentoo.invoke_emerge(args, root, pkgs=gentoo.pkgs_boot)
+        # The gentoo stage3 tarball includes packages that may block chosen
+        # pkgs_boot. Using Gentoo.EMERGE_UPDATE_OPTS for opts allows the
+        # package manager to uninstall blockers.
+        gentoo.invoke_emerge(args, root, pkgs=gentoo.pkgs_boot, opts=Gentoo.EMERGE_UPDATE_OPTS)
 
     if args.packages:
         gentoo.invoke_emerge(args, root, pkgs=args.packages)
