@@ -7535,6 +7535,9 @@ def find_ovmf_vars() -> Path:
 
 
 def run_qemu(args: MkosiArgs) -> None:
+    if not args.bootable:
+        warn("This image may not be not bootable. Set Bootable=yes in [Output]")
+
     has_kvm = os.path.exists("/dev/kvm")
     accel = "kvm" if has_kvm else "tcg"
 
