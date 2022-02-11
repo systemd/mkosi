@@ -6491,6 +6491,9 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
         if not args.output_format.is_disk():
             die("Sorry, can't boot non-disk images with qemu.")
 
+    if needs_build(args) and args.verb == "qemu" and not args.bootable:
+        die("Images built without the --bootable option cannot be booted using qemu")
+
     if needs_build(args) and args.qemu_headless and not args.bootable:
         die("--qemu-headless requires --bootable")
 
@@ -7842,7 +7845,7 @@ def expand_specifier(s: str) -> str:
 
 
 def needs_build(args: Union[argparse.Namespace, MkosiArgs]) -> bool:
-    return args.verb == "build" or (not args.output.exists() and args.verb in MKOSI_COMMANDS_NEED_BUILD)
+    return args.verb == "build" or (not args.output.exists() and args.verb in MKOSI_COMMANDS_NEED_BUILD) or args.force > 0
 
 
 def run_verb(raw: argparse.Namespace) -> None:
