@@ -7845,7 +7845,7 @@ def expand_specifier(s: str) -> str:
 
 
 def needs_build(args: Union[argparse.Namespace, MkosiArgs]) -> bool:
-    return args.verb == "build" or (not args.output.exists() and args.verb in MKOSI_COMMANDS_NEED_BUILD) or args.force > 0
+    return args.verb == "build" or (args.verb in MKOSI_COMMANDS_NEED_BUILD and (not args.output.exists() or args.force > 0))
 
 
 def run_verb(raw: argparse.Namespace) -> None:
