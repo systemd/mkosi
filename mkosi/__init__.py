@@ -6923,6 +6923,7 @@ def setup_network_veth(args: MkosiArgs, root: Path, do_run_build_script: bool, c
                     [Match]
                     Virtualization=!container
                     Type=ether
+                    Driver=virtio_net
 
                     [Network]
                     DHCP=yes

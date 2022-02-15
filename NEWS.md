@@ -1,5 +1,16 @@
 # mkosi Changelog
 
+## v13
+
+- The networkd config file installed by mkosi when the --network-veth option is
+  used now only matches against network interfaces using the virtio_net driver.
+  Please make sure you weren't relying on this file to configure any network
+  interfaces other than the tun/tap virtio-net interface created by mkosi when
+  booting the image in QEMU with the --network-veth option. If you were relying
+  on this config file to configure other interfaces, you'll have to re-create it
+  with the correct match to make sure networkd will keep configuring your
+  interface.
+
 ## v12
 
 - Fix handling of baselayout in Gentoo installations.
