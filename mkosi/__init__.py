@@ -7560,8 +7560,7 @@ def run_qemu(args: MkosiArgs) -> None:
         "virtio-rng-pci,rng=rng0,id=rng-device0",
     ]
 
-    if has_kvm:
-        cmdline += ["-cpu", "host"]
+    cmdline += ["-cpu", "max"]
 
     if args.qemu_headless:
         # -nodefaults removes the default CDROM device which avoids an error message during boot
