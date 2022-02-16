@@ -5857,7 +5857,7 @@ def create_parser() -> ArgumentParserMkosi:
     group.add_argument(
         "--qemu-smp",
         metavar="SMP",
-        default="2",
+        default="1",
         help="Configure guest's SMP settings",
     )
     group.add_argument(

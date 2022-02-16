@@ -130,7 +130,7 @@ class MkosiConfig:
             "with_tests": True,
             "xbootldr_size": None,
             "qemu_headless": False,
-            "qemu_smp": "2",
+            "qemu_smp": "1",
             "qemu_mem": "1G",
             "qemu_kvm": mkosi.qemu_check_kvm_support(),
             "qemu_args": [],
