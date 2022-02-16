@@ -5574,7 +5574,7 @@ def create_parser() -> ArgumentParserMkosi:
         "--extra-search-paths", dest="extra_search_paths", action=ColonDelimitedListAction, help=argparse.SUPPRESS
     )  # Compatibility option
     group.add_argument("--qemu-headless", action=BooleanAction, help="Configure image for qemu's -nographic mode")
-    group.add_argument("--qemu-smp", help="Configure guest's SMP settings", metavar="SMP", default="2")
+    group.add_argument("--qemu-smp", help="Configure guest's SMP settings", metavar="SMP", default="1")
     group.add_argument("--qemu-mem", help="Configure guest's RAM size", metavar="MEM", default="1G")
     group.add_argument(
         "--network-veth",
