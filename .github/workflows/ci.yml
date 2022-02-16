@@ -137,6 +137,9 @@ jobs:
           - cpio
           - gpt_btrfs
           - plain_squashfs
+        include:
+          - distro: centos_epel
+            format: gpt_xfs
         exclude:
           # CentOS 8/Rocky/Alma Linux does not support btrfs.
           - distro: centos
@@ -274,7 +277,7 @@ jobs:
           matrix.format != 'tar' &&
           matrix.format != 'cpio' && (
           matrix.distro == 'arch' ||
-          matrix.distro == 'centos' ||
+          matrix.distro == 'centos_epel' ||
           matrix.distro == 'rocky' ||
           matrix.distro == 'alma' ||
           matrix.distro == 'fedora' ||
@@ -300,7 +303,7 @@ jobs:
           matrix.format != 'cpio' &&
           matrix.format != 'tar' && (
           matrix.distro == 'arch' ||
-          matrix.distro == 'centos' ||
+          matrix.distro == 'centos_epel' ||
           matrix.distro == 'rocky' ||
           matrix.distro == 'alma' ||
           matrix.distro == 'fedora' ||
