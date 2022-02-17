@@ -9,7 +9,7 @@
   booting the image in QEMU with the --network-veth option. If you were relying
   on this config file to configure other interfaces, you'll have to re-create it
   with the correct match and a lower initial number in the filename to make sure networkd will keep configuring your
-  interface.
+  interface, e.g. via the `mkosi.skeleton` or `mkosi.extra` trees or a `mkosi.postinst` script.
 
 ## v12
 
