@@ -8,7 +8,7 @@
   interfaces other than the tun/tap virtio-net interface created by mkosi when
   booting the image in QEMU with the --network-veth option. If you were relying
   on this config file to configure other interfaces, you'll have to re-create it
-  with the correct match to make sure networkd will keep configuring your
+  with the correct match and a lower initial number in the filename to make sure networkd will keep configuring your
   interface.
 
 ## v12
