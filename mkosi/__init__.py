@@ -1746,7 +1746,7 @@ def prepare_tree(args: MkosiArgs, root: Path, do_run_build_script: bool, cached:
             if args.build_dir is not None:
                 root_home(args, root).joinpath("build").mkdir(0o755)
 
-        if args.network_veth and not do_run_build_script:
+        if args.netdev and not do_run_build_script:
             root.joinpath("etc/systemd").mkdir(mode=0o755)
             root.joinpath("etc/systemd/network").mkdir(mode=0o755)
 
@@ -2283,7 +2283,7 @@ def install_fedora(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
         configure_dracut(args, packages, root)
     if do_run_build_script:
         packages.update(args.build_packages)
-    if not do_run_build_script and args.network_veth:
+    if not do_run_build_script and args.netdev:
         add_packages(args, packages, "systemd-networkd", conditional="systemd")
     install_packages_dnf(args, root, packages, do_run_build_script)
 
@@ -2366,7 +2366,7 @@ def install_openmandriva(args: MkosiArgs, root: Path, do_run_build_script: bool)
         add_packages(args, packages, "systemd-boot", "systemd-cryptsetup", conditional="systemd")
         add_packages(args, packages, "kernel-release-server", "binutils", "dracut", "timezone")
         configure_dracut(args, packages, root)
-    if args.network_veth:
+    if args.netdev:
         add_packages(args, packages, "systemd-networkd", conditional="systemd")
 
     if do_run_build_script:
@@ -2601,7 +2601,7 @@ def install_centos(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
         packages.update(args.build_packages)
 
     if not do_run_build_script and args.distribution == Distribution.centos_epel:
-        if args.network_veth:
+        if args.netdev:
             add_packages(args, packages, "systemd-networkd", conditional="systemd")
         if epel_release >= 9:
             add_packages(args, packages, "systemd-boot", conditional="systemd")
@@ -2630,7 +2630,7 @@ def install_rocky(args: MkosiArgs, root: Path, do_run_build_script: bool) -> Non
     if do_run_build_script:
         packages.update(args.build_packages)
 
-    if not do_run_build_script and args.distribution == Distribution.rocky_epel and args.network_veth:
+    if not do_run_build_script and args.distribution == Distribution.rocky_epel and args.netdev:
         add_packages(args, packages, "systemd-networkd", conditional="systemd")
 
     install_packages_dnf(args, root, packages, do_run_build_script)
@@ -2658,7 +2658,7 @@ def install_alma(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None
     if do_run_build_script:
         packages.update(args.build_packages)
 
-    if not do_run_build_script and args.distribution == Distribution.alma_epel and args.network_veth:
+    if not do_run_build_script and args.distribution == Distribution.alma_epel and args.netdev:
         add_packages(args, packages, "systemd-networkd", conditional="systemd")
 
     install_packages_dnf(args, root, packages, do_run_build_script)
@@ -5579,6 +5579,12 @@ def create_parser() -> ArgumentParserMkosi:
     group.add_argument("--qemu-mem", help="Configure guest's RAM size", metavar="MEM", default="1G")
     group.add_argument(
         "--network-veth",
+        dest="netdev",
+        action=BooleanAction,
+        help=argparse.SUPPRESS,
+    ) # Compatibility option
+    group.add_argument(
+        "--netdev",
         action=BooleanAction,
         help="Create a virtual Ethernet link between the host and the container/VM",
     )
@@ -6800,7 +6806,7 @@ def print_summary(args: MkosiArgs) -> None:
     MkosiPrinter.info("\nHOST CONFIGURATION:")
     MkosiPrinter.info("        Extra search paths: " + line_join_list(args.extra_search_paths))
     MkosiPrinter.info("             QEMU Headless: " + yes_no(args.qemu_headless))
-    MkosiPrinter.info("              Network Veth: " + yes_no(args.network_veth))
+    MkosiPrinter.info("              Netdev:       " + yes_no(args.netdev))
 
 
 def reuse_cache_tree(
@@ -6910,12 +6916,12 @@ def setup_ssh(
     return f
 
 
-def setup_network_veth(args: MkosiArgs, root: Path, do_run_build_script: bool, cached: bool) -> None:
-    if do_run_build_script or cached or not args.network_veth:
+def setup_netdev(args: MkosiArgs, root: Path, do_run_build_script: bool, cached: bool) -> None:
+    if do_run_build_script or cached or not args.netdev:
         return
 
-    with complete_step("Setting up network veth…"):
-        network_file = root / "etc/systemd/network/80-mkosi-network-veth.network"
+    with complete_step("Setting up netdev…"):
+        network_file = root / "etc/systemd/network/80-mkosi-netdev.network"
         with open(network_file, "w") as f:
             # Adapted from https://github.com/systemd/systemd/blob/v247/network/80-container-host0.network
             f.write(
@@ -7042,7 +7048,7 @@ def build_image(
                 set_serial_terminal(args, root, do_run_build_script, cached_tree)
                 set_autologin(args, root, do_run_build_script, cached_tree)
                 sshkey = setup_ssh(args, root, do_run_build_script, for_cache, cached_tree)
-                setup_network_veth(args, root, do_run_build_script, cached_tree)
+                setup_netdev(args, root, do_run_build_script, cached_tree)
                 run_postinst_script(args, root, loopdev, do_run_build_script, for_cache)
 
                 if cleanup:
@@ -7363,7 +7369,7 @@ def suppress_stacktrace() -> Iterator[None]:
 def virt_name(args: MkosiArgs) -> str:
 
     name = args.hostname or args.image_id or args.output.with_suffix("").name.partition("_")[0]
-    # Shorten to 13 characters so we can prefix with ve- or vt- for the network veth ifname which is limited
+    # Shorten to 13 characters so we can prefix with ve- or vt- for the netdev ifname which is limited
     # to 16 characters.
     return name[:13]
 
@@ -7381,15 +7387,15 @@ def ensure_networkd(args: MkosiArgs) -> bool:
         if args.verb != "ssh":
             # Some programs will use 'mkosi ssh' with pexpect, so don't print warnings that will break
             # them.
-            warn("--network-veth requires systemd-networkd to be running to initialize the host interface "
-                 "of the veth link ('systemctl enable --now systemd-networkd')")
+            warn("--netdev requires systemd-networkd to be running to initialize the host interface "
+                 "of the virtual link ('systemctl enable --now systemd-networkd')")
         return False
 
     if args.verb == "qemu" and not has_networkd_vm_vt():
         warn(dedent(r"""\
             mkosi didn't find 80-vm-vt.network. This is one of systemd's built-in
             systemd-networkd config files which configures vt-* interfaces.
-            mkosi needs this file in order for --network-veth to work properly for QEMU
+            mkosi needs this file in order for --netdev to work properly for QEMU
             virtual machines. The file likely cannot be found because the systemd version
             on the host is too old (< 246) and it isn't included yet.
 
@@ -7440,7 +7446,7 @@ def run_shell_cmdline(args: MkosiArgs) -> List[str]:
     if is_generated_root(args) or args.verity:
         cmdline += ["--volatile=overlay"]
 
-    if args.network_veth:
+    if args.netdev:
         if ensure_networkd(args):
             cmdline += ["--network-veth"]
 
@@ -7580,7 +7586,7 @@ def run_qemu_cmdline(args: MkosiArgs) -> Iterator[List[str]]:
     if not args.qemu_headless or (args.qemu_headless and "bios" in args.boot_protocols):
         cmdline += ["-vga", "virtio"]
 
-    if args.network_veth:
+    if args.netdev:
         if not ensure_networkd(args):
             # Fall back to usermode networking if the host doesn't have networkd (eg: Debian)
             fwd = f",hostfwd=tcp::{args.ssh_port}-:{args.ssh_port}" if args.ssh_port != 22 else ""

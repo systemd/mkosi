@@ -2,11 +2,11 @@
 
 ## v13
 
-- The networkd config file installed by mkosi when the --network-veth option is
-  used (/etc/systemd/network/80-mkosi-network-veth.network in the image) now only matches against network interfaces using the virtio_net driver.
+- The networkd config file installed by mkosi when the --netdev option is
+  used (/etc/systemd/network/80-mkosi-netdev.network in the image) now only matches against network interfaces using the virtio_net driver.
   Please make sure you weren't relying on this file to configure any network
   interfaces other than the tun/tap virtio-net interface created by mkosi when
-  booting the image in QEMU with the --network-veth option. If you were relying
+  booting the image in QEMU with the --netdev option. If you were relying
   on this config file to configure other interfaces, you'll have to re-create it
   with the correct match and a lower initial number in the filename to make sure networkd will keep configuring your
   interface, e.g. via the `mkosi.skeleton` or `mkosi.extra` trees or a `mkosi.postinst` script.

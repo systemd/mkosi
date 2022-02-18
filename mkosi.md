@@ -1087,7 +1087,7 @@ a machine ID.
 : When used with the `qemu` verb, this options sets `qemu`'s `-m`
   argument which controls the amount of guest's RAM. Defaults to `1G`.
 
-`NetworkVeth=`, `--network-veth`
+`Netdev=`, `--netdev`
 
 : When used with the boot or qemu verbs, this option creates a virtual
   ethernet link between the host and the container/VM. The host
@@ -1138,7 +1138,7 @@ a machine ID.
 : When used with the `ssh` verb, `mkosi` will attempt to retry the SSH connection
   up to given timeout (in seconds) in case it fails. This option is useful mainly
   in scripted environments where the `qemu` and `ssh` verbs are used in a quick
-  succession and the veth device might not get enough time to configure itself.
+  succession and the virtual device might not get enough time to configure itself.
 
 ### Commandline-only Options
 

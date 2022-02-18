@@ -47,7 +47,7 @@ class Machine:
             tmp.bootable = True
             tmp.qemu_headless = True
             tmp.hostonly_initrd = True
-            tmp.network_veth = True
+            tmp.netdev = True
             tmp.ssh = True
         elif tmp.verb == "boot":
             pass
