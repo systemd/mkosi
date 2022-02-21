@@ -356,7 +356,11 @@ class PartitionTable:
         if quiet:
             cmd += ["--quiet"]
 
-        run(cmd, input=spec.encode("utf-8"))
+        try:
+            run(cmd, input=spec.encode("utf-8"))
+        except subprocess.CalledProcessError:
+            print_between_lines(spec)
+            raise
 
         if device.is_block_device():
             run(["sync"])
