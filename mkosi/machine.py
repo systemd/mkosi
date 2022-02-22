@@ -27,7 +27,7 @@ from . import (
     run_shell_cmdline,
     unlink_output,
 )
-from .backend import MkosiArgs, die
+from .backend import MkosiArgs, Verb, die
 
 
 class Machine:
@@ -43,13 +43,13 @@ class Machine:
         tmp = parse_args(args)["default"]
         tmp.force = 1
         tmp.autologin = True
-        if tmp.verb == "qemu":
+        if tmp.verb == Verb.qemu:
             tmp.bootable = True
             tmp.qemu_headless = True
             tmp.hostonly_initrd = True
             tmp.network_veth = True
             tmp.ssh = True
-        elif tmp.verb == "boot":
+        elif tmp.verb == Verb.boot:
             pass
         else:
             die("No valid verb was entered.")
@@ -79,7 +79,7 @@ class Machine:
             check_root()
             unlink_output(self.args)
 
-        if self.args.verb == "build":
+        if self.args.verb == Verb.build:
             check_output(self.args)
 
         if needs_build(self.args):
@@ -91,9 +91,9 @@ class Machine:
         with contextlib.ExitStack() as stack:
             prepend_to_environ_path(self.args.extra_search_paths)
 
-            if self.args.verb in ("shell", "boot"):
+            if self.args.verb in (Verb.shell, Verb.boot):
                 cmdline = run_shell_cmdline(self.args)
-            elif self.args.verb == "qemu":
+            elif self.args.verb == Verb.qemu:
                 # We must keep the temporary file opened at run_qemu_cmdline accessible, hence the context stack.
                 cmdline = stack.enter_context(run_qemu_cmdline(self.args))
             else:
@@ -105,7 +105,7 @@ class Machine:
             # We use pexpect to boot an image that we will be able to interact with in the future
             # Then we tell the process to look for the # sign, which indicates the CLI for that image is active
             # Once we've build/boot an image the CLI will prompt "root@image ~]# "
-            # Then, when pexpects finds the "#" it means we're ready to interact with the process
+            # Then, when pexpects finds the '#' it means we're ready to interact with the process
             self._serial = pexpect.spawnu(cmd, logfile=None, timeout=240)
             self._serial.expect("#")
             self.stack = stack.pop_all()

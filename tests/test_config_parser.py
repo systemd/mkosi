@@ -10,6 +10,7 @@ from typing import Any, Generator, Mapping
 import pytest
 
 import mkosi
+from mkosi.backend import Verb
 
 
 @contextlib.contextmanager
@@ -119,7 +120,7 @@ class MkosiConfig:
             "tmp_size": None,
             "usr_only": False,
             "var_size": None,
-            "verb": "build",
+            "verb": Verb.build,
             "verity": False,
             "with_docs": False,
             "with_network": False,
@@ -453,7 +454,7 @@ class MkosiConfigSummary(MkosiConfigOne):
     def __init__(self):
         super().__init__()
         for ref_c in self.reference_config.values():
-            ref_c["verb"] = "summary"
+            ref_c["verb"] = Verb.summary
         self.cli_arguments = ["summary"]
 
 
@@ -518,7 +519,7 @@ class MkosiConfigDistroDir(MkosiConfigDistro):
     def __init__(self):
         super().__init__("a_sub_dir")
         for ref_c in self.reference_config.values():
-            ref_c["verb"] = "summary"
+            ref_c["verb"] = Verb.summary
 
 
 class MkosiConfigManyParams(MkosiConfigOne):
@@ -832,20 +833,20 @@ def tested_config(request):
 def test_verb_none(tmpdir):
     with change_cwd(tmpdir.strpath):
         args = mkosi.parse_args([])
-        assert args["default"].verb == "build"
+        assert args["default"].verb == Verb.build
 
 
 def test_verb_build(tmpdir):
     with change_cwd(tmpdir.strpath):
         args = mkosi.parse_args(["build"])
-        assert args["default"].verb == "build"
+        assert args["default"].verb == Verb.build
 
 
 def test_verb_boot_no_cli_args1(tmpdir):
     with change_cwd(tmpdir.strpath):
         cmdline_ref = ["boot", "--par-for-sub", "--pom", "--for_sub", "1234"]
         args = mkosi.parse_args(cmdline_ref)
-        assert args["default"].verb == "boot"
+        assert args["default"].verb == Verb.boot
         assert args["default"].cmdline == cmdline_ref[1:]
 
 
@@ -853,7 +854,7 @@ def test_verb_boot_no_cli_args2(tmpdir):
     with change_cwd(tmpdir.strpath):
         cmdline_ref = ["-pa-package", "boot", "--par-for-sub", "--popenssl", "--for_sub", "1234"]
         args = mkosi.parse_args(cmdline_ref)
-        assert args["default"].verb == "boot"
+        assert args["default"].verb == Verb.boot
         assert "a-package" in args["default"].packages
         assert args["default"].cmdline == cmdline_ref[2:]
 
@@ -862,7 +863,7 @@ def test_verb_boot_no_cli_args3(tmpdir):
     with change_cwd(tmpdir.strpath):
         cmdline_ref = ["-pa-package", "-p", "another-package", "build"]
         args = mkosi.parse_args(cmdline_ref)
-        assert args["default"].verb == "build"
+        assert args["default"].verb == Verb.build
         assert args["default"].packages == ["a-package", "another-package"]
 
 
@@ -870,7 +871,7 @@ def test_verb_summary_no_cli_args4(tmpdir):
     with change_cwd(tmpdir.strpath):
         cmdline_ref = ["-pa-package", "-p", "another-package", "summary"]
         args = mkosi.parse_args(cmdline_ref)
-        assert args["default"].verb == "summary"
+        assert args["default"].verb == Verb.summary
         assert args["default"].packages == ["a-package", "another-package"]
 
 
@@ -878,7 +879,7 @@ def test_verb_shell_cli_args5(tmpdir):
     with change_cwd(tmpdir.strpath):
         cmdline_ref = ["-pa-package", "-p", "another-package", "shell", "python3 -foo -bar;", "ls --inode"]
         args = mkosi.parse_args(cmdline_ref)
-        assert args["default"].verb == "shell"
+        assert args["default"].verb == Verb.shell
         assert args["default"].packages == ["a-package", "another-package"]
         assert args["default"].cmdline == cmdline_ref[4:]
 
@@ -887,7 +888,7 @@ def test_verb_shell_cli_args6(tmpdir):
     with change_cwd(tmpdir.strpath):
         cmdline_ref = ["-i", "yes", "summary"]
         args = mkosi.parse_args(cmdline_ref)
-        assert args["default"].verb == "summary"
+        assert args["default"].verb == Verb.summary
         assert args["default"].incremental == True
 
 
@@ -895,7 +896,7 @@ def test_verb_shell_cli_args7(tmpdir):
     with change_cwd(tmpdir.strpath):
         cmdline_ref = ["-i", "summary"]
         args = mkosi.parse_args(cmdline_ref)
-        assert args["default"].verb == "summary"
+        assert args["default"].verb == Verb.summary
         assert args["default"].incremental == True
 
 

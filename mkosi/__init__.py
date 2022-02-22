@@ -77,6 +77,7 @@ from .backend import (
     PartitionIdentifier,
     PartitionTable,
     SourceFileTransfer,
+    Verb,
     die,
     install_grub,
     nspawn_params_for_blockdev_access,
@@ -115,10 +116,9 @@ else:
 SomeIO = Union[BinaryIO, TextIO]
 PathString = Union[Path, str]
 
-MKOSI_COMMANDS_CMDLINE = ("build", "shell", "boot", "qemu", "ssh")
-MKOSI_COMMANDS_NEED_BUILD = ("shell", "boot", "qemu", "serve")
-MKOSI_COMMANDS_SUDO = ("build", "clean", "shell", "boot", "qemu", "serve")
-MKOSI_COMMANDS = ("build", "clean", "help", "summary", "genkey", "bump", "serve") + MKOSI_COMMANDS_CMDLINE
+MKOSI_COMMANDS_NEED_BUILD = (Verb.shell, Verb.boot, Verb.qemu, Verb.serve)
+MKOSI_COMMANDS_SUDO = (Verb.build, Verb.clean, Verb.shell, Verb.boot, Verb.qemu, Verb.serve)
+MKOSI_COMMANDS_CMDLINE = (Verb.build, Verb.shell, Verb.boot, Verb.qemu, Verb.ssh)
 
 DRACUT_SYSTEMD_EXTRAS = [
     "/usr/bin/systemd-repart",
@@ -5083,9 +5083,9 @@ def create_parser() -> ArgumentParserMkosi:
     parser = ArgumentParserMkosi(prog="mkosi", description="Build Bespoke OS Images", add_help=False)
 
     group = parser.add_argument_group("Commands")
-    group.add_argument("verb", choices=MKOSI_COMMANDS, default="build", help="Operation to execute")
+    group.add_argument("verb", type=Verb, choices=list(Verb), default=Verb.build, help="Operation to execute")
     group.add_argument(
-        "cmdline", nargs=argparse.REMAINDER, help="The command line to use for " + str(MKOSI_COMMANDS_CMDLINE)[1:-1]
+        "cmdline", nargs=argparse.REMAINDER, help="The command line to use for " + str([verb.name for verb in MKOSI_COMMANDS_CMDLINE])[1:-1]
     )
     group.add_argument("-h", "--help", action="help", help="Show this help")
     group.add_argument("--version", action="version", version="%(prog)s " + __version__)
@@ -5703,9 +5703,9 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> Dict[str, argparse.Names
     # values of positional arguments. Make sure the verb command gets explicitly passed.
     # Insert a -- before the positional verb argument otherwise it might be considered as an argument of
     # a parameter with nargs='?'. For example mkosi -i summary would be treated as -i=summary.
-    for verb in MKOSI_COMMANDS:
+    for verb in Verb:
         try:
-            v_i = argv.index(verb)
+            v_i = argv.index(verb.name)
         except ValueError:
             continue
 
@@ -5718,7 +5718,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> Dict[str, argparse.Names
     # First run of command line arguments parsing to get the directory of mkosi.default file and the verb argument.
     args_pre_parsed, _ = parser.parse_known_args(argv)
 
-    if args_pre_parsed.verb == "help":
+    if args_pre_parsed.verb == Verb.help:
         parser.print_help()
         sys.exit(0)
 
@@ -5902,7 +5902,7 @@ def empty_directory(path: Path) -> None:
 
 
 def unlink_output(args: MkosiArgs) -> None:
-    if not args.force and args.verb != "clean":
+    if not args.force and args.verb != Verb.clean:
         return
 
     if not args.skip_final_phase:
@@ -5942,7 +5942,7 @@ def unlink_output(args: MkosiArgs) -> None:
     # remove the downloaded package cache if the user specified one
     # additional "--force".
 
-    if args.verb == "clean":
+    if args.verb == Verb.clean:
         remove_build_cache = args.force > 0
         remove_package_cache = args.force > 1
     else:
@@ -6196,7 +6196,7 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
     args.extra_search_paths = expand_paths(args.extra_search_paths)
 
     if args.cmdline and args.verb not in MKOSI_COMMANDS_CMDLINE:
-        die("Additional parameters only accepted for " + str(MKOSI_COMMANDS_CMDLINE)[1:-1] + " invocations.")
+        die("Additional parameters only accepted for " + str([verb.name for verb in MKOSI_COMMANDS_CMDLINE])[1:-1] + " invocations.")
 
     if args.output_format is None:
         args.output_format = OutputFormat.gpt_ext4
@@ -6348,7 +6348,7 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
         else:
             warn("Ignoring configured output directory as output file is a qualified path.")
 
-    if args.incremental or args.verb == "clean":
+    if args.incremental or args.verb == Verb.clean:
         if args.image_id is not None:
             # If the image ID is specified, use cache file names that are independent of the image versions, so that
             # rebuilding and bumping versions is cheap and reuses previous versions if cached.
@@ -6479,8 +6479,8 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
                 "UEFI SecureBoot or signed Verity enabled, but couldn't find certificate. (Consider placing it in mkosi.secure-boot.crt?)"
             )  # NOQA: E501
 
-    if args.verb in ("shell", "boot"):
-        opname = "acquire shell" if args.verb == "shell" else "boot"
+    if args.verb in (Verb.shell, Verb.boot):
+        opname = "acquire shell" if args.verb == Verb.shell else "boot"
         if args.output_format in (OutputFormat.tar, OutputFormat.cpio):
             die(f"Sorry, can't {opname} with a {args.output_format} archive.")
         if should_compress_output(args):
@@ -6488,11 +6488,11 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
         if args.qcow2:
             die(f"Sorry, can't {opname} using a qcow2 image.")
 
-    if args.verb == "qemu":
+    if args.verb == Verb.qemu:
         if not args.output_format.is_disk():
             die("Sorry, can't boot non-disk images with qemu.")
 
-    if needs_build(args) and args.verb == "qemu" and not args.bootable:
+    if needs_build(args) and args.verb == Verb.qemu and not args.bootable:
         die("Images built without the --bootable option cannot be booted using qemu")
 
     if needs_build(args) and args.qemu_headless and not args.bootable:
@@ -6542,7 +6542,7 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
     if args.source_file_transfer_final == SourceFileTransfer.mount:
         die("Sorry, --source-file-transfer-final=mount is not supported")
 
-    if args.skip_final_phase and args.verb != "build":
+    if args.skip_final_phase and args.verb != Verb.build:
         die("--skip-final-phase can only be used when building an image using 'mkosi build'")
 
     if args.ssh_timeout < 0:
@@ -6643,7 +6643,7 @@ def line_join_list(array: Sequence[PathString]) -> str:
 def print_summary(args: MkosiArgs) -> None:
     # FIXME: normal print
     MkosiPrinter.info("COMMANDS:")
-    MkosiPrinter.info("                      verb: " + args.verb)
+    MkosiPrinter.info(f"                      verb: {args.verb}")
     MkosiPrinter.info("                   cmdline: " + " ".join(args.cmdline))
     MkosiPrinter.info("\nDISTRIBUTION:")
     MkosiPrinter.info("              Distribution: " + args.distribution.name)
@@ -7378,14 +7378,14 @@ def has_networkd_vm_vt() -> bool:
 def ensure_networkd(args: MkosiArgs) -> bool:
     networkd_is_running = run(["systemctl", "is-active", "--quiet", "systemd-networkd"], check=False).returncode == 0
     if not networkd_is_running:
-        if args.verb != "ssh":
+        if args.verb != Verb.ssh:
             # Some programs will use 'mkosi ssh' with pexpect, so don't print warnings that will break
             # them.
             warn("--network-veth requires systemd-networkd to be running to initialize the host interface "
                  "of the veth link ('systemctl enable --now systemd-networkd')")
         return False
 
-    if args.verb == "qemu" and not has_networkd_vm_vt():
+    if args.verb == Verb.qemu and not has_networkd_vm_vt():
         warn(dedent(r"""\
             mkosi didn't find 80-vm-vt.network. This is one of systemd's built-in
             systemd-networkd config files which configures vt-* interfaces.
@@ -7432,7 +7432,7 @@ def run_shell_cmdline(args: MkosiArgs) -> List[str]:
     if args.nspawn_settings is not None:
         cmdline += ["--settings=trusted"]
 
-    if args.verb == "boot":
+    if args.verb == Verb.boot:
         cmdline += ["--boot"]
     else:
         cmdline += nspawn_rlimit_params()
@@ -7452,7 +7452,7 @@ def run_shell_cmdline(args: MkosiArgs) -> List[str]:
     if args.cmdline:
         # If the verb is 'shell', args.cmdline contains the command to run.
         # Otherwise, the verb is 'boot', and we assume args.cmdline contains nspawn arguments.
-        if args.verb == "shell":
+        if args.verb == Verb.shell:
             cmdline += ["--"]
         cmdline += args.cmdline
 
@@ -7697,7 +7697,7 @@ def find_address(args: MkosiArgs) -> Tuple[str, str]:
 
 
 def run_command_image(args: MkosiArgs, commands: Sequence[str], timeout: int, check: bool, stdout: _FILE = sys.stdout, stderr: _FILE = sys.stderr) -> CompletedProcess:
-    if args.verb == "qemu":
+    if args.verb == Verb.qemu:
         return run_ssh(args, commands, check, stdout, stderr, timeout)
     else:
         cmdline = ["systemd-run", "--quiet", "--wait", "--pipe", "-M", virt_name(args), "/usr/bin/env", *commands]
@@ -7877,7 +7877,7 @@ def expand_specifier(s: str) -> str:
 
 
 def needs_build(args: Union[argparse.Namespace, MkosiArgs]) -> bool:
-    return args.verb == "build" or (args.verb in MKOSI_COMMANDS_NEED_BUILD and (not args.output.exists() or args.force > 0))
+    return args.verb == Verb.build or (args.verb in MKOSI_COMMANDS_NEED_BUILD and (not args.output.exists() or args.force > 0))
 
 
 def run_verb(raw: argparse.Namespace) -> None:
@@ -7885,20 +7885,20 @@ def run_verb(raw: argparse.Namespace) -> None:
 
     prepend_to_environ_path(args.extra_search_paths)
 
-    if args.verb == "genkey":
+    if args.verb == Verb.genkey:
         generate_secure_boot_key(args)
 
-    if args.verb == "bump":
+    if args.verb == Verb.bump:
         bump_image_version(args)
 
     if args.verb in MKOSI_COMMANDS_SUDO:
         check_root()
         unlink_output(args)
 
-    if args.verb == "build":
+    if args.verb == Verb.build:
         check_output(args)
 
-    if args.verb == "summary":
+    if args.verb == Verb.summary:
         print_summary(args)
 
     if needs_build(args):
@@ -7914,14 +7914,14 @@ def run_verb(raw: argparse.Namespace) -> None:
 
         print_output_size(args)
 
-    if args.verb in ("shell", "boot"):
+    if args.verb in (Verb.shell, Verb.boot):
         run_shell(args)
 
-    if args.verb == "qemu":
+    if args.verb == Verb.qemu:
         run_qemu(args)
 
-    if args.verb == "ssh":
+    if args.verb == Verb.ssh:
         run_ssh(args)
 
-    if args.verb == "serve":
+    if args.verb == Verb.serve:
         run_serve(args)
