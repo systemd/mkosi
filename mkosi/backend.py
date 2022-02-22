@@ -112,6 +112,24 @@ class PackageType(enum.Enum):
     ebuild = 5
 
 
+class Verb(enum.Enum):
+    build   = "build"
+    clean   = "clean"
+    summary = "summary"
+    shell   = "shell"
+    boot    = "boot"
+    qemu    = "qemu"
+    ssh     = "ssh"
+    serve   = "serve"
+    bump    = "bump"
+    help    = "help"
+    genkey  = "genkey"
+
+    # Defining __str__ is required to get "print_help()" output to include the human readable (values) of Verb.
+    def __str__(self) -> str:
+        return self.value
+
+
 class Distribution(enum.Enum):
     package_type: PackageType
 
@@ -225,17 +243,17 @@ class ManifestFormat(Parseable, enum.Enum):
 
 
 class PartitionIdentifier(enum.Enum):
-    esp        = 'esp'
-    bios       = 'bios'
-    xbootldr   = 'xbootldr'
-    root       = 'root'
-    swap       = 'swap'
-    home       = 'home'
-    srv        = 'srv'
-    var        = 'var'
-    tmp        = 'tmp'
-    verity     = 'verity'
-    verity_sig = 'verity-sig'
+    esp        = "esp"
+    bios       = "bios"
+    xbootldr   = "xbootldr"
+    root       = "root"
+    swap       = "swap"
+    home       = "home"
+    srv        = "srv"
+    var        = "var"
+    tmp        = "tmp"
+    verity     = "verity"
+    verity_sig = "verity-sig"
 
 
 @dataclasses.dataclass
@@ -371,7 +389,7 @@ class PartitionTable:
 class MkosiArgs:
     """Type-hinted storage for command line arguments."""
 
-    verb: str
+    verb: Verb
     cmdline: List[str]
     force: int
 

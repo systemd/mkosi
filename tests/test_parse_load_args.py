@@ -9,9 +9,10 @@ from os import chdir, getcwd
 from pathlib import Path
 from typing import List, Optional
 
-import mkosi
 import pytest
-from mkosi.backend import Distribution, MkosiArgs, MkosiException
+
+import mkosi
+from mkosi.backend import Distribution, MkosiArgs, MkosiException, Verb
 
 
 def parse(argv: Optional[List[str]] = None) -> MkosiArgs:
@@ -29,17 +30,17 @@ def cd_temp_dir():
             chdir(old_dir)
 
 def test_parse_load_verb():
-    assert parse(["build"]).verb == "build"
-    assert parse(["clean"]).verb == "clean"
+    assert parse(["build"]).verb == Verb.build
+    assert parse(["clean"]).verb == Verb.clean
     with pytest.raises(SystemExit):
         parse(["help"])
-    assert parse(["genkey"]).verb == "genkey"
-    assert parse(["bump"]).verb == "bump"
-    assert parse(["serve"]).verb == "serve"
-    assert parse(["build"]).verb == "build"
-    assert parse(["shell"]).verb == "shell"
-    assert parse(["boot"]).verb == "boot"
-    assert parse(["--bootable", "qemu"]).verb == "qemu"
+    assert parse(["genkey"]).verb == Verb.genkey
+    assert parse(["bump"]).verb == Verb.bump
+    assert parse(["serve"]).verb == Verb.serve
+    assert parse(["build"]).verb == Verb.build
+    assert parse(["shell"]).verb == Verb.shell
+    assert parse(["boot"]).verb == Verb.boot
+    assert parse(["--bootable", "qemu"]).verb == Verb.qemu
     with pytest.raises(SystemExit):
         parse(["invalid"])
 
