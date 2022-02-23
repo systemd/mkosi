@@ -7546,9 +7546,21 @@ def find_ovmf_vars() -> Path:
     die("Couldn't find OVMF UEFI variables file.")
 
 
+def qemu_check_kvm_support() -> bool:
+    kvm = Path("/dev/kvm")
+    if not kvm.is_char_device():
+        return False
+    # some CI runners may present a non-working KVM device
+    try:
+        with kvm.open("r+b"):
+            return True
+    except OSError:
+        return False
+
+
 @contextlib.contextmanager
 def run_qemu_cmdline(args: MkosiArgs) -> Iterator[List[str]]:
-    has_kvm = os.path.exists("/dev/kvm")
+    has_kvm = qemu_check_kvm_support()
     accel = "kvm" if has_kvm else "tcg"
 
     firmware, fw_supports_sb = find_qemu_firmware()
