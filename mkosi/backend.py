@@ -475,7 +475,7 @@ class MkosiArgs:
     password_is_hashed: bool
     autologin: bool
     extra_search_paths: List[Path]
-    network_veth: bool
+    netdev: bool
     ephemeral: bool
     ssh: bool
     ssh_key: Optional[Path]

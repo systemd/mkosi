@@ -223,7 +223,7 @@ jobs:
 
         [Host]
         Ssh=yes
-        NetworkVeth=yes
+        Netdev=yes
         EOF
 
         mkdir -p mkosi.skeleton/etc/portage
