@@ -2422,18 +2422,21 @@ def install_centos_repos_new(args: MkosiArgs, root: Path, epel_release: int) -> 
         baseos_url = f"baseurl={args.mirror}/centos/{args.release}/BaseOS/x86_64/os"
         extras_url = f"baseurl={args.mirror}/centos/{args.release}/extras/x86_64/os"
         centosplus_url = f"baseurl={args.mirror}/centos/{args.release}/centosplus/x86_64/os"
+        powertools_url = f"baseurl={args.mirror}/centos/{args.release}/PowerTools/x86_64/os"
         epel_url = f"baseurl={args.mirror}/epel/{epel_release}/Everything/x86_64"
     else:
         appstream_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=AppStream"
         baseos_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=BaseOS"
         extras_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=extras"
         centosplus_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=centosplus"
+        powertools_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=PowerTools"
         epel_url = f"mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=epel-{epel_release}&arch=x86_64"
 
     repos = [Repo("AppStream", f"CentOS-{args.release} - AppStream", appstream_url, gpgpath, gpgurl),
              Repo("BaseOS", f"CentOS-{args.release} - Base", baseos_url, gpgpath, gpgurl),
              Repo("extras", f"CentOS-{args.release} - Extras", extras_url, gpgpath, gpgurl),
-             Repo("centosplus", f"CentOS-{args.release} - Plus", centosplus_url, gpgpath, gpgurl)]
+             Repo("centosplus", f"CentOS-{args.release} - Plus", centosplus_url, gpgpath, gpgurl),
+             Repo("PowerTools", f"CentOS-{args.release} - PowerTools", powertools_url, gpgpath, gpgurl)]
 
     if 'epel' in args.distribution.name:
         repos += [Repo("epel", f"name=Extra Packages for Enterprise Linux {epel_release} - $basearch",
