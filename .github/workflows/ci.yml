@@ -233,20 +233,6 @@ jobs:
         sync-uri = https://raw.githubusercontent.com/257/binpkgs/main
         EOF
 
-    # Ubuntu's systemd-nspawn doesn't support faccessat2() syscall, which is
-    # required, since current Arch's glibc implements faccessat() via faccessat2().
-    - name: Update systemd-nspawn
-      if: ${{ matrix.distro == 'arch' }}
-      run: |
-        echo "deb-src http://archive.ubuntu.com/ubuntu/ $(lsb_release -cs) main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
-        sudo apt update
-        sudo apt build-dep systemd
-        git clone https://github.com/systemd/systemd --depth=1 && cd systemd
-        meson build
-        ninja -C build
-        sudo ln -svf $PWD/build/systemd-nspawn `which systemd-nspawn`
-        systemd-nspawn --version
-
     - name: Build ${{ matrix.distro }}/${{ matrix.format }}
       run: |
         sudo python3 -m mkosi build
