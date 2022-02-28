@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import contextlib
+import os
 import signal
 import subprocess
+import unittest
 from textwrap import dedent
 from typing import Any, Optional, Sequence
 
@@ -21,6 +23,7 @@ from . import (
     load_args,
     needs_build,
     parse_args,
+    parse_boolean,
     prepend_to_environ_path,
     run_command_image,
     run_qemu_cmdline,
@@ -31,16 +34,30 @@ from .backend import MkosiArgs, Verb, die
 
 
 class Machine:
-    def __init__(self, args: Optional[Sequence[str]] = None, debug: bool = False) -> None:
-        # Remains None until image is built and booted, then receives pexpect process
+    def __init__(self, args: Sequence[str] = [], debug: bool = False) -> None:
+        # Remains None until image is built and booted, then receives pexpect process.
         self._serial: Optional[pexpect.spawn] = None
         self.exit_code: int = -1
         self.debug = debug
         self.stack = contextlib.ExitStack()
         self.args: MkosiArgs
 
-        # We make sure to add the arguments in the machine class itself, rather than typing this for every testing function.
         tmp = parse_args(args)["default"]
+
+        # By default, Mkosi makes Verb = build.
+        # But we want to know if a test class passed args without a Verb.
+        # If so, we'd like to assign default values or the environment's variable value.
+        if tmp.verb == Verb.build and Verb.build.name not in args:
+            verb = os.getenv("MKOSI_TEST_DEFAULT_VERB")
+            # This way, if environment variable is not set, we assign nspawn by default to test classes with no Verb.
+            if verb in (Verb.boot.name, None):
+                tmp.verb = Verb.boot
+            elif verb == Verb.qemu.name:
+                tmp.verb = Verb.qemu
+            else:
+                die("No valid verb was entered.")
+
+        # Add the arguments in the machine class itself, rather than typing this for every testing function.
         tmp.force = 1
         tmp.autologin = True
         if tmp.verb == Verb.qemu:
@@ -70,11 +87,11 @@ class Machine:
                     )
         return self._serial
 
-    def ensure_booted(self) -> None:
+    def _ensure_booted(self) -> None:
         # Try to access the serial console which will raise an exception if the machine is not currently booted.
         assert self._serial is not None
 
-    def __enter__(self) -> Machine:
+    def build(self) -> None:
         if self.args.verb in MKOSI_COMMANDS_SUDO:
             check_root()
             unlink_output(self.args)
@@ -88,10 +105,17 @@ class Machine:
             init_namespace(self.args)
             build_stuff(self.args)
 
+    def __enter__(self) -> Machine:
+        self.build()
+        self.boot()
+
+        return self
+
+    def boot(self) -> None:
         with contextlib.ExitStack() as stack:
             prepend_to_environ_path(self.args.extra_search_paths)
 
-            if self.args.verb in (Verb.shell, Verb.boot):
+            if self.args.verb == Verb.boot:
                 cmdline = run_shell_cmdline(self.args)
             elif self.args.verb == Verb.qemu:
                 # We must keep the temporary file opened at run_qemu_cmdline accessible, hence the context stack.
@@ -101,19 +125,17 @@ class Machine:
 
             cmd = " ".join(str(x) for x in cmdline)
 
-            # Here we have something equivalent to the command lines used on spawn() and run() from backend.py
-            # We use pexpect to boot an image that we will be able to interact with in the future
-            # Then we tell the process to look for the # sign, which indicates the CLI for that image is active
-            # Once we've build/boot an image the CLI will prompt "root@image ~]# "
-            # Then, when pexpects finds the '#' it means we're ready to interact with the process
+            # Here we have something equivalent to the command lines used on spawn() and run() from backend.py.
+            # We use pexpect to boot an image that we will be able to interact with in the future.
+            # Then we tell the process to look for the # sign, which indicates the CLI for that image is active.
+            # Once we've build/boot an image the CLI will prompt "root@image ~]# ".
+            # Then, when pexpects finds the '#' it means we're ready to interact with the process.
             self._serial = pexpect.spawnu(cmd, logfile=None, timeout=240)
             self._serial.expect("#")
             self.stack = stack.pop_all()
 
-        return self
-
     def run(self, commands: Sequence[str], timeout: int = 900, check: bool = True) -> CompletedProcess:
-        self.ensure_booted()
+        self._ensure_booted()
 
         process = run_command_image(self.args, commands, timeout, check, subprocess.PIPE, subprocess.PIPE)
         if self.debug:
@@ -122,9 +144,41 @@ class Machine:
 
         return process
 
+    def kill(self) -> None:
+        self.__exit__(None, None, None)
+
     def __exit__(self, *args: Any, **kwargs: Any) -> None:
         if self._serial:
             self._serial.kill(signal.SIGTERM)
             self.exit_code = self._serial.wait()
             self._serial = None
         self.stack.__exit__(*args, **kwargs)
+
+
+class MkosiMachineTest(unittest.TestCase):
+    args: Sequence[str]
+    machine: Machine
+
+    def __init_subclass__(cls, args: Sequence[str] = []) -> None:
+        cls.args = args
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.machine = Machine(cls.args)
+
+        verb = cls.machine.args.verb
+        no_nspawn = parse_boolean(os.getenv("MKOSI_TEST_NO_NSPAWN", "0"))
+        no_qemu = parse_boolean(os.getenv("MKOSI_TEST_NO_QEMU", "0"))
+
+        if no_nspawn and verb == Verb.boot:
+            raise unittest.SkipTest("Nspawn test skipped due to environment variable.")
+        if no_qemu and verb == Verb.qemu:
+            raise unittest.SkipTest("Qemu test skipped due to environment variable.")
+
+        cls.machine.build()
+
+    def setUp(self) -> None:
+        self.machine.boot()
+
+    def tearDown(self) -> None:
+        self.machine.kill()
