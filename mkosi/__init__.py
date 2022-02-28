@@ -5986,12 +5986,12 @@ def unlink_output(args: MkosiArgs) -> None:
 
 
 def parse_boolean(s: str) -> bool:
-    "Parse 1/true/yes as true and 0/false/no as false"
+    "Parse 1/true/yes/y/t/on as true and 0/false/no/n/f/off/None as false"
     s_l = s.lower()
-    if s_l in {"1", "true", "yes"}:
+    if s_l in {"1", "true", "yes", "y", "t", "on"}:
         return True
 
-    if s_l in {"0", "false", "no"}:
+    if s_l in {"0", "false", "no", "n", "f", "off"}:
         return False
 
     raise ValueError(f"Invalid literal for bool(): {s!r}")
