@@ -32,7 +32,7 @@ jobs:
       run: sh -c '! git grep -P "\\t" "*.py"'
 
     - name: Type Checking (mypy)
-      run: python3 -m mypy mkosi
+      run: python3 -m mypy mkosi/ tests/
 
     - name: Type Checking (pyright)
       run: pyright .
