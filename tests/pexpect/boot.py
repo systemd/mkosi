@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 
-import pexpect
 import sys
 import time
+
+import pexpect  # type: ignore
 
 
 def run() -> None:

@@ -7,7 +7,7 @@ import uuid
 from contextlib import contextmanager
 from os import chdir, getcwd
 from pathlib import Path
-from typing import List, Optional
+from typing import Iterator, List, Optional
 
 import pytest
 
@@ -19,7 +19,7 @@ def parse(argv: Optional[List[str]] = None) -> MkosiArgs:
     return mkosi.load_args(mkosi.parse_args(argv)["default"])
 
 @contextmanager
-def cd_temp_dir():
+def cd_temp_dir() -> Iterator[None]:
     old_dir = getcwd()
 
     with tempfile.TemporaryDirectory() as tmp_dir:
@@ -29,7 +29,7 @@ def cd_temp_dir():
         finally:
             chdir(old_dir)
 
-def test_parse_load_verb():
+def test_parse_load_verb() -> None:
     assert parse(["build"]).verb == Verb.build
     assert parse(["clean"]).verb == Verb.clean
     with pytest.raises(SystemExit):
@@ -44,13 +44,13 @@ def test_parse_load_verb():
     with pytest.raises(SystemExit):
         parse(["invalid"])
 
-def test_os_distribution():
+def test_os_distribution() -> None:
     for dist in Distribution:
         assert parse(["-d", dist.name]).distribution == dist
 
-    with pytest.raises((argparse.ArgumentError, SystemExit)):
+    with pytest.raises(tuple((argparse.ArgumentError, SystemExit))):
         parse(["-d", "invalidDistro"])
-    with pytest.raises((argparse.ArgumentError, SystemExit)):
+    with pytest.raises(tuple((argparse.ArgumentError, SystemExit))):
         parse(["-d"])
 
     for dist in Distribution:
@@ -59,7 +59,7 @@ def test_os_distribution():
             config.write_text(f"[Distribution]\nDistribution={dist}")
             assert parse([]).distribution == dist
 
-def test_machine_id():
+def test_machine_id() -> None:
     id = uuid.uuid4().hex
     load_args = parse(["--machine-id", id])
 
@@ -68,7 +68,7 @@ def test_machine_id():
 
     with pytest.raises(MkosiException):
         parse(["--machine-id", "notValidKey"])
-    with pytest.raises((argparse.ArgumentError, SystemExit)):
+    with pytest.raises(tuple((argparse.ArgumentError, SystemExit))):
         parse(["--machine-id"])
 
     with cd_temp_dir():
@@ -84,7 +84,7 @@ def test_machine_id():
         with pytest.raises(MkosiException):
             parse([])
 
-def test_hostname():
+def test_hostname() -> None:
     assert parse(["--hostname", "name"]).hostname == "name"
     with pytest.raises(SystemExit):
         parse(["--hostname", "name", "additional_name"])
@@ -102,7 +102,7 @@ def test_hostname():
         config = Path("hostname.txt")
         assert parse([]).hostname == ""
 
-def test_centos_brtfs():
+def test_centos_brtfs() -> None:
     with cd_temp_dir():
         config = Path("mkosi.default")
         for dist in (Distribution.centos, Distribution.centos_epel):
@@ -138,7 +138,7 @@ def test_centos_brtfs():
                 with pytest.raises(MkosiException, match=".CentOS.*unified.*kernel"):
                     parse([])
 
-def test_shell_boot():
+def test_shell_boot() -> None:
     with pytest.raises(MkosiException, match=".boot.*tar"):
         parse(["--format", "tar", "boot"])
 
@@ -151,7 +151,7 @@ def test_shell_boot():
     with pytest.raises(MkosiException, match=".boot.*qcow2"):
         parse(["--format", "gpt_xfs", "--qcow2", "boot"])
 
-def test_compression():
+def test_compression() -> None:
     assert parse(["--format", "gpt_squashfs"]).compress
 
     with pytest.raises(MkosiException, match=".*compression.*squashfs"):

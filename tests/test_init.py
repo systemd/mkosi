@@ -2,12 +2,13 @@
 
 import filecmp
 from pathlib import Path
+
 import pytest
 
 import mkosi
 
 
-def test_fedora_release_cmp():
+def test_fedora_release_cmp() -> None:
     assert mkosi.fedora_release_cmp("rawhide", "rawhide") == 0
     assert mkosi.fedora_release_cmp("32", "32") == 0
     assert mkosi.fedora_release_cmp("33", "32") > 0
@@ -18,7 +19,7 @@ def test_fedora_release_cmp():
         mkosi.fedora_release_cmp("literal", "rawhide")
 
 
-def test_strip_suffixes():
+def test_strip_suffixes() -> None:
     assert mkosi.strip_suffixes(Path("home/test.zstd")) == Path("home/test")
     assert mkosi.strip_suffixes(Path("home/test.xz")) == Path("home/test")
     assert mkosi.strip_suffixes(Path("home/test.raw")) == Path("home/test")
@@ -29,7 +30,7 @@ def test_strip_suffixes():
     assert mkosi.strip_suffixes(Path("home.xz/test")) == Path("home.xz/test")
     assert mkosi.strip_suffixes(Path("home.xz/test.txt")) == Path("home.xz/test.txt")
 
-def test_copy_file(tmpdir):
+def test_copy_file(tmpdir: Path) -> None:
         dir_path = Path(tmpdir)
         file_1 = Path(dir_path) / "file_1.txt"
         file_2 = Path(dir_path) / "file_2.txt"

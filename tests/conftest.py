@@ -1,44 +1,44 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
+from typing import Any, Dict, List, Set
+
 from tests.test_config_parser import MkosiConfig
 
 
 class DictDiffer:
-    def __init__(self, expected_dict, current_dict):
+    def __init__(self, expected_dict: Dict[str, Any], current_dict: Dict[str, Any]) -> None:
         self.current_dict = current_dict
         self.expected_dict = expected_dict
         self.set_current, self.set_past = set(current_dict.keys()), set(expected_dict.keys())
         self.intersect = self.set_current.intersection(self.set_past)
 
     @property
-    def unexpected(self):
+    def unexpected(self) -> List[str]:
         return [f"{k}={self.current_dict[k]}" for k in self.set_current - self.intersect]
 
     @property
-    def missing(self):
+    def missing(self) -> List[str]:
         return [str(k) for k in self.set_past - self.intersect]
 
     @property
-    def invalid(self):
+    def invalid(self) -> List[str]:
         inva = {o for o in self.intersect if self.expected_dict[o] != self.current_dict[o]}
         return [f"{k}={self.current_dict[k]} (exp: {self.expected_dict[k]})" for k in inva]
 
     @property
-    def valid(self):
+    def valid(self) -> Set[str]:
         return {o for o in self.intersect if self.expected_dict[o] == self.current_dict[o]}
 
 
-def pytest_assertrepr_compare(op, left, right):
-    if not isinstance(left, MkosiConfig):
-        return
+def pytest_assertrepr_compare(op: str, left: MkosiConfig, right: Dict[str, Any]) -> List[str]:
     if not isinstance(right, dict):
-        return
+        return []
     for r in right.values():
         if not isinstance(vars(r), dict):
             return ["Invalid datatype"]
     if op == "==":
 
-        def compare_job_args(job, l_a, r_a):
+        def compare_job_args(job: str, l_a: Dict[str, Any], r_a: Dict[str, Any]) -> None:
             ddiff = DictDiffer(l_a, r_a)
             ret.append(f'Comparing parsed configuration {job} against expected configuration:')
             ret.append("unexpected:")
@@ -63,3 +63,4 @@ def pytest_assertrepr_compare(op, left, right):
             if not left_job in verified_keys:
                 ret.append(f'Missing job: {left_job}')
         return ret
+    return []

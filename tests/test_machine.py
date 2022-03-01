@@ -8,7 +8,6 @@ import pytest
 import mkosi.machine as machine
 from mkosi.backend import MkosiException
 
-
 pytestmark = [
     pytest.mark.integration,
     pytest.mark.parametrize("verb", ["boot", "qemu"]),

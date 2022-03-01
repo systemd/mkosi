@@ -7,14 +7,14 @@ import mkosi.backend as backend
 from mkosi.backend import Distribution, PackageType, set_umask
 
 
-def test_distribution():
+def test_distribution() -> None:
     assert Distribution.fedora.package_type == PackageType.rpm
     assert Distribution.fedora is Distribution.fedora
-    assert Distribution.fedora is not Distribution.debian
+    assert Distribution.fedora.package_type is not Distribution.debian.package_type
     assert str(Distribution.photon) == "photon"
 
 
-def test_set_umask():
+def test_set_umask() -> None:
     with set_umask(0o767):
         tmp1 = os.umask(0o777)
         with set_umask(0o757):
@@ -26,21 +26,21 @@ def test_set_umask():
     assert tmp3 == 0o777
 
 
-def test_workspace():
+def test_workspace() -> None:
     assert backend.workspace(Path("/home/folder/mkosi/mkosi")) == Path("/home/folder/mkosi")
     assert backend.workspace(Path("/home/../home/folder/mkosi/mkosi")) == Path("/home/../home/folder/mkosi")
     assert backend.workspace(Path("/")) == Path("/")
     assert backend.workspace(Path()) == Path()
 
 
-def test_footer_size():
+def test_footer_size() -> None:
     table = backend.PartitionTable()
     assert table.footer_size() == 16896
     assert table.footer_size(max_partitions=64) == 8704
     assert table.footer_size(max_partitions=1) == 1024
     assert table.footer_size(max_partitions=0) == 512
 
-def test_first_partition_offset():
+def test_first_partition_offset() -> None:
     table = backend.PartitionTable()
     table.grain = 4096
 
@@ -74,7 +74,7 @@ def test_first_partition_offset():
     assert table.first_partition_offset() == 131072
 
 
-def test_last_partition_offset():
+def test_last_partition_offset() -> None:
     table = backend.PartitionTable()
     table.grain = 4096
 
@@ -95,7 +95,7 @@ def test_last_partition_offset():
     assert table.last_partition_offset() == 0
 
 
-def test_disk_size():
+def test_disk_size() -> None:
     table = backend.PartitionTable()
     table.grain = 4096
     table.last_partition_sector = 0
