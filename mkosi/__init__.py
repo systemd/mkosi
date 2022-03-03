@@ -2403,7 +2403,7 @@ def install_centos_repos_old(args: MkosiArgs, root: Path, epel_release: int) -> 
              Repo("centosplus", f"CentOS-{args.release} - Plus", centosplus_url, gpgpath, gpgurl)]
 
     if 'epel' in args.distribution.name:
-        repos += [Repo("epel", f"name=Extra Packages for Enterprise Linux {epel_release} - $basearch",
+        repos += [Repo("epel", f"Extra Packages for Enterprise Linux {epel_release} - $basearch",
                        epel_url, epel_gpgpath, epel_gpgurl)]
 
     setup_dnf(args, root, repos)
@@ -2439,7 +2439,7 @@ def install_centos_repos_new(args: MkosiArgs, root: Path, epel_release: int) -> 
              Repo("PowerTools", f"CentOS-{args.release} - PowerTools", powertools_url, gpgpath, gpgurl)]
 
     if 'epel' in args.distribution.name:
-        repos += [Repo("epel", f"name=Extra Packages for Enterprise Linux {epel_release} - $basearch",
+        repos += [Repo("epel", f"Extra Packages for Enterprise Linux {epel_release} - $basearch",
                        epel_url, epel_gpgpath, epel_gpgurl)]
 
     setup_dnf(args, root, repos)
@@ -2471,7 +2471,7 @@ def install_centos_stream_repos(args: MkosiArgs, root: Path, epel_release: int) 
              Repo("CRB", f"CentOS Stream {release} - CRB", crb_url, gpgpath, gpgurl)]
 
     if 'epel' in args.distribution.name:
-        repos += [Repo("epel", f"name=Extra Packages for Enterprise Linux {epel_release} - $basearch",
+        repos += [Repo("epel", f"Extra Packages for Enterprise Linux {epel_release} - $basearch",
                        epel_url, epel_gpgpath, epel_gpgurl)]
 
     setup_dnf(args, root, repos)
@@ -2504,7 +2504,7 @@ def install_rocky_repos(args: MkosiArgs, root: Path, epel_release: int) -> None:
              Repo("extras", f"Rocky-{args.release} - Extras", extras_url, gpgpath, gpgurl),
              Repo("plus", f"Rocky-{args.release} - Plus", plus_url, gpgpath, gpgurl)]
     if 'epel' in args.distribution.name:
-        repos += [Repo("epel", f"name=Extra Packages for Enterprise Linux {epel_release} - $basearch",
+        repos += [Repo("epel", f"Extra Packages for Enterprise Linux {epel_release} - $basearch",
                        epel_url, epel_gpgpath, epel_gpgurl)]
 
     setup_dnf(args, root, repos)
@@ -2539,7 +2539,7 @@ def install_alma_repos(args: MkosiArgs, root: Path, epel_release: int) -> None:
              Repo("HighAvailability", f"AlmaLinux-{args.release} - HighAvailability", ha_url, gpgpath, gpgurl)]
 
     if 'epel' in args.distribution.name:
-        repos += [Repo("epel", f"name=Extra Packages for Enterprise Linux {epel_release} - $basearch",
+        repos += [Repo("epel", f"Extra Packages for Enterprise Linux {epel_release} - $basearch",
                        epel_url, epel_gpgpath, epel_gpgurl)]
 
     setup_dnf(args, root, repos)
