@@ -6224,7 +6224,7 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
         elif args.distribution == Distribution.mageia:
             args.release = "7"
         elif args.distribution == Distribution.debian:
-            args.release = "unstable"
+            args.release = "testing"
         elif args.distribution == Distribution.ubuntu:
             args.release = "focal"
         elif args.distribution == Distribution.opensuse:
