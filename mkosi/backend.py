@@ -516,6 +516,7 @@ class MkosiArgs:
     qemu_mem: str
     qemu_kvm: bool
     qemu_args: Sequence[str]
+    qemu_boot: str
 
     # systemd-nspawn specific options
     nspawn_keep_unit: bool

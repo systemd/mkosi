@@ -188,6 +188,9 @@ jobs:
         tee mkosi.default <<- EOF
         [Output]
         BootProtocols=uefi
+
+        [Host]
+        QemuBoot=uefi
         EOF
 
         sudo MKOSI_TEST_DEFAULT_VERB=qemu python3 -m pytest -m integration -sv tests
@@ -198,6 +201,9 @@ jobs:
         [Output]
         BootProtocols=uefi
         WithUnifiedKernelImages=no
+
+        [Host]
+        QemuBoot=uefi
         EOF
 
         sudo MKOSI_TEST_DEFAULT_VERB=qemu python3 -m pytest -m integration -sv tests
@@ -208,6 +214,22 @@ jobs:
         [Output]
         BootProtocols=bios
         WithUnifiedKernelImages=no
+
+        [Host]
+        QemuBoot=bios
+        EOF
+
+        sudo MKOSI_TEST_DEFAULT_VERB=qemu python3 -m pytest -m integration -sv tests
+
+    - name: Build/Boot ${{ matrix.distro }}/${{ matrix.format}} QEMU Linux Boot
+      run: |
+        tee mkosi.default <<- EOF
+        [Output]
+        BootProtocols=linux
+        WithUnifiedKernelImages=no
+
+        [Host]
+        QemuBoot=linux
         EOF
 
         sudo MKOSI_TEST_DEFAULT_VERB=qemu python3 -m pytest -m integration -sv tests

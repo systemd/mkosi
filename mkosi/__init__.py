@@ -1820,8 +1820,10 @@ def prepare_tree(args: MkosiArgs, root: Path, do_run_build_script: bool, cached:
                 root.joinpath("boot").mkdir(mode=0o700)
                 # Make sure kernel-install actually runs when needed by creating the machine-id subdirectory
                 # under /boot. For "bios" on Debian/Ubuntu, it's required for grub to pick up the generated
-                # initrd.
-                if args.distribution in (Distribution.debian, Distribution.ubuntu) and "bios" in args.boot_protocols:
+                # initrd. For "linux", we need kernel-install to run so we can extract the generated initrd
+                # from /boot later.
+                if ((args.distribution in (Distribution.debian, Distribution.ubuntu) and "bios" in args.boot_protocols) or
+                    ("linux" in args.boot_protocols and "uefi" not in args.boot_protocols)):
                     root.joinpath("boot", args.machine_id).mkdir(mode=0o700)
 
             if args.get_partition(PartitionIdentifier.esp):
@@ -4458,6 +4460,70 @@ def extract_unified_kernel(
     return f
 
 
+def extract_kernel_image_initrd(
+    args: MkosiArgs,
+    root: Path,
+    do_run_build_script: bool,
+    for_cache: bool,
+    mount: Callable[[], ContextManager[None]],
+) -> Union[Tuple[BinaryIO, BinaryIO], Tuple[None, None]]:
+    if do_run_build_script or for_cache or "linux" not in args.boot_protocols:
+        return None, None
+
+    prefix = "efi" if args.get_partition(PartitionIdentifier.esp) else "boot"
+
+    with mount():
+        kimgabs = None
+        initrd = None
+
+        for kver, kimg in gen_kernel_images(args, root):
+            kimgabs = root / kimg
+            initrd = root / prefix / args.machine_id / kver / "initrd"
+
+        if kimgabs is None:
+            die("No kernel image found, can't extract.")
+        assert initrd is not None
+
+        fkimg = copy_file_temporary(kimgabs, args.output_dir or Path())
+        finitrd = copy_file_temporary(initrd, args.output_dir or Path())
+
+    return (fkimg, finitrd)
+
+
+def extract_kernel_cmdline(
+    args: MkosiArgs,
+    root: Path,
+    do_run_build_script: bool,
+    for_cache: bool,
+    mount: Callable[[], ContextManager[None]],
+) -> Optional[TextIO]:
+    if do_run_build_script or for_cache or "linux" not in args.boot_protocols:
+        return None
+
+    with mount():
+        if root.joinpath("etc/kernel/cmdline").exists():
+            p = root / "etc/kernel/cmdline"
+        elif root.joinpath("usr/lib/kernel/cmdline").exists():
+            p = root / "usr/lib/kernel/cmdline"
+        else:
+            die("No cmdline found")
+
+        # Direct Linux boot means we can't rely on systemd-gpt-auto-generator to
+        # figure out the root partition for us so we have to encode it manually
+        # in the kernel cmdline.
+        cmdline = f"{p.read_text().strip()} root=LABEL={PartitionIdentifier.root.name}\n"
+
+        f = cast(
+            TextIO,
+            tempfile.NamedTemporaryFile(mode="w+", prefix=".mkosi-", encoding="utf-8", dir=args.output_dir or Path()),
+        )
+
+        f.write(cmdline)
+        f.flush()
+
+    return f
+
+
 def compress_output(
     args: MkosiArgs, data: Optional[BinaryIO], suffix: Optional[str] = None
 ) -> Optional[BinaryIO]:
@@ -4832,8 +4898,29 @@ def link_output_split_verity_sig(args: MkosiArgs, split_verity_sig: Optional[Som
 def link_output_split_kernel(args: MkosiArgs, split_kernel: Optional[SomeIO]) -> None:
     if split_kernel:
         assert args.output_split_kernel
-        with complete_step("Linking split kernel image…", f"Linked {path_relative_to_cwd(args.output_split_kernel)}"):
+        with complete_step("Linking split kernel…", f"Linked {path_relative_to_cwd(args.output_split_kernel)}"):
             _link_output(args, split_kernel.name, args.output_split_kernel)
+
+
+def link_output_split_kernel_image(args: MkosiArgs, split_kernel_image: Optional[SomeIO]) -> None:
+    if split_kernel_image:
+        output = build_auxiliary_output_path(args, '.vmlinuz')
+        with complete_step("Linking split kernel image…", f"Linked {path_relative_to_cwd(output)}"):
+            _link_output(args, split_kernel_image.name, output)
+
+
+def link_output_split_initrd(args: MkosiArgs, split_initrd: Optional[SomeIO]) -> None:
+    if split_initrd:
+        output = build_auxiliary_output_path(args, '.initrd')
+        with complete_step("Linking split initrd…", f"Linked {path_relative_to_cwd(output)}"):
+            _link_output(args, split_initrd.name, output)
+
+
+def link_output_split_kernel_cmdline(args: MkosiArgs, split_kernel_cmdline: Optional[SomeIO]) -> None:
+    if split_kernel_cmdline:
+        output = build_auxiliary_output_path(args, '.cmdline')
+        with complete_step("Linking split cmdline…", f"Linked {path_relative_to_cwd(output)}"):
+            _link_output(args, split_kernel_cmdline.name, output)
 
 
 def dir_size(path: PathString) -> int:
@@ -5896,6 +5983,12 @@ def create_parser() -> ArgumentParserMkosi:
         help="If specified, underlying systemd-nspawn containers use the resources of the current unit.",
     )
     group.add_argument(
+        "--qemu-boot",
+        help="Configure which qemu boot protocol to use",
+        choices=["uefi", "bios", "linux", None],
+        metavar="PROTOCOL",
+    )
+    group.add_argument(
         "--network-veth",     # Compatibility option
         dest="netdev",
         metavar="BOOL",
@@ -6262,6 +6355,11 @@ def unlink_output(args: MkosiArgs) -> None:
                 unlink_try_hard(args.output_split_verity_sig)
                 unlink_try_hard(args.output_split_kernel)
 
+            if "linux" in args.boot_protocols:
+                unlink_try_hard(build_auxiliary_output_path(args, ".vmlinuz"))
+                unlink_try_hard(build_auxiliary_output_path(args, ".initrd"))
+                unlink_try_hard(build_auxiliary_output_path(args, ".cmdline"))
+
             if args.nspawn_settings is not None:
                 unlink_try_hard(args.output_nspawn_settings)
 
@@ -6469,7 +6567,7 @@ def xescape(s: str) -> str:
     return ret
 
 
-def build_auxiliary_output_path(args: argparse.Namespace, suffix: str, can_compress: bool = False) -> Path:
+def build_auxiliary_output_path(args: Union[argparse.Namespace, MkosiArgs], suffix: str, can_compress: bool = False) -> Path:
     output = strip_suffixes(args.output)
     compression = should_compress_output(args) if can_compress else False
     return output.with_name(f"{output.name}{suffix}{compression or ''}")
@@ -6579,7 +6677,7 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
             if args.distribution == Distribution.photon:
                 args.boot_protocols = ["bios"]
 
-        if not {"uefi", "bios"}.issuperset(args.boot_protocols):
+        if not {"uefi", "bios", "linux"}.issuperset(args.boot_protocols):
             die("Not a valid boot protocol")
 
         if "uefi" in args.boot_protocols and args.distribution == Distribution.photon:
@@ -6609,7 +6707,7 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
     if args.distribution == Distribution.clear and args.output_format == OutputFormat.gpt_btrfs:
         die("Sorry, Clear Linux does not support btrfs", MkosiNotSupportedException)
 
-    if args.distribution == Distribution.clear and "," in args.boot_protocols:
+    if args.distribution == Distribution.clear and {"uefi", "bios"}.issubset(args.boot_protocols):
         die("Sorry, Clear Linux does not support hybrid BIOS/UEFI images", MkosiNotSupportedException)
 
     if shutil.which("bsdtar") and args.distribution == Distribution.openmandriva and args.tar_strip_selinux_context:
@@ -7318,13 +7416,16 @@ class BuildOutput:
     split_verity: Optional[BinaryIO]
     split_verity_sig: Optional[BinaryIO]
     split_kernel: Optional[BinaryIO]
+    split_kernel_image: Optional[BinaryIO]
+    split_initrd: Optional[BinaryIO]
+    split_kernel_cmdline: Optional[TextIO]
 
     def raw_name(self) -> Optional[str]:
         return self.raw.name if self.raw is not None else None
 
     @classmethod
     def empty(cls) -> BuildOutput:
-        return cls(None, None, None, None, None, None, None, None, None)
+        return cls(None, None, None, None, None, None, None, None, None, None, None, None)
 
 
 def build_image(
@@ -7466,6 +7567,8 @@ def build_image(
                 if args.split_artifacts
                 else None
             )
+            split_kernel_image, split_initrd = extract_kernel_image_initrd(args, root, do_run_build_script, for_cache, mount)
+            split_kernel_cmdline = extract_kernel_cmdline(args, root, do_run_build_script, for_cache, mount)
 
     archive = make_tar(args, root, do_run_build_script, for_cache) or \
               make_cpio(args, root, do_run_build_script, for_cache)
@@ -7480,6 +7583,9 @@ def build_image(
         split_verity,
         split_verity_sig,
         split_kernel,
+        split_kernel_image,
+        split_initrd,
+        split_kernel_cmdline,
     )
 
 
@@ -7701,6 +7807,9 @@ def build_stuff(args: MkosiArgs) -> Manifest:
         link_output_split_verity(args, split_verity)
         link_output_split_verity_sig(args, split_verity_sig)
         link_output_split_kernel(args, split_kernel)
+        link_output_split_kernel_image(args, image.split_kernel_image)
+        link_output_split_initrd(args, image.split_initrd)
+        link_output_split_kernel_cmdline(args, image.split_kernel_cmdline)
 
         if image.root_hash is not None:
             MkosiPrinter.print_step(f"Root hash is {image.root_hash}.")
@@ -7935,10 +8044,14 @@ def qemu_check_kvm_support() -> bool:
 def run_qemu_cmdline(args: MkosiArgs) -> Iterator[List[str]]:
     accel = "kvm" if args.qemu_kvm else "tcg"
 
-    if "uefi" in args.boot_protocols:
+    if args.qemu_boot:
+        mode = args.qemu_boot
+    elif "uefi" in args.boot_protocols:
         mode = "uefi"
     elif "bios" in args.boot_protocols:
         mode = "bios"
+    elif "linux" in args.boot_protocols:
+        mode = "linux"
     else:
         mode = "uefi"
 
@@ -7988,6 +8101,13 @@ def run_qemu_cmdline(args: MkosiArgs) -> Iterator[List[str]]:
 
     if mode == "uefi":
         cmdline += ["-drive", f"if=pflash,format=raw,readonly=on,file={firmware}"]
+
+    if mode == "linux":
+        cmdline += [
+            "-kernel", str(build_auxiliary_output_path(args, ".vmlinuz")),
+            "-initrd", str(build_auxiliary_output_path(args, ".initrd")),
+            "-append", build_auxiliary_output_path(args, ".cmdline").read_text().strip(),
+        ]
 
     with contextlib.ExitStack() as stack:
         if mode == "uefi" and fw_supports_sb:
