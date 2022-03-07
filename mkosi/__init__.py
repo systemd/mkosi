@@ -7366,7 +7366,7 @@ def suppress_stacktrace() -> Iterator[None]:
         yield
     except subprocess.CalledProcessError as e:
         # MkosiException is silenced in main() so it doesn't print a stacktrace.
-        raise MkosiException(e)
+        raise MkosiException() from e
 
 
 def virt_name(args: MkosiArgs) -> str:
@@ -7469,8 +7469,7 @@ def run_shell_cmdline(args: MkosiArgs) -> List[str]:
 
 
 def run_shell(args: MkosiArgs) -> None:
-    with suppress_stacktrace():
-        run(run_shell_cmdline(args), stdout=sys.stdout, stderr=sys.stderr)
+    run(run_shell_cmdline(args), stdout=sys.stdout, stderr=sys.stderr)
 
 
 def find_qemu_binary() -> str:
@@ -7661,8 +7660,7 @@ def run_qemu_cmdline(args: MkosiArgs) -> Iterator[List[str]]:
 
 def run_qemu(args: MkosiArgs) -> None:
     with run_qemu_cmdline(args) as cmdline:
-        with suppress_stacktrace():
-            run(cmdline, stdout=sys.stdout, stderr=sys.stderr)
+        run(cmdline, stdout=sys.stdout, stderr=sys.stderr)
 
 
 def interface_exists(dev: str) -> bool:
@@ -7722,8 +7720,7 @@ def run_command_image(args: MkosiArgs, commands: Sequence[str], timeout: int, ch
         return run_ssh(args, commands, check, stdout, stderr, timeout)
     else:
         cmdline = ["systemd-run", "--quiet", "--wait", "--pipe", "-M", virt_name(args), "/usr/bin/env", *commands]
-        with suppress_stacktrace():
-            return run(cmdline, check=check, stdout=stdout, stderr=stderr, text=True, timeout=timeout)
+        return run(cmdline, check=check, stdout=stdout, stderr=stderr, text=True, timeout=timeout)
 
 
 def run_ssh_cmdline(args: MkosiArgs, commands: Optional[Sequence[str]] = None) -> Sequence[str]:
@@ -7767,8 +7764,7 @@ def run_ssh(
     stderr: _FILE = sys.stderr,
     timeout: Optional[int] = None,
 ) -> CompletedProcess:
-    with suppress_stacktrace():
-        return run(run_ssh_cmdline(args, commands), check=check, stdout=stdout, stderr=stderr, text=True, timeout=timeout)
+    return run(run_ssh_cmdline(args, commands), check=check, stdout=stdout, stderr=stderr, text=True, timeout=timeout)
 
 
 def run_serve(args: MkosiArgs) -> None:
@@ -7935,14 +7931,15 @@ def run_verb(raw: argparse.Namespace) -> None:
 
         print_output_size(args)
 
-    if args.verb in (Verb.shell, Verb.boot):
-        run_shell(args)
+    with suppress_stacktrace():
+        if args.verb in (Verb.shell, Verb.boot):
+            run_shell(args)
 
-    if args.verb == Verb.qemu:
-        run_qemu(args)
+        if args.verb == Verb.qemu:
+            run_qemu(args)
 
-    if args.verb == Verb.ssh:
-        run_ssh(args)
+        if args.verb == Verb.ssh:
+            run_ssh(args)
 
     if args.verb == Verb.serve:
         run_serve(args)
