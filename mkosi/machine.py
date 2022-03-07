@@ -54,21 +54,22 @@ class Machine:
                 tmp.verb = Verb.boot
             elif verb == Verb.qemu.name:
                 tmp.verb = Verb.qemu
+            elif verb == Verb.shell.name:
+                tmp.verb = Verb.shell
             else:
                 die("No valid verb was entered.")
 
         # Add the arguments in the machine class itself, rather than typing this for every testing function.
         tmp.force = 1
         tmp.autologin = True
+        tmp.ephemeral = True
         if tmp.verb == Verb.qemu:
             tmp.bootable = True
             tmp.qemu_headless = True
             tmp.hostonly_initrd = True
             tmp.netdev = True
             tmp.ssh = True
-        elif tmp.verb == Verb.boot:
-            pass
-        else:
+        elif tmp.verb not in (Verb.shell, Verb.boot):
             die("No valid verb was entered.")
 
         self.args = load_args(tmp)
@@ -89,7 +90,7 @@ class Machine:
 
     def _ensure_booted(self) -> None:
         # Try to access the serial console which will raise an exception if the machine is not currently booted.
-        assert self._serial is not None
+        assert self._serial is not None or self.args.verb == Verb.shell
 
     def build(self) -> None:
         if self.args.verb in MKOSI_COMMANDS_SUDO:
@@ -112,6 +113,9 @@ class Machine:
         return self
 
     def boot(self) -> None:
+        if self.args.verb == Verb.shell:
+            return
+
         with contextlib.ExitStack() as stack:
             prepend_to_environ_path(self.args.extra_search_paths)
 
@@ -164,6 +168,9 @@ class MkosiMachineTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
+        if os.getuid() != 0:
+            raise unittest.SkipTest("Must be invoked as root.")
+
         cls.machine = Machine(cls.args)
 
         verb = cls.machine.args.verb
@@ -178,6 +185,10 @@ class MkosiMachineTest(unittest.TestCase):
         cls.machine.build()
 
     def setUp(self) -> None:
+        # Replacing underscores which makes name invalid.
+        # Necessary for shell otherwise racing conditions to the disk image will happen.
+        test_name = self.id().split(".")[3]
+        self.machine.args.hostname = test_name.replace("_", "-")
         self.machine.boot()
 
     def tearDown(self) -> None:

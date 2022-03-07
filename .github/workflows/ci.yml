@@ -128,6 +128,7 @@ jobs:
       run: |
         MKOSI_TEST_DEFAULT_VERB=qemu sudo python3 -m pytest -m integration tests
         MKOSI_TEST_DEFAULT_VERB=boot sudo python3 -m pytest -m integration tests
+        MKOSI_TEST_DEFAULT_VERB=shell sudo python3 -m pytest -m integration tests
 
   integration-test:
     runs-on: ubuntu-20.04
