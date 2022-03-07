@@ -7426,13 +7426,18 @@ def ensure_networkd(args: MkosiArgs) -> bool:
     return True
 
 
-def run_shell_cmdline(args: MkosiArgs) -> List[str]:
+def run_shell_cmdline(args: MkosiArgs, pipe: bool = False, commands: Optional[Sequence[str]] = None) -> List[str]:
     if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
         target = f"--directory={args.output}"
     else:
         target = f"--image={args.output}"
 
-    cmdline = ["systemd-nspawn", target]
+    cmdline = ["systemd-nspawn", "--quiet", target]
+
+    # Redirecting output correctly when not running directly from the terminal.
+    console_arg = f"--console={'interactive' if not pipe else 'pipe'}"
+    if nspawn_knows_arg(console_arg):
+        cmdline += [console_arg]
 
     if args.read_only:
         cmdline += ["--read-only"]
@@ -7458,18 +7463,18 @@ def run_shell_cmdline(args: MkosiArgs) -> List[str]:
 
     cmdline += ["--machine", virt_name(args)]
 
-    if args.cmdline:
+    if commands or args.cmdline:
         # If the verb is 'shell', args.cmdline contains the command to run.
         # Otherwise, the verb is 'boot', and we assume args.cmdline contains nspawn arguments.
         if args.verb == Verb.shell:
             cmdline += ["--"]
-        cmdline += args.cmdline
+        cmdline += commands or args.cmdline
 
     return cmdline
 
 
 def run_shell(args: MkosiArgs) -> None:
-    run(run_shell_cmdline(args), stdout=sys.stdout, stderr=sys.stderr)
+    run(run_shell_cmdline(args, pipe=not sys.stdout.isatty()), stdout=sys.stdout, stderr=sys.stderr)
 
 
 def find_qemu_binary() -> str:
@@ -7718,9 +7723,11 @@ def find_address(args: MkosiArgs) -> Tuple[str, str]:
 def run_command_image(args: MkosiArgs, commands: Sequence[str], timeout: int, check: bool, stdout: _FILE = sys.stdout, stderr: _FILE = sys.stderr) -> CompletedProcess:
     if args.verb == Verb.qemu:
         return run_ssh(args, commands, check, stdout, stderr, timeout)
-    else:
+    elif args.verb == Verb.boot:
         cmdline = ["systemd-run", "--quiet", "--wait", "--pipe", "-M", virt_name(args), "/usr/bin/env", *commands]
         return run(cmdline, check=check, stdout=stdout, stderr=stderr, text=True, timeout=timeout)
+    else:
+        return run(run_shell_cmdline(args, pipe=True, commands=commands), check=check, stdout=stdout, stderr=stderr, text=True, timeout=timeout)
 
 
 def run_ssh_cmdline(args: MkosiArgs, commands: Optional[Sequence[str]] = None) -> Sequence[str]:
