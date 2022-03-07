@@ -2,6 +2,7 @@
 # PYTHON_ARGCOMPLETE_OK
 import os
 import sys
+from subprocess import CalledProcessError
 
 from . import complete_step, parse_args, run_verb
 from .backend import MkosiException, die
@@ -24,7 +25,10 @@ def main() -> None:
                     run_verb(a)
             else:
                 run_verb(a)
-    except MkosiException:
+    except MkosiException as e:
+        cause = e.__cause__
+        if cause and isinstance(cause, CalledProcessError):
+            sys.exit(cause.returncode)
         sys.exit(1)
 
 

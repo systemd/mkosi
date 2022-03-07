@@ -1,11 +1,10 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 import os
-from subprocess import TimeoutExpired
+from subprocess import CalledProcessError, TimeoutExpired
 
 import pytest
 
-from mkosi.backend import MkosiException
 from mkosi.machine import Machine, MkosiMachineTest
 
 pytestmark = [
@@ -20,9 +19,9 @@ class MkosiMachineTestCase(MkosiMachineTest):
 
     def test_wrong_command(self) -> None:
         # Check = True from mkosi.backend.run(), therefore we see if an exception is raised
-        with pytest.raises(MkosiException):
+        with pytest.raises(CalledProcessError):
             self.machine.run(["NonExisting", "Command"])
-        with pytest.raises(MkosiException):
+        with pytest.raises(CalledProcessError):
             self.machine.run(["ls", "NullDirectory"])
 
         # Check = False to see if stderr and returncode have the expected values
