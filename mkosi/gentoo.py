@@ -433,7 +433,12 @@ class Gentoo:
 
                 # sys-apps/systemd -pkcs11
                 # sys-apps/systemd importd lzma
+
                 sys-apps/systemd homed cryptsetup -pkcs11
+                # See: https://bugs.gentoo.org/832167
+                # sys-apps/systemd[homed] should depend on sys-auth/pambase[homed]
+                sys-auth/pambase homed
+
                 # MKOSI: usronly
                 sys-apps/systemd repart
                 # sys-apps/systemd -cgroup-hybrid
