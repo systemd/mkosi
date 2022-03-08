@@ -7432,7 +7432,7 @@ def run_shell_cmdline(args: MkosiArgs) -> List[str]:
     else:
         target = f"--image={args.output}"
 
-    cmdline = ["systemd-nspawn", target]
+    cmdline = ["systemd-nspawn", "--quiet", target]
 
     if args.read_only:
         cmdline += ["--read-only"]
