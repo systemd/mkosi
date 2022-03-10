@@ -31,6 +31,7 @@ from typing import (
     Optional,
     Sequence,
     Set,
+    Type,
     Union,
     cast,
 )
@@ -75,6 +76,10 @@ else:
 
 class MkosiException(Exception):
     """Leads to sys.exit"""
+
+
+class MkosiNotSupportedException(MkosiException):
+    """Leads to sys.exit when an invalid combination of parsed arguments happens"""
 
 
 # This global should be initialized after parsing arguments
@@ -828,9 +833,9 @@ def install_grub(args: MkosiArgs, root: Path, loopdev: Path, grub: str) -> None:
     run_workspace_command(args, root, cmdline, nspawn_params=nspawn_params)
 
 
-def die(message: str) -> NoReturn:
+def die(message: str, exception: Type[MkosiException] = MkosiException) -> NoReturn:
     MkosiPrinter.warn(f"Error: {message}")
-    raise MkosiException(message)
+    raise exception(message)
 
 
 def warn(message: str) -> None:

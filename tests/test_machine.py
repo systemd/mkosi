@@ -6,7 +6,7 @@ from subprocess import CalledProcessError, TimeoutExpired
 import pytest
 
 from mkosi.backend import Verb
-from mkosi.machine import Machine, MkosiMachineTest
+from mkosi.machine import Machine, MkosiMachineTest, test_skip_not_supported
 
 pytestmark = [
     pytest.mark.integration,
@@ -39,7 +39,9 @@ class MkosiMachineTestCase(MkosiMachineTest):
 
 
 def test_before_boot() -> None:
-    m = Machine()
+    with test_skip_not_supported():
+        m = Machine()
+
     if m.args.verb == Verb.shell:
         pytest.skip("Shell never boots the machine.")
     with pytest.raises(AssertionError):
@@ -47,8 +49,10 @@ def test_before_boot() -> None:
 
 
 def test_after_shutdown() -> None:
-    with Machine() as m:
-        pass
+    with test_skip_not_supported():
+        with Machine() as m:
+            pass
+
     if m.args.verb == Verb.shell:
         pytest.skip("Shell never boots the machine.")
     with pytest.raises(AssertionError):
