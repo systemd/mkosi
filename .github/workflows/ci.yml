@@ -96,40 +96,6 @@ jobs:
         sudo apt-get update && sudo apt-get install --no-install-recommends shellcheck
         bash -c 'set globstar; shellcheck mkosi/**/*.sh'
 
-  python-integration-test:
-    runs-on: ubuntu-20.04
-    needs: unit-test
-    concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}
-      cancel-in-progress: true
-
-    strategy:
-      matrix:
-        distro:
-        - fedora
-
-    steps:
-    - uses: actions/checkout@v2
-    - uses: ./
-
-    - name: Configure test distribution
-      run: |
-        mkdir -p mkosi.default.d
-
-        tee mkosi.default.d/test-distribution.conf <<- EOF
-        [Distribution]
-        Distribution=${{ matrix.distro }}
-        EOF
-
-    - name: Install dependencies
-      run: sudo apt-get update && sudo apt-get install --no-install-recommends python3-pexpect python3-pytest
-
-    - name: Run integration tests
-      run: |
-        MKOSI_TEST_DEFAULT_VERB=qemu sudo python3 -m pytest -m integration tests
-        MKOSI_TEST_DEFAULT_VERB=boot sudo python3 -m pytest -m integration tests
-        MKOSI_TEST_DEFAULT_VERB=shell sudo python3 -m pytest -m integration tests
-
   integration-test:
     runs-on: ubuntu-20.04
     needs: unit-test
@@ -174,7 +140,7 @@ jobs:
     - uses: ./
 
     - name: Install dependencies
-      run: sudo apt-get update && sudo apt-get install --no-install-recommends python3-pexpect
+      run: sudo apt-get update && sudo apt-get install --no-install-recommends python3-pexpect python3-pytest
 
     - name: Install Gentoo dependencies (portage)
       if: ${{ matrix.distro == 'gentoo' }}
@@ -210,7 +176,7 @@ jobs:
     - name: Install
       run: sudo python3 -m pip install .
 
-    - name: Write shared mkosi config
+    - name: Build/Boot ${{ matrix.distro }}/${{ matrix.format }}
       run: |
         mkdir -p mkosi.default.d
 
@@ -220,13 +186,6 @@ jobs:
 
         [Output]
         Format=${{ matrix.format }}
-
-        [Validation]
-        Password=
-
-        [Host]
-        Ssh=yes
-        Netdev=yes
         EOF
 
         mkdir -p mkosi.skeleton/etc/portage
@@ -236,103 +195,35 @@ jobs:
         sync-uri = https://raw.githubusercontent.com/257/binpkgs/main
         EOF
 
-    - name: Build ${{ matrix.distro }}/${{ matrix.format }}
-      run: |
-        sudo python3 -m mkosi build
+        MKOSI_TEST_DEFAULT_VERB=boot sudo python3 -m pytest -m integration tests
 
-    - name: Boot ${{ matrix.distro }}/${{ matrix.format }}
-      if: matrix.format != 'tar' &&
-          matrix.format != 'cpio'
-      run: sudo ./tests/pexpect/boot.py python3 -m mkosi boot
-
-    - name: Build ${{ matrix.distro }}/${{ matrix.format }} UEFI UKI
-      if: matrix.format != 'directory' &&
-          matrix.format != 'plain_squashfs' &&
-          matrix.format != 'tar' &&
-          matrix.format != 'cpio'
+    - name: Build/Boot ${{ matrix.distro }}/${{ matrix.format }} UEFI UKI
       run: |
         tee mkosi.default <<- EOF
         [Output]
-        Bootable=yes
         BootProtocols=uefi
-
-        [Host]
-        QemuHeadless=yes
         EOF
 
-        sudo python3 -m mkosi --force build
+        MKOSI_TEST_DEFAULT_VERB=qemu sudo python3 -m pytest -m integration tests
 
-    - name: Boot ${{ matrix.distro }}/${{ matrix.format }} UEFI UKI
-      if: matrix.format != 'directory' &&
-          matrix.format != 'plain_squashfs' &&
-          matrix.format != 'gpt_squashfs' &&
-          matrix.format != 'tar' &&
-          matrix.format != 'cpio' &&
-          !(matrix.distro == 'ubuntu' && matrix.format == 'gpt_squashfs')
-      run: sudo ./tests/pexpect/boot.py python3 -m mkosi qemu
-
-    - name: Build ${{ matrix.distro }}/${{ matrix.format }} UEFI
-      if: matrix.format != 'directory' &&
-          matrix.format != 'plain_squashfs' &&
-          matrix.format != 'tar' &&
-          matrix.format != 'cpio' && (
-          matrix.distro == 'arch' ||
-          matrix.distro == 'centos' ||
-          matrix.distro == 'rocky' ||
-          matrix.distro == 'alma' ||
-          matrix.distro == 'fedora' ||
-          matrix.distro == 'gentoo')
+    - name: Build/Boot ${{ matrix.distro }}/${{ matrix.format }} UEFI
       run: |
         tee mkosi.default <<- EOF
         [Output]
-        Bootable=yes
         BootProtocols=uefi
         WithUnifiedKernelImages=no
         # Boot with systemd.volatile=overlay so squashfs images can write to the filesystem
         KernelCommandLine=systemd.volatile=overlay
-
-        [Host]
-        QemuHeadless=yes
         EOF
 
-        sudo python3 -m mkosi --force build
+        MKOSI_TEST_DEFAULT_VERB=qemu sudo python3 -m pytest -m integration tests
 
-    - name: Boot ${{ matrix.distro }}/${{ matrix.format }} UEFI
-      if: matrix.format != 'directory' &&
-          matrix.format != 'plain_squashfs' &&
-          matrix.format != 'cpio' &&
-          matrix.format != 'tar' && (
-          matrix.distro == 'arch' ||
-          matrix.distro == 'centos' ||
-          matrix.distro == 'rocky' ||
-          matrix.distro == 'alma' ||
-          matrix.distro == 'fedora' ||
-          matrix.distro == 'gentoo')
-      run: sudo ./tests/pexpect/boot.py python3 -m mkosi qemu
-
-    - name: Build ${{ matrix.distro }}/${{ matrix.format }} BIOS
-      if: matrix.format != 'directory' &&
-          matrix.format != 'gpt_squashfs' &&
-          matrix.format != 'plain_squashfs' &&
-          matrix.format != 'tar' &&
-          matrix.format != 'cpio'
+    - name: Build/Boot ${{ matrix.distro }}/${{ matrix.format }} BIOS
       run: |
         tee mkosi.default <<- EOF
         [Output]
-        Bootable=yes
         BootProtocols=bios
         WithUnifiedKernelImages=no
-
-        [Host]
-        QemuHeadless=yes
         EOF
 
-        sudo python3 -m mkosi --force build
-
-    - name: Boot ${{ matrix.distro }}/${{ matrix.format }} BIOS
-      if: matrix.format != 'directory' &&
-          matrix.format != 'gpt_squashfs' &&
-          matrix.format != 'plain_squashfs' &&
-          matrix.format != 'cpio' &&
-          matrix.format != 'tar'
-      run: sudo ./tests/pexpect/boot.py python3 -m mkosi qemu
+        MKOSI_TEST_DEFAULT_VERB=qemu sudo python3 -m pytest -m integration tests

@@ -32,7 +32,7 @@ class DictDiffer:
 
 def pytest_assertrepr_compare(op: str, left: MkosiConfig, right: Dict[str, Any]) -> List[str]:
     if not isinstance(right, dict):
-        return []
+        return [] # type: ignore
     for r in right.values():
         if not isinstance(vars(r), dict):
             return ["Invalid datatype"]

@@ -8,7 +8,7 @@ import signal
 import subprocess
 import unittest
 from textwrap import dedent
-from typing import Any, Optional, Sequence
+from typing import Any, Iterator, Optional, Sequence
 
 import pexpect  # type: ignore
 
@@ -30,7 +30,7 @@ from . import (
     run_shell_cmdline,
     unlink_output,
 )
-from .backend import MkosiArgs, Verb, die
+from .backend import MkosiArgs, MkosiNotSupportedException, Verb, die
 
 
 class Machine:
@@ -63,8 +63,8 @@ class Machine:
         tmp.force = 1
         tmp.autologin = True
         tmp.ephemeral = True
+        tmp.bootable = True
         if tmp.verb == Verb.qemu:
-            tmp.bootable = True
             tmp.qemu_headless = True
             tmp.hostonly_initrd = True
             tmp.netdev = True
@@ -159,6 +159,15 @@ class Machine:
         self.stack.__exit__(*args, **kwargs)
 
 
+@contextlib.contextmanager
+def test_skip_not_supported() -> Iterator[None]:
+    """See if load_args() raises exception about args and added configurations on __init__()."""
+    try:
+        yield
+    except MkosiNotSupportedException as exception:
+        raise unittest.SkipTest(str(exception))
+
+
 class MkosiMachineTest(unittest.TestCase):
     args: Sequence[str]
     machine: Machine
@@ -168,10 +177,8 @@ class MkosiMachineTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
-        if os.getuid() != 0:
-            raise unittest.SkipTest("Must be invoked as root.")
-
-        cls.machine = Machine(cls.args)
+        with test_skip_not_supported():
+            cls.machine = Machine(cls.args)
 
         verb = cls.machine.args.verb
         no_nspawn = parse_boolean(os.getenv("MKOSI_TEST_NO_NSPAWN", "0"))
