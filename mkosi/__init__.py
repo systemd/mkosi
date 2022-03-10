@@ -70,6 +70,7 @@ from .backend import (
     ManifestFormat,
     MkosiArgs,
     MkosiException,
+    MkosiNotSupportedException,
     MkosiPrinter,
     OutputFormat,
     PackageType,
@@ -6248,7 +6249,7 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
             OutputFormat.cpio,
             OutputFormat.plain_squashfs,
         ):
-            die("Directory, subvolume, tar, cpio, and plain squashfs images cannot be booted.")
+            die("Directory, subvolume, tar, cpio, and plain squashfs images cannot be booted.", MkosiNotSupportedException)
 
         if not args.boot_protocols:
             args.boot_protocols = ["uefi"]
@@ -6260,37 +6261,37 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
             die("Not a valid boot protocol")
 
         if "uefi" in args.boot_protocols and args.distribution == Distribution.photon:
-            die(f"uefi boot not supported for {args.distribution}")
+            die(f"uefi boot not supported for {args.distribution}", MkosiNotSupportedException)
 
     if args.distribution in (Distribution.centos, Distribution.centos_epel):
         epel_release = parse_epel_release(args.release)
         if epel_release <= 9 and args.output_format == OutputFormat.gpt_btrfs:
-            die(f"Sorry, CentOS {epel_release} does not support btrfs")
+            die(f"Sorry, CentOS {epel_release} does not support btrfs", MkosiNotSupportedException)
         if epel_release <= 7 and args.bootable and "uefi" in args.boot_protocols and args.with_unified_kernel_images:
             die(
                 f"Sorry, CentOS {epel_release} does not support unified kernel images. "
-                "You must use --without-unified-kernel-images."
+                "You must use --without-unified-kernel-images.", MkosiNotSupportedException
             )
 
     if args.distribution in (Distribution.rocky, Distribution.rocky_epel):
         epel_release = int(args.release.split(".")[0])
         if epel_release == 8 and args.output_format == OutputFormat.gpt_btrfs:
-            die(f"Sorry, Rocky {epel_release} does not support btrfs")
+            die(f"Sorry, Rocky {epel_release} does not support btrfs", MkosiNotSupportedException)
 
     if args.distribution in (Distribution.alma, Distribution.alma_epel):
         epel_release = int(args.release.split(".")[0])
         if epel_release == 8 and args.output_format == OutputFormat.gpt_btrfs:
-            die(f"Sorry, Alma {epel_release} does not support btrfs")
+            die(f"Sorry, Alma {epel_release} does not support btrfs", MkosiNotSupportedException)
 
     # Remove once https://github.com/clearlinux/clr-boot-manager/pull/238 is merged and available.
     if args.distribution == Distribution.clear and args.output_format == OutputFormat.gpt_btrfs:
-        die("Sorry, Clear Linux does not support btrfs")
+        die("Sorry, Clear Linux does not support btrfs", MkosiNotSupportedException)
 
     if args.distribution == Distribution.clear and "," in args.boot_protocols:
-        die("Sorry, Clear Linux does not support hybrid BIOS/UEFI images")
+        die("Sorry, Clear Linux does not support hybrid BIOS/UEFI images", MkosiNotSupportedException)
 
     if shutil.which("bsdtar") and args.distribution == Distribution.openmandriva and args.tar_strip_selinux_context:
-        die("Sorry, bsdtar on OpenMandriva is incompatible with --tar-strip-selinux-context")
+        die("Sorry, bsdtar on OpenMandriva is incompatible with --tar-strip-selinux-context", MkosiNotSupportedException)
 
     find_cache(args)
 
@@ -6313,20 +6314,20 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
             args.mirror = None
 
     if args.minimize and not args.output_format.can_minimize():
-        die("Minimal file systems only supported for ext4 and btrfs.")
+        die("Minimal file systems only supported for ext4 and btrfs.", MkosiNotSupportedException)
 
     if is_generated_root(args) and args.incremental:
-        die("Sorry, incremental mode is currently not supported for squashfs or minimized file systems.")
+        die("Sorry, incremental mode is currently not supported for squashfs or minimized file systems.", MkosiNotSupportedException)
 
     if args.encrypt is not None:
         if not args.output_format.is_disk():
-            die("Encryption is only supported for disk images.")
+            die("Encryption is only supported for disk images.", MkosiNotSupportedException)
 
         if args.encrypt == "data" and args.output_format == OutputFormat.gpt_btrfs:
-            die("'data' encryption mode not supported on btrfs, use 'all' instead.")
+            die("'data' encryption mode not supported on btrfs, use 'all' instead.", MkosiNotSupportedException)
 
         if args.encrypt == "all" and args.verity:
-            die("'all' encryption mode may not be combined with Verity.")
+            die("'all' encryption mode may not be combined with Verity.", MkosiNotSupportedException)
 
     if args.sign:
         args.checksum = True
@@ -6386,7 +6387,7 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
         args.read_only = True
         args.root_size = None
         if args.compress is False:
-            die("Cannot disable compression with squashfs")
+            die("Cannot disable compression with squashfs", MkosiNotSupportedException)
         if args.compress is None:
             args.compress = True
 
@@ -6491,21 +6492,21 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
     if args.verb in (Verb.shell, Verb.boot):
         opname = "acquire shell" if args.verb == Verb.shell else "boot"
         if args.output_format in (OutputFormat.tar, OutputFormat.cpio):
-            die(f"Sorry, can't {opname} with a {args.output_format} archive.")
+            die(f"Sorry, can't {opname} with a {args.output_format} archive.", MkosiNotSupportedException)
         if should_compress_output(args):
-            die(f"Sorry, can't {opname} with a compressed image.")
+            die(f"Sorry, can't {opname} with a compressed image.", MkosiNotSupportedException)
         if args.qcow2:
-            die(f"Sorry, can't {opname} using a qcow2 image.")
+            die(f"Sorry, can't {opname} using a qcow2 image.", MkosiNotSupportedException)
 
     if args.verb == Verb.qemu:
         if not args.output_format.is_disk():
-            die("Sorry, can't boot non-disk images with qemu.")
+            die("Sorry, can't boot non-disk images with qemu.", MkosiNotSupportedException)
 
     if needs_build(args) and args.verb == Verb.qemu and not args.bootable:
-        die("Images built without the --bootable option cannot be booted using qemu")
+        die("Images built without the --bootable option cannot be booted using qemu", MkosiNotSupportedException)
 
     if needs_build(args) and args.qemu_headless and not args.bootable:
-        die("--qemu-headless requires --bootable")
+        die("--qemu-headless requires --bootable", MkosiNotSupportedException)
 
     if args.qemu_headless and "console=ttyS0" not in args.kernel_command_line:
         args.kernel_command_line.append("console=ttyS0")
@@ -6530,17 +6531,17 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
         args.kernel_command_line.append("rw")
 
     if is_generated_root(args) and "bios" in args.boot_protocols:
-        die("Sorry, BIOS cannot be combined with --minimize or squashfs filesystems")
+        die("Sorry, BIOS cannot be combined with --minimize or squashfs filesystems", MkosiNotSupportedException)
 
     if args.bootable and args.distribution in (Distribution.clear, Distribution.photon):
-        die("Sorry, --bootable is not supported on this distro")
+        die("Sorry, --bootable is not supported on this distro", MkosiNotSupportedException)
 
     if not args.with_unified_kernel_images and "uefi" in args.boot_protocols:
         if args.distribution in (Distribution.debian, Distribution.ubuntu, Distribution.mageia, Distribution.opensuse):
-            die("Sorry, --without-unified-kernel-images is not supported in UEFI mode on this distro.")
+            die("Sorry, --without-unified-kernel-images is not supported in UEFI mode on this distro.", MkosiNotSupportedException)
 
     if args.verity and not args.with_unified_kernel_images:
-        die("Sorry, --verity can only be used with unified kernel images")
+        die("Sorry, --verity can only be used with unified kernel images", MkosiNotSupportedException)
 
     if args.source_file_transfer is None:
         if os.path.exists(".git") or args.build_sources.joinpath(".git").exists():
@@ -6549,10 +6550,10 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
             args.source_file_transfer = SourceFileTransfer.copy_all
 
     if args.source_file_transfer_final == SourceFileTransfer.mount:
-        die("Sorry, --source-file-transfer-final=mount is not supported")
+        die("Sorry, --source-file-transfer-final=mount is not supported", MkosiNotSupportedException)
 
     if args.skip_final_phase and args.verb != Verb.build:
-        die("--skip-final-phase can only be used when building an image using 'mkosi build'")
+        die("--skip-final-phase can only be used when building an image using 'mkosi build'", MkosiNotSupportedException)
 
     if args.ssh_timeout < 0:
         die("--ssh-timeout must be >= 0")
