@@ -39,8 +39,9 @@ class MkosiMachineTestCase(MkosiMachineTest):
 
 
 def test_before_boot() -> None:
-    with pytest_skip_not_supported():
+    with pytest_skip_not_supported(build=True):
         m = Machine()
+        m.build()
         if m.args.verb == Verb.shell:
             pytest.skip("Shell never boots the machine.")
         with pytest.raises(AssertionError):

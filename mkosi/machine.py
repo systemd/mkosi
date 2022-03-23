@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import contextlib
+import copy
 import os
 import signal
 import subprocess
 import unittest
+from argparse import Namespace
 from textwrap import dedent
 from typing import Any, Iterator, Optional, Sequence
 
@@ -41,6 +43,7 @@ class Machine:
         self.debug = debug
         self.stack = contextlib.ExitStack()
         self.args: MkosiArgs
+        self.parsed: Namespace
 
         tmp = parse_args(args)["default"]
 
@@ -63,15 +66,17 @@ class Machine:
         tmp.force = 1
         tmp.autologin = True
         tmp.ephemeral = True
-        tmp.bootable = True
         if tmp.verb == Verb.qemu:
-            tmp.qemu_headless = True
             tmp.hostonly_initrd = True
             tmp.netdev = True
             tmp.ssh = True
         elif tmp.verb not in (Verb.shell, Verb.boot):
             die("No valid verb was entered.")
 
+        # We copy and edit the parsed args to make sure the image is at least built.
+        # The copy is later on used to see if image can be booted.
+        self.parsed = copy.deepcopy(tmp)
+        tmp.verb = Verb.build
         self.args = load_args(tmp)
 
     @property
@@ -112,7 +117,16 @@ class Machine:
 
         return self
 
+    def load_boot_args(self) -> None:
+        self.parsed.bootable = True
+        if self.parsed.verb == Verb.qemu:
+            self.parsed.qemu_headless = True
+        self.args = load_args(copy.deepcopy(self.parsed))
+
     def boot(self) -> None:
+        # After image is built, we try to run load_args to see whether image is bootable.
+        self.load_boot_args()
+
         if self.args.verb == Verb.shell:
             return
 
@@ -159,11 +173,16 @@ class Machine:
         self.stack.__exit__(*args, **kwargs)
 
 
+# For images that can be built, we only add the arguments that make load_args() raise errors at load_boot_args().
+# For images that cannot even be built, we only run __init__().
 @contextlib.contextmanager
-def pytest_skip_not_supported(args: Sequence[str] = []) -> Iterator[None]:
+def pytest_skip_not_supported(args: Sequence[str] = [], build: bool = False) -> Iterator[None]:
     """See if load_args() raises exception about args and added configurations on __init__()."""
     try:
-        Machine(args)
+        if build:
+            Machine(args)
+        else:
+            Machine(args).load_boot_args()
         yield
     except MkosiNotSupportedException as exception:
         raise unittest.SkipTest(str(exception))
@@ -178,26 +197,27 @@ class MkosiMachineTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
-        with pytest_skip_not_supported(cls.args):
+        with pytest_skip_not_supported(cls.args, build=True):
             cls.machine = Machine(cls.args)
 
-            verb = cls.machine.args.verb
-            no_nspawn = parse_boolean(os.getenv("MKOSI_TEST_NO_NSPAWN", "0"))
-            no_qemu = parse_boolean(os.getenv("MKOSI_TEST_NO_QEMU", "0"))
+        verb = cls.machine.args.verb
+        no_nspawn = parse_boolean(os.getenv("MKOSI_TEST_NO_NSPAWN", "0"))
+        no_qemu = parse_boolean(os.getenv("MKOSI_TEST_NO_QEMU", "0"))
 
-            if no_nspawn and verb == Verb.boot:
-                raise unittest.SkipTest("Nspawn test skipped due to environment variable.")
-            if no_qemu and verb == Verb.qemu:
-                raise unittest.SkipTest("Qemu test skipped due to environment variable.")
+        if no_nspawn and verb == Verb.boot:
+            raise unittest.SkipTest("Nspawn test skipped due to environment variable.")
+        if no_qemu and verb == Verb.qemu:
+            raise unittest.SkipTest("Qemu test skipped due to environment variable.")
 
-            cls.machine.build()
+        cls.machine.build()
 
     def setUp(self) -> None:
         # Replacing underscores which makes name invalid.
         # Necessary for shell otherwise racing conditions to the disk image will happen.
         test_name = self.id().split(".")[3]
         self.machine.args.hostname = test_name.replace("_", "-")
-        self.machine.boot()
+        with pytest_skip_not_supported(self.args):
+            self.machine.boot()
 
     def tearDown(self) -> None:
         self.machine.kill()
