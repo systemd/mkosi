@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import contextlib
+import copy
 import os
 import signal
 import subprocess
 import unittest
+from argparse import Namespace
 from textwrap import dedent
 from typing import Any, Iterator, Optional, Sequence
 
@@ -40,39 +42,49 @@ class Machine:
         self.exit_code: int = -1
         self.debug = debug
         self.stack = contextlib.ExitStack()
+        self.parsed: Namespace
         self.args: MkosiArgs
+        self.verb: Verb
 
-        tmp = parse_args(args)["default"]
+        self.parsed = parse_args(args)["default"]
 
         # By default, Mkosi makes Verb = build.
         # But we want to know if a test class passed args without a Verb.
         # If so, we'd like to assign default values or the environment's variable value.
-        if tmp.verb == Verb.build and Verb.build.name not in args:
+        if self.parsed.verb == Verb.build and Verb.build.name not in args:
             verb = os.getenv("MKOSI_TEST_DEFAULT_VERB")
             # This way, if environment variable is not set, we assign nspawn by default to test classes with no Verb.
             if verb in (Verb.boot.name, None):
-                tmp.verb = Verb.boot
+                self.parsed.verb = Verb.boot
             elif verb == Verb.qemu.name:
-                tmp.verb = Verb.qemu
+                self.parsed.verb = Verb.qemu
             elif verb == Verb.shell.name:
-                tmp.verb = Verb.shell
+                self.parsed.verb = Verb.shell
             else:
                 die("No valid verb was entered.")
 
         # Add the arguments in the machine class itself, rather than typing this for every testing function.
-        tmp.force = 1
-        tmp.autologin = True
-        tmp.ephemeral = True
-        tmp.bootable = True
-        if tmp.verb == Verb.qemu:
-            tmp.qemu_headless = True
-            tmp.hostonly_initrd = True
-            tmp.netdev = True
-            tmp.ssh = True
-        elif tmp.verb not in (Verb.shell, Verb.boot):
+        self.parsed.force = 1
+        self.parsed.autologin = True
+        self.parsed.ephemeral = True
+        if self.parsed.verb == Verb.qemu:
+            self.verb = Verb.qemu
+            self.parsed.hostonly_initrd = True
+            self.parsed.netdev = True
+            self.parsed.ssh = True
+        elif self.parsed.verb == Verb.boot:
+            self.verb = Verb.boot
+        elif self.parsed.verb == Verb.shell:
+            self.verb = Verb.shell
+        else:
             die("No valid verb was entered.")
 
-        self.args = load_args(tmp)
+        # Some images can be built, but not booted.
+        # load_args() raises an exception regarless of whether we're trying to build or boot.
+        # So we temporarily switch the verb to build.
+        # This way booting exceptions are raised later when actually performing such operation.
+        self.parsed.verb = Verb.build
+        self.args = load_args(copy.deepcopy(self.parsed))
 
     @property
     def serial(self) -> pexpect.spawn:
@@ -113,6 +125,14 @@ class Machine:
         return self
 
     def boot(self) -> None:
+        # We restore the configurations for booting the image, now that it's built.
+        # So, if the image can't be booted, it'll actually fail during this step.
+        self.parsed.verb = self.verb
+        if self.parsed.verb == Verb.qemu:
+            self.parsed.bootable = True
+            self.parsed.qemu_headless = True
+        self.args = load_args(copy.deepcopy(self.parsed))
+
         if self.args.verb == Verb.shell:
             return
 
@@ -196,7 +216,8 @@ class MkosiMachineTest(unittest.TestCase):
         # Necessary for shell otherwise racing conditions to the disk image will happen.
         test_name = self.id().split(".")[3]
         self.machine.args.hostname = test_name.replace("_", "-")
-        self.machine.boot()
+        with test_skip_not_supported():
+            self.machine.boot()
 
     def tearDown(self) -> None:
         self.machine.kill()

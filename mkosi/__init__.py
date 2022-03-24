@@ -7663,7 +7663,6 @@ def run_qemu_cmdline(args: MkosiArgs) -> Iterator[List[str]]:
         print_running_cmd(cmdline)
         yield cmdline
 
-
 def run_qemu(args: MkosiArgs) -> None:
     with run_qemu_cmdline(args) as cmdline:
         run(cmdline, stdout=sys.stdout, stderr=sys.stderr)
@@ -7719,7 +7718,6 @@ def find_address(args: MkosiArgs) -> Tuple[str, str]:
         timeout -= time.time() - stime
 
     die("Container/VM address not found")
-
 
 def run_command_image(args: MkosiArgs, commands: Sequence[str], timeout: int, check: bool, stdout: _FILE = sys.stdout, stderr: _FILE = sys.stderr) -> CompletedProcess:
     if args.verb == Verb.qemu:
