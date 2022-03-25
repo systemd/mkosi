@@ -91,11 +91,6 @@ jobs:
         ./tools/generate-zipapp.sh
         ./builddir/mkosi -h
 
-    - name: Test shell scripts
-      run: |
-        sudo apt-get update && sudo apt-get install --no-install-recommends shellcheck
-        bash -c 'set globstar; shellcheck mkosi/**/*.sh'
-
   integration-test:
     runs-on: ubuntu-20.04
     needs: unit-test
