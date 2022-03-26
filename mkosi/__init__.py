@@ -3404,9 +3404,12 @@ def run_postinst_script(
                 raise ValueError("Parameter 'loopdev' required for bootable images.")
             nspawn_params += nspawn_params_for_blockdev_access(args, loopdev)
 
-        run_workspace_command(
-            args, root, ["/root/postinst", verb], network=(args.with_network is True), nspawn_params=nspawn_params
-        )
+        env = dict(cast(Tuple[str, str], v.split("=", maxsplit=1)) for v in args.environment)
+
+        run_workspace_command(args, root, ["/root/postinst", verb],
+                              network=(args.with_network is True),
+                              nspawn_params=nspawn_params,
+                              env=env)
         root_home(args, root).joinpath("postinst").unlink()
 
 
