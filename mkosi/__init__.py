@@ -3345,7 +3345,7 @@ def nspawn_params_for_build_sources(args: MkosiArgs, sft: SourceFileTransfer) ->
     else:
         params += ["--chdir=/root"]
 
-    params += [f"--setenv={env}" for env in args.environment]
+    params += [f"--setenv={env}={value}" for env, value in args.environment.items()]
 
     return params
 
@@ -3404,12 +3404,10 @@ def run_postinst_script(
                 raise ValueError("Parameter 'loopdev' required for bootable images.")
             nspawn_params += nspawn_params_for_blockdev_access(args, loopdev)
 
-        env = dict(cast(Tuple[str, str], v.split("=", maxsplit=1)) for v in args.environment)
-
         run_workspace_command(args, root, ["/root/postinst", verb],
                               network=(args.with_network is True),
                               nspawn_params=nspawn_params,
-                              env=env)
+                              env=args.environment)
         root_home(args, root).joinpath("postinst").unlink()
 
 
@@ -3426,8 +3424,9 @@ def run_finalize_script(args: MkosiArgs, root: Path, do_run_build_script: bool, 
     verb = "build" if do_run_build_script else "final"
 
     with complete_step("Running finalize script…"):
-        env = dict(cast(Tuple[str, str], v.split("=", maxsplit=1)) for v in args.environment)
-        env = collections.ChainMap(dict(BUILDROOT=str(root), OUTPUTDIR=str(output_dir(args))), env, os.environ)
+        env = collections.ChainMap(dict(BUILDROOT=str(root), OUTPUTDIR=str(output_dir(args))),
+                                   args.environment,
+                                   os.environ)
         run([args.finalize_script, verb], env=env)
 
 
@@ -6443,10 +6442,15 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
     args.postinst_script = normalize_script(args.postinst_script)
     args.finalize_script = normalize_script(args.finalize_script)
 
-    for i in range(len(args.environment)):
-        if "=" not in args.environment[i]:
-            value = os.getenv(args.environment[i], "")
-            args.environment[i] += f"={value}"
+    if args.environment:
+        env = {}
+        for s in args.environment:
+            key, _, value = s.partition("=")
+            value = value or os.getenv(key, "")
+            env[key] = value
+        args.environment = env
+    else:
+        args.environment = {}
 
     if args.cache_path is not None:
         args.cache_path = args.cache_path.absolute()
@@ -6767,7 +6771,8 @@ def print_summary(args: MkosiArgs) -> None:
     if args.remove_packages:
         MkosiPrinter.info("           Remove Packages: " + line_join_list(args.remove_packages))
     MkosiPrinter.info("              Build Script: " + none_to_none(args.build_script))
-    MkosiPrinter.info("        Script Environment: " + line_join_list(args.environment))
+    env = [f"{k}={v}" for k, v in args.environment.items()]
+    MkosiPrinter.info("        Script Environment: " + line_join_list(env))
 
     if args.build_script:
         MkosiPrinter.info("                 Run tests: " + yes_no(args.with_tests))
@@ -7171,7 +7176,7 @@ def run_build_script(args: MkosiArgs, root: Path, raw: Optional[BinaryIO]) -> No
             *nspawn_rlimit_params(),
         ]
 
-        cmdline.extend(f"--setenv={env}" for env in args.environment)
+        cmdline.extend(f"--setenv={env}={value}" for env, value in args.environment.items())
 
         # TODO: Use --autopipe once systemd v247 is widely available.
         console_arg = f"--console={'interactive' if sys.stdout.isatty() else 'pipe'}"
