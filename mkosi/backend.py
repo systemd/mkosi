@@ -27,6 +27,7 @@ from typing import (
     Dict,
     Iterator,
     List,
+    Mapping,
     NoReturn,
     Optional,
     Sequence,
@@ -606,7 +607,7 @@ def run_workspace_command(
     root: Path,
     cmd: Sequence[PathString],
     network: bool = False,
-    env: Optional[Dict[str, str]] = None,
+    env: Optional[Mapping[str, str]] = None,
     nspawn_params: Optional[List[str]] = None,
     capture_stdout: bool = False,
 ) -> Optional[str]:
