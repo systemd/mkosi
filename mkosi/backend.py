@@ -27,6 +27,7 @@ from typing import (
     Dict,
     Iterator,
     List,
+    Mapping,
     NoReturn,
     Optional,
     Sequence,
@@ -444,7 +445,7 @@ class MkosiArgs:
     skeleton_trees: List[Path]
     clean_package_metadata: Union[bool, str]
     remove_files: List[Path]
-    environment: List[str]
+    environment: Dict[str, str]
     build_sources: Optional[Path]
     build_dir: Optional[Path]
     include_dir: Optional[Path]
@@ -588,7 +589,7 @@ def nspawn_params_for_blockdev_access(args: MkosiArgs, loopdev: Path) -> List[st
         if path and path.exists():
             params += [f"--bind-ro={path}", f"--property=DeviceAllow={path}"]
 
-    params += [f"--setenv={env}" for env in args.environment]
+    params += [f"--setenv={env}={value}" for env, value in args.environment.items()]
 
     return params
 
@@ -611,7 +612,7 @@ def run_workspace_command(
     root: Path,
     cmd: Sequence[PathString],
     network: bool = False,
-    env: Optional[Dict[str, str]] = None,
+    env: Optional[Mapping[str, str]] = None,
     nspawn_params: Optional[List[str]] = None,
     capture_stdout: bool = False,
 ) -> Optional[str]:
