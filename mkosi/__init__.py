@@ -2583,6 +2583,15 @@ def install_centos(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
 
     install_packages_dnf(args, root, packages, do_run_build_script)
 
+    # Centos Stream 8 and below can't write to the sqlite db backend used by
+    # default in newer RPM releases so let's rebuild the DB to use the old bdb
+    # backend instead. Because newer RPM releases have dropped support for the
+    # bdb backend completely, we check if rpm is installed and use
+    # run_workspace_command() to rebuild the rpm db.
+    if epel_release <= 8 and root.joinpath("usr/bin/rpm").exists():
+        cmdline = ["rpm", "--rebuilddb", "--define", "_db_backend bdb"]
+        run_workspace_command(args, root, cmdline)
+
 
 @complete_step("Installing Rocky Linux…")
 def install_rocky(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None:
