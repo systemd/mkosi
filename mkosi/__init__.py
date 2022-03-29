@@ -3568,12 +3568,12 @@ def install_build_src(args: MkosiArgs, root: Path, do_run_build_script: bool, fo
     if for_cache:
         return
 
-    if args.build_script is None:
-        return
-
     if do_run_build_script:
-        with complete_step("Copying in build script…"):
-            copy_file(args.build_script, root_home(args, root) / args.build_script.name)
+        if args.build_script is not None:
+            with complete_step("Copying in build script…"):
+                copy_file(args.build_script, root_home(args, root) / args.build_script.name)
+        else:
+            return
 
     sft: Optional[SourceFileTransfer] = None
     resolve_symlinks: bool = False
