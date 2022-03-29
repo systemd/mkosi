@@ -2583,6 +2583,15 @@ def install_centos(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
 
     install_packages_dnf(args, root, packages, do_run_build_script)
 
+    # Centos Stream 8 and below can't write to the sqlite db backend used by
+    # default in newer RPM releases so let's rebuild the DB to use the old bdb
+    # backend instead. Because newer RPM releases have dropped support for the
+    # bdb backend completely, we check if rpm is installed and use
+    # run_workspace_command() to rebuild the rpm db.
+    if epel_release <= 8 and root.joinpath("usr/bin/rpm").exists():
+        cmdline = ["rpm", "--rebuilddb", "--define", "_db_backend bdb"]
+        run_workspace_command(args, root, cmdline)
+
 
 @complete_step("Installing Rocky Linux…")
 def install_rocky(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None:
@@ -3559,12 +3568,12 @@ def install_build_src(args: MkosiArgs, root: Path, do_run_build_script: bool, fo
     if for_cache:
         return
 
-    if args.build_script is None:
-        return
-
     if do_run_build_script:
-        with complete_step("Copying in build script…"):
-            copy_file(args.build_script, root_home(args, root) / args.build_script.name)
+        if args.build_script is not None:
+            with complete_step("Copying in build script…"):
+                copy_file(args.build_script, root_home(args, root) / args.build_script.name)
+        else:
+            return
 
     sft: Optional[SourceFileTransfer] = None
     resolve_symlinks: bool = False
