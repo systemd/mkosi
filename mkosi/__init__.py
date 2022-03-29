@@ -2015,6 +2015,22 @@ def invoke_dnf(
     with mount_api_vfs(args, root):
         run(cmdline)
 
+    distribution, release = detect_distribution()
+    if distribution not in (Distribution.debian, Distribution.ubuntu):
+        return
+
+    # On Debian, rpm/dnf ship with a patch to store the rpmdb under ~/
+    # so it needs to be copied back in the right location, otherwise
+    # the rpmdb will be broken. See: https://bugs.debian.org/1004863
+    rpmdb_home = root / "root/.rpmdb"
+    if rpmdb_home.exists():
+        # Take into account the new location in F36
+        rpmdb = root / "usr/lib/sysimage/rpm"
+        if not rpmdb.exists():
+            rpmdb = root / "var/lib/rpm"
+        unlink_try_hard(rpmdb)
+        shutil.move(cast(str, rpmdb_home), rpmdb)
+
 
 def install_packages_dnf(
     args: MkosiArgs,
