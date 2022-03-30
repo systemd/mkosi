@@ -1683,6 +1683,8 @@ def root_home(args: MkosiArgs, root: Path) -> Path:
 
 def prepare_tree(args: MkosiArgs, root: Path, do_run_build_script: bool, cached: bool) -> None:
     if cached:
+        # Reuse machine-id from cached image.
+        args.machine_id = uuid.UUID(root.joinpath("etc/machine-id").read_text().strip()).hex
         return
 
     with complete_step("Setting up basic OS tree…"):
