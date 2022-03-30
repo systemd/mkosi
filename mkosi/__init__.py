@@ -81,6 +81,7 @@ from .backend import (
     Verb,
     die,
     install_grub,
+    is_rpm_distribution,
     nspawn_params_for_blockdev_access,
     nspawn_rlimit_params,
     patch_file,
@@ -2107,7 +2108,8 @@ def setup_dnf(args: MkosiArgs, root: Path, repos: Sequence[Repo] = ()) -> None:
     if args.use_host_repositories:
         default_repos  = ""
     else:
-        default_repos  = f"{'repodir' if args.distribution == Distribution.photon else 'reposdir'}={workspace(root)}"
+        option = "repodir" if args.distribution == Distribution.photon else "reposdir"
+        default_repos  = f"{option}={workspace(root)} {args.repos_dir if args.repos_dir else ''}"
 
     config_file = workspace(root) / "dnf.conf"
     config_file.write_text(
@@ -2899,6 +2901,8 @@ def install_arch(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None
 
                 [community]
                 {server}
+
+                {f"Include = {args.repos_dir}/*" if args.repos_dir else ""}
                 """
             )
         )
@@ -5123,6 +5127,8 @@ def create_parser() -> ArgumentParserMkosi:
         action=BooleanAction,
         help="Use host's existing software repositories (only for dnf-based distributions)",
     )
+    group.add_argument("--repository-directory", metavar="PATH", dest="repos_dir",
+                       help="Directory container extra distribution specific repository files")
     group.add_argument("--architecture", help="Override the architecture of installation")
 
     group = parser.add_argument_group("Output")
@@ -6212,6 +6218,7 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
     args_find_path(args, "output_dir", "mkosi.output/")
     args_find_path(args, "workspace_dir", "mkosi.workspace/")
     args_find_path(args, "mksquashfs_tool", "mkosi.mksquashfs-tool", as_list=True)
+    args_find_path(args, "repos_dir", "mkosi.reposdir/")
 
     find_extra(args)
     find_skeleton(args)
@@ -6578,6 +6585,9 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
 
     if args.ssh_port <= 0:
         die("--ssh-port must be > 0")
+
+    if args.repos_dir and not (is_rpm_distribution(args.distribution) or args.distribution == Distribution.arch):
+        die("--repository-directory is only supported on RPM based distributions and Arch")
 
     # We set a reasonable umask so that files that are created in the image
     # will have reasonable permissions. We don't want those permissions to be
