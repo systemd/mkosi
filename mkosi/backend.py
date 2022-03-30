@@ -168,6 +168,20 @@ class Distribution(enum.Enum):
     def __str__(self) -> str:
         return self.name
 
+def is_rpm_distribution(d: Distribution) -> bool:
+    return d in (
+        Distribution.fedora,
+        Distribution.mageia,
+        Distribution.centos,
+        Distribution.centos_epel,
+        Distribution.photon,
+        Distribution.openmandriva,
+        Distribution.rocky,
+        Distribution.rocky_epel,
+        Distribution.alma,
+        Distribution.alma_epel
+    )
+
 
 class SourceFileTransfer(enum.Enum):
     copy_all = "copy-all"
@@ -404,6 +418,7 @@ class MkosiArgs:
     mirror: Optional[str]
     repositories: List[str]
     use_host_repositories: bool
+    repos_dir: Optional[str]
     architecture: Optional[str]
     output_format: OutputFormat
     manifest_format: List[ManifestFormat]

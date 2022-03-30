@@ -104,6 +104,7 @@ class MkosiConfig:
             "release": None,
             "repositories": [],
             "use_host_repositories": False,
+            "repos_dir": None,
             "base_image": None,
             "root_size": None,
             "secure_boot": False,

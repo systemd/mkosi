@@ -314,13 +314,21 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 
 `UseHostRepositories=`, `--use-host-repositories`
 
-: This option is only applicable for dnf-based distributions:
+: This option is only applicable for RPM-based distributions:
   *CentOS*, *Fedora Linux*, *Mageia*, *Photon*, *Rocky Linux*, *Alma Linux*
   and *OpenMandriva*.
-  Allows use of the host's existing dnf repositories.
-  By default, a hardcoded set of default dnf repositories is generated and used.
+  Allows use of the host's existing RPM repositories.
+  By default, a hardcoded set of default RPM repositories is generated and used.
   Use `--repositories=` to identify a custom set of repositories to be enabled
   and used for the build.
+
+`RepositoryDirectory`, `--repository-directory`
+
+: This option can (for now) only be used with RPM-based istributions and Arch
+  Linux. It identifies a directory containing extra repository definitions that
+  will be used when installing packages. The files are passed directly to the
+  corresponding package manager and should be written in the format expected by
+  the package manager of the image's distro.
 
 `Architecture=`, `--architecture=`
 
@@ -1507,6 +1515,10 @@ local directory:
   shall be built from the same working directory, as otherwise the
   build result of a preceding run might be copied into a build image
   as part of the source tree (see above).
+
+* The **`mkosi.reposdir/`** directory, if it exists, is automatically
+  used as the repository directory for extra repository files. See
+  the `RepositoryDirectory` option for more information.
 
 All these files are optional.
 
