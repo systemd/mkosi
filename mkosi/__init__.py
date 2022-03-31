@@ -2880,16 +2880,17 @@ def install_arch(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None
             dedent(
                 f"""\
                 [options]
-                RootDir     = {root}
-                LogFile     = /dev/null
-                CacheDir    = {root}/var/cache/pacman/pkg/
-                GPGDir      = {root}/etc/pacman.d/gnupg/
-                HookDir     = {root}/etc/pacman.d/hooks/
-                HoldPkg     = pacman glibc
+                RootDir = {root}
+                LogFile = /dev/null
+                CacheDir = {root}/var/cache/pacman/pkg/
+                GPGDir = {root}/etc/pacman.d/gnupg/
+                HookDir = {root}/etc/pacman.d/hooks/
+                HoldPkg = pacman glibc
                 Architecture = auto
                 Color
                 CheckSpace
-                SigLevel    = Required DatabaseOptional TrustAll
+                SigLevel = Required DatabaseOptional TrustAll
+                ParallelDownloads = 5
 
                 [core]
                 {server}
