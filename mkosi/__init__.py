@@ -2113,6 +2113,9 @@ def setup_dnf(args: MkosiArgs, root: Path, repos: Sequence[Repo] = ()) -> None:
         option = "repodir" if args.distribution == Distribution.photon else "reposdir"
         default_repos  = f"{option}={workspace(root)} {args.repos_dir if args.repos_dir else ''}"
 
+    vars_dir = workspace(root) / "vars"
+    vars_dir.mkdir(exist_ok=True)
+
     config_file = workspace(root) / "dnf.conf"
     config_file.write_text(
         dedent(
@@ -2120,6 +2123,7 @@ def setup_dnf(args: MkosiArgs, root: Path, repos: Sequence[Repo] = ()) -> None:
             [main]
             gpgcheck={'1' if gpgcheck else '0'}
             {default_repos }
+            varsdir={vars_dir}
             """
         )
     )
@@ -2549,6 +2553,9 @@ def install_centos(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
         install_centos_repos_new(args, root, epel_release)
     else:
         install_centos_stream_repos(args, root, epel_release)
+
+    if "-stream" in args.release:
+        workspace(root).joinpath("vars/stream").write_text(args.release)
 
     packages = {*args.packages}
     add_packages(args, packages, "centos-release", "systemd")
