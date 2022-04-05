@@ -7428,9 +7428,9 @@ def suppress_stacktrace() -> Iterator[None]:
 def virt_name(args: MkosiArgs) -> str:
 
     name = args.hostname or args.image_id or args.output.with_suffix("").name.partition("_")[0]
-    # Shorten to 13 characters so we can prefix with ve- or vt- for the netdev ifname which is limited
-    # to 16 characters.
-    return name[:13]
+    # Shorten to 12 characters so we can prefix with ve- or vt- for the netdev ifname which is limited
+    # to 15 characters.
+    return name[:12]
 
 
 def has_networkd_vm_vt() -> bool:
