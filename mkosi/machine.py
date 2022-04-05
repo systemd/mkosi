@@ -69,6 +69,7 @@ class Machine:
             tmp.hostonly_initrd = True
             tmp.netdev = True
             tmp.ssh = True
+            tmp.ssh_timeout = 240
         elif tmp.verb not in (Verb.shell, Verb.boot):
             die("No valid verb was entered.")
 
