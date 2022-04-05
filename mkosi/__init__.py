@@ -7746,7 +7746,7 @@ def find_address(args: MkosiArgs) -> Tuple[str, str]:
             elif interface_exists(f"vt-{name}"):
                 dev = f"vt-{name}"
             else:
-                raise MkosiException("Container/VM interface not found")
+                die(f"Container/VM interface ve-{name}/vt-{name} not found")
 
             link = json.loads(run(["ip", "-j", "link", "show", "dev", dev], stdout=PIPE, text=True).stdout)[0]
             if link["operstate"] == "DOWN":
