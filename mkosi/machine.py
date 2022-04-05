@@ -63,8 +63,8 @@ class Machine:
         tmp.force = 1
         tmp.autologin = True
         tmp.ephemeral = True
-        tmp.bootable = True
         if tmp.verb == Verb.qemu:
+            tmp.bootable = True
             tmp.qemu_headless = True
             tmp.hostonly_initrd = True
             tmp.netdev = True
