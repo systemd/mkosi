@@ -7425,12 +7425,14 @@ def suppress_stacktrace() -> Iterator[None]:
         raise MkosiException() from e
 
 
-def virt_name(args: MkosiArgs) -> str:
+def machine_name(args: MkosiArgs) -> str:
+    return args.hostname or args.image_id or args.output.with_suffix("").name.partition("_")[0]
 
-    name = args.hostname or args.image_id or args.output.with_suffix("").name.partition("_")[0]
+
+def interface_name(args: MkosiArgs) -> str:
     # Shorten to 12 characters so we can prefix with ve- or vt- for the netdev ifname which is limited
     # to 15 characters.
-    return name[:12]
+    return machine_name(args)[:12]
 
 
 def has_networkd_vm_vt() -> bool:
@@ -7517,7 +7519,7 @@ def run_shell_cmdline(args: MkosiArgs, pipe: bool = False, commands: Optional[Se
     if args.ephemeral:
         cmdline += ["--ephemeral"]
 
-    cmdline += ["--machine", virt_name(args)]
+    cmdline += ["--machine", machine_name(args)]
 
     if args.nspawn_keep_unit:
         cmdline += ["--keep-unit"]
@@ -7671,7 +7673,7 @@ def run_qemu_cmdline(args: MkosiArgs) -> Iterator[List[str]]:
             cmdline += ["-nic", f"user,model=virtio-net-pci{fwd}"]
         else:
             # Use vt- prefix so we can take advantage of systemd-networkd's builtin network file for VMs.
-            ifname = f"vt-{virt_name(args)}"
+            ifname = f"vt-{interface_name(args)}"
             # vt-<image-name> is the ifname on the host and is automatically picked up by systemd-networkd which
             # starts a DHCP server on that interface. This gives IP connectivity to the VM. By default, QEMU
             # itself tries to bring up the vt network interface which conflicts with systemd-networkd which is
@@ -7735,7 +7737,7 @@ def find_address(args: MkosiArgs) -> Tuple[str, str]:
     if not ensure_networkd(args) and args.ssh_port != 22:
         return "", "127.0.0.1"
 
-    name = virt_name(args)
+    name = interface_name(args)
     timeout = float(args.ssh_timeout)
 
     while timeout >= 0:
@@ -7783,7 +7785,7 @@ def run_command_image(args: MkosiArgs, commands: Sequence[str], timeout: int, ch
     if args.verb == Verb.qemu:
         return run_ssh(args, commands, check, stdout, stderr, timeout)
     elif args.verb == Verb.boot:
-        cmdline = ["systemd-run", "--quiet", "--wait", "--pipe", "-M", virt_name(args), "/usr/bin/env", *commands]
+        cmdline = ["systemd-run", "--quiet", "--wait", "--pipe", "-M", machine_name(args), "/usr/bin/env", *commands]
         return run(cmdline, check=check, stdout=stdout, stderr=stderr, text=True, timeout=timeout)
     else:
         return run(run_shell_cmdline(args, pipe=True, commands=commands), check=check, stdout=stdout, stderr=stderr, text=True, timeout=timeout)
