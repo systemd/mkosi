@@ -6,6 +6,7 @@ import contextlib
 import os
 import signal
 import subprocess
+import sys
 import unittest
 from textwrap import dedent
 from typing import Any, Iterator, Optional, Sequence
@@ -135,7 +136,7 @@ class Machine:
             # Then we tell the process to look for the # sign, which indicates the CLI for that image is active.
             # Once we've build/boot an image the CLI will prompt "root@image ~]# ".
             # Then, when pexpects finds the '#' it means we're ready to interact with the process.
-            self._serial = pexpect.spawnu(cmd, logfile=None, timeout=240)
+            self._serial = pexpect.spawnu(cmd, logfile=sys.stdout, timeout=240)
             self._serial.expect("#")
             self.stack = stack.pop_all()
 
