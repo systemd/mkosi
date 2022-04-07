@@ -131,6 +131,8 @@ DRACUT_SYSTEMD_EXTRAS = [
     "/usr/lib/systemd/system/systemd-volatile-root.service",
     "/usr/lib/systemd/systemd-veritysetup",
     "/usr/lib/systemd/systemd-volatile-root",
+    "/usr/bin/systemd-ask-password",
+    "/usr/bin/systemd-tty-ask-password-agent"
 ]
 
 
