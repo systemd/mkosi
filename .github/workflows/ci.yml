@@ -118,22 +118,8 @@ jobs:
           - directory
           - tar
           - cpio
-          - gpt_btrfs
+          - gpt_ext4
           - plain_squashfs
-        exclude:
-          # CentOS 8/Rocky/Alma Linux does not support btrfs.
-          - distro: centos
-            format: gpt_btrfs
-          - distro: centos_epel
-            format: gpt_btrfs
-          - distro: rocky
-            format: gpt_btrfs
-          - distro: rocky_epel
-            format: gpt_btrfs
-          - distro: alma
-            format: gpt_btrfs
-          - distro: alma_epel
-            format: gpt_btrfs
 
     steps:
     - uses: actions/checkout@v2
