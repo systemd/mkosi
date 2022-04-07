@@ -198,8 +198,6 @@ jobs:
         [Output]
         BootProtocols=uefi
         WithUnifiedKernelImages=no
-        # Boot with systemd.volatile=overlay so squashfs images can write to the filesystem
-        KernelCommandLine=systemd.volatile=overlay
         EOF
 
         sudo MKOSI_TEST_DEFAULT_VERB=qemu python3 -m pytest -m integration tests
