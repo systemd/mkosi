@@ -67,7 +67,6 @@ class Machine:
         if tmp.verb == Verb.qemu:
             tmp.bootable = True
             tmp.qemu_headless = True
-            tmp.hostonly_initrd = True
             tmp.netdev = True
             tmp.ssh = True
             tmp.ssh_timeout = 240
