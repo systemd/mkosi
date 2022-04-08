@@ -2274,7 +2274,7 @@ def install_fedora(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
         add_packages(args, packages, "glibc-minimal-langpack", conditional="glibc")
 
     if not do_run_build_script and args.bootable:
-        add_packages(args, packages, "kernel-core", "kernel-modules", "dracut")
+        add_packages(args, packages, "kernel-core", "kernel-modules", "dracut", "binutils")
         add_packages(args, packages, "systemd-udev", conditional="systemd")
         configure_dracut(args, packages, root)
     if do_run_build_script:
@@ -2311,7 +2311,7 @@ def install_mageia(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
     packages = {*args.packages}
     add_packages(args, packages, "basesystem-minimal")
     if not do_run_build_script and args.bootable:
-        add_packages(args, packages, "kernel-server-latest", "dracut")
+        add_packages(args, packages, "kernel-server-latest", "dracut", "binutils")
         configure_dracut(args, packages, root)
         # Mageia ships /etc/50-mageia.conf that omits systemd from the initramfs and disables hostonly.
         # We override that again so our defaults get applied correctly on Mageia as well.
@@ -2360,7 +2360,7 @@ def install_openmandriva(args: MkosiArgs, root: Path, do_run_build_script: bool)
     add_packages(args, packages, "basesystem-minimal", "systemd")
     if not do_run_build_script and args.bootable:
         add_packages(args, packages, "systemd-boot", "systemd-cryptsetup", conditional="systemd")
-        add_packages(args, packages, "kernel-release-server", "dracut", "timezone")
+        add_packages(args, packages, "kernel-release-server", "dracut", "binutils", "timezone")
         configure_dracut(args, packages, root)
     if args.netdev:
         add_packages(args, packages, "systemd-networkd", conditional="systemd")
@@ -2576,7 +2576,7 @@ def install_centos(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
     packages = {*args.packages}
     add_packages(args, packages, "centos-release", "systemd")
     if not do_run_build_script and args.bootable:
-        add_packages(args, packages, "kernel", "dracut")
+        add_packages(args, packages, "kernel", "dracut", "binutils")
         configure_dracut(args, packages, root)
         if epel_release <= 7:
             add_packages(
@@ -2628,7 +2628,7 @@ def install_rocky(args: MkosiArgs, root: Path, do_run_build_script: bool) -> Non
     packages = {*args.packages}
     add_packages(args, packages, "rocky-release", "systemd")
     if not do_run_build_script and args.bootable:
-        add_packages(args, packages, "kernel", "dracut")
+        add_packages(args, packages, "kernel", "dracut", "binutils")
         configure_dracut(args, packages, root)
         add_packages(args, packages, "systemd-udev", conditional="systemd")
 
@@ -2656,7 +2656,7 @@ def install_alma(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None
     packages = {*args.packages}
     add_packages(args, packages, "almalinux-release", "systemd")
     if not do_run_build_script and args.bootable:
-        add_packages(args, packages, "kernel", "dracut")
+        add_packages(args, packages, "kernel", "dracut", "binutils")
         configure_dracut(args, packages, root)
         add_packages(args, packages, "systemd-udev", conditional="systemd")
 
@@ -2740,7 +2740,7 @@ def install_debian_or_ubuntu(args: MkosiArgs, root: Path, *, do_run_build_script
         extra_packages.update(args.build_packages)
 
     if not do_run_build_script and args.bootable:
-        add_packages(args, extra_packages, "dracut")
+        add_packages(args, extra_packages, "dracut", "binutils")
         configure_dracut(args, extra_packages, root)
 
         if args.distribution == Distribution.ubuntu:
@@ -2992,7 +2992,7 @@ def install_arch(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None
         if args.get_partition(PartitionIdentifier.bios):
             add_packages(args, packages, "grub")
 
-        add_packages(args, packages, "dracut")
+        add_packages(args, packages, "dracut", "binutils")
         configure_dracut(args, packages, root)
 
     packages.update(args.packages)
@@ -3067,7 +3067,7 @@ def install_opensuse(args: MkosiArgs, root: Path, do_run_build_script: bool) -> 
         add_packages(args, packages, "patterns-base-minimal_base")
 
     if not do_run_build_script and args.bootable:
-        add_packages(args, packages, "kernel-default", "dracut")
+        add_packages(args, packages, "kernel-default", "dracut", "binutils")
         configure_dracut(args, packages, root)
 
         if args.get_partition(PartitionIdentifier.bios):
@@ -4219,11 +4219,11 @@ def install_unified_kernel(
                 partlabel = None
 
             if args.image_version:
-                boot_binary = root / prefix / f"EFI/Linux/{image_id}_{args.image_version}.efi"
+                boot_binary = Path(prefix) / f"EFI/Linux/{image_id}_{args.image_version}.efi"
             elif root_hash:
-                boot_binary = root / prefix / f"EFI/Linux/{image_id}-{kver}-{root_hash}.efi"
+                boot_binary = Path(prefix) / f"EFI/Linux/{image_id}-{kver}-{root_hash}.efi"
             else:
-                boot_binary = root / prefix / f"EFI/Linux/{image_id}-{kver}.efi"
+                boot_binary = Path(prefix) / f"EFI/Linux/{image_id}-{kver}.efi"
 
             if root.joinpath("etc/kernel/cmdline").exists():
                 boot_options = root.joinpath("etc/kernel/cmdline").read_text().strip()
@@ -4238,25 +4238,17 @@ def install_unified_kernel(
             elif partlabel:
                 boot_options = f"{boot_options} root=PARTLABEL={partlabel}"
 
-            osrelease = root / "usr/lib/os-release"
-            # Write to something in $BOOT because everything else is read-only.
-            cmdline = root / prefix / "cmdline"
-            cmdline.write_text(boot_options)
-            initrd = root / prefix / args.machine_id / kver / "initrd"
-
             cmd: Sequence[PathString] = [
-                "objcopy",
-                "--add-section", f".osrel={osrelease}",   "--change-section-vma", ".osrel=0x20000",
-                "--add-section", f".cmdline={cmdline}",   "--change-section-vma", ".cmdline=0x30000",
-                "--add-section", f".linux={root / kimg}", "--change-section-vma", ".linux=0x2000000",
-                "--add-section", f".initrd={initrd}",     "--change-section-vma", ".initrd=0x3000000",
-                root / "lib/systemd/boot/efi/linuxx64.efi.stub",
+                "dracut",
+                "--uefi",
+                "--kver", kver,
+                "--kernel-image", Path("/") / kimg,
+                "--kernel-cmdline", boot_options,
+                "--force",
                 boot_binary,
             ]
 
-            run(cmd)
-
-            cmdline.unlink()
+            run_workspace_command(args, root, cmd)
 
 
 def secure_boot_sign(
