@@ -5692,6 +5692,14 @@ def create_parser() -> ArgumentParserMkosi:
     group.add_argument("--qemu-kvm", action=BooleanAction, help="Configure whether to use KVM or not",
                        default=qemu_check_kvm_support())
     group.add_argument(
+        "--qemu-args",
+        action=SpaceDelimitedListAction,
+        default=[],
+        # Suppress the command line option because it's already possible to pass qemu args as normal
+        # arguments.
+        help=argparse.SUPPRESS,
+    )
+    group.add_argument(
         "--nspawn-keep-unit",
         action=BooleanAction,
         help="If specified, underlying systemd-nspawn containers use the ressources of the current unit."
@@ -6934,7 +6942,8 @@ def print_summary(args: MkosiArgs) -> None:
     MkosiPrinter.info("\nHOST CONFIGURATION:")
     MkosiPrinter.info("        Extra search paths: " + line_join_list(args.extra_search_paths))
     MkosiPrinter.info("             QEMU Headless: " + yes_no(args.qemu_headless))
-    MkosiPrinter.info("              Netdev:       " + yes_no(args.netdev))
+    MkosiPrinter.info("      QEMU Extra Arguments: " + line_join_list(args.qemu_args))
+    MkosiPrinter.info("                    Netdev: " + yes_no(args.netdev))
 
 
 def reuse_cache_tree(
@@ -7796,6 +7805,7 @@ def run_qemu_cmdline(args: MkosiArgs) -> Iterator[List[str]]:
                 "scsi-hd,drive=hd,bootindex=1",
             ]
 
+        cmdline += args.qemu_args
         cmdline += args.cmdline
 
         print_running_cmd(cmdline)
