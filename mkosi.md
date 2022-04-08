@@ -1117,6 +1117,11 @@ a machine ID.
   should use KVM acceleration. Defaults to yes if the host machine
   supports KVM acceleration, no otherwise.
 
+`QemuArgs=`
+
+: Space-delimited list of additional arguments to pass when invoking
+  qemu.
+
 `NspawnKeepUnit=`, `--nspawn-keep-unit`
 
 : When used, this option instructs underlying calls of systemd-nspawn to
