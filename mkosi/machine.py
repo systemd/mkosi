@@ -161,7 +161,7 @@ class Machine:
 
 
 @contextlib.contextmanager
-def test_skip_not_supported() -> Iterator[None]:
+def skip_not_supported() -> Iterator[None]:
     """See if load_args() raises exception about args and added configurations on __init__()."""
     try:
         yield
@@ -178,7 +178,7 @@ class MkosiMachineTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
-        with test_skip_not_supported():
+        with skip_not_supported():
             cls.machine = Machine(cls.args)
 
         verb = cls.machine.args.verb
