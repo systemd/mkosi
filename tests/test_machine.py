@@ -5,7 +5,7 @@ from subprocess import CalledProcessError, TimeoutExpired
 
 import pytest
 
-from mkosi.backend import Verb
+from mkosi.backend import Distribution, Verb
 from mkosi.machine import Machine, MkosiMachineTest, test_skip_not_supported
 
 pytestmark = [
@@ -14,6 +14,13 @@ pytestmark = [
 ]
 
 class MkosiMachineTestCase(MkosiMachineTest):
+    @classmethod
+    def setUpClass(cls) -> None:
+        super().setUpClass()
+
+        if cls.machine.args.distribution == Distribution.centos_epel and cls.machine.args.verb == Verb.qemu and not cls.machine.args.qemu_kvm:
+            pytest.xfail("QEMU's CPU does not support the CentOS EPEL image arch when running without KVM")
+
     def test_simple_run(self) -> None:
         process = self.machine.run(["echo", "This is a test."])
         assert process.stdout.strip("\n") == "This is a test."
