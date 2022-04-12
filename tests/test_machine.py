@@ -22,7 +22,7 @@ class MkosiMachineTestCase(MkosiMachineTest):
             pytest.xfail("QEMU's CPU does not support the CentOS EPEL image arch when running without KVM")
 
     def test_simple_run(self) -> None:
-        process = self.machine.run(["echo", "This is a test."])
+        process = self.machine.run(["echo", "This is a test."], capture_output=True)
         assert process.stdout.strip("\n") == "This is a test."
 
     def test_wrong_command(self) -> None:
@@ -36,7 +36,7 @@ class MkosiMachineTestCase(MkosiMachineTest):
         result = self.machine.run(["NonExisting", "Command"], check=False)
         assert result.returncode in (1, 127, 203)
 
-        result = self.machine.run(["ls", "-"], check=False)
+        result = self.machine.run(["ls", "-"], check=False, capture_output=True)
         assert result.returncode == 2
         assert "No such file or directory" in result.stderr
 

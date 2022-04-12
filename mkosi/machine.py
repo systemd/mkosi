@@ -9,7 +9,7 @@ import subprocess
 import sys
 import unittest
 from textwrap import dedent
-from typing import Any, Iterator, Optional, Sequence
+from typing import Any, Iterator, Optional, Sequence, TextIO, Union
 
 import pexpect  # type: ignore
 
@@ -35,11 +35,10 @@ from .backend import MkosiArgs, MkosiNotSupportedException, Verb, die
 
 
 class Machine:
-    def __init__(self, args: Sequence[str] = [], debug: bool = False) -> None:
+    def __init__(self, args: Sequence[str] = []) -> None:
         # Remains None until image is built and booted, then receives pexpect process.
         self._serial: Optional[pexpect.spawn] = None
         self.exit_code: int = -1
-        self.debug = debug
         self.stack = contextlib.ExitStack()
         self.args: MkosiArgs
 
@@ -139,15 +138,19 @@ class Machine:
             self._serial.expect("#")
             self.stack = stack.pop_all()
 
-    def run(self, commands: Sequence[str], timeout: int = 900, check: bool = True) -> CompletedProcess:
+    def run(
+        self,
+        commands: Sequence[str],
+        timeout: int = 900,
+        check: bool = True,
+        capture_output: bool = False,
+    ) -> CompletedProcess:
         self._ensure_booted()
 
-        process = run_command_image(self.args, commands, timeout, check, subprocess.PIPE, subprocess.PIPE)
-        if self.debug:
-            print(f"Stdout:\n {process.stdout}")
-            print(f"Stderr:\n {process.stderr}")
+        stdout: Union[int, TextIO] = subprocess.PIPE if capture_output else sys.stdout
+        stderr: Union[int, TextIO] = subprocess.PIPE if capture_output else sys.stderr
 
-        return process
+        return run_command_image(self.args, commands, timeout, check, stdout, stderr)
 
     def kill(self) -> None:
         self.__exit__(None, None, None)
