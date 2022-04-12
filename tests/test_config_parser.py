@@ -132,6 +132,7 @@ class MkosiConfig:
             "qemu_headless": False,
             "qemu_smp": "2",
             "qemu_mem": "1G",
+            "qemu_kvm": mkosi.qemu_check_kvm_support(),
             "nspawn_keep_unit": False,
             "netdev": False,
             "ephemeral": False,

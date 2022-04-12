@@ -1095,6 +1095,12 @@ a machine ID.
 : When used with the `qemu` verb, this options sets `qemu`'s `-m`
   argument which controls the amount of guest's RAM. Defaults to `1G`.
 
+`QemuKvm=`, `--qemu-kvm=`
+
+: When used with the `qemu` verb, this option specifies whether QEMU
+  should use KVM acceleration. Defaults to yes if the host machine
+  supports KVM acceleration, no otherwise.
+
 `NspawnKeepUnit=`, `--nspawn-keep-unit`
 
 : When used, this option instructs underlying calls of systemd-nspawn to

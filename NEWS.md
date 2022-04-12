@@ -15,6 +15,7 @@
   mkosi won't automatically build new unified kernel images anymore when a kernel is updated or installed. To keep this
   behavior, you can install the kernel-install script manually via a skeleton tree. The original script can be found
   [here](https://github.com/systemd/mkosi/blob/3798eb0c2ebcdf7dac207a559a3cb5a65cdb77b0/mkosi/resources/dracut_unified_kernel_install.sh).
+- Added QemuKvm option to configure whether to use KVM or not when running `mkosi qemu`.
 
 ## v12
 

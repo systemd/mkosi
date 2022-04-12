@@ -5624,6 +5624,8 @@ def create_parser() -> ArgumentParserMkosi:
     group.add_argument("--qemu-headless", action=BooleanAction, help="Configure image for qemu's -nographic mode")
     group.add_argument("--qemu-smp", help="Configure guest's SMP settings", metavar="SMP", default="2")
     group.add_argument("--qemu-mem", help="Configure guest's RAM size", metavar="MEM", default="1G")
+    group.add_argument("--qemu-kvm", action=BooleanAction, help="Configure whether to use KVM or not",
+                       default=qemu_check_kvm_support())
     group.add_argument(
         "--nspawn-keep-unit",
         action=BooleanAction,
@@ -6638,6 +6640,9 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
     if args.base_image is not None:
         args.base_packages = False
 
+    if args.qemu_kvm and not qemu_check_kvm_support():
+        die("Sorry, the host machine does not support KVM acceleration.")
+
     return MkosiArgs(**vars(args))
 
 
@@ -7636,8 +7641,7 @@ def qemu_check_kvm_support() -> bool:
 
 @contextlib.contextmanager
 def run_qemu_cmdline(args: MkosiArgs) -> Iterator[List[str]]:
-    has_kvm = qemu_check_kvm_support()
-    accel = "kvm" if has_kvm else "tcg"
+    accel = "kvm" if args.qemu_kvm else "tcg"
 
     firmware, fw_supports_sb = find_qemu_firmware()
 
@@ -7655,7 +7659,7 @@ def run_qemu_cmdline(args: MkosiArgs) -> Iterator[List[str]]:
         "virtio-rng-pci,rng=rng0,id=rng-device0",
     ]
 
-    if has_kvm:
+    if args.qemu_kvm:
         cmdline += ["-cpu", "host"]
 
     if args.qemu_headless:
