@@ -6935,6 +6935,12 @@ def setup_ssh(
                               ListenStream=
                               ListenStream={args.ssh_port}
                               """)
+
+        add_dropin_config(root, "ssh@.service", "runtime-directory-preserve",
+                          """\
+                          [Service]
+                          RuntimeDirectoryPreserve=yes
+                          """)
     else:
         unit = "sshd"
 
