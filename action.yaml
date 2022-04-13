@@ -8,7 +8,7 @@ runs:
   - name: Cache dependencies
     uses: actions/cache@v3
     with:
-      path: build/
+      path: build
       key: ${{ runner.os }}-${{ hashFiles('action/setup-github-actions.sh') }}
 
   - name: Dependencies

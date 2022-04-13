@@ -2,16 +2,18 @@
 set -e
 
 PACMAN_VERSION="6.0.1"
-ARCHLINUX_KEYRING_VERSION="20210902"
+ARCHLINUX_KEYRING_COMMIT="29dc5d228d033929f90af14d219487b1edc4c2c0"
 RPM_VERSION="4.17.0"
-LIBCOMPS_VERSION="0.1.17"
+LIBCOMPS_VERSION="0.1.18"
 LIBREPO_VERSION="1.14.2"
-LIBMODULEMD_VERSION="2.13.0"
-LIBSOLV_VERSION="0.7.19"
-LIBDNF_VERSION="0.63.1"
-DNF_VERSION="4.8.0"
+LIBMODULEMD_VERSION="2.14.0"
+LIBSOLV_VERSION="0.7.22"
+LIBDNF_VERSION="0.66.0"
+DNF_VERSION="4.11.1"
+SEQUOIA_SQ_VERSION="0.26.0"
 
 export CMAKE_GENERATOR=Ninja
+export CARGO_HOME=cargo
 
 # All built libraries are installed to both $DESTDIR and /usr so they appear in
 # the final image and can be found by the build scripts of the libraries and
@@ -28,6 +30,7 @@ apt-get --assume-yes --no-install-recommends install \
         automake \
         autopoint \
         check \
+        cargo \
         cmake \
         debootstrap \
         docbook-xsl \
@@ -77,7 +80,10 @@ apt-get --assume-yes --no-install-recommends install \
         xfsprogs \
         xsltproc \
         zlib1g-dev \
-        zypper
+        zypper \
+        libclang-dev \
+        nettle-dev \
+        capnproto
 
 cd "$BUILDDIR"
 
@@ -100,12 +106,15 @@ fi
 
 meson install -C pacman-$PACMAN_VERSION-build
 
-if [ ! -f archlinux-keyring-$ARCHLINUX_KEYRING_VERSION.tar.gz ]; then
-    wget https://sources.archlinux.org/other/archlinux-keyring/archlinux-keyring-$ARCHLINUX_KEYRING_VERSION.tar.gz
-    tar xf archlinux-keyring-$ARCHLINUX_KEYRING_VERSION.tar.gz
+cargo install sequoia-sq --version $SEQUOIA_SQ_VERSION --features 'crypto-nettle compression-bzip2 autocrypt' --target-dir .
+install -Dm 755 "$CARGO_HOME"/bin/sq -t /usr/bin
+
+if [ ! -d archlinux-keyring-$ARCHLINUX_KEYRING_COMMIT ]; then
+    git clone https://gitlab.archlinux.org/archlinux/archlinux-keyring.git archlinux-keyring-$ARCHLINUX_KEYRING_COMMIT
+    git -C archlinux-keyring-$ARCHLINUX_KEYRING_COMMIT checkout $ARCHLINUX_KEYRING_COMMIT
 fi
 
-make -C archlinux-keyring-$ARCHLINUX_KEYRING_VERSION PREFIX=/usr install
+make -C archlinux-keyring-$ARCHLINUX_KEYRING_COMMIT PREFIX=/usr install
 
 if [ ! -f rpm-$RPM_VERSION-release.tar.gz ]; then
     wget https://github.com/rpm-software-management/rpm/archive/refs/tags/rpm-$RPM_VERSION-release.tar.gz
