@@ -2817,6 +2817,9 @@ def install_debian_or_ubuntu(args: MkosiArgs, root: Path, *, do_run_build_script
         for kver, kimg in gen_kernel_images(args, root):
             run_workspace_command(args, root, ["kernel-install", "add", kver, Path("/") / kimg])
 
+    root.joinpath("etc/locale.conf").write_text("LANG=C.UTF-8\n")
+    root.joinpath("etc/default/locale").symlink_to("/etc/locale.conf")
+
 
 @complete_step("Installing Debian…")
 def install_debian(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None:
