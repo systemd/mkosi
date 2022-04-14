@@ -9,3 +9,6 @@ py_version = "37"
 
 [tool.pyright]
 pythonVersion = "3.7"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
