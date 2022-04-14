@@ -2686,10 +2686,10 @@ def invoke_apt(
     do_run_build_script: bool,
     root: Path,
     command: str,
-    packages: Iterable[str],
+    extra: Iterable[str],
 ) -> None:
 
-    cmdline = ["/usr/bin/apt-get", "--assume-yes", "--no-install-recommends", "--auto-remove", command, *packages]
+    cmdline = ["/usr/bin/apt-get", "--assume-yes", command, *extra]
     env = {
         "DEBIAN_FRONTEND": "noninteractive",
         "DEBCONF_NONINTERACTIVE_SEEN": "true",
@@ -2705,13 +2705,13 @@ def install_debian_or_ubuntu(args: MkosiArgs, root: Path, *, do_run_build_script
     os.makedirs(dpkg_io_conf.parent, mode=0o755, exist_ok=True)
     dpkg_io_conf.write_text("force-unsafe-io\n")
 
+    repos = set(args.repositories) or {"main"}
+    # Ubuntu needs the 'universe' repo to install 'dracut'
+    if args.distribution == Distribution.ubuntu and args.bootable:
+        repos.add("universe")
+
     # debootstrap fails if a base image is used with an already populated root, so skip it.
     if args.base_image is None:
-        repos = set(args.repositories) or {"main"}
-        # Ubuntu needs the 'universe' repo to install 'dracut'
-        if args.distribution == Distribution.ubuntu and args.bootable:
-            repos.add("universe")
-
         cmdline: List[PathString] = [
             "debootstrap",
             "--variant=minbase",
@@ -2794,7 +2794,25 @@ def install_debian_or_ubuntu(args: MkosiArgs, root: Path, *, do_run_build_script
             if "VERSION_ID" not in os_release and "BUILD_ID" not in os_release:
                 f.write(f"BUILD_ID=mkosi-{args.release}\n")
 
-    invoke_apt(args, do_run_build_script, root, "install", extra_packages)
+    if args.release not in ("testing", "unstable"):
+        if args.distribution == Distribution.ubuntu:
+            updates = f"deb http://archive.ubuntu.com/ubuntu {args.release}-updates {' '.join(repos)}"
+        else:
+            updates = f"deb http://deb.debian.org/debian {args.release}-updates {' '.join(repos)}"
+
+        root.joinpath(f"etc/apt/sources.list.d/{args.release}-updates.list").write_text(f"{updates}\n")
+
+        if args.distribution == Distribution.ubuntu:
+            security = f"deb http://archive.ubuntu.com/ubuntu {args.release}-security {' '.join(repos)}"
+        elif args.release in ("stretch", "buster"):
+            security = f"deb http://security.debian.org/debian-security/ {args.release}/updates main"
+        else:
+            security = f"deb https://security.debian.org/debian-security {args.release}-security main"
+
+        root.joinpath(f"etc/apt/sources.list.d/{args.release}-security.list").write_text(f"{security}\n")
+
+    invoke_apt(args, do_run_build_script, root, "update", [])
+    invoke_apt(args, do_run_build_script, root, "install", ["--no-install-recommends", *extra_packages])
 
     policyrcd.unlink()
     dpkg_io_conf.unlink()
@@ -3195,7 +3213,7 @@ def remove_packages(args: MkosiArgs, root: Path) -> None:
         args.distribution != Distribution.photon):
         remove = lambda p: invoke_dnf(args, root, 'remove', p)
     elif args.distribution.package_type == PackageType.deb:
-        remove = lambda p: invoke_apt(args, False, root, "purge", p)
+        remove = lambda p: invoke_apt(args, False, root, "purge", ["--auto-remove", *p])
     else:
         # FIXME: implement removal for other package managers: tdnf, swupd, pacman
         return
