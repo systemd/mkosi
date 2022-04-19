@@ -212,7 +212,13 @@ class MkosiMachineTest(unittest.TestCase):
         # Necessary for shell otherwise racing conditions to the disk image will happen.
         test_name = self.id().split(".")[3]
         self.machine.args.hostname = test_name.replace("_", "-")
-        self.machine.boot()
+
+        try:
+            self.machine.boot()
+        except pexpect.EOF:
+            self.fail(f'Failed to boot machine with command "{self.machine.serial.args}"')
+        except pexpect.TIMEOUT:
+            self.fail(f'Timed out while waiting for machine to boot with command "{self.machine.serial.args}"')
 
     def tearDown(self) -> None:
         self.machine.kill()
