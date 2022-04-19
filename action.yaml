@@ -10,7 +10,7 @@ runs:
     run: |
       mkdir $BUILDDIR
 
-      sudo ${{ github.action_path }}/action/setup-github-actions.sh
+      sudo -E ${{ github.action_path }}/action/setup-github-actions.sh
 
       sudo pacman-key --init
       sudo pacman-key --populate archlinux
