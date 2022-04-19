@@ -516,6 +516,7 @@ class MkosiArgs:
     qemu_headless: bool
     qemu_smp: str
     qemu_mem: str
+    qemu_kvm: bool
 
     # systemd-nspawn specific options
     nspawn_keep_unit: bool

@@ -6,9 +6,10 @@ import contextlib
 import os
 import signal
 import subprocess
+import sys
 import unittest
 from textwrap import dedent
-from typing import Any, Iterator, Optional, Sequence
+from typing import Any, Iterator, Optional, Sequence, TextIO, Union
 
 import pexpect  # type: ignore
 
@@ -34,11 +35,10 @@ from .backend import MkosiArgs, MkosiNotSupportedException, Verb, die
 
 
 class Machine:
-    def __init__(self, args: Sequence[str] = [], debug: bool = False) -> None:
+    def __init__(self, args: Sequence[str] = []) -> None:
         # Remains None until image is built and booted, then receives pexpect process.
         self._serial: Optional[pexpect.spawn] = None
         self.exit_code: int = -1
-        self.debug = debug
         self.stack = contextlib.ExitStack()
         self.args: MkosiArgs
 
@@ -63,12 +63,12 @@ class Machine:
         tmp.force = 1
         tmp.autologin = True
         tmp.ephemeral = True
-        tmp.bootable = True
         if tmp.verb == Verb.qemu:
+            tmp.bootable = True
             tmp.qemu_headless = True
-            tmp.hostonly_initrd = True
             tmp.netdev = True
             tmp.ssh = True
+            tmp.ssh_timeout = 240
         elif tmp.verb not in (Verb.shell, Verb.boot):
             die("No valid verb was entered.")
 
@@ -134,19 +134,23 @@ class Machine:
             # Then we tell the process to look for the # sign, which indicates the CLI for that image is active.
             # Once we've build/boot an image the CLI will prompt "root@image ~]# ".
             # Then, when pexpects finds the '#' it means we're ready to interact with the process.
-            self._serial = pexpect.spawnu(cmd, logfile=None, timeout=240)
+            self._serial = pexpect.spawnu(cmd, logfile=sys.stdout, timeout=240)
             self._serial.expect("#")
             self.stack = stack.pop_all()
 
-    def run(self, commands: Sequence[str], timeout: int = 900, check: bool = True) -> CompletedProcess:
+    def run(
+        self,
+        commands: Sequence[str],
+        timeout: int = 900,
+        check: bool = True,
+        capture_output: bool = False,
+    ) -> CompletedProcess:
         self._ensure_booted()
 
-        process = run_command_image(self.args, commands, timeout, check, subprocess.PIPE, subprocess.PIPE)
-        if self.debug:
-            print(f"Stdout:\n {process.stdout}")
-            print(f"Stderr:\n {process.stderr}")
+        stdout: Union[int, TextIO] = subprocess.PIPE if capture_output else sys.stdout
+        stderr: Union[int, TextIO] = subprocess.PIPE if capture_output else sys.stderr
 
-        return process
+        return run_command_image(self.args, commands, timeout, check, stdout, stderr)
 
     def kill(self) -> None:
         self.__exit__(None, None, None)
@@ -160,7 +164,7 @@ class Machine:
 
 
 @contextlib.contextmanager
-def test_skip_not_supported() -> Iterator[None]:
+def skip_not_supported() -> Iterator[None]:
     """See if load_args() raises exception about args and added configurations on __init__()."""
     try:
         yield
@@ -177,7 +181,7 @@ class MkosiMachineTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
-        with test_skip_not_supported():
+        with skip_not_supported():
             cls.machine = Machine(cls.args)
 
         verb = cls.machine.args.verb

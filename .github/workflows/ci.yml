@@ -38,7 +38,7 @@ jobs:
       run: pyright .
 
     - name: Unit Tests
-      run: python3 -m pytest tests
+      run: python3 -m pytest -v tests
 
     - name: Test execution from current working directory
       run: python3 -m mkosi -h
@@ -118,22 +118,8 @@ jobs:
           - directory
           - tar
           - cpio
-          - gpt_btrfs
+          - gpt_ext4
           - plain_squashfs
-        exclude:
-          # CentOS 8/Rocky/Alma Linux does not support btrfs.
-          - distro: centos
-            format: gpt_btrfs
-          - distro: centos_epel
-            format: gpt_btrfs
-          - distro: rocky
-            format: gpt_btrfs
-          - distro: rocky_epel
-            format: gpt_btrfs
-          - distro: alma
-            format: gpt_btrfs
-          - distro: alma_epel
-            format: gpt_btrfs
 
     steps:
     - uses: actions/checkout@v2
@@ -195,7 +181,7 @@ jobs:
         sync-uri = https://raw.githubusercontent.com/257/binpkgs/main
         EOF
 
-        MKOSI_TEST_DEFAULT_VERB=boot sudo python3 -m pytest -m integration tests
+        sudo MKOSI_TEST_DEFAULT_VERB=boot python3 -m pytest -m integration -v tests
 
     - name: Build/Boot ${{ matrix.distro }}/${{ matrix.format }} UEFI UKI
       run: |
@@ -204,7 +190,7 @@ jobs:
         BootProtocols=uefi
         EOF
 
-        MKOSI_TEST_DEFAULT_VERB=qemu sudo python3 -m pytest -m integration tests
+        sudo MKOSI_TEST_DEFAULT_VERB=qemu python3 -m pytest -m integration -v tests
 
     - name: Build/Boot ${{ matrix.distro }}/${{ matrix.format }} UEFI
       run: |
@@ -212,11 +198,9 @@ jobs:
         [Output]
         BootProtocols=uefi
         WithUnifiedKernelImages=no
-        # Boot with systemd.volatile=overlay so squashfs images can write to the filesystem
-        KernelCommandLine=systemd.volatile=overlay
         EOF
 
-        MKOSI_TEST_DEFAULT_VERB=qemu sudo python3 -m pytest -m integration tests
+        sudo MKOSI_TEST_DEFAULT_VERB=qemu python3 -m pytest -m integration -v tests
 
     - name: Build/Boot ${{ matrix.distro }}/${{ matrix.format }} BIOS
       run: |
@@ -226,4 +210,4 @@ jobs:
         WithUnifiedKernelImages=no
         EOF
 
-        MKOSI_TEST_DEFAULT_VERB=qemu sudo python3 -m pytest -m integration tests
+        sudo MKOSI_TEST_DEFAULT_VERB=qemu python3 -m pytest -m integration -v tests

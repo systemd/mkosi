@@ -5,8 +5,8 @@ from subprocess import CalledProcessError, TimeoutExpired
 
 import pytest
 
-from mkosi.backend import Verb
-from mkosi.machine import Machine, MkosiMachineTest, test_skip_not_supported
+from mkosi.backend import Distribution, Verb
+from mkosi.machine import Machine, MkosiMachineTest, skip_not_supported
 
 pytestmark = [
     pytest.mark.integration,
@@ -14,8 +14,15 @@ pytestmark = [
 ]
 
 class MkosiMachineTestCase(MkosiMachineTest):
+    @classmethod
+    def setUpClass(cls) -> None:
+        super().setUpClass()
+
+        if cls.machine.args.distribution == Distribution.centos_epel and cls.machine.args.verb == Verb.qemu and not cls.machine.args.qemu_kvm:
+            pytest.xfail("QEMU's CPU does not support the CentOS EPEL image arch when running without KVM")
+
     def test_simple_run(self) -> None:
-        process = self.machine.run(["echo", "This is a test."])
+        process = self.machine.run(["echo", "This is a test."], capture_output=True)
         assert process.stdout.strip("\n") == "This is a test."
 
     def test_wrong_command(self) -> None:
@@ -29,7 +36,7 @@ class MkosiMachineTestCase(MkosiMachineTest):
         result = self.machine.run(["NonExisting", "Command"], check=False)
         assert result.returncode in (1, 127, 203)
 
-        result = self.machine.run(["ls", "-"], check=False)
+        result = self.machine.run(["ls", "-"], check=False, capture_output=True)
         assert result.returncode == 2
         assert "No such file or directory" in result.stderr
 
@@ -39,7 +46,7 @@ class MkosiMachineTestCase(MkosiMachineTest):
 
 
 def test_before_boot() -> None:
-    with test_skip_not_supported():
+    with skip_not_supported():
         m = Machine()
 
     if m.args.verb == Verb.shell:
@@ -49,7 +56,7 @@ def test_before_boot() -> None:
 
 
 def test_after_shutdown() -> None:
-    with test_skip_not_supported():
+    with skip_not_supported():
         with Machine() as m:
             pass
 

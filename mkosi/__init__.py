@@ -131,6 +131,8 @@ DRACUT_SYSTEMD_EXTRAS = [
     "/usr/lib/systemd/system/systemd-volatile-root.service",
     "/usr/lib/systemd/systemd-veritysetup",
     "/usr/lib/systemd/systemd-volatile-root",
+    "/usr/bin/systemd-ask-password",
+    "/usr/bin/systemd-tty-ask-password-agent"
 ]
 
 
@@ -2684,10 +2686,10 @@ def invoke_apt(
     do_run_build_script: bool,
     root: Path,
     command: str,
-    packages: Iterable[str],
+    extra: Iterable[str],
 ) -> None:
 
-    cmdline = ["/usr/bin/apt-get", "--assume-yes", "--no-install-recommends", "--auto-remove", command, *packages]
+    cmdline = ["/usr/bin/apt-get", "--assume-yes", command, *extra]
     env = {
         "DEBIAN_FRONTEND": "noninteractive",
         "DEBCONF_NONINTERACTIVE_SEEN": "true",
@@ -2703,13 +2705,13 @@ def install_debian_or_ubuntu(args: MkosiArgs, root: Path, *, do_run_build_script
     os.makedirs(dpkg_io_conf.parent, mode=0o755, exist_ok=True)
     dpkg_io_conf.write_text("force-unsafe-io\n")
 
+    repos = set(args.repositories) or {"main"}
+    # Ubuntu needs the 'universe' repo to install 'dracut'
+    if args.distribution == Distribution.ubuntu and args.bootable:
+        repos.add("universe")
+
     # debootstrap fails if a base image is used with an already populated root, so skip it.
     if args.base_image is None:
-        repos = set(args.repositories) or {"main"}
-        # Ubuntu needs the 'universe' repo to install 'dracut'
-        if args.distribution == Distribution.ubuntu and args.bootable:
-            repos.add("universe")
-
         cmdline: List[PathString] = [
             "debootstrap",
             "--variant=minbase",
@@ -2792,7 +2794,25 @@ def install_debian_or_ubuntu(args: MkosiArgs, root: Path, *, do_run_build_script
             if "VERSION_ID" not in os_release and "BUILD_ID" not in os_release:
                 f.write(f"BUILD_ID=mkosi-{args.release}\n")
 
-    invoke_apt(args, do_run_build_script, root, "install", extra_packages)
+    if args.release not in ("testing", "unstable"):
+        if args.distribution == Distribution.ubuntu:
+            updates = f"deb http://archive.ubuntu.com/ubuntu {args.release}-updates {' '.join(repos)}"
+        else:
+            updates = f"deb http://deb.debian.org/debian {args.release}-updates {' '.join(repos)}"
+
+        root.joinpath(f"etc/apt/sources.list.d/{args.release}-updates.list").write_text(f"{updates}\n")
+
+        if args.distribution == Distribution.ubuntu:
+            security = f"deb http://archive.ubuntu.com/ubuntu {args.release}-security {' '.join(repos)}"
+        elif args.release in ("stretch", "buster"):
+            security = f"deb http://security.debian.org/debian-security/ {args.release}/updates main"
+        else:
+            security = f"deb https://security.debian.org/debian-security {args.release}-security main"
+
+        root.joinpath(f"etc/apt/sources.list.d/{args.release}-security.list").write_text(f"{security}\n")
+
+    invoke_apt(args, do_run_build_script, root, "update", [])
+    invoke_apt(args, do_run_build_script, root, "install", ["--no-install-recommends", *extra_packages])
 
     policyrcd.unlink()
     dpkg_io_conf.unlink()
@@ -2814,6 +2834,9 @@ def install_debian_or_ubuntu(args: MkosiArgs, root: Path, *, do_run_build_script
     if args.bootable and not do_run_build_script and "uefi" in args.boot_protocols:
         for kver, kimg in gen_kernel_images(args, root):
             run_workspace_command(args, root, ["kernel-install", "add", kver, Path("/") / kimg])
+
+    root.joinpath("etc/locale.conf").write_text("LANG=C.UTF-8\n")
+    root.joinpath("etc/default/locale").symlink_to("/etc/locale.conf")
 
 
 @complete_step("Installing Debian…")
@@ -2842,14 +2865,14 @@ def patch_locale_gen(args: MkosiArgs, root: Path) -> None:
     try:
 
         def _patch_line(line: str) -> str:
-            if line.startswith("#en_US.UTF-8"):
+            if line.startswith("#C.UTF-8"):
                 return line[1:]
             return line
 
         patch_file(root / "etc/locale.gen", _patch_line)
 
     except FileNotFoundError:
-        root.joinpath("etc/locale.gen").write_text("en_US.UTF-8 UTF-8\n")
+        root.joinpath("etc/locale.gen").write_text("C.UTF-8 UTF-8\n")
 
 
 @complete_step("Installing Arch Linux…")
@@ -3021,7 +3044,7 @@ def install_arch(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None
     patch_locale_gen(args, root)
     run_workspace_command(args, root, ["/usr/bin/locale-gen"])
 
-    root.joinpath("etc/locale.conf").write_text("LANG=en_US.UTF-8\n")
+    root.joinpath("etc/locale.conf").write_text("LANG=C.UTF-8\n")
 
     # Arch still uses pam_securetty which prevents root login into
     # systemd-nspawn containers. See https://bugs.archlinux.org/task/45903.
@@ -3190,7 +3213,7 @@ def remove_packages(args: MkosiArgs, root: Path) -> None:
         args.distribution != Distribution.photon):
         remove = lambda p: invoke_dnf(args, root, 'remove', p)
     elif args.distribution.package_type == PackageType.deb:
-        remove = lambda p: invoke_apt(args, False, root, "purge", p)
+        remove = lambda p: invoke_apt(args, False, root, "purge", ["--auto-remove", *p])
     else:
         # FIXME: implement removal for other package managers: tdnf, swupd, pacman
         return
@@ -5622,6 +5645,8 @@ def create_parser() -> ArgumentParserMkosi:
     group.add_argument("--qemu-headless", action=BooleanAction, help="Configure image for qemu's -nographic mode")
     group.add_argument("--qemu-smp", help="Configure guest's SMP settings", metavar="SMP", default="2")
     group.add_argument("--qemu-mem", help="Configure guest's RAM size", metavar="MEM", default="1G")
+    group.add_argument("--qemu-kvm", action=BooleanAction, help="Configure whether to use KVM or not",
+                       default=qemu_check_kvm_support())
     group.add_argument(
         "--nspawn-keep-unit",
         action=BooleanAction,
@@ -6636,6 +6661,9 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
     if args.base_image is not None:
         args.base_packages = False
 
+    if args.qemu_kvm and not qemu_check_kvm_support():
+        die("Sorry, the host machine does not support KVM acceleration.")
+
     return MkosiArgs(**vars(args))
 
 
@@ -6925,6 +6953,12 @@ def setup_ssh(
                               ListenStream=
                               ListenStream={args.ssh_port}
                               """)
+
+        add_dropin_config(root, "ssh@.service", "runtime-directory-preserve",
+                          """\
+                          [Service]
+                          RuntimeDirectoryPreserve=yes
+                          """)
     else:
         unit = "sshd"
 
@@ -7425,12 +7459,14 @@ def suppress_stacktrace() -> Iterator[None]:
         raise MkosiException() from e
 
 
-def virt_name(args: MkosiArgs) -> str:
+def machine_name(args: MkosiArgs) -> str:
+    return args.hostname or args.image_id or args.output.with_suffix("").name.partition("_")[0]
 
-    name = args.hostname or args.image_id or args.output.with_suffix("").name.partition("_")[0]
-    # Shorten to 13 characters so we can prefix with ve- or vt- for the netdev ifname which is limited
-    # to 16 characters.
-    return name[:13]
+
+def interface_name(args: MkosiArgs) -> str:
+    # Shorten to 12 characters so we can prefix with ve- or vt- for the netdev ifname which is limited
+    # to 15 characters.
+    return machine_name(args)[:12]
 
 
 def has_networkd_vm_vt() -> bool:
@@ -7517,7 +7553,7 @@ def run_shell_cmdline(args: MkosiArgs, pipe: bool = False, commands: Optional[Se
     if args.ephemeral:
         cmdline += ["--ephemeral"]
 
-    cmdline += ["--machine", virt_name(args)]
+    cmdline += ["--machine", machine_name(args)]
 
     if args.nspawn_keep_unit:
         cmdline += ["--keep-unit"]
@@ -7632,8 +7668,7 @@ def qemu_check_kvm_support() -> bool:
 
 @contextlib.contextmanager
 def run_qemu_cmdline(args: MkosiArgs) -> Iterator[List[str]]:
-    has_kvm = qemu_check_kvm_support()
-    accel = "kvm" if has_kvm else "tcg"
+    accel = "kvm" if args.qemu_kvm else "tcg"
 
     firmware, fw_supports_sb = find_qemu_firmware()
 
@@ -7651,7 +7686,7 @@ def run_qemu_cmdline(args: MkosiArgs) -> Iterator[List[str]]:
         "virtio-rng-pci,rng=rng0,id=rng-device0",
     ]
 
-    if has_kvm:
+    if args.qemu_kvm:
         cmdline += ["-cpu", "host"]
 
     if args.qemu_headless:
@@ -7671,7 +7706,7 @@ def run_qemu_cmdline(args: MkosiArgs) -> Iterator[List[str]]:
             cmdline += ["-nic", f"user,model=virtio-net-pci{fwd}"]
         else:
             # Use vt- prefix so we can take advantage of systemd-networkd's builtin network file for VMs.
-            ifname = f"vt-{virt_name(args)}"
+            ifname = f"vt-{interface_name(args)}"
             # vt-<image-name> is the ifname on the host and is automatically picked up by systemd-networkd which
             # starts a DHCP server on that interface. This gives IP connectivity to the VM. By default, QEMU
             # itself tries to bring up the vt network interface which conflicts with systemd-networkd which is
@@ -7735,7 +7770,7 @@ def find_address(args: MkosiArgs) -> Tuple[str, str]:
     if not ensure_networkd(args) and args.ssh_port != 22:
         return "", "127.0.0.1"
 
-    name = virt_name(args)
+    name = interface_name(args)
     timeout = float(args.ssh_timeout)
 
     while timeout >= 0:
@@ -7746,7 +7781,7 @@ def find_address(args: MkosiArgs) -> Tuple[str, str]:
             elif interface_exists(f"vt-{name}"):
                 dev = f"vt-{name}"
             else:
-                raise MkosiException("Container/VM interface not found")
+                die(f"Container/VM interface ve-{name}/vt-{name} not found")
 
             link = json.loads(run(["ip", "-j", "link", "show", "dev", dev], stdout=PIPE, text=True).stdout)[0]
             if link["operstate"] == "DOWN":
@@ -7783,7 +7818,7 @@ def run_command_image(args: MkosiArgs, commands: Sequence[str], timeout: int, ch
     if args.verb == Verb.qemu:
         return run_ssh(args, commands, check, stdout, stderr, timeout)
     elif args.verb == Verb.boot:
-        cmdline = ["systemd-run", "--quiet", "--wait", "--pipe", "-M", virt_name(args), "/usr/bin/env", *commands]
+        cmdline = ["systemd-run", "--quiet", "--wait", "--pipe", "-M", machine_name(args), "/usr/bin/env", *commands]
         return run(cmdline, check=check, stdout=stdout, stderr=stderr, text=True, timeout=timeout)
     else:
         return run(run_shell_cmdline(args, pipe=True, commands=commands), check=check, stdout=stdout, stderr=stderr, text=True, timeout=timeout)

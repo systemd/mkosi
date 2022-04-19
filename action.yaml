@@ -5,12 +5,19 @@ runs:
   using: composite
   steps:
 
+  - name: Cache dependencies
+    uses: actions/cache@v3
+    with:
+      path: build
+      key: ${{ runner.os }}-${{ hashFiles('action/setup-github-actions.sh') }}
+
   - name: Dependencies
     shell: bash
     run: |
-      mkdir $BUILDDIR
+      mkdir -p $BUILDDIR
 
-      sudo ${{ github.action_path }}/action/setup-github-actions.sh
+      sudo -E ${{ github.action_path }}/action/setup-github-actions.sh
+      sudo chown -R $USER: $BUILDDIR
 
       sudo pacman-key --init
       sudo pacman-key --populate archlinux
