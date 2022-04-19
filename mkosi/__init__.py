@@ -2865,14 +2865,14 @@ def patch_locale_gen(args: MkosiArgs, root: Path) -> None:
     try:
 
         def _patch_line(line: str) -> str:
-            if line.startswith("#en_US.UTF-8"):
+            if line.startswith("#C.UTF-8"):
                 return line[1:]
             return line
 
         patch_file(root / "etc/locale.gen", _patch_line)
 
     except FileNotFoundError:
-        root.joinpath("etc/locale.gen").write_text("en_US.UTF-8 UTF-8\n")
+        root.joinpath("etc/locale.gen").write_text("C.UTF-8 UTF-8\n")
 
 
 @complete_step("Installing Arch Linux…")
@@ -3044,7 +3044,7 @@ def install_arch(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None
     patch_locale_gen(args, root)
     run_workspace_command(args, root, ["/usr/bin/locale-gen"])
 
-    root.joinpath("etc/locale.conf").write_text("LANG=en_US.UTF-8\n")
+    root.joinpath("etc/locale.conf").write_text("LANG=C.UTF-8\n")
 
     # Arch still uses pam_securetty which prevents root login into
     # systemd-nspawn containers. See https://bugs.archlinux.org/task/45903.
