@@ -2836,6 +2836,10 @@ def install_debian_or_ubuntu(args: MkosiArgs, root: Path, *, do_run_build_script
             run_workspace_command(args, root, ["kernel-install", "add", kver, Path("/") / kimg])
 
     root.joinpath("etc/locale.conf").write_text("LANG=C.UTF-8\n")
+    try:
+        root.joinpath("etc/default/locale").unlink()
+    except FileNotFoundError:
+        pass
     root.joinpath("etc/default/locale").symlink_to("/etc/locale.conf")
 
 
