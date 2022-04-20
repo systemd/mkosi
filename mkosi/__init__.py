@@ -2840,7 +2840,7 @@ def install_debian_or_ubuntu(args: MkosiArgs, root: Path, *, do_run_build_script
         root.joinpath("etc/default/locale").unlink()
     except FileNotFoundError:
         pass
-    root.joinpath("etc/default/locale").symlink_to("/etc/locale.conf")
+    root.joinpath("etc/default/locale").symlink_to("../locale.conf")
 
 
 @complete_step("Installing Debian…")
