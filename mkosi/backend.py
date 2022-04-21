@@ -608,8 +608,6 @@ def nspawn_params_for_blockdev_access(args: MkosiArgs, loopdev: Path) -> List[st
         if path and path.exists():
             params += [f"--bind-ro={path}", f"--property=DeviceAllow={path}"]
 
-    params += [f"--setenv={env}={value}" for env, value in args.environment.items()]
-
     return params
 
 
@@ -631,7 +629,7 @@ def run_workspace_command(
     root: Path,
     cmd: Sequence[PathString],
     network: bool = False,
-    env: Optional[Mapping[str, str]] = None,
+    env: Mapping[str, str] = {},
     nspawn_params: Optional[List[str]] = None,
     capture_stdout: bool = False,
 ) -> Optional[str]:
@@ -655,8 +653,7 @@ def run_workspace_command(
     else:
         nspawn += ["--private-network"]
 
-    if env:
-        nspawn += [f"--setenv={k}={v}" for k, v in env.items()]
+    nspawn += [f"--setenv={k}={v}" for k, v in {**args.environment, **env}.items()]
 
     if nspawn_params:
         nspawn += nspawn_params
@@ -742,6 +739,7 @@ def run(
     delay_interrupt: bool = True,
     stdout: _FILE = None,
     stderr: _FILE = None,
+    env: Mapping[str, str] = {},
     **kwargs: Any,
 ) -> CompletedProcess:
     cmdline = [str(x) for x in cmdline]
@@ -758,7 +756,7 @@ def run(
     cm = do_delay_interrupt if delay_interrupt else do_noop
     try:
         with cm():
-            return subprocess.run(cmdline, check=check, stdout=stdout, stderr=stderr, **kwargs)
+            return subprocess.run(cmdline, check=check, stdout=stdout, stderr=stderr, env={**os.environ, **env}, **kwargs)
     except FileNotFoundError:
         die(f"{cmdline[0]} not found in PATH.")
 

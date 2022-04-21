@@ -3380,8 +3380,6 @@ def nspawn_params_for_build_sources(args: MkosiArgs, sft: SourceFileTransfer) ->
     else:
         params += ["--chdir=/root"]
 
-    params += [f"--setenv={env}={value}" for env, value in args.environment.items()]
-
     return params
 
 
@@ -3441,8 +3439,7 @@ def run_postinst_script(
 
         run_workspace_command(args, root, ["/root/postinst", verb],
                               network=(args.with_network is True),
-                              nspawn_params=nspawn_params,
-                              env=args.environment)
+                              nspawn_params=nspawn_params)
         root_home(args, root).joinpath("postinst").unlink()
 
 
@@ -3459,10 +3456,7 @@ def run_finalize_script(args: MkosiArgs, root: Path, do_run_build_script: bool, 
     verb = "build" if do_run_build_script else "final"
 
     with complete_step("Running finalize script…"):
-        env = collections.ChainMap(dict(BUILDROOT=str(root), OUTPUTDIR=str(output_dir(args))),
-                                   args.environment,
-                                   os.environ)
-        run([args.finalize_script, verb], env=env)
+        run([args.finalize_script, verb], env=dict(BUILDROOT=str(root), OUTPUTDIR=str(output_dir(args))))
 
 
 def install_boot_loader_clear(args: MkosiArgs, root: Path, loopdev: Path) -> None:
@@ -6519,6 +6513,7 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
             key, _, value = s.partition("=")
             value = value or os.getenv(key, "")
             env[key] = value
+            os.environ[key] = value
         args.environment = env
     else:
         args.environment = {}
@@ -6977,7 +6972,7 @@ def setup_ssh(
         f = open(args.ssh_key, mode="r", encoding="utf-8")
         copy_file(f"{args.ssh_key}.pub", authorized_keys)
     elif args.ssh_agent is not None:
-        env = {"SSH_AUTH_SOCK": args.ssh_agent}
+        env = {"SSH_AUTH_SOCK": str(args.ssh_agent)}
         result = run(["ssh-add", "-L"], env=env, text=True, stdout=subprocess.PIPE)
         authorized_keys.write_text(result.stdout)
         f = None
