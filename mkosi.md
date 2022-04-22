@@ -20,6 +20,16 @@ mkosi — Build Bespoke OS Images
 
 `mkosi [options…] qemu`
 
+`mkosi [options…] ssh`
+
+`mkosi [options…] serve`
+
+`mkosi [options…] bump`
+
+`mkosi [options…] genkey`
+
+`mkosi [options…] help`
+
 # DESCRIPTION
 
 `mkosi` is a tool for easily building customized OS images. It's a
@@ -104,6 +114,12 @@ The following command line verbs are known:
   bumped in preparation for the subsequent build. Note that
   `--auto-bump`/`-B` may be used to automatically bump the version
   after each successful build.
+
+`genkey`
+
+: Generate a pair of SecureBoot keys for usage with the
+  `SecureBootKey=`/`--secure-boot-key=` and
+  `SecureBootCertificate=`/`--secure-boot-certificate=` options.
 
 `help`
 
