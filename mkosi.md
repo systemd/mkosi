@@ -20,6 +20,16 @@ mkosi — Build Bespoke OS Images
 
 `mkosi [options…] qemu`
 
+`mkosi [options…] ssh`
+
+`mkosi [options…] serve`
+
+`mkosi [options…] bump`
+
+`mkosi [options…] genkey`
+
+`mkosi [options…] help`
+
 # DESCRIPTION
 
 `mkosi` is a tool for easily building customized OS images. It's a
