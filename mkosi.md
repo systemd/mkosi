@@ -115,6 +115,12 @@ The following command line verbs are known:
   `--auto-bump`/`-B` may be used to automatically bump the version
   after each successful build.
 
+`genkey`
+
+: Generate a pair of SecureBoot keys for usage with the
+  `SecureBootKey=`/`--secure-boot-key=` and
+  `SecureBootCertificate=`/`--secure-boot-certificate=` options.
+
 `help`
 
 : This verb is equivalent to the `--help` switch documented below: it
