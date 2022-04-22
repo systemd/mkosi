@@ -1540,6 +1540,30 @@ def mount_image(
             umount(root)
 
 
+def install_etc_locale(args: MkosiArgs, root: Path, cached: bool) -> None:
+    if cached:
+        return
+
+    etc_locale = root / "etc/locale.conf"
+
+    try:
+        etc_locale.unlink()
+    except FileNotFoundError:
+        pass
+
+    # Let's ensure we use a UTF-8 locale everywhere.
+    etc_locale.write_text("LANG=C.UTF-8\n")
+
+    # Debian/Ubuntu use a different path to store the locale so let's make sure that path is a symlink to
+    # etc/locale.conf.
+    if args.distribution in (Distribution.debian, Distribution.ubuntu):
+        try:
+            root.joinpath("etc/default/locale").unlink()
+        except FileNotFoundError:
+            pass
+        root.joinpath("etc/default/locale").symlink_to("../locale.conf")
+
+
 def install_etc_hostname(args: MkosiArgs, root: Path, cached: bool) -> None:
     if cached:
         return
@@ -2285,8 +2309,6 @@ def install_fedora(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
         add_packages(args, packages, "systemd-networkd", conditional="systemd")
     install_packages_dnf(args, root, packages, do_run_build_script)
 
-    root.joinpath("etc/locale.conf").write_text("LANG=C.UTF-8\n")
-
     # FIXME: should this be conditionalized on args.with_docs like in install_debian_or_ubuntu()?
     #        But we set LANG=C.UTF-8 anyway.
     shutil.rmtree(root / "usr/share/locale", ignore_errors=True)
@@ -2835,13 +2857,6 @@ def install_debian_or_ubuntu(args: MkosiArgs, root: Path, *, do_run_build_script
         for kver, kimg in gen_kernel_images(args, root):
             run_workspace_command(args, root, ["kernel-install", "add", kver, Path("/") / kimg])
 
-    root.joinpath("etc/locale.conf").write_text("LANG=C.UTF-8\n")
-    try:
-        root.joinpath("etc/default/locale").unlink()
-    except FileNotFoundError:
-        pass
-    root.joinpath("etc/default/locale").symlink_to("../locale.conf")
-
 
 @complete_step("Installing Debian…")
 def install_debian(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None:
@@ -3045,10 +3060,9 @@ def install_arch(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None
     with mount_api_vfs(args, root):
         run_pacman(root, pacman_conf, packages)
 
+    # Make sure the C.UTF-8 locale is available.
     patch_locale_gen(args, root)
     run_workspace_command(args, root, ["/usr/bin/locale-gen"])
-
-    root.joinpath("etc/locale.conf").write_text("LANG=C.UTF-8\n")
 
     # Arch still uses pam_securetty which prevents root login into
     # systemd-nspawn containers. See https://bugs.archlinux.org/task/45903.
@@ -7132,6 +7146,7 @@ def build_image(
                 cached_tree = reuse_cache_tree(args, root, do_run_build_script, for_cache, cached)
                 install_skeleton_trees(args, root, cached_tree)
                 install_distribution(args, root, do_run_build_script, cached_tree)
+                install_etc_locale(args, root, cached_tree)
                 install_etc_hostname(args, root, cached_tree)
                 install_boot_loader(args, root, loopdev, do_run_build_script, cached_tree)
                 run_prepare_script(args, root, do_run_build_script, cached_tree)
