@@ -2811,6 +2811,8 @@ def install_debian_or_ubuntu(args: MkosiArgs, root: Path, *, do_run_build_script
 
         root.joinpath(f"etc/apt/sources.list.d/{args.release}-security.list").write_text(f"{security}\n")
 
+    install_skeleton_trees(args, root, False, late=True)
+
     invoke_apt(args, do_run_build_script, root, "update", [])
     invoke_apt(args, do_run_build_script, root, "install", ["--no-install-recommends", *extra_packages])
 
@@ -3558,11 +3560,14 @@ def install_extra_trees(args: MkosiArgs, root: Path, for_cache: bool) -> None:
                 shutil.unpack_archive(cast(str, tree), root)
 
 
-def install_skeleton_trees(args: MkosiArgs, root: Path, cached: bool) -> None:
+def install_skeleton_trees(args: MkosiArgs, root: Path, cached: bool, *, late: bool=False) -> None:
     if not args.skeleton_trees:
         return
 
     if cached:
+        return
+
+    if not late and args.distribution in (Distribution.debian, Distribution.ubuntu):
         return
 
     with complete_step("Copying in skeleton file trees…"):
