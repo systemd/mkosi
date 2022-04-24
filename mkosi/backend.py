@@ -256,11 +256,19 @@ class OutputFormat(Parseable, enum.Enum):
     def has_fs_compression(self) -> bool:
         return self.is_squashfs() or self.is_btrfs()
 
+    def __repr__(self) -> str:
+        return Parseable.__repr__(self)
+    def __str__(self) -> str:
+        return Parseable.__str__(self)
 
 class ManifestFormat(Parseable, enum.Enum):
     json      = "json"       # the standard manifest in json format
     changelog = "changelog"  # human-readable text file with package changelogs
 
+    def __repr__(self) -> str:
+        return Parseable.__repr__(self)
+    def __str__(self) -> str:
+        return Parseable.__str__(self)
 
 class PartitionIdentifier(enum.Enum):
     esp        = "esp"
