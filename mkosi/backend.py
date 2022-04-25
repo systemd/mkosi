@@ -90,12 +90,9 @@ ARG_DEBUG: Set[str] = set()
 class Parseable:
     "A mix-in to provide conversions for argparse"
 
-    def __repr__(self) -> str:
+    def __str__(self) -> str:
         """Return the member name without the class name"""
         return cast(str, getattr(self, "name"))
-
-    def __str__(self) -> str:
-        return self.__repr__()
 
     @classmethod
     def from_string(cls: Any, name: str) -> Any:
@@ -256,11 +253,15 @@ class OutputFormat(Parseable, enum.Enum):
     def has_fs_compression(self) -> bool:
         return self.is_squashfs() or self.is_btrfs()
 
+    def __str__(self) -> str:
+        return Parseable.__str__(self)
 
 class ManifestFormat(Parseable, enum.Enum):
     json      = "json"       # the standard manifest in json format
     changelog = "changelog"  # human-readable text file with package changelogs
 
+    def __str__(self) -> str:
+        return Parseable.__str__(self)
 
 class PartitionIdentifier(enum.Enum):
     esp        = "esp"
