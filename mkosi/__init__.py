@@ -176,6 +176,13 @@ def dictify(f: Callable[..., Iterator[Tuple[T, V]]]) -> Callable[..., Dict[T, V]
     return functools.update_wrapper(wrapper, f)
 
 
+def list_to_string(seq: Iterator[str]) -> str:
+    """Print contents of a list to a comma-separated string
+
+    ['a', "b", 11] → "'a', 'b', 11"
+    """
+    return str(list(seq))[1:-1]
+
 @dictify
 def read_os_release() -> Iterator[Tuple[str, str]]:
     try:
@@ -5183,7 +5190,8 @@ def create_parser() -> ArgumentParserMkosi:
     group.add_argument(
         "cmdline",
         nargs=argparse.REMAINDER,
-        help="The command line to use for " + str([verb.name for verb in MKOSI_COMMANDS_CMDLINE])[1:-1]),
+        help=f"The command line to use for {list_to_string(verb.name for verb in MKOSI_COMMANDS_CMDLINE)}",
+    )
     group.add_argument("-h", "--help", action="help", help="Show this help")
     group.add_argument("--version", action="version", version="%(prog)s " + __version__)
 
@@ -6429,7 +6437,7 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
     args.extra_search_paths = expand_paths(args.extra_search_paths)
 
     if args.cmdline and args.verb not in MKOSI_COMMANDS_CMDLINE:
-        die("Additional parameters only accepted for " + str([verb.name for verb in MKOSI_COMMANDS_CMDLINE])[1:-1] + " invocations.")
+        die(f"Additional parameters only accepted for {list_to_string(verb.name for verb in MKOSI_COMMANDS_CMDLINE)} invocations.")
 
     if args.output_format is None:
         args.output_format = OutputFormat.gpt_ext4
