@@ -21,6 +21,7 @@ import glob
 import hashlib
 import http.server
 import importlib.resources
+import itertools
 import json
 import os
 import platform
@@ -32,6 +33,7 @@ import string
 import subprocess
 import sys
 import tempfile
+import textwrap
 import time
 import urllib.parse
 import urllib.request
@@ -5009,6 +5011,20 @@ class CustomHelpFormatter(argparse.HelpFormatter):
         args_string = self._format_args(action, default)
         return ", ".join(action.option_strings) + " " + args_string
 
+    def _split_lines(self, text: str, width: int) -> List[str]:
+        """Wraps text to width, each line separately.
+        If the first line of text ends in a colon, we assume that
+        this is a list of option descriptions, and subindent them.
+        Otherwise, the text is wrapped without indentation.
+        """
+        lines = text.splitlines()
+        subindent = '    ' if lines[0].endswith(':') else ''
+        return list(itertools.chain.from_iterable(
+            textwrap.wrap(line, width,
+                          break_long_words=False,
+                          break_on_hyphens=False,
+                          subsequent_indent=subindent)
+            for line in lines))
 
 class ArgumentParserMkosi(argparse.ArgumentParser):
     """ArgumentParser with support for mkosi.defaults file(s)
@@ -5644,9 +5660,9 @@ def create_parser() -> ArgumentParserMkosi:
         choices=[*list(SourceFileTransfer), None],
         metavar="METHOD",
         default=None,
-        help="Method used to copy build sources to the build image."
-        + "; ".join([f"'{k}': {v}" for k, v in SourceFileTransfer.doc().items()])
-        + " (default: copy-git-others if in a git repository, otherwise copy-all)",
+        help='\n'.join(('How to copy build sources to the build image:',
+                        *(f"'{k}': {v}" for k, v in SourceFileTransfer.doc().items()),
+                        '(default: copy-git-others if in a git repository, otherwise copy-all)')),
     )
     group.add_argument(
         "--source-file-transfer-final",
@@ -5654,25 +5670,30 @@ def create_parser() -> ArgumentParserMkosi:
         choices=[*list(SourceFileTransfer), None],
         metavar="METHOD",
         default=None,
-        help="Method used to copy build sources to the final image."
-        + "; ".join([f"'{k}': {v}" for k, v in SourceFileTransfer.doc().items() if k != SourceFileTransfer.mount])
-        + " (default: None)",
+        help='\n'.join(('How to copy build sources to the final image:',
+                        *(f"'{k}': {v}" for k, v in SourceFileTransfer.doc().items()
+                          if k != SourceFileTransfer.mount),
+                        '(default: None)')),
     )
     group.add_argument(
         "--source-resolve-symlinks",
         metavar="BOOL",
         action=BooleanAction,
-        help="If given, any symbolic links in the build sources are resolved and the file contents copied to the"
-        + " build image. If not given, they are left as symbolic links in the build image."
-        + " Only applies if --source-file-transfer is set to 'copy-all'. (default: keep as symbolic links)",
+        help=("If true, symbolic links in the build sources are followed and the "
+              "file contents copied to the build image. If false, they are left as "
+              "symbolic links. "
+              "Only applies if --source-file-transfer-final is set to 'copy-all'.\n"
+              "(default: false)"),
     )
     group.add_argument(
         "--source-resolve-symlinks-final",
         metavar="BOOL",
         action=BooleanAction,
-        help="If given, any symbolic links in the build sources are resolved and the file contents copied to the"
-        + " final image. If not given, they are left as symbolic links in the final image."
-        + " Only applies if --source-file-transfer-final is set to 'copy-all'. (default: keep as symbolic links)",
+        help=("If true, symbolic links in the build sources are followed and the "
+              "file contents copied to the final image. If false, they are left as "
+              "symbolic links in the final image. "
+              "Only applies if --source-file-transfer-final is set to 'copy-all'.\n"
+              "(default: false)"),
     )
     group.add_argument(
         "--with-network",
@@ -5820,8 +5841,8 @@ def create_parser() -> ArgumentParserMkosi:
         "--ephemeral",
         metavar="BOOL",
         action=BooleanAction,
-        help="If specified, the container/VM is run with a temporary snapshot of the output image that is "
-        "removed immediately when the container/VM terminates",
+        help=('If specified, the container/VM is run with a temporary snapshot of the output '
+              'image that is removed immediately when the container/VM terminates'),
     )
     group.add_argument(
         "--ssh",
