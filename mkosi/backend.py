@@ -194,9 +194,9 @@ class SourceFileTransfer(enum.Enum):
     def doc(cls) -> Dict[SourceFileTransfer, str]:
         return {
             cls.copy_all: "normal file copy",
-            cls.copy_git_cached: "use git-ls-files --cached, ignoring any file that git itself ignores",
-            cls.copy_git_others: "use git-ls-files --others, ignoring any file that git itself ignores",
-            cls.copy_git_more: "use git-ls-files --cached, ignoring any file that git itself ignores, but include the .git/ directory",
+            cls.copy_git_cached: "use git ls-files --cached, ignoring any file that git itself ignores",
+            cls.copy_git_others: "use git ls-files --others, ignoring any file that git itself ignores",
+            cls.copy_git_more: "use git ls-files --cached, ignoring any file that git itself ignores, but include the .git/ directory",
             cls.mount: "bind mount source files into the build image",
         }
 
