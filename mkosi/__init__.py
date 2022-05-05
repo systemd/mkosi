@@ -85,6 +85,7 @@ from .backend import (
     nspawn_executable,
     nspawn_params_for_blockdev_access,
     nspawn_rlimit_params,
+    nspawn_version,
     patch_file,
     path_relative_to_cwd,
     run,
@@ -7471,7 +7472,7 @@ def check_root() -> None:
 
 
 def check_native(args: MkosiArgs) -> None:
-    if args.architecture is not None and args.architecture != platform.machine() and args.build_script:
+    if args.architecture is not None and args.architecture != platform.machine() and args.build_script and nspawn_version() < 250:
         die("Cannot (currently) override the architecture and run build commands")
 
 
