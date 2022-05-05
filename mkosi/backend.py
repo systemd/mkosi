@@ -627,6 +627,14 @@ def nspawn_rlimit_params() -> Sequence[str]:
     ]
 
 
+def nspawn_executable() -> str:
+    return os.getenv("MKOSI_NSPAWN_EXECUTABLE", "systemd-nspawn")
+
+
+def nspawn_version() -> int:
+    return int(run([nspawn_executable(), "--version"], stdout=subprocess.PIPE).stdout.strip().split()[1])
+
+
 def run_workspace_command(
     args: MkosiArgs,
     root: Path,
@@ -637,7 +645,7 @@ def run_workspace_command(
     capture_stdout: bool = False,
 ) -> Optional[str]:
     nspawn = [
-        "systemd-nspawn",
+        nspawn_executable(),
         "--quiet",
         f"--directory={root}",
         "--uuid=" + args.machine_id,

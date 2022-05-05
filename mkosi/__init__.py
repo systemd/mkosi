@@ -82,8 +82,10 @@ from .backend import (
     die,
     install_grub,
     is_rpm_distribution,
+    nspawn_executable,
     nspawn_params_for_blockdev_access,
     nspawn_rlimit_params,
+    nspawn_version,
     patch_file,
     path_relative_to_cwd,
     run,
@@ -7248,7 +7250,7 @@ def install_dir(args: MkosiArgs, root: Path) -> Path:
 
 
 def nspawn_knows_arg(arg: str) -> bool:
-    return bytes("unrecognized option", "UTF-8") not in run(["systemd-nspawn", arg], stderr=PIPE, check=False).stderr
+    return bytes("unrecognized option", "UTF-8") not in run([nspawn_executable(), arg], stderr=PIPE, check=False).stderr
 
 
 def run_build_script(args: MkosiArgs, root: Path, raw: Optional[BinaryIO]) -> None:
@@ -7263,7 +7265,7 @@ def run_build_script(args: MkosiArgs, root: Path, raw: Optional[BinaryIO]) -> No
         with_network = 1 if args.with_network is True else 0
 
         cmdline = [
-            "systemd-nspawn",
+            nspawn_executable(),
             "--quiet",
             target,
             f"--uuid={args.machine_id}",
@@ -7470,7 +7472,7 @@ def check_root() -> None:
 
 
 def check_native(args: MkosiArgs) -> None:
-    if args.architecture is not None and args.architecture != platform.machine() and args.build_script:
+    if args.architecture is not None and args.architecture != platform.machine() and args.build_script and nspawn_version() < 250:
         die("Cannot (currently) override the architecture and run build commands")
 
 
@@ -7548,7 +7550,7 @@ def run_shell_cmdline(args: MkosiArgs, pipe: bool = False, commands: Optional[Se
     else:
         target = f"--image={args.output}"
 
-    cmdline = ["systemd-nspawn", "--quiet", target]
+    cmdline = [nspawn_executable(), "--quiet", target]
 
     # Redirecting output correctly when not running directly from the terminal.
     console_arg = f"--console={'interactive' if not pipe else 'pipe'}"
