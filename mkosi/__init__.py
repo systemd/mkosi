@@ -1714,6 +1714,9 @@ def prepare_tree(args: MkosiArgs, root: Path, do_run_build_script: bool, cached:
     if cached:
         # Reuse machine-id from cached image.
         args.machine_id = uuid.UUID(root.joinpath("etc/machine-id").read_text().strip()).hex
+        # Always update kernel command line.
+        if not do_run_build_script and args.bootable:
+            root.joinpath("etc/kernel/cmdline").write_text(" ".join(args.kernel_command_line) + "\n")
         return
 
     with complete_step("Setting up basic OS tree…"):
