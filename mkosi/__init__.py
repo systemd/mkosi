@@ -1714,6 +1714,9 @@ def prepare_tree(args: MkosiArgs, root: Path, do_run_build_script: bool, cached:
     if cached:
         # Reuse machine-id from cached image.
         args.machine_id = uuid.UUID(root.joinpath("etc/machine-id").read_text().strip()).hex
+        # Always update kernel command line.
+        if not do_run_build_script and args.bootable:
+            root.joinpath("etc/kernel/cmdline").write_text(" ".join(args.kernel_command_line) + "\n")
         return
 
     with complete_step("Setting up basic OS tree…"):
@@ -3601,7 +3604,9 @@ def copy_git_files(src: Path, dest: Path, *, source_file_transfer: SourceFileTra
     if source_file_transfer == SourceFileTransfer.copy_git_others:
         what_files += ["--others", "--exclude=.mkosi-*"]
 
-    c = run(["git", "-C", src, "ls-files", "-z", *what_files], stdout=PIPE, text=False)
+    uid = int(os.getenv("SUDO_UID", 0))
+
+    c = run(["git", "-C", src, "ls-files", "-z", *what_files], stdout=PIPE, text=False, user=uid)
     files = {x.decode("utf-8") for x in c.stdout.rstrip(b"\0").split(b"\0")}
 
     # Add the .git/ directory in as well.
@@ -3614,7 +3619,7 @@ def copy_git_files(src: Path, dest: Path, *, source_file_transfer: SourceFileTra
                 files.add(fr)
 
     # Get submodule files
-    c = run(["git", "-C", src, "submodule", "status", "--recursive"], stdout=PIPE, text=True)
+    c = run(["git", "-C", src, "submodule", "status", "--recursive"], stdout=PIPE, text=True, user=uid)
     submodules = {x.split()[1] for x in c.stdout.splitlines()}
 
     # workaround for git-ls-files returning the path of submodules that we will
@@ -3626,6 +3631,7 @@ def copy_git_files(src: Path, dest: Path, *, source_file_transfer: SourceFileTra
             ["git", "-C", os.path.join(src, sm), "ls-files", "-z"] + what_files,
             stdout=PIPE,
             text=False,
+            user=uid,
         )
         files |= {os.path.join(sm, x.decode("utf-8")) for x in c.stdout.rstrip(b"\0").split(b"\0")}
         files -= submodules
