@@ -6318,7 +6318,7 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
 
     if args.release is None:
         if args.distribution == Distribution.fedora:
-            args.release = "35"
+            args.release = "36"
         elif args.distribution in (Distribution.centos, Distribution.centos_epel):
             args.release = "9-stream"
         elif args.distribution in (Distribution.rocky, Distribution.rocky_epel):
