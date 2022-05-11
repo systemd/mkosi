@@ -2299,7 +2299,7 @@ def install_fedora(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
     setup_dnf(args, root, repos)
 
     packages = {*args.packages}
-    add_packages(args, packages, "fedora-release", "systemd")
+    add_packages(args, packages, "fedora-release", "systemd", "util-linux")
 
     if fedora_release_cmp(args.release, "34") < 0:
         add_packages(args, packages, "glibc-minimal-langpack", conditional="glibc")
