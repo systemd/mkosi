@@ -2299,7 +2299,7 @@ def install_fedora(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
     setup_dnf(args, root, repos)
 
     packages = {*args.packages}
-    add_packages(args, packages, "fedora-release", "systemd")
+    add_packages(args, packages, "fedora-release", "systemd", "util-linux")
 
     if fedora_release_cmp(args.release, "34") < 0:
         add_packages(args, packages, "glibc-minimal-langpack", conditional="glibc")
@@ -3338,9 +3338,11 @@ def invoke_fstrim(args: MkosiArgs, root: Path, do_run_build_script: bool, for_ca
 
 
 def pam_add_autologin(root: Path, ttys: List[str]) -> None:
-    with open(root / "etc/pam.d/login", "r+") as f:
-        original = f.read()
-        f.seek(0)
+    login = root / "etc/pam.d/login"
+    original = login.read_text() if login.exists() else ""
+
+    login.parent.mkdir(exist_ok=True)
+    with open(login, "w") as f:
         for tty in ttys:
             # Some PAM versions require the /dev/ prefix, others don't. Just add both variants.
             f.write(f"auth sufficient pam_succeed_if.so tty = {tty}\n")
@@ -6319,7 +6321,7 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
 
     if args.release is None:
         if args.distribution == Distribution.fedora:
-            args.release = "35"
+            args.release = "36"
         elif args.distribution in (Distribution.centos, Distribution.centos_epel):
             args.release = "9-stream"
         elif args.distribution in (Distribution.rocky, Distribution.rocky_epel):
