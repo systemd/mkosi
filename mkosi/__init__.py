@@ -3337,9 +3337,11 @@ def invoke_fstrim(args: MkosiArgs, root: Path, do_run_build_script: bool, for_ca
 
 
 def pam_add_autologin(root: Path, ttys: List[str]) -> None:
-    with open(root / "etc/pam.d/login", "r+") as f:
-        original = f.read()
-        f.seek(0)
+    login = root / "etc/pam.d/login"
+    original = login.read_text() if login.exists() else ""
+
+    login.parent.mkdir(exist_ok=True)
+    with open(login, "w") as f:
         for tty in ttys:
             # Some PAM versions require the /dev/ prefix, others don't. Just add both variants.
             f.write(f"auth sufficient pam_succeed_if.so tty = {tty}\n")
