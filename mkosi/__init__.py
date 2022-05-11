@@ -2742,6 +2742,7 @@ def install_debian_or_ubuntu(args: MkosiArgs, root: Path, *, do_run_build_script
         cmdline: List[PathString] = [
             "debootstrap",
             "--variant=minbase",
+            "--include=ca-certificates",
             "--merged-usr",
             f"--components={','.join(repos)}",
         ]
