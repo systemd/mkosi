@@ -2304,6 +2304,10 @@ def install_fedora(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
     if fedora_release_cmp(args.release, "34") < 0:
         add_packages(args, packages, "glibc-minimal-langpack", conditional="glibc")
 
+    # Fedora 36 doesn't include pam by default in his very base installation not allowing logins to the container
+    if fedora_release_cmp(args.release, "36") == 0:
+        add_packages(args, packages, "pam")
+
     if not do_run_build_script and args.bootable:
         add_packages(args, packages, "kernel-core", "kernel-modules", "dracut", "binutils")
         add_packages(args, packages, "systemd-udev", conditional="systemd")
