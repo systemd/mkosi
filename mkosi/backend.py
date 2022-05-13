@@ -764,6 +764,14 @@ def run(
         # output.
         stdout = sys.stderr
 
+    # This is a workaround for copy_git_files, which uses the user= option to
+    # subprocess.run, which is only available starting with Python 3.9
+    # TODO: remove this branch once mkosi defaults to at least Python 3.9
+    if "user" in kwargs and sys.version_info < (3, 9):
+        user = kwargs.pop("user")
+        user = f"#{user}" if isinstance(user, int) else user
+        cmdline = ["sudo", "-u", user] + cmdline
+
     cm = do_delay_interrupt if delay_interrupt else do_noop
     try:
         with cm():
