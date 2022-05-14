@@ -2410,17 +2410,17 @@ def install_centos_repos_old(args: MkosiArgs, root: Path, epel_release: int) -> 
     epel_gpgurl = f"https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-{epel_release}"
 
     if args.mirror:
-        release_url = f"baseurl={args.mirror}/centos/{args.release}/os/x86_64"
-        updates_url = f"baseurl={args.mirror}/centos/{args.release}/updates/x86_64/"
-        extras_url = f"baseurl={args.mirror}/centos/{args.release}/extras/x86_64/"
-        centosplus_url = f"baseurl={args.mirror}/centos/{args.release}/centosplus/x86_64/"
-        epel_url = f"baseurl={args.mirror}/epel/{epel_release}/x86_64/"
+        release_url = f"baseurl={args.mirror}/centos/{args.release}/os/$basearch"
+        updates_url = f"baseurl={args.mirror}/centos/{args.release}/updates/$basearch/"
+        extras_url = f"baseurl={args.mirror}/centos/{args.release}/extras/$basearch/"
+        centosplus_url = f"baseurl={args.mirror}/centos/{args.release}/centosplus/$basearch/"
+        epel_url = f"baseurl={args.mirror}/epel/{epel_release}/$basearch/"
     else:
-        release_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=os"
-        updates_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=updates"
-        extras_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=extras"
-        centosplus_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=centosplus"
-        epel_url = f"mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=epel-{epel_release}&arch=x86_64"
+        release_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=$basearch&repo=os"
+        updates_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=$basearch&repo=updates"
+        extras_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=$basearch&repo=extras"
+        centosplus_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=$basearch&repo=centosplus"
+        epel_url = f"mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=epel-{epel_release}&arch=$basearch"
 
     repos = [Repo("base", f"CentOS-{args.release} - Base", release_url, gpgpath, gpgurl),
              Repo("updates", f"CentOS-{args.release} - Updates", updates_url, gpgpath, gpgurl),
@@ -2443,19 +2443,19 @@ def install_centos_repos_new(args: MkosiArgs, root: Path, epel_release: int) -> 
     epel_gpgurl = f"https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-{epel_release}"
 
     if args.mirror:
-        appstream_url = f"baseurl={args.mirror}/centos/{args.release}/AppStream/x86_64/os"
-        baseos_url = f"baseurl={args.mirror}/centos/{args.release}/BaseOS/x86_64/os"
-        extras_url = f"baseurl={args.mirror}/centos/{args.release}/extras/x86_64/os"
-        centosplus_url = f"baseurl={args.mirror}/centos/{args.release}/centosplus/x86_64/os"
-        powertools_url = f"baseurl={args.mirror}/centos/{args.release}/PowerTools/x86_64/os"
-        epel_url = f"baseurl={args.mirror}/epel/{epel_release}/Everything/x86_64"
+        appstream_url = f"baseurl={args.mirror}/centos/{args.release}/AppStream/$basearch/os"
+        baseos_url = f"baseurl={args.mirror}/centos/{args.release}/BaseOS/$basearch/os"
+        extras_url = f"baseurl={args.mirror}/centos/{args.release}/extras/$basearch/os"
+        centosplus_url = f"baseurl={args.mirror}/centos/{args.release}/centosplus/$basearch/os"
+        powertools_url = f"baseurl={args.mirror}/centos/{args.release}/PowerTools/$basearch/os"
+        epel_url = f"baseurl={args.mirror}/epel/{epel_release}/Everything/$basearch"
     else:
-        appstream_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=AppStream"
-        baseos_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=BaseOS"
-        extras_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=extras"
-        centosplus_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=centosplus"
-        powertools_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=x86_64&repo=PowerTools"
-        epel_url = f"mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=epel-{epel_release}&arch=x86_64"
+        appstream_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=$basearch&repo=AppStream"
+        baseos_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=$basearch&repo=BaseOS"
+        extras_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=$basearch&repo=extras"
+        centosplus_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=$basearch&repo=centosplus"
+        powertools_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=$basearch&repo=PowerTools"
+        epel_url = f"mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=epel-{epel_release}&arch=$basearch"
 
     repos = [Repo("AppStream", f"CentOS-{args.release} - AppStream", appstream_url, gpgpath, gpgurl),
              Repo("BaseOS", f"CentOS-{args.release} - Base", baseos_url, gpgpath, gpgurl),
@@ -2481,15 +2481,15 @@ def install_centos_stream_repos(args: MkosiArgs, root: Path, epel_release: int) 
     release = f"{epel_release}-stream"
 
     if args.mirror:
-        appstream_url = f"baseurl={args.mirror}/centos-stream/{release}/AppStream/x86_64/os"
-        baseos_url = f"baseurl={args.mirror}/centos-stream/{release}/BaseOS/x86_64/os"
-        crb_url = f"baseurl={args.mirror}/centos-stream/{release}/CRB/x86_64/os"
-        epel_url = f"baseurl={args.mirror}/epel/{epel_release}/Everything/x86_64"
+        appstream_url = f"baseurl={args.mirror}/centos-stream/{release}/AppStream/$basearch/os"
+        baseos_url = f"baseurl={args.mirror}/centos-stream/{release}/BaseOS/$basearch/os"
+        crb_url = f"baseurl={args.mirror}/centos-stream/{release}/CRB/$basearch/os"
+        epel_url = f"baseurl={args.mirror}/epel/{epel_release}/Everything/$basearch"
     else:
         appstream_url = f"metalink=https://mirrors.centos.org/metalink?repo=centos-appstream-{release}&arch=$basearch"
         baseos_url = f"metalink=https://mirrors.centos.org/metalink?repo=centos-baseos-{release}&arch=$basearch"
         crb_url = f"metalink=https://mirrors.centos.org/metalink?repo=centos-crb-{release}&arch=$basearch"
-        epel_url = f"mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=epel-{epel_release}&arch=x86_64"
+        epel_url = f"mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=epel-{epel_release}&arch=$basearch"
 
     repos = [Repo("AppStream", f"CentOS Stream {release} - AppStream", appstream_url, gpgpath, gpgurl),
              Repo("BaseOS", f"CentOS Stream {release} - BaseOS", baseos_url, gpgpath, gpgurl),
@@ -2504,25 +2504,31 @@ def install_centos_stream_repos(args: MkosiArgs, root: Path, epel_release: int) 
 
 def install_rocky_repos(args: MkosiArgs, root: Path, epel_release: int) -> None:
     # Repos for Rocky Linux 8 and later
-    gpgpath = Path("/etc/pki/rpm-gpg/RPM-GPG-KEY-rockyofficial")
-    gpgurl = "https://download.rockylinux.org/pub/rocky/RPM-GPG-KEY-rockyofficial"
+
+    if epel_release >= 9:
+        keyname = f"Rocky-{epel_release}"
+    else:
+        keyname = "rockyofficial"
+
+    gpgpath = Path(f"/etc/pki/rpm-gpg/RPM-GPG-KEY-{keyname}")
+    gpgurl = f"https://download.rockylinux.org/pub/rocky/RPM-GPG-KEY-{keyname}"
     epel_gpgpath = Path(f"/etc/pki/rpm-gpg/RPM-GPG-KEY-EPEL-{epel_release}")
     epel_gpgurl = f"https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-{epel_release}"
 
     if args.mirror:
-        appstream_url = f"baseurl={args.mirror}/rocky/{args.release}/AppStream/x86_64/os"
-        baseos_url = f"baseurl={args.mirror}/rocky/{args.release}/BaseOS/x86_64/os"
-        extras_url = f"baseurl={args.mirror}/rocky/{args.release}/extras/x86_64/os"
-        plus_url = f"baseurl={args.mirror}/rocky/{args.release}/plus/x86_64/os"
-        epel_url = f"baseurl={args.mirror}/epel/{epel_release}/Everything/x86_64"
+        appstream_url = f"baseurl={args.mirror}/rocky/{args.release}/AppStream/$basearch/os"
+        baseos_url = f"baseurl={args.mirror}/rocky/{args.release}/BaseOS/$basearch/os"
+        extras_url = f"baseurl={args.mirror}/rocky/{args.release}/extras/$basearch/os"
+        plus_url = f"baseurl={args.mirror}/rocky/{args.release}/plus/$basearch/os"
+        epel_url = f"baseurl={args.mirror}/epel/{epel_release}/Everything/$basearch"
     else:
         appstream_url = (
-            f"mirrorlist=https://mirrors.rockylinux.org/mirrorlist?arch=x86_64&repo=AppStream-{args.release}"
+            f"mirrorlist=https://mirrors.rockylinux.org/mirrorlist?arch=$basearch&repo=AppStream-{args.release}"
         )
-        baseos_url = f"mirrorlist=https://mirrors.rockylinux.org/mirrorlist?arch=x86_64&repo=BaseOS-{args.release}"
-        extras_url = f"mirrorlist=https://mirrors.rockylinux.org/mirrorlist?arch=x86_64&repo=extras-{args.release}"
-        plus_url = f"mirrorlist=https://mirrors.rockylinux.org/mirrorlist?arch=x86_64&repo=rockyplus-{args.release}"
-        epel_url = f"mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=epel-{epel_release}&arch=x86_64"
+        baseos_url = f"mirrorlist=https://mirrors.rockylinux.org/mirrorlist?arch=$basearch&repo=BaseOS-{args.release}"
+        extras_url = f"mirrorlist=https://mirrors.rockylinux.org/mirrorlist?arch=$basearch&repo=extras-{args.release}"
+        plus_url = f"mirrorlist=https://mirrors.rockylinux.org/mirrorlist?arch=$basearch&repo=rockyplus-{args.release}"
+        epel_url = f"mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=epel-{epel_release}&arch=$basearch"
 
     repos = [Repo("AppStream", f"Rocky-{args.release} - AppStream", appstream_url, gpgpath, gpgurl),
              Repo("BaseOS", f"Rocky-{args.release} - Base", baseos_url, gpgpath, gpgurl),
@@ -2543,19 +2549,19 @@ def install_alma_repos(args: MkosiArgs, root: Path, epel_release: int) -> None:
     epel_gpgurl = f"https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-{epel_release}"
 
     if args.mirror:
-        appstream_url = f"baseurl={args.mirror}/almalinux/{args.release}/AppStream/x86_64/os"
-        baseos_url = f"baseurl={args.mirror}/almalinux/{args.release}/BaseOS/x86_64/os"
-        extras_url = f"baseurl={args.mirror}/almalinux/{args.release}/extras/x86_64/os"
-        powertools_url = f"baseurl={args.mirror}/almalinux/{args.release}/PowerTools/x86_64/os"
-        ha_url = f"baseurl={args.mirror}/almalinux/{args.release}/HighAvailability/x86_64/os"
-        epel_url = f"baseurl={args.mirror}/epel/{epel_release}/Everything/x86_64"
+        appstream_url = f"baseurl={args.mirror}/almalinux/{args.release}/AppStream/$basearch/os"
+        baseos_url = f"baseurl={args.mirror}/almalinux/{args.release}/BaseOS/$basearch/os"
+        extras_url = f"baseurl={args.mirror}/almalinux/{args.release}/extras/$basearch/os"
+        powertools_url = f"baseurl={args.mirror}/almalinux/{args.release}/PowerTools/$basearch/os"
+        ha_url = f"baseurl={args.mirror}/almalinux/{args.release}/HighAvailability/$basearch/os"
+        epel_url = f"baseurl={args.mirror}/epel/{epel_release}/Everything/$basearch"
     else:
         appstream_url = f"mirrorlist=https://mirrors.almalinux.org/mirrorlist/{args.release}/appstream"
         baseos_url = f"mirrorlist=https://mirrors.almalinux.org/mirrorlist/{args.release}/baseos"
         extras_url = f"mirrorlist=https://mirrors.almalinux.org/mirrorlist/{args.release}/extras"
         powertools_url = f"mirrorlist=https://mirrors.almalinux.org/mirrorlist/{args.release}/powertools"
         ha_url = f"mirrorlist=https://mirrors.almalinux.org/mirrorlist/{args.release}/ha"
-        epel_url = f"mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=epel-{epel_release}&arch=x86_64"
+        epel_url = f"mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=epel-{epel_release}&arch=$basearch"
 
     repos = [Repo("AppStream", f"AlmaLinux-{args.release} - AppStream", appstream_url, gpgpath, gpgurl),
              Repo("BaseOS", f"AlmaLinux-{args.release} - Base", baseos_url, gpgpath, gpgurl),
@@ -2674,6 +2680,10 @@ def install_rocky(args: MkosiArgs, root: Path, do_run_build_script: bool) -> Non
         add_packages(args, packages, "systemd-networkd", conditional="systemd")
 
     install_packages_dnf(args, root, packages, do_run_build_script)
+
+    if root.joinpath("usr/bin/rpm").exists():
+        cmdline = ["rpm", "--rebuilddb", "--define", "_db_backend bdb"]
+        run_workspace_command(args, root, cmdline)
 
 
 
