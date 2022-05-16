@@ -46,12 +46,6 @@ jobs:
     - name: Test execution from current working directory (sudo call)
       run: sudo python3 -m mkosi -h
 
-    - name: Test system installation
-      run: |
-        sudo python3 -m pip install .
-        sudo mkosi -h
-        sudo python3 -m pip uninstall --yes mkosi
-
     - name: Test user installation
       run: |
         python3 -m pip install --user .
@@ -85,6 +79,12 @@ jobs:
     - name: Test venv installation (sudo call)
       run: |
         sudo testvenv/bin/mkosi -h
+
+    - name: Test system installation
+      run: |
+        sudo python3 -m pip install .
+        sudo mkosi -h
+        sudo python3 -m pip uninstall --yes mkosi
 
     - name: Test zipapp creation
       run: |
