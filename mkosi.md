@@ -33,7 +33,7 @@ mkosi — Build Bespoke OS Images
 # DESCRIPTION
 
 `mkosi` is a tool for easily building customized OS images. It's a
-fancy wrapper around `dnf --installroot`, `debootstrap`, `pacstrap`
+fancy wrapper around `dnf --installroot`, `debootstrap`, `pacman`
 and `zypper` that may generate disk images with a number of bells and
 whistles.
 
@@ -1297,7 +1297,7 @@ images containing any other distribution, as long as the necessary
 tools are available. Specifically, any distribution that packages
 `debootstrap` may be used to build *Debian* or *Ubuntu* images. Any
 distribution that packages `dnf` may be used to build *Fedora Linux*,
-*Mageia* or *OpenMandriva* images. Any distro that packages `pacstrap` may be used to
+*Mageia* or *OpenMandriva* images. Any distro that packages `pacman` may be used to
 build *Arch Linux* images. Any distribution that packages `zypper` may
 be used to build *openSUSE* images. Any distribution that packages
 `yum` (or the newer replacement `dnf`) may be used to build *CentOS*, *Rocky Linux*,
