@@ -9,14 +9,27 @@ runs:
     uses: actions/cache@v3
     with:
       path: build
-      key: ${{ runner.os }}-${{ hashFiles('action/setup-github-actions.sh') }}
+      key: ${{ runner.os }}-${{ hashFiles('action/setup-pacman.sh') }}
 
   - name: Dependencies
     shell: bash
     run: |
+      sudo apt-get update
+      sudo apt-get install --assume-yes --no-install-recommends \
+        debootstrap \
+        zypper \
+        dnf \
+        systemd-container \
+        qemu-system-x86 \
+        ovmf \
+        e2fsprogs \
+        xfsprogs \
+        squashfs-tools \
+        btrfs-progs
+
       mkdir -p $BUILDDIR
 
-      sudo -E ${{ github.action_path }}/action/setup-github-actions.sh
+      sudo -E ${{ github.action_path }}/action/setup-pacman.sh
       sudo chown -R $USER: $BUILDDIR
 
       sudo pacman-key --init

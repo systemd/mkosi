@@ -10,7 +10,7 @@ on:
 
 jobs:
   unit-test:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}
       cancel-in-progress: true
@@ -97,7 +97,7 @@ jobs:
         bash -c 'shopt -s globstar; shellcheck **/*.sh'
 
   integration-test:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: unit-test
     concurrency:
       group: ${{ github.workflow }}-${{ matrix.distro }}-${{ matrix.format }}-${{ github.ref }}

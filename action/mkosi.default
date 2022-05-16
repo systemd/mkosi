@@ -1,56 +1,25 @@
 [Distribution]
 Distribution=ubuntu
-Release=focal
-
-[Output]
-HostonlyInitrd=yes
+Release=jammy
 
 [Content]
-Cache=../mkosi.cache/ubuntu~focal
-BuildScript=setup-github-actions.sh
+Cache=../mkosi.cache/ubuntu~jammy
+BuildScript=setup-pacman.sh
 WithNetwork=yes
 Repositories=main,universe
 Autologin=yes
 Bootable=yes
 Password=
-Packages=bzip2
-         clang
-         debootstrap
-         e2fsprogs
-         git
-         libarchive13
-         libcap2
-         libcppunit-1.15-0
-         libcurl4
-         libdb5.3
-         libgcrypt20
-         libglib2.0.0
-         libgpgme11
-         libjson-c4
-         liblua5.3-0
-         liblzma5
-         libmagic1
-         libpopt0
-         libpython3.8
-         libsmartcols1
-         libsqlite3-0
-         libssl1.1
-         libtool
-         libxml2
-         libyaml-0-2
-         libzstd1
-         python-is-python3
-         python3
-         python3-distutils
-         python3-gpg
-         python3-setuptools
-         rustc
-         squashfs-tools
-         systemd-container
-         xfsprogs
-         zlib1g
+Packages=debootstrap
          zypper
-
+         dnf
+         systemd-container
+         qemu-system-x86
+         ovmf
+         squashfs-tools
+         e2fsprogs
+         xfsprogs
+         btrfs-progs
 
 [Validation]
 QemuHeadless=yes
