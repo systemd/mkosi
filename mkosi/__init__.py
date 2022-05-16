@@ -2943,7 +2943,7 @@ def install_arch(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None
 
     # Permissions on these directories are all 0o777 because of 'mount --bind'
     # limitations but pacman expects them to be 0o755 so we fix them before
-    # calling pacstrap (except /var/tmp which is 0o1777).
+    # calling pacman (except /var/tmp which is 0o1777).
     fix_permissions_dirs = {
         "boot": 0o755,
         "etc": 0o755,
