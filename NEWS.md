@@ -16,6 +16,9 @@
   behavior, you can install the kernel-install script manually via a skeleton tree. The original script can be found
   [here](https://github.com/systemd/mkosi/blob/3798eb0c2ebcdf7dac207a559a3cb5a65cdb77b0/mkosi/resources/dracut_unified_kernel_install.sh).
 - Added QemuKvm option to configure whether to use KVM or not when running `mkosi qemu`.
+- mkosi won't default to the same OS release as the host system anymore when the host system uses the same
+  distribution as the image that's being built. Instead, when no release is specified, mkosi will now always
+  default to the default version embedded in mkosi itself.
 
 ## v12
 
