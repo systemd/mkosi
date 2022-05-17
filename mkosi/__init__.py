@@ -7644,6 +7644,7 @@ def find_qemu_firmware() -> Tuple[Path, bool]:
         "/usr/share/edk2-ovmf/OVMF_CODE.secboot.fd",  # GENTOO:
         "/usr/share/qemu/OVMF_CODE.secboot.fd",
         "/usr/share/ovmf/OVMF.secboot.fd",
+        "/usr/share/OVMF/OVMF_CODE.secboot.fd",
     ]
 
     for firmware in FIRMWARE_LOCATIONS:
@@ -7670,6 +7671,7 @@ def find_qemu_firmware() -> Tuple[Path, bool]:
         "/usr/share/edk2-ovmf/OVMF_CODE.fd",  # GENTOO:
         "/usr/share/qemu/OVMF_CODE.fd",
         "/usr/share/ovmf/OVMF.fd",
+        "/usr/share/OVMF/OVMF_CODE.fd",
     ]
 
     for firmware in FIRMWARE_LOCATIONS:
@@ -7690,7 +7692,8 @@ def find_ovmf_vars() -> Path:
     OVMF_VARS_LOCATIONS += ["/usr/share/edk2/ovmf/OVMF_VARS.fd",
                             "/usr/share/edk2-ovmf/OVMF_VARS.fd",  # GENTOO:
                             "/usr/share/qemu/OVMF_VARS.fd",
-                            "/usr/share/ovmf/OVMF_VARS.fd"]
+                            "/usr/share/ovmf/OVMF_VARS.fd",
+                            "/usr/share/OVMF/OVMF_VARS.fd"]
 
     for location in OVMF_VARS_LOCATIONS:
         if os.path.exists(location):
