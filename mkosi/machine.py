@@ -34,6 +34,17 @@ from . import (
 from .backend import MkosiArgs, MkosiNotSupportedException, Verb, die
 
 
+class LogfileAdapter:
+    def __init__(self, file: TextIO) -> None:
+        self.file = file
+
+    def write(self, s: str) -> None:
+        self.file.write(s.replace("\r\n", "\n"))
+
+    def flush(self) -> None:
+        self.file.flush()
+
+
 class Machine:
     def __init__(self, args: Sequence[str] = []) -> None:
         # Remains None until image is built and booted, then receives pexpect process.
@@ -134,7 +145,7 @@ class Machine:
             # Then we tell the process to look for the # sign, which indicates the CLI for that image is active.
             # Once we've build/boot an image the CLI will prompt "root@image ~]# ".
             # Then, when pexpects finds the '#' it means we're ready to interact with the process.
-            self._serial = pexpect.spawnu(cmd, logfile=sys.stdout, timeout=240)
+            self._serial = pexpect.spawnu(cmd, logfile=LogfileAdapter(sys.stdout), timeout=240)
             self._serial.expect("#")
             self.stack = stack.pop_all()
 
