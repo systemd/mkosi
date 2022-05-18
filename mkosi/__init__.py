@@ -440,7 +440,7 @@ def gpt_root_native(arch: Optional[str], usr_only: bool = False) -> GPTRootTypeT
         elif arch == "riscv64":
             return GPTRootTypeTriplet(GPT_USR_RISCV64, GPT_USR_RISCV64_VERITY, GPT_USR_RISCV64_VERITY_SIG)
         elif arch == "s390":
-            return GPTRootTypeTriplet(GPT_USR_S390, GPT_USR_S390_VERITY, GPT_USR_S390X)
+            return GPTRootTypeTriplet(GPT_USR_S390, GPT_USR_S390_VERITY, GPT_USR_S390_VERITY_SIG)
         elif arch == "s390x":
             return GPTRootTypeTriplet(GPT_USR_S390X, GPT_USR_S390X_VERITY, GPT_USR_S390X_VERITY_SIG)
         elif arch == "tilegx":
@@ -479,7 +479,7 @@ def gpt_root_native(arch: Optional[str], usr_only: bool = False) -> GPTRootTypeT
         elif arch == "riscv64":
             return GPTRootTypeTriplet(GPT_ROOT_RISCV64, GPT_ROOT_RISCV64_VERITY, GPT_ROOT_RISCV64_VERITY_SIG)
         elif arch == "s390":
-            return GPTRootTypeTriplet(GPT_ROOT_S390, GPT_ROOT_S390_VERITY, GPT_ROOT_S390X)
+            return GPTRootTypeTriplet(GPT_ROOT_S390, GPT_ROOT_S390_VERITY, GPT_ROOT_S390_VERITY_SIG)
         elif arch == "s390x":
             return GPTRootTypeTriplet(GPT_ROOT_S390X, GPT_ROOT_S390X_VERITY, GPT_ROOT_S390X_VERITY_SIG)
         elif arch == "tilegx":
