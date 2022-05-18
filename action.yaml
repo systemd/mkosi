@@ -56,6 +56,20 @@ runs:
     env:
       BUILDDIR: build
 
+  # Try to eliminate "Failed to dissect image: Connection timed out" errors from nspawn by compiling
+  # systemd-nspawn from v251 from source.
+  - name: Update systemd-nspawn
+    shell: bash
+    run: |
+      echo "deb-src http://archive.ubuntu.com/ubuntu/ $(lsb_release -cs) main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
+      sudo apt-get update
+      sudo apt-get build-dep systemd
+      git clone https://github.com/systemd/systemd-stable --branch v251.2 --depth=1
+      meson systemd-stable/build systemd-stable
+      ninja -C systemd-stable/build
+      sudo ln -svf $PWD/systemd-stable/build/systemd-nspawn $(which systemd-nspawn)
+      systemd-nspawn --version
+
   - name: Install
     shell: bash
     run: sudo python3 -m pip install ${{ github.action_path }}
