@@ -7715,12 +7715,20 @@ def qemu_check_kvm_support() -> bool:
 def run_qemu_cmdline(args: MkosiArgs) -> Iterator[List[str]]:
     accel = "kvm" if args.qemu_kvm else "tcg"
 
+    if "uefi" in args.boot_protocols:
+        mode = "uefi"
+    elif "bios" in args.boot_protocols:
+        mode = "bios"
+    else:
+        mode = "uefi"
+
     firmware, fw_supports_sb = find_qemu_firmware()
+    smm = "on" if fw_supports_sb and mode == "uefi" else "off"
 
     cmdline = [
         find_qemu_binary(),
         "-machine",
-        f"type=q35,accel={accel},smm={'on' if fw_supports_sb else 'off'}",
+        f"type=q35,accel={accel},smm={smm}",
         "-smp",
         args.qemu_smp,
         "-m",
@@ -7741,7 +7749,7 @@ def run_qemu_cmdline(args: MkosiArgs) -> Iterator[List[str]]:
         # Fix for https://github.com/systemd/mkosi/issues/559. QEMU gets stuck in a boot loop when using BIOS
         # if there's no vga device.
 
-    if not args.qemu_headless or (args.qemu_headless and "bios" in args.boot_protocols):
+    if not args.qemu_headless or (args.qemu_headless and mode == "bios"):
         cmdline += ["-vga", "virtio"]
 
     if args.netdev:
@@ -7759,11 +7767,11 @@ def run_qemu_cmdline(args: MkosiArgs) -> Iterator[List[str]]:
             # after it is created.
             cmdline += ["-nic", f"tap,script=no,downscript=no,ifname={ifname},model=virtio-net-pci"]
 
-    if "uefi" in args.boot_protocols:
+    if mode == "uefi":
         cmdline += ["-drive", f"if=pflash,format=raw,readonly=on,file={firmware}"]
 
     with contextlib.ExitStack() as stack:
-        if fw_supports_sb:
+        if mode == "uefi" and fw_supports_sb:
             ovmf_vars = stack.enter_context(copy_file_temporary(src=find_ovmf_vars(), dir=tmp_dir()))
             cmdline += [
                 "-global",
