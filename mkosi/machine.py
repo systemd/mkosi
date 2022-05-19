@@ -138,14 +138,15 @@ class Machine:
             else:
                 die("No valid verb was entered.")
 
-            cmd = " ".join(str(x) for x in cmdline)
+            cmd = [str(x) for x in cmdline]
 
             # Here we have something equivalent to the command lines used on spawn() and run() from backend.py.
             # We use pexpect to boot an image that we will be able to interact with in the future.
             # Then we tell the process to look for the # sign, which indicates the CLI for that image is active.
             # Once we've build/boot an image the CLI will prompt "root@image ~]# ".
             # Then, when pexpects finds the '#' it means we're ready to interact with the process.
-            self._serial = pexpect.spawnu(cmd, logfile=LogfileAdapter(sys.stdout), timeout=240)
+            self._serial = pexpect.spawnu(command=cmd[0], args=cmd[1:], logfile=LogfileAdapter(sys.stdout),
+                                          timeout=240)
             self._serial.expect("#")
             self.stack = stack.pop_all()
 
@@ -211,7 +212,13 @@ class MkosiMachineTest(unittest.TestCase):
         # Necessary for shell otherwise racing conditions to the disk image will happen.
         test_name = self.id().split(".")[3]
         self.machine.args.hostname = test_name.replace("_", "-")
-        self.machine.boot()
+
+        try:
+            self.machine.boot()
+        except pexpect.EOF:
+            self.fail(f'Failed to boot machine with command "{self.machine.serial.args}"')
+        except pexpect.TIMEOUT:
+            self.fail(f'Timed out while waiting for machine to boot with command "{self.machine.serial.args}"')
 
     def tearDown(self) -> None:
         self.machine.kill()
