@@ -216,9 +216,9 @@ class MkosiMachineTest(unittest.TestCase):
         try:
             self.machine.boot()
         except pexpect.EOF:
-            self.fail(f'Failed to boot machine with command "{self.machine.serial.args}"')
+            raise self.failureException(f'Failed to boot machine with command "{self.machine.serial.args}"') from None
         except pexpect.TIMEOUT:
-            self.fail(f'Timed out while waiting for machine to boot with command "{self.machine.serial.args}"')
+            raise self.failureException(f'Timed out while waiting for machine to boot with command "{self.machine.serial.args}"') from None
 
     def tearDown(self) -> None:
         self.machine.kill()
