@@ -339,6 +339,20 @@ class PartitionTable:
         else:
             return self.first_partition_offset(max_partitions)
 
+    def partition_offset(self, partition: Partition) -> int:
+        offset = self.first_partition_offset()
+
+        for p in self.partitions.values():
+            if p == partition:
+                break
+
+            offset += p.n_sectors * self.sector_size
+
+        return offset
+
+    def partition_size(self, partition: Partition) -> int:
+        return partition.n_sectors * self.sector_size
+
     def footer_size(self, max_partitions: int = 128) -> int:
         # The footer must have enough space for the GPT header (one sector),
         # and the GPT parition entry area. PEA size of 16384 (128 partitions)
