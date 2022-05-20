@@ -540,13 +540,17 @@ _IOC_WRITE = 1  # NOQA: E221
 _IOC_READ  = 2  # NOQA: E221
 
 
-def _IOC(dir_rw: int, type_drv: int, nr: int, argtype: str) -> int:
-    size = {"int": 4, "size_t": 8}[argtype]
+def _IOC(dir_rw: int, type_drv: int, nr: int, argtype: Optional[str] = None) -> int:
+    size = {"int": 4, "size_t": 8}[argtype] if argtype else 0
     return dir_rw << _IOC_DIRSHIFT | type_drv << _IOC_TYPESHIFT | nr << _IOC_NRSHIFT | size << _IOC_SIZESHIFT
 
 
 def _IOW(type_drv: int, nr: int, size: str) -> int:
     return _IOC(_IOC_WRITE, type_drv, nr, size)
+
+
+def _IO(type_drv: int, nr: int) -> int:
+    return _IOC(_IOC_NONE, type_drv, nr)
 
 
 FICLONE = _IOW(0x94, 9, "int")
@@ -926,11 +930,54 @@ def reuse_cache_image(
     return f, True
 
 
+BLKPG = _IO(0x12, 105)
+BLKPG_ADD_PARTITION = 1
+BLKPG_DEL_PARTITION = 2
+
+
+class blkpg_ioctl_arg(ctypes.Structure):
+    _fields_ = [
+        ('op', ctypes.c_int),
+        ('flags', ctypes.c_int),
+        ('datalen', ctypes.c_int),
+        ('data', ctypes.c_void_p),
+    ]
+
+
+class blkpg_partition(ctypes.Structure):
+    _fields_ = [
+        ('start', ctypes.c_longlong),
+        ('length', ctypes.c_longlong),
+        ('pno', ctypes.c_int),
+        ('devname', ctypes.c_char * 64),
+        ('volname', ctypes.c_char * 64),
+    ]
+
+
+def ioctl_partition_add(fd: int, nr: int, start: int, size: int) -> None:
+    bp = blkpg_partition(pno=nr, start=start, length=size)
+    ba = blkpg_ioctl_arg(op=BLKPG_ADD_PARTITION, data=ctypes.addressof(bp), datalen=ctypes.sizeof(bp))
+    try:
+        fcntl.ioctl(fd, BLKPG, ba)
+    except OSError as e:
+        # EBUSY means the kernel has already initialized the partition device.
+        if e.errno != errno.EBUSY:
+            raise
+
+
+def ioctl_partition_remove(fd: int, nr: int) -> None:
+    bp = blkpg_partition(pno=nr)
+    ba = blkpg_ioctl_arg(op=BLKPG_DEL_PARTITION, data=ctypes.addressof(bp), datalen=ctypes.sizeof(bp))
+    fcntl.ioctl(fd, BLKPG, ba)
+
+
 @contextlib.contextmanager
-def attach_image_loopback(image: Optional[BinaryIO]) -> Iterator[Optional[Path]]:
+def attach_image_loopback(image: Optional[BinaryIO], table: Optional[PartitionTable]) -> Iterator[Optional[Path]]:
     if image is None:
         yield None
         return
+
+    assert table
 
     with complete_step(f"Attaching {image.name} as loopback…", "Attached {}") as output:
         c = run(["losetup", "--find", "--show", "--partscan", image.name],
@@ -939,14 +986,30 @@ def attach_image_loopback(image: Optional[BinaryIO]) -> Iterator[Optional[Path]]
         loopdev = Path(c.stdout.strip())
         output += [loopdev]
 
+        # losetup --partscan instructs the kernel to scan the partition table and add separate partition
+        # devices for each of the partitions it finds. However, this operation is asynchronous which means
+        # losetup will return before all partition devices have been initialized. This can result in a race
+        # condition where we try to access a partition device before it's been initialized by the kernel. To
+        # avoid this race condition, let's explicitly try to add all the partitions ourselves using
+        # the BLKPKG BLKPG_ADD_PARTITION ioctl().
+        with open(loopdev, 'rb+') as f:
+            for p in table.partitions.values():
+                ioctl_partition_add(f.fileno(), p.number, table.partition_offset(p), table.partition_size(p))
+
     try:
         yield loopdev
     finally:
-        with complete_step(f"Detaching {loopdev}"):
+        with complete_step(f"Detaching {loopdev}"), open(loopdev, 'rb+') as f:
+            # Similarly to above, partition devices are removed asynchronously by the kernel, so again let's
+            # avoid race conditions by explicitly removing all partition devices before detaching the loop
+            # device using the BLKPG BLKPG_DEL_PARTITION ioctl().
+            for p in table.partitions.values():
+                ioctl_partition_remove(f.fileno(), p.number)
+
             run(["losetup", "--detach", loopdev])
 
 @contextlib.contextmanager
-def attach_base_image(base_image: Optional[Path]) -> Iterator[Optional[Path]]:
+def attach_base_image(base_image: Optional[Path], table: Optional[PartitionTable]) -> Iterator[Optional[Path]]:
     """Context manager that attaches/detaches the base image directory or device"""
 
     if base_image is None:
@@ -958,7 +1021,7 @@ def attach_base_image(base_image: Optional[Path]) -> Iterator[Optional[Path]]:
             yield base_image
         else:
             with base_image.open('rb') as f, \
-                 attach_image_loopback(f) as loopdev:
+                 attach_image_loopback(f, table) as loopdev:
 
                 yield loopdev
 
@@ -7138,8 +7201,8 @@ def build_image(
     else:
         raw = create_image(args, for_cache)
 
-    with attach_base_image(args.base_image) as base_image, \
-         attach_image_loopback(raw) as loopdev:
+    with attach_base_image(args.base_image, args.partition_table) as base_image, \
+         attach_image_loopback(raw, args.partition_table) as loopdev:
 
         prepare_swap(args, loopdev, cached)
         prepare_esp(args, loopdev, cached)
