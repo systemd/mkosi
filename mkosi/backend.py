@@ -302,7 +302,7 @@ class Partition:
 
 @functools.lru_cache(maxsize=None)
 def sfdisk_grain_is_supported() -> bool:
-    cmd: List[PathString] = ["sfdisk", "--no-reread", "--no-act", "--quiet", "/dev/full"]
+    cmd: List[PathString] = ["sfdisk", "--no-reread", "--quiet", "/dev/full"]
 
     try:
         run(cmd, text=True, input='\n'.join(["label: gpt", "grain: 4096", "quit"]), stderr=subprocess.DEVNULL)
