@@ -667,6 +667,8 @@ def run_workspace_command(
 
     if env:
         nspawn += [f"--setenv={k}={v}" for k, v in env.items()]
+    if "workspace-command" in ARG_DEBUG:
+        nspawn += ["--setenv=SYSTEMD_LOG_LEVEL=debug"]
 
     if nspawn_params:
         nspawn += nspawn_params
