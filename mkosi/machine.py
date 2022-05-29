@@ -46,13 +46,13 @@ class LogfileAdapter:
 
 
 class Machine:
-    def __init__(self, args: Sequence[str] = [], luks_password: str = None) -> None:
+    def __init__(self, args: Sequence[str] = [], luks_password: Union[str, None] = None) -> None:
         # Remains None until image is built and booted, then receives pexpect process.
         self._serial: Optional[pexpect.spawn] = None
         self.exit_code: int = -1
         self.stack = contextlib.ExitStack()
         self.args: MkosiArgs
-        self.luks_password: str = luks_password
+        self.luks_password: Union[str, None] = luks_password
 
         tmp = parse_args(args)["default"]
 
@@ -193,9 +193,9 @@ def skip_not_supported() -> Iterator[None]:
 class MkosiMachineTest(unittest.TestCase):
     args: Sequence[str]
     machine: Machine
-    luks_password: str
+    luks_password: Union[str, None]
 
-    def __init_subclass__(cls, args: Sequence[str] = [], luks_password: str = None) -> None:
+    def __init_subclass__(cls, args: Sequence[str] = [], luks_password: Union[str, None] = None) -> None:
         cls.args = args
         cls.luks_password = luks_password
 
