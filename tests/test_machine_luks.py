@@ -12,7 +12,7 @@ pytestmark = [
 ]
 
 
-class MkosiLuksMachineTestCase(MkosiMachineTest):
+class MkosiLuksWithImageIdMachineTestCase(MkosiMachineTest):
     luks_password_file_path: str = './mkosi.passphrase'
 
     @classmethod
@@ -22,14 +22,7 @@ class MkosiLuksMachineTestCase(MkosiMachineTest):
         with open(cls.luks_password_file_path, 'w', encoding="utf-8") as luks_password_file:
             luks_password_file.write(luks_password)
 
-        command_string = ""
-        command_string += "-d arch --architecture x86_64 "
-        command_string += "-t gpt_btrfs -b --boot-protocols uefi --encrypt all "
-        command_string += "--hostname testhost --image-id test-img "
-        command_string += "-p base,linux,util-linux,systemd,bash,cryptsetup "
-        command_string += "--root-size 3G --esp-size 256M "
-        command_string += "qemu"
-        command = command_string.split(' ')
+        command = '-d arch --encrypt all --image-id test-img qemu'.split(' ')
 
         super().__init_subclass__(command, luks_password)
         super().setUpClass()
