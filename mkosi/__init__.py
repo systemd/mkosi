@@ -4277,13 +4277,8 @@ def install_unified_kernel(
         for kver, kimg in gen_kernel_images(args, root):
             if args.image_id:
                 image_id = args.image_id
-                if args.image_version:
-                    partlabel = f"{args.image_id}_{args.image_version}"
-                else:
-                    partlabel = f"{args.image_id}"
             else:
                 image_id = f"mkosi-{args.distribution}"
-                partlabel = None
 
             if args.image_version:
                 boot_binary = Path(prefix) / f"EFI/Linux/{image_id}_{args.image_version}.efi"
@@ -4302,8 +4297,6 @@ def install_unified_kernel(
             if root_hash:
                 option = "usrhash" if args.usr_only else "roothash"
                 boot_options = f"{boot_options} {option}={root_hash}"
-            elif partlabel:
-                boot_options = f"{boot_options} root=PARTLABEL={partlabel}"
 
             cmd: Sequence[PathString] = [
                 "dracut",
