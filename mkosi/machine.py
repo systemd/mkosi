@@ -46,12 +46,13 @@ class LogfileAdapter:
 
 
 class Machine:
-    def __init__(self, args: Sequence[str] = []) -> None:
+    def __init__(self, args: Sequence[str] = [], luks_password: str = None) -> None:
         # Remains None until image is built and booted, then receives pexpect process.
         self._serial: Optional[pexpect.spawn] = None
         self.exit_code: int = -1
         self.stack = contextlib.ExitStack()
         self.args: MkosiArgs
+        self.luks_password: str = luks_password
 
         tmp = parse_args(args)["default"]
 
@@ -147,6 +148,11 @@ class Machine:
             # Then, when pexpects finds the '#' it means we're ready to interact with the process.
             self._serial = pexpect.spawnu(command=cmd[0], args=cmd[1:], logfile=LogfileAdapter(sys.stdout),
                                           timeout=240)
+
+            if self.luks_password is not None:
+                self._serial.expect("Please enter passphrase for disk")
+                self._serial.write(self.luks_password + "\n")
+
             self._serial.expect("#")
             self.stack = stack.pop_all()
 
@@ -187,14 +193,16 @@ def skip_not_supported() -> Iterator[None]:
 class MkosiMachineTest(unittest.TestCase):
     args: Sequence[str]
     machine: Machine
+    luks_password: str
 
-    def __init_subclass__(cls, args: Sequence[str] = []) -> None:
+    def __init_subclass__(cls, args: Sequence[str] = [], luks_password: str = None) -> None:
         cls.args = args
+        cls.luks_password = luks_password
 
     @classmethod
     def setUpClass(cls) -> None:
         with skip_not_supported():
-            cls.machine = Machine(cls.args)
+            cls.machine = Machine(cls.args, cls.luks_password)
 
         verb = cls.machine.args.verb
         no_nspawn = parse_boolean(os.getenv("MKOSI_TEST_NO_NSPAWN", "0"))
