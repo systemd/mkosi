@@ -205,7 +205,10 @@ class MkosiMachineTest(unittest.TestCase):
         if no_qemu and verb == Verb.qemu:
             raise unittest.SkipTest("Qemu test skipped due to environment variable.")
 
-        cls.machine.build()
+        try:
+            cls.machine.build()
+        except subprocess.CalledProcessError as e:
+            raise cls.failureException(f'Failed to build image because "{e.cmd}" failed with exit status {e.returncode}') from None
 
     def setUp(self) -> None:
         # Replacing underscores which makes name invalid.
