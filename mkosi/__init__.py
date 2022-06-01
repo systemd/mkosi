@@ -5167,10 +5167,10 @@ def parse_remove_files(value: str) -> List[str]:
     return ["/" + os.path.normpath(p).lstrip("/") for p in value.split(",") if p]
 
 
-def parse_ssh_agent(value: Optional[str]) -> Optional[Path]:
+def parse_ssh_agent(value: str) -> Optional[Path]:
     """Will return None or a path to a socket."""
 
-    if value is None:
+    if not value:
         return None
 
     try:
@@ -5179,7 +5179,7 @@ def parse_ssh_agent(value: Optional[str]) -> Optional[Path]:
     except ValueError:
         pass
     else:
-        value = os.getenv("SSH_AUTH_SOCK")
+        value = os.getenv("SSH_AUTH_SOCK", "")
         if not value:
             die("--ssh-agent=true but $SSH_AUTH_SOCK is not set (consider running 'sudo' with '-E')")
 
@@ -5740,7 +5740,7 @@ def create_parser() -> ArgumentParserMkosi:
     group.add_argument(
         "--ssh-agent",
         type=parse_ssh_agent,
-        default=None,
+        default="",
         metavar="PATH",
         help="Path to the ssh agent socket, or true to use $SSH_AUTH_SOCK.",
     )
