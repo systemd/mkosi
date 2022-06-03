@@ -7448,6 +7448,7 @@ def build_stuff(args: MkosiArgs) -> Manifest:
             MkosiPrinter.print_step("Skipping (second) final image build phase.")
 
         raw = qcow2_output(args, image.raw)
+        bmap = calculate_bmap(args, raw)
         raw = compress_output(args, raw)
         split_root = compress_output(args, image.split_root, ".usr" if args.usr_only else ".root")
         split_verity = compress_output(args, image.split_verity, ".verity")
@@ -7469,7 +7470,6 @@ def build_stuff(args: MkosiArgs) -> Manifest:
             settings,
         )
         signature = calculate_signature(args, checksum)
-        bmap = calculate_bmap(args, raw)
 
         link_output(args, root, raw or image.archive)
         link_output_root_hash_file(args, root_hash_file)
