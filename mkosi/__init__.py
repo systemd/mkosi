@@ -7226,14 +7226,14 @@ def build_image(
 
             verity, root_hash = make_verity(args, root_for_verity, do_run_build_script, for_cache)
 
-            patch_root_uuid(args, loopdev, root_hash, for_cache)
-
             insert_verity(args, raw, loopdev, verity, root_hash, for_cache)
             split_verity = verity if args.split_artifacts else None
 
             verity_sig, root_hash_p7s, fingerprint = make_verity_sig(args, root_hash, do_run_build_script, for_cache)
             insert_verity_sig(args, raw, loopdev, verity_sig, root_hash, fingerprint, for_cache)
             split_verity_sig = verity_sig if args.split_artifacts else None
+
+            patch_root_uuid(args, loopdev, root_hash, for_cache)
 
             # This time we mount read-only, as we already generated
             # the verity data, and hence really shouldn't modify the
