@@ -46,3 +46,12 @@ runs:
   - name: Install
     shell: bash
     run: sudo python3 -m pip install ${{ github.action_path }}
+
+  - name: Configure
+    shell: bash
+    run: |
+      mkdir -p mkosi.default.d/arch
+      tee mkosi.default.d/arch/20-mirror.conf <<- EOF
+      [Distribution]
+      Mirror=https://cloudflaremirrors.com/archlinux
+      EOF
