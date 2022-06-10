@@ -2129,6 +2129,17 @@ def invoke_dnf(
         shutil.move(cast(str, rpmdb_home), rpmdb)
 
 
+def link_rpm_db(root: Path) -> None:
+    """Link /var/lib/rpm to /usr/lib/sysimage/rpm for compat with old rpm"""
+    rpmdb = root / "usr/lib/sysimage/rpm"
+    rpmdb_old = root / "var/lib/rpm"
+    if rpmdb.exists() and not rpmdb_old.is_symlink():
+        # We create the symlink in exactly the same fashion that Fedora do
+        with complete_step("Creating compat symlink /var/lib/rpm → /usr/lib/sysimage/rpm"):
+            unlink_try_hard(rpmdb_old)
+            rpmdb_old.symlink_to("../../usr/lib/sysimage/rpm")
+
+
 def install_packages_dnf(
     args: MkosiArgs,
     root: Path,
@@ -3277,6 +3288,11 @@ def install_distribution(args: MkosiArgs, root: Path, do_run_build_script: bool,
     with mount_cache(args, root):
         install[args.distribution](args, root, do_run_build_script)
 
+    # Link /var/lib/rpm→/usr/lib/sysimage/rpm for compat with old rpm.
+    # We do this only if the new location is used, which depends on the dnf
+    # version and configuration on the host. Thus we do this reactively, after the
+    # installation has completed.
+    link_rpm_db(root)
 
 def remove_packages(args: MkosiArgs, root: Path) -> None:
     """Remove packages listed in args.remove_packages"""
