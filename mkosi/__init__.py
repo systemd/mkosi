@@ -4177,11 +4177,11 @@ def patch_root_uuid(
     # Use the first 128bit of the root hash as partition UUID of the root partition
     u = uuid.UUID(root_hash[:32])
 
-    with complete_step("Patching root partition UUID…"):
-        part = args.get_partition(PartitionIdentifier.root)
-        assert part is not None
+    part = args.get_partition(PartitionIdentifier.root)
+    assert part is not None
+    part.part_uuid = u
 
-        run(["sfdisk", "--part-uuid", loopdev, str(part.number), str(u)])
+    print('Root partition-type UUID:', u)
 
 
 def extract_partition(
