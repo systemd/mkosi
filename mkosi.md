@@ -965,8 +965,8 @@ a machine ID.
   `BuildSources=`) is transferred into the container image during the
   first phase of the build. Takes one of `copy-all` (to copy all files
   from the source tree), `copy-git-cached` (to copy only those files
-  `git-ls-files --cached` lists), `copy-git-others` (to copy only
-  those files `git-ls-files --others` lists), `mount` to bind mount
+  `git ls-files --cached` lists), `copy-git-others` (to copy only
+  those files `git ls-files --others` lists), `mount` to bind mount
   the source tree directly. Defaults to `copy-git-cached` if a `git`
   source tree is detected, otherwise `copy-all`. When you specify
   `copy-git-more`, it is the same as `copy-git-cached`, except it also

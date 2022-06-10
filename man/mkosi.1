@@ -18,83 +18,22 @@ mkosi \[em] Build Bespoke OS Images
 \f[C]mkosi [options\&...] boot [nspawn settings\&...]\f[R]
 .PP
 \f[C]mkosi [options\&...] qemu\f[R]
+.PP
+\f[C]mkosi [options\&...] ssh\f[R]
+.PP
+\f[C]mkosi [options\&...] serve\f[R]
+.PP
+\f[C]mkosi [options\&...] bump\f[R]
+.PP
+\f[C]mkosi [options\&...] genkey\f[R]
+.PP
+\f[C]mkosi [options\&...] help\f[R]
 .SH DESCRIPTION
 .PP
 \f[C]mkosi\f[R] is a tool for easily building customized OS images.
 It\[cq]s a fancy wrapper around \f[C]dnf --installroot\f[R],
 \f[C]debootstrap\f[R], \f[C]pacstrap\f[R] and \f[C]zypper\f[R] that may
 generate disk images with a number of bells and whistles.
-.SS Supported output formats
-.PP
-The following output formats are supported:
-.IP \[bu] 2
-Raw \f[I]GPT\f[R] disk image, with ext4 as root (\f[I]gpt_ext4\f[R])
-.IP \[bu] 2
-Raw \f[I]GPT\f[R] disk image, with xfs as root (\f[I]gpt_xfs\f[R])
-.IP \[bu] 2
-Raw \f[I]GPT\f[R] disk image, with btrfs as root (\f[I]gpt_btrfs\f[R])
-.IP \[bu] 2
-Raw \f[I]GPT\f[R] disk image, with squashfs as read-only root
-(\f[I]gpt_squashfs\f[R])
-.IP \[bu] 2
-Plain squashfs image, without partition table, as read-only root
-(\f[I]plain_squashfs\f[R])
-.IP \[bu] 2
-Plain directory, containing the OS tree (\f[I]directory\f[R])
-.IP \[bu] 2
-btrfs subvolume, with separate subvolumes for \f[C]/var\f[R],
-\f[C]/home\f[R], \f[C]/srv\f[R], \f[C]/var/tmp\f[R]
-(\f[I]subvolume\f[R])
-.IP \[bu] 2
-Tar archive (\f[I]tar\f[R])
-.IP \[bu] 2
-CPIO archive (\f[I]cpio\f[R]) in the format appropriate for a kernel
-initrd
-.PP
-When a \f[I]GPT\f[R] disk image is created, the following additional
-options are available:
-.IP \[bu] 2
-A swap partition may be added in
-.IP \[bu] 2
-The image may be made bootable on \f[I]EFI\f[R] and \f[I]BIOS\f[R]
-systems
-.IP \[bu] 2
-Separate partitions for \f[C]/srv\f[R] and \f[C]/home\f[R] may be added
-in
-.IP \[bu] 2
-The root, \f[C]/srv\f[R] and \f[C]/home\f[R] partitions may optionally
-be encrypted with LUKS.
-.IP \[bu] 2
-A dm-verity partition may be added in that adds runtime integrity data
-for the root partition
-.SS Other features
-.IP \[bu] 2
-Optionally, create an \f[I]SHA256SUMS\f[R] checksum file for the result,
-possibly even signed via \f[C]gpg\f[R].
-.IP \[bu] 2
-Optionally, place a specific \f[C].nspawn\f[R] settings file along with
-the result.
-.IP \[bu] 2
-Optionally, build a local project\[cq]s \f[I]source\f[R] tree in the
-image and add the result to the generated image.
-.IP \[bu] 2
-Optionally, share \f[I]RPM\f[R]/\f[I]DEB\f[R] package cache between
-multiple runs, in order to optimize build speeds.
-.IP \[bu] 2
-Optionally, the resulting image may be compressed with \f[I]XZ\f[R].
-.IP \[bu] 2
-Optionally, the resulting image may be converted into a \f[I]QCOW2\f[R]
-file suitable for \f[C]qemu\f[R] storage.
-.IP \[bu] 2
-Optionally, btrfs\[cq] read-only flag for the root subvolume may be set.
-.IP \[bu] 2
-Optionally, btrfs\[cq] compression may be enabled for all created
-subvolumes.
-.IP \[bu] 2
-By default images are created without all files marked as documentation
-in the packages, on distributions where the package manager supports
-this.
-Use the \f[C]WithDocs=yes\f[R] flag to build an image with docs added.
 .SS Command Line Verbs
 .PP
 The following command line verbs are known:
@@ -171,6 +110,12 @@ this verb is called the version is bumped in preparation for the
 subsequent build.
 Note that \f[C]--auto-bump\f[R]/\f[C]-B\f[R] may be used to
 automatically bump the version after each successful build.
+.TP
+\f[B]\f[CB]genkey\f[B]\f[R]
+Generate a pair of SecureBoot keys for usage with the
+\f[C]SecureBootKey=\f[R]/\f[C]--secure-boot-key=\f[R] and
+\f[C]SecureBootCertificate=\f[R]/\f[C]--secure-boot-certificate=\f[R]
+options.
 .TP
 \f[B]\f[CB]help\f[B]\f[R]
 This verb is equivalent to the \f[C]--help\f[R] switch documented below:
@@ -291,6 +236,49 @@ build script?  -------exists----->     copy           .
                             .                         .
 \f[R]
 .fi
+.SS Supported output formats
+.PP
+The following output formats are supported:
+.IP \[bu] 2
+Raw \f[I]GPT\f[R] disk image, with ext4 as root (\f[I]gpt_ext4\f[R])
+.IP \[bu] 2
+Raw \f[I]GPT\f[R] disk image, with xfs as root (\f[I]gpt_xfs\f[R])
+.IP \[bu] 2
+Raw \f[I]GPT\f[R] disk image, with btrfs as root (\f[I]gpt_btrfs\f[R])
+.IP \[bu] 2
+Raw \f[I]GPT\f[R] disk image, with squashfs as read-only root
+(\f[I]gpt_squashfs\f[R])
+.IP \[bu] 2
+Plain squashfs image, without partition table, as read-only root
+(\f[I]plain_squashfs\f[R])
+.IP \[bu] 2
+Plain directory, containing the OS tree (\f[I]directory\f[R])
+.IP \[bu] 2
+btrfs subvolume, with separate subvolumes for \f[C]/var\f[R],
+\f[C]/home\f[R], \f[C]/srv\f[R], \f[C]/var/tmp\f[R]
+(\f[I]subvolume\f[R])
+.IP \[bu] 2
+Tar archive (\f[I]tar\f[R])
+.IP \[bu] 2
+CPIO archive (\f[I]cpio\f[R]) in the format appropriate for a kernel
+initrd
+.PP
+When a \f[I]GPT\f[R] disk image is created, the following additional
+options are available:
+.IP \[bu] 2
+A swap partition may be added in
+.IP \[bu] 2
+The image may be made bootable on \f[I]EFI\f[R] and \f[I]BIOS\f[R]
+systems
+.IP \[bu] 2
+Separate partitions for \f[C]/srv\f[R] and \f[C]/home\f[R] may be added
+in
+.IP \[bu] 2
+The root, \f[C]/srv\f[R] and \f[C]/home\f[R] partitions may optionally
+be encrypted with LUKS.
+.IP \[bu] 2
+A dm-verity partition may be added in that adds runtime integrity data
+for the root partition
 .SS Configuration Settings
 .PP
 The following settings can be set through configuration files (the
@@ -343,15 +331,24 @@ For Arch Linux, additional repositories must be passed in the form
 \f[C]<name>::<url>\f[R] (e.g.\ \f[C]myrepo::https://myrepo.net\f[R]).
 .TP
 \f[B]\f[CB]UseHostRepositories=\f[B]\f[R], \f[B]\f[CB]--use-host-repositories\f[B]\f[R]
-This option is only applicable for dnf-based distributions:
+This option is only applicable for RPM-based distributions:
 \f[I]CentOS\f[R], \f[I]Fedora Linux\f[R], \f[I]Mageia\f[R],
 \f[I]Photon\f[R], \f[I]Rocky Linux\f[R], \f[I]Alma Linux\f[R] and
 \f[I]OpenMandriva\f[R].
-Allows use of the host\[cq]s existing dnf repositories.
-By default, a hardcoded set of default dnf repositories is generated and
+Allows use of the host\[cq]s existing RPM repositories.
+By default, a hardcoded set of default RPM repositories is generated and
 used.
 Use \f[C]--repositories=\f[R] to identify a custom set of repositories
 to be enabled and used for the build.
+.TP
+\f[B]\f[CB]RepositoryDirectory\f[B]\f[R], \f[B]\f[CB]--repository-directory\f[B]\f[R]
+This option can (for now) only be used with RPM-based istributions and
+Arch Linux.
+It identifies a directory containing extra repository definitions that
+will be used when installing packages.
+The files are passed directly to the corresponding package manager and
+should be written in the format expected by the package manager of the
+image\[cq]s distro.
 .TP
 \f[B]\f[CB]Architecture=\f[B]\f[R], \f[B]\f[CB]--architecture=\f[B]\f[R]
 The architecture to build the image for.
@@ -685,6 +682,11 @@ context extended attributes (\f[C]xattrs\f[R]), which may interfere with
 host SELinux rules in building or further container import stages.
 This option strips SELinux context attributes from the resulting tar
 archive.
+.TP
+\f[B]\f[CB]MachineID=\f[B]\f[R], \f[B]\f[CB]--machine-id\f[B]\f[R]
+Set the machine\[cq]s ID to the specified value.
+If unused, a random ID will be used while building the image and the
+final image will be shipped without a machine ID.
 .SS [Content] Section
 .TP
 \f[B]\f[CB]BasePackages=\f[B]\f[R], \f[B]\f[CB]--base-packages\f[B]\f[R]
@@ -967,8 +969,8 @@ Configures how the source file tree (as configured with
 the first phase of the build.
 Takes one of \f[C]copy-all\f[R] (to copy all files from the source
 tree), \f[C]copy-git-cached\f[R] (to copy only those files
-\f[C]git-ls-files --cached\f[R] lists), \f[C]copy-git-others\f[R] (to
-copy only those files \f[C]git-ls-files --others\f[R] lists),
+\f[C]git ls-files --cached\f[R] lists), \f[C]copy-git-others\f[R] (to
+copy only those files \f[C]git ls-files --others\f[R] lists),
 \f[C]mount\f[R] to bind mount the source tree directly.
 Defaults to \f[C]copy-git-cached\f[R] if a \f[C]git\f[R] source tree is
 detected, otherwise \f[C]copy-all\f[R].
@@ -1109,7 +1111,19 @@ When used with the \f[C]qemu\f[R] verb, this options sets
 guest\[cq]s RAM.
 Defaults to \f[C]1G\f[R].
 .TP
-\f[B]\f[CB]NetworkVeth=\f[B]\f[R], \f[B]\f[CB]--network-veth\f[B]\f[R]
+\f[B]\f[CB]QemuKvm=\f[B]\f[R], \f[B]\f[CB]--qemu-kvm=\f[B]\f[R]
+When used with the \f[C]qemu\f[R] verb, this option specifies whether
+QEMU should use KVM acceleration.
+Defaults to yes if the host machine supports KVM acceleration, no
+otherwise.
+.TP
+\f[B]\f[CB]NspawnKeepUnit=\f[B]\f[R], \f[B]\f[CB]--nspawn-keep-unit\f[B]\f[R]
+When used, this option instructs underlying calls of systemd-nspawn to
+use the current unit scope, instead of creating a dedicated transcient
+scope unit for the containers.
+This option should be used when mkosi is run by a service unit.
+.TP
+\f[B]\f[CB]Netdev=\f[B]\f[R], \f[B]\f[CB]--netdev\f[B]\f[R]
 When used with the boot or qemu verbs, this option creates a virtual
 ethernet link between the host and the container/VM.
 The host interface is automatically picked up by systemd-networkd as
@@ -1165,7 +1179,7 @@ retry the SSH connection up to given timeout (in seconds) in case it
 fails.
 This option is useful mainly in scripted environments where the
 \f[C]qemu\f[R] and \f[C]ssh\f[R] verbs are used in a quick succession
-and the veth device might not get enough time to configure itself.
+and the virtual device might not get enough time to configure itself.
 .SS Commandline-only Options
 .PP
 Those settings cannot be configured in the configuration files.
@@ -1580,6 +1594,11 @@ This setting is particularly useful if multiple different images shall
 be built from the same working directory, as otherwise the build result
 of a preceding run might be copied into a build image as part of the
 source tree (see above).
+.IP \[bu] 2
+The \f[B]\f[CB]mkosi.reposdir/\f[B]\f[R] directory, if it exists, is
+automatically used as the repository directory for extra repository
+files.
+See the \f[C]RepositoryDirectory\f[R] option for more information.
 .PP
 All these files are optional.
 .PP
@@ -1702,8 +1721,7 @@ Create and run a raw \f[I]GPT\f[R] image with \f[I]ext4\f[R], as
 .IP
 .nf
 \f[C]
-# mkosi
-# systemd-nspawn -b -i image.raw
+# mkosi --bootable --incremental boot
 \f[R]
 .fi
 .PP
@@ -1712,9 +1730,9 @@ Create and run a bootable btrfs \f[I]GPT\f[R] image, as
 .IP
 .nf
 \f[C]
-# mkosi -t gpt_btrfs --bootable -o foobar.raw
-# systemd-nspawn -b -i foobar.raw
-# qemu-kvm -m 512 -smp 2 -bios /usr/share/edk2/ovmf/OVMF_CODE.fd -drive format=raw,file=foobar.raw
+# mkosi --format gpt_btrfs --bootable -o foobar.raw
+# mkosi --output foobar.raw boot
+# mkosi --output foobar.raw qemu
 \f[R]
 .fi
 .PP
@@ -1722,8 +1740,7 @@ Create and run a \f[I]Fedora Linux\f[R] image into a plain directory:
 .IP
 .nf
 \f[C]
-# mkosi -d fedora -t directory -o quux
-# systemd-nspawn -b -D quux
+# mkosi --distribution fedora --format directory boot
 \f[R]
 .fi
 .PP
@@ -1732,7 +1749,7 @@ file, and install \f[I]SSH\f[R] into it:
 .IP
 .nf
 \f[C]
-# mkosi -d fedora -t gpt_squashfs --checksum --compress --package=openssh-clients
+# mkosi --distribution fedora --format gpt_squashfs --checksum --compress --package=openssh-clients
 \f[R]
 .fi
 .PP
@@ -1765,7 +1782,7 @@ make -j \[ga]nproc\[ga]
 make install
 EOF
 # chmod +x mkosi.build
-# mkosi
+# mkosi --bootable --incremental boot
 # systemd-nspawn -bi image.raw
 \f[R]
 .fi
@@ -1774,7 +1791,7 @@ To create a \f[I]Fedora Linux\f[R] image with hostname:
 .IP
 .nf
 \f[C]
-# mkosi -d fedora --hostname image
+# mkosi --distribution fedora --hostname image
 \f[R]
 .fi
 .PP
