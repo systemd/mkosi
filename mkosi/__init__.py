@@ -5822,7 +5822,7 @@ def create_parser() -> ArgumentParserMkosi:
         "--nspawn-keep-unit",
         metavar="BOOL",
         action=BooleanAction,
-        help="If specified, underlying systemd-nspawn containers use the ressources of the current unit.",
+        help="If specified, underlying systemd-nspawn containers use the resources of the current unit.",
     )
     group.add_argument(
         "--network-veth",     # Compatibility option
