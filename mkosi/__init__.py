@@ -1999,6 +1999,7 @@ def clean_rpm_metadata(root: Path, always: bool) -> None:
     """Remove rpm metadata if /bin/rpm is not present in the image"""
     paths = [
         "/var/lib/rpm",
+        "/usr/lib/sysimage/rpm",
     ]
 
     clean_paths(root, paths, tool='/bin/rpm', always=always)
