@@ -2957,7 +2957,7 @@ def install_ubuntu(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
     install_debian_or_ubuntu(args, root, do_run_build_script=do_run_build_script)
 
 
-def run_pacman(root: Path, pacman_conf: Path, packages: Set[str]) -> None:
+def invoke_pacman(root: Path, pacman_conf: Path, packages: Set[str]) -> None:
     run(["pacman", "--config", pacman_conf, "--noconfirm", "-Sy", *sort_packages(packages)])
 
 
@@ -3125,7 +3125,7 @@ def install_arch(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None
         add_packages(args, packages, "openssh")
 
     with mount_api_vfs(args, root):
-        run_pacman(root, pacman_conf, packages)
+        invoke_pacman(root, pacman_conf, packages)
 
     # Arch still uses pam_securetty which prevents root login into
     # systemd-nspawn containers. See https://bugs.archlinux.org/task/45903.
