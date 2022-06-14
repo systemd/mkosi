@@ -1719,7 +1719,13 @@ def mount_cache(args: MkosiArgs, root: Path) -> Iterator[None]:
 
 
 def umount(where: Path) -> None:
-    run(["umount", "--recursive", "-n", where])
+    try:
+        run(["umount", "--recursive", "-n", where])
+    except subprocess.CalledProcessError:
+        if shutil.which("fuser"):
+            MkosiPrinter.warn(f"Unmounting '{where}' is blocked by:")
+            run(["fuser", "-mv", where], check=False)
+        raise
 
 
 def configure_dracut(args: MkosiArgs, packages: Set[str], root: Path) -> None:
