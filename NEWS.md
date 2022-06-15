@@ -19,6 +19,12 @@
 - mkosi won't default to the same OS release as the host system anymore when the host system uses the same
   distribution as the image that's being built. Instead, when no release is specified, mkosi will now always
   default to the default version embedded in mkosi itself.
+- mkosi will now use the pacman keyring from the host when building Arch images. This means that users will,
+  on top of installing archlinux-keyring, also have to run `pacman-key --init` and
+  `pacman-key --populate archlinux` on the host system to be able to build Arch images. Also, unless the
+  package manager is configured to do it automatically, the host keyring will have to be updated after
+  archlinux-keyring updates by running `pacman-key --populate archlinux` and `pacman-key --updatedb`.
+
 
 ## v12
 
