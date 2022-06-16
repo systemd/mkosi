@@ -5973,7 +5973,6 @@ def create_parser() -> ArgumentParserMkosi:
     group.add_argument(
         "--debug",
         action=CommaDelimitedListAction,
-        choices=("run", "build-script", "workspace-command", "disk"),
         default=[],
         help="Turn on debugging output",
     )
