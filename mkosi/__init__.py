@@ -2959,13 +2959,7 @@ def install_ubuntu(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
 
 
 def run_pacman(root: Path, pacman_conf: Path, packages: Set[str]) -> None:
-    try:
-        run(["pacman-key", "--config", pacman_conf, "--init"])
-        run(["pacman-key", "--config", pacman_conf, "--populate"])
-        run(["pacman", "--config", pacman_conf, "--noconfirm", "-Sy", *sort_packages(packages)])
-    finally:
-        # Kill the gpg-agent started by pacman and pacman-key.
-        run(["gpgconf", "--homedir", root / "etc/pacman.d/gnupg", "--kill", "all"])
+    run(["pacman", "--config", pacman_conf, "--noconfirm", "-Sy", *sort_packages(packages)])
 
 
 @complete_step("Installing Arch Linux…")
@@ -3026,7 +3020,7 @@ def install_arch(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None
                 RootDir = {root}
                 LogFile = /dev/null
                 CacheDir = {root}/var/cache/pacman/pkg/
-                GPGDir = {root}/etc/pacman.d/gnupg/
+                GPGDir = /etc/pacman.d/gnupg/
                 HookDir = {root}/etc/pacman.d/hooks/
                 HoldPkg = pacman glibc
                 Architecture = auto
