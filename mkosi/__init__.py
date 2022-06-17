@@ -66,7 +66,6 @@ from typing import (
 )
 
 from .backend import (
-    _FILE,
     ARG_DEBUG,
     Distribution,
     ManifestFormat,
@@ -8059,14 +8058,8 @@ def find_address(args: MkosiArgs) -> Tuple[str, str]:
     die("Container/VM address not found")
 
 
-def run_command_image(args: MkosiArgs, commands: Sequence[str], timeout: int, check: bool, stdout: _FILE = sys.stdout, stderr: _FILE = sys.stderr) -> CompletedProcess:
-    if args.verb == Verb.qemu:
-        return run_ssh(args, commands, check, stdout, stderr, timeout)
-    elif args.verb == Verb.boot:
-        cmdline = ["systemd-run", "--quiet", "--wait", "--pipe", "-M", machine_name(args), "/usr/bin/env", *commands]
-        return run(cmdline, check=check, stdout=stdout, stderr=stderr, text=True, timeout=timeout)
-    else:
-        return run(run_shell_cmdline(args, pipe=True, commands=commands), check=check, stdout=stdout, stderr=stderr, text=True, timeout=timeout)
+def run_systemd_cmdline(args: MkosiArgs, commands: Sequence[str]) -> List[str]:
+    return ["systemd-run", "--quiet", "--wait", "--pipe", "-M", machine_name(args), "/usr/bin/env", *commands]
 
 
 def run_ssh_cmdline(args: MkosiArgs, commands: Optional[Sequence[str]] = None) -> Sequence[str]:
@@ -8102,15 +8095,8 @@ def run_ssh_cmdline(args: MkosiArgs, commands: Optional[Sequence[str]] = None) -
     return cmd
 
 
-def run_ssh(
-    args: MkosiArgs,
-    commands: Optional[Sequence[str]] = None,
-    check: bool = True,
-    stdout: _FILE = sys.stdout,
-    stderr: _FILE = sys.stderr,
-    timeout: Optional[int] = None,
-) -> CompletedProcess:
-    return run(run_ssh_cmdline(args, commands), check=check, stdout=stdout, stderr=stderr, text=True, timeout=timeout)
+def run_ssh(args: MkosiArgs) -> CompletedProcess:
+    return run(run_ssh_cmdline(args), stdout=sys.stdout, stderr=sys.stderr)
 
 
 def run_serve(args: MkosiArgs) -> None:

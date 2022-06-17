@@ -26,12 +26,13 @@ from . import (
     parse_args,
     parse_boolean,
     prepend_to_environ_path,
-    run_command_image,
     run_qemu_cmdline,
     run_shell_cmdline,
+    run_ssh_cmdline,
+    run_systemd_cmdline,
     unlink_output,
 )
-from .backend import MkosiArgs, MkosiNotSupportedException, Verb, die
+from .backend import MkosiArgs, MkosiNotSupportedException, Verb, die, run
 
 
 class LogfileAdapter:
@@ -162,7 +163,14 @@ class Machine:
         stdout: Union[int, TextIO] = subprocess.PIPE if capture_output else sys.stdout
         stderr: Union[int, TextIO] = subprocess.PIPE if capture_output else sys.stderr
 
-        return run_command_image(self.args, commands, timeout, check, stdout, stderr)
+        if self.args.verb == Verb.qemu:
+            cmdline = run_ssh_cmdline(self.args, commands)
+        elif self.args.verb == Verb.boot:
+            cmdline = run_systemd_cmdline(self.args, commands)
+        else:
+            cmdline = run_shell_cmdline(self.args, pipe=True, commands=commands)
+
+        return run(cmdline, check=check, stdout=stdout, stderr=stderr, text=True, timeout=timeout)
 
     def kill(self) -> None:
         self.__exit__(None, None, None)
