@@ -8062,7 +8062,7 @@ def run_systemd_cmdline(args: MkosiArgs, commands: Sequence[str]) -> List[str]:
     return ["systemd-run", "--quiet", "--wait", "--pipe", "-M", machine_name(args), "/usr/bin/env", *commands]
 
 
-def run_ssh_cmdline(args: MkosiArgs, commands: Optional[Sequence[str]] = None) -> Sequence[str]:
+def run_ssh_cmdline(args: MkosiArgs, commands: Optional[Sequence[str]] = None) -> List[str]:
     cmd = [
             "ssh",
             # Silence known hosts file errors/warnings.
