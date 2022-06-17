@@ -7,6 +7,7 @@ import os
 import signal
 import subprocess
 import sys
+import time
 import unittest
 from textwrap import dedent
 from typing import Any, Iterator, Optional, Sequence, TextIO, Union
@@ -170,7 +171,20 @@ class Machine:
         else:
             cmdline = run_shell_cmdline(self.args, pipe=True, commands=commands)
 
-        return run(cmdline, check=check, stdout=stdout, stderr=stderr, text=True, timeout=timeout)
+        # The retry logic only applies when running commands against a VM.
+
+        for _ in range(0, 30):
+            try:
+                return run(cmdline, check=check, stdout=stdout, stderr=stderr, text=True, timeout=timeout)
+            except subprocess.CalledProcessError as e:
+                # Return code 255 is used for connection errors by ssh.
+                if self.args.verb != Verb.qemu or e.returncode != 255:
+                    raise
+
+                time.sleep(1)
+
+        die("Failed to establish SSH connection")
+
 
     def kill(self) -> None:
         self.__exit__(None, None, None)
