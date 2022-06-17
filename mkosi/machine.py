@@ -7,6 +7,7 @@ import os
 import signal
 import subprocess
 import sys
+import time
 import unittest
 from textwrap import dedent
 from typing import Any, Iterator, Optional, Sequence, TextIO, Union
@@ -26,12 +27,13 @@ from . import (
     parse_args,
     parse_boolean,
     prepend_to_environ_path,
-    run_command_image,
     run_qemu_cmdline,
     run_shell_cmdline,
+    run_ssh_cmdline,
+    run_systemd_cmdline,
     unlink_output,
 )
-from .backend import MkosiArgs, MkosiNotSupportedException, Verb, die
+from .backend import MkosiArgs, MkosiNotSupportedException, Verb, die, run
 
 
 class LogfileAdapter:
@@ -162,7 +164,27 @@ class Machine:
         stdout: Union[int, TextIO] = subprocess.PIPE if capture_output else sys.stdout
         stderr: Union[int, TextIO] = subprocess.PIPE if capture_output else sys.stderr
 
-        return run_command_image(self.args, commands, timeout, check, stdout, stderr)
+        if self.args.verb == Verb.qemu:
+            cmdline = run_ssh_cmdline(self.args, commands)
+        elif self.args.verb == Verb.boot:
+            cmdline = run_systemd_cmdline(self.args, commands)
+        else:
+            cmdline = run_shell_cmdline(self.args, pipe=True, commands=commands)
+
+        # The retry logic only applies when running commands against a VM.
+
+        for _ in range(0, 30):
+            try:
+                return run(cmdline, check=check, stdout=stdout, stderr=stderr, text=True, timeout=timeout)
+            except subprocess.CalledProcessError as e:
+                # Return code 255 is used for connection errors by ssh.
+                if self.args.verb != Verb.qemu or e.returncode != 255:
+                    raise
+
+                time.sleep(1)
+
+        die("Failed to establish SSH connection")
+
 
     def kill(self) -> None:
         self.__exit__(None, None, None)
