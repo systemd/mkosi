@@ -628,7 +628,7 @@ def symlink_f(target: str, path: Path) -> None:
         path.symlink_to(target)
 
 
-def copy_path(oldpath: PathString, newpath: Path) -> None:
+def copy_path(oldpath: PathString, newpath: Path, *, copystat: bool = True) -> None:
     try:
         newpath.mkdir(exist_ok=True)
     except FileExistsError:
@@ -651,7 +651,9 @@ def copy_path(oldpath: PathString, newpath: Path) -> None:
             else:
                 print("Ignoring", entry.path)
                 continue
-    shutil.copystat(oldpath, newpath, follow_symlinks=True)
+
+    if copystat:
+        shutil.copystat(oldpath, newpath, follow_symlinks=True)
 
 
 @complete_step("Detaching namespace")
@@ -3636,7 +3638,7 @@ def install_extra_trees(args: MkosiArgs, root: Path, for_cache: bool) -> None:
     with complete_step("Copying in extra file trees…"):
         for tree in args.extra_trees:
             if tree.is_dir():
-                copy_path(tree, root)
+                copy_path(tree, root, copystat=False)
             else:
                 # unpack_archive() groks Paths, but mypy doesn't know this.
                 # Pretend that tree is a str.
@@ -3656,7 +3658,7 @@ def install_skeleton_trees(args: MkosiArgs, root: Path, cached: bool, *, late: b
     with complete_step("Copying in skeleton file trees…"):
         for tree in args.skeleton_trees:
             if tree.is_dir():
-                copy_path(tree, root)
+                copy_path(tree, root, copystat=False)
             else:
                 # unpack_archive() groks Paths, but mypy doesn't know this.
                 # Pretend that tree is a str.
@@ -3770,7 +3772,7 @@ def install_build_dest(args: MkosiArgs, root: Path, do_run_build_script: bool, f
         return
 
     with complete_step("Copying in build tree…"):
-        copy_path(install_dir(args, root), root)
+        copy_path(install_dir(args, root), root, copystat=False)
 
 
 def make_read_only(args: MkosiArgs, root: Path, for_cache: bool, b: bool = True) -> None:
@@ -7165,7 +7167,7 @@ def reuse_cache_tree(
 
     if fname.exists():
         with complete_step(f"Copying in cached tree {fname}…"):
-            copy_path(fname, root)
+            copy_path(fname, root, copystat=False)
 
     return True
 
