@@ -1955,15 +1955,15 @@ def clean_paths(
         always: bool) -> None:
     """Remove globs under root if always or if tool is not found under root."""
 
-    tool = root / tool.lstrip('/')
-    cond = always or not os.access(tool, os.F_OK, follow_symlinks=False)
+    toolp = root / tool.lstrip('/')
+    cond = always or not os.access(toolp, os.F_OK, follow_symlinks=False)
 
     paths = flatten(root.glob(glob.lstrip('/')) for glob in globs)
 
     if not cond or not paths:
         return
 
-    with complete_step(f"Cleaning {tool.name} metadata…"):
+    with complete_step(f"Cleaning {toolp.name} metadata…"):
         for path in paths:
             unlink_try_hard(path)
 
