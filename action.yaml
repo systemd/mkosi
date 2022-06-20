@@ -74,7 +74,7 @@ runs:
       sudo apt-get build-dep systemd
       git clone https://github.com/systemd/systemd-stable --branch v251.2 --depth=1
       meson systemd-stable/build systemd-stable
-      ninja -C systemd-stable/build
+      ninja -C systemd-stable/build systemd-nspawn
       sudo ln -svf $PWD/systemd-stable/build/systemd-nspawn $(which systemd-nspawn)
       systemd-nspawn --version
 
