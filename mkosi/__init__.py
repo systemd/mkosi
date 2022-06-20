@@ -1945,111 +1945,97 @@ def make_rpm_list(args: MkosiArgs, packages: Set[str], do_run_build_script: bool
     return packages
 
 
+def flatten(lists: Iterable[Iterable[T]]) -> List[T]:
+    """Flatten a sequence of sequences into a single list."""
+    return list(itertools.chain.from_iterable(lists))
+
+
+def clean_paths(
+        root: Path,
+        globs: Sequence[str],
+        tool: str,
+        always: bool) -> None:
+    """Remove globs under root if always or if tool is not found under root."""
+
+    toolp = root / tool.lstrip('/')
+    cond = always or not os.access(toolp, os.F_OK, follow_symlinks=False)
+
+    paths = flatten(root.glob(glob.lstrip('/')) for glob in globs)
+
+    if not cond or not paths:
+        return
+
+    with complete_step(f"Cleaning {toolp.name} metadata…"):
+        for path in paths:
+            unlink_try_hard(path)
+
+
 def clean_dnf_metadata(root: Path, always: bool) -> None:
     """Remove dnf metadata if /bin/dnf is not present in the image
 
-    If dnf is not installed, there doesn't seem to be much use in
-    keeping the dnf metadata, since it's not usable from within the
-    image anyway.
+    If dnf is not installed, there doesn't seem to be much use in keeping the
+    dnf metadata, since it's not usable from within the image anyway.
     """
     paths = [
-        root / "var/lib/dnf",
-        *root.glob("var/log/dnf.*"),
-        *root.glob("var/log/hawkey.*"),
-        root / "var/cache/dnf",
+        "/var/lib/dnf",
+        "/var/log/dnf.*",
+        "/var/log/hawkey.*",
+        "/var/cache/dnf",
     ]
 
-    cond = always or not os.access(root / "bin/dnf", os.F_OK, follow_symlinks=False)
-
-    if not cond or not any(path.exists() for path in paths):
-        return
-
-    with complete_step("Cleaning dnf metadata…"):
-        for path in paths:
-            unlink_try_hard(path)
+    clean_paths(root, paths, tool='/bin/dnf', always=always)
 
 
 def clean_yum_metadata(root: Path, always: bool) -> None:
     """Remove yum metadata if /bin/yum is not present in the image"""
     paths = [
-        root / "var/lib/yum",
-        *root.glob("var/log/yum.*"),
-        root / "var/cache/yum",
+        "/var/lib/yum",
+        "/var/log/yum.*",
+        "/var/cache/yum",
     ]
 
-    cond = always or not os.access(root / "bin/yum", os.F_OK, follow_symlinks=False)
-
-    if not cond or not any(path.exists() for path in paths):
-        return
-
-    with complete_step("Cleaning yum metadata…"):
-        for path in paths:
-            unlink_try_hard(path)
+    clean_paths(root, paths, tool='/bin/yum', always=always)
 
 
 def clean_rpm_metadata(root: Path, always: bool) -> None:
     """Remove rpm metadata if /bin/rpm is not present in the image"""
-    path = root / "var/lib/rpm"
+    paths = [
+        "/var/lib/rpm",
+        "/usr/lib/sysimage/rpm",
+    ]
 
-    cond = always or not os.access(root / "bin/rpm", os.F_OK, follow_symlinks=False)
-
-    if not cond or not path.exists():
-        return
-
-    with complete_step("Cleaning rpm metadata…"):
-        unlink_try_hard(path)
+    clean_paths(root, paths, tool='/bin/rpm', always=always)
 
 
 def clean_tdnf_metadata(root: Path, always: bool) -> None:
-    """Remove tdnf metadata if /bin/tdnf is not present in the image"""
+    """Remove tdnf metadata if /usr/bin/tdnf is not present in the image"""
     paths = [
-        *root.glob("var/log/tdnf.*"),
-        root / "var/cache/tdnf",
+        "/var/log/tdnf.*",
+        "/var/cache/tdnf",
     ]
 
-    cond = always or not os.access(root / "usr/bin/tdnf", os.F_OK, follow_symlinks=False)
-
-    if not cond or not any(path.exists() for path in paths):
-        return
-
-    with complete_step("Cleaning tdnf metadata…"):
-        for path in paths:
-            unlink_try_hard(path)
+    clean_paths(root, paths, tool='/usr/bin/tdnf', always=always)
 
 
 def clean_apt_metadata(root: Path, always: bool) -> None:
     """Remove apt metadata if /usr/bin/apt is not present in the image"""
     paths = [
-        root / "var/lib/apt",
-        root / "var/log/apt",
-        root / "var/cache/apt",
+        "/var/lib/apt",
+        "/var/log/apt",
+        "/var/cache/apt",
     ]
 
-    cond = always or not os.access(root / "usr/bin/apt", os.F_OK, follow_symlinks=False)
-
-    if not cond or not any(path.exists() for path in paths):
-        return
-
-    with complete_step("Cleaning apt metadata…"):
-        for path in paths:
-            unlink_try_hard(path)
+    clean_paths(root, paths, tool='/usr/bin/apt', always=always)
 
 
 def clean_dpkg_metadata(root: Path, always: bool) -> None:
     """Remove dpkg metadata if /usr/bin/dpkg is not present in the image"""
     paths = [
-        root / "var/lib/dpkg",
-        root / "var/log/dpkg.log",
+        "/var/lib/dpkg",
+        "/var/log/dpkg.log",
     ]
 
-    cond = always or not os.access(root / "usr/bin/dpkg", os.F_OK, follow_symlinks=False)
-
-    if not cond or not any(path.exists() for path in paths):
-        return
-
-    with complete_step("Cleaning dpkg metadata…"):
-        for path in paths:
-            unlink_try_hard(path)
+    clean_paths(root, paths, tool='/usr/bin/dpkg', always=always)
 
 
 def clean_package_manager_metadata(args: MkosiArgs, root: Path) -> None:
@@ -2065,12 +2051,13 @@ def clean_package_manager_metadata(args: MkosiArgs, root: Path) -> None:
 
     # we try then all: metadata will only be touched if any of them are in the
     # final image
-    clean_dnf_metadata(root, always=args.clean_package_metadata is True)
-    clean_yum_metadata(root, always=args.clean_package_metadata is True)
-    clean_rpm_metadata(root, always=args.clean_package_metadata is True)
-    clean_tdnf_metadata(root, always=args.clean_package_metadata is True)
-    clean_apt_metadata(root, always=args.clean_package_metadata is True)
-    clean_dpkg_metadata(root, always=args.clean_package_metadata is True)
+    always = args.clean_package_metadata is True
+    clean_dnf_metadata(root, always=always)
+    clean_yum_metadata(root, always=always)
+    clean_rpm_metadata(root, always=always)
+    clean_tdnf_metadata(root, always=always)
+    clean_apt_metadata(root, always=always)
+    clean_dpkg_metadata(root, always=always)
     # FIXME: implement cleanup for other package managers: swupd, pacman
 
 
@@ -2142,6 +2129,17 @@ def invoke_dnf(
             rpmdb = root / "var/lib/rpm"
         unlink_try_hard(rpmdb)
         shutil.move(cast(str, rpmdb_home), rpmdb)
+
+
+def link_rpm_db(root: Path) -> None:
+    """Link /var/lib/rpm to /usr/lib/sysimage/rpm for compat with old rpm"""
+    rpmdb = root / "usr/lib/sysimage/rpm"
+    rpmdb_old = root / "var/lib/rpm"
+    if rpmdb.exists() and not rpmdb_old.is_symlink():
+        # We create the symlink in exactly the same fashion that Fedora do
+        with complete_step("Creating compat symlink /var/lib/rpm → /usr/lib/sysimage/rpm"):
+            unlink_try_hard(rpmdb_old)
+            rpmdb_old.symlink_to("../../usr/lib/sysimage/rpm")
 
 
 def install_packages_dnf(
@@ -3292,6 +3290,11 @@ def install_distribution(args: MkosiArgs, root: Path, do_run_build_script: bool,
     with mount_cache(args, root):
         install[args.distribution](args, root, do_run_build_script)
 
+    # Link /var/lib/rpm→/usr/lib/sysimage/rpm for compat with old rpm.
+    # We do this only if the new location is used, which depends on the dnf
+    # version and configuration on the host. Thus we do this reactively, after the
+    # installation has completed.
+    link_rpm_db(root)
 
 def remove_packages(args: MkosiArgs, root: Path) -> None:
     """Remove packages listed in args.remove_packages"""

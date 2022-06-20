@@ -88,7 +88,6 @@ class Manifest:
             ["rpm", f"--root={root}", "-qa", "--qf",
              r"%{NEVRA}\t%{SOURCERPM}\t%{NAME}\t%{ARCH}\t%{SIZE}\t%{INSTALLTIME}\n"],
             stdout=PIPE,
-            stderr=DEVNULL,
             text=True,
         )
 
@@ -140,7 +139,6 @@ class Manifest:
             ["dpkg-query", f"--admindir={root}/var/lib/dpkg", "--show", "--showformat",
              r'${Package}\t${source:Package}\t${Version}\t${Architecture}\t${Installed-Size}\t${db-fsys:Last-Modified}\n'],
             stdout=PIPE,
-            stderr=DEVNULL,
             text=True,
         )
 
