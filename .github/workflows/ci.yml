@@ -10,7 +10,7 @@ on:
 
 jobs:
   unit-test:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}
       cancel-in-progress: true
@@ -46,12 +46,6 @@ jobs:
     - name: Test execution from current working directory (sudo call)
       run: sudo python3 -m mkosi -h
 
-    - name: Test system installation
-      run: |
-        sudo python3 -m pip install .
-        sudo mkosi -h
-        sudo python3 -m pip uninstall --yes mkosi
-
     - name: Test user installation
       run: |
         python3 -m pip install --user .
@@ -86,6 +80,12 @@ jobs:
       run: |
         sudo testvenv/bin/mkosi -h
 
+    - name: Test system installation
+      run: |
+        sudo python3 -m pip install .
+        sudo mkosi -h
+        sudo python3 -m pip uninstall --yes mkosi
+
     - name: Test zipapp creation
       run: |
         ./tools/generate-zipapp.sh
@@ -97,7 +97,7 @@ jobs:
         bash -c 'shopt -s globstar; shellcheck **/*.sh'
 
   integration-test:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: unit-test
     concurrency:
       group: ${{ github.workflow }}-${{ matrix.distro }}-${{ matrix.format }}-${{ github.ref }}

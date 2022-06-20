@@ -5,18 +5,39 @@ runs:
   using: composite
   steps:
 
+  - name: Copy /etc/os-release
+    shell: bash
+    run: |
+      cp /etc/os-release $GITHUB_WORKSPACE
+      # hashFiles() only works on files inside $GITHUB_WORKSPACE so let's copy /etc/os-release to that
+      # location.
+      cat os-release
+
   - name: Cache dependencies
     uses: actions/cache@v3
     with:
       path: build
-      key: ${{ runner.os }}-${{ hashFiles('action/setup-github-actions.sh') }}
+      key: ${{ hashFiles('os-release', 'action/setup-pacman.sh') }}
 
   - name: Dependencies
     shell: bash
     run: |
+      sudo apt-get update
+      sudo apt-get install --assume-yes --no-install-recommends \
+        debootstrap \
+        zypper \
+        dnf \
+        systemd-container \
+        qemu-system-x86 \
+        ovmf \
+        e2fsprogs \
+        xfsprogs \
+        squashfs-tools \
+        btrfs-progs
+
       mkdir -p $BUILDDIR
 
-      sudo -E ${{ github.action_path }}/action/setup-github-actions.sh
+      sudo -E ${{ github.action_path }}/action/setup-pacman.sh
       sudo chown -R $USER: $BUILDDIR
 
       sudo pacman-key --init
@@ -42,6 +63,20 @@ runs:
 
     env:
       BUILDDIR: build
+
+  # Try to eliminate "Failed to dissect image: Connection timed out" errors from nspawn by compiling
+  # systemd-nspawn from v251 from source.
+  - name: Update systemd-nspawn
+    shell: bash
+    run: |
+      echo "deb-src http://archive.ubuntu.com/ubuntu/ $(lsb_release -cs) main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
+      sudo apt-get update
+      sudo apt-get build-dep systemd
+      git clone https://github.com/systemd/systemd-stable --branch v251.2 --depth=1
+      meson systemd-stable/build systemd-stable
+      ninja -C systemd-stable/build
+      sudo ln -svf $PWD/systemd-stable/build/systemd-nspawn $(which systemd-nspawn)
+      systemd-nspawn --version
 
   - name: Install
     shell: bash
