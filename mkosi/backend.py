@@ -658,7 +658,8 @@ def run_workspace_command(
     env: Optional[Mapping[str, str]] = None,
     nspawn_params: Optional[List[str]] = None,
     capture_stdout: bool = False,
-) -> Optional[str]:
+    check: bool = True,
+) -> CompletedProcess:
     nspawn = [
         nspawn_executable(),
         "--quiet",
@@ -694,13 +695,12 @@ def run_workspace_command(
     if args.nspawn_keep_unit:
         nspawn += ["--keep-unit"]
 
-    result = run([*nspawn, "--", *cmd], check=False, stdout=stdout, text=capture_stdout)
-    if result.returncode != 0:
+    try:
+        return run([*nspawn, "--", *cmd], check=check, stdout=stdout, text=capture_stdout)
+    except subprocess.CalledProcessError as e:
         if "workspace-command" in ARG_DEBUG:
             run(nspawn, check=False)
-        die(f"Workspace command {shell_join(cmd)} returned non-zero exit code {result.returncode}.")
-
-    return result.stdout.strip() if capture_stdout else None
+        die(f"Workspace command {shell_join(cmd)} returned non-zero exit code {e.returncode}.")
 
 
 @contextlib.contextmanager

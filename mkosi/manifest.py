@@ -190,8 +190,8 @@ class Manifest:
                 # We have to run from the root, because if we use the RootDir option to make
                 # apt from the host look at the repositories in the image, it will also pick
                 # the 'methods' executables from there, but the ABI might not be compatible.
-                changelog = run_workspace_command(self.args, root, cmd, network=not self.args.with_docs, capture_stdout=True)
-                source_package = SourcePackageManifest(source, changelog)
+                result = run_workspace_command(self.args, root, cmd, network=not self.args.with_docs, capture_stdout=True)
+                source_package = SourcePackageManifest(source, result.stdout.strip())
                 self.source_packages[source] = source_package
 
             source_package.add(package)
