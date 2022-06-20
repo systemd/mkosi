@@ -20,6 +20,8 @@ Packages=debootstrap
          e2fsprogs
          xfsprogs
          btrfs-progs
+SourceFileTransferFinal=copy-git-others
+BuildSources=..
 
 [Validation]
 QemuHeadless=yes
