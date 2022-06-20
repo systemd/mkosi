@@ -1816,6 +1816,11 @@ def prepare_tree(args: MkosiArgs, root: Path, do_run_build_script: bool, cached:
             else:
                 # If this is not enabled, let's create an empty directory on /boot
                 root.joinpath("boot").mkdir(mode=0o700)
+                # Make sure kernel-install actually runs when needed by creating the machine-id subdirectory
+                # under /boot. For "bios" on Debian/Ubuntu, it's required for grub to pick up the generated
+                # initrd.
+                if args.distribution in (Distribution.debian, Distribution.ubuntu) and "bios" in args.boot_protocols:
+                    root.joinpath("boot", args.machine_id).mkdir(mode=0o700)
 
             if args.get_partition(PartitionIdentifier.esp):
                 root.joinpath("efi/EFI").mkdir(mode=0o700)
@@ -2117,7 +2122,7 @@ def invoke_dnf(
     cmdline += [command, *sort_packages(packages)]
 
     with mount_api_vfs(args, root):
-        run(cmdline)
+        run(cmdline, env=dict(KERNEL_INSTALL_BYPASS="1"))
 
     distribution, release = detect_distribution()
     if distribution not in (Distribution.debian, Distribution.ubuntu):
@@ -2378,7 +2383,7 @@ def install_fedora(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
         add_packages(args, packages, "glibc-minimal-langpack", conditional="glibc")
 
     if not do_run_build_script and args.bootable:
-        add_packages(args, packages, "kernel-core", "kernel-modules", "dracut", "binutils")
+        add_packages(args, packages, "kernel-core", "kernel-modules", "dracut")
         add_packages(args, packages, "systemd-udev", conditional="systemd")
         configure_dracut(args, packages, root)
     if do_run_build_script:
@@ -2413,7 +2418,7 @@ def install_mageia(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
     packages = {*args.packages}
     add_packages(args, packages, "basesystem-minimal")
     if not do_run_build_script and args.bootable:
-        add_packages(args, packages, "kernel-server-latest", "dracut", "binutils")
+        add_packages(args, packages, "kernel-server-latest", "dracut")
         configure_dracut(args, packages, root)
         # Mageia ships /etc/50-mageia.conf that omits systemd from the initramfs and disables hostonly.
         # We override that again so our defaults get applied correctly on Mageia as well.
@@ -2462,7 +2467,7 @@ def install_openmandriva(args: MkosiArgs, root: Path, do_run_build_script: bool)
     add_packages(args, packages, "basesystem-minimal", "systemd")
     if not do_run_build_script and args.bootable:
         add_packages(args, packages, "systemd-boot", "systemd-cryptsetup", conditional="systemd")
-        add_packages(args, packages, "kernel-release-server", "dracut", "binutils", "timezone")
+        add_packages(args, packages, "kernel-release-server", "dracut", "timezone")
         configure_dracut(args, packages, root)
     if args.netdev:
         add_packages(args, packages, "systemd-networkd", conditional="systemd")
@@ -2684,7 +2689,7 @@ def install_centos(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
     packages = {*args.packages}
     add_packages(args, packages, "centos-release", "systemd")
     if not do_run_build_script and args.bootable:
-        add_packages(args, packages, "kernel", "dracut", "binutils")
+        add_packages(args, packages, "kernel", "dracut")
         configure_dracut(args, packages, root)
         if epel_release <= 7:
             add_packages(
@@ -2736,7 +2741,7 @@ def install_rocky(args: MkosiArgs, root: Path, do_run_build_script: bool) -> Non
     packages = {*args.packages}
     add_packages(args, packages, "rocky-release", "systemd")
     if not do_run_build_script and args.bootable:
-        add_packages(args, packages, "kernel", "dracut", "binutils")
+        add_packages(args, packages, "kernel", "dracut")
         configure_dracut(args, packages, root)
         add_packages(args, packages, "systemd-udev", conditional="systemd")
 
@@ -2768,7 +2773,7 @@ def install_alma(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None
     packages = {*args.packages}
     add_packages(args, packages, "almalinux-release", "systemd")
     if not do_run_build_script and args.bootable:
-        add_packages(args, packages, "kernel", "dracut", "binutils")
+        add_packages(args, packages, "kernel", "dracut")
         configure_dracut(args, packages, root)
         add_packages(args, packages, "systemd-udev", conditional="systemd")
 
@@ -2800,10 +2805,11 @@ def invoke_apt(
 ) -> None:
 
     cmdline = ["/usr/bin/apt-get", "--assume-yes", command, *extra]
-    env = {
-        "DEBIAN_FRONTEND": "noninteractive",
-        "DEBCONF_NONINTERACTIVE_SEEN": "true",
-    }
+    env = dict(
+        DEBIAN_FRONTEND="noninteractive",
+        DEBCONF_NONINTERACTIVE_SEEN="true",
+        INITRD="No",
+    )
 
     run_workspace_command(args, root, cmdline, network=True, env=env)
 
@@ -2853,7 +2859,7 @@ def install_debian_or_ubuntu(args: MkosiArgs, root: Path, *, do_run_build_script
         extra_packages.update(args.build_packages)
 
     if not do_run_build_script and args.bootable:
-        add_packages(args, extra_packages, "dracut", "binutils")
+        add_packages(args, extra_packages, "dracut")
         configure_dracut(args, extra_packages, root)
 
         if args.distribution == Distribution.ubuntu:
@@ -2944,10 +2950,6 @@ def install_debian_or_ubuntu(args: MkosiArgs, root: Path, *, do_run_build_script
         root.joinpath("etc/resolv.conf").symlink_to("../run/systemd/resolve/resolv.conf")
         run(["systemctl", "--root", root, "enable", "systemd-resolved"])
 
-    if args.bootable and not do_run_build_script and "uefi" in args.boot_protocols:
-        for kver, kimg in gen_kernel_images(args, root):
-            run_workspace_command(args, root, ["kernel-install", "add", kver, Path("/") / kimg])
-
 
 @complete_step("Installing Debian…")
 def install_debian(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None:
@@ -2959,8 +2961,8 @@ def install_ubuntu(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
     install_debian_or_ubuntu(args, root, do_run_build_script=do_run_build_script)
 
 
-def run_pacman(root: Path, pacman_conf: Path, packages: Set[str]) -> None:
-    run(["pacman", "--config", pacman_conf, "--noconfirm", "-Sy", *sort_packages(packages)])
+def invoke_pacman(root: Path, pacman_conf: Path, packages: Set[str]) -> None:
+    run(["pacman", "--config", pacman_conf, "--noconfirm", "-Sy", *sort_packages(packages)], env=dict(KERNEL_INSTALL_BYPASS="1"))
 
 
 @complete_step("Installing Arch Linux…")
@@ -3103,7 +3105,7 @@ def install_arch(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None
         if args.get_partition(PartitionIdentifier.bios):
             add_packages(args, packages, "grub")
 
-        add_packages(args, packages, "dracut", "binutils")
+        add_packages(args, packages, "dracut")
         configure_dracut(args, packages, root)
 
     packages.update(args.packages)
@@ -3127,7 +3129,7 @@ def install_arch(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None
         add_packages(args, packages, "openssh")
 
     with mount_api_vfs(args, root):
-        run_pacman(root, pacman_conf, packages)
+        invoke_pacman(root, pacman_conf, packages)
 
     # Arch still uses pam_securetty which prevents root login into
     # systemd-nspawn containers. See https://bugs.archlinux.org/task/45903.
@@ -3173,7 +3175,7 @@ def install_opensuse(args: MkosiArgs, root: Path, do_run_build_script: bool) -> 
         add_packages(args, packages, "patterns-base-minimal_base")
 
     if not do_run_build_script and args.bootable:
-        add_packages(args, packages, "kernel-default", "dracut", "binutils")
+        add_packages(args, packages, "kernel-default", "dracut")
         configure_dracut(args, packages, root)
 
         if args.get_partition(PartitionIdentifier.bios):
@@ -3223,11 +3225,6 @@ def install_opensuse(args: MkosiArgs, root: Path, do_run_build_script: bool) -> 
     if args.autologin:
         # copy now, patch later (in set_autologin())
         shutil.copy2(root / "usr/etc/pam.d/login", root / "etc/pam.d/login")
-
-    # Zypper doesn't run dracut automatically so we have to do it manually.
-    if args.bootable and not do_run_build_script and "uefi" in args.boot_protocols:
-        for kver, kimg in gen_kernel_images(args, root):
-            run_workspace_command(args, root, ["kernel-install", "add", kver, Path("/") / kimg])
 
 
 @complete_step("Installing Gentoo…")
@@ -4261,7 +4258,7 @@ def extract_partition(
 def gen_kernel_images(args: MkosiArgs, root: Path) -> Iterator[Tuple[str, Path]]:
     # Apparently openmandriva hasn't yet completed its usrmerge so we use lib here instead of usr/lib.
     for kver in root.joinpath("lib/modules").iterdir():
-        if not (kver.is_dir() and os.path.isfile(os.path.join(kver, "modules.dep"))): # type: ignore
+        if not kver.is_dir():
             continue
 
         if args.distribution == Distribution.gentoo:
@@ -4333,11 +4330,11 @@ def install_unified_kernel(
                 partlabel = None
 
             if args.image_version:
-                boot_binary = Path(prefix) / f"EFI/Linux/{image_id}_{args.image_version}.efi"
+                boot_binary = root / prefix / f"EFI/Linux/{image_id}_{args.image_version}.efi"
             elif root_hash:
-                boot_binary = Path(prefix) / f"EFI/Linux/{image_id}-{kver}-{root_hash}.efi"
+                boot_binary = root / prefix / f"EFI/Linux/{image_id}-{kver}-{root_hash}.efi"
             else:
-                boot_binary = Path(prefix) / f"EFI/Linux/{image_id}-{kver}.efi"
+                boot_binary = root / prefix / f"EFI/Linux/{image_id}-{kver}.efi"
 
             if root.joinpath("etc/kernel/cmdline").exists():
                 boot_options = root.joinpath("etc/kernel/cmdline").read_text().strip()
@@ -4352,17 +4349,24 @@ def install_unified_kernel(
             elif partlabel:
                 boot_options = f"{boot_options} root=PARTLABEL={partlabel}"
 
+            osrelease = root / "usr/lib/os-release"
+            cmdline = workspace(root) / "cmdline"
+            cmdline.write_text(boot_options)
+            initrd = root / prefix / args.machine_id / kver / "initrd"
+
             cmd: Sequence[PathString] = [
-                "dracut",
-                "--uefi",
-                "--kver", kver,
-                "--kernel-image", Path("/") / kimg,
-                "--kernel-cmdline", boot_options,
-                "--force",
+                "objcopy",
+                "--add-section", f".osrel={osrelease}",   "--change-section-vma", ".osrel=0x20000",
+                "--add-section", f".cmdline={cmdline}",   "--change-section-vma", ".cmdline=0x30000",
+                "--add-section", f".linux={root / kimg}", "--change-section-vma", ".linux=0x2000000",
+                "--add-section", f".initrd={initrd}",     "--change-section-vma", ".initrd=0x3000000",
+                root / "lib/systemd/boot/efi/linuxx64.efi.stub",
                 boot_binary,
             ]
 
-            run_workspace_command(args, root, cmd)
+            run(cmd)
+
+            cmdline.unlink()
 
 
 def secure_boot_sign(
@@ -7277,6 +7281,21 @@ def setup_netdev(args: MkosiArgs, root: Path, do_run_build_script: bool, cached:
         run(["systemctl", "--root", root, "enable", "systemd-networkd"])
 
 
+def run_kernel_install(args: MkosiArgs, root: Path, do_run_build_script: bool, for_cache: bool) -> None:
+    if not args.bootable or do_run_build_script or for_cache:
+        return
+
+    with complete_step("Generating initramfs images…"):
+        # Running kernel-install on Debian/Ubuntu doesn't regenerate the initramfs. Instead, we can trigger
+        # regeneration of the initramfs via "dpkg-reconfigure dracut". kernel-install can then be called to put
+        # the generated initrds in the right place.
+        if args.distribution in (Distribution.debian, Distribution.ubuntu):
+            run_workspace_command(args, root, ["dpkg-reconfigure", "dracut"])
+
+        for kver, kimg in gen_kernel_images(args, root):
+            run_workspace_command(args, root, ["kernel-install", "add", kver, Path("/") / kimg])
+
+
 @dataclasses.dataclass
 class BuildOutput:
     raw: Optional[BinaryIO]
@@ -7368,11 +7387,12 @@ def build_image(
                 install_distribution(args, root, do_run_build_script, cached_tree)
                 install_etc_locale(args, root, cached_tree)
                 install_etc_hostname(args, root, cached_tree)
-                install_boot_loader(args, root, loopdev, do_run_build_script, cached_tree)
                 run_prepare_script(args, root, do_run_build_script, cached_tree)
                 install_build_src(args, root, do_run_build_script, for_cache)
                 install_build_dest(args, root, do_run_build_script, for_cache)
                 install_extra_trees(args, root, for_cache)
+                run_kernel_install(args, root, do_run_build_script, for_cache)
+                install_boot_loader(args, root, loopdev, do_run_build_script, cached_tree)
                 set_root_password(args, root, do_run_build_script, cached_tree)
                 set_serial_terminal(args, root, do_run_build_script, cached_tree)
                 set_autologin(args, root, do_run_build_script, cached_tree)
