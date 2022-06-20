@@ -2932,6 +2932,12 @@ def install_debian_or_ubuntu(args: MkosiArgs, root: Path, *, do_run_build_script
     install_skeleton_trees(args, root, False, late=True)
 
     invoke_apt(args, do_run_build_script, root, "update", [])
+
+    if args.bootable and not do_run_build_script and args.get_partition(PartitionIdentifier.esp):
+        if run_workspace_command(args, root, ["apt-cache", "search", "--names-only", "^systemd-boot$"],
+                                 capture_stdout=True).stdout.strip() != "":
+            add_packages(args, extra_packages, "systemd-boot")
+
     invoke_apt(args, do_run_build_script, root, "install", ["--no-install-recommends", *extra_packages])
 
     policyrcd.unlink()
