@@ -105,7 +105,7 @@ from .manifest import Manifest
 
 complete_step = MkosiPrinter.complete_step
 
-__version__ = "12"
+__version__ = "13"
 
 
 # These types are only generic during type checking and not at runtime, leading
