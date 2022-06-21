@@ -2,18 +2,20 @@
 
 ## v13
 
-- The `--network-veth` option has been renamed `--netdev`, since it implies usage of a virtual ethernet device, which is not what is done when booting images with qemu where a TUN/TAP device is used.
-- The networkd config file installed by mkosi when the `--netdev`  option (what used to be `--network-veth`) is
-  used (formerly `/etc/systemd/network/80-mkosi-network-veth.network` in the image) now only matches against network interfaces using the virtio_net driver.
-  Please make sure you weren't relying on this file to configure any network
-  interfaces other than the tun/tap virtio-net interface created by mkosi when
-  booting the image in QEMU with the --netdev option. If you were relying
-  on this config file to configure other interfaces, you'll have to re-create it
-  with the correct match and a lower initial number in the filename to make sure networkd will keep configuring your
-  interface, e.g. via the `mkosi.skeleton` or `mkosi.extra` trees or a `mkosi.postinst` script.
-- The kernel-install script for building unified kernel images was removed. From v13 onwards, on systems using kernel-install,
-  mkosi won't automatically build new unified kernel images anymore when a kernel is updated or installed. To keep this
-  behavior, you can install the kernel-install script manually via a skeleton tree. The original script can be found
+- The `--network-veth` option has been renamed `--netdev`, since it implies usage of a virtual ethernet
+  device, which is not what is done when booting images with qemu where a TUN/TAP device is used.
+- The networkd config file installed by mkosi when the `--netdev`  option (what used to be `--network-veth`)
+  is used (formerly `/etc/systemd/network/80-mkosi-network-veth.network` in the image) now only matches
+  against  network interfaces using the virtio_net driver. Please make sure you weren't relying on this file
+  to configure any network interfaces other than the tun/tap virtio-net interface created by mkosi when
+  booting the image in QEMU with the --netdev option. If you were relying on this config file to configure
+  other interfaces, you'll have to re-create it with the correct match and a lower initial number in the
+  filename to make sure networkd will keep configuring your interface, e.g. via the `mkosi.skeleton` or
+  `mkosi.extra` trees or a `mkosi.postinst` script.
+- The kernel-install script for building unified kernel images was removed. From v13 onwards, on systems
+  using kernel-install, mkosi won't automatically build new unified kernel images anymore when a kernel is
+  updated or installed. To keep this behavior, you can install the kernel-install script manually via a
+  skeleton tree. The original script can be found
   [here](https://github.com/systemd/mkosi/blob/3798eb0c2ebcdf7dac207a559a3cb5a65cdb77b0/mkosi/resources/dracut_unified_kernel_install.sh).
 - Added QemuKvm option to configure whether to use KVM or not when running `mkosi qemu`.
 - mkosi won't default to the same OS release as the host system anymore when the host system uses the same
@@ -24,6 +26,19 @@
   `pacman-key --populate archlinux` on the host system to be able to build Arch images. Also, unless the
   package manager is configured to do it automatically, the host keyring will have to be updated after
   archlinux-keyring updates by running `pacman-key --populate archlinux` and `pacman-key --updatedb`.
+- Added support for qemu direct linux boot via setting `BootProtocols=linux`. When enabled, the kernel image,
+  initrd and cmdline will be extracted from the image and passed to qemu when `mkosi qemu` is used to
+  directly boot into the kernel image without needing a bootloader. This can be used to boot for example
+  s390x images in qemu.
+- The initrd will now always be rebuilt after the extra trees and build artifacts have been installed into
+  the image.
+- The github action was migrated to Ubuntu Jammy. To migrate any jobs using the action, add
+  `runs-on: ubuntu-22.04` to the job config.
+- All images are now configured by default with the C.UTF-8 locale.
+- Added `--repository-directory` option which can be used to configure a directory with extra repository
+  files to be used by the package manager when building an image. Note that this option is currently only
+  supported for pacman and dnf based distros.
+- `--skeleton-tree` is now supported on Debian based distros.
 
 
 ## v12
