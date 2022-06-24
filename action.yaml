@@ -23,6 +23,10 @@ runs:
     shell: bash
     run: |
       sudo apt-get update
+
+      cat /etc/apt/sources.list
+      cat /etc/apt/sources.list.d/*
+
       sudo apt-get install --assume-yes --no-install-recommends \
         debootstrap \
         zypper \
