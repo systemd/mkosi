@@ -27,7 +27,12 @@ runs:
         debootstrap \
         zypper \
         dnf \
-        systemd-container \
+        systemd=249.11-0ubuntu3.3 \
+        systemd-sysv=249.11-0ubuntu3.3 \
+        systemd-container=249.11-0ubuntu3.3 \
+        udev=249.11-0ubuntu3.3 \
+        libsystemd0=249.11-0ubuntu3.3 \
+        libudev1=249.11-0ubuntu3.3 \
         qemu-system-x86 \
         ovmf \
         e2fsprogs \
