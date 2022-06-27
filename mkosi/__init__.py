@@ -583,7 +583,7 @@ def copy_fd(oldfd: int, newfd: int) -> None:
     try:
         _reflink(oldfd, newfd)
     except OSError as e:
-        if e.errno not in {errno.EXDEV, errno.EOPNOTSUPP}:
+        if e.errno not in {errno.EXDEV, errno.EOPNOTSUPP, errno.ENOTTY}:
             raise
         # While mypy handles this correctly, Pyright doesn't yet.
         shutil.copyfileobj(open(oldfd, "rb", closefd=False), cast(Any, open(newfd, "wb", closefd=False)))
@@ -593,7 +593,7 @@ def copy_file_object(oldobject: BinaryIO, newobject: BinaryIO) -> None:
     try:
         _reflink(oldobject.fileno(), newobject.fileno())
     except OSError as e:
-        if e.errno not in {errno.EXDEV, errno.EOPNOTSUPP}:
+        if e.errno not in {errno.EXDEV, errno.EOPNOTSUPP, errno.ENOTTY}:
             raise
         shutil.copyfileobj(oldobject, newobject)
 
