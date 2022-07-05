@@ -752,6 +752,7 @@ def run(
     delay_interrupt: bool = True,
     stdout: _FILE = None,
     stderr: _FILE = None,
+    env: Mapping[str, Any] = {},
     **kwargs: Any,
 ) -> CompletedProcess:
     cmdline = [str(x) for x in cmdline]
@@ -776,7 +777,7 @@ def run(
     cm = do_delay_interrupt if delay_interrupt else do_noop
     try:
         with cm():
-            return subprocess.run(cmdline, check=check, stdout=stdout, stderr=stderr, **kwargs)
+            return subprocess.run(cmdline, check=check, stdout=stdout, stderr=stderr, env={**os.environ, **env}, **kwargs)
     except FileNotFoundError:
         die(f"{cmdline[0]} not found in PATH.")
 
