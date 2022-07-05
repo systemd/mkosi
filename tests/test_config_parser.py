@@ -140,6 +140,7 @@ class MkosiConfig:
             "ephemeral": False,
             "with_unified_kernel_images": True,
             "hostonly_initrd": False,
+            "cache_initrd": False,
             "ssh": False,
             "ssh_key": None,
             "ssh_timeout": 0,
@@ -288,6 +289,8 @@ class MkosiConfig:
                 ]
             if "HostonlyInitrd" in mk_config_output:
                 self.reference_config[job_name]["hostonly_initrd"] = mk_config_output["HostonlyInitrd"]
+            if "CacheInitrd" in mk_config_output:
+                self.reference_config[job_name]["cache_initrd"] = mk_config_output["CacheInitrd"]
             if "MachineID" in mk_config_output:
                 self.reference_config[job_name]["MachineID"] = mk_config_output["MachineID"]
         if "Packages" in mk_config:
