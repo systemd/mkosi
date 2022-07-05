@@ -448,6 +448,7 @@ class MkosiArgs:
     with_unified_kernel_images: bool
     gpt_first_lba: Optional[int]
     hostonly_initrd: bool
+    cache_initrd: bool
     base_packages: Union[str, bool]
     packages: List[str]
     remove_packages: List[str]

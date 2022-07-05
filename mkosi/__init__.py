@@ -5621,6 +5621,12 @@ def create_parser() -> ArgumentParserMkosi:
         help="Enable dracut hostonly option",
     )
     group.add_argument(
+        "--cache-initrd",
+        metavar="BOOL",
+        action=BooleanAction,
+        help="When using incremental mode, build the initrd in the cache image and don't rebuild it in the final image",
+    )
+    group.add_argument(
         "--split-artifacts",
         metavar="BOOL",
         action=BooleanAction,
@@ -7391,8 +7397,14 @@ def setup_netdev(args: MkosiArgs, root: Path, do_run_build_script: bool, cached:
         run(["systemctl", "--root", root, "enable", "systemd-networkd"])
 
 
-def run_kernel_install(args: MkosiArgs, root: Path, do_run_build_script: bool, for_cache: bool) -> None:
-    if not args.bootable or do_run_build_script or for_cache:
+def run_kernel_install(args: MkosiArgs, root: Path, do_run_build_script: bool, for_cache: bool, cached: bool) -> None:
+    if not args.bootable or do_run_build_script:
+        return
+
+    if not args.cache_initrd and for_cache:
+        return
+
+    if args.cache_initrd and cached:
         return
 
     with complete_step("Generating initramfs images…"):
@@ -7504,7 +7516,7 @@ def build_image(
                 install_build_src(args, root, do_run_build_script, for_cache)
                 install_build_dest(args, root, do_run_build_script, for_cache)
                 install_extra_trees(args, root, for_cache)
-                run_kernel_install(args, root, do_run_build_script, for_cache)
+                run_kernel_install(args, root, do_run_build_script, for_cache, cached_tree)
                 install_boot_loader(args, root, loopdev, do_run_build_script, cached_tree)
                 set_root_password(args, root, do_run_build_script, cached_tree)
                 set_serial_terminal(args, root, do_run_build_script, cached_tree)

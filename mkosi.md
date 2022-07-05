@@ -645,6 +645,13 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   supported distributions except Clear Linux and this option
   translates to enabling dracut's hostonly option.
 
+`CacheInitrd=`, `--cache-initrd`
+
+: If specified, and incremental mode is used, mkosi will build the initrd
+  in the cache image and reuse it in the final image. Note that this means
+  that any changes that are only applied to the final image and not the
+  cached image won't be included in the initrd.
+
 `UsrOnly=`, `--usr-only`
 
 : If specified, `mkosi` will only add the `/usr/` directory tree
