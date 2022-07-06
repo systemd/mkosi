@@ -4,8 +4,8 @@ import os
 import sys
 from subprocess import CalledProcessError
 
-from . import complete_step, parse_args, run_verb
-from .backend import MkosiException, die
+from . import parse_args, run_verb
+from .backend import MkosiException, complete_step, die
 
 
 def main() -> None:

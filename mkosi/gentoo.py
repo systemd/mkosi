@@ -11,7 +11,6 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Dict, Generator, List, Sequence
 
-from . import copy_path, open_close, unlink_try_hard
 from .backend import (
     ARG_DEBUG,
     MkosiArgs,
@@ -19,8 +18,11 @@ from .backend import (
     MkosiPrinter,
     OutputFormat,
     PartitionIdentifier,
+    copy_path,
     die,
+    open_close,
     run_workspace_command,
+    unlink_try_hard,
 )
 
 ARCHITECTURES = {

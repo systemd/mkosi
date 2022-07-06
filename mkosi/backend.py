@@ -6,12 +6,15 @@ import argparse
 import contextlib
 import dataclasses
 import enum
+import errno
+import fcntl
 import math
 import os
 import resource
 import shlex
 import shutil
 import signal
+import stat
 import subprocess
 import sys
 import time
@@ -22,6 +25,7 @@ from typing import (
     IO,
     TYPE_CHECKING,
     Any,
+    BinaryIO,
     Callable,
     Dict,
     Iterator,
@@ -934,3 +938,213 @@ class MkosiPrinter:
 
         if text2 is not None:
             cls.print_step(text2.format(*args))
+
+
+complete_step = MkosiPrinter.complete_step
+
+
+def btrfs_subvol_delete(path: Path) -> None:
+    # Extract the path of the subvolume relative to the filesystem
+    c = run(["btrfs", "subvol", "show", path], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+    subvol_path = c.stdout.splitlines()[0]
+    # Make the subvolume RW again if it was set RO by btrfs_subvol_delete
+    run(["btrfs", "property", "set", path, "ro", "false"])
+    # Recursively delete the direct children of the subvolume
+    c = run(["btrfs", "subvol", "list", "-o", path], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+    for line in c.stdout.splitlines():
+        if not line:
+            continue
+        child_subvol_path = line.split(" ", 8)[-1]
+        child_path = path / cast(str, os.path.relpath(child_subvol_path, subvol_path))
+        btrfs_subvol_delete(child_path)
+    # Delete the subvolume now that all its descendants have been deleted
+    run(["btrfs", "subvol", "delete", path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def unlink_try_hard(path: Optional[PathString]) -> None:
+    if path is None:
+        return
+
+    path = Path(path)
+    try:
+        return path.unlink()
+    except FileNotFoundError:
+        return
+    except Exception:
+        pass
+
+    if shutil.which("btrfs"):
+        try:
+            btrfs_subvol_delete(path)
+            return
+        except Exception:
+            pass
+
+    shutil.rmtree(path)
+
+
+def add_packages(
+    args: MkosiArgs, packages: Set[str], *names: str, conditional: Optional[str] = None
+) -> None:
+
+    """Add packages in @names to @packages, if enabled by --base-packages.
+
+    If @conditional is specified, rpm-specific syntax for boolean
+    dependencies will be used to include @names if @conditional is
+    satisfied.
+    """
+    assert args.base_packages is True or args.base_packages is False or args.base_packages == "conditional"
+
+    if args.base_packages is True or (args.base_packages == "conditional" and conditional):
+        for name in names:
+            packages.add(f"({name} if {conditional})" if conditional else name)
+
+
+def install_skeleton_trees(args: MkosiArgs, root: Path, cached: bool, *, late: bool=False) -> None:
+    if not args.skeleton_trees:
+        return
+
+    if cached:
+        return
+
+    if not late and args.distribution in (Distribution.debian, Distribution.ubuntu):
+        return
+
+    with complete_step("Copying in skeleton file trees…"):
+        for tree in args.skeleton_trees:
+            if tree.is_dir():
+                copy_path(tree, root, copystat=False)
+            else:
+                # unpack_archive() groks Paths, but mypy doesn't know this.
+                # Pretend that tree is a str.
+                shutil.unpack_archive(cast(str, tree), root)
+
+
+def disable_pam_securetty(root: Path) -> None:
+    def _rm_securetty(line: str) -> str:
+        if "pam_securetty.so" in line:
+            return ""
+        return line
+
+    patch_file(root / "etc/pam.d/login", _rm_securetty)
+
+
+_IOC_NRBITS   =  8  # NOQA: E221,E222
+_IOC_TYPEBITS =  8  # NOQA: E221,E222
+_IOC_SIZEBITS = 14  # NOQA: E221,E222
+_IOC_DIRBITS  =  2  # NOQA: E221,E222
+
+_IOC_NRSHIFT   = 0  # NOQA: E221
+_IOC_TYPESHIFT = _IOC_NRSHIFT + _IOC_NRBITS  # NOQA: E221
+_IOC_SIZESHIFT = _IOC_TYPESHIFT + _IOC_TYPEBITS  # NOQA: E221
+_IOC_DIRSHIFT  = _IOC_SIZESHIFT + _IOC_SIZEBITS  # NOQA: E221
+
+_IOC_NONE  = 0  # NOQA: E221
+_IOC_WRITE = 1  # NOQA: E221
+_IOC_READ  = 2  # NOQA: E221
+
+
+def _IOC(dir_rw: int, type_drv: int, nr: int, argtype: Optional[str] = None) -> int:
+    size = {"int": 4, "size_t": 8}[argtype] if argtype else 0
+    return dir_rw << _IOC_DIRSHIFT | type_drv << _IOC_TYPESHIFT | nr << _IOC_NRSHIFT | size << _IOC_SIZESHIFT
+
+
+def _IOW(type_drv: int, nr: int, size: str) -> int:
+    return _IOC(_IOC_WRITE, type_drv, nr, size)
+
+
+def _IO(type_drv: int, nr: int) -> int:
+    return _IOC(_IOC_NONE, type_drv, nr)
+
+
+FICLONE = _IOW(0x94, 9, "int")
+
+
+def _reflink(oldfd: int, newfd: int) -> None:
+    fcntl.ioctl(newfd, FICLONE, oldfd)
+
+
+def copy_fd(oldfd: int, newfd: int) -> None:
+    try:
+        _reflink(oldfd, newfd)
+    except OSError as e:
+        if e.errno not in {errno.EXDEV, errno.EOPNOTSUPP, errno.ENOTTY}:
+            raise
+        # While mypy handles this correctly, Pyright doesn't yet.
+        shutil.copyfileobj(open(oldfd, "rb", closefd=False), cast(Any, open(newfd, "wb", closefd=False)))
+
+
+def copy_file_object(oldobject: BinaryIO, newobject: BinaryIO) -> None:
+    try:
+        _reflink(oldobject.fileno(), newobject.fileno())
+    except OSError as e:
+        if e.errno not in {errno.EXDEV, errno.EOPNOTSUPP, errno.ENOTTY}:
+            raise
+        shutil.copyfileobj(oldobject, newobject)
+
+
+def copy_file(oldpath: PathString, newpath: PathString) -> None:
+    oldpath = Path(oldpath)
+    newpath = Path(newpath)
+
+    if oldpath.is_symlink():
+        src = os.readlink(oldpath)  # TODO: use oldpath.readlink() with python3.9+
+        newpath.symlink_to(src)
+        return
+
+    with open_close(oldpath, os.O_RDONLY) as oldfd:
+        st = os.stat(oldfd)
+
+        try:
+            with open_close(newpath, os.O_WRONLY | os.O_CREAT | os.O_EXCL, st.st_mode) as newfd:
+                copy_fd(oldfd, newfd)
+        except FileExistsError:
+            newpath.unlink()
+            with open_close(newpath, os.O_WRONLY | os.O_CREAT, st.st_mode) as newfd:
+                copy_fd(oldfd, newfd)
+    shutil.copystat(oldpath, newpath, follow_symlinks=False)
+
+
+def copy_path(oldpath: PathString, newpath: Path, *, copystat: bool = True) -> None:
+    try:
+        newpath.mkdir(exist_ok=True)
+    except FileExistsError:
+        # something that is not a directory already exists
+        newpath.unlink()
+        newpath.mkdir()
+
+    for entry in os.scandir(oldpath):
+        newentry = newpath / entry.name
+        if entry.is_dir(follow_symlinks=False):
+            copy_path(entry.path, newentry)
+        elif entry.is_symlink():
+            target = os.readlink(entry.path)
+            symlink_f(target, newentry)
+            shutil.copystat(entry.path, newentry, follow_symlinks=False)
+        else:
+            st = entry.stat(follow_symlinks=False)
+            if stat.S_ISREG(st.st_mode):
+                copy_file(entry.path, newentry)
+            else:
+                print("Ignoring", entry.path)
+                continue
+
+    if copystat:
+        shutil.copystat(oldpath, newpath, follow_symlinks=True)
+
+
+@contextlib.contextmanager
+def open_close(path: PathString, flags: int, mode: int = 0o664) -> Iterator[int]:
+    fd = os.open(path, flags | os.O_CLOEXEC, mode)
+    try:
+        yield fd
+    finally:
+        os.close(fd)
+
+
+def symlink_f(target: str, path: Path) -> None:
+    try:
+        path.symlink_to(target)
+    except FileExistsError:
+        os.unlink(path)
+        path.symlink_to(target)
