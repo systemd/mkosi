@@ -1633,7 +1633,7 @@ def install_etc_locale(args: MkosiArgs, root: Path, cached: bool) -> None:
 
     # Debian/Ubuntu use a different path to store the locale so let's make sure that path is a symlink to
     # etc/locale.conf.
-    if args.distribution in (Distribution.debian, Distribution.ubuntu):
+    if args.distribution in (Distribution.debian, Distribution.ubuntu, Distribution.rolling_rhino):
         try:
             root.joinpath("etc/default/locale").unlink()
         except FileNotFoundError:
@@ -1703,7 +1703,7 @@ def mount_cache(args: MkosiArgs, root: Path) -> Iterator[None]:
                 mount_bind(args.cache_path / "yum", root / "var/cache/yum"),
                 mount_bind(args.cache_path / "dnf", root / "var/cache/dnf"),
             ]
-        elif args.distribution in (Distribution.debian, Distribution.ubuntu):
+        elif args.distribution in (Distribution.debian, Distribution.ubuntu, Distribution.rolling_rhino):
             caches = [mount_bind(args.cache_path, root / "var/cache/apt/archives")]
         elif args.distribution == Distribution.arch:
             caches = [mount_bind(args.cache_path, root / "var/cache/pacman/pkg")]
@@ -1751,6 +1751,7 @@ def configure_dracut(args: MkosiArgs, packages: Set[str], root: Path) -> None:
     if args.get_partition(PartitionIdentifier.esp):
         # These distros need uefi_stub configured explicitly for dracut to find the systemd-boot uefi stub.
         if args.distribution in (Distribution.ubuntu,
+                                 Distribution.rolling_rhino,
                                  Distribution.debian,
                                  Distribution.mageia,
                                  Distribution.openmandriva,
@@ -1822,7 +1823,14 @@ def prepare_tree(args: MkosiArgs, root: Path, do_run_build_script: bool, cached:
                 # under /boot. For "bios" on Debian/Ubuntu, it's required for grub to pick up the generated
                 # initrd. For "linux", we need kernel-install to run so we can extract the generated initrd
                 # from /boot later.
-                if ((args.distribution in (Distribution.debian, Distribution.ubuntu) and "bios" in args.boot_protocols) or
+                if ((
+                        args.distribution in (
+                            Distribution.debian,
+                            Distribution.ubuntu,
+                            Distribution.rolling_rhino
+                        )
+                        and "bios" in args.boot_protocols
+                    ) or
                     ("linux" in args.boot_protocols and "uefi" not in args.boot_protocols)):
                     root.joinpath("boot", args.machine_id).mkdir(mode=0o700)
 
@@ -2117,7 +2125,7 @@ def invoke_dnf(
         run(cmdline, env=dict(KERNEL_INSTALL_BYPASS="1"))
 
     distribution, release = detect_distribution()
-    if distribution not in (Distribution.debian, Distribution.ubuntu):
+    if distribution not in (Distribution.debian, Distribution.ubuntu, Distribution.rolling_rhino):
         return
 
     # On Debian, rpm/dnf ship with a patch to store the rpmdb under ~/
@@ -2824,9 +2832,10 @@ def install_debian_or_ubuntu(args: MkosiArgs, root: Path, *, do_run_build_script
     os.makedirs(dpkg_io_conf.parent, mode=0o755, exist_ok=True)
     dpkg_io_conf.write_text("force-unsafe-io\n")
 
+    is_ubuntu_distro = args.distribution in {Distribution.ubuntu, Distribution.rolling_rhino}
     repos = set(args.repositories) or {"main"}
     # Ubuntu needs the 'universe' repo to install 'dracut'
-    if args.distribution == Distribution.ubuntu and args.bootable:
+    if is_ubuntu_distro and args.bootable:
         repos.add("universe")
 
     # debootstrap fails if a base image is used with an already populated root, so skip it.
@@ -2865,7 +2874,10 @@ def install_debian_or_ubuntu(args: MkosiArgs, root: Path, *, do_run_build_script
         add_packages(args, extra_packages, "dracut")
         configure_dracut(args, extra_packages, root)
 
-        if args.distribution == Distribution.ubuntu:
+        if args.distribution == Distribution.rolling_rhino:
+            # Let the rolling rhino conversion take care of the kernel installation
+            pass
+        elif args.distribution == Distribution.ubuntu:
             add_packages(args, extra_packages, "linux-generic")
         else:
             add_packages(args, extra_packages, "linux-image-amd64")
@@ -2915,14 +2927,14 @@ def install_debian_or_ubuntu(args: MkosiArgs, root: Path, *, do_run_build_script
                 f.write(f"BUILD_ID=mkosi-{args.release}\n")
 
     if args.release not in ("testing", "unstable"):
-        if args.distribution == Distribution.ubuntu:
+        if is_ubuntu_distro:
             updates = f"deb http://archive.ubuntu.com/ubuntu {args.release}-updates {' '.join(repos)}"
         else:
             updates = f"deb http://deb.debian.org/debian {args.release}-updates {' '.join(repos)}"
 
         root.joinpath(f"etc/apt/sources.list.d/{args.release}-updates.list").write_text(f"{updates}\n")
 
-        if args.distribution == Distribution.ubuntu:
+        if is_ubuntu_distro:
             security = f"deb http://archive.ubuntu.com/ubuntu {args.release}-security {' '.join(repos)}"
         elif args.release in ("stretch", "buster"):
             security = f"deb http://security.debian.org/debian-security/ {args.release}/updates main"
@@ -2939,6 +2951,9 @@ def install_debian_or_ubuntu(args: MkosiArgs, root: Path, *, do_run_build_script
         if run_workspace_command(args, root, ["apt-cache", "search", "--names-only", "^systemd-boot$"],
                                  capture_stdout=True).stdout.strip() != "":
             add_packages(args, extra_packages, "systemd-boot")
+
+    if args.distribution == Distribution.rolling_rhino:
+        add_packages(args, extra_packages, *["git", "sudo", "wget"])
 
     invoke_apt(args, do_run_build_script, root, "install", ["--no-install-recommends", *extra_packages])
 
@@ -2968,6 +2983,20 @@ def install_debian(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
 @complete_step("Installing Ubuntu…")
 def install_ubuntu(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None:
     install_debian_or_ubuntu(args, root, do_run_build_script=do_run_build_script)
+
+
+@complete_step("Installing Rolling Rhino…")
+def install_rolling_rhino(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None:
+    install_debian_or_ubuntu(args, root, do_run_build_script=do_run_build_script)
+
+    if not do_run_build_script:
+        # Run the conversion script to Rolling Rhino from Ubuntu 
+        rhino_convert = root / "root/convert_to_rolling_rhino.sh"
+        write_resource(rhino_convert, "mkosi.resources", "convert_to_rolling_rhino.sh", executable=True)
+        with mount_cache(args, root):
+            env = {'MIRROR': args.mirror}
+            run_workspace_command(args, root, ['/root/convert_to_rolling_rhino.sh'], env=env, network=True)
+        rhino_convert.unlink()
 
 
 def invoke_pacman(root: Path, pacman_conf: Path, packages: Set[str]) -> None:
@@ -3287,6 +3316,7 @@ def install_distribution(args: MkosiArgs, root: Path, do_run_build_script: bool,
         Distribution.alma: install_alma,
         Distribution.alma_epel: install_alma,
         Distribution.gentoo: install_gentoo,
+        Distribution.rolling_rhino: install_rolling_rhino,
     }
 
     with mount_cache(args, root):
@@ -3618,13 +3648,19 @@ def install_boot_loader(
             grub = (
                 "grub"
                 if args.distribution in (Distribution.ubuntu,
+                                         Distribution.rolling_rhino,
                                          Distribution.debian,
                                          Distribution.arch,
                                          Distribution.gentoo)
                 else "grub2"
             )
             # TODO: Just use "grub" once https://github.com/systemd/systemd/pull/16645 is widely available.
-            if args.distribution in (Distribution.ubuntu, Distribution.debian, Distribution.opensuse):
+            if args.distribution in (
+                Distribution.ubuntu,
+                Distribution.rolling_rhino,
+                Distribution.debian,
+                Distribution.opensuse):
+
                 grub = f"/usr/sbin/{grub}"
 
             install_grub(args, root, loopdev, grub)
@@ -3657,7 +3693,11 @@ def install_skeleton_trees(args: MkosiArgs, root: Path, cached: bool, *, late: b
     if cached:
         return
 
-    if not late and args.distribution in (Distribution.debian, Distribution.ubuntu):
+    if not late and args.distribution in (
+        Distribution.debian,
+        Distribution.ubuntu,
+        Distribution.rolling_rhino):
+
         return
 
     with complete_step("Copying in skeleton file trees…"):
@@ -4281,7 +4321,7 @@ def gen_kernel_images(args: MkosiArgs, root: Path) -> Iterator[Tuple[str, Path]]
             _, kimg_path = ARCHITECTURES[args.architecture or "x86_64"]
 
             kimg = Path(f"usr/src/linux-{kver.name}") / kimg_path
-        elif args.distribution in (Distribution.debian, Distribution.ubuntu):
+        elif args.distribution in (Distribution.debian, Distribution.ubuntu, Distribution.rolling_rhino):
             kimg = Path(f"boot/vmlinuz-{kver.name}")
         else:
             kimg = Path("lib/modules") / kver.name / "vmlinuz"
@@ -6290,7 +6330,9 @@ def detect_distribution() -> Tuple[Optional[Distribution], Optional[str]]:
         if d is not None:
             break
 
-    if d in {Distribution.debian, Distribution.ubuntu} and (version_codename or extracted_codename):
+    if d in {Distribution.debian, Distribution.ubuntu, Distribution.rolling_rhino} \
+        and (version_codename or extracted_codename):
+
         # debootstrap needs release codenames, not version numbers
         version_id = version_codename or extracted_codename
 
@@ -6657,6 +6699,9 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
             args.release = "testing"
         elif args.distribution == Distribution.ubuntu:
             args.release = "jammy"
+        elif args.distribution == Distribution.rolling_rhino:
+            # Latest Ubuntu development release
+            args.release = "kinetic"
         elif args.distribution == Distribution.opensuse:
             args.release = "tumbleweed"
         elif args.distribution == Distribution.clear:
@@ -6729,7 +6774,7 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
             args.mirror = None
         elif args.distribution == Distribution.debian:
             args.mirror = "http://deb.debian.org/debian"
-        elif args.distribution == Distribution.ubuntu:
+        elif args.distribution in {Distribution.ubuntu, Distribution.rolling_rhino}:
             args.mirror = "http://archive.ubuntu.com/ubuntu"
             if platform.machine() == "aarch64":
                 args.mirror = "http://ports.ubuntu.com/"
@@ -7301,7 +7346,7 @@ def setup_ssh(
     if do_run_build_script or not args.ssh:
         return None
 
-    if args.distribution in (Distribution.debian, Distribution.ubuntu):
+    if args.distribution in (Distribution.debian, Distribution.ubuntu, Distribution.rolling_rhino):
         unit = "ssh.socket"
 
         if args.ssh_port != 22:
@@ -7411,7 +7456,7 @@ def run_kernel_install(args: MkosiArgs, root: Path, do_run_build_script: bool, f
         # Running kernel-install on Debian/Ubuntu doesn't regenerate the initramfs. Instead, we can trigger
         # regeneration of the initramfs via "dpkg-reconfigure dracut". kernel-install can then be called to put
         # the generated initrds in the right place.
-        if args.distribution in (Distribution.debian, Distribution.ubuntu):
+        if args.distribution in (Distribution.debian, Distribution.ubuntu, Distribution.rolling_rhino):
             run_workspace_command(args, root, ["dpkg-reconfigure", "dracut"])
 
         for kver, kimg in gen_kernel_images(args, root):

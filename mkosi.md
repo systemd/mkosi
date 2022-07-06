@@ -297,7 +297,7 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 `Distribution=`, `--distribution=`, `-d`
 
 : The distribution to install in the image. Takes one of the following
-  arguments: `fedora`, `debian`, `ubuntu`, `arch`, `opensuse`,
+  arguments: `fedora`, `debian`, `ubuntu`, `rolling_rhino`, `arch`, `opensuse`,
   `mageia`, `centos`, `centos_epel`, `clear`, `photon`, `openmandriva`, `rocky`,
   `rocky_epel`, `alma`, `alma_epel`. If not specified, defaults to the distribution
    of the host.
@@ -311,7 +311,8 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   Ubuntu, …, e.g. `artful`). If neither this option, nor
   `Distribution=` is specified, defaults to the distribution version
   of the host. If the distribution is specified, defaults to a recent
-  version of it.
+  version of it. For `rolling_rhino` it is recommended to set the release to
+  the latest development version of Ubuntu.
 
 `Mirror=`, `--mirror=`, `-m`
 
@@ -1295,6 +1296,8 @@ following operating systems:
 
 * *Ubuntu*
 
+* *Rolling Rhino*
+
 * *Arch Linux*
 
 * *openSUSE*
@@ -1318,7 +1321,7 @@ following operating systems:
 In theory, any distribution may be used on the host for building
 images containing any other distribution, as long as the necessary
 tools are available. Specifically, any distribution that packages
-`debootstrap` may be used to build *Debian* or *Ubuntu* images. Any
+`debootstrap` may be used to build *Debian*, *Ubuntu* or *Rolling Rhino* images. Any
 distribution that packages `dnf` may be used to build *Fedora Linux*,
 *Mageia* or *OpenMandriva* images. Any distro that packages `pacman` may be used to
 build *Arch Linux* images. Any distribution that packages `zypper` may
@@ -1371,7 +1374,7 @@ local directory:
 
 * The **`mkosi.default`** file provides the default configuration for
   the image building process. For example, it may specify the
-  distribution to use (`fedora`, `ubuntu`, `debian`, `arch`,
+  distribution to use (`fedora`, `ubuntu`, `rolling_rhino`, `debian`, `arch`,
   `opensuse`, `mageia`, `openmandriva`, `gentoo`) for the image, or additional
   distribution packages to install. Note that all options encoded in
   this configuration file may also be set on the command line, and
@@ -1761,9 +1764,9 @@ Hostname=image
 
 # REQUIREMENTS
 
-mkosi is packaged for various distributions: Debian, Ubuntu, Arch
-Linux, Fedora Linux, OpenMandriva, Gentoo. It is usually easiest to use the
-distribution package.
+mkosi is packaged for various distributions: Debian, Ubuntu, Rolling Rhino,
+Arch Linux, Fedora Linux, OpenMandriva, Gentoo. It is usually easiest to use
+the distribution package.
 
 The current version requires systemd 233 (or actually, systemd-nspawn of it).
 

@@ -110,6 +110,7 @@ jobs:
           - centos_epel
           - debian
           - ubuntu
+          - rolling_rhino
           - fedora
           - rocky_epel
           - alma_epel

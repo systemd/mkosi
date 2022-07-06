@@ -151,6 +151,7 @@ class Distribution(enum.Enum):
     alma = 13, PackageType.rpm
     alma_epel = 14, PackageType.rpm
     gentoo = 15, PackageType.ebuild
+    rolling_rhino = 16, PackageType.deb
 
     def __new__(cls, number: int, package_type: PackageType) -> Distribution:
         # This turns the list above into enum entries with .package_type attributes.
