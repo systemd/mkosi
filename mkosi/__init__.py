@@ -4276,7 +4276,7 @@ def install_unified_kernel(
             osrelease = root / "usr/lib/os-release"
             cmdline = workspace(root) / "cmdline"
             cmdline.write_text(boot_options)
-            initrd = root / prefix / args.machine_id / kver / "initrd"
+            initrd = root / boot_directory(args, kver) / "initrd"
 
             cmd: Sequence[PathString] = [
                 "objcopy",
@@ -4383,15 +4383,13 @@ def extract_kernel_image_initrd(
     if do_run_build_script or for_cache or "linux" not in args.boot_protocols:
         return None, None
 
-    prefix = "efi" if args.get_partition(PartitionIdentifier.esp) else "boot"
-
     with mount():
         kimgabs = None
         initrd = None
 
         for kver, kimg in gen_kernel_images(args, root):
             kimgabs = root / kimg
-            initrd = root / prefix / args.machine_id / kver / "initrd"
+            initrd = root / boot_directory(args, kver) / "initrd"
 
         if kimgabs is None:
             die("No kernel image found, can't extract.")
@@ -7290,6 +7288,11 @@ def setup_netdev(args: MkosiArgs, root: Path, do_run_build_script: bool, cached:
         os.chmod(network_file, 0o644)
 
         run(["systemctl", "--root", root, "enable", "systemd-networkd"])
+
+
+def boot_directory(args: MkosiArgs, kver: str) -> Path:
+    prefix = "boot" if args.get_partition(PartitionIdentifier.xbootldr) or not args.get_partition(PartitionIdentifier.esp) else "efi"
+    return Path(prefix) / args.machine_id / kver
 
 
 def run_kernel_install(args: MkosiArgs, root: Path, do_run_build_script: bool, for_cache: bool, cached: bool) -> None:
