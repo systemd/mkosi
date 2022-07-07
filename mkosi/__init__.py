@@ -2462,21 +2462,18 @@ def install_alma_repos(args: MkosiArgs, root: Path, epel_release: int) -> None:
         baseos_url = f"baseurl={args.mirror}/almalinux/{args.release}/BaseOS/$basearch/os"
         extras_url = f"baseurl={args.mirror}/almalinux/{args.release}/extras/$basearch/os"
         powertools_url = f"baseurl={args.mirror}/almalinux/{args.release}/PowerTools/$basearch/os"
-        ha_url = f"baseurl={args.mirror}/almalinux/{args.release}/HighAvailability/$basearch/os"
         epel_url = f"baseurl={args.mirror}/epel/{epel_release}/Everything/$basearch"
     else:
         appstream_url = f"mirrorlist=https://mirrors.almalinux.org/mirrorlist/{args.release}/appstream"
         baseos_url = f"mirrorlist=https://mirrors.almalinux.org/mirrorlist/{args.release}/baseos"
         extras_url = f"mirrorlist=https://mirrors.almalinux.org/mirrorlist/{args.release}/extras"
         powertools_url = f"mirrorlist=https://mirrors.almalinux.org/mirrorlist/{args.release}/powertools"
-        ha_url = f"mirrorlist=https://mirrors.almalinux.org/mirrorlist/{args.release}/ha"
         epel_url = f"mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=epel-{epel_release}&arch=$basearch"
 
     repos = [Repo("AppStream", appstream_url, gpgpath, gpgurl),
              Repo("BaseOS", baseos_url, gpgpath, gpgurl),
              Repo("extras", extras_url, gpgpath, gpgurl),
-             Repo("Powertools", powertools_url, gpgpath, gpgurl),
-             Repo("HighAvailability", ha_url, gpgpath, gpgurl)]
+             Repo("Powertools", powertools_url, gpgpath, gpgurl)]
 
     if 'epel' in args.distribution.name:
         repos += [Repo("epel", epel_url, epel_gpgpath, epel_gpgurl)]
