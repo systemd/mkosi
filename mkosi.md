@@ -308,10 +308,8 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   syntax of the argument this takes depends on the distribution used,
   and is either a numeric string (in case of Fedora Linux, CentOS, …,
   e.g. `29`), or a distribution version name (in case of Debian,
-  Ubuntu, …, e.g. `artful`). If neither this option, nor
-  `Distribution=` is specified, defaults to the distribution version
-  of the host. If the distribution is specified, defaults to a recent
-  version of it.
+  Ubuntu, …, e.g. `artful`). Defaults to a recent version of the
+  chosen distribution.
 
 `Mirror=`, `--mirror=`, `-m`
 
