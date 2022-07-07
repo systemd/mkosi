@@ -3020,31 +3020,6 @@ def install_arch(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None
                     )
                 )
 
-    if not do_run_build_script and args.bootable:
-        hooks_dir = root / "etc/pacman.d/hooks"
-        scripts_dir = root / "etc/pacman.d/scripts"
-
-        os.makedirs(hooks_dir, 0o755, exist_ok=True)
-        os.makedirs(scripts_dir, 0o755, exist_ok=True)
-
-        # Disable depmod pacman hook as depmod is handled by kernel-install as well.
-        hooks_dir.joinpath("60-depmod.hook").symlink_to("/dev/null")
-
-        write_resource(hooks_dir / "90-mkosi-kernel-add.hook", "mkosi.resources.arch", "90_kernel_add.hook")
-        write_resource(scripts_dir / "mkosi-kernel-add", "mkosi.resources.arch", "kernel_add.sh",
-                       executable=True)
-
-        write_resource(hooks_dir / "60-mkosi-kernel-remove.hook", "mkosi.resources.arch", "60_kernel_remove.hook")
-        write_resource(scripts_dir / "mkosi-kernel-remove", "mkosi.resources.arch", "kernel_remove.sh",
-                       executable=True)
-
-        if args.get_partition(PartitionIdentifier.esp):
-            write_resource(hooks_dir / "91-mkosi-bootctl-update.hook", "mkosi.resources.arch", "91_bootctl_update.hook")
-
-        if args.get_partition(PartitionIdentifier.bios):
-            write_resource(hooks_dir / "90-mkosi-vmlinuz-add.hook", "mkosi.resources.arch", "90_vmlinuz_add.hook")
-            write_resource(hooks_dir / "60-mkosi-vmlinuz-remove.hook", "mkosi.resources.arch", "60_vmlinuz_remove.hook")
-
     keyring = "archlinux"
     if platform.machine() == "aarch64":
         keyring += "arm"
