@@ -1847,6 +1847,7 @@ def prepare_tree(args: MkosiArgs, root: Path, do_run_build_script: bool, cached:
 
             root.joinpath("etc/kernel/cmdline").write_text(" ".join(args.kernel_command_line) + "\n")
             root.joinpath("etc/kernel/entry-token").write_text(f"{args.machine_id}\n")
+            root.joinpath("etc/kernel/install.conf").write_text("layout=bls\n")
 
         if do_run_build_script or args.ssh:
             root_home(args, root).mkdir(mode=0o750)
