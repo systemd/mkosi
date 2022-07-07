@@ -82,6 +82,7 @@ from .backend import (
     Verb,
     die,
     install_grub,
+    is_centos_variant,
     is_rpm_distribution,
     nspawn_executable,
     nspawn_params_for_blockdev_access,
@@ -1103,8 +1104,7 @@ def mkfs_generic(args: MkosiArgs, label: str, mount: PathString, dev: Path) -> N
         cmdline = mkfs_ext4_cmd(label, mount)
 
     if args.output_format == OutputFormat.gpt_ext4:
-        if (args.distribution in (Distribution.centos, Distribution.centos_epel) and
-            is_older_than_centos8(args.release)):
+        if is_centos_variant(args.distribution) and is_older_than_centos8(args.release):
 
             # e2fsprogs in centos7 is too old and doesn't support this feature
             cmdline += ["-O", "^metadata_csum"]
@@ -1690,14 +1690,7 @@ def mount_cache(args: MkosiArgs, root: Path) -> Iterator[None]:
     with complete_step("Mounting Package Cache"):
         if args.distribution in (Distribution.fedora, Distribution.mageia, Distribution.openmandriva):
             caches = [mount_bind(args.cache_path, root / "var/cache/dnf")]
-        elif args.distribution in (
-            Distribution.centos,
-            Distribution.centos_epel,
-            Distribution.rocky,
-            Distribution.rocky_epel,
-            Distribution.alma,
-            Distribution.alma_epel,
-        ):
+        elif is_centos_variant(args.distribution):
             # We mount both the YUM and the DNF cache in this case, as
             # YUM might just be redirected to DNF even if we invoke
             # the former
@@ -3417,8 +3410,7 @@ def install_boot_loader(
 
     with complete_step("Installing boot loader…"):
         if args.get_partition(PartitionIdentifier.esp):
-            if (args.distribution in (Distribution.centos, Distribution.centos_epel) and
-                  is_older_than_centos8(args.release)):
+            if is_centos_variant(args.distribution) and is_older_than_centos8(args.release):
                 install_boot_loader_centos_old_efi(args, root, loopdev)
             else:
                 run_workspace_command(args, root, ["bootctl", "install"])
@@ -6492,7 +6484,7 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
         if not {"uefi", "bios", "linux"}.issuperset(args.boot_protocols):
             die("Not a valid boot protocol")
 
-    if args.distribution in (Distribution.centos, Distribution.centos_epel):
+    if is_centos_variant(args.distribution):
         epel_release = parse_epel_release(args.release)
         if epel_release <= 9 and args.output_format == OutputFormat.gpt_btrfs:
             die(f"Sorry, CentOS {epel_release} does not support btrfs", MkosiNotSupportedException)
