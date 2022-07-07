@@ -143,7 +143,6 @@ class Distribution(enum.Enum):
     mageia = 5, PackageType.rpm
     centos = 6, PackageType.rpm
     centos_epel = 7, PackageType.rpm
-    clear = 8, PackageType.bundle
     photon = 9, PackageType.rpm
     openmandriva = 10, PackageType.rpm
     rocky = 11, PackageType.rpm

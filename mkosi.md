@@ -297,10 +297,10 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 `Distribution=`, `--distribution=`, `-d`
 
 : The distribution to install in the image. Takes one of the following
-  arguments: `fedora`, `debian`, `ubuntu`, `arch`, `opensuse`,
-  `mageia`, `centos`, `centos_epel`, `clear`, `photon`, `openmandriva`, `rocky`,
-  `rocky_epel`, `alma`, `alma_epel`. If not specified, defaults to the distribution
-   of the host.
+  arguments: `fedora`, `debian`, `ubuntu`, `arch`, `opensuse`, `mageia`,
+  `centos`, `centos_epel`, `photon`, `openmandriva`, `rocky`, `rocky_epel`,
+  `alma`, `alma_epel`. If not specified, defaults to the distribution of
+  the host.
 
 `Release=`, `--release=`, `-r`
 
@@ -642,8 +642,8 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 : If specified, mkosi will run the tool to create the initrd such that
   a non-generic initrd is created that will only be able to run on the
   system mkosi is run on. Currently mkosi uses dracut for all
-  supported distributions except Clear Linux and this option
-  translates to enabling dracut's hostonly option.
+  supported distributions and this option translates to enabling dracut's
+  hostonly option.
 
 `CacheInitrd=`, `--cache-initrd`
 
@@ -1302,8 +1302,6 @@ following operating systems:
 * *Mageia*
 
 * *CentOS*
-
-* *Clear Linux*
 
 * *Photon*
 
