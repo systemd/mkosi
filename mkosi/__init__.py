@@ -2118,7 +2118,6 @@ def install_packages_dnf(
 
 class Repo(NamedTuple):
     id: str
-    name: str
     url: str
     gpgpath: Path
     gpgurl: Optional[str] = None
@@ -2144,7 +2143,7 @@ def setup_dnf(args: MkosiArgs, root: Path, repos: Sequence[Repo] = ()) -> None:
                 dedent(
                     f"""\
                     [{repo.id}]
-                    name={repo.name}
+                    name={repo.id}
                     {repo.url}
                     gpgkey={gpgkey or ''}
                     enabled=1
@@ -2219,11 +2218,11 @@ def install_fedora(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
     gpgpath = Path(f"/etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-{releasever}-{args.architecture}")
     gpgurl = urllib.parse.urljoin("https://getfedora.org/static/", gpgid)
 
-    repos = [Repo("fedora", f"Fedora {release.capitalize()} - base", release_url, gpgpath, gpgurl)]
+    repos = [Repo("fedora", release_url, gpgpath, gpgurl)]
     if release != 'rawhide':
         # On rawhide, the "updates" repo is the same as the "fedora" repo.
         # In other versions, the "fedora" repo is frozen at release, and "updates" provides any new packages.
-        repos += [Repo("updates", f"Fedora {release.capitalize()} - updates", updates_url, gpgpath, gpgurl)]
+        repos += [Repo("updates", updates_url, gpgpath, gpgurl)]
 
     setup_dnf(args, root, repos)
 
@@ -2260,8 +2259,7 @@ def install_mageia(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
 
     gpgpath = Path("/etc/pki/rpm-gpg/RPM-GPG-KEY-Mageia")
 
-    repos = [Repo("mageia", f"Mageia {args.release} Core Release", release_url, gpgpath),
-             Repo("updates", f"Mageia {args.release} Core Updates", updates_url, gpgpath)]
+    repos = [Repo("mageia", release_url, gpgpath), Repo("updates", updates_url, gpgpath)]
 
     setup_dnf(args, root, repos)
 
@@ -2305,8 +2303,7 @@ def install_openmandriva(args: MkosiArgs, root: Path, do_run_build_script: bool)
 
     gpgpath = Path("/etc/pki/rpm-gpg/RPM-GPG-KEY-OpenMandriva")
 
-    repos = [Repo("openmandriva", f"OpenMandriva {release_model} Main", release_url, gpgpath),
-             Repo("updates", f"OpenMandriva {release_model} Main Updates", updates_url, gpgpath)]
+    repos = [Repo("openmandriva", release_url, gpgpath), Repo("updates", updates_url, gpgpath)]
 
     setup_dnf(args, root, repos)
 
@@ -2338,23 +2335,22 @@ def install_centos_repos_old(args: MkosiArgs, root: Path, epel_release: int) -> 
         release_url = f"baseurl={args.mirror}/centos/{args.release}/os/$basearch"
         updates_url = f"baseurl={args.mirror}/centos/{args.release}/updates/$basearch/"
         extras_url = f"baseurl={args.mirror}/centos/{args.release}/extras/$basearch/"
-        centosplus_url = f"baseurl={args.mirror}/centos/{args.release}/centosplus/$basearch/"
+        plus_url = f"baseurl={args.mirror}/centos/{args.release}/centosplus/$basearch/"
         epel_url = f"baseurl={args.mirror}/epel/{epel_release}/$basearch/"
     else:
         release_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=$basearch&repo=os"
         updates_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=$basearch&repo=updates"
         extras_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=$basearch&repo=extras"
-        centosplus_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=$basearch&repo=centosplus"
+        plus_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=$basearch&repo=centosplus"
         epel_url = f"mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=epel-{epel_release}&arch=$basearch"
 
-    repos = [Repo("base", f"CentOS-{args.release} - Base", release_url, gpgpath, gpgurl),
-             Repo("updates", f"CentOS-{args.release} - Updates", updates_url, gpgpath, gpgurl),
-             Repo("extras", f"CentOS-{args.release} - Extras", extras_url, gpgpath, gpgurl),
-             Repo("centosplus", f"CentOS-{args.release} - Plus", centosplus_url, gpgpath, gpgurl)]
+    repos = [Repo("base", release_url, gpgpath, gpgurl),
+             Repo("updates", updates_url, gpgpath, gpgurl),
+             Repo("extras", extras_url, gpgpath, gpgurl),
+             Repo("plus", plus_url, gpgpath, gpgurl)]
 
     if 'epel' in args.distribution.name:
-        repos += [Repo("epel", f"Extra Packages for Enterprise Linux {epel_release} - $basearch",
-                       epel_url, epel_gpgpath, epel_gpgurl)]
+        repos += [Repo("epel", epel_url, epel_gpgpath, epel_gpgurl)]
 
     setup_dnf(args, root, repos)
 
@@ -2371,26 +2367,25 @@ def install_centos_repos_new(args: MkosiArgs, root: Path, epel_release: int) -> 
         appstream_url = f"baseurl={args.mirror}/centos/{args.release}/AppStream/$basearch/os"
         baseos_url = f"baseurl={args.mirror}/centos/{args.release}/BaseOS/$basearch/os"
         extras_url = f"baseurl={args.mirror}/centos/{args.release}/extras/$basearch/os"
-        centosplus_url = f"baseurl={args.mirror}/centos/{args.release}/centosplus/$basearch/os"
+        plus_url = f"baseurl={args.mirror}/centos/{args.release}/centosplus/$basearch/os"
         powertools_url = f"baseurl={args.mirror}/centos/{args.release}/PowerTools/$basearch/os"
         epel_url = f"baseurl={args.mirror}/epel/{epel_release}/Everything/$basearch"
     else:
         appstream_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=$basearch&repo=AppStream"
         baseos_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=$basearch&repo=BaseOS"
         extras_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=$basearch&repo=extras"
-        centosplus_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=$basearch&repo=centosplus"
+        plus_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=$basearch&repo=centosplus"
         powertools_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=$basearch&repo=PowerTools"
         epel_url = f"mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=epel-{epel_release}&arch=$basearch"
 
-    repos = [Repo("AppStream", f"CentOS-{args.release} - AppStream", appstream_url, gpgpath, gpgurl),
-             Repo("BaseOS", f"CentOS-{args.release} - Base", baseos_url, gpgpath, gpgurl),
-             Repo("extras", f"CentOS-{args.release} - Extras", extras_url, gpgpath, gpgurl),
-             Repo("centosplus", f"CentOS-{args.release} - Plus", centosplus_url, gpgpath, gpgurl),
-             Repo("PowerTools", f"CentOS-{args.release} - PowerTools", powertools_url, gpgpath, gpgurl)]
+    repos = [Repo("AppStream", appstream_url, gpgpath, gpgurl),
+             Repo("BaseOS", baseos_url, gpgpath, gpgurl),
+             Repo("extras", extras_url, gpgpath, gpgurl),
+             Repo("plus", plus_url, gpgpath, gpgurl),
+             Repo("PowerTools", powertools_url, gpgpath, gpgurl)]
 
     if 'epel' in args.distribution.name:
-        repos += [Repo("epel", f"Extra Packages for Enterprise Linux {epel_release} - $basearch",
-                       epel_url, epel_gpgpath, epel_gpgurl)]
+        repos += [Repo("epel", epel_url, epel_gpgpath, epel_gpgurl)]
 
     setup_dnf(args, root, repos)
 
@@ -2416,13 +2411,12 @@ def install_centos_stream_repos(args: MkosiArgs, root: Path, epel_release: int) 
         crb_url = f"metalink=https://mirrors.centos.org/metalink?repo=centos-crb-{release}&arch=$basearch"
         epel_url = f"mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=epel-{epel_release}&arch=$basearch"
 
-    repos = [Repo("AppStream", f"CentOS Stream {release} - AppStream", appstream_url, gpgpath, gpgurl),
-             Repo("BaseOS", f"CentOS Stream {release} - BaseOS", baseos_url, gpgpath, gpgurl),
-             Repo("CRB", f"CentOS Stream {release} - CRB", crb_url, gpgpath, gpgurl)]
+    repos = [Repo("AppStream", appstream_url, gpgpath, gpgurl),
+             Repo("BaseOS", baseos_url, gpgpath, gpgurl),
+             Repo("CRB", crb_url, gpgpath, gpgurl)]
 
     if 'epel' in args.distribution.name:
-        repos += [Repo("epel", f"Extra Packages for Enterprise Linux {epel_release} - $basearch",
-                       epel_url, epel_gpgpath, epel_gpgurl)]
+        repos += [Repo("epel", epel_url, epel_gpgpath, epel_gpgurl)]
 
     setup_dnf(args, root, repos)
 
@@ -2455,13 +2449,12 @@ def install_rocky_repos(args: MkosiArgs, root: Path, epel_release: int) -> None:
         plus_url = f"mirrorlist=https://mirrors.rockylinux.org/mirrorlist?arch=$basearch&repo=rockyplus-{args.release}"
         epel_url = f"mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=epel-{epel_release}&arch=$basearch"
 
-    repos = [Repo("AppStream", f"Rocky-{args.release} - AppStream", appstream_url, gpgpath, gpgurl),
-             Repo("BaseOS", f"Rocky-{args.release} - Base", baseos_url, gpgpath, gpgurl),
-             Repo("extras", f"Rocky-{args.release} - Extras", extras_url, gpgpath, gpgurl),
-             Repo("plus", f"Rocky-{args.release} - Plus", plus_url, gpgpath, gpgurl)]
+    repos = [Repo("AppStream", appstream_url, gpgpath, gpgurl),
+             Repo("BaseOS", baseos_url, gpgpath, gpgurl),
+             Repo("extras", extras_url, gpgpath, gpgurl),
+             Repo("plus", plus_url, gpgpath, gpgurl)]
     if 'epel' in args.distribution.name:
-        repos += [Repo("epel", f"Extra Packages for Enterprise Linux {epel_release} - $basearch",
-                       epel_url, epel_gpgpath, epel_gpgurl)]
+        repos += [Repo("epel", epel_url, epel_gpgpath, epel_gpgurl)]
 
     setup_dnf(args, root, repos)
 
@@ -2488,15 +2481,14 @@ def install_alma_repos(args: MkosiArgs, root: Path, epel_release: int) -> None:
         ha_url = f"mirrorlist=https://mirrors.almalinux.org/mirrorlist/{args.release}/ha"
         epel_url = f"mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=epel-{epel_release}&arch=$basearch"
 
-    repos = [Repo("AppStream", f"AlmaLinux-{args.release} - AppStream", appstream_url, gpgpath, gpgurl),
-             Repo("BaseOS", f"AlmaLinux-{args.release} - Base", baseos_url, gpgpath, gpgurl),
-             Repo("extras", f"AlmaLinux-{args.release} - Extras", extras_url, gpgpath, gpgurl),
-             Repo("Powertools", f"AlmaLinux-{args.release} - Powertools", powertools_url, gpgpath, gpgurl),
-             Repo("HighAvailability", f"AlmaLinux-{args.release} - HighAvailability", ha_url, gpgpath, gpgurl)]
+    repos = [Repo("AppStream", appstream_url, gpgpath, gpgurl),
+             Repo("BaseOS", baseos_url, gpgpath, gpgurl),
+             Repo("extras", extras_url, gpgpath, gpgurl),
+             Repo("Powertools", powertools_url, gpgpath, gpgurl),
+             Repo("HighAvailability", ha_url, gpgpath, gpgurl)]
 
     if 'epel' in args.distribution.name:
-        repos += [Repo("epel", f"Extra Packages for Enterprise Linux {epel_release} - $basearch",
-                       epel_url, epel_gpgpath, epel_gpgurl)]
+        repos += [Repo("epel", epel_url, epel_gpgpath, epel_gpgurl)]
 
     setup_dnf(args, root, repos)
 
