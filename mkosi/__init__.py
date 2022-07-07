@@ -6694,7 +6694,10 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
 
     if args.distribution in (Distribution.centos, Distribution.centos_epel):
         epel_release = parse_epel_release(args.release)
-        if epel_release <= 9 and args.output_format == OutputFormat.gpt_btrfs:
+        # The Hyperscale SIG on CentOS does support btrfs. It's slightly complicated to detect this but as a
+        # heuristic, let's skip this check if a directory with extra repo files is defined since that's
+        # required to build Hyperscale images with mkosi.
+        if epel_release <= 9 and args.output_format == OutputFormat.gpt_btrfs and not args.repos_dir:
             die(f"Sorry, CentOS {epel_release} does not support btrfs", MkosiNotSupportedException)
         if epel_release <= 7 and args.bootable and "uefi" in args.boot_protocols and args.with_unified_kernel_images:
             die(
