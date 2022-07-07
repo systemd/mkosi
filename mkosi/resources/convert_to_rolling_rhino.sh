@@ -14,9 +14,10 @@ cd $(dirname $0)
 
 #TODO: Remove these lines when the above PR is merged
 git clone https://github.com/mcassaniti/rhino-convert.git
-cd rhino-convert
-git checkout origin/convert-vs-creation-directories-v1 > /dev/null 2>&1
-cd ..
+{
+    cd rhino-convert
+    git checkout origin/convert-vs-creation-directories-v1 &>/dev/null
+}
 # END lines to remove
 
 # The update process will prompt for confirmation without this option
