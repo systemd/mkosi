@@ -2234,7 +2234,7 @@ def install_fedora(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
     setup_dnf(args, root, repos)
 
     packages = {*args.packages}
-    add_packages(args, packages, "fedora-release", "systemd", "util-linux")
+    add_packages(args, packages, "systemd", "util-linux")
 
     if fedora_release_cmp(release, "34") < 0:
         add_packages(args, packages, "glibc-minimal-langpack", conditional="glibc")
@@ -2540,7 +2540,7 @@ def install_centos(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
         workspace(root).joinpath("vars/stream").write_text(args.release)
 
     packages = {*args.packages}
-    add_packages(args, packages, "centos-release", "systemd")
+    add_packages(args, packages, "systemd")
     if not do_run_build_script and args.bootable:
         add_packages(args, packages, "kernel", "dracut")
         if epel_release <= 7:
@@ -2560,9 +2560,6 @@ def install_centos(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
 
     if do_run_build_script:
         packages.update(args.build_packages)
-
-    if args.distribution == Distribution.centos_epel:
-        add_packages(args, packages, "epel-release")
 
     if do_run_build_script:
         packages.update(args.build_packages)
@@ -2591,16 +2588,13 @@ def install_rocky(args: MkosiArgs, root: Path, do_run_build_script: bool) -> Non
     install_rocky_repos(args, root, epel_release)
 
     packages = {*args.packages}
-    add_packages(args, packages, "rocky-release", "systemd")
+    add_packages(args, packages, "systemd")
     if not do_run_build_script and args.bootable:
         add_packages(args, packages, "kernel", "dracut")
         add_packages(args, packages, "systemd-udev", conditional="systemd")
 
     if do_run_build_script:
         packages.update(args.build_packages)
-
-    if args.distribution == Distribution.rocky_epel:
-        add_packages(args, packages, "epel-release")
 
     if do_run_build_script:
         packages.update(args.build_packages)
@@ -2622,16 +2616,13 @@ def install_alma(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None
     install_alma_repos(args, root, epel_release)
 
     packages = {*args.packages}
-    add_packages(args, packages, "almalinux-release", "systemd")
+    add_packages(args, packages, "systemd")
     if not do_run_build_script and args.bootable:
         add_packages(args, packages, "kernel", "dracut")
         add_packages(args, packages, "systemd-udev", conditional="systemd")
 
     if do_run_build_script:
         packages.update(args.build_packages)
-
-    if args.distribution == Distribution.alma_epel:
-        add_packages(args, packages, "epel-release")
 
     if do_run_build_script:
         packages.update(args.build_packages)
