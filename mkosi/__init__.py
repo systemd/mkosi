@@ -83,6 +83,7 @@ from .backend import (
     die,
     install_grub,
     is_centos_variant,
+    is_epel_variant,
     is_rpm_distribution,
     nspawn_executable,
     nspawn_params_for_blockdev_access,
@@ -2519,10 +2520,14 @@ def is_older_than_centos8(release: str) -> bool:
 
 
 @complete_step("Installing CentOS…")
-def install_centos(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None:
+def install_centos_variant(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None:
     epel_release = parse_epel_release(args.release)
 
-    if epel_release <= 7:
+    if args.distribution in (Distribution.alma, Distribution.alma_epel):
+        install_alma_repos(args, root, epel_release)
+    elif args.distribution in (Distribution.rocky, Distribution.rocky_epel):
+        install_rocky_repos(args, root, epel_release)
+    elif epel_release <= 7:
         install_centos_repos_old(args, root, epel_release)
     elif epel_release <= 8:
         install_centos_repos_new(args, root, epel_release)
@@ -2557,7 +2562,7 @@ def install_centos(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
     if do_run_build_script:
         packages.update(args.build_packages)
 
-    if not do_run_build_script and args.distribution == Distribution.centos_epel:
+    if not do_run_build_script and is_epel_variant(args.distribution):
         if args.netdev:
             add_packages(args, packages, "systemd-networkd", conditional="systemd")
         if epel_release >= 9:
@@ -2573,57 +2578,6 @@ def install_centos(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
     if epel_release <= 8 and root.joinpath("usr/bin/rpm").exists():
         cmdline = ["rpm", "--rebuilddb", "--define", "_db_backend bdb"]
         run_workspace_command(args, root, cmdline)
-
-
-@complete_step("Installing Rocky Linux…")
-def install_rocky(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None:
-    epel_release = int(args.release.split(".")[0])
-    install_rocky_repos(args, root, epel_release)
-
-    packages = {*args.packages}
-    add_packages(args, packages, "systemd")
-    if not do_run_build_script and args.bootable:
-        add_packages(args, packages, "kernel", "dracut")
-        add_packages(args, packages, "systemd-udev", conditional="systemd")
-
-    if do_run_build_script:
-        packages.update(args.build_packages)
-
-    if do_run_build_script:
-        packages.update(args.build_packages)
-
-    if not do_run_build_script and args.distribution == Distribution.rocky_epel and args.netdev:
-        add_packages(args, packages, "systemd-networkd", conditional="systemd")
-
-    install_packages_dnf(args, root, packages, do_run_build_script)
-
-    if root.joinpath("usr/bin/rpm").exists():
-        cmdline = ["rpm", "--rebuilddb", "--define", "_db_backend bdb"]
-        run_workspace_command(args, root, cmdline)
-
-
-
-@complete_step("Installing Alma Linux…")
-def install_alma(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None:
-    epel_release = int(args.release.split(".")[0])
-    install_alma_repos(args, root, epel_release)
-
-    packages = {*args.packages}
-    add_packages(args, packages, "systemd")
-    if not do_run_build_script and args.bootable:
-        add_packages(args, packages, "kernel", "dracut")
-        add_packages(args, packages, "systemd-udev", conditional="systemd")
-
-    if do_run_build_script:
-        packages.update(args.build_packages)
-
-    if do_run_build_script:
-        packages.update(args.build_packages)
-
-    if not do_run_build_script and args.distribution == Distribution.alma_epel and args.netdev:
-        add_packages(args, packages, "systemd-networkd", conditional="systemd")
-
-    install_packages_dnf(args, root, packages, do_run_build_script)
 
 
 def debootstrap_knows_arg(arg: str) -> bool:
@@ -3085,25 +3039,22 @@ def install_distribution(args: MkosiArgs, root: Path, do_run_build_script: bool,
     if cached:
         return
 
-    install: Dict[Distribution, Callable[[MkosiArgs, Path, bool], None]] = {
-        Distribution.fedora: install_fedora,
-        Distribution.centos: install_centos,
-        Distribution.centos_epel: install_centos,
-        Distribution.mageia: install_mageia,
-        Distribution.debian: install_debian,
-        Distribution.ubuntu: install_ubuntu,
-        Distribution.arch: install_arch,
-        Distribution.opensuse: install_opensuse,
-        Distribution.openmandriva: install_openmandriva,
-        Distribution.rocky: install_rocky,
-        Distribution.rocky_epel: install_rocky,
-        Distribution.alma: install_alma,
-        Distribution.alma_epel: install_alma,
-        Distribution.gentoo: install_gentoo,
-    }
+    if is_centos_variant(args.distribution):
+        install = install_centos_variant
+    else:
+        install = {
+            Distribution.fedora: install_fedora,
+            Distribution.mageia: install_mageia,
+            Distribution.debian: install_debian,
+            Distribution.ubuntu: install_ubuntu,
+            Distribution.arch: install_arch,
+            Distribution.opensuse: install_opensuse,
+            Distribution.openmandriva: install_openmandriva,
+            Distribution.gentoo: install_gentoo,
+        }[args.distribution]
 
     with mount_cache(args, root):
-        install[args.distribution](args, root, do_run_build_script)
+        install(args, root, do_run_build_script)
 
     # Link /var/lib/rpm→/usr/lib/sysimage/rpm for compat with old rpm.
     # We do this only if the new location is used, which depends on the dnf
