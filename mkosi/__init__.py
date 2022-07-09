@@ -2083,6 +2083,10 @@ def invoke_dnf(
     command: str,
     packages: Iterable[str],
 ) -> None:
+    if args.distribution == Distribution.fedora:
+        release, _ = parse_fedora_release(args.release)
+    else:
+        release = args.release
 
     config_file = workspace(root) / "dnf.conf"
 
@@ -2094,7 +2098,7 @@ def invoke_dnf(
         f"--config={config_file}",
         "--best",
         "--allowerasing",
-        f"--releasever={args.release}",
+        f"--releasever={release}",
         f"--installroot={root}",
         "--setopt=keepcache=1",
         "--setopt=install_weak_deps=0",
@@ -2117,7 +2121,7 @@ def invoke_dnf(
     with mount_api_vfs(args, root):
         run(cmdline, env=dict(KERNEL_INSTALL_BYPASS="1"))
 
-    distribution, release = detect_distribution()
+    distribution, _ = detect_distribution()
     if distribution not in (Distribution.debian, Distribution.ubuntu):
         return
 
@@ -2277,33 +2281,37 @@ def install_photon(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
     install_packages_tdnf(args, root, packages, gpgpath.exists(), do_run_build_script)
 
 
-@complete_step("Installing Fedora Linux…")
-def install_fedora(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None:
-    if args.release == "rawhide":
+def parse_fedora_release(release: str) -> Tuple[str, str]:
+    if release == "rawhide":
         last = list(FEDORA_KEYS_MAP)[-1]
         warn(f"Assuming rawhide is version {last} — " + "You may specify otherwise with --release=rawhide-<version>")
-        releasever = last
-    elif args.release.startswith("rawhide-"):
-        args.release, releasever = args.release.split("-")
+        return ("rawhide", last)
+    elif release.startswith("rawhide-"):
+        release, releasever = release.split("-")
         MkosiPrinter.info(f"Fedora rawhide — release version: {releasever}")
+        return ("rawhide", releasever)
     else:
-        releasever = args.release
+        return (release, release)
 
+
+@complete_step("Installing Fedora Linux…")
+def install_fedora(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None:
+    release, releasever = parse_fedora_release(args.release)
     arch = args.architecture or platform.machine()
 
     if args.mirror:
-        baseurl = urllib.parse.urljoin(args.mirror, f"releases/{args.release}/Everything/$basearch/os/")
+        baseurl = urllib.parse.urljoin(args.mirror, f"releases/{release}/Everything/$basearch/os/")
         media = urllib.parse.urljoin(baseurl.replace("$basearch", arch), "media.repo")
         if not url_exists(media):
-            baseurl = urllib.parse.urljoin(args.mirror, f"development/{args.release}/Everything/$basearch/os/")
+            baseurl = urllib.parse.urljoin(args.mirror, f"development/{release}/Everything/$basearch/os/")
 
         release_url = f"baseurl={baseurl}"
-        updates_url = f"baseurl={args.mirror}/updates/{args.release}/Everything/$basearch/"
+        updates_url = f"baseurl={args.mirror}/updates/{release}/Everything/$basearch/"
     else:
-        release_url = f"metalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-{args.release}&arch=$basearch"
+        release_url = f"metalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-{release}&arch=$basearch"
         updates_url = (
             "metalink=https://mirrors.fedoraproject.org/metalink?"
-            f"repo=updates-released-f{args.release}&arch=$basearch"
+            f"repo=updates-released-f{release}&arch=$basearch"
         )
 
     if releasever in FEDORA_KEYS_MAP:
@@ -2320,18 +2328,18 @@ def install_fedora(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
     gpgpath = Path(f"/etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-{releasever}-{arch}")
     gpgurl = urllib.parse.urljoin("https://getfedora.org/static/", gpgid)
 
-    repos = [Repo("fedora", f"Fedora {args.release.capitalize()} - base", release_url, gpgpath, gpgurl)]
-    if args.release != 'rawhide':
+    repos = [Repo("fedora", f"Fedora {release.capitalize()} - base", release_url, gpgpath, gpgurl)]
+    if release != 'rawhide':
         # On rawhide, the "updates" repo is the same as the "fedora" repo.
         # In other versions, the "fedora" repo is frozen at release, and "updates" provides any new packages.
-        repos += [Repo("updates", f"Fedora {args.release.capitalize()} - updates", updates_url, gpgpath, gpgurl)]
+        repos += [Repo("updates", f"Fedora {release.capitalize()} - updates", updates_url, gpgpath, gpgurl)]
 
     setup_dnf(args, root, repos)
 
     packages = {*args.packages}
     add_packages(args, packages, "fedora-release", "systemd", "util-linux")
 
-    if fedora_release_cmp(args.release, "34") < 0:
+    if fedora_release_cmp(release, "34") < 0:
         add_packages(args, packages, "glibc-minimal-langpack", conditional="glibc")
 
     if not do_run_build_script and args.bootable:
