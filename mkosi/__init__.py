@@ -3222,7 +3222,8 @@ def install_opensuse(args: MkosiArgs, root: Path, do_run_build_script: bool) -> 
     run(["zypper", "--root", root, "modifyrepo", "-K", "repo-update"])
 
     if args.password == "":
-        shutil.copy2(root / "usr/etc/pam.d/common-auth", root / "etc/pam.d/common-auth")
+        if not os.path.exists(root / "etc/pam.d/common-auth"):
+            shutil.copy2(root / "usr/etc/pam.d/common-auth", root / "etc/pam.d/common-auth")
 
         def jj(line: str) -> str:
             if "pam_unix.so" in line:
