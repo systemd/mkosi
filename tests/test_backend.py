@@ -11,7 +11,7 @@ def test_distribution() -> None:
     assert Distribution.fedora.package_type == PackageType.rpm
     assert Distribution.fedora is Distribution.fedora
     assert Distribution.fedora.package_type is not Distribution.debian.package_type
-    assert str(Distribution.photon) == "photon"
+    assert str(Distribution.fedora) == "fedora"
 
 
 def test_set_umask() -> None:
