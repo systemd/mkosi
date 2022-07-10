@@ -1713,8 +1713,6 @@ def mount_cache(args: MkosiArgs, root: Path) -> Iterator[None]:
             caches = [mount_bind(args.cache_path, root / "var/cache/binpkgs")]
         elif args.distribution == Distribution.opensuse:
             caches = [mount_bind(args.cache_path, root / "var/cache/zypp/packages")]
-        elif args.distribution == Distribution.photon:
-            caches = [mount_bind(args.cache_path / "tdnf", root / "var/cache/tdnf")]
     try:
         yield
     finally:
@@ -2002,16 +2000,6 @@ def clean_rpm_metadata(root: Path, always: bool) -> None:
     clean_paths(root, paths, tool='/bin/rpm', always=always)
 
 
-def clean_tdnf_metadata(root: Path, always: bool) -> None:
-    """Remove tdnf metadata if /usr/bin/tdnf is not present in the image"""
-    paths = [
-        "/var/log/tdnf.*",
-        "/var/cache/tdnf",
-    ]
-
-    clean_paths(root, paths, tool='/usr/bin/tdnf', always=always)
-
-
 def clean_apt_metadata(root: Path, always: bool) -> None:
     """Remove apt metadata if /usr/bin/apt is not present in the image"""
     paths = [
@@ -2050,7 +2038,6 @@ def clean_package_manager_metadata(args: MkosiArgs, root: Path) -> None:
     clean_dnf_metadata(root, always=always)
     clean_yum_metadata(root, always=always)
     clean_rpm_metadata(root, always=always)
-    clean_tdnf_metadata(root, always=always)
     clean_apt_metadata(root, always=always)
     clean_dpkg_metadata(root, always=always)
     # FIXME: implement cleanup for other package managers: swupd, pacman
@@ -2152,50 +2139,6 @@ def install_packages_dnf(
     invoke_dnf(args, root, 'install', packages)
 
 
-def invoke_tdnf(
-    args: MkosiArgs,
-    root: Path,
-    command: str,
-    packages: Set[str],
-    gpgcheck: bool,
-    do_run_build_script: bool,
-) -> None:
-
-    config_file = workspace(root) / "dnf.conf"
-    packages = make_rpm_list(args, packages, do_run_build_script)
-
-    cmdline = [
-        "tdnf",
-        "-y",
-        f"--config={config_file}",
-        f"--releasever={args.release}",
-        f"--installroot={root}",
-    ]
-
-    if args.repositories:
-        cmdline += ["--disablerepo=*"] + [f"--enablerepo={repo}" for repo in args.repositories]
-
-    if not gpgcheck:
-        cmdline += ["--nogpgcheck"]
-
-    cmdline += [command, *sort_packages(packages)]
-
-    with mount_api_vfs(args, root):
-        run(cmdline)
-
-
-def install_packages_tdnf(
-    args: MkosiArgs,
-    root: Path,
-    packages: Set[str],
-    gpgcheck: bool,
-    do_run_build_script: bool,
-) -> None:
-
-    packages = make_rpm_list(args, packages, do_run_build_script)
-    invoke_tdnf(args, root, 'install', packages, gpgcheck, do_run_build_script)
-
-
 class Repo(NamedTuple):
     id: str
     name: str
@@ -2235,8 +2178,7 @@ def setup_dnf(args: MkosiArgs, root: Path, repos: Sequence[Repo] = ()) -> None:
     if args.use_host_repositories:
         default_repos  = ""
     else:
-        option = "repodir" if args.distribution == Distribution.photon else "reposdir"
-        default_repos  = f"{option}={workspace(root)} {args.repos_dir if args.repos_dir else ''}"
+        default_repos  = f"reposdir={workspace(root)} {args.repos_dir if args.repos_dir else ''}"
 
     vars_dir = workspace(root) / "vars"
     vars_dir.mkdir(exist_ok=True)
@@ -2252,25 +2194,6 @@ def setup_dnf(args: MkosiArgs, root: Path, repos: Sequence[Repo] = ()) -> None:
             """
         )
     )
-
-
-@complete_step("Installing Photon…")
-def install_photon(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None:
-    release_url = "baseurl=https://packages.vmware.com/photon/$releasever/photon_release_$releasever_$basearch"
-    updates_url = "baseurl=https://packages.vmware.com/photon/$releasever/photon_updates_$releasever_$basearch"
-    gpgpath = Path("/etc/pki/rpm-gpg/VMWARE-RPM-GPG-KEY")
-
-    repos = [Repo("photon", f"VMware Photon OS {args.release} Release", release_url, gpgpath),
-             Repo("photon-updates", f"VMware Photon OS {args.release} Updates", updates_url, gpgpath)]
-
-    setup_dnf(args, root, repos)
-
-    packages = {*args.packages}
-    add_packages(args, packages, "minimal")
-    if not do_run_build_script and args.bootable:
-        add_packages(args, packages, "linux", "initramfs")
-
-    install_packages_tdnf(args, root, packages, gpgpath.exists(), do_run_build_script)
 
 
 def parse_fedora_release(release: str) -> Tuple[str, str]:
@@ -3201,7 +3124,6 @@ def install_distribution(args: MkosiArgs, root: Path, do_run_build_script: bool,
         Distribution.ubuntu: install_ubuntu,
         Distribution.arch: install_arch,
         Distribution.opensuse: install_opensuse,
-        Distribution.photon: install_photon,
         Distribution.openmandriva: install_openmandriva,
         Distribution.rocky: install_rocky,
         Distribution.rocky_epel: install_rocky,
@@ -3222,20 +3144,20 @@ def install_distribution(args: MkosiArgs, root: Path, do_run_build_script: bool,
 def remove_packages(args: MkosiArgs, root: Path) -> None:
     """Remove packages listed in args.remove_packages"""
 
+    if not args.remove_packages:
+        return
+
     remove: Callable[[List[str]], None]
 
-    if (args.distribution.package_type == PackageType.rpm and
-        args.distribution != Distribution.photon):
+    if (args.distribution.package_type == PackageType.rpm):
         remove = lambda p: invoke_dnf(args, root, 'remove', p)
     elif args.distribution.package_type == PackageType.deb:
         remove = lambda p: invoke_apt(args, False, root, "purge", ["--auto-remove", *p])
     else:
-        # FIXME: implement removal for other package managers: tdnf, swupd, pacman
-        return
+        die(f"Removing packages is not supported for {args.distribution}")
 
-    if args.remove_packages:
-        with complete_step(f"Removing {len(args.packages)} packages…"):
-            remove(args.remove_packages)
+    with complete_step(f"Removing {len(args.packages)} packages…"):
+        remove(args.remove_packages)
 
 
 def reset_machine_id(args: MkosiArgs, root: Path, do_run_build_script: bool, for_cache: bool) -> None:
@@ -6570,8 +6492,6 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
             args.release = "jammy"
         elif args.distribution == Distribution.opensuse:
             args.release = "tumbleweed"
-        elif args.distribution == Distribution.photon:
-            args.release = "3.0"
         elif args.distribution == Distribution.openmandriva:
             args.release = "cooker"
         elif args.distribution == Distribution.gentoo:
@@ -6592,14 +6512,8 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
         if not args.boot_protocols:
             args.boot_protocols = ["uefi"]
 
-            if args.distribution == Distribution.photon:
-                args.boot_protocols = ["bios"]
-
         if not {"uefi", "bios", "linux"}.issuperset(args.boot_protocols):
             die("Not a valid boot protocol")
-
-        if "uefi" in args.boot_protocols and args.distribution == Distribution.photon:
-            die(f"uefi boot not supported for {args.distribution}", MkosiNotSupportedException)
 
     if args.distribution in (Distribution.centos, Distribution.centos_epel):
         epel_release = parse_epel_release(args.release)
@@ -6868,9 +6782,6 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
 
     if is_generated_root(args) and "bios" in args.boot_protocols:
         die("Sorry, BIOS cannot be combined with --minimize or squashfs filesystems", MkosiNotSupportedException)
-
-    if args.bootable and args.distribution == Distribution.photon:
-        die("Sorry, --bootable is not supported on this distro", MkosiNotSupportedException)
 
     if args.verity and not args.with_unified_kernel_images:
         die("Sorry, --verity can only be used with unified kernel images", MkosiNotSupportedException)
