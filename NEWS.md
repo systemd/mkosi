@@ -1,5 +1,10 @@
 # mkosi Changelog
 
+## v14
+
+- Support for Clear Linux was dropped. See https://github.com/systemd/mkosi/pull/1037
+for more information.
+
 ## v13
 
 - The `--network-veth` option has been renamed to `--netdev`. The old name made
