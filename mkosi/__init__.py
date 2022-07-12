@@ -2276,58 +2276,6 @@ def install_photon(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
     install_packages_tdnf(args, root, packages, gpgpath.exists(), do_run_build_script)
 
 
-@complete_step("Installing Clear Linux…")
-def install_clear(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None:
-    if args.release == "latest":
-        release = "clear"
-    else:
-        release = "clear/" + args.release
-
-    packages = {*args.packages}
-    add_packages(args, packages, "os-core-plus")
-    if do_run_build_script:
-        packages.update(args.build_packages)
-    if not do_run_build_script and args.bootable:
-        add_packages(args, packages, "kernel-native")
-    if not do_run_build_script and args.ssh:
-        add_packages(args, packages, "openssh-server")
-
-    swupd_extract = shutil.which("swupd-extract")
-
-    if swupd_extract is None:
-        die(
-            dedent(
-                """
-                Couldn't find swupd-extract program, download (or update it) it using:
-
-                  go get -u github.com/clearlinux/mixer-tools/swupd-extract
-
-                and it will be installed by default in ~/go/bin/swupd-extract. Also
-                ensure that you have openssl program in your system.
-                """
-            )
-        )
-
-    cmdline: List[PathString] = [swupd_extract, "-output", root]
-    if args.cache_path:
-        cmdline += ["-state", args.cache_path]
-    cmdline += [release, *sort_packages(packages)]
-
-    run(cmdline)
-
-    root.joinpath("etc/resolv.conf").symlink_to("../run/systemd/resolve/resolv.conf")
-
-    # Clear Linux doesn't have a /etc/shadow at install time, it gets created
-    # when the root first logs in. To set the password via mkosi, create one.
-    if not do_run_build_script and args.password is not None:
-        shadow_file = root / "etc/shadow"
-        shadow_file.write_text("root::::::::\n")
-        shadow_file.chmod(0o400)
-        # Password is already empty for root, so no need to reset it later.
-        if args.password == "":
-            args.password = None
-
-
 @complete_step("Installing Fedora Linux…")
 def install_fedora(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None:
     if args.release == "rawhide":
@@ -3280,7 +3228,6 @@ def install_distribution(args: MkosiArgs, root: Path, do_run_build_script: bool,
         Distribution.ubuntu: install_ubuntu,
         Distribution.arch: install_arch,
         Distribution.opensuse: install_opensuse,
-        Distribution.clear: install_clear,
         Distribution.photon: install_photon,
         Distribution.openmandriva: install_openmandriva,
         Distribution.rocky: install_rocky,
@@ -3562,15 +3509,6 @@ def run_finalize_script(args: MkosiArgs, root: Path, do_run_build_script: bool, 
         run([args.finalize_script, verb], env=env)
 
 
-def install_boot_loader_clear(args: MkosiArgs, root: Path, loopdev: Path) -> None:
-    # clr-boot-manager uses blkid in the device backing "/" to
-    # figure out uuid and related parameters.
-    nspawn_params = nspawn_params_for_blockdev_access(args, loopdev)
-
-    cmdline = ["/usr/bin/clr-boot-manager", "update", "-i"]
-    run_workspace_command(args, root, cmdline, nspawn_params=nspawn_params)
-
-
 def install_boot_loader_centos_old_efi(args: MkosiArgs, root: Path, loopdev: Path) -> None:
     nspawn_params = nspawn_params_for_blockdev_access(args, loopdev)
 
@@ -3607,15 +3545,13 @@ def install_boot_loader(
 
     with complete_step("Installing boot loader…"):
         if args.get_partition(PartitionIdentifier.esp):
-            if args.distribution == Distribution.clear:
-                pass
-            elif (args.distribution in (Distribution.centos, Distribution.centos_epel) and
+            if (args.distribution in (Distribution.centos, Distribution.centos_epel) and
                   is_older_than_centos8(args.release)):
                 install_boot_loader_centos_old_efi(args, root, loopdev)
             else:
                 run_workspace_command(args, root, ["bootctl", "install"])
 
-        if args.get_partition(PartitionIdentifier.bios) and args.distribution != Distribution.clear:
+        if args.get_partition(PartitionIdentifier.bios):
             grub = (
                 "grub"
                 if args.distribution in (Distribution.ubuntu,
@@ -3629,9 +3565,6 @@ def install_boot_loader(
                 grub = f"/usr/sbin/{grub}"
 
             install_grub(args, root, loopdev, grub)
-
-        if args.distribution == Distribution.clear:
-            install_boot_loader_clear(args, root, loopdev)
 
 
 def install_extra_trees(args: MkosiArgs, root: Path, for_cache: bool) -> None:
@@ -6282,9 +6215,6 @@ def detect_distribution() -> Tuple[Optional[Distribution], Optional[str]]:
         if m:
             extracted_codename = m.group(1)
 
-    if dist_id == "clear-linux-os":
-        dist_id = "clear"
-
     d: Optional[Distribution] = None
     for the_id in [dist_id, *dist_id_like]:
         d = Distribution.__members__.get(the_id, None)
@@ -6471,10 +6401,7 @@ def find_cache(args: argparse.Namespace) -> None:
 
     if os.path.exists("mkosi.cache/"):
         dirname = args.distribution.name
-
-        # Clear has a release number that can be used, however the
-        # cache is valid (and more efficient) across releases.
-        if args.distribution != Distribution.clear and args.release is not None:
+        if args.release is not None:
             dirname += "~" + args.release
 
         args.cache_path = Path("mkosi.cache", dirname)
@@ -6660,8 +6587,6 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
             args.release = "jammy"
         elif args.distribution == Distribution.opensuse:
             args.release = "tumbleweed"
-        elif args.distribution == Distribution.clear:
-            args.release = "latest"
         elif args.distribution == Distribution.photon:
             args.release = "3.0"
         elif args.distribution == Distribution.openmandriva:
@@ -6712,13 +6637,6 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
         epel_release = int(args.release.split(".")[0])
         if epel_release == 8 and args.output_format == OutputFormat.gpt_btrfs:
             die(f"Sorry, Alma {epel_release} does not support btrfs", MkosiNotSupportedException)
-
-    # Remove once https://github.com/clearlinux/clr-boot-manager/pull/238 is merged and available.
-    if args.distribution == Distribution.clear and args.output_format == OutputFormat.gpt_btrfs:
-        die("Sorry, Clear Linux does not support btrfs", MkosiNotSupportedException)
-
-    if args.distribution == Distribution.clear and {"uefi", "bios"}.issubset(args.boot_protocols):
-        die("Sorry, Clear Linux does not support hybrid BIOS/UEFI images", MkosiNotSupportedException)
 
     if shutil.which("bsdtar") and args.distribution == Distribution.openmandriva and args.tar_strip_selinux_context:
         die("Sorry, bsdtar on OpenMandriva is incompatible with --tar-strip-selinux-context", MkosiNotSupportedException)
@@ -6968,7 +6886,7 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
     if is_generated_root(args) and "bios" in args.boot_protocols:
         die("Sorry, BIOS cannot be combined with --minimize or squashfs filesystems", MkosiNotSupportedException)
 
-    if args.bootable and args.distribution in (Distribution.clear, Distribution.photon):
+    if args.bootable and args.distribution == Distribution.photon:
         die("Sorry, --bootable is not supported on this distro", MkosiNotSupportedException)
 
     if args.verity and not args.with_unified_kernel_images:
