@@ -110,7 +110,6 @@ class PackageType(enum.Enum):
     rpm = 1
     deb = 2
     pkg = 3
-    bundle = 4
     ebuild = 5
 
 
