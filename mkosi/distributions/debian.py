@@ -4,7 +4,7 @@ import os
 import shutil
 from pathlib import Path
 from subprocess import PIPE
-from typing import AbstractSet, Any, Iterable, List, Set, cast
+from typing import AbstractSet, Iterable, List, Set, cast
 
 from ..backend import (
     Distribution,
@@ -26,9 +26,6 @@ from ..distributions import DistributionInstaller, configure_dracut
 class DebianInstaller(DistributionInstaller):
     _repos_for_boot: Set[str] = set()
     _kernel_package = "linux-image-amd64"
-
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
 
     def hook_install_etc_locale(self, root: Path, cached: bool) -> None:
         # Debian/Ubuntu use a different path to store the locale so let's make sure that path is a symlink to
