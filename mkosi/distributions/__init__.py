@@ -48,14 +48,14 @@ def configure_dracut(args: MkosiArgs, packages: Set[str], root: Path) -> None:
 
     if args.get_partition(PartitionIdentifier.esp):
         # These distros need uefi_stub configured explicitly for dracut to find the systemd-boot uefi stub.
-        if args.distribution in (Distribution.ubuntu,
-                                 Distribution.debian,
-                                 Distribution.mageia,
+        if args.distribution in (Distribution.mageia,
                                  Distribution.openmandriva,
                                  Distribution.gentoo):
             dracut_dir.joinpath("30-mkosi-uefi-stub.conf").write_text(
                 "uefi_stub=/usr/lib/systemd/boot/efi/linuxx64.efi.stub\n"
             )
+        elif isinstance(args, DistributionInstaller):
+            args.hook_configure_dracut(packages, root)
 
         # efivarfs must be present in order to GPT root discovery work
         dracut_dir.joinpath("30-mkosi-efivarfs.conf").write_text(
@@ -83,7 +83,7 @@ class DistributionInstaller(MkosiArgs):
         pass
 
     def which_grub(self) -> str:
-        return "grub"
+        return "grub2"
 
     def which_kernel_image(self, kernel_version: str) -> Path:
         return Path("lib/modules") / kernel_version / "vmlinuz"

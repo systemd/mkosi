@@ -20,6 +20,7 @@ import getpass
 import glob
 import hashlib
 import http.server
+import importlib
 import importlib.resources
 import itertools
 import json
@@ -389,16 +390,6 @@ def fedora_release_cmp(a: str, b: str) -> int:
     anum = 1000 if a == "rawhide" else int(a)
     bnum = 1000 if b == "rawhide" else int(b)
     return anum - bnum
-
-
-# Debian calls their architectures differently, so when calling debootstrap we
-# will have to map to their names
-DEBIAN_ARCHITECTURES = {
-    "x86_64": "amd64",
-    "x86": "i386",
-    "aarch64": "arm64",
-    "armhfp": "armhf",
-}
 
 
 class GPTRootTypeTriplet(NamedTuple):
@@ -1487,14 +1478,8 @@ def install_etc_locale(args: MkosiArgs, root: Path, cached: bool) -> None:
     # Let's ensure we use a UTF-8 locale everywhere.
     etc_locale.write_text("LANG=C.UTF-8\n")
 
-    # Debian/Ubuntu use a different path to store the locale so let's make sure that path is a symlink to
-    # etc/locale.conf.
-    if args.distribution in (Distribution.debian, Distribution.ubuntu):
-        try:
-            root.joinpath("etc/default/locale").unlink()
-        except FileNotFoundError:
-            pass
-        root.joinpath("etc/default/locale").symlink_to("../locale.conf")
+    if isinstance(args, DistributionInstaller):
+        args.hook_install_etc_locale(root, cached)
 
 
 def install_etc_hostname(args: MkosiArgs, root: Path, cached: bool) -> None:
@@ -1559,8 +1544,6 @@ def mount_cache(args: MkosiArgs, root: Path) -> Iterator[None]:
                 mount_bind(args.cache_path / "yum", root / "var/cache/yum"),
                 mount_bind(args.cache_path / "dnf", root / "var/cache/dnf"),
             ]
-        elif args.distribution in (Distribution.debian, Distribution.ubuntu):
-            caches = [mount_bind(args.cache_path, root / "var/cache/apt/archives")]
         elif args.distribution == Distribution.arch:
             caches = [mount_bind(args.cache_path, root / "var/cache/pacman/pkg")]
         elif args.distribution == Distribution.gentoo:
@@ -1569,6 +1552,8 @@ def mount_cache(args: MkosiArgs, root: Path) -> Iterator[None]:
             caches = [mount_bind(args.cache_path, root / "var/cache/zypp/packages")]
         elif args.distribution == Distribution.photon:
             caches = [mount_bind(args.cache_path / "tdnf", root / "var/cache/tdnf")]
+        elif isinstance(args, DistributionInstaller):
+            caches = [mount_bind(args.cache_path, args.which_cache_directory(root))]
     try:
         yield
     finally:
@@ -1634,13 +1619,10 @@ def prepare_tree(args: MkosiArgs, root: Path, do_run_build_script: bool, cached:
             else:
                 # If this is not enabled, let's create an empty directory on /boot
                 root.joinpath("boot").mkdir(mode=0o700)
-                # Make sure kernel-install actually runs when needed by creating the machine-id subdirectory
-                # under /boot. For "bios" on Debian/Ubuntu, it's required for grub to pick up the generated
-                # initrd. For "linux", we need kernel-install to run so we can extract the generated initrd
-                # from /boot later.
-                if ((args.distribution in (Distribution.debian, Distribution.ubuntu) and "bios" in args.boot_protocols) or
-                    ("linux" in args.boot_protocols and "uefi" not in args.boot_protocols)):
+                if "linux" in args.boot_protocols and "uefi" not in args.boot_protocols:
                     root.joinpath("boot", args.machine_id).mkdir(mode=0o700)
+                if isinstance(args, DistributionInstaller):
+                    args.hook_prepare_tree(root, do_run_build_script, cached)
 
             if args.get_partition(PartitionIdentifier.esp):
                 root.joinpath("efi/EFI").mkdir(mode=0o700)
@@ -1911,21 +1893,8 @@ def invoke_dnf(
     with mount_api_vfs(args, root):
         run(cmdline, env=dict(KERNEL_INSTALL_BYPASS="1"))
 
-    distribution, _ = detect_distribution()
-    if distribution not in (Distribution.debian, Distribution.ubuntu):
-        return
-
-    # On Debian, rpm/dnf ship with a patch to store the rpmdb under ~/
-    # so it needs to be copied back in the right location, otherwise
-    # the rpmdb will be broken. See: https://bugs.debian.org/1004863
-    rpmdb_home = root / "root/.rpmdb"
-    if rpmdb_home.exists():
-        # Take into account the new location in F36
-        rpmdb = root / "usr/lib/sysimage/rpm"
-        if not rpmdb.exists():
-            rpmdb = root / "var/lib/rpm"
-        unlink_try_hard(rpmdb)
-        shutil.move(cast(str, rpmdb_home), rpmdb)
+    if isinstance(args, DistributionInstaller):
+        args.hook_rpmdb_fixup(root)
 
 
 def link_rpm_db(root: Path) -> None:
@@ -2542,181 +2511,6 @@ def install_alma(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None
     install_packages_dnf(args, root, packages, do_run_build_script)
 
 
-def debootstrap_knows_arg(arg: str) -> bool:
-    return bytes("invalid option", "UTF-8") not in run(["debootstrap", arg], stdout=PIPE, check=False).stdout
-
-
-def invoke_apt(
-    args: MkosiArgs,
-    do_run_build_script: bool,
-    root: Path,
-    command: str,
-    extra: Iterable[str],
-) -> None:
-
-    cmdline = ["/usr/bin/apt-get", "--assume-yes", command, *extra]
-    env = dict(
-        DEBIAN_FRONTEND="noninteractive",
-        DEBCONF_NONINTERACTIVE_SEEN="true",
-        INITRD="No",
-    )
-
-    run_workspace_command(args, root, cmdline, network=True, env=env)
-
-
-def install_debian_or_ubuntu(args: MkosiArgs, root: Path, *, do_run_build_script: bool) -> None:
-    # Either the image builds or it fails and we restart, we don't need safety fsyncs when bootstrapping
-    # Add it before debootstrap, as the second stage already uses dpkg from the chroot
-    dpkg_io_conf = root / "etc/dpkg/dpkg.cfg.d/unsafe_io"
-    os.makedirs(dpkg_io_conf.parent, mode=0o755, exist_ok=True)
-    dpkg_io_conf.write_text("force-unsafe-io\n")
-
-    repos = set(args.repositories) or {"main"}
-    # Ubuntu needs the 'universe' repo to install 'dracut'
-    if args.distribution == Distribution.ubuntu and args.bootable:
-        repos.add("universe")
-
-    # debootstrap fails if a base image is used with an already populated root, so skip it.
-    if args.base_image is None:
-        cmdline: List[PathString] = [
-            "debootstrap",
-            "--variant=minbase",
-            "--include=ca-certificates",
-            "--merged-usr",
-            f"--components={','.join(repos)}",
-        ]
-
-        if args.architecture is not None:
-            debarch = DEBIAN_ARCHITECTURES.get(args.architecture)
-            cmdline += [f"--arch={debarch}"]
-
-        # Let's use --no-check-valid-until only if debootstrap knows it
-        if debootstrap_knows_arg("--no-check-valid-until"):
-            cmdline += ["--no-check-valid-until"]
-
-        assert args.mirror is not None
-        cmdline += [args.release, root, args.mirror]
-        run(cmdline)
-
-    # Install extra packages via the secondary APT run, because it is smarter and can deal better with any
-    # conflicts. dbus and libpam-systemd are optional dependencies for systemd in debian so we include them
-    # explicitly.
-    extra_packages: Set[str] = set()
-    add_packages(args, extra_packages, "systemd", "systemd-sysv", "dbus", "libpam-systemd")
-    extra_packages.update(args.packages)
-
-    if do_run_build_script:
-        extra_packages.update(args.build_packages)
-
-    if not do_run_build_script and args.bootable:
-        add_packages(args, extra_packages, "dracut")
-        configure_dracut(args, extra_packages, root)
-
-        if args.distribution == Distribution.ubuntu:
-            add_packages(args, extra_packages, "linux-generic")
-        else:
-            add_packages(args, extra_packages, "linux-image-amd64")
-
-        if args.get_partition(PartitionIdentifier.bios):
-            add_packages(args, extra_packages, "grub-pc")
-
-        if args.output_format == OutputFormat.gpt_btrfs:
-            add_packages(args, extra_packages, "btrfs-progs")
-
-    if not do_run_build_script and args.ssh:
-        add_packages(args, extra_packages, "openssh-server")
-
-    # Debian policy is to start daemons by default. The policy-rc.d script can be used choose which ones to
-    # start. Let's install one that denies all daemon startups.
-    # See https://people.debian.org/~hmh/invokerc.d-policyrc.d-specification.txt for more information.
-    # Note: despite writing in /usr/sbin, this file is not shipped by the OS and instead should be managed by
-    # the admin.
-    policyrcd = root / "usr/sbin/policy-rc.d"
-    policyrcd.write_text("#!/bin/sh\nexit 101\n")
-    policyrcd.chmod(0o755)
-
-    doc_paths = [
-        "/usr/share/locale",
-        "/usr/share/doc",
-        "/usr/share/man",
-        "/usr/share/groff",
-        "/usr/share/info",
-        "/usr/share/lintian",
-        "/usr/share/linda",
-    ]
-    if not args.with_docs:
-        # Remove documentation installed by debootstrap
-        cmdline = ["/bin/rm", "-rf", *doc_paths]
-        run_workspace_command(args, root, cmdline)
-        # Create dpkg.cfg to ignore documentation on new packages
-        dpkg_nodoc_conf = root / "etc/dpkg/dpkg.cfg.d/01_nodoc"
-        with dpkg_nodoc_conf.open("w") as f:
-            f.writelines(f"path-exclude {d}/*\n" for d in doc_paths)
-
-    if not do_run_build_script and args.bootable and args.with_unified_kernel_images and args.base_image is None:
-        # systemd-boot won't boot unified kernel images generated without a BUILD_ID or VERSION_ID in
-        # /etc/os-release. Build one with the mtime of os-release if we don't find them.
-        with root.joinpath("etc/os-release").open("r+") as f:
-            os_release = f.read()
-            if "VERSION_ID" not in os_release and "BUILD_ID" not in os_release:
-                f.write(f"BUILD_ID=mkosi-{args.release}\n")
-
-    if args.release not in ("testing", "unstable"):
-        if args.distribution == Distribution.ubuntu:
-            updates = f"deb http://archive.ubuntu.com/ubuntu {args.release}-updates {' '.join(repos)}"
-        else:
-            updates = f"deb http://deb.debian.org/debian {args.release}-updates {' '.join(repos)}"
-
-        root.joinpath(f"etc/apt/sources.list.d/{args.release}-updates.list").write_text(f"{updates}\n")
-
-        if args.distribution == Distribution.ubuntu:
-            security = f"deb http://archive.ubuntu.com/ubuntu {args.release}-security {' '.join(repos)}"
-        elif args.release in ("stretch", "buster"):
-            security = f"deb http://security.debian.org/debian-security/ {args.release}/updates main"
-        else:
-            security = f"deb https://security.debian.org/debian-security {args.release}-security main"
-
-        root.joinpath(f"etc/apt/sources.list.d/{args.release}-security.list").write_text(f"{security}\n")
-
-    install_skeleton_trees(args, root, False, late=True)
-
-    invoke_apt(args, do_run_build_script, root, "update", [])
-
-    if args.bootable and not do_run_build_script and args.get_partition(PartitionIdentifier.esp):
-        if run_workspace_command(args, root, ["apt-cache", "search", "--names-only", "^systemd-boot$"],
-                                 capture_stdout=True).stdout.strip() != "":
-            add_packages(args, extra_packages, "systemd-boot")
-
-    invoke_apt(args, do_run_build_script, root, "install", ["--no-install-recommends", *extra_packages])
-
-    policyrcd.unlink()
-    dpkg_io_conf.unlink()
-    if not args.with_docs and args.base_image is not None:
-        # Don't ship dpkg config files in extensions, they belong with dpkg in the base image.
-        dpkg_nodoc_conf.unlink() # type: ignore
-
-    if args.base_image is None:
-        # Debian still has pam_securetty module enabled, disable it in the base image.
-        disable_pam_securetty(root)
-
-    if args.distribution == Distribution.debian and "systemd" in extra_packages:
-        # The default resolv.conf points to 127.0.0.1, and resolved is disabled, fix it in
-        # the base image.
-        root.joinpath("etc/resolv.conf").unlink()
-        root.joinpath("etc/resolv.conf").symlink_to("../run/systemd/resolve/resolv.conf")
-        run(["systemctl", "--root", root, "enable", "systemd-resolved"])
-
-
-@complete_step("Installing Debian…")
-def install_debian(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None:
-    install_debian_or_ubuntu(args, root, do_run_build_script=do_run_build_script)
-
-
-@complete_step("Installing Ubuntu…")
-def install_ubuntu(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None:
-    install_debian_or_ubuntu(args, root, do_run_build_script=do_run_build_script)
-
-
 def invoke_pacman(root: Path, pacman_conf: Path, packages: Set[str]) -> None:
     run(["pacman", "--config", pacman_conf, "--noconfirm", "-Sy", *sort_packages(packages)], env=dict(KERNEL_INSTALL_BYPASS="1"))
 
@@ -2998,8 +2792,6 @@ def install_distribution(args: MkosiArgs, root: Path, do_run_build_script: bool,
         Distribution.centos: install_centos,
         Distribution.centos_epel: install_centos,
         Distribution.mageia: install_mageia,
-        Distribution.debian: install_debian,
-        Distribution.ubuntu: install_ubuntu,
         Distribution.arch: install_arch,
         Distribution.opensuse: install_opensuse,
         Distribution.photon: install_photon,
@@ -3012,7 +2804,11 @@ def install_distribution(args: MkosiArgs, root: Path, do_run_build_script: bool,
     }
 
     with mount_cache(args, root):
-        install[args.distribution](args, root, do_run_build_script)
+        if isinstance(args, DistributionInstaller):
+            with complete_step(f"Installing {args.distribution.name.capitalize()}"):
+                args.hook_install(root, do_run_build_script=do_run_build_script)
+        else:
+            install[args.distribution](args, root, do_run_build_script)
 
     # Link /var/lib/rpm→/usr/lib/sysimage/rpm for compat with old rpm.
     # We do this only if the new location is used, which depends on the dnf
@@ -3028,8 +2824,8 @@ def remove_packages(args: MkosiArgs, root: Path) -> None:
     if (args.distribution.package_type == PackageType.rpm and
         args.distribution != Distribution.photon):
         remove = lambda p: invoke_dnf(args, root, 'remove', p)
-    elif args.distribution.package_type == PackageType.deb:
-        remove = lambda p: invoke_apt(args, False, root, "purge", ["--auto-remove", *p])
+    elif isinstance(args, DistributionInstaller):
+        return args.hook_remove_packages(root)
     else:
         # FIXME: implement removal for other package managers: tdnf, swupd, pacman
         return
@@ -3326,17 +3122,13 @@ def install_boot_loader(
                 run_workspace_command(args, root, ["bootctl", "install"])
 
         if args.get_partition(PartitionIdentifier.bios):
-            grub = (
-                "grub"
-                if args.distribution in (Distribution.ubuntu,
-                                         Distribution.debian,
-                                         Distribution.arch,
-                                         Distribution.gentoo)
-                else "grub2"
-            )
-            # TODO: Just use "grub" once https://github.com/systemd/systemd/pull/16645 is widely available.
-            if args.distribution in (Distribution.ubuntu, Distribution.debian, Distribution.opensuse):
-                grub = f"/usr/sbin/{grub}"
+            if isinstance(args, DistributionInstaller):
+                grub = args.which_grub()
+            else:
+                grub = "grub" if args.distribution in (Distribution.arch, Distribution.gentoo) else "grub2"
+                # TODO: Just use "grub" once https://github.com/systemd/systemd/pull/16645 is widely available.
+                if args.distribution == Distribution.opensuse:
+                    grub = f"/usr/sbin/{grub}"
 
             install_grub(args, root, loopdev, grub)
 
@@ -3969,8 +3761,8 @@ def gen_kernel_images(args: MkosiArgs, root: Path) -> Iterator[Tuple[str, Path]]
             _, kimg_path = ARCHITECTURES[args.architecture or "x86_64"]
 
             kimg = Path(f"usr/src/linux-{kver.name}") / kimg_path
-        elif args.distribution in (Distribution.debian, Distribution.ubuntu):
-            kimg = Path(f"boot/vmlinuz-{kver.name}")
+        elif isinstance(args, DistributionInstaller):
+            kimg = args.which_kernel_image(kver.name)
         else:
             kimg = Path("lib/modules") / kver.name / "vmlinuz"
 
@@ -6670,7 +6462,12 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
     if args.qemu_kvm and not qemu_check_kvm_support():
         die("Sorry, the host machine does not support KVM acceleration.")
 
-    return MkosiArgs(**vars(args))
+    try:
+        distribution_module = importlib.import_module(f"mkosi.distributions.{args.distribution}")
+        installer = getattr(distribution_module, f"{args.distribution.name.capitalize()}Installer")
+        return cast(DistributionInstaller, installer(**vars(args)))
+    except ImportError:
+        return MkosiArgs(**vars(args))
 
 
 def check_output(args: MkosiArgs) -> None:
@@ -7065,8 +6862,8 @@ def run_kernel_install(args: MkosiArgs, root: Path, do_run_build_script: bool, f
         # Running kernel-install on Debian/Ubuntu doesn't regenerate the initramfs. Instead, we can trigger
         # regeneration of the initramfs via "dpkg-reconfigure dracut". kernel-install can then be called to put
         # the generated initrds in the right place.
-        if args.distribution in (Distribution.debian, Distribution.ubuntu):
-            run_workspace_command(args, root, ["dpkg-reconfigure", "dracut"])
+        if isinstance(args, DistributionInstaller):
+            args.hook_run_kernel_install(root, do_run_build_script, for_cache, cached)
 
         for kver, kimg in gen_kernel_images(args, root):
             run_workspace_command(args, root, ["kernel-install", "add", kver, Path("/") / kimg])
