@@ -262,7 +262,6 @@ class ManifestFormat(Parseable, enum.Enum):
 
 class PartitionIdentifier(enum.Enum):
     esp        = "esp"
-    bios       = "bios"
     xbootldr   = "xbootldr"
     root       = "root"
     swap       = "swap"
@@ -589,29 +588,6 @@ def var_tmp(root: Path) -> Path:
     return p
 
 
-def nspawn_params_for_blockdev_access(args: MkosiArgs, loopdev: Path) -> List[str]:
-    assert args.partition_table is not None
-
-    params = [
-        f"--bind-ro={loopdev}",
-        f"--property=DeviceAllow={loopdev}",
-        "--bind-ro=/dev/block",
-        "--bind-ro=/dev/disk",
-    ]
-
-    for ident in (PartitionIdentifier.esp,
-                  PartitionIdentifier.bios,
-                  PartitionIdentifier.root,
-                  PartitionIdentifier.xbootldr):
-        path = args.partition_table.partition_path(ident, loopdev)
-        if path and path.exists():
-            params += [f"--bind-ro={path}", f"--property=DeviceAllow={path}"]
-
-    params += [f"--setenv={env}={value}" for env, value in args.environment.items()]
-
-    return params
-
-
 def format_rlimit(rlimit: int) -> str:
         limits = resource.getrlimit(rlimit)
         soft = "infinity" if limits[0] == resource.RLIM_INFINITY else str(limits[0])
@@ -829,49 +805,6 @@ def path_relative_to_cwd(path: PathString) -> Path:
         return path.relative_to(os.getcwd())
     except ValueError:
         return path
-
-
-def write_grub_config(args: MkosiArgs, root: Path) -> None:
-    kernel_cmd_line = " ".join(args.kernel_command_line)
-    grub_cmdline = f'GRUB_CMDLINE_LINUX="{kernel_cmd_line}"\n'
-    os.makedirs(root / "etc/default", exist_ok=True, mode=0o755)
-    grub_config = root / "etc/default/grub"
-    if not os.path.exists(grub_config):
-        grub_config.write_text(grub_cmdline)
-    else:
-
-        def jj(line: str) -> str:
-            if line.startswith(("GRUB_CMDLINE_LINUX=", "#GRUB_CMDLINE_LINUX=")):  # GENTOO:
-                return grub_cmdline
-            if args.qemu_headless:
-                if "GRUB_TERMINAL" in line:
-                    return line.strip('#').split('=')[0] + '="console serial"'
-            return line
-
-        patch_file(grub_config, jj)
-
-        if args.qemu_headless:
-            with open(grub_config, "a") as f:
-                f.write('GRUB_SERIAL_COMMAND="serial --unit=0 --speed 115200"\n')
-
-
-def install_grub(args: MkosiArgs, root: Path, loopdev: Path, grub: str) -> None:
-    assert args.partition_table is not None
-
-    part = args.get_partition(PartitionIdentifier.bios)
-    if not part:
-        return
-
-    write_grub_config(args, root)
-
-    nspawn_params = nspawn_params_for_blockdev_access(args, loopdev)
-
-    cmdline: Sequence[PathString] = [f"{grub}-install", "--modules=ext2 part_gpt", "--target=i386-pc", loopdev]
-    run_workspace_command(args, root, cmdline, nspawn_params=nspawn_params)
-
-    # TODO: Remove os.path.basename once https://github.com/systemd/systemd/pull/16645 is widely available.
-    cmdline = [f"{grub}-mkconfig", f"--output=/boot/{os.path.basename(grub)}/grub.cfg"]
-    run_workspace_command(args, root, cmdline, nspawn_params=nspawn_params)
 
 
 def die(message: str, exception: Type[MkosiException] = MkosiException) -> NoReturn:

@@ -81,10 +81,8 @@ from .backend import (
     SourceFileTransfer,
     Verb,
     die,
-    install_grub,
     is_rpm_distribution,
     nspawn_executable,
-    nspawn_params_for_blockdev_access,
     nspawn_rlimit_params,
     nspawn_version,
     patch_file,
@@ -99,7 +97,6 @@ from .backend import (
     var_tmp,
     warn,
     workspace,
-    write_grub_config,
 )
 from .manifest import Manifest
 
@@ -339,18 +336,6 @@ GPT_TMP                         = uuid.UUID("7ec6f5573bc54acab29316ef5df639d1") 
 GPT_USER_HOME                   = uuid.UUID("773f91ef66d449b5bd83d683bf40ad16")  # NOQA: E221
 GPT_LINUX_GENERIC               = uuid.UUID("0fc63daf848347728e793d69d8477de4")  # NOQA: E221
 
-# Mkosi specific addition to support BIOS images
-GPT_BIOS                        = uuid.UUID("2168614864496e6f744e656564454649")  # NOQA: E221
-
-
-# This is a non-formatted partition used to store the second stage
-# part of the bootloader because it doesn't necessarily fits the MBR
-# available space. 1MiB is more than enough for our usages and there's
-# little reason for customization since it only stores the bootloader and
-# not user-owned configuration files or kernels. See
-# https://en.wikipedia.org/wiki/BIOS_boot_partition
-# and https://www.gnu.org/software/grub/manual/grub/html_node/BIOS-installation.html
-BIOS_PARTITION_SIZE = 1024 * 1024
 
 CLONE_NEWNS = 0x00020000
 
@@ -779,10 +764,8 @@ def initialize_partition_table(args: MkosiArgs) -> None:
     no_btrfs = args.output_format != OutputFormat.gpt_btrfs
 
     for condition, label, size, type_uuid, name, read_only in (
-            (args.bootable and "uefi" in args.boot_protocols,
+            (args.bootable,
              PartitionIdentifier.esp, args.esp_size, GPT_ESP, "ESP System Partition", False),
-            (args.bootable and "bios" in args.boot_protocols,
-             PartitionIdentifier.bios, BIOS_PARTITION_SIZE, GPT_BIOS, "BIOS Boot Partition", False),
             (args.xbootldr_size is not None,
              PartitionIdentifier.xbootldr, args.xbootldr_size, GPT_XBOOTLDR, "Boot Loader Partition", False),
             (args.swap_size is not None,
@@ -1819,13 +1802,6 @@ def prepare_tree(args: MkosiArgs, root: Path, do_run_build_script: bool, cached:
             else:
                 # If this is not enabled, let's create an empty directory on /boot
                 root.joinpath("boot").mkdir(mode=0o700)
-                # Make sure kernel-install actually runs when needed by creating the machine-id subdirectory
-                # under /boot. For "bios" on Debian/Ubuntu, it's required for grub to pick up the generated
-                # initrd. For "linux", we need kernel-install to run so we can extract the generated initrd
-                # from /boot later.
-                if ((args.distribution in (Distribution.debian, Distribution.ubuntu) and "bios" in args.boot_protocols) or
-                    ("linux" in args.boot_protocols and "uefi" not in args.boot_protocols)):
-                    root.joinpath("boot", args.machine_id).mkdir(mode=0o700)
 
             if args.get_partition(PartitionIdentifier.esp):
                 root.joinpath("efi/EFI").mkdir(mode=0o700)
@@ -1936,12 +1912,6 @@ def make_rpm_list(args: MkosiArgs, packages: Set[str], do_run_build_script: bool
 
         if args.output_format == OutputFormat.gpt_btrfs:
             add_packages(args, packages, "btrfs-progs")
-
-        if args.get_partition(PartitionIdentifier.bios):
-            if args.distribution in (Distribution.mageia, Distribution.openmandriva):
-                add_packages(args, packages, "grub2")
-            else:
-                add_packages(args, packages, "grub2-pc")
 
     if not do_run_build_script and args.ssh:
         add_packages(args, packages, "openssh-server")
@@ -2652,20 +2622,7 @@ def install_centos(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
     if not do_run_build_script and args.bootable:
         add_packages(args, packages, "kernel", "dracut")
         configure_dracut(args, packages, root)
-        if epel_release <= 7:
-            add_packages(
-                args,
-                packages,
-                "grub2-efi",
-                "grub2-tools",
-                "grub2-efi-x64-modules",
-                "shim-x64",
-                "efibootmgr",
-                "efivar-libs",
-            )
-        else:
-            # this does not exist on CentOS 7
-            add_packages(args, packages, "systemd-udev", conditional="systemd")
+        add_packages(args, packages, "systemd-udev", conditional="systemd")
 
     if do_run_build_script:
         packages.update(args.build_packages)
@@ -2827,9 +2784,6 @@ def install_debian_or_ubuntu(args: MkosiArgs, root: Path, *, do_run_build_script
             add_packages(args, extra_packages, "linux-generic")
         else:
             add_packages(args, extra_packages, "linux-image-amd64")
-
-        if args.get_partition(PartitionIdentifier.bios):
-            add_packages(args, extra_packages, "grub-pc")
 
         if args.output_format == OutputFormat.gpt_btrfs:
             add_packages(args, extra_packages, "btrfs-progs")
@@ -3044,8 +2998,6 @@ def install_arch(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None
             add_packages(args, packages, "xfsprogs")
         if args.encrypt:
             add_packages(args, packages, "cryptsetup", "device-mapper")
-        if args.get_partition(PartitionIdentifier.bios):
-            add_packages(args, packages, "grub")
 
         add_packages(args, packages, "dracut")
         configure_dracut(args, packages, root)
@@ -3119,9 +3071,6 @@ def install_opensuse(args: MkosiArgs, root: Path, do_run_build_script: bool) -> 
     if not do_run_build_script and args.bootable:
         add_packages(args, packages, "kernel-default", "dracut")
         configure_dracut(args, packages, root)
-
-        if args.get_partition(PartitionIdentifier.bios):
-            add_packages(args, packages, "grub2")
 
     if not do_run_build_script and args.encrypt:
         add_packages(args, packages, "device-mapper")
@@ -3460,17 +3409,8 @@ def run_postinst_script(
 
         shutil.copy2(args.postinst_script, root_home(args, root) / "postinst")
 
-        nspawn_params = []
-        # in order to have full blockdev access, i.e. for making grub2 bootloader changes
-        # we need to have these bind mounts for a proper chroot setup
-        if args.bootable:
-            if loopdev is None:
-                raise ValueError("Parameter 'loopdev' required for bootable images.")
-            nspawn_params += nspawn_params_for_blockdev_access(args, loopdev)
-
         run_workspace_command(args, root, ["/root/postinst", verb],
                               network=(args.with_network is True),
-                              nspawn_params=nspawn_params,
                               env=args.environment)
         root_home(args, root).joinpath("postinst").unlink()
 
@@ -3494,30 +3434,6 @@ def run_finalize_script(args: MkosiArgs, root: Path, do_run_build_script: bool, 
         run([args.finalize_script, verb], env=env)
 
 
-def install_boot_loader_centos_old_efi(args: MkosiArgs, root: Path, loopdev: Path) -> None:
-    nspawn_params = nspawn_params_for_blockdev_access(args, loopdev)
-
-    # prepare EFI directory on ESP
-    os.makedirs(root / "efi/EFI/centos", exist_ok=True)
-
-    # patch existing or create minimal GRUB_CMDLINE config
-    write_grub_config(args, root)
-
-    # generate grub2 efi boot config
-    cmdline = ["/sbin/grub2-mkconfig", "-o", "/efi/EFI/centos/grub.cfg"]
-    run_workspace_command(args, root, cmdline, nspawn_params=nspawn_params)
-
-    # if /sys/firmware/efi is not present within systemd-nspawn the grub2-mkconfig makes false assumptions, let's fix this
-    def _fix_grub(line: str) -> str:
-        if "linux16" in line:
-            return line.replace("linux16", "linuxefi")
-        elif "initrd16" in line:
-            return line.replace("initrd16", "initrdefi")
-        return line
-
-    patch_file(root / "efi/EFI/centos/grub.cfg", _fix_grub)
-
-
 def install_boot_loader(
     args: MkosiArgs, root: Path, loopdev: Optional[Path], do_run_build_script: bool, cached: bool
 ) -> None:
@@ -3529,27 +3445,9 @@ def install_boot_loader(
         return
 
     with complete_step("Installing boot loader…"):
-        if args.get_partition(PartitionIdentifier.esp):
-            if (args.distribution in (Distribution.centos, Distribution.centos_epel) and
-                  is_older_than_centos8(args.release)):
-                install_boot_loader_centos_old_efi(args, root, loopdev)
-            else:
-                run_workspace_command(args, root, ["bootctl", "install"])
+        run_workspace_command(args, root, ["bootctl", "install"])
 
-        if args.get_partition(PartitionIdentifier.bios):
-            grub = (
-                "grub"
-                if args.distribution in (Distribution.ubuntu,
-                                         Distribution.debian,
-                                         Distribution.arch,
-                                         Distribution.gentoo)
-                else "grub2"
-            )
-            # TODO: Just use "grub" once https://github.com/systemd/systemd/pull/16645 is widely available.
-            if args.distribution in (Distribution.ubuntu, Distribution.debian, Distribution.opensuse):
-                grub = f"/usr/sbin/{grub}"
 
-            install_grub(args, root, loopdev, grub)
 
 
 def install_extra_trees(args: MkosiArgs, root: Path, for_cache: bool) -> None:
@@ -7132,8 +7030,6 @@ def print_summary(args: MkosiArgs) -> None:
         MkosiPrinter.info("            Swap Partition: " + format_bytes_or_disabled(args.swap_size))
         if "uefi" in args.boot_protocols:
             MkosiPrinter.info("                       ESP: " + format_bytes_or_disabled(args.esp_size))
-        if "bios" in args.boot_protocols:
-            MkosiPrinter.info("                      BIOS: " + format_bytes_or_disabled(BIOS_PARTITION_SIZE))
         MkosiPrinter.info("        XBOOTLDR Partition: " + format_bytes_or_disabled(args.xbootldr_size))
         MkosiPrinter.info("           /home Partition: " + format_bytes_or_disabled(args.home_size))
         MkosiPrinter.info("            /srv Partition: " + format_bytes_or_disabled(args.srv_size))
@@ -7323,11 +7219,6 @@ def run_kernel_install(args: MkosiArgs, root: Path, do_run_build_script: bool, f
 
         for kver, kimg in gen_kernel_images(args, root):
             run_workspace_command(args, root, ["kernel-install", "add", kver, Path("/") / kimg])
-
-            if args.distribution == Distribution.arch and "bios" in args.boot_protocols:
-                boot_dir = Path("/") / boot_directory(args, kver)
-                root.joinpath(f"boot/vmlinuz-{kver}").symlink_to(boot_dir / "linux")
-                root.joinpath(f"boot/initramfs-{kver}.img").symlink_to(boot_dir / "initrd")
 
 
 @dataclasses.dataclass
