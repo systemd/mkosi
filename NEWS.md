@@ -4,6 +4,10 @@
 
 - Support for Clear Linux was dropped. See https://github.com/systemd/mkosi/pull/1037
 for more information.
+- The Arch kernel/bootloader pacman hooks were removed. For anyone that still
+wants to use them, they can be found [here](https://github.com/systemd/mkosi/tree/v13/mkosi/resources/arch).
+When building a bios image, /boot/vmlinuz-kver and /boot/initramfs-kver.img are
+now symlinks to the actual files as installed by kernel-install.
 
 ## v13
 

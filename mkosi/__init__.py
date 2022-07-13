@@ -1848,6 +1848,7 @@ def prepare_tree(args: MkosiArgs, root: Path, do_run_build_script: bool, cached:
 
             root.joinpath("etc/kernel/cmdline").write_text(" ".join(args.kernel_command_line) + "\n")
             root.joinpath("etc/kernel/entry-token").write_text(f"{args.machine_id}\n")
+            root.joinpath("etc/kernel/install.conf").write_text("layout=bls\n")
 
         if do_run_build_script or args.ssh:
             root_home(args, root).mkdir(mode=0o750)
@@ -3028,31 +3029,6 @@ def install_arch(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None
                         """
                     )
                 )
-
-    if not do_run_build_script and args.bootable:
-        hooks_dir = root / "etc/pacman.d/hooks"
-        scripts_dir = root / "etc/pacman.d/scripts"
-
-        os.makedirs(hooks_dir, 0o755, exist_ok=True)
-        os.makedirs(scripts_dir, 0o755, exist_ok=True)
-
-        # Disable depmod pacman hook as depmod is handled by kernel-install as well.
-        hooks_dir.joinpath("60-depmod.hook").symlink_to("/dev/null")
-
-        write_resource(hooks_dir / "90-mkosi-kernel-add.hook", "mkosi.resources.arch", "90_kernel_add.hook")
-        write_resource(scripts_dir / "mkosi-kernel-add", "mkosi.resources.arch", "kernel_add.sh",
-                       executable=True)
-
-        write_resource(hooks_dir / "60-mkosi-kernel-remove.hook", "mkosi.resources.arch", "60_kernel_remove.hook")
-        write_resource(scripts_dir / "mkosi-kernel-remove", "mkosi.resources.arch", "kernel_remove.sh",
-                       executable=True)
-
-        if args.get_partition(PartitionIdentifier.esp):
-            write_resource(hooks_dir / "91-mkosi-bootctl-update.hook", "mkosi.resources.arch", "91_bootctl_update.hook")
-
-        if args.get_partition(PartitionIdentifier.bios):
-            write_resource(hooks_dir / "90-mkosi-vmlinuz-add.hook", "mkosi.resources.arch", "90_vmlinuz_add.hook")
-            write_resource(hooks_dir / "60-mkosi-vmlinuz-remove.hook", "mkosi.resources.arch", "60_vmlinuz_remove.hook")
 
     keyring = "archlinux"
     if platform.machine() == "aarch64":
@@ -4309,7 +4285,7 @@ def install_unified_kernel(
             osrelease = root / "usr/lib/os-release"
             cmdline = workspace(root) / "cmdline"
             cmdline.write_text(boot_options)
-            initrd = root / prefix / args.machine_id / kver / "initrd"
+            initrd = root / boot_directory(args, kver) / "initrd"
 
             cmd: Sequence[PathString] = [
                 "objcopy",
@@ -4416,15 +4392,13 @@ def extract_kernel_image_initrd(
     if do_run_build_script or for_cache or "linux" not in args.boot_protocols:
         return None, None
 
-    prefix = "efi" if args.get_partition(PartitionIdentifier.esp) else "boot"
-
     with mount():
         kimgabs = None
         initrd = None
 
         for kver, kimg in gen_kernel_images(args, root):
             kimgabs = root / kimg
-            initrd = root / prefix / args.machine_id / kver / "initrd"
+            initrd = root / boot_directory(args, kver) / "initrd"
 
         if kimgabs is None:
             die("No kernel image found, can't extract.")
@@ -7325,6 +7299,11 @@ def setup_netdev(args: MkosiArgs, root: Path, do_run_build_script: bool, cached:
         run(["systemctl", "--root", root, "enable", "systemd-networkd"])
 
 
+def boot_directory(args: MkosiArgs, kver: str) -> Path:
+    prefix = "boot" if args.get_partition(PartitionIdentifier.xbootldr) or not args.get_partition(PartitionIdentifier.esp) else "efi"
+    return Path(prefix) / args.machine_id / kver
+
+
 def run_kernel_install(args: MkosiArgs, root: Path, do_run_build_script: bool, for_cache: bool, cached: bool) -> None:
     if not args.bootable or do_run_build_script:
         return
@@ -7344,6 +7323,11 @@ def run_kernel_install(args: MkosiArgs, root: Path, do_run_build_script: bool, f
 
         for kver, kimg in gen_kernel_images(args, root):
             run_workspace_command(args, root, ["kernel-install", "add", kver, Path("/") / kimg])
+
+            if args.distribution == Distribution.arch and "bios" in args.boot_protocols:
+                boot_dir = Path("/") / boot_directory(args, kver)
+                root.joinpath(f"boot/vmlinuz-{kver}").symlink_to(boot_dir / "linux")
+                root.joinpath(f"boot/initramfs-{kver}.img").symlink_to(boot_dir / "initrd")
 
 
 @dataclasses.dataclass
