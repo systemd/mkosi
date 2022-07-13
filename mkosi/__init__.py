@@ -3440,6 +3440,7 @@ def install_boot_loader(
     if not args.bootable or do_run_build_script:
         return
     assert loopdev is not None
+    assert args.partition_table is not None
 
     if cached:
         return
@@ -3447,6 +3448,41 @@ def install_boot_loader(
     with complete_step("Installing boot loader…"):
         run_workspace_command(args, root, ["bootctl", "install"])
 
+        if "bios" in args.boot_protocols:
+            url = "https://github.com/CloverHackyColor/CloverBootloader/releases/download/5148/Clover-5148-X64.iso.7z"
+            iso = workspace(root) / "Clover-5148-X64.iso"
+            clover = workspace(root) / "clover"
+
+            boot0ss = clover / "usr/standalone/i386/boot0ss"
+            boot1f32 = clover / "usr/standalone/i386/boot1f32"
+            boot6 = clover / "usr/standalone/i386/x64/boot6"
+            efi = clover / "EFI/CLOVER"
+
+            mbr = clover / "mbr"
+            origbs = clover / "origbs"
+            newbs = clover / "newbs"
+
+            efidev = args.partition_table.partitions[PartitionIdentifier.esp].blockdev(loopdev)
+
+            with urllib.request.urlopen(url) as response, open(f"{iso}.7z", "wb") as out:
+                shutil.copyfileobj(response, out)
+
+            run(["7z", f"-o{workspace(root)}", "x", f"{iso}.7z"])
+            run(["7z", f"-o{clover}", "x", iso])
+
+            run(["dd", f"if={loopdev}", f"of={mbr}", "bs=512", "count=1"])
+            run(["dd", f"if={boot0ss}", f"of={mbr}", "bs=1", "count=440", "conv=notrunc"])
+            run(["dd", f"if={mbr}", f"of={loopdev}", "bs=512", "count=1"])
+
+            run(["dd", f"if={efidev}", f"of={origbs}", "bs=512", "count=1"])
+            run(["cp", boot1f32, newbs])
+            run(["dd", f"if={origbs}", f"of={newbs}", "skip=3", "seek=3", "bs=1", "count=87", "conv=notrunc"])
+            run(["dd", f"if={newbs}", f"of={efidev}", "count=1", "bs=512"])
+
+            run(["cp", boot6, root / "efi/boot"])
+            run(["cp", "-r", efi, root / "efi/EFI"])
+
+            write_resource(root / "efi/EFI/clover/config.plist", "mkosi.resources", "config.plist")
 
 
 
@@ -7859,6 +7895,20 @@ def qemu_check_kvm_support() -> bool:
 
 
 @contextlib.contextmanager
+def kvm_ignore_msrs() -> Iterator[None]:
+    p = Path("/sys/module/kvm/parameters/ignore_msrs")
+
+    if not p.exists():
+        yield
+        return
+
+    prev = p.read_bytes()
+    p.write_bytes(b"1")
+    yield
+    p.write_bytes(prev)
+
+
+@contextlib.contextmanager
 def run_qemu_cmdline(args: MkosiArgs) -> Iterator[List[str]]:
     accel = "kvm" if args.qemu_kvm else "tcg"
 
@@ -7945,27 +7995,18 @@ def run_qemu_cmdline(args: MkosiArgs) -> Iterator[List[str]]:
         else:
             fname = args.output
 
-        # Debian images fail to boot with virtio-scsi, see: https://github.com/systemd/mkosi/issues/725
-        if args.distribution == Distribution.debian:
-            cmdline += [
-                "-drive",
-                f"if=virtio,id=hd,file={fname},format={'qcow2' if args.qcow2 else 'raw'}",
-            ]
-        else:
-            cmdline += [
-                "-drive",
-                f"if=none,id=hd,file={fname},format={'qcow2' if args.qcow2 else 'raw'}",
-                "-device",
-                "virtio-scsi-pci,id=scsi",
-                "-device",
-                "scsi-hd,drive=hd,bootindex=1",
-            ]
+        # Adding `if=virtio` to the second argument causes qemu to hang on boot with clover.
+        cmdline += [
+            "-drive",
+            f"id=hd,file={fname},format={'qcow2' if args.qcow2 else 'raw'}",
+        ]
 
         cmdline += args.qemu_args
         cmdline += args.cmdline
 
         print_running_cmd(cmdline)
-        yield cmdline
+        with kvm_ignore_msrs():
+            yield cmdline
 
 
 def run_qemu(args: MkosiArgs) -> None:
