@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import platform
 from pathlib import Path
-from typing import Set
+from typing import ClassVar, Dict, Optional, Set
 
-from ..backend import Distribution, MkosiArgs, PartitionIdentifier
+from ..backend import Distribution, MkosiArgs, PartitionIdentifier, die
 
 DRACUT_SYSTEMD_EXTRAS = [
     "/usr/bin/systemd-repart",
@@ -64,6 +65,21 @@ def configure_dracut(args: MkosiArgs, packages: Set[str], root: Path) -> None:
 
 
 class DistributionInstaller(MkosiArgs):
+    _default_release: ClassVar[str] = "rolling"
+    _default_mirror: ClassVar[Optional[Dict[Optional[str], str]]] = None
+
+    def __post_init__(self) -> None:
+        self.release = self._default_release if self.release is None else self.release
+        if self.mirror is None and self._default_mirror is not None:
+            try:
+                arch = self.architecture or platform.machine()
+                self.mirror = self._default_mirror[arch]
+            except KeyError:
+                # TODO: remove type ignore comment once pyright doesn't throw a
+                # false positive for arch possibly being anbound in the except
+                # clause
+                die(f"{self.distribution} has no default mirror for {arch}. Please supply one.") # type: ignore
+
     def hook_install_etc_locale(self, root: Path, cached: bool) -> None:
         pass
 

@@ -545,6 +545,10 @@ class MkosiArgs:
 
     partition_table: Optional[PartitionTable] = None
 
+    def __post_init__(self) -> None:
+        # this dummy is needed so that post init hooks of subclasses are run
+        pass
+
     def get_partition(self, ident: PartitionIdentifier) -> Optional[Partition]:
         "A shortcut to check that we have a partition table and extract the partition object"
         if self.partition_table is None:

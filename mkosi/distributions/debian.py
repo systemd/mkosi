@@ -4,7 +4,17 @@ import os
 import shutil
 from pathlib import Path
 from subprocess import PIPE
-from typing import AbstractSet, Iterable, List, Set, cast
+from typing import (
+    AbstractSet,
+    ClassVar,
+    Dict,
+    FrozenSet,
+    Iterable,
+    List,
+    Optional,
+    Set,
+    cast,
+)
 
 from ..backend import (
     Distribution,
@@ -24,8 +34,13 @@ from ..distributions import DistributionInstaller, configure_dracut
 
 
 class DebianInstaller(DistributionInstaller):
-    _repos_for_boot: Set[str] = set()
-    _kernel_package = "linux-image-amd64"
+    _default_release: ClassVar[str] = "testing"
+    _default_mirror: ClassVar[Dict[Optional[str], str]] = {
+        "x86_64": "http://deb.debian.org/debian"
+    }
+
+    _repos_for_boot: ClassVar[FrozenSet[str]] = frozenset()
+    _kernel_package: ClassVar[str] = "linux-image-amd64"
 
     def hook_install_etc_locale(self, root: Path, cached: bool) -> None:
         # Debian/Ubuntu use a different path to store the locale so let's make sure that path is a symlink to

@@ -6103,10 +6103,6 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
             args.release = "8"
         elif args.distribution == Distribution.mageia:
             args.release = "7"
-        elif args.distribution == Distribution.debian:
-            args.release = "testing"
-        elif args.distribution == Distribution.ubuntu:
-            args.release = "jammy"
         elif args.distribution == Distribution.opensuse:
             args.release = "tumbleweed"
         elif args.distribution == Distribution.photon:
@@ -6115,6 +6111,8 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
             args.release = "cooker"
         elif args.distribution == Distribution.gentoo:
             args.release = "17.1"
+        elif args.distribution in {Distribution.debian, Distribution.ubuntu}:
+            pass
         else:
             args.release = "rolling"
 
@@ -6168,12 +6166,6 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
     if args.mirror is None:
         if args.distribution in (Distribution.fedora, Distribution.centos):
             args.mirror = None
-        elif args.distribution == Distribution.debian:
-            args.mirror = "http://deb.debian.org/debian"
-        elif args.distribution == Distribution.ubuntu:
-            args.mirror = "http://archive.ubuntu.com/ubuntu"
-            if platform.machine() == "aarch64":
-                args.mirror = "http://ports.ubuntu.com/"
         elif args.distribution == Distribution.arch and platform.machine() == "aarch64":
             args.mirror = "http://mirror.archlinuxarm.org"
         elif args.distribution == Distribution.opensuse:
