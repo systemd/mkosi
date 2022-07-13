@@ -4,7 +4,7 @@ import os
 import shutil
 from pathlib import Path
 from subprocess import PIPE
-from typing import Any, Iterable, List, Set, cast
+from typing import AbstractSet, Any, Iterable, List, Set, cast
 
 from ..backend import (
     Distribution,
@@ -24,6 +24,9 @@ from ..distributions import DistributionInstaller, configure_dracut
 
 
 class DebianInstaller(DistributionInstaller):
+    _repos_for_boot: Set[str] = set()
+    _kernel_package = "linux-image-amd64"
+
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
 
@@ -83,6 +86,15 @@ class DebianInstaller(DistributionInstaller):
             with complete_step(f"Removing {len(self.packages)} packages…"):
                 invoke_apt(self, False, root, "purge", ["--auto-remove", *self.remove_packages])
 
+    def _updates_repo(self, repos: AbstractSet[str]) -> str:
+        return f"deb http://deb.debian.org/debian {self.release}-updates {' '.join(repos)}"
+
+    def _security_repo(self, repos: AbstractSet[str]) -> str:
+        if self.release in ("stretch", "buster"):
+            return f"deb http://security.debian.org/debian-security/ {self.release}/updates main"
+        else:
+            return f"deb https://security.debian.org/debian-security {self.release}-security main"
+
 
 # Debian calls their architectures differently, so when calling debootstrap we
 # will have to map to their names
@@ -116,7 +128,7 @@ def invoke_apt(
     run_workspace_command(args, root, cmdline, network=True, env=env)
 
 
-def install_debian_or_ubuntu(args: MkosiArgs, root: Path, *, do_run_build_script: bool) -> None:
+def install_debian_or_ubuntu(args: DebianInstaller, root: Path, *, do_run_build_script: bool) -> None:
     # Either the image builds or it fails and we restart, we don't need safety fsyncs when bootstrapping
     # Add it before debootstrap, as the second stage already uses dpkg from the chroot
     dpkg_io_conf = root / "etc/dpkg/dpkg.cfg.d/unsafe_io"
@@ -124,9 +136,8 @@ def install_debian_or_ubuntu(args: MkosiArgs, root: Path, *, do_run_build_script
     dpkg_io_conf.write_text("force-unsafe-io\n")
 
     repos = set(args.repositories) or {"main"}
-    # Ubuntu needs the 'universe' repo to install 'dracut'
-    if args.distribution == Distribution.ubuntu and args.bootable:
-        repos.add("universe")
+    if args.bootable:
+        repos |= args._repos_for_boot
 
     # debootstrap fails if a base image is used with an already populated root, so skip it.
     if args.base_image is None:
@@ -164,10 +175,7 @@ def install_debian_or_ubuntu(args: MkosiArgs, root: Path, *, do_run_build_script
         add_packages(args, extra_packages, "dracut")
         configure_dracut(args, extra_packages, root)
 
-        if args.distribution == Distribution.ubuntu:
-            add_packages(args, extra_packages, "linux-generic")
-        else:
-            add_packages(args, extra_packages, "linux-image-amd64")
+        add_packages(args, extra_packages, args._kernel_package)
 
         if args.get_partition(PartitionIdentifier.bios):
             add_packages(args, extra_packages, "grub-pc")
@@ -214,20 +222,10 @@ def install_debian_or_ubuntu(args: MkosiArgs, root: Path, *, do_run_build_script
                 f.write(f"BUILD_ID=mkosi-{args.release}\n")
 
     if args.release not in ("testing", "unstable"):
-        if args.distribution == Distribution.ubuntu:
-            updates = f"deb http://archive.ubuntu.com/ubuntu {args.release}-updates {' '.join(repos)}"
-        else:
-            updates = f"deb http://deb.debian.org/debian {args.release}-updates {' '.join(repos)}"
-
+        updates = args._updates_repo(repos)
         root.joinpath(f"etc/apt/sources.list.d/{args.release}-updates.list").write_text(f"{updates}\n")
 
-        if args.distribution == Distribution.ubuntu:
-            security = f"deb http://archive.ubuntu.com/ubuntu {args.release}-security {' '.join(repos)}"
-        elif args.release in ("stretch", "buster"):
-            security = f"deb http://security.debian.org/debian-security/ {args.release}/updates main"
-        else:
-            security = f"deb https://security.debian.org/debian-security {args.release}-security main"
-
+        security = args._security_repo(repos)
         root.joinpath(f"etc/apt/sources.list.d/{args.release}-security.list").write_text(f"{security}\n")
 
     install_skeleton_trees(args, root, False, late=True)
