@@ -6881,8 +6881,8 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
         else:
             args.source_file_transfer = SourceFileTransfer.copy_all
 
-    if args.source_file_transfer_final == SourceFileTransfer.mount:
-        die("Sorry, --source-file-transfer-final=mount is not supported")
+    if args.source_file_transfer_final == SourceFileTransfer.mount and args.verb == Verb.qemu:
+        die("Sorry, --source-file-transfer-final=mount is not supported when booting in QEMU")
 
     if args.skip_final_phase and args.verb != Verb.build:
         die("--skip-final-phase can only be used when building an image using 'mkosi build'", MkosiNotSupportedException)
