@@ -1725,12 +1725,12 @@ def umount(where: Path) -> None:
     run(["umount", "--recursive", "-n", where])
 
 
-def configure_dracut(args: MkosiArgs, packages: Set[str], root: Path) -> None:
-    if "dracut" not in packages:
+def configure_dracut(args: MkosiArgs, root: Path, do_run_build_script: bool, cached: bool) -> None:
+    if not args.bootable or do_run_build_script or cached:
         return
 
     dracut_dir = root / "etc/dracut.conf.d"
-    dracut_dir.mkdir(mode=0o755)
+    dracut_dir.mkdir(mode=0o755, exist_ok=True)
 
     dracut_dir.joinpath('30-mkosi-hostonly.conf').write_text(
         f'hostonly={yes_no(args.hostonly_initrd)}\n'
@@ -2249,7 +2249,6 @@ def install_fedora(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
     if not do_run_build_script and args.bootable:
         add_packages(args, packages, "kernel-core", "kernel-modules", "dracut")
         add_packages(args, packages, "systemd-udev", conditional="systemd")
-        configure_dracut(args, packages, root)
     if do_run_build_script:
         packages.update(args.build_packages)
     if not do_run_build_script and args.netdev:
@@ -2283,7 +2282,6 @@ def install_mageia(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
     add_packages(args, packages, "basesystem-minimal")
     if not do_run_build_script and args.bootable:
         add_packages(args, packages, "kernel-server-latest", "dracut")
-        configure_dracut(args, packages, root)
         # Mageia ships /etc/50-mageia.conf that omits systemd from the initramfs and disables hostonly.
         # We override that again so our defaults get applied correctly on Mageia as well.
         root.joinpath("etc/dracut.conf.d/51-mkosi-override-mageia.conf").write_text(
@@ -2331,7 +2329,6 @@ def install_openmandriva(args: MkosiArgs, root: Path, do_run_build_script: bool)
     if not do_run_build_script and args.bootable:
         add_packages(args, packages, "systemd-boot", "systemd-cryptsetup", conditional="systemd")
         add_packages(args, packages, "kernel-release-server", "dracut", "timezone")
-        configure_dracut(args, packages, root)
     if args.netdev:
         add_packages(args, packages, "systemd-networkd", conditional="systemd")
 
@@ -2553,7 +2550,6 @@ def install_centos(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
     add_packages(args, packages, "centos-release", "systemd")
     if not do_run_build_script and args.bootable:
         add_packages(args, packages, "kernel", "dracut")
-        configure_dracut(args, packages, root)
         if epel_release <= 7:
             add_packages(
                 args,
@@ -2605,7 +2601,6 @@ def install_rocky(args: MkosiArgs, root: Path, do_run_build_script: bool) -> Non
     add_packages(args, packages, "rocky-release", "systemd")
     if not do_run_build_script and args.bootable:
         add_packages(args, packages, "kernel", "dracut")
-        configure_dracut(args, packages, root)
         add_packages(args, packages, "systemd-udev", conditional="systemd")
 
     if do_run_build_script:
@@ -2637,7 +2632,6 @@ def install_alma(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None
     add_packages(args, packages, "almalinux-release", "systemd")
     if not do_run_build_script and args.bootable:
         add_packages(args, packages, "kernel", "dracut")
-        configure_dracut(args, packages, root)
         add_packages(args, packages, "systemd-udev", conditional="systemd")
 
     if do_run_build_script:
@@ -2722,7 +2716,6 @@ def install_debian_or_ubuntu(args: MkosiArgs, root: Path, *, do_run_build_script
 
     if not do_run_build_script and args.bootable:
         add_packages(args, extra_packages, "dracut")
-        configure_dracut(args, extra_packages, root)
 
         if args.distribution == Distribution.ubuntu:
             add_packages(args, extra_packages, "linux-generic")
@@ -2949,7 +2942,6 @@ def install_arch(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None
             add_packages(args, packages, "grub")
 
         add_packages(args, packages, "dracut")
-        configure_dracut(args, packages, root)
 
     packages.update(args.packages)
 
@@ -3019,7 +3011,6 @@ def install_opensuse(args: MkosiArgs, root: Path, do_run_build_script: bool) -> 
 
     if not do_run_build_script and args.bootable:
         add_packages(args, packages, "kernel-default", "dracut")
-        configure_dracut(args, packages, root)
 
         if args.get_partition(PartitionIdentifier.bios):
             add_packages(args, packages, "grub2")
@@ -3086,9 +3077,6 @@ def install_gentoo(
         gentoo.invoke_emerge(args, root, pkgs=gentoo.pkgs_fs)
 
     if not do_run_build_script and args.bootable:
-        # Please don't move, needs to be called before installing dracut
-        # dracut is part of gentoo_pkgs_boot
-        configure_dracut(args, packages={"dracut"}, root=root)
         # The gentoo stage3 tarball includes packages that may block chosen
         # pkgs_boot. Using Gentoo.EMERGE_UPDATE_OPTS for opts allows the
         # package manager to uninstall blockers.
@@ -7329,6 +7317,7 @@ def build_image(
                 install_build_src(args, root, do_run_build_script, for_cache)
                 install_build_dest(args, root, do_run_build_script, for_cache)
                 install_extra_trees(args, root, for_cache)
+                configure_dracut(args, root, do_run_build_script, cached_tree)
                 run_kernel_install(args, root, do_run_build_script, for_cache, cached_tree)
                 install_boot_loader(args, root, loopdev, do_run_build_script, cached_tree)
                 set_root_password(args, root, do_run_build_script, cached_tree)
