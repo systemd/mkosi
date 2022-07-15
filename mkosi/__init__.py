@@ -1634,15 +1634,6 @@ def install_etc_locale(args: MkosiArgs, root: Path, cached: bool) -> None:
     # Let's ensure we use a UTF-8 locale everywhere.
     etc_locale.write_text("LANG=C.UTF-8\n")
 
-    # Debian/Ubuntu use a different path to store the locale so let's make sure that path is a symlink to
-    # etc/locale.conf.
-    if args.distribution in (Distribution.debian, Distribution.ubuntu):
-        try:
-            root.joinpath("etc/default/locale").unlink()
-        except FileNotFoundError:
-            pass
-        root.joinpath("etc/default/locale").symlink_to("../locale.conf")
-
 
 def install_etc_hostname(args: MkosiArgs, root: Path, cached: bool) -> None:
     if cached:
@@ -2710,6 +2701,14 @@ def install_debian_or_ubuntu(args: MkosiArgs, root: Path, *, do_run_build_script
 
     write_resource(root / "etc/kernel/install.d/50-mkosi-dpkg-reconfigure-dracut.install",
                    "mkosi.resources", "dpkg-reconfigure-dracut.install", executable=True)
+
+    # Debian/Ubuntu use a different path to store the locale so let's make sure that path is a symlink to
+    # etc/locale.conf.
+    try:
+        root.joinpath("etc/default/locale").unlink()
+    except FileNotFoundError:
+        pass
+    root.joinpath("etc/default/locale").symlink_to("../locale.conf")
 
 
 @complete_step("Installing Debian…")
