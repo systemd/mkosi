@@ -1,0 +1,21 @@
+#!/bin/sh
+
+set -e
+
+COMMAND="${1:?}"
+
+case "$COMMAND" in
+    add)
+        if [ "$#" -ge 5 ]; then
+            # An explicit initrd path was passed so no need to regenerate the default initrd.
+            exit 0
+        fi
+
+        # Running kernel-install on Debian/Ubuntu doesn't regenerate the initramfs. Instead, we can trigger
+        # regeneration of the initramfs via "dpkg-reconfigure dracut".
+        dpkg-reconfigure dracut
+        ;;
+    *)
+        exit 0
+        ;;
+esac

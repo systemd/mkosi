@@ -2811,6 +2811,9 @@ def install_debian_or_ubuntu(args: MkosiArgs, root: Path, *, do_run_build_script
     if "bios" in args.boot_protocols or ("linux" in args.boot_protocols and "uefi" not in args.boot_protocols):
         root.joinpath("boot", args.machine_id).mkdir(mode=0o700)
 
+    write_resource(root / "etc/kernel/install.d/50-mkosi-dpkg-reconfigure-dracut.install",
+                   "mkosi.resources", "dpkg-reconfigure-dracut.install", executable=True)
+
 
 @complete_step("Installing Debian…")
 def install_debian(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None:
@@ -7213,12 +7216,6 @@ def run_kernel_install(args: MkosiArgs, root: Path, do_run_build_script: bool, f
         return
 
     with complete_step("Generating initramfs images…"):
-        # Running kernel-install on Debian/Ubuntu doesn't regenerate the initramfs. Instead, we can trigger
-        # regeneration of the initramfs via "dpkg-reconfigure dracut". kernel-install can then be called to put
-        # the generated initrds in the right place.
-        if args.distribution in (Distribution.debian, Distribution.ubuntu):
-            run_workspace_command(args, root, ["dpkg-reconfigure", "dracut"])
-
         for kver, kimg in gen_kernel_images(args, root):
             run_workspace_command(args, root, ["kernel-install", "add", kver, Path("/") / kimg],
                                   env=args.environment)
