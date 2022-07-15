@@ -7865,6 +7865,11 @@ def run_shell_cmdline(args: MkosiArgs, pipe: bool = False, commands: Optional[Se
     if args.source_file_transfer_final == SourceFileTransfer.mount:
         cmdline += [f"--bind={args.build_sources}:/root/src", "--chdir=/root/src"]
 
+    if args.verb == Verb.boot:
+        # kernel cmdline args of the form systemd.xxx= get interpreted by systemd when running in nspawn as
+        # well.
+        cmdline += args.kernel_command_line
+
     if commands or args.cmdline:
         # If the verb is 'shell', args.cmdline contains the command to run.
         # Otherwise, the verb is 'boot', and we assume args.cmdline contains nspawn arguments.
