@@ -1798,13 +1798,6 @@ def prepare_tree(args: MkosiArgs, root: Path, do_run_build_script: bool, cached:
             else:
                 # If this is not enabled, let's create an empty directory on /boot
                 root.joinpath("boot").mkdir(mode=0o700)
-                # Make sure kernel-install actually runs when needed by creating the machine-id subdirectory
-                # under /boot. For "bios" on Debian/Ubuntu, it's required for grub to pick up the generated
-                # initrd. For "linux", we need kernel-install to run so we can extract the generated initrd
-                # from /boot later.
-                if ((args.distribution in (Distribution.debian, Distribution.ubuntu) and "bios" in args.boot_protocols) or
-                    ("linux" in args.boot_protocols and "uefi" not in args.boot_protocols)):
-                    root.joinpath("boot", args.machine_id).mkdir(mode=0o700)
 
             if args.get_partition(PartitionIdentifier.esp):
                 root.joinpath("efi/EFI").mkdir(mode=0o700)
@@ -2810,6 +2803,13 @@ def install_debian_or_ubuntu(args: MkosiArgs, root: Path, *, do_run_build_script
         root.joinpath("etc/resolv.conf").unlink()
         root.joinpath("etc/resolv.conf").symlink_to("../run/systemd/resolve/resolv.conf")
         run(["systemctl", "--root", root, "enable", "systemd-resolved"])
+
+    # Make sure kernel-install actually runs when needed by creating the machine-id subdirectory under /boot.
+    # In newer versions of systemd, this is already accomplished by running setting "layout=bls" in
+    # /etc/kernel/install.conf but for older Debian and Ubuntu we have to nudge kernel-install by creating
+    # this directory.
+    if "bios" in args.boot_protocols or ("linux" in args.boot_protocols and "uefi" not in args.boot_protocols):
+        root.joinpath("boot", args.machine_id).mkdir(mode=0o700)
 
 
 @complete_step("Installing Debian…")
