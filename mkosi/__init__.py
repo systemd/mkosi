@@ -3537,19 +3537,7 @@ def install_boot_loader(
                 run_workspace_command(args, root, ["bootctl", "install"])
 
         if args.get_partition(PartitionIdentifier.bios):
-            grub = (
-                "grub"
-                if args.distribution in (Distribution.ubuntu,
-                                         Distribution.debian,
-                                         Distribution.arch,
-                                         Distribution.gentoo)
-                else "grub2"
-            )
-            # TODO: Just use "grub" once https://github.com/systemd/systemd/pull/16645 is widely available.
-            if args.distribution in (Distribution.ubuntu, Distribution.debian, Distribution.opensuse):
-                grub = f"/usr/sbin/{grub}"
-
-            install_grub(args, root, loopdev, grub)
+            install_grub(args, root, loopdev)
 
 
 def install_extra_trees(args: MkosiArgs, root: Path, for_cache: bool) -> None:

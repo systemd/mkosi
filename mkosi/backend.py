@@ -855,7 +855,7 @@ def write_grub_config(args: MkosiArgs, root: Path) -> None:
                 f.write('GRUB_SERIAL_COMMAND="serial --unit=0 --speed 115200"\n')
 
 
-def install_grub(args: MkosiArgs, root: Path, loopdev: Path, grub: str) -> None:
+def install_grub(args: MkosiArgs, root: Path, loopdev: Path) -> None:
     assert args.partition_table is not None
 
     part = args.get_partition(PartitionIdentifier.bios)
@@ -865,6 +865,8 @@ def install_grub(args: MkosiArgs, root: Path, loopdev: Path, grub: str) -> None:
     write_grub_config(args, root)
 
     nspawn_params = nspawn_params_for_blockdev_access(args, loopdev)
+
+    grub = "/usr/sbin/grub" if root.joinpath("usr/sbin/grub-install").exists() else "/usr/sbin/grub2"
 
     cmdline: Sequence[PathString] = [f"{grub}-install", "--modules=ext2 part_gpt", "--target=i386-pc", loopdev]
     run_workspace_command(args, root, cmdline, nspawn_params=nspawn_params)
