@@ -3077,6 +3077,14 @@ def install_arch(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None
     # systemd-nspawn containers. See https://bugs.archlinux.org/task/45903.
     disable_pam_securetty(root)
 
+    # grub expects the kernel image and initramfs to be located in the /boot folder so let's create some
+    # symlinks in /boot that point to where kernel-install will store the kernel image and initramfs.
+    if "bios" in args.boot_protocols:
+        for kver, _ in gen_kernel_images(args, root):
+            boot_dir = Path("/") / boot_directory(args, kver)
+            root.joinpath(f"boot/vmlinuz-{kver}").symlink_to(boot_dir / "linux")
+            root.joinpath(f"boot/initramfs-{kver}.img").symlink_to(boot_dir / "initrd")
+
 
 @complete_step("Installing openSUSE…")
 def install_opensuse(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None:
@@ -7323,11 +7331,6 @@ def run_kernel_install(args: MkosiArgs, root: Path, do_run_build_script: bool, f
 
         for kver, kimg in gen_kernel_images(args, root):
             run_workspace_command(args, root, ["kernel-install", "add", kver, Path("/") / kimg])
-
-            if args.distribution == Distribution.arch and "bios" in args.boot_protocols:
-                boot_dir = Path("/") / boot_directory(args, kver)
-                root.joinpath(f"boot/vmlinuz-{kver}").symlink_to(boot_dir / "linux")
-                root.joinpath(f"boot/initramfs-{kver}.img").symlink_to(boot_dir / "initrd")
 
 
 @dataclasses.dataclass
