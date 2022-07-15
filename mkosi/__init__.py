@@ -7594,7 +7594,11 @@ def run_build_script(args: MkosiArgs, root: Path, raw: Optional[BinaryIO]) -> No
             cmdline += ["--keep-unit"]
 
         cmdline += [f"/root/{args.build_script.name}"]
-        cmdline += args.cmdline
+
+        # When we're building the image because it's required for another verb, any passed arguments are most
+        # likely intended for the target verb, and not for "build", so don't add them in that case.
+        if args.verb == Verb.build:
+            cmdline += args.cmdline
 
         # build-script output goes to stdout so we can run language servers from within mkosi build-scripts.
         # See https://github.com/systemd/mkosi/pull/566 for more information.
