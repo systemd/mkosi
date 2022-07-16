@@ -1743,6 +1743,10 @@ def configure_dracut(args: MkosiArgs, packages: Set[str], root: Path) -> None:
     with dracut_dir.joinpath("30-mkosi-systemd-extras.conf").open("w") as f:
         for extra in DRACUT_SYSTEMD_EXTRAS:
             f.write(f'install_optional_items+=" {extra} "\n')
+        f.write('install_optional_items+=" /etc/systemd/system.conf "\n')
+        if root.joinpath("etc/systemd/system.conf.d").exists():
+            for conf in root.joinpath("etc/systemd/system.conf.d").iterdir():
+                f.write(f'install_optional_items+=" {Path("/") / conf.relative_to(root)} "\n')
 
     if args.hostonly_initrd:
         dracut_dir.joinpath("30-mkosi-filesystem.conf").write_text(
