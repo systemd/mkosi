@@ -3635,7 +3635,10 @@ def copy_git_files(src: Path, dest: Path, *, source_file_transfer: SourceFileTra
 
         dest_path.parent.mkdir(parents=True, exist_ok=True)
 
-        copy_file(src_path, dest_path)
+        if src_path.is_dir():
+            copy_path(src_path, dest_path)
+        else:
+            copy_file(src_path, dest_path)
 
 
 def install_build_src(args: MkosiArgs, root: Path, do_run_build_script: bool, for_cache: bool) -> None:
