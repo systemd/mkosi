@@ -3675,6 +3675,39 @@ def generate_btrfs(args: MkosiArgs, root: Path, label: str, for_cache: bool) -> 
     return f
 
 
+def generate_xfs(args: MkosiArgs, root: Path, label: str, for_cache: bool) -> Optional[BinaryIO]:
+    if args.output_format != OutputFormat.gpt_xfs:
+        return None
+    if for_cache:
+        return None
+
+    @contextlib.contextmanager
+    def get_loopdev(f: BinaryIO) -> Iterator[Path]:
+        c = run(["losetup", "--find", "--show", f.name], stdout=PIPE, text=True)
+        l = Path(c.stdout.strip())
+        try:
+            yield l
+        finally:
+            run(["losetup", "--detach", l])
+
+    with complete_step("Creating xfs root file system…"):
+        f: BinaryIO = cast(
+            BinaryIO,
+            tempfile.NamedTemporaryFile(prefix=".mkosi-mkfs-xfs", dir=os.path.dirname(args.output))
+        )
+
+        f.truncate(args.root_size)
+        run(mkfs_xfs_cmd(label) + [f.name])
+
+        xfs_dir = workspace(root) / "xfs"
+        xfs_dir.mkdir()
+        with get_loopdev(f) as loopdev:
+            with mount_loop(args, loopdev, xfs_dir) as mp:
+                copy_path(root, mp)
+
+    return f
+
+
 def make_generated_root(args: MkosiArgs, root: Path, for_cache: bool) -> Optional[BinaryIO]:
 
     if not is_generated_root(args):
@@ -3683,6 +3716,8 @@ def make_generated_root(args: MkosiArgs, root: Path, for_cache: bool) -> Optiona
     label = "usr" if args.usr_only else "root"
     patched_root = root / "usr" if args.usr_only else root
 
+    if args.output_format == OutputFormat.gpt_xfs:
+        return generate_xfs(args, patched_root, label, for_cache)
     if args.output_format == OutputFormat.gpt_ext4:
         return generate_ext4(args, patched_root, label, for_cache)
     if args.output_format == OutputFormat.gpt_btrfs:
