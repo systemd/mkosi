@@ -3597,7 +3597,7 @@ def copy_git_files(src: Path, dest: Path, *, source_file_transfer: SourceFileTra
     uid = int(os.getenv("SUDO_UID", 0))
 
     c = run(["git", "-C", src, "ls-files", "-z", *what_files], stdout=PIPE, text=False, user=uid)
-    files = {x.decode("utf-8") for x in c.stdout.rstrip(b"\0").split(b"\0")}
+    files: Set[str] = {x.decode("utf-8") for x in c.stdout.rstrip(b"\0").split(b"\0")}
 
     # Add the .git/ directory in as well.
     if source_file_transfer == SourceFileTransfer.copy_git_more:
@@ -3617,25 +3617,28 @@ def copy_git_files(src: Path, dest: Path, *, source_file_transfer: SourceFileTra
     files -= submodules
 
     for sm in submodules:
+        sm = Path(sm)
         c = run(
-            ["git", "-C", os.path.join(src, sm), "ls-files", "-z"] + what_files,
+            ["git", "-C", src / sm, "ls-files", "-z"] + what_files,
             stdout=PIPE,
             text=False,
             user=uid,
         )
-        files |= {os.path.join(sm, x.decode("utf-8")) for x in c.stdout.rstrip(b"\0").split(b"\0")}
+        files |= {sm / x.decode("utf-8") for x in c.stdout.rstrip(b"\0").split(b"\0")}
         files -= submodules
 
     del c
 
     for path in files:
-        src_path = os.path.join(src, path)
-        dest_path = os.path.join(dest, path)
+        src_path = src / path
+        dest_path = dest / path
 
-        directory = os.path.dirname(dest_path)
-        os.makedirs(directory, exist_ok=True)
+        dest_path.parent.mkdir(parents=True, exist_ok=True)
 
-        copy_file(src_path, dest_path)
+        if src_path.is_dir():
+            copy_path(src_path, dest_path)
+        else:
+            copy_file(src_path, dest_path)
 
 
 def install_build_src(args: MkosiArgs, root: Path, do_run_build_script: bool, for_cache: bool) -> None:
