@@ -3947,6 +3947,15 @@ def insert_partition(
     with complete_step(f"Inserting partition of {format_bytes(part_size)}{ss}..."):
         args.partition_table.run_sfdisk(loopdev)
 
+        # Required otherwise the partition removal will fail
+        with open(loopdev, 'rb+') as f:
+            ioctl_partition_add(
+                f.fileno(),
+                part.number,
+                args.partition_table.partition_offset(part),
+                args.partition_table.partition_size(part)
+            )
+
     with complete_step("Writing partition..."):
         if ident == PartitionIdentifier.root:
             luks_format_root(args, loopdev, False, False, True)
