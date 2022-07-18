@@ -675,6 +675,9 @@ def run_workspace_command(
         stdout = subprocess.PIPE
         nspawn += ["--console=pipe"]
 
+    if args.usr_only:
+        nspawn += [f"--bind={root_home(args, root)}:/root"]
+
     if args.nspawn_keep_unit:
         nspawn += ["--keep-unit"]
 
@@ -684,6 +687,20 @@ def run_workspace_command(
         if "workspace-command" in ARG_DEBUG:
             run(nspawn, check=False)
         die(f"Workspace command {shell_join(cmd)} returned non-zero exit code {e.returncode}.")
+
+
+def root_home(args: MkosiArgs, root: Path) -> Path:
+
+    # If UsrOnly= is turned on the /root/ directory (i.e. the root
+    # user's home directory) is not persistent (after all everything
+    # outside of /usr/ is not around). In that case let's mount it in
+    # from an external place, so that we can have persistency. It is
+    # after all where we place our build sources and suchlike.
+
+    if args.usr_only:
+        return workspace(root) / "home-root"
+
+    return root / "root"
 
 
 @contextlib.contextmanager

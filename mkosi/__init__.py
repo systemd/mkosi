@@ -89,6 +89,7 @@ from .backend import (
     nspawn_version,
     patch_file,
     path_relative_to_cwd,
+    root_home,
     run,
     run_workspace_command,
     set_umask,
@@ -1774,20 +1775,6 @@ def prepare_tree_root(args: MkosiArgs, root: Path) -> None:
     if args.output_format == OutputFormat.subvolume and not is_generated_root(args):
         with complete_step("Setting up OS tree root…"):
             btrfs_subvol_create(root)
-
-
-def root_home(args: MkosiArgs, root: Path) -> Path:
-
-    # If UsrOnly= is turned on the /root/ directory (i.e. the root
-    # user's home directory) is not persistent (after all everything
-    # outside of /usr/ is not around). In that case let's mount it in
-    # from an external place, so that we can have persistency. It is
-    # after all where we place our build sources and suchlike.
-
-    if args.usr_only:
-        return workspace(root) / "home-root"
-
-    return root / "root"
 
 
 def prepare_tree(args: MkosiArgs, root: Path, do_run_build_script: bool, cached: bool) -> None:
