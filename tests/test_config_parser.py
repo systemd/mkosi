@@ -45,7 +45,7 @@ class MkosiConfig:
         self.reference_config[job_name] = {
             "all": False,
             "all_directory": None,
-            "architecture": None,
+            "architecture": "x86_64",
             "bmap": False,
             "boot_protocols": [],
             "bootable": False,

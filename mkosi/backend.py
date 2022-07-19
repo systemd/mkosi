@@ -8,6 +8,7 @@ import dataclasses
 import enum
 import math
 import os
+import platform
 import resource
 import shlex
 import shutil
@@ -415,7 +416,7 @@ class MkosiArgs:
     repositories: List[str]
     use_host_repositories: bool
     repos_dir: Optional[str]
-    architecture: Optional[str]
+    architecture: str
     output_format: OutputFormat
     manifest_format: List[ManifestFormat]
     output: Path
@@ -546,6 +547,9 @@ class MkosiArgs:
         if self.partition_table is None:
             return None
         return self.partition_table.partitions.get(ident)
+
+    def architecture_is_native(self) -> bool:
+        return self.architecture == platform.machine()
 
 
 def should_compress_fs(args: Union[argparse.Namespace, MkosiArgs]) -> Union[bool, str]:

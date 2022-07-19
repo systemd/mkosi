@@ -2102,7 +2102,7 @@ def invoke_dnf(
     if args.with_network == "never":
         cmdline += ["-C"]
 
-    if args.architecture is not None:
+    if not args.architecture_is_native():
         cmdline += [f"--forcearch={args.architecture}"]
 
     if not args.with_docs:
@@ -2289,11 +2289,10 @@ def parse_fedora_release(release: str) -> Tuple[str, str]:
 @complete_step("Installing Fedora Linux…")
 def install_fedora(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None:
     release, releasever = parse_fedora_release(args.release)
-    arch = args.architecture or platform.machine()
 
     if args.mirror:
         baseurl = urllib.parse.urljoin(args.mirror, f"releases/{release}/Everything/$basearch/os/")
-        media = urllib.parse.urljoin(baseurl.replace("$basearch", arch), "media.repo")
+        media = urllib.parse.urljoin(baseurl.replace("$basearch", args.architecture), "media.repo")
         if not url_exists(media):
             baseurl = urllib.parse.urljoin(args.mirror, f"development/{release}/Everything/$basearch/os/")
 
@@ -2317,7 +2316,7 @@ def install_fedora(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
     else:
         gpgid = "fedora.gpg"
 
-    gpgpath = Path(f"/etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-{releasever}-{arch}")
+    gpgpath = Path(f"/etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-{releasever}-{args.architecture}")
     gpgurl = urllib.parse.urljoin("https://getfedora.org/static/", gpgid)
 
     repos = [Repo("fedora", f"Fedora {release.capitalize()} - base", release_url, gpgpath, gpgurl)]
@@ -2389,7 +2388,6 @@ def install_mageia(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
 @complete_step("Installing OpenMandriva…")
 def install_openmandriva(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None:
     release = args.release.strip("'")
-    arch = args.architecture or platform.machine()
 
     if release[0].isdigit():
         release_model = "rock"
@@ -2399,11 +2397,11 @@ def install_openmandriva(args: MkosiArgs, root: Path, do_run_build_script: bool)
         release_model = release
 
     if args.mirror:
-        baseurl = f"{args.mirror}/{release_model}/repository/{arch}/main"
+        baseurl = f"{args.mirror}/{release_model}/repository/{args.architecture}/main"
         release_url = f"baseurl={baseurl}/release/"
         updates_url = f"baseurl={baseurl}/updates/"
     else:
-        baseurl = f"http://mirrors.openmandriva.org/mirrors.php?platform={release_model}&arch={arch}&repo=main"
+        baseurl = f"http://mirrors.openmandriva.org/mirrors.php?platform={release_model}&arch={args.architecture}&repo=main"
         release_url = f"mirrorlist={baseurl}&release=release"
         updates_url = f"mirrorlist={baseurl}&release=updates"
 
@@ -2788,9 +2786,8 @@ def install_debian_or_ubuntu(args: MkosiArgs, root: Path, *, do_run_build_script
             f"--components={','.join(repos)}",
         ]
 
-        if args.architecture is not None:
-            debarch = DEBIAN_ARCHITECTURES.get(args.architecture)
-            cmdline += [f"--arch={debarch}"]
+        debarch = DEBIAN_ARCHITECTURES[args.architecture]
+        cmdline += [f"--arch={debarch}"]
 
         # Let's use --no-check-valid-until only if debootstrap knows it
         if debootstrap_knows_arg("--no-check-valid-until"):
@@ -4200,7 +4197,7 @@ def gen_kernel_images(args: MkosiArgs, root: Path) -> Iterator[Tuple[str, Path]]
         if args.distribution == Distribution.gentoo:
             from .gentoo import ARCHITECTURES
 
-            _, kimg_path = ARCHITECTURES[args.architecture or "x86_64"]
+            _, kimg_path = ARCHITECTURES[args.architecture]
 
             kimg = Path(f"usr/src/linux-{kver.name}") / kimg_path
         elif args.distribution in (Distribution.debian, Distribution.ubuntu):
@@ -5295,7 +5292,7 @@ def create_parser() -> ArgumentParserMkosi:
     group = parser.add_argument_group("Distribution")
     group.add_argument("-d", "--distribution", choices=Distribution.__members__, help="Distribution to install")
     group.add_argument("-r", "--release", help="Distribution release to install")
-    group.add_argument("--architecture", help="Override the architecture of installation")
+    group.add_argument("--architecture", help="Override the architecture of installation", default=platform.machine())
     group.add_argument("-m", "--mirror", help="Distribution mirror to use")
 
     group.add_argument(
@@ -6999,8 +6996,7 @@ def print_summary(args: MkosiArgs) -> None:
     MkosiPrinter.info("\nDISTRIBUTION:")
     MkosiPrinter.info("              Distribution: " + args.distribution.name)
     MkosiPrinter.info("                   Release: " + none_to_na(args.release))
-    if args.architecture:
-        MkosiPrinter.info("              Architecture: " + args.architecture)
+    MkosiPrinter.info("              Architecture: " + args.architecture)
     if args.mirror is not None:
         MkosiPrinter.info("                    Mirror: " + args.mirror)
     if args.repositories is not None and len(args.repositories) > 0:
@@ -7754,7 +7750,7 @@ def check_root() -> None:
 
 
 def check_native(args: MkosiArgs) -> None:
-    if args.architecture is not None and args.architecture != platform.machine() and args.build_script and nspawn_version() < 250:
+    if not args.architecture_is_native() and args.build_script and nspawn_version() < 250:
         die("Cannot (currently) override the architecture and run build commands")
 
 
@@ -7881,7 +7877,7 @@ def run_shell(args: MkosiArgs) -> None:
 
 
 def find_qemu_binary(args: MkosiArgs) -> str:
-    binaries = ["qemu", "qemu-kvm", f"qemu-system-{args.architecture or platform.machine()}"]
+    binaries = ["qemu", "qemu-kvm", f"qemu-system-{args.architecture}"]
     for binary in binaries:
         if shutil.which(binary) is not None:
             return binary
