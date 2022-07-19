@@ -6274,16 +6274,30 @@ def args_find_path(args: argparse.Namespace, name: str, path: str, *, as_list: b
         setattr(args, name, [abspath] if as_list else abspath)
 
 
+def find_output(args: argparse.Namespace) -> None:
+    if args.output_dir is not None:
+        return
+
+    if os.path.exists("mkosi.output/"):
+        args.output_dir = Path("mkosi.output", f"{args.distribution}~{args.release}")
+        args.output_dir.mkdir(exist_ok=True)
+
+
+def find_builddir(args: argparse.Namespace) -> None:
+    if args.build_dir is not None:
+        return
+
+    if os.path.exists("mkosi.builddir/"):
+        args.build_dir = Path("mkosi.builddir", f"{args.distribution}~{args.release}")
+        args.build_dir.mkdir(exist_ok=True)
+
+
 def find_cache(args: argparse.Namespace) -> None:
     if args.cache_path is not None:
         return
 
     if os.path.exists("mkosi.cache/"):
-        dirname = args.distribution.name
-        if args.release is not None:
-            dirname += "~" + args.release
-
-        args.cache_path = Path("mkosi.cache", dirname)
+        args.cache_path = Path("mkosi.cache", f"{args.distribution}~{args.release}")
 
 
 def require_private_file(name: str, description: str) -> None:
@@ -6421,13 +6435,11 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
     args_find_path(args, "nspawn_settings", "mkosi.nspawn")
     args_find_path(args, "build_script", "mkosi.build")
     args_find_path(args, "build_sources", ".")
-    args_find_path(args, "build_dir", "mkosi.builddir/")
     args_find_path(args, "include_dir", "mkosi.includedir/")
     args_find_path(args, "install_dir", "mkosi.installdir/")
     args_find_path(args, "postinst_script", "mkosi.postinst")
     args_find_path(args, "prepare_script", "mkosi.prepare")
     args_find_path(args, "finalize_script", "mkosi.finalize")
-    args_find_path(args, "output_dir", "mkosi.output/")
     args_find_path(args, "workspace_dir", "mkosi.workspace/")
     args_find_path(args, "mksquashfs_tool", "mkosi.mksquashfs-tool", as_list=True)
     args_find_path(args, "repos_dir", "mkosi.reposdir/")
@@ -6513,6 +6525,8 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
         die("Sorry, bsdtar on OpenMandriva is incompatible with --tar-strip-selinux-context", MkosiNotSupportedException)
 
     find_cache(args)
+    find_output(args)
+    find_builddir(args)
 
     if args.mirror is None:
         if args.distribution in (Distribution.fedora, Distribution.centos):
