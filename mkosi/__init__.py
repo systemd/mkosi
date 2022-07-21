@@ -769,8 +769,8 @@ def root_partition_description(
     return prefix + ' ' + (suffix if suffix is not None else 'Partition')
 
 
-def initialize_partition_table(args: MkosiArgs) -> None:
-    if args.partition_table is not None:
+def initialize_partition_table(args: MkosiArgs, force: bool = False) -> None:
+    if args.partition_table is not None and not force:
         return
 
     if not args.output_format.is_disk():
@@ -809,7 +809,7 @@ def initialize_partition_table(args: MkosiArgs) -> None:
 
 
 def create_image(args: MkosiArgs, for_cache: bool) -> Optional[BinaryIO]:
-    initialize_partition_table(args)
+    initialize_partition_table(args, force=True)
     if args.partition_table is None:
         return None
 
