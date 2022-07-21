@@ -7862,6 +7862,9 @@ def run_shell_cmdline(args: MkosiArgs, pipe: bool = False, commands: Optional[Se
     if args.nspawn_keep_unit:
         cmdline += ["--keep-unit"]
 
+    if args.source_file_transfer_final == SourceFileTransfer.mount:
+        cmdline += [f"--bind={args.build_sources}:/root/src", "--chdir=/root/src"]
+
     if commands or args.cmdline:
         # If the verb is 'shell', args.cmdline contains the command to run.
         # Otherwise, the verb is 'boot', and we assume args.cmdline contains nspawn arguments.
