@@ -20,6 +20,7 @@ from .backend import (
     OutputFormat,
     PartitionIdentifier,
     die,
+    root_home,
     run_workspace_command,
 )
 
@@ -501,6 +502,8 @@ class Gentoo:
                                     f"actions={actions} outside stage3")
             emerge_main([*pkgs, *opts, *actions] + PREFIX_OPTS + self.emerge_default_opts)
         else:
+            if args.usr_only:
+                root_home(args, root).mkdir(mode=0o750, exist_ok=True)
 
             cmd = ["/usr/bin/emerge", *pkgs, *self.emerge_default_opts, *opts, *actions]
 

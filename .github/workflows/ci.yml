@@ -184,6 +184,15 @@ jobs:
 
         sudo MKOSI_TEST_DEFAULT_VERB=boot python3 -m pytest -m integration -sv tests
 
+    - name: Build ${{ matrix.distro }}/${{ matrix.format }} UsrOnly
+      run: |
+        tee mkosi.default <<- EOF
+        [Output]
+        UsrOnly=True
+        EOF
+
+        sudo mkosi --force build
+
     - name: Build/Boot ${{ matrix.distro }}/${{ matrix.format }} UEFI UKI
       run: |
         tee mkosi.default <<- EOF
