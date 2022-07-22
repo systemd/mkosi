@@ -4517,6 +4517,9 @@ def _link_output(
 def link_output(args: MkosiArgs, root: Path, artifact: Optional[BinaryIO]) -> None:
     with complete_step("Linking image file…", f"Linked {path_relative_to_cwd(args.output)}"):
         if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
+            if not root.exists():
+                return
+
             assert artifact is None
 
             make_read_only(args, root, for_cache=False, b=False)
@@ -4528,7 +4531,9 @@ def link_output(args: MkosiArgs, root: Path, artifact: Optional[BinaryIO]) -> No
             OutputFormat.tar,
             OutputFormat.cpio,
         ):
-            assert artifact is not None
+            if artifact is None:
+                return
+
             _link_output(args, artifact.name, args.output)
 
 
@@ -4691,6 +4696,9 @@ def save_manifest(args: MkosiArgs, manifest: Manifest) -> None:
 
 
 def print_output_size(args: MkosiArgs) -> None:
+    if not args.output.exists():
+        return
+
     if args.output_format in (OutputFormat.directory, OutputFormat.subvolume):
         MkosiPrinter.print_step("Resulting image size is " + format_bytes(dir_size(args.output)) + ".")
     else:
