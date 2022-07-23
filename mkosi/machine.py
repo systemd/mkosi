@@ -15,7 +15,7 @@ from typing import Any, Iterator, Optional, Sequence, TextIO, Union
 import pexpect  # type: ignore
 
 from . import (
-    MKOSI_COMMANDS_SUDO,
+    MKOSI_COMMANDS_NEED_BUILD,
     CompletedProcess,
     build_stuff,
     check_native,
@@ -106,7 +106,7 @@ class Machine:
         assert self._serial is not None or self.args.verb == Verb.shell
 
     def build(self) -> None:
-        if self.args.verb in MKOSI_COMMANDS_SUDO:
+        if self.args.verb in MKOSI_COMMANDS_NEED_BUILD + (Verb.build, Verb.clean):
             check_root()
             unlink_output(self.args)
 

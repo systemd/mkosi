@@ -125,7 +125,7 @@ SomeIO = Union[BinaryIO, TextIO]
 PathString = Union[Path, str]
 
 MKOSI_COMMANDS_NEED_BUILD = (Verb.shell, Verb.boot, Verb.qemu, Verb.serve)
-MKOSI_COMMANDS_SUDO = (Verb.build, Verb.clean, Verb.shell, Verb.boot, Verb.qemu, Verb.serve)
+MKOSI_COMMANDS_SUDO = (Verb.build, Verb.clean, Verb.shell, Verb.boot, Verb.serve)
 MKOSI_COMMANDS_CMDLINE = (Verb.build, Verb.shell, Verb.boot, Verb.qemu, Verb.ssh)
 
 DRACUT_SYSTEMD_EXTRAS = [
@@ -6041,9 +6041,6 @@ def empty_directory(path: Path) -> None:
 
 
 def unlink_output(args: MkosiArgs) -> None:
-    if not args.force and args.verb != Verb.clean:
-        return
-
     if not args.skip_final_phase:
         with complete_step("Removing output files…"):
             unlink_try_hard(args.output)
@@ -8115,16 +8112,18 @@ def run_verb(raw: argparse.Namespace) -> None:
 
     if args.verb in MKOSI_COMMANDS_SUDO:
         check_root()
-        unlink_output(args)
 
-    if args.verb == Verb.build:
+    if args.verb == Verb.build and not args.force:
         check_output(args)
+
+    if needs_build(args) or args.verb == Verb.clean:
+        check_root()
+        unlink_output(args)
 
     if args.verb == Verb.summary:
         print_summary(args)
 
     if needs_build(args):
-        check_root()
         check_native(args)
         init_namespace(args)
         manifest = build_stuff(args)
