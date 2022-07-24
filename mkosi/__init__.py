@@ -7806,8 +7806,9 @@ def run_qemu_cmdline(args: MkosiArgs) -> Iterator[List[str]]:
         cmdline += ["-vga", "virtio"]
 
     if args.netdev:
-        if not ensure_networkd(args):
-            # Fall back to usermode networking if the host doesn't have networkd (eg: Debian)
+        if not ensure_networkd(args) or os.getuid() != 0:
+            # Fall back to usermode networking if the host doesn't have networkd (eg: Debian).
+            # Also fall back if running as an unprivileged user, which likely can't set up the tap interface.
             fwd = f",hostfwd=tcp::{args.ssh_port}-:{args.ssh_port}" if args.ssh_port != 22 else ""
             cmdline += ["-nic", f"user,model=virtio-net-pci{fwd}"]
         else:

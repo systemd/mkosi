@@ -85,9 +85,6 @@ The following command line verbs are known:
   only supported on images that contain a boot loader, i.e. those
   built with `Bootable=yes` (see below). This command must be executed
   as `root` unless the image already exists and `-f` is not specified.
-  Some qemu arguments (such as those set by `Netdev=yes`) may also
-  prevent qemu from starting when this command is executed by a
-  non-root user.
 
 `ssh`
 
