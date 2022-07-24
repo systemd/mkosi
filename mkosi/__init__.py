@@ -4719,6 +4719,7 @@ def remove_duplicates(items: List[T]) -> List[T]:
 
 class ListAction(argparse.Action):
     delimiter: str
+    deduplicate: bool = True
 
     def __init__(self, *args: Any, choices: Optional[Iterable[Any]] = None, **kwargs: Any) -> None:
         self.list_choices = choices
@@ -4762,7 +4763,8 @@ class ListAction(argparse.Action):
         else:
             ary.append(values)
 
-        ary = remove_duplicates(ary)
+        if self.deduplicate:
+            ary = remove_duplicates(ary)
         setattr(namespace, self.dest, ary)
 
 
@@ -4776,6 +4778,10 @@ class ColonDelimitedListAction(ListAction):
 
 class SpaceDelimitedListAction(ListAction):
     delimiter = " "
+
+
+class RepeatableSpaceDelimitedListAction(SpaceDelimitedListAction):
+    deduplicate = False
 
 
 class BooleanAction(argparse.Action):
@@ -5688,7 +5694,7 @@ def create_parser() -> ArgumentParserMkosi:
     )
     group.add_argument(
         "--qemu-args",
-        action=SpaceDelimitedListAction,
+        action=RepeatableSpaceDelimitedListAction,
         default=[],
         # Suppress the command line option because it's already possible to pass qemu args as normal
         # arguments.
