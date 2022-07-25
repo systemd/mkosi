@@ -2860,7 +2860,7 @@ def install_debian_or_ubuntu(args: MkosiArgs, root: Path, *, do_run_build_script
             if "VERSION_ID" not in os_release and "BUILD_ID" not in os_release:
                 f.write(f"BUILD_ID=mkosi-{args.release}\n")
 
-    if args.release not in ("testing", "unstable"):
+    if args.release not in ("unstable", "sid"):
         if args.distribution == Distribution.ubuntu:
             updates = f"deb http://archive.ubuntu.com/ubuntu {args.release}-updates {' '.join(repos)}"
         else:
