@@ -2917,7 +2917,7 @@ def install_ubuntu(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
 
 
 def invoke_pacman(root: Path, pacman_conf: Path, packages: Set[str]) -> None:
-    run(["pacman", "--config", pacman_conf, "--noconfirm", "-Sy", *sort_packages(packages)], env=dict(KERNEL_INSTALL_BYPASS="1"))
+    run(["pacman", "--debug", "--config", pacman_conf, "--noconfirm", "-Sy", *sort_packages(packages)], env=dict(KERNEL_INSTALL_BYPASS="1"))
 
 
 @complete_step("Installing Arch Linux…")
