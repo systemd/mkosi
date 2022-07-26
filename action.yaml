@@ -21,6 +21,7 @@ runs:
 
   - name: Dependencies
     shell: bash
+    working-directory: ${{ github.action_path }}
     run: |
       sudo apt-get update
       sudo apt-get install --assume-yes --no-install-recommends \
@@ -42,7 +43,7 @@ runs:
 
       mkdir -p $BUILDDIR
 
-      sudo -E ${{ github.action_path }}/action/setup-pacman.sh
+      sudo -E action/setup-pacman.sh
       sudo chown -R $USER: $BUILDDIR
 
       sudo pacman-key --init
@@ -73,6 +74,7 @@ runs:
   # systemd-nspawn from v251 from source.
   - name: Update systemd-nspawn
     shell: bash
+    working-directory: ${{ github.action_path }}
     run: |
       echo "deb-src http://archive.ubuntu.com/ubuntu/ $(lsb_release -cs) main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
       sudo apt-get update
