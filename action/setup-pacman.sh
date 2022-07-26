@@ -2,7 +2,7 @@
 set -e
 
 PACMAN_VERSION="6.0.1"
-ARCHLINUX_KEYRING_VERSION="20220424"
+ARCHLINUX_KEYRING_VERSION="20220713"
 
 apt-get --assume-yes --no-install-recommends install \
         gcc \
