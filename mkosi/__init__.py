@@ -5005,7 +5005,7 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
                             if cli_arg in action.option_strings:
                                 if isinstance(action, ListAction):
                                     value = value.replace(os.linesep, action.delimiter)
-                        new_arg_strings.extend([cli_arg, value])
+                        new_arg_strings.append(f"{cli_arg}={value}")
             except OSError as e:
                 self.error(str(e))
         # return the modified argument list

@@ -600,7 +600,7 @@ class MkosiConfigManyParams(MkosiConfigOne):
             "Host": {
                 "ExtraSearchPaths": "search/here:search/there",
                 "QemuHeadless": True,
-                "QemuArgs": "-vga none -device virtio-vga-gl",
+                "QemuArgs": "-device virtio-vga-gl -vga none",
                 "Netdev": True,
             },
         }
@@ -734,7 +734,7 @@ class MkosiConfigManyParams(MkosiConfigOne):
             "Host": {
                 "ExtraSearchPaths": "search/debi",
                 "QemuHeadless": True,
-                "QemuArgs": "-nic user,model=virtio-net-pci",
+                "QemuArgs": "-device virtio-vga-gl,xres=1920,yres=1080 -display sdl,gl=on",
                 "Netdev": True,
             },
         }
