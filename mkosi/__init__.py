@@ -1823,7 +1823,7 @@ def prepare_tree(args: MkosiArgs, root: Path, do_run_build_script: bool, cached:
             root.joinpath("etc/kernel/install.conf").write_text("layout=bls\n")
 
         if do_run_build_script or args.ssh or args.usr_only:
-            root_home(args, root).mkdir(mode=0o750)
+            root_home(args, root).mkdir(mode=0o750, exist_ok=True)
 
         if args.ssh and not do_run_build_script:
             root_home(args, root).joinpath(".ssh").mkdir(mode=0o700)
