@@ -7451,6 +7451,9 @@ def run_build_script(args: MkosiArgs, root: Path, raw: Optional[BinaryIO]) -> No
             *nspawn_rlimit_params(),
         ]
 
+        if args.base_image is not None:
+            cmdline += [f"--overlay={args.base_image}:{root}:/"]
+
         cmdline.extend(f"--setenv={env}={value}" for env, value in args.environment.items())
 
         # TODO: Use --autopipe once systemd v247 is widely available.
