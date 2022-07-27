@@ -26,7 +26,7 @@ setup(
     license="LGPLv2+",
     python_requires=">=3.7",
     packages = find_packages(".", exclude=["tests"]),
-    package_data = {"": ["*.sh", "*.hook", "*.conf"]},
+    package_data = {"": ["*.sh", "*.hook", "*.conf", "*.install"]},
     include_package_data = True,
     scripts = ["bin/mkosi"],
     cmdclass = { "man": BuildManpage },
