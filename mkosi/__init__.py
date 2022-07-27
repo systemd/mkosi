@@ -4077,7 +4077,8 @@ def install_unified_kernel(
                 option = "usrhash" if args.usr_only else "roothash"
                 boot_options = f"{boot_options} {option}={root_hash}"
             elif partlabel:
-                boot_options = f"{boot_options} root=PARTLABEL={partlabel}"
+                option = "mount.usr" if args.usr_only else "root"
+                boot_options = f"{boot_options} {option}=PARTLABEL={partlabel}"
 
             osrelease = root / "usr/lib/os-release"
             cmdline = workspace(root) / "cmdline"
