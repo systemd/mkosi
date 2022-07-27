@@ -176,6 +176,25 @@ def is_rpm_distribution(d: Distribution) -> bool:
     )
 
 
+def is_centos_variant(d: Distribution) -> bool:
+    return d in (
+        Distribution.centos,
+        Distribution.centos_epel,
+        Distribution.alma,
+        Distribution.alma_epel,
+        Distribution.rocky,
+        Distribution.rocky_epel,
+    )
+
+
+def is_epel_variant(d: Distribution) -> bool:
+    return d in (
+        Distribution.centos_epel,
+        Distribution.alma_epel,
+        Distribution.rocky_epel,
+    )
+
+
 class SourceFileTransfer(enum.Enum):
     copy_all = "copy-all"
     copy_git_cached = "copy-git-cached"

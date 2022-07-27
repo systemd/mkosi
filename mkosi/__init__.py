@@ -82,6 +82,8 @@ from .backend import (
     Verb,
     die,
     install_grub,
+    is_centos_variant,
+    is_epel_variant,
     is_rpm_distribution,
     nspawn_executable,
     nspawn_params_for_blockdev_access,
@@ -1103,8 +1105,7 @@ def mkfs_generic(args: MkosiArgs, label: str, mount: PathString, dev: Path) -> N
         cmdline = mkfs_ext4_cmd(label, mount)
 
     if args.output_format == OutputFormat.gpt_ext4:
-        if (args.distribution in (Distribution.centos, Distribution.centos_epel) and
-            is_older_than_centos8(args.release)):
+        if is_centos_variant(args.distribution) and is_older_than_centos8(args.release):
 
             # e2fsprogs in centos7 is too old and doesn't support this feature
             cmdline += ["-O", "^metadata_csum"]
@@ -1690,14 +1691,7 @@ def mount_cache(args: MkosiArgs, root: Path) -> Iterator[None]:
     with complete_step("Mounting Package Cache"):
         if args.distribution in (Distribution.fedora, Distribution.mageia, Distribution.openmandriva):
             caches = [mount_bind(args.cache_path, root / "var/cache/dnf")]
-        elif args.distribution in (
-            Distribution.centos,
-            Distribution.centos_epel,
-            Distribution.rocky,
-            Distribution.rocky_epel,
-            Distribution.alma,
-            Distribution.alma_epel,
-        ):
+        elif is_centos_variant(args.distribution):
             # We mount both the YUM and the DNF cache in this case, as
             # YUM might just be redirected to DNF even if we invoke
             # the former
@@ -2124,7 +2118,6 @@ def install_packages_dnf(
 
 class Repo(NamedTuple):
     id: str
-    name: str
     url: str
     gpgpath: Path
     gpgurl: Optional[str] = None
@@ -2150,7 +2143,7 @@ def setup_dnf(args: MkosiArgs, root: Path, repos: Sequence[Repo] = ()) -> None:
                 dedent(
                     f"""\
                     [{repo.id}]
-                    name={repo.name}
+                    name={repo.id}
                     {repo.url}
                     gpgkey={gpgkey or ''}
                     enabled=1
@@ -2225,16 +2218,16 @@ def install_fedora(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
     gpgpath = Path(f"/etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-{releasever}-{args.architecture}")
     gpgurl = urllib.parse.urljoin("https://getfedora.org/static/", gpgid)
 
-    repos = [Repo("fedora", f"Fedora {release.capitalize()} - base", release_url, gpgpath, gpgurl)]
+    repos = [Repo("fedora", release_url, gpgpath, gpgurl)]
     if release != 'rawhide':
         # On rawhide, the "updates" repo is the same as the "fedora" repo.
         # In other versions, the "fedora" repo is frozen at release, and "updates" provides any new packages.
-        repos += [Repo("updates", f"Fedora {release.capitalize()} - updates", updates_url, gpgpath, gpgurl)]
+        repos += [Repo("updates", updates_url, gpgpath, gpgurl)]
 
     setup_dnf(args, root, repos)
 
     packages = {*args.packages}
-    add_packages(args, packages, "fedora-release", "systemd", "util-linux")
+    add_packages(args, packages, "systemd", "util-linux")
 
     if fedora_release_cmp(release, "34") < 0:
         add_packages(args, packages, "glibc-minimal-langpack", conditional="glibc")
@@ -2266,8 +2259,7 @@ def install_mageia(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
 
     gpgpath = Path("/etc/pki/rpm-gpg/RPM-GPG-KEY-Mageia")
 
-    repos = [Repo("mageia", f"Mageia {args.release} Core Release", release_url, gpgpath),
-             Repo("updates", f"Mageia {args.release} Core Updates", updates_url, gpgpath)]
+    repos = [Repo("mageia", release_url, gpgpath), Repo("updates", updates_url, gpgpath)]
 
     setup_dnf(args, root, repos)
 
@@ -2311,8 +2303,7 @@ def install_openmandriva(args: MkosiArgs, root: Path, do_run_build_script: bool)
 
     gpgpath = Path("/etc/pki/rpm-gpg/RPM-GPG-KEY-OpenMandriva")
 
-    repos = [Repo("openmandriva", f"OpenMandriva {release_model} Main", release_url, gpgpath),
-             Repo("updates", f"OpenMandriva {release_model} Main Updates", updates_url, gpgpath)]
+    repos = [Repo("openmandriva", release_url, gpgpath), Repo("updates", updates_url, gpgpath)]
 
     setup_dnf(args, root, repos)
 
@@ -2332,71 +2323,114 @@ def install_openmandriva(args: MkosiArgs, root: Path, do_run_build_script: bool)
     disable_pam_securetty(root)
 
 
-def install_centos_repos_old(args: MkosiArgs, root: Path, epel_release: int) -> None:
+def centos_variant_gpg_locations(distribution: Distribution, epel_release: int) -> Tuple[Path, str]:
+    if distribution in (Distribution.centos, Distribution.centos_epel):
+        return (
+            Path("/etc/pki/rpm-gpg/RPM-GPG-KEY-centosofficial"),
+            "https://www.centos.org/keys/RPM-GPG-KEY-CentOS-Official"
+        )
+    elif distribution in (Distribution.alma, Distribution.alma_epel):
+        return (
+            Path("/etc/pki/rpm-gpg/RPM-GPG-KEY-AlmaLinux"),
+            "https://repo.almalinux.org/almalinux/RPM-GPG-KEY-AlmaLinux"
+        )
+    elif distribution in (Distribution.rocky, Distribution.rocky_epel):
+        if epel_release >= 9:
+            keyname = f"Rocky-{epel_release}"
+        else:
+            keyname = "rockyofficial"
+
+        return (
+             Path(f"/etc/pki/rpm-gpg/RPM-GPG-KEY-{keyname}"),
+             f"https://download.rockylinux.org/pub/rocky/RPM-GPG-KEY-{keyname}"
+        )
+    else:
+        die(f"{distribution} is not a CentOS variant")
+
+
+def epel_gpg_locations(epel_release: int) -> Tuple[Path, str]:
+    return (
+        Path(f"/etc/pki/rpm-gpg/RPM-GPG-KEY-EPEL-{epel_release}"),
+        f"https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-{epel_release}",
+    )
+
+
+def centos_variant_mirror_directory(distribution: Distribution) -> str:
+    if distribution in (Distribution.centos, Distribution.centos_epel):
+        return "centos"
+    elif distribution in (Distribution.alma, Distribution.alma_epel):
+        return "almalinux"
+    elif distribution in (Distribution.rocky, Distribution.rocky_epel):
+        return "rocky"
+    else:
+        die(f"{distribution} is not a CentOS variant")
+
+
+def centos_variant_mirror_repo_url(args: MkosiArgs, repo: str) -> str:
+    if args.distribution in (Distribution.centos, Distribution.centos_epel):
+        return f"https://mirrorlist.centos.org/?release={args.release}&arch=$basearch&repo={repo}"
+    elif args.distribution in (Distribution.alma, Distribution.alma_epel):
+        return f"https://mirrors.almalinux.org/mirrorlist/{args.release}/{repo.lower()}"
+    elif args.distribution in (Distribution.rocky, Distribution.rocky_epel):
+        return f"https://mirrors.rockylinux.org/mirrorlist?arch=$basearch&repo={repo}-{args.release}"
+    else:
+        die(f"{args.distribution} is not a CentOS variant")
+
+
+def install_centos_7_repos(args: MkosiArgs, root: Path, epel_release: int) -> None:
     # Repos for CentOS Linux 7 and earlier
 
-    gpgpath = Path(f"/etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-{args.release}")
-    gpgurl = f"https://www.centos.org/keys/RPM-GPG-KEY-CentOS-{args.release}"
-    epel_gpgpath = Path(f"/etc/pki/rpm-gpg/RPM-GPG-KEY-EPEL-{epel_release}")
-    epel_gpgurl = f"https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-{epel_release}"
+    gpgpath, gpgurl = centos_variant_gpg_locations(args.distribution, epel_release)
+    epel_gpgpath, epel_gpgurl = epel_gpg_locations(epel_release)
 
     if args.mirror:
         release_url = f"baseurl={args.mirror}/centos/{args.release}/os/$basearch"
         updates_url = f"baseurl={args.mirror}/centos/{args.release}/updates/$basearch/"
         extras_url = f"baseurl={args.mirror}/centos/{args.release}/extras/$basearch/"
-        centosplus_url = f"baseurl={args.mirror}/centos/{args.release}/centosplus/$basearch/"
         epel_url = f"baseurl={args.mirror}/epel/{epel_release}/$basearch/"
     else:
         release_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=$basearch&repo=os"
         updates_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=$basearch&repo=updates"
         extras_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=$basearch&repo=extras"
-        centosplus_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=$basearch&repo=centosplus"
         epel_url = f"mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=epel-{epel_release}&arch=$basearch"
 
-    repos = [Repo("base", f"CentOS-{args.release} - Base", release_url, gpgpath, gpgurl),
-             Repo("updates", f"CentOS-{args.release} - Updates", updates_url, gpgpath, gpgurl),
-             Repo("extras", f"CentOS-{args.release} - Extras", extras_url, gpgpath, gpgurl),
-             Repo("centosplus", f"CentOS-{args.release} - Plus", centosplus_url, gpgpath, gpgurl)]
+    repos = [Repo("base", release_url, gpgpath, gpgurl),
+             Repo("updates", updates_url, gpgpath, gpgurl),
+             Repo("extras", extras_url, gpgpath, gpgurl)]
 
-    if 'epel' in args.distribution.name:
-        repos += [Repo("epel", f"Extra Packages for Enterprise Linux {epel_release} - $basearch",
-                       epel_url, epel_gpgpath, epel_gpgurl)]
+    if is_epel_variant(args.distribution):
+        repos += [Repo("epel", epel_url, epel_gpgpath, epel_gpgurl)]
 
     setup_dnf(args, root, repos)
 
 
-def install_centos_repos_new(args: MkosiArgs, root: Path, epel_release: int) -> None:
-    # Repos for CentOS Linux 8 and CentOS Stream 8
+def install_centos_variant_repos(args: MkosiArgs, root: Path, epel_release: int) -> None:
+    # Repos for CentOS Linux 8, CentOS Stream 8 and CentOS variants
 
-    gpgpath = Path("/etc/pki/rpm-gpg/RPM-GPG-KEY-centosofficial")
-    gpgurl = "https://www.centos.org/keys/RPM-GPG-KEY-CentOS-Official"
-    epel_gpgpath = Path(f"/etc/pki/rpm-gpg/RPM-GPG-KEY-EPEL-{epel_release}")
-    epel_gpgurl = f"https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-{epel_release}"
+    directory = centos_variant_mirror_directory(args.distribution)
+    gpgpath, gpgurl = centos_variant_gpg_locations(args.distribution, epel_release)
+    epel_gpgpath, epel_gpgurl = epel_gpg_locations(epel_release)
 
     if args.mirror:
-        appstream_url = f"baseurl={args.mirror}/centos/{args.release}/AppStream/$basearch/os"
-        baseos_url = f"baseurl={args.mirror}/centos/{args.release}/BaseOS/$basearch/os"
-        extras_url = f"baseurl={args.mirror}/centos/{args.release}/extras/$basearch/os"
-        centosplus_url = f"baseurl={args.mirror}/centos/{args.release}/centosplus/$basearch/os"
-        powertools_url = f"baseurl={args.mirror}/centos/{args.release}/PowerTools/$basearch/os"
+        appstream_url = f"baseurl={args.mirror}/{directory}/{args.release}/AppStream/$basearch/os"
+        baseos_url = f"baseurl={args.mirror}/{directory}/{args.release}/BaseOS/$basearch/os"
+        extras_url = f"baseurl={args.mirror}/{directory}/{args.release}/extras/$basearch/os"
+        powertools_url = f"baseurl={args.mirror}/{directory}/{args.release}/PowerTools/$basearch/os"
         epel_url = f"baseurl={args.mirror}/epel/{epel_release}/Everything/$basearch"
     else:
-        appstream_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=$basearch&repo=AppStream"
-        baseos_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=$basearch&repo=BaseOS"
-        extras_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=$basearch&repo=extras"
-        centosplus_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=$basearch&repo=centosplus"
-        powertools_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=$basearch&repo=PowerTools"
+        appstream_url = f"mirrorlist={centos_variant_mirror_repo_url(args, 'AppStream')}"
+        baseos_url = f"mirrorlist={centos_variant_mirror_repo_url(args, 'BaseOS')}"
+        extras_url = f"mirrorlist={centos_variant_mirror_repo_url(args, 'extras')}"
+        powertools_url = f"mirrorlist={centos_variant_mirror_repo_url(args, 'PowerTools')}"
         epel_url = f"mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=epel-{epel_release}&arch=$basearch"
 
-    repos = [Repo("AppStream", f"CentOS-{args.release} - AppStream", appstream_url, gpgpath, gpgurl),
-             Repo("BaseOS", f"CentOS-{args.release} - Base", baseos_url, gpgpath, gpgurl),
-             Repo("extras", f"CentOS-{args.release} - Extras", extras_url, gpgpath, gpgurl),
-             Repo("centosplus", f"CentOS-{args.release} - Plus", centosplus_url, gpgpath, gpgurl),
-             Repo("PowerTools", f"CentOS-{args.release} - PowerTools", powertools_url, gpgpath, gpgurl)]
+    repos = [Repo("AppStream", appstream_url, gpgpath, gpgurl),
+             Repo("BaseOS", baseos_url, gpgpath, gpgurl),
+             Repo("extras", extras_url, gpgpath, gpgurl),
+             Repo("PowerTools", powertools_url, gpgpath, gpgurl)]
 
-    if 'epel' in args.distribution.name:
-        repos += [Repo("epel", f"Extra Packages for Enterprise Linux {epel_release} - $basearch",
-                       epel_url, epel_gpgpath, epel_gpgurl)]
+    if is_epel_variant(args.distribution):
+        repos += [Repo("epel", epel_url, epel_gpgpath, epel_gpgurl)]
 
     setup_dnf(args, root, repos)
 
@@ -2404,10 +2438,8 @@ def install_centos_repos_new(args: MkosiArgs, root: Path, epel_release: int) -> 
 def install_centos_stream_repos(args: MkosiArgs, root: Path, epel_release: int) -> None:
     # Repos for CentOS Stream 9 and later
 
-    gpgpath = Path("/etc/pki/rpm-gpg/RPM-GPG-KEY-centosofficial")
-    gpgurl = "https://www.centos.org/keys/RPM-GPG-KEY-CentOS-Official"
-    epel_gpgpath = Path(f"/etc/pki/rpm-gpg/RPM-GPG-KEY-EPEL-{epel_release}")
-    epel_gpgurl = f"https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-{epel_release}"
+    gpgpath, gpgurl = centos_variant_gpg_locations(args.distribution, epel_release)
+    epel_gpgpath, epel_gpgurl = epel_gpg_locations(epel_release)
 
     release = f"{epel_release}-stream"
 
@@ -2422,87 +2454,12 @@ def install_centos_stream_repos(args: MkosiArgs, root: Path, epel_release: int) 
         crb_url = f"metalink=https://mirrors.centos.org/metalink?repo=centos-crb-{release}&arch=$basearch"
         epel_url = f"mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=epel-{epel_release}&arch=$basearch"
 
-    repos = [Repo("AppStream", f"CentOS Stream {release} - AppStream", appstream_url, gpgpath, gpgurl),
-             Repo("BaseOS", f"CentOS Stream {release} - BaseOS", baseos_url, gpgpath, gpgurl),
-             Repo("CRB", f"CentOS Stream {release} - CRB", crb_url, gpgpath, gpgurl)]
+    repos = [Repo("AppStream", appstream_url, gpgpath, gpgurl),
+             Repo("BaseOS", baseos_url, gpgpath, gpgurl),
+             Repo("CRB", crb_url, gpgpath, gpgurl)]
 
-    if 'epel' in args.distribution.name:
-        repos += [Repo("epel", f"Extra Packages for Enterprise Linux {epel_release} - $basearch",
-                       epel_url, epel_gpgpath, epel_gpgurl)]
-
-    setup_dnf(args, root, repos)
-
-
-def install_rocky_repos(args: MkosiArgs, root: Path, epel_release: int) -> None:
-    # Repos for Rocky Linux 8 and later
-
-    if epel_release >= 9:
-        keyname = f"Rocky-{epel_release}"
-    else:
-        keyname = "rockyofficial"
-
-    gpgpath = Path(f"/etc/pki/rpm-gpg/RPM-GPG-KEY-{keyname}")
-    gpgurl = f"https://download.rockylinux.org/pub/rocky/RPM-GPG-KEY-{keyname}"
-    epel_gpgpath = Path(f"/etc/pki/rpm-gpg/RPM-GPG-KEY-EPEL-{epel_release}")
-    epel_gpgurl = f"https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-{epel_release}"
-
-    if args.mirror:
-        appstream_url = f"baseurl={args.mirror}/rocky/{args.release}/AppStream/$basearch/os"
-        baseos_url = f"baseurl={args.mirror}/rocky/{args.release}/BaseOS/$basearch/os"
-        extras_url = f"baseurl={args.mirror}/rocky/{args.release}/extras/$basearch/os"
-        plus_url = f"baseurl={args.mirror}/rocky/{args.release}/plus/$basearch/os"
-        epel_url = f"baseurl={args.mirror}/epel/{epel_release}/Everything/$basearch"
-    else:
-        appstream_url = (
-            f"mirrorlist=https://mirrors.rockylinux.org/mirrorlist?arch=$basearch&repo=AppStream-{args.release}"
-        )
-        baseos_url = f"mirrorlist=https://mirrors.rockylinux.org/mirrorlist?arch=$basearch&repo=BaseOS-{args.release}"
-        extras_url = f"mirrorlist=https://mirrors.rockylinux.org/mirrorlist?arch=$basearch&repo=extras-{args.release}"
-        plus_url = f"mirrorlist=https://mirrors.rockylinux.org/mirrorlist?arch=$basearch&repo=rockyplus-{args.release}"
-        epel_url = f"mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=epel-{epel_release}&arch=$basearch"
-
-    repos = [Repo("AppStream", f"Rocky-{args.release} - AppStream", appstream_url, gpgpath, gpgurl),
-             Repo("BaseOS", f"Rocky-{args.release} - Base", baseos_url, gpgpath, gpgurl),
-             Repo("extras", f"Rocky-{args.release} - Extras", extras_url, gpgpath, gpgurl),
-             Repo("plus", f"Rocky-{args.release} - Plus", plus_url, gpgpath, gpgurl)]
-    if 'epel' in args.distribution.name:
-        repos += [Repo("epel", f"Extra Packages for Enterprise Linux {epel_release} - $basearch",
-                       epel_url, epel_gpgpath, epel_gpgurl)]
-
-    setup_dnf(args, root, repos)
-
-
-def install_alma_repos(args: MkosiArgs, root: Path, epel_release: int) -> None:
-    # Repos for Alma Linux 8 and later
-    gpgpath = Path("/etc/pki/rpm-gpg/RPM-GPG-KEY-AlmaLinux")
-    gpgurl = "https://repo.almalinux.org/almalinux/RPM-GPG-KEY-AlmaLinux"
-    epel_gpgpath = Path(f"/etc/pki/rpm-gpg/RPM-GPG-KEY-EPEL-{epel_release}")
-    epel_gpgurl = f"https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-{epel_release}"
-
-    if args.mirror:
-        appstream_url = f"baseurl={args.mirror}/almalinux/{args.release}/AppStream/$basearch/os"
-        baseos_url = f"baseurl={args.mirror}/almalinux/{args.release}/BaseOS/$basearch/os"
-        extras_url = f"baseurl={args.mirror}/almalinux/{args.release}/extras/$basearch/os"
-        powertools_url = f"baseurl={args.mirror}/almalinux/{args.release}/PowerTools/$basearch/os"
-        ha_url = f"baseurl={args.mirror}/almalinux/{args.release}/HighAvailability/$basearch/os"
-        epel_url = f"baseurl={args.mirror}/epel/{epel_release}/Everything/$basearch"
-    else:
-        appstream_url = f"mirrorlist=https://mirrors.almalinux.org/mirrorlist/{args.release}/appstream"
-        baseos_url = f"mirrorlist=https://mirrors.almalinux.org/mirrorlist/{args.release}/baseos"
-        extras_url = f"mirrorlist=https://mirrors.almalinux.org/mirrorlist/{args.release}/extras"
-        powertools_url = f"mirrorlist=https://mirrors.almalinux.org/mirrorlist/{args.release}/powertools"
-        ha_url = f"mirrorlist=https://mirrors.almalinux.org/mirrorlist/{args.release}/ha"
-        epel_url = f"mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=epel-{epel_release}&arch=$basearch"
-
-    repos = [Repo("AppStream", f"AlmaLinux-{args.release} - AppStream", appstream_url, gpgpath, gpgurl),
-             Repo("BaseOS", f"AlmaLinux-{args.release} - Base", baseos_url, gpgpath, gpgurl),
-             Repo("extras", f"AlmaLinux-{args.release} - Extras", extras_url, gpgpath, gpgurl),
-             Repo("Powertools", f"AlmaLinux-{args.release} - Powertools", powertools_url, gpgpath, gpgurl),
-             Repo("HighAvailability", f"AlmaLinux-{args.release} - HighAvailability", ha_url, gpgpath, gpgurl)]
-
-    if 'epel' in args.distribution.name:
-        repos += [Repo("epel", f"Extra Packages for Enterprise Linux {epel_release} - $basearch",
-                       epel_url, epel_gpgpath, epel_gpgurl)]
+    if is_epel_variant(args.distribution):
+        repos += [Repo("epel", epel_url, epel_gpgpath, epel_gpgurl)]
 
     setup_dnf(args, root, repos)
 
@@ -2526,13 +2483,13 @@ def is_older_than_centos8(release: str) -> bool:
 
 
 @complete_step("Installing CentOS…")
-def install_centos(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None:
+def install_centos_variant(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None:
     epel_release = parse_epel_release(args.release)
 
     if epel_release <= 7:
-        install_centos_repos_old(args, root, epel_release)
-    elif epel_release <= 8:
-        install_centos_repos_new(args, root, epel_release)
+        install_centos_7_repos(args, root, epel_release)
+    elif epel_release <= 8 or not "-stream" in args.release:
+        install_centos_variant_repos(args, root, epel_release)
     else:
         install_centos_stream_repos(args, root, epel_release)
 
@@ -2540,7 +2497,7 @@ def install_centos(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
         workspace(root).joinpath("vars/stream").write_text(args.release)
 
     packages = {*args.packages}
-    add_packages(args, packages, "centos-release", "systemd")
+    add_packages(args, packages, "systemd")
     if not do_run_build_script and args.bootable:
         add_packages(args, packages, "kernel", "dracut")
         if epel_release <= 7:
@@ -2561,13 +2518,10 @@ def install_centos(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
     if do_run_build_script:
         packages.update(args.build_packages)
 
-    if args.distribution == Distribution.centos_epel:
-        add_packages(args, packages, "epel-release")
-
     if do_run_build_script:
         packages.update(args.build_packages)
 
-    if not do_run_build_script and args.distribution == Distribution.centos_epel:
+    if not do_run_build_script and is_epel_variant(args.distribution):
         if args.netdev:
             add_packages(args, packages, "systemd-networkd", conditional="systemd")
         if epel_release >= 9:
@@ -2583,63 +2537,6 @@ def install_centos(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
     if epel_release <= 8 and root.joinpath("usr/bin/rpm").exists():
         cmdline = ["rpm", "--rebuilddb", "--define", "_db_backend bdb"]
         run_workspace_command(args, root, cmdline)
-
-
-@complete_step("Installing Rocky Linux…")
-def install_rocky(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None:
-    epel_release = int(args.release.split(".")[0])
-    install_rocky_repos(args, root, epel_release)
-
-    packages = {*args.packages}
-    add_packages(args, packages, "rocky-release", "systemd")
-    if not do_run_build_script and args.bootable:
-        add_packages(args, packages, "kernel", "dracut")
-        add_packages(args, packages, "systemd-udev", conditional="systemd")
-
-    if do_run_build_script:
-        packages.update(args.build_packages)
-
-    if args.distribution == Distribution.rocky_epel:
-        add_packages(args, packages, "epel-release")
-
-    if do_run_build_script:
-        packages.update(args.build_packages)
-
-    if not do_run_build_script and args.distribution == Distribution.rocky_epel and args.netdev:
-        add_packages(args, packages, "systemd-networkd", conditional="systemd")
-
-    install_packages_dnf(args, root, packages, do_run_build_script)
-
-    if root.joinpath("usr/bin/rpm").exists():
-        cmdline = ["rpm", "--rebuilddb", "--define", "_db_backend bdb"]
-        run_workspace_command(args, root, cmdline)
-
-
-
-@complete_step("Installing Alma Linux…")
-def install_alma(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None:
-    epel_release = int(args.release.split(".")[0])
-    install_alma_repos(args, root, epel_release)
-
-    packages = {*args.packages}
-    add_packages(args, packages, "almalinux-release", "systemd")
-    if not do_run_build_script and args.bootable:
-        add_packages(args, packages, "kernel", "dracut")
-        add_packages(args, packages, "systemd-udev", conditional="systemd")
-
-    if do_run_build_script:
-        packages.update(args.build_packages)
-
-    if args.distribution == Distribution.alma_epel:
-        add_packages(args, packages, "epel-release")
-
-    if do_run_build_script:
-        packages.update(args.build_packages)
-
-    if not do_run_build_script and args.distribution == Distribution.alma_epel and args.netdev:
-        add_packages(args, packages, "systemd-networkd", conditional="systemd")
-
-    install_packages_dnf(args, root, packages, do_run_build_script)
 
 
 def debootstrap_knows_arg(arg: str) -> bool:
@@ -3101,25 +2998,22 @@ def install_distribution(args: MkosiArgs, root: Path, do_run_build_script: bool,
     if cached:
         return
 
-    install: Dict[Distribution, Callable[[MkosiArgs, Path, bool], None]] = {
-        Distribution.fedora: install_fedora,
-        Distribution.centos: install_centos,
-        Distribution.centos_epel: install_centos,
-        Distribution.mageia: install_mageia,
-        Distribution.debian: install_debian,
-        Distribution.ubuntu: install_ubuntu,
-        Distribution.arch: install_arch,
-        Distribution.opensuse: install_opensuse,
-        Distribution.openmandriva: install_openmandriva,
-        Distribution.rocky: install_rocky,
-        Distribution.rocky_epel: install_rocky,
-        Distribution.alma: install_alma,
-        Distribution.alma_epel: install_alma,
-        Distribution.gentoo: install_gentoo,
-    }
+    if is_centos_variant(args.distribution):
+        install = install_centos_variant
+    else:
+        install = {
+            Distribution.fedora: install_fedora,
+            Distribution.mageia: install_mageia,
+            Distribution.debian: install_debian,
+            Distribution.ubuntu: install_ubuntu,
+            Distribution.arch: install_arch,
+            Distribution.opensuse: install_opensuse,
+            Distribution.openmandriva: install_openmandriva,
+            Distribution.gentoo: install_gentoo,
+        }[args.distribution]
 
     with mount_cache(args, root):
-        install[args.distribution](args, root, do_run_build_script)
+        install(args, root, do_run_build_script)
 
     # Link /var/lib/rpm→/usr/lib/sysimage/rpm for compat with old rpm.
     # We do this only if the new location is used, which depends on the dnf
@@ -3426,8 +3320,7 @@ def install_boot_loader(
 
     with complete_step("Installing boot loader…"):
         if args.get_partition(PartitionIdentifier.esp):
-            if (args.distribution in (Distribution.centos, Distribution.centos_epel) and
-                  is_older_than_centos8(args.release)):
+            if is_centos_variant(args.distribution) and is_older_than_centos8(args.release):
                 install_boot_loader_centos_old_efi(args, root, loopdev)
             else:
                 run_workspace_command(args, root, ["bootctl", "install"])
@@ -6501,7 +6394,7 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
         if not {"uefi", "bios", "linux"}.issuperset(args.boot_protocols):
             die("Not a valid boot protocol")
 
-    if args.distribution in (Distribution.centos, Distribution.centos_epel):
+    if is_centos_variant(args.distribution):
         epel_release = parse_epel_release(args.release)
         if epel_release <= 9 and args.output_format == OutputFormat.gpt_btrfs:
             die(f"Sorry, CentOS {epel_release} does not support btrfs", MkosiNotSupportedException)
