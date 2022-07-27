@@ -6486,7 +6486,7 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
             args.release = "rolling"
 
     if args.bootable:
-        if args.output_format in (
+        if args.verb == Verb.qemu and args.output_format in (
             OutputFormat.directory,
             OutputFormat.subvolume,
             OutputFormat.tar,
