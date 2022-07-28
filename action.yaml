@@ -5,29 +5,19 @@ runs:
   using: composite
   steps:
 
-  - name: Copy /etc/os-release
-    shell: bash
-    run: |
-      cp /etc/os-release $GITHUB_WORKSPACE
-      # hashFiles() only works on files inside $GITHUB_WORKSPACE so let's copy /etc/os-release to that
-      # location.
-      cat os-release
-
-  - name: Cache dependencies
-    uses: actions/cache@v3
-    with:
-      path: build
-      key: ${{ hashFiles('os-release', 'action/setup-pacman.sh') }}
-
   - name: Dependencies
     shell: bash
-    working-directory: ${{ github.action_path }}
     run: |
+      # For archlinux-keyring and pacman
+      sudo add-apt-repository ppa:michel-slm/kernel-utils
       sudo apt-get update
       sudo apt-get install --assume-yes --no-install-recommends \
         debootstrap \
         zypper \
         dnf \
+        pacman-package-manager \
+        archlinux-keyring \
+        makepkg \
         systemd-container \
         qemu-system-x86 \
         ovmf \
@@ -36,16 +26,8 @@ runs:
         squashfs-tools \
         btrfs-progs
 
-      mkdir -p $BUILDDIR
-
-      sudo -E action/setup-pacman.sh
-      sudo chown -R $USER: $BUILDDIR
-
       sudo pacman-key --init
       sudo pacman-key --populate archlinux
-
-    env:
-      BUILDDIR: build
 
   # Try to eliminate "Failed to dissect image: Connection timed out" errors from nspawn by compiling
   # systemd-nspawn from v251 from source.
