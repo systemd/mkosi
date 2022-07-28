@@ -984,7 +984,13 @@ def ioctl_partition_add(fd: int, nr: int, start: int, size: int) -> None:
 def ioctl_partition_remove(fd: int, nr: int) -> None:
     bp = blkpg_partition(pno=nr)
     ba = blkpg_ioctl_arg(op=BLKPG_DEL_PARTITION, data=ctypes.addressof(bp), datalen=ctypes.sizeof(bp))
-    fcntl.ioctl(fd, BLKPG, ba)
+    try:
+        fcntl.ioctl(fd, BLKPG, ba)
+    except OSError as e:
+        if e.errno != errno.EBUSY:
+            raise
+        else:
+            warn("Got EBUSY from the kernel while trying to remove partition, ignoring")
 
 
 @contextlib.contextmanager
