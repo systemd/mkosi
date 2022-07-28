@@ -3645,6 +3645,9 @@ def insert_partition(
 
     luks_extra = 16 * 1024 * 1024 if state.config.encrypt == "all" else 0
     blob_size = os.stat(blob.name).st_size
+    if ident == PartitionIdentifier.root and not state.config.minimize:
+        # Make root partition at least as big as the specified size
+        blob_size = max(blob_size, state.config.root_size)
     part = state.partition_table.add(ident, blob_size + luks_extra, type_uuid, description, part_uuid)
 
     disk_size = state.partition_table.disk_size()
@@ -6562,7 +6565,9 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
 
     if args.output_format.is_squashfs():
         args.read_only = True
-        args.root_size = None
+        if args.root_size is None:
+            # Size will be automatic
+            args.minimize = True
         if args.compress is False:
             die("Cannot disable compression with squashfs", MkosiNotSupportedException)
         if args.compress is None:
