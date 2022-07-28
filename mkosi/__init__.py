@@ -4054,12 +4054,17 @@ def install_unified_kernel(
                 image_id = f"mkosi-{args.distribution}"
                 partlabel = None
 
+            # See https://systemd.io/AUTOMATIC_BOOT_ASSESSMENT/#boot-counting
+            boot_count = ""
+            if root.joinpath("etc/kernel/tries").exists():
+                boot_count = f'+{root.joinpath("etc/kernel/tries").read_text().strip()}'
+
             if args.image_version:
-                boot_binary = root / prefix / f"EFI/Linux/{image_id}_{args.image_version}.efi"
+                boot_binary = root / prefix / f"EFI/Linux/{image_id}_{args.image_version}{boot_count}.efi"
             elif root_hash:
-                boot_binary = root / prefix / f"EFI/Linux/{image_id}-{kver}-{root_hash}.efi"
+                boot_binary = root / prefix / f"EFI/Linux/{image_id}-{kver}-{root_hash}{boot_count}.efi"
             else:
-                boot_binary = root / prefix / f"EFI/Linux/{image_id}-{kver}.efi"
+                boot_binary = root / prefix / f"EFI/Linux/{image_id}-{kver}{boot_count}.efi"
 
             if root.joinpath("etc/kernel/cmdline").exists():
                 boot_options = root.joinpath("etc/kernel/cmdline").read_text().strip()
