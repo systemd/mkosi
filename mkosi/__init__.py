@@ -125,7 +125,7 @@ SomeIO = Union[BinaryIO, TextIO]
 PathString = Union[Path, str]
 
 MKOSI_COMMANDS_NEED_BUILD = (Verb.shell, Verb.boot, Verb.qemu, Verb.serve)
-MKOSI_COMMANDS_SUDO = (Verb.build, Verb.clean, Verb.shell, Verb.boot, Verb.qemu, Verb.serve)
+MKOSI_COMMANDS_SUDO = (Verb.build, Verb.clean, Verb.shell, Verb.boot, Verb.serve)
 MKOSI_COMMANDS_CMDLINE = (Verb.build, Verb.shell, Verb.boot, Verb.qemu, Verb.ssh)
 
 DRACUT_SYSTEMD_EXTRAS = [
@@ -4724,6 +4724,7 @@ def remove_duplicates(items: List[T]) -> List[T]:
 
 class ListAction(argparse.Action):
     delimiter: str
+    deduplicate: bool = True
 
     def __init__(self, *args: Any, choices: Optional[Iterable[Any]] = None, **kwargs: Any) -> None:
         self.list_choices = choices
@@ -4767,7 +4768,8 @@ class ListAction(argparse.Action):
         else:
             ary.append(values)
 
-        ary = remove_duplicates(ary)
+        if self.deduplicate:
+            ary = remove_duplicates(ary)
         setattr(namespace, self.dest, ary)
 
 
@@ -4781,6 +4783,10 @@ class ColonDelimitedListAction(ListAction):
 
 class SpaceDelimitedListAction(ListAction):
     delimiter = " "
+
+
+class RepeatableSpaceDelimitedListAction(SpaceDelimitedListAction):
+    deduplicate = False
 
 
 class BooleanAction(argparse.Action):
@@ -5004,7 +5010,7 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
                             if cli_arg in action.option_strings:
                                 if isinstance(action, ListAction):
                                     value = value.replace(os.linesep, action.delimiter)
-                        new_arg_strings.extend([cli_arg, value])
+                        new_arg_strings.append(f"{cli_arg}={value}")
             except OSError as e:
                 self.error(str(e))
         # return the modified argument list
@@ -5693,7 +5699,7 @@ def create_parser() -> ArgumentParserMkosi:
     )
     group.add_argument(
         "--qemu-args",
-        action=SpaceDelimitedListAction,
+        action=RepeatableSpaceDelimitedListAction,
         default=[],
         # Suppress the command line option because it's already possible to pass qemu args as normal
         # arguments.
@@ -6046,9 +6052,6 @@ def empty_directory(path: Path) -> None:
 
 
 def unlink_output(args: MkosiArgs) -> None:
-    if not args.force and args.verb != Verb.clean:
-        return
-
     if not args.skip_final_phase:
         with complete_step("Removing output files…"):
             unlink_try_hard(args.output)
@@ -7814,8 +7817,9 @@ def run_qemu_cmdline(args: MkosiArgs) -> Iterator[List[str]]:
         cmdline += ["-vga", "virtio"]
 
     if args.netdev:
-        if not ensure_networkd(args):
-            # Fall back to usermode networking if the host doesn't have networkd (eg: Debian)
+        if not ensure_networkd(args) or os.getuid() != 0:
+            # Fall back to usermode networking if the host doesn't have networkd (eg: Debian).
+            # Also fall back if running as an unprivileged user, which likely can't set up the tap interface.
             fwd = f",hostfwd=tcp::{args.ssh_port}-:{args.ssh_port}" if args.ssh_port != 22 else ""
             cmdline += ["-nic", f"user,model=virtio-net-pci{fwd}"]
         else:
@@ -8120,16 +8124,18 @@ def run_verb(raw: argparse.Namespace) -> None:
 
     if args.verb in MKOSI_COMMANDS_SUDO:
         check_root()
-        unlink_output(args)
 
-    if args.verb == Verb.build:
+    if args.verb == Verb.build and not args.force:
         check_output(args)
+
+    if needs_build(args) or args.verb == Verb.clean:
+        check_root()
+        unlink_output(args)
 
     if args.verb == Verb.summary:
         print_summary(args)
 
     if needs_build(args):
-        check_root()
         check_native(args)
         init_namespace(args)
         manifest = build_stuff(args)
