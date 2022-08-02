@@ -4908,7 +4908,7 @@ class CustomHelpFormatter(argparse.HelpFormatter):
             for line in lines))
 
 class ArgumentParserMkosi(argparse.ArgumentParser):
-    """ArgumentParser with support for mkosi.defaults file(s)
+    """ArgumentParser with support for mkosi configuration file(s)
 
     This derived class adds a simple ini file parser to python's ArgumentParser features.
     Each line of the ini file is converted to a command line argument. Example:
@@ -4969,13 +4969,13 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
         configuration file paths. The settings of each file are parsed and returned as
         command line arguments.
         Example:
-          The following mkosi.default is loaded.
+          The following mkosi config is loaded.
           [Distribution]
           Distribution=fedora
 
           mkosi is called like: mkosi -p httpd
 
-          arg_strings: ['@mkosi.default', '-p', 'httpd']
+          arg_strings: ['@mkosi.conf', '-p', 'httpd']
           return value: ['--distribution', 'fedora', '-p', 'httpd']
         """
 
@@ -5779,9 +5779,16 @@ def create_parser() -> ArgumentParserMkosi:
         metavar="PATH",
     )
     group.add_argument(
-        "--default",
-        dest="default_path",
+        "--config",
+        dest="config_path",
         help="Read configuration data from file",
+        type=Path,
+        metavar="PATH",
+    )
+    group.add_argument(
+        "--default",
+        dest="config_path",
+        help=argparse.SUPPRESS,
         type=Path,
         metavar="PATH",
     )
@@ -5839,9 +5846,9 @@ def load_distribution(args: argparse.Namespace) -> argparse.Namespace:
 
 
 def parse_args(argv: Optional[Sequence[str]] = None) -> Dict[str, argparse.Namespace]:
-    """Load default values from files and parse command line arguments
+    """Load config values from files and parse command line arguments
 
-    Do all about default files and command line arguments parsing. If --all argument is passed
+    Do all about config files and command line arguments parsing. If --all argument is passed
     more than one job needs to be processed. The returned tuple contains MkosiArgs
     valid for all jobs as well as a dict containing the arguments per job.
     """
@@ -5851,7 +5858,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> Dict[str, argparse.Names
         argv = sys.argv[1:]
     argv = list(argv)  # make a copy 'cause we'll be modifying the list later on
 
-    # If ArgumentParserMkosi loads settings from mkosi.default files, the settings from files
+    # If ArgumentParserMkosi loads settings from mkosi configuration files, the settings from files
     # are converted to command line arguments. This breaks ArgumentParser's support for default
     # values of positional arguments. Make sure the verb command gets explicitly passed.
     # Insert a -- before the positional verb argument otherwise it might be considered as an argument of
@@ -5868,7 +5875,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> Dict[str, argparse.Names
     else:
         argv += ["--", "build"]
 
-    # First run of command line arguments parsing to get the directory of mkosi.default file and the verb argument.
+    # First run of command line arguments parsing to get the directory of the config file and the verb argument.
     args_pre_parsed, _ = parser.parse_known_args(argv)
 
     if args_pre_parsed.verb == Verb.help:
@@ -5882,14 +5889,23 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> Dict[str, argparse.Names
     else:
         directory = Path.cwd()
 
-    # Note that directory will be ignored if .all_directory or .default_path are absolute
+    # Note that directory will be ignored if .all_directory or .config_path are absolute
     all_directory = directory / (args_pre_parsed.all_directory or "mkosi.files")
-    default_path = directory / (args_pre_parsed.default_path or "mkosi.default")
-    if args_pre_parsed.default_path and not default_path.exists():
-        die(f"No config file found at {default_path}")
+    if args_pre_parsed.config_path and not directory.joinpath(args_pre_parsed.config_path).exists():
+        die(f"No config file found at {directory / args_pre_parsed.config_path}")
 
-    if args_pre_parsed.all and args_pre_parsed.default_path:
-        die("--all and --default= may not be combined.")
+    for name in (args_pre_parsed.config_path, "mkosi.conf"):
+        if not name:
+            continue
+
+        config_path = directory / name
+        if config_path.exists():
+            break
+    else:
+        config_path = directory / "mkosi.default"
+
+    if args_pre_parsed.all and args_pre_parsed.config_path:
+        die("--all and --config= may not be combined.")
 
     # Parse everything in --all mode
     args_all = {}
@@ -5903,57 +5919,57 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> Dict[str, argparse.Names
             args_all[f.name] = args
     # Parse everything in normal mode
     else:
-        args = parse_args_file_group(argv, os.fspath(default_path))
+        args = parse_args_file_group(argv, os.fspath(config_path))
 
         args = load_distribution(args)
 
         if args.distribution:
             # Parse again with any extra distribution files included.
-            args = parse_args_file_group(argv, os.fspath(default_path), args.distribution)
+            args = parse_args_file_group(argv, os.fspath(config_path), args.distribution)
 
         args_all["default"] = args
 
     return args_all
 
 
-def parse_args_file(argv: List[str], default_path: Path) -> argparse.Namespace:
+def parse_args_file(argv: List[str], config_path: Path) -> argparse.Namespace:
     """Parse just one mkosi.* file (--all mode)."""
 
     # Parse all parameters handled by mkosi.
     # Parameters forwarded to subprocesses such as nspawn or qemu end up in cmdline_argv.
-    argv = argv[:1] + [f"{ArgumentParserMkosi.fromfile_prefix_chars}{default_path}"] + argv[1:]
+    argv = argv[:1] + [f"{ArgumentParserMkosi.fromfile_prefix_chars}{config_path}"] + argv[1:]
 
     return create_parser().parse_args(argv)
 
 
 def parse_args_file_group(
-    argv: List[str], default_path: str, distribution: Optional[Distribution] = None
+    argv: List[str], config_path: str, distribution: Optional[Distribution] = None
 ) -> argparse.Namespace:
-    """Parse a set of mkosi.default and mkosi.default.d/* files."""
+    """Parse a set of mkosi config files"""
     # Add the @ prefixed filenames to current argument list in inverse priority order.
-    defaults_files = []
+    config_files = []
 
-    if os.path.isfile(default_path):
-        defaults_files += [f"{ArgumentParserMkosi.fromfile_prefix_chars}{default_path}"]
+    if os.path.isfile(config_path):
+        config_files += [f"{ArgumentParserMkosi.fromfile_prefix_chars}{config_path}"]
 
-    defaults_dir = "mkosi.default.d"
-    if os.path.isdir(defaults_dir):
-        for file in sorted(os.listdir(defaults_dir)):
-            path = os.path.join(defaults_dir, file)
-            if os.path.isfile(path):
-                defaults_files += [f"{ArgumentParserMkosi.fromfile_prefix_chars}{path}"]
+    for dropin_dir in ("mkosi.conf.d", "mkosi.default.d"):
+        if os.path.isdir(dropin_dir):
+            for file in sorted(os.listdir(dropin_dir)):
+                path = os.path.join(dropin_dir, file)
+                if os.path.isfile(path):
+                    config_files += [f"{ArgumentParserMkosi.fromfile_prefix_chars}{path}"]
 
     if distribution is not None:
-        distribution_dir = f"mkosi.default.d/{distribution}"
-        if os.path.isdir(distribution_dir):
-            for subdir in sorted(os.listdir(distribution_dir)):
-                path = os.path.join(distribution_dir, subdir)
-                if os.path.isfile(path):
-                    defaults_files += [f"{ArgumentParserMkosi.fromfile_prefix_chars}{path}"]
+        for distribution_dir in (f"mkosi.conf.d/{distribution}", f"mkosi.default.d/{distribution}"):
+            if os.path.isdir(distribution_dir):
+                for subdir in sorted(os.listdir(distribution_dir)):
+                    path = os.path.join(distribution_dir, subdir)
+                    if os.path.isfile(path):
+                        config_files += [f"{ArgumentParserMkosi.fromfile_prefix_chars}{path}"]
 
     # Parse all parameters handled by mkosi.
     # Parameters forwarded to subprocesses such as nspawn or qemu end up in cmdline_argv.
-    return create_parser().parse_args(defaults_files + argv)
+    return create_parser().parse_args(config_files + argv)
 
 
 def parse_bytes(num_bytes: Optional[str]) -> Optional[int]:
@@ -7356,8 +7372,11 @@ def run_build_script(args: MkosiArgs, root: Path, raw: Optional[BinaryIO]) -> No
         if nspawn_knows_arg(console_arg):
             cmdline += [console_arg]
 
-        if args.default_path is not None:
-            cmdline += [f"--setenv=MKOSI_DEFAULT={args.default_path}"]
+        if args.config_path is not None:
+            cmdline += [
+                f"--setenv=MKOSI_CONFIG={args.config_path}",
+                f"--setenv=MKOSI_DEFAULT={args.config_path}"
+            ]
 
         if args.image_version is not None:
             cmdline += [f"--setenv=IMAGE_VERSION={args.image_version}"]

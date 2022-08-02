@@ -55,7 +55,7 @@ def test_os_distribution() -> None:
 
     for dist in Distribution:
         with cd_temp_dir():
-            config = Path("mkosi.default")
+            config = Path("mkosi.conf")
             config.write_text(f"[Distribution]\nDistribution={dist}")
             assert parse([]).distribution == dist
 
@@ -72,14 +72,14 @@ def test_machine_id() -> None:
         parse(["--machine-id"])
 
     with cd_temp_dir():
-        config = Path("mkosi.default")
+        config = Path("mkosi.conf")
         config.write_text(f"[Output]\nMachineID={id}")
         load_args = parse([])
         assert load_args.machine_id == id
         assert load_args.machine_id_is_fixed
 
     with cd_temp_dir():
-        config = Path("mkosi.default")
+        config = Path("mkosi.conf")
         config.write_text("[Output]\nMachineID=")
         with pytest.raises(MkosiException):
             parse([])
@@ -92,19 +92,19 @@ def test_hostname() -> None:
         parse(["--hostname"])
 
     with cd_temp_dir():
-        config = Path("mkosi.default")
+        config = Path("mkosi.conf")
         config.write_text("[Output]\nHostname=name")
         assert parse([]).hostname == "name"
 
     with cd_temp_dir():
-        config = Path("mkosi.default")
+        config = Path("mkosi.conf")
         config.write_text("[Output]\nHostname=")
         config = Path("hostname.txt")
         assert parse([]).hostname == ""
 
 def test_centos_brtfs() -> None:
     with cd_temp_dir():
-        config = Path("mkosi.default")
+        config = Path("mkosi.conf")
         for dist in (Distribution.centos, Distribution.centos_epel):
             for release in range (2, 9):
                 config.write_text(
@@ -122,7 +122,7 @@ def test_centos_brtfs() -> None:
                     parse([])
 
     with cd_temp_dir():
-        config = Path("mkosi.default")
+        config = Path("mkosi.conf")
         for dist in (Distribution.centos, Distribution.centos_epel):
             for release in range (2, 8):
                 config.write_text(
