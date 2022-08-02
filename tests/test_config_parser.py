@@ -64,7 +64,7 @@ class MkosiConfig:
             "compress_fs": None,
             "compress_output": None,
             "debug": [],
-            "default_path": None,
+            "config_path": None,
             "directory": None,
             "distribution": None,
             "encrypt": None,
@@ -194,7 +194,7 @@ class MkosiConfig:
 
     @staticmethod
     def write_ini(dname: str, fname: str, config: Dict[str, Any], prio: int = 1000) -> None:
-        """Write mkosi.default(.d/*) files"""
+        """Write mkosi.conf(.d/*) files"""
         if not os.path.exists(dname):
             os.makedirs(dname)
         if prio < 1000:
@@ -395,9 +395,9 @@ class MkosiConfigOne(MkosiConfig):
     called by pytest for each class derived from this class. These test cases
     verify the parse_args function in single image (not --all) mode.
     This class implements four functions:
-    - prepare_mkosi_default
-    - prepare_mkosi_default_d_1
-    - prepare_mkosi_default_d_2
+    - prepare_mkosi_conf
+    - prepare_mkosi_conf_d_1
+    - prepare_mkosi_conf_d_2
     - prepare_args or prepare_args_short
 
     The purpose of these function is to generate configuration files and sets of command line
@@ -406,12 +406,12 @@ class MkosiConfigOne(MkosiConfig):
     function under test.
 
     This allows to write test cases with four steps. The first step generates a reference configuration
-    consisting of mkosi.default file only. Therefore prepare_mkosi_default function is is called to
+    consisting of mkosi.conf file only. Therefore prepare_mkosi_conf function is is called to
     generate the test configuration. Finally parse_args is called and the configuration returned by
     parse_args is compared against the reference_config. The second test step generates a test
-    configuration by calling prepare_mkosi_default and prepare_mkosi_default_d_1. This verifies the
-    behavior of parse_args is fine for mkosi.default plus one override file. The third test case verifies
-    that mkosi.default with two files in mkosi.default.d folder works as expected. The fourth test case
+    configuration by calling prepare_mkosi_conf and prepare_mkosi_conf_d_1. This verifies the
+    behavior of parse_args is fine for mkosi.conf plus one override file. The third test case verifies
+    that mkosi.conf with two files in mkosi.conf.d folder works as expected. The fourth test case
     additionally overrides some default values with command line arguments.
 
     Classes derived from this base class should override the mentioned functions to implement specific
@@ -419,29 +419,29 @@ class MkosiConfigOne(MkosiConfig):
     """
 
     def __init__(self) -> None:
-        """Add the default mkosi.default config"""
+        """Add the default mkosi.conf config"""
         super().__init__()
         self.add_reference_config()
 
-    def _prepare_mkosi_default(self, directory: str, config: Dict[str, Any]) -> None:
-        MkosiConfig.write_ini(directory, "mkosi.default", config)
+    def _prepare_mkosi_conf(self, directory: str, config: Dict[str, Any]) -> None:
+        MkosiConfig.write_ini(directory, "mkosi.conf", config)
 
-    def _prepare_mkosi_default_d(self, directory: str, config: Dict[str, Any], prio: int = 1000, fname: str = "mkosi.conf") -> None:
-        MkosiConfig.write_ini(os.path.join(directory, "mkosi.default.d"), fname, config, prio)
+    def _prepare_mkosi_conf_d(self, directory: str, config: Dict[str, Any], prio: int = 1000, fname: str = "mkosi.conf") -> None:
+        MkosiConfig.write_ini(os.path.join(directory, "mkosi.conf.d"), fname, config, prio)
 
-    def prepare_mkosi_default(self, directory: str) -> None:
-        """Generate a mkosi.default defaults file in the working directory"""
+    def prepare_mkosi_conf(self, directory: str) -> None:
+        """Generate a mkosi.conf config file in the working directory"""
         pass
 
-    def prepare_mkosi_default_d_1(self, directory: str) -> None:
-        """Generate a prio 1 config file in mkosi.default.d
+    def prepare_mkosi_conf_d_1(self, directory: str) -> None:
+        """Generate a prio 1 config file in mkosi.conf.d
 
         The file name should be prefixed with 001_.
         """
         pass
 
-    def prepare_mkosi_default_d_2(self, directory: str) -> None:
-        """Generate a prio 2 config file in mkosi.default.d
+    def prepare_mkosi_conf_d_2(self, directory: str) -> None:
+        """Generate a prio 2 config file in mkosi.conf.d
 
         The file name should be prefixed with 002_.
         """
@@ -475,9 +475,9 @@ class MkosiConfigDistro(MkosiConfigOne):
     """Minimal test configuration for the distribution parameter
 
     This tests defines the distribution parameter on several configuration priorities:
-    - mkosi.default
-    - mkosi.default.d/001_mkosi.conf
-    - mkosi.default.d/002_mkosi.conf
+    - mkosi.conf
+    - mkosi.conf.d/001_mkosi.conf
+    - mkosi.conf.d/002_mkosi.conf
     - --distribution
     """
 
@@ -489,9 +489,9 @@ class MkosiConfigDistro(MkosiConfigOne):
                 ref_c["directory"] = self.subdir_name
             self.cli_arguments = ["--directory", self.subdir_name, "summary"]
 
-    def prepare_mkosi_default(self, directory: str) -> None:
+    def prepare_mkosi_conf(self, directory: str) -> None:
         mk_config = {"Distribution": {"Distribution": "fedora"}}
-        self._prepare_mkosi_default(directory, mk_config)
+        self._prepare_mkosi_conf(directory, mk_config)
         for ref_c in self.reference_config.values():
             ref_c["distribution"] = "fedora"
             if self.subdir_name:
@@ -499,15 +499,15 @@ class MkosiConfigDistro(MkosiConfigOne):
         if self.subdir_name:
             self.cli_arguments = ["--directory", self.subdir_name, "summary"]
 
-    def prepare_mkosi_default_d_1(self, directory: str) -> None:
+    def prepare_mkosi_conf_d_1(self, directory: str) -> None:
         mk_config = {"Distribution": {"Distribution": "ubuntu"}}
-        self._prepare_mkosi_default_d(directory, mk_config, 1)
+        self._prepare_mkosi_conf_d(directory, mk_config, 1)
         for ref_c in self.reference_config.values():
             ref_c["distribution"] = "ubuntu"
 
-    def prepare_mkosi_default_d_2(self, directory: str) -> None:
+    def prepare_mkosi_conf_d_2(self, directory: str) -> None:
         mk_config = {"Distribution": {"Distribution": "debian"}}
-        self._prepare_mkosi_default_d(directory, mk_config, 2)
+        self._prepare_mkosi_conf_d(directory, mk_config, 2)
         for ref_c in self.reference_config.values():
             ref_c["distribution"] = "debian"
 
@@ -538,7 +538,7 @@ class MkosiConfigDistroDir(MkosiConfigDistro):
 class MkosiConfigManyParams(MkosiConfigOne):
     """Test configuration for most parameters"""
 
-    def prepare_mkosi_default(self, directory: str) -> None:
+    def prepare_mkosi_conf(self, directory: str) -> None:
         mk_config = {
             "Distribution": {
                 "Distribution": "fedora",
@@ -604,11 +604,11 @@ class MkosiConfigManyParams(MkosiConfigOne):
                 "Netdev": True,
             },
         }
-        self._prepare_mkosi_default(directory, mk_config)
+        self._prepare_mkosi_conf(directory, mk_config)
         for j in self.reference_config:
             self._update_ref_from_file(mk_config, j)
 
-    def prepare_mkosi_default_d_1(self, directory: str) -> None:
+    def prepare_mkosi_conf_d_1(self, directory: str) -> None:
         mk_config = {
             "Distribution": {
                 "Distribution": "ubuntu",
@@ -671,11 +671,11 @@ class MkosiConfigManyParams(MkosiConfigOne):
                 "Netdev": True,
             },
         }
-        self._prepare_mkosi_default_d(directory, mk_config, 1)
+        self._prepare_mkosi_conf_d(directory, mk_config, 1)
         for j in self.reference_config:
             self._update_ref_from_file(mk_config, j)
 
-    def prepare_mkosi_default_d_2(self, directory: str) -> None:
+    def prepare_mkosi_conf_d_2(self, directory: str) -> None:
         mk_config = {
             "Distribution": {
                 "Distribution": "debian",
@@ -738,7 +738,7 @@ class MkosiConfigManyParams(MkosiConfigOne):
                 "Netdev": True,
             },
         }
-        self._prepare_mkosi_default_d(directory, mk_config, 2)
+        self._prepare_mkosi_conf_d(directory, mk_config, 2)
         for j in self.reference_config:
             self._update_ref_from_file(mk_config, j)
 
@@ -771,7 +771,7 @@ class MkosiConfigManyParams(MkosiConfigOne):
 class MkosiConfigIniLists1(MkosiConfigOne):
     """Manually written ini files with advanced list syntax."""
 
-    def prepare_mkosi_default(self, directory: str) -> None:
+    def prepare_mkosi_conf(self, directory: str) -> None:
         ini_lines = [
             "[Distribution]",
             "Distribution=fedora",
@@ -781,12 +781,12 @@ class MkosiConfigIniLists1(MkosiConfigOne):
             "  httpd",
             "  tar",
         ]
-        with open(os.path.join(directory, "mkosi.default"), "w") as f_ini:
+        with open(os.path.join(directory, "mkosi.conf"), "w") as f_ini:
             f_ini.write(os.linesep.join(ini_lines))
         self.reference_config[DEFAULT_JOB_NAME]["distribution"] = "fedora"
         self.reference_config[DEFAULT_JOB_NAME]["packages"] = ["openssh-clients", "httpd", "tar"]
 
-    def prepare_mkosi_default_d_1(self, directory: str) -> None:
+    def prepare_mkosi_conf_d_1(self, directory: str) -> None:
         ini_lines = [
             "[Distribution]",
             "Distribution=ubuntu",
@@ -799,7 +799,7 @@ class MkosiConfigIniLists1(MkosiConfigOne):
             "[Output]",
             "KernelCommandLine=console=ttyS0",
         ]
-        dname = os.path.join(directory, "mkosi.default.d")
+        dname = os.path.join(directory, "mkosi.conf.d")
         if not os.path.exists(dname):
             os.makedirs(dname)
         with open(os.path.join(dname, "1_ubuntu.conf"), "w") as f_ini:
@@ -810,7 +810,7 @@ class MkosiConfigIniLists1(MkosiConfigOne):
         self.reference_config[DEFAULT_JOB_NAME]["packages"].append("apache2")
         self.reference_config[DEFAULT_JOB_NAME]["kernel_command_line"].extend(["console=ttyS0"])
 
-    def prepare_mkosi_default_d_2(self, directory: str) -> None:
+    def prepare_mkosi_conf_d_2(self, directory: str) -> None:
         ini_lines = [
             "[Content]",
             "Packages=[ vim,!vi",
@@ -819,7 +819,7 @@ class MkosiConfigIniLists1(MkosiConfigOne):
             "KernelCommandLine=console=ttyS1",
             "  driver.feature=1",
         ]
-        dname = os.path.join(directory, "mkosi.default.d")
+        dname = os.path.join(directory, "mkosi.conf.d")
         if not os.path.exists(dname):
             os.makedirs(dname)
         with open(os.path.join(dname, "2_additional_stuff.conf"), "w") as f_ini:
@@ -833,9 +833,9 @@ class MkosiConfigIniLists1(MkosiConfigOne):
 class MkosiConfigIniLists2(MkosiConfigIniLists1):
     """Same as MkosiConfigIniLists2 but with clean KernelCommandLine"""
 
-    def prepare_mkosi_default(self, directory: str) -> None:
+    def prepare_mkosi_conf(self, directory: str) -> None:
         ini_lines = ["[Output]", "KernelCommandLine=!*"]
-        with open(os.path.join(directory, "mkosi.default"), "w") as f_ini:
+        with open(os.path.join(directory, "mkosi.conf"), "w") as f_ini:
             f_ini.write(os.linesep.join(ini_lines))
         self.reference_config[DEFAULT_JOB_NAME]["kernel_command_line"] = []
 
@@ -928,43 +928,43 @@ def test_builtin(tested_config: Any, tmpdir: Path) -> None:
 
 
 def test_def(tested_config: Any, tmpdir: Path) -> None:
-    """Generate the mkosi.default file only"""
+    """Generate the mkosi.conf file only"""
     with change_cwd(tmpdir):
-        tested_config.prepare_mkosi_default(tmpdir)
+        tested_config.prepare_mkosi_conf(tmpdir)
         args = mkosi.parse_args(tested_config.cli_arguments)
         assert tested_config == args
 
 
 def test_def_1(tested_config: Any, tmpdir: Path) -> None:
-    """Generate the mkosi.default file plus one config file"""
+    """Generate the mkosi.conf file plus one config file"""
     with change_cwd(tmpdir):
-        tested_config.prepare_mkosi_default(tmpdir)
-        tested_config.prepare_mkosi_default_d_1(tmpdir)
+        tested_config.prepare_mkosi_conf(tmpdir)
+        tested_config.prepare_mkosi_conf_d_1(tmpdir)
         args = mkosi.parse_args(tested_config.cli_arguments)
         assert tested_config == args
 
 
 def test_def_2(tested_config: Any, tmpdir: Path) -> None:
-    """Generate the mkosi.default file plus another config file"""
+    """Generate the mkosi.conf file plus another config file"""
     with change_cwd(tmpdir):
-        tested_config.prepare_mkosi_default(tmpdir)
-        tested_config.prepare_mkosi_default_d_2(tmpdir)
+        tested_config.prepare_mkosi_conf(tmpdir)
+        tested_config.prepare_mkosi_conf_d_2(tmpdir)
         args = mkosi.parse_args(tested_config.cli_arguments)
         assert tested_config == args
 
 
 def test_def_1_2(tested_config: Any, tmpdir: Path) -> None:
-    """Generate the mkosi.default file plus two config files"""
+    """Generate the mkosi.conf file plus two config files"""
     with change_cwd(tmpdir):
-        tested_config.prepare_mkosi_default(tmpdir)
-        tested_config.prepare_mkosi_default_d_1(tmpdir)
-        tested_config.prepare_mkosi_default_d_2(tmpdir)
+        tested_config.prepare_mkosi_conf(tmpdir)
+        tested_config.prepare_mkosi_conf_d_1(tmpdir)
+        tested_config.prepare_mkosi_conf_d_2(tmpdir)
         args = mkosi.parse_args(tested_config.cli_arguments)
         assert tested_config == args
 
 
 def test_def_args(tested_config: Any, tmpdir: Path) -> None:
-    """Generate the mkosi.default plus command line arguments"""
+    """Generate the mkosi.conf plus command line arguments"""
     with change_cwd(tmpdir):
         tested_config.prepare_args()
         args = mkosi.parse_args(tested_config.cli_arguments)
@@ -972,32 +972,32 @@ def test_def_args(tested_config: Any, tmpdir: Path) -> None:
 
 
 def test_def_1_args(tested_config: Any, tmpdir: Path) -> None:
-    """Generate the mkosi.default plus a config file plus command line arguments"""
+    """Generate the mkosi.conf plus a config file plus command line arguments"""
     with change_cwd(tmpdir):
-        tested_config.prepare_mkosi_default(tmpdir)
-        tested_config.prepare_mkosi_default_d_1(tmpdir)
+        tested_config.prepare_mkosi_conf(tmpdir)
+        tested_config.prepare_mkosi_conf_d_1(tmpdir)
         tested_config.prepare_args()
         args = mkosi.parse_args(tested_config.cli_arguments)
         assert tested_config == args
 
 
 def test_def_1_2_args(tested_config: Any, tmpdir: Path) -> None:
-    """Generate the mkosi.default plus two config files plus command line arguments"""
+    """Generate the mkosi.conf plus two config files plus command line arguments"""
     with change_cwd(tmpdir):
-        tested_config.prepare_mkosi_default(tmpdir)
-        tested_config.prepare_mkosi_default_d_1(tmpdir)
-        tested_config.prepare_mkosi_default_d_2(tmpdir)
+        tested_config.prepare_mkosi_conf(tmpdir)
+        tested_config.prepare_mkosi_conf_d_1(tmpdir)
+        tested_config.prepare_mkosi_conf_d_2(tmpdir)
         tested_config.prepare_args()
         args = mkosi.parse_args(tested_config.cli_arguments)
         assert tested_config == args
 
 
 def test_def_1_2_argssh(tested_config: Any, tmpdir: Path) -> None:
-    """Generate the mkosi.default plus two config files plus short command line arguments"""
+    """Generate the mkosi.conf plus two config files plus short command line arguments"""
     with change_cwd(tmpdir):
-        tested_config.prepare_mkosi_default(tmpdir)
-        tested_config.prepare_mkosi_default_d_1(tmpdir)
-        tested_config.prepare_mkosi_default_d_2(tmpdir)
+        tested_config.prepare_mkosi_conf(tmpdir)
+        tested_config.prepare_mkosi_conf_d_1(tmpdir)
+        tested_config.prepare_mkosi_conf_d_2(tmpdir)
         tested_config.prepare_args_short()
         args = mkosi.parse_args(tested_config.cli_arguments)
         assert tested_config == args
@@ -1015,7 +1015,7 @@ class MkosiConfigAllHost(MkosiConfigAll):
     """Test --all option with two simple configs"""
 
     def __init__(self) -> None:
-        """Add two default mkosi.default configs"""
+        """Add two default mkosi.conf configs"""
         super().__init__()
         for hostname in ["test1.example.org", "test2.example.org"]:
             job_name = "mkosi." + hostname
@@ -1045,7 +1045,7 @@ def tested_config_all(request: Any) -> Any:
 
 
 def test_all_1(tested_config_all: Any, tmpdir: Path) -> None:
-    """Generate the mkosi.default plus two config files plus short command line arguments"""
+    """Generate the mkosi.conf plus two config files plus short command line arguments"""
     with change_cwd(tmpdir):
         tested_config_all.prepare_mkosi_files(tmpdir)
         args = mkosi.parse_args(tested_config_all.cli_arguments)

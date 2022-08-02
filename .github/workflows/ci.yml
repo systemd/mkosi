@@ -165,9 +165,9 @@ jobs:
 
     - name: Build/Boot ${{ matrix.distro }}/${{ matrix.format }}
       run: |
-        mkdir -p mkosi.default.d
+        mkdir -p mkosi.conf.d
 
-        tee mkosi.default.d/mkosi.default <<- EOF
+        tee mkosi.conf.d/mkosi.conf <<- EOF
         [Distribution]
         Distribution=${{ matrix.distro }}
 
@@ -186,7 +186,7 @@ jobs:
 
     - name: Build ${{ matrix.distro }}/${{ matrix.format }} UsrOnly
       run: |
-        tee mkosi.default <<- EOF
+        tee mkosi.conf <<- EOF
         [Output]
         UsrOnly=True
         EOF
@@ -195,7 +195,7 @@ jobs:
 
     - name: Build/Boot ${{ matrix.distro }}/${{ matrix.format }} UEFI UKI
       run: |
-        tee mkosi.default <<- EOF
+        tee mkosi.conf <<- EOF
         [Output]
         BootProtocols=uefi
 
@@ -207,7 +207,7 @@ jobs:
 
     - name: Build/Boot ${{ matrix.distro }}/${{ matrix.format }} UEFI
       run: |
-        tee mkosi.default <<- EOF
+        tee mkosi.conf <<- EOF
         [Output]
         BootProtocols=uefi
         WithUnifiedKernelImages=no
@@ -220,7 +220,7 @@ jobs:
 
     - name: Build/Boot ${{ matrix.distro }}/${{ matrix.format }} BIOS
       run: |
-        tee mkosi.default <<- EOF
+        tee mkosi.conf <<- EOF
         [Output]
         BootProtocols=bios
         WithUnifiedKernelImages=no
@@ -233,7 +233,7 @@ jobs:
 
     - name: Build/Boot ${{ matrix.distro }}/${{ matrix.format}} QEMU Linux Boot
       run: |
-        tee mkosi.default <<- EOF
+        tee mkosi.conf <<- EOF
         [Output]
         BootProtocols=linux
         WithUnifiedKernelImages=no

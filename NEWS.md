@@ -14,6 +14,9 @@ now symlinks to the actual files as installed by kernel-install.
 subdirectories inside these directories for each distro~release combination that
 is built. This allows building for multiple distros without throwing away the results
 of a previous distro build every time.
+- The preferred names for mkosi configuration files and directories are now mkosi.conf
+and mkosi.conf.d/ respectively. The old names (mkosi.default and mkosi.default.d) have
+been removed from the docs but are still supported for backwards compatibility.
 
 ## v13
 

@@ -519,7 +519,7 @@ class MkosiArgs:
     ssh_timeout: int
     ssh_port: int
     directory: Optional[Path]
-    default_path: Optional[Path]
+    config_path: Optional[Path]
     all: bool
     all_directory: Optional[Path]
     debug: List[str]

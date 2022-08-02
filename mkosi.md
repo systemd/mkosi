@@ -44,7 +44,7 @@ The following command line verbs are known:
 `build`
 
 : This builds the image, based on the settings passed in on the
-  command line or read from a `mkosi.default` file. This
+  command line or read from a `mkosi.conf` file. This
   verb is the default if no verb is explicitly specified. This command
   must be executed as `root`. Any arguments passed after `build` are
   passed as arguments to the build script (if there is one).
@@ -58,7 +58,7 @@ The following command line verbs are known:
 `summary`
 
 : Outputs a human-readable summary of all options used for building an
-  image. This will parse the command line and `mkosi.default` file as it
+  image. This will parse the command line and `mkosi.conf` file as it
   would do on `build`, but only output what it is configured for and not
   actually build anything.`
 
@@ -469,7 +469,7 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   images. By default command line arguments get appended. To remove all
   arguments from the current list pass "!\*". To remove specific arguments
   add a space separated list of "!" prefixed arguments.
-  For example adding "!\* console=ttyS0 rw" to a `mkosi.default` file or the
+  For example adding "!\* console=ttyS0 rw" to a `mkosi.conf` file or the
   command line arguments passes "console=ttyS0 rw" to the kernel in any
   case. Just adding "console=ttyS0 rw" would append these two arguments
   to the kernel command line created by lower priority configuration
@@ -731,7 +731,7 @@ a machine ID.
   version and/or architecture, package name globs, paths to packages in the
   file system, package groups, and virtual provides, including file paths.
 
-: To remove a package e.g. added by a `mkosi.default` configuration
+: To remove a package e.g. added by a `mkosi.conf` configuration
   file prepend the package name with `!`. For example -p "!apache2"
   would remove the apache2 package. To replace the apache2 package by
   the httpd package just add -p "!apache2,httpd" to the command line
@@ -1209,13 +1209,13 @@ Those settings cannot be configured in the configuration files.
   option is an effective way to build a project located in a specific
   directory.
 
-`--default=`
+`--config=`
 
 : Loads additional settings from the specified settings file. Most
   command line options may also be configured in a settings file. See
   the table below to see which command line options match which
   settings file option. If this option is not used, but a file
-  `mkosi.default` is found in the local directory it is automatically
+  `mkosi.conf` is found in the local directory it is automatically
   used for this purpose. If a setting is configured both on the
   command line and in the settings file, the command line generally
   wins, except for options taking lists in which case both lists are
@@ -1224,7 +1224,7 @@ Those settings cannot be configured in the configuration files.
 `--all`, `-a`
 
 : Iterate through all files `mkosi.*` in the `mkosi.files/`
-  subdirectory, and build each as if `--default=mkosi.files/mkosi.…`
+  subdirectory, and build each as if `--config=mkosi.files/mkosi.…`
   was invoked. This is a quick way to build a large number of images
   in one go. Any additional specified command line arguments override
   the relevant options in all files processed this way.
@@ -1362,7 +1362,7 @@ under the assumption that it is invoked from a *source*
 tree. Specifically, the following files are used if they exist in the
 local directory:
 
-* The **`mkosi.default`** file provides the default configuration for
+* The **`mkosi.conf`** file provides the default configuration for
   the image building process. For example, it may specify the
   distribution to use (`fedora`, `ubuntu`, `debian`, `arch`,
   `opensuse`, `mageia`, `openmandriva`, `gentoo`) for the image, or additional
@@ -1372,9 +1372,9 @@ local directory:
   `mkosi` without further parameters in your *source* tree is enough
   to get the right image of your choice set up.
 
-  Additionally, if a *`mkosi.default.d/`* directory exists, each file
+  Additionally, if a *`mkosi.conf.d/`* directory exists, each file
   in it is loaded in the same manner adding/overriding the values
-  specified in `mkosi.default`. If `mkosi.default.d/` contains a
+  specified in `mkosi.conf`. If `mkosi.conf.d/` contains a
   directory named after the distribution being built, each file in
   that directory is also processed.
 
@@ -1437,8 +1437,8 @@ local directory:
   via `.gitignore` entries is to use the `mkosi.output/` directory,
   which is an easy way to exclude all build artifacts.
 
-  The `$MKOSI_DEFAULT` environment variable will be set inside of this
-  script so that you know which `mkosi.default` (if any) was passed
+  The `$MKOSI_CONFIG` environment variable will be set inside of this
+  script so that you know which `mkosi.conf` (if any) was passed
   in.
 
 * The **`mkosi.prepare`** script is invoked directly after the
@@ -1576,7 +1576,7 @@ All these files are optional.
 
 Note that the location of all these files may also be configured
 during invocation via command line switches, and as settings in
-`mkosi.default`, in case the default settings are not acceptable for a
+`mkosi.conf`, in case the default settings are not acceptable for a
 project.
 
 # BUILD PHASES
@@ -1712,7 +1712,7 @@ an OS image containing a built version of the project in its current
 state:
 
 ```bash
-# cat >mkosi.default <<EOF
+# cat >mkosi.conf <<EOF
 [Distribution]
 Distribution=fedora
 Release=24
@@ -1745,7 +1745,7 @@ To create a *Fedora Linux* image with hostname:
 
 Also you could set hostname in configuration file:
 ```bash
-# cat mkosi.default
+# cat mkosi.conf
 ...
 [Output]
 Hostname=image
