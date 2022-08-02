@@ -2365,7 +2365,7 @@ def centos_variant_mirror_directory(distribution: Distribution) -> str:
 
 def centos_variant_mirror_repo_url(args: MkosiArgs, repo: str) -> str:
     if args.distribution in (Distribution.centos, Distribution.centos_epel):
-        return f"https://mirrorlist.centos.org/?release={args.release}&arch=$basearch&repo={repo}"
+        return f"http://mirrorlist.centos.org/?release={args.release}&arch=$basearch&repo={repo}"
     elif args.distribution in (Distribution.alma, Distribution.alma_epel):
         return f"https://mirrors.almalinux.org/mirrorlist/{args.release}/{repo.lower()}"
     elif args.distribution in (Distribution.rocky, Distribution.rocky_epel):
