@@ -86,6 +86,7 @@ from .backend import (
     is_epel_variant,
     is_rpm_distribution,
     nspawn_executable,
+    nspawn_knows_arg,
     nspawn_params_for_blockdev_access,
     nspawn_rlimit_params,
     nspawn_version,
@@ -7323,10 +7324,6 @@ def one_zero(b: bool) -> str:
 
 def install_dir(args: MkosiArgs, root: Path) -> Path:
     return args.install_dir or workspace(root).joinpath("dest")
-
-
-def nspawn_knows_arg(arg: str) -> bool:
-    return bytes("unrecognized option", "UTF-8") not in run([nspawn_executable(), arg], stderr=PIPE, check=False).stderr
 
 
 def run_build_script(args: MkosiArgs, root: Path, raw: Optional[BinaryIO]) -> None:
