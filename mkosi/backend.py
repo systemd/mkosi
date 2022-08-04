@@ -610,6 +610,10 @@ def var_tmp(root: Path) -> Path:
     return p
 
 
+def nspawn_knows_arg(arg: str) -> bool:
+    return "unrecognized option" not in run([nspawn_executable(), arg], stderr=subprocess.PIPE, check=False, text=True).stderr
+
+
 def nspawn_params_for_blockdev_access(args: MkosiArgs, loopdev: Path) -> List[str]:
     assert args.partition_table is not None
 
@@ -643,7 +647,7 @@ def format_rlimit(rlimit: int) -> str:
 def nspawn_rlimit_params() -> Sequence[str]:
     return [
         f"--rlimit=RLIMIT_CORE={format_rlimit(resource.RLIMIT_CORE)}",
-    ]
+    ] if nspawn_knows_arg("--rlimit") else []
 
 
 def nspawn_executable() -> str:
