@@ -148,8 +148,11 @@ class Manifest:
             name, source, version, arch, size, installtime = package.split("\t")
 
             # dpkg records the size in KBs, the field is optional
+            # db-fsys:Last-Modified is not available in very old dpkg, so just skip creating
+            # the manifest for sysext when building on very old distributions by setting the
+            # timestamp to epoch. This only affects Ubuntu Bionic which is nearing EOL.
             size = int(size) * 1024 if size else 0
-            installtime = datetime.fromtimestamp(int(installtime))
+            installtime = datetime.fromtimestamp(int(installtime) if installtime else 0)
 
             # If we are creating a layer based on a BaseImage=, e.g. a sysext, filter by
             # packages that were installed in this execution of mkosi. We assume that the
