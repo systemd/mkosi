@@ -4725,14 +4725,17 @@ class ListAction(argparse.Action):
         if ary is None:
             ary = []
 
-        if isinstance(values, str):
+        if isinstance(values, (str, Path)):
+            # Save the actual type so we can restore it later after processing the argument
+            t = type(values)
+            values = str(values)
             # Support list syntax for comma separated lists as well
             if self.delimiter == "," and values.startswith("[") and values.endswith("]"):
                 values = values[1:-1]
 
             # Make sure delimiters between quotes are ignored.
             # Inspired by https://stackoverflow.com/a/2787979.
-            values = [x.strip() for x in re.split(f"""{self.delimiter}(?=(?:[^'"]|'[^']*'|"[^"]*")*$)""", values) if x]
+            values = [t(x.strip()) for x in re.split(f"""{self.delimiter}(?=(?:[^'"]|'[^']*'|"[^"]*")*$)""", values) if x]
 
         if isinstance(values, list):
             for x in values:
