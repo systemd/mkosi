@@ -4041,9 +4041,11 @@ def install_unified_kernel(
 def secure_boot_sign(
     config: MkosiConfig,
     state: MkosiState,
+    directory: Path,
     for_cache: bool,
     cached: bool,
     mount: Callable[[], ContextManager[None]],
+    replace: bool = False,
 ) -> None:
     if state.do_run_build_script:
         return
@@ -4057,28 +4059,27 @@ def secure_boot_sign(
         return
 
     with mount():
-        for path, _, filenames in os.walk(state.root / "efi"):
-            for i in filenames:
-                if not i.endswith(".efi") and not i.endswith(".EFI"):
-                    continue
+        for f in itertools.chain(directory.glob('*.efi'), directory.glob('*.EFI')):
+            if os.path.exists(f"{f}.signed"):
+                MkosiPrinter.info(f"Not overwriting existing signed EFI binary {f}.signed")
+                continue
 
-                with complete_step(f"Signing EFI binary {i} in ESP…"):
-                    p = os.path.join(path, i)
+            with complete_step(f"Signing EFI binary {f}…"):
+                run(
+                    [
+                        "sbsign",
+                        "--key",
+                        config.secure_boot_key,
+                        "--cert",
+                        config.secure_boot_certificate,
+                        "--output",
+                        f"{f}.signed",
+                        f,
+                    ],
+                )
 
-                    run(
-                        [
-                            "sbsign",
-                            "--key",
-                            config.secure_boot_key,
-                            "--cert",
-                            config.secure_boot_certificate,
-                            "--output",
-                            p + ".signed",
-                            p,
-                        ],
-                    )
-
-                    os.rename(p + ".signed", p)
+                if replace:
+                    os.rename(f"{f}.signed", f)
 
 
 def extract_unified_kernel(
@@ -7215,6 +7216,9 @@ def build_image(
                 sshkey = setup_ssh(config, state, for_cache, cached_tree)
                 setup_netdev(config, state, cached_tree)
                 run_postinst_script(config, state, loopdev, for_cache)
+                # Sign systemd-boot / sd-boot EFI binaries
+                secure_boot_sign(config, state, state.root / 'usr/lib/systemd/boot/efi',
+                    for_cache, cached, mount=contextlib.nullcontext)
 
                 if cleanup:
                     remove_packages(config, state.root)
@@ -7267,7 +7271,9 @@ def build_image(
                                         root_read_only=True)
 
             install_unified_kernel(config, state, root_hash, for_cache, cached, mount)
-            secure_boot_sign(config, state, for_cache, cached, mount)
+            # Sign EFI binaries under these directories within the ESP
+            for esp_dir in ['efi/EFI/BOOT', 'efi/EFI/systemd', 'efi/EFI/Linux']:
+                secure_boot_sign(config, state, state.root / esp_dir, for_cache, cached, mount, replace=True)
             split_kernel = (
                 extract_unified_kernel(config, state, for_cache, mount)
                 if config.split_artifacts
