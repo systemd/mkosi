@@ -6180,29 +6180,42 @@ def args_find_path(args: argparse.Namespace, name: str, path: str, *, as_list: b
 
 
 def find_output(args: argparse.Namespace) -> None:
+    subdir = f"{args.distribution}~{args.release}"
+
     if args.output_dir is not None:
+        args.output_dir = Path(args.output_dir, subdir)
+    elif os.path.exists("mkosi.output/"):
+        args.output_dir = Path("mkosi.output", subdir)
+    else:
         return
 
-    if os.path.exists("mkosi.output/"):
-        args.output_dir = Path("mkosi.output", f"{args.distribution}~{args.release}")
-        args.output_dir.mkdir(exist_ok=True)
+    args.output_dir.mkdir(parents=True, exist_ok=True)
 
 
 def find_builddir(args: argparse.Namespace) -> None:
+    subdir = f"{args.distribution}~{args.release}"
+
     if args.build_dir is not None:
+        args.build_dir = Path(args.build_dir, subdir)
+    elif os.path.exists("mkosi.builddir/"):
+        args.build_dir = Path("mkosi.builddir", subdir)
+    else:
         return
 
-    if os.path.exists("mkosi.builddir/"):
-        args.build_dir = Path("mkosi.builddir", f"{args.distribution}~{args.release}")
-        args.build_dir.mkdir(exist_ok=True)
+    args.build_dir.mkdir(parents=True, exist_ok=True)
 
 
 def find_cache(args: argparse.Namespace) -> None:
+    subdir = f"{args.distribution}~{args.release}"
+
     if args.cache_path is not None:
+        args.cache_path = Path(args.cache_path, subdir)
+    elif os.path.exists("mkosi.cache/"):
+        args.cache_path = Path("mkosi.cache", subdir)
+    else:
         return
 
-    if os.path.exists("mkosi.cache/"):
-        args.cache_path = Path("mkosi.cache", f"{args.distribution}~{args.release}")
+    args.cache_path.mkdir(parents=True, exist_ok=True)
 
 
 def require_private_file(name: str, description: str) -> None:
