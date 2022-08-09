@@ -398,7 +398,9 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   exists in the local directory, it is automatically used for this
   purpose. If the setting is not used and `mkosi.output/` does not
   exist, all output artifacts are placed adjacent to the output image
-  file.
+  file. If an output directory is configured, mkosi will create
+  `distro~release` subdirectories in it to store the artfifacts per
+  distro, release combination that's built.
 
 `WorkspaceDirectory=`, `--workspace-dir=`
 
