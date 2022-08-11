@@ -5119,6 +5119,7 @@ def create_parser() -> ArgumentParserMkosi:
         type=cast(Callable[[str], ManifestFormat], ManifestFormat.parse_list),
         help="Manifest Format",
     )
+    group.add_argument('--manifest', default=True, action=argparse.BooleanOptionalAction),
     group.add_argument(
         "-o", "--output",
         help="Output image path",
@@ -7445,7 +7446,9 @@ def build_stuff(args: MkosiArgs) -> Manifest:
     workspace = setup_workspace(args)
 
     image = BuildOutput.empty()
-    manifest = Manifest(args)
+    manifest = None
+    if args.manifest:
+        manifest = Manifest(args)
 
     # Make sure tmpfiles' aging doesn't interfere with our workspace
     # while we are working on it.
@@ -8137,7 +8140,8 @@ def run_verb(raw: argparse.Namespace) -> None:
         if args.auto_bump:
             bump_image_version(args)
 
-        save_manifest(args, manifest)
+        if args.manifest:
+            save_manifest(args, manifest)
 
         print_output_size(args)
 

@@ -436,6 +436,7 @@ class MkosiArgs:
     architecture: str
     output_format: OutputFormat
     manifest_format: List[ManifestFormat]
+    manifest: bool
     output: Path
     output_dir: Optional[Path]
     bootable: bool
