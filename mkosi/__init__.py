@@ -3260,6 +3260,26 @@ def run_finalize_script(args: MkosiArgs, root: Path, do_run_build_script: bool, 
         run([args.finalize_script, verb], env=env)
 
 
+def make_reproducible(args: MkosiArgs, root: Path, do_run_build_script: bool, for_cache: bool) -> None:
+    verb = "build" if do_run_build_script else "final"
+
+    with complete_step("Attempting to make build reproducible…"):
+        env = collections.ChainMap(dict(BUILDROOT=str(root), OUTPUTDIR=str(output_dir(args))),
+                                   args.environment,
+                                   os.environ)
+
+        file = f"reproducible.{args.distribution}.sh"
+        if importlib.resources.is_resource("mkosi.resources", file):
+            with importlib.resources.path("mkosi.resources", file) as p:
+                run(["bash", p, verb], env=env)
+        else:
+            warn("Reproducible images is not support on {arge.distribution}")
+
+    # TODO: Support SOURCE_DATE_EPOCH
+    reset_timestamps = ["find", root, "-mindepth", "1", "-execdir", "touch", "-hcd", "@0", "{}", "+"]
+    run(reset_timestamps)
+
+
 def install_boot_loader_centos_old_efi(args: MkosiArgs, root: Path, loopdev: Path) -> None:
     nspawn_params = nspawn_params_for_blockdev_access(args, loopdev)
 
@@ -3573,7 +3593,7 @@ def make_cpio(
             assert cpio.stdin is not None
 
             with spawn(compressor, stdin=cpio.stdout, stdout=f, delay_interrupt=False):
-                for file in files:
+                for file in sorted(files):
                     cpio.stdin.write(os.fspath(file).encode("utf8") + b"\0")
                 cpio.stdin.close()
         if cpio.wait() != 0:
@@ -5336,6 +5356,13 @@ def create_parser() -> ArgumentParserMkosi:
         metavar="BOOL",
         action=BooleanAction,
         help="Generate split out root/verity/kernel images, too",
+    )
+    group.add_argument(
+        "--reproducible",
+        metavar="BOOL",
+        action=BooleanAction,
+        default=False,
+        help="Attempt to generate reproducible images"
     )
 
     group = parser.add_argument_group("Content")
@@ -7238,6 +7265,8 @@ def build_image(
                 reset_machine_id(args, root, do_run_build_script, for_cache)
                 reset_random_seed(args, root)
                 run_finalize_script(args, root, do_run_build_script, for_cache)
+                if args.reproducible:
+                    make_reproducible(args, root, do_run_build_script, for_cache)
                 invoke_fstrim(args, root, do_run_build_script, for_cache)
                 make_read_only(args, root, for_cache)
 

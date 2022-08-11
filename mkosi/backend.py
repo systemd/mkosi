@@ -439,6 +439,7 @@ class MkosiArgs:
     output: Path
     output_dir: Optional[Path]
     bootable: bool
+    reproducible: bool
     boot_protocols: List[str]
     kernel_command_line: List[str]
     secure_boot: bool
