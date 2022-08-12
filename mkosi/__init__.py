@@ -6444,6 +6444,8 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
                 args.mirror = "http://ports.ubuntu.com/"
         elif args.distribution == Distribution.arch and platform.machine() == "aarch64":
             args.mirror = "http://mirror.archlinuxarm.org"
+        elif args.distribution == Distribution.arch and platform.machine() == "x86_64":
+            args.mirror = "https://geo.mirror.pkgbuild.com"
         elif args.distribution == Distribution.opensuse:
             args.mirror = "http://download.opensuse.org"
         elif args.distribution in (Distribution.rocky, Distribution.rocky_epel):
