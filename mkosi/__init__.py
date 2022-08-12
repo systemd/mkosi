@@ -1489,7 +1489,9 @@ def mount(
         run(cmd)
         yield where
     finally:
+        timestamp = os.path.getmtime(where)
         run(["umount", "--no-mtab", "--recursive", where])
+        os.utime(where, (timestamp, timestamp))
 
 
 def mount_loop(args: MkosiArgs, dev: Path, where: Path, read_only: bool = False) -> ContextManager[Path]:
