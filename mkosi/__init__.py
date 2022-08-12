@@ -3275,7 +3275,7 @@ def make_reproducible(args: MkosiArgs, root: Path, do_run_build_script: bool, fo
             with importlib.resources.path("mkosi.resources", file) as p:
                 run(["bash", p, verb], env=env)
         else:
-            warn("Reproducible images is not support on {arge.distribution}")
+            warn("Reproducible images is not support on {args.distribution}")
 
     # TODO: Support SOURCE_DATE_EPOCH
     reset_timestamps = ["find", root, "-mindepth", "1", "-execdir", "touch", "-hcd", "@0", "{}", "+"]
