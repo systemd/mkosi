@@ -2710,19 +2710,8 @@ def install_arch(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None
         else:
             server = f"Server = {args.mirror}/$repo/os/$arch"
     else:
-        # Instead of harcoding a single mirror, we retrieve a list of mirrors from Arch's mirrorlist
-        # generator ordered by mirror score. This usually results in a solid mirror and also ensures that we
-        # have fallback mirrors available if necessary. Finally, the mirrors will be more likely to be up to
-        # date and we won't end up with a stable release that hardcodes a broken mirror.
-        mirrorlist = workspace(root) / "mirrorlist"
-        with urllib.request.urlopen(
-            "https://www.archlinux.org/mirrorlist/?country=all&protocol=https&ip_version=4&use_mirror_status=on"
-        ) as r:
-            mirrors = r.readlines()
-            uncommented = [line.decode("utf-8")[1:] for line in mirrors]
-            with mirrorlist.open("w") as f:
-                f.writelines(uncommented)
-            server = f"Include = {mirrorlist}"
+        # This should not happen, but for good measure.
+        die("No repository mirror has been selected.")
 
     # Create base layout for pacman and pacman-key
     os.makedirs(root / "var/lib/pacman", 0o755, exist_ok=True)
@@ -6457,6 +6446,8 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
                 args.mirror = "http://ports.ubuntu.com/"
         elif args.distribution == Distribution.arch and platform.machine() == "aarch64":
             args.mirror = "http://mirror.archlinuxarm.org"
+        elif args.distribution == Distribution.arch and platform.machine() == "x86_64":
+            args.mirror = "https://geo.mirror.pkgbuild.com"
         elif args.distribution == Distribution.opensuse:
             args.mirror = "http://download.opensuse.org"
         elif args.distribution in (Distribution.rocky, Distribution.rocky_epel):
