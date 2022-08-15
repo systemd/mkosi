@@ -6122,7 +6122,7 @@ def require_private_file(name: str, description: str) -> None:
 
 
 def find_passphrase(args: argparse.Namespace) -> None:
-    if args.encrypt is None:
+    if not needs_build(args) or args.encrypt is None:
         args.passphrase = None
         return
 
@@ -6143,7 +6143,7 @@ def find_passphrase(args: argparse.Namespace) -> None:
 
 
 def find_password(args: argparse.Namespace) -> None:
-    if args.password is not None:
+    if not needs_build(args) or args.password is not None:
         return
 
     try:
@@ -6258,8 +6258,6 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
 
     find_extra(args)
     find_skeleton(args)
-    find_password(args)
-    find_passphrase(args)
     find_secure_boot(args)
     find_image_version(args)
 
@@ -6530,6 +6528,10 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
             die(
                 "UEFI SecureBoot or signed Verity enabled, but couldn't find certificate. (Consider placing it in mkosi.secure-boot.crt?)"
             )  # NOQA: E501
+
+    # Resolve passwords late so we can accurately determine whether a build is needed
+    find_password(args)
+    find_passphrase(args)
 
     if args.verb in (Verb.shell, Verb.boot):
         opname = "acquire shell" if args.verb == Verb.shell else "boot"
