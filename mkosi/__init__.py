@@ -3025,7 +3025,7 @@ def reset_machine_id(args: MkosiArgs, root: Path, do_run_build_script: bool, for
                 machine_id.unlink()
             except FileNotFoundError:
                 pass
-            machine_id.touch()
+            machine_id.write_text("uninitialized\n")
 
         dbus_machine_id = root / "var/lib/dbus/machine-id"
         try:
