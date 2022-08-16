@@ -154,11 +154,10 @@ class Manifest:
             source.add(package)
 
     def record_deb_packages(self, root: Path) -> None:
-        c = run(
-            ["dpkg-query", f"--admindir={root}/var/lib/dpkg", "--show", "--showformat",
+        c = run_workspace_command(self.args, root,
+            ["dpkg-query", "--admindir=/var/lib/dpkg", "--show", "--showformat",
              r'${Package}\t${source:Package}\t${Version}\t${Architecture}\t${Installed-Size}\t${db-fsys:Last-Modified}\n'],
-            stdout=PIPE,
-            text=True,
+            capture_stdout=True
         )
 
         packages = sorted(c.stdout.splitlines())
