@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from subprocess import DEVNULL, PIPE
 from textwrap import dedent
-from typing import IO, Any, Dict, List, Optional, cast
+from typing import IO, Any, Dict, List, Optional, Tuple, cast
 
 from .backend import (
     Distribution,
@@ -65,6 +65,23 @@ class SourcePackageManifest:
         return t
 
 
+def parse_pkg_desc(f: Path) -> Tuple[str, str, str, str]:
+    name = version = base = arch = ""
+    with f.open() as desc:
+        for line in desc:
+            line = line.strip()
+            if line == "%NAME%":
+                name = next(desc).strip()
+            elif line == "%VERSION%":
+                version = next(desc).strip()
+            elif line == "%BASE%":
+                base = next(desc).strip()
+            elif line == "%ARCH%":
+                arch = next(desc).strip()
+                break
+    return name, version, base, arch
+
+
 @dataclasses.dataclass
 class Manifest:
     args: MkosiArgs
@@ -81,6 +98,8 @@ class Manifest:
             self.record_rpm_packages(root)
         if cast(Any, self.args.distribution).package_type == PackageType.deb:
             self.record_deb_packages(root)
+        if cast(Any, self.args.distribution).package_type == PackageType.pkg:
+            self.record_pkg_packages(root)
         # TODO: add implementations for other package managers
 
     def record_rpm_packages(self, root: Path) -> None:
@@ -195,6 +214,20 @@ class Manifest:
                 source_package = SourcePackageManifest(source, result.stdout.strip())
                 self.source_packages[source] = source_package
 
+            source_package.add(package)
+
+    def record_pkg_packages(self, root: Path) -> None:
+        packages = sorted(root.joinpath("var/lib/pacman/local").glob("*/desc"))
+
+        for desc in packages:
+            name, version, source, arch = parse_pkg_desc(desc)
+            package = PackageManifest("pkg", name, version, arch, 0)
+            self.packages.append(package)
+
+            source_package = self.source_packages.get(source)
+            if source_package is None:
+                source_package = SourcePackageManifest(source, None)
+                self.source_packages[source] = source_package
             source_package.add(package)
 
     def has_data(self) -> bool:
