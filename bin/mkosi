@@ -35,12 +35,21 @@ fi
 
 PYVERSION=$($PYTHON --version | cut -d ' ' -f 2 | cut -d '.' -f 1-2)
 
+if [[ -n $PKEXEC_UID ]]
+then
+    SUDO_USER=$(getent passwd "$PKEXEC_UID" | cut -d: -f1)
+    SUDO_UID=$PKEXEC_UID
+    SUDO_GID=$(getent passwd "$PKEXEC_UID" | cut -d: -f4)
+    export SUDO_USER
+    export SUDO_UID
+    export SUDO_GID
+fi
 
 declare PREPEND_PYTHONPATH
 
 if [[ -e "${PYROOT}/../setup.py" ]]
 then
-    PREPEND_PYTHONPATH="$(dirname ${PYROOT})"
+    PREPEND_PYTHONPATH="$(dirname "${PYROOT}")"
 elif [[ -n $SUDO_USER ]] && \
        [[ -z $VIRTUAL_ENV ]] && \
        [[ "$SYSTEM_PYTHON_OR_VENV" == false ]]
