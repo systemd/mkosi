@@ -315,6 +315,13 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 : The mirror to use for downloading the distribution packages. Expects
   a mirror URL as argument.
 
+`UseMirrorVerbatim=`, `--use-mirror-verbatim=`
+
+: When `--mirror` is used it will be used as a plain and direct mirror instead
+  of using it as a prefix for the full set of repositories normally supported
+  by distributions like Fedora and CentOS. Useful for fully offline builds with
+  a single repository. Only supported for RPM-based distributions for now.
+
 `Repositories=`, `--repositories=`
 
 : Additional package repositories to use during installation. Expects
