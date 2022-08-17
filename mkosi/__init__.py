@@ -3713,7 +3713,10 @@ def insert_partition(
             # Let's discard the partition block device first, to ensure the GPT partition table footer that
             # likely is stored in it is flushed out. After all we want to write with dd's sparse option.
             run(["blkdiscard", path])
-            path.write_bytes(blob.read())
+
+            # Without this the entire blob will be read into memory which could exceed system memory
+            with open(path, mode='wb') as path_fp:
+                os.sendfile(path_fp.fileno(), blob.fileno(), offset=0, count=blob_size)
 
     return part
 
