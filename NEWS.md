@@ -17,6 +17,7 @@ time.
 - The preferred names for mkosi configuration files and directories are now mkosi.conf
 and mkosi.conf.d/ respectively. The old names (mkosi.default and mkosi.default.d) have
 been removed from the docs but are still supported for backwards compatibility.
+- `plain_squashfs` type images will now also be named with a `.raw` suffix.
 
 ## v13
 
