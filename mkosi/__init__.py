@@ -2154,7 +2154,10 @@ def parse_fedora_release(release: str) -> Tuple[str, str]:
 def install_fedora(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None:
     release, releasever = parse_fedora_release(args.release)
 
-    if args.mirror:
+    if args.use_mirror_verbatim and args.mirror:
+        release_url = f"baseurl={args.mirror}"
+        updates_url = None
+    elif args.mirror:
         baseurl = urllib.parse.urljoin(args.mirror, f"releases/{release}/Everything/$basearch/os/")
         media = urllib.parse.urljoin(baseurl.replace("$basearch", args.architecture), "media.repo")
         if not url_exists(media):
@@ -2168,6 +2171,10 @@ def install_fedora(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
             "metalink=https://mirrors.fedoraproject.org/metalink?"
             f"repo=updates-released-f{release}&arch=$basearch"
         )
+    if release == 'rawhide':
+        # On rawhide, the "updates" repo is the same as the "fedora" repo.
+        # In other versions, the "fedora" repo is frozen at release, and "updates" provides any new packages.
+        updates_url = None
 
     if releasever in FEDORA_KEYS_MAP:
         key = FEDORA_KEYS_MAP[releasever]
@@ -2184,9 +2191,7 @@ def install_fedora(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
     gpgurl = urllib.parse.urljoin("https://getfedora.org/static/", gpgid)
 
     repos = [Repo("fedora", release_url, gpgpath, gpgurl)]
-    if release != 'rawhide':
-        # On rawhide, the "updates" repo is the same as the "fedora" repo.
-        # In other versions, the "fedora" repo is frozen at release, and "updates" provides any new packages.
+    if updates_url is not None:
         repos += [Repo("updates", updates_url, gpgpath, gpgurl)]
 
     setup_dnf(args, root, repos)
@@ -2213,7 +2218,10 @@ def install_fedora(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
 
 @complete_step("Installing Mageia…")
 def install_mageia(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None:
-    if args.mirror:
+    if args.use_mirror_verbatim and args.mirror:
+        release_url = f"baseurl={args.mirror}"
+        updates_url = None
+    elif args.mirror:
         baseurl = f"{args.mirror}/distrib/{args.release}/x86_64/media/core/"
         release_url = f"baseurl={baseurl}/release/"
         updates_url = f"baseurl={baseurl}/updates/"
@@ -2224,7 +2232,9 @@ def install_mageia(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
 
     gpgpath = Path("/etc/pki/rpm-gpg/RPM-GPG-KEY-Mageia")
 
-    repos = [Repo("mageia", release_url, gpgpath), Repo("updates", updates_url, gpgpath)]
+    repos = [Repo("mageia", release_url, gpgpath)]
+    if updates_url is not None:
+        repos += [Repo("updates", updates_url, gpgpath)]
 
     setup_dnf(args, root, repos)
 
@@ -2257,7 +2267,10 @@ def install_openmandriva(args: MkosiArgs, root: Path, do_run_build_script: bool)
     else:
         release_model = release
 
-    if args.mirror:
+    if args.use_mirror_verbatim and args.mirror:
+        release_url = f"baseurl={args.mirror}"
+        updates_url = None
+    elif args.mirror:
         baseurl = f"{args.mirror}/{release_model}/repository/{args.architecture}/main"
         release_url = f"baseurl={baseurl}/release/"
         updates_url = f"baseurl={baseurl}/updates/"
@@ -2268,7 +2281,9 @@ def install_openmandriva(args: MkosiArgs, root: Path, do_run_build_script: bool)
 
     gpgpath = Path("/etc/pki/rpm-gpg/RPM-GPG-KEY-OpenMandriva")
 
-    repos = [Repo("openmandriva", release_url, gpgpath), Repo("updates", updates_url, gpgpath)]
+    repos = [Repo("openmandriva", release_url, gpgpath)]
+    if updates_url is not None:
+        repos += [Repo("updates", updates_url, gpgpath)]
 
     setup_dnf(args, root, repos)
 
@@ -2348,7 +2363,10 @@ def install_centos_7_repos(args: MkosiArgs, root: Path, epel_release: int) -> No
     gpgpath, gpgurl = centos_variant_gpg_locations(args.distribution, epel_release)
     epel_gpgpath, epel_gpgurl = epel_gpg_locations(epel_release)
 
-    if args.mirror:
+    if args.use_mirror_verbatim and args.mirror:
+        release_url = f"baseurl={args.mirror}"
+        updates_url = extras_url = epel_url = None
+    elif args.mirror:
         release_url = f"baseurl={args.mirror}/centos/{args.release}/os/$basearch"
         updates_url = f"baseurl={args.mirror}/centos/{args.release}/updates/$basearch/"
         extras_url = f"baseurl={args.mirror}/centos/{args.release}/extras/$basearch/"
@@ -2359,11 +2377,12 @@ def install_centos_7_repos(args: MkosiArgs, root: Path, epel_release: int) -> No
         extras_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=$basearch&repo=extras"
         epel_url = f"mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=epel-{epel_release}&arch=$basearch"
 
-    repos = [Repo("base", release_url, gpgpath, gpgurl),
-             Repo("updates", updates_url, gpgpath, gpgurl),
-             Repo("extras", extras_url, gpgpath, gpgurl)]
-
-    if is_epel_variant(args.distribution):
+    repos = [Repo("base", release_url, gpgpath, gpgurl)]
+    if updates_url is not None:
+        repos += [Repo("updates", updates_url, gpgpath, gpgurl)]
+    if extras_url is not None:
+        repos += [Repo("extras", extras_url, gpgpath, gpgurl)]
+    if epel_url is not None and is_epel_variant(args.distribution):
         repos += [Repo("epel", epel_url, epel_gpgpath, epel_gpgurl)]
 
     setup_dnf(args, root, repos)
@@ -2376,7 +2395,10 @@ def install_centos_variant_repos(args: MkosiArgs, root: Path, epel_release: int)
     gpgpath, gpgurl = centos_variant_gpg_locations(args.distribution, epel_release)
     epel_gpgpath, epel_gpgurl = epel_gpg_locations(epel_release)
 
-    if args.mirror:
+    if args.use_mirror_verbatim and args.mirror:
+        appstream_url = f"baseurl={args.mirror}"
+        baseos_url = extras_url = powertools_url = epel_url = None
+    elif args.mirror:
         appstream_url = f"baseurl={args.mirror}/{directory}/{args.release}/AppStream/$basearch/os"
         baseos_url = f"baseurl={args.mirror}/{directory}/{args.release}/BaseOS/$basearch/os"
         extras_url = f"baseurl={args.mirror}/{directory}/{args.release}/extras/$basearch/os"
@@ -2389,12 +2411,14 @@ def install_centos_variant_repos(args: MkosiArgs, root: Path, epel_release: int)
         powertools_url = f"mirrorlist={centos_variant_mirror_repo_url(args, 'PowerTools')}"
         epel_url = f"mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=epel-{epel_release}&arch=$basearch"
 
-    repos = [Repo("AppStream", appstream_url, gpgpath, gpgurl),
-             Repo("BaseOS", baseos_url, gpgpath, gpgurl),
-             Repo("extras", extras_url, gpgpath, gpgurl),
-             Repo("PowerTools", powertools_url, gpgpath, gpgurl)]
-
-    if is_epel_variant(args.distribution):
+    repos = [Repo("AppStream", appstream_url, gpgpath, gpgurl)]
+    if baseos_url is not None:
+        repos += [Repo("BaseOS", baseos_url, gpgpath, gpgurl)]
+    if extras_url is not None:
+        repos += [Repo("extras", extras_url, gpgpath, gpgurl)]
+    if powertools_url is not None:
+        repos += [Repo("PowerTools", powertools_url, gpgpath, gpgurl)]
+    if epel_url is not None and is_epel_variant(args.distribution):
         repos += [Repo("epel", epel_url, epel_gpgpath, epel_gpgurl)]
 
     setup_dnf(args, root, repos)
@@ -2408,7 +2432,10 @@ def install_centos_stream_repos(args: MkosiArgs, root: Path, epel_release: int) 
 
     release = f"{epel_release}-stream"
 
-    if args.mirror:
+    if args.use_mirror_verbatim and args.mirror:
+        appstream_url = f"baseurl={args.mirror}"
+        baseos_url = crb_url = epel_url = None
+    elif args.mirror:
         appstream_url = f"baseurl={args.mirror}/centos-stream/{release}/AppStream/$basearch/os"
         baseos_url = f"baseurl={args.mirror}/centos-stream/{release}/BaseOS/$basearch/os"
         crb_url = f"baseurl={args.mirror}/centos-stream/{release}/CRB/$basearch/os"
@@ -2419,11 +2446,12 @@ def install_centos_stream_repos(args: MkosiArgs, root: Path, epel_release: int) 
         crb_url = f"metalink=https://mirrors.centos.org/metalink?repo=centos-crb-{release}&arch=$basearch"
         epel_url = f"mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=epel-{epel_release}&arch=$basearch"
 
-    repos = [Repo("AppStream", appstream_url, gpgpath, gpgurl),
-             Repo("BaseOS", baseos_url, gpgpath, gpgurl),
-             Repo("CRB", crb_url, gpgpath, gpgurl)]
-
-    if is_epel_variant(args.distribution):
+    repos = [Repo("AppStream", appstream_url, gpgpath, gpgurl)]
+    if baseos_url is not None:
+        repos += [Repo("BaseOS", baseos_url, gpgpath, gpgurl)]
+    if crb_url is not None:
+        repos += [Repo("CRB", crb_url, gpgpath, gpgurl)]
+    if epel_url is not None and is_epel_variant(args.distribution):
         repos += [Repo("epel", epel_url, epel_gpgpath, epel_gpgurl)]
 
     setup_dnf(args, root, repos)
@@ -2847,7 +2875,10 @@ def install_opensuse(args: MkosiArgs, root: Path, do_run_build_script: bool) -> 
 
     # If the release looks like a timestamp, it's Tumbleweed. 13.x is legacy (14.x won't ever appear). For
     # anything else, let's default to Leap.
-    if release.isdigit() or release == "tumbleweed":
+    if args.use_mirror_verbatim and args.mirror:
+        release_url = args.mirror
+        updates_url = None
+    elif release.isdigit() or release == "tumbleweed":
         release_url = f"{args.mirror}/tumbleweed/repo/oss/"
         updates_url = f"{args.mirror}/update/tumbleweed/"
     elif release == "leap":
@@ -2866,7 +2897,8 @@ def install_opensuse(args: MkosiArgs, root: Path, do_run_build_script: bool) -> 
     # Configure the repositories: we need to enable packages caching here to make sure that the package cache
     # stays populated after "zypper install".
     run(["zypper", "--root", root, "addrepo", "-ck", release_url, "repo-oss"])
-    run(["zypper", "--root", root, "addrepo", "-ck", updates_url, "repo-update"])
+    if updates_url is not None:
+        run(["zypper", "--root", root, "addrepo", "-ck", updates_url, "repo-update"])
 
     if not args.with_docs:
         root.joinpath("etc/zypp/zypp.conf").write_text("rpm.install.excludedocs = yes\n")
@@ -5074,6 +5106,13 @@ def create_parser() -> ArgumentParserMkosi:
     group.add_argument("-r", "--release", help="Distribution release to install")
     group.add_argument("--architecture", help="Override the architecture of installation", default=platform.machine())
     group.add_argument("-m", "--mirror", help="Distribution mirror to use")
+    group.add_argument(
+        "--use-mirror-verbatim",
+        metavar="BOOL",
+        action=BooleanAction,
+        help="Use a single flat and plain mirror for RPM based distributions",
+        default=False,
+    )
 
     group.add_argument(
         "--repositories",
@@ -6811,7 +6850,7 @@ def print_summary(args: MkosiArgs) -> None:
     MkosiPrinter.info("                   Release: " + none_to_na(args.release))
     MkosiPrinter.info("              Architecture: " + args.architecture)
     if args.mirror is not None:
-        MkosiPrinter.info("                    Mirror: " + args.mirror)
+        MkosiPrinter.info(f"         {'(verbatim)' if args.use_mirror_verbatim else '          '} Mirror: " + args.mirror)
     if args.repositories is not None and len(args.repositories) > 0:
         MkosiPrinter.info("              Repositories: " + ",".join(args.repositories))
     MkosiPrinter.info("     Use Host Repositories: " + yes_no(args.use_host_repositories))

@@ -83,6 +83,7 @@ class MkosiConfig:
             "key": None,
             "manifest_format": None,
             "mirror": None,
+            "use_mirror_verbatim": False,
             "mksquashfs_tool": [],
             "no_chown": False,
             "nspawn_settings": None,
