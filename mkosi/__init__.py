@@ -2949,8 +2949,11 @@ def install_opensuse(args: MkosiArgs, root: Path, do_run_build_script: bool) -> 
     run(["zypper", "--root", root, "modifyrepo", "-K", "repo-update"])
 
     if args.password == "":
-        if not os.path.exists(root / "etc/pam.d/common-auth"):
-            shutil.copy2(root / "usr/etc/pam.d/common-auth", root / "etc/pam.d/common-auth")
+        if not root.joinpath("etc/pam.d/common-auth").exists():
+            for prefix in ("lib", "etc"):
+                if root.joinpath(f"usr/{prefix}/pam.d/common-auth").exists():
+                    shutil.copy2(root / f"usr/{prefix}/pam.d/common-auth", root / "etc/pam.d/common-auth")
+                    break
 
         def jj(line: str) -> str:
             if "pam_unix.so" in line:
@@ -2961,7 +2964,11 @@ def install_opensuse(args: MkosiArgs, root: Path, do_run_build_script: bool) -> 
 
     if args.autologin:
         # copy now, patch later (in set_autologin())
-        shutil.copy2(root / "usr/etc/pam.d/login", root / "etc/pam.d/login")
+        if not root.joinpath("etc/pam.d/login").exists():
+            for prefix in ("lib", "etc"):
+                if root.joinpath(f"usr/{prefix}/pam.d/login").exists():
+                    shutil.copy2(root / f"usr/{prefix}/pam.d/login", root / "etc/pam.d/login")
+                    break
 
 
 @complete_step("Installing Gentoo…")
