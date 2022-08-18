@@ -36,6 +36,8 @@ from typing import (
     cast,
 )
 
+from .syscall import ioctl_partition_add
+
 PathString = Union[Path, str]
 
 
@@ -415,7 +417,11 @@ class PartitionTable:
 
         if device.is_block_device():
             run(["sync"])
-            run_with_backoff(["blockdev", "--rereadpt", device], attempts=10)
+
+            # Make sure we re-add all partitions after modifying the partition table.
+            with open(device, 'rb+') as f:
+                for p in self.partitions.values():
+                    ioctl_partition_add(f.fileno(), p.number, self.partition_offset(p), self.partition_size(p))
 
 
 @dataclasses.dataclass
@@ -821,29 +827,6 @@ def run(
             return subprocess.run(cmdline, check=check, stdout=stdout, stderr=stderr, env={**os.environ, **env}, **kwargs)
     except FileNotFoundError:
         die(f"{cmdline[0]} not found in PATH.")
-
-
-def run_with_backoff(
-    cmdline: Sequence[PathString],
-    check: bool = True,
-    delay_interrupt: bool = True,
-    stdout: _FILE = None,
-    stderr: _FILE = None,
-    *,
-    attempts: int,
-    **kwargs: Any,
-) -> CompletedProcess:
-    delay = 0.0
-    for attempt in range(attempts):
-        try:
-            return run(cmdline, check, delay_interrupt, stdout, stderr, **kwargs)
-        except subprocess.CalledProcessError:
-            if attempt == attempts - 1:
-                raise
-            time.sleep(delay)
-            delay = min(delay * 2 + 0.01, 1)
-
-    assert False  # make mypy happy
 
 
 def tmp_dir() -> Path:
