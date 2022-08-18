@@ -6488,6 +6488,8 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
             output = f"{prefix}.tar.xz"
         elif args.output_format == OutputFormat.cpio:
             output = f"{prefix}.cpio" + (f".{args.compress}" if args.compress else "")
+        elif args.output_format.is_squashfs():
+            output = f"{prefix}.raw"
         else:
             output = prefix
         args.output = Path(output)
