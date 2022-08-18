@@ -15,7 +15,6 @@ import shutil
 import signal
 import subprocess
 import sys
-import time
 import uuid
 from pathlib import Path
 from types import FrameType
