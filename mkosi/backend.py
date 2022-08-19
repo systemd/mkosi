@@ -423,6 +423,8 @@ class PartitionTable:
                 for p in self.partitions.values():
                     ioctl_partition_add(f.fileno(), p.number, self.partition_offset(p), self.partition_size(p))
 
+            run(["blockdev", "--rereadpt", device])
+
 
 @dataclasses.dataclass
 class MkosiArgs:
