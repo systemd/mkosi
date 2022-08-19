@@ -6297,8 +6297,8 @@ def xescape(s: str) -> str:
 
 def build_auxiliary_output_path(args: Union[argparse.Namespace, MkosiArgs], suffix: str, can_compress: bool = False) -> Path:
     output = strip_suffixes(args.output)
-    compression = should_compress_output(args) if can_compress else False
-    return output.with_name(f"{output.name}{suffix}{compression or ''}")
+    compression = f".{should_compress_output(args)}" if can_compress else ''
+    return output.with_name(f"{output.name}{suffix}{compression}")
 
 
 DISABLED = Path('DISABLED')  # A placeholder value to suppress autodetection.
