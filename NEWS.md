@@ -18,6 +18,8 @@
   mkosi.default.d) have been removed from the docs but are still supported for
   backwards compatibility.
 - `plain_squashfs` type images will now also be named with a `.raw` suffix.
+- Support for including the UUID of usr and verity partitions in the output file
+  name was added when using verity. See `VerityUUIDNames`.
 - `tar` type images will now respect the `--compress` option.
 - Pacman's `SigLevel` option was changed to use the same default value as used
   on Arch which is `SigLevel = Required DatabaseOptional`. If this results in

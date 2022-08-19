@@ -398,13 +398,14 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   included in the default name, e.g. a specified image version of
   `7.8` might result in an image file name of `image_7.8.raw.xz`.
 
-`OutputSplitRoot=`, `--output-split-root=`, `OutputSplitVerify=`, `--output-split-verity=`, `OutputSplitKernel=`, `--output-split-kernel=`
+`OutputSplitRoot=`, `--output-split-root=`, `OutputSplitVerity=`, `--output-split-verity=`, `OutputSplitKernel=`, `--output-split-kernel=`
 
 : Paths for the split-out output image files, when
   `SplitArtifacts=yes` is used. If unspecified, the relevant split
   artifact files will be named like the main image, but with `.root`,
   `.verity`, and `.efi` suffixes inserted (and in turn possibly
-  suffixed by compression suffix, if compression is enabled).
+  suffixed by compression suffix, if compression is enabled). Also
+  see `VerityUUIDNames`.
 
 `OutputDirectory=`, `--output-dir=`, `-O`
 
@@ -558,6 +559,20 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   self-contained signed disk images, implementing the Verity
   provisions described in the [Discoverable Partitions
   Specification](https://systemd.io/DISCOVERABLE_PARTITIONS).
+
+`VerityUUIDNames=`, `--verity-uuid-names`
+
+: Add the UUID to the name of split artifacts if verity is enabled.
+  For example, if an artifact is named `artifact.verity` and the
+  UUID of the verity partition is
+  `93e00bec-0948-4119-8877-c10c0850617d`, the artifact name will
+  become
+  `artifact_93e00bec-0948-4119-8877-c10c0850617d.verity`.
+
+  This option **always** renames artifacts even if the artifact path
+  name is specified using `OutputSplitVerity` and the like. This option
+  affects the paths for root (or /usr), verity and verity signature
+  split artifacts.
 
 `CompressFs=`, `--compress-fs=`
 

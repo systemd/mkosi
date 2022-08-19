@@ -128,6 +128,7 @@ class MkosiConfig:
             "bios_size": None,
             "verb": Verb.build,
             "verity": False,
+            "verity_uuid_names": False,
             "with_docs": False,
             "with_network": False,
             "with_tests": True,

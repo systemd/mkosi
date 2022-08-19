@@ -480,6 +480,7 @@ class MkosiConfig:
     read_only: bool
     encrypt: Optional[str]
     verity: Union[bool, str]
+    verity_uuid_names: bool
     compress: Union[None, str, bool]
     compress_fs: Union[None, str, bool]
     compress_output: Union[None, str, bool]

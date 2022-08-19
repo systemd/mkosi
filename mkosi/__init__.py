@@ -4240,7 +4240,7 @@ def hash_file(of: TextIO, sf: BinaryIO, fname: str) -> None:
 
 
 def calculate_sha256sum(
-    config: MkosiConfig, raw: Optional[BinaryIO],
+    config: MkosiConfig, state: MkosiState, raw: Optional[BinaryIO],
     archive: Optional[BinaryIO],
     root_hash_file: Optional[BinaryIO],
     root_hash_p7s_file: Optional[BinaryIO],
@@ -4278,13 +4278,16 @@ def calculate_sha256sum(
             hash_file(f, root_hash_p7s_file, config.output_root_hash_p7s_file.name)
         if split_root is not None:
             assert config.output_split_root is not None
-            hash_file(f, split_root, os.path.basename(config.output_split_root))
+            fn = substitute_uuid(config, state, PartitionIdentifier.root)
+            hash_file(f, split_root, os.path.basename(fn))
         if split_verity is not None:
             assert config.output_split_verity is not None
-            hash_file(f, split_verity, os.path.basename(config.output_split_verity))
+            fn = substitute_uuid(config, state, PartitionIdentifier.verity)
+            hash_file(f, split_verity, os.path.basename(fn))
         if split_verity_sig is not None:
             assert config.output_split_verity_sig is not None
-            hash_file(f, split_verity_sig, config.output_split_verity_sig.name)
+            fn = substitute_uuid(config, state, PartitionIdentifier.verity_sig)
+            hash_file(f, split_verity_sig, os.path.basename(fn))
         if split_kernel is not None:
             assert config.output_split_kernel is not None
             hash_file(f, split_kernel, os.path.basename(config.output_split_kernel))
@@ -4475,29 +4478,57 @@ def link_output_sshkey(config: MkosiConfig, sshkey: Optional[SomeIO]) -> None:
             _link_output(config, sshkey.name, config.output_sshkey, mode=0o600)
 
 
-def link_output_split_root(config: MkosiConfig, split_root: Optional[SomeIO]) -> None:
+def substitute_uuid(config: MkosiConfig, state: MkosiState, part_type: PartitionIdentifier) -> Path:
+    '''Substitute a partition UUID into the file path before the file suffix'''
+
+    assert part_type in {PartitionIdentifier.root, PartitionIdentifier.verity, PartitionIdentifier.verity_sig}
+
+    p = None
+    if part_type == PartitionIdentifier.root:
+        p = config.output_split_root
+    elif part_type == PartitionIdentifier.verity:
+        p = config.output_split_verity
+    elif part_type == PartitionIdentifier.verity_sig:
+        p = config.output_split_verity_sig
+
+    assert p
+    if not config.verity_uuid_names:
+        return p
+
+    u = state.get_partition(part_type)
+    assert u
+    u = u.part_uuid
+    assert u
+
+    stripped_path = str(strip_suffixes(p))
+    # This is required rather than '.with_suffix()' since the suffix could be
+    # '.raw.zstd' for example.
+    suffix = str(p).replace(stripped_path, '')
+    return Path(f"{stripped_path}_{u}{suffix}")
+
+
+def link_output_split_root(config: MkosiConfig, state: MkosiState, split_root: Optional[SomeIO]) -> None:
     if split_root:
         assert config.output_split_root
-        with complete_step(
-            "Linking split root file system…", f"Linked {path_relative_to_cwd(config.output_split_root)}"
-        ):
-            _link_output(config, split_root.name, config.output_split_root)
+        fn = substitute_uuid(config, state, PartitionIdentifier.root)
+        with complete_step("Linking split root file system…", f"Linked {path_relative_to_cwd(fn)}"):
+            _link_output(config, split_root.name, fn)
 
 
-def link_output_split_verity(config: MkosiConfig, split_verity: Optional[SomeIO]) -> None:
+def link_output_split_verity(config: MkosiConfig, state: MkosiState, split_verity: Optional[SomeIO]) -> None:
     if split_verity:
         assert config.output_split_verity
-        with complete_step("Linking split Verity data…", f"Linked {path_relative_to_cwd(config.output_split_verity)}"):
-            _link_output(config, split_verity.name, config.output_split_verity)
+        fn = substitute_uuid(config, state, PartitionIdentifier.verity)
+        with complete_step("Linking split Verity data…", f"Linked {path_relative_to_cwd(fn)}"):
+            _link_output(config, split_verity.name, fn)
 
 
-def link_output_split_verity_sig(config: MkosiConfig, split_verity_sig: Optional[SomeIO]) -> None:
+def link_output_split_verity_sig(config: MkosiConfig, state: MkosiState, split_verity_sig: Optional[SomeIO]) -> None:
     if split_verity_sig:
         assert config.output_split_verity_sig
-        with complete_step(
-            "Linking split Verity Signature data…", f"Linked {path_relative_to_cwd(config.output_split_verity_sig)}"
-        ):
-            _link_output(config, split_verity_sig.name, config.output_split_verity_sig)
+        fn = substitute_uuid(config, state, PartitionIdentifier.verity_sig)
+        with complete_step("Linking split Verity Signature data…", f"Linked {path_relative_to_cwd(fn)}"):
+            _link_output(config, split_verity_sig.name, fn)
 
 
 def link_output_split_kernel(config: MkosiConfig, split_kernel: Optional[SomeIO]) -> None:
@@ -5152,6 +5183,11 @@ def create_parser() -> ArgumentParserMkosi:
         "--verity",
         action=VerityAction,
         help="Add integrity partition, and optionally sign it (implies --read-only)",
+    )
+    group.add_argument(
+        "--verity-uuid-names",
+        action=BooleanAction,
+        help="Include verity UUID in split artifact names (i.e.: artifact.verity becomes artifact_UUID.verity)",
     )
     group.add_argument(
         "--compress",
@@ -6211,6 +6247,9 @@ KNOWN_SUFFIXES = {
     ".xz",
     ".zstd",
     ".raw",
+    ".usr",
+    ".verity",
+    ".verity-sig",
     ".tar",
     ".cpio",
     ".qcow2",
@@ -6467,6 +6506,10 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
                 args.output_split_verity_sig = build_auxiliary_output_path(args, f"{roothash_suffix(args)}.p7s", True)
         if args.bootable:
             args.output_split_kernel = build_auxiliary_output_path(args, ".efi", True)
+
+    args.verity_uuid_names = args.verity_uuid_names if (
+        args.split_artifacts and args.verity is not None
+    ) else False
 
     if args.build_sources is not None:
         args.build_sources = args.build_sources.absolute()
@@ -6746,6 +6789,9 @@ def print_summary(config: MkosiConfig) -> None:
     MkosiPrinter.info(f"          Output Signature: {none_to_na(config.output_signature if config.sign else None)}")
     MkosiPrinter.info(f"               Output Bmap: {none_to_na(config.output_bmap if config.bmap else None)}")
     MkosiPrinter.info(f"  Generate split artifacts: {yes_no(config.split_artifacts)}")
+    MkosiPrinter.info(
+        f"  Artifact names have UUID: {none_to_na(config.verity_uuid_names if config.split_artifacts else None)}"
+    )
     MkosiPrinter.info(
         f"      Output Split Root FS: {none_to_na(config.output_split_root if config.split_artifacts else None)}"
     )
@@ -7424,7 +7470,7 @@ def build_stuff(config: MkosiConfig) -> Manifest:
         root_hash_p7s_file = write_root_hash_p7s_file(config, image.root_hash_p7s)
         settings = copy_nspawn_settings(config)
         checksum = calculate_sha256sum(
-            config, raw,
+            config, state, raw,
             image.archive,
             root_hash_file,
             root_hash_p7s_file,
@@ -7445,9 +7491,9 @@ def build_stuff(config: MkosiConfig) -> Manifest:
         link_output_nspawn_settings(config, settings)
         if config.output_sshkey is not None:
             link_output_sshkey(config, image.sshkey)
-        link_output_split_root(config, split_root)
-        link_output_split_verity(config, split_verity)
-        link_output_split_verity_sig(config, split_verity_sig)
+        link_output_split_root(config, state, split_root)
+        link_output_split_verity(config, state, split_verity)
+        link_output_split_verity_sig(config, state, split_verity_sig)
         link_output_split_kernel(config, split_kernel)
         link_output_split_kernel_image(config, image.split_kernel_image)
         link_output_split_initrd(config, image.split_initrd)
