@@ -3162,7 +3162,7 @@ def run_prepare_script(state: MkosiState, cached: bool) -> None:
 
         nspawn_params = nspawn_params_for_build_sources(state.config, SourceFileTransfer.mount)
         run_workspace_command(state, ["/root/prepare", verb],
-                              network=True, nspawn_params=nspawn_params, env=state.config.environment)
+                              network=True, nspawn_params=nspawn_params, env=state.environment)
 
         srcdir = root_home(state) / "src"
         if srcdir.exists():
@@ -3189,7 +3189,7 @@ def run_postinst_script(state: MkosiState) -> None:
         shutil.copy2(state.config.postinst_script, root_home(state) / "postinst")
 
         run_workspace_command(state, ["/root/postinst", verb],
-                              network=(state.config.with_network is True), env=state.config.environment)
+                              network=(state.config.with_network is True), env=state.environment)
         root_home(state).joinpath("postinst").unlink()
 
 
@@ -3207,8 +3207,7 @@ def run_finalize_script(state: MkosiState) -> None:
 
     with complete_step("Running finalize script…"):
         run([state.config.finalize_script, verb],
-            env={**state.config.environment, "BUILDROOT": str(state.root), "OUTPUTDIR": str(output_dir(state.config))})
-
+            env={**state.environment, "BUILDROOT": str(state.root), "OUTPUTDIR": str(output_dir(state.config))})
 
 
 def install_boot_loader(
@@ -6492,6 +6491,11 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
     else:
         args.environment = {}
 
+    if args.image_id is not None:
+        args.environment['IMAGE_ID'] = args.image_id
+    if args.image_version is not None:
+        args.environment['IMAGE_VERSION'] = args.image_version
+
     if args.cache_path is not None:
         args.cache_path = args.cache_path.absolute()
 
@@ -7262,12 +7266,6 @@ def run_build_script(state: MkosiState, raw: Optional[BinaryIO]) -> None:
                 f"--setenv=MKOSI_DEFAULT={state.config.config_path}"
             ]
 
-        if state.config.image_version is not None:
-            cmdline += [f"--setenv=IMAGE_VERSION={state.config.image_version}"]
-
-        if state.config.image_id is not None:
-            cmdline += [f"--setenv=IMAGE_ID={state.config.image_id}"]
-
         cmdline += nspawn_params_for_build_sources(state.config, state.config.source_file_transfer)
 
         if state.config.build_dir is not None:
@@ -7289,7 +7287,7 @@ def run_build_script(state: MkosiState, raw: Optional[BinaryIO]) -> None:
         if state.config.nspawn_keep_unit:
             cmdline += ["--keep-unit"]
 
-        cmdline += [f"--setenv={env}={value}" for env, value in state.config.environment.items()]
+        cmdline += [f"--setenv={env}={value}" for env, value in state.environment.items()]
 
         cmdline += [f"/root/{state.config.build_script.name}"]
 
@@ -7370,6 +7368,7 @@ def build_stuff(config: MkosiConfig) -> Manifest:
             workspace=Path(workspace.name),
             cache=cache,
             do_run_build_script=False,
+            environment=config.environment,
             machine_id=config.machine_id or uuid.uuid4().hex,
             for_cache=False,
         )
