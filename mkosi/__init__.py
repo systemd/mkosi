@@ -6697,6 +6697,9 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
     if args.repos_dir and not (is_rpm_distribution(args.distribution) or args.distribution == Distribution.arch):
         die("--repository-directory is only supported on RPM based distributions and Arch")
 
+    if args.netdev and is_centos_variant(args.distribution) and not is_epel_variant(args.distribution):
+        die("--netdev is only supported on EPEL centOS variants")
+
     # We set a reasonable umask so that files that are created in the image
     # will have reasonable permissions. We don't want those permissions to be
     # influenced by the caller's umask which will be used only for output files.
