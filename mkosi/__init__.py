@@ -7621,11 +7621,6 @@ def run_shell_cmdline(args: MkosiArgs, pipe: bool = False, commands: Optional[Se
 
     cmdline = [nspawn_executable(), "--quiet", target]
 
-    # Redirecting output correctly when not running directly from the terminal.
-    console_arg = f"--console={'interactive' if not pipe else 'pipe'}"
-    if nspawn_knows_arg(console_arg):
-        cmdline += [console_arg]
-
     if args.read_only:
         cmdline += ["--read-only"]
 
@@ -7637,6 +7632,11 @@ def run_shell_cmdline(args: MkosiArgs, pipe: bool = False, commands: Optional[Se
         cmdline += ["--boot"]
     else:
         cmdline += nspawn_rlimit_params()
+
+        # Redirecting output correctly when not running directly from the terminal.
+        console_arg = f"--console={'interactive' if not pipe else 'pipe'}"
+        if nspawn_knows_arg(console_arg):
+            cmdline += [console_arg]
 
     if is_generated_root(args) or args.verity:
         cmdline += ["--volatile=overlay"]
