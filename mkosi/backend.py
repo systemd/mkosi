@@ -506,6 +506,7 @@ class MkosiConfig:
     skeleton_trees: List[Path]
     clean_package_metadata: Union[bool, str]
     remove_files: List[Path]
+    # Environment should not be used directly. Use MkosiState environment instead.
     environment: Dict[str, str]
     build_sources: Optional[Path]
     build_dir: Optional[Path]
@@ -598,6 +599,7 @@ class MkosiState:
     do_run_build_script: bool
     machine_id: str
     for_cache: bool
+    environment: Dict[str, str]
 
     cache_pre_inst: Optional[Path] = None
     cache_pre_dev: Optional[Path] = None
