@@ -2842,6 +2842,9 @@ def install_opensuse(args: MkosiArgs, root: Path, do_run_build_script: bool) -> 
     if args.output_format in (OutputFormat.subvolume, OutputFormat.gpt_btrfs):
         add_packages(args, packages, "btrfsprogs")
 
+    if args.netdev:
+        add_packages(args, packages, "systemd-network")
+
     if do_run_build_script:
         packages.update(args.build_packages)
 
