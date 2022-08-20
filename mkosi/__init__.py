@@ -425,6 +425,15 @@ DEBIAN_KERNEL_ARCHITECTURES = {
     "s390x": "s390x",
 }
 
+# EFI has its own conventions too
+EFI_ARCHITECTURES = {
+    "x86_64": "x64",
+    "x86": "ia32",
+    "aarch64": "aa64",
+    "armhfp": "arm",
+    "riscv64:": "riscv64",
+}
+
 
 class GPTRootTypeTriplet(NamedTuple):
     root: uuid.UUID
@@ -4065,7 +4074,7 @@ def install_unified_kernel(
                 "--add-section", f".cmdline={cmdline}",   "--change-section-vma", ".cmdline=0x30000",
                 "--add-section", f".linux={root / kimg}", "--change-section-vma", ".linux=0x2000000",
                 "--add-section", f".initrd={initrd}",     "--change-section-vma", ".initrd=0x3000000",
-                root / "lib/systemd/boot/efi/linuxx64.efi.stub",
+                root / f"lib/systemd/boot/efi/linux{EFI_ARCHITECTURES[args.architecture]}.efi.stub",
                 boot_binary,
             ]
 
