@@ -37,7 +37,7 @@ from typing import (
     cast,
 )
 
-from .syscall import ioctl_partition_add, ioctl_partition_remove
+from .syscall import blkpg_add_partition, blkpg_del_partition
 
 PathString = Union[Path, str]
 
@@ -414,7 +414,7 @@ class PartitionTable:
             with open(device, 'rb+') as f:
                 for p in self.partitions.values():
                     try:
-                        ioctl_partition_remove(f.fileno(), p.number)
+                        blkpg_del_partition(f.fileno(), p.number)
                     except OSError as e:
                         if e.errno != errno.ENXIO:
                             raise
@@ -431,7 +431,7 @@ class PartitionTable:
             # Make sure we re-add all partitions after modifying the partition table.
             with open(device, 'rb+') as f:
                 for p in self.partitions.values():
-                    ioctl_partition_add(f.fileno(), p.number, self.partition_offset(p), self.partition_size(p))
+                    blkpg_add_partition(f.fileno(), p.number, self.partition_offset(p), self.partition_size(p))
 
 
 @dataclasses.dataclass

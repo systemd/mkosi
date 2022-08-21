@@ -57,7 +57,7 @@ class blkpg_partition(ctypes.Structure):
     ]
 
 
-def ioctl_partition_add(fd: int, nr: int, start: int, size: int) -> None:
+def blkpg_add_partition(fd: int, nr: int, start: int, size: int) -> None:
     bp = blkpg_partition(pno=nr, start=start, length=size)
     ba = blkpg_ioctl_arg(op=BLKPG_ADD_PARTITION, data=ctypes.addressof(bp), datalen=ctypes.sizeof(bp))
     try:
@@ -68,7 +68,7 @@ def ioctl_partition_add(fd: int, nr: int, start: int, size: int) -> None:
             raise
 
 
-def ioctl_partition_remove(fd: int, nr: int) -> None:
+def blkpg_del_partition(fd: int, nr: int) -> None:
     bp = blkpg_partition(pno=nr)
     ba = blkpg_ioctl_arg(op=BLKPG_DEL_PARTITION, data=ctypes.addressof(bp), datalen=ctypes.sizeof(bp))
     try:

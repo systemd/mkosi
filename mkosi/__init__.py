@@ -106,7 +106,7 @@ from .backend import (
     write_grub_config,
 )
 from .manifest import Manifest
-from .syscall import ioctl_partition_add, ioctl_partition_remove, reflink
+from .syscall import blkpg_add_partition, blkpg_del_partition, reflink
 
 complete_step = MkosiPrinter.complete_step
 
@@ -959,7 +959,7 @@ def attach_image_loopback(image: Optional[BinaryIO], table: Optional[PartitionTa
         # the BLKPKG BLKPG_ADD_PARTITION ioctl().
         with open(loopdev, 'rb+') as f:
             for p in table.partitions.values():
-                ioctl_partition_add(f.fileno(), p.number, table.partition_offset(p), table.partition_size(p))
+                blkpg_add_partition(f.fileno(), p.number, table.partition_offset(p), table.partition_size(p))
 
     try:
         yield loopdev
@@ -969,7 +969,7 @@ def attach_image_loopback(image: Optional[BinaryIO], table: Optional[PartitionTa
             # avoid race conditions by explicitly removing all partition devices before detaching the loop
             # device using the BLKPG BLKPG_DEL_PARTITION ioctl().
             for p in table.partitions.values():
-                ioctl_partition_remove(f.fileno(), p.number)
+                blkpg_del_partition(f.fileno(), p.number)
 
             run(["losetup", "--detach", loopdev])
 
