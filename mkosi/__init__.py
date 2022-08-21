@@ -411,6 +411,29 @@ DEBIAN_ARCHITECTURES = {
     "armhfp": "armhf",
 }
 
+# And the kernel package names have yet another format, so adjust accordingly
+DEBIAN_KERNEL_ARCHITECTURES = {
+    "x86_64": "amd64",
+    "x86": "i386",
+    "aarch64": "arm64",
+    "armhfp": "armmp",
+    "alpha": "alpha-generic",
+    "ia64": "itanium",
+    "ppc": "powerpc",
+    "ppc64": "powerpc64",
+    "ppc64le": "powerpc64le",
+    "s390x": "s390x",
+}
+
+# EFI has its own conventions too
+EFI_ARCHITECTURES = {
+    "x86_64": "x64",
+    "x86": "ia32",
+    "aarch64": "aa64",
+    "armhfp": "arm",
+    "riscv64:": "riscv64",
+}
+
 
 class GPTRootTypeTriplet(NamedTuple):
     root: uuid.UUID
@@ -2519,10 +2542,24 @@ def install_debian_or_ubuntu(args: MkosiArgs, root: Path, *, do_run_build_script
     if not do_run_build_script and args.bootable:
         add_packages(args, extra_packages, "dracut")
 
+        # Don't pull in a kernel if users specify one, but otherwise try to pick a default
+        # one - linux-generic is a global metapackage in Ubuntu, but Debian doesn't have one,
+        # so try to infer from the architecture.
         if args.distribution == Distribution.ubuntu:
-            add_packages(args, extra_packages, "linux-generic")
-        else:
-            add_packages(args, extra_packages, "linux-image-amd64")
+            found = "linux-generic" in extra_packages
+            if not found:
+                for package in extra_packages:
+                    if package.startswith("linux-image"):
+                        found = True
+            if not found:
+                add_packages(args, extra_packages, "linux-generic")
+        elif args.distribution == Distribution.debian:
+            found = False
+            for package in extra_packages:
+                if package.startswith("linux-image"):
+                    found = True
+            if not found:
+                add_packages(args, extra_packages, f"linux-image-{DEBIAN_KERNEL_ARCHITECTURES[args.architecture]}")
 
         if args.get_partition(PartitionIdentifier.bios):
             add_packages(args, extra_packages, "grub-pc")
@@ -4040,7 +4077,7 @@ def install_unified_kernel(
                 "--add-section", f".cmdline={cmdline}",   "--change-section-vma", ".cmdline=0x30000",
                 "--add-section", f".linux={root / kimg}", "--change-section-vma", ".linux=0x2000000",
                 "--add-section", f".initrd={initrd}",     "--change-section-vma", ".initrd=0x3000000",
-                root / "lib/systemd/boot/efi/linuxx64.efi.stub",
+                root / f"lib/systemd/boot/efi/linux{EFI_ARCHITECTURES[args.architecture]}.efi.stub",
                 boot_binary,
             ]
 
@@ -7687,14 +7724,17 @@ def find_qemu_binary(args: MkosiArgs) -> str:
     die("Couldn't find QEMU/KVM binary")
 
 
-def find_qemu_firmware() -> Tuple[Path, bool]:
+def find_qemu_firmware(args: MkosiArgs) -> Tuple[Path, bool]:
     FIRMWARE_LOCATIONS = [
         # UEFI firmware blobs are found in a variety of locations,
         # depending on distribution and package.
         *{
             "x86_64": ["/usr/share/ovmf/x64/OVMF_CODE.secboot.fd"],
-            "i386": ["/usr/share/edk2/ovmf-ia32/OVMF_CODE.secboot.fd"],
-        }.get(platform.machine(), []),
+            "i386": [
+                "/usr/share/edk2/ovmf-ia32/OVMF_CODE.secboot.fd",
+                "/usr/share/OVMF/OVMF32_CODE_4M.secboot.fd"
+            ],
+        }.get(args.architecture, []),
         "/usr/share/edk2/ovmf/OVMF_CODE.secboot.fd",
         "/usr/share/edk2-ovmf/OVMF_CODE.secboot.fd",  # GENTOO:
         "/usr/share/qemu/OVMF_CODE.secboot.fd",
@@ -7719,7 +7759,9 @@ def find_qemu_firmware() -> Tuple[Path, bool]:
                 "/usr/share/qemu/ovmf-x86_64.bin",
             ],
             "i386": ["/usr/share/ovmf/ovmf_code_ia32.bin", "/usr/share/edk2/ovmf-ia32/OVMF_CODE.fd"],
-        }.get(platform.machine(), []),
+            "aarch64": ["/usr/share/AAVMF/AAVMF_CODE.fd"],
+            "armhfp": ["/usr/share/AAVMF/AAVMF32_CODE.fd"],
+        }.get(args.architecture, []),
         # After that, we try some generic paths and hope that if they exist,
         # they’ll correspond to the current architecture, thanks to the package manager.
         "/usr/share/edk2/ovmf/OVMF_CODE.fd",
@@ -7736,13 +7778,20 @@ def find_qemu_firmware() -> Tuple[Path, bool]:
     die("Couldn't find OVMF UEFI firmware blob.")
 
 
-def find_ovmf_vars() -> Path:
+def find_ovmf_vars(args: MkosiArgs) -> Path:
     OVMF_VARS_LOCATIONS = []
 
-    if platform.machine() == "x86_64":
+    if args.architecture == "x86_64":
         OVMF_VARS_LOCATIONS += ["/usr/share/ovmf/x64/OVMF_VARS.fd"]
-    elif platform.machine() == "i386":
-        OVMF_VARS_LOCATIONS += ["/usr/share/edk2/ovmf-ia32/OVMF_VARS.fd"]
+    elif args.architecture == "i386":
+        OVMF_VARS_LOCATIONS += [
+            "/usr/share/edk2/ovmf-ia32/OVMF_VARS.fd",
+            "/usr/share/OVMF/OVMF32_VARS_4M.fd",
+        ]
+    elif args.architecture == "armhfp":
+        OVMF_VARS_LOCATIONS += ["/usr/share/AAVMF/AAVMF32_VARS.fd"]
+    elif args.architecture == "aarch64":
+        OVMF_VARS_LOCATIONS += ["/usr/share/AAVMF/AAVMF_VARS.fd"]
 
     OVMF_VARS_LOCATIONS += ["/usr/share/edk2/ovmf/OVMF_VARS.fd",
                             "/usr/share/edk2-ovmf/OVMF_VARS.fd",  # GENTOO:
@@ -7784,7 +7833,7 @@ def run_qemu_cmdline(args: MkosiArgs) -> Iterator[List[str]]:
     else:
         mode = "uefi"
 
-    firmware, fw_supports_sb = find_qemu_firmware()
+    firmware, fw_supports_sb = find_qemu_firmware(args)
     smm = "on" if fw_supports_sb and mode == "uefi" else "off"
 
     cmdline = [
@@ -7841,7 +7890,7 @@ def run_qemu_cmdline(args: MkosiArgs) -> Iterator[List[str]]:
 
     with contextlib.ExitStack() as stack:
         if mode == "uefi" and fw_supports_sb:
-            ovmf_vars = stack.enter_context(copy_file_temporary(src=find_ovmf_vars(), dir=tmp_dir()))
+            ovmf_vars = stack.enter_context(copy_file_temporary(src=find_ovmf_vars(args), dir=tmp_dir()))
             cmdline += [
                 "-global",
                 "ICH9-LPC.disable_s3=1",
