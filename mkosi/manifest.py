@@ -234,7 +234,22 @@ class Manifest:
         return len(self.packages) > 0
 
     def as_dict(self) -> Dict[str, Any]:
+        config = {
+            "name": self.args.image_id or "image",
+            "distribution": self.args.distribution.name,
+            "architecture": self.args.architecture,
+        }
+        if self.args.image_version is not None:
+            config["version"] = self.args.image_version
+        if self.args.release is not None:
+            config["release"] = self.args.release
+
         return {
+            # Bump this when incompatible changes are made to the manifest format.
+            "manifest_version": 1,
+            # Describe the image itself.
+            "config": config,
+            # Describe the image content in terms of packages.
             "packages": [package.as_dict() for package in self.packages],
         }
 
