@@ -2490,6 +2490,12 @@ def add_apt_auxiliary_repos(args: MkosiArgs, root: Path, repos: Set[str]) -> Non
 
     root.joinpath(f"etc/apt/sources.list.d/{args.release}-security.list").write_text(f"{security}\n")
 
+
+def add_apt_package_if_exists(args: MkosiArgs, root: Path, extra_packages: Set[str], package: str) -> None:
+    if invoke_apt(args, root, "cache", "search", ["--names-only", f"^{package}$"], stdout=PIPE).stdout.strip() != "":
+        add_packages(args, extra_packages, package)
+
+
 def install_debian_or_ubuntu(args: MkosiArgs, root: Path, *, do_run_build_script: bool) -> None:
     # Either the image builds or it fails and we restart, we don't need safety fsyncs when bootstrapping
     # Add it before debootstrap, as the second stage already uses dpkg from the chroot
@@ -2603,8 +2609,10 @@ def install_debian_or_ubuntu(args: MkosiArgs, root: Path, *, do_run_build_script
     invoke_apt(args, root, "get", "update", ["--assume-yes"])
 
     if args.bootable and not do_run_build_script and args.get_partition(PartitionIdentifier.esp):
-        if invoke_apt(args, root, "cache", "search", ["--names-only", "^systemd-boot$"], stdout=PIPE).stdout.strip() != "":
-            add_packages(args, extra_packages, "systemd-boot")
+        add_apt_package_if_exists(args, root, extra_packages, "systemd-boot")
+
+    # systemd-resolved was split into a separate package
+    add_apt_package_if_exists(args, root, extra_packages, "systemd-resolved")
 
     invoke_apt(args, root, "get", "install", ["--assume-yes", "--no-install-recommends", *extra_packages])
 
@@ -2628,10 +2636,13 @@ def install_debian_or_ubuntu(args: MkosiArgs, root: Path, *, do_run_build_script
         # Debian still has pam_securetty module enabled, disable it in the base image.
         disable_pam_securetty(root)
 
-    if args.distribution == Distribution.debian and "systemd" in extra_packages:
+    if (args.distribution == Distribution.debian and "systemd" in extra_packages and
+            ("systemd-resolved" not in extra_packages)):
         # The default resolv.conf points to 127.0.0.1, and resolved is disabled, fix it in
         # the base image.
-        root.joinpath("etc/resolv.conf").unlink()
+        # TODO: use missing_ok=True when we drop Python << 3.8
+        if root.joinpath("etc/resolv.conf").exists():
+            root.joinpath("etc/resolv.conf").unlink()
         root.joinpath("etc/resolv.conf").symlink_to("../run/systemd/resolve/resolv.conf")
         run(["systemctl", "--root", root, "enable", "systemd-resolved"])
 
