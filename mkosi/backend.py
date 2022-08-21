@@ -406,7 +406,7 @@ class PartitionTable:
         if 'disk' in ARG_DEBUG:
             print_between_lines(spec)
 
-        cmd: List[PathString] = ["sfdisk", "--color=never", "--no-reread", "--no-tell-kernel", device]
+        cmd: List[PathString] = ["sfdisk", "--color=never", "--no-reread", device]
         if quiet:
             cmd += ["--quiet"]
 
