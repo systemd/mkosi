@@ -6,6 +6,7 @@ import argparse
 import contextlib
 import dataclasses
 import enum
+import errno
 import math
 import os
 import platform
@@ -36,7 +37,7 @@ from typing import (
     cast,
 )
 
-from .syscall import ioctl_partition_add
+from .syscall import ioctl_partition_add, ioctl_partition_remove
 
 PathString = Union[Path, str]
 
@@ -408,6 +409,15 @@ class PartitionTable:
         cmd: List[PathString] = ["sfdisk", "--color=never", "--no-reread", "--no-tell-kernel", device]
         if quiet:
             cmd += ["--quiet"]
+
+        if device.is_block_device():
+            with open(device, 'rb+') as f:
+                for p in self.partitions.values():
+                    try:
+                        ioctl_partition_remove(f.fileno(), p.number)
+                    except OSError as e:
+                        if e.errno != errno.ENXIO:
+                            raise
 
         try:
             run(cmd, input=spec.encode("utf-8"))
