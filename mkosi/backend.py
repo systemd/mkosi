@@ -37,7 +37,11 @@ from typing import (
     cast,
 )
 
-from .syscall import blkpg_add_partition, blkpg_del_partition
+from .syscall import (
+    blkpg_add_partition,
+    blkpg_del_partition,
+    block_reread_partition_table,
+)
 
 PathString = Union[Path, str]
 
@@ -406,7 +410,7 @@ class PartitionTable:
         if 'disk' in ARG_DEBUG:
             print_between_lines(spec)
 
-        cmd: List[PathString] = ["sfdisk", "--color=never", "--no-reread", device]
+        cmd: List[PathString] = ["sfdisk", "--color=never", "--no-reread", "--no-tell-kernel", device]
         if quiet:
             cmd += ["--quiet"]
 
@@ -432,6 +436,17 @@ class PartitionTable:
             with open(device, 'rb+') as f:
                 for p in self.partitions.values():
                     blkpg_add_partition(f.fileno(), p.number, self.partition_offset(p), self.partition_size(p))
+
+                try:
+                    block_reread_partition_table(f.fileno())
+                except OSError as e:
+                    msg = f"Failed to reread partition table of {device}: {e.strerror}"
+                    # BLKRRPART fails with EINVAL if the operation is not supported, let's not fail if that's
+                    # the case.
+                    if e.errno == errno.EINVAL:
+                        warn(msg)
+                    else:
+                        die(msg)
 
 
 @dataclasses.dataclass

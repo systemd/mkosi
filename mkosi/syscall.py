@@ -83,3 +83,10 @@ FICLONE = _IOW(0x94, 9, "int")
 
 def reflink(oldfd: int, newfd: int) -> None:
     fcntl.ioctl(newfd, FICLONE, oldfd)
+
+
+BLKRRPART = _IO(0x12, 95)
+
+
+def block_reread_partition_table(fd: int) -> None:
+    fcntl.ioctl(fd, BLKRRPART, 0)
