@@ -460,7 +460,7 @@ class MkosiArgs:
     distribution: Distribution
     release: str
     mirror: Optional[str]
-    use_mirror_verbatim: bool
+    local_mirror: Optional[str]
     repositories: List[str]
     use_host_repositories: bool
     repos_dir: Optional[str]
