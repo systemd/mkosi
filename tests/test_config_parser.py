@@ -84,6 +84,7 @@ class MkosiConfig:
             "local_mirror": None,
             "manifest_format": None,
             "mirror": None,
+            "repository_key_check": True,
             "mksquashfs_tool": [],
             "no_chown": False,
             "nspawn_settings": None,

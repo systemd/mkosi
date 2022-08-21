@@ -461,6 +461,7 @@ class MkosiArgs:
     release: str
     mirror: Optional[str]
     local_mirror: Optional[str]
+    repository_key_check: bool
     repositories: List[str]
     use_host_repositories: bool
     repos_dir: Optional[str]

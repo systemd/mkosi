@@ -2519,6 +2519,9 @@ def install_debian_or_ubuntu(args: MkosiArgs, root: Path, *, do_run_build_script
         if debootstrap_knows_arg("--no-check-valid-until"):
             cmdline += ["--no-check-valid-until"]
 
+        if not args.repository_key_check:
+            cmdline += ["--no-check-gpg"]
+
         mirror = args.local_mirror or args.mirror
         assert mirror is not None
         cmdline += [args.release, root, mirror]
@@ -2699,6 +2702,12 @@ def install_arch(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None
             path.chmod(permissions)
 
     pacman_conf = workspace(root) / "pacman.conf"
+    if args.repository_key_check:
+        sig_level = "Required DatabaseOptional"
+    else:
+        # If we are using a single local mirror built on the fly there
+        # will be no signatures
+        sig_level = "Never"
     with pacman_conf.open("w") as f:
         f.write(
             dedent(
@@ -2713,7 +2722,7 @@ def install_arch(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None
                 Architecture = auto
                 Color
                 CheckSpace
-                SigLevel = Required DatabaseOptional
+                SigLevel = {sig_level}
                 ParallelDownloads = 5
 
                 [core]
@@ -2875,7 +2884,7 @@ def install_opensuse(args: MkosiArgs, root: Path, do_run_build_script: bool) -> 
     cmdline += [
         "--root",
         root,
-        "--gpg-auto-import-keys",
+        "--gpg-auto-import-keys" if args.repository_key_check else "--no-gpg-checks",
         "install",
         "-y",
         "--no-recommends",
@@ -5032,6 +5041,13 @@ def create_parser() -> ArgumentParserMkosi:
     group.add_argument("-m", "--mirror", help="Distribution mirror to use")
     group.add_argument("--local-mirror", help="Use a single local, flat and plain mirror to build the image",
     )
+    group.add_argument(
+        "--repository-key-check",
+        metavar="BOOL",
+        action=BooleanAction,
+        help="Controls signature and key checks on repositories",
+        default=True,
+    )
 
     group.add_argument(
         "--repositories",
@@ -6765,6 +6781,7 @@ def print_summary(args: MkosiArgs) -> None:
         MkosiPrinter.info("                    Mirror: " + args.mirror)
     if args.local_mirror is not None:
         MkosiPrinter.info("      Local Mirror (build): " + args.local_mirror)
+    MkosiPrinter.info(f"  Repo Signature/Key check: {yes_no(args.repository_key_check)}")
     if args.repositories is not None and len(args.repositories) > 0:
         MkosiPrinter.info("              Repositories: " + ",".join(args.repositories))
     MkosiPrinter.info("     Use Host Repositories: " + yes_no(args.use_host_repositories))
