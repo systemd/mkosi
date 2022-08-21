@@ -2546,19 +2546,11 @@ def install_debian_or_ubuntu(args: MkosiArgs, root: Path, *, do_run_build_script
         # one - linux-generic is a global metapackage in Ubuntu, but Debian doesn't have one,
         # so try to infer from the architecture.
         if args.distribution == Distribution.ubuntu:
-            found = "linux-generic" in extra_packages
-            if not found:
-                for package in extra_packages:
-                    if package.startswith("linux-image"):
-                        found = True
-            if not found:
+            if ("linux-generic" not in extra_packages and
+                not any(package.startswith("linux-image") for package in extra_packages)):
                 add_packages(args, extra_packages, "linux-generic")
         elif args.distribution == Distribution.debian:
-            found = False
-            for package in extra_packages:
-                if package.startswith("linux-image"):
-                    found = True
-            if not found:
+            if not any(package.startswith("linux-image") for package in extra_packages):
                 add_packages(args, extra_packages, f"linux-image-{DEBIAN_KERNEL_ARCHITECTURES[args.architecture]}")
 
         if args.get_partition(PartitionIdentifier.bios):
