@@ -2823,7 +2823,7 @@ def install_opensuse(args: MkosiArgs, root: Path, do_run_build_script: bool) -> 
         root.joinpath("etc/zypp/zypp.conf").write_text("rpm.install.excludedocs = yes\n")
 
     packages = {*args.packages}
-    add_packages(args, packages, "systemd")
+    add_packages(args, packages, "systemd", "glibc-locale-base")
 
     if release.startswith("42."):
         add_packages(args, packages, "patterns-openSUSE-minimal_base")
