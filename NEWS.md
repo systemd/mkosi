@@ -19,6 +19,9 @@ and mkosi.conf.d/ respectively. The old names (mkosi.default and mkosi.default.d
 been removed from the docs but are still supported for backwards compatibility.
 - `plain_squashfs` type images will now also be named with a `.raw` suffix.
 - `tar` type images will now respect the `--compress` option.
+- Pacman's `SigLevel` option was changed to use the same default value as used on Arch
+which is `SigLevel = Required DatabaseOptional`. If this results in keyring errors,
+you need to update the keyring by running `pacman-key --populate archlinux`.
 
 ## v13
 
