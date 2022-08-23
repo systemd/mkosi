@@ -2474,15 +2474,12 @@ def add_apt_auxiliary_repos(args: MkosiArgs, root: Path, repos: Set[str]) -> Non
     if args.release in ("unstable", "sid"):
         return
 
-    if args.distribution == Distribution.ubuntu:
-        updates = f"deb http://archive.ubuntu.com/ubuntu {args.release}-updates {' '.join(repos)}"
-    else:
-        updates = f"deb http://deb.debian.org/debian {args.release}-updates {' '.join(repos)}"
-
+    updates = f"deb {args.mirror} {args.release}-updates {' '.join(repos)}"
     root.joinpath(f"etc/apt/sources.list.d/{args.release}-updates.list").write_text(f"{updates}\n")
 
+    # Security updates repos are never mirrored
     if args.distribution == Distribution.ubuntu:
-        security = f"deb http://archive.ubuntu.com/ubuntu {args.release}-security {' '.join(repos)}"
+        security = f"deb http://security.ubuntu.com/ubuntu/ {args.release}-security {' '.join(repos)}"
     elif args.release in ("stretch", "buster"):
         security = f"deb http://security.debian.org/debian-security/ {args.release}/updates main"
     else:
@@ -2618,10 +2615,7 @@ def install_debian_or_ubuntu(args: MkosiArgs, root: Path, *, do_run_build_script
 
     # Now clean up and add the real repositories, so that the image is ready
     if args.local_mirror:
-        if args.distribution == Distribution.ubuntu:
-            main_repo = f"deb http://archive.ubuntu.com/ubuntu {args.release} {' '.join(repos)}\n"
-        else:
-            main_repo = f"deb http://deb.debian.org/debian {args.release} {' '.join(repos)}\n"
+        main_repo = f"deb {args.mirror} {args.release} {' '.join(repos)}\n"
         root.joinpath("etc/apt/sources.list").write_text(main_repo)
         root.joinpath("etc/apt/sources.list.d/mirror.list").unlink()
         add_apt_auxiliary_repos(args, root, repos)
