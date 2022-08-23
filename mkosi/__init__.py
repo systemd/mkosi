@@ -2728,7 +2728,7 @@ def install_arch(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None
                 Architecture = auto
                 Color
                 CheckSpace
-                SigLevel = Required DatabaseOptional TrustAll
+                SigLevel = Required DatabaseOptional
                 ParallelDownloads = 5
 
                 [core]
