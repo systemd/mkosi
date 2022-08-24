@@ -22,6 +22,7 @@ from . import (
     check_output,
     check_root,
     init_namespace,
+    init_state,
     load_args,
     needs_build,
     parse_args,
@@ -33,7 +34,7 @@ from . import (
     run_systemd_cmdline,
     unlink_output,
 )
-from .backend import MkosiArgs, MkosiNotSupportedException, Verb, die, run
+from .backend import MkosiConfig, MkosiNotSupportedException, MkosiState, Verb, die, run
 
 
 class LogfileAdapter:
@@ -53,7 +54,8 @@ class Machine:
         self._serial: Optional[pexpect.spawn] = None
         self.exit_code: int = -1
         self.stack = contextlib.ExitStack()
-        self.args: MkosiArgs
+        self.config: MkosiConfig
+        self.state: MkosiState
 
         tmp = parse_args(args)["default"]
 
@@ -85,7 +87,8 @@ class Machine:
         elif tmp.verb not in (Verb.shell, Verb.boot):
             die("No valid verb was entered.")
 
-        self.args = load_args(tmp)
+        self.config = load_args(tmp)
+        self.state = init_state(self.config)
 
     @property
     def serial(self) -> pexpect.spawn:
@@ -103,21 +106,21 @@ class Machine:
 
     def _ensure_booted(self) -> None:
         # Try to access the serial console which will raise an exception if the machine is not currently booted.
-        assert self._serial is not None or self.args.verb == Verb.shell
+        assert self._serial is not None or self.config.verb == Verb.shell
 
     def build(self) -> None:
-        if self.args.verb in MKOSI_COMMANDS_NEED_BUILD + (Verb.build, Verb.clean):
+        if self.config.verb in MKOSI_COMMANDS_NEED_BUILD + (Verb.build, Verb.clean):
             check_root()
-            unlink_output(self.args)
+            unlink_output(self.config, self.state)
 
-        if self.args.verb == Verb.build:
-            check_output(self.args)
+        if self.config.verb == Verb.build:
+            check_output(self.config, self.state)
 
-        if needs_build(self.args):
+        if needs_build(self.config):
             check_root()
-            check_native(self.args)
-            init_namespace(self.args)
-            build_stuff(self.args)
+            check_native(self.config)
+            init_namespace()
+            build_stuff(self.config, self.state)
 
     def __enter__(self) -> Machine:
         self.build()
@@ -126,17 +129,17 @@ class Machine:
         return self
 
     def boot(self) -> None:
-        if self.args.verb == Verb.shell:
+        if self.config.verb == Verb.shell:
             return
 
         with contextlib.ExitStack() as stack:
-            prepend_to_environ_path(self.args.extra_search_paths)
+            prepend_to_environ_path(self.config.extra_search_paths)
 
-            if self.args.verb == Verb.boot:
-                cmdline = run_shell_cmdline(self.args)
-            elif self.args.verb == Verb.qemu:
+            if self.config.verb == Verb.boot:
+                cmdline = run_shell_cmdline(self.config)
+            elif self.config.verb == Verb.qemu:
                 # We must keep the temporary file opened at run_qemu_cmdline accessible, hence the context stack.
-                cmdline = stack.enter_context(run_qemu_cmdline(self.args))
+                cmdline = stack.enter_context(run_qemu_cmdline(self.config))
             else:
                 die("No valid verb was entered.")
 
@@ -164,12 +167,12 @@ class Machine:
         stdout: Union[int, TextIO] = subprocess.PIPE if capture_output else sys.stdout
         stderr: Union[int, TextIO] = subprocess.PIPE if capture_output else sys.stderr
 
-        if self.args.verb == Verb.qemu:
-            cmdline = run_ssh_cmdline(self.args, commands)
-        elif self.args.verb == Verb.boot:
-            cmdline = run_systemd_cmdline(self.args, commands)
+        if self.config.verb == Verb.qemu:
+            cmdline = run_ssh_cmdline(self.config, commands)
+        elif self.config.verb == Verb.boot:
+            cmdline = run_systemd_cmdline(self.config, commands)
         else:
-            cmdline = run_shell_cmdline(self.args, pipe=True, commands=commands)
+            cmdline = run_shell_cmdline(self.config, pipe=True, commands=commands)
 
         # The retry logic only applies when running commands against a VM.
 
@@ -178,7 +181,7 @@ class Machine:
                 return run(cmdline, check=check, stdout=stdout, stderr=stderr, text=True, timeout=timeout)
             except subprocess.CalledProcessError as e:
                 # Return code 255 is used for connection errors by ssh.
-                if self.args.verb != Verb.qemu or e.returncode != 255:
+                if self.config.verb != Verb.qemu or e.returncode != 255:
                     raise
 
                 time.sleep(1)
@@ -218,7 +221,7 @@ class MkosiMachineTest(unittest.TestCase):
         with skip_not_supported():
             cls.machine = Machine(cls.args)
 
-        verb = cls.machine.args.verb
+        verb = cls.machine.config.verb
         no_nspawn = parse_boolean(os.getenv("MKOSI_TEST_NO_NSPAWN", "0"))
         no_qemu = parse_boolean(os.getenv("MKOSI_TEST_NO_QEMU", "0"))
 
@@ -236,7 +239,7 @@ class MkosiMachineTest(unittest.TestCase):
         # Replacing underscores which makes name invalid.
         # Necessary for shell otherwise racing conditions to the disk image will happen.
         test_name = self.id().split(".")[3]
-        self.machine.args.hostname = test_name.replace("_", "-")
+        self.machine.config.hostname = test_name.replace("_", "-")
 
         try:
             self.machine.boot()

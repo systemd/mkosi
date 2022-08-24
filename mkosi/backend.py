@@ -450,7 +450,7 @@ class PartitionTable:
 
 
 @dataclasses.dataclass
-class MkosiArgs:
+class MkosiConfig:
     """Type-hinted storage for command line arguments."""
 
     verb: Verb
@@ -570,9 +570,7 @@ class MkosiArgs:
     # systemd-nspawn specific options
     nspawn_keep_unit: bool
 
-    # Some extra stuff that's stored in MkosiArgs for convenience but isn't populated by arguments
     machine_id_is_fixed: bool
-    original_umask: int
     passphrase: Optional[Dict[str, str]]
 
     output_checksum: Optional[Path] = None
@@ -585,6 +583,17 @@ class MkosiArgs:
     output_split_verity: Optional[Path] = None
     output_split_verity_sig: Optional[Path] = None
     output_split_kernel: Optional[Path] = None
+
+    def architecture_is_native(self) -> bool:
+        return self.architecture == platform.machine()
+
+
+@dataclasses.dataclass
+class MkosiState:
+    """State related properties."""
+
+    original_umask: int
+
     cache_pre_inst: Optional[Path] = None
     cache_pre_dev: Optional[Path] = None
     output_signature: Optional[Path] = None
@@ -597,11 +606,8 @@ class MkosiArgs:
             return None
         return self.partition_table.partitions.get(ident)
 
-    def architecture_is_native(self) -> bool:
-        return self.architecture == platform.machine()
 
-
-def should_compress_fs(args: Union[argparse.Namespace, MkosiArgs]) -> Union[bool, str]:
+def should_compress_fs(config: Union[argparse.Namespace, MkosiConfig]) -> Union[bool, str]:
     """True for the default compression, a string, or False.
 
     When explicitly configured with --compress-fs=, just return
@@ -609,13 +615,13 @@ def should_compress_fs(args: Union[argparse.Namespace, MkosiArgs]) -> Union[bool
     smart, so that either this function or should_compress_output()
     returns True as appropriate.
     """
-    c = args.compress_fs
-    if c is None and args.output_format.has_fs_compression():
-        c = args.compress
+    c = config.compress_fs
+    if c is None and config.output_format.has_fs_compression():
+        c = config.compress
     return False if c is None else c
 
 
-def should_compress_output(args: Union[argparse.Namespace, MkosiArgs]) -> Union[bool, str]:
+def should_compress_output(config: Union[argparse.Namespace, MkosiConfig]) -> Union[bool, str]:
     """A string or False.
 
     When explicitly configured with --compress-output=, use
@@ -624,10 +630,10 @@ def should_compress_output(args: Union[argparse.Namespace, MkosiArgs]) -> Union[
     --compress= was used, try to be smart, so that either this
     function or should_compress_fs() returns True as appropriate.
     """
-    c = args.compress_output
-    if c is None and not args.output_format.has_fs_compression():
-        c = args.compress
-    if c is None and args.output_format == OutputFormat.tar:
+    c = config.compress_output
+    if c is None and not config.output_format.has_fs_compression():
+        c = config.compress
+    if c is None and config.output_format == OutputFormat.tar:
         c = True
     if c is True:
         return "xz"  # default compression
@@ -670,7 +676,7 @@ def nspawn_version() -> int:
 
 
 def run_workspace_command(
-    args: MkosiArgs,
+    config: MkosiConfig,
     root: Path,
     cmd: Sequence[PathString],
     network: bool = False,
@@ -683,7 +689,7 @@ def run_workspace_command(
         nspawn_executable(),
         "--quiet",
         f"--directory={root}",
-        "--uuid=" + args.machine_id,
+        "--uuid=" + config.machine_id,
         "--machine=mkosi-" + uuid.uuid4().hex,
         "--as-pid2",
         "--link-journal=no",
@@ -712,10 +718,10 @@ def run_workspace_command(
         stdout = subprocess.PIPE
         nspawn += ["--console=pipe"]
 
-    if args.usr_only:
-        nspawn += [f"--bind={root_home(args, root)}:/root"]
+    if config.usr_only:
+        nspawn += [f"--bind={root_home(config, root)}:/root"]
 
-    if args.nspawn_keep_unit:
+    if config.nspawn_keep_unit:
         nspawn += ["--keep-unit"]
 
     try:
@@ -726,7 +732,7 @@ def run_workspace_command(
         die(f"Workspace command {shell_join(cmd)} returned non-zero exit code {e.returncode}.")
 
 
-def root_home(args: MkosiArgs, root: Path) -> Path:
+def root_home(config: MkosiConfig, root: Path) -> Path:
 
     # If UsrOnly= is turned on the /root/ directory (i.e. the root
     # user's home directory) is not persistent (after all everything
@@ -734,7 +740,7 @@ def root_home(args: MkosiArgs, root: Path) -> Path:
     # from an external place, so that we can have persistency. It is
     # after all where we place our build sources and suchlike.
 
-    if args.usr_only:
+    if config.usr_only:
         return workspace(root) / "home-root"
 
     return root / "root"

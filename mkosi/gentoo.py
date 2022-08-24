@@ -14,9 +14,10 @@ from typing import Dict, Generator, List, Sequence
 from . import copy_path, open_close, unlink_try_hard
 from .backend import (
     ARG_DEBUG,
-    MkosiArgs,
+    MkosiConfig,
     MkosiException,
     MkosiPrinter,
+    MkosiState,
     OutputFormat,
     PartitionIdentifier,
     die,
@@ -159,16 +160,16 @@ class Gentoo:
 
     def __init__(
         self,
-        args: MkosiArgs,
+        config: MkosiConfig, state: MkosiState,
         root: Path,
         do_run_build_script: bool,
     ) -> None:
 
         ret = self.try_import_portage()
 
-        from portage.package.ebuild.config import config  # type: ignore
+        from portage.package.ebuild.config import config as portage_cfg  # type: ignore
 
-        self.portage_cfg = config(config_root=str(root), target_root=str(root),
+        self.portage_cfg = portage_cfg(config_root=str(root), target_root=str(root),
                                   sysroot=str(root), eprefix=None)
 
         PORTAGE_MISCONFIGURED_MSG = "You have portage(5) installed but it's probably missing defaults, bailing out"
@@ -206,7 +207,7 @@ class Gentoo:
         else:
             self.emerge_default_opts += ["--quiet-build", "--quiet"]
 
-        self.arch, _ = ARCHITECTURES[args.architecture or "x86_64"]
+        self.arch, _ = ARCHITECTURES[config.architecture or "x86_64"]
 
         #######################################################################
         # GENTOO_UPSTREAM : we only support systemd profiles! and only the
@@ -218,23 +219,23 @@ class Gentoo:
         # stage3_fetch() will be needing this if we want to allow users to pick
         # profile
         #######################################################################
-        self.arch_profile = Path(f"profiles/default/linux/{self.arch}/{args.release}/systemd")
+        self.arch_profile = Path(f"profiles/default/linux/{self.arch}/{config.release}/systemd")
 
         self.pkgs_sys = ["@world"]
 
         self.pkgs_fs = ["sys-fs/dosfstools"]
-        if args.output_format in (OutputFormat.subvolume, OutputFormat.gpt_btrfs):
+        if config.output_format in (OutputFormat.subvolume, OutputFormat.gpt_btrfs):
             self.pkgs_fs += ["sys-fs/btrfs-progs"]
-        elif args.output_format == OutputFormat.gpt_xfs:
+        elif config.output_format == OutputFormat.gpt_xfs:
             self.pkgs_fs += ["sys-fs/xfsprogs"]
-        elif args.output_format == OutputFormat.gpt_squashfs:
+        elif config.output_format == OutputFormat.gpt_squashfs:
             self.pkgs_fs += ["sys-fs/squashfs-tools"]
 
-        if args.encrypt:
+        if config.encrypt:
             self.pkgs_fs += ["cryptsetup", "device-mapper"]
 
-        if not do_run_build_script and args.bootable:
-            if args.get_partition(PartitionIdentifier.esp):
+        if not do_run_build_script and config.bootable:
+            if state.get_partition(PartitionIdentifier.esp):
                 self.pkgs_boot = ["sys-kernel/installkernel-systemd-boot"]
             else:
                 self.pkgs_boot = []
@@ -249,23 +250,23 @@ class Gentoo:
             "USE": " ".join(self.portage_use_flags),
         }
 
-        self.sync_portage_tree(args, root)
-        self.set_profile(args)
+        self.sync_portage_tree(config, root)
+        self.set_profile(config)
         self.set_default_repo()
         self.unmask_arch()
         self.provide_patches()
         self.set_useflags()
         self.mkosi_conf()
-        self.baselayout(args, root)
-        self.fetch_fix_stage3(args, root)
-        self.update_stage3(args, root)
-        self.depclean(args, root)
+        self.baselayout(config, root)
+        self.fetch_fix_stage3(config, root)
+        self.update_stage3(config, root)
+        self.depclean(config, root)
 
-    def sync_portage_tree(self, args: MkosiArgs,
+    def sync_portage_tree(self, config: MkosiConfig,
                           root: Path) -> None:
-        self.invoke_emerge(args, root, inside_stage3=False, actions=["--sync"])
+        self.invoke_emerge(config, root, inside_stage3=False, actions=["--sync"])
 
-    def fetch_fix_stage3(self, args: MkosiArgs, root: Path) -> None:
+    def fetch_fix_stage3(self, config: MkosiConfig, root: Path) -> None:
         """usrmerge tracker bug: https://bugs.gentoo.org/690294"""
 
         # e.g.:
@@ -319,7 +320,7 @@ class Gentoo:
                 # remove once upstream ships the current *baselayout-999*
                 # version alternative would be to mount /sys as tmpfs when
                 # invoking emerge inside stage3; we don't want that.
-                self.invoke_emerge(args, stage3_tmp_extract, inside_stage3=True,
+                self.invoke_emerge(config, stage3_tmp_extract, inside_stage3=True,
                         opts=["--unmerge"], pkgs=["sys-apps/baselayout"])
 
                 unlink_try_hard(stage3_tmp_extract.joinpath("dev"))
@@ -345,9 +346,9 @@ class Gentoo:
         copy_path(stage3_tmp_extract.joinpath("sbin"),
                   root.joinpath("usr/bin"))
 
-    def set_profile(self, args: MkosiArgs) -> None:
+    def set_profile(self, config: MkosiConfig) -> None:
         if not self.profile_path.is_symlink():
-            MkosiPrinter.print_step(f"{args.distribution} setting Profile")
+            MkosiPrinter.print_step(f"{config.distribution} setting Profile")
             self.profile_path.symlink_to(
                 self.portage_cfg["PORTDIR"] / self.arch_profile)
 
@@ -472,7 +473,7 @@ class Gentoo:
 
     def invoke_emerge(
         self,
-        args: MkosiArgs,
+        config: MkosiConfig,
         root: Path,
         inside_stage3: bool = True,
         pkgs: Sequence[str] = (),
@@ -494,14 +495,14 @@ class Gentoo:
                                     f"actions={actions} outside stage3")
             emerge_main([*pkgs, *opts, *actions] + PREFIX_OPTS + self.emerge_default_opts)
         else:
-            if args.usr_only:
-                root_home(args, root).mkdir(mode=0o750, exist_ok=True)
+            if config.usr_only:
+                root_home(config, root).mkdir(mode=0o750, exist_ok=True)
 
             cmd = ["/usr/bin/emerge", *pkgs, *self.emerge_default_opts, *opts, *actions]
 
             MkosiPrinter.print_step("Invoking emerge(1) inside stage3")
             run_workspace_command(
-                args,
+                config,
                 root,
                 cmd,
                 network=True,
@@ -509,20 +510,20 @@ class Gentoo:
                 nspawn_params=self.DEFAULT_NSPAWN_PARAMS,
             )
 
-    def baselayout(self, args: MkosiArgs, root: Path) -> None:
+    def baselayout(self, config: MkosiConfig, root: Path) -> None:
         # TOTHINK: sticky bizness when when image profile != host profile
         # REMOVE: once upstream has moved this to stable releases of baselaouy
         # https://gitweb.gentoo.org/proj/baselayout.git/commit/?id=57c250e24c70f8f9581860654cdec0d049345292
-        self.invoke_emerge(args, root, inside_stage3=False,
+        self.invoke_emerge(config, root, inside_stage3=False,
                            opts=["--nodeps"],
                            pkgs=["=sys-apps/baselayout-9999"])
 
-    def update_stage3(self, args: MkosiArgs, root: Path) -> None:
+    def update_stage3(self, config: MkosiConfig, root: Path) -> None:
         # exclude baselayout, it expects /sys/.keep but nspawn mounts host's
         # /sys for us without the .keep file.
         opts = self.EMERGE_UPDATE_OPTS + ["--exclude",
                                           "sys-apps/baselayout"]
-        self.invoke_emerge(args, root, pkgs=self.pkgs_sys, opts=opts)
+        self.invoke_emerge(config, root, pkgs=self.pkgs_sys, opts=opts)
 
         # FIXME?: without this we get the following
         # Synchronizing state of sshd.service with SysV service script with /lib/systemd/systemd-sysv-install.
@@ -535,15 +536,15 @@ class Gentoo:
         # that point.
         self.baselayout_use.unlink()
 
-    def depclean(self, args: MkosiArgs, root: Path) -> None:
-        self.invoke_emerge(args, root, actions=["--depclean"])
+    def depclean(self, config: MkosiConfig, root: Path) -> None:
+        self.invoke_emerge(config, root, actions=["--depclean"])
 
-    def _dbg(self, args: MkosiArgs, root: Path) -> None:
+    def _dbg(self, config: MkosiConfig, root: Path) -> None:
         """this is for dropping into shell to see what's wrong"""
 
         cmdline = ["/bin/sh"]
         run_workspace_command(
-            args,
+            config,
             root,
             cmdline,
             network=True,
