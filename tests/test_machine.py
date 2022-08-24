@@ -18,7 +18,7 @@ class MkosiMachineTestCase(MkosiMachineTest):
     def setUpClass(cls) -> None:
         super().setUpClass()
 
-        if cls.machine.args.distribution == Distribution.centos_epel and cls.machine.args.verb == Verb.qemu and not cls.machine.args.qemu_kvm:
+        if cls.machine.config.distribution == Distribution.centos_epel and cls.machine.config.verb == Verb.qemu and not cls.machine.config.qemu_kvm:
             pytest.xfail("QEMU's CPU does not support the CentOS EPEL image arch when running without KVM")
 
     def test_simple_run(self) -> None:
@@ -49,7 +49,7 @@ def test_before_boot() -> None:
     with skip_not_supported():
         m = Machine()
 
-    if m.args.verb == Verb.shell:
+    if m.config.verb == Verb.shell:
         pytest.skip("Shell never boots the machine.")
     with pytest.raises(AssertionError):
         m.run(["ls"])
@@ -60,7 +60,7 @@ def test_after_shutdown() -> None:
         with Machine() as m:
             pass
 
-    if m.args.verb == Verb.shell:
+    if m.config.verb == Verb.shell:
         pytest.skip("Shell never boots the machine.")
     with pytest.raises(AssertionError):
         m.run(["ls"])

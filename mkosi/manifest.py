@@ -8,7 +8,7 @@ from subprocess import DEVNULL, PIPE
 from textwrap import dedent
 from typing import IO, Any, Dict, List, Optional, Tuple, cast
 
-from .backend import Distribution, ManifestFormat, MkosiArgs, PackageType, run
+from .backend import Distribution, ManifestFormat, MkosiConfig, PackageType, run
 
 
 @dataclasses.dataclass
@@ -77,21 +77,21 @@ def parse_pkg_desc(f: Path) -> Tuple[str, str, str, str]:
 
 @dataclasses.dataclass
 class Manifest:
-    args: MkosiArgs
+    config: MkosiConfig
     packages: List[PackageManifest] = dataclasses.field(default_factory=list)
     source_packages: Dict[str, SourcePackageManifest] = dataclasses.field(default_factory=dict)
 
     _init_timestamp: datetime = dataclasses.field(init=False, default_factory=datetime.now)
 
     def need_source_info(self) -> bool:
-        return ManifestFormat.changelog in self.args.manifest_format
+        return ManifestFormat.changelog in self.config.manifest_format
 
     def record_packages(self, root: Path) -> None:
-        if cast(Any, self.args.distribution).package_type == PackageType.rpm:
+        if cast(Any, self.config.distribution).package_type == PackageType.rpm:
             self.record_rpm_packages(root)
-        if cast(Any, self.args.distribution).package_type == PackageType.deb:
+        if cast(Any, self.config.distribution).package_type == PackageType.deb:
             self.record_deb_packages(root)
-        if cast(Any, self.args.distribution).package_type == PackageType.pkg:
+        if cast(Any, self.config.distribution).package_type == PackageType.pkg:
             self.record_pkg_packages(root)
         # TODO: add implementations for other package managers
 
@@ -125,7 +125,7 @@ class Manifest:
             # If we are creating a layer based on a BaseImage=, e.g. a sysext, filter by
             # packages that were installed in this execution of mkosi. We assume that the
             # upper layer is put together in one go, which currently is always true.
-            if self.args.base_image and installtime < self._init_timestamp:
+            if self.config.base_image and installtime < self._init_timestamp:
                 continue
 
             package = PackageManifest("rpm", name, evr, arch, size)
@@ -169,7 +169,7 @@ class Manifest:
             # If we are creating a layer based on a BaseImage=, e.g. a sysext, filter by
             # packages that were installed in this execution of mkosi. We assume that the
             # upper layer is put together in one go, which currently is always true.
-            if self.args.base_image and installtime < self._init_timestamp:
+            if self.config.base_image and installtime < self._init_timestamp:
                 continue
 
             package = PackageManifest("deb", name, version, arch, size)
@@ -195,7 +195,7 @@ class Manifest:
 
                 # If we are building with docs then it's easy, as the changelogs are saved
                 # in the image, just fetch them. Otherwise they will be downloaded from the network.
-                if self.args.with_docs:
+                if self.config.with_docs:
                     # By default apt drops privileges and runs as the 'apt' user, but that means it
                     # loses access to the build directory, which is 700.
                     cmd += ["--option", "Acquire::Changelogs::AlwaysOnline=false",
@@ -203,7 +203,7 @@ class Manifest:
                 else:
                     # Override the URL to avoid HTTPS, so that we don't need to install
                     # ca-certificates to make it work.
-                    if self.args.distribution == Distribution.ubuntu:
+                    if self.config.distribution == Distribution.ubuntu:
                         cmd += ["--option", "Acquire::Changelogs::URI::Override::Origin::Ubuntu=http://changelogs.ubuntu.com/changelogs/pool/@CHANGEPATH@/changelog"]
                     else:
                         cmd += ["--option", "Acquire::Changelogs::URI::Override::Origin::Debian=http://metadata.ftp-master.debian.org/changelogs/@CHANGEPATH@_changelog"]
@@ -237,14 +237,14 @@ class Manifest:
 
     def as_dict(self) -> Dict[str, Any]:
         config = {
-            "name": self.args.image_id or "image",
-            "distribution": self.args.distribution.name,
-            "architecture": self.args.architecture,
+            "name": self.config.image_id or "image",
+            "distribution": self.config.distribution.name,
+            "architecture": self.config.architecture,
         }
-        if self.args.image_version is not None:
-            config["version"] = self.args.image_version
-        if self.args.release is not None:
-            config["release"] = self.args.release
+        if self.config.image_version is not None:
+            config["version"] = self.config.image_version
+        if self.config.release is not None:
+            config["release"] = self.config.release
 
         return {
             # Bump this when incompatible changes are made to the manifest format.

@@ -12,10 +12,10 @@ from typing import Iterator, List, Optional
 import pytest
 
 import mkosi
-from mkosi.backend import Distribution, MkosiArgs, MkosiException, Verb
+from mkosi.backend import Distribution, MkosiConfig, MkosiException, Verb
 
 
-def parse(argv: Optional[List[str]] = None) -> MkosiArgs:
+def parse(argv: Optional[List[str]] = None) -> MkosiConfig:
     return mkosi.load_args(mkosi.parse_args(argv)["default"])
 
 @contextmanager
