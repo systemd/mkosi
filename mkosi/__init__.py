@@ -6500,14 +6500,14 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
     if args.output is None:
         iid = args.image_id if args.image_id is not None else "image"
         prefix = f"{iid}_{args.image_version}" if args.image_version is not None else iid
+        compress = should_compress_output(args)
 
         if args.output_format.is_disk():
-            compress = should_compress_output(args)
             output = prefix + (".qcow2" if args.qcow2 else ".raw") + (f".{compress}" if compress else "")
         elif args.output_format == OutputFormat.tar:
-            output = f"{prefix}.tar.xz"
+            output = f"{prefix}.tar" + (f".{compress}" if compress else "")
         elif args.output_format == OutputFormat.cpio:
-            output = f"{prefix}.cpio" + (f".{args.compress}" if args.compress else "")
+            output = f"{prefix}.cpio" + (f".{compress}" if compress else "")
         elif args.output_format.is_squashfs():
             output = f"{prefix}.raw"
         else:
@@ -6545,8 +6545,6 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
 
     args.output = args.output.absolute()
 
-    if args.output_format == OutputFormat.tar:
-        args.compress_output = "xz"
     if not args.output_format.is_disk():
         args.split_artifacts = False
 

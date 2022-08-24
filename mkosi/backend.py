@@ -611,6 +611,8 @@ def should_compress_output(args: Union[argparse.Namespace, MkosiArgs]) -> Union[
     c = args.compress_output
     if c is None and not args.output_format.has_fs_compression():
         c = args.compress
+    if c is None and args.output_format == OutputFormat.tar:
+        c = True
     if c is True:
         return "xz"  # default compression
     return False if c is None else c

@@ -18,6 +18,7 @@ time.
 and mkosi.conf.d/ respectively. The old names (mkosi.default and mkosi.default.d) have
 been removed from the docs but are still supported for backwards compatibility.
 - `plain_squashfs` type images will now also be named with a `.raw` suffix.
+- `tar` type images will now respect the `--compress` option.
 
 ## v13
 
