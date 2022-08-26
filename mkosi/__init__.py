@@ -2006,9 +2006,13 @@ def link_rpm_db(root: Path) -> None:
     rpmdb = root / "usr/lib/sysimage/rpm"
     rpmdb_old = root / "var/lib/rpm"
     if rpmdb.exists() and not rpmdb_old.is_symlink():
-        # We create the symlink in exactly the same fashion that Fedora do
         with complete_step("Creating compat symlink /var/lib/rpm → /usr/lib/sysimage/rpm"):
-            unlink_try_hard(rpmdb_old)
+            # Move content, if any, from the old location to the new one
+            if rpmdb_old.exists():
+                unlink_try_hard(rpmdb)
+                shutil.move(cast(str, rpmdb_old), rpmdb)
+
+            # Create the symlink in exactly the same fashion that Fedora does
             rpmdb_old.symlink_to("../../usr/lib/sysimage/rpm")
 
 
