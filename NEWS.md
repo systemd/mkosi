@@ -22,6 +22,7 @@ been removed from the docs but are still supported for backwards compatibility.
 - Pacman's `SigLevel` option was changed to use the same default value as used on Arch
 which is `SigLevel = Required DatabaseOptional`. If this results in keyring errors,
 you need to update the keyring by running `pacman-key --populate archlinux`.
+- Support for CentOS 7 was dropped.
 
 ## v13
 

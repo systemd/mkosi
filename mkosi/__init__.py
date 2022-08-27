@@ -1053,15 +1053,9 @@ def mkfs_generic(args: MkosiArgs, label: str, mount: PathString, dev: Path) -> N
     else:
         cmdline = mkfs_ext4_cmd(label, mount)
 
-    if args.output_format == OutputFormat.gpt_ext4:
-        if is_centos_variant(args.distribution) and is_older_than_centos8(args.release):
-
-            # e2fsprogs in centos7 is too old and doesn't support this feature
-            cmdline += ["-O", "^metadata_csum"]
-
-        if args.architecture in ("x86_64", "aarch64"):
-            # enable 64bit filesystem feature on supported architectures
-            cmdline += ["-O", "64bit"]
+    if args.output_format == OutputFormat.gpt_ext4 and args.architecture in ("x86_64", "aarch64"):
+        # enable 64bit filesystem feature on supported architectures
+        cmdline += ["-O", "64bit"]
 
     run([*cmdline, dev])
 
@@ -2299,37 +2293,6 @@ def centos_variant_mirror_repo_url(args: MkosiArgs, repo: str) -> str:
         die(f"{args.distribution} is not a CentOS variant")
 
 
-def install_centos_7_repos(args: MkosiArgs, root: Path, epel_release: int) -> None:
-    # Repos for CentOS Linux 7 and earlier
-
-    gpgpath, gpgurl = centos_variant_gpg_locations(args.distribution, epel_release)
-    epel_gpgpath, epel_gpgurl = epel_gpg_locations(epel_release)
-
-    if args.use_mirror_verbatim and args.mirror:
-        release_url = f"baseurl={args.mirror}"
-        updates_url = extras_url = epel_url = None
-    elif args.mirror:
-        release_url = f"baseurl={args.mirror}/centos/{args.release}/os/$basearch"
-        updates_url = f"baseurl={args.mirror}/centos/{args.release}/updates/$basearch/"
-        extras_url = f"baseurl={args.mirror}/centos/{args.release}/extras/$basearch/"
-        epel_url = f"baseurl={args.mirror}/epel/{epel_release}/$basearch/"
-    else:
-        release_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=$basearch&repo=os"
-        updates_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=$basearch&repo=updates"
-        extras_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=$basearch&repo=extras"
-        epel_url = f"mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=epel-{epel_release}&arch=$basearch"
-
-    repos = [Repo("base", release_url, gpgpath, gpgurl)]
-    if updates_url is not None:
-        repos += [Repo("updates", updates_url, gpgpath, gpgurl)]
-    if extras_url is not None:
-        repos += [Repo("extras", extras_url, gpgpath, gpgurl)]
-    if epel_url is not None and is_epel_variant(args.distribution):
-        repos += [Repo("epel", epel_url, epel_gpgpath, epel_gpgurl)]
-
-    setup_dnf(args, root, repos)
-
-
 def install_centos_variant_repos(args: MkosiArgs, root: Path, epel_release: int) -> None:
     # Repos for CentOS Linux 8, CentOS Stream 8 and CentOS variants
 
@@ -2409,20 +2372,12 @@ def parse_epel_release(release: str) -> int:
     return int(epel_release)
 
 
-def is_older_than_centos8(release: str) -> bool:
-    # CentOS 7 contains some very old versions of certain libraries
-    # which require workarounds in different places.
-    # Additionally the repositories have been changed between 7 and 8
-    epel_release = parse_epel_release(release)
-    return epel_release <= 7
-
-
 @complete_step("Installing CentOS…")
 def install_centos_variant(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None:
     epel_release = parse_epel_release(args.release)
 
     if epel_release <= 7:
-        install_centos_7_repos(args, root, epel_release)
+        die("CentOS 7 or earlier variants are not supported")
     elif epel_release <= 8 or not "-stream" in args.release:
         install_centos_variant_repos(args, root, epel_release)
     else:
@@ -2435,20 +2390,7 @@ def install_centos_variant(args: MkosiArgs, root: Path, do_run_build_script: boo
     add_packages(args, packages, "systemd")
     if not do_run_build_script and args.bootable:
         add_packages(args, packages, "kernel", "dracut")
-        if epel_release <= 7:
-            add_packages(
-                args,
-                packages,
-                "grub2-efi",
-                "grub2-tools",
-                "grub2-efi-x64-modules",
-                "shim-x64",
-                "efibootmgr",
-                "efivar-libs",
-            )
-        else:
-            # this does not exist on CentOS 7
-            add_packages(args, packages, "systemd-udev", conditional="systemd")
+        add_packages(args, packages, "systemd-udev", conditional="systemd")
 
     if do_run_build_script:
         packages.update(args.build_packages)
@@ -3239,29 +3181,6 @@ def run_finalize_script(args: MkosiArgs, root: Path, do_run_build_script: bool, 
         run([args.finalize_script, verb], env=env)
 
 
-def install_boot_loader_centos_old_efi(args: MkosiArgs, root: Path, loopdev: Path) -> None:
-    nspawn_params = nspawn_params_for_blockdev_access(args, loopdev)
-
-    # prepare EFI directory on ESP
-    os.makedirs(root / "efi/EFI/centos", exist_ok=True)
-
-    # patch existing or create minimal GRUB_CMDLINE config
-    write_grub_config(args, root)
-
-    # generate grub2 efi boot config
-    cmdline = ["/sbin/grub2-mkconfig", "-o", "/efi/EFI/centos/grub.cfg"]
-    run_workspace_command(args, root, cmdline, nspawn_params=nspawn_params)
-
-    # if /sys/firmware/efi is not present within systemd-nspawn the grub2-mkconfig makes false assumptions, let's fix this
-    def _fix_grub(line: str) -> str:
-        if "linux16" in line:
-            return line.replace("linux16", "linuxefi")
-        elif "initrd16" in line:
-            return line.replace("initrd16", "initrdefi")
-        return line
-
-    patch_file(root / "efi/EFI/centos/grub.cfg", _fix_grub)
-
 
 def install_boot_loader(
     args: MkosiArgs, root: Path, loopdev: Optional[Path], do_run_build_script: bool, cached: bool
@@ -3275,10 +3194,7 @@ def install_boot_loader(
 
     with complete_step("Installing boot loader…"):
         if args.get_partition(PartitionIdentifier.esp):
-            if is_centos_variant(args.distribution) and is_older_than_centos8(args.release):
-                install_boot_loader_centos_old_efi(args, root, loopdev)
-            else:
-                run_workspace_command(args, root, ["bootctl", "install"])
+            run_workspace_command(args, root, ["bootctl", "install"])
 
         if args.get_partition(PartitionIdentifier.bios):
             install_grub(args, root, loopdev)
@@ -6435,11 +6351,6 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
         epel_release = parse_epel_release(args.release)
         if epel_release <= 9 and args.output_format == OutputFormat.gpt_btrfs:
             die(f"Sorry, CentOS {epel_release} does not support btrfs", MkosiNotSupportedException)
-        if epel_release <= 7 and args.bootable and "uefi" in args.boot_protocols and args.with_unified_kernel_images:
-            die(
-                f"Sorry, CentOS {epel_release} does not support unified kernel images. "
-                "You must use --without-unified-kernel-images.", MkosiNotSupportedException
-            )
 
     if args.distribution in (Distribution.rocky, Distribution.rocky_epel):
         epel_release = int(args.release.split(".")[0])

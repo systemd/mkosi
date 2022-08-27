@@ -121,23 +121,6 @@ def test_centos_brtfs() -> None:
                 with pytest.raises(MkosiException, match=".CentOS.*btrfs"):
                     parse([])
 
-    with cd_temp_dir():
-        config = Path("mkosi.conf")
-        for dist in (Distribution.centos, Distribution.centos_epel):
-            for release in range (2, 8):
-                config.write_text(
-                    textwrap.dedent(
-                        f"""
-                        [Distribution]
-                        Distribution={Distribution.centos}
-                        Release={release}
-                        Bootable=yes
-                        """
-                    )
-                )
-                with pytest.raises(MkosiException, match=".CentOS.*unified.*kernel"):
-                    parse([])
-
 def test_shell_boot() -> None:
     with pytest.raises(MkosiException, match=".boot.*tar"):
         parse(["--format", "tar", "boot"])
