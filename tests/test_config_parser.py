@@ -47,7 +47,7 @@ class MkosiConfig:
             "all_directory": None,
             "architecture": "x86_64",
             "bmap": False,
-            "boot_protocols": [],
+            "boot_protocols": None,
             "bootable": False,
             "build_dir": None,
             "build_packages": [],
@@ -124,6 +124,7 @@ class MkosiConfig:
             "tmp_size": None,
             "usr_only": False,
             "var_size": None,
+            "bios_size": None,
             "verb": Verb.build,
             "verity": False,
             "with_docs": False,
@@ -136,7 +137,7 @@ class MkosiConfig:
             "qemu_kvm": mkosi.qemu_check_kvm_support(),
             "qemu_args": [],
             "nspawn_keep_unit": False,
-            "qemu_boot": None,
+            "qemu_boot": "uefi",
             "netdev": False,
             "ephemeral": False,
             "with_unified_kernel_images": True,
@@ -248,8 +249,6 @@ class MkosiConfig:
                 self.reference_config[job_name]["force"] += 1
             if "Bootable" in mk_config_output:
                 self.reference_config[job_name]["bootable"] = mk_config_output["Bootable"]
-            if "BootProtocols" in mk_config_output:
-                self._append_list("boot_protocols", mk_config_output["BootProtocols"], job_name)
             if "KernelCommandLine" in mk_config_output:
                 self._append_list("kernel_command_line", mk_config_output["KernelCommandLine"], job_name, " ")
             if "SecureBoot" in mk_config_output:
@@ -555,7 +554,6 @@ class MkosiConfigManyParams(MkosiConfigOne):
                 "ManifestFormat": [mkosi.backend.ManifestFormat.json],
                 #                 # 'OutputDirectory': '',
                 "Bootable": False,
-                "BootProtocols": "uefi",
                 "KernelCommandLine": ["console=ttyS0"],
                 "SecureBoot": False,
                 "SecureBootKey": "/foo.pem",
@@ -624,7 +622,6 @@ class MkosiConfigManyParams(MkosiConfigOne):
                 "Output": "test_image.raw.xz",
                 #                 # 'OutputDirectory': '',
                 "Bootable": True,
-                "BootProtocols": "bios",
                 "KernelCommandLine": ["console=ttyS1"],
                 "SecureBoot": True,
                 "SecureBootKey": "/foo-ubu.pem",
@@ -691,7 +688,6 @@ class MkosiConfigManyParams(MkosiConfigOne):
                 "Output": "test_image.raw.xz",
                 #                 # 'OutputDirectory': '',
                 "Bootable": True,
-                "BootProtocols": "bios",
                 "KernelCommandLine": ["console=ttyS1"],
                 "SecureBoot": True,
                 "SecureBootKey": "/foo-debi.pem",

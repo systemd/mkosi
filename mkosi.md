@@ -268,7 +268,7 @@ options are available:
 
 * A swap partition may be added in
 
-* The image may be made bootable on *EFI* and *BIOS* systems
+* The image may be made bootable on *EFI* systems
 
 * Separate partitions for `/srv` and `/home` may be added in
 
@@ -454,23 +454,7 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 
 `Bootable=`, `--bootable`, `-b`
 
-: Generate a bootable image. By default this will generate an image
-  bootable on UEFI systems. Use `BootProtocols=` to select support
-  for a different boot protocol.
-
-`BootProtocols=`, `--boot-protocols=`
-
-: Pick one or more boot protocols to support when generating a
-  bootable image, as enabled with `Bootable=`. Takes a comma-separated
-  list of `uefi`, `bios`, or `linux`. May be specified more than once in which
-  case the specified lists are merged. If `uefi` is specified the
-  `sd-boot` UEFI boot loader is used, if `bios` is specified the GNU
-  Grub boot loader is used. If `linux` is specified, the kernel image, initrd
-  and kernel cmdline are extracted from the image and stored in the output
-  directory. When running the `qemu` verb and setting the `--qemu-boot` option
-  to `linux`, qemu will be instructed to do a direct Linux kernel boot using
-  the previously extracted files. Use "!\*" to remove all previously added
-  protocols or "!protocol" to remove one protocol.
+: Generate a bootable image for UEFI systems.
 
 `KernelCommandLine=`, `--kernel-command-line=`
 
@@ -1148,10 +1132,9 @@ a machine ID.
 
 `QemuBoot=`, `--qemu-boot=`
 
-: When used with the `qemu` verb, this option sets the boot protocol to be used
-  by qemu. Can be set to either `uefi`, `bios`, or `linux`. Note that a boot
-  procotol needs to be included in `BootProtocols=` when building the image for
-  it to be usable with this option.
+: When used with the `qemu` verb, this option specifies how qemu should
+  boot the image. Can be set to either `uefi` to do a UEFI boot or `linux`
+  to do a qemu direct linux boot.
 
 `Netdev=`, `--netdev`
 
@@ -1344,8 +1327,8 @@ systemd-nspawn -bi image.raw
 ```
 
 Additionally, bootable *GPT* disk images (as created with the
-`--bootable` flag) work when booted directly by *EFI* and *BIOS*
-systems, for example in *KVM* via:
+`--bootable` flag) work when booted directly by *EFI* systems,
+for example in *KVM* via:
 
 ```bash
 qemu-kvm -m 512 -smp 2 -bios /usr/share/edk2/ovmf/OVMF_CODE.fd -drive format=raw,file=image.raw

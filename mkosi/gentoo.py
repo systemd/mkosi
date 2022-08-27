@@ -53,7 +53,6 @@ class Gentoo:
     pkgs_sys: List[str]
     # filesystem packages (dosfstools, btrfs, squashfs, etc)
     pkgs_fs: List[str]
-    grub_platforms: List[str]
     UNINSTALL_IGNORE: List[str]
     root: Path
     portage_cfg_dir: Path
@@ -234,24 +233,18 @@ class Gentoo:
         if args.encrypt:
             self.pkgs_fs += ["cryptsetup", "device-mapper"]
 
-        self.grub_platforms = []
         if not do_run_build_script and args.bootable:
             if args.get_partition(PartitionIdentifier.esp):
                 self.pkgs_boot = ["sys-kernel/installkernel-systemd-boot"]
-            elif args.get_partition(PartitionIdentifier.bios):
-                self.pkgs_boot = ["sys-boot/grub"]
-                self.grub_platforms = ["coreboot", "qemu", "pc"]
             else:
                 self.pkgs_boot = []
 
             self.pkgs_boot += ["sys-kernel/gentoo-kernel-bin",
                                "sys-firmware/edk2-ovmf"]
 
-        # GENTOO_DONTMOVE: self.grub_platforms, for instance, must be set
         self.emerge_vars = {
             "BOOTSTRAP_USE": " ".join(self.portage_use_flags),
             "FEATURES": " ".join(self.portage_features),
-            "GRUB_PLATFORMS": " ".join(self.grub_platforms),
             "UNINSTALL_IGNORE": " ".join(self.UNINSTALL_IGNORE),
             "USE": " ".join(self.portage_use_flags),
         }
@@ -423,7 +416,6 @@ class Gentoo:
 
         self.baselayout_use = package_use.joinpath("baselayout")
         self.baselayout_use.write_text("sys-apps/baselayout build\n")
-        package_use.joinpath("grub").write_text("sys-boot/grub device-mapper truetype\n")
         package_use.joinpath("systemd").write_text(
             # repart for usronly
             dedent(

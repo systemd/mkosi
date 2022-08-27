@@ -196,9 +196,6 @@ jobs:
     - name: Build/Boot ${{ matrix.distro }}/${{ matrix.format }} UEFI UKI
       run: |
         tee mkosi.conf <<- EOF
-        [Output]
-        BootProtocols=uefi
-
         [Host]
         QemuBoot=uefi
         EOF
@@ -209,7 +206,6 @@ jobs:
       run: |
         tee mkosi.conf <<- EOF
         [Output]
-        BootProtocols=uefi
         WithUnifiedKernelImages=no
 
         [Host]
@@ -218,24 +214,10 @@ jobs:
 
         sudo MKOSI_TEST_DEFAULT_VERB=qemu python3 -m pytest --exitfirst -m integration -sv tests
 
-    - name: Build/Boot ${{ matrix.distro }}/${{ matrix.format }} BIOS
-      run: |
-        tee mkosi.conf <<- EOF
-        [Output]
-        BootProtocols=bios
-        WithUnifiedKernelImages=no
-
-        [Host]
-        QemuBoot=bios
-        EOF
-
-        sudo MKOSI_TEST_DEFAULT_VERB=qemu python3 -m pytest --exitfirst -m integration -sv tests
-
     - name: Build/Boot ${{ matrix.distro }}/${{ matrix.format}} QEMU Linux Boot
       run: |
         tee mkosi.conf <<- EOF
         [Output]
-        BootProtocols=linux
         WithUnifiedKernelImages=no
 
         [Host]
