@@ -6285,7 +6285,8 @@ def xescape(s: str) -> str:
 
 def build_auxiliary_output_path(args: Union[argparse.Namespace, MkosiArgs], suffix: str, can_compress: bool = False) -> Path:
     output = strip_suffixes(args.output)
-    compression = f".{should_compress_output(args)}" if can_compress else ''
+    should_compress = should_compress_output(args)
+    compression = f".{should_compress}" if can_compress and should_compress else ''
     return output.with_name(f"{output.name}{suffix}{compression}")
 
 
