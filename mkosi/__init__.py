@@ -6531,7 +6531,7 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
         if args.verity:
             args.output_split_verity = build_auxiliary_output_path(args, ".verity", True)
             if args.verity == "signed":
-                args.output_split_verity_sig = build_auxiliary_output_path(args, ".verity-sig", True)
+                args.output_split_verity_sig = build_auxiliary_output_path(args, ".p7s", True)
         if args.bootable:
             args.output_split_kernel = build_auxiliary_output_path(args, ".efi", True)
 
@@ -7471,7 +7471,7 @@ def build_stuff(args: MkosiArgs) -> Manifest:
         raw = compress_output(args, raw)
         split_root = compress_output(args, image.split_root, ".usr" if args.usr_only else ".root")
         split_verity = compress_output(args, image.split_verity, ".verity")
-        split_verity_sig = compress_output(args, image.split_verity_sig, ".verity-sig")
+        split_verity_sig = compress_output(args, image.split_verity_sig, ".p7s")
         split_kernel = compress_output(args, image.split_kernel, ".efi")
         root_hash_file = write_root_hash_file(args, image.root_hash)
         root_hash_p7s_file = write_root_hash_p7s_file(args, image.root_hash_p7s)
