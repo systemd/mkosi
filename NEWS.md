@@ -27,6 +27,9 @@ on which grub can be installed.
 - mkosi now runs apt and dpkg on the host. As such, we now require apt and dpkg to be
 installed on the host along with debootstrap in order to be able to build debian/ubuntu
 images.
+- Split dm-verity artifacts default names have been changed to match what `systemd`
+  and other tools expect: `image.root.raw`, `image.root.verity`, `image.root.roothash`,
+  `image.root.roothash.p7s` (same for `usr` variants).
 
 ## v13
 

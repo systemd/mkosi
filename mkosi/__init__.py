@@ -528,15 +528,20 @@ def gpt_root_native(arch: Optional[str], usr_only: bool = False) -> GPTRootTypeT
             die(f"Unknown architecture {arch}.")
 
 
-def roothash_suffix(usr_only: bool = False) -> str:
-    if usr_only:
-        return ".usrhash"
-
-    return ".roothash"
+def root_or_usr(args: Union[MkosiArgs, argparse.Namespace]) -> str:
+    return ".usr" if args.usr_only else ".root"
 
 
-def roothash_p7s_suffix(usr_only: bool = False) -> str:
-    return roothash_suffix(usr_only) + ".p7s"
+def roothash_suffix(args: Union[MkosiArgs, argparse.Namespace]) -> str:
+    # For compatibility with what systemd and other tools expect, we need to use "foo.raw" with "foo.roothash",
+    # "foo.verity" and "foo.roothash.p7s". Given we name the artifacts differently for "usr" and "root", we need
+    # to duplicate it for the roothash suffix. "foo.root.raw" and "foo.roothash" would not work for autodetection
+    # and usage.
+    return f"{root_or_usr(args)}{root_or_usr(args)}hash"
+
+
+def roothash_p7s_suffix(args: Union[MkosiArgs, argparse.Namespace]) -> str:
+    return f"{roothash_suffix(args)}.p7s"
 
 
 def unshare(flags: int) -> None:
@@ -4218,7 +4223,7 @@ def write_root_hash_file(args: MkosiArgs, root_hash: Optional[str]) -> Optional[
 
     assert args.output_root_hash_file is not None
 
-    suffix = roothash_suffix(args.usr_only)
+    suffix = roothash_suffix(args)
     with complete_step(f"Writing {suffix} file…"):
         f: BinaryIO = cast(
             BinaryIO,
@@ -4236,7 +4241,7 @@ def write_root_hash_p7s_file(args: MkosiArgs, root_hash_p7s: Optional[bytes]) ->
 
     assert args.output_root_hash_p7s_file is not None
 
-    suffix = roothash_p7s_suffix(args.usr_only)
+    suffix = roothash_p7s_suffix(args)
     with complete_step(f"Writing {suffix} file…"):
         f: BinaryIO = cast(
             BinaryIO,
@@ -4488,7 +4493,7 @@ def link_output_checksum(args: MkosiArgs, checksum: Optional[SomeIO]) -> None:
 def link_output_root_hash_file(args: MkosiArgs, root_hash_file: Optional[SomeIO]) -> None:
     if root_hash_file:
         assert args.output_root_hash_file
-        suffix = roothash_suffix(args.usr_only)
+        suffix = roothash_suffix(args)
         with complete_step(f"Linking {suffix} file…", f"Linked {path_relative_to_cwd(args.output_root_hash_file)}"):
             _link_output(args, root_hash_file.name, args.output_root_hash_file)
 
@@ -4496,7 +4501,7 @@ def link_output_root_hash_file(args: MkosiArgs, root_hash_file: Optional[SomeIO]
 def link_output_root_hash_p7s_file(args: MkosiArgs, root_hash_p7s_file: Optional[SomeIO]) -> None:
     if root_hash_p7s_file:
         assert args.output_root_hash_p7s_file
-        suffix = roothash_p7s_suffix(args.usr_only)
+        suffix = roothash_p7s_suffix(args)
         with complete_step(
             f"Linking {suffix} file…", f"Linked {path_relative_to_cwd(args.output_root_hash_p7s_file)}"
         ):
@@ -6504,10 +6509,10 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
 
     if args.verity:
         args.read_only = True
-        args.output_root_hash_file = build_auxiliary_output_path(args, roothash_suffix(args.usr_only))
+        args.output_root_hash_file = build_auxiliary_output_path(args, roothash_suffix(args))
 
         if args.verity == "signed":
-            args.output_root_hash_p7s_file = build_auxiliary_output_path(args, roothash_p7s_suffix(args.usr_only))
+            args.output_root_hash_p7s_file = build_auxiliary_output_path(args, roothash_p7s_suffix(args))
 
     if args.checksum:
         args.output_checksum = args.output.with_name("SHA256SUMS")
@@ -6527,11 +6532,11 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
         args.output_sshkey = args.output.with_name("id_rsa")
 
     if args.split_artifacts:
-        args.output_split_root = build_auxiliary_output_path(args, ".usr" if args.usr_only else ".root", True)
+        args.output_split_root = build_auxiliary_output_path(args, f"{root_or_usr(args)}.raw", True)
         if args.verity:
-            args.output_split_verity = build_auxiliary_output_path(args, ".verity", True)
+            args.output_split_verity = build_auxiliary_output_path(args, f"{root_or_usr(args)}.verity", True)
             if args.verity == "signed":
-                args.output_split_verity_sig = build_auxiliary_output_path(args, ".p7s", True)
+                args.output_split_verity_sig = build_auxiliary_output_path(args, f"{roothash_suffix(args)}.p7s", True)
         if args.bootable:
             args.output_split_kernel = build_auxiliary_output_path(args, ".efi", True)
 
@@ -7469,9 +7474,9 @@ def build_stuff(args: MkosiArgs) -> Manifest:
         raw = qcow2_output(args, image.raw)
         bmap = calculate_bmap(args, raw)
         raw = compress_output(args, raw)
-        split_root = compress_output(args, image.split_root, ".usr" if args.usr_only else ".root")
-        split_verity = compress_output(args, image.split_verity, ".verity")
-        split_verity_sig = compress_output(args, image.split_verity_sig, ".p7s")
+        split_root = compress_output(args, image.split_root, f"{root_or_usr(args)}.raw")
+        split_verity = compress_output(args, image.split_verity, f"{root_or_usr(args)}.verity")
+        split_verity_sig = compress_output(args, image.split_verity_sig, roothash_p7s_suffix(args))
         split_kernel = compress_output(args, image.split_kernel, ".efi")
         root_hash_file = write_root_hash_file(args, image.root_hash)
         root_hash_p7s_file = write_root_hash_p7s_file(args, image.root_hash_p7s)
