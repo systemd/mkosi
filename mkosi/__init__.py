@@ -2427,20 +2427,28 @@ def debootstrap_knows_arg(arg: str) -> bool:
 
 def invoke_apt(
     args: MkosiArgs,
-    do_run_build_script: bool,
     root: Path,
-    command: str,
+    subcommand: str,
+    operation: str,
     extra: Iterable[str],
-) -> None:
+    **kwargs: Any,
+) -> CompletedProcess:
 
-    cmdline = ["/usr/bin/apt-get", "--assume-yes", command, *extra]
+    cmdline = [
+        f"/usr/bin/apt-{subcommand}",
+        "-o", f"Dir={root}",
+        "-o", f"DPkg::Chroot-Directory={root}",
+        operation,
+        *extra,
+    ]
     env = dict(
         DEBIAN_FRONTEND="noninteractive",
         DEBCONF_NONINTERACTIVE_SEEN="true",
         INITRD="No",
     )
 
-    run_workspace_command(args, root, cmdline, network=True, env=env)
+    with mount_api_vfs(args, root):
+        return run(cmdline, env=env, text=True, **kwargs)
 
 
 def install_debian_or_ubuntu(args: MkosiArgs, root: Path, *, do_run_build_script: bool) -> None:
@@ -2560,14 +2568,13 @@ def install_debian_or_ubuntu(args: MkosiArgs, root: Path, *, do_run_build_script
 
     install_skeleton_trees(args, root, False, late=True)
 
-    invoke_apt(args, do_run_build_script, root, "update", [])
+    invoke_apt(args, root, "get", "update", ["--assume-yes"])
 
     if args.bootable and not do_run_build_script and args.get_partition(PartitionIdentifier.esp):
-        if run_workspace_command(args, root, ["apt-cache", "search", "--names-only", "^systemd-boot$"],
-                                 capture_stdout=True).stdout.strip() != "":
+        if invoke_apt(args, root, "cache", "search", ["--names-only", "^systemd-boot$"], stdout=PIPE).stdout.strip() != "":
             add_packages(args, extra_packages, "systemd-boot")
 
-    invoke_apt(args, do_run_build_script, root, "install", ["--no-install-recommends", *extra_packages])
+    invoke_apt(args, root, "get", "install", ["--assume-yes", "--no-install-recommends", *extra_packages])
 
     policyrcd.unlink()
     dpkg_io_conf.unlink()
@@ -2906,12 +2913,12 @@ def remove_packages(args: MkosiArgs, root: Path) -> None:
     if not args.remove_packages:
         return
 
-    remove: Callable[[List[str]], None]
+    remove: Callable[[List[str]], Any]
 
     if (args.distribution.package_type == PackageType.rpm):
         remove = lambda p: invoke_dnf(args, root, 'remove', p)
     elif args.distribution.package_type == PackageType.deb:
-        remove = lambda p: invoke_apt(args, False, root, "purge", ["--auto-remove", *p])
+        remove = lambda p: invoke_apt(args, root, "get", "purge", ["--assume-yes", "--auto-remove", *p])
     else:
         die(f"Removing packages is not supported for {args.distribution}")
 
