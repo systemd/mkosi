@@ -57,7 +57,7 @@ class blkpg_partition(ctypes.Structure):
     ]
 
 
-def ioctl_partition_add(fd: int, nr: int, start: int, size: int) -> None:
+def blkpg_add_partition(fd: int, nr: int, start: int, size: int) -> None:
     bp = blkpg_partition(pno=nr, start=start, length=size)
     ba = blkpg_ioctl_arg(op=BLKPG_ADD_PARTITION, data=ctypes.addressof(bp), datalen=ctypes.sizeof(bp))
     try:
@@ -68,7 +68,7 @@ def ioctl_partition_add(fd: int, nr: int, start: int, size: int) -> None:
             raise
 
 
-def ioctl_partition_remove(fd: int, nr: int) -> None:
+def blkpg_del_partition(fd: int, nr: int) -> None:
     bp = blkpg_partition(pno=nr)
     ba = blkpg_ioctl_arg(op=BLKPG_DEL_PARTITION, data=ctypes.addressof(bp), datalen=ctypes.sizeof(bp))
     try:
@@ -83,3 +83,10 @@ FICLONE = _IOW(0x94, 9, "int")
 
 def reflink(oldfd: int, newfd: int) -> None:
     fcntl.ioctl(newfd, FICLONE, oldfd)
+
+
+BLKRRPART = _IO(0x12, 95)
+
+
+def block_reread_partition_table(fd: int) -> None:
+    fcntl.ioctl(fd, BLKRRPART, 0)

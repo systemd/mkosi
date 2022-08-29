@@ -106,7 +106,7 @@ from .backend import (
     write_grub_config,
 )
 from .manifest import Manifest
-from .syscall import ioctl_partition_add, ioctl_partition_remove, reflink
+from .syscall import blkpg_add_partition, blkpg_del_partition, reflink
 
 complete_step = MkosiPrinter.complete_step
 
@@ -937,6 +937,29 @@ def reuse_cache_image(
 
 
 @contextlib.contextmanager
+def flock(file: BinaryIO) -> Iterator[None]:
+    fcntl.flock(file, fcntl.LOCK_EX)
+    try:
+        yield
+    finally:
+        fcntl.flock(file, fcntl.LOCK_UN)
+
+
+@contextlib.contextmanager
+def get_loopdev(f: BinaryIO) -> Iterator[BinaryIO]:
+    with complete_step(f"Attaching {f.name} as loopback…", "Detaching {}") as output:
+        c = run(["losetup", "--find", "--show", "--partscan", f.name], stdout=PIPE, text=True)
+        loopdev = Path(c.stdout.strip())
+        output += [loopdev]
+
+        try:
+            with open(loopdev, 'rb+') as f:
+                yield f
+        finally:
+            run(["losetup", "--detach", loopdev])
+
+
+@contextlib.contextmanager
 def attach_image_loopback(image: Optional[BinaryIO], table: Optional[PartitionTable]) -> Iterator[Optional[Path]]:
     if image is None:
         yield None
@@ -944,34 +967,25 @@ def attach_image_loopback(image: Optional[BinaryIO], table: Optional[PartitionTa
 
     assert table
 
-    with complete_step(f"Attaching {image.name} as loopback…", "Attached {}") as output:
-        c = run(["losetup", "--find", "--show", "--partscan", image.name],
-                stdout=PIPE,
-                text=True)
-        loopdev = Path(c.stdout.strip())
-        output += [loopdev]
-
+    with get_loopdev(image) as loopdev, flock(loopdev):
         # losetup --partscan instructs the kernel to scan the partition table and add separate partition
-        # devices for each of the partitions it finds. However, this operation is asynchronous which means
-        # losetup will return before all partition devices have been initialized. This can result in a race
-        # condition where we try to access a partition device before it's been initialized by the kernel. To
-        # avoid this race condition, let's explicitly try to add all the partitions ourselves using
-        # the BLKPKG BLKPG_ADD_PARTITION ioctl().
-        with open(loopdev, 'rb+') as f:
-            for p in table.partitions.values():
-                ioctl_partition_add(f.fileno(), p.number, table.partition_offset(p), table.partition_size(p))
+        # devices for each of the partitions it finds. However, this operation is asynchronous which
+        # means losetup will return before all partition devices have been initialized. This can result
+        # in a race condition where we try to access a partition device before it's been initialized by
+        # the kernel. To avoid this race condition, let's explicitly try to add all the partitions
+        # ourselves using the BLKPKG BLKPG_ADD_PARTITION ioctl().
+        for p in table.partitions.values():
+            blkpg_add_partition(loopdev.fileno(), p.number, table.partition_offset(p), table.partition_size(p))
 
-    try:
-        yield loopdev
-    finally:
-        with complete_step(f"Detaching {loopdev}"), open(loopdev, 'rb+') as f:
-            # Similarly to above, partition devices are removed asynchronously by the kernel, so again let's
-            # avoid race conditions by explicitly removing all partition devices before detaching the loop
-            # device using the BLKPG BLKPG_DEL_PARTITION ioctl().
+        try:
+            yield Path(loopdev.name)
+        finally:
+            # Similarly to above, partition devices are removed asynchronously by the kernel, so again
+            # let's avoid race conditions by explicitly removing all partition devices before detaching
+            # the loop device using the BLKPG BLKPG_DEL_PARTITION ioctl().
             for p in table.partitions.values():
-                ioctl_partition_remove(f.fileno(), p.number)
+                blkpg_del_partition(loopdev.fileno(), p.number)
 
-            run(["losetup", "--detach", loopdev])
 
 @contextlib.contextmanager
 def attach_base_image(base_image: Optional[Path], table: Optional[PartitionTable]) -> Iterator[Optional[Path]]:
@@ -3639,15 +3653,6 @@ def generate_xfs(args: MkosiArgs, root: Path, label: str, for_cache: bool) -> Op
     if for_cache:
         return None
 
-    @contextlib.contextmanager
-    def get_loopdev(f: BinaryIO) -> Iterator[Path]:
-        c = run(["losetup", "--find", "--show", f.name], stdout=PIPE, text=True)
-        l = Path(c.stdout.strip())
-        try:
-            yield l
-        finally:
-            run(["losetup", "--detach", l])
-
     with complete_step("Creating xfs root file system…"):
         f: BinaryIO = cast(
             BinaryIO,
@@ -3659,9 +3664,8 @@ def generate_xfs(args: MkosiArgs, root: Path, label: str, for_cache: bool) -> Op
 
         xfs_dir = workspace(root) / "xfs"
         xfs_dir.mkdir()
-        with get_loopdev(f) as loopdev:
-            with mount_loop(args, loopdev, xfs_dir) as mp:
-                copy_path(root, mp)
+        with get_loopdev(f) as loopdev, mount_loop(args, Path(loopdev.name), xfs_dir) as mp:
+            copy_path(root, mp)
 
     return f
 
