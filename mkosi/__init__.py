@@ -2447,7 +2447,9 @@ def invoke_apt(
         INITRD="No",
     )
 
-    with mount_api_vfs(args, root):
+    # Overmount /etc/apt on the host with an empty directory, so that apt doesn't parse any configuration
+    # from it.
+    with mount_bind(workspace(root) / "apt", Path("/") / "etc/apt"), mount_api_vfs(args, root):
         return run(cmdline, env=env, text=True, **kwargs)
 
 
