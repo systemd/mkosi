@@ -2079,11 +2079,7 @@ def setup_dnf(args: MkosiArgs, root: Path, repos: Sequence[Repo] = ()) -> None:
 
 
 def parse_fedora_release(release: str) -> Tuple[str, str]:
-    if release == "rawhide":
-        last = list(FEDORA_KEYS_MAP)[-1]
-        warn(f"Assuming rawhide is version {last} — " + "You may specify otherwise with --release=rawhide-<version>")
-        return ("rawhide", last)
-    elif release.startswith("rawhide-"):
+    if release.startswith("rawhide-"):
         release, releasever = release.split("-")
         MkosiPrinter.info(f"Fedora rawhide — release version: {releasever}")
         return ("rawhide", releasever)
