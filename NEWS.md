@@ -8,8 +8,6 @@ for more information.
 for more information.
 - The Arch kernel/bootloader pacman hooks were removed. For anyone that still
 wants to use them, they can be found [here](https://github.com/systemd/mkosi/tree/v13/mkosi/resources/arch).
-When building a bios image, /boot/vmlinuz-kver and /boot/initramfs-kver.img are
-now symlinks to the actual files as installed by kernel-install.
 - mkosi now creates distro~release subdirectories inside the build, cache and output
 directories for each distro~release combination that is built. This allows building
 for multiple distros without throwing away the results of a previous distro build every
@@ -22,6 +20,10 @@ been removed from the docs but are still supported for backwards compatibility.
 - Pacman's `SigLevel` option was changed to use the same default value as used on Arch
 which is `SigLevel = Required DatabaseOptional`. If this results in keyring errors,
 you need to update the keyring by running `pacman-key --populate archlinux`.
+- Support for CentOS 7 was dropped.
+- Support for BIOS/grub was dropped. To allow users to configure grub themselves, the
+new `--bios-size` option can be used to add a BIOS boot partition of the specified size
+on which grub can be installed.
 
 ## v13
 

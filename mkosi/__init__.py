@@ -81,13 +81,11 @@ from .backend import (
     SourceFileTransfer,
     Verb,
     die,
-    install_grub,
     is_centos_variant,
     is_epel_variant,
     is_rpm_distribution,
     nspawn_executable,
     nspawn_knows_arg,
-    nspawn_params_for_blockdev_access,
     nspawn_rlimit_params,
     nspawn_version,
     patch_file,
@@ -103,7 +101,6 @@ from .backend import (
     var_tmp,
     warn,
     workspace,
-    write_grub_config,
 )
 from .manifest import Manifest
 from .syscall import blkpg_add_partition, blkpg_del_partition, reflink
@@ -772,10 +769,10 @@ def initialize_partition_table(args: MkosiArgs, force: bool = False) -> None:
     no_btrfs = args.output_format != OutputFormat.gpt_btrfs
 
     for condition, label, size, type_uuid, name, read_only in (
-            (args.bootable and "uefi" in args.boot_protocols,
+            (args.bootable,
              PartitionIdentifier.esp, args.esp_size, GPT_ESP, "ESP System Partition", False),
-            (args.bootable and "bios" in args.boot_protocols,
-             PartitionIdentifier.bios, BIOS_PARTITION_SIZE, GPT_BIOS, "BIOS Boot Partition", False),
+            (args.bios_size is not None,
+             PartitionIdentifier.bios, args.bios_size, GPT_BIOS, "BIOS Boot Partition", False),
             (args.xbootldr_size is not None,
              PartitionIdentifier.xbootldr, args.xbootldr_size, GPT_XBOOTLDR, "Boot Loader Partition", False),
             (args.swap_size is not None,
@@ -1067,15 +1064,9 @@ def mkfs_generic(args: MkosiArgs, label: str, mount: PathString, dev: Path) -> N
     else:
         cmdline = mkfs_ext4_cmd(label, mount)
 
-    if args.output_format == OutputFormat.gpt_ext4:
-        if is_centos_variant(args.distribution) and is_older_than_centos8(args.release):
-
-            # e2fsprogs in centos7 is too old and doesn't support this feature
-            cmdline += ["-O", "^metadata_csum"]
-
-        if args.architecture in ("x86_64", "aarch64"):
-            # enable 64bit filesystem feature on supported architectures
-            cmdline += ["-O", "64bit"]
+    if args.output_format == OutputFormat.gpt_ext4 and args.architecture in ("x86_64", "aarch64"):
+        # enable 64bit filesystem feature on supported architectures
+        cmdline += ["-O", "64bit"]
 
     run([*cmdline, dev])
 
@@ -1824,12 +1815,6 @@ def make_rpm_list(args: MkosiArgs, packages: Set[str], do_run_build_script: bool
         if args.output_format == OutputFormat.gpt_btrfs:
             add_packages(args, packages, "btrfs-progs")
 
-        if args.get_partition(PartitionIdentifier.bios):
-            if args.distribution in (Distribution.mageia, Distribution.openmandriva):
-                add_packages(args, packages, "grub2")
-            else:
-                add_packages(args, packages, "grub2-pc")
-
     if not do_run_build_script and args.ssh:
         add_packages(args, packages, "openssh-server")
 
@@ -2313,37 +2298,6 @@ def centos_variant_mirror_repo_url(args: MkosiArgs, repo: str) -> str:
         die(f"{args.distribution} is not a CentOS variant")
 
 
-def install_centos_7_repos(args: MkosiArgs, root: Path, epel_release: int) -> None:
-    # Repos for CentOS Linux 7 and earlier
-
-    gpgpath, gpgurl = centos_variant_gpg_locations(args.distribution, epel_release)
-    epel_gpgpath, epel_gpgurl = epel_gpg_locations(epel_release)
-
-    if args.use_mirror_verbatim and args.mirror:
-        release_url = f"baseurl={args.mirror}"
-        updates_url = extras_url = epel_url = None
-    elif args.mirror:
-        release_url = f"baseurl={args.mirror}/centos/{args.release}/os/$basearch"
-        updates_url = f"baseurl={args.mirror}/centos/{args.release}/updates/$basearch/"
-        extras_url = f"baseurl={args.mirror}/centos/{args.release}/extras/$basearch/"
-        epel_url = f"baseurl={args.mirror}/epel/{epel_release}/$basearch/"
-    else:
-        release_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=$basearch&repo=os"
-        updates_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=$basearch&repo=updates"
-        extras_url = f"mirrorlist=http://mirrorlist.centos.org/?release={args.release}&arch=$basearch&repo=extras"
-        epel_url = f"mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=epel-{epel_release}&arch=$basearch"
-
-    repos = [Repo("base", release_url, gpgpath, gpgurl)]
-    if updates_url is not None:
-        repos += [Repo("updates", updates_url, gpgpath, gpgurl)]
-    if extras_url is not None:
-        repos += [Repo("extras", extras_url, gpgpath, gpgurl)]
-    if epel_url is not None and is_epel_variant(args.distribution):
-        repos += [Repo("epel", epel_url, epel_gpgpath, epel_gpgurl)]
-
-    setup_dnf(args, root, repos)
-
-
 def install_centos_variant_repos(args: MkosiArgs, root: Path, epel_release: int) -> None:
     # Repos for CentOS Linux 8, CentOS Stream 8 and CentOS variants
 
@@ -2423,20 +2377,12 @@ def parse_epel_release(release: str) -> int:
     return int(epel_release)
 
 
-def is_older_than_centos8(release: str) -> bool:
-    # CentOS 7 contains some very old versions of certain libraries
-    # which require workarounds in different places.
-    # Additionally the repositories have been changed between 7 and 8
-    epel_release = parse_epel_release(release)
-    return epel_release <= 7
-
-
 @complete_step("Installing CentOS…")
 def install_centos_variant(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None:
     epel_release = parse_epel_release(args.release)
 
     if epel_release <= 7:
-        install_centos_7_repos(args, root, epel_release)
+        die("CentOS 7 or earlier variants are not supported")
     elif epel_release <= 8 or not "-stream" in args.release:
         install_centos_variant_repos(args, root, epel_release)
     else:
@@ -2449,20 +2395,7 @@ def install_centos_variant(args: MkosiArgs, root: Path, do_run_build_script: boo
     add_packages(args, packages, "systemd")
     if not do_run_build_script and args.bootable:
         add_packages(args, packages, "kernel", "dracut")
-        if epel_release <= 7:
-            add_packages(
-                args,
-                packages,
-                "grub2-efi",
-                "grub2-tools",
-                "grub2-efi-x64-modules",
-                "shim-x64",
-                "efibootmgr",
-                "efivar-libs",
-            )
-        else:
-            # this does not exist on CentOS 7
-            add_packages(args, packages, "systemd-udev", conditional="systemd")
+        add_packages(args, packages, "systemd-udev", conditional="systemd")
 
     if do_run_build_script:
         packages.update(args.build_packages)
@@ -2567,9 +2500,6 @@ def install_debian_or_ubuntu(args: MkosiArgs, root: Path, *, do_run_build_script
             if not any(package.startswith("linux-image") for package in extra_packages):
                 add_packages(args, extra_packages, f"linux-image-{DEBIAN_KERNEL_ARCHITECTURES[args.architecture]}")
 
-        if args.get_partition(PartitionIdentifier.bios):
-            add_packages(args, extra_packages, "grub-pc")
-
         if args.output_format == OutputFormat.gpt_btrfs:
             add_packages(args, extra_packages, "btrfs-progs")
 
@@ -2655,13 +2585,6 @@ def install_debian_or_ubuntu(args: MkosiArgs, root: Path, *, do_run_build_script
         root.joinpath("etc/resolv.conf").unlink()
         root.joinpath("etc/resolv.conf").symlink_to("../run/systemd/resolve/resolv.conf")
         run(["systemctl", "--root", root, "enable", "systemd-resolved"])
-
-    # Make sure kernel-install actually runs when needed by creating the machine-id subdirectory under /boot.
-    # In newer versions of systemd, this is already accomplished by running setting "layout=bls" in
-    # /etc/kernel/install.conf but for older Debian and Ubuntu we have to nudge kernel-install by creating
-    # this directory.
-    if "bios" in args.boot_protocols or ("linux" in args.boot_protocols and "uefi" not in args.boot_protocols):
-        root.joinpath("boot", args.machine_id).mkdir(mode=0o700)
 
     write_resource(root / "etc/kernel/install.d/50-mkosi-dpkg-reconfigure-dracut.install",
                    "mkosi.resources", "dpkg-reconfigure-dracut.install", executable=True)
@@ -2790,8 +2713,6 @@ def install_arch(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None
             add_packages(args, packages, "xfsprogs")
         if args.encrypt:
             add_packages(args, packages, "cryptsetup", "device-mapper")
-        if args.get_partition(PartitionIdentifier.bios):
-            add_packages(args, packages, "grub")
 
         add_packages(args, packages, "dracut")
 
@@ -2821,14 +2742,6 @@ def install_arch(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None
     # Arch still uses pam_securetty which prevents root login into
     # systemd-nspawn containers. See https://bugs.archlinux.org/task/45903.
     disable_pam_securetty(root)
-
-    # grub expects the kernel image and initramfs to be located in the /boot folder so let's create some
-    # symlinks in /boot that point to where kernel-install will store the kernel image and initramfs.
-    if "bios" in args.boot_protocols:
-        for kver, _ in gen_kernel_images(args, root):
-            boot_dir = Path("/") / boot_directory(args, kver)
-            root.joinpath(f"boot/vmlinuz-{kver}").symlink_to(boot_dir / "linux")
-            root.joinpath(f"boot/initramfs-{kver}.img").symlink_to(boot_dir / "initrd")
 
 
 @complete_step("Installing openSUSE…")
@@ -2875,9 +2788,6 @@ def install_opensuse(args: MkosiArgs, root: Path, do_run_build_script: bool) -> 
 
     if not do_run_build_script and args.bootable:
         add_packages(args, packages, "kernel-default", "dracut")
-
-        if args.get_partition(PartitionIdentifier.bios):
-            add_packages(args, packages, "grub2")
 
     if not do_run_build_script and args.encrypt:
         add_packages(args, packages, "device-mapper")
@@ -3219,17 +3129,8 @@ def run_postinst_script(
 
         shutil.copy2(args.postinst_script, root_home(args, root) / "postinst")
 
-        nspawn_params = []
-        # in order to have full blockdev access, i.e. for making grub2 bootloader changes
-        # we need to have these bind mounts for a proper chroot setup
-        if args.bootable:
-            if loopdev is None:
-                raise ValueError("Parameter 'loopdev' required for bootable images.")
-            nspawn_params += nspawn_params_for_blockdev_access(args, loopdev)
-
         run_workspace_command(args, root, ["/root/postinst", verb],
                               network=(args.with_network is True),
-                              nspawn_params=nspawn_params,
                               env=args.environment)
         root_home(args, root).joinpath("postinst").unlink()
 
@@ -3253,29 +3154,6 @@ def run_finalize_script(args: MkosiArgs, root: Path, do_run_build_script: bool, 
         run([args.finalize_script, verb], env=env)
 
 
-def install_boot_loader_centos_old_efi(args: MkosiArgs, root: Path, loopdev: Path) -> None:
-    nspawn_params = nspawn_params_for_blockdev_access(args, loopdev)
-
-    # prepare EFI directory on ESP
-    os.makedirs(root / "efi/EFI/centos", exist_ok=True)
-
-    # patch existing or create minimal GRUB_CMDLINE config
-    write_grub_config(args, root)
-
-    # generate grub2 efi boot config
-    cmdline = ["/sbin/grub2-mkconfig", "-o", "/efi/EFI/centos/grub.cfg"]
-    run_workspace_command(args, root, cmdline, nspawn_params=nspawn_params)
-
-    # if /sys/firmware/efi is not present within systemd-nspawn the grub2-mkconfig makes false assumptions, let's fix this
-    def _fix_grub(line: str) -> str:
-        if "linux16" in line:
-            return line.replace("linux16", "linuxefi")
-        elif "initrd16" in line:
-            return line.replace("initrd16", "initrdefi")
-        return line
-
-    patch_file(root / "efi/EFI/centos/grub.cfg", _fix_grub)
-
 
 def install_boot_loader(
     args: MkosiArgs, root: Path, loopdev: Optional[Path], do_run_build_script: bool, cached: bool
@@ -3289,13 +3167,7 @@ def install_boot_loader(
 
     with complete_step("Installing boot loader…"):
         if args.get_partition(PartitionIdentifier.esp):
-            if is_centos_variant(args.distribution) and is_older_than_centos8(args.release):
-                install_boot_loader_centos_old_efi(args, root, loopdev)
-            else:
-                run_workspace_command(args, root, ["bootctl", "install"])
-
-        if args.get_partition(PartitionIdentifier.bios):
-            install_grub(args, root, loopdev)
+            run_workspace_command(args, root, ["bootctl", "install"])
 
 
 def install_extra_trees(args: MkosiArgs, root: Path, for_cache: bool) -> None:
@@ -4169,7 +4041,7 @@ def extract_kernel_image_initrd(
     for_cache: bool,
     mount: Callable[[], ContextManager[None]],
 ) -> Union[Tuple[BinaryIO, BinaryIO], Tuple[None, None]]:
-    if do_run_build_script or for_cache or "linux" not in args.boot_protocols:
+    if do_run_build_script or for_cache or not args.bootable:
         return None, None
 
     with mount():
@@ -4197,7 +4069,7 @@ def extract_kernel_cmdline(
     for_cache: bool,
     mount: Callable[[], ContextManager[None]],
 ) -> Optional[TextIO]:
-    if do_run_build_script or for_cache or "linux" not in args.boot_protocols:
+    if do_run_build_script or for_cache or not args.bootable:
         return None
 
     with mount():
@@ -5193,9 +5065,7 @@ def create_parser() -> ArgumentParserMkosi:
     group.add_argument(
         "--boot-protocols",
         action=CommaDelimitedListAction,
-        help="Boot protocols to use on a bootable image",
-        metavar="PROTOCOLS",
-        default=[],
+        help=argparse.SUPPRESS,
     )
     group.add_argument(
         "--kernel-command-line",
@@ -5620,16 +5490,19 @@ def create_parser() -> ArgumentParserMkosi:
         metavar="BYTES",
     )
     group.add_argument(
-        "--home-size", help="Set size of /home partition (only gpt_ext4, gpt_xfs, gpt_squashfs)", metavar="BYTES"
+        "--home-size", help="Set size of /home partition (only for GPT images)", metavar="BYTES"
     )
     group.add_argument(
-        "--srv-size", help="Set size of /srv partition (only gpt_ext4, gpt_xfs, gpt_squashfs)", metavar="BYTES"
+        "--srv-size", help="Set size of /srv partition (only for GPT images)", metavar="BYTES"
     )
     group.add_argument(
-        "--var-size", help="Set size of /var partition (only gpt_ext4, gpt_xfs, gpt_squashfs)", metavar="BYTES"
+        "--var-size", help="Set size of /var partition (only for GPT images)", metavar="BYTES"
     )
     group.add_argument(
-        "--tmp-size", help="Set size of /var/tmp partition (only gpt_ext4, gpt_xfs, gpt_squashfs)", metavar="BYTES"
+        "--tmp-size", help="Set size of /var/tmp partition (only for GPT images)", metavar="BYTES"
+    )
+    group.add_argument(
+        "--bios-size", help="Set size of BIOS boot partition (only for GPT images)", metavar="BYTES",
     )
     group.add_argument(
         "--usr-only",
@@ -5715,8 +5588,9 @@ def create_parser() -> ArgumentParserMkosi:
     group.add_argument(
         "--qemu-boot",
         help="Configure which qemu boot protocol to use",
-        choices=["uefi", "bios", "linux", None],
+        choices=["uefi", "linux", None],
         metavar="PROTOCOL",
+        default="uefi",
     )
     group.add_argument(
         "--network-veth",     # Compatibility option
@@ -6095,10 +5969,9 @@ def unlink_output(args: MkosiArgs) -> None:
                 unlink_try_hard(args.output_split_verity_sig)
                 unlink_try_hard(args.output_split_kernel)
 
-            if "linux" in args.boot_protocols:
-                unlink_try_hard(build_auxiliary_output_path(args, ".vmlinuz"))
-                unlink_try_hard(build_auxiliary_output_path(args, ".initrd"))
-                unlink_try_hard(build_auxiliary_output_path(args, ".cmdline"))
+            unlink_try_hard(build_auxiliary_output_path(args, ".vmlinuz"))
+            unlink_try_hard(build_auxiliary_output_path(args, ".initrd"))
+            unlink_try_hard(build_auxiliary_output_path(args, ".cmdline"))
 
             if args.nspawn_settings is not None:
                 unlink_try_hard(args.output_nspawn_settings)
@@ -6429,21 +6302,10 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
         ):
             die("Directory, subvolume, tar, cpio, and plain squashfs images cannot be booted.", MkosiNotSupportedException)
 
-        if not args.boot_protocols:
-            args.boot_protocols = ["uefi"]
-
-        if not {"uefi", "bios", "linux"}.issuperset(args.boot_protocols):
-            die("Not a valid boot protocol")
-
     if is_centos_variant(args.distribution):
         epel_release = parse_epel_release(args.release)
         if epel_release <= 9 and args.output_format == OutputFormat.gpt_btrfs:
             die(f"Sorry, CentOS {epel_release} does not support btrfs", MkosiNotSupportedException)
-        if epel_release <= 7 and args.bootable and "uefi" in args.boot_protocols and args.with_unified_kernel_images:
-            die(
-                f"Sorry, CentOS {epel_release} does not support unified kernel images. "
-                "You must use --without-unified-kernel-images.", MkosiNotSupportedException
-            )
 
     if args.distribution in (Distribution.rocky, Distribution.rocky_epel):
         epel_release = int(args.release.split(".")[0])
@@ -6639,6 +6501,7 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
     args.esp_size = parse_bytes(args.esp_size)
     args.xbootldr_size = parse_bytes(args.xbootldr_size)
     args.swap_size = parse_bytes(args.swap_size)
+    args.bios_size = parse_bytes(args.bios_size)
 
     if args.root_size is None:
         args.root_size = 3 * 1024 * 1024 * 1024
@@ -6704,9 +6567,6 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
     if not args.read_only:
         args.kernel_command_line.append("rw")
 
-    if is_generated_root(args) and "bios" in args.boot_protocols:
-        die("Sorry, BIOS cannot be combined with --minimize or squashfs filesystems", MkosiNotSupportedException)
-
     if args.verity and not args.with_unified_kernel_images:
         die("Sorry, --verity can only be used with unified kernel images", MkosiNotSupportedException)
 
@@ -6760,6 +6620,10 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
 
     if args.qemu_kvm and not qemu_check_kvm_support():
         die("Sorry, the host machine does not support KVM acceleration.")
+
+    if args.boot_protocols is not None:
+        warn("The --boot-protocols is deprecated and has no effect anymore")
+    delattr(args, "boot_protocols")
 
     return MkosiArgs(**vars(args))
 
@@ -6905,7 +6769,6 @@ def print_summary(args: MkosiArgs) -> None:
             MkosiPrinter.info("       Kernel Command Line: " + " ".join(args.kernel_command_line))
             MkosiPrinter.info("           UEFI SecureBoot: " + yes_no(args.secure_boot))
 
-            MkosiPrinter.info("            Boot Protocols: " + line_join_list(args.boot_protocols))
             MkosiPrinter.info("     Unified Kernel Images: " + yes_no(args.with_unified_kernel_images))
             MkosiPrinter.info("             GPT First LBA: " + str(args.gpt_first_lba))
             MkosiPrinter.info("           Hostonly Initrd: " + yes_no(args.hostonly_initrd))
@@ -6967,15 +6830,13 @@ def print_summary(args: MkosiArgs) -> None:
         MkosiPrinter.info("\nPARTITIONS:")
         MkosiPrinter.info("            Root Partition: " + format_bytes_or_auto(args.root_size))
         MkosiPrinter.info("            Swap Partition: " + format_bytes_or_disabled(args.swap_size))
-        if "uefi" in args.boot_protocols:
-            MkosiPrinter.info("                       ESP: " + format_bytes_or_disabled(args.esp_size))
-        if "bios" in args.boot_protocols:
-            MkosiPrinter.info("                      BIOS: " + format_bytes_or_disabled(BIOS_PARTITION_SIZE))
+        MkosiPrinter.info("             EFI Partition: " + format_bytes_or_disabled(args.esp_size))
         MkosiPrinter.info("        XBOOTLDR Partition: " + format_bytes_or_disabled(args.xbootldr_size))
         MkosiPrinter.info("           /home Partition: " + format_bytes_or_disabled(args.home_size))
         MkosiPrinter.info("            /srv Partition: " + format_bytes_or_disabled(args.srv_size))
         MkosiPrinter.info("            /var Partition: " + format_bytes_or_disabled(args.var_size))
         MkosiPrinter.info("        /var/tmp Partition: " + format_bytes_or_disabled(args.tmp_size))
+        MkosiPrinter.info("            BIOS Partition: " + format_bytes_or_disabled(args.bios_size))
         MkosiPrinter.info("                 /usr only: " + yes_no(args.usr_only))
 
         MkosiPrinter.info("\nVALIDATION:")
@@ -7816,19 +7677,8 @@ def qemu_check_kvm_support() -> bool:
 def run_qemu_cmdline(args: MkosiArgs) -> Iterator[List[str]]:
     accel = "kvm" if args.qemu_kvm else "tcg"
 
-    if args.qemu_boot:
-        mode = args.qemu_boot
-    elif "uefi" in args.boot_protocols:
-        mode = "uefi"
-    elif "bios" in args.boot_protocols:
-        mode = "bios"
-    elif "linux" in args.boot_protocols:
-        mode = "linux"
-    else:
-        mode = "uefi"
-
     firmware, fw_supports_sb = find_qemu_firmware(args)
-    smm = "on" if fw_supports_sb and mode == "uefi" else "off"
+    smm = "on" if fw_supports_sb and args.qemu_boot == "uefi" else "off"
 
     cmdline = [
         find_qemu_binary(args),
@@ -7850,10 +7700,7 @@ def run_qemu_cmdline(args: MkosiArgs) -> Iterator[List[str]]:
         # -nodefaults removes the default CDROM device which avoids an error message during boot
         # -serial mon:stdio adds back the serial device removed by -nodefaults.
         cmdline += ["-nographic", "-nodefaults", "-serial", "mon:stdio"]
-        # Fix for https://github.com/systemd/mkosi/issues/559. QEMU gets stuck in a boot loop when using BIOS
-        # if there's no vga device.
-
-    if not args.qemu_headless or (args.qemu_headless and mode == "bios"):
+    else:
         cmdline += ["-vga", "virtio"]
 
     if args.netdev:
@@ -7872,10 +7719,10 @@ def run_qemu_cmdline(args: MkosiArgs) -> Iterator[List[str]]:
             # after it is created.
             cmdline += ["-nic", f"tap,script=no,downscript=no,ifname={ifname},model=virtio-net-pci"]
 
-    if mode == "uefi":
+    if args.qemu_boot == "uefi":
         cmdline += ["-drive", f"if=pflash,format=raw,readonly=on,file={firmware}"]
 
-    if mode == "linux":
+    if args.qemu_boot == "linux":
         cmdline += [
             "-kernel", str(build_auxiliary_output_path(args, ".vmlinuz")),
             "-initrd", str(build_auxiliary_output_path(args, ".initrd")),
@@ -7883,7 +7730,7 @@ def run_qemu_cmdline(args: MkosiArgs) -> Iterator[List[str]]:
         ]
 
     with contextlib.ExitStack() as stack:
-        if mode == "uefi" and fw_supports_sb:
+        if args.qemu_boot == "uefi" and fw_supports_sb:
             ovmf_vars = stack.enter_context(copy_file_temporary(src=find_ovmf_vars(args), dir=tmp_dir()))
             cmdline += [
                 "-global",
