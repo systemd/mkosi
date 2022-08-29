@@ -8,14 +8,7 @@ from subprocess import DEVNULL, PIPE
 from textwrap import dedent
 from typing import IO, Any, Dict, List, Optional, Tuple, cast
 
-from .backend import (
-    Distribution,
-    ManifestFormat,
-    MkosiArgs,
-    PackageType,
-    run,
-    run_workspace_command,
-)
+from .backend import Distribution, ManifestFormat, MkosiArgs, PackageType, run
 
 
 @dataclasses.dataclass
@@ -154,10 +147,11 @@ class Manifest:
             source.add(package)
 
     def record_deb_packages(self, root: Path) -> None:
-        c = run_workspace_command(self.args, root,
-            ["dpkg-query", "--admindir=/var/lib/dpkg", "--show", "--showformat",
+        c = run(
+            ["dpkg-query", f"--admindir={root}/var/lib/dpkg", "--show", "--showformat",
              r'${Package}\t${source:Package}\t${Version}\t${Architecture}\t${Installed-Size}\t${db-fsys:Last-Modified}\n'],
-            capture_stdout=True
+            stdout=PIPE,
+            text=True,
         )
 
         packages = sorted(c.stdout.splitlines())
@@ -189,7 +183,15 @@ class Manifest:
                 # Yes, --quiet is specified twice, to avoid output about download stats.
                 # Note that the argument of the 'changelog' verb is the binary package name,
                 # not the source package name.
-                cmd = ["apt-get", "--quiet", "--quiet", "changelog", name]
+                cmd = [
+                    "apt-get",
+                    "--quiet",
+                    "--quiet",
+                    "-o", f"Dir={root}",
+                    "-o", f"DPkg::Chroot-Directory={root}",
+                    "changelog",
+                    name,
+                ]
 
                 # If we are building with docs then it's easy, as the changelogs are saved
                 # in the image, just fetch them. Otherwise they will be downloaded from the network.
@@ -209,7 +211,7 @@ class Manifest:
                 # We have to run from the root, because if we use the RootDir option to make
                 # apt from the host look at the repositories in the image, it will also pick
                 # the 'methods' executables from there, but the ABI might not be compatible.
-                result = run_workspace_command(self.args, root, cmd, network=not self.args.with_docs, capture_stdout=True)
+                result = run(cmd, text=True, stdout=PIPE)
                 source_package = SourcePackageManifest(source, result.stdout.strip())
                 self.source_packages[source] = source_package
 

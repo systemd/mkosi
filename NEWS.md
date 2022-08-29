@@ -24,6 +24,9 @@ you need to update the keyring by running `pacman-key --populate archlinux`.
 - Support for BIOS/grub was dropped. To allow users to configure grub themselves, the
 new `--bios-size` option can be used to add a BIOS boot partition of the specified size
 on which grub can be installed.
+- mkosi now runs apt and dpkg on the host. As such, we now require apt and dpkg to be
+installed on the host along with debootstrap in order to be able to build debian/ubuntu
+images.
 
 ## v13
 
