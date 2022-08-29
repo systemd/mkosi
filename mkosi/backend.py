@@ -686,6 +686,7 @@ def run_workspace_command(
         "--uuid=" + args.machine_id,
         "--machine=mkosi-" + uuid.uuid4().hex,
         "--as-pid2",
+        "--link-journal=no",
         "--register=no",
         f"--bind={var_tmp(root)}:/var/tmp",
         "--setenv=SYSTEMD_OFFLINE=1",
