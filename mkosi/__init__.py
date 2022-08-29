@@ -7307,6 +7307,7 @@ def run_build_script(args: MkosiArgs, root: Path, raw: Optional[BinaryIO]) -> No
             f"--uuid={args.machine_id}",
             f"--machine=mkosi-{uuid.uuid4().hex}",
             "--as-pid2",
+            "--link-journal=no",
             "--register=no",
             f"--bind={install_dir(args, root)}:/root/dest",
             f"--bind={var_tmp(root)}:/var/tmp",
