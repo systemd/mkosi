@@ -937,6 +937,15 @@ def reuse_cache_image(
 
 
 @contextlib.contextmanager
+def flock(file: BinaryIO) -> Iterator[None]:
+    fcntl.flock(file, fcntl.LOCK_EX)
+    try:
+        yield
+    finally:
+        fcntl.flock(file, fcntl.LOCK_UN)
+
+
+@contextlib.contextmanager
 def get_loopdev(f: BinaryIO) -> Iterator[BinaryIO]:
     with complete_step(f"Attaching {f.name} as loopback…", "Detaching {}") as output:
         c = run(["losetup", "--find", "--show", "--partscan", f.name], stdout=PIPE, text=True)
@@ -958,7 +967,7 @@ def attach_image_loopback(image: Optional[BinaryIO], table: Optional[PartitionTa
 
     assert table
 
-    with get_loopdev(image) as loopdev:
+    with get_loopdev(image) as loopdev, flock(loopdev):
         # losetup --partscan instructs the kernel to scan the partition table and add separate partition
         # devices for each of the partitions it finds. However, this operation is asynchronous which
         # means losetup will return before all partition devices have been initialized. This can result
