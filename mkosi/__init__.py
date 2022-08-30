@@ -1969,7 +1969,8 @@ def invoke_dnf(
     if args.repositories:
         cmdline += ["--disablerepo=*"] + [f"--enablerepo={repo}" for repo in args.repositories]
 
-    if args.with_network == "never":
+    # TODO: this breaks with a local, offline repository created with 'createrepo'
+    if args.with_network == "never" and not args.local_mirror:
         cmdline += ["-C"]
 
     if not args.architecture_is_native():
@@ -2091,8 +2092,8 @@ def parse_fedora_release(release: str) -> Tuple[str, str]:
 def install_fedora(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None:
     release, releasever = parse_fedora_release(args.release)
 
-    if args.use_mirror_verbatim and args.mirror:
-        release_url = f"baseurl={args.mirror}"
+    if args.local_mirror:
+        release_url = f"baseurl={args.local_mirror}"
         updates_url = None
     elif args.mirror:
         baseurl = urllib.parse.urljoin(args.mirror, f"releases/{release}/Everything/$basearch/os/")
@@ -2155,8 +2156,8 @@ def install_fedora(args: MkosiArgs, root: Path, do_run_build_script: bool) -> No
 
 @complete_step("Installing Mageia…")
 def install_mageia(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None:
-    if args.use_mirror_verbatim and args.mirror:
-        release_url = f"baseurl={args.mirror}"
+    if args.local_mirror:
+        release_url = f"baseurl={args.local_mirror}"
         updates_url = None
     elif args.mirror:
         baseurl = f"{args.mirror}/distrib/{args.release}/x86_64/media/core/"
@@ -2204,8 +2205,8 @@ def install_openmandriva(args: MkosiArgs, root: Path, do_run_build_script: bool)
     else:
         release_model = release
 
-    if args.use_mirror_verbatim and args.mirror:
-        release_url = f"baseurl={args.mirror}"
+    if args.local_mirror:
+        release_url = f"baseurl={args.local_mirror}"
         updates_url = None
     elif args.mirror:
         baseurl = f"{args.mirror}/{release_model}/repository/{args.architecture}/main"
@@ -2301,8 +2302,8 @@ def install_centos_variant_repos(args: MkosiArgs, root: Path, epel_release: int)
     gpgpath, gpgurl = centos_variant_gpg_locations(args.distribution, epel_release)
     epel_gpgpath, epel_gpgurl = epel_gpg_locations(epel_release)
 
-    if args.use_mirror_verbatim and args.mirror:
-        appstream_url = f"baseurl={args.mirror}"
+    if args.local_mirror:
+        appstream_url = f"baseurl={args.local_mirror}"
         baseos_url = extras_url = powertools_url = epel_url = None
     elif args.mirror:
         appstream_url = f"baseurl={args.mirror}/{directory}/{args.release}/AppStream/$basearch/os"
@@ -2338,8 +2339,8 @@ def install_centos_stream_repos(args: MkosiArgs, root: Path, epel_release: int) 
 
     release = f"{epel_release}-stream"
 
-    if args.use_mirror_verbatim and args.mirror:
-        appstream_url = f"baseurl={args.mirror}"
+    if args.local_mirror:
+        appstream_url = f"baseurl={args.local_mirror}"
         baseos_url = crb_url = epel_url = None
     elif args.mirror:
         appstream_url = f"baseurl={args.mirror}/centos-stream/{release}/AppStream/$basearch/os"
@@ -2421,6 +2422,22 @@ def debootstrap_knows_arg(arg: str) -> bool:
     return bytes("invalid option", "UTF-8") not in run(["debootstrap", arg], stdout=PIPE, check=False).stdout
 
 
+@contextlib.contextmanager
+def mount_apt_local_mirror(args: MkosiArgs, root: Path) -> Iterator[None]:
+    # Ensure apt inside the image can see the local mirror outside of it
+    mirror = args.local_mirror or args.mirror
+    if not mirror or not mirror.startswith("file:"):
+        yield
+        return
+
+    # Strip leading '/' as Path() does not behave well when concatenating
+    mirror_dir = mirror[5:].lstrip("/")
+
+    with complete_step("Mounting apt local mirror…", "Unmounting apt local mirror…"):
+        with mount_bind(Path("/") / mirror_dir, root / mirror_dir):
+            yield
+
+
 def invoke_apt(
     args: MkosiArgs,
     root: Path,
@@ -2445,8 +2462,31 @@ def invoke_apt(
 
     # Overmount /etc/apt on the host with an empty directory, so that apt doesn't parse any configuration
     # from it.
-    with mount_bind(workspace(root) / "apt", Path("/") / "etc/apt"), mount_api_vfs(args, root):
+    with mount_bind(workspace(root) / "apt", Path("/") / "etc/apt"), mount_apt_local_mirror(args, root), mount_api_vfs(args, root):
         return run(cmdline, env=env, text=True, **kwargs)
+
+
+def add_apt_auxiliary_repos(args: MkosiArgs, root: Path, repos: Set[str]) -> None:
+    if args.release in ("unstable", "sid"):
+        return
+
+    updates = f"deb {args.mirror} {args.release}-updates {' '.join(repos)}"
+    root.joinpath(f"etc/apt/sources.list.d/{args.release}-updates.list").write_text(f"{updates}\n")
+
+    # Security updates repos are never mirrored
+    if args.distribution == Distribution.ubuntu:
+        security = f"deb http://security.ubuntu.com/ubuntu/ {args.release}-security {' '.join(repos)}"
+    elif args.release in ("stretch", "buster"):
+        security = f"deb http://security.debian.org/debian-security/ {args.release}/updates main"
+    else:
+        security = f"deb https://security.debian.org/debian-security {args.release}-security main"
+
+    root.joinpath(f"etc/apt/sources.list.d/{args.release}-security.list").write_text(f"{security}\n")
+
+
+def add_apt_package_if_exists(args: MkosiArgs, root: Path, extra_packages: Set[str], package: str) -> None:
+    if invoke_apt(args, root, "cache", "search", ["--names-only", f"^{package}$"], stdout=PIPE).stdout.strip() != "":
+        add_packages(args, extra_packages, package)
 
 
 def install_debian_or_ubuntu(args: MkosiArgs, root: Path, *, do_run_build_script: bool) -> None:
@@ -2478,8 +2518,12 @@ def install_debian_or_ubuntu(args: MkosiArgs, root: Path, *, do_run_build_script
         if debootstrap_knows_arg("--no-check-valid-until"):
             cmdline += ["--no-check-valid-until"]
 
-        assert args.mirror is not None
-        cmdline += [args.release, root, args.mirror]
+        if not args.repository_key_check:
+            cmdline += ["--no-check-gpg"]
+
+        mirror = args.local_mirror or args.mirror
+        assert mirror is not None
+        cmdline += [args.release, root, mirror]
         run(cmdline)
 
     # Install extra packages via the secondary APT run, because it is smarter and can deal better with any
@@ -2547,32 +2591,30 @@ def install_debian_or_ubuntu(args: MkosiArgs, root: Path, *, do_run_build_script
             if "VERSION_ID" not in os_release and "BUILD_ID" not in os_release:
                 f.write(f"BUILD_ID=mkosi-{args.release}\n")
 
-    if args.release not in ("unstable", "sid"):
-        if args.distribution == Distribution.ubuntu:
-            updates = f"deb http://archive.ubuntu.com/ubuntu {args.release}-updates {' '.join(repos)}"
-        else:
-            updates = f"deb http://deb.debian.org/debian {args.release}-updates {' '.join(repos)}"
-
-        root.joinpath(f"etc/apt/sources.list.d/{args.release}-updates.list").write_text(f"{updates}\n")
-
-        if args.distribution == Distribution.ubuntu:
-            security = f"deb http://archive.ubuntu.com/ubuntu {args.release}-security {' '.join(repos)}"
-        elif args.release in ("stretch", "buster"):
-            security = f"deb http://security.debian.org/debian-security/ {args.release}/updates main"
-        else:
-            security = f"deb https://security.debian.org/debian-security {args.release}-security main"
-
-        root.joinpath(f"etc/apt/sources.list.d/{args.release}-security.list").write_text(f"{security}\n")
+    if not args.local_mirror:
+        add_apt_auxiliary_repos(args, root, repos)
+    else:
+        # Add a single local offline repository, and then remove it after apt has ran
+        root.joinpath("etc/apt/sources.list.d/mirror.list").write_text(f"deb [trusted=yes] {args.local_mirror} {args.release} main\n")
 
     install_skeleton_trees(args, root, False, late=True)
 
     invoke_apt(args, root, "get", "update", ["--assume-yes"])
 
     if args.bootable and not do_run_build_script and args.get_partition(PartitionIdentifier.esp):
-        if invoke_apt(args, root, "cache", "search", ["--names-only", "^systemd-boot$"], stdout=PIPE).stdout.strip() != "":
-            add_packages(args, extra_packages, "systemd-boot")
+        add_apt_package_if_exists(args, root, extra_packages, "systemd-boot")
+
+    # systemd-resolved was split into a separate package
+    add_apt_package_if_exists(args, root, extra_packages, "systemd-resolved")
 
     invoke_apt(args, root, "get", "install", ["--assume-yes", "--no-install-recommends", *extra_packages])
+
+    # Now clean up and add the real repositories, so that the image is ready
+    if args.local_mirror:
+        main_repo = f"deb {args.mirror} {args.release} {' '.join(repos)}\n"
+        root.joinpath("etc/apt/sources.list").write_text(main_repo)
+        root.joinpath("etc/apt/sources.list.d/mirror.list").unlink()
+        add_apt_auxiliary_repos(args, root, repos)
 
     policyrcd.unlink()
     dpkg_io_conf.unlink()
@@ -2584,10 +2626,13 @@ def install_debian_or_ubuntu(args: MkosiArgs, root: Path, *, do_run_build_script
         # Debian still has pam_securetty module enabled, disable it in the base image.
         disable_pam_securetty(root)
 
-    if args.distribution == Distribution.debian and "systemd" in extra_packages:
+    if (args.distribution == Distribution.debian and "systemd" in extra_packages and
+            ("systemd-resolved" not in extra_packages)):
         # The default resolv.conf points to 127.0.0.1, and resolved is disabled, fix it in
         # the base image.
-        root.joinpath("etc/resolv.conf").unlink()
+        # TODO: use missing_ok=True when we drop Python << 3.8
+        if root.joinpath("etc/resolv.conf").exists():
+            root.joinpath("etc/resolv.conf").unlink()
         root.joinpath("etc/resolv.conf").symlink_to("../run/systemd/resolve/resolv.conf")
         run(["systemctl", "--root", root, "enable", "systemd-resolved"])
 
@@ -2622,7 +2667,9 @@ def install_arch(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None
     if args.release is not None:
         MkosiPrinter.info("Distribution release specification is not supported for Arch Linux, ignoring.")
 
-    if args.mirror:
+    if args.local_mirror:
+        server = f"Server = {args.local_mirror}"
+    elif args.mirror:
         if platform.machine() == "aarch64":
             server = f"Server = {args.mirror}/$arch/$repo"
         else:
@@ -2656,6 +2703,12 @@ def install_arch(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None
             path.chmod(permissions)
 
     pacman_conf = workspace(root) / "pacman.conf"
+    if args.repository_key_check:
+        sig_level = "Required DatabaseOptional"
+    else:
+        # If we are using a single local mirror built on the fly there
+        # will be no signatures
+        sig_level = "Never"
     with pacman_conf.open("w") as f:
         f.write(
             dedent(
@@ -2670,17 +2723,32 @@ def install_arch(args: MkosiArgs, root: Path, do_run_build_script: bool) -> None
                 Architecture = auto
                 Color
                 CheckSpace
-                SigLevel = Required DatabaseOptional
+                SigLevel = {sig_level}
                 ParallelDownloads = 5
 
                 [core]
                 {server}
+                """
+            )
+        )
 
-                [extra]
-                {server}
+        if not args.local_mirror:
+            f.write(
+                dedent(
+                    f"""\
 
-                [community]
-                {server}
+                    [extra]
+                    {server}
+
+                    [community]
+                    {server}
+                    """
+                )
+            )
+
+        f.write(
+            dedent(
+                f"""\
 
                 {f"Include = {args.repos_dir}/*" if args.repos_dir else ""}
                 """
@@ -2755,10 +2823,7 @@ def install_opensuse(args: MkosiArgs, root: Path, do_run_build_script: bool) -> 
 
     # If the release looks like a timestamp, it's Tumbleweed. 13.x is legacy (14.x won't ever appear). For
     # anything else, let's default to Leap.
-    if args.use_mirror_verbatim and args.mirror:
-        release_url = args.mirror
-        updates_url = None
-    elif release.isdigit() or release == "tumbleweed":
+    if release.isdigit() or release == "tumbleweed":
         release_url = f"{args.mirror}/tumbleweed/repo/oss/"
         updates_url = f"{args.mirror}/update/tumbleweed/"
     elif release == "leap":
@@ -2777,8 +2842,12 @@ def install_opensuse(args: MkosiArgs, root: Path, do_run_build_script: bool) -> 
     # Configure the repositories: we need to enable packages caching here to make sure that the package cache
     # stays populated after "zypper install".
     run(["zypper", "--root", root, "addrepo", "-ck", release_url, "repo-oss"])
-    if updates_url is not None:
-        run(["zypper", "--root", root, "addrepo", "-ck", updates_url, "repo-update"])
+    run(["zypper", "--root", root, "addrepo", "-ck", updates_url, "repo-update"])
+
+    # If we need to use a local mirror, create a temporary repository definition
+    # that doesn't get in the image, as it is valid only at image build time.
+    if args.local_mirror:
+        run(["zypper", "--reposd-dir", workspace(root) / "zypper-repos.d", "--root", root, "addrepo", "-ck", args.local_mirror, "local-mirror"])
 
     if not args.with_docs:
         root.joinpath("etc/zypp/zypp.conf").write_text("rpm.install.excludedocs = yes\n")
@@ -2809,11 +2878,14 @@ def install_opensuse(args: MkosiArgs, root: Path, do_run_build_script: bool) -> 
     if not do_run_build_script and args.ssh:
         add_packages(args, packages, "openssh-server")
 
-    cmdline: List[PathString] = [
-        "zypper",
+    cmdline: List[PathString] = ["zypper"]
+    # --reposd-dir needs to be before the verb
+    if args.local_mirror:
+        cmdline += ["--reposd-dir", workspace(root) / "zypper-repos.d"]
+    cmdline += [
         "--root",
         root,
-        "--gpg-auto-import-keys",
+        "--gpg-auto-import-keys" if args.repository_key_check else "--no-gpg-checks",
         "install",
         "-y",
         "--no-recommends",
@@ -4968,12 +5040,14 @@ def create_parser() -> ArgumentParserMkosi:
     group.add_argument("-r", "--release", help="Distribution release to install")
     group.add_argument("--architecture", help="Override the architecture of installation", default=platform.machine())
     group.add_argument("-m", "--mirror", help="Distribution mirror to use")
+    group.add_argument("--local-mirror", help="Use a single local, flat and plain mirror to build the image",
+    )
     group.add_argument(
-        "--use-mirror-verbatim",
+        "--repository-key-check",
         metavar="BOOL",
         action=BooleanAction,
-        help="Use a single flat and plain mirror for RPM based distributions",
-        default=False,
+        help="Controls signature and key checks on repositories",
+        default=True,
     )
 
     group.add_argument(
@@ -6705,7 +6779,10 @@ def print_summary(args: MkosiArgs) -> None:
     MkosiPrinter.info("                   Release: " + none_to_na(args.release))
     MkosiPrinter.info("              Architecture: " + args.architecture)
     if args.mirror is not None:
-        MkosiPrinter.info(f"         {'(verbatim)' if args.use_mirror_verbatim else '          '} Mirror: " + args.mirror)
+        MkosiPrinter.info("                    Mirror: " + args.mirror)
+    if args.local_mirror is not None:
+        MkosiPrinter.info("      Local Mirror (build): " + args.local_mirror)
+    MkosiPrinter.info(f"  Repo Signature/Key check: {yes_no(args.repository_key_check)}")
     if args.repositories is not None and len(args.repositories) > 0:
         MkosiPrinter.info("              Repositories: " + ",".join(args.repositories))
     MkosiPrinter.info("     Use Host Repositories: " + yes_no(args.use_host_repositories))

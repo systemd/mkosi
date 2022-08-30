@@ -315,12 +315,21 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 : The mirror to use for downloading the distribution packages. Expects
   a mirror URL as argument.
 
-`UseMirrorVerbatim=`, `--use-mirror-verbatim=`
+`LocalMirror=`, `--local-mirror=`
 
-: When `--mirror` is used it will be used as a plain and direct mirror instead
+: The mirror will be used as a local, plain and direct mirror instead
   of using it as a prefix for the full set of repositories normally supported
-  by distributions like Fedora and CentOS. Useful for fully offline builds with
-  a single repository. Only supported for RPM-based distributions for now.
+  by distributions. Useful for fully offline builds with a single repository.
+  Supported on deb/rpm/arch based distributions. Overrides `--mirror=` but only
+  for the local mkosi build, it will not be configured inside the final image,
+  `--mirror=` (or the default repository) will be configured inside the final
+  image instead.
+
+`RepositoryKeyCheck=`, `--repository-key-check=`
+
+: Controls signature/key checks when using repositories, enabled by default.
+  Useful to disable checks when combined with `--local-mirror=` and using only
+  a repository from a local filesystem. Not used for DNF-based distros yet.
 
 `Repositories=`, `--repositories=`
 
