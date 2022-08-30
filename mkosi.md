@@ -353,7 +353,7 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 
 `RepositoryDirectory`, `--repository-directory`
 
-: This option can (for now) only be used with RPM-based istributions and Arch
+: This option can (for now) only be used with RPM-based distributions and Arch
   Linux. It identifies a directory containing extra repository definitions that
   will be used when installing packages. The files are passed directly to the
   corresponding package manager and should be written in the format expected by
