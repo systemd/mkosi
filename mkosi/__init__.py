@@ -7778,10 +7778,15 @@ def run_qemu_cmdline(args: MkosiArgs) -> Iterator[List[str]]:
     firmware, fw_supports_sb = find_qemu_firmware(args)
     smm = "on" if fw_supports_sb and args.qemu_boot == "uefi" else "off"
 
+    if args.architecture == "aarch64":
+        machine = f"type=virt,accel={accel}"
+    else:
+        machine = f"type=q35,accel={accel},smm={smm}"
+
     cmdline = [
         find_qemu_binary(args),
         "-machine",
-        f"type=q35,accel={accel},smm={smm}",
+        machine,
         "-smp",
         args.qemu_smp,
         "-m",
