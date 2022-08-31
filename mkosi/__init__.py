@@ -7671,16 +7671,38 @@ def find_qemu_binary(args: MkosiArgs) -> str:
 
 
 def find_qemu_firmware(args: MkosiArgs) -> Tuple[Path, bool]:
+    FIRMWARE_LOCATIONS = {
+        "x86_64": ["/usr/share/ovmf/x64/OVMF_CODE.secboot.fd"],
+        "i386": [
+            "/usr/share/edk2/ovmf-ia32/OVMF_CODE.secboot.fd",
+            "/usr/share/OVMF/OVMF32_CODE_4M.secboot.fd"
+        ],
+    }.get(args.architecture, [])
+
+    for firmware in FIRMWARE_LOCATIONS:
+        if os.path.exists(firmware):
+            return Path(firmware), True
+
+    FIRMWARE_LOCATIONS = {
+        "x86_64": [
+            "/usr/share/ovmf/ovmf_code_x64.bin",
+            "/usr/share/ovmf/x64/OVMF_CODE.fd",
+            "/usr/share/qemu/ovmf-x86_64.bin",
+        ],
+        "i386": ["/usr/share/ovmf/ovmf_code_ia32.bin", "/usr/share/edk2/ovmf-ia32/OVMF_CODE.fd"],
+        "aarch64": ["/usr/share/AAVMF/AAVMF_CODE.fd"],
+        "armhfp": ["/usr/share/AAVMF/AAVMF32_CODE.fd"],
+    }.get(args.architecture, [])
+
+    for firmware in FIRMWARE_LOCATIONS:
+        if os.path.exists(firmware):
+            warn("Couldn't find OVMF firmware blob with secure boot support, "
+                 "falling back to OVMF firmware blobs without secure boot support.")
+            return Path(firmware), False
+
+    # If we can't find an architecture specific path, fall back to some generic paths that might also work.
+
     FIRMWARE_LOCATIONS = [
-        # UEFI firmware blobs are found in a variety of locations,
-        # depending on distribution and package.
-        *{
-            "x86_64": ["/usr/share/ovmf/x64/OVMF_CODE.secboot.fd"],
-            "i386": [
-                "/usr/share/edk2/ovmf-ia32/OVMF_CODE.secboot.fd",
-                "/usr/share/OVMF/OVMF32_CODE_4M.secboot.fd"
-            ],
-        }.get(args.architecture, []),
         "/usr/share/edk2/ovmf/OVMF_CODE.secboot.fd",
         "/usr/share/edk2-ovmf/OVMF_CODE.secboot.fd",  # GENTOO:
         "/usr/share/qemu/OVMF_CODE.secboot.fd",
@@ -7692,24 +7714,7 @@ def find_qemu_firmware(args: MkosiArgs) -> Tuple[Path, bool]:
         if os.path.exists(firmware):
             return Path(firmware), True
 
-    warn("Couldn't find OVMF firmware blob with secure boot support, "
-         "falling back to OVMF firmware blobs without secure boot support.")
-
     FIRMWARE_LOCATIONS = [
-        # First, we look in paths that contain the architecture –
-        # if they exist, they’re almost certainly correct.
-        *{
-            "x86_64": [
-                "/usr/share/ovmf/ovmf_code_x64.bin",
-                "/usr/share/ovmf/x64/OVMF_CODE.fd",
-                "/usr/share/qemu/ovmf-x86_64.bin",
-            ],
-            "i386": ["/usr/share/ovmf/ovmf_code_ia32.bin", "/usr/share/edk2/ovmf-ia32/OVMF_CODE.fd"],
-            "aarch64": ["/usr/share/AAVMF/AAVMF_CODE.fd"],
-            "armhfp": ["/usr/share/AAVMF/AAVMF32_CODE.fd"],
-        }.get(args.architecture, []),
-        # After that, we try some generic paths and hope that if they exist,
-        # they’ll correspond to the current architecture, thanks to the package manager.
         "/usr/share/edk2/ovmf/OVMF_CODE.fd",
         "/usr/share/edk2-ovmf/OVMF_CODE.fd",  # GENTOO:
         "/usr/share/qemu/OVMF_CODE.fd",
@@ -7719,6 +7724,8 @@ def find_qemu_firmware(args: MkosiArgs) -> Tuple[Path, bool]:
 
     for firmware in FIRMWARE_LOCATIONS:
         if os.path.exists(firmware):
+            warn("Couldn't find OVMF firmware blob with secure boot support, "
+                 "falling back to OVMF firmware blobs without secure boot support.")
             return Path(firmware), False
 
     die("Couldn't find OVMF UEFI firmware blob.")
