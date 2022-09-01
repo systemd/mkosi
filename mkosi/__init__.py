@@ -2451,10 +2451,13 @@ def invoke_apt(
     **kwargs: Any,
 ) -> CompletedProcess:
 
+    debarch = DEBIAN_ARCHITECTURES[config.architecture]
+
     cmdline = [
         f"/usr/bin/apt-{subcommand}",
         "-o", f"Dir={root}",
         "-o", f"DPkg::Chroot-Directory={root}",
+        "-o", f"APT::Architecture={debarch}",
         operation,
         *extra,
     ]
