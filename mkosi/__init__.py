@@ -2440,6 +2440,7 @@ def invoke_apt(
         "-o", f"Dir={state.root}",
         "-o", f"DPkg::Chroot-Directory={state.root}",
         "-o", f"APT::Architecture={debarch}",
+        "-o", "dpkg::install::recursive::minimum=1000",
         operation,
         *extra,
     ]
