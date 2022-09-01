@@ -3,33 +3,47 @@
 ## v14
 
 - Support for Clear Linux was dropped. See https://github.com/systemd/mkosi/pull/1037
-for more information.
+  for more information.
 - Support for Photon was dropped. See https://github.com/systemd/mkosi/pull/1048
-for more information.
+  for more information.
 - The Arch kernel/bootloader pacman hooks were removed. For anyone that still
-wants to use them, they can be found [here](https://github.com/systemd/mkosi/tree/v13/mkosi/resources/arch).
-- mkosi now creates distro~release subdirectories inside the build, cache and output
-directories for each distro~release combination that is built. This allows building
-for multiple distros without throwing away the results of a previous distro build every
-time.
-- The preferred names for mkosi configuration files and directories are now mkosi.conf
-and mkosi.conf.d/ respectively. The old names (mkosi.default and mkosi.default.d) have
-been removed from the docs but are still supported for backwards compatibility.
+  wants to use them, they can be found
+  [here](https://github.com/systemd/mkosi/tree/v13/mkosi/resources/arch).
+- mkosi now creates distro~release subdirectories inside the build, cache and
+  output directories for each distro~release combination that is built. This
+  allows building for multiple distros without throwing away the results of a
+  previous distro build every time.
+- The preferred names for mkosi configuration files and directories are now
+  mkosi.conf and mkosi.conf.d/ respectively. The old names (mkosi.default and
+  mkosi.default.d) have been removed from the docs but are still supported for
+  backwards compatibility.
 - `plain_squashfs` type images will now also be named with a `.raw` suffix.
 - `tar` type images will now respect the `--compress` option.
-- Pacman's `SigLevel` option was changed to use the same default value as used on Arch
-which is `SigLevel = Required DatabaseOptional`. If this results in keyring errors,
-you need to update the keyring by running `pacman-key --populate archlinux`.
-- Support for CentOS 7 was dropped.
-- Support for BIOS/grub was dropped. To allow users to configure grub themselves, the
-new `--bios-size` option can be used to add a BIOS boot partition of the specified size
-on which grub can be installed.
-- mkosi now runs apt and dpkg on the host. As such, we now require apt and dpkg to be
-installed on the host along with debootstrap in order to be able to build debian/ubuntu
-images.
-- Split dm-verity artifacts default names have been changed to match what `systemd`
-  and other tools expect: `image.root.raw`, `image.root.verity`, `image.root.roothash`,
-  `image.root.roothash.p7s` (same for `usr` variants).
+- Pacman's `SigLevel` option was changed to use the same default value as used
+  on Arch which is `SigLevel = Required DatabaseOptional`. If this results in
+  keyring errors, you need to update the keyring by running `pacman-key
+  --populate archlinux`.
+- Support for CentOS 7 was dropped. If you still need to support CentOS 7, we
+  recommend using any mkosi version up to 13.
+- Support for BIOS/grub was dropped. because EFI hardware is widely available
+  and legacy BIOS systems do not support the feature set to fully verify a boot
+  chain from firmware to userland and it has become bothersome to maintain for
+  little use.
+
+  To generate BIOS images you can use any version of mkosi up to mkosi 13 or the
+  new `--bios-size` option. This can be used to add a BIOS boot partition of the
+  specified size on which grub (or any other bootloader) can be installed with
+  the help of mkosi's script support (depending on your needs most likely
+  `mkosi.postinst` or `mkosi.finalize`). This method can also be used for other
+  EFI bootloaders that mkosi intentionally does not support.
+- mkosi now unconditionally copies the kernel, initrd and kernel cmdline from
+  the image that were previously only copied out for Qemu boot.
+- mkosi now runs apt and dpkg on the host. As such, we now require apt and dpkg
+  to be installed on the host along with debootstrap in order to be able to
+  build debian/ubuntu images.
+- Split dm-verity artifacts default names have been changed to match what
+  `systemd` and other tools expect: `image.root.raw`, `image.root.verity`,
+  `image.root.roothash`, `image.root.roothash.p7s` (same for `usr` variants).
 
 ## v13
 
