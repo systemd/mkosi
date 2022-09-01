@@ -24,7 +24,7 @@ setup(
     maintainer="mkosi contributors",
     maintainer_email="systemd-devel@lists.freedesktop.org",
     license="LGPLv2+",
-    python_requires=">=3.7",
+    python_requires=">=3.9",
     packages = find_packages(".", exclude=["tests"]),
     package_data = {"": ["*.sh", "*.hook", "*.conf", "*.install"]},
     include_package_data = True,
