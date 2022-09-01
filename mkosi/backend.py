@@ -594,6 +594,9 @@ class MkosiState:
 
     original_umask: int
 
+    root: Path
+    do_run_build_script: bool
+
     cache_pre_inst: Optional[Path] = None
     cache_pre_dev: Optional[Path] = None
     output_signature: Optional[Path] = None

@@ -161,26 +161,24 @@ class Gentoo:
     def __init__(
         self,
         config: MkosiConfig, state: MkosiState,
-        root: Path,
-        do_run_build_script: bool,
     ) -> None:
 
         ret = self.try_import_portage()
 
         from portage.package.ebuild.config import config as portage_cfg  # type: ignore
 
-        self.portage_cfg = portage_cfg(config_root=str(root), target_root=str(root),
-                                  sysroot=str(root), eprefix=None)
+        self.portage_cfg = portage_cfg(config_root=str(state.root), target_root=str(state.root),
+                                  sysroot=str(state.root), eprefix=None)
 
         PORTAGE_MISCONFIGURED_MSG = "You have portage(5) installed but it's probably missing defaults, bailing out"
         # we check for PORTDIR, but we could check for any other one
         if self.portage_cfg['PORTDIR'] is None:
             die(PORTAGE_MISCONFIGURED_MSG)
 
-        self.profile_path = root / ret["profile_path"]
-        self.custom_profile_path = root / ret["custom_profile_path"]
-        self.ebuild_sh_env_dir = root / ret["ebuild_sh_env_dir"]
-        self.portage_cfg_dir = root / ret["portage_cfg_dir"]
+        self.profile_path = state.root / ret["profile_path"]
+        self.custom_profile_path = state.root / ret["custom_profile_path"]
+        self.ebuild_sh_env_dir = state.root / ret["ebuild_sh_env_dir"]
+        self.portage_cfg_dir = state.root / ret["portage_cfg_dir"]
 
         self.portage_cfg_dir.mkdir(parents=True, exist_ok=True)
 
@@ -234,7 +232,7 @@ class Gentoo:
         if config.encrypt:
             self.pkgs_fs += ["cryptsetup", "device-mapper"]
 
-        if not do_run_build_script and config.bootable:
+        if not state.do_run_build_script and config.bootable:
             if state.get_partition(PartitionIdentifier.esp):
                 self.pkgs_boot = ["sys-kernel/installkernel-systemd-boot"]
             else:
@@ -250,17 +248,17 @@ class Gentoo:
             "USE": " ".join(self.portage_use_flags),
         }
 
-        self.sync_portage_tree(config, root)
+        self.sync_portage_tree(config, state.root)
         self.set_profile(config)
         self.set_default_repo()
         self.unmask_arch()
         self.provide_patches()
         self.set_useflags()
         self.mkosi_conf()
-        self.baselayout(config, root)
-        self.fetch_fix_stage3(config, root)
-        self.update_stage3(config, root)
-        self.depclean(config, root)
+        self.baselayout(config, state.root)
+        self.fetch_fix_stage3(config, state.root)
+        self.update_stage3(config, state.root)
+        self.depclean(config, state.root)
 
     def sync_portage_tree(self, config: MkosiConfig,
                           root: Path) -> None:
