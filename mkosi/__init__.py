@@ -1614,29 +1614,25 @@ def mount_api_vfs(root: Path) -> Iterator[None]:
 
 
 @contextlib.contextmanager
-def mount_cache(config: MkosiConfig, root: Path) -> Iterator[None]:
-    if config.cache_path is None:
-        yield
-        return
-
+def mount_cache(config: MkosiConfig, state: MkosiState) -> Iterator[None]:
     # We can't do this in mount_image() yet, as /var itself might have to be created as a subvolume first
     with complete_step("Mounting Package Cache", "Unmounting Package Cache"), contextlib.ExitStack() as stack:
         if config.distribution in (Distribution.fedora, Distribution.mageia, Distribution.openmandriva):
-            stack.enter_context(mount_bind(config.cache_path, root / "var/cache/dnf"))
+            stack.enter_context(mount_bind(state.cache, state.root / "var/cache/dnf"))
         elif is_centos_variant(config.distribution):
             # We mount both the YUM and the DNF cache in this case, as
             # YUM might just be redirected to DNF even if we invoke
             # the former
-            stack.enter_context(mount_bind(config.cache_path / "yum", root / "var/cache/yum"))
-            stack.enter_context(mount_bind(config.cache_path / "dnf", root / "var/cache/dnf"))
+            stack.enter_context(mount_bind(state.cache / "yum", state.root / "var/cache/yum"))
+            stack.enter_context(mount_bind(state.cache / "dnf", state.root / "var/cache/dnf"))
         elif config.distribution in (Distribution.debian, Distribution.ubuntu):
-            stack.enter_context(mount_bind(config.cache_path, root / "var/cache/apt/archives"))
+            stack.enter_context(mount_bind(state.cache, state.root / "var/cache/apt/archives"))
         elif config.distribution == Distribution.arch:
-            stack.enter_context(mount_bind(config.cache_path, root / "var/cache/pacman/pkg"))
+            stack.enter_context(mount_bind(state.cache, state.root / "var/cache/pacman/pkg"))
         elif config.distribution == Distribution.gentoo:
-            stack.enter_context(mount_bind(config.cache_path, root / "var/cache/binpkgs"))
+            stack.enter_context(mount_bind(state.cache, state.root / "var/cache/binpkgs"))
         elif config.distribution == Distribution.opensuse:
-            stack.enter_context(mount_bind(config.cache_path, root / "var/cache/zypp/packages"))
+            stack.enter_context(mount_bind(state.cache, state.root / "var/cache/zypp/packages"))
 
         yield
 
@@ -2976,7 +2972,7 @@ def install_distribution(config: MkosiConfig, state: MkosiState, cached: bool) -
             Distribution.gentoo: install_gentoo,
         }[config.distribution]
 
-    with mount_cache(config, state.root):
+    with mount_cache(config, state):
         install(config, state)
 
     # Link /var/lib/rpm→/usr/lib/sysimage/rpm for compat with old rpm.
@@ -3174,7 +3170,7 @@ def run_prepare_script(config: MkosiConfig, state: MkosiState, cached: bool) -> 
 
     verb = "build" if state.do_run_build_script else "final"
 
-    with mount_cache(config, state.root), complete_step("Running prepare script…"):
+    with mount_cache(config, state), complete_step("Running prepare script…"):
 
         # We copy the prepare script into the build tree. We'd prefer
         # mounting it into the tree, but for that we'd need a good
@@ -3204,7 +3200,7 @@ def run_postinst_script(
 
     verb = "build" if state.do_run_build_script else "final"
 
-    with mount_cache(config, state.root), complete_step("Running postinstall script…"):
+    with mount_cache(config, state), complete_step("Running postinstall script…"):
 
         # We copy the postinst script into the build tree. We'd prefer
         # mounting it into the tree, but for that we'd need a good
@@ -4640,20 +4636,15 @@ def print_output_size(config: MkosiConfig) -> None:
         MkosiPrinter.print_step(f"Resulting image size is {size}, consumes {space}.")
 
 
-def setup_package_cache(config: MkosiConfig) -> Optional[TempDir]:
-    if config.cache_path and config.cache_path.exists():
-        return None
+def setup_package_cache(config: MkosiConfig, workspace: Path) -> Path:
+    if not config.cache_path:
+        cache = workspace / "cache"
+    else:
+        cache = config.cache_path
 
-    d = None
-    with complete_step("Setting up package cache…", "Setting up package cache {} complete") as output:
-        if config.cache_path is None:
-            d = tempfile.TemporaryDirectory(dir=os.path.dirname(config.output), prefix=".mkosi-")
-            config.cache_path = Path(d.name)
-        else:
-            os.makedirs(config.cache_path, 0o755, exist_ok=True)
-        output.append(config.cache_path)
+    os.makedirs(config.cache_path, 0o755, exist_ok=True)
 
-    return d
+    return cache
 
 
 def remove_duplicates(items: List[T]) -> List[T]:
@@ -7423,8 +7414,8 @@ def remove_artifacts(
 
 def build_stuff(config: MkosiConfig) -> Manifest:
     make_output_dir(config)
-    setup_package_cache(config)
     workspace = setup_workspace(config)
+    cache = setup_package_cache(config, Path(workspace.name))
 
     image = BuildOutput.empty()
     manifest = Manifest(config)
@@ -7440,6 +7431,7 @@ def build_stuff(config: MkosiConfig) -> Manifest:
             cache_pre_dev=cache_image_path(config, is_final_image=False) if config.incremental else None,
             cache_pre_inst=cache_image_path(config, is_final_image=True) if config.incremental else None,
             root=Path(workspace.name, "root"),
+            cache=cache,
             do_run_build_script=False,
         )
 

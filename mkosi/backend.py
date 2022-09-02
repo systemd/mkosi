@@ -594,6 +594,7 @@ class MkosiState:
     """State related properties."""
 
     root: Path
+    cache: Path
     do_run_build_script: bool
 
     cache_pre_inst: Optional[Path] = None
