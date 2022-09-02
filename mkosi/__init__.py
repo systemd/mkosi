@@ -1111,7 +1111,8 @@ def luks_format(dev: Path, passphrase: Dict[str, str]) -> None:
 
 
 def luks_format_root(
-    config: MkosiConfig, state: MkosiState,
+    config: MkosiConfig,
+    state: MkosiState,
     loopdev: Path,
     cached: bool,
     inserting_generated_root: bool = False,
@@ -1506,7 +1507,8 @@ def mount_overlay(
 
 @contextlib.contextmanager
 def mount_image(
-    config: MkosiConfig, state: MkosiState,
+    config: MkosiConfig,
+    state: MkosiState,
     cached: bool,
     base_image: Optional[Path],  # the path to the mounted base image root
     loopdev: Optional[Path],
@@ -2015,7 +2017,8 @@ def link_rpm_db(root: Path) -> None:
 
 
 def install_packages_dnf(
-    config: MkosiConfig, state: MkosiState,
+    config: MkosiConfig,
+    state: MkosiState,
     packages: Set[str],
 ) -> None:
 
@@ -2925,7 +2928,8 @@ def install_opensuse(config: MkosiConfig, state: MkosiState) -> None:
 
 @complete_step("Installing Gentoo…")
 def install_gentoo(
-    config: MkosiConfig, state: MkosiState,
+    config: MkosiConfig,
+    state: MkosiState,
 ) -> None:
     from .gentoo import Gentoo
 
@@ -3640,7 +3644,8 @@ def make_generated_root(config: MkosiConfig, root: Path, for_cache: bool) -> Opt
 
 
 def insert_partition(
-    config: MkosiConfig, state: MkosiState,
+    config: MkosiConfig,
+    state: MkosiState,
     raw: BinaryIO,
     loopdev: Path,
     blob: BinaryIO,
@@ -3688,7 +3693,8 @@ def insert_partition(
 
 
 def insert_generated_root(
-    config: MkosiConfig, state: MkosiState,
+    config: MkosiConfig,
+    state: MkosiState,
     raw: Optional[BinaryIO],
     loopdev: Optional[Path],
     image: Optional[BinaryIO],
@@ -3739,7 +3745,8 @@ def make_verity(
 
 
 def insert_verity(
-    config: MkosiConfig, state: MkosiState,
+    config: MkosiConfig,
+    state: MkosiState,
     raw: Optional[BinaryIO],
     loopdev: Optional[Path],
     verity: Optional[BinaryIO],
@@ -3840,7 +3847,8 @@ def make_verity_sig(
 
 
 def insert_verity_sig(
-    config: MkosiConfig, state: MkosiState,
+    config: MkosiConfig,
+    state: MkosiState,
     raw: Optional[BinaryIO],
     loopdev: Optional[Path],
     verity_sig: Optional[BinaryIO],
@@ -3932,7 +3940,8 @@ def gen_kernel_images(config: MkosiConfig, root: Path) -> Iterator[Tuple[str, Pa
 
 
 def install_unified_kernel(
-    config: MkosiConfig, state: MkosiState,
+    config: MkosiConfig,
+    state: MkosiState,
     root_hash: Optional[str],
     for_cache: bool,
     cached: bool,
@@ -4108,7 +4117,8 @@ def extract_unified_kernel(
 
 
 def extract_kernel_image_initrd(
-    config: MkosiConfig, state: MkosiState,
+    config: MkosiConfig,
+    state: MkosiState,
     for_cache: bool,
     mount: Callable[[], ContextManager[None]],
 ) -> Union[Tuple[BinaryIO, BinaryIO], Tuple[None, None]]:
@@ -4405,7 +4415,8 @@ def save_cache(config: MkosiConfig, state: MkosiState, raw: Optional[str], cache
 
 
 def _link_output(
-        config: MkosiConfig, state: MkosiState,
+        config: MkosiConfig,
+        state: MkosiState,
         oldpath: PathString,
         newpath: PathString,
         mode: int = 0o666,
@@ -7130,7 +7141,8 @@ class BuildOutput:
 
 
 def build_image(
-    config: MkosiConfig, state: MkosiState,
+    config: MkosiConfig,
+    state: MkosiState,
     *,
     manifest: Optional[Manifest] = None,
     for_cache: bool = False,

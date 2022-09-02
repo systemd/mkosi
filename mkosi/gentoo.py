@@ -160,7 +160,8 @@ class Gentoo:
 
     def __init__(
         self,
-        config: MkosiConfig, state: MkosiState,
+        config: MkosiConfig,
+        state: MkosiState,
     ) -> None:
 
         ret = self.try_import_portage()
