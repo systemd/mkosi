@@ -249,22 +249,22 @@ class Gentoo:
             "USE": " ".join(self.portage_use_flags),
         }
 
-        self.sync_portage_tree(config, state)
+        self.sync_portage_tree(state)
         self.set_profile(config)
         self.set_default_repo()
         self.unmask_arch()
         self.provide_patches()
         self.set_useflags()
         self.mkosi_conf()
-        self.baselayout(config, state)
-        self.fetch_fix_stage3(config, state.root)
-        self.update_stage3(config, state)
-        self.depclean(config, state)
+        self.baselayout(state)
+        self.fetch_fix_stage3(state, state.root)
+        self.update_stage3(state)
+        self.depclean(state)
 
-    def sync_portage_tree(self, config: MkosiConfig, state: MkosiState) -> None:
-        self.invoke_emerge(config, state, inside_stage3=False, actions=["--sync"])
+    def sync_portage_tree(self, state: MkosiState) -> None:
+        self.invoke_emerge(state, inside_stage3=False, actions=["--sync"])
 
-    def fetch_fix_stage3(self, config: MkosiConfig, root: Path) -> None:
+    def fetch_fix_stage3(self, state: MkosiState, root: Path) -> None:
         """usrmerge tracker bug: https://bugs.gentoo.org/690294"""
 
         # e.g.:
@@ -318,7 +318,7 @@ class Gentoo:
                 # remove once upstream ships the current *baselayout-999*
                 # version alternative would be to mount /sys as tmpfs when
                 # invoking emerge inside stage3; we don't want that.
-                self.invoke_emerge(config, stage3_tmp_extract, inside_stage3=True,
+                self.invoke_emerge(state, inside_stage3=True,
                         opts=["--unmerge"], pkgs=["sys-apps/baselayout"])
 
                 unlink_try_hard(stage3_tmp_extract.joinpath("dev"))
@@ -471,7 +471,6 @@ class Gentoo:
 
     def invoke_emerge(
         self,
-        config: MkosiConfig,
         state: MkosiState,
         inside_stage3: bool = True,
         pkgs: Sequence[str] = (),
@@ -493,14 +492,13 @@ class Gentoo:
                                     f"actions={actions} outside stage3")
             emerge_main([*pkgs, *opts, *actions] + PREFIX_OPTS + self.emerge_default_opts)
         else:
-            if config.usr_only:
-                root_home(config, state).mkdir(mode=0o750, exist_ok=True)
+            if state.config.usr_only:
+                root_home(state).mkdir(mode=0o750, exist_ok=True)
 
             cmd = ["/usr/bin/emerge", *pkgs, *self.emerge_default_opts, *opts, *actions]
 
             MkosiPrinter.print_step("Invoking emerge(1) inside stage3")
             run_workspace_command(
-                config,
                 state,
                 cmd,
                 network=True,
@@ -508,20 +506,20 @@ class Gentoo:
                 nspawn_params=self.DEFAULT_NSPAWN_PARAMS,
             )
 
-    def baselayout(self, config: MkosiConfig, state: MkosiState) -> None:
+    def baselayout(self, state: MkosiState) -> None:
         # TOTHINK: sticky bizness when when image profile != host profile
         # REMOVE: once upstream has moved this to stable releases of baselaouy
         # https://gitweb.gentoo.org/proj/baselayout.git/commit/?id=57c250e24c70f8f9581860654cdec0d049345292
-        self.invoke_emerge(config, state, inside_stage3=False,
+        self.invoke_emerge(state, inside_stage3=False,
                            opts=["--nodeps"],
                            pkgs=["=sys-apps/baselayout-9999"])
 
-    def update_stage3(self, config: MkosiConfig, state: MkosiState) -> None:
+    def update_stage3(self, state: MkosiState) -> None:
         # exclude baselayout, it expects /sys/.keep but nspawn mounts host's
         # /sys for us without the .keep file.
         opts = self.EMERGE_UPDATE_OPTS + ["--exclude",
                                           "sys-apps/baselayout"]
-        self.invoke_emerge(config, state, pkgs=self.pkgs_sys, opts=opts)
+        self.invoke_emerge(state, pkgs=self.pkgs_sys, opts=opts)
 
         # FIXME?: without this we get the following
         # Synchronizing state of sshd.service with SysV service script with /lib/systemd/systemd-sysv-install.
@@ -534,15 +532,14 @@ class Gentoo:
         # that point.
         self.baselayout_use.unlink()
 
-    def depclean(self, config: MkosiConfig, state: MkosiState) -> None:
-        self.invoke_emerge(config, state, actions=["--depclean"])
+    def depclean(self, state: MkosiState) -> None:
+        self.invoke_emerge(state, actions=["--depclean"])
 
-    def _dbg(self, config: MkosiConfig, state: MkosiState) -> None:
+    def _dbg(self, state: MkosiState) -> None:
         """this is for dropping into shell to see what's wrong"""
 
         cmdline = ["/bin/sh"]
         run_workspace_command(
-            config,
             state,
             cmdline,
             network=True,

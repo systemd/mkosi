@@ -592,6 +592,7 @@ class MkosiConfig:
 class MkosiState:
     """State related properties."""
 
+    config: MkosiConfig
     workspace: Path
     cache: Path
     do_run_build_script: bool
@@ -681,7 +682,6 @@ def nspawn_version() -> int:
 
 
 def run_workspace_command(
-    config: MkosiConfig,
     state: MkosiState,
     cmd: Sequence[PathString],
     network: bool = False,
@@ -722,10 +722,10 @@ def run_workspace_command(
         stdout = subprocess.PIPE
         nspawn += ["--console=pipe"]
 
-    if config.usr_only:
-        nspawn += [f"--bind={root_home(config, state)}:/root"]
+    if state.config.usr_only:
+        nspawn += [f"--bind={root_home(state)}:/root"]
 
-    if config.nspawn_keep_unit:
+    if state.config.nspawn_keep_unit:
         nspawn += ["--keep-unit"]
 
     try:
@@ -736,7 +736,7 @@ def run_workspace_command(
         die(f"Workspace command {shell_join(cmd)} returned non-zero exit code {e.returncode}.")
 
 
-def root_home(config: MkosiConfig, state: MkosiState) -> Path:
+def root_home(state: MkosiState) -> Path:
 
     # If UsrOnly= is turned on the /root/ directory (i.e. the root
     # user's home directory) is not persistent (after all everything
@@ -744,7 +744,7 @@ def root_home(config: MkosiConfig, state: MkosiState) -> Path:
     # from an external place, so that we can have persistency. It is
     # after all where we place our build sources and suchlike.
 
-    if config.usr_only:
+    if state.config.usr_only:
         return state.workspace / "home-root"
 
     return state.root / "root"
