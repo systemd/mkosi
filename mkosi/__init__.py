@@ -6025,7 +6025,7 @@ def empty_directory(path: Path) -> None:
         pass
 
 
-def unlink_output(config: MkosiConfig, state: MkosiState) -> None:
+def unlink_output(config: MkosiConfig) -> None:
     if not config.skip_final_phase:
         with complete_step("Removing output files…"):
             unlink_try_hard(config.output)
@@ -6075,13 +6075,16 @@ def unlink_output(config: MkosiConfig, state: MkosiState) -> None:
         remove_package_cache = config.force > 2
 
     if remove_build_cache:
-        if state.cache_pre_dev is not None or state.cache_pre_inst is not None:
-            with complete_step("Removing incremental cache files…"):
-                if state.cache_pre_dev is not None:
-                    unlink_try_hard(state.cache_pre_dev)
+        cache_pre_dev = cache_image_path(config, is_final_image=False)
+        cache_pre_inst = cache_image_path(config, is_final_image=True)
 
-                if state.cache_pre_inst is not None:
-                    unlink_try_hard(state.cache_pre_inst)
+        if cache_pre_dev is not None or cache_pre_inst is not None:
+            with complete_step("Removing incremental cache files…"):
+                if cache_pre_dev is not None:
+                    unlink_try_hard(cache_pre_dev)
+
+                if cache_pre_inst is not None:
+                    unlink_try_hard(cache_pre_inst)
 
         if config.build_dir is not None:
             with complete_step("Clearing out build directory…"):
@@ -6691,34 +6694,21 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
     return MkosiConfig(**vars(args))
 
 
-def init_state(config: MkosiConfig) -> MkosiState:
-    state: Dict[str, Any] = {}
+def cache_image_path(config: MkosiConfig, is_final_image: bool) -> Optional[Path]:
+    suffix = "cache-pre-inst" if is_final_image else "cache-pre-dev"
 
-    if config.incremental or config.verb == Verb.clean:
-        if config.image_id is not None:
-            # If the image ID is specified, use cache file names that are independent of the image versions, so that
-            # rebuilding and bumping versions is cheap and reuses previous versions if cached.
-            if config.output_dir:
-                state['cache_pre_dev'] = config.output_dir / f"{config.image_id}.cache-pre-dev"
-                state['cache_pre_inst'] = config.output_dir / f"{config.image_id}.cache-pre-inst"
-            else:
-                state['cache_pre_dev'] = Path(f"{config.image_id}.cache-pre-dev")
-                state['cache_pre_inst'] = Path(f"{config.image_id}.cache-pre-inst")
-        else:
-            # Otherwise, derive the cache file names directly from the output file names.
-            state['cache_pre_dev'] = Path(f"{config.output}.cache-pre-dev")
-            state['cache_pre_inst'] = Path(f"{config.output}.cache-pre-inst")
+    # If the image ID is specified, use cache file names that are independent of the image versions, so that
+    # rebuilding and bumping versions is cheap and reuses previous versions if cached.
+    if config.image_id is not None and config.output_dir:
+        return config.output_dir / f"{config.image_id}.{suffix}"
+    elif config.image_id:
+        return Path(f"{config.image_id}.{suffix}")
+    # Otherwise, derive the cache file names directly from the output file names.
     else:
-        state['cache_pre_dev'] = None
-        state['cache_pre_inst'] = None
-
-    state['root'] = Path(os.getcwd())
-    state['do_run_build_script'] = False
-
-    return MkosiState(**state)
+        return Path(f"{config.output}.{suffix}")
 
 
-def check_output(config: MkosiConfig, state: MkosiState) -> None:
+def check_output(config: MkosiConfig) -> None:
     if config.skip_final_phase:
         return
 
@@ -6780,7 +6770,7 @@ def line_join_list(array: Sequence[PathString]) -> str:
     return "\n                            ".join(str(item) for item in array)
 
 
-def print_summary(config: MkosiConfig, state: MkosiState) -> None:
+def print_summary(config: MkosiConfig) -> None:
     # FIXME: normal print
     MkosiPrinter.info("COMMANDS:")
     MkosiPrinter.info(f"                      verb: {config.verb}")
@@ -7431,7 +7421,7 @@ def remove_artifacts(
             unlink_try_hard(root_home(config, state.root))
 
 
-def build_stuff(config: MkosiConfig, state: MkosiState) -> Manifest:
+def build_stuff(config: MkosiConfig) -> Manifest:
     make_output_dir(config)
     setup_package_cache(config)
     workspace = setup_workspace(config)
@@ -7446,7 +7436,12 @@ def build_stuff(config: MkosiConfig, state: MkosiState) -> Manifest:
 
         fcntl.flock(dir_fd, fcntl.LOCK_EX)
 
-        state.root = Path(workspace.name, "root")
+        state = MkosiState(
+            cache_pre_dev=cache_image_path(config, is_final_image=False) if config.incremental else None,
+            cache_pre_inst=cache_image_path(config, is_final_image=True) if config.incremental else None,
+            root=Path(workspace.name, "root"),
+            do_run_build_script=False,
+        )
 
         # If caching is requested, then make sure we have cache images around we can make use of
         if need_cache_images(config, state):
@@ -8110,7 +8105,6 @@ def needs_build(config: Union[argparse.Namespace, MkosiConfig]) -> bool:
 
 def run_verb(raw: argparse.Namespace) -> None:
     config: MkosiConfig = load_args(raw)
-    state: MkosiState = init_state(config)
 
     prepend_to_environ_path(config.extra_search_paths)
 
@@ -8124,19 +8118,19 @@ def run_verb(raw: argparse.Namespace) -> None:
         check_root()
 
     if config.verb == Verb.build and not config.force:
-        check_output(config, state)
+        check_output(config)
 
     if needs_build(config) or config.verb == Verb.clean:
         check_root()
-        unlink_output(config, state)
+        unlink_output(config)
 
     if config.verb == Verb.summary:
-        print_summary(config, state)
+        print_summary(config)
 
     if needs_build(config):
         check_native(config)
         init_namespace()
-        manifest = build_stuff(config, state)
+        manifest = build_stuff(config)
 
         if config.auto_bump:
             bump_image_version(config)

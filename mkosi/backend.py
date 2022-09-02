@@ -501,7 +501,7 @@ class MkosiConfig:
     remove_packages: List[str]
     with_docs: bool
     with_tests: bool
-    cache_path: Optional[Path]
+    cache_path: Path
     extra_trees: List[Path]
     skeleton_trees: List[Path]
     clean_package_metadata: Union[bool, str]
