@@ -4408,7 +4408,6 @@ def save_cache(config: MkosiConfig, state: MkosiState, raw: Optional[str], cache
 
         if disk_rw:
             assert raw is not None
-            os.chmod(raw, 0o666 & ~state.original_umask)
             shutil.move(raw, cache_path)
         else:
             unlink_try_hard(cache_path)
@@ -4417,7 +4416,6 @@ def save_cache(config: MkosiConfig, state: MkosiState, raw: Optional[str], cache
 
 def _link_output(
         config: MkosiConfig,
-        state: MkosiState,
         oldpath: PathString,
         newpath: PathString,
         mode: int = 0o666,
@@ -4426,9 +4424,7 @@ def _link_output(
     assert oldpath is not None
     assert newpath is not None
 
-    # Temporary files created by tempfile have mode trimmed to the user.
-    # After we are done writing files, adjust the mode to the default specified by umask.
-    os.chmod(oldpath, mode & ~state.original_umask)
+    os.chmod(oldpath, mode)
 
     os.link(oldpath, newpath)
 
@@ -4470,115 +4466,115 @@ def link_output(config: MkosiConfig, state: MkosiState, artifact: Optional[Binar
             if artifact is None:
                 return
 
-            _link_output(config, state, artifact.name, config.output)
+            _link_output(config, artifact.name, config.output)
 
 
-def link_output_nspawn_settings(config: MkosiConfig, state: MkosiState, path: Optional[SomeIO]) -> None:
+def link_output_nspawn_settings(config: MkosiConfig, path: Optional[SomeIO]) -> None:
     if path:
         assert config.output_nspawn_settings
         with complete_step(
             "Linking nspawn settings file…", f"Linked {path_relative_to_cwd(config.output_nspawn_settings)}"
         ):
-            _link_output(config, state, path.name, config.output_nspawn_settings)
+            _link_output(config, path.name, config.output_nspawn_settings)
 
 
-def link_output_checksum(config: MkosiConfig, state: MkosiState, checksum: Optional[SomeIO]) -> None:
+def link_output_checksum(config: MkosiConfig, checksum: Optional[SomeIO]) -> None:
     if checksum:
         assert config.output_checksum
         with complete_step("Linking SHA256SUMS file…", f"Linked {path_relative_to_cwd(config.output_checksum)}"):
-            _link_output(config, state, checksum.name, config.output_checksum)
+            _link_output(config, checksum.name, config.output_checksum)
 
 
-def link_output_root_hash_file(config: MkosiConfig, state: MkosiState, root_hash_file: Optional[SomeIO]) -> None:
+def link_output_root_hash_file(config: MkosiConfig, root_hash_file: Optional[SomeIO]) -> None:
     if root_hash_file:
         assert config.output_root_hash_file
         suffix = roothash_suffix(config)
         with complete_step(f"Linking {suffix} file…", f"Linked {path_relative_to_cwd(config.output_root_hash_file)}"):
-            _link_output(config, state, root_hash_file.name, config.output_root_hash_file)
+            _link_output(config, root_hash_file.name, config.output_root_hash_file)
 
 
-def link_output_root_hash_p7s_file(config: MkosiConfig, state: MkosiState, root_hash_p7s_file: Optional[SomeIO]) -> None:
+def link_output_root_hash_p7s_file(config: MkosiConfig, root_hash_p7s_file: Optional[SomeIO]) -> None:
     if root_hash_p7s_file:
         assert config.output_root_hash_p7s_file
         suffix = roothash_p7s_suffix(config)
         with complete_step(
             f"Linking {suffix} file…", f"Linked {path_relative_to_cwd(config.output_root_hash_p7s_file)}"
         ):
-            _link_output(config, state, root_hash_p7s_file.name, config.output_root_hash_p7s_file)
+            _link_output(config, root_hash_p7s_file.name, config.output_root_hash_p7s_file)
 
 
-def link_output_signature(config: MkosiConfig, state: MkosiState, signature: Optional[SomeIO]) -> None:
+def link_output_signature(config: MkosiConfig, signature: Optional[SomeIO]) -> None:
     if signature:
         assert config.output_signature is not None
         with complete_step("Linking SHA256SUMS.gpg file…", f"Linked {path_relative_to_cwd(config.output_signature)}"):
-            _link_output(config, state, signature.name, config.output_signature)
+            _link_output(config, signature.name, config.output_signature)
 
 
-def link_output_bmap(config: MkosiConfig, state: MkosiState, bmap: Optional[SomeIO]) -> None:
+def link_output_bmap(config: MkosiConfig, bmap: Optional[SomeIO]) -> None:
     if bmap:
         assert config.output_bmap
         with complete_step("Linking .bmap file…", f"Linked {path_relative_to_cwd(config.output_bmap)}"):
-            _link_output(config, state, bmap.name, config.output_bmap)
+            _link_output(config, bmap.name, config.output_bmap)
 
 
-def link_output_sshkey(config: MkosiConfig, state: MkosiState, sshkey: Optional[SomeIO]) -> None:
+def link_output_sshkey(config: MkosiConfig, sshkey: Optional[SomeIO]) -> None:
     if sshkey:
         assert config.output_sshkey
         with complete_step("Linking private ssh key file…", f"Linked {path_relative_to_cwd(config.output_sshkey)}"):
-            _link_output(config, state, sshkey.name, config.output_sshkey, mode=0o600)
+            _link_output(config, sshkey.name, config.output_sshkey, mode=0o600)
 
 
-def link_output_split_root(config: MkosiConfig, state: MkosiState, split_root: Optional[SomeIO]) -> None:
+def link_output_split_root(config: MkosiConfig, split_root: Optional[SomeIO]) -> None:
     if split_root:
         assert config.output_split_root
         with complete_step(
             "Linking split root file system…", f"Linked {path_relative_to_cwd(config.output_split_root)}"
         ):
-            _link_output(config, state, split_root.name, config.output_split_root)
+            _link_output(config, split_root.name, config.output_split_root)
 
 
-def link_output_split_verity(config: MkosiConfig, state: MkosiState, split_verity: Optional[SomeIO]) -> None:
+def link_output_split_verity(config: MkosiConfig, split_verity: Optional[SomeIO]) -> None:
     if split_verity:
         assert config.output_split_verity
         with complete_step("Linking split Verity data…", f"Linked {path_relative_to_cwd(config.output_split_verity)}"):
-            _link_output(config, state, split_verity.name, config.output_split_verity)
+            _link_output(config, split_verity.name, config.output_split_verity)
 
 
-def link_output_split_verity_sig(config: MkosiConfig, state: MkosiState, split_verity_sig: Optional[SomeIO]) -> None:
+def link_output_split_verity_sig(config: MkosiConfig, split_verity_sig: Optional[SomeIO]) -> None:
     if split_verity_sig:
         assert config.output_split_verity_sig
         with complete_step(
             "Linking split Verity Signature data…", f"Linked {path_relative_to_cwd(config.output_split_verity_sig)}"
         ):
-            _link_output(config, state, split_verity_sig.name, config.output_split_verity_sig)
+            _link_output(config, split_verity_sig.name, config.output_split_verity_sig)
 
 
-def link_output_split_kernel(config: MkosiConfig, state: MkosiState, split_kernel: Optional[SomeIO]) -> None:
+def link_output_split_kernel(config: MkosiConfig, split_kernel: Optional[SomeIO]) -> None:
     if split_kernel:
         assert config.output_split_kernel
         with complete_step("Linking split kernel…", f"Linked {path_relative_to_cwd(config.output_split_kernel)}"):
-            _link_output(config, state, split_kernel.name, config.output_split_kernel)
+            _link_output(config, split_kernel.name, config.output_split_kernel)
 
 
-def link_output_split_kernel_image(config: MkosiConfig, state: MkosiState, split_kernel_image: Optional[SomeIO]) -> None:
+def link_output_split_kernel_image(config: MkosiConfig, split_kernel_image: Optional[SomeIO]) -> None:
     if split_kernel_image:
         output = build_auxiliary_output_path(config, '.vmlinuz')
         with complete_step("Linking split kernel image…", f"Linked {path_relative_to_cwd(output)}"):
-            _link_output(config, state, split_kernel_image.name, output)
+            _link_output(config, split_kernel_image.name, output)
 
 
-def link_output_split_initrd(config: MkosiConfig, state: MkosiState, split_initrd: Optional[SomeIO]) -> None:
+def link_output_split_initrd(config: MkosiConfig, split_initrd: Optional[SomeIO]) -> None:
     if split_initrd:
         output = build_auxiliary_output_path(config, '.initrd')
         with complete_step("Linking split initrd…", f"Linked {path_relative_to_cwd(output)}"):
-            _link_output(config, state, split_initrd.name, output)
+            _link_output(config, split_initrd.name, output)
 
 
-def link_output_split_kernel_cmdline(config: MkosiConfig, state: MkosiState, split_kernel_cmdline: Optional[SomeIO]) -> None:
+def link_output_split_kernel_cmdline(config: MkosiConfig, split_kernel_cmdline: Optional[SomeIO]) -> None:
     if split_kernel_cmdline:
         output = build_auxiliary_output_path(config, '.cmdline')
         with complete_step("Linking split cmdline…", f"Linked {path_relative_to_cwd(output)}"):
-            _link_output(config, state, split_kernel_cmdline.name, output)
+            _link_output(config, split_kernel_cmdline.name, output)
 
 
 def dir_size(path: PathString) -> int:
@@ -4596,7 +4592,7 @@ def dir_size(path: PathString) -> int:
     return dir_sum
 
 
-def save_manifest(config: MkosiConfig, state: MkosiState, manifest: Manifest) -> None:
+def save_manifest(config: MkosiConfig, manifest: Manifest) -> None:
     if manifest.has_data():
         relpath = path_relative_to_cwd(config.output)
 
@@ -4613,7 +4609,7 @@ def save_manifest(config: MkosiConfig, state: MkosiState, manifest: Manifest) ->
                 )
                 with f:
                     manifest.write_json(f)
-                    _link_output(config, state, f.name, f"{config.output}.manifest")
+                    _link_output(config, f.name, f"{config.output}.manifest")
 
         if ManifestFormat.changelog in config.manifest_format:
             with complete_step(f"Saving report {relpath}.changelog"):
@@ -4628,7 +4624,7 @@ def save_manifest(config: MkosiConfig, state: MkosiState, manifest: Manifest) ->
                 )
                 with g:
                     manifest.write_package_report(g)
-                    _link_output(config, state, g.name, f"{relpath}.changelog")
+                    _link_output(config, g.name, f"{relpath}.changelog")
 
 
 def print_output_size(config: MkosiConfig) -> None:
@@ -6714,11 +6710,6 @@ def init_state(config: MkosiConfig) -> MkosiState:
         state['cache_pre_dev'] = None
         state['cache_pre_inst'] = None
 
-    # We set a reasonable umask so that files that are created in the image
-    # will have reasonable permissions. We don't want those permissions to be
-    # influenced by the caller's umask which will be used only for output files.
-    state['original_umask'] = os.umask(0o022)
-
     state['root'] = Path(os.getcwd())
     state['do_run_build_script'] = False
 
@@ -7169,7 +7160,8 @@ def build_image(
         raw = create_image(config, state, for_cache)
 
     with attach_base_image(config.base_image, state.partition_table) as base_image, \
-         attach_image_loopback(raw, state.partition_table) as loopdev:
+         attach_image_loopback(raw, state.partition_table) as loopdev, \
+         set_umask(0o022):
 
         prepare_swap(state, loopdev, cached)
         prepare_esp(state, loopdev, cached)
@@ -7514,21 +7506,21 @@ def build_stuff(config: MkosiConfig, state: MkosiState) -> Manifest:
         signature = calculate_signature(config, state, checksum)
 
         link_output(config, state, raw or image.archive)
-        link_output_root_hash_file(config, state, root_hash_file)
-        link_output_root_hash_p7s_file(config, state, root_hash_p7s_file)
-        link_output_checksum(config, state, checksum)
-        link_output_signature(config, state, signature)
-        link_output_bmap(config, state, bmap)
-        link_output_nspawn_settings(config, state, settings)
+        link_output_root_hash_file(config, root_hash_file)
+        link_output_root_hash_p7s_file(config, root_hash_p7s_file)
+        link_output_checksum(config, checksum)
+        link_output_signature(config, signature)
+        link_output_bmap(config, bmap)
+        link_output_nspawn_settings(config, settings)
         if config.output_sshkey is not None:
-            link_output_sshkey(config, state, image.sshkey)
-        link_output_split_root(config, state, split_root)
-        link_output_split_verity(config, state, split_verity)
-        link_output_split_verity_sig(config, state, split_verity_sig)
-        link_output_split_kernel(config, state, split_kernel)
-        link_output_split_kernel_image(config, state, image.split_kernel_image)
-        link_output_split_initrd(config, state, image.split_initrd)
-        link_output_split_kernel_cmdline(config, state, image.split_kernel_cmdline)
+            link_output_sshkey(config, image.sshkey)
+        link_output_split_root(config, split_root)
+        link_output_split_verity(config, split_verity)
+        link_output_split_verity_sig(config, split_verity_sig)
+        link_output_split_kernel(config, split_kernel)
+        link_output_split_kernel_image(config, image.split_kernel_image)
+        link_output_split_initrd(config, image.split_initrd)
+        link_output_split_kernel_cmdline(config, image.split_kernel_cmdline)
 
         if image.root_hash is not None:
             MkosiPrinter.print_step(f"Root hash is {image.root_hash}.")
@@ -8149,7 +8141,7 @@ def run_verb(raw: argparse.Namespace) -> None:
         if config.auto_bump:
             bump_image_version(config)
 
-        save_manifest(config, state, manifest)
+        save_manifest(config, manifest)
 
         print_output_size(config)
 

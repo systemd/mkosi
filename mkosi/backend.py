@@ -593,8 +593,6 @@ class MkosiConfig:
 class MkosiState:
     """State related properties."""
 
-    original_umask: int
-
     root: Path
     do_run_build_script: bool
 
