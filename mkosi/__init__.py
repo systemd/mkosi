@@ -5170,12 +5170,14 @@ def create_parser() -> ArgumentParserMkosi:
         help="UEFI SecureBoot private key in PEM format",
         type=Path,
         metavar="PATH",
+        default=Path("./mkosi.secure-boot.key"),
     )
     group.add_argument(
         "--secure-boot-certificate",
         help="UEFI SecureBoot certificate in X509 format",
         type=Path,
         metavar="PATH",
+        default=Path("./mkosi.secure-boot.crt"),
     )
     group.add_argument(
         "--secure-boot-valid-days",
@@ -7994,8 +7996,6 @@ def run_serve(config: MkosiConfig) -> None:
 
 def generate_secure_boot_key(config: MkosiConfig) -> NoReturn:
     """Generate secure boot keys using openssl"""
-    config.secure_boot_key = config.secure_boot_key or Path("./mkosi.secure-boot.key")
-    config.secure_boot_certificate = config.secure_boot_certificate or Path("./mkosi.secure-boot.crt")
 
     keylength = 2048
     expiration_date = datetime.date.today() + datetime.timedelta(int(config.secure_boot_valid_days))
