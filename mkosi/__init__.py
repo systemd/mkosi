@@ -2295,7 +2295,7 @@ def centos_variant_mirror_repo_url(config: MkosiConfig, repo: str) -> str:
         die(f"{config.distribution} is not a CentOS variant")
 
 
-def install_centos_variant_repos(config: MkosiConfig, root: Path, epel_release: int) -> None:
+def centos_variant_repos(config: MkosiConfig, epel_release: int) -> List[Repo]:
     # Repos for CentOS Linux 8, CentOS Stream 8 and CentOS variants
 
     directory = centos_variant_mirror_directory(config.distribution)
@@ -2328,10 +2328,10 @@ def install_centos_variant_repos(config: MkosiConfig, root: Path, epel_release: 
     if epel_url is not None and is_epel_variant(config.distribution):
         repos += [Repo("epel", epel_url, epel_gpgpath, epel_gpgurl)]
 
-    setup_dnf(config, root, repos)
+    return repos
 
 
-def install_centos_stream_repos(config: MkosiConfig, root: Path, epel_release: int) -> None:
+def centos_stream_repos(config: MkosiConfig, epel_release: int) -> List[Repo]:
     # Repos for CentOS Stream 9 and later
 
     gpgpath, gpgurl = centos_variant_gpg_locations(config.distribution, epel_release)
@@ -2361,7 +2361,7 @@ def install_centos_stream_repos(config: MkosiConfig, root: Path, epel_release: i
     if epel_url is not None and is_epel_variant(config.distribution):
         repos += [Repo("epel", epel_url, epel_gpgpath, epel_gpgurl)]
 
-    setup_dnf(config, root, repos)
+    return repos
 
 
 def parse_epel_release(release: str) -> int:
@@ -2381,9 +2381,11 @@ def install_centos_variant(config: MkosiConfig, state: MkosiState) -> None:
     if epel_release <= 7:
         die("CentOS 7 or earlier variants are not supported")
     elif epel_release <= 8 or not "-stream" in config.release:
-        install_centos_variant_repos(config, state.root, epel_release)
+        repos = centos_variant_repos(config, epel_release)
     else:
-        install_centos_stream_repos(config, state.root, epel_release)
+        repos = centos_stream_repos(config, epel_release)
+
+    setup_dnf(config, state.root, repos)
 
     if "-stream" in config.release:
         workspace(state.root).joinpath("vars/stream").write_text(config.release)
