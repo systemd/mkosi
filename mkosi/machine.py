@@ -237,7 +237,7 @@ class MkosiMachineTest(unittest.TestCase):
         # Replacing underscores which makes name invalid.
         # Necessary for shell otherwise racing conditions to the disk image will happen.
         test_name = self.id().split(".")[3]
-        self.machine.config.hostname = test_name.replace("_", "-")
+        self.machine.config.__dict__["hostname"] = test_name.replace("_", "-")
 
         try:
             self.machine.boot()

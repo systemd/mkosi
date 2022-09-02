@@ -449,7 +449,7 @@ class PartitionTable:
                         die(msg)
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(frozen=True)
 class MkosiConfig:
     """Type-hinted storage for command line arguments."""
 
