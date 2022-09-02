@@ -583,6 +583,7 @@ class MkosiConfig:
     output_split_verity: Optional[Path] = None
     output_split_verity_sig: Optional[Path] = None
     output_split_kernel: Optional[Path] = None
+    output_signature: Optional[Path] = None
 
     def architecture_is_native(self) -> bool:
         return self.architecture == platform.machine()
@@ -599,7 +600,6 @@ class MkosiState:
 
     cache_pre_inst: Optional[Path] = None
     cache_pre_dev: Optional[Path] = None
-    output_signature: Optional[Path] = None
 
     partition_table: Optional[PartitionTable] = None
 

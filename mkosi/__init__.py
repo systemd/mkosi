@@ -4352,12 +4352,12 @@ def calculate_signature(config: MkosiConfig, state: MkosiState, checksum: Option
     if checksum is None:
         return None
 
-    assert state.output_signature is not None
+    assert config.output_signature is not None
 
     with complete_step("Signing SHA256SUMS…"):
         f: BinaryIO = cast(
             BinaryIO,
-            tempfile.NamedTemporaryFile(mode="wb", prefix=".mkosi-", dir=os.path.dirname(state.output_signature)),
+            tempfile.NamedTemporaryFile(mode="wb", prefix=".mkosi-", dir=os.path.dirname(config.output_signature)),
         )
 
         cmdline = ["gpg", "--detach-sign"]
@@ -4508,9 +4508,9 @@ def link_output_root_hash_p7s_file(config: MkosiConfig, state: MkosiState, root_
 
 def link_output_signature(config: MkosiConfig, state: MkosiState, signature: Optional[SomeIO]) -> None:
     if signature:
-        assert state.output_signature is not None
-        with complete_step("Linking SHA256SUMS.gpg file…", f"Linked {path_relative_to_cwd(state.output_signature)}"):
-            _link_output(config, state, signature.name, state.output_signature)
+        assert config.output_signature is not None
+        with complete_step("Linking SHA256SUMS.gpg file…", f"Linked {path_relative_to_cwd(config.output_signature)}"):
+            _link_output(config, state, signature.name, config.output_signature)
 
 
 def link_output_bmap(config: MkosiConfig, state: MkosiState, bmap: Optional[SomeIO]) -> None:
@@ -6040,7 +6040,7 @@ def unlink_output(config: MkosiConfig, state: MkosiState) -> None:
                 unlink_try_hard(config.output_root_hash_p7s_file)
 
             if config.sign:
-                unlink_try_hard(state.output_signature)
+                unlink_try_hard(config.output_signature)
 
             if config.bmap:
                 unlink_try_hard(config.output_bmap)
@@ -6729,7 +6729,7 @@ def check_output(config: MkosiConfig, state: MkosiState) -> None:
     for f in (
         config.output,
         config.output_checksum if config.checksum else None,
-        state.output_signature if config.sign else None,
+        config.output_signature if config.sign else None,
         config.output_bmap if config.bmap else None,
         config.output_nspawn_settings if config.nspawn_settings is not None else None,
         config.output_root_hash_file if config.verity else None,
@@ -6819,7 +6819,7 @@ def print_summary(config: MkosiConfig, state: MkosiState) -> None:
         MkosiPrinter.info(f"       Workspace Directory: {config.workspace_dir}")
     MkosiPrinter.info(f"                    Output: {config.output}")
     MkosiPrinter.info(f"           Output Checksum: {none_to_na(config.output_checksum if config.checksum else None)}")
-    MkosiPrinter.info(f"          Output Signature: {none_to_na(state.output_signature if config.sign else None)}")
+    MkosiPrinter.info(f"          Output Signature: {none_to_na(config.output_signature if config.sign else None)}")
     MkosiPrinter.info(f"               Output Bmap: {none_to_na(config.output_bmap if config.bmap else None)}")
     MkosiPrinter.info(f"  Generate split artifacts: {yes_no(config.split_artifacts)}")
     MkosiPrinter.info(
