@@ -249,21 +249,20 @@ class Gentoo:
             "USE": " ".join(self.portage_use_flags),
         }
 
-        self.sync_portage_tree(config, state.root)
+        self.sync_portage_tree(config, state)
         self.set_profile(config)
         self.set_default_repo()
         self.unmask_arch()
         self.provide_patches()
         self.set_useflags()
         self.mkosi_conf()
-        self.baselayout(config, state.root)
+        self.baselayout(config, state)
         self.fetch_fix_stage3(config, state.root)
-        self.update_stage3(config, state.root)
-        self.depclean(config, state.root)
+        self.update_stage3(config, state)
+        self.depclean(config, state)
 
-    def sync_portage_tree(self, config: MkosiConfig,
-                          root: Path) -> None:
-        self.invoke_emerge(config, root, inside_stage3=False, actions=["--sync"])
+    def sync_portage_tree(self, config: MkosiConfig, state: MkosiState) -> None:
+        self.invoke_emerge(config, state, inside_stage3=False, actions=["--sync"])
 
     def fetch_fix_stage3(self, config: MkosiConfig, root: Path) -> None:
         """usrmerge tracker bug: https://bugs.gentoo.org/690294"""
@@ -473,7 +472,7 @@ class Gentoo:
     def invoke_emerge(
         self,
         config: MkosiConfig,
-        root: Path,
+        state: MkosiState,
         inside_stage3: bool = True,
         pkgs: Sequence[str] = (),
         actions: Sequence[str] = (),
@@ -485,9 +484,9 @@ class Gentoo:
             PREFIX_OPTS: List[str] = []
             if "--sync" not in actions:
                 PREFIX_OPTS = [
-                    f"--config-root={root.resolve()}",
-                    f"--root={root.resolve()}",
-                    f"--sysroot={root.resolve()}",
+                    f"--config-root={state.root.resolve()}",
+                    f"--root={state.root.resolve()}",
+                    f"--sysroot={state.root.resolve()}",
                 ]
 
             MkosiPrinter.print_step(f"Invoking emerge(1) pkgs={pkgs} "
@@ -495,56 +494,56 @@ class Gentoo:
             emerge_main([*pkgs, *opts, *actions] + PREFIX_OPTS + self.emerge_default_opts)
         else:
             if config.usr_only:
-                root_home(config, root).mkdir(mode=0o750, exist_ok=True)
+                root_home(config, state).mkdir(mode=0o750, exist_ok=True)
 
             cmd = ["/usr/bin/emerge", *pkgs, *self.emerge_default_opts, *opts, *actions]
 
             MkosiPrinter.print_step("Invoking emerge(1) inside stage3")
             run_workspace_command(
                 config,
-                root,
+                state,
                 cmd,
                 network=True,
                 env=self.emerge_vars,
                 nspawn_params=self.DEFAULT_NSPAWN_PARAMS,
             )
 
-    def baselayout(self, config: MkosiConfig, root: Path) -> None:
+    def baselayout(self, config: MkosiConfig, state: MkosiState) -> None:
         # TOTHINK: sticky bizness when when image profile != host profile
         # REMOVE: once upstream has moved this to stable releases of baselaouy
         # https://gitweb.gentoo.org/proj/baselayout.git/commit/?id=57c250e24c70f8f9581860654cdec0d049345292
-        self.invoke_emerge(config, root, inside_stage3=False,
+        self.invoke_emerge(config, state, inside_stage3=False,
                            opts=["--nodeps"],
                            pkgs=["=sys-apps/baselayout-9999"])
 
-    def update_stage3(self, config: MkosiConfig, root: Path) -> None:
+    def update_stage3(self, config: MkosiConfig, state: MkosiState) -> None:
         # exclude baselayout, it expects /sys/.keep but nspawn mounts host's
         # /sys for us without the .keep file.
         opts = self.EMERGE_UPDATE_OPTS + ["--exclude",
                                           "sys-apps/baselayout"]
-        self.invoke_emerge(config, root, pkgs=self.pkgs_sys, opts=opts)
+        self.invoke_emerge(config, state, pkgs=self.pkgs_sys, opts=opts)
 
         # FIXME?: without this we get the following
         # Synchronizing state of sshd.service with SysV service script with /lib/systemd/systemd-sysv-install.
         # Executing: /lib/systemd/systemd-sysv-install --root=/var/tmp/mkosi-2b6snh_u/root enable sshd
         # chroot: failed to run command ‘/usr/sbin/update-rc.d’: No such file or directory
-        root.joinpath("etc/init.d/sshd").unlink()
+        state.root.joinpath("etc/init.d/sshd").unlink()
 
         # "build" USE flag can go now, next time users do an update they will
         # safely merge baselayout without that flag and it should be fine at
         # that point.
         self.baselayout_use.unlink()
 
-    def depclean(self, config: MkosiConfig, root: Path) -> None:
-        self.invoke_emerge(config, root, actions=["--depclean"])
+    def depclean(self, config: MkosiConfig, state: MkosiState) -> None:
+        self.invoke_emerge(config, state, actions=["--depclean"])
 
-    def _dbg(self, config: MkosiConfig, root: Path) -> None:
+    def _dbg(self, config: MkosiConfig, state: MkosiState) -> None:
         """this is for dropping into shell to see what's wrong"""
 
         cmdline = ["/bin/sh"]
         run_workspace_command(
             config,
-            root,
+            state,
             cmdline,
             network=True,
             nspawn_params=self.DEFAULT_NSPAWN_PARAMS,
