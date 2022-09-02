@@ -691,7 +691,6 @@ def run_workspace_command(
         nspawn_executable(),
         "--quiet",
         f"--directory={root}",
-        "--uuid=" + config.machine_id,
         "--machine=mkosi-" + uuid.uuid4().hex,
         "--as-pid2",
         "--link-journal=no",

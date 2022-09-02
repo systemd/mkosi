@@ -7300,7 +7300,6 @@ def run_build_script(config: MkosiConfig, root: Path, raw: Optional[BinaryIO]) -
             nspawn_executable(),
             "--quiet",
             target,
-            f"--uuid={config.machine_id}",
             f"--machine=mkosi-{uuid.uuid4().hex}",
             "--as-pid2",
             "--link-journal=no",
