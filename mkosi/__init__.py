@@ -1680,7 +1680,7 @@ def prepare_tree_root(config: MkosiConfig, root: Path) -> None:
 def prepare_tree(config: MkosiConfig, state: MkosiState, cached: bool) -> None:
     if cached:
         # Reuse machine-id from cached image.
-        config.machine_id = uuid.UUID(state.root.joinpath("etc/machine-id").read_text().strip()).hex
+        state.machine_id = uuid.UUID(state.root.joinpath("etc/machine-id").read_text().strip()).hex
         # Always update kernel command line.
         if not state.do_run_build_script and config.bootable:
             state.root.joinpath("etc/kernel/cmdline").write_text(" ".join(config.kernel_command_line) + "\n")
@@ -1697,7 +1697,7 @@ def prepare_tree(config: MkosiConfig, state: MkosiState, cached: bool) -> None:
 
         # We need an initialized machine ID for the build & boot logic to work
         state.root.joinpath("etc").mkdir(mode=0o755, exist_ok=True)
-        state.root.joinpath("etc/machine-id").write_text(f"{config.machine_id}\n")
+        state.root.joinpath("etc/machine-id").write_text(f"{state.machine_id}\n")
 
         if not state.do_run_build_script and config.bootable:
             if state.get_partition(PartitionIdentifier.xbootldr):
@@ -1706,7 +1706,7 @@ def prepare_tree(config: MkosiConfig, state: MkosiState, cached: bool) -> None:
                 state.root.joinpath("boot/EFI/Linux").mkdir(mode=0o700)
                 state.root.joinpath("boot/loader").mkdir(mode=0o700)
                 state.root.joinpath("boot/loader/entries").mkdir(mode=0o700)
-                state.root.joinpath("boot", config.machine_id).mkdir(mode=0o700)
+                state.root.joinpath("boot", state.machine_id).mkdir(mode=0o700)
             else:
                 # If this is not enabled, let's create an empty directory on /boot
                 state.root.joinpath("boot").mkdir(mode=0o700)
@@ -1721,17 +1721,17 @@ def prepare_tree(config: MkosiConfig, state: MkosiState, cached: bool) -> None:
                     # Create directories for kernels and entries, unless the XBOOTLDR partition is turned on
                     state.root.joinpath("efi/EFI/Linux").mkdir(mode=0o700)
                     state.root.joinpath("efi/loader/entries").mkdir(mode=0o700)
-                    state.root.joinpath("efi", config.machine_id).mkdir(mode=0o700)
+                    state.root.joinpath("efi", state.machine_id).mkdir(mode=0o700)
 
                     # Create some compatibility symlinks in /boot in case that is not set up otherwise
                     state.root.joinpath("boot/efi").symlink_to("../efi")
                     state.root.joinpath("boot/loader").symlink_to("../efi/loader")
-                    state.root.joinpath("boot", config.machine_id).symlink_to(f"../efi/{config.machine_id}")
+                    state.root.joinpath("boot", state.machine_id).symlink_to(f"../efi/{state.machine_id}")
 
             state.root.joinpath("etc/kernel").mkdir(mode=0o755)
 
             state.root.joinpath("etc/kernel/cmdline").write_text(" ".join(config.kernel_command_line) + "\n")
-            state.root.joinpath("etc/kernel/entry-token").write_text(f"{config.machine_id}\n")
+            state.root.joinpath("etc/kernel/entry-token").write_text(f"{state.machine_id}\n")
             state.root.joinpath("etc/kernel/install.conf").write_text("layout=bls\n")
 
         if state.do_run_build_script or config.ssh or config.usr_only:
@@ -3014,7 +3014,7 @@ def reset_machine_id(config: MkosiConfig, state: MkosiState, for_cache: bool) ->
         return
 
     with complete_step("Resetting machine ID"):
-        if not config.machine_id_is_fixed:
+        if not config.machine_id:
             machine_id = state.root / "etc/machine-id"
             try:
                 machine_id.unlink()
@@ -4017,7 +4017,7 @@ def install_unified_kernel(
             osrelease = state.root / "usr/lib/os-release"
             cmdline = workspace(state.root) / "cmdline"
             cmdline.write_text(boot_options)
-            initrd = state.root / boot_directory(config, state, kver) / "initrd"
+            initrd = state.root / boot_directory(state, kver) / "initrd"
 
             cmd: Sequence[PathString] = [
                 "objcopy",
@@ -4128,7 +4128,7 @@ def extract_kernel_image_initrd(
 
         for kver, kimg in gen_kernel_images(config, state.root):
             kimgabs = state.root / kimg
-            initrd = state.root / boot_directory(config, state, kver) / "initrd"
+            initrd = state.root / boot_directory(state, kver) / "initrd"
 
         if kimgabs is None:
             die("No kernel image found, can't extract.")
@@ -6656,15 +6656,7 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
     if args.netdev and is_centos_variant(args.distribution) and not is_epel_variant(args.distribution):
         die("--netdev is only supported on EPEL centOS variants")
 
-    # Let's define a fixed machine ID for all our build-time
-    # runs. We'll strip it off the final image, but some build-time
-    # tools (dracut...) want a fixed one, hence provide one, and
-    # always the same
-    if args.machine_id is None:
-        args.machine_id = uuid.uuid4().hex
-        args.machine_id_is_fixed = False
-    else:
-        args.machine_id_is_fixed = True
+    if args.machine_id is not None:
         try:
             uuid.UUID(hex=args.machine_id)
         except ValueError:
@@ -6851,7 +6843,7 @@ def print_summary(config: MkosiConfig) -> None:
         MkosiPrinter.info(f"SecureBoot/Verity Sign Key: {config.secure_boot_key}")
         MkosiPrinter.info(f"   SecureBoot/verity Cert.: {config.secure_boot_certificate}")
 
-    MkosiPrinter.info("                Machine ID: " + config.machine_id)
+    MkosiPrinter.info("                Machine ID: " + none_to_no(config.machine_id))
 
     MkosiPrinter.info("\nCONTENT:")
     MkosiPrinter.info("                  Packages: " + line_join_list(config.packages))
@@ -7071,9 +7063,9 @@ def setup_netdev(config: MkosiConfig, state: MkosiState, cached: bool) -> None:
         run(["systemctl", "--root", state.root, "enable", "systemd-networkd"])
 
 
-def boot_directory(config: MkosiConfig, state: MkosiState, kver: str) -> Path:
+def boot_directory(state: MkosiState, kver: str) -> Path:
     prefix = "boot" if state.get_partition(PartitionIdentifier.xbootldr) or not state.get_partition(PartitionIdentifier.esp) else "efi"
-    return Path(prefix) / config.machine_id / kver
+    return Path(prefix) / state.machine_id / kver
 
 
 def run_kernel_install(config: MkosiConfig, state: MkosiState, for_cache: bool, cached: bool) -> None:
@@ -7432,6 +7424,7 @@ def build_stuff(config: MkosiConfig) -> Manifest:
             root=Path(workspace.name, "root"),
             cache=cache,
             do_run_build_script=False,
+            machine_id=config.machine_id or uuid.uuid4().hex,
         )
 
         # If caching is requested, then make sure we have cache images around we can make use of

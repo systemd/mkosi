@@ -557,7 +557,7 @@ class MkosiConfig:
     debug: List[str]
     auto_bump: bool
     workspace_dir: Optional[Path]
-    machine_id: str
+    machine_id: Optional[str]
 
     # QEMU-specific options
     qemu_headless: bool
@@ -570,7 +570,6 @@ class MkosiConfig:
     # systemd-nspawn specific options
     nspawn_keep_unit: bool
 
-    machine_id_is_fixed: bool
     passphrase: Optional[Dict[str, str]]
 
     output_checksum: Optional[Path] = None
@@ -596,6 +595,7 @@ class MkosiState:
     root: Path
     cache: Path
     do_run_build_script: bool
+    machine_id: str
 
     cache_pre_inst: Optional[Path] = None
     cache_pre_dev: Optional[Path] = None
