@@ -23,6 +23,7 @@ import http.server
 import importlib.resources
 import itertools
 import json
+import math
 import os
 import platform
 import re
@@ -5929,9 +5930,10 @@ def parse_args_file_group(
     return create_parser().parse_args(config_files + argv)
 
 
-def parse_bytes(num_bytes: Optional[str]) -> Optional[int]:
+def parse_bytes(num_bytes: Optional[str], *, sector_size: int = 512) -> Optional[int]:
+    """Convert a string for a number of bytes into a number rounding up to sector size."""
     if num_bytes is None:
-        return num_bytes
+        return None
 
     if num_bytes.endswith("G"):
         factor = 1024 ** 3
@@ -5945,12 +5947,13 @@ def parse_bytes(num_bytes: Optional[str]) -> Optional[int]:
     if factor > 1:
         num_bytes = num_bytes[:-1]
 
-    result = int(num_bytes) * factor
+    result = math.ceil(float(num_bytes) * factor)
     if result <= 0:
         raise ValueError("Size out of range")
 
-    if result % 512 != 0:
-        raise ValueError("Size not a multiple of 512")
+    rem = result % sector_size
+    if rem != 0:
+        result += sector_size - rem
 
     return result
 
