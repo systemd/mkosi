@@ -7062,7 +7062,6 @@ def build_image(
     state: MkosiState,
     *,
     manifest: Optional[Manifest] = None,
-    cleanup: bool = False,
 ) -> BuildOutput:
     # If there's no build script set, there's no point in executing
     # the build script iteration. Let's quit early.
@@ -7135,6 +7134,8 @@ def build_image(
                 # Sign systemd-boot / sd-boot EFI binaries
                 secure_boot_sign(state, state.root / 'usr/lib/systemd/boot/efi', cached,
                                  mount=contextlib.nullcontext)
+
+                cleanup = not state.for_cache and not state.do_run_build_script
 
                 if cleanup:
                     remove_packages(state)
@@ -7407,7 +7408,7 @@ def build_stuff(config: MkosiConfig) -> Manifest:
         if not config.skip_final_phase:
             with complete_step("Running second (final) stage…"):
                 state = dataclasses.replace(state, do_run_build_script=False, for_cache=False)
-                image = build_image(state, manifest=manifest, cleanup=True)
+                image = build_image(state, manifest=manifest)
         else:
             MkosiPrinter.print_step("Skipping (second) final image build phase.")
 
