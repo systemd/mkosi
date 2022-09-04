@@ -597,6 +597,7 @@ class MkosiState:
     cache: Path
     do_run_build_script: bool
     machine_id: str
+    for_cache: bool
 
     cache_pre_inst: Optional[Path] = None
     cache_pre_dev: Optional[Path] = None
