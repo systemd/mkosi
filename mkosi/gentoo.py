@@ -160,7 +160,6 @@ class Gentoo:
 
     def __init__(
         self,
-        config: MkosiConfig,
         state: MkosiState,
     ) -> None:
 
@@ -206,7 +205,7 @@ class Gentoo:
         else:
             self.emerge_default_opts += ["--quiet-build", "--quiet"]
 
-        self.arch, _ = ARCHITECTURES[config.architecture or "x86_64"]
+        self.arch, _ = ARCHITECTURES[state.config.architecture or "x86_64"]
 
         #######################################################################
         # GENTOO_UPSTREAM : we only support systemd profiles! and only the
@@ -218,22 +217,22 @@ class Gentoo:
         # stage3_fetch() will be needing this if we want to allow users to pick
         # profile
         #######################################################################
-        self.arch_profile = Path(f"profiles/default/linux/{self.arch}/{config.release}/systemd")
+        self.arch_profile = Path(f"profiles/default/linux/{self.arch}/{state.config.release}/systemd")
 
         self.pkgs_sys = ["@world"]
 
         self.pkgs_fs = ["sys-fs/dosfstools"]
-        if config.output_format in (OutputFormat.subvolume, OutputFormat.gpt_btrfs):
+        if state.config.output_format in (OutputFormat.subvolume, OutputFormat.gpt_btrfs):
             self.pkgs_fs += ["sys-fs/btrfs-progs"]
-        elif config.output_format == OutputFormat.gpt_xfs:
+        elif state.config.output_format == OutputFormat.gpt_xfs:
             self.pkgs_fs += ["sys-fs/xfsprogs"]
-        elif config.output_format == OutputFormat.gpt_squashfs:
+        elif state.config.output_format == OutputFormat.gpt_squashfs:
             self.pkgs_fs += ["sys-fs/squashfs-tools"]
 
-        if config.encrypt:
+        if state.config.encrypt:
             self.pkgs_fs += ["cryptsetup", "device-mapper"]
 
-        if not state.do_run_build_script and config.bootable:
+        if not state.do_run_build_script and state.config.bootable:
             if state.get_partition(PartitionIdentifier.esp):
                 self.pkgs_boot = ["sys-kernel/installkernel-systemd-boot"]
             else:
@@ -250,7 +249,7 @@ class Gentoo:
         }
 
         self.sync_portage_tree(state)
-        self.set_profile(config)
+        self.set_profile(state.config)
         self.set_default_repo()
         self.unmask_arch()
         self.provide_patches()

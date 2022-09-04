@@ -1576,11 +1576,11 @@ def install_etc_locale(root: Path, cached: bool) -> None:
     etc_locale.write_text("LANG=C.UTF-8\n")
 
 
-def install_etc_hostname(config: MkosiConfig, root: Path, cached: bool) -> None:
+def install_etc_hostname(state: MkosiState, cached: bool) -> None:
     if cached:
         return
 
-    etc_hostname = root / "etc/hostname"
+    etc_hostname = state.root / "etc/hostname"
 
     # Always unlink first, so that we don't get in trouble due to a
     # symlink or suchlike. Also if no hostname is configured we really
@@ -1591,9 +1591,9 @@ def install_etc_hostname(config: MkosiConfig, root: Path, cached: bool) -> None:
     except FileNotFoundError:
         pass
 
-    if config.hostname:
+    if state.config.hostname:
         with complete_step("Assigning hostname"):
-            etc_hostname.write_text(config.hostname + "\n")
+            etc_hostname.write_text(state.config.hostname + "\n")
 
 
 @contextlib.contextmanager
@@ -1665,10 +1665,10 @@ def configure_dracut(state: MkosiState, cached: bool) -> None:
         )
 
 
-def prepare_tree_root(config: MkosiConfig, root: Path) -> None:
-    if config.output_format == OutputFormat.subvolume and not is_generated_root(config):
+def prepare_tree_root(state: MkosiState) -> None:
+    if state.config.output_format == OutputFormat.subvolume and not is_generated_root(state.config):
         with complete_step("Setting up OS tree root…"):
-            btrfs_subvol_create(root)
+            btrfs_subvol_create(state.root)
 
 
 def prepare_tree(state: MkosiState, cached: bool) -> None:
@@ -1900,38 +1900,38 @@ def clean_dpkg_metadata(root: Path, always: bool) -> None:
     clean_paths(root, paths, tool='/usr/bin/dpkg', always=always)
 
 
-def clean_package_manager_metadata(config: MkosiConfig, root: Path) -> None:
+def clean_package_manager_metadata(state: MkosiState) -> None:
     """Remove package manager metadata
 
     Try them all regardless of the distro: metadata is only removed if the
     package manager is present in the image.
     """
 
-    assert config.clean_package_metadata in (False, True, 'auto')
-    if config.clean_package_metadata is False:
+    assert state.config.clean_package_metadata in (False, True, 'auto')
+    if state.config.clean_package_metadata is False:
         return
 
     # we try then all: metadata will only be touched if any of them are in the
     # final image
-    always = config.clean_package_metadata is True
-    clean_dnf_metadata(root, always=always)
-    clean_yum_metadata(root, always=always)
-    clean_rpm_metadata(root, always=always)
-    clean_apt_metadata(root, always=always)
-    clean_dpkg_metadata(root, always=always)
+    always = state.config.clean_package_metadata is True
+    clean_dnf_metadata(state.root, always=always)
+    clean_yum_metadata(state.root, always=always)
+    clean_rpm_metadata(state.root, always=always)
+    clean_apt_metadata(state.root, always=always)
+    clean_dpkg_metadata(state.root, always=always)
     # FIXME: implement cleanup for other package managers: swupd, pacman
 
 
-def remove_files(config: MkosiConfig, root: Path) -> None:
+def remove_files(state: MkosiState) -> None:
     """Remove files based on user-specified patterns"""
 
-    if not config.remove_files:
+    if not state.config.remove_files:
         return
 
     with complete_step("Removing files…"):
         # Note: Path('/foo') / '/bar' == '/bar'. We need to strip the slash.
         # https://bugs.python.org/issue44452
-        paths = [root / str(p).lstrip("/") for p in config.remove_files]
+        paths = [state.root / str(p).lstrip("/") for p in state.config.remove_files]
         remove_glob(*paths)
 
 
@@ -2455,22 +2455,22 @@ def invoke_apt(
         return run(cmdline, env=env, text=True, **kwargs)
 
 
-def add_apt_auxiliary_repos(config: MkosiConfig, root: Path, repos: Set[str]) -> None:
-    if config.release in ("unstable", "sid"):
+def add_apt_auxiliary_repos(state: MkosiState, repos: Set[str]) -> None:
+    if state.config.release in ("unstable", "sid"):
         return
 
-    updates = f"deb {config.mirror} {config.release}-updates {' '.join(repos)}"
-    root.joinpath(f"etc/apt/sources.list.d/{config.release}-updates.list").write_text(f"{updates}\n")
+    updates = f"deb {state.config.mirror} {state.config.release}-updates {' '.join(repos)}"
+    state.root.joinpath(f"etc/apt/sources.list.d/{state.config.release}-updates.list").write_text(f"{updates}\n")
 
     # Security updates repos are never mirrored
-    if config.distribution == Distribution.ubuntu:
-        security = f"deb http://security.ubuntu.com/ubuntu/ {config.release}-security {' '.join(repos)}"
-    elif config.release in ("stretch", "buster"):
-        security = f"deb http://security.debian.org/debian-security/ {config.release}/updates main"
+    if state.config.distribution == Distribution.ubuntu:
+        security = f"deb http://security.ubuntu.com/ubuntu/ {state.config.release}-security {' '.join(repos)}"
+    elif state.config.release in ("stretch", "buster"):
+        security = f"deb http://security.debian.org/debian-security/ {state.config.release}/updates main"
     else:
-        security = f"deb https://security.debian.org/debian-security {config.release}-security main"
+        security = f"deb https://security.debian.org/debian-security {state.config.release}-security main"
 
-    root.joinpath(f"etc/apt/sources.list.d/{config.release}-security.list").write_text(f"{security}\n")
+    state.root.joinpath(f"etc/apt/sources.list.d/{state.config.release}-security.list").write_text(f"{security}\n")
 
 
 def add_apt_package_if_exists(state: MkosiState, extra_packages: Set[str], package: str) -> None:
@@ -2581,12 +2581,12 @@ def install_debian_or_ubuntu(state: MkosiState) -> None:
                 f.write(f"BUILD_ID=mkosi-{state.config.release}\n")
 
     if not state.config.local_mirror:
-        add_apt_auxiliary_repos(state.config, state.root, repos)
+        add_apt_auxiliary_repos(state, repos)
     else:
         # Add a single local offline repository, and then remove it after apt has ran
         state.root.joinpath("etc/apt/sources.list.d/mirror.list").write_text(f"deb [trusted=yes] {state.config.local_mirror} {state.config.release} main\n")
 
-    install_skeleton_trees(state.config, state.root, False, late=True)
+    install_skeleton_trees(state, False, late=True)
 
     invoke_apt(state, "get", "update", ["--assume-yes"])
 
@@ -2603,7 +2603,7 @@ def install_debian_or_ubuntu(state: MkosiState) -> None:
         main_repo = f"deb {state.config.mirror} {state.config.release} {' '.join(repos)}\n"
         state.root.joinpath("etc/apt/sources.list").write_text(main_repo)
         state.root.joinpath("etc/apt/sources.list.d/mirror.list").unlink()
-        add_apt_auxiliary_repos(state.config, state.root, repos)
+        add_apt_auxiliary_repos(state, repos)
 
     policyrcd.unlink()
     dpkg_io_conf.unlink()
@@ -2917,7 +2917,7 @@ def install_gentoo(state: MkosiState) -> None:
     from .gentoo import Gentoo
 
     # this will fetch/fix stage3 tree and portage confgired for mkosi
-    gentoo = Gentoo(state.config, state)
+    gentoo = Gentoo(state)
 
     if gentoo.pkgs_fs:
         gentoo.invoke_emerge(state, pkgs=gentoo.pkgs_fs)
@@ -3230,41 +3230,41 @@ def install_boot_loader(
             run_workspace_command(state, ["bootctl", "install"])
 
 
-def install_extra_trees(config: MkosiConfig, root: Path, for_cache: bool) -> None:
-    if not config.extra_trees:
+def install_extra_trees(state: MkosiState, for_cache: bool) -> None:
+    if not state.config.extra_trees:
         return
 
     if for_cache:
         return
 
     with complete_step("Copying in extra file trees…"):
-        for tree in config.extra_trees:
+        for tree in state.config.extra_trees:
             if tree.is_dir():
-                copy_path(tree, root, copystat=False)
+                copy_path(tree, state.root, copystat=False)
             else:
                 # unpack_archive() groks Paths, but mypy doesn't know this.
                 # Pretend that tree is a str.
-                shutil.unpack_archive(cast(str, tree), root)
+                shutil.unpack_archive(cast(str, tree), state.root)
 
 
-def install_skeleton_trees(config: MkosiConfig, root: Path, cached: bool, *, late: bool=False) -> None:
-    if not config.skeleton_trees:
+def install_skeleton_trees(state: MkosiState, cached: bool, *, late: bool=False) -> None:
+    if not state.config.skeleton_trees:
         return
 
     if cached:
         return
 
-    if not late and config.distribution in (Distribution.debian, Distribution.ubuntu):
+    if not late and state.config.distribution in (Distribution.debian, Distribution.ubuntu):
         return
 
     with complete_step("Copying in skeleton file trees…"):
-        for tree in config.skeleton_trees:
+        for tree in state.config.skeleton_trees:
             if tree.is_dir():
-                copy_path(tree, root, copystat=False)
+                copy_path(tree, state.root, copystat=False)
             else:
                 # unpack_archive() groks Paths, but mypy doesn't know this.
                 # Pretend that tree is a str.
-                shutil.unpack_archive(cast(str, tree), root)
+                shutil.unpack_archive(cast(str, tree), state.root)
 
 
 def copy_git_files(src: Path, dest: Path, *, source_file_transfer: SourceFileTransfer) -> None:
@@ -3892,19 +3892,19 @@ def extract_partition(
     return f
 
 
-def gen_kernel_images(config: MkosiConfig, root: Path) -> Iterator[Tuple[str, Path]]:
+def gen_kernel_images(state: MkosiState) -> Iterator[Tuple[str, Path]]:
     # Apparently openmandriva hasn't yet completed its usrmerge so we use lib here instead of usr/lib.
-    for kver in root.joinpath("lib/modules").iterdir():
+    for kver in state.root.joinpath("lib/modules").iterdir():
         if not kver.is_dir():
             continue
 
-        if config.distribution == Distribution.gentoo:
+        if state.config.distribution == Distribution.gentoo:
             from .gentoo import ARCHITECTURES
 
-            _, kimg_path = ARCHITECTURES[config.architecture]
+            _, kimg_path = ARCHITECTURES[state.config.architecture]
 
             kimg = Path(f"usr/src/linux-{kver.name}") / kimg_path
-        elif config.distribution in (Distribution.debian, Distribution.ubuntu):
+        elif state.config.distribution in (Distribution.debian, Distribution.ubuntu):
             kimg = Path(f"boot/vmlinuz-{kver.name}")
         else:
             kimg = Path("lib/modules") / kver.name / "vmlinuz"
@@ -3953,7 +3953,7 @@ def install_unified_kernel(
     prefix = "boot" if state.get_partition(PartitionIdentifier.xbootldr) else "efi"
 
     with mount(), complete_step("Generating combined kernel + initrd boot file…"):
-        for kver, kimg in gen_kernel_images(state.config, state.root):
+        for kver, kimg in gen_kernel_images(state):
             if state.config.image_id:
                 image_id = state.config.image_id
                 if state.config.image_version:
@@ -4099,7 +4099,7 @@ def extract_kernel_image_initrd(
         kimgabs = None
         initrd = None
 
-        for kver, kimg in gen_kernel_images(state.config, state.root):
+        for kver, kimg in gen_kernel_images(state):
             kimgabs = state.root / kimg
             initrd = state.root / boot_directory(state, kver) / "initrd"
 
@@ -7049,7 +7049,7 @@ def run_kernel_install(state: MkosiState, for_cache: bool, cached: bool) -> None
         return
 
     with complete_step("Generating initramfs images…"):
-        for kver, kimg in gen_kernel_images(state.config, state.root):
+        for kver, kimg in gen_kernel_images(state):
             run_workspace_command(state, ["kernel-install", "add", kver, Path("/") / kimg])
 
 
@@ -7130,20 +7130,20 @@ def build_image(
 
             # Mount everything together, but let's not mount the root
             # dir if we still have to generate the root image here
-            prepare_tree_root(state.config, state.root)
+            prepare_tree_root(state)
 
             with mount_image(state, cached, base_image, loopdev, encrypted.without_generated_root(state.config)):
 
                 prepare_tree(state, cached)
                 cached_tree = reuse_cache_tree(state, for_cache, cached)
-                install_skeleton_trees(state.config, state.root, cached_tree)
+                install_skeleton_trees(state, cached_tree)
                 install_distribution(state, cached_tree)
                 install_etc_locale(state.root, cached_tree)
-                install_etc_hostname(state.config, state.root, cached_tree)
+                install_etc_hostname(state, cached_tree)
                 run_prepare_script(state, cached_tree)
                 install_build_src(state, for_cache)
                 install_build_dest(state, for_cache)
-                install_extra_trees(state.config, state.root, for_cache)
+                install_extra_trees(state, for_cache)
                 configure_dracut(state, cached_tree)
                 run_kernel_install(state, for_cache, cached_tree)
                 install_boot_loader(state, loopdev, cached_tree)
@@ -7165,8 +7165,8 @@ def build_image(
                         manifest.record_packages(state.root)
 
                 if cleanup:
-                    clean_package_manager_metadata(state.config, state.root)
-                    remove_files(state.config, state.root)
+                    clean_package_manager_metadata(state)
+                    remove_files(state)
                 reset_machine_id(state, for_cache)
                 reset_random_seed(state.root)
                 run_finalize_script(state, for_cache)
