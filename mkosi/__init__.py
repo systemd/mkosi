@@ -776,19 +776,19 @@ def initialize_partition_table(state: MkosiState, force: bool = False) -> None:
     for condition, label, size, type_uuid, name, read_only in (
             (state.config.bootable,
              PartitionIdentifier.esp, state.config.esp_size, GPT_ESP, "ESP System Partition", False),
-            (state.config.bios_size is not None,
+            (state.config.bios_size > 0,
              PartitionIdentifier.bios, state.config.bios_size, GPT_BIOS, "BIOS Boot Partition", False),
-            (state.config.xbootldr_size is not None,
+            (state.config.xbootldr_size > 0,
              PartitionIdentifier.xbootldr, state.config.xbootldr_size, GPT_XBOOTLDR, "Boot Loader Partition", False),
-            (state.config.swap_size is not None,
+            (state.config.swap_size > 0,
              PartitionIdentifier.swap, state.config.swap_size, GPT_SWAP, "Swap Partition", False),
-            (no_btrfs and state.config.home_size is not None,
+            (no_btrfs and state.config.home_size > 0,
              PartitionIdentifier.home, state.config.home_size, GPT_HOME, "Home Partition", False),
-            (no_btrfs and state.config.srv_size is not None,
+            (no_btrfs and state.config.srv_size > 0,
              PartitionIdentifier.srv, state.config.srv_size, GPT_SRV, "Server Data Partition", False),
-            (no_btrfs and state.config.var_size is not None,
+            (no_btrfs and state.config.var_size > 0,
              PartitionIdentifier.var, state.config.var_size, GPT_VAR, "Variable Data Partition", False),
-            (no_btrfs and state.config.tmp_size is not None,
+            (no_btrfs and state.config.tmp_size > 0,
              PartitionIdentifier.tmp, state.config.tmp_size, GPT_TMP, "Temporary Data Partition", False),
             (not is_generated_root(state.config),
              PartitionIdentifier.root, state.config.root_size,
@@ -796,7 +796,7 @@ def initialize_partition_table(state: MkosiState, force: bool = False) -> None:
              root_partition_description(state.config),
              state.config.read_only)):
 
-        if condition and size is not None:
+        if condition and size > 0:
             table.add(label, size, type_uuid, name, read_only=read_only)
 
     state.partition_table = table
@@ -5873,10 +5873,10 @@ def parse_args_file_group(
     return create_parser().parse_args(config_files + argv)
 
 
-def parse_bytes(num_bytes: Optional[str], *, sector_size: int = 512) -> Optional[int]:
+def parse_bytes(num_bytes: Optional[str], *, sector_size: int = 512) -> int:
     """Convert a string for a number of bytes into a number rounding up to sector size."""
     if num_bytes is None:
-        return None
+        return 0
 
     if num_bytes.endswith("G"):
         factor = 1024 ** 3
@@ -6515,10 +6515,10 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
     args.swap_size = parse_bytes(args.swap_size)
     args.bios_size = parse_bytes(args.bios_size)
 
-    if args.root_size is None:
+    if args.root_size == 0:
         args.root_size = 3 * 1024 * 1024 * 1024
 
-    if args.bootable and args.esp_size is None:
+    if args.bootable and args.esp_size == 0:
         args.esp_size = 256 * 1024 * 1024
 
     if args.secure_boot_key is not None:
@@ -6675,15 +6675,15 @@ def yes_no_or(b: Union[bool, str]) -> str:
     return b if isinstance(b, str) else yes_no(b)
 
 
-def format_bytes_or_disabled(sz: Optional[int]) -> str:
-    if sz is None:
+def format_bytes_or_disabled(sz: int) -> str:
+    if sz == 0:
         return "(disabled)"
 
     return format_bytes(sz)
 
 
-def format_bytes_or_auto(sz: Optional[int]) -> str:
-    if sz is None:
+def format_bytes_or_auto(sz: int) -> str:
+    if sz == 0:
         return "(automatic)"
 
     return format_bytes(sz)

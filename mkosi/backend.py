@@ -525,14 +525,14 @@ class MkosiConfig:
     nspawn_settings: Optional[Path]
     base_image: Optional[Path]
     root_size: int
-    esp_size: Optional[int]
-    xbootldr_size: Optional[int]
-    swap_size: Optional[int]
-    home_size: Optional[int]
-    srv_size: Optional[int]
-    var_size: Optional[int]
-    tmp_size: Optional[int]
-    bios_size: Optional[int]
+    esp_size: int
+    xbootldr_size: int
+    swap_size: int
+    home_size: int
+    srv_size: int
+    var_size: int
+    tmp_size: int
+    bios_size: int
     usr_only: bool
     split_artifacts: bool
     checksum: bool

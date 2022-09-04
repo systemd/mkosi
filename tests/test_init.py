@@ -58,7 +58,7 @@ def test_copy_file(tmpdir: Path) -> None:
 
 
 def test_parse_bytes() -> None:
-    assert mkosi.parse_bytes(None) is None
+    assert mkosi.parse_bytes(None) == 0
     assert mkosi.parse_bytes("1") == 512
     assert mkosi.parse_bytes("1000") == 1024
     assert mkosi.parse_bytes("1K") == 1024
