@@ -7111,8 +7111,7 @@ def run_kernel_install(config: MkosiConfig, state: MkosiState, for_cache: bool, 
 
     with complete_step("Generating initramfs images…"):
         for kver, kimg in gen_kernel_images(config, state.root):
-            run_workspace_command(config, state.root, ["kernel-install", "add", kver, Path("/") / kimg],
-                                  env=config.environment)
+            run_workspace_command(config, state.root, ["kernel-install", "add", kver, Path("/") / kimg])
 
 
 @dataclasses.dataclass
