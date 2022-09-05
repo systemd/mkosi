@@ -113,8 +113,7 @@ jobs:
           - fedora
           - rocky_epel
           - alma_epel
-          # Disabled until https://github.com/gentoo/baselayout/pull/2 is merged.
-          # - gentoo
+          - gentoo
         format:
           - directory
           - tar
@@ -156,7 +155,7 @@ jobs:
 
         sudo python setup.py install
 
-        sudo ln -s --relative /var/db/repos/gentoo/profiles/default/linux/amd64/17.1/no-multilib/systemd /etc/portage/make.profile
+        sudo ln -s --relative /var/db/repos/gentoo/profiles/default/linux/amd64/17.1/no-multilib/systemd/merged-usr /etc/portage/make.profile
 
     # Do a manual install so we have the latest changes from the pull request available.
     - name: Install
@@ -190,7 +189,7 @@ jobs:
 
         tee mkosi.skeleton/etc/portage/binrepos.conf <<- EOF
         [binhost]
-        sync-uri = https://raw.githubusercontent.com/257/binpkgs/main
+        sync-uri = https://raw.githubusercontent.com/257/binpkgs/master
         EOF
 
     - name: Build ${{ matrix.distro }}/${{ matrix.format }}
