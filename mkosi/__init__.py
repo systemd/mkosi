@@ -3159,8 +3159,6 @@ def nspawn_params_for_build_sources(config: MkosiConfig, sft: SourceFileTransfer
     else:
         params += ["--chdir=/root"]
 
-    params += [f"--setenv={env}={value}" for env, value in config.environment.items()]
-
     return params
 
 
@@ -3182,7 +3180,8 @@ def run_prepare_script(config: MkosiConfig, state: MkosiState, cached: bool) -> 
         shutil.copy2(config.prepare_script, root_home(config, state.root) / "prepare")
 
         nspawn_params = nspawn_params_for_build_sources(config, SourceFileTransfer.mount)
-        run_workspace_command(config, state.root, ["/root/prepare", verb], network=True, nspawn_params=nspawn_params)
+        run_workspace_command(config, state.root, ["/root/prepare", verb],
+                              network=True, nspawn_params=nspawn_params, env=config.environment)
 
         srcdir = root_home(config, state.root) / "src"
         if srcdir.exists():
@@ -3211,8 +3210,7 @@ def run_postinst_script(
         shutil.copy2(config.postinst_script, root_home(config, state.root) / "postinst")
 
         run_workspace_command(config, state.root, ["/root/postinst", verb],
-                              network=(config.with_network is True),
-                              env=config.environment)
+                              network=(config.with_network is True), env=config.environment)
         root_home(config, state.root).joinpath("postinst").unlink()
 
 
@@ -3229,10 +3227,8 @@ def run_finalize_script(config: MkosiConfig, state: MkosiState, for_cache: bool)
     verb = "build" if state.do_run_build_script else "final"
 
     with complete_step("Running finalize script…"):
-        env = collections.ChainMap(dict(BUILDROOT=str(state.root), OUTPUTDIR=str(output_dir(config))),
-                                   config.environment,
-                                   os.environ)
-        run([config.finalize_script, verb], env=env)
+        run([config.finalize_script, verb],
+            env={**config.environment, "BUILDROOT": str(state.root), "OUTPUTDIR": str(output_dir(config))})
 
 
 
@@ -7331,8 +7327,6 @@ def run_build_script(config: MkosiConfig, root: Path, raw: Optional[BinaryIO]) -
             *nspawn_rlimit_params(),
         ]
 
-        cmdline.extend(f"--setenv={env}={value}" for env, value in config.environment.items())
-
         # TODO: Use --autopipe once systemd v247 is widely available.
         console_arg = f"--console={'interactive' if sys.stdout.isatty() else 'pipe'}"
         if nspawn_knows_arg(console_arg):
@@ -7370,6 +7364,8 @@ def run_build_script(config: MkosiConfig, root: Path, raw: Optional[BinaryIO]) -
 
         if config.nspawn_keep_unit:
             cmdline += ["--keep-unit"]
+
+        cmdline += [f"--setenv={env}={value}" for env, value in config.environment.items()]
 
         cmdline += [f"/root/{config.build_script.name}"]
 
