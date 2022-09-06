@@ -713,6 +713,10 @@ def run_workspace_command(
         nspawn += [f"--setenv={k}={v}" for k, v in env.items()]
     if "workspace-command" in ARG_DEBUG:
         nspawn += ["--setenv=SYSTEMD_LOG_LEVEL=debug"]
+    if config.image_version is not None:
+        nspawn += [f"--setenv=IMAGE_VERSION={config.image_version}"]
+    if config.image_id is not None:
+        nspawn += [f"--setenv=IMAGE_ID={config.image_id}"]
 
     if nspawn_params:
         nspawn += nspawn_params

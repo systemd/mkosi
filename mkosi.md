@@ -614,7 +614,7 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   in the default output file name, i.e. instead of `image.raw` the
   default will be `image_0.1.raw` for version `0.1` of the image, and
   similar. The version is also passed via the `$IMAGE_VERSION` to any
-  build scripts invoked (which may be useful to patch it into
+  scripts invoked (which may be useful to patch it into
   `/etc/os-release` or similar, in particular the `IMAGE_VERSION=`
   field of it).
 
@@ -626,7 +626,7 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   this option is used the root, `/usr/` and Verity partitions in the
   image will have their labels set to this (possibly suffixed by the
   image version). The identifier is also passed via the `$IMAGE_ID` to
-  any build scripts invoked (which may be useful to patch it into
+  any scripts invoked (which may be useful to patch it into
   `/etc/os-release` or similar, in particular the `IMAGE_ID=` field of
   it).
 
