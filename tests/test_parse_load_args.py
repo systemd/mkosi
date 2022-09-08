@@ -64,7 +64,6 @@ def test_machine_id() -> None:
     load_args = parse(["--machine-id", id])
 
     assert load_args.machine_id == id
-    assert load_args.machine_id_is_fixed
 
     with pytest.raises(MkosiException):
         parse(["--machine-id", "notValidKey"])
@@ -76,7 +75,6 @@ def test_machine_id() -> None:
         config.write_text(f"[Output]\nMachineID={id}")
         load_args = parse([])
         assert load_args.machine_id == id
-        assert load_args.machine_id_is_fixed
 
     with cd_temp_dir():
         config = Path("mkosi.conf")

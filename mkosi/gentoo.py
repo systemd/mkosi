@@ -160,7 +160,6 @@ class Gentoo:
 
     def __init__(
         self,
-        config: MkosiConfig,
         state: MkosiState,
     ) -> None:
 
@@ -206,7 +205,7 @@ class Gentoo:
         else:
             self.emerge_default_opts += ["--quiet-build", "--quiet"]
 
-        self.arch, _ = ARCHITECTURES[config.architecture or "x86_64"]
+        self.arch, _ = ARCHITECTURES[state.config.architecture or "x86_64"]
 
         #######################################################################
         # GENTOO_UPSTREAM : we only support systemd profiles! and only the
@@ -218,22 +217,22 @@ class Gentoo:
         # stage3_fetch() will be needing this if we want to allow users to pick
         # profile
         #######################################################################
-        self.arch_profile = Path(f"profiles/default/linux/{self.arch}/{config.release}/systemd")
+        self.arch_profile = Path(f"profiles/default/linux/{self.arch}/{state.config.release}/systemd")
 
         self.pkgs_sys = ["@world"]
 
         self.pkgs_fs = ["sys-fs/dosfstools"]
-        if config.output_format in (OutputFormat.subvolume, OutputFormat.gpt_btrfs):
+        if state.config.output_format in (OutputFormat.subvolume, OutputFormat.gpt_btrfs):
             self.pkgs_fs += ["sys-fs/btrfs-progs"]
-        elif config.output_format == OutputFormat.gpt_xfs:
+        elif state.config.output_format == OutputFormat.gpt_xfs:
             self.pkgs_fs += ["sys-fs/xfsprogs"]
-        elif config.output_format == OutputFormat.gpt_squashfs:
+        elif state.config.output_format == OutputFormat.gpt_squashfs:
             self.pkgs_fs += ["sys-fs/squashfs-tools"]
 
-        if config.encrypt:
+        if state.config.encrypt:
             self.pkgs_fs += ["cryptsetup", "device-mapper"]
 
-        if not state.do_run_build_script and config.bootable:
+        if not state.do_run_build_script and state.config.bootable:
             if state.get_partition(PartitionIdentifier.esp):
                 self.pkgs_boot = ["sys-kernel/installkernel-systemd-boot"]
             else:
@@ -249,23 +248,22 @@ class Gentoo:
             "USE": " ".join(self.portage_use_flags),
         }
 
-        self.sync_portage_tree(config, state.root)
-        self.set_profile(config)
+        self.sync_portage_tree(state)
+        self.set_profile(state.config)
         self.set_default_repo()
         self.unmask_arch()
         self.provide_patches()
         self.set_useflags()
         self.mkosi_conf()
-        self.baselayout(config, state.root)
-        self.fetch_fix_stage3(config, state.root)
-        self.update_stage3(config, state.root)
-        self.depclean(config, state.root)
+        self.baselayout(state)
+        self.fetch_fix_stage3(state, state.root)
+        self.update_stage3(state)
+        self.depclean(state)
 
-    def sync_portage_tree(self, config: MkosiConfig,
-                          root: Path) -> None:
-        self.invoke_emerge(config, root, inside_stage3=False, actions=["--sync"])
+    def sync_portage_tree(self, state: MkosiState) -> None:
+        self.invoke_emerge(state, inside_stage3=False, actions=["--sync"])
 
-    def fetch_fix_stage3(self, config: MkosiConfig, root: Path) -> None:
+    def fetch_fix_stage3(self, state: MkosiState, root: Path) -> None:
         """usrmerge tracker bug: https://bugs.gentoo.org/690294"""
 
         # e.g.:
@@ -319,7 +317,7 @@ class Gentoo:
                 # remove once upstream ships the current *baselayout-999*
                 # version alternative would be to mount /sys as tmpfs when
                 # invoking emerge inside stage3; we don't want that.
-                self.invoke_emerge(config, stage3_tmp_extract, inside_stage3=True,
+                self.invoke_emerge(state, inside_stage3=True,
                         opts=["--unmerge"], pkgs=["sys-apps/baselayout"])
 
                 unlink_try_hard(stage3_tmp_extract.joinpath("dev"))
@@ -472,8 +470,7 @@ class Gentoo:
 
     def invoke_emerge(
         self,
-        config: MkosiConfig,
-        root: Path,
+        state: MkosiState,
         inside_stage3: bool = True,
         pkgs: Sequence[str] = (),
         actions: Sequence[str] = (),
@@ -485,66 +482,64 @@ class Gentoo:
             PREFIX_OPTS: List[str] = []
             if "--sync" not in actions:
                 PREFIX_OPTS = [
-                    f"--config-root={root.resolve()}",
-                    f"--root={root.resolve()}",
-                    f"--sysroot={root.resolve()}",
+                    f"--config-root={state.root.resolve()}",
+                    f"--root={state.root.resolve()}",
+                    f"--sysroot={state.root.resolve()}",
                 ]
 
             MkosiPrinter.print_step(f"Invoking emerge(1) pkgs={pkgs} "
                                     f"actions={actions} outside stage3")
             emerge_main([*pkgs, *opts, *actions] + PREFIX_OPTS + self.emerge_default_opts)
         else:
-            if config.usr_only:
-                root_home(config, root).mkdir(mode=0o750, exist_ok=True)
+            if state.config.usr_only:
+                root_home(state).mkdir(mode=0o750, exist_ok=True)
 
             cmd = ["/usr/bin/emerge", *pkgs, *self.emerge_default_opts, *opts, *actions]
 
             MkosiPrinter.print_step("Invoking emerge(1) inside stage3")
             run_workspace_command(
-                config,
-                root,
+                state,
                 cmd,
                 network=True,
                 env=self.emerge_vars,
                 nspawn_params=self.DEFAULT_NSPAWN_PARAMS,
             )
 
-    def baselayout(self, config: MkosiConfig, root: Path) -> None:
+    def baselayout(self, state: MkosiState) -> None:
         # TOTHINK: sticky bizness when when image profile != host profile
         # REMOVE: once upstream has moved this to stable releases of baselaouy
         # https://gitweb.gentoo.org/proj/baselayout.git/commit/?id=57c250e24c70f8f9581860654cdec0d049345292
-        self.invoke_emerge(config, root, inside_stage3=False,
+        self.invoke_emerge(state, inside_stage3=False,
                            opts=["--nodeps"],
                            pkgs=["=sys-apps/baselayout-9999"])
 
-    def update_stage3(self, config: MkosiConfig, root: Path) -> None:
+    def update_stage3(self, state: MkosiState) -> None:
         # exclude baselayout, it expects /sys/.keep but nspawn mounts host's
         # /sys for us without the .keep file.
         opts = self.EMERGE_UPDATE_OPTS + ["--exclude",
                                           "sys-apps/baselayout"]
-        self.invoke_emerge(config, root, pkgs=self.pkgs_sys, opts=opts)
+        self.invoke_emerge(state, pkgs=self.pkgs_sys, opts=opts)
 
         # FIXME?: without this we get the following
         # Synchronizing state of sshd.service with SysV service script with /lib/systemd/systemd-sysv-install.
         # Executing: /lib/systemd/systemd-sysv-install --root=/var/tmp/mkosi-2b6snh_u/root enable sshd
         # chroot: failed to run command ‘/usr/sbin/update-rc.d’: No such file or directory
-        root.joinpath("etc/init.d/sshd").unlink()
+        state.root.joinpath("etc/init.d/sshd").unlink()
 
         # "build" USE flag can go now, next time users do an update they will
         # safely merge baselayout without that flag and it should be fine at
         # that point.
         self.baselayout_use.unlink()
 
-    def depclean(self, config: MkosiConfig, root: Path) -> None:
-        self.invoke_emerge(config, root, actions=["--depclean"])
+    def depclean(self, state: MkosiState) -> None:
+        self.invoke_emerge(state, actions=["--depclean"])
 
-    def _dbg(self, config: MkosiConfig, root: Path) -> None:
+    def _dbg(self, state: MkosiState) -> None:
         """this is for dropping into shell to see what's wrong"""
 
         cmdline = ["/bin/sh"]
         run_workspace_command(
-            config,
-            root,
+            state,
             cmdline,
             network=True,
             nspawn_params=self.DEFAULT_NSPAWN_PARAMS,

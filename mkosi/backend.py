@@ -449,7 +449,7 @@ class PartitionTable:
                         die(msg)
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(frozen=True)
 class MkosiConfig:
     """Type-hinted storage for command line arguments."""
 
@@ -501,7 +501,7 @@ class MkosiConfig:
     remove_packages: List[str]
     with_docs: bool
     with_tests: bool
-    cache_path: Optional[Path]
+    cache_path: Path
     extra_trees: List[Path]
     skeleton_trees: List[Path]
     clean_package_metadata: Union[bool, str]
@@ -525,14 +525,14 @@ class MkosiConfig:
     nspawn_settings: Optional[Path]
     base_image: Optional[Path]
     root_size: int
-    esp_size: Optional[int]
-    xbootldr_size: Optional[int]
-    swap_size: Optional[int]
-    home_size: Optional[int]
-    srv_size: Optional[int]
-    var_size: Optional[int]
-    tmp_size: Optional[int]
-    bios_size: Optional[int]
+    esp_size: int
+    xbootldr_size: int
+    swap_size: int
+    home_size: int
+    srv_size: int
+    var_size: int
+    tmp_size: int
+    bios_size: int
     usr_only: bool
     split_artifacts: bool
     checksum: bool
@@ -557,7 +557,7 @@ class MkosiConfig:
     debug: List[str]
     auto_bump: bool
     workspace_dir: Optional[Path]
-    machine_id: str
+    machine_id: Optional[str]
 
     # QEMU-specific options
     qemu_headless: bool
@@ -570,7 +570,6 @@ class MkosiConfig:
     # systemd-nspawn specific options
     nspawn_keep_unit: bool
 
-    machine_id_is_fixed: bool
     passphrase: Optional[Dict[str, str]]
 
     output_checksum: Optional[Path] = None
@@ -593,15 +592,26 @@ class MkosiConfig:
 class MkosiState:
     """State related properties."""
 
-    original_umask: int
-
-    root: Path
+    config: MkosiConfig
+    workspace: Path
+    cache: Path
     do_run_build_script: bool
+    machine_id: str
+    for_cache: bool
 
     cache_pre_inst: Optional[Path] = None
     cache_pre_dev: Optional[Path] = None
 
     partition_table: Optional[PartitionTable] = None
+
+    @property
+    def root(self) -> Path:
+        return self.workspace / "root"
+
+    def var_tmp(self) -> Path:
+        p = self.workspace / "var-tmp"
+        p.mkdir(exist_ok=True)
+        return p
 
     def get_partition(self, ident: PartitionIdentifier) -> Optional[Partition]:
         "A shortcut to check that we have a partition table and extract the partition object"
@@ -647,12 +657,6 @@ def workspace(root: Path) -> Path:
     return root.parent
 
 
-def var_tmp(root: Path) -> Path:
-    p = workspace(root) / "var-tmp"
-    p.mkdir(exist_ok=True)
-    return p
-
-
 def nspawn_knows_arg(arg: str) -> bool:
     return "unrecognized option" not in run([nspawn_executable(), arg], stderr=subprocess.PIPE, check=False, text=True).stderr
 
@@ -679,8 +683,7 @@ def nspawn_version() -> int:
 
 
 def run_workspace_command(
-    config: MkosiConfig,
-    root: Path,
+    state: MkosiState,
     cmd: Sequence[PathString],
     network: bool = False,
     env: Optional[Mapping[str, str]] = None,
@@ -691,13 +694,12 @@ def run_workspace_command(
     nspawn = [
         nspawn_executable(),
         "--quiet",
-        f"--directory={root}",
-        "--uuid=" + config.machine_id,
+        f"--directory={state.root}",
         "--machine=mkosi-" + uuid.uuid4().hex,
         "--as-pid2",
         "--link-journal=no",
         "--register=no",
-        f"--bind={var_tmp(root)}:/var/tmp",
+        f"--bind={state.var_tmp()}:/var/tmp",
         "--setenv=SYSTEMD_OFFLINE=1",
         *nspawn_rlimit_params(),
     ]
@@ -721,10 +723,10 @@ def run_workspace_command(
         stdout = subprocess.PIPE
         nspawn += ["--console=pipe"]
 
-    if config.usr_only:
-        nspawn += [f"--bind={root_home(config, root)}:/root"]
+    if state.config.usr_only:
+        nspawn += [f"--bind={root_home(state)}:/root"]
 
-    if config.nspawn_keep_unit:
+    if state.config.nspawn_keep_unit:
         nspawn += ["--keep-unit"]
 
     try:
@@ -735,7 +737,7 @@ def run_workspace_command(
         die(f"Workspace command {shell_join(cmd)} returned non-zero exit code {e.returncode}.")
 
 
-def root_home(config: MkosiConfig, root: Path) -> Path:
+def root_home(state: MkosiState) -> Path:
 
     # If UsrOnly= is turned on the /root/ directory (i.e. the root
     # user's home directory) is not persistent (after all everything
@@ -743,10 +745,10 @@ def root_home(config: MkosiConfig, root: Path) -> Path:
     # from an external place, so that we can have persistency. It is
     # after all where we place our build sources and suchlike.
 
-    if config.usr_only:
-        return workspace(root) / "home-root"
+    if state.config.usr_only:
+        return state.workspace / "home-root"
 
-    return root / "root"
+    return state.root / "root"
 
 
 @contextlib.contextmanager

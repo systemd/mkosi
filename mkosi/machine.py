@@ -22,7 +22,6 @@ from . import (
     check_output,
     check_root,
     init_namespace,
-    init_state,
     load_args,
     needs_build,
     parse_args,
@@ -88,7 +87,6 @@ class Machine:
             die("No valid verb was entered.")
 
         self.config = load_args(tmp)
-        self.state = init_state(self.config)
 
     @property
     def serial(self) -> pexpect.spawn:
@@ -111,16 +109,16 @@ class Machine:
     def build(self) -> None:
         if self.config.verb in MKOSI_COMMANDS_NEED_BUILD + (Verb.build, Verb.clean):
             check_root()
-            unlink_output(self.config, self.state)
+            unlink_output(self.config)
 
         if self.config.verb == Verb.build:
-            check_output(self.config, self.state)
+            check_output(self.config)
 
         if needs_build(self.config):
             check_root()
             check_native(self.config)
             init_namespace()
-            build_stuff(self.config, self.state)
+            build_stuff(self.config)
 
     def __enter__(self) -> Machine:
         self.build()
@@ -239,7 +237,7 @@ class MkosiMachineTest(unittest.TestCase):
         # Replacing underscores which makes name invalid.
         # Necessary for shell otherwise racing conditions to the disk image will happen.
         test_name = self.id().split(".")[3]
-        self.machine.config.hostname = test_name.replace("_", "-")
+        self.machine.config.__dict__["hostname"] = test_name.replace("_", "-")
 
         try:
             self.machine.boot()
