@@ -654,7 +654,8 @@ def var_tmp(root: Path) -> Path:
 
 
 def nspawn_knows_arg(arg: str) -> bool:
-    return "unrecognized option" not in run([nspawn_executable(), arg], stderr=subprocess.PIPE, check=False, text=True).stderr
+    return "unrecognized option" not in run([nspawn_executable(), arg], stdout=subprocess.DEVNULL,
+                                            stderr=subprocess.PIPE, check=False, text=True).stderr
 
 
 def format_rlimit(rlimit: int) -> str:
