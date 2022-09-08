@@ -654,8 +654,12 @@ def var_tmp(root: Path) -> Path:
 
 
 def nspawn_knows_arg(arg: str) -> bool:
-    return "unrecognized option" not in run([nspawn_executable(), arg], stdout=subprocess.DEVNULL,
-                                            stderr=subprocess.PIPE, check=False, text=True).stderr
+    # Specify some extra incompatible options so nspawn doesn't try to boot a container in the current
+    # directory if it has a compatible layout.
+    return "unrecognized option" not in run([nspawn_executable(), arg,
+                                            "--directory", "/dev/null", "--image", "/dev/null"],
+                                            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, check=False,
+                                            text=True).stderr
 
 
 def format_rlimit(rlimit: int) -> str:
