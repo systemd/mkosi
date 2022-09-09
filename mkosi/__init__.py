@@ -5040,27 +5040,23 @@ def create_parser() -> ArgumentParserMkosi:
     )
     group.add_argument(
         "--output-split-root",
-        help="Output root or /usr/ partition image path (if --split-artifacts is used)",
-        type=Path,
-        metavar="PATH",
+        help="Output root or /usr/ partition image name (if --split-artifacts is used)",
+        metavar="NAME",
     )
     group.add_argument(
         "--output-split-verity",
-        help="Output Verity partition image path (if --split-artifacts is used)",
-        type=Path,
-        metavar="PATH",
+        help="Output Verity partition image name (if --split-artifacts is used)",
+        metavar="NAME",
     )
     group.add_argument(
         "--output-split-verity-sig",
-        help="Output Verity Signature partition image path (if --split-artifacts is used)",
-        type=Path,
-        metavar="PATH",
+        help="Output Verity Signature partition image name (if --split-artifacts is used)",
+        metavar="NAME",
     )
     group.add_argument(
         "--output-split-kernel",
-        help="Output kernel path (if --split-artifacts is used)",
-        type=Path,
-        metavar="PATH",
+        help="Output kernel name (if --split-artifacts is used)",
+        metavar="NAME",
     )
     group.add_argument(
         "-O", "--output-dir",
@@ -6243,6 +6239,21 @@ def build_auxiliary_output_path(args: Union[argparse.Namespace, MkosiConfig], su
     return output.with_name(f"{output.name}{suffix}{compression}")
 
 
+def split_artifact_path(args: argparse.Namespace, arg: str, fallback_suffix: str, can_compress: bool) -> None:
+    """Update the args with the complete path to a split artifact.
+
+    Split artifacts are always placed in the output directory.
+    Either the user-provided name is used or fallback name is constructed from
+    the artifact name and a suffix.
+    """
+    user_value = getattr(args, arg)
+    if user_value:
+        absolute_path =  args.output.with_name(user_value)
+    else:
+        absolute_path = build_auxiliary_output_path(args, fallback_suffix, can_compress)
+    setattr(args, arg, absolute_path)
+
+
 DISABLED = Path('DISABLED')  # A placeholder value to suppress autodetection.
                              # This is used as a singleton, i.e. should be compared with
                              # 'is' in other parts of the code.
@@ -6460,13 +6471,13 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
         args.output_sshkey = args.output.with_name("id_rsa")
 
     if args.split_artifacts:
-        args.output_split_root = build_auxiliary_output_path(args, f"{root_or_usr(args)}.raw", True)
+        split_artifact_path(args, "output_split_root", f"{root_or_usr(args)}.raw", True)
         if args.verity:
-            args.output_split_verity = build_auxiliary_output_path(args, f"{root_or_usr(args)}.verity", True)
+            split_artifact_path(args, "output_split_verity", f"{root_or_usr(args)}.verity", True)
             if args.verity == "signed":
-                args.output_split_verity_sig = build_auxiliary_output_path(args, f"{roothash_suffix(args)}.p7s", True)
+                split_artifact_path(args, "output_split_verity_sig", f"{roothash_suffix(args)}.p7s", True)
         if args.bootable:
-            args.output_split_kernel = build_auxiliary_output_path(args, ".efi", True)
+            split_artifact_path(args, "output_split_kernel", ".efi", True)
 
     if args.build_sources is not None:
         args.build_sources = args.build_sources.absolute()
