@@ -117,10 +117,6 @@ class Machine:
         if needs_build(self.config):
             check_root()
             check_native(self.config)
-
-            # Useful if testing within Docker
-            if parse_boolean(os.getenv("MKOSI_TEST_NO_NAMESPACE", "0")):
-                raise unittest.SkipTest("Build test skipped due to environment variable.")
             init_namespace()
             build_stuff(self.config)
 
