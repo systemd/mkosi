@@ -10,10 +10,12 @@ import errno
 import math
 import os
 import platform
+import re
 import resource
 import shlex
 import shutil
 import signal
+import string
 import subprocess
 import sys
 import uuid
@@ -305,7 +307,7 @@ class Partition:
     n_sectors: int
     type_uuid: uuid.UUID
     part_uuid: Optional[uuid.UUID]
-    read_only: Optional[bool]
+    read_only: bool
 
     description: str
 
@@ -374,7 +376,7 @@ class PartitionTable:
             type_uuid: uuid.UUID,
             description: str,
             part_uuid: Optional[uuid.UUID] = None,
-            read_only: Optional[bool] = False) -> Partition:
+            read_only: bool = False) -> Partition:
 
         assert '"' not in description
 
@@ -618,6 +620,58 @@ class MkosiState:
         if self.partition_table is None:
             return None
         return self.partition_table.partitions.get(ident)
+
+    def _output_split_path(self, path_pattern: Path, partition_identifier: PartitionIdentifier) -> Path:
+        assert path_pattern is not None
+        partition = self.get_partition(partition_identifier)
+        assert self.partition_table is not None and partition is not None
+        part_size = partition.n_sectors * self.partition_table.sector_size
+        wildcards = {"s": str(part_size), "r": int(partition.read_only)}
+        if self.config.image_version is not None:
+            wildcards["v"] = self.config.image_version
+        if partition.part_uuid is not None:
+            wildcards["u"] = partition.part_uuid
+        try:
+            name = MatchPatternTemplate(path_pattern.name).substitute(wildcards)
+        except KeyError:
+            allowed_wildcards = ', '.join("@" + name for name in wildcards)
+            die(f"Unknown wildcard in {path_pattern.name!r}. Allowed wildcards are {allowed_wildcards}.")
+        return path_pattern.with_name(name)
+
+    @property
+    def output_split_root(self) -> Path:
+        assert self.config.output_split_root is not None
+        return self._output_split_path(self.config.output_split_root, PartitionIdentifier.root)
+
+    @property
+    def output_split_verity(self) -> Path:
+        assert self.config.output_split_verity is not None 
+        return self._output_split_path(self.config.output_split_verity, PartitionIdentifier.verity)
+
+    @property
+    def output_split_verity_sig(self) -> Path:
+        assert self.config.output_split_verity_sig is not None
+        return self._output_split_path(self.config.output_split_verity_sig, PartitionIdentifier.verity_sig)
+
+    @property
+    def output_split_kernel(self) -> Path:
+        path_pattern = self.config.output_split_kernel
+        assert path_pattern is not None
+        wildcards = {}
+        if self.config.image_version is not None:
+            wildcards["v"] = self.config.image_version
+        try:
+            name = MatchPatternTemplate(path_pattern.name).substitute(wildcards)
+        except KeyError:
+            allowed_wildcards = ', '.join("@" + name for name in wildcards)
+            die(f"Unknown wildcard in {path_pattern.name!r}. Allowed wildcards are {allowed_wildcards}.")
+        return path_pattern.with_name(name)
+
+
+class MatchPatternTemplate(string.Template):
+    delimiter = "@"
+    idpattern = "[a-z]" # single ASCII letter
+    flags = re.ASCII | re.IGNORECASE
 
 
 def should_compress_fs(config: Union[argparse.Namespace, MkosiConfig]) -> Union[bool, str]:

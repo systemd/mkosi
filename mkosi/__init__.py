@@ -70,6 +70,7 @@ from .backend import (
     ARG_DEBUG,
     Distribution,
     ManifestFormat,
+    MatchPatternTemplate,
     MkosiConfig,
     MkosiException,
     MkosiNotSupportedException,
@@ -4065,9 +4066,9 @@ def extract_unified_kernel(
         if kernel is None:
             raise ValueError("No kernel found in image, can't extract")
 
-        assert state.config.output_split_kernel is not None
+        assert state.output_split_kernel is not None
 
-        f = copy_file_temporary(kernel, state.config.output_split_kernel.parent)
+        f = copy_file_temporary(kernel, state.output_split_kernel.parent)
 
     return f
 
@@ -4240,7 +4241,7 @@ def hash_file(of: TextIO, sf: BinaryIO, fname: str) -> None:
 
 
 def calculate_sha256sum(
-    config: MkosiConfig, raw: Optional[BinaryIO],
+    state: MkosiState, raw: Optional[BinaryIO],
     archive: Optional[BinaryIO],
     root_hash_file: Optional[BinaryIO],
     root_hash_p7s_file: Optional[BinaryIO],
@@ -4250,6 +4251,7 @@ def calculate_sha256sum(
     split_kernel: Optional[BinaryIO],
     nspawn_settings: Optional[BinaryIO],
 ) -> Optional[TextIO]:
+    config = state.config
     if config.output_format in (OutputFormat.directory, OutputFormat.subvolume):
         return None
 
@@ -4277,17 +4279,13 @@ def calculate_sha256sum(
             assert config.output_root_hash_p7s_file is not None
             hash_file(f, root_hash_p7s_file, config.output_root_hash_p7s_file.name)
         if split_root is not None:
-            assert config.output_split_root is not None
-            hash_file(f, split_root, os.path.basename(config.output_split_root))
+            hash_file(f, split_root, state.output_split_root.name)
         if split_verity is not None:
-            assert config.output_split_verity is not None
-            hash_file(f, split_verity, os.path.basename(config.output_split_verity))
+            hash_file(f, split_verity, state.output_split_verity.name)
         if split_verity_sig is not None:
-            assert config.output_split_verity_sig is not None
-            hash_file(f, split_verity_sig, config.output_split_verity_sig.name)
+            hash_file(f, split_verity_sig, state.output_split_verity_sig.name)
         if split_kernel is not None:
-            assert config.output_split_kernel is not None
-            hash_file(f, split_kernel, os.path.basename(config.output_split_kernel))
+            hash_file(f, split_kernel, state.output_split_kernel.name)
         if nspawn_settings is not None:
             assert config.output_nspawn_settings is not None
             hash_file(f, nspawn_settings, os.path.basename(config.output_nspawn_settings))
@@ -4475,36 +4473,32 @@ def link_output_sshkey(config: MkosiConfig, sshkey: Optional[SomeIO]) -> None:
             _link_output(config, sshkey.name, config.output_sshkey, mode=0o600)
 
 
-def link_output_split_root(config: MkosiConfig, split_root: Optional[SomeIO]) -> None:
+def link_output_split_root(state: MkosiState, split_root: Optional[SomeIO]) -> None:
     if split_root:
-        assert config.output_split_root
         with complete_step(
-            "Linking split root file system…", f"Linked {path_relative_to_cwd(config.output_split_root)}"
+            "Linking split root file system…", f"Linked {path_relative_to_cwd(state.output_split_root)}"
         ):
-            _link_output(config, split_root.name, config.output_split_root)
+            _link_output(state.config, split_root.name, state.output_split_root)
 
 
-def link_output_split_verity(config: MkosiConfig, split_verity: Optional[SomeIO]) -> None:
+def link_output_split_verity(state: MkosiState, split_verity: Optional[SomeIO]) -> None:
     if split_verity:
-        assert config.output_split_verity
-        with complete_step("Linking split Verity data…", f"Linked {path_relative_to_cwd(config.output_split_verity)}"):
-            _link_output(config, split_verity.name, config.output_split_verity)
+        with complete_step("Linking split Verity data…", f"Linked {path_relative_to_cwd(state.output_split_verity)}"):
+            _link_output(state.config, split_verity.name, state.output_split_verity)
 
 
-def link_output_split_verity_sig(config: MkosiConfig, split_verity_sig: Optional[SomeIO]) -> None:
+def link_output_split_verity_sig(state: MkosiState, split_verity_sig: Optional[SomeIO]) -> None:
     if split_verity_sig:
-        assert config.output_split_verity_sig
         with complete_step(
-            "Linking split Verity Signature data…", f"Linked {path_relative_to_cwd(config.output_split_verity_sig)}"
+            "Linking split Verity Signature data…", f"Linked {path_relative_to_cwd(state.output_split_verity_sig)}"
         ):
-            _link_output(config, split_verity_sig.name, config.output_split_verity_sig)
+            _link_output(state.config, split_verity_sig.name, state.output_split_verity_sig)
 
 
-def link_output_split_kernel(config: MkosiConfig, split_kernel: Optional[SomeIO]) -> None:
+def link_output_split_kernel(state: MkosiState, split_kernel: Optional[SomeIO]) -> None:
     if split_kernel:
-        assert config.output_split_kernel
-        with complete_step("Linking split kernel…", f"Linked {path_relative_to_cwd(config.output_split_kernel)}"):
-            _link_output(config, split_kernel.name, config.output_split_kernel)
+        with complete_step("Linking split kernel…", f"Linked {path_relative_to_cwd(state.output_split_kernel)}"):
+            _link_output(state.config, split_kernel.name, state.output_split_kernel)
 
 
 def link_output_split_kernel_image(config: MkosiConfig, split_kernel_image: Optional[SomeIO]) -> None:
@@ -5967,6 +5961,19 @@ def empty_directory(path: Path) -> None:
         pass
 
 
+def unlink_glob_pattern(config: MkosiConfig, path_pattern: Optional[Path]) -> None:
+    if path_pattern is None:
+        return
+    image_version = config.image_version if config.image_version is not None else "*"
+    try:
+        name_with_globs = MatchPatternTemplate(path_pattern.name).substitute(v=image_version, r="*", s="*", u="*")
+    except KeyError:
+        die(f"Unknown wildcard in {path_pattern.name!r}. Known wildcards are @r, @s, @u, @v and @@ as an escape.")
+    path_with_globs = path_pattern.with_name(name_with_globs)
+    for path in glob.glob(str(path_with_globs)):
+        unlink_try_hard(path)
+
+
 def unlink_output(config: MkosiConfig) -> None:
     if not config.skip_final_phase:
         with complete_step("Removing output files…"):
@@ -5989,10 +5996,10 @@ def unlink_output(config: MkosiConfig) -> None:
                 unlink_try_hard(config.output_bmap)
 
             if config.split_artifacts:
-                unlink_try_hard(config.output_split_root)
-                unlink_try_hard(config.output_split_verity)
-                unlink_try_hard(config.output_split_verity_sig)
-                unlink_try_hard(config.output_split_kernel)
+                unlink_glob_pattern(config, config.output_split_root)
+                unlink_glob_pattern(config, config.output_split_verity)
+                unlink_glob_pattern(config, config.output_split_verity_sig)
+                unlink_glob_pattern(config, config.output_split_kernel)
 
             unlink_try_hard(build_auxiliary_output_path(config, ".vmlinuz"))
             unlink_try_hard(build_auxiliary_output_path(config, ".initrd"))
@@ -7435,7 +7442,7 @@ def build_stuff(config: MkosiConfig) -> Manifest:
         root_hash_p7s_file = write_root_hash_p7s_file(config, image.root_hash_p7s)
         settings = copy_nspawn_settings(config)
         checksum = calculate_sha256sum(
-            config, raw,
+            state, raw,
             image.archive,
             root_hash_file,
             root_hash_p7s_file,
@@ -7456,10 +7463,10 @@ def build_stuff(config: MkosiConfig) -> Manifest:
         link_output_nspawn_settings(config, settings)
         if config.output_sshkey is not None:
             link_output_sshkey(config, image.sshkey)
-        link_output_split_root(config, split_root)
-        link_output_split_verity(config, split_verity)
-        link_output_split_verity_sig(config, split_verity_sig)
-        link_output_split_kernel(config, split_kernel)
+        link_output_split_root(state, split_root)
+        link_output_split_verity(state, split_verity)
+        link_output_split_verity_sig(state, split_verity_sig)
+        link_output_split_kernel(state, split_kernel)
         link_output_split_kernel_image(config, image.split_kernel_image)
         link_output_split_initrd(config, image.split_initrd)
         link_output_split_kernel_cmdline(config, image.split_kernel_cmdline)
