@@ -6494,11 +6494,6 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
     else:
         args.environment = {}
 
-    if args.image_id is not None:
-        args.environment['IMAGE_ID'] = args.image_id
-    if args.image_version is not None:
-        args.environment['IMAGE_VERSION'] = args.image_version
-
     if args.cache_path is not None:
         args.cache_path = args.cache_path.absolute()
 
@@ -7371,7 +7366,6 @@ def build_stuff(config: MkosiConfig) -> Manifest:
             workspace=Path(workspace.name),
             cache=cache,
             do_run_build_script=False,
-            environment=config.environment,
             machine_id=config.machine_id or uuid.uuid4().hex,
             for_cache=False,
         )
