@@ -451,7 +451,12 @@ class PartitionTable:
 
 @dataclasses.dataclass(frozen=True)
 class MkosiConfig:
-    """Type-hinted storage for command line arguments."""
+    """Type-hinted storage for command line arguments.
+
+    Only user configuration is stored here while dynamic state exists in
+    MkosiState. If a field of the same name exists in both classes always
+    access the value from state.
+    """
 
     verb: Verb
     cmdline: List[str]
@@ -506,7 +511,6 @@ class MkosiConfig:
     skeleton_trees: List[Path]
     clean_package_metadata: Union[bool, str]
     remove_files: List[Path]
-    # Environment should not be used directly. Use MkosiState environment instead.
     environment: Dict[str, str]
     build_sources: Optional[Path]
     build_dir: Optional[Path]
