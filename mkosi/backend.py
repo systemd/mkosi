@@ -599,12 +599,19 @@ class MkosiState:
     do_run_build_script: bool
     machine_id: str
     for_cache: bool
-    environment: Dict[str, str]
+    environment: Dict[str, str] = dataclasses.field(init=False)
 
     cache_pre_inst: Optional[Path] = None
     cache_pre_dev: Optional[Path] = None
 
     partition_table: Optional[PartitionTable] = None
+
+    def __post_init__(self) -> None:
+        self.environment = self.config.environment.copy()
+        if self.config.image_id is not None:
+            self.environment['IMAGE_ID'] = self.config.image_id
+        if self.config.image_version is not None:
+            self.environment['IMAGE_VERSION'] = self.config.image_version
 
     @property
     def root(self) -> Path:
