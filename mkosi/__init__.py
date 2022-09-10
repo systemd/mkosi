@@ -2122,9 +2122,6 @@ def install_fedora(state: MkosiState) -> None:
     packages = {*state.config.packages}
     add_packages(state.config, packages, "systemd", "util-linux")
 
-    if fedora_release_cmp(release, "34") < 0:
-        add_packages(state.config, packages, "glibc-minimal-langpack", conditional="glibc")
-
     if not state.do_run_build_script and state.config.bootable:
         add_packages(state.config, packages, "kernel-core", "kernel-modules", "dracut")
         add_packages(state.config, packages, "systemd-udev", conditional="systemd")
