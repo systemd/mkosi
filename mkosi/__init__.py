@@ -2120,7 +2120,7 @@ def install_fedora(state: MkosiState) -> None:
     setup_dnf(state, repos)
 
     packages = {*state.config.packages}
-    add_packages(state.config, packages, "systemd", "util-linux")
+    add_packages(state.config, packages, "systemd", "util-linux", "dnf")
 
     if not state.do_run_build_script and state.config.bootable:
         add_packages(state.config, packages, "kernel-core", "kernel-modules", "dracut")
@@ -2159,7 +2159,7 @@ def install_mageia(state: MkosiState) -> None:
     setup_dnf(state, repos)
 
     packages = {*state.config.packages}
-    add_packages(state.config, packages, "basesystem-minimal")
+    add_packages(state.config, packages, "basesystem-minimal", "dnf")
     if not state.do_run_build_script and state.config.bootable:
         add_packages(state.config, packages, "kernel-server-latest", "dracut")
         # Mageia ships /etc/50-mageia.conf that omits systemd from the initramfs and disables hostonly.
@@ -2209,7 +2209,7 @@ def install_openmandriva(state: MkosiState) -> None:
 
     packages = {*state.config.packages}
     # well we may use basesystem here, but that pulls lot of stuff
-    add_packages(state.config, packages, "basesystem-minimal", "systemd")
+    add_packages(state.config, packages, "basesystem-minimal", "systemd", "dnf")
     if not state.do_run_build_script and state.config.bootable:
         add_packages(state.config, packages, "systemd-boot", "systemd-cryptsetup", conditional="systemd")
         add_packages(state.config, packages, "kernel-release-server", "dracut", "timezone")
@@ -2373,7 +2373,7 @@ def install_centos_variant(state: MkosiState) -> None:
         state.workspace.joinpath("vars/stream").write_text(state.config.release)
 
     packages = {*state.config.packages}
-    add_packages(state.config, packages, "systemd")
+    add_packages(state.config, packages, "systemd", "dnf")
     if not state.do_run_build_script and state.config.bootable:
         add_packages(state.config, packages, "kernel", "dracut")
         add_packages(state.config, packages, "systemd-udev", conditional="systemd")
@@ -2654,16 +2654,15 @@ def install_arch(state: MkosiState) -> None:
     if state.config.release is not None:
         MkosiPrinter.info("Distribution release specification is not supported for Arch Linux, ignoring.")
 
+    assert state.config.mirror
+
     if state.config.local_mirror:
         server = f"Server = {state.config.local_mirror}"
-    elif state.config.mirror:
-        if platform.machine() == "aarch64":
+    else:
+        if state.config.architecture == "aarch64":
             server = f"Server = {state.config.mirror}/$arch/$repo"
         else:
             server = f"Server = {state.config.mirror}/$repo/os/$arch"
-    else:
-        # This should not happen, but for good measure.
-        die("No repository mirror has been selected.")
 
     # Create base layout for pacman and pacman-key
     os.makedirs(state.root / "var/lib/pacman", 0o755, exist_ok=True)
@@ -2799,6 +2798,8 @@ def install_arch(state: MkosiState) -> None:
     with mount_api_vfs(state.root):
         invoke_pacman(state.root, pacman_conf, packages)
 
+    state.root.joinpath("etc/pacman.d/mirrorlist").write_text(f"Server = {state.config.mirror}/$repo/os/$arch\n")
+
     # Arch still uses pam_securetty which prevents root login into
     # systemd-nspawn containers. See https://bugs.archlinux.org/task/45903.
     disable_pam_securetty(state.root)
@@ -2840,7 +2841,7 @@ def install_opensuse(state: MkosiState) -> None:
         state.root.joinpath("etc/zypp/zypp.conf").write_text("rpm.install.excludedocs = yes\n")
 
     packages = {*state.config.packages}
-    add_packages(state.config, packages, "systemd", "glibc-locale-base")
+    add_packages(state.config, packages, "systemd", "glibc-locale-base", "zypper")
 
     if release.startswith("42."):
         add_packages(state.config, packages, "patterns-openSUSE-minimal_base")
