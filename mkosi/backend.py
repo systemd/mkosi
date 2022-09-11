@@ -680,10 +680,10 @@ def nspawn_knows_arg(arg: str) -> bool:
 
 
 def format_rlimit(rlimit: int) -> str:
-        limits = resource.getrlimit(rlimit)
-        soft = "infinity" if limits[0] == resource.RLIM_INFINITY else str(limits[0])
-        hard = "infinity" if limits[1] == resource.RLIM_INFINITY else str(limits[1])
-        return f"{soft}:{hard}"
+    limits = resource.getrlimit(rlimit)
+    soft = "infinity" if limits[0] == resource.RLIM_INFINITY else str(limits[0])
+    hard = "infinity" if limits[1] == resource.RLIM_INFINITY else str(limits[1])
+    return f"{soft}:{hard}"
 
 
 def nspawn_rlimit_params() -> Sequence[str]:

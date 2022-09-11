@@ -104,7 +104,7 @@ def test_centos_brtfs() -> None:
     with cd_temp_dir():
         config = Path("mkosi.conf")
         for dist in (Distribution.centos, Distribution.centos_epel):
-            for release in range (2, 9):
+            for release in range(2, 9):
                 config.write_text(
                     textwrap.dedent(
                         f"""
