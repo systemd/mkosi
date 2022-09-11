@@ -7534,9 +7534,6 @@ def run_shell_cmdline(config: MkosiConfig, pipe: bool = False, commands: Optiona
 
     cmdline = [nspawn_executable(), "--quiet", target]
 
-    if config.read_only:
-        cmdline += ["--read-only"]
-
     # If we copied in a .nspawn file, make sure it's actually honoured
     if config.nspawn_settings is not None:
         cmdline += ["--settings=trusted"]
@@ -7550,9 +7547,6 @@ def run_shell_cmdline(config: MkosiConfig, pipe: bool = False, commands: Optiona
         console_arg = f"--console={'interactive' if not pipe else 'pipe'}"
         if nspawn_knows_arg(console_arg):
             cmdline += [console_arg]
-
-    if is_generated_root(config) or config.verity:
-        cmdline += ["--volatile=overlay"]
 
     if config.netdev:
         if ensure_networkd(config):
