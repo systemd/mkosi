@@ -13,28 +13,27 @@ class PackageType(enum.Enum):
 
 class Distribution(enum.Enum):
     package_type: PackageType
+    fedora = "fedora", PackageType.rpm
+    debian = "debian", PackageType.deb
+    ubuntu = "ubuntu", PackageType.deb
+    arch = "arch", PackageType.pkg
+    opensuse = "opensuse", PackageType.rpm
+    mageia = "mageia", PackageType.rpm
+    centos = "centos", PackageType.rpm
+    centos_epel = "centos_epel", PackageType.rpm
+    openmandriva = "openmandriva", PackageType.rpm
+    rocky = "rocky", PackageType.rpm
+    rocky_epel = "rocky_epel", PackageType.rpm
+    alma = "alma", PackageType.rpm
+    alma_epel = "alma_epel", PackageType.rpm
+    gentoo = "gentoo", PackageType.ebuild
 
-    fedora = 0, PackageType.rpm
-    debian = 1, PackageType.deb
-    ubuntu = 2, PackageType.deb
-    arch = 3, PackageType.pkg
-    opensuse = 4, PackageType.rpm
-    mageia = 5, PackageType.rpm
-    centos = 6, PackageType.rpm
-    centos_epel = 7, PackageType.rpm
-    openmandriva = 10, PackageType.rpm
-    rocky = 11, PackageType.rpm
-    rocky_epel = 12, PackageType.rpm
-    alma = 13, PackageType.rpm
-    alma_epel = 14, PackageType.rpm
-    gentoo = 15, PackageType.ebuild
-
-    def __new__(cls, number: int, package_type: PackageType) -> Distribution:
+    def __new__(cls, name: str, package_type: PackageType) -> "Distribution":
         # This turns the list above into enum entries with .package_type attributes.
         # See https://docs.python.org/3.9/library/enum.html#when-to-use-new-vs-init
         # for an explanation.
         entry = object.__new__(cls)
-        entry._value_ = number
+        entry._value_ = name
         entry.package_type = package_type
         return entry
 
