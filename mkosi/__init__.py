@@ -68,7 +68,6 @@ from typing import (
 
 from .backend import (
     ARG_DEBUG,
-    Distribution,
     ManifestFormat,
     MkosiConfig,
     MkosiException,
@@ -76,16 +75,12 @@ from .backend import (
     MkosiPrinter,
     MkosiState,
     OutputFormat,
-    PackageType,
     Partition,
     PartitionIdentifier,
     PartitionTable,
     SourceFileTransfer,
     Verb,
     die,
-    is_centos_variant,
-    is_epel_variant,
-    is_rpm_distribution,
     nspawn_executable,
     nspawn_knows_arg,
     nspawn_rlimit_params,
@@ -101,6 +96,13 @@ from .backend import (
     spawn,
     tmp_dir,
     warn,
+)
+from .distributions import (
+    Distribution,
+    PackageType,
+    is_centos_variant,
+    is_epel_variant,
+    is_rpm_distribution,
 )
 from .manifest import Manifest
 from .syscall import blkpg_add_partition, blkpg_del_partition, reflink
