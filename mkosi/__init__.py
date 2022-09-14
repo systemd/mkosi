@@ -2220,8 +2220,6 @@ def install_openmandriva(state: MkosiState) -> None:
         packages.update(state.config.build_packages)
     install_packages_dnf(state, packages)
 
-    disable_pam_securetty(state.root)
-
 
 def centos_variant_gpg_locations(distribution: Distribution, epel_release: int) -> Tuple[Path, str]:
     if distribution in (Distribution.centos, Distribution.centos_epel):
