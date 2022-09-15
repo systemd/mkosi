@@ -124,7 +124,7 @@ SomeIO = Union[BinaryIO, TextIO]
 PathString = Union[Path, str]
 
 MKOSI_COMMANDS_NEED_BUILD = (Verb.shell, Verb.boot, Verb.qemu, Verb.serve)
-MKOSI_COMMANDS_SUDO = (Verb.build, Verb.clean, Verb.shell, Verb.boot, Verb.serve)
+MKOSI_COMMANDS_SUDO = (Verb.build, Verb.clean, Verb.shell, Verb.boot)
 MKOSI_COMMANDS_CMDLINE = (Verb.build, Verb.shell, Verb.boot, Verb.qemu, Verb.ssh)
 
 DRACUT_SYSTEMD_EXTRAS = [
@@ -7902,13 +7902,12 @@ def run_serve(config: MkosiConfig) -> None:
     """Serve the output directory via a tiny embedded HTTP server"""
 
     port = 8081
-    image = config.output.parent
 
     if config.output_dir is not None:
         os.chdir(config.output_dir)
 
     with http.server.HTTPServer(("", port), http.server.SimpleHTTPRequestHandler) as httpd:
-        print(f"Serving HTTP on port {port}: http://localhost:{port}/{image}")
+        print(f"Serving HTTP on port {port}: http://localhost:{port}/")
         httpd.serve_forever()
 
 
