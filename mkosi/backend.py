@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import collections
 import contextlib
 import dataclasses
 import enum
@@ -24,7 +25,9 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
+    Deque,
     Dict,
+    Iterable,
     Iterator,
     List,
     Mapping,
@@ -33,6 +36,7 @@ from typing import (
     Sequence,
     Set,
     Type,
+    TypeVar,
     Union,
     cast,
 )
@@ -44,6 +48,8 @@ from .syscall import (
     block_reread_partition_table,
 )
 
+T = TypeVar("T")
+V = TypeVar("V")
 PathString = Union[Path, str]
 
 
@@ -882,3 +888,56 @@ class MkosiPrinter:
 
         if text2 is not None:
             cls.print_step(text2.format(*args))
+
+
+complete_step = MkosiPrinter.complete_step
+
+
+def disable_pam_securetty(root: Path) -> None:
+    def _rm_securetty(line: str) -> str:
+        if "pam_securetty.so" in line:
+            return ""
+        return line
+
+    patch_file(root / "etc/pam.d/login", _rm_securetty)
+
+
+def add_packages(
+    config: MkosiConfig, packages: Set[str], *names: str, conditional: Optional[str] = None
+) -> None:
+
+    """Add packages in @names to @packages, if enabled by --base-packages.
+
+    If @conditional is specified, rpm-specific syntax for boolean
+    dependencies will be used to include @names if @conditional is
+    satisfied.
+    """
+    assert config.base_packages is True or config.base_packages is False or config.base_packages == "conditional"
+
+    if config.base_packages is True or (config.base_packages == "conditional" and conditional):
+        for name in names:
+            packages.add(f"({name} if {conditional})" if conditional else name)
+
+
+def sort_packages(packages: Iterable[str]) -> List[str]:
+    """Sorts packages: normal first, paths second, conditional third"""
+
+    m = {"(": 2, "/": 1}
+    sort = lambda name: (m.get(name[0], 0), name)
+    return sorted(packages, key=sort)
+
+
+def scandir_recursive(
+    root: Path,
+    filter: Optional[Callable[[os.DirEntry[str]], T]] = None,
+) -> Iterator[T]:
+    """Recursively walk the tree starting at @root, optionally apply filter, yield non-none values"""
+    queue: Deque[Union[str, Path]] = collections.deque([root])
+
+    while queue:
+        for entry in os.scandir(queue.pop()):
+            pred = filter(entry) if filter is not None else entry
+            if pred is not None:
+                yield cast(T, pred)
+            if entry.is_dir(follow_symlinks=False):
+                queue.append(entry.path)
