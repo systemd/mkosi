@@ -1611,25 +1611,25 @@ def mount_api_vfs(root: Path) -> Iterator[None]:
 
 @contextlib.contextmanager
 def mount_cache(state: MkosiState) -> Iterator[None]:
+    if state.config.distribution in (Distribution.fedora, Distribution.mageia, Distribution.openmandriva):
+        cache_paths = ["var/cache/dnf"]
+    elif is_centos_variant(state.config.distribution):
+        # We mount both the YUM and the DNF cache in this case, as YUM might
+        # just be redirected to DNF even if we invoke the former
+        cache_paths = ["var/cache/yum", "var/cache/dnf"]
+    elif state.config.distribution in (Distribution.debian, Distribution.ubuntu):
+        cache_paths = ["var/cache/apt/archives"]
+    elif state.config.distribution == Distribution.arch:
+        cache_paths = ["var/cache/pacman/pkg"]
+    elif state.config.distribution == Distribution.gentoo:
+        cache_paths = ["var/cache/binpkgs"]
+    elif state.config.distribution == Distribution.opensuse:
+        cache_paths = ["var/cache/zypp/packages"]
+
     # We can't do this in mount_image() yet, as /var itself might have to be created as a subvolume first
     with complete_step("Mounting Package Cache", "Unmounting Package Cache"), contextlib.ExitStack() as stack:
-        if state.config.distribution in (Distribution.fedora, Distribution.mageia, Distribution.openmandriva):
-            stack.enter_context(mount_bind(state.cache, state.root / "var/cache/dnf"))
-        elif is_centos_variant(state.config.distribution):
-            # We mount both the YUM and the DNF cache in this case, as
-            # YUM might just be redirected to DNF even if we invoke
-            # the former
-            stack.enter_context(mount_bind(state.cache / "yum", state.root / "var/cache/yum"))
-            stack.enter_context(mount_bind(state.cache / "dnf", state.root / "var/cache/dnf"))
-        elif state.config.distribution in (Distribution.debian, Distribution.ubuntu):
-            stack.enter_context(mount_bind(state.cache, state.root / "var/cache/apt/archives"))
-        elif state.config.distribution == Distribution.arch:
-            stack.enter_context(mount_bind(state.cache, state.root / "var/cache/pacman/pkg"))
-        elif state.config.distribution == Distribution.gentoo:
-            stack.enter_context(mount_bind(state.cache, state.root / "var/cache/binpkgs"))
-        elif state.config.distribution == Distribution.opensuse:
-            stack.enter_context(mount_bind(state.cache, state.root / "var/cache/zypp/packages"))
-
+        for cache_path in cache_paths:
+            stack.enter_context(mount_bind(state.cache, state.root / cache_path))
         yield
 
 
