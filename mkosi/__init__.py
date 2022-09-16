@@ -1611,7 +1611,9 @@ def mount_api_vfs(root: Path) -> Iterator[None]:
 
 @contextlib.contextmanager
 def mount_cache(state: MkosiState) -> Iterator[None]:
-    if state.config.distribution in (Distribution.fedora, Distribution.mageia, Distribution.openmandriva):
+    if state.config.distribution.installer is not None:
+        cache_paths = state.config.distribution.installer.cache_path()
+    elif state.config.distribution in (Distribution.fedora, Distribution.mageia, Distribution.openmandriva):
         cache_paths = ["var/cache/dnf"]
     elif is_centos_variant(state.config.distribution):
         # We mount both the YUM and the DNF cache in this case, as YUM might
@@ -2940,7 +2942,9 @@ def install_distribution(state: MkosiState, cached: bool) -> None:
 
     install: Callable[[MkosiState], None]
 
-    if is_centos_variant(state.config.distribution):
+    if state.config.distribution.installer is not None:
+        install = state.config.distribution.installer.install
+    elif is_centos_variant(state.config.distribution):
         install = install_centos_variant
     else:
         install = {
@@ -3884,7 +3888,9 @@ def gen_kernel_images(state: MkosiState) -> Iterator[Tuple[str, Path]]:
         if not kver.is_dir():
             continue
 
-        if state.config.distribution == Distribution.gentoo:
+        if state.config.distribution.installer is not None:
+            kimg = state.config.distribution.installer.kernel_image(kver.name)
+        elif state.config.distribution == Distribution.gentoo:
             from .gentoo import ARCHITECTURES
 
             _, kimg_path = ARCHITECTURES[state.config.architecture]
