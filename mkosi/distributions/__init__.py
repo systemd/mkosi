@@ -1,7 +1,35 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 import enum
+import importlib
 from pathlib import Path
+from typing import TYPE_CHECKING, List, Optional
+
+if TYPE_CHECKING:
+    from ..backend import MkosiState
+
+
+class DistributionInstaller:
+    @classmethod
+    def install(cls, state: "MkosiState") -> None:
+        raise NotImplementedError
+
+    @staticmethod
+    def kernel_image(name: str) -> Path:
+        return Path("lib/modules") / name / "vmlinuz"
+
+    @classmethod
+    def cache_path(cls) -> List[str]:
+        raise NotImplementedError
+
+
+def import_installer(name: str) -> Optional[DistributionInstaller]:
+    try:
+        mod = importlib.import_module(f"mkosi.distributions.{name}")
+        installer = getattr(mod, f"{name.capitalize()}.Installer")
+        return installer() if issubclass(installer, DistributionInstaller) else None
+    except (ImportError, AttributeError):
+        return None
 
 
 class PackageType(enum.Enum):
@@ -13,6 +41,8 @@ class PackageType(enum.Enum):
 
 class Distribution(enum.Enum):
     package_type: PackageType
+    installer: Optional[DistributionInstaller]
+
     fedora = "fedora", PackageType.rpm
     debian = "debian", PackageType.deb
     ubuntu = "ubuntu", PackageType.deb
@@ -35,6 +65,7 @@ class Distribution(enum.Enum):
         entry = object.__new__(cls)
         entry._value_ = name
         entry.package_type = package_type
+        entry.installer = import_installer(name)
         return entry
 
     def __str__(self) -> str:
