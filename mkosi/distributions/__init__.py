@@ -10,6 +10,8 @@ if TYPE_CHECKING:
 
 
 class DistributionInstaller:
+    needs_skeletons_after_bootstrap = False
+
     @classmethod
     def install(cls, state: "MkosiState") -> None:
         raise NotImplementedError
