@@ -11,7 +11,7 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Dict, Generator, List, Sequence
 
-from . import copy_path, open_close, unlink_try_hard
+from . import unlink_try_hard
 from .backend import (
     ARG_DEBUG,
     MkosiConfig,
@@ -24,6 +24,7 @@ from .backend import (
     root_home,
     run_workspace_command,
 )
+from .install import copy_path, open_close
 
 ARCHITECTURES = {
     "x86_64": ("amd64", "arch/x86/boot/bzImage"),
