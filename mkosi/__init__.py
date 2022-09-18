@@ -113,7 +113,7 @@ from .install import (
     open_close,
 )
 from .manifest import Manifest
-from .mount import mount, mount_api_vfs, mount_bind, mount_overlay, mount_tmpfs
+from .mounts import mount, mount_api_vfs, mount_bind, mount_overlay, mount_tmpfs
 from .syscall import blkpg_add_partition, blkpg_del_partition
 
 complete_step = MkosiPrinter.complete_step
@@ -1386,6 +1386,8 @@ def mount_cache(state: MkosiState) -> Iterator[None]:
         cache_paths = ["var/cache/binpkgs"]
     elif state.config.distribution == Distribution.opensuse:
         cache_paths = ["var/cache/zypp/packages"]
+    else:
+        cache_paths = []
 
     # We can't do this in mount_image() yet, as /var itself might have to be created as a subvolume first
     with complete_step("Mounting Package Cache", "Unmounting Package Cache"), contextlib.ExitStack() as stack:

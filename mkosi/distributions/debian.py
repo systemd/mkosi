@@ -19,7 +19,7 @@ from ..backend import (
     run_workspace_command,
 )
 from ..install import install_skeleton_trees, write_resource
-from ..mount import mount_api_vfs, mount_bind
+from ..mounts import mount_api_vfs, mount_bind
 from . import DistributionInstaller
 
 if TYPE_CHECKING:

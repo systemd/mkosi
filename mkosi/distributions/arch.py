@@ -16,7 +16,7 @@ from ..backend import (
     run,
     sort_packages,
 )
-from ..mount import mount_api_vfs
+from ..mounts import mount_api_vfs
 from . import DistributionInstaller
 
 
