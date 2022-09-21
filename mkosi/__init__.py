@@ -124,18 +124,25 @@ MKOSI_COMMANDS_SUDO = (Verb.build, Verb.clean, Verb.shell, Verb.boot)
 MKOSI_COMMANDS_CMDLINE = (Verb.build, Verb.shell, Verb.boot, Verb.qemu, Verb.ssh)
 
 DRACUT_SYSTEMD_EXTRAS = [
+    "/usr/bin/systemd-ask-password",
     "/usr/bin/systemd-repart",
+    "/usr/bin/systemd-tty-ask-password-agent",
     "/usr/lib/systemd/system-generators/systemd-veritysetup-generator",
     "/usr/lib/systemd/system/initrd-root-fs.target.wants/systemd-repart.service",
     "/usr/lib/systemd/system/initrd-usr-fs.target",
+    "/usr/lib/systemd/system/initrd.target.wants/systemd-pcrphase-initrd.service",
     "/usr/lib/systemd/system/sysinit.target.wants/veritysetup.target",
+    "/usr/lib/systemd/system/systemd-pcrphase-initrd.service",
     "/usr/lib/systemd/system/systemd-repart.service",
     "/usr/lib/systemd/system/systemd-volatile-root.service",
     "/usr/lib/systemd/system/veritysetup.target",
+    "/usr/lib/systemd/systemd-pcrphase",
     "/usr/lib/systemd/systemd-veritysetup",
     "/usr/lib/systemd/systemd-volatile-root",
-    "/usr/bin/systemd-ask-password",
-    "/usr/bin/systemd-tty-ask-password-agent"
+    "/usr/lib64/libtss2-esys.so.0",
+    "/usr/lib64/libtss2-mu.so.0",
+    "/usr/lib64/libtss2-rc.so.0",
+    "/usr/lib64/libtss2-tcti-device.so.0",
 ]
 
 
