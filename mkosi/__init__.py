@@ -7693,7 +7693,33 @@ def qemu_check_kvm_support() -> bool:
 
 
 @contextlib.contextmanager
-def run_qemu_cmdline(config: MkosiConfig, swtpm_socket: Optional[Path] = None) -> Iterator[List[str]]:
+def start_swtpm() -> Iterator[Optional[Path]]:
+
+    if not shutil.which("swtpm"):
+        MkosiPrinter.info("Couldn't find swtpm binary, not invoking qemu with TPM2 device.")
+        yield None
+        return
+
+    with tempfile.TemporaryDirectory() as swtpm_state:
+        swtpm_sock = Path(swtpm_state) / Path("sock")
+
+        cmd = ["swtpm",
+               "socket",
+               "--tpm2",
+               "--tpmstate", f"dir={swtpm_state}",
+               "--ctrl", f"type=unixio,path={swtpm_sock}",
+         ]
+
+        swtpm_proc = spawn(cmd)
+
+        try:
+            yield swtpm_sock
+        finally:
+            swtpm_proc.wait()
+
+
+@contextlib.contextmanager
+def run_qemu_cmdline(config: MkosiConfig) -> Iterator[List[str]]:
     accel = "kvm" if config.qemu_kvm else "tcg"
 
     firmware, fw_supports_sb = find_qemu_firmware(config)
@@ -7753,13 +7779,6 @@ def run_qemu_cmdline(config: MkosiConfig, swtpm_socket: Optional[Path] = None) -
             "-append", build_auxiliary_output_path(config, ".cmdline").read_text().strip(),
         ]
 
-    if swtpm_socket is not None:
-        cmdline += [
-            "-chardev", f"socket,id=chrtpm,path={swtpm_socket}",
-            "-tpmdev", "emulator,id=tpm0,chardev=chrtpm",
-            "-device", "tpm-tis,tpmdev=tpm0",
-            ]
-
     with contextlib.ExitStack() as stack:
         if config.qemu_boot == "uefi" and fw_supports_sb:
             ovmf_vars = stack.enter_context(copy_file_temporary(src=find_ovmf_vars(config), dir=tmp_dir()))
@@ -7794,6 +7813,14 @@ def run_qemu_cmdline(config: MkosiConfig, swtpm_socket: Optional[Path] = None) -
                 "scsi-hd,drive=hd,bootindex=1",
             ]
 
+        swtpm_socket = stack.enter_context(start_swtpm())
+        if swtpm_socket is not None:
+            cmdline += [
+                "-chardev", f"socket,id=chrtpm,path={swtpm_socket}",
+                "-tpmdev", "emulator,id=tpm0,chardev=chrtpm",
+                "-device", "tpm-tis,tpmdev=tpm0",
+            ]
+
         cmdline += config.qemu_args
         cmdline += config.cmdline
 
@@ -7801,36 +7828,9 @@ def run_qemu_cmdline(config: MkosiConfig, swtpm_socket: Optional[Path] = None) -
         yield cmdline
 
 
-@contextlib.contextmanager
-def start_swtpm() -> Iterator[Optional[Path]]:
-
-    if not shutil.which("swtpm"):
-        MkosiPrinter.info("Couldn't find swtpm binary, not invoking qemu with TPM2 device.")
-        yield None
-        return
-
-    with tempfile.TemporaryDirectory() as swtpm_state:
-        swtpm_sock = Path(swtpm_state) / Path("sock")
-
-        cmd = ["swtpm",
-               "socket",
-               "--tpm2",
-               "--tpmstate", f"dir={swtpm_state}",
-               "--ctrl", f"type=unixio,path={swtpm_sock}",
-         ]
-
-        swtpm_proc = spawn(cmd)
-
-        yield swtpm_sock
-
-        swtpm_proc.wait()
-
-
 def run_qemu(config: MkosiConfig) -> None:
-
-    with start_swtpm() as swtpm_socket:
-        with run_qemu_cmdline(config, swtpm_socket) as cmdline:
-            run(cmdline, stdout=sys.stdout, stderr=sys.stderr)
+    with run_qemu_cmdline(config) as cmdline:
+        run(cmdline, stdout=sys.stdout, stderr=sys.stderr)
 
 
 def interface_exists(dev: str) -> bool:
