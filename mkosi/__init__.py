@@ -86,7 +86,6 @@ from .backend import (
     is_centos_variant,
     is_epel_variant,
     is_rpm_distribution,
-    nspawn_executable,
     nspawn_knows_arg,
     nspawn_rlimit_params,
     nspawn_version,
@@ -7236,7 +7235,7 @@ def run_build_script(state: MkosiState, raw: Optional[BinaryIO]) -> None:
         with_network = 1 if state.config.with_network is True else 0
 
         cmdline = [
-            nspawn_executable(),
+            "systemd-nspawn",
             "--quiet",
             target,
             f"--machine=mkosi-{uuid.uuid4().hex}",
@@ -7535,7 +7534,7 @@ def run_shell_cmdline(config: MkosiConfig, pipe: bool = False, commands: Optiona
     else:
         target = f"--image={config.output}"
 
-    cmdline = [nspawn_executable(), "--quiet", target]
+    cmdline = ["systemd-nspawn", "--quiet", target]
 
     if config.read_only:
         cmdline += ["--read-only"]

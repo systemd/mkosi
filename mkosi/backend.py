@@ -673,7 +673,7 @@ def workspace(root: Path) -> Path:
 def nspawn_knows_arg(arg: str) -> bool:
     # Specify some extra incompatible options so nspawn doesn't try to boot a container in the current
     # directory if it has a compatible layout.
-    return "unrecognized option" not in run([nspawn_executable(), arg,
+    return "unrecognized option" not in run(["systemd-nspawn", arg,
                                             "--directory", "/dev/null", "--image", "/dev/null"],
                                             stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, check=False,
                                             text=True).stderr
@@ -692,12 +692,8 @@ def nspawn_rlimit_params() -> Sequence[str]:
     ] if nspawn_knows_arg("--rlimit") else []
 
 
-def nspawn_executable() -> str:
-    return os.getenv("MKOSI_NSPAWN_EXECUTABLE", "systemd-nspawn")
-
-
 def nspawn_version() -> int:
-    return int(run([nspawn_executable(), "--version"], stdout=subprocess.PIPE).stdout.strip().split()[1])
+    return int(run(["systemd-nspawn", "--version"], stdout=subprocess.PIPE).stdout.strip().split()[1])
 
 
 def run_workspace_command(
@@ -710,7 +706,7 @@ def run_workspace_command(
     check: bool = True,
 ) -> CompletedProcess:
     nspawn = [
-        nspawn_executable(),
+        "systemd-nspawn",
         "--quiet",
         f"--directory={state.root}",
         "--machine=mkosi-" + uuid.uuid4().hex,
