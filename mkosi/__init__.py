@@ -7781,7 +7781,7 @@ def run_qemu_cmdline(config: MkosiConfig) -> Iterator[List[str]]:
         )
         cmdline += [
             "-chardev",
-            f"socket,id=chrtpm,path={tpm}/sock"
+            f"socket,id=chrtpm,path={tpmdir}/sock"
             "-tpmdev",
             "emulator,id=tpm0,chardev=chrtpm",
             "-device",
