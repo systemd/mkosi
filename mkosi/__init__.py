@@ -7526,7 +7526,7 @@ def ensure_networkd(config: MkosiConfig) -> bool:
     return True
 
 
-def run_shell_cmdline(config: MkosiConfig, pipe: bool = False, commands: Optional[Sequence[str]] = None) -> List[str]:
+def run_shell_setup(config: MkosiConfig, pipe: bool = False, commands: Optional[Sequence[str]] = None) -> List[str]:
     if config.output_format in (OutputFormat.directory, OutputFormat.subvolume):
         target = f"--directory={config.output}"
     else:
@@ -7579,7 +7579,7 @@ def run_shell_cmdline(config: MkosiConfig, pipe: bool = False, commands: Optiona
 
 
 def run_shell(config: MkosiConfig) -> None:
-    run(run_shell_cmdline(config, pipe=not sys.stdout.isatty()), stdout=sys.stdout, stderr=sys.stderr)
+    run(run_shell_setup(config, pipe=not sys.stdout.isatty()), stdout=sys.stdout, stderr=sys.stderr)
 
 
 def find_qemu_binary(config: MkosiConfig) -> str:
@@ -7719,7 +7719,7 @@ def start_swtpm() -> Iterator[Optional[Path]]:
 
 
 @contextlib.contextmanager
-def run_qemu_cmdline(config: MkosiConfig) -> Iterator[List[str]]:
+def run_qemu_setup(config: MkosiConfig) -> Iterator[List[str]]:
     accel = "kvm" if config.qemu_kvm else "tcg"
 
     firmware, fw_supports_sb = find_qemu_firmware(config)
@@ -7829,7 +7829,7 @@ def run_qemu_cmdline(config: MkosiConfig) -> Iterator[List[str]]:
 
 
 def run_qemu(config: MkosiConfig) -> None:
-    with run_qemu_cmdline(config) as cmdline:
+    with run_qemu_setup(config) as cmdline:
         run(cmdline, stdout=sys.stdout, stderr=sys.stderr)
 
 
@@ -7889,7 +7889,7 @@ def run_systemd_cmdline(config: MkosiConfig, commands: Sequence[str]) -> List[st
     return ["systemd-run", "--quiet", "--wait", "--pipe", "-M", machine_name(config), "/usr/bin/env", *commands]
 
 
-def run_ssh_cmdline(config: MkosiConfig, commands: Optional[Sequence[str]] = None) -> List[str]:
+def run_ssh_setup(config: MkosiConfig, commands: Optional[Sequence[str]] = None) -> List[str]:
     cmd = [
             "ssh",
             # Silence known hosts file errors/warnings.
@@ -7923,7 +7923,7 @@ def run_ssh_cmdline(config: MkosiConfig, commands: Optional[Sequence[str]] = Non
 
 
 def run_ssh(config: MkosiConfig) -> CompletedProcess:
-    return run(run_ssh_cmdline(config), stdout=sys.stdout, stderr=sys.stderr)
+    return run(run_ssh_setup(config), stdout=sys.stdout, stderr=sys.stderr)
 
 
 def run_serve(config: MkosiConfig) -> None:
