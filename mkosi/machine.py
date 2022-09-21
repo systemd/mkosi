@@ -27,9 +27,9 @@ from . import (
     parse_args,
     parse_boolean,
     prepend_to_environ_path,
-    run_qemu_cmdline,
-    run_shell_cmdline,
-    run_ssh_cmdline,
+    run_qemu_setup,
+    run_shell_setup,
+    run_ssh_setup,
     run_systemd_cmdline,
     unlink_output,
 )
@@ -134,10 +134,10 @@ class Machine:
             prepend_to_environ_path(self.config.extra_search_paths)
 
             if self.config.verb == Verb.boot:
-                cmdline = run_shell_cmdline(self.config)
+                cmdline = run_shell_setup(self.config)
             elif self.config.verb == Verb.qemu:
                 # We must keep the temporary file opened at run_qemu_cmdline accessible, hence the context stack.
-                cmdline = stack.enter_context(run_qemu_cmdline(self.config))
+                cmdline = stack.enter_context(run_qemu_setup(self.config))
             else:
                 die("No valid verb was entered.")
 
@@ -166,11 +166,11 @@ class Machine:
         stderr: Union[int, TextIO] = subprocess.PIPE if capture_output else sys.stderr
 
         if self.config.verb == Verb.qemu:
-            cmdline = run_ssh_cmdline(self.config, commands)
+            cmdline = run_ssh_setup(self.config, commands)
         elif self.config.verb == Verb.boot:
             cmdline = run_systemd_cmdline(self.config, commands)
         else:
-            cmdline = run_shell_cmdline(self.config, pipe=True, commands=commands)
+            cmdline = run_shell_setup(self.config, pipe=True, commands=commands)
 
         # The retry logic only applies when running commands against a VM.
 
