@@ -27,7 +27,6 @@ import math
 import os
 import platform
 import re
-import signal
 import shlex
 import shutil
 import stat
@@ -94,6 +93,7 @@ from .backend import (
     path_relative_to_cwd,
     root_home,
     run,
+    run_in_background,
     run_workspace_command,
     set_umask,
     should_compress_fs,
@@ -7772,11 +7772,12 @@ def run_qemu_cmdline(config: MkosiConfig) -> Iterator[List[str]]:
         else:
             fname = config.output
 
-        tpm = stack.enter_context(tempfile.TemporaryDirectory(prefix="mkosi.tpm", dir=tmp_dir()))
-        childpid = os.spawnlp(
-            os.P_NOWAIT,
-            "swtpm",
-            f"socket --tpm2 --tpmstate dir={tpm} --ctrl type=unixio,path={tpm}/sock",
+        tpmdir = stack.enter_context(tempfile.TemporaryDirectory(prefix="mkosi.tpm", dir=tmp_dir()))
+        tpm = stack.enter_context(
+            run_in_background(
+                "swtpm",
+                ["socket", "--tpm2", "--tpmstate", f"dir={tpmdir}", "--ctrl", f"type=unixio,path={tpmdir}/sock"]
+            )
         )
         cmdline += [
             "-chardev",
@@ -7808,7 +7809,6 @@ def run_qemu_cmdline(config: MkosiConfig) -> Iterator[List[str]]:
 
         print_running_cmd(cmdline)
         yield cmdline
-        os.kill(childpid, signal.SIGTERM)
 
 
 def run_qemu(config: MkosiConfig) -> None:

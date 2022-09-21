@@ -13,6 +13,7 @@ import platform
 import resource
 import shlex
 import shutil
+import secrets
 import signal
 import subprocess
 import sys
@@ -749,6 +750,17 @@ def run_workspace_command(
         if "workspace-command" in ARG_DEBUG:
             run(nspawn, check=False)
         die(f"Workspace command {shell_join(cmd)} returned non-zero exit code {e.returncode}.")
+
+
+@contextlib.contextmanager
+def run_in_background(
+    servicename: str,
+    cmd: Sequence[PathString],
+) -> Iterator[str]:
+    name = f"mkosi-{secrets.token_hex(4)}-{servicename}.service"
+    run(["systemd-run", f"--unit={name}", *cmd])
+    yield name
+    run(["systemctl", "stop", name])
 
 
 def root_home(state: MkosiState) -> Path:
