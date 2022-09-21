@@ -5562,6 +5562,7 @@ def create_parser() -> ArgumentParserMkosi:
         dest="extra_search_paths",
         action=ColonDelimitedListAction,
         default=[],
+        type=Path,
         help="List of colon-separated paths to look for programs before looking in PATH",
     )
     group.add_argument(
@@ -7987,7 +7988,7 @@ def bump_image_version(config: MkosiConfig) -> None:
     open("mkosi.version", "w").write(new_version + "\n")
 
 
-def expand_paths(paths: List[str]) -> List[str]:
+def expand_paths(paths: Sequence[str]) -> List[Path]:
     if not paths:
         return []
 
@@ -8002,20 +8003,32 @@ def expand_paths(paths: List[str]) -> List[str]:
     expanded = []
     for path in paths:
         try:
-            expanded += [string.Template(path).substitute(environ)]
+            expanded += [Path(string.Template(path).substitute(environ))]
         except KeyError:
             # Skip path if it uses a variable not defined.
             pass
     return expanded
 
 
-def prepend_to_environ_path(paths: List[Path]) -> None:
+@contextlib.contextmanager
+def prepend_to_environ_path(paths: Sequence[Path]) -> Iterator[None]:
     if not paths:
+        yield
         return
 
-    news = [os.fspath(path) for path in paths]
-    olds = os.getenv("PATH", "").split(":")
-    os.environ["PATH"] = ":".join(news + olds)
+    with tempfile.TemporaryDirectory(prefix="mkosi.path", dir=tmp_dir()) as d:
+
+        for path in paths:
+            if not path.is_dir():
+                Path(d).joinpath(path.name).symlink_to(path.absolute())
+
+        paths = [Path(d), *paths]
+
+        news = [os.fspath(path) for path in paths if path.is_dir()]
+        olds = os.getenv("PATH", "").split(":")
+        os.environ["PATH"] = ":".join(news + olds)
+
+        yield
 
 
 def expand_specifier(s: str) -> str:
@@ -8031,48 +8044,47 @@ def needs_build(config: Union[argparse.Namespace, MkosiConfig]) -> bool:
 def run_verb(raw: argparse.Namespace) -> None:
     config: MkosiConfig = load_args(raw)
 
-    prepend_to_environ_path(config.extra_search_paths)
+    with prepend_to_environ_path(config.extra_search_paths):
+        if config.verb == Verb.genkey:
+            generate_secure_boot_key(config)
 
-    if config.verb == Verb.genkey:
-        generate_secure_boot_key(config)
-
-    if config.verb == Verb.bump:
-        bump_image_version(config)
-
-    if config.verb in MKOSI_COMMANDS_SUDO:
-        check_root()
-
-    if config.verb == Verb.build and not config.force:
-        check_output(config)
-
-    if needs_build(config) or config.verb == Verb.clean:
-        check_root()
-        unlink_output(config)
-
-    if config.verb == Verb.summary:
-        print_summary(config)
-
-    if needs_build(config):
-        check_native(config)
-        init_namespace()
-        manifest = build_stuff(config)
-
-        if config.auto_bump:
+        if config.verb == Verb.bump:
             bump_image_version(config)
 
-        save_manifest(config, manifest)
+        if config.verb in MKOSI_COMMANDS_SUDO:
+            check_root()
 
-        print_output_size(config)
+        if config.verb == Verb.build and not config.force:
+            check_output(config)
 
-    with suppress_stacktrace():
-        if config.verb in (Verb.shell, Verb.boot):
-            run_shell(config)
+        if needs_build(config) or config.verb == Verb.clean:
+            check_root()
+            unlink_output(config)
 
-        if config.verb == Verb.qemu:
-            run_qemu(config)
+        if config.verb == Verb.summary:
+            print_summary(config)
 
-        if config.verb == Verb.ssh:
-            run_ssh(config)
+        if needs_build(config):
+            check_native(config)
+            init_namespace()
+            manifest = build_stuff(config)
 
-    if config.verb == Verb.serve:
-        run_serve(config)
+            if config.auto_bump:
+                bump_image_version(config)
+
+            save_manifest(config, manifest)
+
+            print_output_size(config)
+
+        with suppress_stacktrace():
+            if config.verb in (Verb.shell, Verb.boot):
+                run_shell(config)
+
+            if config.verb == Verb.qemu:
+                run_qemu(config)
+
+            if config.verb == Verb.ssh:
+                run_ssh(config)
+
+        if config.verb == Verb.serve:
+            run_serve(config)
