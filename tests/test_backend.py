@@ -3,8 +3,7 @@
 import os
 from pathlib import Path
 
-import mkosi.backend as backend
-from mkosi.backend import Distribution, PackageType, set_umask
+from mkosi.backend import Distribution, PackageType, PartitionTable, set_umask, workspace
 
 
 def test_distribution() -> None:
@@ -27,21 +26,21 @@ def test_set_umask() -> None:
 
 
 def test_workspace() -> None:
-    assert backend.workspace(Path("/home/folder/mkosi/mkosi")) == Path("/home/folder/mkosi")
-    assert backend.workspace(Path("/home/../home/folder/mkosi/mkosi")) == Path("/home/../home/folder/mkosi")
-    assert backend.workspace(Path("/")) == Path("/")
-    assert backend.workspace(Path()) == Path()
+    assert workspace(Path("/home/folder/mkosi/mkosi")) == Path("/home/folder/mkosi")
+    assert workspace(Path("/home/../home/folder/mkosi/mkosi")) == Path("/home/../home/folder/mkosi")
+    assert workspace(Path("/")) == Path("/")
+    assert workspace(Path()) == Path()
 
 
 def test_footer_size() -> None:
-    table = backend.PartitionTable()
+    table = PartitionTable()
     assert table.footer_size() == 16896
     assert table.footer_size(max_partitions=64) == 8704
     assert table.footer_size(max_partitions=1) == 1024
     assert table.footer_size(max_partitions=0) == 512
 
 def test_first_partition_offset() -> None:
-    table = backend.PartitionTable()
+    table = PartitionTable()
     table.grain = 4096
 
     # Grain = 4096, first_lba = None.
@@ -75,7 +74,7 @@ def test_first_partition_offset() -> None:
 
 
 def test_last_partition_offset() -> None:
-    table = backend.PartitionTable()
+    table = PartitionTable()
     table.grain = 4096
 
     table.last_partition_sector = 32
@@ -96,7 +95,7 @@ def test_last_partition_offset() -> None:
 
 
 def test_disk_size() -> None:
-    table = backend.PartitionTable()
+    table = PartitionTable()
     table.grain = 4096
     table.last_partition_sector = 0
     table.first_lba = 64

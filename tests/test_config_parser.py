@@ -204,7 +204,7 @@ class MkosiConfig:
             fname = f"{prio:03d}_{fname}"
         config_parser = configparser.RawConfigParser()
         # This is still an open issue on: https://github.com/python/mypy/issues/2427
-        config_parser.optionxform = lambda optionstr: str(optionstr) # type: ignore
+        config_parser.optionxform = str # type: ignore
 
         # Replace lists in dict before calling config_parser write file
         config_all_normalized = copy.deepcopy(config)
@@ -812,7 +812,7 @@ class MkosiConfigIniLists1(MkosiConfigOne):
         ini_lines = [
             "[Content]",
             "Packages=[ vim,!vi",
-            "  ca-certificates, bzip ]" "",
+            "  ca-certificates, bzip ]  ",
             "[Output]",
             "KernelCommandLine=console=ttyS1",
             "  driver.feature=1",
@@ -919,7 +919,7 @@ def test_builtin(tested_config: Any, tmpdir: Path) -> None:
     with change_cwd(tmpdir):
         if "--all" in tested_config.cli_arguments:
             with pytest.raises(MkosiException):
-                args = mkosi.parse_args(tested_config.cli_arguments)
+                mkosi.parse_args(tested_config.cli_arguments)
         else:
             args = mkosi.parse_args(tested_config.cli_arguments)
             assert tested_config == args
