@@ -1275,13 +1275,6 @@ Those settings cannot be configured in the configuration files.
   each build in a series will have a version number one higher then
   the previous one.
 
-### Environment Variables
-
-`MKOSI_NSPAWN_EXECUTABLE`
-
-: Takes a path. If specified, mkosi will use this path as the systemd-nspawn
-  executable instead of the system installation of systemd-nspawn.
-
 ## Supported distributions
 
 Images may be created containing installations of the
