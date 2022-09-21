@@ -11,9 +11,9 @@ import math
 import os
 import platform
 import resource
+import secrets
 import shlex
 import shutil
-import secrets
 import signal
 import subprocess
 import sys

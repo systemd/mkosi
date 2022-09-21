@@ -7783,7 +7783,7 @@ def run_qemu_cmdline(config: MkosiConfig) -> Iterator[List[str]]:
             "-chardev",
             f"socket,id=chrtpm,path={tpm}/sock"
             "-tpmdev",
-            "emulator,id=tpm0,chardev=chrtpm"
+            "emulator,id=tpm0,chardev=chrtpm",
             "-device",
             "tpm-tis,tpmdev=tpm0"
         ]
