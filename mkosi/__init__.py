@@ -3978,13 +3978,61 @@ def install_unified_kernel(
             cmdline = state.workspace / "cmdline"
             cmdline.write_text(boot_options)
             initrd = state.root / boot_directory(state, kver) / "initrd"
+            pcrsig = None
+            pcrpkey = None
 
-            cmd: Sequence[PathString] = [
+            # If a SecureBoot key is configured, and we have the
+            # systemd-measure binary around, then also include a
+            # signature of expected PCR 11 values in the kernel image
+            if state.config.secure_boot:
+                if shutil.which('systemd-measure'):
+                    with complete_step("Generating PCR 11 signature…"):
+                        from cryptography import x509
+                        from cryptography.hazmat.primitives import serialization
+
+                        # Extract the public key from the SecureBoot certificate
+                        cert = x509.load_pem_x509_certificate(state.config.secure_boot_certificate.read_bytes())
+                        pcrpkey = state.workspace / "pcrpkey.pem"
+                        pcrpkey.write_bytes(cert.public_key().public_bytes(
+                            encoding=serialization.Encoding.PEM,
+                            format=serialization.PublicFormat.SubjectPublicKeyInfo))
+
+                        cmd_measure: Sequence[PathString] = [
+                            "systemd-measure",
+                            "sign",
+                            f"--linux={state.root / kimg}",
+                            f"--osrel={osrelease}",
+                            f"--cmdline={cmdline}",
+                            f"--initrd={initrd}",
+                            f"--pcrpkey={pcrpkey}",
+                            f"--private-key={state.config.secure_boot_key}",
+                            f"--public-key={pcrpkey}",
+                            "--bank=sha1",
+                            "--bank=sha256",
+                        ]
+
+                        c = run(cmd_measure, stdout=PIPE)
+
+                        pcrsig = state.workspace / "pcrsig.json"
+                        pcrsig.write_bytes(c.stdout)
+                else:
+                    MkosiPrinter.info("Couldn't find systemd-measure binary, not embedding PCR signature in unified kernel image.")
+
+            cmd: List[PathString] = [
                 "objcopy",
-                "--add-section", f".osrel={osrelease}",   "--change-section-vma", ".osrel=0x20000",
-                "--add-section", f".cmdline={cmdline}",   "--change-section-vma", ".cmdline=0x30000",
-                "--add-section", f".linux={state.root / kimg}", "--change-section-vma", ".linux=0x2000000",
-                "--add-section", f".initrd={initrd}",     "--change-section-vma", ".initrd=0x3000000",
+                "--add-section", f".osrel={osrelease}",         "--change-section-vma",   ".osrel=0x20000",
+                "--add-section", f".cmdline={cmdline}",         "--change-section-vma", ".cmdline=0x30000",
+                "--add-section", f".linux={state.root / kimg}", "--change-section-vma",   ".linux=0x2000000",
+                "--add-section", f".initrd={initrd}",           "--change-section-vma",  ".initrd=0x3000000",
+            ]
+
+            if pcrsig is not None:
+                cmd += [
+                    "--add-section", f".pcrsig={pcrsig}",       "--change-section-vma",  ".pcrsig=0x80000",
+                    "--add-section", f".pcrpkey={pcrpkey}",     "--change-section-vma", ".pcrpkey=0x100000",
+                ]
+
+            cmd += [
                 state.root / f"lib/systemd/boot/efi/linux{EFI_ARCHITECTURES[state.config.architecture]}.efi.stub",
                 boot_binary,
             ]
@@ -3992,6 +4040,10 @@ def install_unified_kernel(
             run(cmd)
 
             cmdline.unlink()
+            if pcrsig is not None:
+                pcrsig.unlink()
+            if pcrpkey is not None:
+                pcrpkey.unlink()
 
 
 def secure_boot_sign(
