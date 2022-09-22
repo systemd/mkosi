@@ -4013,7 +4013,7 @@ def install_unified_kernel(
                             "--bank=sha256",
                         ]
 
-                        c = run(cmd_measure, stdout=PIPE)
+                        c = run(cmd_measure, stdout=subprocess.PIPE)
 
                         pcrsig = state.workspace / "pcrsig.json"
                         pcrsig.write_bytes(c.stdout)
