@@ -3757,10 +3757,13 @@ def make_verity_sig(
 
     assert root_hash is not None
 
-    from cryptography import x509
-    from cryptography.hazmat.primitives import hashes, serialization
-    from cryptography.hazmat.primitives.asymmetric import ec, rsa
-    from cryptography.hazmat.primitives.serialization import pkcs7
+    try:
+        from cryptography import x509
+        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.asymmetric import ec, rsa
+        from cryptography.hazmat.primitives.serialization import pkcs7
+    except ImportError:
+        die("Verity support needs the cryptography module. Please install it.")
 
     with complete_step("Signing verity root hash…"):
 
@@ -3987,38 +3990,42 @@ def install_unified_kernel(
             # systemd-measure binary around, then also include a
             # signature of expected PCR 11 values in the kernel image
             if state.config.secure_boot:
-                if shutil.which('systemd-measure'):
-                    with complete_step("Generating PCR 11 signature…"):
-                        from cryptography import x509
-                        from cryptography.hazmat.primitives import serialization
+                try:
+                    from cryptography import x509
+                    from cryptography.hazmat.primitives import serialization
 
-                        # Extract the public key from the SecureBoot certificate
-                        cert = x509.load_pem_x509_certificate(state.config.secure_boot_certificate.read_bytes())
-                        pcrpkey = state.workspace / "pcrpkey.pem"
-                        pcrpkey.write_bytes(cert.public_key().public_bytes(
-                            encoding=serialization.Encoding.PEM,
-                            format=serialization.PublicFormat.SubjectPublicKeyInfo))
+                    if shutil.which('systemd-measure'):
+                        with complete_step("Generating PCR 11 signature…"):
 
-                        cmd_measure: Sequence[PathString] = [
-                            "systemd-measure",
-                            "sign",
-                            f"--linux={state.root / kimg}",
-                            f"--osrel={osrelease}",
-                            f"--cmdline={cmdline}",
-                            f"--initrd={initrd}",
-                            f"--pcrpkey={pcrpkey}",
-                            f"--private-key={state.config.secure_boot_key}",
-                            f"--public-key={pcrpkey}",
-                            "--bank=sha1",
-                            "--bank=sha256",
-                        ]
+                            # Extract the public key from the SecureBoot certificate
+                            cert = x509.load_pem_x509_certificate(state.config.secure_boot_certificate.read_bytes())
+                            pcrpkey = state.workspace / "pcrpkey.pem"
+                            pcrpkey.write_bytes(cert.public_key().public_bytes(
+                                encoding=serialization.Encoding.PEM,
+                                format=serialization.PublicFormat.SubjectPublicKeyInfo))
 
-                        c = run(cmd_measure, stdout=subprocess.PIPE)
+                            cmd_measure = [
+                                "systemd-measure",
+                                "sign",
+                                f"--linux={state.root / kimg}",
+                                f"--osrel={osrelease}",
+                                f"--cmdline={cmdline}",
+                                f"--initrd={initrd}",
+                                f"--pcrpkey={pcrpkey}",
+                                f"--private-key={state.config.secure_boot_key}",
+                                f"--public-key={pcrpkey}",
+                                "--bank=sha1",
+                                "--bank=sha256",
+                            ]
 
-                        pcrsig = state.workspace / "pcrsig.json"
-                        pcrsig.write_bytes(c.stdout)
-                else:
-                    MkosiPrinter.info("Couldn't find systemd-measure binary, not embedding PCR signature in unified kernel image.")
+                            c = run(cmd_measure, stdout=subprocess.PIPE)
+
+                            pcrsig = state.workspace / "pcrsig.json"
+                            pcrsig.write_bytes(c.stdout)
+                    else:
+                        MkosiPrinter.info("Couldn't find systemd-measure binary, not embedding PCR signature in unified kernel image.")
+                except ImportError:
+                    MkosiPrinter.info("Couldn't import the cryptography Python module, not embedding PCR signature in unified kernel image.")
 
             cmd: List[PathString] = [
                 "objcopy",
