@@ -2708,7 +2708,7 @@ def install_arch(state: MkosiState) -> None:
                 GPGDir = /etc/pacman.d/gnupg/
                 HookDir = {state.root}/etc/pacman.d/hooks/
                 HoldPkg = pacman glibc
-                Architecture = auto
+                Architecture = {state.config.architecture}
                 Color
                 CheckSpace
                 SigLevel = {sig_level}
@@ -6414,10 +6414,11 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
             args.mirror = "http://archive.ubuntu.com/ubuntu"
             if platform.machine() == "aarch64":
                 args.mirror = "http://ports.ubuntu.com/"
-        elif args.distribution == Distribution.arch and platform.machine() == "aarch64":
-            args.mirror = "http://mirror.archlinuxarm.org"
-        elif args.distribution == Distribution.arch and platform.machine() == "x86_64":
-            args.mirror = "https://geo.mirror.pkgbuild.com"
+        elif args.distribution == Distribution.arch:
+            if args.architecture == "aarch64":
+                args.mirror = "http://mirror.archlinuxarm.org"
+            else:
+                args.mirror = "https://geo.mirror.pkgbuild.com"
         elif args.distribution == Distribution.opensuse:
             args.mirror = "http://download.opensuse.org"
         elif args.distribution in (Distribution.rocky, Distribution.rocky_epel):
