@@ -2464,7 +2464,10 @@ def add_apt_auxiliary_repos(state: MkosiState, repos: Set[str]) -> None:
 
     # Security updates repos are never mirrored
     if state.config.distribution == Distribution.ubuntu:
-        security = f"deb http://security.ubuntu.com/ubuntu/ {state.config.release}-security {' '.join(repos)}"
+        if state.config.architecture == "x86" or state.config.architecture == "x86_64":
+            security = f"deb http://security.ubuntu.com/ubuntu/ {state.config.release}-security {' '.join(repos)}"
+        else:
+            security = f"deb http://ports.ubuntu.com/ {state.config.release}-security {' '.join(repos)}"
     elif state.config.release in ("stretch", "buster"):
         security = f"deb http://security.debian.org/debian-security/ {state.config.release}/updates main"
     else:
@@ -6411,9 +6414,10 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
         elif args.distribution == Distribution.debian:
             args.mirror = "http://deb.debian.org/debian"
         elif args.distribution == Distribution.ubuntu:
-            args.mirror = "http://archive.ubuntu.com/ubuntu"
-            if platform.machine() == "aarch64":
-                args.mirror = "http://ports.ubuntu.com/"
+            if args.architecture == "x86" or args.architecture == "x86_64":
+                args.mirror = "http://archive.ubuntu.com/ubuntu"
+            else:
+                args.mirror = "http://ports.ubuntu.com"
         elif args.distribution == Distribution.arch:
             if args.architecture == "aarch64":
                 args.mirror = "http://mirror.archlinuxarm.org"
