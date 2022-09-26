@@ -3470,6 +3470,12 @@ def find_files(root: Path) -> Iterator[Path]:
                                  lambda entry: Path(entry.path).relative_to(root))
 
 
+def cpio_binary() -> str:
+    # Some distros (Mandriva) install BSD cpio as "cpio", hence prefer
+    # GNU "cpio" if it exists, which should be GNU cpio wherever it exists.
+    return "bsdcpio" if shutil.which("bsdcpio") else "cpio"
+
+
 def make_cpio(state: MkosiState) -> Optional[BinaryIO]:
     if state.do_run_build_script:
         return None
@@ -3485,9 +3491,11 @@ def make_cpio(state: MkosiState) -> Optional[BinaryIO]:
 
         compressor = compressor_command(should_compress_output(state.config))
         files = find_files(root_dir)
-        cmd: List[PathString] = [
-            "cpio", "-o", "--reproducible", "--null", "-H", "newc", "--quiet", "-D", root_dir
-        ]
+        cmd: List[PathString] = [cpio_binary(), "-o", "--null", "-H", "newc", "--quiet"]
+        if cpio_binary() = "cpio":
+            cmd += ["--reproducible", "-D"]
+
+        cmd += [root_dir]
 
         with spawn(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE) as cpio:
             #  https://github.com/python/mypy/issues/10583
