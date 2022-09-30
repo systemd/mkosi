@@ -833,7 +833,7 @@ def run(
     env: Mapping[str, Any] = {},
     **kwargs: Any,
 ) -> CompletedProcess:
-    cmdline = [str(x) for x in cmdline]
+    cmdline = [os.fspath(x) for x in cmdline]
 
     if "run" in ARG_DEBUG:
         MkosiPrinter.info(f"+ {shell_join(cmdline)}")
