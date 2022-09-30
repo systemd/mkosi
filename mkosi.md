@@ -559,6 +559,18 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   provisions described in the [Discoverable Partitions
   Specification](https://systemd.io/DISCOVERABLE_PARTITIONS).
 
+  This option requires the [`cryptography`](https://cryptography.io/)
+  module.
+
+`Measure=`, `--measure`
+
+: Measure the components of the unified kernel image (UKI) using
+  `systemd-measure` and embed the PCR signature into the unified kernel
+  image.
+
+  This option requires the [`cryptography`](https://cryptography.io/)
+  module.
+
 `CompressFs=`, `--compress-fs=`
 
 : Enable or disable internal compression in the file system. Only
