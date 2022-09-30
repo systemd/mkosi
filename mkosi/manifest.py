@@ -96,8 +96,15 @@ class Manifest:
         # TODO: add implementations for other package managers
 
     def record_rpm_packages(self, root: Path) -> None:
+        # On Debian, rpm/dnf ship with a patch to store the rpmdb under ~/ so rpm
+        # has to be told to use the location the rpmdb was moved to.
+        # Otherwise the rpmdb will appear empty. See: https://bugs.debian.org/1004863
+        dbpath = "/usr/lib/sysimage/rpm"
+        if not (root / dbpath).exists():
+            dbpath = "/var/lib/rpm"
+
         c = run(
-            ["rpm", f"--root={root}", "-qa", "--qf",
+            ["rpm", f"--root={root}", f"--dbpath={dbpath}", "-qa", "--qf",
              r"%{NEVRA}\t%{SOURCERPM}\t%{NAME}\t%{ARCH}\t%{SIZE}\t%{INSTALLTIME}\n"],
             stdout=PIPE,
             text=True,
@@ -136,7 +143,7 @@ class Manifest:
 
             source = self.source_packages.get(srpm)
             if source is None:
-                c = run(["rpm", f"--root={root}", "-q", "--changelog", nevra],
+                c = run(["rpm", f"--root={root}", f"--dbpath={dbpath}", "-q", "--changelog", nevra],
                         stdout=PIPE,
                         stderr=DEVNULL,
                         text=True)
