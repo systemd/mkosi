@@ -53,7 +53,6 @@ from typing import (
     Iterator,
     List,
     NamedTuple,
-    NoReturn,
     Optional,
     Sequence,
     Set,
@@ -8002,7 +8001,7 @@ def run_serve(config: MkosiConfig) -> None:
         httpd.serve_forever()
 
 
-def generate_secure_boot_key(config: MkosiConfig) -> NoReturn:
+def generate_secure_boot_key(config: MkosiConfig) -> None:
     """Generate secure boot keys using openssl"""
 
     keylength = 2048
@@ -8031,7 +8030,7 @@ def generate_secure_boot_key(config: MkosiConfig) -> NoReturn:
         )
     )
 
-    cmd: List[str] = [
+    cmd: List[PathString] = [
         "openssl",
         "req",
         "-new",
@@ -8039,17 +8038,16 @@ def generate_secure_boot_key(config: MkosiConfig) -> NoReturn:
         "-newkey",
         f"rsa:{keylength}",
         "-keyout",
-        os.fspath(config.secure_boot_key),
+        config.secure_boot_key,
         "-out",
-        os.fspath(config.secure_boot_certificate),
+        config.secure_boot_certificate,
         "-days",
         str(config.secure_boot_valid_days),
         "-subj",
         f"/CN={cn}/",
         "-nodes",
     ]
-
-    os.execvp(cmd[0], cmd)
+    run(cmd)
 
 
 def bump_image_version(config: MkosiConfig) -> None:
@@ -8133,7 +8131,7 @@ def run_verb(raw: argparse.Namespace) -> None:
 
     with prepend_to_environ_path(config.extra_search_paths):
         if config.verb == Verb.genkey:
-            generate_secure_boot_key(config)
+            return generate_secure_boot_key(config)
 
         if config.verb == Verb.bump:
             bump_image_version(config)
