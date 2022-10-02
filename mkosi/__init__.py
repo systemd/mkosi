@@ -4656,7 +4656,7 @@ def setup_package_cache(config: MkosiConfig, workspace: Path) -> Path:
     else:
         cache = config.cache_path
 
-    os.makedirs(config.cache_path, 0o755, exist_ok=True)
+    os.makedirs(cache, 0o755, exist_ok=True)
 
     return cache
 
