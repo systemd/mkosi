@@ -3991,15 +3991,15 @@ def install_unified_kernel(
             # If a SecureBoot key is configured, and we have the
             # systemd-measure binary around, then also include a
             # signature of expected PCR 11 values in the kernel image
-            if state.config.secure_boot and state.config.measure:
+            if state.config.secure_boot and state.config.sign_expected_pcr:
                 try:
                     from cryptography import x509
                     from cryptography.hazmat.primitives import serialization
                 except ImportError:
-                    die("Couldn't import the cryptography Python module. This is needed for the --measure option.")
+                    die("Couldn't import the cryptography Python module. This is needed for the --sign-expected-pcr option.")
 
                 if not shutil.which('systemd-measure'):
-                    die("Couldn't find systemd-measure binary. It is needed for the --measure option.")
+                    die("Couldn't find systemd-measure binary. It is needed for the --sign-expected-pcr option.")
 
                 with complete_step("Generating PCR 11 signature…"):
                     # Extract the public key from the SecureBoot certificate
@@ -4882,7 +4882,8 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
         "PostInstallationScript": "--postinst-script",
         "GPTFirstLBA": "--gpt-first-lba",
         "TarStripSELinuxContext": "--tar-strip-selinux-context",
-        "MachineID": "--machine-id"
+        "MachineID": "--machine-id",
+        "SignExpectedPCR": "--sign-expected-pcr",
     }
 
     fromfile_prefix_chars: str = "@"
@@ -5210,7 +5211,7 @@ def create_parser() -> ArgumentParserMkosi:
         help="Add integrity partition, and optionally sign it (implies --read-only)",
     )
     group.add_argument(
-        "--measure",
+        "--sign-expected-pcr",
         action=BooleanAction,
         help="Measure the components of the unified kernel image (UKI) and embed the PCR signature into the UKI",
     )

@@ -562,7 +562,7 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   This option requires the [`cryptography`](https://cryptography.io/)
   module.
 
-`Measure=`, `--measure`
+`SignExpectedPCR=`, `--sign-expected-pcr`
 
 : Measure the components of the unified kernel image (UKI) using
   `systemd-measure` and embed the PCR signature into the unified kernel

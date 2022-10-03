@@ -128,7 +128,7 @@ class MkosiConfig:
             "bios_size": None,
             "verb": Verb.build,
             "verity": False,
-            "measure": False,
+            "sign_expected_pcr": False,
             "with_docs": False,
             "with_network": False,
             "with_tests": True,

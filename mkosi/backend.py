@@ -485,7 +485,7 @@ class MkosiConfig:
     read_only: bool
     encrypt: Optional[str]
     verity: Union[bool, str]
-    measure: bool
+    sign_expected_pcr: bool
     compress: Union[None, str, bool]
     compress_fs: Union[None, str, bool]
     compress_output: Union[None, str, bool]
