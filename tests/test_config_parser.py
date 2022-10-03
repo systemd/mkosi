@@ -3,7 +3,9 @@
 import configparser
 import contextlib
 import copy
+import importlib
 import os
+import shutil
 from pathlib import Path
 from typing import Any, Dict, Generator, List, Mapping, Optional
 
@@ -35,6 +37,13 @@ class MkosiConfig:
     def __init__(self) -> None:
         self.cli_arguments = []
         self.reference_config = {}
+
+    def local_sign_expected_pcr_default(self) -> bool:
+        try:
+            importlib.import_module("cryptography")
+            return True if shutil.which('systemd-measure') else False
+        except ImportError:
+            return False
 
     def add_reference_config(self, job_name: str = DEFAULT_JOB_NAME) -> None:
         """create one initial reference configuration
@@ -128,7 +137,7 @@ class MkosiConfig:
             "bios_size": None,
             "verb": Verb.build,
             "verity": False,
-            "sign_expected_pcr": False,
+            "sign_expected_pcr": self.local_sign_expected_pcr_default(),
             "with_docs": False,
             "with_network": False,
             "with_tests": True,
