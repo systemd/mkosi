@@ -2623,7 +2623,9 @@ def remove_packages(state: MkosiState) -> None:
 
     remove: Callable[[List[str]], Any]
 
-    if (state.config.distribution.package_type == PackageType.rpm):
+    if state.installer is not None:
+        remove = lambda p: state.installer.remove_packages(state, p) # type: ignore
+    elif (state.config.distribution.package_type == PackageType.rpm):
         remove = lambda p: invoke_dnf(state, 'remove', p)
     elif state.config.distribution.package_type == PackageType.deb:
         remove = lambda p: invoke_apt(state, "get", "purge", ["--assume-yes", "--auto-remove", *p])

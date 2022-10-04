@@ -19,3 +19,7 @@ class DistributionInstaller:
     @classmethod
     def cache_path(cls) -> List[str]:
         raise NotImplementedError
+
+    @classmethod
+    def remove_packages(cls, state: "MkosiState", remove: List[str]) -> None:
+        pass
