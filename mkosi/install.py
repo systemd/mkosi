@@ -10,7 +10,7 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Any, BinaryIO, Iterator, Optional, cast
 
-from .backend import Distribution, MkosiState, PathString, complete_step
+from .backend import MkosiState, PathString, complete_step
 from .syscall import reflink
 
 
@@ -140,7 +140,11 @@ def install_skeleton_trees(state: MkosiState, cached: bool, *, late: bool=False)
     if cached:
         return
 
-    if not late and state.config.distribution in (Distribution.debian, Distribution.ubuntu):
+    if state.installer is not None:
+        skeletons_after_bootstrap = state.installer.needs_skeletons_after_bootstrap
+    else:
+        skeletons_after_bootstrap = False
+    if not late and skeletons_after_bootstrap:
         return
 
     with complete_step("Copying in skeleton file trees…"):
