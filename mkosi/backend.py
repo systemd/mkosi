@@ -7,6 +7,7 @@ import contextlib
 import dataclasses
 import enum
 import errno
+import importlib
 import math
 import os
 import platform
@@ -39,11 +40,15 @@ from typing import (
     cast,
 )
 
+from .distributions import DistributionInstaller
 from .syscall import (
     blkpg_add_partition,
     blkpg_del_partition,
     block_reread_partition_table,
 )
+
+
+
 
 PathString = Union[Path, str]
 
@@ -635,6 +640,24 @@ class MkosiState:
         if self.partition_table is None:
             return None
         return self.partition_table.partitions.get(ident)
+
+    @property
+    def installer(self) -> Optional["DistributionInstaller"]:
+        try:
+            # we do a getattr here because we wnt to use the missing attribute
+            # as a sentinel, since we will use None as a sentinel further down
+            # for the case of distros that are not migrated to this interface
+            return cast(Optional["DistributionInstaller"], getattr(self, "_installer"))
+        except AttributeError:
+            try:
+                distro = str(self.config.distribution)
+                mod = importlib.import_module(f"mkosi.distributions.{distro}")
+                installer = getattr(mod, f"{distro.title().replace('_','')}Installer")
+                instance = installer() if issubclass(installer, DistributionInstaller) else None
+            except (ImportError, AttributeError):
+                instance = None
+            setattr(self, "_installer", instance)
+            return cast(Optional["DistributionInstaller"], instance)
 
 
 def should_compress_fs(config: Union[argparse.Namespace, MkosiConfig]) -> Union[bool, str]:
