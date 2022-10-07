@@ -3661,7 +3661,15 @@ def insert_partition(
 
             # Without this the entire blob will be read into memory which could exceed system memory
             with open(path, mode='wb') as path_fp:
-                os.sendfile(path_fp.fileno(), blob.fileno(), offset=0, count=blob_size)
+                # Chunk size for 32/64-bit systems
+                # Chunking required because sendfile under Linux has a maximum copy size
+                chunksize = 2 ** 30 if sys.maxsize < 2 ** 32 else 0x7ffff000
+                offset = 0
+                while True:
+                    sent = os.sendfile(path_fp.fileno(), blob.fileno(), offset=offset, count=chunksize)
+                    if not sent:
+                        break
+                    offset += sent
 
     return part
 
