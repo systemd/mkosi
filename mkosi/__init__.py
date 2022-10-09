@@ -3903,6 +3903,15 @@ def gen_kernel_images(state: MkosiState) -> Iterator[Tuple[str, Path]]:
         yield kver.name, kimg
 
 
+def initrd_path(state: MkosiState, kver: str) -> Path:
+    # initrd file is versioned in Debian Bookworm
+    initrd = state.root / boot_directory(state, kver) / f"initrd.img-{kver}"
+    if not initrd.exists():
+        initrd = state.root / boot_directory(state, kver) / "initrd"
+
+    return initrd
+
+
 def install_unified_kernel(
     state: MkosiState,
     root_hash: Optional[str],
@@ -3982,7 +3991,7 @@ def install_unified_kernel(
             osrelease = state.root / "usr/lib/os-release"
             cmdline = state.workspace / "cmdline"
             cmdline.write_text(boot_options)
-            initrd = state.root / boot_directory(state, kver) / "initrd"
+            initrd = initrd_path(state, kver)
             pcrsig = None
             pcrpkey = None
 
@@ -4142,7 +4151,7 @@ def extract_kernel_image_initrd(
 
         for kver, kimg in gen_kernel_images(state):
             kimgabs = state.root / kimg
-            initrd = state.root / boot_directory(state, kver) / "initrd"
+            initrd = initrd_path(state, kver)
 
         if kimgabs is None:
             die("No kernel image found, can't extract.")
