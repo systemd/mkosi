@@ -3217,13 +3217,9 @@ def run_finalize_script(state: MkosiState) -> None:
             env={**state.environment, "BUILDROOT": str(state.root), "OUTPUTDIR": str(output_dir(state.config))})
 
 
-def install_boot_loader(
-    state: MkosiState, loopdev: Optional[Path], cached: bool
-) -> None:
+def install_boot_loader(state: MkosiState, cached: bool) -> None:
     if not state.config.bootable or state.do_run_build_script:
         return
-    assert loopdev is not None
-
     if cached:
         return
 
@@ -7192,7 +7188,7 @@ def build_image(
                 install_extra_trees(state)
                 configure_dracut(state, cached_tree)
                 run_kernel_install(state, cached_tree)
-                install_boot_loader(state, loopdev, cached_tree)
+                install_boot_loader(state, cached_tree)
                 set_root_password(state, cached_tree)
                 set_serial_terminal(state, cached_tree)
                 set_autologin(state, cached_tree)
