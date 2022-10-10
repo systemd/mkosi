@@ -3303,6 +3303,10 @@ def copy_git_files(src: Path, dest: Path, *, source_file_transfer: SourceFileTra
         files |= {sm / x.decode("utf-8") for x in c.stdout.rstrip(b"\0").split(b"\0")}
         files -= submodules
 
+        # Add the .git submodule file well.
+        if source_file_transfer == SourceFileTransfer.copy_git_more:
+            files.add(os.path.join(sm, ".git"))
+
     del c
 
     for path in files:
