@@ -562,14 +562,14 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   This option requires the [`cryptography`](https://cryptography.io/)
   module.
 
-`Measure=`, `--measure`
+`SignExpectedPCR=`, `--sign-expected-pcr`
 
 : Measure the components of the unified kernel image (UKI) using
   `systemd-measure` and embed the PCR signature into the unified kernel
-  image.
-
-  This option requires the [`cryptography`](https://cryptography.io/)
-  module.
+  image. This option takes a boolean value or the special value `auto`,
+  which is the default, which is equal to a true value if the
+  [`cryptography`](https://cryptography.io/) module is importable and
+  the `systemd-measure` binary is in `PATH`.
 
 `CompressFs=`, `--compress-fs=`
 

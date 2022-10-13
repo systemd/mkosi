@@ -4010,15 +4010,9 @@ def install_unified_kernel(
             # If a SecureBoot key is configured, and we have the
             # systemd-measure binary around, then also include a
             # signature of expected PCR 11 values in the kernel image
-            if state.config.secure_boot and state.config.measure:
-                try:
-                    from cryptography import x509
-                    from cryptography.hazmat.primitives import serialization
-                except ImportError:
-                    die("Couldn't import the cryptography Python module. This is needed for the --measure option.")
-
-                if not shutil.which('systemd-measure'):
-                    die("Couldn't find systemd-measure binary. It is needed for the --measure option.")
+            if state.config.secure_boot and state.config.sign_expected_pcr:
+                from cryptography import x509
+                from cryptography.hazmat.primitives import serialization
 
                 with complete_step("Generating PCR 11 signature…"):
                     # Extract the public key from the SecureBoot certificate
@@ -4850,6 +4844,52 @@ class VerityAction(BooleanAction):
         super().__call__(parser, namespace, values, option_string)
 
 
+def parse_sign_expected_pcr(value: Union[bool, str]) -> bool:
+    if isinstance(value, bool):
+        return value
+
+    if value == "auto":
+        try:
+            # TODO: pyright stumbles over this with
+            # "import_module" is not a known member of module (reportGeneralTypeIssues)
+            # although importlib.import_module exists in Python 3.7
+            # a regular import trips pyflakes, though and I haven't found a way
+            # to silence that
+            importlib.import_module("cryptography") # type: ignore
+            return True if shutil.which('systemd-measure') else False
+        except ImportError:
+            return False
+
+    val = parse_boolean(value)
+    if val:
+        try:
+            importlib.import_module("cryptography") # type: ignore
+        except ImportError:
+            die("Couldn't import the cryptography Python module. This is needed for the --sign-expected-pcr option.")
+
+        if not shutil.which('systemd-measure'):
+            die("Couldn't find systemd-measure binary. It is needed for the --sign-expected-pcr option.")
+
+    return val
+
+
+class SignExpectedPcrAction(BooleanAction):
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: Union[str, Sequence[Any], None, bool],
+        option_string: Optional[str] = None,
+    ) -> None:
+        if values is None:
+            parsed = False
+        elif isinstance(values, bool) or isinstance(values, str):
+            parsed = parse_sign_expected_pcr(values)
+        else:
+            raise argparse.ArgumentError(self, f"Invalid argument for {option_string}: {values}")
+        setattr(namespace, self.dest, parsed)
+
+
 class CustomHelpFormatter(argparse.HelpFormatter):
     def _format_action_invocation(self, action: argparse.Action) -> str:
         if not action.option_strings or action.nargs == 0:
@@ -4901,7 +4941,8 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
         "PostInstallationScript": "--postinst-script",
         "GPTFirstLBA": "--gpt-first-lba",
         "TarStripSELinuxContext": "--tar-strip-selinux-context",
-        "MachineID": "--machine-id"
+        "MachineID": "--machine-id",
+        "SignExpectedPCR": "--sign-expected-pcr",
     }
 
     fromfile_prefix_chars: str = "@"
@@ -5229,8 +5270,11 @@ def create_parser() -> ArgumentParserMkosi:
         help="Add integrity partition, and optionally sign it (implies --read-only)",
     )
     group.add_argument(
-        "--measure",
-        action=BooleanAction,
+        "--sign-expected-pcr",
+        metavar="BOOL",
+        default="auto",
+        action=SignExpectedPcrAction,
+        type=parse_sign_expected_pcr,
         help="Measure the components of the unified kernel image (UKI) and embed the PCR signature into the UKI",
     )
     group.add_argument(
