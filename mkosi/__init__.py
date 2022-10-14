@@ -1563,7 +1563,7 @@ def mount_image(
         yield
 
 
-def install_etc_locale(root: Path, cached: bool) -> None:
+def configure_locale(root: Path, cached: bool) -> None:
     if cached:
         return
 
@@ -1578,7 +1578,7 @@ def install_etc_locale(root: Path, cached: bool) -> None:
     etc_locale.write_text("LANG=C.UTF-8\n")
 
 
-def install_etc_hostname(state: MkosiState, cached: bool) -> None:
+def configure_hostname(state: MkosiState, cached: bool) -> None:
     if cached:
         return
 
@@ -2909,7 +2909,7 @@ def install_opensuse(state: MkosiState) -> None:
         patch_file(state.root / "etc/pam.d/common-auth", jj)
 
     if state.config.autologin:
-        # copy now, patch later (in set_autologin())
+        # copy now, patch later (in configure_autologin())
         if not state.root.joinpath("etc/pam.d/login").exists():
             for prefix in ("lib", "etc"):
                 if state.root.joinpath(f"usr/{prefix}/pam.d/login").exists():
@@ -3029,7 +3029,7 @@ def reset_random_seed(root: Path) -> None:
         random_seed.unlink()
 
 
-def set_root_password(state: MkosiState, cached: bool) -> None:
+def configure_root_password(state: MkosiState, cached: bool) -> None:
     "Set the root account password, or just delete it so it's easy to log in"
 
     if state.do_run_build_script:
@@ -3089,7 +3089,7 @@ def pam_add_autologin(root: Path, ttys: List[str]) -> None:
         f.write(original)
 
 
-def set_autologin(state: MkosiState, cached: bool) -> None:
+def configure_autologin(state: MkosiState, cached: bool) -> None:
     if state.do_run_build_script or cached or not state.config.autologin:
         return
 
@@ -3114,7 +3114,7 @@ def set_autologin(state: MkosiState, cached: bool) -> None:
         pam_add_autologin(state.root, ttys)
 
 
-def set_serial_terminal(state: MkosiState, cached: bool) -> None:
+def configure_serial_terminal(state: MkosiState, cached: bool) -> None:
     """Override TERM for the serial console with the terminal type from the host."""
 
     if state.do_run_build_script or cached or not state.config.qemu_headless:
@@ -6984,7 +6984,7 @@ def make_build_dir(config: MkosiConfig) -> None:
     config.build_dir.mkdir(mode=0o755, exist_ok=True)
 
 
-def setup_ssh(state: MkosiState, cached: bool) -> Optional[TextIO]:
+def configure_ssh(state: MkosiState, cached: bool) -> Optional[TextIO]:
     if state.do_run_build_script or not state.config.ssh:
         return None
 
@@ -7051,7 +7051,7 @@ def setup_ssh(state: MkosiState, cached: bool) -> Optional[TextIO]:
     return f
 
 
-def setup_netdev(state: MkosiState, cached: bool) -> None:
+def configure_netdev(state: MkosiState, cached: bool) -> None:
     if state.do_run_build_script or cached or not state.config.netdev:
         return
 
@@ -7187,20 +7187,20 @@ def build_image(
                 cached_tree = reuse_cache_tree(state, cached)
                 install_skeleton_trees(state, cached_tree)
                 install_distribution(state, cached_tree)
-                install_etc_locale(state.root, cached_tree)
-                install_etc_hostname(state, cached_tree)
+                configure_locale(state.root, cached_tree)
+                configure_hostname(state, cached_tree)
+                configure_root_password(state, cached_tree)
+                configure_serial_terminal(state, cached_tree)
+                configure_autologin(state, cached_tree)
+                configure_dracut(state, cached_tree)
+                configure_netdev(state, cached_tree)
                 run_prepare_script(state, cached_tree)
                 install_build_src(state)
                 install_build_dest(state)
                 install_extra_trees(state)
-                configure_dracut(state, cached_tree)
                 run_kernel_install(state, cached_tree)
                 install_boot_loader(state)
-                set_root_password(state, cached_tree)
-                set_serial_terminal(state, cached_tree)
-                set_autologin(state, cached_tree)
-                sshkey = setup_ssh(state, cached_tree)
-                setup_netdev(state, cached_tree)
+                sshkey = configure_ssh(state, cached_tree)
                 run_postinst_script(state)
                 # Sign systemd-boot / sd-boot EFI binaries
                 secure_boot_sign(state, state.root / 'usr/lib/systemd/boot/efi', cached,
