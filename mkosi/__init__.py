@@ -3217,10 +3217,8 @@ def run_finalize_script(state: MkosiState) -> None:
             env={**state.environment, "BUILDROOT": str(state.root), "OUTPUTDIR": str(output_dir(state.config))})
 
 
-def install_boot_loader(state: MkosiState, cached: bool) -> None:
-    if not state.config.bootable or state.do_run_build_script:
-        return
-    if cached:
+def install_boot_loader(state: MkosiState) -> None:
+    if not state.config.bootable or state.do_run_build_script or state.for_cache:
         return
 
     with complete_step("Installing boot loader…"):
@@ -7197,7 +7195,7 @@ def build_image(
                 install_extra_trees(state)
                 configure_dracut(state, cached_tree)
                 run_kernel_install(state, cached_tree)
-                install_boot_loader(state, cached_tree)
+                install_boot_loader(state)
                 set_root_password(state, cached_tree)
                 set_serial_terminal(state, cached_tree)
                 set_autologin(state, cached_tree)
