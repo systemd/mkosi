@@ -3154,7 +3154,8 @@ def nspawn_params_for_build_sources(config: MkosiConfig, sft: SourceFileTransfer
         params += ["--setenv=SRCDIR=/root/src",
                    "--chdir=/root/src"]
         if sft == SourceFileTransfer.mount:
-            params += [f"--bind={config.build_sources}:/root/src"]
+            idmap_opt = ":rootidmap" if nspawn_version() >= 252 else ""
+            params += [f"--bind={config.build_sources}:/root/src{idmap_opt}"]
 
         if config.read_only:
             params += ["--overlay=+/root/src::/root/src"]
@@ -7370,6 +7371,8 @@ def run_build_script(state: MkosiState, raw: Optional[BinaryIO]) -> None:
     if state.config.build_script is None:
         return
 
+    idmap_opt = ":rootidmap" if nspawn_version() >= 252 else ""
+
     with complete_step("Running build script…"):
         os.makedirs(install_dir(state), mode=0o755, exist_ok=True)
 
@@ -7385,8 +7388,8 @@ def run_build_script(state: MkosiState, raw: Optional[BinaryIO]) -> None:
             "--as-pid2",
             "--link-journal=no",
             "--register=no",
-            f"--bind={install_dir(state)}:/root/dest",
-            f"--bind={state.var_tmp()}:/var/tmp",
+            f"--bind={install_dir(state)}:/root/dest{idmap_opt}",
+            f"--bind={state.var_tmp()}:/var/tmp{idmap_opt}",
             f"--setenv=WITH_DOCS={one_zero(state.config.with_docs)}",
             f"--setenv=WITH_TESTS={one_zero(state.config.with_tests)}",
             f"--setenv=WITH_NETWORK={with_network}",
@@ -7409,10 +7412,10 @@ def run_build_script(state: MkosiState, raw: Optional[BinaryIO]) -> None:
 
         if state.config.build_dir is not None:
             cmdline += ["--setenv=BUILDDIR=/root/build",
-                        f"--bind={state.config.build_dir}:/root/build"]
+                        f"--bind={state.config.build_dir}:/root/build{idmap_opt}"]
 
         if state.config.include_dir is not None:
-            cmdline += [f"--bind={state.config.include_dir}:/usr/include"]
+            cmdline += [f"--bind={state.config.include_dir}:/usr/include{idmap_opt}"]
 
         if state.config.with_network is True:
             # If we're using the host network namespace, use the same resolver
@@ -7421,7 +7424,7 @@ def run_build_script(state: MkosiState, raw: Optional[BinaryIO]) -> None:
             cmdline += ["--private-network"]
 
         if state.config.usr_only:
-            cmdline += [f"--bind={root_home(state)}:/root"]
+            cmdline += [f"--bind={root_home(state)}:/root{idmap_opt}"]
 
         if state.config.nspawn_keep_unit:
             cmdline += ["--keep-unit"]
