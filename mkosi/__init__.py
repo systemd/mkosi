@@ -329,7 +329,7 @@ def mount_cache(state: MkosiState) -> Iterator[None]:
     # We can't do this in mount_image() yet, as /var itself might have to be created as a subvolume first
     with complete_step("Mounting Package Cache", "Unmounting Package Cache"), contextlib.ExitStack() as stack:
         for cache_path in cache_paths:
-            stack.enter_context(mount_bind(state.cache, state.root / cache_path))
+            stack.enter_context(mount_bind(state.cache, state.root / cache_path, with_idmapping=True))
         yield
 
 
@@ -3819,7 +3819,7 @@ def build_stuff(config: MkosiConfig) -> None:
                 shutil.move(str(state.staging / p.name), str(p))
                 if p in (state.config.output, state.config.output_split_kernel):
                     compress_output(state.config, p)
-            if state.config.chown and p.exists(): 
+            if state.config.chown and p.exists():
                 chown_to_running_user(p)
 
         for p in state.staging.iterdir():

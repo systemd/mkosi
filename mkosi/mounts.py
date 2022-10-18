@@ -62,13 +62,19 @@ def mount(
         run(["umount", "--no-mtab", "--recursive", where])
 
 
-def mount_bind(what: Path, where: Optional[Path] = None) -> ContextManager[Path]:
+def mount_bind(what: Path, where: Optional[Path] = None, *, with_idmapping: bool = False) -> ContextManager[Path]:
     if where is None:
         where = what
 
     os.makedirs(what, 0o755, True)
     os.makedirs(where, 0o755, True)
-    return mount(what, where, operation="--bind")
+
+    options = []
+    if with_idmapping:
+        uid = what.stat().st_uid
+        options += [f"X-mount.idmap={uid}:0:1"]
+
+    return mount(what, where, operation="--bind", options=options)
 
 
 def mount_tmpfs(where: Path) -> ContextManager[Path]:
