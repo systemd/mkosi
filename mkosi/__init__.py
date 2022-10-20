@@ -4451,6 +4451,18 @@ def chown_from_sudo(path: PathString) -> None:
         os.chown(path, int(sudo_uid), int(sudo_gid))
 
 
+def mkdirp_chown(dirpath: PathString) -> None:
+    abspath = dirpath.absolute()
+    parents = []
+    for d in abspath.parts:
+        parents.append(d)
+        pd = Path(os.path.join(*parents))
+        if pd.exists():
+            continue
+        pd.mkdir()
+        chown_from_sudo(pd)
+
+
 def _link_output(
         config: MkosiConfig,
         oldpath: PathString,
@@ -6238,7 +6250,7 @@ def find_output(args: argparse.Namespace) -> None:
     else:
         return
 
-    args.output_dir.mkdir(parents=True, exist_ok=True)
+    mkdirp_chown(args.output_dir)
 
 
 def find_builddir(args: argparse.Namespace) -> None:
@@ -6251,7 +6263,7 @@ def find_builddir(args: argparse.Namespace) -> None:
     else:
         return
 
-    args.build_dir.mkdir(parents=True, exist_ok=True)
+    mkdirp_chown(args.build_dir)
 
 
 def find_cache(args: argparse.Namespace) -> None:
@@ -7033,7 +7045,7 @@ def make_output_dir(config: MkosiConfig) -> None:
     if config.output_dir is None:
         return
 
-    config.output_dir.mkdir(mode=0o755, exist_ok=True)
+    mkdirp_chown(config.output_dir)
 
 
 def make_build_dir(config: MkosiConfig) -> None:
@@ -7041,7 +7053,7 @@ def make_build_dir(config: MkosiConfig) -> None:
     if config.build_dir is None:
         return
 
-    config.build_dir.mkdir(mode=0o755, exist_ok=True)
+    mkdirp_chown(config.build_dir)
 
 
 def configure_ssh(state: MkosiState, cached: bool) -> Optional[TextIO]:
