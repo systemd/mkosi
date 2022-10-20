@@ -4452,7 +4452,7 @@ def chown_from_sudo(path: PathString) -> None:
 
 
 def mkdirp_chown(dirpath: PathString) -> None:
-    abspath = dirpath.absolute()
+    abspath = Path(dirpath).absolute()
     parents = []
     for d in abspath.parts:
         parents.append(d)
