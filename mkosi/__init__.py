@@ -4435,6 +4435,22 @@ def save_cache(state: MkosiState, raw: Optional[str], cache_path: Optional[Path]
             shutil.move(cast(str, state.root), cache_path)  # typing bug, .move() accepts Path
 
 
+def chown_from_sudo(path: PathString) -> None:
+    sudo_uid = os.getenv("SUDO_UID")
+    sudo_gid = os.getenv("SUDO_GID")
+    if not (sudo_uid and sudo_gid):
+        return
+
+    relpath = path_relative_to_cwd(path)
+
+    sudo_user = os.getenv("SUDO_USER", default=sudo_uid)
+    with complete_step(
+        f"Changing ownership of output file {relpath} to user {sudo_user} (acquired from sudo)…",
+        f"Changed ownership of {relpath}",
+    ):
+        os.chown(path, int(sudo_uid), int(sudo_gid))
+
+
 def _link_output(
         config: MkosiConfig,
         oldpath: PathString,
@@ -4452,19 +4468,7 @@ def _link_output(
     if config.no_chown:
         return
 
-    sudo_uid = os.getenv("SUDO_UID")
-    sudo_gid = os.getenv("SUDO_GID")
-    if not (sudo_uid and sudo_gid):
-        return
-
-    relpath = path_relative_to_cwd(newpath)
-
-    sudo_user = os.getenv("SUDO_USER", default=sudo_uid)
-    with complete_step(
-        f"Changing ownership of output file {relpath} to user {sudo_user} (acquired from sudo)…",
-        f"Changed ownership of {relpath}",
-    ):
-        os.chown(newpath, int(sudo_uid), int(sudo_gid))
+    chown_from_sudo(newpath)
 
 
 def link_output(state: MkosiState, artifact: Optional[BinaryIO]) -> None:
