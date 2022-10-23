@@ -138,6 +138,7 @@ DRACUT_SYSTEMD_EXTRAS = [
     "/usr/bin/systemd-tty-ask-password-agent"
 ]
 
+DRACUT_EXTRA_MODULES: List[str] = []
 
 def write_resource(
         where: Path, resource: str, key: str, *, executable: bool = False, mode: Optional[int] = None
@@ -1656,6 +1657,10 @@ def configure_dracut(state: MkosiState, cached: bool) -> None:
         if state.root.joinpath("etc/systemd/system.conf.d").exists():
             for conf in state.root.joinpath("etc/systemd/system.conf.d").iterdir():
                 f.write(f'install_optional_items+=" {Path("/") / conf.relative_to(state.root)} "\n')
+
+    with dracut_dir.joinpath("30-mkosi-dracut-extra-modules.conf").open("w") as f:
+        for modules in DRACUT_EXTRA_MODULES:
+            f.write(f'add_dracutmodules+=" {modules} "\n')
 
     if state.config.hostonly_initrd:
         dracut_dir.joinpath("30-mkosi-filesystem.conf").write_text(
