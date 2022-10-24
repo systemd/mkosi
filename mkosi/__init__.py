@@ -1957,6 +1957,7 @@ def invoke_dnf(state: MkosiState, command: str, packages: Iterable[str]) -> None
         "--allowerasing",
         f"--releasever={release}",
         f"--installroot={state.root}",
+        "--disableplugin=versionlock",
         "--setopt=keepcache=1",
         "--setopt=install_weak_deps=0",
     ]
