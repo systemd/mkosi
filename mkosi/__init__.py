@@ -7099,6 +7099,7 @@ def configure_ssh(state: MkosiState, cached: bool) -> Optional[TextIO]:
                 stdout=subprocess.DEVNULL,
             )
 
+        authorized_keys.parent.mkdir(parents=True, exist_ok=True)
         copy_file(f"{f.name}.pub", authorized_keys)
         os.remove(f"{f.name}.pub")
 
