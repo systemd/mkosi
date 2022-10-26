@@ -44,6 +44,8 @@
 - Split dm-verity artifacts default names have been changed to match what
   `systemd` and other tools expect: `image.root.raw`, `image.root.verity`,
   `image.root.roothash`, `image.root.roothash.p7s` (same for `usr` variants).
+- `mkosi` will again default to the same OS release as the host system when the
+  host system uses the same distribution as the image that's being built.
 
 ## v13
 
