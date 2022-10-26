@@ -5878,6 +5878,9 @@ def load_distribution(args: argparse.Namespace) -> argparse.Namespace:
         if args.distribution is None:
             args.distribution = d
 
+        if args.distribution == d and args.release is None:
+            args.release = r
+
     if args.distribution is None:
         die("Couldn't detect distribution.")
 
