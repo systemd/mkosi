@@ -53,6 +53,7 @@ from typing import (
     Iterator,
     List,
     NamedTuple,
+    NoReturn,
     Optional,
     Sequence,
     Set,
@@ -5023,6 +5024,10 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
                 self.error(str(e))
         # return the modified argument list
         return new_arg_strings
+
+    def error(self, message: str) -> NoReturn:
+        # This is a copy of super's method but with self.print_usage() removed
+        self.exit(2, f'{self.prog}: error: {message}\n')
 
 
 COMPRESSION_ALGORITHMS = "zlib", "lzo", "zstd", "lz4", "xz"
