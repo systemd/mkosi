@@ -53,6 +53,7 @@ from typing import (
     Iterator,
     List,
     NamedTuple,
+    NoReturn,
     Optional,
     Sequence,
     Set,
@@ -4965,11 +4966,16 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
         self._ini_file_key = ""  # multi line list processing
         self._ini_file_list_mode = False
 
-        # Add config files to be parsed
-        kwargs["fromfile_prefix_chars"] = ArgumentParserMkosi.fromfile_prefix_chars
-        kwargs["formatter_class"] = CustomHelpFormatter
-
-        super().__init__(*kargs, **kwargs)
+        # we need to suppress mypy here: https://github.com/python/mypy/issues/6799
+        super().__init__(*kargs,
+                         # Add config files to be parsed:
+                         fromfile_prefix_chars=ArgumentParserMkosi.fromfile_prefix_chars,
+                         formatter_class=CustomHelpFormatter,
+                         # Tweak defaults:
+                         allow_abbrev=False,
+                         # Pass through the other options:
+                         **kwargs,
+                         ) # type: ignore
 
     @staticmethod
     def _camel_to_arg(camel: str) -> str:
@@ -5033,6 +5039,10 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
                 self.error(str(e))
         # return the modified argument list
         return new_arg_strings
+
+    def error(self, message: str) -> NoReturn:
+        # This is a copy of super's method but with self.print_usage() removed
+        self.exit(2, f'{self.prog}: error: {message}\n')
 
 
 COMPRESSION_ALGORITHMS = "zlib", "lzo", "zstd", "lz4", "xz"
