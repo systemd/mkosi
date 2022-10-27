@@ -9,13 +9,13 @@
 - The Arch kernel/bootloader pacman hooks were removed. For anyone that still
   wants to use them, they can be found
   [here](https://github.com/systemd/mkosi/tree/v13/mkosi/resources/arch).
-- mkosi now creates distro~release subdirectories inside the build, cache and
-  output directories for each distro~release combination that is built. This
+- mkosi now creates `distro~release` subdirectories inside the build, cache and
+  output directories for each `distro~release` combination that is built. This
   allows building for multiple distros without throwing away the results of a
   previous distro build every time.
 - The preferred names for mkosi configuration files and directories are now
-  mkosi.conf and mkosi.conf.d/ respectively. The old names (mkosi.default and
-  mkosi.default.d) have been removed from the docs but are still supported for
+  `mkosi.conf` and `mkosi.conf.d/` respectively. The old names (`mkosi.default` and
+  `mkosi.default.d`) have been removed from the docs but are still supported for
   backwards compatibility.
 - `plain_squashfs` type images will now also be named with a `.raw` suffix.
 - `tar` type images will now respect the `--compress` option.
@@ -32,7 +32,7 @@
 
   To generate BIOS images you can use any version of mkosi up to mkosi 13 or the
   new `--bios-size` option. This can be used to add a BIOS boot partition of the
-  specified size on which grub (or any other bootloader) can be installed with
+  specified size on which `grub` (or any other bootloader) can be installed with
   the help of mkosi's script support (depending on your needs most likely
   `mkosi.postinst` or `mkosi.finalize`). This method can also be used for other
   EFI bootloaders that mkosi intentionally does not support.
