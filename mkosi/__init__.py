@@ -80,10 +80,12 @@ from .backend import (
     PartitionTable,
     SourceFileTransfer,
     Verb,
+    chown_to_running_user,
     die,
     is_centos_variant,
     is_epel_variant,
     is_rpm_distribution,
+    mkdirp_chown_current_user,
     nspawn_knows_arg,
     nspawn_rlimit_params,
     nspawn_version,
@@ -3153,7 +3155,8 @@ def nspawn_params_for_build_sources(config: MkosiConfig, sft: SourceFileTransfer
         params += ["--setenv=SRCDIR=/root/src",
                    "--chdir=/root/src"]
         if sft == SourceFileTransfer.mount:
-            params += [f"--bind={config.build_sources}:/root/src"]
+            idmap_opt = ":rootidmap" if nspawn_version() >= 252 else ""
+            params += [f"--bind={config.build_sources}:/root/src{idmap_opt}"]
 
         if config.read_only:
             params += ["--overlay=+/root/src::/root/src"]
@@ -4450,6 +4453,9 @@ def save_cache(state: MkosiState, raw: Optional[str], cache_path: Optional[Path]
             unlink_try_hard(cache_path)
             shutil.move(cast(str, state.root), cache_path)  # typing bug, .move() accepts Path
 
+    if not state.config.no_chown:
+        chown_to_running_user(cache_path)
+
 
 def _link_output(
         config: MkosiConfig,
@@ -4468,19 +4474,8 @@ def _link_output(
     if config.no_chown:
         return
 
-    sudo_uid = os.getenv("SUDO_UID")
-    sudo_gid = os.getenv("SUDO_GID")
-    if not (sudo_uid and sudo_gid):
-        return
-
     relpath = path_relative_to_cwd(newpath)
-
-    sudo_user = os.getenv("SUDO_USER", default=sudo_uid)
-    with complete_step(
-        f"Changing ownership of output file {relpath} to user {sudo_user} (acquired from sudo)…",
-        f"Changed ownership of {relpath}",
-    ):
-        os.chown(newpath, int(sudo_uid), int(sudo_gid))
+    chown_to_running_user(relpath)
 
 
 def link_output(state: MkosiState, artifact: Optional[BinaryIO]) -> None:
@@ -4682,8 +4677,7 @@ def setup_package_cache(config: MkosiConfig, workspace: Path) -> Path:
         cache = workspace / "cache"
     else:
         cache = config.cache_path
-
-    os.makedirs(cache, 0o755, exist_ok=True)
+        mkdirp_chown_current_user(cache, skip_chown=config.no_chown, mode=0o755)
 
     return cache
 
@@ -6262,7 +6256,7 @@ def find_output(args: argparse.Namespace) -> None:
     else:
         return
 
-    args.output_dir.mkdir(parents=True, exist_ok=True)
+    mkdirp_chown_current_user(args.output_dir, skip_chown=args.no_chown)
 
 
 def find_builddir(args: argparse.Namespace) -> None:
@@ -6275,7 +6269,7 @@ def find_builddir(args: argparse.Namespace) -> None:
     else:
         return
 
-    args.build_dir.mkdir(parents=True, exist_ok=True)
+    mkdirp_chown_current_user(args.build_dir, skip_chown=args.no_chown)
 
 
 def find_cache(args: argparse.Namespace) -> None:
@@ -6288,7 +6282,7 @@ def find_cache(args: argparse.Namespace) -> None:
     else:
         return
 
-    args.cache_path.mkdir(parents=True, exist_ok=True)
+    mkdirp_chown_current_user(args.cache_path, skip_chown=args.no_chown)
 
 
 def require_private_file(name: str, description: str) -> None:
@@ -7059,7 +7053,7 @@ def make_output_dir(config: MkosiConfig) -> None:
     if config.output_dir is None:
         return
 
-    config.output_dir.mkdir(mode=0o755, exist_ok=True)
+    mkdirp_chown_current_user(config.output_dir, skip_chown=config.no_chown, mode=0o755)
 
 
 def make_build_dir(config: MkosiConfig) -> None:
@@ -7067,7 +7061,7 @@ def make_build_dir(config: MkosiConfig) -> None:
     if config.build_dir is None:
         return
 
-    config.build_dir.mkdir(mode=0o755, exist_ok=True)
+    mkdirp_chown_current_user(config.build_dir, skip_chown=config.no_chown, mode=0o755)
 
 
 def configure_ssh(state: MkosiState, cached: bool) -> Optional[TextIO]:
@@ -7387,6 +7381,8 @@ def run_build_script(state: MkosiState, raw: Optional[BinaryIO]) -> None:
     if state.config.build_script is None:
         return
 
+    idmap_opt = ":rootidmap" if nspawn_version() >= 252 else ""
+
     with complete_step("Running build script…"):
         os.makedirs(install_dir(state), mode=0o755, exist_ok=True)
 
@@ -7402,8 +7398,8 @@ def run_build_script(state: MkosiState, raw: Optional[BinaryIO]) -> None:
             "--as-pid2",
             "--link-journal=no",
             "--register=no",
-            f"--bind={install_dir(state)}:/root/dest",
-            f"--bind={state.var_tmp()}:/var/tmp",
+            f"--bind={install_dir(state)}:/root/dest{idmap_opt}",
+            f"--bind={state.var_tmp()}:/var/tmp{idmap_opt}",
             f"--setenv=WITH_DOCS={one_zero(state.config.with_docs)}",
             f"--setenv=WITH_TESTS={one_zero(state.config.with_tests)}",
             f"--setenv=WITH_NETWORK={with_network}",
@@ -7426,10 +7422,10 @@ def run_build_script(state: MkosiState, raw: Optional[BinaryIO]) -> None:
 
         if state.config.build_dir is not None:
             cmdline += ["--setenv=BUILDDIR=/root/build",
-                        f"--bind={state.config.build_dir}:/root/build"]
+                        f"--bind={state.config.build_dir}:/root/build{idmap_opt}"]
 
         if state.config.include_dir is not None:
-            cmdline += [f"--bind={state.config.include_dir}:/usr/include"]
+            cmdline += [f"--bind={state.config.include_dir}:/usr/include{idmap_opt}"]
 
         if state.config.with_network is True:
             # If we're using the host network namespace, use the same resolver
@@ -7438,7 +7434,7 @@ def run_build_script(state: MkosiState, raw: Optional[BinaryIO]) -> None:
             cmdline += ["--private-network"]
 
         if state.config.usr_only:
-            cmdline += [f"--bind={root_home(state)}:/root"]
+            cmdline += [f"--bind={root_home(state)}:/root{idmap_opt}"]
 
         if state.config.nspawn_keep_unit:
             cmdline += ["--keep-unit"]

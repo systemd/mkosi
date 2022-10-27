@@ -10,6 +10,7 @@ import errno
 import math
 import os
 import platform
+import pwd
 import resource
 import shlex
 import shutil
@@ -948,3 +949,38 @@ class MkosiPrinter:
 
         if text2 is not None:
             cls.print_step(text2.format(*args))
+
+
+def chown_to_running_user(path: PathString) -> None:
+    uid = int(os.getenv("SUDO_UID") or os.getenv("PKEXEC_UID") or str(os.getuid()))
+    user = pwd.getpwuid(uid).pw_name
+    gid = pwd.getpwuid(uid).pw_gid
+
+    with MkosiPrinter.complete_step(
+        f"Changing ownership of output file {path} to user {user}…",
+        f"Changed ownership of {path}",
+    ):
+        os.chown(path, uid, gid)
+
+
+def mkdirp_chown_current_user(
+    path: PathString,
+    *,
+    skip_chown: bool = False,
+    mode: int = 0o777,
+    exist_ok: bool = True
+) -> None:
+    abspath = Path(path).absolute()
+    path = Path()
+
+    for d in abspath.parts:
+        path /= d
+        if path.exists():
+            continue
+
+        path.mkdir(mode=mode, exist_ok=exist_ok)
+
+        if skip_chown:
+            continue
+
+        chown_to_running_user(path)
