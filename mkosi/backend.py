@@ -915,6 +915,10 @@ class MkosiPrinter:
         cls.out_file.write(text)
 
     @classmethod
+    def color_error(cls, text: Any) -> str:
+        return f"{cls.red}{text}{cls.reset}"
+
+    @classmethod
     def print_step(cls, text: str) -> None:
         prefix = cls.prefix + " " * cls.level
         if sys.exc_info()[0]:
@@ -932,7 +936,7 @@ class MkosiPrinter:
 
     @classmethod
     def warn(cls, text: str) -> None:
-        cls._print(f"{cls.prefix}{cls.red}{text}{cls.reset}\n")
+        cls._print(f"{cls.prefix}{cls.color_error(text)}\n")
 
     @classmethod
     @contextlib.contextmanager

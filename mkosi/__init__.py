@@ -105,6 +105,8 @@ from .manifest import Manifest
 from .syscall import blkpg_add_partition, blkpg_del_partition, reflink
 
 complete_step = MkosiPrinter.complete_step
+color_error = MkosiPrinter.color_error
+
 
 __version__ = "13"
 
@@ -6404,14 +6406,7 @@ def script_path(value: Optional[str]) -> Optional[Path]:
 def normalize_script(path: Optional[Path]) -> Optional[Path]:
     if not path or path is DISABLED:
         return None
-    path = Path(path).absolute()
-    if not path.exists():
-        die(f"{path} does not exist")
-    if not path.is_file():
-        die(f"{path} is not a file")
-    if not os.access(path, os.X_OK):
-        die(f"{path} is not executable")
-    return path
+    return Path(path).absolute()
 
 
 def load_args(args: argparse.Namespace) -> MkosiConfig:
@@ -6796,7 +6791,46 @@ def cache_image_path(config: MkosiConfig, is_final_image: bool) -> Optional[Path
         return Path(f"{config.output}.{suffix}")
 
 
-def check_output(config: MkosiConfig) -> None:
+def check_tree_input(path: Optional[Path]) -> None:
+    # Each path may be a directory or a tarball.
+    # Open the file or directory to simulate an access check.
+    # If that fails, an exception will be thrown.
+    if not path:
+        return
+
+    os.open(path, os.R_OK)
+
+
+def check_script_input(path: Optional[Path]) -> None:
+    if not path:
+        return
+
+    os.open(path, os.R_OK)
+    if not path.is_file():
+        raise OSError(errno.ENOENT, 'Not a normal file')
+    if not os.access(path, os.X_OK):
+        raise OSError(errno.ENOENT, 'Not executable')
+    return None
+
+
+def check_inputs(config: MkosiConfig) -> None:
+    try:
+        for tree in (config.skeleton_trees,
+                     config.extra_trees):
+            for item in tree:
+                check_tree_input(item)
+
+        for path in (config.build_script,
+                     config.prepare_script,
+                     config.postinst_script,
+                     config.finalize_script,
+                     config.base_image):
+            check_script_input(path)
+    except OSError as e:
+        die(f'{e.filename} {e.strerror}')
+
+
+def check_outputs(config: MkosiConfig) -> None:
     if config.skip_final_phase:
         return
 
@@ -6813,7 +6847,6 @@ def check_output(config: MkosiConfig) -> None:
         config.output_split_verity_sig if config.split_artifacts else None,
         config.output_split_kernel if config.split_artifacts else None,
     ):
-
         if f and f.exists():
             die(f"Output path {f} exists already. (Consider invocation with --force.)")
 
@@ -6843,19 +6876,34 @@ def format_bytes_or_auto(sz: int) -> str:
 def none_to_na(s: Optional[T]) -> Union[T, str]:
     return "n/a" if s is None else s
 
-
 def none_to_no(s: Optional[T]) -> Union[T, str]:
     return "no" if s is None else s
 
+def none_to_none(s: Optional[T]) -> Union[T, str]:
+    return "none" if s is None else s
 
-def none_to_none(o: Optional[object]) -> str:
-    return "none" if o is None else str(o)
 
+def path_or_none(
+        path: Optional[Path],
+        checker: Optional[Callable[[Optional[Path]], None]] = None,
+) -> Union[Optional[Path], str]:
+    try:
+        if checker:
+            checker(path)
+    except OSError as e:
+        return f'{color_error(path)} ({e.strerror})'
+    else:
+        return path
 
-def line_join_list(array: Sequence[PathString]) -> str:
+def line_join_list(
+        array: Sequence[PathString],
+        checker: Optional[Callable[[Optional[Path]], None]] = None,
+) -> str:
     if not array:
         return "none"
-    return "\n                            ".join(str(item) for item in array)
+
+    items = (str(path_or_none(cast(Path, item), checker=checker)) for item in array)
+    return "\n                            ".join(items)
 
 
 def print_summary(config: MkosiConfig) -> None:
@@ -6969,8 +7017,8 @@ def print_summary(config: MkosiConfig) -> None:
         print("        With Documentation:", yes_no(config.with_docs))
 
     print("             Package Cache:", none_to_none(config.cache_path))
-    print("               Extra Trees:", line_join_list(config.extra_trees))
-    print("            Skeleton Trees:", line_join_list(config.skeleton_trees))
+    print("               Extra Trees:", line_join_list(config.extra_trees, check_tree_input))
+    print("            Skeleton Trees:", line_join_list(config.skeleton_trees, check_tree_input))
     print("      CleanPackageMetadata:", yes_no_or(config.clean_package_metadata))
 
     if config.remove_files:
@@ -6978,7 +7026,7 @@ def print_summary(config: MkosiConfig) -> None:
     if config.remove_packages:
         print("           Remove Packages:", line_join_list(config.remove_packages))
 
-    print("              Build Script:", none_to_none(config.build_script))
+    print("              Build Script:", path_or_none(config.build_script, check_script_input))
 
     env = [f"{k}={v}" for k, v in config.environment.items()]
     print("        Script Environment:", line_join_list(env))
@@ -6997,9 +7045,9 @@ def print_summary(config: MkosiConfig) -> None:
     print("         Install Directory:", none_to_none(config.install_dir))
     print("            Build Packages:", line_join_list(config.build_packages))
     print("          Skip final phase:", yes_no(config.skip_final_phase))
-    print("        Postinstall Script:", none_to_none(config.postinst_script))
-    print("            Prepare Script:", none_to_none(config.prepare_script))
-    print("           Finalize Script:", none_to_none(config.finalize_script))
+    print("        Postinstall Script:", path_or_none(config.postinst_script, check_script_input))
+    print("            Prepare Script:", path_or_none(config.prepare_script, check_script_input))
+    print("           Finalize Script:", path_or_none(config.finalize_script, check_script_input))
     print("      Scripts with network:", yes_no_or(config.with_network))
     print("           nspawn Settings:", none_to_none(config.nspawn_settings))
 
@@ -8247,8 +8295,11 @@ def run_verb(raw: argparse.Namespace) -> None:
         if config.verb in MKOSI_COMMANDS_SUDO:
             check_root()
 
-        if config.verb == Verb.build and not config.force:
-            check_output(config)
+        if config.verb == Verb.build:
+            check_inputs(config)
+
+            if not config.force:
+                check_outputs(config)
 
         if needs_build(config) or config.verb == Verb.clean:
             check_root()
