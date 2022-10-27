@@ -4950,12 +4950,16 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
         self._ini_file_key = ""  # multi line list processing
         self._ini_file_list_mode = False
 
+        # we need to suppress mypy here: https://github.com/python/mypy/issues/6799
         super().__init__(*kargs,
                          # Add config files to be parsed:
                          fromfile_prefix_chars=ArgumentParserMkosi.fromfile_prefix_chars,
                          formatter_class=CustomHelpFormatter,
+                         # Tweak defaults:
+                         allow_abbrev=False,
                          # Pass through the other options:
-                         **kwargs)
+                         **kwargs,
+                         ) # type: ignore
 
     @staticmethod
     def _camel_to_arg(camel: str) -> str:
