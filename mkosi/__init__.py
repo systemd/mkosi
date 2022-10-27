@@ -1959,6 +1959,7 @@ def invoke_dnf(state: MkosiState, command: str, packages: Iterable[str]) -> None
         f"--installroot={state.root}",
         "--setopt=keepcache=1",
         "--setopt=install_weak_deps=0",
+        "--noplugins",
     ]
 
     if state.config.repositories:
