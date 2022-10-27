@@ -4950,11 +4950,12 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
         self._ini_file_key = ""  # multi line list processing
         self._ini_file_list_mode = False
 
-        # Add config files to be parsed
-        kwargs["fromfile_prefix_chars"] = ArgumentParserMkosi.fromfile_prefix_chars
-        kwargs["formatter_class"] = CustomHelpFormatter
-
-        super().__init__(*kargs, **kwargs)
+        super().__init__(*kargs,
+                         # Add config files to be parsed:
+                         fromfile_prefix_chars=ArgumentParserMkosi.fromfile_prefix_chars,
+                         formatter_class=CustomHelpFormatter,
+                         # Pass through the other options:
+                         **kwargs)
 
     @staticmethod
     def _camel_to_arg(camel: str) -> str:
