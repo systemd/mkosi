@@ -7026,17 +7026,6 @@ def print_summary(config: MkosiConfig) -> None:
     if config.remove_packages:
         print("           Remove Packages:", line_join_list(config.remove_packages))
 
-    print("              Build Script:", path_or_none(config.build_script, check_script_input))
-
-    env = [f"{k}={v}" for k, v in config.environment.items()]
-    print("        Script Environment:", line_join_list(env))
-
-    if config.build_script:
-        print("                 Run tests:", yes_no(config.with_tests))
-
-    print("                  Password:", ("default" if config.password is None else "set"))
-    print("                 Autologin:", yes_no(config.autologin))
-
     print("             Build Sources:", none_to_none(config.build_sources))
     print("      Source File Transfer:", none_to_none(config.source_file_transfer))
     print("Source File Transfer Final:", none_to_none(config.source_file_transfer_final))
@@ -7045,11 +7034,23 @@ def print_summary(config: MkosiConfig) -> None:
     print("         Install Directory:", none_to_none(config.install_dir))
     print("            Build Packages:", line_join_list(config.build_packages))
     print("          Skip final phase:", yes_no(config.skip_final_phase))
+
+    print("              Build Script:", path_or_none(config.build_script, check_script_input))
+
+    env = [f"{k}={v}" for k, v in config.environment.items()]
+    if config.build_script:
+        print("                 Run tests:", yes_no(config.with_tests))
+
     print("        Postinstall Script:", path_or_none(config.postinst_script, check_script_input))
     print("            Prepare Script:", path_or_none(config.prepare_script, check_script_input))
     print("           Finalize Script:", path_or_none(config.finalize_script, check_script_input))
+
+    print("        Script Environment:", line_join_list(env))
     print("      Scripts with network:", yes_no_or(config.with_network))
     print("           nspawn Settings:", none_to_none(config.nspawn_settings))
+
+    print("                  Password:", ("default" if config.password is None else "set"))
+    print("                 Autologin:", yes_no(config.autologin))
 
     if config.output_format.is_disk():
         print("\nPARTITIONS:")
