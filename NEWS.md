@@ -46,6 +46,12 @@
   `image.root.roothash`, `image.root.roothash.p7s` (same for `usr` variants).
 - `mkosi` will again default to the same OS release as the host system when the
   host system uses the same distribution as the image that's being built.
+- By default, `mkosi` will now change the owner of newly created directories to
+  `SUDO_UID` or `PKEXEC_UID` if defined, unless `--no-chown` is used.
+- If `systemd-nspawn` v252 or newer is used, bind-mounted directories with
+  `systemd-nspawn` will use the new `rootidmap` option so files and directories
+  created from within the container will be owned by the actual directory owner
+  on the host.
 
 ## v13
 
