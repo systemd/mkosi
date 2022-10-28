@@ -6256,8 +6256,6 @@ def find_output(args: argparse.Namespace) -> None:
     else:
         return
 
-    mkdirp_chown_current_user(args.output_dir, skip_chown=args.no_chown)
-
 
 def find_builddir(args: argparse.Namespace) -> None:
     subdir = f"{args.distribution}~{args.release}"
@@ -6269,8 +6267,6 @@ def find_builddir(args: argparse.Namespace) -> None:
     else:
         return
 
-    mkdirp_chown_current_user(args.build_dir, skip_chown=args.no_chown)
-
 
 def find_cache(args: argparse.Namespace) -> None:
     subdir = f"{args.distribution}~{args.release}"
@@ -6281,8 +6277,6 @@ def find_cache(args: argparse.Namespace) -> None:
         args.cache_path = Path("mkosi.cache", subdir)
     else:
         return
-
-    mkdirp_chown_current_user(args.cache_path, skip_chown=args.no_chown)
 
 
 def require_private_file(name: str, description: str) -> None:
@@ -7064,6 +7058,15 @@ def make_build_dir(config: MkosiConfig) -> None:
     mkdirp_chown_current_user(config.build_dir, skip_chown=config.no_chown, mode=0o755)
 
 
+def make_cache_dir(config: MkosiConfig) -> None:
+    """Create the output directory if set and not existing yet"""
+    # TODO: mypy complains that having the same structure as above, makes  the
+    # return on None unreachable code. I can't see right now, why it *should* be
+    # unreachable, so invert the structure here to be on the safe side.
+    if config.cache_path is not None:
+        mkdirp_chown_current_user(config.cache_path, skip_chown=config.no_chown, mode=0o755)
+
+
 def configure_ssh(state: MkosiState, cached: bool) -> Optional[TextIO]:
     if state.do_run_build_script or not state.config.ssh:
         return None
@@ -7500,6 +7503,7 @@ def remove_artifacts(
 
 def build_stuff(config: MkosiConfig) -> Manifest:
     make_output_dir(config)
+    make_cache_dir(config)
     workspace = setup_workspace(config)
     cache = setup_package_cache(config, Path(workspace.name))
 
