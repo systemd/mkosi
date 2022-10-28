@@ -18,8 +18,9 @@ from . import (
     MKOSI_COMMANDS_NEED_BUILD,
     CompletedProcess,
     build_stuff,
+    check_inputs,
     check_native,
-    check_output,
+    check_outputs,
     check_root,
     init_namespace,
     load_args,
@@ -113,7 +114,8 @@ class Machine:
             unlink_output(self.config)
 
         if self.config.verb == Verb.build:
-            check_output(self.config)
+            check_inputs(self.config)
+            check_outputs(self.config)
 
         if needs_build(self.config):
             check_root()
