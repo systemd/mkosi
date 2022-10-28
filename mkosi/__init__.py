@@ -5131,27 +5131,55 @@ def parse_ssh_agent(value: str) -> Optional[Path]:
         die(f"SSH agent socket {sock} is not an AF_UNIX socket")
     return sock
 
+USAGE = """
+       mkosi [options...] {b}summary{e}
+       mkosi [options...] {b}build{e} [script parameters...]
+       mkosi [options...] {b}shell{e} [command line...]
+       mkosi [options...] {b}boot{e} [nspawn settings...]
+       mkosi [options...] {b}qemu{e} [qemu parameters...]
+       mkosi [options...] {b}ssh{e} [command line...]
+       mkosi [options...] {b}clean{e}
+       mkosi [options...] {b}serve{e}
+       mkosi [options...] {b}bump{e}
+       mkosi [options...] {b}genkey{e}
+       mkosi [options...] {b}help{e}
+       mkosi -h | --help
+       mkosi --version
+""".format(b=MkosiPrinter.bold, e=MkosiPrinter.reset)
 
 def create_parser() -> ArgumentParserMkosi:
-    parser = ArgumentParserMkosi(prog="mkosi", description="Build Bespoke OS Images", add_help=False)
+    parser = ArgumentParserMkosi(
+        prog="mkosi",
+        description="Build Bespoke OS Images",
+        usage=USAGE,
+        add_help=False,
+    )
 
-    group = parser.add_argument_group("Commands")
-    group.add_argument(
+    parser.add_argument(
         "verb",
         type=Verb,
         choices=list(Verb),
         default=Verb.build,
-        help="Operation to execute",
+        help=argparse.SUPPRESS,
     )
-    group.add_argument(
+    parser.add_argument(
         "cmdline",
         nargs=argparse.REMAINDER,
-        help=f"The command line to use for {list_to_string(verb.name for verb in MKOSI_COMMANDS_CMDLINE)}",
+        help=argparse.SUPPRESS,
     )
-    group.add_argument("-h", "--help", action="help", help="Show this help")
-    group.add_argument("--version", action="version", version="%(prog)s " + __version__)
+    parser.add_argument(
+        "-h", "--help",
+        action="help",
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version="%(prog)s " + __version__,
+        help=argparse.SUPPRESS,
+    )
 
-    group = parser.add_argument_group("Distribution")
+    group = parser.add_argument_group("Distribution options")
     group.add_argument("-d", "--distribution", choices=Distribution.__members__, help="Distribution to install")
     group.add_argument("-r", "--release", help="Distribution release to install")
     group.add_argument("--architecture", help="Override the architecture of installation", default=platform.machine())
@@ -5186,7 +5214,7 @@ def create_parser() -> ArgumentParserMkosi:
         help="Directory container extra distribution specific repository files",
     )
 
-    group = parser.add_argument_group("Output")
+    group = parser.add_argument_group("Output options")
     group.add_argument(
         "-t", "--format",
         dest="output_format",
@@ -5429,7 +5457,7 @@ def create_parser() -> ArgumentParserMkosi:
         help="Generate split out root/verity/kernel images, too",
     )
 
-    group = parser.add_argument_group("Content")
+    group = parser.add_argument_group("Content options")
     group.add_argument(
         "--base-packages",
         type=parse_base_packages,
@@ -5671,7 +5699,7 @@ def create_parser() -> ArgumentParserMkosi:
         metavar="PATH",
     )
 
-    group = parser.add_argument_group("Partitions")
+    group = parser.add_argument_group("Partitions options")
     group.add_argument('--base-image',
                        help='Use the given image as base (e.g. lower sysext layer)',
                        type=Path,
@@ -5716,7 +5744,7 @@ def create_parser() -> ArgumentParserMkosi:
         help="Generate a /usr/ partition instead of a root partition",
     )
 
-    group = parser.add_argument_group("Validation (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs, tar, cpio)")
+    group = parser.add_argument_group("Validation options (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs, tar, cpio)")
     group.add_argument(
         "--checksum",
         metavar="BOOL",
@@ -5737,7 +5765,7 @@ def create_parser() -> ArgumentParserMkosi:
         help="Write block map file (.bmap) for bmaptool usage (only gpt_ext4, gpt_btrfs)",
     )
 
-    group = parser.add_argument_group("Host configuration")
+    group = parser.add_argument_group("Host configuration options")
     group.add_argument(
         "--extra-search-path",
         dest="extra_search_paths",
@@ -5852,7 +5880,7 @@ def create_parser() -> ArgumentParserMkosi:
         help="If specified, 'mkosi ssh' will use this port to connect",
     )
 
-    group = parser.add_argument_group("Additional Configuration")
+    group = parser.add_argument_group("Additional configuration options")
     group.add_argument(
         "-C", "--directory",
         help="Change to specified directory before doing anything",
