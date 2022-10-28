@@ -6583,8 +6583,6 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
         if args.root_size is None:
             # Size will be automatic
             args.minimize = True
-        if args.compress is False:
-            die("Cannot disable compression with squashfs", MkosiNotSupportedException)
         if args.compress is None:
             args.compress = True
 

@@ -135,6 +135,5 @@ def test_shell_boot() -> None:
 def test_compression() -> None:
     assert parse(["--format", "gpt_squashfs"]).compress
 
-    with pytest.raises(MkosiException, match=".*compression.*squashfs"):
-        parse(["--format", "gpt_squashfs", "--compress", "False"])
+    assert not parse(["--format", "gpt_squashfs", "--compress", "False"]).compress
 
