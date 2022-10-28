@@ -7,19 +7,19 @@
 mkosi \[em] Build Bespoke OS Images
 .SH SYNOPSIS
 .PP
-\f[C]mkosi [options\&...] build\f[R]
-.PP
-\f[C]mkosi [options\&...] clean\f[R]
-.PP
 \f[C]mkosi [options\&...] summary\f[R]
+.PP
+\f[C]mkosi [options\&...] build [script parameters\&...]\f[R]
 .PP
 \f[C]mkosi [options\&...] shell [command line\&...]\f[R]
 .PP
 \f[C]mkosi [options\&...] boot [nspawn settings\&...]\f[R]
 .PP
-\f[C]mkosi [options\&...] qemu\f[R]
+\f[C]mkosi [options\&...] qemu [qemu parameters\&...]\f[R]
 .PP
-\f[C]mkosi [options\&...] ssh\f[R]
+\f[C]mkosi [options\&...] ssh [command line\&...]\f[R]
+.PP
+\f[C]mkosi [options\&...] clean\f[R]
 .PP
 \f[C]mkosi [options\&...] serve\f[R]
 .PP
@@ -38,20 +38,6 @@ generate disk images with a number of bells and whistles.
 .PP
 The following command line verbs are known:
 .TP
-\f[B]\f[CB]build\f[B]\f[R]
-This builds the image, based on the settings passed in on the command
-line or read from a \f[C]mkosi.conf\f[R] file.
-This verb is the default if no verb is explicitly specified.
-This command must be executed as \f[C]root\f[R].
-Any arguments passed after \f[C]build\f[R] are passed as arguments to
-the build script (if there is one).
-.TP
-\f[B]\f[CB]clean\f[B]\f[R]
-Remove build artifacts generated on a previous build.
-If combined with \f[C]-f\f[R], also removes incremental build cache
-images.
-If \f[C]-f\f[R] is specified twice, also removes any package cache.
-.TP
 \f[B]\f[CB]summary\f[B]\f[R]
 Outputs a human-readable summary of all options used for building an
 image.
@@ -59,36 +45,56 @@ This will parse the command line and \f[C]mkosi.conf\f[R] file as it
 would do on \f[C]build\f[R], but only output what it is configured for
 and not actually build anything.\[ga]
 .TP
+\f[B]\f[CB]build\f[B]\f[R]
+This builds the image based on the settings passed in on the command
+line or read from a \f[C]mkosi.conf\f[R] file.
+This command is the default if no verb is explicitly specified.
+This command must be executed as \f[C]root\f[R].
+Any arguments passed after the \f[C]build\f[R] verb are passed as
+arguments to the build script (if there is one).
+.TP
 \f[B]\f[CB]shell\f[B]\f[R]
 This builds the image if it is not built yet, and then invokes
 \f[C]systemd-nspawn\f[R] to acquire an interactive shell prompt in it.
-If this verb is used an optional command line may be specified which is
-then invoked in place of the shell in the container.
-Combine this with \f[C]-f\f[R] in order to rebuild the image
-unconditionally before acquiring the shell, see below.
+An optional command line may be specified after the \f[C]shell\f[R]
+verb, to be invoked in place of the shell in the container.
+Use \f[C]-f\f[R] in order to rebuild the image unconditionally before
+acquiring the shell, see below.
 This command must be executed as \f[C]root\f[R].
 .TP
 \f[B]\f[CB]boot\f[B]\f[R]
-Similar to \f[C]shell\f[R] but boots the image up using
+Similar to \f[C]shell\f[R], but boots the image using
 \f[C]systemd-nspawn\f[R].
-If this verb is used an optional command line may be specified which is
-passed as \[lq]kernel command line\[rq] to the init system in the image.
+An optional command line may be specified after the \f[C]boot\f[R] verb,
+which is then passed as the \[lq]kernel command line\[rq] to the init
+system in the image.
 .TP
 \f[B]\f[CB]qemu\f[B]\f[R]
-Similar to \f[C]boot\f[R] but uses \f[C]qemu\f[R] to boot up the image,
-i.e.\ instead of container virtualization VM virtualization is used.
-This verb is only supported on images that contain a boot loader,
+Similar to \f[C]boot\f[R], but uses \f[C]qemu\f[R] to boot up the image,
+i.e.\ instead of container virtualization virtual machine virtualization
+is used.
+This verb is only supported for images that contain a boot loader,
 i.e.\ those built with \f[C]Bootable=yes\f[R] (see below).
 This command must be executed as \f[C]root\f[R] unless the image already
 exists and \f[C]-f\f[R] is not specified.
+Any options specified after the \f[C]qemu\f[R] verb are appended to the
+\f[C]qemu\f[R] invocation.
 .TP
 \f[B]\f[CB]ssh\f[B]\f[R]
 When the image is built with the \f[C]Ssh=yes\f[R] option, this command
-connects to a booted (\f[C]boot\f[R], \f[C]qemu\f[R] verbs) container/VM
-via SSH.
+connects to a booted (\f[C]boot\f[R], \f[C]qemu\f[R] verbs) container or
+VM via SSH.
 Make sure to run \f[C]mkosi ssh\f[R] with the same config as
 \f[C]mkosi build\f[R] was run with so that it has the necessary
 information available to connect to the running container/VM via SSH.
+Any arguments passed after the \f[C]ssh\f[R] verb are passed as
+arguments to the \f[C]ssh\f[R] invocation.
+.TP
+\f[B]\f[CB]clean\f[B]\f[R]
+Remove build artifacts generated on a previous build.
+If combined with \f[C]-f\f[R], also removes incremental build cache
+images.
+If \f[C]-f\f[R] is specified twice, also removes any package cache.
 .TP
 \f[B]\f[CB]serve\f[B]\f[R]
 This builds the image if it is not built yet, and then serves the output

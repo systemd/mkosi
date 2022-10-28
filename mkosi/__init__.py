@@ -6462,7 +6462,7 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
     args.extra_search_paths = expand_paths(args.extra_search_paths)
 
     if args.cmdline and args.verb not in MKOSI_COMMANDS_CMDLINE:
-        die(f"Additional parameters only accepted for {list_to_string(verb.name for verb in MKOSI_COMMANDS_CMDLINE)} invocations.")
+        die(f"Parameters after verb are only accepted for {list_to_string(verb.name for verb in MKOSI_COMMANDS_CMDLINE)}.")
 
     if args.output_format is None:
         args.output_format = OutputFormat.gpt_ext4

@@ -8,19 +8,19 @@ mkosi — Build Bespoke OS Images
 
 # SYNOPSIS
 
-`mkosi [options…] build`
-
-`mkosi [options…] clean`
-
 `mkosi [options…] summary`
+
+`mkosi [options…] build [script parameters…]`
 
 `mkosi [options…] shell [command line…]`
 
 `mkosi [options…] boot [nspawn settings…]`
 
-`mkosi [options…] qemu`
+`mkosi [options…] qemu [qemu parameters…]`
 
-`mkosi [options…] ssh`
+`mkosi [options…] ssh [command line…]`
+
+`mkosi [options…] clean`
 
 `mkosi [options…] serve`
 
@@ -41,20 +41,6 @@ whistles.
 
 The following command line verbs are known:
 
-`build`
-
-: This builds the image, based on the settings passed in on the
-  command line or read from a `mkosi.conf` file. This
-  verb is the default if no verb is explicitly specified. This command
-  must be executed as `root`. Any arguments passed after `build` are
-  passed as arguments to the build script (if there is one).
-
-`clean`
-
-: Remove build artifacts generated on a previous build. If combined
-  with `-f`, also removes incremental build cache images. If `-f` is
-  specified twice, also removes any package cache.
-
 `summary`
 
 : Outputs a human-readable summary of all options used for building an
@@ -62,37 +48,52 @@ The following command line verbs are known:
   would do on `build`, but only output what it is configured for and not
   actually build anything.`
 
+`build`
+
+: This builds the image based on the settings passed in on the command line or
+  read from a `mkosi.conf` file. This command is the default if no verb is
+  explicitly specified. This command must be executed as `root`. Any arguments
+  passed after the `build` verb are passed as arguments to the build script (if
+  there is one).
+
 `shell`
 
 : This builds the image if it is not built yet, and then invokes
-  `systemd-nspawn` to acquire an interactive shell prompt in it. If
-  this verb is used an optional command line may be specified which is
-  then invoked in place of the shell in the container. Combine this
-  with `-f` in order to rebuild the image unconditionally before
-  acquiring the shell, see below. This command must be executed as
-  `root`.
+  `systemd-nspawn` to acquire an interactive shell prompt in it. An optional
+  command line may be specified after the `shell` verb, to be invoked in place
+  of the shell in the container. Use `-f` in order to rebuild the image
+  unconditionally before acquiring the shell, see below. This command must be
+  executed as `root`.
 
 `boot`
 
-: Similar to `shell` but boots the image up using `systemd-nspawn`. If
-  this verb is used an optional command line may be specified which is
-  passed as "kernel command line" to the init system in the image.
+: Similar to `shell`, but boots the image using `systemd-nspawn`. An optional
+  command line may be specified after the `boot` verb, which is then passed as
+  the "kernel command line" to the init system in the image.
 
 `qemu`
 
-: Similar to `boot` but uses `qemu` to boot up the image, i.e. instead
-  of container virtualization VM virtualization is used. This verb is
-  only supported on images that contain a boot loader, i.e. those
-  built with `Bootable=yes` (see below). This command must be executed
-  as `root` unless the image already exists and `-f` is not specified.
+: Similar to `boot`, but uses `qemu` to boot up the image, i.e. instead of
+  container virtualization virtual machine virtualization is used. This verb is
+  only supported for images that contain a boot loader, i.e. those built with
+  `Bootable=yes` (see below). This command must be executed as `root` unless
+  the image already exists and `-f` is not specified. Any options specified
+  after the `qemu` verb are appended to the `qemu` invocation.
 
 `ssh`
 
 : When the image is built with the `Ssh=yes` option, this command connects
-  to a booted (`boot`, `qemu` verbs) container/VM via SSH. Make sure to
+  to a booted (`boot`, `qemu` verbs) container or VM via SSH. Make sure to
   run `mkosi ssh` with the same config as `mkosi build` was run with so
   that it has the necessary information available to connect to the running
-  container/VM via SSH.
+  container/VM via SSH. Any arguments passed after the `ssh` verb are passed as
+  arguments to the `ssh` invocation.
+
+`clean`
+
+: Remove build artifacts generated on a previous build. If combined
+  with `-f`, also removes incremental build cache images. If `-f` is
+  specified twice, also removes any package cache.
 
 `serve`
 
