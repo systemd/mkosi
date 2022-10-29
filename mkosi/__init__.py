@@ -411,25 +411,39 @@ def fedora_release_cmp(a: str, b: str) -> int:
 
 # Debian calls their architectures differently, so when calling debootstrap we
 # will have to map to their names
+# uname -m -> dpkg --print-architecture
 DEBIAN_ARCHITECTURES = {
-    "x86_64": "amd64",
-    "x86": "i386",
     "aarch64": "arm64",
     "armhfp": "armhf",
+    "armv7l": "armhf",
+    "ia64": "ia64",
+    "mips64": "mipsel",
+    "m68k": "m68k",
+    "parisc64": "hppa",
+    "ppc64": "ppc64",
+    "ppc64le": "ppc64el",
+    "riscv64:": "riscv64",
+    "s390x": "s390x",
+    "x86": "i386",
+    "x86_64": "amd64",
 }
 
 # And the kernel package names have yet another format, so adjust accordingly
+# uname -m -> linux-image-$arch
 DEBIAN_KERNEL_ARCHITECTURES = {
-    "x86_64": "amd64",
-    "x86": "i386",
     "aarch64": "arm64",
     "armhfp": "armmp",
     "alpha": "alpha-generic",
     "ia64": "itanium",
+    "m68k": "m68k",
+    "parisc64": "parisc64",
     "ppc": "powerpc",
     "ppc64": "powerpc64",
     "ppc64le": "powerpc64le",
+    "riscv64:": "riscv64",
     "s390x": "s390x",
+    "x86": "i386",
+    "x86_64": "amd64",
 }
 
 # EFI has its own conventions too
