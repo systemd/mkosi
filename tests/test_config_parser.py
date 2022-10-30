@@ -5,6 +5,7 @@ import contextlib
 import copy
 import importlib
 import os
+import platform
 import shutil
 from pathlib import Path
 from typing import Any, Dict, Generator, List, Mapping, Optional
@@ -54,7 +55,7 @@ class MkosiConfig:
         self.reference_config[job_name] = {
             "all": False,
             "all_directory": None,
-            "architecture": "x86_64",
+            "architecture": platform.machine(),
             "bmap": False,
             "boot_protocols": None,
             "bootable": False,
@@ -626,7 +627,7 @@ class MkosiConfigManyParams(MkosiConfigOne):
                 "Repositories": "http://ubuntu/repos",
                 "UseHostRepositories": False,
                 "Mirror": "http://ubuntu/mirror",
-                "Architecture": "x86_64",
+                "Architecture": platform.machine(),
             },
             "Output": {
                 "Format": "gpt_btrfs",
@@ -692,7 +693,7 @@ class MkosiConfigManyParams(MkosiConfigOne):
                 "Repositories": "http://debian/repos",
                 "UseHostRepositories": False,
                 "Mirror": "http://ubuntu/mirror",
-                "Architecture": "x86_64",
+                "Architecture": platform.machine(),
             },
             "Output": {
                 "Format": "gpt_btrfs",
