@@ -23,6 +23,7 @@ from .backend import (
     die,
     root_home,
     run_workspace_command,
+    safe_tar_extract,
 )
 
 ARCHITECTURES = {
@@ -311,7 +312,7 @@ class Gentoo:
                 with tarfile.open(stage3_tar_path) as tfd:
                     MkosiPrinter.print_step(f"Extracting {stage3_tar.name} to "
                                             f"{stage3_tmp_extract}")
-                    tfd.extractall(stage3_tmp_extract, numeric_owner=True)
+                    safe_tar_extract(tfd, stage3_tmp_extract, numeric_owner=True)
 
                 # REMOVEME : pathetic attempt have this merged :)
                 # remove once upstream ships the current *baselayout-999*
