@@ -17,6 +17,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import tarfile
 import uuid
 from pathlib import Path
 from types import FrameType
@@ -988,3 +989,26 @@ def mkdirp_chown_current_user(
             continue
 
         chown_to_running_user(path)
+
+
+def safe_tar_extract(tar: tarfile.TarFile, path: Path=Path("."), *, numeric_owner: bool=False) -> None:
+    """Extract a tar without CVE-2007-4559.
+
+    Throws a MkosiException if a member of the tar resolves to a path that would
+    be outside of the passed in target path.
+
+    Omits the member argument from TarFile.extractall, since we don't need it at
+    the moment.
+
+    See https://github.com/advisories/GHSA-gw9q-c7gh-j9vm
+    """
+    path = path.resolve()
+    for member in tar.getmembers():
+        target = path / member.name
+        try:
+            # a.relative_to(b) throws a ValueError if a is not a subpath of b
+            target.resolve().relative_to(path)
+        except ValueError as e:
+            raise MkosiException(f"Attempted path traversal in tar file {tar.name!r}") from e
+
+    tar.extractall(path, numeric_owner=numeric_owner)
