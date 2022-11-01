@@ -6823,6 +6823,8 @@ def check_script_input(path: Optional[Path]) -> None:
 
 def check_inputs(config: MkosiConfig) -> None:
     try:
+        check_tree_input(config.base_image)
+
         for tree in (config.skeleton_trees,
                      config.extra_trees):
             for item in tree:
@@ -6831,8 +6833,7 @@ def check_inputs(config: MkosiConfig) -> None:
         for path in (config.build_script,
                      config.prepare_script,
                      config.postinst_script,
-                     config.finalize_script,
-                     config.base_image):
+                     config.finalize_script):
             check_script_input(path)
     except OSError as e:
         die(f'{e.filename} {e.strerror}')
