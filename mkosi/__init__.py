@@ -4990,8 +4990,6 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
         "SignExpectedPCR": "--sign-expected-pcr",
     }
 
-    fromfile_prefix_chars: str = "@"
-
     def __init__(self, *kargs: Any, **kwargs: Any) -> None:
         self._ini_file_section = ""
         self._ini_file_key = ""  # multi line list processing
@@ -5000,7 +4998,7 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
         # we need to suppress mypy here: https://github.com/python/mypy/issues/6799
         super().__init__(*kargs,
                          # Add config files to be parsed:
-                         fromfile_prefix_chars=ArgumentParserMkosi.fromfile_prefix_chars,
+                         fromfile_prefix_chars='@',
                          formatter_class=CustomHelpFormatter,
                          # Tweak defaults:
                          allow_abbrev=False,
@@ -5018,9 +5016,9 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
         return cls.SPECIAL_MKOSI_DEFAULT_PARAMS.get(key) or ("--" + cls._camel_to_arg(key))
 
     def _read_args_from_files(self, arg_strings: List[str]) -> List[str]:
-        """Convert @ prefixed command line arguments with corresponding file content
+        """Convert @-prefixed command line arguments with corresponding file content
 
-        Regular arguments are just returned. Arguments prefixed with @ are considered as
+        Regular arguments are just returned. Arguments prefixed with @ are considered
         configuration file paths. The settings of each file are parsed and returned as
         command line arguments.
         Example:
@@ -5038,7 +5036,7 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
         new_arg_strings = []
         for arg_string in arg_strings:
             # for regular arguments, just add them back into the list
-            if not arg_string or arg_string[0] not in self.fromfile_prefix_chars:
+            if not arg_string.startswith('@'):
                 new_arg_strings.append(arg_string)
                 continue
             # replace arguments referencing files with the file content
@@ -6021,7 +6019,7 @@ def parse_args_file(argv: List[str], config_path: Path) -> argparse.Namespace:
 
     # Parse all parameters handled by mkosi.
     # Parameters forwarded to subprocesses such as nspawn or qemu end up in cmdline_argv.
-    argv = argv[:1] + [f"{ArgumentParserMkosi.fromfile_prefix_chars}{config_path}"] + argv[1:]
+    argv = argv[:1] + [f"@{config_path}"] + argv[1:]
 
     return create_parser().parse_args(argv)
 
@@ -6034,7 +6032,7 @@ def parse_args_file_group(
     config_files = []
 
     if config_path.exists():
-        config_files += [f"{ArgumentParserMkosi.fromfile_prefix_chars}{config_path}"]
+        config_files += [f"@{config_path}"]
 
     d = config_path.parent
 
@@ -6049,7 +6047,7 @@ def parse_args_file_group(
         if dropin_dir.is_dir():
             for entry in sorted(dropin_dir.iterdir()):
                 if entry.is_file():
-                    config_files += [f"{ArgumentParserMkosi.fromfile_prefix_chars}{entry}"]
+                    config_files += [f"@{entry}"]
 
     # Parse all parameters handled by mkosi.
     # Parameters forwarded to subprocesses such as nspawn or qemu end up in cmdline_argv.
