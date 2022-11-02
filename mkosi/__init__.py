@@ -1694,6 +1694,20 @@ def configure_dracut(state: MkosiState, cached: bool) -> None:
             '[[ $(modinfo -k "$kernel" -F filename efivarfs 2>/dev/null) == /* ]] && add_drivers+=" efivarfs "\n'
         )
 
+    # Modules may be required for device mapper targets
+    dm_modules = []
+    if state.config.encrypt:
+        dm_modules.append("dm-crypt")
+    if state.config.verity:
+        dm_modules.append("dm-verity")
+    if dm_modules:
+        dm_modules.append("dm-mod")
+
+        conf_content = 'add_dracutmodules+=" dm "\n'
+        for dm_module in dm_modules:
+            conf_content += f'[[ $(modinfo -k "$kernel" -F filename {dm_module} 2>/dev/null) == /* ]] && add_drivers+=" {dm_module} "\n'
+
+        dracut_dir.joinpath("30-mkosi-dm.conf").write_text(conf_content)
 
 def prepare_tree_root(state: MkosiState) -> None:
     if state.config.output_format == OutputFormat.subvolume and not is_generated_root(state.config):
