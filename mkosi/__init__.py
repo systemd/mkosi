@@ -616,6 +616,7 @@ def copy_file_object(oldobject: BinaryIO, newobject: BinaryIO) -> None:
         if e.errno not in {errno.EXDEV, errno.EOPNOTSUPP, errno.ENOTTY}:
             raise
         shutil.copyfileobj(oldobject, newobject)
+        newobject.flush()
 
 
 def copy_file(oldpath: PathString, newpath: PathString) -> None:
