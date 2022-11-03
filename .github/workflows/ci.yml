@@ -113,8 +113,7 @@ jobs:
           - fedora
           - rocky_epel
           - alma_epel
-          # Disabled until https://github.com/gentoo/baselayout/pull/2 is merged.
-          # - gentoo
+          - gentoo
         format:
           - directory
           - tar
