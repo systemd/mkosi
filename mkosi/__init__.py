@@ -994,8 +994,6 @@ def attach_image_loopback(image: Optional[BinaryIO], table: Optional[PartitionTa
         yield None
         return
 
-    assert table
-
     with get_loopdev(image) as loopdev, flock(loopdev):
         # losetup --partscan instructs the kernel to scan the partition table and add separate partition
         # devices for each of the partitions it finds. However, this operation is asynchronous which
@@ -1003,8 +1001,9 @@ def attach_image_loopback(image: Optional[BinaryIO], table: Optional[PartitionTa
         # in a race condition where we try to access a partition device before it's been initialized by
         # the kernel. To avoid this race condition, let's explicitly try to add all the partitions
         # ourselves using the BLKPKG BLKPG_ADD_PARTITION ioctl().
-        for p in table.partitions.values():
-            blkpg_add_partition(loopdev.fileno(), p.number, table.partition_offset(p), table.partition_size(p))
+        if table:
+            for p in table.partitions.values():
+                blkpg_add_partition(loopdev.fileno(), p.number, table.partition_offset(p), table.partition_size(p))
 
         try:
             yield Path(loopdev.name)
@@ -1012,12 +1011,13 @@ def attach_image_loopback(image: Optional[BinaryIO], table: Optional[PartitionTa
             # Similarly to above, partition devices are removed asynchronously by the kernel, so again
             # let's avoid race conditions by explicitly removing all partition devices before detaching
             # the loop device using the BLKPG BLKPG_DEL_PARTITION ioctl().
-            for p in table.partitions.values():
-                blkpg_del_partition(loopdev.fileno(), p.number)
+            if table:
+                for p in table.partitions.values():
+                    blkpg_del_partition(loopdev.fileno(), p.number)
 
 
 @contextlib.contextmanager
-def attach_base_image(base_image: Optional[Path], table: Optional[PartitionTable]) -> Iterator[Optional[Path]]:
+def attach_base_image(base_image: Optional[Path], base_root_mount_path: Path) -> Iterator[Optional[Path]]:
     """Context manager that attaches/detaches the base image directory or device"""
 
     if base_image is None:
@@ -1029,9 +1029,13 @@ def attach_base_image(base_image: Optional[Path], table: Optional[PartitionTable
             yield base_image
         else:
             with base_image.open('rb') as f, \
-                 attach_image_loopback(f, table) as loopdev:
+                 attach_image_loopback(f, None) as loopdev:
 
-                yield loopdev
+                if loopdev is None:
+                    yield None
+                else:
+                    with mount(loopdev, base_root_mount_path, read_only=True) as mounted_root:
+                        yield mounted_root
 
 
 def prepare_swap(state: MkosiState, loopdev: Optional[Path], cached: bool) -> None:
@@ -7308,7 +7312,7 @@ def build_image(
     else:
         raw = create_image(state)
 
-    with attach_base_image(state.config.base_image, state.partition_table) as base_image, \
+    with attach_base_image(state.config.base_image, state.workspace / "base-root") as base_image, \
          attach_image_loopback(raw, state.partition_table) as loopdev, \
          set_umask(0o022):
 
