@@ -1931,6 +1931,17 @@ def clean_dpkg_metadata(root: Path, always: bool) -> None:
     clean_paths(root, paths, tool='/usr/bin/dpkg', always=always)
 
 
+def clean_pacman_metadata(root: Path, always: bool) -> None:
+    """Remove pacman metadata if /usr/bin/pacman is not present in the image"""
+    paths = [
+        "/var/lib/pacman",
+        "/var/cache/pacman",
+        "/var/log/pacman.log"
+    ]
+
+    clean_paths(root, paths, tool='/usr/bin/pacman', always=always)
+
+
 def clean_package_manager_metadata(state: MkosiState) -> None:
     """Remove package manager metadata
 
@@ -1950,7 +1961,8 @@ def clean_package_manager_metadata(state: MkosiState) -> None:
     clean_rpm_metadata(state.root, always=always)
     clean_apt_metadata(state.root, always=always)
     clean_dpkg_metadata(state.root, always=always)
-    # FIXME: implement cleanup for other package managers: swupd, pacman
+    clean_pacman_metadata(state.root, always=always)
+    # FIXME: implement cleanup for other package managers: swupd
 
 
 def remove_files(state: MkosiState) -> None:
