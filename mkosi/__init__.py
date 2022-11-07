@@ -5995,13 +5995,13 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> Dict[str, argparse.Names
             args_all[f.name] = args
     # Parse everything in normal mode
     else:
-        args = parse_args_file_group(argv, os.fspath(config_path))
+        args = parse_args_file_group(argv, config_path)
 
         args = load_distribution(args)
 
         if args.distribution:
             # Parse again with any extra distribution files included.
-            args = parse_args_file_group(argv, os.fspath(config_path), args.distribution)
+            args = parse_args_file_group(argv, config_path, args.distribution)
 
         args_all["default"] = args
 
@@ -6019,28 +6019,30 @@ def parse_args_file(argv: List[str], config_path: Path) -> argparse.Namespace:
 
 
 def parse_args_file_group(
-    argv: List[str], config_path: str, distribution: Optional[Distribution] = None
+    argv: List[str], config_path: Path, distribution: Optional[Distribution] = None
 ) -> argparse.Namespace:
     """Parse a set of mkosi config files"""
     # Add the @ prefixed filenames to current argument list in inverse priority order.
     config_files = []
 
-    if os.path.isfile(config_path):
+    if config_path.exists():
         config_files += [f"{ArgumentParserMkosi.fromfile_prefix_chars}{config_path}"]
 
-    for dropin_dir in ("mkosi.conf.d", "mkosi.default.d"):
-        if os.path.isdir(dropin_dir):
-            for file in sorted(os.listdir(dropin_dir)):
-                path = os.path.join(dropin_dir, file)
-                if os.path.isfile(path):
+    d = config_path.parent
+
+    for dropin_dir in (d / "mkosi.conf.d", d / "mkosi.default.d"):
+        if dropin_dir.is_dir():
+            for file in sorted(dropin_dir.iterdir()):
+                path = dropin_dir / file
+                if path.is_file():
                     config_files += [f"{ArgumentParserMkosi.fromfile_prefix_chars}{path}"]
 
     if distribution is not None:
-        for distribution_dir in (f"mkosi.conf.d/{distribution}", f"mkosi.default.d/{distribution}"):
-            if os.path.isdir(distribution_dir):
-                for subdir in sorted(os.listdir(distribution_dir)):
-                    path = os.path.join(distribution_dir, subdir)
-                    if os.path.isfile(path):
+        for distribution_dir in (d / "mkosi.conf.d" / str(distribution), d / "mkosi.default.d" / str(distribution)):
+            if distribution_dir.is_dir():
+                for subdir in sorted(distribution_dir.iterdir()):
+                    path = distribution_dir / subdir
+                    if path.is_file():
                         config_files += [f"{ArgumentParserMkosi.fromfile_prefix_chars}{path}"]
 
     # Parse all parameters handled by mkosi.
