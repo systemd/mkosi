@@ -2017,7 +2017,7 @@ def invoke_dnf(state: MkosiState, command: str, packages: Iterable[str]) -> None
     cmdline += [command, *sort_packages(packages)]
 
     with mount_api_vfs(state.root):
-        run(cmdline, env=dict(KERNEL_INSTALL_BYPASS="1"))
+        run(cmdline, env={"KERNEL_INSTALL_BYPASS": state.environment.get("KERNEL_INSTALL_BYPASS", "1")})
 
     distribution, _ = detect_distribution()
     if distribution not in (Distribution.debian, Distribution.ubuntu):
@@ -2695,10 +2695,6 @@ def install_ubuntu(state: MkosiState) -> None:
     install_debian_or_ubuntu(state)
 
 
-def invoke_pacman(root: Path, pacman_conf: Path, packages: Set[str]) -> None:
-    run(["pacman", "--config", pacman_conf, "--noconfirm", "-Sy", *sort_packages(packages)], env=dict(KERNEL_INSTALL_BYPASS="1"))
-
-
 @complete_step("Installing Arch Linux…")
 def install_arch(state: MkosiState) -> None:
     if state.config.release is not None:
@@ -2846,7 +2842,8 @@ def install_arch(state: MkosiState) -> None:
         add_packages(state.config, packages, "openssh")
 
     with mount_api_vfs(state.root):
-        invoke_pacman(state.root, pacman_conf, packages)
+        run(["pacman", "--config", pacman_conf, "--noconfirm", "-Sy", *sort_packages(packages)],
+            env={"KERNEL_INSTALL_BYPASS": state.environment.get("KERNEL_INSTALL_BYPASS", "1")})
 
     state.root.joinpath("etc/pacman.d/mirrorlist").write_text(f"Server = {state.config.mirror}/$repo/os/$arch\n")
 
