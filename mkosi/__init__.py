@@ -2001,6 +2001,9 @@ def invoke_dnf(state: MkosiState, command: str, packages: Iterable[str]) -> None
         "--noplugins",
     ]
 
+    if not state.config.repository_key_check:
+        cmdline += ["--nogpgcheck"]
+
     if state.config.repositories:
         cmdline += ["--disablerepo=*"] + [f"--enablerepo={repo}" for repo in state.config.repositories]
 
