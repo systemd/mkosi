@@ -6030,20 +6030,18 @@ def parse_args_file_group(
 
     d = config_path.parent
 
-    for dropin_dir in (d / "mkosi.conf.d", d / "mkosi.default.d"):
-        if dropin_dir.is_dir():
-            for file in sorted(dropin_dir.iterdir()):
-                path = dropin_dir / file
-                if path.is_file():
-                    config_files += [f"{ArgumentParserMkosi.fromfile_prefix_chars}{path}"]
+    dirs = [Path("mkosi.conf.d"), Path("mkosi.default.d")]
+    if not d.samefile(Path.cwd()):
+        dirs += [Path(d / "mkosi.conf.d"), Path(d / "mkosi.default.d")]
 
     if distribution is not None:
-        for distribution_dir in (d / "mkosi.conf.d" / str(distribution), d / "mkosi.default.d" / str(distribution)):
-            if distribution_dir.is_dir():
-                for subdir in sorted(distribution_dir.iterdir()):
-                    path = distribution_dir / subdir
-                    if path.is_file():
-                        config_files += [f"{ArgumentParserMkosi.fromfile_prefix_chars}{path}"]
+        dirs += [d / str(distribution) for d in dirs]
+
+    for dropin_dir in dirs:
+        if dropin_dir.is_dir():
+            for entry in sorted(dropin_dir.iterdir()):
+                if entry.is_file():
+                    config_files += [f"{ArgumentParserMkosi.fromfile_prefix_chars}{entry}"]
 
     # Parse all parameters handled by mkosi.
     # Parameters forwarded to subprocesses such as nspawn or qemu end up in cmdline_argv.
@@ -7812,15 +7810,13 @@ def run_shell_setup(config: MkosiConfig, pipe: bool = False, commands: Optional[
         cmdline += [f"--bind={config.build_sources}:/root/src", "--chdir=/root/src"]
 
     if config.verb == Verb.boot:
+        # Add nspawn options first since systemd-nspawn ignores all options after the first argument.
+        cmdline += commands or config.cmdline
         # kernel cmdline config of the form systemd.xxx= get interpreted by systemd when running in nspawn as
         # well.
         cmdline += config.kernel_command_line
-
-    if commands or config.cmdline:
-        # If the verb is 'shell', config.cmdline contains the command to run.
-        # Otherwise, the verb is 'boot', and we assume config.cmdline contains nspawn arguments.
-        if config.verb == Verb.shell:
-            cmdline += ["--"]
+    elif commands or config.cmdline:
+        cmdline += ["--"]
         cmdline += commands or config.cmdline
 
     return cmdline
