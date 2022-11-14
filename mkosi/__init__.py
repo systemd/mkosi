@@ -6032,18 +6032,16 @@ def parse_args_file_group(
 
     for dropin_dir in (d / "mkosi.conf.d", d / "mkosi.default.d"):
         if dropin_dir.is_dir():
-            for file in sorted(dropin_dir.iterdir()):
-                path = dropin_dir / file
-                if path.is_file():
-                    config_files += [f"{ArgumentParserMkosi.fromfile_prefix_chars}{path}"]
+            for entry in sorted(dropin_dir.iterdir()):
+                if entry.is_file():
+                    config_files += [f"{ArgumentParserMkosi.fromfile_prefix_chars}{entry}"]
 
     if distribution is not None:
         for distribution_dir in (d / "mkosi.conf.d" / str(distribution), d / "mkosi.default.d" / str(distribution)):
             if distribution_dir.is_dir():
-                for subdir in sorted(distribution_dir.iterdir()):
-                    path = distribution_dir / subdir
-                    if path.is_file():
-                        config_files += [f"{ArgumentParserMkosi.fromfile_prefix_chars}{path}"]
+                for entry in sorted(distribution_dir.iterdir()):
+                    if entry.is_file():
+                        config_files += [f"{ArgumentParserMkosi.fromfile_prefix_chars}{entry}"]
 
     # Parse all parameters handled by mkosi.
     # Parameters forwarded to subprocesses such as nspawn or qemu end up in cmdline_argv.
