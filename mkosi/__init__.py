@@ -7812,15 +7812,13 @@ def run_shell_setup(config: MkosiConfig, pipe: bool = False, commands: Optional[
         cmdline += [f"--bind={config.build_sources}:/root/src", "--chdir=/root/src"]
 
     if config.verb == Verb.boot:
+        # Add nspawn options first since systemd-nspawn ignores all options after the first argument.
+        cmdline += commands or config.cmdline
         # kernel cmdline config of the form systemd.xxx= get interpreted by systemd when running in nspawn as
         # well.
         cmdline += config.kernel_command_line
-
-    if commands or config.cmdline:
-        # If the verb is 'shell', config.cmdline contains the command to run.
-        # Otherwise, the verb is 'boot', and we assume config.cmdline contains nspawn arguments.
-        if config.verb == Verb.shell:
-            cmdline += ["--"]
+    elif commands or config.cmdline:
+        cmdline += ["--"]
         cmdline += commands or config.cmdline
 
     return cmdline
