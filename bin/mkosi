@@ -13,6 +13,7 @@
 #   python3 -m pip install --user <mkosi>
 #   python3 -m pip install --user --editable <mkosi>
 #   /path/to/venv/bin/python3 -m pip install <mkosi>
+#   pipx install <mkosi>
 # and running directly from the source checkout.
 #
 # In the first and the next-to-last cases this script is a noop because we leave
@@ -22,7 +23,7 @@
 # cloned to, for "--editable" installations, when this script is run via sudo.
 # When running from a source checkout, we prepend that directory to the path.
 
-PYROOT=$(dirname "$0")
+PYROOT="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
 
 if [[ -x "${PYROOT}/python3" ]]
 then
