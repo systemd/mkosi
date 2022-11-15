@@ -2480,26 +2480,34 @@ def invoke_apt(
     **kwargs: Any,
 ) -> CompletedProcess:
 
+    config_file = state.workspace / "apt.conf"
     debarch = DEBIAN_ARCHITECTURES[state.config.architecture]
+
+    if not config_file.exists():
+        config_file.write_text(
+            dedent(
+                f"""\
+                Dir "{state.root}";
+                DPkg::Chroot-Directory "{state.root}";
+                """
+            )
+        )
 
     cmdline = [
         f"/usr/bin/apt-{subcommand}",
-        "-o", f"Dir={state.root}",
-        "-o", f"DPkg::Chroot-Directory={state.root}",
         "-o", f"APT::Architecture={debarch}",
         "-o", "dpkg::install::recursive::minimum=1000",
         operation,
         *extra,
     ]
     env = dict(
+        APT_CONFIG=f"{config_file}",
         DEBIAN_FRONTEND="noninteractive",
         DEBCONF_NONINTERACTIVE_SEEN="true",
         INITRD="No",
     )
 
-    # Overmount /etc/apt on the host with an empty directory, so that apt doesn't parse any configuration
-    # from it.
-    with mount_bind(state.workspace / "apt", Path("/") / "etc/apt"), mount_apt_local_mirror(state), mount_api_vfs(state.root):
+    with mount_apt_local_mirror(state), mount_api_vfs(state.root):
         return run(cmdline, env=env, text=True, **kwargs)
 
 
