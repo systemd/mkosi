@@ -1780,7 +1780,7 @@ def nspawn_params_for_build_sources(config: MkosiConfig, sft: SourceFileTransfer
         params += ["--setenv=SRCDIR=/root/src",
                    "--chdir=/root/src"]
         if sft == SourceFileTransfer.mount:
-            idmap_opt = ":rootidmap" if nspawn_id_map_supported() else ""
+            idmap_opt = ":rootidmap" if nspawn_id_map_supported() and config.idmap else ""
             params += [f"--bind={config.build_sources}:/root/src{idmap_opt}"]
 
         if config.read_only:
@@ -3946,6 +3946,13 @@ def create_parser() -> ArgumentParserMkosi:
         help="When running with sudo, reassign ownership of the generated files to the original user",
     )  # NOQA: E501
     group.add_argument(
+        "--idmap",
+        metavar="BOOL",
+        action=BooleanAction,
+        default=True,
+        help="Use systemd-nspawn's rootidmap option for bind-mounted directories.",
+    )
+    group.add_argument(
         "--tar-strip-selinux-context",
         metavar="BOOL",
         action=BooleanAction,
@@ -5989,7 +5996,7 @@ def run_build_script(state: MkosiState, raw: Optional[BinaryIO]) -> None:
     if state.config.build_script is None:
         return
 
-    idmap_opt = ":rootidmap" if nspawn_id_map_supported() else ""
+    idmap_opt = ":rootidmap" if nspawn_id_map_supported() and state.config.idmap else ""
 
     with complete_step("Running build script…"):
         os.makedirs(install_dir(state), mode=0o755, exist_ok=True)
