@@ -1,5 +1,10 @@
 # mkosi Changelog
 
+## v15
+
+- Rename `--no-chown` to `--chown` and set it to default to `True`, preserving
+  current behaviour.
+
 ## v14
 
 - Support for Clear Linux was dropped. See https://github.com/systemd/mkosi/pull/1037

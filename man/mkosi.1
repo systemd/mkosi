@@ -693,12 +693,11 @@ This is useful in A/B update scenarios where an existing disk image
 shall be augmented with a new version of a root or \f[C]/usr\f[R]
 partition along with its Verity partition and unified kernel.
 .TP
-\f[B]\f[CB]NoChown=\f[B]\f[R], \f[B]\f[CB]--no-chown\f[B]\f[R]
+\f[B]\f[CB]Chown=\f[B]\f[R], \f[B]\f[CB]--chown\f[B]\f[R]
 By default, if \f[C]mkosi\f[R] is run inside a \f[C]sudo\f[R]
 environment all generated artifacts have their UNIX user/group ownership
 changed to the user which invoked \f[C]sudo\f[R].
-With this option this may be turned off and all generated files are
-owned by \f[C]root\f[R].
+This behaviour can be disabled with \f[C]--chown=no\f[R].
 .TP
 \f[B]\f[CB]TarStripSELinuxContext=\f[B]\f[R], \f[B]\f[CB]--tar-strip-selinux-context\f[B]\f[R]
 If running on a SELinux-enabled system (Fedora Linux, CentOS, Rocky

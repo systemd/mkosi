@@ -572,7 +572,7 @@ class MkosiConfig:
     image_version: Optional[str]
     image_id: Optional[str]
     hostname: Optional[str]
-    no_chown: bool
+    chown: bool
     tar_strip_selinux_context: bool
     incremental: bool
     minimize: bool
@@ -1058,7 +1058,7 @@ def chown_to_running_user(path: PathString) -> None:
 def mkdirp_chown_current_user(
     path: PathString,
     *,
-    skip_chown: bool = False,
+    chown: bool = True,
     mode: int = 0o777,
     exist_ok: bool = True
 ) -> None:
@@ -1072,10 +1072,8 @@ def mkdirp_chown_current_user(
 
         path.mkdir(mode=mode, exist_ok=exist_ok)
 
-        if skip_chown:
-            continue
-
-        chown_to_running_user(path)
+        if chown:
+            chown_to_running_user(path)
 
 
 def safe_tar_extract(tar: tarfile.TarFile, path: Path=Path("."), *, numeric_owner: bool=False) -> None:
