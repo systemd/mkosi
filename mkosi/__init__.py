@@ -3033,7 +3033,7 @@ def save_cache(state: MkosiState, raw: Optional[str], cache_path: Optional[Path]
             unlink_try_hard(cache_path)
             shutil.move(cast(str, state.root), cache_path)  # typing bug, .move() accepts Path
 
-    if not state.config.no_chown:
+    if state.config.chown:
         chown_to_running_user(cache_path)
 
 
@@ -3051,11 +3051,9 @@ def _link_output(
 
     os.link(oldpath, newpath)
 
-    if config.no_chown:
-        return
-
-    relpath = path_relative_to_cwd(newpath)
-    chown_to_running_user(relpath)
+    if config.chown:
+        relpath = path_relative_to_cwd(newpath)
+        chown_to_running_user(relpath)
 
 
 def link_output(state: MkosiState, artifact: Optional[BinaryIO]) -> None:
@@ -3257,7 +3255,7 @@ def setup_package_cache(config: MkosiConfig, workspace: Path) -> Path:
         cache = workspace / "cache"
     else:
         cache = config.cache_path
-        mkdirp_chown_current_user(cache, skip_chown=config.no_chown, mode=0o755)
+        mkdirp_chown_current_user(cache, chown=config.chown, mode=0o755)
 
     return cache
 
@@ -3941,10 +3939,11 @@ def create_parser() -> ArgumentParserMkosi:
     group.add_argument("--image-version", help="Set version for image")
     group.add_argument("--image-id", help="Set ID for image")
     group.add_argument(
-        "--no-chown",
+        "--chown",
         metavar="BOOL",
         action=BooleanAction,
-        help="When running with sudo, disable reassignment of ownership of the generated files to the original user",
+        default=True,
+        help="When running with sudo, reassign ownership of the generated files to the original user",
     )  # NOQA: E501
     group.add_argument(
         "--tar-strip-selinux-context",
@@ -5653,7 +5652,7 @@ def make_output_dir(config: MkosiConfig) -> None:
     if config.output_dir is None:
         return
 
-    mkdirp_chown_current_user(config.output_dir, skip_chown=config.no_chown, mode=0o755)
+    mkdirp_chown_current_user(config.output_dir, chown=config.chown, mode=0o755)
 
 
 def make_build_dir(config: MkosiConfig) -> None:
@@ -5661,7 +5660,7 @@ def make_build_dir(config: MkosiConfig) -> None:
     if config.build_dir is None:
         return
 
-    mkdirp_chown_current_user(config.build_dir, skip_chown=config.no_chown, mode=0o755)
+    mkdirp_chown_current_user(config.build_dir, chown=config.chown, mode=0o755)
 
 
 def make_cache_dir(config: MkosiConfig) -> None:
@@ -5670,7 +5669,7 @@ def make_cache_dir(config: MkosiConfig) -> None:
     # return on None unreachable code. I can't see right now, why it *should* be
     # unreachable, so invert the structure here to be on the safe side.
     if config.cache_path is not None:
-        mkdirp_chown_current_user(config.cache_path, skip_chown=config.no_chown, mode=0o755)
+        mkdirp_chown_current_user(config.cache_path, chown=config.chown, mode=0o755)
 
 
 def configure_ssh(state: MkosiState, cached: bool) -> Optional[TextIO]:

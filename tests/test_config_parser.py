@@ -97,7 +97,7 @@ class MkosiConfig:
             "mirror": None,
             "repository_key_check": True,
             "mksquashfs_tool": [],
-            "no_chown": False,
+            "chown": True,
             "nspawn_settings": None,
             "output": None,
             "output_dir": None,
