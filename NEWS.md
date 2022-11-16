@@ -4,6 +4,8 @@
 
 - Rename `--no-chown` to `--chown` and set it to default to `True`, preserving
   current behaviour.
+- Add `--idmap` option to run `--systemd-nspawn` with ID mapping support. Defaults
+  to `True`. `--idmap=no` can be used to prevent usage of ID mapping.
 
 ## v14
 

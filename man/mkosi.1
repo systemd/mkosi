@@ -711,6 +711,12 @@ archive.
 Set the machine\[cq]s ID to the specified value.
 If unused, a random ID will be used while building the image and the
 final image will be shipped without a machine ID.
+.TP
+\f[B]\f[CB]Idmap=\f[B]\f[R], \f[B]\f[CB]--idmap\f[B]\f[R]
+By default, \f[C]mkosi\f[R] will run \f[C]systemd-nspawn\f[R] with
+ID mapping enabled. This ensures newly-created directories and files are
+owned by the user calling \f[C]sudo\f[R] or \f[C]pkexec\f[R] instead of
+\f[C]root\f[R]. This behaviour can be disabled with \f[C]--idmap=no\f[R].
 .SS [Content] Section
 .TP
 \f[B]\f[CB]BasePackages=\f[B]\f[R], \f[B]\f[CB]--base-packages\f[B]\f[R]
