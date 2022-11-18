@@ -1302,11 +1302,6 @@ def configure_dracut(state: MkosiState, cached: bool) -> None:
     dracut_dir = state.root / "etc/dracut.conf.d"
     dracut_dir.mkdir(mode=0o755, exist_ok=True)
 
-    dracut_dir.joinpath('30-mkosi-hostonly.conf').write_text(
-        f'hostonly={yes_no(state.config.hostonly_initrd)}\n'
-        'hostonly_default_device=no\n'
-    )
-
     dracut_dir.joinpath("30-mkosi-qemu.conf").write_text('add_dracutmodules+=" qemu "\n')
 
     with dracut_dir.joinpath("30-mkosi-systemd-extras.conf").open("w") as f:
@@ -1316,11 +1311,6 @@ def configure_dracut(state: MkosiState, cached: bool) -> None:
         if state.root.joinpath("etc/systemd/system.conf.d").exists():
             for conf in state.root.joinpath("etc/systemd/system.conf.d").iterdir():
                 f.write(f'install_optional_items+=" {Path("/") / conf.relative_to(state.root)} "\n')
-
-    if state.config.hostonly_initrd:
-        dracut_dir.joinpath("30-mkosi-filesystem.conf").write_text(
-            f'filesystems+=" {(state.config.output_format.needed_kernel_module())} "\n'
-        )
 
     if state.get_partition(PartitionIdentifier.esp):
         # efivarfs must be present in order to GPT root discovery work
@@ -3986,12 +3976,6 @@ def create_parser() -> ArgumentParserMkosi:
     )
     group.add_argument("--gpt-first-lba", type=int, help="Set the first LBA within GPT Header", metavar="FIRSTLBA")
     group.add_argument(
-        "--hostonly-initrd",
-        metavar="BOOL",
-        action=BooleanAction,
-        help="Enable dracut hostonly option",
-    )
-    group.add_argument(
         "--cache-initrd",
         metavar="BOOL",
         action=BooleanAction,
@@ -5540,7 +5524,6 @@ def print_summary(config: MkosiConfig) -> None:
             print("           UEFI SecureBoot:", yes_no(config.secure_boot))
             print("     Unified Kernel Images:", yes_no(config.with_unified_kernel_images))
             print("             GPT First LBA:", str(config.gpt_first_lba))
-            print("           Hostonly Initrd:", yes_no(config.hostonly_initrd))
 
     if config.secure_boot or config.verity == "sign":
         print("SecureBoot/Verity Sign Key:", config.secure_boot_key)

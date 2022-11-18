@@ -107,7 +107,7 @@ class DebianInstaller(DistributionInstaller):
             extra_packages.update(state.config.build_packages)
 
         if not state.do_run_build_script and state.config.bootable:
-            add_packages(state.config, extra_packages, "dracut")
+            add_packages(state.config, extra_packages, "dracut", "dracut-config-generic")
             cls._add_default_kernel_package(state, extra_packages)
 
             if state.config.output_format == OutputFormat.gpt_btrfs:
