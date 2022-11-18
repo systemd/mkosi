@@ -299,8 +299,6 @@ class MkosiConfig:
                 self.reference_config[job_name]["with_unified_kernel_images"] = mk_config_output[
                     "WithUnifiedKernelImages"
                 ]
-            if "HostonlyInitrd" in mk_config_output:
-                self.reference_config[job_name]["hostonly_initrd"] = mk_config_output["HostonlyInitrd"]
             if "CacheInitrd" in mk_config_output:
                 self.reference_config[job_name]["cache_initrd"] = mk_config_output["CacheInitrd"]
             if "MachineID" in mk_config_output:

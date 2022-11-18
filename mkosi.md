@@ -648,14 +648,6 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   installs kernels with a separate initrd and boot loader config to
   the efi or bootloader partition.
 
-`HostonlyInitrd=`, `--hostonly-initrd`
-
-: If specified, mkosi will run the tool to create the initrd such that
-  a non-generic initrd is created that will only be able to run on the
-  system mkosi is run on. Currently mkosi uses dracut for all
-  supported distributions and this option translates to enabling dracut's
-  hostonly option.
-
 `CacheInitrd=`, `--cache-initrd`
 
 : If specified, and incremental mode is used, mkosi will build the initrd
