@@ -7,19 +7,19 @@
 mkosi \[em] Build Bespoke OS Images
 .SH SYNOPSIS
 .PP
-\f[C]mkosi [options\&...] build\f[R]
-.PP
-\f[C]mkosi [options\&...] clean\f[R]
-.PP
 \f[C]mkosi [options\&...] summary\f[R]
+.PP
+\f[C]mkosi [options\&...] build [script parameters\&...]\f[R]
 .PP
 \f[C]mkosi [options\&...] shell [command line\&...]\f[R]
 .PP
 \f[C]mkosi [options\&...] boot [nspawn settings\&...]\f[R]
 .PP
-\f[C]mkosi [options\&...] qemu\f[R]
+\f[C]mkosi [options\&...] qemu [qemu parameters\&...]\f[R]
 .PP
-\f[C]mkosi [options\&...] ssh\f[R]
+\f[C]mkosi [options\&...] ssh [command line\&...]\f[R]
+.PP
+\f[C]mkosi [options\&...] clean\f[R]
 .PP
 \f[C]mkosi [options\&...] serve\f[R]
 .PP
@@ -32,63 +32,69 @@ mkosi \[em] Build Bespoke OS Images
 .PP
 \f[C]mkosi\f[R] is a tool for easily building customized OS images.
 It\[cq]s a fancy wrapper around \f[C]dnf --installroot\f[R],
-\f[C]debootstrap\f[R], \f[C]pacstrap\f[R] and \f[C]zypper\f[R] that may
+\f[C]debootstrap\f[R], \f[C]pacman\f[R] and \f[C]zypper\f[R] that may
 generate disk images with a number of bells and whistles.
 .SS Command Line Verbs
 .PP
 The following command line verbs are known:
 .TP
+\f[B]\f[CB]summary\f[B]\f[R]
+Outputs a human-readable summary of all options used for building an
+image.
+This will parse the command line and \f[C]mkosi.conf\f[R] file as it
+would do on \f[C]build\f[R], but only output what it is configured for
+and not actually build anything.\[ga]
+.TP
 \f[B]\f[CB]build\f[B]\f[R]
-This builds the image, based on the settings passed in on the command
-line or read from a \f[C]mkosi.default\f[R] file.
-This verb is the default if no verb is explicitly specified.
+This builds the image based on the settings passed in on the command
+line or read from a \f[C]mkosi.conf\f[R] file.
+This command is the default if no verb is explicitly specified.
 This command must be executed as \f[C]root\f[R].
-Any arguments passed after \f[C]build\f[R] are passed as arguments to
-the build script (if there is one).
+Any arguments passed after the \f[C]build\f[R] verb are passed as
+arguments to the build script (if there is one).
+.TP
+\f[B]\f[CB]shell\f[B]\f[R]
+This builds the image if it is not built yet, and then invokes
+\f[C]systemd-nspawn\f[R] to acquire an interactive shell prompt in it.
+An optional command line may be specified after the \f[C]shell\f[R]
+verb, to be invoked in place of the shell in the container.
+Use \f[C]-f\f[R] in order to rebuild the image unconditionally before
+acquiring the shell, see below.
+This command must be executed as \f[C]root\f[R].
+.TP
+\f[B]\f[CB]boot\f[B]\f[R]
+Similar to \f[C]shell\f[R], but boots the image using
+\f[C]systemd-nspawn\f[R].
+An optional command line may be specified after the \f[C]boot\f[R] verb,
+which is then passed as the \[lq]kernel command line\[rq] to the init
+system in the image.
+.TP
+\f[B]\f[CB]qemu\f[B]\f[R]
+Similar to \f[C]boot\f[R], but uses \f[C]qemu\f[R] to boot up the image,
+i.e.\ instead of container virtualization virtual machine virtualization
+is used.
+This verb is only supported for images that contain a boot loader,
+i.e.\ those built with \f[C]Bootable=yes\f[R] (see below).
+This command must be executed as \f[C]root\f[R] unless the image already
+exists and \f[C]-f\f[R] is not specified.
+Any options specified after the \f[C]qemu\f[R] verb are appended to the
+\f[C]qemu\f[R] invocation.
+.TP
+\f[B]\f[CB]ssh\f[B]\f[R]
+When the image is built with the \f[C]Ssh=yes\f[R] option, this command
+connects to a booted (\f[C]boot\f[R], \f[C]qemu\f[R] verbs) container or
+VM via SSH.
+Make sure to run \f[C]mkosi ssh\f[R] with the same config as
+\f[C]mkosi build\f[R] was run with so that it has the necessary
+information available to connect to the running container/VM via SSH.
+Any arguments passed after the \f[C]ssh\f[R] verb are passed as
+arguments to the \f[C]ssh\f[R] invocation.
 .TP
 \f[B]\f[CB]clean\f[B]\f[R]
 Remove build artifacts generated on a previous build.
 If combined with \f[C]-f\f[R], also removes incremental build cache
 images.
 If \f[C]-f\f[R] is specified twice, also removes any package cache.
-.TP
-\f[B]\f[CB]summary\f[B]\f[R]
-Outputs a human-readable summary of all options used for building an
-image.
-This will parse the command line and \f[C]mkosi.default\f[R] file as it
-would do on \f[C]build\f[R], but only output what it is configured for
-and not actually build anything.\[ga]
-.TP
-\f[B]\f[CB]shell\f[B]\f[R]
-This builds the image if it is not built yet, and then invokes
-\f[C]systemd-nspawn\f[R] to acquire an interactive shell prompt in it.
-If this verb is used an optional command line may be specified which is
-then invoked in place of the shell in the container.
-Combine this with \f[C]-f\f[R] in order to rebuild the image
-unconditionally before acquiring the shell, see below.
-This command must be executed as \f[C]root\f[R].
-.TP
-\f[B]\f[CB]boot\f[B]\f[R]
-Similar to \f[C]shell\f[R] but boots the image up using
-\f[C]systemd-nspawn\f[R].
-If this verb is used an optional command line may be specified which is
-passed as \[lq]kernel command line\[rq] to the init system in the image.
-.TP
-\f[B]\f[CB]qemu\f[B]\f[R]
-Similar to \f[C]boot\f[R] but uses \f[C]qemu\f[R] to boot up the image,
-i.e.\ instead of container virtualization VM virtualization is used.
-This verb is only supported on images that contain a boot loader,
-i.e.\ those built with \f[C]Bootable=yes\f[R] (see below).
-This command must be executed as \f[C]root\f[R] unless the image already
-exists and \f[C]-f\f[R] is not specified.
-.TP
-\f[B]\f[CB]ssh\f[B]\f[R]
-When the image is built with the \f[C]Ssh=yes\f[R] option, this command
-connects to a booted (\f[C]boot\f[R], \f[C]qemu\f[R] verbs) container/VM
-via SSH.
-Make sure to run \f[C]mkosi ssh\f[R] with the same config as
-\f[C]mkosi build\f[R] was run with so that it has the necessary
-information available to connect to the running container/VM via SSH.
 .TP
 \f[B]\f[CB]serve\f[B]\f[R]
 This builds the image if it is not built yet, and then serves the output
@@ -268,8 +274,7 @@ options are available:
 .IP \[bu] 2
 A swap partition may be added in
 .IP \[bu] 2
-The image may be made bootable on \f[I]EFI\f[R] and \f[I]BIOS\f[R]
-systems
+The image may be made bootable on \f[I]EFI\f[R] systems
 .IP \[bu] 2
 Separate partitions for \f[C]/srv\f[R] and \f[C]/home\f[R] may be added
 in
@@ -301,9 +306,8 @@ The distribution to install in the image.
 Takes one of the following arguments: \f[C]fedora\f[R],
 \f[C]debian\f[R], \f[C]ubuntu\f[R], \f[C]arch\f[R], \f[C]opensuse\f[R],
 \f[C]mageia\f[R], \f[C]centos\f[R], \f[C]centos_epel\f[R],
-\f[C]clear\f[R], \f[C]photon\f[R], \f[C]openmandriva\f[R],
-\f[C]rocky\f[R], \f[C]rocky_epel\f[R], \f[C]alma\f[R],
-\f[C]alma_epel\f[R].
+\f[C]openmandriva\f[R], \f[C]rocky\f[R], \f[C]rocky_epel\f[R],
+\f[C]alma\f[R], \f[C]alma_epel\f[R].
 If not specified, defaults to the distribution of the host.
 .TP
 \f[B]\f[CB]Release=\f[B]\f[R], \f[B]\f[CB]--release=\f[B]\f[R], \f[B]\f[CB]-r\f[B]\f[R]
@@ -312,13 +316,29 @@ The precise syntax of the argument this takes depends on the
 distribution used, and is either a numeric string (in case of Fedora
 Linux, CentOS, \&..., e.g.\ \f[C]29\f[R]), or a distribution version
 name (in case of Debian, Ubuntu, \&..., e.g.\ \f[C]artful\f[R]).
-If neither this option, nor \f[C]Distribution=\f[R] is specified,
-defaults to the distribution version of the host.
-If the distribution is specified, defaults to a recent version of it.
+Defaults to a recent version of the chosen distribution.
 .TP
 \f[B]\f[CB]Mirror=\f[B]\f[R], \f[B]\f[CB]--mirror=\f[B]\f[R], \f[B]\f[CB]-m\f[B]\f[R]
 The mirror to use for downloading the distribution packages.
 Expects a mirror URL as argument.
+.TP
+\f[B]\f[CB]LocalMirror=\f[B]\f[R], \f[B]\f[CB]--local-mirror=\f[B]\f[R]
+The mirror will be used as a local, plain and direct mirror instead of
+using it as a prefix for the full set of repositories normally supported
+by distributions.
+Useful for fully offline builds with a single repository.
+Supported on deb/rpm/arch based distributions.
+Overrides \f[C]--mirror=\f[R] but only for the local mkosi build, it
+will not be configured inside the final image, \f[C]--mirror=\f[R] (or
+the default repository) will be configured inside the final image
+instead.
+.TP
+\f[B]\f[CB]RepositoryKeyCheck=\f[B]\f[R], \f[B]\f[CB]--repository-key-check=\f[B]\f[R]
+Controls signature/key checks when using repositories, enabled by
+default.
+Useful to disable checks when combined with \f[C]--local-mirror=\f[R]
+and using only a repository from a local filesystem.
+Not used for DNF-based distros yet.
 .TP
 \f[B]\f[CB]Repositories=\f[B]\f[R], \f[B]\f[CB]--repositories=\f[B]\f[R]
 Additional package repositories to use during installation.
@@ -332,9 +352,8 @@ For Arch Linux, additional repositories must be passed in the form
 .TP
 \f[B]\f[CB]UseHostRepositories=\f[B]\f[R], \f[B]\f[CB]--use-host-repositories\f[B]\f[R]
 This option is only applicable for RPM-based distributions:
-\f[I]CentOS\f[R], \f[I]Fedora Linux\f[R], \f[I]Mageia\f[R],
-\f[I]Photon\f[R], \f[I]Rocky Linux\f[R], \f[I]Alma Linux\f[R] and
-\f[I]OpenMandriva\f[R].
+\f[I]CentOS\f[R], \f[I]Fedora Linux\f[R], \f[I]Mageia\f[R], \f[I]Rocky
+Linux\f[R], \f[I]Alma Linux\f[R] and \f[I]OpenMandriva\f[R].
 Allows use of the host\[cq]s existing RPM repositories.
 By default, a hardcoded set of default RPM repositories is generated and
 used.
@@ -342,7 +361,7 @@ Use \f[C]--repositories=\f[R] to identify a custom set of repositories
 to be enabled and used for the build.
 .TP
 \f[B]\f[CB]RepositoryDirectory\f[B]\f[R], \f[B]\f[CB]--repository-directory\f[B]\f[R]
-This option can (for now) only be used with RPM-based istributions and
+This option can (for now) only be used with RPM-based distributions and
 Arch Linux.
 It identifies a directory containing extra repository definitions that
 will be used when installing packages.
@@ -409,6 +428,9 @@ exists in the local directory, it is automatically used for this
 purpose.
 If the setting is not used and \f[C]mkosi.output/\f[R] does not exist,
 all output artifacts are placed adjacent to the output image file.
+If an output directory is configured, mkosi will create
+\f[C]distro\[ti]release\f[R] subdirectories in it to store the
+artfifacts per distro, release combination that\[cq]s built.
 .TP
 \f[B]\f[CB]WorkspaceDirectory=\f[B]\f[R], \f[B]\f[CB]--workspace-dir=\f[B]\f[R]
 Path to a directory where to store data required temporarily while
@@ -454,21 +476,7 @@ otherwise they might fail to resize the disk image and/or partitions
 inside it.
 .TP
 \f[B]\f[CB]Bootable=\f[B]\f[R], \f[B]\f[CB]--bootable\f[B]\f[R], \f[B]\f[CB]-b\f[B]\f[R]
-Generate a bootable image.
-By default this will generate an image bootable on UEFI systems.
-Use \f[C]BootProtocols=\f[R] to select support for a different boot
-protocol.
-.TP
-\f[B]\f[CB]BootProtocols=\f[B]\f[R], \f[B]\f[CB]--boot-protocols=\f[B]\f[R]
-Pick one or more boot protocols to support when generating a bootable
-image, as enabled with \f[C]Bootable=\f[R].
-Takes a comma-separated list of \f[C]uefi\f[R] or \f[C]bios\f[R].
-May be specified more than once in which case the specified lists are
-merged.
-If \f[C]uefi\f[R] is specified the \f[C]sd-boot\f[R] UEFI boot loader is
-used, if \f[C]bios\f[R] is specified the GNU Grub boot loader is used.
-Use \[lq]!*\[rq] to remove all previously added protocols or
-\[lq]!protocol\[rq] to remove one protocol.
+Generate a bootable image for UEFI systems.
 .TP
 \f[B]\f[CB]KernelCommandLine=\f[B]\f[R], \f[B]\f[CB]--kernel-command-line=\f[B]\f[R]
 Use the specified kernel command line when building bootable images.
@@ -477,7 +485,7 @@ To remove all arguments from the current list pass \[lq]!*\[rq].
 To remove specific arguments add a space separated list of \[lq]!\[rq]
 prefixed arguments.
 For example adding \[lq]!* console=ttyS0 rw\[rq] to a
-\f[C]mkosi.default\f[R] file or the command line arguments passes
+\f[C]mkosi.conf\f[R] file or the command line arguments passes
 \[lq]console=ttyS0 rw\[rq] to the kernel in any case.
 Just adding \[lq]console=ttyS0 rw\[rq] would append these two arguments
 to the kernel command line created by lower priority configuration files
@@ -560,6 +568,18 @@ It is also written to an additional partition in the image.
 The latter allows generating self-contained signed disk images,
 implementing the Verity provisions described in the Discoverable
 Partitions Specification (https://systemd.io/DISCOVERABLE_PARTITIONS).
+.PP
+This option requires the
+\f[C]cryptography\f[R] (https://cryptography.io/) module.
+.TP
+\f[B]\f[CB]SignExpectedPCR=\f[B]\f[R], \f[B]\f[CB]--sign-expected-pcr\f[B]\f[R]
+Measure the components of the unified kernel image (UKI) using
+\f[C]systemd-measure\f[R] and embed the PCR signature into the unified
+kernel image.
+This option takes a boolean value or the special value \f[C]auto\f[R],
+which is the default, which is equal to a true value if the
+\f[C]cryptography\f[R] (https://cryptography.io/) module is importable
+and the \f[C]systemd-measure\f[R] binary is in \f[C]PATH\f[R].
 .TP
 \f[B]\f[CB]CompressFs=\f[B]\f[R], \f[B]\f[CB]--compress-fs=\f[B]\f[R]
 Enable or disable internal compression in the file system.
@@ -645,9 +665,14 @@ efi or bootloader partition.
 If specified, mkosi will run the tool to create the initrd such that a
 non-generic initrd is created that will only be able to run on the
 system mkosi is run on.
-Currently mkosi uses dracut for all supported distributions except Clear
-Linux and this option translates to enabling dracut\[cq]s hostonly
-option.
+Currently mkosi uses dracut for all supported distributions and this
+option translates to enabling dracut\[cq]s hostonly option.
+.TP
+\f[B]\f[CB]CacheInitrd=\f[B]\f[R], \f[B]\f[CB]--cache-initrd\f[B]\f[R]
+If specified, and incremental mode is used, mkosi will build the initrd
+in the cache image and reuse it in the final image.
+Note that this means that any changes that are only applied to the final
+image and not the cached image won\[cq]t be included in the initrd.
 .TP
 \f[B]\f[CB]UsrOnly=\f[B]\f[R], \f[B]\f[CB]--usr-only\f[B]\f[R]
 If specified, \f[C]mkosi\f[R] will only add the \f[C]/usr/\f[R]
@@ -728,8 +753,8 @@ allowed depend on the package installer (e.g.\ \f[C]dnf\f[R] or
 names with version and/or architecture, package name globs, paths to
 packages in the file system, package groups, and virtual provides,
 including file paths.
-To remove a package e.g.\ added by a \f[C]mkosi.default\f[R]
-configuration file prepend the package name with \f[C]!\f[R].
+To remove a package e.g.\ added by a \f[C]mkosi.conf\f[R] configuration
+file prepend the package name with \f[C]!\f[R].
 For example -p \[lq]!apache2\[rq] would remove the apache2 package.
 To replace the apache2 package by the httpd package just add -p
 \[lq]!apache2,httpd\[rq] to the command line arguments.
@@ -1117,11 +1142,20 @@ QEMU should use KVM acceleration.
 Defaults to yes if the host machine supports KVM acceleration, no
 otherwise.
 .TP
+\f[B]\f[CB]QemuArgs=\f[B]\f[R]
+Space-delimited list of additional arguments to pass when invoking qemu.
+.TP
 \f[B]\f[CB]NspawnKeepUnit=\f[B]\f[R], \f[B]\f[CB]--nspawn-keep-unit\f[B]\f[R]
 When used, this option instructs underlying calls of systemd-nspawn to
 use the current unit scope, instead of creating a dedicated transcient
 scope unit for the containers.
 This option should be used when mkosi is run by a service unit.
+.TP
+\f[B]\f[CB]QemuBoot=\f[B]\f[R], \f[B]\f[CB]--qemu-boot=\f[B]\f[R]
+When used with the \f[C]qemu\f[R] verb, this option specifies how qemu
+should boot the image.
+Can be set to either \f[C]uefi\f[R] to do a UEFI boot or \f[C]linux\f[R]
+to do a qemu direct linux boot.
 .TP
 \f[B]\f[CB]Netdev=\f[B]\f[R], \f[B]\f[CB]--netdev\f[B]\f[R]
 When used with the boot or qemu verbs, this option creates a virtual
@@ -1191,13 +1225,13 @@ Note that the various \f[C]mkosi.*\f[R] files are searched for only
 after changing to this directory, hence using this option is an
 effective way to build a project located in a specific directory.
 .TP
-\f[B]\f[CB]--default=\f[B]\f[R]
+\f[B]\f[CB]--config=\f[B]\f[R]
 Loads additional settings from the specified settings file.
 Most command line options may also be configured in a settings file.
 See the table below to see which command line options match which
 settings file option.
-If this option is not used, but a file \f[C]mkosi.default\f[R] is found
-in the local directory it is automatically used for this purpose.
+If this option is not used, but a file \f[C]mkosi.conf\f[R] is found in
+the local directory it is automatically used for this purpose.
 If a setting is configured both on the command line and in the settings
 file, the command line generally wins, except for options taking lists
 in which case both lists are combined.
@@ -1205,7 +1239,7 @@ in which case both lists are combined.
 \f[B]\f[CB]--all\f[B]\f[R], \f[B]\f[CB]-a\f[B]\f[R]
 Iterate through all files \f[C]mkosi.*\f[R] in the
 \f[C]mkosi.files/\f[R] subdirectory, and build each as if
-\f[C]--default=mkosi.files/mkosi.\&...\f[R] was invoked.
+\f[C]--config=mkosi.files/mkosi.\&...\f[R] was invoked.
 This is a quick way to build a large number of images in one go.
 Any additional specified command line arguments override the relevant
 options in all files processed this way.
@@ -1272,10 +1306,6 @@ operating systems:
 .IP \[bu] 2
 \f[I]CentOS\f[R]
 .IP \[bu] 2
-\f[I]Clear Linux\f[R]
-.IP \[bu] 2
-\f[I]Photon\f[R]
-.IP \[bu] 2
 \f[I]OpenMandriva\f[R]
 .IP \[bu] 2
 \f[I]Rocky Linux\f[R]
@@ -1292,8 +1322,8 @@ be used to build \f[I]Debian\f[R] or \f[I]Ubuntu\f[R] images.
 Any distribution that packages \f[C]dnf\f[R] may be used to build
 \f[I]Fedora Linux\f[R], \f[I]Mageia\f[R] or \f[I]OpenMandriva\f[R]
 images.
-Any distro that packages \f[C]pacstrap\f[R] may be used to build
-\f[I]Arch Linux\f[R] images.
+Any distro that packages \f[C]pacman\f[R] may be used to build \f[I]Arch
+Linux\f[R] images.
 Any distribution that packages \f[C]zypper\f[R] may be used to build
 \f[I]openSUSE\f[R] images.
 Any distribution that packages \f[C]yum\f[R] (or the newer replacement
@@ -1321,7 +1351,7 @@ systemd-nspawn -bi image.raw
 .PP
 Additionally, bootable \f[I]GPT\f[R] disk images (as created with the
 \f[C]--bootable\f[R] flag) work when booted directly by \f[I]EFI\f[R]
-and \f[I]BIOS\f[R] systems, for example in \f[I]KVM\f[R] via:
+systems, for example in \f[I]KVM\f[R] via:
 .IP
 .nf
 \f[C]
@@ -1349,7 +1379,7 @@ under the assumption that it is invoked from a \f[I]source\f[R] tree.
 Specifically, the following files are used if they exist in the local
 directory:
 .IP \[bu] 2
-The \f[B]\f[CB]mkosi.default\f[B]\f[R] file provides the default
+The \f[B]\f[CB]mkosi.conf\f[B]\f[R] file provides the default
 configuration for the image building process.
 For example, it may specify the distribution to use (\f[C]fedora\f[R],
 \f[C]ubuntu\f[R], \f[C]debian\f[R], \f[C]arch\f[R], \f[C]opensuse\f[R],
@@ -1362,10 +1392,10 @@ make sure invoking \f[C]mkosi\f[R] without further parameters in your
 set up.
 .RS 2
 .PP
-Additionally, if a \f[I]\f[CI]mkosi.default.d/\f[I]\f[R] directory
-exists, each file in it is loaded in the same manner adding/overriding
-the values specified in \f[C]mkosi.default\f[R].
-If \f[C]mkosi.default.d/\f[R] contains a directory named after the
+Additionally, if a \f[I]\f[CI]mkosi.conf.d/\f[I]\f[R] directory exists,
+each file in it is loaded in the same manner adding/overriding the
+values specified in \f[C]mkosi.conf\f[R].
+If \f[C]mkosi.conf.d/\f[R] contains a directory named after the
 distribution being built, each file in that directory is also processed.
 .PP
 The file format is inspired by Windows \f[C].ini\f[R] files and supports
@@ -1446,8 +1476,8 @@ An alternative to excluding these built images via \f[C].gitignore\f[R]
 entries is to use the \f[C]mkosi.output/\f[R] directory, which is an
 easy way to exclude all build artifacts.
 .PP
-The \f[C]$MKOSI_DEFAULT\f[R] environment variable will be set inside of
-this script so that you know which \f[C]mkosi.default\f[R] (if any) was
+The \f[C]$MKOSI_CONFIG\f[R] environment variable will be set inside of
+this script so that you know which \f[C]mkosi.conf\f[R] (if any) was
 passed in.
 .RE
 .IP \[bu] 2
@@ -1604,7 +1634,7 @@ All these files are optional.
 .PP
 Note that the location of all these files may also be configured during
 invocation via command line switches, and as settings in
-\f[C]mkosi.default\f[R], in case the default settings are not acceptable
+\f[C]mkosi.conf\f[R], in case the default settings are not acceptable
 for a project.
 .SH BUILD PHASES
 .PP
@@ -1760,7 +1790,7 @@ the project in its current state:
 .IP
 .nf
 \f[C]
-# cat >mkosi.default <<EOF
+# cat >mkosi.conf <<EOF
 [Distribution]
 Distribution=fedora
 Release=24
@@ -1799,7 +1829,7 @@ Also you could set hostname in configuration file:
 .IP
 .nf
 \f[C]
-# cat mkosi.default
+# cat mkosi.conf
 \&...
 [Output]
 Hostname=image
