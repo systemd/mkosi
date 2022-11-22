@@ -2,8 +2,8 @@
 
 from typing import Set
 
-from ..backend import MkosiState, add_packages
-from .debian import DebianInstaller
+from mkosi.backend import MkosiState, add_packages
+from mkosi.distributions.debian import DebianInstaller
 
 
 class UbuntuInstaller(DebianInstaller):

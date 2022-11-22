@@ -7,7 +7,7 @@ import tempfile
 from pathlib import Path
 from typing import ContextManager, Iterator, List, Optional, Sequence, Union, cast
 
-from .backend import complete_step, run, scandir_recursive
+from mkosi.backend import complete_step, run, scandir_recursive
 
 PathString = Union[Path, str]
 

@@ -7,7 +7,7 @@ from pathlib import Path
 from textwrap import dedent
 from typing import TYPE_CHECKING, Any, Iterable, Iterator, List, Set
 
-from ..backend import (
+from mkosi.backend import (
     MkosiState,
     OutputFormat,
     PartitionIdentifier,
@@ -18,9 +18,9 @@ from ..backend import (
     run,
     run_workspace_command,
 )
-from ..install import install_skeleton_trees, write_resource
-from ..mounts import mount_api_vfs, mount_bind
-from . import DistributionInstaller
+from mkosi.distributions import DistributionInstaller
+from mkosi.install import install_skeleton_trees, write_resource
+from mkosi.mounts import mount_api_vfs, mount_bind
 
 if TYPE_CHECKING:
     CompletedProcess = subprocess.CompletedProcess[Any]

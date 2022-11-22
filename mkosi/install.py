@@ -10,8 +10,8 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Any, BinaryIO, Iterator, Optional, cast
 
-from .backend import MkosiState, PathString, complete_step
-from .syscall import reflink
+from mkosi.backend import MkosiState, PathString, complete_step
+from mkosi.syscall import reflink
 
 
 def make_executable(path: Path) -> None:

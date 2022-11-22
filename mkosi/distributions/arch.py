@@ -4,7 +4,7 @@ import os
 from textwrap import dedent
 from typing import List, Set
 
-from ..backend import (
+from mkosi.backend import (
     MkosiPrinter,
     MkosiState,
     OutputFormat,
@@ -14,8 +14,8 @@ from ..backend import (
     run,
     sort_packages,
 )
-from ..mounts import mount_api_vfs
-from . import DistributionInstaller
+from mkosi.distributions import DistributionInstaller
+from mkosi.mounts import mount_api_vfs
 
 
 class ArchInstaller(DistributionInstaller):

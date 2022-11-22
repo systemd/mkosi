@@ -7,8 +7,8 @@ import sys
 from subprocess import CalledProcessError
 from typing import Iterator
 
-from . import complete_step, parse_args, run_verb
-from .backend import MkosiException, die
+from mkosi import complete_step, parse_args, run_verb
+from mkosi.backend import MkosiException, die
 
 
 @contextlib.contextmanager

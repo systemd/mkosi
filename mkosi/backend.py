@@ -44,8 +44,8 @@ from typing import (
     cast,
 )
 
-from .distributions import DistributionInstaller
-from .syscall import (
+from mkosi.distributions import DistributionInstaller
+from mkosi.syscall import (
     blkpg_add_partition,
     blkpg_del_partition,
     block_reread_partition_table,

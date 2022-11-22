@@ -14,7 +14,7 @@ from typing import Any, Iterator, Optional, Sequence, TextIO, Union
 
 import pexpect  # type: ignore
 
-from . import (
+from mkosi import (
     MKOSI_COMMANDS_NEED_BUILD,
     CompletedProcess,
     build_stuff,
@@ -34,7 +34,14 @@ from . import (
     run_systemd_cmdline,
     unlink_output,
 )
-from .backend import MkosiConfig, MkosiNotSupportedException, MkosiState, Verb, die, run
+from mkosi.backend import (
+    MkosiConfig,
+    MkosiNotSupportedException,
+    MkosiState,
+    Verb,
+    die,
+    run,
+)
 
 
 class LogfileAdapter:

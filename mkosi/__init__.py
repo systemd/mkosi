@@ -61,7 +61,7 @@ from typing import (
     cast,
 )
 
-from .backend import (
+from mkosi.backend import (
     ARG_DEBUG,
     Distribution,
     ManifestFormat,
@@ -102,7 +102,7 @@ from .backend import (
     tmp_dir,
     warn,
 )
-from .install import (
+from mkosi.install import (
     add_dropin_config,
     add_dropin_config_from_resource,
     copy_file,
@@ -111,9 +111,9 @@ from .install import (
     install_skeleton_trees,
     open_close,
 )
-from .manifest import Manifest
-from .mounts import mount, mount_api_vfs, mount_bind, mount_overlay, mount_tmpfs
-from .syscall import blkpg_add_partition, blkpg_del_partition
+from mkosi.manifest import Manifest
+from mkosi.mounts import mount, mount_api_vfs, mount_bind, mount_overlay, mount_tmpfs
+from mkosi.syscall import blkpg_add_partition, blkpg_del_partition
 
 complete_step = MkosiPrinter.complete_step
 color_error = MkosiPrinter.color_error
