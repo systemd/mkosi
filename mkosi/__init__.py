@@ -6662,7 +6662,8 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
         if args.verity:
             args.output_split_verity = build_auxiliary_output_path(args, f"{root_or_usr(args)}.verity", True)
             if args.verity == "signed":
-                args.output_split_verity_sig = build_auxiliary_output_path(args, f"{roothash_suffix(args)}.p7s", True)
+                args.output_split_verity_sig = build_auxiliary_output_path(args,
+                                                                           f"{root_or_usr(args)}.verity-sig", True)
         if args.bootable:
             args.output_split_kernel = build_auxiliary_output_path(args, ".efi", True)
 
