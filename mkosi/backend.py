@@ -548,7 +548,7 @@ class MkosiConfig:
     key: Optional[str]
     bmap: bool
     password: Optional[str]
-    password_is_hashed: bool
+    password_is_hashed: Optional[bool]
     autologin: bool
     extra_search_paths: List[Path]
     netdev: bool

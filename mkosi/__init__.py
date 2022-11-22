@@ -3080,6 +3080,28 @@ def reset_random_seed(root: Path) -> None:
     with complete_step("Removing random seed"):
         random_seed.unlink()
 
+HASHED_PASSWORD_RE = re.compile(r'''
+# yescrypt
+\$y\$[./A-Za-z0-9]+\$[./A-Za-z0-9]{,86}\$[./A-Za-z0-9]{43}                     |
+# gost-yescrypt
+\$gy\$[./A-Za-z0-9]+\$[./A-Za-z0-9]{,86}\$[./A-Za-z0-9]{43}                    |
+# scrypt
+\$7\$[./A-Za-z0-9]{11,97}\$[./A-Za-z0-9]{43}                                   |
+# bcrypt
+\$2[abxy]\$[0-9]{2}\$[./A-Za-z0-9]{53}                                         |
+# sha512crypt
+\$6\$(rounds=[1-9][0-9]+\$)?[^$:\n]{1,16}\$[./0-9A-Za-z]{86}                   |
+# sha256crypt
+\$5\$(rounds=[1-9][0-9]+\$)?[^$:\n]{1,16}\$[./0-9A-Za-z]{43}                   |
+# sha256crypt
+\$sha1\$[1-9][0-9]+\$[./0-9A-Za-z]{1,64}\$[./0-9A-Za-z]{8,64}[./0-9A-Za-z]{32} |
+# SunMD5
+\$md5(,rounds=[1-9][0-9]+)?\$[./0-9A-Za-z]{8}\${1,2}[./0-9A-Za-z]{22}          |
+# md5crypt
+\$1\$[^$:\n]{1,8}\$[./0-9A-Za-z]{22}                                           |
+# NT
+\$3\$\$[0-9a-f]{32}
+''', re.VERBOSE)
 
 def configure_root_password(state: MkosiState, cached: bool) -> None:
     "Set the root account password, or just delete it so it's easy to log in"
@@ -3100,10 +3122,13 @@ def configure_root_password(state: MkosiState, cached: bool) -> None:
             patch_file(state.root / "etc/passwd", delete_root_pw)
     elif state.config.password:
         with complete_step("Setting root password"):
-            if state.config.password_is_hashed:
-                password = state.config.password
-            else:
-                password = crypt.crypt(state.config.password, crypt.mksalt(crypt.METHOD_SHA512))
+            is_hashed = state.config.password_is_hashed
+            if is_hashed is None:
+                is_hashed = bool(HASHED_PASSWORD_RE.match(state.config.password))
+
+            password = state.config.password
+            if not is_hashed:
+                password = crypt.crypt(password, crypt.mksalt(crypt.METHOD_SHA512))
 
             def set_root_pw(line: str) -> str:
                 if line.startswith("root:"):
@@ -5509,6 +5534,7 @@ def create_parser() -> ArgumentParserMkosi:
         "--password-is-hashed",
         metavar="BOOL",
         action=BooleanAction,
+        default=None,
         help="Indicate that the root password has already been hashed",
     )
     group.add_argument(

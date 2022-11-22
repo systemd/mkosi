@@ -913,16 +913,18 @@ a machine ID.
 
 `Password=`, `--password=`
 
-: Set the password of the `root` user. By default the `root` account
-  is locked. If this option is not used, but a file `mkosi.rootpw`
-  exists in the local directory, the root password is automatically
-  read from it.
+: Set the password of the `root` user. By default the `root` account is locked.
+  If this option is not used, but a file `mkosi.rootpw` exists in the local
+  directory, the root password is automatically read from it. An empty password
+  is allowed.
 
 `PasswordIsHashed=`, `--password-is-hashed`
 
 : Indicate that the password supplied for the `root` user has already been
   hashed, so that the string supplied with `Password=` or `mkosi.rootpw` will
-  be written to `/etc/shadow` literally.
+  be written to `/etc/shadow` literally. If not specified, the password
+  will be assumed to be already hashed if it matches one of the patterns
+  understood by crypt(5) ("`$y$…`", "`$6$…`", etc.).
 
 `Autologin=`, `--autologin`
 

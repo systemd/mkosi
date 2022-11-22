@@ -923,12 +923,16 @@ Set the password of the \f[C]root\f[R] user.
 By default the \f[C]root\f[R] account is locked.
 If this option is not used, but a file \f[C]mkosi.rootpw\f[R] exists in
 the local directory, the root password is automatically read from it.
+An empty password is allowed.
 .TP
 \f[B]\f[CB]PasswordIsHashed=\f[B]\f[R], \f[B]\f[CB]--password-is-hashed\f[B]\f[R]
 Indicate that the password supplied for the \f[C]root\f[R] user has
 already been hashed, so that the string supplied with
 \f[C]Password=\f[R] or \f[C]mkosi.rootpw\f[R] will be written to
 \f[C]/etc/shadow\f[R] literally.
+If not specified, the password will be assumed to be already hashed if
+it matches one of the patterns understood by crypt(5)
+(\[lq]\f[C]$y$\&...\f[R]\[rq], \[lq]\f[C]$6$\&...\f[R]\[rq], etc.).
 .TP
 \f[B]\f[CB]Autologin=\f[B]\f[R], \f[B]\f[CB]--autologin\f[B]\f[R]
 Enable autologin for the \f[C]root\f[R] user on \f[C]/dev/pts/0\f[R]
