@@ -7103,7 +7103,7 @@ def print_summary(config: MkosiConfig) -> None:
     print("      Scripts with network:", yes_no_or(config.with_network))
     print("           nspawn Settings:", none_to_none(config.nspawn_settings))
 
-    print("                  Password:", ("default" if config.password is None else "set"))
+    print("                  Password:", ("(default)" if config.password is None else "(set)"))
     print("                 Autologin:", yes_no(config.autologin))
 
     if config.output_format.is_disk():
