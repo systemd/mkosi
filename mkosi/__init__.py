@@ -1396,8 +1396,6 @@ def mount_cache(state: MkosiState) -> Iterator[None]:
         # We mount both the YUM and the DNF cache in this case, as YUM might
         # just be redirected to DNF even if we invoke the former
         cache_paths = ["var/cache/yum", "var/cache/dnf"]
-    elif state.config.distribution == Distribution.gentoo:
-        cache_paths = ["var/cache/binpkgs"]
     else:
         cache_paths = []
 
@@ -2158,29 +2156,6 @@ def install_centos_variant(state: MkosiState) -> None:
         run_workspace_command(state, cmdline)
 
 
-@complete_step("Installing Gentoo…")
-def install_gentoo(state: MkosiState) -> None:
-    from .gentoo import Gentoo
-
-    # this will fetch/fix stage3 tree and portage confgired for mkosi
-    gentoo = Gentoo(state)
-
-    if gentoo.pkgs_fs:
-        gentoo.invoke_emerge(state, pkgs=gentoo.pkgs_fs)
-
-    if not state.do_run_build_script and state.config.bootable:
-        # The gentoo stage3 tarball includes packages that may block chosen
-        # pkgs_boot. Using Gentoo.EMERGE_UPDATE_OPTS for opts allows the
-        # package manager to uninstall blockers.
-        gentoo.invoke_emerge(state, pkgs=gentoo.pkgs_boot, opts=Gentoo.EMERGE_UPDATE_OPTS)
-
-    if state.config.packages:
-        gentoo.invoke_emerge(state, pkgs=state.config.packages)
-
-    if state.do_run_build_script:
-        gentoo.invoke_emerge(state, pkgs=state.config.build_packages)
-
-
 def install_distribution(state: MkosiState, cached: bool) -> None:
     if cached:
         return
@@ -2196,7 +2171,6 @@ def install_distribution(state: MkosiState, cached: bool) -> None:
             Distribution.fedora: install_fedora,
             Distribution.mageia: install_mageia,
             Distribution.openmandriva: install_openmandriva,
-            Distribution.gentoo: install_gentoo,
         }[state.config.distribution]
 
     with mount_cache(state):
@@ -3109,12 +3083,6 @@ def gen_kernel_images(state: MkosiState) -> Iterator[Tuple[str, Path]]:
 
         if state.installer is not None:
             kimg = state.installer.kernel_image(kver.name, state.config.architecture)
-        elif state.config.distribution == Distribution.gentoo:
-            from .gentoo import ARCHITECTURES
-
-            _, kimg_path = ARCHITECTURES[state.config.architecture]
-
-            kimg = Path(f"usr/src/linux-{kver.name}") / kimg_path
         else:
             kimg = Path("lib/modules") / kver.name / "vmlinuz"
 

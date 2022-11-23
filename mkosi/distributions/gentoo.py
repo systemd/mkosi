@@ -20,11 +20,13 @@ from mkosi.backend import (
     MkosiState,
     OutputFormat,
     PartitionIdentifier,
+    complete_step,
     die,
     root_home,
     run_workspace_command,
     safe_tar_extract,
 )
+from mkosi.distributions import DistributionInstaller
 from mkosi.install import copy_path, open_close
 
 ARCHITECTURES = {
@@ -546,3 +548,35 @@ class Gentoo:
             network=True,
             nspawn_params=self.DEFAULT_NSPAWN_PARAMS,
         )
+
+
+class GentooInstaller(DistributionInstaller):
+    @classmethod
+    def cache_path(cls) -> List[str]:
+        return ["var/cache/binpkgs"]
+
+    @staticmethod
+    def kernel_image(name: str, architecture: str) -> Path:
+        _, kimg_path = ARCHITECTURES[architecture]
+        return Path(f"usr/src/linux-{name}") / kimg_path
+
+    @classmethod
+    @complete_step("Installing Gentoo…")
+    def install(cls, state: "MkosiState") -> None:
+        # this will fetch/fix stage3 tree and portage confgired for mkosi
+        gentoo = Gentoo(state)
+
+        if gentoo.pkgs_fs:
+            gentoo.invoke_emerge(state, pkgs=gentoo.pkgs_fs)
+
+        if not state.do_run_build_script and state.config.bootable:
+            # The gentoo stage3 tarball includes packages that may block chosen
+            # pkgs_boot. Using Gentoo.EMERGE_UPDATE_OPTS for opts allows the
+            # package manager to uninstall blockers.
+            gentoo.invoke_emerge(state, pkgs=gentoo.pkgs_boot, opts=Gentoo.EMERGE_UPDATE_OPTS)
+
+        if state.config.packages:
+            gentoo.invoke_emerge(state, pkgs=state.config.packages)
+
+        if state.do_run_build_script:
+            gentoo.invoke_emerge(state, pkgs=state.config.build_packages)
