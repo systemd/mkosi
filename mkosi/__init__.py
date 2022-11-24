@@ -1290,8 +1290,6 @@ def configure_hostname(state: MkosiState, cached: bool) -> None:
 def mount_cache(state: MkosiState) -> Iterator[None]:
     if state.installer is not None:
         cache_paths = state.installer.cache_path()
-    elif state.config.distribution in (Distribution.openmandriva,):
-        cache_paths = ["var/cache/dnf"]
     elif is_centos_variant(state.config.distribution):
         # We mount both the YUM and the DNF cache in this case, as YUM might
         # just be redirected to DNF even if we invoke the former
@@ -1707,49 +1705,6 @@ def setup_dnf(state: MkosiState, repos: Sequence[Repo] = ()) -> None:
     )
 
 
-@complete_step("Installing OpenMandriva…")
-def install_openmandriva(state: MkosiState) -> None:
-    release = state.config.release.strip("'")
-
-    if release[0].isdigit():
-        release_model = "rock"
-    elif release == "cooker":
-        release_model = "cooker"
-    else:
-        release_model = release
-
-    if state.config.local_mirror:
-        release_url = f"baseurl={state.config.local_mirror}"
-        updates_url = None
-    elif state.config.mirror:
-        baseurl = f"{state.config.mirror}/{release_model}/repository/{state.config.architecture}/main"
-        release_url = f"baseurl={baseurl}/release/"
-        updates_url = f"baseurl={baseurl}/updates/"
-    else:
-        baseurl = f"http://mirrors.openmandriva.org/mirrors.php?platform={release_model}&arch={state.config.architecture}&repo=main"
-        release_url = f"mirrorlist={baseurl}&release=release"
-        updates_url = f"mirrorlist={baseurl}&release=updates"
-
-    gpgpath = Path("/etc/pki/rpm-gpg/RPM-GPG-KEY-OpenMandriva")
-
-    repos = [Repo("openmandriva", release_url, gpgpath)]
-    if updates_url is not None:
-        repos += [Repo("updates", updates_url, gpgpath)]
-
-    setup_dnf(state, repos)
-
-    packages = {*state.config.packages}
-    # well we may use basesystem here, but that pulls lot of stuff
-    add_packages(state.config, packages, "basesystem-minimal", "systemd", "dnf")
-    if not state.do_run_build_script and state.config.bootable:
-        add_packages(state.config, packages, "systemd-boot", "systemd-cryptsetup", conditional="systemd")
-        add_packages(state.config, packages, "kernel-release-server", "dracut", "timezone")
-    if state.config.netdev:
-        add_packages(state.config, packages, "systemd-networkd", conditional="systemd")
-
-    if state.do_run_build_script:
-        packages.update(state.config.build_packages)
-    install_packages_dnf(state, packages)
 
 
 def centos_variant_gpg_locations(distribution: Distribution, epel_release: int) -> Tuple[Path, str]:
@@ -1942,9 +1897,7 @@ def install_distribution(state: MkosiState, cached: bool) -> None:
     elif is_centos_variant(state.config.distribution):
         install = install_centos_variant
     else:
-        install = {
-            Distribution.openmandriva: install_openmandriva,
-        }[state.config.distribution]
+        die("No Installer")
 
     with mount_cache(state):
         install(state)
