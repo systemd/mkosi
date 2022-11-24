@@ -77,7 +77,6 @@ from mkosi.backend import (
     chown_to_running_user,
     detect_distribution,
     die,
-    disable_pam_securetty,
     is_centos_variant,
     is_epel_variant,
     is_rpm_distribution,
@@ -1291,7 +1290,7 @@ def configure_hostname(state: MkosiState, cached: bool) -> None:
 def mount_cache(state: MkosiState) -> Iterator[None]:
     if state.installer is not None:
         cache_paths = state.installer.cache_path()
-    elif state.config.distribution in (Distribution.mageia, Distribution.openmandriva):
+    elif state.config.distribution in (Distribution.openmandriva,):
         cache_paths = ["var/cache/dnf"]
     elif is_centos_variant(state.config.distribution):
         # We mount both the YUM and the DNF cache in this case, as YUM might
@@ -1708,46 +1707,6 @@ def setup_dnf(state: MkosiState, repos: Sequence[Repo] = ()) -> None:
     )
 
 
-@complete_step("Installing Mageia…")
-def install_mageia(state: MkosiState) -> None:
-    if state.config.local_mirror:
-        release_url = f"baseurl={state.config.local_mirror}"
-        updates_url = None
-    elif state.config.mirror:
-        baseurl = f"{state.config.mirror}/distrib/{state.config.release}/x86_64/media/core/"
-        release_url = f"baseurl={baseurl}/release/"
-        updates_url = f"baseurl={baseurl}/updates/"
-    else:
-        baseurl = f"https://www.mageia.org/mirrorlist/?release={state.config.release}&arch=x86_64&section=core"
-        release_url = f"mirrorlist={baseurl}&repo=release"
-        updates_url = f"mirrorlist={baseurl}&repo=updates"
-
-    gpgpath = Path("/etc/pki/rpm-gpg/RPM-GPG-KEY-Mageia")
-
-    repos = [Repo("mageia", release_url, gpgpath)]
-    if updates_url is not None:
-        repos += [Repo("updates", updates_url, gpgpath)]
-
-    setup_dnf(state, repos)
-
-    packages = {*state.config.packages}
-    add_packages(state.config, packages, "basesystem-minimal", "dnf")
-    if not state.do_run_build_script and state.config.bootable:
-        add_packages(state.config, packages, "kernel-server-latest", "dracut")
-        # Mageia ships /etc/50-mageia.conf that omits systemd from the initramfs and disables hostonly.
-        # We override that again so our defaults get applied correctly on Mageia as well.
-        state.root.joinpath("etc/dracut.conf.d/51-mkosi-override-mageia.conf").write_text(
-            'hostonly=no\n'
-            'omit_dracutmodules=""\n'
-        )
-
-    if state.do_run_build_script:
-        packages.update(state.config.build_packages)
-    install_packages_dnf(state, packages)
-
-    disable_pam_securetty(state.root)
-
-
 @complete_step("Installing OpenMandriva…")
 def install_openmandriva(state: MkosiState) -> None:
     release = state.config.release.strip("'")
@@ -1984,7 +1943,6 @@ def install_distribution(state: MkosiState, cached: bool) -> None:
         install = install_centos_variant
     else:
         install = {
-            Distribution.mageia: install_mageia,
             Distribution.openmandriva: install_openmandriva,
         }[state.config.distribution]
 
