@@ -683,6 +683,7 @@ class MkosiState:
     machine_id: str
     for_cache: bool
     environment: Dict[str, str] = dataclasses.field(init=False)
+    installer: DistributionInstaller = dataclasses.field(init=False)
 
     cache_pre_inst: Optional[Path] = None
     cache_pre_dev: Optional[Path] = None
@@ -695,6 +696,16 @@ class MkosiState:
             self.environment['IMAGE_ID'] = self.config.image_id
         if self.config.image_version is not None:
             self.environment['IMAGE_VERSION'] = self.config.image_version
+        try:
+            distro = str(self.config.distribution)
+            mod = importlib.import_module(f"mkosi.distributions.{distro}")
+            installer = getattr(mod, f"{distro.title().replace('_','')}Installer")
+            instance = installer() if issubclass(installer, DistributionInstaller) else None
+        except (ImportError, AttributeError):
+            instance = None
+        if instance is None:
+            die("No installer for this distribution.")
+        self.installer = instance
 
     @property
     def root(self) -> Path:
@@ -710,24 +721,6 @@ class MkosiState:
         if self.partition_table is None:
             return None
         return self.partition_table.partitions.get(ident)
-
-    @property
-    def installer(self) -> Optional["DistributionInstaller"]:
-        try:
-            # we do a getattr here because we wnt to use the missing attribute
-            # as a sentinel, since we will use None as a sentinel further down
-            # for the case of distros that are not migrated to this interface
-            return cast(Optional["DistributionInstaller"], getattr(self, "_installer"))
-        except AttributeError:
-            try:
-                distro = str(self.config.distribution)
-                mod = importlib.import_module(f"mkosi.distributions.{distro}")
-                installer = getattr(mod, f"{distro.title().replace('_','')}Installer")
-                instance = installer() if issubclass(installer, DistributionInstaller) else None
-            except (ImportError, AttributeError):
-                instance = None
-            setattr(self, "_installer", instance)
-            return cast(Optional["DistributionInstaller"], instance)
 
 
 def should_compress_fs(config: Union[argparse.Namespace, MkosiConfig]) -> Union[bool, str]:

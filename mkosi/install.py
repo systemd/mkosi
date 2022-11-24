@@ -140,11 +140,7 @@ def install_skeleton_trees(state: MkosiState, cached: bool, *, late: bool=False)
     if cached:
         return
 
-    if state.installer is not None:
-        skeletons_after_bootstrap = state.installer.needs_skeletons_after_bootstrap
-    else:
-        skeletons_after_bootstrap = False
-    if not late and skeletons_after_bootstrap:
+    if not late and state.installer.needs_skeletons_after_bootstrap:
         return
 
     with complete_step("Copying in skeleton file trees…"):

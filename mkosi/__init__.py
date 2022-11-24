@@ -1286,10 +1286,7 @@ def configure_hostname(state: MkosiState, cached: bool) -> None:
 
 @contextlib.contextmanager
 def mount_cache(state: MkosiState) -> Iterator[None]:
-    if state.installer is not None:
-        cache_paths = state.installer.cache_path()
-    else:
-        cache_paths = []
+    cache_paths = state.installer.cache_path()
 
     # We can't do this in mount_image() yet, as /var itself might have to be created as a subvolume first
     with complete_step("Mounting Package Cache", "Unmounting Package Cache"), contextlib.ExitStack() as stack:
@@ -1594,15 +1591,8 @@ def install_distribution(state: MkosiState, cached: bool) -> None:
     if cached:
         return
 
-    install: Callable[[MkosiState], None]
-
-    if state.installer is not None:
-        install = state.installer.install
-    else:
-        die("No Installer")
-
     with mount_cache(state):
-        install(state)
+        state.installer.install(state)
 
     # Link /var/lib/rpm→/usr/lib/sysimage/rpm for compat with old rpm.
     # We do this only if the new location is used, which depends on the dnf
@@ -1617,15 +1607,11 @@ def remove_packages(state: MkosiState) -> None:
     if not state.config.remove_packages:
         return
 
-    remove: Callable[[List[str]], Any]
-
-    if state.installer is not None:
-        remove = lambda p: state.installer.remove_packages(state, p) # type: ignore
-    else:
-        die(f"Removing packages is not supported for {state.config.distribution}")
-
     with complete_step(f"Removing {len(state.config.packages)} packages…"):
-        remove(state.config.remove_packages)
+        try:
+            state.installer.remove_packages(state, state.config.remove_packages)
+        except NotImplementedError:
+            die(f"Removing packages is not supported for {state.config.distribution}")
 
 
 def reset_machine_id(state: MkosiState) -> None:
@@ -2507,10 +2493,7 @@ def gen_kernel_images(state: MkosiState) -> Iterator[Tuple[str, Path]]:
         if not kver.is_dir():
             continue
 
-        if state.installer is not None:
-            kimg = state.installer.kernel_image(kver.name, state.config.architecture)
-        else:
-            kimg = Path("lib/modules") / kver.name / "vmlinuz"
+        kimg = state.installer.kernel_image(kver.name, state.config.architecture)
 
         yield kver.name, kimg
 
