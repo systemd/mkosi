@@ -3,16 +3,19 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import collections
 import contextlib
 import dataclasses
 import enum
 import errno
+import functools
 import importlib
 import math
 import os
 import platform
 import pwd
+import re
 import resource
 import shlex
 import shutil
@@ -38,6 +41,7 @@ from typing import (
     Optional,
     Sequence,
     Set,
+    Tuple,
     Type,
     TypeVar,
     Union,
@@ -177,6 +181,69 @@ class Distribution(enum.Enum):
 
     def __str__(self) -> str:
         return self.name
+
+
+def dictify(f: Callable[..., Iterator[Tuple[T, V]]]) -> Callable[..., Dict[T, V]]:
+    def wrapper(*args: Any, **kwargs: Any) -> Dict[T, V]:
+        return dict(f(*args, **kwargs))
+
+    return functools.update_wrapper(wrapper, f)
+
+
+@dictify
+def read_os_release() -> Iterator[Tuple[str, str]]:
+    try:
+        filename = "/etc/os-release"
+        f = open(filename)
+    except FileNotFoundError:
+        filename = "/usr/lib/os-release"
+        f = open(filename)
+
+    with f:
+        for line_number, line in enumerate(f, start=1):
+            line = line.rstrip()
+            if not line or line.startswith("#"):
+                continue
+            m = re.match(r"([A-Z][A-Z_0-9]+)=(.*)", line)
+            if m:
+                name, val = m.groups()
+                if val and val[0] in "\"'":
+                    val = ast.literal_eval(val)
+                yield name, val
+            else:
+                print(f"{filename}:{line_number}: bad line {line!r}", file=sys.stderr)
+
+
+def detect_distribution() -> Tuple[Optional[Distribution], Optional[str]]:
+    try:
+        os_release = read_os_release()
+    except FileNotFoundError:
+        return None, None
+
+    dist_id = os_release.get("ID", "linux")
+    dist_id_like = os_release.get("ID_LIKE", "").split()
+    version = os_release.get("VERSION", None)
+    version_id = os_release.get("VERSION_ID", None)
+    version_codename = os_release.get("VERSION_CODENAME", None)
+    extracted_codename = None
+
+    if version:
+        # extract Debian release codename
+        m = re.search(r"\((.*?)\)", version)
+        if m:
+            extracted_codename = m.group(1)
+
+    d: Optional[Distribution] = None
+    for the_id in [dist_id, *dist_id_like]:
+        d = Distribution.__members__.get(the_id, None)
+        if d is not None:
+            break
+
+    if d in {Distribution.debian, Distribution.ubuntu} and (version_codename or extracted_codename):
+        # debootstrap needs release codenames, not version numbers
+        version_id = version_codename or extracted_codename
+
+    return d, version_id
 
 
 def is_rpm_distribution(d: Distribution) -> bool:
