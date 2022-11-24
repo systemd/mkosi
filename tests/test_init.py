@@ -7,17 +7,6 @@ import pytest
 import mkosi
 
 
-def test_fedora_release_cmp() -> None:
-    assert mkosi.fedora_release_cmp("rawhide", "rawhide") == 0
-    assert mkosi.fedora_release_cmp("32", "32") == 0
-    assert mkosi.fedora_release_cmp("33", "32") > 0
-    assert mkosi.fedora_release_cmp("30", "31") < 0
-    assert mkosi.fedora_release_cmp("-1", "-2") > 0
-    assert mkosi.fedora_release_cmp("1", "-2") > 0
-    with pytest.raises(ValueError):
-        mkosi.fedora_release_cmp("literal", "rawhide")
-
-
 def test_strip_suffixes() -> None:
     assert mkosi.strip_suffixes(Path("home/test.zstd")) == Path("home/test")
     assert mkosi.strip_suffixes(Path("home/test.xz")) == Path("home/test")
