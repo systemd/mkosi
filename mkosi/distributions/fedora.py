@@ -74,15 +74,6 @@ class FedoraInstaller(DistributionInstaller):
         invoke_dnf(state, 'remove', remove)
 
 
-def fedora_release_cmp(a: str, b: str) -> int:
-    """Return negative if a<b, 0 if a==b, positive otherwise"""
-
-    # This will throw ValueError on non-integer strings
-    anum = 1000 if a == "rawhide" else int(a)
-    bnum = 1000 if b == "rawhide" else int(b)
-    return anum - bnum
-
-
 def parse_fedora_release(release: str) -> Tuple[str, str]:
     if release.startswith("rawhide-"):
         release, releasever = release.split("-")

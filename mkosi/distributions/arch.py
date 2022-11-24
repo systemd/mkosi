@@ -137,10 +137,6 @@ def install_arch(state: MkosiState) -> None:
                     )
                 )
 
-    keyring = "archlinux"
-    if platform.machine() == "aarch64":
-        keyring += "arm"
-
     packages: Set[str] = set()
     add_packages(state.config, packages, "base")
 

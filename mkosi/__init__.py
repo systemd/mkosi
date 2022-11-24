@@ -67,7 +67,6 @@ from mkosi.backend import (
     MkosiPrinter,
     MkosiState,
     OutputFormat,
-    PackageType,
     Partition,
     PartitionIdentifier,
     PartitionTable,
@@ -93,7 +92,6 @@ from mkosi.backend import (
     set_umask,
     should_compress_fs,
     should_compress_output,
-    sort_packages,
     spawn,
     tmp_dir,
     warn,
@@ -108,7 +106,7 @@ from mkosi.install import (
     open_close,
 )
 from mkosi.manifest import Manifest
-from mkosi.mounts import mount, mount_api_vfs, mount_bind, mount_overlay, mount_tmpfs
+from mkosi.mounts import mount, mount_bind, mount_overlay, mount_tmpfs
 from mkosi.remove import unlink_try_hard
 from mkosi.syscall import blkpg_add_partition, blkpg_del_partition
 
@@ -1567,64 +1565,6 @@ def remove_files(state: MkosiState) -> None:
         remove_glob(*paths)
 
 
-def invoke_dnf(state: MkosiState, command: str, packages: Iterable[str]) -> None:
-    release = state.config.release
-
-    config_file = state.workspace / "dnf.conf"
-
-    cmd = 'dnf' if shutil.which('dnf') else 'yum'
-
-    cmdline = [
-        cmd,
-        "-y",
-        f"--config={config_file}",
-        "--best",
-        "--allowerasing",
-        f"--releasever={release}",
-        f"--installroot={state.root}",
-        "--setopt=keepcache=1",
-        "--setopt=install_weak_deps=0",
-        "--noplugins",
-    ]
-
-    if not state.config.repository_key_check:
-        cmdline += ["--nogpgcheck"]
-
-    if state.config.repositories:
-        cmdline += ["--disablerepo=*"] + [f"--enablerepo={repo}" for repo in state.config.repositories]
-
-    # TODO: this breaks with a local, offline repository created with 'createrepo'
-    if state.config.with_network == "never" and not state.config.local_mirror:
-        cmdline += ["-C"]
-
-    if not state.config.architecture_is_native():
-        cmdline += [f"--forcearch={state.config.architecture}"]
-
-    if not state.config.with_docs:
-        cmdline += ["--nodocs"]
-
-    cmdline += [command, *sort_packages(packages)]
-
-    with mount_api_vfs(state.root):
-        run(cmdline, env={"KERNEL_INSTALL_BYPASS": state.environment.get("KERNEL_INSTALL_BYPASS", "1")})
-
-    distribution, _ = detect_distribution()
-    if distribution not in (Distribution.debian, Distribution.ubuntu):
-        return
-
-    # On Debian, rpm/dnf ship with a patch to store the rpmdb under ~/
-    # so it needs to be copied back in the right location, otherwise
-    # the rpmdb will be broken. See: https://bugs.debian.org/1004863
-    rpmdb_home = state.root / "root/.rpmdb"
-    if rpmdb_home.exists():
-        # Take into account the new location in F36
-        rpmdb = state.root / "usr/lib/sysimage/rpm"
-        if not rpmdb.exists():
-            rpmdb = state.root / "var/lib/rpm"
-        unlink_try_hard(rpmdb)
-        shutil.move(cast(str, rpmdb_home), rpmdb)
-
-
 def link_rpm_db(root: Path) -> None:
     """Link /var/lib/rpm to /usr/lib/sysimage/rpm for compat with old rpm"""
     rpmdb = root / "usr/lib/sysimage/rpm"
@@ -1638,67 +1578,6 @@ def link_rpm_db(root: Path) -> None:
 
             # Create the symlink in exactly the same fashion that Fedora does
             rpmdb_old.symlink_to("../../usr/lib/sysimage/rpm")
-
-
-def install_packages_dnf(state: MkosiState, packages: Set[str],) -> None:
-    packages = make_rpm_list(state, packages)
-    invoke_dnf(state, 'install', packages)
-
-
-class Repo(NamedTuple):
-    id: str
-    url: str
-    gpgpath: Path
-    gpgurl: Optional[str] = None
-
-
-def setup_dnf(state: MkosiState, repos: Sequence[Repo] = ()) -> None:
-    gpgcheck = True
-
-    repo_file = state.workspace / "mkosi.repo"
-    with repo_file.open("w") as f:
-        for repo in repos:
-            gpgkey: Optional[str] = None
-
-            if repo.gpgpath.exists():
-                gpgkey = f"file://{repo.gpgpath}"
-            elif repo.gpgurl:
-                gpgkey = repo.gpgurl
-            else:
-                warn(f"GPG key not found at {repo.gpgpath}. Not checking GPG signatures.")
-                gpgcheck = False
-
-            f.write(
-                dedent(
-                    f"""\
-                    [{repo.id}]
-                    name={repo.id}
-                    {repo.url}
-                    gpgkey={gpgkey or ''}
-                    enabled=1
-                    """
-                )
-            )
-
-    if state.config.use_host_repositories:
-        default_repos  = ""
-    else:
-        default_repos  = f"reposdir={state.workspace} {state.config.repos_dir if state.config.repos_dir else ''}"
-
-    vars_dir = state.workspace / "vars"
-    vars_dir.mkdir(exist_ok=True)
-
-    config_file = state.workspace / "dnf.conf"
-    config_file.write_text(
-        dedent(
-            f"""\
-            [main]
-            gpgcheck={'1' if gpgcheck else '0'}
-            {default_repos }
-            varsdir={vars_dir}
-            """
-        )
-    )
 
 
 def parse_epel_release(release: str) -> int:
