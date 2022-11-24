@@ -11,7 +11,6 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Dict, Generator, List, Sequence
 
-from mkosi import unlink_try_hard
 from mkosi.backend import (
     ARG_DEBUG,
     MkosiConfig,
@@ -28,6 +27,7 @@ from mkosi.backend import (
 )
 from mkosi.distributions import DistributionInstaller
 from mkosi.install import copy_path, open_close
+from mkosi.remove import unlink_try_hard
 
 ARCHITECTURES = {
     "x86_64": ("amd64", "arch/x86/boot/bzImage"),
