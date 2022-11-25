@@ -119,18 +119,28 @@ class CentosInstaller(DistributionInstaller):
 
         if config.local_mirror:
             appstream_url = f"baseurl={config.local_mirror}"
-            baseos_url = extras_url = powertools_url = epel_url = None
+            baseos_url = extras_url = powertools_url = crb_url = epel_url = None
         elif config.mirror:
             appstream_url = f"baseurl={config.mirror}/{directory}/{config.release}/AppStream/$basearch/os"
             baseos_url = f"baseurl={config.mirror}/{directory}/{config.release}/BaseOS/$basearch/os"
             extras_url = f"baseurl={config.mirror}/{directory}/{config.release}/extras/$basearch/os"
-            powertools_url = f"baseurl={config.mirror}/{directory}/{config.release}/PowerTools/$basearch/os"
+            if epel_release >= 9:
+                crb_url = f"baseurl={config.mirror}/{directory}/{config.release}/CRB/$basearch/os"
+                powertools_url = None
+            else:
+                crb_url = None
+                powertools_url = f"baseurl={config.mirror}/{directory}/{config.release}/PowerTools/$basearch/os"
             epel_url = f"baseurl={config.mirror}/epel/{epel_release}/Everything/$basearch"
         else:
             appstream_url = f"mirrorlist={cls._mirror_repo_url(config, 'AppStream')}"
             baseos_url = f"mirrorlist={cls._mirror_repo_url(config, 'BaseOS')}"
             extras_url = f"mirrorlist={cls._mirror_repo_url(config, 'extras')}"
-            powertools_url = f"mirrorlist={cls._mirror_repo_url(config, 'PowerTools')}"
+            if epel_release >= 9:
+                crb_url = f"mirrorlist={cls._mirror_repo_url(config, 'CRB')}"
+                powertools_url = None
+            else:
+                crb_url = None
+                powertools_url = f"mirrorlist={cls._mirror_repo_url(config, 'PowerTools')}"
             epel_url = f"mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=epel-{epel_release}&arch=$basearch"
 
         repos = [Repo("AppStream", appstream_url, gpgpath, gpgurl)]
@@ -138,6 +148,8 @@ class CentosInstaller(DistributionInstaller):
             repos += [Repo("BaseOS", baseos_url, gpgpath, gpgurl)]
         if extras_url is not None:
             repos += [Repo("extras", extras_url, gpgpath, gpgurl)]
+        if crb_url is not None:
+            repos += [Repo("CRB", crb_url, gpgpath, gpgurl)]
         if powertools_url is not None:
             repos += [Repo("PowerTools", powertools_url, gpgpath, gpgurl)]
         if epel_url is not None and cls._is_epel():
