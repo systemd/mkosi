@@ -5,7 +5,6 @@ from typing import List
 
 from mkosi.backend import (
     MkosiState,
-    OutputFormat,
     PathString,
     add_packages,
     complete_step,
@@ -72,12 +71,6 @@ def install_opensuse(state: MkosiState) -> None:
 
     if not state.do_run_build_script and state.config.bootable:
         add_packages(state.config, packages, "kernel-default", "dracut")
-
-    if not state.do_run_build_script and state.config.encrypt:
-        add_packages(state.config, packages, "device-mapper")
-
-    if state.config.output_format in (OutputFormat.subvolume, OutputFormat.gpt_btrfs):
-        add_packages(state.config, packages, "btrfsprogs")
 
     if state.config.netdev:
         add_packages(state.config, packages, "systemd-network")

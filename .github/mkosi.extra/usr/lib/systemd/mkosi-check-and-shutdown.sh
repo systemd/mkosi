@@ -1,5 +1,6 @@
-#!/bin/bash -eux
+#!/bin/bash
 # SPDX-License-Identifier: LGPL-2.1-or-later
+set -eux
 
 systemctl --failed --no-legend | tee /failed-services
 

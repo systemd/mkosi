@@ -24,25 +24,31 @@ runs:
         e2fsprogs \
         xfsprogs \
         squashfs-tools \
-        btrfs-progs
+        btrfs-progs \
+        mtools
 
       sudo pacman-key --init
       sudo pacman-key --populate archlinux
 
-  # Try to eliminate "Failed to dissect image: Connection timed out" errors from nspawn by compiling
-  # systemd-nspawn from v251 from source.
-  - name: Update systemd-nspawn
+  - name: Update systemd
     shell: bash
     working-directory: ${{ github.action_path }}
     run: |
       echo "deb-src http://archive.ubuntu.com/ubuntu/ $(lsb_release -cs) main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
       sudo apt-get update
       sudo apt-get build-dep systemd
-      git clone https://github.com/systemd/systemd-stable --branch v251.2 --depth=1
-      meson systemd-stable/build systemd-stable
-      ninja -C systemd-stable/build systemd-nspawn
-      sudo ln -svf $PWD/systemd-stable/build/systemd-nspawn $(which systemd-nspawn)
+      sudo apt-get install libfdisk-dev
+      git clone https://github.com/systemd/systemd --depth=1
+      meson systemd/build systemd -Drepart=true -Defi=true
+      ninja -C systemd/build systemd-nspawn systemd-dissect systemd-repart bootctl
+      sudo ln -svf $PWD/systemd/build/systemd-nspawn /usr/bin/systemd-nspawn
+      sudo ln -svf $PWD/systemd/build/systemd-dissect /usr/bin/systemd-dissect
+      sudo ln -svf $PWD/systemd/build/systemd-repart /usr/bin/systemd-repart
+      sudo ln -svf $PWD/systemd/build/bootctl /usr/bin/bootctl
       systemd-nspawn --version
+      systemd-dissect --version
+      systemd-repart --version
+      bootctl --version
 
   - name: Install
     shell: bash

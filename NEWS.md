@@ -6,6 +6,28 @@
   current behaviour.
 - Add `--idmap` option to run `--systemd-nspawn` with ID mapping support. Defaults
   to `True`. `--idmap=no` can be used to prevent usage of ID mapping.
+- Migrated to systemd-repart. Many options are dropped in favor of specifying them directly
+  in repart partition definition files:
+    - Format=gpt_xxx options are replaced with a single "disk" options. Filesystem to use can now be specified with repart's Format= option
+    - Format=plain_squashfs (Can be reproduced by a single repart squashfs
+    root partition combined with SplitArtifacts=yes)
+    - Verity= (Replaced by repart's Verity= options)
+    - Encrypt= (Replaced by repart's Encrypt= option)
+    - RootSize=, HomeSize=, VarSize=, TmpSize=, ESPSize=, SwapSize=, SrvSize=
+    (Replaced by repart's size options)
+    - UsrOnly= (replaced with `CopyFiles=/:/usr` in a usr partition definition)
+    - OutputSplitRoot=, OutputSplitVerity=, (Replaced by repart's SplitName= option)
+    - OutputSplitKernel= (UKI is now always written to its own output file)
+    - GPTFirstLBA (Removed, no equivalent in repart)
+    - ReadOnly= (Replaced by repart's ReadOnly= option per partition)
+    - Minimize= (Replaced by repart's Minimize= option per partition)
+    - CompressFs= (No equivalent in repart, can be replicated by replacing mkfs.<fs>
+    in $PATH with a script that adds the necessary command line option)
+    - MkSquashfs= (Can be replaced with a script in $PATH that invokes
+    the correct binary)
+
+    We also remove the WithoutUnifiedKernelImages= switch as building unified
+    kernel images is trivial and fast these days.
 
 ## v14
 
@@ -72,18 +94,6 @@
   you weren't relying on this file to configure any network interfaces other
   than the tun/tap virtio-net interface created by mkosi when booting the image
   in QEMU with the `--netdev` option. If you were relying on this config file
-  to configure other interfaces, you'll have to re-create it with the correct
-  match and a lower initial number in the filename to make sure
-  `systemd-networkd` will keep configuring your interface, e.g. via the
-  `mkosi.skeleton` or `mkosi.extra` trees or a `mkosi.postinst` script.
-- The `kernel-install` script for building unified kernel images has been
-  removed. From v13 onwards, on systems using `kernel-install`, `mkosi` won't
-  automatically build new unified kernel images when a kernel is updated or
-  installed. To keep the old behavior, you can install the `kernel-install`
-  script manually via a skeleton tree; a copy can be found
-  [here](https://github.com/systemd/mkosi/blob/3798eb0c2ebcdf7dac207a559a3cb5a65cdb77b0/mkosi/resources/dracut_unified_kernel_install.sh).
-- New `QemuKvm` option configures whether to use KVM when running `mkosi qemu`.
-- `mkosi` will not default to the same OS release as the host system anymore
   when the host system uses the same distribution as the image that's being
   built. Instead, when no release is specified, mkosi will now always default
   to the default version embedded in mkosi itself.

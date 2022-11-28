@@ -8,10 +8,8 @@ import collections
 import contextlib
 import dataclasses
 import enum
-import errno
 import functools
 import importlib
-import math
 import os
 import platform
 import pwd
@@ -49,11 +47,6 @@ from typing import (
 )
 
 from mkosi.distributions import DistributionInstaller
-from mkosi.syscall import (
-    blkpg_add_partition,
-    blkpg_del_partition,
-    block_reread_partition_table,
-)
 
 T = TypeVar("T")
 V = TypeVar("V")
@@ -305,52 +298,7 @@ class OutputFormat(Parseable, enum.Enum):
     subvolume = enum.auto()
     tar = enum.auto()
     cpio = enum.auto()
-
-    gpt_ext4 = enum.auto()
-    gpt_xfs = enum.auto()
-    gpt_btrfs = enum.auto()
-    gpt_squashfs = enum.auto()
-
-    plain_squashfs = enum.auto()
-
-    # Kept for backwards compatibility
-    raw_ext4 = raw_gpt = gpt_ext4
-    raw_xfs = gpt_xfs
-    raw_btrfs = gpt_btrfs
-    raw_squashfs = gpt_squashfs
-
-    def is_disk_rw(self) -> bool:
-        "Output format is a disk image with a parition table and a writable filesystem"
-        return self in (OutputFormat.gpt_ext4, OutputFormat.gpt_xfs, OutputFormat.gpt_btrfs)
-
-    def is_disk(self) -> bool:
-        "Output format is a disk image with a partition table"
-        return self.is_disk_rw() or self == OutputFormat.gpt_squashfs
-
-    def is_squashfs(self) -> bool:
-        "The output format contains a squashfs partition"
-        return self in {OutputFormat.gpt_squashfs, OutputFormat.plain_squashfs}
-
-    def is_btrfs(self) -> bool:
-        "The output format contains a btrfs partition"
-        return self in {OutputFormat.gpt_btrfs, OutputFormat.subvolume}
-
-    def can_minimize(self) -> bool:
-        "The output format can be 'minimized'"
-        return self in (OutputFormat.gpt_ext4, OutputFormat.gpt_btrfs)
-
-    def needed_kernel_module(self) -> str:
-        if self == OutputFormat.gpt_btrfs:
-            return "btrfs"
-        elif self in (OutputFormat.gpt_squashfs, OutputFormat.plain_squashfs):
-            return "squashfs"
-        elif self == OutputFormat.gpt_xfs:
-            return "xfs"
-        else:
-            return "ext4"
-
-    def has_fs_compression(self) -> bool:
-        return self.is_squashfs() or self.is_btrfs()
+    disk = enum.auto()
 
     def __str__(self) -> str:
         return Parseable.__str__(self)
@@ -362,169 +310,25 @@ class ManifestFormat(Parseable, enum.Enum):
     def __str__(self) -> str:
         return Parseable.__str__(self)
 
-class PartitionIdentifier(enum.Enum):
-    esp        = "esp"
-    bios       = "bios"
-    xbootldr   = "xbootldr"
-    root       = "root"
-    swap       = "swap"
-    home       = "home"
-    srv        = "srv"
-    var        = "var"
-    tmp        = "tmp"
-    verity     = "verity"
-    verity_sig = "verity-sig"
+KNOWN_SUFFIXES = {
+    ".xz",
+    ".zstd",
+    ".raw",
+    ".tar",
+    ".cpio",
+    ".qcow2",
+}
 
 
-@dataclasses.dataclass
-class Partition:
-    number: int
-
-    n_sectors: int
-    type_uuid: uuid.UUID
-    part_uuid: Optional[uuid.UUID]
-    read_only: Optional[bool]
-
-    description: str
-
-    def blockdev(self, loopdev: Path) -> Path:
-        return Path(f"{loopdev}p{self.number}")
-
-    def sfdisk_spec(self) -> str:
-        desc = [f'size={self.n_sectors}',
-                f'type={self.type_uuid}',
-                f'attrs={"GUID:60" if self.read_only else ""}',
-                f'name="{self.description}"',
-                f'uuid={self.part_uuid}' if self.part_uuid is not None else None]
-        return ', '.join(filter(None, desc))
+def strip_suffixes(path: Path) -> Path:
+    while path.suffix in KNOWN_SUFFIXES:
+        path = path.with_suffix("")
+    return path
 
 
-@dataclasses.dataclass
-class PartitionTable:
-    partitions: Dict[PartitionIdentifier, Partition] = dataclasses.field(default_factory=dict)
-    last_partition_sector: Optional[int] = None
-    sector_size: int = 512
-    first_lba: Optional[int] = None
-
-    grain: int = 4096
-
-    def first_partition_offset(self, max_partitions: int = 128) -> int:
-        if self.first_lba is not None:
-            # No rounding here, we honour the specified value exactly.
-            return self.first_lba * self.sector_size
-        else:
-            # The header is like the footer, but we have a one-sector "protective MBR" at offset 0
-            return roundup(self.sector_size + self.footer_size(), self.grain)
-
-    def last_partition_offset(self, max_partitions: int = 128) -> int:
-        if self.last_partition_sector:
-            return roundup(self.last_partition_sector * self.sector_size, self.grain)
-        else:
-            return self.first_partition_offset(max_partitions)
-
-    def partition_offset(self, partition: Partition) -> int:
-        offset = self.first_partition_offset()
-
-        for p in self.partitions.values():
-            if p == partition:
-                break
-
-            offset += p.n_sectors * self.sector_size
-
-        return offset
-
-    def partition_size(self, partition: Partition) -> int:
-        return partition.n_sectors * self.sector_size
-
-    def footer_size(self, max_partitions: int = 128) -> int:
-        # The footer must have enough space for the GPT header (one sector),
-        # and the GPT parition entry area. PEA size of 16384 (128 partitions)
-        # is recommended.
-        pea_sectors = math.ceil(max_partitions * 128 / self.sector_size)
-        return (1 + pea_sectors) * self.sector_size
-
-    def disk_size(self) -> int:
-        return roundup(self.last_partition_offset() + self.footer_size(), self.grain)
-
-    def add(self,
-            ident: PartitionIdentifier,
-            size: int,
-            type_uuid: uuid.UUID,
-            description: str,
-            part_uuid: Optional[uuid.UUID] = None,
-            read_only: Optional[bool] = False) -> Partition:
-
-        assert '"' not in description
-
-        size = roundup(size, self.grain)
-        n_sectors = size // self.sector_size
-
-        part = Partition(len(self.partitions) + 1,
-                         n_sectors, type_uuid, part_uuid, read_only, description)
-        self.partitions[ident] = part
-
-        self.last_partition_sector = self.last_partition_offset() // self.sector_size + n_sectors
-
-        return part
-
-    def partition_path(self, ident: PartitionIdentifier, loopdev: Path) -> Optional[Path]:
-        part = self.partitions.get(ident)
-        if part is None:
-            return None
-
-        return part.blockdev(loopdev)
-
-    def sfdisk_spec(self) -> str:
-        table = ["label: gpt",
-                 f"grain: {self.grain}",
-                 f"first-lba: {self.first_partition_offset() // self.sector_size}",
-                 *(p.sfdisk_spec() for p in self.partitions.values())]
-        return '\n'.join(table)
-
-    def run_sfdisk(self, device: PathString, *, quiet: bool = False) -> None:
-        spec = self.sfdisk_spec()
-        device = Path(device)
-
-        if 'disk' in ARG_DEBUG:
-            print_between_lines(spec)
-
-        cmd: List[PathString] = ["sfdisk", "--color=never", "--no-reread", "--no-tell-kernel", device]
-        if quiet:
-            cmd += ["--quiet"]
-
-        if device.is_block_device():
-            with open(device, 'rb+') as f:
-                for p in self.partitions.values():
-                    try:
-                        blkpg_del_partition(f.fileno(), p.number)
-                    except OSError as e:
-                        if e.errno != errno.ENXIO:
-                            raise
-
-        try:
-            run(cmd, input=spec.encode("utf-8"))
-        except subprocess.CalledProcessError:
-            print_between_lines(spec)
-            raise
-
-        if device.is_block_device():
-            run(["sync"])
-
-            # Make sure we re-add all partitions after modifying the partition table.
-            with open(device, 'rb+') as f:
-                for p in self.partitions.values():
-                    blkpg_add_partition(f.fileno(), p.number, self.partition_offset(p), self.partition_size(p))
-
-                try:
-                    block_reread_partition_table(f.fileno())
-                except OSError as e:
-                    msg = f"Failed to reread partition table of {device}: {e.strerror}"
-                    # BLKRRPART fails with EINVAL if the operation is not supported, let's not fail if that's
-                    # the case.
-                    if e.errno == errno.EINVAL:
-                        warn(msg)
-                    else:
-                        die(msg)
+def build_auxiliary_output_path(args: Union[argparse.Namespace, MkosiConfig], suffix: str) -> Path:
+    output = strip_suffixes(args.output)
+    return output.with_name(f"{output.name}{suffix}")
 
 
 @dataclasses.dataclass(frozen=True)
@@ -548,6 +352,7 @@ class MkosiConfig:
     repositories: List[str]
     use_host_repositories: bool
     repos_dir: Optional[str]
+    repart_dir: Optional[str]
     architecture: str
     output_format: OutputFormat
     manifest_format: List[ManifestFormat]
@@ -560,14 +365,8 @@ class MkosiConfig:
     secure_boot_certificate: Path
     secure_boot_valid_days: str
     secure_boot_common_name: str
-    read_only: bool
-    encrypt: Optional[str]
-    verity: Union[bool, str]
     sign_expected_pcr: bool
-    compress: Union[None, str, bool]
-    compress_fs: Union[None, str, bool]
     compress_output: Union[None, str, bool]
-    mksquashfs_tool: List[PathString]
     qcow2: bool
     image_version: Optional[str]
     image_id: Optional[str]
@@ -576,9 +375,6 @@ class MkosiConfig:
     idmap: bool
     tar_strip_selinux_context: bool
     incremental: bool
-    minimize: bool
-    with_unified_kernel_images: bool
-    gpt_first_lba: Optional[int]
     cache_initrd: bool
     base_packages: Union[str, bool]
     packages: List[str]
@@ -608,18 +404,8 @@ class MkosiConfig:
     with_network: Union[bool, str]
     nspawn_settings: Optional[Path]
     base_image: Optional[Path]
-    root_size: int
-    esp_size: int
-    xbootldr_size: int
-    swap_size: int
-    home_size: int
-    srv_size: int
-    var_size: int
-    tmp_size: int
-    bios_size: int
-    usr_only: bool
-    split_artifacts: bool
     checksum: bool
+    split_artifacts: bool
     sign: bool
     key: Optional[str]
     bmap: bool
@@ -654,22 +440,70 @@ class MkosiConfig:
     # systemd-nspawn specific options
     nspawn_keep_unit: bool
 
-    passphrase: Optional[Dict[str, str]]
-
-    output_checksum: Optional[Path] = None
-    output_nspawn_settings: Optional[Path] = None
-    output_sshkey: Optional[Path] = None
-    output_root_hash_file: Optional[Path] = None
-    output_root_hash_p7s_file: Optional[Path] = None
-    output_bmap: Optional[Path] = None
-    output_split_root: Optional[Path] = None
-    output_split_verity: Optional[Path] = None
-    output_split_verity_sig: Optional[Path] = None
-    output_split_kernel: Optional[Path] = None
-    output_signature: Optional[Path] = None
+    passphrase: Optional[Path]
 
     def architecture_is_native(self) -> bool:
         return self.architecture == platform.machine()
+
+    @property
+    def output_split_kernel(self) -> Path:
+        return build_auxiliary_output_path(self, ".efi")
+
+    @property
+    def output_split_kernel_image(self) -> Path:
+        return build_auxiliary_output_path(self, ".vmlinuz")
+
+    @property
+    def output_split_initrd(self) -> Path:
+        return build_auxiliary_output_path(self, ".initrd")
+
+    @property
+    def output_split_cmdline(self) -> Path:
+        return build_auxiliary_output_path(self, ".cmdline")
+
+    @property
+    def output_nspawn_settings(self) -> Path:
+        return build_auxiliary_output_path(self, ".nspawn")
+
+    @property
+    def output_checksum(self) -> Path:
+        return Path("SHA256SUMS")
+
+    @property
+    def output_signature(self) -> Path:
+        return Path("SHA256SUMS.gpg")
+
+    @property
+    def output_bmap(self) -> Path:
+        return build_auxiliary_output_path(self, ".bmap")
+
+    @property
+    def output_sshkey(self) -> Path:
+        return build_auxiliary_output_path(self, ".ssh")
+
+    @property
+    def output_manifest(self) -> Path:
+        return build_auxiliary_output_path(self, ".manifest")
+
+    @property
+    def output_changelog(self) -> Path:
+        return build_auxiliary_output_path(self, ".changelog")
+
+    def output_paths(self) -> Tuple[Path, ...]:
+        return (
+            self.output,
+            self.output_split_kernel,
+            self.output_split_kernel_image,
+            self.output_split_initrd,
+            self.output_split_cmdline,
+            self.output_nspawn_settings,
+            self.output_checksum,
+            self.output_signature,
+            self.output_bmap,
+            self.output_sshkey,
+            self.output_manifest,
+            self.output_changelog,
+        )
 
 
 @dataclasses.dataclass
@@ -684,11 +518,6 @@ class MkosiState:
     for_cache: bool
     environment: Dict[str, str] = dataclasses.field(init=False)
     installer: DistributionInstaller = dataclasses.field(init=False)
-
-    cache_pre_inst: Optional[Path] = None
-    cache_pre_dev: Optional[Path] = None
-
-    partition_table: Optional[PartitionTable] = None
 
     def __post_init__(self) -> None:
         self.environment = self.config.environment.copy()
@@ -716,25 +545,11 @@ class MkosiState:
         p.mkdir(exist_ok=True)
         return p
 
-    def get_partition(self, ident: PartitionIdentifier) -> Optional[Partition]:
-        "A shortcut to check that we have a partition table and extract the partition object"
-        if self.partition_table is None:
-            return None
-        return self.partition_table.partitions.get(ident)
-
-
-def should_compress_fs(config: Union[argparse.Namespace, MkosiConfig]) -> Union[bool, str]:
-    """True for the default compression, a string, or False.
-
-    When explicitly configured with --compress-fs=, just return
-    whatever was specified. When --compress= was used, try to be
-    smart, so that either this function or should_compress_output()
-    returns True as appropriate.
-    """
-    c = config.compress_fs
-    if c is None and config.output_format.has_fs_compression():
-        c = config.compress
-    return False if c is None else c
+    @property
+    def staging(self) -> Path:
+        p = self.workspace / "staging"
+        p.mkdir(exist_ok=True)
+        return p
 
 
 def should_compress_output(config: Union[argparse.Namespace, MkosiConfig]) -> Union[bool, str]:
@@ -742,13 +557,9 @@ def should_compress_output(config: Union[argparse.Namespace, MkosiConfig]) -> Un
 
     When explicitly configured with --compress-output=, use
     that. Since we have complete freedom with selecting the outer
-    compression algorithm, pick some default when True. When
-    --compress= was used, try to be smart, so that either this
-    function or should_compress_fs() returns True as appropriate.
+    compression algorithm, pick some default when True.
     """
     c = config.compress_output
-    if c is None and not config.output_format.has_fs_compression():
-        c = config.compress
     if c is None and config.output_format == OutputFormat.tar:
         c = True
     if c is True:
@@ -827,9 +638,6 @@ def run_workspace_command(
         stdout = subprocess.PIPE
         nspawn += ["--console=pipe"]
 
-    if state.config.usr_only:
-        nspawn += [f"--bind={root_home(state)}:/root"]
-
     if state.config.nspawn_keep_unit:
         nspawn += ["--keep-unit"]
 
@@ -839,20 +647,6 @@ def run_workspace_command(
         if "workspace-command" in ARG_DEBUG:
             run(nspawn, check=False)
         die(f"Workspace command {shell_join(cmd)} returned non-zero exit code {e.returncode}.")
-
-
-def root_home(state: MkosiState) -> Path:
-
-    # If UsrOnly= is turned on the /root/ directory (i.e. the root
-    # user's home directory) is not persistent (after all everything
-    # outside of /usr/ is not around). In that case let's mount it in
-    # from an external place, so that we can have persistency. It is
-    # after all where we place our build sources and suchlike.
-
-    if state.config.usr_only:
-        return state.workspace / "home-root"
-
-    return state.root / "root"
 
 
 @contextlib.contextmanager

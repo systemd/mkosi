@@ -7,7 +7,6 @@ from typing import List, Set
 from mkosi.backend import (
     MkosiPrinter,
     MkosiState,
-    OutputFormat,
     add_packages,
     complete_step,
     disable_pam_securetty,
@@ -141,13 +140,6 @@ def install_arch(state: MkosiState) -> None:
     add_packages(state.config, packages, "base")
 
     if not state.do_run_build_script and state.config.bootable:
-        if state.config.output_format == OutputFormat.gpt_btrfs:
-            add_packages(state.config, packages, "btrfs-progs")
-        elif state.config.output_format == OutputFormat.gpt_xfs:
-            add_packages(state.config, packages, "xfsprogs")
-        if state.config.encrypt:
-            add_packages(state.config, packages, "cryptsetup", "device-mapper")
-
         add_packages(state.config, packages, "dracut")
 
     packages.update(state.config.packages)

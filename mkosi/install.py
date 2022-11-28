@@ -2,6 +2,7 @@
 
 import contextlib
 import errno
+import fcntl
 import importlib.resources
 import os
 import shutil
@@ -11,7 +12,12 @@ from textwrap import dedent
 from typing import Any, BinaryIO, Iterator, Optional, cast
 
 from mkosi.backend import MkosiState, PathString, complete_step
-from mkosi.syscall import reflink
+
+
+def reflink(oldfd: int, newfd: int) -> None:
+    # FIXME: Replace with fcntl.FICLONE when we move to Python 3.12
+    FICLONE = 1074041865
+    fcntl.ioctl(newfd, FICLONE, oldfd)
 
 
 def make_executable(path: Path) -> None:

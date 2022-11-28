@@ -244,40 +244,18 @@ build script?  -------exists----->     copy           .
 
 The following output formats are supported:
 
-* Raw *GPT* disk image, with ext4 as root (*gpt_ext4*)
-
-* Raw *GPT* disk image, with xfs as root (*gpt_xfs*)
-
-* Raw *GPT* disk image, with btrfs as root (*gpt_btrfs*)
-
-* Raw *GPT* disk image, with squashfs as read-only root (*gpt_squashfs*)
-
-* Plain squashfs image, without partition table, as read-only root
-  (*plain_squashfs*)
+* Raw *GPT* disk image, created using systemd-repart
 
 * Plain directory, containing the OS tree (*directory*)
 
-* btrfs subvolume, with separate subvolumes for `/var`, `/home`,
-  `/srv`, `/var/tmp` (*subvolume*)
+* btrfs subvolume
 
 * Tar archive (*tar*)
 
 * CPIO archive (*cpio*) in the format appropriate for a kernel initrd
 
-When a *GPT* disk image is created, the following additional
-options are available:
-
-* A swap partition may be added in
-
-* The image may be made bootable on *EFI* systems
-
-* Separate partitions for `/srv` and `/home` may be added in
-
-* The root, `/srv` and `/home` partitions may optionally be encrypted with
-  LUKS.
-
-* A dm-verity partition may be added in that adds runtime integrity
-  data for the root partition
+When a *GPT* disk image is created, repart partition definition files
+may be placed in `mkosi.repart/` to configure the generated disk image.
 
 ## Configuration Settings
 
@@ -373,11 +351,8 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 : The image format type to generate. One of `directory` (for generating OS
   images inside a local directory), `subvolume` (similar, but as a btrfs
   subvolume), `tar` (similar, but a tarball of the image is generated), `cpio`
-  (similar, but a cpio archive is generated), `gpt_ext4` (a block device image
-  with an ext4 file system inside a GPT partition table), `gpt_xfs` (similar,
-  but with an xfs file system), `gpt_btrfs` (similar, but with an btrfs file
-  system), `gpt_squashfs` (similar, but with a squashfs file system),
-  `plain_squashfs` (a plain squashfs file system without a partition table).
+  (similar, but a cpio archive is generated), `disk` (a block device image
+  with a GPT partition table).
 
 `ManifestFormat=`, `--manifest-format=`
 
@@ -399,14 +374,6 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   included in the default name, e.g. a specified image version of
   `7.8` might result in an image file name of `image_7.8.raw.xz`.
 
-`OutputSplitRoot=`, `--output-split-root=`, `OutputSplitVerify=`, `--output-split-verity=`, `OutputSplitKernel=`, `--output-split-kernel=`
-
-: Paths for the split-out output image files, when
-  `SplitArtifacts=yes` is used. If unspecified, the relevant split
-  artifact files will be named like the main image, but with `.root`,
-  `.verity`, and `.efi` suffixes inserted (and in turn possibly
-  suffixed by compression suffix, if compression is enabled).
-
 `OutputDirectory=`, `--output-dir=`, `-O`
 
 : Path to a directory where to place all generated artifacts (i.e. the
@@ -426,14 +393,12 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   the full OS image, though in most modes the actually used disk space
   is smaller. If not specified, and `mkosi.workspace/` exists in the
   local directory, it is used for this purpose. Otherwise, a
-  subdirectory in the temporary storage area is used (`$TMPDIR` if
-  set, `/var/tmp/` otherwise).
+  subdirectory in the output directory is used.
 
 : The data in this directory is removed automatically after each
   build. It's safe to manually remove the contents of this directory
   should an `mkosi` invocation be aborted abnormally (for example, due
-  to reboot/power failure). If the `btrfs` output modes are selected
-  this directory must be backed by `btrfs` too.
+  to reboot/power failure).
 
 `Force=`, `--force`, `-f`
 
@@ -453,14 +418,6 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   specified twice the package cache is also removed.
 
   <!--  FIXME: allow `Force=<n>` -->
-
-`GPTFirstLBA=`, `--gpt-first-lba=`
-
-: Override the first usable LBA (Logical Block Address) within the
-  GPT header. This defaults to `2048`, which is actually the desired value.
-  However, some tools, e.g. the `prl_disk_tool` utility from the
-  Parallels virtualization suite require this to be set to `34`, otherwise
-  they might fail to resize the disk image and/or partitions inside it.
 
 `Bootable=`, `--bootable`, `-b`
 
@@ -503,65 +460,7 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 : Number of days that the keys should remain valid when generating SecureBoot
   keys via mkosi's `genkey` command. Defaults to two years (730 days).
 
-`ReadOnly=`, `--read-only`
-
-: Set the read-only flag on the root partition in the partition table.
-  Only applies to `gpt_ext4`, `gpt_xfs`, `gpt_btrfs`, `subvolume`
-  output formats, and is implied on `gpt_squashfs` and `plain_squashfs`.
-
-: The read-only flag is essentially a hint to tools using the image
-  (see https://systemd.io/DISCOVERABLE_PARTITIONS/). In particular,
-  all systemd tools like `systemd-nspawn` and
-  `systemd-gpt-auto-generator` will mount such partitions read-only,
-  but tools from other project may ignore the flag.
-
 [//]: # (Please add external tools to the list here.)
-
-`Minimize=`, `--minimize`
-
-: Attempt to make the resulting root file system as small as possible by
-  removing free space from the file system. Only
-  supported for `gpt_ext4` and `gpt_btrfs`. For ext4 this relies on
-  `resize2fs -M`, which reduces the free disk space but is not perfect
-  and generally leaves some free space. For btrfs the
-  results are optimal and no free space is left.
-
-`Encrypt=`, `--encrypt`
-
-: Encrypt all partitions in the file system or just the root file
-  system. Takes either `all` or `data` as argument. If `all`, the root,
-  `/home` and `/srv` file systems will be encrypted using
-  dm-crypt/LUKS (with its default settings). If `data`, the root file
-  system will be left unencrypted, but `/home` and `/srv` will be
-  encrypted. The passphrase to use is read from the `mkosi.passphrase`
-  file in the current working directory. Note that the
-  UEFI System Partition (ESP) containing the boot loader and kernel to
-  boot is never encrypted since it needs to be accessible by the
-  firmware.
-
-`Verity=`, `--verity`
-
-: Add a "Verity" integrity partition to the image. Takes a boolean or
-  the special value `signed`, and defaults to disabled. If enabled,
-  the root partition (or `/usr/` partition, in case `UsrOnly=` is
-  enabled) is protected with `dm-verity` against offline modification,
-  the verification data is placed in an additional GPT
-  partition. Implies `ReadOnly=yes`. If this is enabled, the Verity
-  root hash is written to an output file with `.roothash` or
-  `.usrhash` suffix. If set to `signed`, Verity is also enabled, but
-  the resulting root hash is then also signed (in PKCS#7 format) with
-  the signature key configured with `SecureBootKey=`. Or in other
-  words: the SecureBoot key pair is then used to both sign the kernel,
-  if that is enabled, and the root/`/usr/` file system. This signature
-  is then stored in an additional output file with the `.roothash.p7s`
-  or `.usrhash.p7s` suffix in DER format. It is also written to an
-  additional partition in the image. The latter allows generating
-  self-contained signed disk images, implementing the Verity
-  provisions described in the [Discoverable Partitions
-  Specification](https://systemd.io/DISCOVERABLE_PARTITIONS).
-
-  This option requires the [`cryptography`](https://cryptography.io/)
-  module.
 
 `SignExpectedPCR=`, `--sign-expected-pcr`
 
@@ -571,16 +470,6 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   which is the default, which is equal to a true value if the
   [`cryptography`](https://cryptography.io/) module is importable and
   the `systemd-measure` binary is in `PATH`.
-
-`CompressFs=`, `--compress-fs=`
-
-: Enable or disable internal compression in the file system. Only
-  applies to output formats with squashfs or btrfs. Takes one of
-  `zlib`, `lzo`, `zstd`, `lz4`, `xz` or a boolean value as argument.
-  If the latter is used compression is enabled/disabled and the
-  default algorithm is used. In case of the `squashfs` output formats
-  compression is implied, but this option may be used to select the
-  algorithm.
 
 `CompressOutput=`, `--compress-output=`
 
@@ -592,26 +481,12 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   the `shell`, `boot`, `qemu` verbs are not available when this option
   is used. Implied for `tar` and `cpio`.
 
-`Compress=`, `--compress=`
-
-: Enable compression. Using this option is equivalent to either
-  `CompressFs=` or `CompressOutput=`; the appropriate type of
-  compression is selected automatically.
-
-`Mksquashfs=`, `--mksquashfs=`
-
-: Set the path to the `mksquashfs` executable to use. This is useful
-  in case the parameters for the tool shall be augmented, as the tool
-  may be replaced by a script invoking it with the right parameters,
-  this way.
-
 `QCow2=`, `--qcow2`
 
-: Encode the resulting image as QEMU QCOW2 image. This only applies to
-  `gpt_ext4`, `gpt_xfs`, `gpt_btrfs`, `gpt_squashfs`. QCOW2 images can
-  be read natively by `qemu`, but not by the Linux kernel. This means
-  the `shell` and `boot` verbs are not available when this option is
-  used, however `qemu` will work.
+: Encode the resulting image as QEMU QCOW2 image. This only applies when
+  generating disk images. QCOW2 images can be read natively by `qemu`, but
+  not by the Linux kernel. This means the `shell` and `boot` verbs are not
+  available when this option is used, however `qemu` will work.
 
 `Hostname=`, `--hostname=`
 
@@ -643,12 +518,6 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   `/etc/os-release` or similar, in particular the `IMAGE_ID=` field of
   it).
 
-`WithUnifiedKernelImages=`, `--without-unified-kernel-images`
-
-: If specified, mkosi does not build unified kernel images and instead
-  installs kernels with a separate initrd and boot loader config to
-  the efi or bootloader partition.
-
 `CacheInitrd=`, `--cache-initrd`
 
 : If specified, and incremental mode is used, mkosi will build the initrd
@@ -656,25 +525,24 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   that any changes that are only applied to the final image and not the
   cached image won't be included in the initrd.
 
-`UsrOnly=`, `--usr-only`
-
-: If specified, `mkosi` will only add the `/usr/` directory tree
-  (instead of the whole root file system) to the image. This is useful
-  for fully stateless systems that come up pristine on every single
-  boot, where `/etc/` and `/var/` are populated by
-  `systemd-tmpfiles`/`systemd-sysusers` and related calls, or systems
-  that are originally shipped without a root file system, but where
-  `systemd-repart` adds one on the first boot.
-
 `SplitArtifacts=`, `--split-artifacts`
 
-: If specified and building an image with a partition table, also
-  write out the root file system partition, its Verity partition (if
-  configured) and the generated unified kernel (if configured) into
-  separate output files. This is useful in A/B update scenarios where
+: If specified and building a disk image, pass `--split=yes` to systemd-repart
+  to have it write out split partition files for each configured partition.
+  Read the [man](https://www.freedesktop.org/software/systemd/man/systemd-repart.html#--split=BOOL)
+  page for more information. This is useful in A/B update scenarios where
   an existing disk image shall be augmented with a new version of a
   root or `/usr` partition along with its Verity partition and unified
   kernel.
+
+`RepartDirectory=`, `--repart-directory`
+
+: Path to a directory containing systemd-repart partition definition files that
+  are used when mkosi invokes systemd-repart when building a disk image. If not
+  specified and `mkosi.repart/` exists in the local directory, it will be used
+  instead. Note that mkosi invokes repart with `--root=` set to the root of the
+  image root, so any `CopyFiles=` source paths in partition definition files will
+  be relative to the image root directory.
 
 `NoChown=`, `--no-chown`
 
@@ -1044,34 +912,6 @@ a machine ID.
   portable services. See
   https://systemd.io/PORTABLE_SERVICES/#extension-images for more
   information.
-
-`RootSize=`, `--root-size=`
-
-: Takes a size in bytes for the root file system. The specified
-  numeric value may be suffixed with `K`, `M`, `G` to indicate kilo-,
-  mega- and gigabytes (all to the base of 1024). This applies to
-  output formats `gpt_ext4`, `gpt_xfs`, `gpt_btrfs`. Defaults to 3G.
-
-`ESPSize=`, `--esp-size=`
-
-: Similar to `RootSize=`, configures the size of the UEFI System
-  Partition (ESP). This is only relevant if the `Bootable=` option is
-  used to generate a bootable image. Defaults to 256 MB.
-
-`SwapSize=`, `--swap-size=`
-
-: Similar to `RootSize=`, configures the size of a swap partition on
-  the image. If omitted, no swap partition is created.
-
-`HomeSize=`, `--home-size=`
-
-: Similar to `RootSize=`, configures the size of the `/home`
-  partition. If omitted, no separate `/home` partition is created.
-
-`SrvSize=`, `--srv-size=`
-
-: Similar to `RootSize=`, configures the size of the `/srv`
-  partition. If omitted, no separate `/srv` partition is created.
 
 ### [Validation] Section
 
@@ -1487,9 +1327,6 @@ local directory:
   run in the host, so it can be used even without emulation even if
   the image has a foreign architecture.
 
-* The **`mkosi.mksquashfs-tool`** script, if it exists, will be called
-  wherever `mksquashfs` would be called.
-
 * The **`mkosi.nspawn`** nspawn settings file will be copied into the
   same place as the output image file, if it exists. This is useful since nspawn
   looks for settings files next to image files it boots, for
@@ -1684,10 +1521,10 @@ Create and run a raw *GPT* image with *ext4*, as `image.raw`:
 # mkosi --bootable --incremental boot
 ```
 
-Create and run a bootable btrfs *GPT* image, as `foobar.raw`:
+Create and run a bootable *GPT* image, as `foobar.raw`:
 
 ```bash
-# mkosi --format gpt_btrfs --bootable -o foobar.raw
+# mkosi --format disk --bootable -o foobar.raw
 # mkosi --output foobar.raw boot
 # mkosi --output foobar.raw qemu
 ```
@@ -1702,7 +1539,7 @@ Create a compressed image `image.raw.xz` and add a checksum file, and
 install *SSH* into it:
 
 ```bash
-# mkosi --distribution fedora --format gpt_squashfs --checksum --compress --package=openssh-clients
+# mkosi --distribution fedora --format disk --checksum --compress-output --package=openssh-clients
 ```
 
 Inside the source directory of an `automake`-based project, configure
@@ -1717,7 +1554,7 @@ Distribution=fedora
 Release=24
 
 [Output]
-Format=gpt_btrfs
+Format=disk
 Bootable=yes
 
 [Content]
@@ -1757,13 +1594,13 @@ mkosi is packaged for various distributions: Debian, Ubuntu, Arch
 Linux, Fedora Linux, OpenMandriva, Gentoo. It is usually easiest to use the
 distribution package.
 
-The current version requires systemd 233 (or actually, systemd-nspawn of it).
+The latest code from git requires systemd 253.
 
 When not using distribution packages make sure to install the
 necessary dependencies. For example, on *Fedora Linux* you need:
 
 ```bash
-dnf install arch-install-scripts btrfs-progs debootstrap dosfstools edk2-ovmf e2fsprogs squashfs-tools gnupg python3 tar veritysetup xfsprogs xz zypper sbsigntools
+dnf install btrfs-progs debootstrap dosfstools mtools edk2-ovmf e2fsprogs squashfs-tools gnupg python3 tar xfsprogs xz zypper sbsigntools
 ```
 
 On Debian/Ubuntu it might be necessary to install the `ubuntu-keyring`,
