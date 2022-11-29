@@ -13,6 +13,7 @@ from typing import Any, Dict, Generator, List, Mapping, Optional
 import pytest
 
 import mkosi
+import mkosi.backend
 from mkosi.backend import MkosiException, OutputFormat, SourceFileTransfer, Verb
 
 

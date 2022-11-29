@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
-from typing import Any, Dict, List, Set
+from typing import Any, List, Mapping, Set
 
 from tests.test_config_parser import MkosiConfig
 
 
 class DictDiffer:
-    def __init__(self, expected_dict: Dict[str, Any], current_dict: Dict[str, Any]) -> None:
+    def __init__(self, expected_dict: Mapping[str, Any], current_dict: Mapping[str, Any]) -> None:
         self.current_dict = current_dict
         self.expected_dict = expected_dict
         self.set_current, self.set_past = set(current_dict.keys()), set(expected_dict.keys())
@@ -38,7 +38,7 @@ def pytest_assertrepr_compare(op: str, left: MkosiConfig, right: Any) -> List[st
             return ["Invalid datatype"]
     if op == "==":
 
-        def compare_job_args(job: str, l_a: Dict[str, Any], r_a: Dict[str, Any]) -> None:
+        def compare_job_args(job: str, l_a: Mapping[str, Any], r_a: Mapping[str, Any]) -> None:
             ddiff = DictDiffer(l_a, r_a)
             ret.append(f'Comparing parsed configuration {job} against expected configuration:')
             ret.append("unexpected:")

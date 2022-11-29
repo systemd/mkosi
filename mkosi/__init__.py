@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import argparse
-import ast
 import base64
-import collections
 import configparser
 import contextlib
 import crypt
@@ -15,12 +13,11 @@ import dataclasses
 import datetime
 import errno
 import fcntl
-import functools
 import getpass
 import glob
 import hashlib
 import http.server
-import importlib.resources
+import importlib
 import itertools
 import json
 import math
@@ -29,14 +26,11 @@ import platform
 import re
 import shlex
 import shutil
-import stat
 import string
 import subprocess
 import sys
 import tempfile
 import time
-import urllib.parse
-import urllib.request
 import uuid
 from pathlib import Path
 from textwrap import dedent, wrap
@@ -47,7 +41,6 @@ from typing import (
     BinaryIO,
     Callable,
     ContextManager,
-    Deque,
     Dict,
     Iterable,
     Iterator,
@@ -64,7 +57,7 @@ from typing import (
     cast,
 )
 
-from .backend import (
+from mkosi.backend import (
     ARG_DEBUG,
     Distribution,
     ManifestFormat,
@@ -74,13 +67,14 @@ from .backend import (
     MkosiPrinter,
     MkosiState,
     OutputFormat,
-    PackageType,
     Partition,
     PartitionIdentifier,
     PartitionTable,
     SourceFileTransfer,
     Verb,
+    add_packages,
     chown_to_running_user,
+    detect_distribution,
     die,
     is_centos_variant,
     is_epel_variant,
@@ -94,6 +88,7 @@ from .backend import (
     root_home,
     run,
     run_workspace_command,
+    scandir_recursive,
     set_umask,
     should_compress_fs,
     should_compress_output,
@@ -101,8 +96,19 @@ from .backend import (
     tmp_dir,
     warn,
 )
-from .manifest import Manifest
-from .syscall import blkpg_add_partition, blkpg_del_partition, reflink
+from mkosi.install import (
+    add_dropin_config,
+    add_dropin_config_from_resource,
+    copy_file,
+    copy_file_object,
+    copy_path,
+    install_skeleton_trees,
+    open_close,
+)
+from mkosi.manifest import Manifest
+from mkosi.mounts import mount, mount_bind, mount_overlay, mount_tmpfs
+from mkosi.remove import unlink_try_hard
+from mkosi.syscall import blkpg_add_partition, blkpg_del_partition
 
 complete_step = MkosiPrinter.complete_step
 color_error = MkosiPrinter.color_error
@@ -151,42 +157,7 @@ DRACUT_SYSTEMD_EXTRAS = [
 ]
 
 
-def write_resource(
-        where: Path, resource: str, key: str, *, executable: bool = False, mode: Optional[int] = None
-) -> None:
-    text = importlib.resources.read_text(resource, key)
-    where.write_text(text)
-    if mode is not None:
-        where.chmod(mode)
-    elif executable:
-        make_executable(where)
-
-
-def add_dropin_config(root: Path, unit: str, name: str, content: str) -> None:
-    """Add a dropin config `name.conf` in /etc/systemd/system for `unit`."""
-    dropin = root / f"etc/systemd/system/{unit}.d/{name}.conf"
-    dropin.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
-    dropin.write_text(dedent(content))
-    dropin.chmod(0o644)
-
-
-def add_dropin_config_from_resource(
-    root: Path, unit: str, name: str, resource: str, key: str
-) -> None:
-    dropin = root / f"etc/systemd/system/{unit}.d/{name}.conf"
-    dropin.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
-    write_resource(dropin, resource, key, mode=0o644)
-
-
 T = TypeVar("T")
-V = TypeVar("V")
-
-
-def dictify(f: Callable[..., Iterator[Tuple[T, V]]]) -> Callable[..., Dict[T, V]]:
-    def wrapper(*args: Any, **kwargs: Any) -> Dict[T, V]:
-        return dict(f(*args, **kwargs))
-
-    return functools.update_wrapper(wrapper, f)
 
 
 def list_to_string(seq: Iterator[str]) -> str:
@@ -195,29 +166,6 @@ def list_to_string(seq: Iterator[str]) -> str:
     ['a', "b", 11] → "'a', 'b', 11"
     """
     return str(list(seq))[1:-1]
-
-@dictify
-def read_os_release() -> Iterator[Tuple[str, str]]:
-    try:
-        filename = "/etc/os-release"
-        f = open(filename)
-    except FileNotFoundError:
-        filename = "/usr/lib/os-release"
-        f = open(filename)
-
-    with f:
-        for line_number, line in enumerate(f, start=1):
-            line = line.rstrip()
-            if not line or line.startswith("#"):
-                continue
-            m = re.match(r"([A-Z][A-Z_0-9]+)=(.*)", line)
-            if m:
-                name, val = m.groups()
-                if val and val[0] in "\"'":
-                    val = ast.literal_eval(val)
-                yield name, val
-            else:
-                print(f"{filename}:{line_number}: bad line {line!r}", file=sys.stderr)
 
 
 def print_running_cmd(cmdline: Iterable[str]) -> None:
@@ -364,88 +312,6 @@ BIOS_PARTITION_SIZE = 1024 * 1024
 
 CLONE_NEWNS = 0x00020000
 
-FEDORA_KEYS_MAP = {
-    "7":  "CAB44B996F27744E86127CDFB44269D04F2A6FD2",
-    "8":  "4FFF1F04010DEDCAE203591D62AEC3DC6DF2196F",
-    "9":  "4FFF1F04010DEDCAE203591D62AEC3DC6DF2196F",
-    "10": "61A8ABE091FF9FBBF4B07709BF226FCC4EBFC273",
-    "11": "AEE40C04E34560A71F043D7C1DC5C758D22E77F2",
-    "12": "6BF178D28A789C74AC0DC63B9D1CC34857BBCCBA",
-    "13": "8E5F73FF2A1817654D358FCA7EDC6AD6E8E40FDE",
-    "14": "235C2936B4B70E61B373A020421CADDB97A1071F",
-    "15": "25DBB54BDED70987F4C10042B4EBF579069C8460",
-    "16": "05A912AC70457C3DBC82D352067F00B6A82BA4B7",
-    "17": "CAC43FB774A4A673D81C5DE750E94C991ACA3465",
-    "18": "7EFB8811DD11E380B679FCEDFF01125CDE7F38BD",
-    "19": "CA81B2C85E4F4D4A1A3F723407477E65FB4B18E6",
-    "20": "C7C9A9C89153F20183CE7CBA2EB161FA246110C1",
-    "21": "6596B8FBABDA5227A9C5B59E89AD4E8795A43F54",
-    "22": "C527EA07A9349B589C35E1BF11ADC0948E1431D5",
-    "23": "EF45510680FB02326B045AFB32474CF834EC9CBA",
-    "24": "5048BDBBA5E776E547B09CCC73BDE98381B46521",
-    "25": "C437DCCD558A66A37D6F43724089D8F2FDB19C98",
-    "26": "E641850B77DF435378D1D7E2812A6B4B64DAB85D",
-    "27": "860E19B0AFA800A1751881A6F55E7430F5282EE4",
-    "28": "128CF232A9371991C8A65695E08E7E629DB62FB1",
-    "29": "5A03B4DD8254ECA02FDA1637A20AA56B429476B4",
-    "30": "F1D8EC98F241AAF20DF69420EF3C111FCFC659B9",
-    "31": "7D22D5867F2A4236474BF7B850CB390B3C3359C4",
-    "32": "97A1AE57C3A2372CCA3A4ABA6C13026D12C944D0",
-    "33": "963A2BEB02009608FE67EA4249FD77499570FF31",
-    "34": "8C5BA6990BDB26E19F2A1A801161AE6945719A39",
-    "35": "787EA6AE1147EEE56C40B30CDB4639719867C58F",
-    "36": "53DED2CB922D8B8D9E63FD18999F7CBF38AB71F4",
-    "37": "ACB5EE4E831C74BB7C168D27F55AD3FB5323552A",
-    "38": "6A51BBABBA3D5467B6171221809A8D7CEB10B464",
-    "39": "E8F23996F23218640CB44CBE75CF5AC418B8E74C",
-}
-
-def fedora_release_cmp(a: str, b: str) -> int:
-    """Return negative if a<b, 0 if a==b, positive otherwise"""
-
-    # This will throw ValueError on non-integer strings
-    anum = 1000 if a == "rawhide" else int(a)
-    bnum = 1000 if b == "rawhide" else int(b)
-    return anum - bnum
-
-
-# Debian calls their architectures differently, so when calling debootstrap we
-# will have to map to their names
-# uname -m -> dpkg --print-architecture
-DEBIAN_ARCHITECTURES = {
-    "aarch64": "arm64",
-    "armhfp": "armhf",
-    "armv7l": "armhf",
-    "ia64": "ia64",
-    "mips64": "mipsel",
-    "m68k": "m68k",
-    "parisc64": "hppa",
-    "ppc64": "ppc64",
-    "ppc64le": "ppc64el",
-    "riscv64:": "riscv64",
-    "s390x": "s390x",
-    "x86": "i386",
-    "x86_64": "amd64",
-}
-
-# And the kernel package names have yet another format, so adjust accordingly
-# uname -m -> linux-image-$arch
-DEBIAN_KERNEL_ARCHITECTURES = {
-    "aarch64": "arm64",
-    "armhfp": "armmp",
-    "alpha": "alpha-generic",
-    "ia64": "itanium",
-    "m68k": "m68k",
-    "parisc64": "parisc64",
-    "ppc": "powerpc",
-    "ppc64": "powerpc64",
-    "ppc64le": "powerpc64le",
-    "riscv64:": "riscv64",
-    "s390x": "s390x",
-    "x86": "i386",
-    "x86_64": "amd64",
-}
-
 # EFI has its own conventions too
 EFI_ARCHITECTURES = {
     "x86_64": "x64",
@@ -590,93 +456,6 @@ def format_bytes(num_bytes: int) -> str:
     return f"{num_bytes}B"
 
 
-@contextlib.contextmanager
-def open_close(path: PathString, flags: int, mode: int = 0o664) -> Iterator[int]:
-    fd = os.open(path, flags | os.O_CLOEXEC, mode)
-    try:
-        yield fd
-    finally:
-        os.close(fd)
-
-
-def copy_fd(oldfd: int, newfd: int) -> None:
-    try:
-        reflink(oldfd, newfd)
-    except OSError as e:
-        if e.errno not in {errno.EXDEV, errno.EOPNOTSUPP, errno.ENOTTY}:
-            raise
-        # While mypy handles this correctly, Pyright doesn't yet.
-        shutil.copyfileobj(open(oldfd, "rb", closefd=False), cast(Any, open(newfd, "wb", closefd=False)))
-
-
-def copy_file_object(oldobject: BinaryIO, newobject: BinaryIO) -> None:
-    try:
-        reflink(oldobject.fileno(), newobject.fileno())
-    except OSError as e:
-        if e.errno not in {errno.EXDEV, errno.EOPNOTSUPP, errno.ENOTTY}:
-            raise
-        shutil.copyfileobj(oldobject, newobject)
-        newobject.flush()
-
-
-def copy_file(oldpath: PathString, newpath: PathString) -> None:
-    oldpath = Path(oldpath)
-    newpath = Path(newpath)
-
-    if oldpath.is_symlink():
-        src = os.readlink(oldpath)  # TODO: use oldpath.readlink() with python3.9+
-        newpath.symlink_to(src)
-        return
-
-    with open_close(oldpath, os.O_RDONLY) as oldfd:
-        st = os.stat(oldfd)
-
-        try:
-            with open_close(newpath, os.O_WRONLY | os.O_CREAT | os.O_EXCL, st.st_mode) as newfd:
-                copy_fd(oldfd, newfd)
-        except FileExistsError:
-            newpath.unlink()
-            with open_close(newpath, os.O_WRONLY | os.O_CREAT, st.st_mode) as newfd:
-                copy_fd(oldfd, newfd)
-    shutil.copystat(oldpath, newpath, follow_symlinks=False)
-
-
-def symlink_f(target: str, path: Path) -> None:
-    try:
-        path.symlink_to(target)
-    except FileExistsError:
-        os.unlink(path)
-        path.symlink_to(target)
-
-
-def copy_path(oldpath: PathString, newpath: Path, *, copystat: bool = True) -> None:
-    try:
-        newpath.mkdir(exist_ok=True)
-    except FileExistsError:
-        # something that is not a directory already exists
-        newpath.unlink()
-        newpath.mkdir()
-
-    for entry in os.scandir(oldpath):
-        newentry = newpath / entry.name
-        if entry.is_dir(follow_symlinks=False):
-            copy_path(entry.path, newentry)
-        elif entry.is_symlink():
-            target = os.readlink(entry.path)
-            symlink_f(target, newentry)
-            shutil.copystat(entry.path, newentry, follow_symlinks=False)
-        else:
-            st = entry.stat(follow_symlinks=False)
-            if stat.S_ISREG(st.st_mode):
-                copy_file(entry.path, newentry)
-            else:
-                print("Ignoring", entry.path)
-                continue
-
-    if copystat:
-        shutil.copystat(oldpath, newpath, follow_symlinks=True)
-
-
 @complete_step("Detaching namespace")
 def init_namespace() -> None:
     unshare(CLONE_NEWNS)
@@ -699,27 +478,6 @@ def setup_workspace(config: MkosiConfig) -> TempDir:
 def btrfs_subvol_create(path: Path, mode: int = 0o755) -> None:
     with set_umask(~mode & 0o7777):
         run(["btrfs", "subvol", "create", path])
-
-
-def btrfs_subvol_delete(path: Path) -> None:
-    # Extract the path of the subvolume relative to the filesystem
-    c = run(["btrfs", "subvol", "show", path],
-            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
-    subvol_path = c.stdout.splitlines()[0]
-    # Make the subvolume RW again if it was set RO by btrfs_subvol_delete
-    run(["btrfs", "property", "set", path, "ro", "false"])
-    # Recursively delete the direct children of the subvolume
-    c = run(["btrfs", "subvol", "list", "-o", path],
-            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
-    for line in c.stdout.splitlines():
-        if not line:
-            continue
-        child_subvol_path = line.split(" ", 8)[-1]
-        child_path = path / cast(str, os.path.relpath(child_subvol_path, subvol_path))
-        btrfs_subvol_delete(child_path)
-    # Delete the subvolume now that all its descendants have been deleted
-    run(["btrfs", "subvol", "delete", path],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def btrfs_subvol_make_ro(path: Path, b: bool = True) -> None:
@@ -1419,57 +1177,6 @@ def prepare_tmp(config: MkosiConfig, dev: Optional[Path], cached: bool) -> None:
         mkfs_generic(config, "tmp", "/var/tmp", dev)
 
 
-def stat_is_whiteout(st: os.stat_result) -> bool:
-    return stat.S_ISCHR(st.st_mode) and st.st_rdev == 0
-
-
-def delete_whiteout_files(path: Path) -> None:
-    """Delete any char(0,0) device nodes underneath @path
-
-    Overlayfs uses such files to mark "whiteouts" (files present in
-    the lower layers, but removed in the upper one).
-    """
-
-    with complete_step("Removing overlay whiteout files…"):
-        for entry in cast(Iterator[os.DirEntry[str]], scandir_recursive(path)):
-            if stat_is_whiteout(entry.stat(follow_symlinks=False)):
-                os.unlink(entry.path)
-
-
-@contextlib.contextmanager
-def mount(
-        what: PathString,
-        where: Path,
-        operation: Optional[str] = None,
-        options: Sequence[str] = (),
-        type: Optional[str] = None,
-        read_only: bool = False,
-) -> Iterator[Path]:
-    os.makedirs(where, 0o755, True)
-
-    if read_only:
-        options = ["ro", *options]
-
-    cmd: List[PathString] = ["mount", "--no-mtab"]
-
-    if operation:
-        cmd += [operation]
-
-    cmd += [what, where]
-
-    if type:
-        cmd += ["--types", type]
-
-    if options:
-        cmd += ["--options", ",".join(options)]
-
-    try:
-        run(cmd)
-        yield where
-    finally:
-        run(["umount", "--no-mtab", "--recursive", where])
-
-
 def mount_loop(config: MkosiConfig, dev: Path, where: Path, read_only: bool = False) -> ContextManager[Path]:
     options = []
     if not config.output_format.is_squashfs():
@@ -1480,54 +1187,6 @@ def mount_loop(config: MkosiConfig, dev: Path, where: Path, read_only: bool = Fa
         options += ["compress" if compress is True else f"compress={compress}"]
 
     return mount(dev, where, options=options, read_only=read_only)
-
-
-def mount_bind(what: Path, where: Optional[Path] = None) -> ContextManager[Path]:
-    if where is None:
-        where = what
-
-    os.makedirs(what, 0o755, True)
-    os.makedirs(where, 0o755, True)
-    return mount(what, where, operation="--bind")
-
-
-def mount_tmpfs(where: Path) -> ContextManager[Path]:
-    return mount("tmpfs", where, type="tmpfs")
-
-
-@contextlib.contextmanager
-def mount_overlay(
-    base_image: Path,  # the path to the mounted base image root
-    root: Path,        # the path to the destination image root
-    read_only: bool = False,
-) -> Iterator[Path]:
-    """Set up the overlay mount on `root` with `base_image` as the lower layer.
-
-    Sadly the overlay cannot be mounted onto the root directly, because the
-    workdir must be on the same filesystem as "upperdir", but cannot be its
-    subdirectory. Thus, we set up the overlay and then bind-mount the overlay
-    structure into the expected location.
-    """
-
-    workdir = tempfile.TemporaryDirectory(dir=root, prefix='overlayfs-workdir')
-    realroot = root / 'mkosi-real-root'
-
-    options = [f'lowerdir={base_image}',
-               f'upperdir={realroot}',
-               f'workdir={workdir.name}']
-
-    try:
-        overlay = mount("overlay", realroot, options=options, type="overlay", read_only=read_only)
-        with workdir, overlay, mount_bind(realroot, root):
-            yield root
-    finally:
-        with complete_step("Cleaning up overlayfs"):
-            # Let's now move the contents of realroot into root
-            for entry in os.scandir(realroot):
-                os.rename(realroot / entry.name, root / entry.name)
-            realroot.rmdir()
-
-            delete_whiteout_files(root)
 
 
 @contextlib.contextmanager
@@ -1626,34 +1285,8 @@ def configure_hostname(state: MkosiState, cached: bool) -> None:
 
 
 @contextlib.contextmanager
-def mount_api_vfs(root: Path) -> Iterator[None]:
-    subdirs = ("proc", "dev", "sys")
-
-    with complete_step("Mounting API VFS…", "Unmounting API VFS…"), contextlib.ExitStack() as stack:
-        for subdir in subdirs:
-            stack.enter_context(mount_bind(Path("/") / subdir, root / subdir))
-
-        yield
-
-
-@contextlib.contextmanager
 def mount_cache(state: MkosiState) -> Iterator[None]:
-    if state.config.distribution in (Distribution.fedora, Distribution.mageia, Distribution.openmandriva):
-        cache_paths = ["var/cache/dnf"]
-    elif is_centos_variant(state.config.distribution):
-        # We mount both the YUM and the DNF cache in this case, as YUM might
-        # just be redirected to DNF even if we invoke the former
-        cache_paths = ["var/cache/yum", "var/cache/dnf"]
-    elif state.config.distribution in (Distribution.debian, Distribution.ubuntu):
-        cache_paths = ["var/cache/apt/archives"]
-    elif state.config.distribution == Distribution.arch:
-        cache_paths = ["var/cache/pacman/pkg"]
-    elif state.config.distribution == Distribution.gentoo:
-        cache_paths = ["var/cache/binpkgs"]
-    elif state.config.distribution == Distribution.opensuse:
-        cache_paths = ["var/cache/zypp/packages"]
-    else:
-        cache_paths = []
+    cache_paths = state.installer.cache_path()
 
     # We can't do this in mount_image() yet, as /var itself might have to be created as a subvolume first
     with complete_step("Mounting Package Cache", "Unmounting Package Cache"), contextlib.ExitStack() as stack:
@@ -1774,55 +1407,6 @@ def prepare_tree(state: MkosiState, cached: bool) -> None:
         if state.config.netdev and not state.do_run_build_script:
             state.root.joinpath("etc/systemd").mkdir(mode=0o755)
             state.root.joinpath("etc/systemd/network").mkdir(mode=0o755)
-
-
-def disable_pam_securetty(root: Path) -> None:
-    def _rm_securetty(line: str) -> str:
-        if "pam_securetty.so" in line:
-            return ""
-        return line
-
-    patch_file(root / "etc/pam.d/login", _rm_securetty)
-
-
-def url_exists(url: str) -> bool:
-    req = urllib.request.Request(url, method="HEAD")
-    try:
-        if urllib.request.urlopen(req):
-            return True
-    except Exception:
-        pass
-    return False
-
-
-def make_executable(path: Path) -> None:
-    st = path.stat()
-    os.chmod(path, st.st_mode | stat.S_IEXEC)
-
-
-def add_packages(
-    config: MkosiConfig, packages: Set[str], *names: str, conditional: Optional[str] = None
-) -> None:
-
-    """Add packages in @names to @packages, if enabled by --base-packages.
-
-    If @conditional is specified, rpm-specific syntax for boolean
-    dependencies will be used to include @names if @conditional is
-    satisfied.
-    """
-    assert config.base_packages is True or config.base_packages is False or config.base_packages == "conditional"
-
-    if config.base_packages is True or (config.base_packages == "conditional" and conditional):
-        for name in names:
-            packages.add(f"({name} if {conditional})" if conditional else name)
-
-
-def sort_packages(packages: Iterable[str]) -> List[str]:
-    """Sorts packages: normal first, paths second, conditional third"""
-
-    m = {"(": 2, "/": 1}
-    sort = lambda name: (m.get(name[0], 0), name)
-    return sorted(packages, key=sort)
 
 
 def make_rpm_list(state: MkosiState, packages: Set[str]) -> Set[str]:
@@ -1978,67 +1562,6 @@ def remove_files(state: MkosiState) -> None:
         remove_glob(*paths)
 
 
-def invoke_dnf(state: MkosiState, command: str, packages: Iterable[str]) -> None:
-    if state.config.distribution == Distribution.fedora:
-        release, _ = parse_fedora_release(state.config.release)
-    else:
-        release = state.config.release
-
-    config_file = state.workspace / "dnf.conf"
-
-    cmd = 'dnf' if shutil.which('dnf') else 'yum'
-
-    cmdline = [
-        cmd,
-        "-y",
-        f"--config={config_file}",
-        "--best",
-        "--allowerasing",
-        f"--releasever={release}",
-        f"--installroot={state.root}",
-        "--setopt=keepcache=1",
-        "--setopt=install_weak_deps=0",
-        "--noplugins",
-    ]
-
-    if not state.config.repository_key_check:
-        cmdline += ["--nogpgcheck"]
-
-    if state.config.repositories:
-        cmdline += ["--disablerepo=*"] + [f"--enablerepo={repo}" for repo in state.config.repositories]
-
-    # TODO: this breaks with a local, offline repository created with 'createrepo'
-    if state.config.with_network == "never" and not state.config.local_mirror:
-        cmdline += ["-C"]
-
-    if not state.config.architecture_is_native():
-        cmdline += [f"--forcearch={state.config.architecture}"]
-
-    if not state.config.with_docs:
-        cmdline += ["--nodocs"]
-
-    cmdline += [command, *sort_packages(packages)]
-
-    with mount_api_vfs(state.root):
-        run(cmdline, env={"KERNEL_INSTALL_BYPASS": state.environment.get("KERNEL_INSTALL_BYPASS", "1")})
-
-    distribution, _ = detect_distribution()
-    if distribution not in (Distribution.debian, Distribution.ubuntu):
-        return
-
-    # On Debian, rpm/dnf ship with a patch to store the rpmdb under ~/
-    # so it needs to be copied back in the right location, otherwise
-    # the rpmdb will be broken. See: https://bugs.debian.org/1004863
-    rpmdb_home = state.root / "root/.rpmdb"
-    if rpmdb_home.exists():
-        # Take into account the new location in F36
-        rpmdb = state.root / "usr/lib/sysimage/rpm"
-        if not rpmdb.exists():
-            rpmdb = state.root / "var/lib/rpm"
-        unlink_try_hard(rpmdb)
-        shutil.move(cast(str, rpmdb_home), rpmdb)
-
-
 def link_rpm_db(root: Path) -> None:
     """Link /var/lib/rpm to /usr/lib/sysimage/rpm for compat with old rpm"""
     rpmdb = root / "usr/lib/sysimage/rpm"
@@ -2054,347 +1577,6 @@ def link_rpm_db(root: Path) -> None:
             rpmdb_old.symlink_to("../../usr/lib/sysimage/rpm")
 
 
-def install_packages_dnf(state: MkosiState, packages: Set[str],) -> None:
-    packages = make_rpm_list(state, packages)
-    invoke_dnf(state, 'install', packages)
-
-
-class Repo(NamedTuple):
-    id: str
-    url: str
-    gpgpath: Path
-    gpgurl: Optional[str] = None
-
-
-def setup_dnf(state: MkosiState, repos: Sequence[Repo] = ()) -> None:
-    gpgcheck = True
-
-    repo_file = state.workspace / "mkosi.repo"
-    with repo_file.open("w") as f:
-        for repo in repos:
-            gpgkey: Optional[str] = None
-
-            if repo.gpgpath.exists():
-                gpgkey = f"file://{repo.gpgpath}"
-            elif repo.gpgurl:
-                gpgkey = repo.gpgurl
-            else:
-                warn(f"GPG key not found at {repo.gpgpath}. Not checking GPG signatures.")
-                gpgcheck = False
-
-            f.write(
-                dedent(
-                    f"""\
-                    [{repo.id}]
-                    name={repo.id}
-                    {repo.url}
-                    gpgkey={gpgkey or ''}
-                    enabled=1
-                    """
-                )
-            )
-
-    if state.config.use_host_repositories:
-        default_repos  = ""
-    else:
-        default_repos  = f"reposdir={state.workspace} {state.config.repos_dir if state.config.repos_dir else ''}"
-
-    vars_dir = state.workspace / "vars"
-    vars_dir.mkdir(exist_ok=True)
-
-    config_file = state.workspace / "dnf.conf"
-    config_file.write_text(
-        dedent(
-            f"""\
-            [main]
-            gpgcheck={'1' if gpgcheck else '0'}
-            {default_repos }
-            varsdir={vars_dir}
-            """
-        )
-    )
-
-
-def parse_fedora_release(release: str) -> Tuple[str, str]:
-    if release.startswith("rawhide-"):
-        release, releasever = release.split("-")
-        MkosiPrinter.info(f"Fedora rawhide — release version: {releasever}")
-        return ("rawhide", releasever)
-    else:
-        return (release, release)
-
-
-@complete_step("Installing Fedora Linux…")
-def install_fedora(state: MkosiState) -> None:
-    release, releasever = parse_fedora_release(state.config.release)
-
-    if state.config.local_mirror:
-        release_url = f"baseurl={state.config.local_mirror}"
-        updates_url = None
-    elif state.config.mirror:
-        baseurl = urllib.parse.urljoin(state.config.mirror, f"releases/{release}/Everything/$basearch/os/")
-        media = urllib.parse.urljoin(baseurl.replace("$basearch", state.config.architecture), "media.repo")
-        if not url_exists(media):
-            baseurl = urllib.parse.urljoin(state.config.mirror, f"development/{release}/Everything/$basearch/os/")
-
-        release_url = f"baseurl={baseurl}"
-        updates_url = f"baseurl={state.config.mirror}/updates/{release}/Everything/$basearch/"
-    else:
-        release_url = f"metalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-{release}&arch=$basearch"
-        updates_url = (
-            "metalink=https://mirrors.fedoraproject.org/metalink?"
-            f"repo=updates-released-f{release}&arch=$basearch"
-        )
-    if release == 'rawhide':
-        # On rawhide, the "updates" repo is the same as the "fedora" repo.
-        # In other versions, the "fedora" repo is frozen at release, and "updates" provides any new packages.
-        updates_url = None
-
-    if releasever in FEDORA_KEYS_MAP:
-        key = FEDORA_KEYS_MAP[releasever]
-
-        # The website uses short identifiers for Fedora < 35: https://pagure.io/fedora-web/websites/issue/196
-        if int(releasever) < 35:
-            key = FEDORA_KEYS_MAP[releasever][-8:]
-
-        gpgid = f"keys/{key}.txt"
-    else:
-        gpgid = "fedora.gpg"
-
-    gpgpath = Path(f"/etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-{releasever}-{state.config.architecture}")
-    gpgurl = urllib.parse.urljoin("https://getfedora.org/static/", gpgid)
-
-    repos = [Repo("fedora", release_url, gpgpath, gpgurl)]
-    if updates_url is not None:
-        repos += [Repo("updates", updates_url, gpgpath, gpgurl)]
-
-    setup_dnf(state, repos)
-
-    packages = {*state.config.packages}
-    add_packages(state.config, packages, "systemd", "util-linux", "dnf")
-
-    if not state.do_run_build_script and state.config.bootable:
-        add_packages(state.config, packages, "kernel-core", "kernel-modules", "dracut")
-        add_packages(state.config, packages, "systemd-udev", conditional="systemd")
-    if state.do_run_build_script:
-        packages.update(state.config.build_packages)
-    if not state.do_run_build_script and state.config.netdev:
-        add_packages(state.config, packages, "systemd-networkd", conditional="systemd")
-    install_packages_dnf(state, packages)
-
-    # FIXME: should this be conditionalized on config.with_docs like in install_debian_or_ubuntu()?
-    #        But we set LANG=C.UTF-8 anyway.
-    shutil.rmtree(state.root / "usr/share/locale", ignore_errors=True)
-
-
-@complete_step("Installing Mageia…")
-def install_mageia(state: MkosiState) -> None:
-    if state.config.local_mirror:
-        release_url = f"baseurl={state.config.local_mirror}"
-        updates_url = None
-    elif state.config.mirror:
-        baseurl = f"{state.config.mirror}/distrib/{state.config.release}/x86_64/media/core/"
-        release_url = f"baseurl={baseurl}/release/"
-        updates_url = f"baseurl={baseurl}/updates/"
-    else:
-        baseurl = f"https://www.mageia.org/mirrorlist/?release={state.config.release}&arch=x86_64&section=core"
-        release_url = f"mirrorlist={baseurl}&repo=release"
-        updates_url = f"mirrorlist={baseurl}&repo=updates"
-
-    gpgpath = Path("/etc/pki/rpm-gpg/RPM-GPG-KEY-Mageia")
-
-    repos = [Repo("mageia", release_url, gpgpath)]
-    if updates_url is not None:
-        repos += [Repo("updates", updates_url, gpgpath)]
-
-    setup_dnf(state, repos)
-
-    packages = {*state.config.packages}
-    add_packages(state.config, packages, "basesystem-minimal", "dnf")
-    if not state.do_run_build_script and state.config.bootable:
-        add_packages(state.config, packages, "kernel-server-latest", "dracut")
-        # Mageia ships /etc/50-mageia.conf that omits systemd from the initramfs and disables hostonly.
-        # We override that again so our defaults get applied correctly on Mageia as well.
-        state.root.joinpath("etc/dracut.conf.d/51-mkosi-override-mageia.conf").write_text(
-            'hostonly=no\n'
-            'omit_dracutmodules=""\n'
-        )
-
-    if state.do_run_build_script:
-        packages.update(state.config.build_packages)
-    install_packages_dnf(state, packages)
-
-    disable_pam_securetty(state.root)
-
-
-@complete_step("Installing OpenMandriva…")
-def install_openmandriva(state: MkosiState) -> None:
-    release = state.config.release.strip("'")
-
-    if release[0].isdigit():
-        release_model = "rock"
-    elif release == "cooker":
-        release_model = "cooker"
-    else:
-        release_model = release
-
-    if state.config.local_mirror:
-        release_url = f"baseurl={state.config.local_mirror}"
-        updates_url = None
-    elif state.config.mirror:
-        baseurl = f"{state.config.mirror}/{release_model}/repository/{state.config.architecture}/main"
-        release_url = f"baseurl={baseurl}/release/"
-        updates_url = f"baseurl={baseurl}/updates/"
-    else:
-        baseurl = f"http://mirrors.openmandriva.org/mirrors.php?platform={release_model}&arch={state.config.architecture}&repo=main"
-        release_url = f"mirrorlist={baseurl}&release=release"
-        updates_url = f"mirrorlist={baseurl}&release=updates"
-
-    gpgpath = Path("/etc/pki/rpm-gpg/RPM-GPG-KEY-OpenMandriva")
-
-    repos = [Repo("openmandriva", release_url, gpgpath)]
-    if updates_url is not None:
-        repos += [Repo("updates", updates_url, gpgpath)]
-
-    setup_dnf(state, repos)
-
-    packages = {*state.config.packages}
-    # well we may use basesystem here, but that pulls lot of stuff
-    add_packages(state.config, packages, "basesystem-minimal", "systemd", "dnf")
-    if not state.do_run_build_script and state.config.bootable:
-        add_packages(state.config, packages, "systemd-boot", "systemd-cryptsetup", conditional="systemd")
-        add_packages(state.config, packages, "kernel-release-server", "dracut", "timezone")
-    if state.config.netdev:
-        add_packages(state.config, packages, "systemd-networkd", conditional="systemd")
-
-    if state.do_run_build_script:
-        packages.update(state.config.build_packages)
-    install_packages_dnf(state, packages)
-
-
-def centos_variant_gpg_locations(distribution: Distribution, epel_release: int) -> Tuple[Path, str]:
-    if distribution in (Distribution.centos, Distribution.centos_epel):
-        return (
-            Path("/etc/pki/rpm-gpg/RPM-GPG-KEY-centosofficial"),
-            "https://www.centos.org/keys/RPM-GPG-KEY-CentOS-Official"
-        )
-    elif distribution in (Distribution.alma, Distribution.alma_epel):
-        return (
-            Path("/etc/pki/rpm-gpg/RPM-GPG-KEY-AlmaLinux"),
-            "https://repo.almalinux.org/almalinux/RPM-GPG-KEY-AlmaLinux"
-        )
-    elif distribution in (Distribution.rocky, Distribution.rocky_epel):
-        if epel_release >= 9:
-            keyname = f"Rocky-{epel_release}"
-        else:
-            keyname = "rockyofficial"
-
-        return (
-             Path(f"/etc/pki/rpm-gpg/RPM-GPG-KEY-{keyname}"),
-             f"https://download.rockylinux.org/pub/rocky/RPM-GPG-KEY-{keyname}"
-        )
-    else:
-        die(f"{distribution} is not a CentOS variant")
-
-
-def epel_gpg_locations(epel_release: int) -> Tuple[Path, str]:
-    return (
-        Path(f"/etc/pki/rpm-gpg/RPM-GPG-KEY-EPEL-{epel_release}"),
-        f"https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-{epel_release}",
-    )
-
-
-def centos_variant_mirror_directory(distribution: Distribution) -> str:
-    if distribution in (Distribution.centos, Distribution.centos_epel):
-        return "centos"
-    elif distribution in (Distribution.alma, Distribution.alma_epel):
-        return "almalinux"
-    elif distribution in (Distribution.rocky, Distribution.rocky_epel):
-        return "rocky"
-    else:
-        die(f"{distribution} is not a CentOS variant")
-
-
-def centos_variant_mirror_repo_url(config: MkosiConfig, repo: str) -> str:
-    if config.distribution in (Distribution.centos, Distribution.centos_epel):
-        return f"http://mirrorlist.centos.org/?release={config.release}&arch=$basearch&repo={repo}"
-    elif config.distribution in (Distribution.alma, Distribution.alma_epel):
-        return f"https://mirrors.almalinux.org/mirrorlist/{config.release}/{repo.lower()}"
-    elif config.distribution in (Distribution.rocky, Distribution.rocky_epel):
-        return f"https://mirrors.rockylinux.org/mirrorlist?arch=$basearch&repo={repo}-{config.release}"
-    else:
-        die(f"{config.distribution} is not a CentOS variant")
-
-
-def centos_variant_repos(config: MkosiConfig, epel_release: int) -> List[Repo]:
-    # Repos for CentOS Linux 8, CentOS Stream 8 and CentOS variants
-
-    directory = centos_variant_mirror_directory(config.distribution)
-    gpgpath, gpgurl = centos_variant_gpg_locations(config.distribution, epel_release)
-    epel_gpgpath, epel_gpgurl = epel_gpg_locations(epel_release)
-
-    if config.local_mirror:
-        appstream_url = f"baseurl={config.local_mirror}"
-        baseos_url = extras_url = powertools_url = epel_url = None
-    elif config.mirror:
-        appstream_url = f"baseurl={config.mirror}/{directory}/{config.release}/AppStream/$basearch/os"
-        baseos_url = f"baseurl={config.mirror}/{directory}/{config.release}/BaseOS/$basearch/os"
-        extras_url = f"baseurl={config.mirror}/{directory}/{config.release}/extras/$basearch/os"
-        powertools_url = f"baseurl={config.mirror}/{directory}/{config.release}/PowerTools/$basearch/os"
-        epel_url = f"baseurl={config.mirror}/epel/{epel_release}/Everything/$basearch"
-    else:
-        appstream_url = f"mirrorlist={centos_variant_mirror_repo_url(config, 'AppStream')}"
-        baseos_url = f"mirrorlist={centos_variant_mirror_repo_url(config, 'BaseOS')}"
-        extras_url = f"mirrorlist={centos_variant_mirror_repo_url(config, 'extras')}"
-        powertools_url = f"mirrorlist={centos_variant_mirror_repo_url(config, 'PowerTools')}"
-        epel_url = f"mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=epel-{epel_release}&arch=$basearch"
-
-    repos = [Repo("AppStream", appstream_url, gpgpath, gpgurl)]
-    if baseos_url is not None:
-        repos += [Repo("BaseOS", baseos_url, gpgpath, gpgurl)]
-    if extras_url is not None:
-        repos += [Repo("extras", extras_url, gpgpath, gpgurl)]
-    if powertools_url is not None:
-        repos += [Repo("PowerTools", powertools_url, gpgpath, gpgurl)]
-    if epel_url is not None and is_epel_variant(config.distribution):
-        repos += [Repo("epel", epel_url, epel_gpgpath, epel_gpgurl)]
-
-    return repos
-
-
-def centos_stream_repos(config: MkosiConfig, epel_release: int) -> List[Repo]:
-    # Repos for CentOS Stream 9 and later
-
-    gpgpath, gpgurl = centos_variant_gpg_locations(config.distribution, epel_release)
-    epel_gpgpath, epel_gpgurl = epel_gpg_locations(epel_release)
-
-    release = f"{epel_release}-stream"
-
-    if config.local_mirror:
-        appstream_url = f"baseurl={config.local_mirror}"
-        baseos_url = crb_url = epel_url = None
-    elif config.mirror:
-        appstream_url = f"baseurl={config.mirror}/centos-stream/{release}/AppStream/$basearch/os"
-        baseos_url = f"baseurl={config.mirror}/centos-stream/{release}/BaseOS/$basearch/os"
-        crb_url = f"baseurl={config.mirror}/centos-stream/{release}/CRB/$basearch/os"
-        epel_url = f"baseurl={config.mirror}/epel/{epel_release}/Everything/$basearch"
-    else:
-        appstream_url = f"metalink=https://mirrors.centos.org/metalink?repo=centos-appstream-{release}&arch=$basearch"
-        baseos_url = f"metalink=https://mirrors.centos.org/metalink?repo=centos-baseos-{release}&arch=$basearch"
-        crb_url = f"metalink=https://mirrors.centos.org/metalink?repo=centos-crb-{release}&arch=$basearch"
-        epel_url = f"mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=epel-{epel_release}&arch=$basearch"
-
-    repos = [Repo("AppStream", appstream_url, gpgpath, gpgurl)]
-    if baseos_url is not None:
-        repos += [Repo("BaseOS", baseos_url, gpgpath, gpgurl)]
-    if crb_url is not None:
-        repos += [Repo("CRB", crb_url, gpgpath, gpgurl)]
-    if epel_url is not None and is_epel_variant(config.distribution):
-        repos += [Repo("epel", epel_url, epel_gpgpath, epel_gpgurl)]
-
-    return repos
-
-
 def parse_epel_release(release: str) -> int:
     fields = release.split(".")
     if fields[0].endswith("-stream"):
@@ -2405,615 +1587,12 @@ def parse_epel_release(release: str) -> int:
     return int(epel_release)
 
 
-@complete_step("Installing CentOS…")
-def install_centos_variant(state: MkosiState) -> None:
-    epel_release = parse_epel_release(state.config.release)
-
-    if epel_release <= 7:
-        die("CentOS 7 or earlier variants are not supported")
-    elif epel_release <= 8 or not "-stream" in state.config.release:
-        repos = centos_variant_repos(state.config, epel_release)
-    else:
-        repos = centos_stream_repos(state.config, epel_release)
-
-    setup_dnf(state, repos)
-
-    if "-stream" in state.config.release:
-        state.workspace.joinpath("vars/stream").write_text(state.config.release)
-
-    packages = {*state.config.packages}
-    add_packages(state.config, packages, "systemd", "dnf")
-    if not state.do_run_build_script and state.config.bootable:
-        add_packages(state.config, packages, "kernel", "dracut")
-        add_packages(state.config, packages, "systemd-udev", conditional="systemd")
-
-    if state.do_run_build_script:
-        packages.update(state.config.build_packages)
-
-    if state.do_run_build_script:
-        packages.update(state.config.build_packages)
-
-    if not state.do_run_build_script and is_epel_variant(state.config.distribution):
-        if state.config.netdev:
-            add_packages(state.config, packages, "systemd-networkd", conditional="systemd")
-        if epel_release >= 9:
-            add_packages(state.config, packages, "systemd-boot", conditional="systemd")
-
-    install_packages_dnf(state, packages)
-
-    # Centos Stream 8 and below can't write to the sqlite db backend used by
-    # default in newer RPM releases so let's rebuild the DB to use the old bdb
-    # backend instead. Because newer RPM releases have dropped support for the
-    # bdb backend completely, we check if rpm is installed and use
-    # run_workspace_command() to rebuild the rpm db.
-    if epel_release <= 8 and state.root.joinpath("usr/bin/rpm").exists():
-        cmdline = ["rpm", "--rebuilddb", "--define", "_db_backend bdb"]
-        run_workspace_command(state, cmdline)
-
-
-def debootstrap_knows_arg(arg: str) -> bool:
-    return bytes("invalid option", "UTF-8") not in run(["debootstrap", arg],
-                                                       stdout=subprocess.PIPE, check=False).stdout
-
-
-@contextlib.contextmanager
-def mount_apt_local_mirror(state: MkosiState) -> Iterator[None]:
-    # Ensure apt inside the image can see the local mirror outside of it
-    mirror = state.config.local_mirror or state.config.mirror
-    if not mirror or not mirror.startswith("file:"):
-        yield
-        return
-
-    # Strip leading '/' as Path() does not behave well when concatenating
-    mirror_dir = mirror[5:].lstrip("/")
-
-    with complete_step("Mounting apt local mirror…", "Unmounting apt local mirror…"):
-        with mount_bind(Path("/") / mirror_dir, state.root / mirror_dir):
-            yield
-
-
-def invoke_apt(
-    state: MkosiState,
-    subcommand: str,
-    operation: str,
-    extra: Iterable[str],
-    **kwargs: Any,
-) -> CompletedProcess:
-
-    config_file = state.workspace / "apt.conf"
-    debarch = DEBIAN_ARCHITECTURES[state.config.architecture]
-
-    if not config_file.exists():
-        config_file.write_text(
-            dedent(
-                f"""\
-                Dir "{state.root}";
-                DPkg::Chroot-Directory "{state.root}";
-                """
-            )
-        )
-
-    cmdline = [
-        f"/usr/bin/apt-{subcommand}",
-        "-o", f"APT::Architecture={debarch}",
-        "-o", "dpkg::install::recursive::minimum=1000",
-        operation,
-        *extra,
-    ]
-    env = dict(
-        APT_CONFIG=f"{config_file}",
-        DEBIAN_FRONTEND="noninteractive",
-        DEBCONF_NONINTERACTIVE_SEEN="true",
-        INITRD="No",
-    )
-
-    with mount_apt_local_mirror(state), mount_api_vfs(state.root):
-        return run(cmdline, env=env, text=True, **kwargs)
-
-
-def add_apt_auxiliary_repos(state: MkosiState, repos: Set[str]) -> None:
-    if state.config.release in ("unstable", "sid"):
-        return
-
-    updates = f"deb {state.config.mirror} {state.config.release}-updates {' '.join(repos)}"
-    state.root.joinpath(f"etc/apt/sources.list.d/{state.config.release}-updates.list").write_text(f"{updates}\n")
-
-    # Security updates repos are never mirrored
-    if state.config.distribution == Distribution.ubuntu:
-        if state.config.architecture == "x86" or state.config.architecture == "x86_64":
-            security = f"deb http://security.ubuntu.com/ubuntu/ {state.config.release}-security {' '.join(repos)}"
-        else:
-            security = f"deb http://ports.ubuntu.com/ {state.config.release}-security {' '.join(repos)}"
-    elif state.config.release in ("stretch", "buster"):
-        security = f"deb http://security.debian.org/debian-security/ {state.config.release}/updates main"
-    else:
-        security = f"deb https://security.debian.org/debian-security {state.config.release}-security main"
-
-    state.root.joinpath(f"etc/apt/sources.list.d/{state.config.release}-security.list").write_text(f"{security}\n")
-
-
-def add_apt_package_if_exists(state: MkosiState, extra_packages: Set[str], package: str) -> None:
-    if invoke_apt(state, "cache", "search", ["--names-only", f"^{package}$"], stdout=subprocess.PIPE).stdout.strip():
-        add_packages(state.config, extra_packages, package)
-
-
-def install_debian_or_ubuntu(state: MkosiState) -> None:
-    # Either the image builds or it fails and we restart, we don't need safety fsyncs when bootstrapping
-    # Add it before debootstrap, as the second stage already uses dpkg from the chroot
-    dpkg_io_conf = state.root / "etc/dpkg/dpkg.cfg.d/unsafe_io"
-    os.makedirs(dpkg_io_conf.parent, mode=0o755, exist_ok=True)
-    dpkg_io_conf.write_text("force-unsafe-io\n")
-
-    repos = set(state.config.repositories) or {"main"}
-    # Ubuntu needs the 'universe' repo to install 'dracut'
-    if state.config.distribution == Distribution.ubuntu and state.config.bootable:
-        repos.add("universe")
-
-    # debootstrap fails if a base image is used with an already populated root, so skip it.
-    if state.config.base_image is None:
-        cmdline: List[PathString] = [
-            "debootstrap",
-            "--variant=minbase",
-            "--include=ca-certificates",
-            "--merged-usr",
-            f"--components={','.join(repos)}",
-        ]
-
-        debarch = DEBIAN_ARCHITECTURES[state.config.architecture]
-        cmdline += [f"--arch={debarch}"]
-
-        # Let's use --no-check-valid-until only if debootstrap knows it
-        if debootstrap_knows_arg("--no-check-valid-until"):
-            cmdline += ["--no-check-valid-until"]
-
-        if not state.config.repository_key_check:
-            cmdline += ["--no-check-gpg"]
-
-        mirror = state.config.local_mirror or state.config.mirror
-        assert mirror is not None
-        cmdline += [state.config.release, state.root, mirror]
-        run(cmdline)
-
-    # Install extra packages via the secondary APT run, because it is smarter and can deal better with any
-    # conflicts. dbus and libpam-systemd are optional dependencies for systemd in debian so we include them
-    # explicitly.
-    extra_packages: Set[str] = set()
-    add_packages(state.config, extra_packages, "systemd", "systemd-sysv", "dbus", "libpam-systemd")
-    extra_packages.update(state.config.packages)
-
-    if state.do_run_build_script:
-        extra_packages.update(state.config.build_packages)
-
-    if not state.do_run_build_script and state.config.bootable:
-        add_packages(state.config, extra_packages, "dracut")
-
-        # Don't pull in a kernel if users specify one, but otherwise try to pick a default
-        # one - linux-generic is a global metapackage in Ubuntu, but Debian doesn't have one,
-        # so try to infer from the architecture.
-        if state.config.distribution == Distribution.ubuntu:
-            if ("linux-generic" not in extra_packages and
-                not any(package.startswith("linux-image") for package in extra_packages)):
-                add_packages(state.config, extra_packages, "linux-generic")
-        elif state.config.distribution == Distribution.debian:
-            if not any(package.startswith("linux-image") for package in extra_packages):
-                add_packages(state.config, extra_packages, f"linux-image-{DEBIAN_KERNEL_ARCHITECTURES[state.config.architecture]}")
-
-        if state.config.output_format == OutputFormat.gpt_btrfs:
-            add_packages(state.config, extra_packages, "btrfs-progs")
-
-    if not state.do_run_build_script and state.config.ssh:
-        add_packages(state.config, extra_packages, "openssh-server")
-
-    # Debian policy is to start daemons by default. The policy-rc.d script can be used choose which ones to
-    # start. Let's install one that denies all daemon startups.
-    # See https://people.debian.org/~hmh/invokerc.d-policyrc.d-specification.txt for more information.
-    # Note: despite writing in /usr/sbin, this file is not shipped by the OS and instead should be managed by
-    # the admin.
-    policyrcd = state.root / "usr/sbin/policy-rc.d"
-    policyrcd.write_text("#!/bin/sh\nexit 101\n")
-    policyrcd.chmod(0o755)
-
-    doc_paths = [
-        "/usr/share/locale",
-        "/usr/share/doc",
-        "/usr/share/man",
-        "/usr/share/groff",
-        "/usr/share/info",
-        "/usr/share/lintian",
-        "/usr/share/linda",
-    ]
-    if not state.config.with_docs:
-        # Remove documentation installed by debootstrap
-        cmdline = ["/bin/rm", "-rf", *doc_paths]
-        run_workspace_command(state, cmdline)
-        # Create dpkg.cfg to ignore documentation on new packages
-        dpkg_nodoc_conf = state.root / "etc/dpkg/dpkg.cfg.d/01_nodoc"
-        with dpkg_nodoc_conf.open("w") as f:
-            f.writelines(f"path-exclude {d}/*\n" for d in doc_paths)
-
-    if not state.do_run_build_script and state.config.bootable and state.config.with_unified_kernel_images and state.config.base_image is None:
-        # systemd-boot won't boot unified kernel images generated without a BUILD_ID or VERSION_ID in
-        # /etc/os-release. Build one with the mtime of os-release if we don't find them.
-        with state.root.joinpath("etc/os-release").open("r+") as f:
-            os_release = f.read()
-            if "VERSION_ID" not in os_release and "BUILD_ID" not in os_release:
-                f.write(f"BUILD_ID=mkosi-{state.config.release}\n")
-
-    if not state.config.local_mirror:
-        add_apt_auxiliary_repos(state, repos)
-    else:
-        # Add a single local offline repository, and then remove it after apt has ran
-        state.root.joinpath("etc/apt/sources.list.d/mirror.list").write_text(f"deb [trusted=yes] {state.config.local_mirror} {state.config.release} main\n")
-
-    install_skeleton_trees(state, False, late=True)
-
-    invoke_apt(state, "get", "update", ["--assume-yes"])
-
-    if state.config.bootable and not state.do_run_build_script and state.get_partition(PartitionIdentifier.esp):
-        add_apt_package_if_exists(state, extra_packages, "systemd-boot")
-
-    # systemd-resolved was split into a separate package
-    add_apt_package_if_exists(state, extra_packages, "systemd-resolved")
-
-    invoke_apt(state, "get", "install", ["--assume-yes", "--no-install-recommends", *extra_packages])
-
-    # Now clean up and add the real repositories, so that the image is ready
-    if state.config.local_mirror:
-        main_repo = f"deb {state.config.mirror} {state.config.release} {' '.join(repos)}\n"
-        state.root.joinpath("etc/apt/sources.list").write_text(main_repo)
-        state.root.joinpath("etc/apt/sources.list.d/mirror.list").unlink()
-        add_apt_auxiliary_repos(state, repos)
-
-    policyrcd.unlink()
-    dpkg_io_conf.unlink()
-    if not state.config.with_docs and state.config.base_image is not None:
-        # Don't ship dpkg config files in extensions, they belong with dpkg in the base image.
-        dpkg_nodoc_conf.unlink() # type: ignore
-
-    if state.config.base_image is None:
-        # Debian still has pam_securetty module enabled, disable it in the base image.
-        disable_pam_securetty(state.root)
-
-    if (state.config.distribution == Distribution.debian and "systemd" in extra_packages and
-            ("systemd-resolved" not in extra_packages)):
-        # The default resolv.conf points to 127.0.0.1, and resolved is disabled, fix it in
-        # the base image.
-        # TODO: use missing_ok=True when we drop Python << 3.8
-        if state.root.joinpath("etc/resolv.conf").exists():
-            state.root.joinpath("etc/resolv.conf").unlink()
-        state.root.joinpath("etc/resolv.conf").symlink_to("../run/systemd/resolve/resolv.conf")
-        run(["systemctl", "--root", state.root, "enable", "systemd-resolved"])
-
-    write_resource(state.root / "etc/kernel/install.d/50-mkosi-dpkg-reconfigure-dracut.install",
-                   "mkosi.resources", "dpkg-reconfigure-dracut.install", executable=True)
-
-    # Debian/Ubuntu use a different path to store the locale so let's make sure that path is a symlink to
-    # etc/locale.conf.
-    try:
-        state.root.joinpath("etc/default/locale").unlink()
-    except FileNotFoundError:
-        pass
-    state.root.joinpath("etc/default/locale").symlink_to("../locale.conf")
-
-
-@complete_step("Installing Debian…")
-def install_debian(state: MkosiState) -> None:
-    install_debian_or_ubuntu(state)
-
-
-@complete_step("Installing Ubuntu…")
-def install_ubuntu(state: MkosiState) -> None:
-    install_debian_or_ubuntu(state)
-
-
-@complete_step("Installing Arch Linux…")
-def install_arch(state: MkosiState) -> None:
-    if state.config.release is not None:
-        MkosiPrinter.info("Distribution release specification is not supported for Arch Linux, ignoring.")
-
-    assert state.config.mirror
-
-    if state.config.local_mirror:
-        server = f"Server = {state.config.local_mirror}"
-    else:
-        if state.config.architecture == "aarch64":
-            server = f"Server = {state.config.mirror}/$arch/$repo"
-        else:
-            server = f"Server = {state.config.mirror}/$repo/os/$arch"
-
-    # Create base layout for pacman and pacman-key
-    os.makedirs(state.root / "var/lib/pacman", 0o755, exist_ok=True)
-    os.makedirs(state.root / "etc/pacman.d/gnupg", 0o755, exist_ok=True)
-
-    # Permissions on these directories are all 0o777 because of 'mount --bind'
-    # limitations but pacman expects them to be 0o755 so we fix them before
-    # calling pacman (except /var/tmp which is 0o1777).
-    fix_permissions_dirs = {
-        "boot": 0o755,
-        "etc": 0o755,
-        "etc/pacman.d": 0o755,
-        "var": 0o755,
-        "var/lib": 0o755,
-        "var/cache": 0o755,
-        "var/cache/pacman": 0o755,
-        "var/tmp": 0o1777,
-        "run": 0o755,
-    }
-
-    for dir, permissions in fix_permissions_dirs.items():
-        path = state.root / dir
-        if path.exists():
-            path.chmod(permissions)
-
-    pacman_conf = state.workspace / "pacman.conf"
-    if state.config.repository_key_check:
-        sig_level = "Required DatabaseOptional"
-    else:
-        # If we are using a single local mirror built on the fly there
-        # will be no signatures
-        sig_level = "Never"
-    with pacman_conf.open("w") as f:
-        f.write(
-            dedent(
-                f"""\
-                [options]
-                RootDir = {state.root}
-                LogFile = /dev/null
-                CacheDir = {state.root}/var/cache/pacman/pkg/
-                GPGDir = /etc/pacman.d/gnupg/
-                HookDir = {state.root}/etc/pacman.d/hooks/
-                HoldPkg = pacman glibc
-                Architecture = {state.config.architecture}
-                Color
-                CheckSpace
-                SigLevel = {sig_level}
-                ParallelDownloads = 5
-
-                [core]
-                {server}
-                """
-            )
-        )
-
-        if not state.config.local_mirror:
-            f.write(
-                dedent(
-                    f"""\
-
-                    [extra]
-                    {server}
-
-                    [community]
-                    {server}
-                    """
-                )
-            )
-
-        f.write(
-            dedent(
-                f"""\
-
-                {f"Include = {state.config.repos_dir}/*" if state.config.repos_dir else ""}
-                """
-            )
-        )
-
-        if state.config.repositories:
-            for repository in state.config.repositories:
-                # repositories must be passed in the form <repo name>::<repo url>
-                repository_name, repository_server = repository.split("::", 1)
-
-                # note: for additional repositories, signature checking options are set to pacman's default values
-                f.write(
-                    dedent(
-                        f"""\
-
-                        [{repository_name}]
-                        SigLevel = Optional TrustedOnly
-                        Server = {repository_server}
-                        """
-                    )
-                )
-
-    keyring = "archlinux"
-    if platform.machine() == "aarch64":
-        keyring += "arm"
-
-    packages: Set[str] = set()
-    add_packages(state.config, packages, "base")
-
-    if not state.do_run_build_script and state.config.bootable:
-        if state.config.output_format == OutputFormat.gpt_btrfs:
-            add_packages(state.config, packages, "btrfs-progs")
-        elif state.config.output_format == OutputFormat.gpt_xfs:
-            add_packages(state.config, packages, "xfsprogs")
-        if state.config.encrypt:
-            add_packages(state.config, packages, "cryptsetup", "device-mapper")
-
-        add_packages(state.config, packages, "dracut")
-
-    packages.update(state.config.packages)
-
-    official_kernel_packages = {
-        "linux",
-        "linux-lts",
-        "linux-hardened",
-        "linux-zen",
-    }
-
-    has_kernel_package = official_kernel_packages.intersection(state.config.packages)
-    if not state.do_run_build_script and state.config.bootable and not has_kernel_package:
-        # No user-specified kernel
-        add_packages(state.config, packages, "linux")
-
-    if state.do_run_build_script:
-        packages.update(state.config.build_packages)
-
-    if not state.do_run_build_script and state.config.ssh:
-        add_packages(state.config, packages, "openssh")
-
-    with mount_api_vfs(state.root):
-        run(["pacman", "--config", pacman_conf, "--noconfirm", "-Sy", *sort_packages(packages)],
-            env={"KERNEL_INSTALL_BYPASS": state.environment.get("KERNEL_INSTALL_BYPASS", "1")})
-
-    state.root.joinpath("etc/pacman.d/mirrorlist").write_text(f"Server = {state.config.mirror}/$repo/os/$arch\n")
-
-    # Arch still uses pam_securetty which prevents root login into
-    # systemd-nspawn containers. See https://bugs.archlinux.org/task/45903.
-    disable_pam_securetty(state.root)
-
-
-@complete_step("Installing openSUSE…")
-def install_opensuse(state: MkosiState) -> None:
-    release = state.config.release.strip('"')
-
-    # If the release looks like a timestamp, it's Tumbleweed. 13.x is legacy (14.x won't ever appear). For
-    # anything else, let's default to Leap.
-    if release.isdigit() or release == "tumbleweed":
-        release_url = f"{state.config.mirror}/tumbleweed/repo/oss/"
-        updates_url = f"{state.config.mirror}/update/tumbleweed/"
-    elif release == "leap":
-        release_url = f"{state.config.mirror}/distribution/leap/15.1/repo/oss/"
-        updates_url = f"{state.config.mirror}/update/leap/15.1/oss/"
-    elif release == "current":
-        release_url = f"{state.config.mirror}/distribution/openSUSE-stable/repo/oss/"
-        updates_url = f"{state.config.mirror}/update/openSUSE-current/"
-    elif release == "stable":
-        release_url = f"{state.config.mirror}/distribution/openSUSE-stable/repo/oss/"
-        updates_url = f"{state.config.mirror}/update/openSUSE-stable/"
-    else:
-        release_url = f"{state.config.mirror}/distribution/leap/{release}/repo/oss/"
-        updates_url = f"{state.config.mirror}/update/leap/{release}/oss/"
-
-    # state.configure the repositories: we need to enable packages caching here to make sure that the package cache
-    # stays populated after "zypper install".
-    run(["zypper", "--root", state.root, "addrepo", "-ck", release_url, "repo-oss"])
-    run(["zypper", "--root", state.root, "addrepo", "-ck", updates_url, "repo-update"])
-
-    # If we need to use a local mirror, create a temporary repository definition
-    # that doesn't get in the image, as it is valid only at image build time.
-    if state.config.local_mirror:
-        run(["zypper", "--reposd-dir", state.workspace / "zypper-repos.d", "--root", state.root, "addrepo", "-ck", state.config.local_mirror, "local-mirror"])
-
-    if not state.config.with_docs:
-        state.root.joinpath("etc/zypp/zypp.conf").write_text("rpm.install.excludedocs = yes\n")
-
-    packages = {*state.config.packages}
-    add_packages(state.config, packages, "systemd", "glibc-locale-base", "zypper")
-
-    if release.startswith("42."):
-        add_packages(state.config, packages, "patterns-openSUSE-minimal_base")
-    else:
-        add_packages(state.config, packages, "patterns-base-minimal_base")
-
-    if not state.do_run_build_script and state.config.bootable:
-        add_packages(state.config, packages, "kernel-default", "dracut")
-
-    if not state.do_run_build_script and state.config.encrypt:
-        add_packages(state.config, packages, "device-mapper")
-
-    if state.config.output_format in (OutputFormat.subvolume, OutputFormat.gpt_btrfs):
-        add_packages(state.config, packages, "btrfsprogs")
-
-    if state.config.netdev:
-        add_packages(state.config, packages, "systemd-network")
-
-    if state.do_run_build_script:
-        packages.update(state.config.build_packages)
-
-    if not state.do_run_build_script and state.config.ssh:
-        add_packages(state.config, packages, "openssh-server")
-
-    cmdline: List[PathString] = ["zypper"]
-    # --reposd-dir needs to be before the verb
-    if state.config.local_mirror:
-        cmdline += ["--reposd-dir", state.workspace / "zypper-repos.d"]
-    cmdline += [
-        "--root",
-        state.root,
-        "--gpg-auto-import-keys" if state.config.repository_key_check else "--no-gpg-checks",
-        "install",
-        "-y",
-        "--no-recommends",
-        "--download-in-advance",
-        *sort_packages(packages),
-    ]
-
-    with mount_api_vfs(state.root):
-        run(cmdline)
-
-    # Disable package caching in the image that was enabled previously to populate the package cache.
-    run(["zypper", "--root", state.root, "modifyrepo", "-K", "repo-oss"])
-    run(["zypper", "--root", state.root, "modifyrepo", "-K", "repo-update"])
-
-    if state.config.password == "":
-        if not state.root.joinpath("etc/pam.d/common-auth").exists():
-            for prefix in ("lib", "etc"):
-                if state.root.joinpath(f"usr/{prefix}/pam.d/common-auth").exists():
-                    shutil.copy2(state.root / f"usr/{prefix}/pam.d/common-auth", state.root / "etc/pam.d/common-auth")
-                    break
-
-        def jj(line: str) -> str:
-            if "pam_unix.so" in line:
-                return f"{line.strip()} nullok"
-            return line
-
-        patch_file(state.root / "etc/pam.d/common-auth", jj)
-
-    if state.config.autologin:
-        # copy now, patch later (in configure_autologin())
-        if not state.root.joinpath("etc/pam.d/login").exists():
-            for prefix in ("lib", "etc"):
-                if state.root.joinpath(f"usr/{prefix}/pam.d/login").exists():
-                    shutil.copy2(state.root / f"usr/{prefix}/pam.d/login", state.root / "etc/pam.d/login")
-                    break
-
-
-@complete_step("Installing Gentoo…")
-def install_gentoo(state: MkosiState) -> None:
-    from .gentoo import Gentoo
-
-    # this will fetch/fix stage3 tree and portage confgired for mkosi
-    gentoo = Gentoo(state)
-
-    if gentoo.pkgs_fs:
-        gentoo.invoke_emerge(state, pkgs=gentoo.pkgs_fs)
-
-    if not state.do_run_build_script and state.config.bootable:
-        # The gentoo stage3 tarball includes packages that may block chosen
-        # pkgs_boot. Using Gentoo.EMERGE_UPDATE_OPTS for opts allows the
-        # package manager to uninstall blockers.
-        gentoo.invoke_emerge(state, pkgs=gentoo.pkgs_boot, opts=Gentoo.EMERGE_UPDATE_OPTS)
-
-    if state.config.packages:
-        gentoo.invoke_emerge(state, pkgs=state.config.packages)
-
-    if state.do_run_build_script:
-        gentoo.invoke_emerge(state, pkgs=state.config.build_packages)
-
-
 def install_distribution(state: MkosiState, cached: bool) -> None:
     if cached:
         return
 
-    install: Callable[[MkosiState], None]
-
-    if is_centos_variant(state.config.distribution):
-        install = install_centos_variant
-    else:
-        install = {
-            Distribution.fedora: install_fedora,
-            Distribution.mageia: install_mageia,
-            Distribution.debian: install_debian,
-            Distribution.ubuntu: install_ubuntu,
-            Distribution.arch: install_arch,
-            Distribution.opensuse: install_opensuse,
-            Distribution.openmandriva: install_openmandriva,
-            Distribution.gentoo: install_gentoo,
-        }[state.config.distribution]
-
     with mount_cache(state):
-        install(state)
+        state.installer.install(state)
 
     # Link /var/lib/rpm→/usr/lib/sysimage/rpm for compat with old rpm.
     # We do this only if the new location is used, which depends on the dnf
@@ -3021,23 +1600,18 @@ def install_distribution(state: MkosiState, cached: bool) -> None:
     # installation has completed.
     link_rpm_db(state.root)
 
+
 def remove_packages(state: MkosiState) -> None:
     """Remove packages listed in config.remove_packages"""
 
     if not state.config.remove_packages:
         return
 
-    remove: Callable[[List[str]], Any]
-
-    if (state.config.distribution.package_type == PackageType.rpm):
-        remove = lambda p: invoke_dnf(state, 'remove', p)
-    elif state.config.distribution.package_type == PackageType.deb:
-        remove = lambda p: invoke_apt(state, "get", "purge", ["--assume-yes", "--auto-remove", *p])
-    else:
-        die(f"Removing packages is not supported for {state.config.distribution}")
-
     with complete_step(f"Removing {len(state.config.packages)} packages…"):
-        remove(state.config.remove_packages)
+        try:
+            state.installer.remove_packages(state, state.config.remove_packages)
+        except NotImplementedError:
+            die(f"Removing packages is not supported for {state.config.distribution}")
 
 
 def reset_machine_id(state: MkosiState) -> None:
@@ -3296,26 +1870,6 @@ def install_extra_trees(state: MkosiState) -> None:
                 shutil.unpack_archive(cast(str, tree), state.root)
 
 
-def install_skeleton_trees(state: MkosiState, cached: bool, *, late: bool=False) -> None:
-    if not state.config.skeleton_trees:
-        return
-
-    if cached:
-        return
-
-    if not late and state.config.distribution in (Distribution.debian, Distribution.ubuntu):
-        return
-
-    with complete_step("Copying in skeleton file trees…"):
-        for tree in state.config.skeleton_trees:
-            if tree.is_dir():
-                copy_path(tree, state.root, copystat=False)
-            else:
-                # unpack_archive() groks Paths, but mypy doesn't know this.
-                # Pretend that tree is a str.
-                shutil.unpack_archive(cast(str, tree), state.root)
-
-
 def copy_git_files(src: Path, dest: Path, *, source_file_transfer: SourceFileTransfer) -> None:
     what_files = ["--exclude-standard", "--cached"]
     if source_file_transfer == SourceFileTransfer.copy_git_others:
@@ -3501,22 +2055,6 @@ def make_tar(state: MkosiState) -> Optional[BinaryIO]:
         run(cmd, stdout=f)
 
     return f
-
-
-def scandir_recursive(
-        root: Path,
-        filter: Optional[Callable[[os.DirEntry[str]], T]] = None,
-) -> Iterator[T]:
-    """Recursively walk the tree starting at @root, optionally apply filter, yield non-none values"""
-    queue: Deque[Union[str, Path]] = collections.deque([root])
-
-    while queue:
-        for entry in os.scandir(queue.pop()):
-            pred = filter(entry) if filter is not None else entry
-            if pred is not None:
-                yield cast(T, pred)
-            if entry.is_dir(follow_symlinks=False):
-                queue.append(entry.path)
 
 
 def find_files(root: Path) -> Iterator[Path]:
@@ -3955,16 +2493,7 @@ def gen_kernel_images(state: MkosiState) -> Iterator[Tuple[str, Path]]:
         if not kver.is_dir():
             continue
 
-        if state.config.distribution == Distribution.gentoo:
-            from .gentoo import ARCHITECTURES
-
-            _, kimg_path = ARCHITECTURES[state.config.architecture]
-
-            kimg = Path(f"usr/src/linux-{kver.name}") / kimg_path
-        elif state.config.distribution in (Distribution.debian, Distribution.ubuntu):
-            kimg = Path(f"boot/vmlinuz-{kver.name}")
-        else:
-            kimg = Path("lib/modules") / kver.name / "vmlinuz"
+        kimg = state.installer.kernel_image(kver.name, state.config.architecture)
 
         yield kver.name, kimg
 
@@ -6108,61 +4637,6 @@ def parse_bytes(num_bytes: Optional[str], *, sector_size: int = 512) -> int:
         result += sector_size - rem
 
     return result
-
-
-def detect_distribution() -> Tuple[Optional[Distribution], Optional[str]]:
-    try:
-        os_release = read_os_release()
-    except FileNotFoundError:
-        return None, None
-
-    dist_id = os_release.get("ID", "linux")
-    dist_id_like = os_release.get("ID_LIKE", "").split()
-    version = os_release.get("VERSION", None)
-    version_id = os_release.get("VERSION_ID", None)
-    version_codename = os_release.get("VERSION_CODENAME", None)
-    extracted_codename = None
-
-    if version:
-        # extract Debian release codename
-        m = re.search(r"\((.*?)\)", version)
-        if m:
-            extracted_codename = m.group(1)
-
-    d: Optional[Distribution] = None
-    for the_id in [dist_id, *dist_id_like]:
-        d = Distribution.__members__.get(the_id, None)
-        if d is not None:
-            break
-
-    if d in {Distribution.debian, Distribution.ubuntu} and (version_codename or extracted_codename):
-        # debootstrap needs release codenames, not version numbers
-        version_id = version_codename or extracted_codename
-
-    return d, version_id
-
-
-def unlink_try_hard(path: Optional[PathString]) -> None:
-    if path is None:
-        return
-
-    path = Path(path)
-    try:
-        path.unlink()
-        return
-    except FileNotFoundError:
-        return
-    except Exception:
-        pass
-
-    if shutil.which("btrfs"):
-        try:
-            btrfs_subvol_delete(path)
-            return
-        except Exception:
-            pass
-
-    shutil.rmtree(path)
 
 
 def remove_glob(*patterns: PathString) -> None:

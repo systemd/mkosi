@@ -3,14 +3,19 @@
 from __future__ import annotations
 
 import argparse
+import ast
+import collections
 import contextlib
 import dataclasses
 import enum
 import errno
+import functools
+import importlib
 import math
 import os
 import platform
 import pwd
+import re
 import resource
 import shlex
 import shutil
@@ -26,7 +31,9 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
+    Deque,
     Dict,
+    Iterable,
     Iterator,
     List,
     Mapping,
@@ -34,17 +41,22 @@ from typing import (
     Optional,
     Sequence,
     Set,
+    Tuple,
     Type,
+    TypeVar,
     Union,
     cast,
 )
 
-from .syscall import (
+from mkosi.distributions import DistributionInstaller
+from mkosi.syscall import (
     blkpg_add_partition,
     blkpg_del_partition,
     block_reread_partition_table,
 )
 
+T = TypeVar("T")
+V = TypeVar("V")
 PathString = Union[Path, str]
 
 
@@ -143,32 +155,96 @@ class Verb(enum.Enum):
 class Distribution(enum.Enum):
     package_type: PackageType
 
-    fedora = 0, PackageType.rpm
-    debian = 1, PackageType.deb
-    ubuntu = 2, PackageType.deb
-    arch = 3, PackageType.pkg
-    opensuse = 4, PackageType.rpm
-    mageia = 5, PackageType.rpm
-    centos = 6, PackageType.rpm
-    centos_epel = 7, PackageType.rpm
-    openmandriva = 10, PackageType.rpm
-    rocky = 11, PackageType.rpm
-    rocky_epel = 12, PackageType.rpm
-    alma = 13, PackageType.rpm
-    alma_epel = 14, PackageType.rpm
-    gentoo = 15, PackageType.ebuild
+    fedora       = "fedora", PackageType.rpm
+    debian       = "debian", PackageType.deb
+    ubuntu       = "ubuntu", PackageType.deb
+    arch         = "arch", PackageType.pkg
+    opensuse     = "opensuse", PackageType.rpm
+    mageia       = "mageia", PackageType.rpm
+    centos       = "centos", PackageType.rpm
+    centos_epel  = "centos_epel", PackageType.rpm
+    openmandriva = "openmandriva", PackageType.rpm
+    rocky        = "rocky", PackageType.rpm
+    rocky_epel   = "rocky_epel", PackageType.rpm
+    alma         = "alma", PackageType.rpm
+    alma_epel    = "alma_epel", PackageType.rpm
+    gentoo       = "gentoo", PackageType.ebuild
 
-    def __new__(cls, number: int, package_type: PackageType) -> Distribution:
+    def __new__(cls, name: str, package_type: PackageType) -> "Distribution":
         # This turns the list above into enum entries with .package_type attributes.
         # See https://docs.python.org/3.9/library/enum.html#when-to-use-new-vs-init
         # for an explanation.
         entry = object.__new__(cls)
-        entry._value_ = number
+        entry._value_ = name
         entry.package_type = package_type
         return entry
 
     def __str__(self) -> str:
         return self.name
+
+
+def dictify(f: Callable[..., Iterator[Tuple[T, V]]]) -> Callable[..., Dict[T, V]]:
+    def wrapper(*args: Any, **kwargs: Any) -> Dict[T, V]:
+        return dict(f(*args, **kwargs))
+
+    return functools.update_wrapper(wrapper, f)
+
+
+@dictify
+def read_os_release() -> Iterator[Tuple[str, str]]:
+    try:
+        filename = "/etc/os-release"
+        f = open(filename)
+    except FileNotFoundError:
+        filename = "/usr/lib/os-release"
+        f = open(filename)
+
+    with f:
+        for line_number, line in enumerate(f, start=1):
+            line = line.rstrip()
+            if not line or line.startswith("#"):
+                continue
+            m = re.match(r"([A-Z][A-Z_0-9]+)=(.*)", line)
+            if m:
+                name, val = m.groups()
+                if val and val[0] in "\"'":
+                    val = ast.literal_eval(val)
+                yield name, val
+            else:
+                print(f"{filename}:{line_number}: bad line {line!r}", file=sys.stderr)
+
+
+def detect_distribution() -> Tuple[Optional[Distribution], Optional[str]]:
+    try:
+        os_release = read_os_release()
+    except FileNotFoundError:
+        return None, None
+
+    dist_id = os_release.get("ID", "linux")
+    dist_id_like = os_release.get("ID_LIKE", "").split()
+    version = os_release.get("VERSION", None)
+    version_id = os_release.get("VERSION_ID", None)
+    version_codename = os_release.get("VERSION_CODENAME", None)
+    extracted_codename = None
+
+    if version:
+        # extract Debian release codename
+        m = re.search(r"\((.*?)\)", version)
+        if m:
+            extracted_codename = m.group(1)
+
+    d: Optional[Distribution] = None
+    for the_id in [dist_id, *dist_id_like]:
+        d = Distribution.__members__.get(the_id, None)
+        if d is not None:
+            break
+
+    if d in {Distribution.debian, Distribution.ubuntu} and (version_codename or extracted_codename):
+        # debootstrap needs release codenames, not version numbers
+        version_id = version_codename or extracted_codename
+
+    return d, version_id
+
 
 def is_rpm_distribution(d: Distribution) -> bool:
     return d in (
@@ -607,6 +683,7 @@ class MkosiState:
     machine_id: str
     for_cache: bool
     environment: Dict[str, str] = dataclasses.field(init=False)
+    installer: DistributionInstaller = dataclasses.field(init=False)
 
     cache_pre_inst: Optional[Path] = None
     cache_pre_dev: Optional[Path] = None
@@ -619,6 +696,16 @@ class MkosiState:
             self.environment['IMAGE_ID'] = self.config.image_id
         if self.config.image_version is not None:
             self.environment['IMAGE_VERSION'] = self.config.image_version
+        try:
+            distro = str(self.config.distribution)
+            mod = importlib.import_module(f"mkosi.distributions.{distro}")
+            installer = getattr(mod, f"{distro.title().replace('_','')}Installer")
+            instance = installer() if issubclass(installer, DistributionInstaller) else None
+        except (ImportError, AttributeError):
+            instance = None
+        if instance is None:
+            die("No installer for this distribution.")
+        self.installer = instance
 
     @property
     def root(self) -> Path:
@@ -1012,3 +1099,56 @@ def safe_tar_extract(tar: tarfile.TarFile, path: Path=Path("."), *, numeric_owne
             raise MkosiException(f"Attempted path traversal in tar file {tar.name!r}") from e
 
     tar.extractall(path, numeric_owner=numeric_owner)
+
+
+complete_step = MkosiPrinter.complete_step
+
+
+def disable_pam_securetty(root: Path) -> None:
+    def _rm_securetty(line: str) -> str:
+        if "pam_securetty.so" in line:
+            return ""
+        return line
+
+    patch_file(root / "etc/pam.d/login", _rm_securetty)
+
+
+def add_packages(
+    config: MkosiConfig, packages: Set[str], *names: str, conditional: Optional[str] = None
+) -> None:
+
+    """Add packages in @names to @packages, if enabled by --base-packages.
+
+    If @conditional is specified, rpm-specific syntax for boolean
+    dependencies will be used to include @names if @conditional is
+    satisfied.
+    """
+    assert config.base_packages is True or config.base_packages is False or config.base_packages == "conditional"
+
+    if config.base_packages is True or (config.base_packages == "conditional" and conditional):
+        for name in names:
+            packages.add(f"({name} if {conditional})" if conditional else name)
+
+
+def sort_packages(packages: Iterable[str]) -> List[str]:
+    """Sorts packages: normal first, paths second, conditional third"""
+
+    m = {"(": 2, "/": 1}
+    sort = lambda name: (m.get(name[0], 0), name)
+    return sorted(packages, key=sort)
+
+
+def scandir_recursive(
+    root: Path,
+    filter: Optional[Callable[[os.DirEntry[str]], T]] = None,
+) -> Iterator[T]:
+    """Recursively walk the tree starting at @root, optionally apply filter, yield non-none values"""
+    queue: Deque[Union[str, Path]] = collections.deque([root])
+
+    while queue:
+        for entry in os.scandir(queue.pop()):
+            pred = filter(entry) if filter is not None else entry
+            if pred is not None:
+                yield cast(T, pred)
+            if entry.is_dir(follow_symlinks=False):
+                queue.append(entry.path)
