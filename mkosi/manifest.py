@@ -116,12 +116,12 @@ class Manifest:
             nevra, srpm, name, arch, size, installtime = package.split("\t")
 
             assert nevra.startswith(f"{name}-")
-            evra = nevra[len(name) + 1 :]
+            evra = nevra.removeprefix(f"{name}-")
             # Some packages have architecture '(none)', and it's not part of NEVRA, e.g.:
             # gpg-pubkey-45719a39-5f2c0192 gpg-pubkey (none) 0 1635985199
             if arch != "(none)":
                 assert nevra.endswith(f".{arch}")
-                evr = evra[: len(arch) + 1]
+                evr = evra.removesuffix(f".{arch}")
             else:
                 evr = evra
                 arch = ""

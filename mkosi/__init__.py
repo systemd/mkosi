@@ -513,12 +513,7 @@ def remove_files(state: MkosiState) -> None:
 
 def parse_epel_release(release: str) -> int:
     fields = release.split(".")
-    if fields[0].endswith("-stream"):
-        epel_release = fields[0].split("-")[0]
-    else:
-        epel_release = fields[0]
-
-    return int(epel_release)
+    return int(fields[0].removesuffix("-stream"))
 
 
 def install_distribution(state: MkosiState, cached: bool) -> None:
@@ -794,7 +789,7 @@ def copy_git_files(src: Path, dest: Path, *, source_file_transfer: SourceFileTra
         for path, _, filenames in os.walk(top):
             for filename in filenames:
                 fp = os.path.join(path, filename)  # full path
-                fr = os.path.join(".git/", fp[len(top) :])  # relative to top
+                fr = os.path.join(".git/", fp.removeprefix(top))  # relative to top
                 files.add(fr)
 
     # Get submodule files

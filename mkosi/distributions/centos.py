@@ -95,18 +95,13 @@ class CentosInstaller(DistributionInstaller):
     @classmethod
     def _is_epel(cls) -> bool:
         name = cls.__name__
-        if name.endswith("Installer"):
-            name = name[:-9]
+        name = name.removesuffix("Installer")
         return name.endswith("Epel")
 
     @staticmethod
     def _parse_epel_release(release: str) -> int:
         fields = release.split(".")
-        if fields[0].endswith("-stream"):
-            epel_release = fields[0].split("-")[0]
-        else:
-            epel_release = fields[0]
-        return int(epel_release)
+        return int(fields[0].removesuffix("-stream"))
 
     @staticmethod
     def _gpg_locations(epel_release: int) -> Tuple[Path, str]:
