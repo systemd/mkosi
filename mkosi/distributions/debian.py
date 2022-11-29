@@ -42,9 +42,7 @@ class DebianInstaller(DistributionInstaller):
         if "systemd" in extra_packages and "systemd-resolved" not in extra_packages:
             # The default resolv.conf points to 127.0.0.1, and resolved is disabled, fix it in
             # the base image.
-            # TODO: use missing_ok=True when we drop Python << 3.8
-            if state.root.joinpath("etc/resolv.conf").exists():
-                state.root.joinpath("etc/resolv.conf").unlink()
+            state.root.joinpath("etc/resolv.conf").unlink(missing_ok=True)
             state.root.joinpath("etc/resolv.conf").symlink_to("../run/systemd/resolve/resolv.conf")
             run(["systemctl", "--root", state.root, "enable", "systemd-resolved"])
 
@@ -188,10 +186,7 @@ class DebianInstaller(DistributionInstaller):
 
         # Debian/Ubuntu use a different path to store the locale so let's make sure that path is a symlink to
         # etc/locale.conf.
-        try:
-            state.root.joinpath("etc/default/locale").unlink()
-        except FileNotFoundError:
-            pass
+        state.root.joinpath("etc/default/locale").unlink(missing_ok=True)
         state.root.joinpath("etc/default/locale").symlink_to("../locale.conf")
 
     @classmethod

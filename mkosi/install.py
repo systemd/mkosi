@@ -86,7 +86,7 @@ def copy_file(oldpath: PathString, newpath: PathString) -> None:
     newpath = Path(newpath)
 
     if oldpath.is_symlink():
-        src = os.readlink(oldpath)  # TODO: use oldpath.readlink() with python3.9+
+        src = oldpath.readlink()
         newpath.symlink_to(src)
         return
 

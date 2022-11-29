@@ -291,10 +291,7 @@ def configure_locale(root: Path, cached: bool) -> None:
 
     etc_locale = root / "etc/locale.conf"
 
-    try:
-        etc_locale.unlink()
-    except FileNotFoundError:
-        pass
+    etc_locale.unlink(missing_ok=True)
 
     # Let's ensure we use a UTF-8 locale everywhere.
     etc_locale.write_text("LANG=C.UTF-8\n")
@@ -310,10 +307,7 @@ def configure_hostname(state: MkosiState, cached: bool) -> None:
     # symlink or suchlike. Also if no hostname is configured we really
     # don't want the file to exist, so that systemd's implicit
     # hostname logic can take effect.
-    try:
-        os.unlink(etc_hostname)
-    except FileNotFoundError:
-        pass
+    etc_hostname.unlink(missing_ok=True)
 
     if state.config.hostname:
         with complete_step("Assigning hostname"):
@@ -553,10 +547,7 @@ def reset_machine_id(state: MkosiState) -> None:
     with complete_step("Resetting machine ID"):
         if not state.config.machine_id:
             machine_id = state.root / "etc/machine-id"
-            try:
-                machine_id.unlink()
-            except FileNotFoundError:
-                pass
+            machine_id.unlink(missing_ok=True)
             machine_id.write_text("uninitialized\n")
 
         dbus_machine_id = state.root / "var/lib/dbus/machine-id"
