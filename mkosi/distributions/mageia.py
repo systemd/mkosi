@@ -38,9 +38,9 @@ def install_mageia(state: MkosiState) -> None:
 
     gpgpath = Path("/etc/pki/rpm-gpg/RPM-GPG-KEY-Mageia")
 
-    repos = [Repo("mageia", release_url, gpgpath)]
+    repos = [Repo(f"mageia-{state.config.release}", release_url, gpgpath)]
     if updates_url is not None:
-        repos += [Repo("updates", updates_url, gpgpath)]
+        repos += [Repo(f"mageia-{state.config.release}-updates", updates_url, gpgpath)]
 
     setup_dnf(state, repos)
 
