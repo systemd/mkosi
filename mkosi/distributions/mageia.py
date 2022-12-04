@@ -28,11 +28,11 @@ def install_mageia(state: MkosiState) -> None:
         release_url = f"baseurl={state.config.local_mirror}"
         updates_url = None
     elif state.config.mirror:
-        baseurl = f"{state.config.mirror}/distrib/{state.config.release}/x86_64/media/core/"
+        baseurl = f"{state.config.mirror}/distrib/{state.config.release}/{state.config.architecture}/media/core/"
         release_url = f"baseurl={baseurl}/release/"
         updates_url = f"baseurl={baseurl}/updates/"
     else:
-        baseurl = f"https://www.mageia.org/mirrorlist/?release={state.config.release}&arch=x86_64&section=core"
+        baseurl = f"https://www.mageia.org/mirrorlist/?release={state.config.release}&arch={state.config.architecture}&section=core"
         release_url = f"mirrorlist={baseurl}&repo=release"
         updates_url = f"mirrorlist={baseurl}&repo=updates"
 
