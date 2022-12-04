@@ -30,14 +30,14 @@ def install_mageia(state: MkosiState) -> None:
         release_url = f"baseurl={state.config.local_mirror}"
         updates_url = None
     elif state.config.mirror:
-        baseurl = f"{state.config.mirror}/distrib/{state.config.release}/{state.config.architecture}/media/core/"
+        baseurl = f"{state.config.mirror}/distrib/{release}/{state.config.architecture}/media/core/"
         release_url = f"baseurl={baseurl}/release/"
         if release == "cauldron":
             updates_url = None
         else:
             updates_url = f"baseurl={baseurl}/updates/"
     else:
-        baseurl = f"https://www.mageia.org/mirrorlist/?release={state.config.release}&arch={state.config.architecture}&section=core"
+        baseurl = f"https://www.mageia.org/mirrorlist/?release={release}&arch={state.config.architecture}&section=core"
         release_url = f"mirrorlist={baseurl}&repo=release"
         if release == "cauldron":
             updates_url = None
@@ -46,9 +46,9 @@ def install_mageia(state: MkosiState) -> None:
 
     gpgpath = Path("/etc/pki/rpm-gpg/RPM-GPG-KEY-Mageia")
 
-    repos = [Repo(f"mageia-{state.config.release}", release_url, gpgpath)]
+    repos = [Repo(f"mageia-{release}", release_url, gpgpath)]
     if updates_url is not None:
-        repos += [Repo(f"mageia-{state.config.release}-updates", updates_url, gpgpath)]
+        repos += [Repo(f"mageia-{release}-updates", updates_url, gpgpath)]
 
     setup_dnf(state, repos)
 
