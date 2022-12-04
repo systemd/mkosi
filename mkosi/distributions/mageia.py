@@ -24,17 +24,25 @@ class MageiaInstaller(DistributionInstaller):
 
 @complete_step("Installing Mageia…")
 def install_mageia(state: MkosiState) -> None:
+    release = state.config.release.strip("'")
+
     if state.config.local_mirror:
         release_url = f"baseurl={state.config.local_mirror}"
         updates_url = None
     elif state.config.mirror:
         baseurl = f"{state.config.mirror}/distrib/{state.config.release}/{state.config.architecture}/media/core/"
         release_url = f"baseurl={baseurl}/release/"
-        updates_url = f"baseurl={baseurl}/updates/"
+        if release == "cauldron":
+            updates_url = None
+        else:
+            updates_url = f"baseurl={baseurl}/updates/"
     else:
         baseurl = f"https://www.mageia.org/mirrorlist/?release={state.config.release}&arch={state.config.architecture}&section=core"
         release_url = f"mirrorlist={baseurl}&repo=release"
-        updates_url = f"mirrorlist={baseurl}&repo=updates"
+        if release == "cauldron":
+            updates_url = None
+        else:
+            updates_url = f"mirrorlist={baseurl}&repo=updates"
 
     gpgpath = Path("/etc/pki/rpm-gpg/RPM-GPG-KEY-Mageia")
 
