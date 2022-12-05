@@ -24,23 +24,31 @@ class MageiaInstaller(DistributionInstaller):
 
 @complete_step("Installing Mageia…")
 def install_mageia(state: MkosiState) -> None:
+    release = state.config.release.strip("'")
+
     if state.config.local_mirror:
         release_url = f"baseurl={state.config.local_mirror}"
         updates_url = None
     elif state.config.mirror:
-        baseurl = f"{state.config.mirror}/distrib/{state.config.release}/x86_64/media/core/"
+        baseurl = f"{state.config.mirror}/distrib/{release}/{state.config.architecture}/media/core/"
         release_url = f"baseurl={baseurl}/release/"
-        updates_url = f"baseurl={baseurl}/updates/"
+        if release == "cauldron":
+            updates_url = None
+        else:
+            updates_url = f"baseurl={baseurl}/updates/"
     else:
-        baseurl = f"https://www.mageia.org/mirrorlist/?release={state.config.release}&arch=x86_64&section=core"
+        baseurl = f"https://www.mageia.org/mirrorlist/?release={release}&arch={state.config.architecture}&section=core"
         release_url = f"mirrorlist={baseurl}&repo=release"
-        updates_url = f"mirrorlist={baseurl}&repo=updates"
+        if release == "cauldron":
+            updates_url = None
+        else:
+            updates_url = f"mirrorlist={baseurl}&repo=updates"
 
     gpgpath = Path("/etc/pki/rpm-gpg/RPM-GPG-KEY-Mageia")
 
-    repos = [Repo("mageia", release_url, gpgpath)]
+    repos = [Repo(f"mageia-{release}", release_url, gpgpath)]
     if updates_url is not None:
-        repos += [Repo("updates", updates_url, gpgpath)]
+        repos += [Repo(f"mageia-{release}-updates", updates_url, gpgpath)]
 
     setup_dnf(state, repos)
 
