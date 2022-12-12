@@ -1759,6 +1759,20 @@ def configure_serial_terminal(state: MkosiState, cached: bool) -> None:
                           """)
 
 
+def nspawn_id_map_supported() -> bool:
+    if nspawn_version() < 252:
+        return False
+
+    try:
+        # Not part of stdlib
+        from packaging import version
+    except ImportError:
+        # If we can't check assume the kernel is new enough
+        return True
+
+    return version.parse(platform.release()) >= version.LegacyVersion("5.12")
+
+
 def nspawn_params_for_build_sources(config: MkosiConfig, sft: SourceFileTransfer) -> List[str]:
     params = []
 
@@ -1766,7 +1780,7 @@ def nspawn_params_for_build_sources(config: MkosiConfig, sft: SourceFileTransfer
         params += ["--setenv=SRCDIR=/root/src",
                    "--chdir=/root/src"]
         if sft == SourceFileTransfer.mount:
-            idmap_opt = ":rootidmap" if nspawn_version() >= 252 else ""
+            idmap_opt = ":rootidmap" if nspawn_id_map_supported() else ""
             params += [f"--bind={config.build_sources}:/root/src{idmap_opt}"]
 
         if config.read_only:
@@ -5976,7 +5990,7 @@ def run_build_script(state: MkosiState, raw: Optional[BinaryIO]) -> None:
     if state.config.build_script is None:
         return
 
-    idmap_opt = ":rootidmap" if nspawn_version() >= 252 else ""
+    idmap_opt = ":rootidmap" if nspawn_id_map_supported() else ""
 
     with complete_step("Running build script…"):
         os.makedirs(install_dir(state), mode=0o755, exist_ok=True)
