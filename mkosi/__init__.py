@@ -1764,19 +1764,14 @@ def nspawn_id_map_supported() -> bool:
 
 
 def nspawn_params_for_build_sources(config: MkosiConfig, sft: SourceFileTransfer) -> List[str]:
-    params = []
+    params = ["--setenv=SRCDIR=/root/src",
+              "--chdir=/root/src"]
+    if sft == SourceFileTransfer.mount:
+        idmap_opt = ":rootidmap" if nspawn_id_map_supported() and config.idmap else ""
+        params += [f"--bind={config.build_sources}:/root/src{idmap_opt}"]
 
-    if config.build_sources is not None:
-        params += ["--setenv=SRCDIR=/root/src",
-                   "--chdir=/root/src"]
-        if sft == SourceFileTransfer.mount:
-            idmap_opt = ":rootidmap" if nspawn_id_map_supported() and config.idmap else ""
-            params += [f"--bind={config.build_sources}:/root/src{idmap_opt}"]
-
-        if config.read_only:
-            params += ["--overlay=+/root/src::/root/src"]
-    else:
-        params += ["--chdir=/root"]
+    if config.read_only:
+        params += ["--overlay=+/root/src::/root/src"]
 
     return params
 
@@ -1950,7 +1945,7 @@ def install_build_src(state: MkosiState) -> None:
         sft = state.config.source_file_transfer_final
         resolve_symlinks = state.config.source_resolve_symlinks_final
 
-    if state.config.build_sources is None or sft is None:
+    if sft is None:
         return
 
     with complete_step("Copying in sources…"):
@@ -4948,7 +4943,6 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
 
     args_find_path(args, "nspawn_settings", "mkosi.nspawn")
     args_find_path(args, "build_script", "mkosi.build")
-    args_find_path(args, "build_sources", ".")
     args_find_path(args, "include_dir", "mkosi.includedir/")
     args_find_path(args, "install_dir", "mkosi.installdir/")
     args_find_path(args, "postinst_script", "mkosi.postinst")
@@ -5146,6 +5140,8 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
 
     if args.build_sources is not None:
         args.build_sources = args.build_sources.absolute()
+    else:
+        args.build_sources = Path.cwd()
 
     if args.build_dir is not None:
         args.build_dir = args.build_dir.absolute()
@@ -5557,7 +5553,7 @@ def print_summary(config: MkosiConfig) -> None:
     if config.remove_packages:
         print("           Remove Packages:", line_join_list(config.remove_packages))
 
-    print("             Build Sources:", none_to_none(config.build_sources))
+    print("             Build Sources:", config.build_sources)
     print("      Source File Transfer:", none_to_none(config.source_file_transfer))
     print("Source File Transfer Final:", none_to_none(config.source_file_transfer_final))
     print("           Build Directory:", none_to_none(config.build_dir))

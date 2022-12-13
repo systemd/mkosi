@@ -591,7 +591,7 @@ class MkosiConfig:
     clean_package_metadata: Union[bool, str]
     remove_files: List[Path]
     environment: Dict[str, str]
-    build_sources: Optional[Path]
+    build_sources: Path
     build_dir: Optional[Path]
     include_dir: Optional[Path]
     install_dir: Optional[Path]
