@@ -6584,8 +6584,12 @@ def run_qemu_setup(config: MkosiConfig) -> Iterator[List[str]]:
             cmdline += [
                 "-chardev", f"socket,id=chrtpm,path={swtpm_socket}",
                 "-tpmdev", "emulator,id=tpm0,chardev=chrtpm",
-                "-device", "tpm-tis,tpmdev=tpm0",
             ]
+
+            if config.architecture == "x86_64":
+                cmdline += ["-device", "tpm-tis,tpmdev=tpm0"]
+            elif config.architecture == "aarch64":
+                cmdline += ["-device", "tpm-tis-device,tpmdev=tpm0"]
 
         cmdline += config.qemu_args
         cmdline += config.cmdline
