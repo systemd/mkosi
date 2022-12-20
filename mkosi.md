@@ -74,8 +74,8 @@ The following command line verbs are known:
 
 : Similar to `boot`, but uses `qemu` to boot up the image, i.e. instead of
   container virtualization virtual machine virtualization is used. This verb is
-  only supported for disk images that contain a boot loader. Any options specified
-  after the `qemu` verb are appended to the `qemu` invocation.
+  only supported for disk images that contain a boot loader. Any arguments
+  specified after the `qemu` verb are appended to the `qemu` invocation.
 
 `ssh`
 
@@ -1330,6 +1330,51 @@ EOF
 # mkosi --incremental boot
 # systemd-nspawn -bi image.raw
 ```
+
+## Different ways to boot with `qemu`
+
+The easiest way to boot a virtual machine is to build an image with the
+required components and let `mkosi` call `qemu` with all the right options:
+```console
+$ mkosi -d fedora \
+    --autologin \
+    -p systemd-udev,systemd-boot,dracut,kernel-core \
+    build
+$ mkosi -d fedora qemu
+...
+fedora login: root (automatic login)
+[root@fedora ~]#
+```
+
+The default is to boot with a text console only.
+To boot with a graphical window, add `--qemu-qui`:
+```console
+$ mkosi -d fedora --qemu-gui qemu
+```
+
+A kernel may be booted directly with
+`mkosi qemu -kernel ... -initrd ... -append '...'`.
+This is a bit faster because no boot loader is used, and it is also
+easier to experiment with different kernels and kernel commandlines.
+Note that despite the name, qemu's `-append` option replaces
+the default kernel commandline embedded in the kernel
+and any previous `-append` specifications.
+
+`mkosi` builds a Unified Kernel Image (UKI).
+It is also copied into the output directory and may be booted directly:
+```console
+# mkosi qemu -kernel mkosi.output/fedora~38/image.efi
+```
+
+When booting using an external kernel, we don't need the kernel *in* the image,
+but we would still want the kernel modules to be installed.
+
+It is also possible to do a "direct kernel boot" into a boot loader,
+taking advantage of the fact that `systemd-boot(7)` is a valid UEFI binary:
+```console
+# mkosi qemu -kernel /usr/lib/systemd/boot/efi/systemd-bootx64.efi
+```
+In this scenario, the kernel is loaded from the ESP in the image by `systemd-boot`.
 
 # REQUIREMENTS
 

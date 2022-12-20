@@ -88,8 +88,8 @@ Similar to \f[V]boot\f[R], but uses \f[V]qemu\f[R] to boot up the image,
 i.e.\ instead of container virtualization virtual machine virtualization
 is used.
 This verb is only supported for disk images that contain a boot loader.
-Any options specified after the \f[V]qemu\f[R] verb are appended to the
-\f[V]qemu\f[R] invocation.
+Any arguments specified after the \f[V]qemu\f[R] verb are appended to
+the \f[V]qemu\f[R] invocation.
 .TP
 \f[V]ssh\f[R]
 When the image is built with the \f[V]Ssh=yes\f[R] option, this command
@@ -1440,6 +1440,67 @@ EOF
 # systemd-nspawn -bi image.raw
 \f[R]
 .fi
+.SS Different ways to boot with \f[V]qemu\f[R]
+.PP
+The easiest way to boot a virtual machine is to build an image with the
+required components and let \f[V]mkosi\f[R] call \f[V]qemu\f[R] with all
+the right options:
+.IP
+.nf
+\f[C]
+$ mkosi -d fedora \[rs]
+    --autologin \[rs]
+    -p systemd-udev,systemd-boot,dracut,kernel-core \[rs]
+    build
+$ mkosi -d fedora qemu
+\&...
+fedora login: root (automatic login)
+[root\[at]fedora \[ti]]#
+\f[R]
+.fi
+.PP
+The default is to boot with a text console only.
+To boot with a graphical window, add \f[V]--qemu-qui\f[R]:
+.IP
+.nf
+\f[C]
+$ mkosi -d fedora --qemu-gui qemu
+\f[R]
+.fi
+.PP
+A kernel may be booted directly with
+\f[V]mkosi qemu -kernel ... -initrd ... -append \[aq]...\[aq]\f[R].
+This is a bit faster because no boot loader is used, and it is also
+easier to experiment with different kernels and kernel commandlines.
+Note that despite the name, qemu\[cq]s \f[V]-append\f[R] option replaces
+the default kernel commandline embedded in the kernel and any previous
+\f[V]-append\f[R] specifications.
+.PP
+\f[V]mkosi\f[R] builds a Unified Kernel Image (UKI).
+It is also copied into the output directory and may be booted directly:
+.IP
+.nf
+\f[C]
+# mkosi qemu -kernel mkosi.output/fedora\[ti]38/image.efi
+\f[R]
+.fi
+.PP
+When booting using an external kernel, we don\[cq]t need the kernel
+\f[I]in\f[R] the image, but we would still want the kernel modules to be
+installed.
+.PP
+It is also possible to do a \[lq]direct kernel boot\[rq] into a boot
+loader, taking advantage of the fact that \f[V]systemd-boot(7)\f[R] is a
+valid UEFI binary:
+.IP
+.nf
+\f[C]
+# mkosi qemu -kernel /usr/lib/systemd/boot/efi/systemd-bootx64.efi
+\f[R]
+.fi
+.PP
+In this scenario, the kernel is loaded from the ESP in the image by
+\f[V]systemd-boot\f[R].
 .SH REQUIREMENTS
 .PP
 mkosi is packaged for various distributions: Debian, Ubuntu, Arch Linux,
