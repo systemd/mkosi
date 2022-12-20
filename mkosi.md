@@ -1275,13 +1275,13 @@ variables:
 
 Create and run a raw *GPT* image with *ext4*, as `image.raw`:
 
-```bash
+```console
 # mkosi -p systemd --incremental boot
 ```
 
 Create and run a bootable *GPT* image, as `foobar.raw`:
 
-```bash
+```console
 # mkosi -d fedora -p kernel -p systemd -p udev -o foobar.raw
 # mkosi --output foobar.raw boot
 # mkosi --output foobar.raw qemu
@@ -1289,14 +1289,14 @@ Create and run a bootable *GPT* image, as `foobar.raw`:
 
 Create and run a *Fedora Linux* image into a plain directory:
 
-```bash
+```console
 # mkosi --distribution fedora --format directory boot
 ```
 
 Create a compressed image `image.raw.xz` and add a checksum file, and
 install *SSH* into it:
 
-```bash
+```console
 # mkosi --distribution fedora --format disk --checksum --compress-output --package=openssh-clients
 ```
 
@@ -1305,7 +1305,7 @@ Inside the source directory of an `automake`-based project, configure
 an OS image containing a built version of the project in its current
 state:
 
-```bash
+```console
 # cat >mkosi.conf <<EOF
 [Distribution]
 Distribution=fedora
