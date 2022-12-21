@@ -3,9 +3,13 @@
 set -e
 
 COMMAND="${1:?}"
+ENTRY_DIR_ABS="${3:?}"
 
 case "$COMMAND" in
     add)
+        # Make sure the directory the kernel image and initrd will be written to exists.
+        mkdir -p "$ENTRY_DIR_ABS"
+
         if [ "$#" -ge 5 ]; then
             # An explicit initrd path was passed so no need to regenerate the default initrd.
             exit 0

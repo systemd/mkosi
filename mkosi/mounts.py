@@ -3,7 +3,6 @@
 import contextlib
 import os
 import stat
-import tempfile
 from pathlib import Path
 from typing import ContextManager, Iterator, List, Optional, Sequence, Union, cast
 
@@ -78,37 +77,19 @@ def mount_tmpfs(where: Path) -> ContextManager[Path]:
 
 @contextlib.contextmanager
 def mount_overlay(
-    base_image: Path,  # the path to the mounted base image root
-    root: Path,        # the path to the destination image root
-    read_only: bool = False,
+    lower: Path,
+    upper: Path,
+    workdir: Path,
+    where: Path
 ) -> Iterator[Path]:
-    """Set up the overlay mount on `root` with `base_image` as the lower layer.
-
-    Sadly the overlay cannot be mounted onto the root directly, because the
-    workdir must be on the same filesystem as "upperdir", but cannot be its
-    subdirectory. Thus, we set up the overlay and then bind-mount the overlay
-    structure into the expected location.
-    """
-
-    workdir = tempfile.TemporaryDirectory(dir=root, prefix='overlayfs-workdir')
-    realroot = root / 'mkosi-real-root'
-
-    options = [f'lowerdir={base_image}',
-               f'upperdir={realroot}',
-               f'workdir={workdir.name}']
+    options = [f'lowerdir={lower}', f'upperdir={upper}', f'workdir={workdir}']
 
     try:
-        overlay = mount("overlay", realroot, options=options, type="overlay", read_only=read_only)
-        with workdir, overlay, mount_bind(realroot, root):
-            yield root
+        with mount("overlay", where, options=options, type="overlay"):
+            yield where
     finally:
         with complete_step("Cleaning up overlayfs"):
-            # Let's now move the contents of realroot into root
-            for entry in os.scandir(realroot):
-                os.rename(realroot / entry.name, root / entry.name)
-            realroot.rmdir()
-
-            delete_whiteout_files(root)
+            delete_whiteout_files(upper)
 
 
 @contextlib.contextmanager
@@ -120,3 +101,12 @@ def mount_api_vfs(root: Path) -> Iterator[None]:
             stack.enter_context(mount_bind(Path("/") / subdir, root / subdir))
 
         yield
+
+
+@contextlib.contextmanager
+def dissect_and_mount(image: Path, where: Path) -> Iterator[Path]:
+    run(["systemd-dissect", "-M", image, where])
+    try:
+        yield where
+    finally:
+        run(["umount", "--recursive", where])

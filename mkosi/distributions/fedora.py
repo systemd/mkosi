@@ -11,7 +11,6 @@ from mkosi.backend import (
     Distribution,
     MkosiPrinter,
     MkosiState,
-    OutputFormat,
     add_packages,
     complete_step,
     detect_distribution,
@@ -133,7 +132,7 @@ def install_fedora(state: MkosiState) -> None:
     add_packages(state.config, packages, "systemd", "util-linux", "dnf")
 
     if not state.do_run_build_script and state.config.bootable:
-        add_packages(state.config, packages, "kernel-core", "kernel-modules", "dracut")
+        add_packages(state.config, packages, "kernel-core", "kernel-modules", "dracut", "dracut-config-generic")
         add_packages(state.config, packages, "systemd-udev", conditional="systemd")
     if state.do_run_build_script:
         packages.update(state.config.build_packages)
@@ -158,20 +157,6 @@ def url_exists(url: str) -> bool:
 
 def make_rpm_list(state: MkosiState, packages: Set[str]) -> Set[str]:
     packages = packages.copy()
-
-    if state.config.bootable:
-        # Temporary hack: dracut only adds crypto support to the initrd, if the cryptsetup binary is installed
-        if state.config.encrypt or state.config.verity:
-            add_packages(state.config, packages, "cryptsetup", conditional="dracut")
-
-        if state.config.output_format == OutputFormat.gpt_ext4:
-            add_packages(state.config, packages, "e2fsprogs")
-
-        if state.config.output_format == OutputFormat.gpt_xfs:
-            add_packages(state.config, packages, "xfsprogs")
-
-        if state.config.output_format == OutputFormat.gpt_btrfs:
-            add_packages(state.config, packages, "btrfs-progs")
 
     if not state.do_run_build_script and state.config.ssh:
         add_packages(state.config, packages, "openssh-server")

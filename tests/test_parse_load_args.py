@@ -2,7 +2,6 @@
 
 import argparse
 import tempfile
-import textwrap
 import uuid
 from contextlib import contextmanager
 from os import chdir, getcwd
@@ -94,31 +93,6 @@ def test_hostname() -> None:
         config.write_text("[Output]\nHostname=name")
         assert parse([]).hostname == "name"
 
-    with cd_temp_dir():
-        config = Path("mkosi.conf")
-        config.write_text("[Output]\nHostname=")
-        config = Path("hostname.txt")
-        assert parse([]).hostname == ""
-
-def test_centos_brtfs() -> None:
-    with cd_temp_dir():
-        config = Path("mkosi.conf")
-        for dist in (Distribution.centos, Distribution.centos_epel):
-            for release in range(2, 9):
-                config.write_text(
-                    textwrap.dedent(
-                        f"""
-                        [Distribution]
-                        Distribution={dist}
-                        Release={release}
-                        [Output]
-                        Format=gpt_btrfs
-                        """
-                    )
-                )
-                with pytest.raises(MkosiException, match=".CentOS.*btrfs"):
-                    parse([])
-
 def test_shell_boot() -> None:
     with pytest.raises(MkosiException, match=".boot.*tar"):
         parse(["--format", "tar", "boot"])
@@ -127,13 +101,11 @@ def test_shell_boot() -> None:
         parse(["--format", "cpio", "boot"])
 
     with pytest.raises(MkosiException, match=".boot.*compressed" ):
-        parse(["--format", "gpt_squashfs", "--compress-output", "True", "boot"])
+        parse(["--format", "disk", "--compress-output=yes", "boot"])
 
     with pytest.raises(MkosiException, match=".boot.*qcow2"):
-        parse(["--format", "gpt_xfs", "--qcow2", "boot"])
+        parse(["--format", "disk", "--qcow2", "boot"])
 
 def test_compression() -> None:
-    assert parse(["--format", "gpt_squashfs"]).compress
-
-    assert not parse(["--format", "gpt_squashfs", "--compress", "False"]).compress
+    assert not parse(["--format", "disk", "--compress-output", "False"]).compress_output
 

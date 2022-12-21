@@ -9,8 +9,6 @@ from typing import TYPE_CHECKING, Any, Iterable, Iterator, List, Set
 
 from mkosi.backend import (
     MkosiState,
-    OutputFormat,
-    PartitionIdentifier,
     PathString,
     add_packages,
     complete_step,
@@ -107,11 +105,8 @@ class DebianInstaller(DistributionInstaller):
             extra_packages.update(state.config.build_packages)
 
         if not state.do_run_build_script and state.config.bootable:
-            add_packages(state.config, extra_packages, "dracut")
+            add_packages(state.config, extra_packages, "dracut", "dracut-config-generic")
             cls._add_default_kernel_package(state, extra_packages)
-
-            if state.config.output_format == OutputFormat.gpt_btrfs:
-                add_packages(state.config, extra_packages, "btrfs-progs")
 
         if not state.do_run_build_script and state.config.ssh:
             add_packages(state.config, extra_packages, "openssh-server")
@@ -143,7 +138,7 @@ class DebianInstaller(DistributionInstaller):
             with dpkg_nodoc_conf.open("w") as f:
                 f.writelines(f"path-exclude {d}/*\n" for d in doc_paths)
 
-        if not state.do_run_build_script and state.config.bootable and state.config.with_unified_kernel_images and state.config.base_image is None:
+        if not state.do_run_build_script and state.config.bootable and state.config.base_image is None:
             # systemd-boot won't boot unified kernel images generated without a BUILD_ID or VERSION_ID in
             # /etc/os-release. Build one with the mtime of os-release if we don't find them.
             with state.root.joinpath("etc/os-release").open("r+") as f:
@@ -161,7 +156,7 @@ class DebianInstaller(DistributionInstaller):
 
         invoke_apt(state, "get", "update", ["--assume-yes"])
 
-        if state.config.bootable and not state.do_run_build_script and state.get_partition(PartitionIdentifier.esp):
+        if state.config.bootable and not state.do_run_build_script:
             add_apt_package_if_exists(state, extra_packages, "systemd-boot")
 
         # systemd-resolved was split into a separate package

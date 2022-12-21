@@ -58,7 +58,6 @@ class MkosiConfig:
             "all_directory": None,
             "architecture": platform.machine(),
             "bmap": False,
-            "boot_protocols": None,
             "bootable": False,
             "build_dir": None,
             "build_packages": [],
@@ -71,21 +70,15 @@ class MkosiConfig:
             "cache_path": None,
             "checksum": False,
             "cmdline": [],
-            "compress": None,
-            "compress_fs": None,
             "compress_output": None,
             "debug": [],
             "config_path": None,
             "directory": None,
             "distribution": None,
-            "encrypt": None,
-            "esp_size": None,
             "extra_search_paths": [],
             "extra_trees": [],
             "finalize_script": None,
             "force": 0,
-            "gpt_first_lba": None,
-            "home_size": None,
             "hostname": None,
             "include_dir": None,
             "incremental": False,
@@ -96,7 +89,6 @@ class MkosiConfig:
             "manifest_format": None,
             "mirror": None,
             "repository_key_check": True,
-            "mksquashfs_tool": [],
             "chown": True,
             "idmap": True,
             "nspawn_settings": None,
@@ -114,13 +106,11 @@ class MkosiConfig:
             "prepare_script": None,
             "postinst_script": None,
             "qcow2": False,
-            "read_only": False,
             "release": None,
             "repositories": [],
             "use_host_repositories": False,
             "repos_dir": None,
             "base_image": None,
-            "root_size": None,
             "secure_boot": False,
             "secure_boot_certificate": Path("mkosi.secure-boot.crt"),
             "secure_boot_key": Path("mkosi.secure-boot.key"),
@@ -132,19 +122,11 @@ class MkosiConfig:
             "source_resolve_symlinks_final": False,
             "source_file_transfer": None,
             "source_file_transfer_final": None,
-            "srv_size": None,
-            "swap_size": None,
-            "tmp_size": None,
-            "usr_only": False,
-            "var_size": None,
-            "bios_size": None,
             "verb": Verb.build,
-            "verity": False,
             "sign_expected_pcr": self.local_sign_expected_pcr_default(),
             "with_docs": False,
             "with_network": False,
             "with_tests": True,
-            "xbootldr_size": None,
             "qemu_headless": False,
             "qemu_smp": "1",
             "qemu_mem": "1G",
@@ -154,24 +136,18 @@ class MkosiConfig:
             "qemu_boot": "uefi",
             "netdev": False,
             "ephemeral": False,
-            "with_unified_kernel_images": True,
-            "hostonly_initrd": False,
             "cache_initrd": False,
             "ssh": False,
             "ssh_key": None,
             "ssh_timeout": 0,
             "ssh_agent": None,
             "ssh_port": 22,
-            "minimize": False,
             "split_artifacts": False,
-            "output_split_root": None,
-            "output_split_kernel": None,
-            "output_split_verity": None,
-            "output_split_verity_sig": None,
             "image_id": None,
             "image_version": None,
             "auto_bump": False,
             "workspace_dir": None,
+            "repart_dir": None,
         }
 
     def __eq__(self, other: Mapping[str, Any]) -> bool: # type: ignore
@@ -275,20 +251,8 @@ class MkosiConfig:
                 self.reference_config[job_name]["secure_boot_common_name"] = mk_config_output["SecureBootCommonName"]
             if "SecureBootValidDays" in mk_config_output:
                 self.reference_config[job_name]["secure_boot_valid_days"] = mk_config_output["SecureBootValidDays"]
-            if "ReadOnly" in mk_config_output:
-                self.reference_config[job_name]["read_only"] = mk_config_output["ReadOnly"]
-            if "Encrypt" in mk_config_output:
-                self.reference_config[job_name]["encrypt"] = mk_config_output["Encrypt"]
-            if "Verity" in mk_config_output:
-                self.reference_config[job_name]["verity"] = mk_config_output["Verity"]
-            if "Compress" in mk_config_output:
-                self.reference_config[job_name]["compress"] = mk_config_output["Compress"]
-            if "CompressFs" in mk_config_output:
-                self.reference_config[job_name]["compress_fs"] = mk_config_output["CompressFs"]
             if "CompressOutput" in mk_config_output:
                 self.reference_config[job_name]["compress_output"] = mk_config_output["CompressOutput"]
-            if "Mksquashfs" in mk_config_output:
-                self.reference_config[job_name]["mksquashfs_tool"] = mk_config_output["Mksquashfs"].split()
             if "QCow2" in mk_config_output:
                 self.reference_config[job_name]["qcow2"] = mk_config_output["QCow2"]
             if "TarStripSELinuxContext" in mk_config_output:
@@ -297,12 +261,6 @@ class MkosiConfig:
                 ]
             if "Hostname" in mk_config_output:
                 self.reference_config[job_name]["hostname"] = mk_config_output["Hostname"]
-            if "WithUnifiedKernelImages" in mk_config_output:
-                self.reference_config[job_name]["with_unified_kernel_images"] = mk_config_output[
-                    "WithUnifiedKernelImages"
-                ]
-            if "HostonlyInitrd" in mk_config_output:
-                self.reference_config[job_name]["hostonly_initrd"] = mk_config_output["HostonlyInitrd"]
             if "CacheInitrd" in mk_config_output:
                 self.reference_config[job_name]["cache_initrd"] = mk_config_output["CacheInitrd"]
             if "MachineID" in mk_config_output:
@@ -359,16 +317,6 @@ class MkosiConfig:
             mk_config_partitions = mk_config["Partitions"]
             if "BaseImage" in mk_config_partitions:
                 self.reference_config[job_name]["base_image"] = mk_config_partitions["BaseImage"]
-            if "RootSize" in mk_config_partitions:
-                self.reference_config[job_name]["root_size"] = mk_config_partitions["RootSize"]
-            if "ESPSize" in mk_config_partitions:
-                self.reference_config[job_name]["esp_size"] = mk_config_partitions["ESPSize"]
-            if "SwapSize" in mk_config_partitions:
-                self.reference_config[job_name]["swap_size"] = mk_config_partitions["SwapSize"]
-            if "HomeSize" in mk_config_partitions:
-                self.reference_config[job_name]["home_size"] = mk_config_partitions["HomeSize"]
-            if "SrvSize" in mk_config_partitions:
-                self.reference_config[job_name]["srv_size"] = mk_config_partitions["SrvSize"]
         if "Validation" in mk_config:
             mk_config_validation = mk_config["Validation"]
             if "CheckSum" in mk_config_validation:
@@ -563,7 +511,7 @@ class MkosiConfigManyParams(MkosiConfigOne):
                 "Architecture": "i386",
             },
             "Output": {
-                "Format": "gpt_ext4",
+                "Format": "disk",
                 "Output": "test_image.raw",
                 "ManifestFormat": [mkosi.backend.ManifestFormat.json],
                 #                 # 'OutputDirectory': '',
@@ -574,15 +522,9 @@ class MkosiConfigManyParams(MkosiConfigOne):
                 "SecureBootCertificate": "bar.crt",
                 "SecureBootCommonName": "mkosi for %u",
                 "SecureBootValidDays": "730",
-                "ReadOnly": False,
-                "Encrypt": "all",
-                "Verity": False,
-                "Compress": "lz4",
-                "Mksquashfs": "my/fo/sq-tool",
+                "CompressOutput": "lz4",
                 "QCow2": False,
                 "Hostname": "myhost1",
-                "UsrOnly": False,
-                "SplitArtifacts": False,
             },
             "Packages": {
                 "Packages": ["pkg-foo", "pkg-bar", "pkg-foo1,pkg-bar1"],
@@ -601,7 +543,7 @@ class MkosiConfigManyParams(MkosiConfigOne):
                 "WithNetwork": False,
                 "NSpawnSettings": "foo.nspawn",
             },
-            "Partitions": {"RootSize": "2G", "ESPSize": "128M", "SwapSize": "1024M", "HomeSize": "3G"},
+            "Partitions": {},
             "Validation": {
                 "CheckSum": True,
                 "Sign": False,
@@ -632,7 +574,7 @@ class MkosiConfigManyParams(MkosiConfigOne):
                 "Architecture": platform.machine(),
             },
             "Output": {
-                "Format": "gpt_btrfs",
+                "Format": "disk",
                 "Output": "test_image.raw.xz",
                 #                 # 'OutputDirectory': '',
                 "Bootable": True,
@@ -640,15 +582,9 @@ class MkosiConfigManyParams(MkosiConfigOne):
                 "SecureBoot": True,
                 "SecureBootKey": "/foo-ubu.pem",
                 "SecureBootCertificate": "bar-bub.crt",
-                "ReadOnly": True,
-                "Encrypt": "data",
-                "Verity": True,
-                "Compress": "zstd",
-                "Mksquashfs": "my/fo/sq-tool-ubu",
+                "CompressOutput": "zstd",
                 "QCow2": True,
                 "Hostname": "myubuhost1",
-                "UsrOnly": False,
-                "SplitArtifacts": False,
             },
             "Packages": {
                 "Packages": ["add-ubu-1", "add-ubu-2"],
@@ -667,7 +603,7 @@ class MkosiConfigManyParams(MkosiConfigOne):
                 "WithNetwork": True,
                 "NSpawnSettings": "foo-ubu.nspawn",
             },
-            "Partitions": {"RootSize": "4G", "ESPSize": "148M", "SwapSize": "1536M", "HomeSize": "5G"},
+            "Partitions": {},
             "Validation": {
                 "CheckSum": False,
                 "Sign": True,
@@ -698,7 +634,7 @@ class MkosiConfigManyParams(MkosiConfigOne):
                 "Architecture": platform.machine(),
             },
             "Output": {
-                "Format": "gpt_btrfs",
+                "Format": "disk",
                 "Output": "test_image.raw.xz",
                 #                 # 'OutputDirectory': '',
                 "Bootable": True,
@@ -706,15 +642,9 @@ class MkosiConfigManyParams(MkosiConfigOne):
                 "SecureBoot": True,
                 "SecureBootKey": "/foo-debi.pem",
                 "SecureBootCertificate": "bar-bub.crt",
-                "ReadOnly": True,
-                "Encrypt": "data",
-                "Verity": True,
-                "Compress": "zstd",
-                "Mksquashfs": "my/fo/sq-tool-debi",
+                "CompressOutput": "zstd",
                 "QCow2": True,
                 "Hostname": "mydebihost1",
-                "UsrOnly": False,
-                "SplitArtifacts": False,
             },
             "Packages": {
                 "Packages": ["!add-ubu-1", "!add-ubu-2", "add-debi-1", "add-debi-2"],
@@ -733,7 +663,7 @@ class MkosiConfigManyParams(MkosiConfigOne):
                 "WithNetwork": True,
                 "NSpawnSettings": "foo-debi.nspawn",
             },
-            "Partitions": {"RootSize": "4G", "ESPSize": "148M", "SwapSize": "1536M", "HomeSize": "5G"},
+            "Partitions": {},
             "Validation": {
                 "CheckSum": False,
                 "Sign": True,
@@ -760,7 +690,6 @@ class MkosiConfigManyParams(MkosiConfigOne):
         self.cli_arguments[0:0] = ["--release", "7"]
         self.cli_arguments[0:0] = ["--repositories", "centos/repos"]
         self.cli_arguments[0:0] = ["--force"]
-        self.cli_arguments[0:0] = ["--read-only", "no"]
         self.cli_arguments[0:0] = ["--incremental"]
 
         for j, ref_c in self.reference_config.items():
@@ -768,7 +697,6 @@ class MkosiConfigManyParams(MkosiConfigOne):
             ref_c["release"] = "7"
             self._append_list("repositories", "centos/repos", j)
             ref_c["force"] += 1
-            ref_c["read_only"] = False
             ref_c["incremental"] = True
 
     def prepare_args_short(self) -> None:

@@ -119,8 +119,7 @@ jobs:
           - directory
           - tar
           - cpio
-          - gpt_ext4
-          - plain_squashfs
+          - disk
 
     steps:
     - uses: actions/checkout@v2
@@ -130,7 +129,7 @@ jobs:
       run: sudo apt-get update && sudo apt-get install --no-install-recommends python3-pexpect python3-pytest
 
     - name: Install Gentoo dependencies (portage)
-      if: ${{ matrix.distro == 'gentoo' }}
+      if: matrix.distro == 'gentoo'
       run: |
         sudo tee /usr/lib/sysusers.d/acct-user-portage.conf > /dev/null <<- EOF
         # /usr/lib/sysusers.d/portage.conf
@@ -163,7 +162,7 @@ jobs:
     - name: Install
       run: sudo python3 -m pip install .
 
-    - name: Build/Boot ${{ matrix.distro }}/${{ matrix.format }}
+    - name: Configure ${{ matrix.distro }}/${{ matrix.format }}
       run: |
         mkdir -p mkosi.conf.d
 
@@ -173,6 +172,18 @@ jobs:
 
         [Output]
         Format=${{ matrix.format }}
+        Bootable=yes
+        KernelCommandLine=systemd.unit=mkosi-check-and-shutdown.service
+                          !quiet
+                          systemd.log_target=console
+                          systemd.default_standard_output=journal+console
+
+        [Host]
+        Autologin=yes
+        QemuHeadless=yes
+
+        [Content]
+        ExtraTrees=.github/mkosi.extra
         EOF
 
         mkdir -p mkosi.skeleton/etc/portage
@@ -182,46 +193,29 @@ jobs:
         sync-uri = https://raw.githubusercontent.com/257/binpkgs/main
         EOF
 
-        sudo MKOSI_TEST_DEFAULT_VERB=boot python3 -m pytest --exitfirst -m integration -sv tests
+    - name: Build ${{ matrix.distro }}/${{ matrix.format }}
+      run: sudo python3 -m mkosi build
 
-    - name: Build ${{ matrix.distro }}/${{ matrix.format }} UsrOnly
-      run: |
-        tee mkosi.conf <<- EOF
-        [Output]
-        UsrOnly=True
-        EOF
+    - name: Boot ${{ matrix.distro }}/${{ matrix.format }} systemd-nspawn
+      if: matrix.format == 'disk' || matrix.format == 'directory'
+      run: sudo python3 -m mkosi boot
 
-        sudo mkosi --force build
+    - name: Check ${{ matrix.distro }}/${{ matrix.format }} systemd-nspawn
+      if: matrix.format == 'disk' || matrix.format == 'directory'
+      run: sudo python3 -m mkosi shell bash -c "[[ -e /testok ]] || { cat /failed-services; exit 1; }"
 
-    - name: Build/Boot ${{ matrix.distro }}/${{ matrix.format }} UEFI UKI
-      run: |
-        tee mkosi.conf <<- EOF
-        [Host]
-        QemuBoot=uefi
-        EOF
+    - name: Boot ${{ matrix.distro }}/${{ matrix.format }} UEFI
+      if: matrix.format == 'disk'
+      run: sudo timeout -k 30 10m python3 -m mkosi --qemu-boot=uefi qemu
 
-        sudo MKOSI_TEST_DEFAULT_VERB=qemu python3 -m pytest --exitfirst -m integration -sv tests
+    - name: Check ${{ matrix.distro }}/${{ matrix.format }} UEFI
+      if: matrix.format == 'disk' || matrix.format == 'directory'
+      run: sudo python3 -m mkosi shell bash -c "[[ -e /testok ]] || { cat /failed-services; exit 1; }"
 
-    - name: Build/Boot ${{ matrix.distro }}/${{ matrix.format }} UEFI
-      run: |
-        tee mkosi.conf <<- EOF
-        [Output]
-        WithUnifiedKernelImages=no
+    - name: Boot ${{ matrix.distro }}/${{ matrix.format}} QEMU Linux Boot
+      if: matrix.format == 'disk'
+      run: sudo timeout -k 30 10m python3 -m mkosi --qemu-boot=linux qemu
 
-        [Host]
-        QemuBoot=uefi
-        EOF
-
-        sudo MKOSI_TEST_DEFAULT_VERB=qemu python3 -m pytest --exitfirst -m integration -sv tests
-
-    - name: Build/Boot ${{ matrix.distro }}/${{ matrix.format}} QEMU Linux Boot
-      run: |
-        tee mkosi.conf <<- EOF
-        [Output]
-        WithUnifiedKernelImages=no
-
-        [Host]
-        QemuBoot=linux
-        EOF
-
-        sudo MKOSI_TEST_DEFAULT_VERB=qemu python3 -m pytest --exitfirst -m integration -sv tests
+    - name: Check ${{ matrix.distro }}/${{ matrix.format }} QEMU Linux Boot
+      if: matrix.format == 'disk' || matrix.format == 'directory'
+      run: sudo python3 -m mkosi shell bash -c "[[ -e /testok ]] || { cat /failed-services; exit 1; }"

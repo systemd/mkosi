@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import base64
 import configparser
 import contextlib
 import crypt
@@ -13,11 +12,11 @@ import dataclasses
 import datetime
 import errno
 import fcntl
-import getpass
 import glob
 import hashlib
 import http.server
 import importlib
+import importlib.resources
 import itertools
 import json
 import math
@@ -35,17 +34,14 @@ import uuid
 from pathlib import Path
 from textwrap import dedent, wrap
 from typing import (
-    IO,
     TYPE_CHECKING,
     Any,
     BinaryIO,
     Callable,
-    ContextManager,
     Dict,
     Iterable,
     Iterator,
     List,
-    NamedTuple,
     NoReturn,
     Optional,
     Sequence,
@@ -67,12 +63,8 @@ from mkosi.backend import (
     MkosiPrinter,
     MkosiState,
     OutputFormat,
-    Partition,
-    PartitionIdentifier,
-    PartitionTable,
     SourceFileTransfer,
     Verb,
-    add_packages,
     chown_to_running_user,
     detect_distribution,
     die,
@@ -85,12 +77,10 @@ from mkosi.backend import (
     nspawn_version,
     patch_file,
     path_relative_to_cwd,
-    root_home,
     run,
     run_workspace_command,
     scandir_recursive,
     set_umask,
-    should_compress_fs,
     should_compress_output,
     spawn,
     tmp_dir,
@@ -106,9 +96,8 @@ from mkosi.install import (
     open_close,
 )
 from mkosi.manifest import Manifest
-from mkosi.mounts import mount, mount_bind, mount_overlay, mount_tmpfs
+from mkosi.mounts import dissect_and_mount, mount_bind, mount_overlay, mount_tmpfs
 from mkosi.remove import unlink_try_hard
-from mkosi.syscall import blkpg_add_partition, blkpg_del_partition
 
 complete_step = MkosiPrinter.complete_step
 color_error = MkosiPrinter.color_error
@@ -168,147 +157,10 @@ def list_to_string(seq: Iterator[str]) -> str:
     return str(list(seq))[1:-1]
 
 
-def print_running_cmd(cmdline: Iterable[str]) -> None:
+def print_running_cmd(cmdline: Iterable[PathString]) -> None:
     MkosiPrinter.print_step("Running command:")
-    MkosiPrinter.print_step(" ".join(shlex.quote(x) for x in cmdline) + "\n")
+    MkosiPrinter.print_step(" ".join(shlex.quote(str(x)) for x in cmdline) + "\n")
 
-
-GPT_ROOT_ALPHA                  = uuid.UUID("6523f8ae3eb14e2aa05a18b695ae656f")  # NOQA: E221
-GPT_ROOT_ARC                    = uuid.UUID("d27f46ed29194cb8bd259531f3c16534")  # NOQA: E221
-GPT_ROOT_ARM                    = uuid.UUID("69dad7102ce44e3cb16c21a1d49abed3")  # NOQA: E221
-GPT_ROOT_ARM64                  = uuid.UUID("b921b0451df041c3af444c6f280d3fae")  # NOQA: E221
-GPT_ROOT_IA64                   = uuid.UUID("993d8d3df80e4225855a9daf8ed7ea97")  # NOQA: E221
-GPT_ROOT_LOONGARCH64            = uuid.UUID("77055800792c4f94b39a98c91b762bb6")  # NOQA: E221
-GPT_ROOT_MIPS_LE                = uuid.UUID("37c58c8ad9134156a25f48b1b64e07f0")  # NOQA: E221
-GPT_ROOT_MIPS64_LE              = uuid.UUID("700bda437a344507b179eeb93d7a7ca3")  # NOQA: E221
-GPT_ROOT_PPC                    = uuid.UUID("1de3f1effa9847b58dcd4a860a654d78")  # NOQA: E221
-GPT_ROOT_PPC64                  = uuid.UUID("912ade1da83949138964a10eee08fbd2")  # NOQA: E221
-GPT_ROOT_PPC64LE                = uuid.UUID("c31c45e63f39412e80fb4809c4980599")  # NOQA: E221
-GPT_ROOT_RISCV32                = uuid.UUID("60d5a7fe8e7d435cb7143dd8162144e1")  # NOQA: E221
-GPT_ROOT_RISCV64                = uuid.UUID("72ec70a6cf7440e6bd494bda08e8f224")  # NOQA: E221
-GPT_ROOT_S390                   = uuid.UUID("08a7acea624c4a2091e86e0fa67d23f9")  # NOQA: E221
-GPT_ROOT_S390X                  = uuid.UUID("5eead9a9fe094a1ea1d7520d00531306")  # NOQA: E221
-GPT_ROOT_TILEGX                 = uuid.UUID("c50cdd7038624cc390e1809a8c93ee2c")  # NOQA: E221
-GPT_ROOT_X86                    = uuid.UUID("44479540f29741b29af7d131d5f0458a")  # NOQA: E221
-GPT_ROOT_X86_64                 = uuid.UUID("4f68bce3e8cd4db196e7fbcaf984b709")  # NOQA: E221
-
-GPT_USR_ALPHA                   = uuid.UUID("e18cf08c33ec4c0d8246c6c6fb3da024")  # NOQA: E221
-GPT_USR_ARC                     = uuid.UUID("7978a68363164922bbee38bff5a2fecc")  # NOQA: E221
-GPT_USR_ARM                     = uuid.UUID("7d0359a302b34f0a865c654403e70625")  # NOQA: E221
-GPT_USR_ARM64                   = uuid.UUID("b0e01050ee5f4390949a9101b17104e9")  # NOQA: E221
-GPT_USR_IA64                    = uuid.UUID("4301d2a64e3b4b2abb949e0b2c4225ea")  # NOQA: E221
-GPT_USR_LOONGARCH64             = uuid.UUID("e611c702575c4cbe9a46434fa0bf7e3f")  # NOQA: E221
-GPT_USR_MIPS_LE                 = uuid.UUID("0f4868e999524706979f3ed3a473e947")  # NOQA: E221
-GPT_USR_MIPS64_LE               = uuid.UUID("c97c1f32ba0640b49f22236061b08aa8")  # NOQA: E221
-GPT_USR_PPC                     = uuid.UUID("7d14fec5cc71415d9d6c06bf0b3c3eaf")  # NOQA: E221
-GPT_USR_PPC64                   = uuid.UUID("2c9739e2f06846b39fd001c5a9afbcca")  # NOQA: E221
-GPT_USR_PPC64LE                 = uuid.UUID("15bb03af77e74d4ab12bc0d084f7491c")  # NOQA: E221
-GPT_USR_RISCV32                 = uuid.UUID("b933fb225c3f4f91af90e2bb0fa50702")  # NOQA: E221
-GPT_USR_RISCV64                 = uuid.UUID("beaec34b8442439ba40b984381ed097d")  # NOQA: E221
-GPT_USR_S390                    = uuid.UUID("cd0f869bd0fb4ca0b1419ea87cc78d66")  # NOQA: E221
-GPT_USR_S390X                   = uuid.UUID("8a4f577050aa4ed3874a99b710db6fea")  # NOQA: E221
-GPT_USR_TILEGX                  = uuid.UUID("55497029c7c144ccaa39815ed1558630")  # NOQA: E221
-GPT_USR_X86                     = uuid.UUID("75250d768cc6458ebd66bd47cc81a812")  # NOQA: E221
-GPT_USR_X86_64                  = uuid.UUID("8484680c952148c69c11b0720656f69e")  # NOQA: E221
-
-GPT_ROOT_ALPHA_VERITY           = uuid.UUID("fc56d9e9e6e54c06be32e74407ce09a5")  # NOQA: E221
-GPT_ROOT_ARC_VERITY             = uuid.UUID("24b2d9750f974521afa1cd531e421b8d")  # NOQA: E221
-GPT_ROOT_ARM_VERITY             = uuid.UUID("7386cdf2203c47a9a498f2ecce45a2d6")  # NOQA: E221
-GPT_ROOT_ARM64_VERITY           = uuid.UUID("df3300ced69f4c92978c9bfb0f38d820")  # NOQA: E221
-GPT_ROOT_IA64_VERITY            = uuid.UUID("86ed10d5b60745bb8957d350f23d0571")  # NOQA: E221
-GPT_ROOT_LOONGARCH64_VERITY     = uuid.UUID("f3393b22e9af4613a9489d3bfbd0c535")  # NOQA: E221
-GPT_ROOT_MIPS_LE_VERITY         = uuid.UUID("d7d150d22a044a338f1216651205ff7b")  # NOQA: E221
-GPT_ROOT_MIPS64_LE_VERITY       = uuid.UUID("16b417f83e064f578dd29b5232f41aa6")  # NOQA: E221
-GPT_ROOT_PPC64LE_VERITY         = uuid.UUID("906bd94445894aaea4e4dd983917446a")  # NOQA: E221
-GPT_ROOT_PPC64_VERITY           = uuid.UUID("9225a9a33c194d89b4f6eeff88f17631")  # NOQA: E221
-GPT_ROOT_PPC_VERITY             = uuid.UUID("98cfe649158846dcb2f0add147424925")  # NOQA: E221
-GPT_ROOT_RISCV32_VERITY         = uuid.UUID("ae0253be11674007ac6843926c14c5de")  # NOQA: E221
-GPT_ROOT_RISCV64_VERITY         = uuid.UUID("b6ed5582440b4209b8da5ff7c419ea3d")  # NOQA: E221
-GPT_ROOT_S390X_VERITY           = uuid.UUID("b325bfbec7be4ab88357139e652d2f6b")  # NOQA: E221
-GPT_ROOT_S390_VERITY            = uuid.UUID("7ac63b47b25c463b8df8b4a94e6c90e1")  # NOQA: E221
-GPT_ROOT_TILEGX_VERITY          = uuid.UUID("966061ec28e44b2eb4a51f0a825a1d84")  # NOQA: E221
-GPT_ROOT_X86_64_VERITY          = uuid.UUID("2c7357edebd246d9aec123d437ec2bf5")  # NOQA: E221
-GPT_ROOT_X86_VERITY             = uuid.UUID("d13c5d3bb5d1422ab29f9454fdc89d76")  # NOQA: E221
-
-GPT_USR_ALPHA_VERITY            = uuid.UUID("8cce0d25c0d04a44bd8746331bf1df67")  # NOQA: E221
-GPT_USR_ARC_VERITY              = uuid.UUID("fca0598cd88045918c164eda05c7347c")  # NOQA: E221
-GPT_USR_ARM_VERITY              = uuid.UUID("c215d7517bcd4649be906627490a4c05")  # NOQA: E221
-GPT_USR_ARM64_VERITY            = uuid.UUID("6e11a4e7fbca4dedb9e9e1a512bb664e")  # NOQA: E221
-GPT_USR_IA64_VERITY             = uuid.UUID("6a491e033be745458e3883320e0ea880")  # NOQA: E221
-GPT_USR_LOONGARCH64_VERITY      = uuid.UUID("f46b2c2659ae48f09106c50ed47f673d")  # NOQA: E221
-GPT_USR_MIPS_LE_VERITY          = uuid.UUID("46b98d8db55c4e8faab337fca7f80752")  # NOQA: E221
-GPT_USR_MIPS64_LE_VERITY        = uuid.UUID("3c3d61feb5f3414dbb718739a694a4ef")  # NOQA: E221
-GPT_USR_PPC64LE_VERITY          = uuid.UUID("ee2b998321e8415386d9b6901a54d1ce")  # NOQA: E221
-GPT_USR_PPC64_VERITY            = uuid.UUID("bdb528a5a259475fa87dda53fa736a07")  # NOQA: E221
-GPT_USR_PPC_VERITY              = uuid.UUID("df765d00270e49e5bc75f47bb2118b09")  # NOQA: E221
-GPT_USR_RISCV32_VERITY          = uuid.UUID("cb1ee4e38cd04136a0a4aa61a32e8730")  # NOQA: E221
-GPT_USR_RISCV64_VERITY          = uuid.UUID("8f1056be9b0547c481d6be53128e5b54")  # NOQA: E221
-GPT_USR_S390X_VERITY            = uuid.UUID("31741cc41a2a4111a581e00b447d2d06")  # NOQA: E221
-GPT_USR_S390_VERITY             = uuid.UUID("b663c618e7bc4d6d90aa11b756bb1797")  # NOQA: E221
-GPT_USR_TILEGX_VERITY           = uuid.UUID("2fb4bf5607fa42da81326b139f2026ae")  # NOQA: E221
-GPT_USR_X86_64_VERITY           = uuid.UUID("77ff5f63e7b64633acf41565b864c0e6")  # NOQA: E221
-GPT_USR_X86_VERITY              = uuid.UUID("8f461b0d14ee4e819aa9049b6fb97abd")  # NOQA: E221
-
-GPT_ROOT_ALPHA_VERITY_SIG       = uuid.UUID("d46495b7a053414f80f7700c99921ef8")  # NOQA: E221
-GPT_ROOT_ARC_VERITY_SIG         = uuid.UUID("143a70bacbd34f06919f6c05683a78bc")  # NOQA: E221
-GPT_ROOT_ARM_VERITY_SIG         = uuid.UUID("42b0455feb11491d98d356145ba9d037")  # NOQA: E221
-GPT_ROOT_ARM64_VERITY_SIG       = uuid.UUID("6db69de629f44758a7a5962190f00ce3")  # NOQA: E221
-GPT_ROOT_IA64_VERITY_SIG        = uuid.UUID("e98b36ee32ba48829b120ce14655f46a")  # NOQA: E221
-GPT_ROOT_LOONGARCH64_VERITY_SIG = uuid.UUID("5afb67ebecc84f85ae8eac1e7c50e7d0")  # NOQA: E221
-GPT_ROOT_MIPS_LE_VERITY_SIG     = uuid.UUID("c919cc1f44564eff918cf75e94525ca5")  # NOQA: E221
-GPT_ROOT_MIPS64_LE_VERITY_SIG   = uuid.UUID("904e58ef5c654a319c576af5fc7c5de7")  # NOQA: E221
-GPT_ROOT_PPC64LE_VERITY_SIG     = uuid.UUID("d4a236e7e8734c07bf1dbf6cf7f1c3c6")  # NOQA: E221
-GPT_ROOT_PPC64_VERITY_SIG       = uuid.UUID("f5e2c20c45b24ffabce92a60737e1aaf")  # NOQA: E221
-GPT_ROOT_PPC_VERITY_SIG         = uuid.UUID("1b31b5aaadd9463ab2edbd467fc857e7")  # NOQA: E221
-GPT_ROOT_RISCV32_VERITY_SIG     = uuid.UUID("3a112a7587294380b4cf764d79934448")  # NOQA: E221
-GPT_ROOT_RISCV64_VERITY_SIG     = uuid.UUID("efe0f087ea8d4469821a4c2a96a8386a")  # NOQA: E221
-GPT_ROOT_S390X_VERITY_SIG       = uuid.UUID("c80187a573a3491a901a017c3fa953e9")  # NOQA: E221
-GPT_ROOT_S390_VERITY_SIG        = uuid.UUID("3482388e4254435aa241766a065f9960")  # NOQA: E221
-GPT_ROOT_TILEGX_VERITY_SIG      = uuid.UUID("b367143997b04a5390f72d5a8f3ad47b")  # NOQA: E221
-GPT_ROOT_X86_64_VERITY_SIG      = uuid.UUID("41092b059fc84523994f2def0408b176")  # NOQA: E221
-GPT_ROOT_X86_VERITY_SIG         = uuid.UUID("5996fc05109c48de808b23fa0830b676")  # NOQA: E221
-
-GPT_USR_ALPHA_VERITY_SIG        = uuid.UUID("5c6e1c76076a457aa0fef3b4cd21ce6e")  # NOQA: E221
-GPT_USR_ARC_VERITY_SIG          = uuid.UUID("94f9a9a19971427aa40050cb297f0f35")  # NOQA: E221
-GPT_USR_ARM_VERITY_SIG          = uuid.UUID("d7ff812f37d14902a810d76ba57b975a")  # NOQA: E221
-GPT_USR_ARM64_VERITY_SIG        = uuid.UUID("c23ce4ff44bd4b00b2d4b41b3419e02a")  # NOQA: E221
-GPT_USR_IA64_VERITY_SIG         = uuid.UUID("8de58bc22a43460db14ea76e4a17b47f")  # NOQA: E221
-GPT_USR_LOONGARCH64_VERITY_SIG  = uuid.UUID("b024f315d330444c846144bbde524e99")  # NOQA: E221
-GPT_USR_MIPS_LE_VERITY_SIG      = uuid.UUID("3e23ca0ba4bc4b4e80875ab6a26aa8a9")  # NOQA: E221
-GPT_USR_MIPS64_LE_VERITY_SIG    = uuid.UUID("f2c2c7eeadcc4351b5c6ee9816b66e16")  # NOQA: E221
-GPT_USR_PPC64LE_VERITY_SIG      = uuid.UUID("c8bfbd1e268e45218bbabf314c399557")  # NOQA: E221
-GPT_USR_PPC64_VERITY_SIG        = uuid.UUID("0b888863d7f84d9e9766239fce4d58af")  # NOQA: E221
-GPT_USR_PPC_VERITY_SIG          = uuid.UUID("7007891dd3714a8086a45cb875b9302e")  # NOQA: E221
-GPT_USR_RISCV32_VERITY_SIG      = uuid.UUID("c3836a13313745bab583b16c50fe5eb4")  # NOQA: E221
-GPT_USR_RISCV64_VERITY_SIG      = uuid.UUID("d2f9000a7a18453fb5cd4d32f77a7b32")  # NOQA: E221
-GPT_USR_S390X_VERITY_SIG        = uuid.UUID("3f324816667b46ae86ee9b0c0c6c11b4")  # NOQA: E221
-GPT_USR_S390_VERITY_SIG         = uuid.UUID("17440e4fa8d0467fa46e3912ae6ef2c5")  # NOQA: E221
-GPT_USR_TILEGX_VERITY_SIG       = uuid.UUID("4ede75e26ccc4cc8b9c770334b087510")  # NOQA: E221
-GPT_USR_X86_64_VERITY_SIG       = uuid.UUID("e7bb33fb06cf4e818273e543b413e2e2")  # NOQA: E221
-GPT_USR_X86_VERITY_SIG          = uuid.UUID("974a71c0de4143c3be5d5c5ccd1ad2c0")  # NOQA: E221
-
-GPT_ESP                         = uuid.UUID("c12a7328f81f11d2ba4b00a0c93ec93b")  # NOQA: E221
-GPT_XBOOTLDR                    = uuid.UUID("bc13c2ff59e64262a352b275fd6f7172")  # NOQA: E221
-GPT_SWAP                        = uuid.UUID("0657fd6da4ab43c484e50933c84b4f4f")  # NOQA: E221
-GPT_HOME                        = uuid.UUID("933ac7e12eb44f13b8440e14e2aef915")  # NOQA: E221
-GPT_SRV                         = uuid.UUID("3b8f842520e04f3b907f1a25a76f98e8")  # NOQA: E221
-GPT_VAR                         = uuid.UUID("4d21b016b53445c2a9fb5c16e091fd2d")  # NOQA: E221
-GPT_TMP                         = uuid.UUID("7ec6f5573bc54acab29316ef5df639d1")  # NOQA: E221
-GPT_USER_HOME                   = uuid.UUID("773f91ef66d449b5bd83d683bf40ad16")  # NOQA: E221
-GPT_LINUX_GENERIC               = uuid.UUID("0fc63daf848347728e793d69d8477de4")  # NOQA: E221
-
-# Mkosi specific addition to support BIOS images
-GPT_BIOS                        = uuid.UUID("2168614864496e6f744e656564454649")  # NOQA: E221
-
-
-# This is a non-formatted partition used to store the second stage
-# part of the bootloader because it doesn't necessarily fits the MBR
-# available space. 1MiB is more than enough for our usages and there's
-# little reason for customization since it only stores the bootloader and
-# not user-owned configuration files or kernels. See
-# https://en.wikipedia.org/wiki/BIOS_boot_partition
-# and https://www.gnu.org/software/grub/manual/grub/html_node/BIOS-installation.html
-BIOS_PARTITION_SIZE = 1024 * 1024
 
 CLONE_NEWNS = 0x00020000
 
@@ -320,118 +172,6 @@ EFI_ARCHITECTURES = {
     "armhfp": "arm",
     "riscv64:": "riscv64",
 }
-
-
-class GPTRootTypeTriplet(NamedTuple):
-    root: uuid.UUID
-    verity: uuid.UUID
-    verity_sig: uuid.UUID
-
-
-def gpt_root_native(arch: Optional[str], usr_only: bool = False) -> GPTRootTypeTriplet:
-    """The type UUID for the native GPT root partition for the given architecture
-
-    Returns a tuple of three UUIDs: for the root partition, for the
-    matching verity partition, and for the matching Verity signature
-    partition.
-    """
-    if arch is None:
-        arch = platform.machine()
-
-    if usr_only:
-        if arch == "alpha":
-            return GPTRootTypeTriplet(GPT_USR_ALPHA, GPT_USR_ALPHA_VERITY, GPT_USR_ALPHA_VERITY_SIG)
-        elif arch == "arc":
-            return GPTRootTypeTriplet(GPT_USR_ARC, GPT_USR_ARC_VERITY, GPT_USR_ARC_VERITY_SIG)
-        elif arch.startswith("armv"):
-            return GPTRootTypeTriplet(GPT_USR_ARM, GPT_USR_ARM_VERITY, GPT_USR_ARM_VERITY_SIG)
-        elif arch == "aarch64":
-            return GPTRootTypeTriplet(GPT_USR_ARM64, GPT_USR_ARM64_VERITY, GPT_USR_ARM64_VERITY_SIG)
-        elif arch == "ia64":
-            return GPTRootTypeTriplet(GPT_USR_IA64, GPT_USR_IA64_VERITY, GPT_USR_IA64_VERITY_SIG)
-        elif arch == "loongarch64":
-            return GPTRootTypeTriplet(GPT_USR_LOONGARCH64, GPT_USR_LOONGARCH64_VERITY, GPT_USR_LOONGARCH64_VERITY_SIG)
-        elif arch == "mipsel":
-            return GPTRootTypeTriplet(GPT_USR_MIPS_LE, GPT_USR_MIPS_LE_VERITY, GPT_USR_MIPS_LE_VERITY_SIG)
-        elif arch == "mipsel64":
-            return GPTRootTypeTriplet(GPT_USR_MIPS64_LE, GPT_USR_MIPS64_LE_VERITY, GPT_USR_MIPS64_LE_VERITY_SIG)
-        elif arch == "ppc":
-            return GPTRootTypeTriplet(GPT_USR_PPC, GPT_USR_PPC_VERITY, GPT_USR_PPC_VERITY_SIG)
-        elif arch == "ppc64":
-            return GPTRootTypeTriplet(GPT_USR_PPC64, GPT_USR_PPC64_VERITY, GPT_USR_PPC64_VERITY_SIG)
-        elif arch == "ppc64le":
-            return GPTRootTypeTriplet(GPT_USR_PPC64LE, GPT_USR_PPC64LE_VERITY, GPT_USR_PPC64LE_VERITY_SIG)
-        elif arch == "riscv32":
-            return GPTRootTypeTriplet(GPT_USR_RISCV32, GPT_USR_RISCV32_VERITY, GPT_USR_RISCV32_VERITY_SIG)
-        elif arch == "riscv64":
-            return GPTRootTypeTriplet(GPT_USR_RISCV64, GPT_USR_RISCV64_VERITY, GPT_USR_RISCV64_VERITY_SIG)
-        elif arch == "s390":
-            return GPTRootTypeTriplet(GPT_USR_S390, GPT_USR_S390_VERITY, GPT_USR_S390_VERITY_SIG)
-        elif arch == "s390x":
-            return GPTRootTypeTriplet(GPT_USR_S390X, GPT_USR_S390X_VERITY, GPT_USR_S390X_VERITY_SIG)
-        elif arch == "tilegx":
-            return GPTRootTypeTriplet(GPT_USR_TILEGX, GPT_USR_TILEGX_VERITY, GPT_USR_TILEGX_VERITY_SIG)
-        elif arch in ("i386", "i486", "i586", "i686"):
-            return GPTRootTypeTriplet(GPT_USR_X86, GPT_USR_X86_VERITY, GPT_USR_X86_VERITY_SIG)
-        elif arch == "x86_64":
-            return GPTRootTypeTriplet(GPT_USR_X86_64, GPT_USR_X86_64_VERITY, GPT_USR_X86_64_VERITY_SIG)
-        else:
-            die(f"Unknown architecture {arch}.")
-    else:
-        if arch == "alpha":
-            return GPTRootTypeTriplet(GPT_ROOT_ALPHA, GPT_ROOT_ALPHA_VERITY, GPT_ROOT_ALPHA_VERITY_SIG)
-        elif arch == "arc":
-            return GPTRootTypeTriplet(GPT_ROOT_ARC, GPT_ROOT_ARC_VERITY, GPT_ROOT_ARC_VERITY_SIG)
-        elif arch.startswith("armv"):
-            return GPTRootTypeTriplet(GPT_ROOT_ARM, GPT_ROOT_ARM_VERITY, GPT_ROOT_ARM_VERITY_SIG)
-        elif arch == "aarch64":
-            return GPTRootTypeTriplet(GPT_ROOT_ARM64, GPT_ROOT_ARM64_VERITY, GPT_ROOT_ARM64_VERITY_SIG)
-        elif arch == "ia64":
-            return GPTRootTypeTriplet(GPT_ROOT_IA64, GPT_ROOT_IA64_VERITY, GPT_ROOT_IA64_VERITY_SIG)
-        elif arch == "loongarch64":
-            return GPTRootTypeTriplet(GPT_ROOT_LOONGARCH64, GPT_ROOT_LOONGARCH64_VERITY, GPT_ROOT_LOONGARCH64_VERITY_SIG)
-        elif arch == "mipsel":
-            return GPTRootTypeTriplet(GPT_ROOT_MIPS_LE, GPT_ROOT_MIPS_LE_VERITY, GPT_ROOT_MIPS_LE_VERITY_SIG)
-        elif arch == "mipsel64":
-            return GPTRootTypeTriplet(GPT_ROOT_MIPS64_LE, GPT_ROOT_MIPS64_LE_VERITY, GPT_ROOT_MIPS64_LE_VERITY_SIG)
-        elif arch == "ppc":
-            return GPTRootTypeTriplet(GPT_ROOT_PPC, GPT_ROOT_PPC_VERITY, GPT_ROOT_PPC_VERITY_SIG)
-        elif arch == "ppc64":
-            return GPTRootTypeTriplet(GPT_ROOT_PPC64, GPT_ROOT_PPC64_VERITY, GPT_ROOT_PPC64_VERITY_SIG)
-        elif arch == "ppc64le":
-            return GPTRootTypeTriplet(GPT_ROOT_PPC64LE, GPT_ROOT_PPC64LE_VERITY, GPT_ROOT_PPC64LE_VERITY_SIG)
-        elif arch == "riscv32":
-            return GPTRootTypeTriplet(GPT_ROOT_RISCV32, GPT_ROOT_RISCV32_VERITY, GPT_ROOT_RISCV32_VERITY_SIG)
-        elif arch == "riscv64":
-            return GPTRootTypeTriplet(GPT_ROOT_RISCV64, GPT_ROOT_RISCV64_VERITY, GPT_ROOT_RISCV64_VERITY_SIG)
-        elif arch == "s390":
-            return GPTRootTypeTriplet(GPT_ROOT_S390, GPT_ROOT_S390_VERITY, GPT_ROOT_S390_VERITY_SIG)
-        elif arch == "s390x":
-            return GPTRootTypeTriplet(GPT_ROOT_S390X, GPT_ROOT_S390X_VERITY, GPT_ROOT_S390X_VERITY_SIG)
-        elif arch == "tilegx":
-            return GPTRootTypeTriplet(GPT_ROOT_TILEGX, GPT_ROOT_TILEGX_VERITY, GPT_ROOT_TILEGX_VERITY_SIG)
-        elif arch in ("i386", "i486", "i586", "i686"):
-            return GPTRootTypeTriplet(GPT_ROOT_X86, GPT_ROOT_X86_VERITY, GPT_ROOT_X86_VERITY_SIG)
-        elif arch == "x86_64":
-            return GPTRootTypeTriplet(GPT_ROOT_X86_64, GPT_ROOT_X86_64_VERITY, GPT_ROOT_X86_64_VERITY_SIG)
-        else:
-            die(f"Unknown architecture {arch}.")
-
-
-def root_or_usr(config: Union[MkosiConfig, argparse.Namespace]) -> str:
-    return ".usr" if config.usr_only else ".root"
-
-
-def roothash_suffix(config: Union[MkosiConfig, argparse.Namespace]) -> str:
-    # For compatibility with what systemd and other tools expect, we need to use "foo.raw" with "foo.roothash",
-    # "foo.verity" and "foo.roothash.p7s". Given we name the artifacts differently for "usr" and "root", we need
-    # to duplicate it for the roothash suffix. "foo.root.raw" and "foo.roothash" would not work for autodetection
-    # and usage.
-    return f"{root_or_usr(config)}{root_or_usr(config)}hash"
-
-
-def roothash_p7s_suffix(config: Union[MkosiConfig, argparse.Namespace]) -> str:
-    return f"{roothash_suffix(config)}.p7s"
 
 
 def unshare(flags: int) -> None:
@@ -466,10 +206,17 @@ def setup_workspace(config: MkosiConfig) -> TempDir:
     with complete_step("Setting up temporary workspace.", "Temporary workspace set up in {.name}") as output:
         if config.workspace_dir is not None:
             d = tempfile.TemporaryDirectory(dir=config.workspace_dir, prefix="")
-        elif config.output_format in (OutputFormat.directory, OutputFormat.subvolume):
-            d = tempfile.TemporaryDirectory(dir=config.output.parent, prefix=".mkosi-")
         else:
-            d = tempfile.TemporaryDirectory(dir=tmp_dir(), prefix="mkosi-")
+            p = config.output.parent
+
+            # The build sources might be mounted inside the workspace directory so if the workspace directory
+            # is located inside the build sources directory, we get an infinite mount loop which causes all
+            # sorts of issues, so let's make sure the workspace directory is located outside of the sources
+            # directory.
+            while str(p).startswith(str(config.build_sources)):
+                p = p.parent
+
+            d = tempfile.TemporaryDirectory(dir=p, prefix=f"mkosi.{config.build_sources.name}.tmp")
         output.append(d)
 
     return d
@@ -480,192 +227,11 @@ def btrfs_subvol_create(path: Path, mode: int = 0o755) -> None:
         run(["btrfs", "subvol", "create", path])
 
 
-def btrfs_subvol_make_ro(path: Path, b: bool = True) -> None:
-    run(["btrfs", "property", "set", path, "ro", "true" if b else "false"])
-
-
-@contextlib.contextmanager
-def btrfs_forget_stale_devices(config: MkosiConfig) -> Iterator[None]:
-    # When using cached images (-i), mounting btrfs images would sometimes fail
-    # with EEXIST. This is likely because a stale device is leftover somewhere
-    # from the previous run. To fix this, we make sure to always clean up stale
-    # btrfs devices after unmounting the image.
-    try:
-        yield
-    finally:
-        if config.output_format.is_btrfs() and shutil.which("btrfs"):
-            run(["btrfs", "device", "scan", "-u"])
-
-
-def is_generated_root(config: Union[argparse.Namespace, MkosiConfig]) -> bool:
-    """Returns whether this configuration means we need to generate a file system from a prepared tree
-
-    This is needed for anything squashfs and when root minimization is required."""
-    return config.minimize or config.output_format.is_squashfs() or config.usr_only
-
-
 def disable_cow(path: PathString) -> None:
     """Disable copy-on-write if applicable on filesystem"""
 
     run(["chattr", "+C", path],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
-
-
-def root_partition_description(
-    config: Optional[MkosiConfig],
-    suffix: Optional[str] = None,
-    image_id: Optional[str] = None,
-    image_version: Optional[str] = None,
-    usr_only: Optional[bool] = False,
-) -> str:
-
-    # Support invocation with "config" or with separate parameters (which is useful when invoking it before we allocated a MkosiConfig object)
-    if config is not None:
-        image_id = config.image_id
-        image_version = config.image_version
-        usr_only = config.usr_only
-
-    # We implement two naming regimes for the partitions. If image_id
-    # is specified we assume that there's a naming and maybe
-    # versioning regime for the image in place, and thus use that to
-    # generate the image. If not we pick descriptive names instead.
-
-    # If an image id is specified, let's generate the root, /usr/ or
-    # verity partition name from it, in a uniform way for all three
-    # types. The image ID is after all a great way to identify what is
-    # *in* the image, while the partition type UUID indicates what
-    # *kind* of data it is. If we also have a version we include it
-    # too. The latter is particularly useful for systemd's image
-    # dissection logic, which will always pick the newest root or
-    # /usr/ partition if multiple exist.
-    if image_id is not None:
-        if image_version is not None:
-            return f"{image_id}_{image_version}"
-        else:
-            return image_id
-
-    # If no image id is specified we just return a descriptive string
-    # for the partition.
-    prefix = "System Resources" if usr_only else "Root"
-    return prefix + ' ' + (suffix if suffix is not None else 'Partition')
-
-
-def initialize_partition_table(state: MkosiState, force: bool = False) -> None:
-    if state.partition_table is not None and not force:
-        return
-
-    if not state.config.output_format.is_disk():
-        return
-
-    table = PartitionTable(first_lba=state.config.gpt_first_lba)
-    no_btrfs = state.config.output_format != OutputFormat.gpt_btrfs
-
-    for condition, label, size, type_uuid, name, read_only in (
-            (state.config.bootable,
-             PartitionIdentifier.esp, state.config.esp_size, GPT_ESP, "ESP System Partition", False),
-            (state.config.bios_size > 0,
-             PartitionIdentifier.bios, state.config.bios_size, GPT_BIOS, "BIOS Boot Partition", False),
-            (state.config.xbootldr_size > 0,
-             PartitionIdentifier.xbootldr, state.config.xbootldr_size, GPT_XBOOTLDR, "Boot Loader Partition", False),
-            (state.config.swap_size > 0,
-             PartitionIdentifier.swap, state.config.swap_size, GPT_SWAP, "Swap Partition", False),
-            (no_btrfs and state.config.home_size > 0,
-             PartitionIdentifier.home, state.config.home_size, GPT_HOME, "Home Partition", False),
-            (no_btrfs and state.config.srv_size > 0,
-             PartitionIdentifier.srv, state.config.srv_size, GPT_SRV, "Server Data Partition", False),
-            (no_btrfs and state.config.var_size > 0,
-             PartitionIdentifier.var, state.config.var_size, GPT_VAR, "Variable Data Partition", False),
-            (no_btrfs and state.config.tmp_size > 0,
-             PartitionIdentifier.tmp, state.config.tmp_size, GPT_TMP, "Temporary Data Partition", False),
-            (not is_generated_root(state.config),
-             PartitionIdentifier.root, state.config.root_size,
-             gpt_root_native(state.config.architecture, state.config.usr_only).root,
-             root_partition_description(state.config),
-             state.config.read_only)):
-
-        if condition and size > 0:
-            table.add(label, size, type_uuid, name, read_only=read_only)
-
-    state.partition_table = table
-
-
-def create_image(state: MkosiState) -> Optional[BinaryIO]:
-    initialize_partition_table(state, force=True)
-    if state.partition_table is None:
-        return None
-
-    with complete_step("Creating image with partition table…",
-                       "Created image with partition table as {.name}") as output:
-
-        f: BinaryIO = cast(
-            BinaryIO,
-            tempfile.NamedTemporaryFile(prefix=".mkosi-", delete=not state.for_cache, dir=state.config.output.parent),
-        )
-        output.append(f)
-        disable_cow(f.name)
-        disk_size = state.partition_table.disk_size()
-        f.truncate(disk_size)
-
-        if state.partition_table.partitions:
-            state.partition_table.run_sfdisk(f.name)
-
-    return f
-
-
-def refresh_partition_table(state: MkosiState, f: BinaryIO) -> None:
-    initialize_partition_table(state)
-    if state.partition_table is None:
-        return
-
-    # Let's refresh all UUIDs and labels to match the new build. This
-    # is called whenever we reuse a cached image, to ensure that the
-    # UUIDs/labels of partitions are generated the same way as for
-    # non-cached builds. Note that we refresh the UUIDs/labels simply
-    # by invoking sfdisk again. If the build parameters didn't change
-    # this should have the effect that offsets and sizes should remain
-    # identical, and we thus only update the UUIDs and labels.
-    #
-    # FIXME: One of those days we should generate the UUIDs as hashes
-    # of the used configuration, so that they remain stable as the
-    # configuration is identical.
-
-    with complete_step("Refreshing partition table…", "Refreshed partition table."):
-        if state.partition_table.partitions:
-            state.partition_table.run_sfdisk(f.name, quiet=True)
-
-
-def refresh_file_system(config: MkosiConfig, dev: Optional[Path], cached: bool) -> None:
-
-    if dev is None:
-        return
-    if not cached:
-        return
-
-    # Similar to refresh_partition_table() but refreshes the UUIDs of
-    # the file systems themselves. We want that build artifacts from
-    # cached builds are as similar as possible to those from uncached
-    # builds, and hence we want to randomize UUIDs explicitly like
-    # they are for uncached builds. This is particularly relevant for
-    # btrfs since it prohibits mounting multiple file systems at the
-    # same time that carry the same UUID.
-    #
-    # FIXME: One of those days we should generate the UUIDs as hashes
-    # of the used configuration, so that they remain stable as the
-    # configuration is identical.
-
-    with complete_step(f"Refreshing file system {dev}…"):
-        if config.output_format == OutputFormat.gpt_btrfs:
-            # We use -M instead of -m here, for compatibility with
-            # older btrfs, where -M didn't exist yet.
-            run(["btrfstune", "-M", str(uuid.uuid4()), dev])
-        elif config.output_format == OutputFormat.gpt_ext4:
-            # We connect stdin to /dev/null since tune2fs otherwise
-            # asks an unnecessary safety question on stdin, and we
-            # don't want that, our script doesn't operate on essential
-            # file systems anyway, but just our build images.
-            run(["tune2fs", "-U", "random", dev], stdin=subprocess.DEVNULL)
-        elif config.output_format == OutputFormat.gpt_xfs:
-            run(["xfs_admin", "-U", "generate", dev])
 
 
 def copy_image_temporary(src: Path, dir: Path) -> BinaryIO:
@@ -693,551 +259,23 @@ def copy_file_temporary(src: PathString, dir: Path) -> BinaryIO:
         return f
 
 
-def reuse_cache_image(state: MkosiState) -> Tuple[Optional[BinaryIO], bool]:
-    if not state.config.incremental:
-        return None, False
-    if not state.config.output_format.is_disk_rw():
-        return None, False
-
-    fname = state.cache_pre_dev if state.do_run_build_script else state.cache_pre_inst
-    if state.for_cache:
-        if fname and os.path.exists(fname):
-            # Cache already generated, skip generation, note that manually removing the exising cache images is
-            # necessary if Packages or BuildPackages change
-            return None, True
-        else:
-            return None, False
-
-    if fname is None:
-        return None, False
-
-    with complete_step(f"Basing off cached image {fname}", "Copied cached image as {.name}") as output:
-
-        try:
-            f = copy_image_temporary(src=fname, dir=state.config.output.parent)
-        except FileNotFoundError:
-            return None, False
-
-        output.append(f)
-
-    return f, True
-
-
 @contextlib.contextmanager
-def flock(file: BinaryIO) -> Iterator[None]:
-    fcntl.flock(file, fcntl.LOCK_EX)
-    try:
-        yield
-    finally:
-        fcntl.flock(file, fcntl.LOCK_UN)
-
-
-@contextlib.contextmanager
-def get_loopdev(f: BinaryIO) -> Iterator[BinaryIO]:
-    with complete_step(f"Attaching {f.name} as loopback…", "Detaching {}") as output:
-        c = run(["losetup", "--find", "--show", "--partscan", f.name], stdout=subprocess.PIPE, text=True)
-        loopdev = Path(c.stdout.strip())
-        output += [loopdev]
-
-        try:
-            with open(loopdev, 'rb+') as f:
-                yield f
-        finally:
-            run(["losetup", "--detach", loopdev])
-
-
-@contextlib.contextmanager
-def attach_image_loopback(image: Optional[BinaryIO], table: Optional[PartitionTable]) -> Iterator[Optional[Path]]:
-    if image is None:
-        yield None
-        return
-
-    assert table
-
-    with get_loopdev(image) as loopdev, flock(loopdev):
-        # losetup --partscan instructs the kernel to scan the partition table and add separate partition
-        # devices for each of the partitions it finds. However, this operation is asynchronous which
-        # means losetup will return before all partition devices have been initialized. This can result
-        # in a race condition where we try to access a partition device before it's been initialized by
-        # the kernel. To avoid this race condition, let's explicitly try to add all the partitions
-        # ourselves using the BLKPKG BLKPG_ADD_PARTITION ioctl().
-        for p in table.partitions.values():
-            blkpg_add_partition(loopdev.fileno(), p.number, table.partition_offset(p), table.partition_size(p))
-
-        try:
-            yield Path(loopdev.name)
-        finally:
-            # Similarly to above, partition devices are removed asynchronously by the kernel, so again
-            # let's avoid race conditions by explicitly removing all partition devices before detaching
-            # the loop device using the BLKPG BLKPG_DEL_PARTITION ioctl().
-            for p in table.partitions.values():
-                blkpg_del_partition(loopdev.fileno(), p.number)
-
-
-@contextlib.contextmanager
-def attach_base_image(base_image: Optional[Path], table: Optional[PartitionTable]) -> Iterator[Optional[Path]]:
-    """Context manager that attaches/detaches the base image directory or device"""
-
-    if base_image is None:
-        yield None
-        return
-
-    with complete_step(f"Using {base_image} as the base image"):
-        if base_image.is_dir():
-            yield base_image
-        else:
-            with base_image.open('rb') as f, \
-                 attach_image_loopback(f, table) as loopdev:
-
-                yield loopdev
-
-
-def prepare_swap(state: MkosiState, loopdev: Optional[Path], cached: bool) -> None:
-    if loopdev is None:
-        return
-    if cached:
-        return
-    part = state.get_partition(PartitionIdentifier.swap)
-    if not part:
-        return
-
-    with complete_step("Formatting swap partition"):
-        run(["mkswap", "-Lswap", part.blockdev(loopdev)])
-
-
-def prepare_esp(state: MkosiState, loopdev: Optional[Path], cached: bool) -> None:
-    if loopdev is None:
-        return
-    if cached:
-        return
-    part = state.get_partition(PartitionIdentifier.esp)
-    if not part:
-        return
-
-    with complete_step("Formatting ESP partition"):
-        run(["mkfs.fat", "-nEFI", "-F32", part.blockdev(loopdev)])
-
-
-def prepare_xbootldr(state: MkosiState, loopdev: Optional[Path], cached: bool) -> None:
-    if loopdev is None:
-        return
-    if cached:
-        return
-
-    part = state.get_partition(PartitionIdentifier.xbootldr)
-    if not part:
-        return
-
-    with complete_step("Formatting XBOOTLDR partition"):
-        run(["mkfs.fat", "-nXBOOTLDR", "-F32", part.blockdev(loopdev)])
-
-
-def mkfs_ext4_cmd(label: str, mount: PathString) -> List[str]:
-    return ["mkfs.ext4", "-I", "256", "-L", label, "-M", str(mount)]
-
-
-def mkfs_xfs_cmd(label: str) -> List[str]:
-    return ["mkfs.xfs", "-n", "ftype=1", "-L", label]
-
-
-def mkfs_btrfs_cmd(label: str) -> List[str]:
-    return ["mkfs.btrfs", "-L", label, "-d", "single", "-m", "single"]
-
-
-def mkfs_generic(config: MkosiConfig, label: str, mount: PathString, dev: Path) -> None:
-    cmdline: Sequence[PathString]
-
-    if config.output_format == OutputFormat.gpt_btrfs:
-        cmdline = mkfs_btrfs_cmd(label)
-    elif config.output_format == OutputFormat.gpt_xfs:
-        cmdline = mkfs_xfs_cmd(label)
-    else:
-        cmdline = mkfs_ext4_cmd(label, mount)
-
-    if config.output_format == OutputFormat.gpt_ext4 and config.architecture in ("x86_64", "aarch64"):
-        # enable 64bit filesystem feature on supported architectures
-        cmdline += ["-O", "64bit"]
-
-    run([*cmdline, dev])
-
-
-def luks_format(dev: Path, passphrase: Dict[str, str]) -> None:
-    if passphrase["type"] == "stdin":
-        passphrase_content = (passphrase["content"] + "\n").encode("utf-8")
-        run(
-            [
-                "cryptsetup",
-                "luksFormat",
-                "--force-password",
-                "--pbkdf-memory=64",
-                "--pbkdf-parallel=1",
-                "--pbkdf-force-iterations=1000",
-                "--batch-mode",
-                dev,
-            ],
-            input=passphrase_content,
-        )
-    else:
-        assert passphrase["type"] == "file"
-        run(
-            [
-                "cryptsetup",
-                "luksFormat",
-                "--force-password",
-                "--pbkdf-memory=64",
-                "--pbkdf-parallel=1",
-                "--pbkdf-force-iterations=1000",
-                "--batch-mode",
-                dev,
-                passphrase["content"],
-            ]
-        )
-
-
-def luks_format_root(
-    state: MkosiState,
-    loopdev: Path,
-    cached: bool,
-    inserting_generated_root: bool = False,
-) -> None:
-    if state.config.encrypt != "all":
-        return
-    part = state.get_partition(PartitionIdentifier.root)
-    if not part:
-        return
-    if is_generated_root(state.config) and not inserting_generated_root:
-        return
-    if state.do_run_build_script:
-        return
-    if cached:
-        return
-    assert state.config.passphrase is not None
-
-    with complete_step(f"Setting up LUKS on {part.description}…"):
-        luks_format(part.blockdev(loopdev), state.config.passphrase)
-
-
-def luks_format_home(state: MkosiState, loopdev: Path, cached: bool) -> None:
-    if state.config.encrypt is None:
-        return
-    part = state.get_partition(PartitionIdentifier.home)
-    if not part:
-        return
-    if state.do_run_build_script:
-        return
-    if cached:
-        return
-    assert state.config.passphrase is not None
-
-    with complete_step(f"Setting up LUKS on {part.description}…"):
-        luks_format(part.blockdev(loopdev), state.config.passphrase)
-
-
-def luks_format_srv(state: MkosiState, loopdev: Path, cached: bool) -> None:
-    if state.config.encrypt is None:
-        return
-    part = state.get_partition(PartitionIdentifier.srv)
-    if not part:
-        return
-    if state.do_run_build_script:
-        return
-    if cached:
-        return
-    assert state.config.passphrase is not None
-
-    with complete_step(f"Setting up LUKS on {part.description}…"):
-        luks_format(part.blockdev(loopdev), state.config.passphrase)
-
-
-def luks_format_var(state: MkosiState, loopdev: Path, cached: bool) -> None:
-    if state.config.encrypt is None:
-        return
-    part = state.get_partition(PartitionIdentifier.var)
-    if not part:
-        return
-    if state.do_run_build_script:
-        return
-    if cached:
-        return
-    assert state.config.passphrase is not None
-
-    with complete_step(f"Setting up LUKS on {part.description}…"):
-        luks_format(part.blockdev(loopdev), state.config.passphrase)
-
-
-def luks_format_tmp(state: MkosiState, loopdev: Path, cached: bool) -> None:
-    if state.config.encrypt is None:
-        return
-    part = state.get_partition(PartitionIdentifier.tmp)
-    if not part:
-        return
-    if state.do_run_build_script:
-        return
-    if cached:
-        return
-    assert state.config.passphrase is not None
-
-    with complete_step(f"Setting up LUKS on {part.description}…"):
-        luks_format(part.blockdev(loopdev), state.config.passphrase)
-
-
-@contextlib.contextmanager
-def luks_open(part: Partition, loopdev: Path, passphrase: Dict[str, str]) -> Iterator[Path]:
-    name = str(uuid.uuid4())
-    dev = part.blockdev(loopdev)
-
-    with complete_step(f"Setting up LUKS on {part.description}…"):
-        if passphrase["type"] == "stdin":
-            passphrase_content = (passphrase["content"] + "\n").encode("utf-8")
-            run(["cryptsetup", "open", "--type", "luks", dev, name], input=passphrase_content)
-        else:
-            assert passphrase["type"] == "file"
-            run(["cryptsetup", "--key-file", passphrase["content"], "open", "--type", "luks", dev, name])
-
-    path = Path("/dev/mapper", name)
-
-    try:
-        yield path
-    finally:
-        with complete_step(f"Closing LUKS on {part.description}"):
-            run(["cryptsetup", "close", path])
-
-
-def luks_setup_root(
-    state: MkosiState, loopdev: Path, inserting_generated_root: bool = False
-) -> ContextManager[Optional[Path]]:
-    if state.config.encrypt != "all":
-        return contextlib.nullcontext()
-    part = state.get_partition(PartitionIdentifier.root)
-    if not part:
-        return contextlib.nullcontext()
-    if is_generated_root(state.config) and not inserting_generated_root:
-        return contextlib.nullcontext()
-    if state.do_run_build_script:
-        return contextlib.nullcontext()
-    assert state.config.passphrase is not None
-
-    return luks_open(part, loopdev, state.config.passphrase)
-
-
-def luks_setup_home(
-    state: MkosiState, loopdev: Path
-) -> ContextManager[Optional[Path]]:
-    if state.config.encrypt is None:
-        return contextlib.nullcontext()
-    part = state.get_partition(PartitionIdentifier.home)
-    if not part:
-        return contextlib.nullcontext()
-    if state.do_run_build_script:
-        return contextlib.nullcontext()
-    assert state.config.passphrase is not None
-
-    return luks_open(part, loopdev, state.config.passphrase)
-
-
-def luks_setup_srv(
-    state: MkosiState, loopdev: Path
-) -> ContextManager[Optional[Path]]:
-    if state.config.encrypt is None:
-        return contextlib.nullcontext()
-    part = state.get_partition(PartitionIdentifier.srv)
-    if not part:
-        return contextlib.nullcontext()
-    if state.do_run_build_script:
-        return contextlib.nullcontext()
-    assert state.config.passphrase is not None
-
-    return luks_open(part, loopdev, state.config.passphrase)
-
-
-def luks_setup_var(
-    state: MkosiState, loopdev: Path
-) -> ContextManager[Optional[Path]]:
-    if state.config.encrypt is None:
-        return contextlib.nullcontext()
-    part = state.get_partition(PartitionIdentifier.var)
-    if not part:
-        return contextlib.nullcontext()
-    if state.do_run_build_script:
-        return contextlib.nullcontext()
-    assert state.config.passphrase is not None
-
-    return luks_open(part, loopdev, state.config.passphrase)
-
-
-def luks_setup_tmp(
-    state: MkosiState, loopdev: Path
-) -> ContextManager[Optional[Path]]:
-    if state.config.encrypt is None:
-        return contextlib.nullcontext()
-    part = state.get_partition(PartitionIdentifier.tmp)
-    if not part:
-        return contextlib.nullcontext()
-    if state.do_run_build_script:
-        return contextlib.nullcontext()
-    assert state.config.passphrase is not None
-
-    return luks_open(part, loopdev, state.config.passphrase)
-
-
-class LuksSetupOutput(NamedTuple):
-    root: Optional[Path]
-    home: Optional[Path]
-    srv: Optional[Path]
-    var: Optional[Path]
-    tmp: Optional[Path]
-
-    @classmethod
-    def empty(cls) -> LuksSetupOutput:
-        return cls(None, None, None, None, None)
-
-    def without_generated_root(self, config: MkosiConfig) -> LuksSetupOutput:
-        "A copy of self with .root optionally supressed"
-        return LuksSetupOutput(
-            None if is_generated_root(config) else self.root,
-            *self[1:],
-        )
-
-
-@contextlib.contextmanager
-def luks_setup_all(
-    state: MkosiState, loopdev: Optional[Path]
-) -> Iterator[LuksSetupOutput]:
-    if not state.config.output_format.is_disk():
-        yield LuksSetupOutput.empty()
-        return
-
-    assert loopdev is not None
-    assert state.partition_table is not None
-
-    with luks_setup_root(state, loopdev) as root, \
-         luks_setup_home(state, loopdev) as home, \
-         luks_setup_srv(state, loopdev) as srv, \
-         luks_setup_var(state, loopdev) as var, \
-         luks_setup_tmp(state, loopdev) as tmp:
-
-        yield LuksSetupOutput(
-            root or state.partition_table.partition_path(PartitionIdentifier.root, loopdev),
-            home or state.partition_table.partition_path(PartitionIdentifier.home, loopdev),
-            srv or state.partition_table.partition_path(PartitionIdentifier.srv, loopdev),
-            var or state.partition_table.partition_path(PartitionIdentifier.var, loopdev),
-            tmp or state.partition_table.partition_path(PartitionIdentifier.tmp, loopdev))
-
-
-def prepare_root(config: MkosiConfig, dev: Optional[Path], cached: bool) -> None:
-    if dev is None:
-        return
-    if is_generated_root(config):
-        return
-    if cached:
-        return
-
-    label, path = ("usr", "/usr") if config.usr_only else ("root", "/")
-    with complete_step(f"Formatting {label} partition…"):
-        mkfs_generic(config, label, path, dev)
-
-
-def prepare_home(config: MkosiConfig, dev: Optional[Path], cached: bool) -> None:
-    if dev is None:
-        return
-    if cached:
-        return
-
-    with complete_step("Formatting home partition…"):
-        mkfs_generic(config, "home", "/home", dev)
-
-
-def prepare_srv(config: MkosiConfig, dev: Optional[Path], cached: bool) -> None:
-    if dev is None:
-        return
-    if cached:
-        return
-
-    with complete_step("Formatting server data partition…"):
-        mkfs_generic(config, "srv", "/srv", dev)
-
-
-def prepare_var(config: MkosiConfig, dev: Optional[Path], cached: bool) -> None:
-    if dev is None:
-        return
-    if cached:
-        return
-
-    with complete_step("Formatting variable data partition…"):
-        mkfs_generic(config, "var", "/var", dev)
-
-
-def prepare_tmp(config: MkosiConfig, dev: Optional[Path], cached: bool) -> None:
-    if dev is None:
-        return
-    if cached:
-        return
-
-    with complete_step("Formatting temporary data partition…"):
-        mkfs_generic(config, "tmp", "/var/tmp", dev)
-
-
-def mount_loop(config: MkosiConfig, dev: Path, where: Path, read_only: bool = False) -> ContextManager[Path]:
-    options = []
-    if not config.output_format.is_squashfs():
-        options += ["discard"]
-
-    compress = should_compress_fs(config)
-    if compress and config.output_format == OutputFormat.gpt_btrfs and where.name not in {"efi", "boot"}:
-        options += ["compress" if compress is True else f"compress={compress}"]
-
-    return mount(dev, where, options=options, read_only=read_only)
-
-
-@contextlib.contextmanager
-def mount_image(
-    state: MkosiState,
-    cached: bool,
-    base_image: Optional[Path],  # the path to the mounted base image root
-    loopdev: Optional[Path],
-    image: LuksSetupOutput,
-    root_read_only: bool = False,
-) -> Iterator[None]:
+def mount_image(state: MkosiState, cached: bool) -> Iterator[None]:
     with complete_step("Mounting image…", "Unmounting image…"), contextlib.ExitStack() as stack:
 
-        if base_image is not None:
-            stack.enter_context(mount_bind(state.root))
-            stack.enter_context(mount_overlay(base_image, state.root, root_read_only))
-
-        elif image.root is not None:
-            if state.config.usr_only:
-                # In UsrOnly mode let's have a bind mount at the top so that umount --recursive works nicely later
-                stack.enter_context(mount_bind(state.root))
-                stack.enter_context(mount_loop(state.config, image.root, state.root / "usr", root_read_only))
+        if state.config.base_image is not None:
+            if state.config.base_image.is_dir():
+                base = state.config.base_image
             else:
-                stack.enter_context(mount_loop(state.config, image.root, state.root, root_read_only))
+                base = stack.enter_context(dissect_and_mount(state.config.base_image, state.workspace / "base"))
+
+            workdir = state.workspace / "workdir"
+            workdir.mkdir()
+            stack.enter_context(mount_overlay(base, state.root, workdir, state.root))
         else:
-            # always have a root of the tree as a mount point so we can
-            # recursively unmount anything that ends up mounted there
+            # always have a root of the tree as a mount point so we can recursively unmount anything that
+            # ends up mounted there.
             stack.enter_context(mount_bind(state.root))
-
-        if image.home is not None:
-            stack.enter_context(mount_loop(state.config, image.home, state.root / "home"))
-
-        if image.srv is not None:
-            stack.enter_context(mount_loop(state.config, image.srv, state.root / "srv"))
-
-        if image.var is not None:
-            stack.enter_context(mount_loop(state.config, image.var, state.root / "var"))
-
-        if image.tmp is not None:
-            stack.enter_context(mount_loop(state.config, image.tmp, state.root / "var/tmp"))
-
-        if loopdev is not None:
-            assert state.partition_table is not None
-            path = state.partition_table.partition_path(PartitionIdentifier.esp, loopdev)
-
-            if path:
-                stack.enter_context(mount_loop(state.config, path, state.root / "efi"))
-
-            path = state.partition_table.partition_path(PartitionIdentifier.xbootldr, loopdev)
-            if path:
-                stack.enter_context(mount_loop(state.config, path, state.root / "boot"))
 
         # Make sure /tmp and /run are not part of the image
         stack.enter_context(mount_tmpfs(state.root / "run"))
@@ -1302,11 +340,6 @@ def configure_dracut(state: MkosiState, cached: bool) -> None:
     dracut_dir = state.root / "etc/dracut.conf.d"
     dracut_dir.mkdir(mode=0o755, exist_ok=True)
 
-    dracut_dir.joinpath('30-mkosi-hostonly.conf').write_text(
-        f'hostonly={yes_no(state.config.hostonly_initrd)}\n'
-        'hostonly_default_device=no\n'
-    )
-
     dracut_dir.joinpath("30-mkosi-qemu.conf").write_text('add_dracutmodules+=" qemu "\n')
 
     with dracut_dir.joinpath("30-mkosi-systemd-extras.conf").open("w") as f:
@@ -1317,12 +350,7 @@ def configure_dracut(state: MkosiState, cached: bool) -> None:
             for conf in state.root.joinpath("etc/systemd/system.conf.d").iterdir():
                 f.write(f'install_optional_items+=" {Path("/") / conf.relative_to(state.root)} "\n')
 
-    if state.config.hostonly_initrd:
-        dracut_dir.joinpath("30-mkosi-filesystem.conf").write_text(
-            f'filesystems+=" {(state.config.output_format.needed_kernel_module())} "\n'
-        )
-
-    if state.get_partition(PartitionIdentifier.esp):
+    if state.config.bootable:
         # efivarfs must be present in order to GPT root discovery work
         dracut_dir.joinpath("30-mkosi-efivarfs.conf").write_text(
             '[[ $(modinfo -k "$kernel" -F filename efivarfs 2>/dev/null) == /* ]] && add_drivers+=" efivarfs "\n'
@@ -1330,7 +358,7 @@ def configure_dracut(state: MkosiState, cached: bool) -> None:
 
 
 def prepare_tree_root(state: MkosiState) -> None:
-    if state.config.output_format == OutputFormat.subvolume and not is_generated_root(state.config):
+    if state.config.output_format == OutputFormat.subvolume:
         with complete_step("Setting up OS tree root…"):
             btrfs_subvol_create(state.root)
 
@@ -1345,91 +373,14 @@ def prepare_tree(state: MkosiState, cached: bool) -> None:
         return
 
     with complete_step("Setting up basic OS tree…"):
-        if state.config.output_format in (OutputFormat.subvolume, OutputFormat.gpt_btrfs) and not is_generated_root(state.config):
-            btrfs_subvol_create(state.root / "home")
-            btrfs_subvol_create(state.root / "srv")
-            btrfs_subvol_create(state.root / "var")
-            btrfs_subvol_create(state.root / "var/tmp", 0o1777)
-            state.root.joinpath("var/lib").mkdir()
-            btrfs_subvol_create(state.root / "var/lib/machines", 0o700)
-
         # We need an initialized machine ID for the build & boot logic to work
         state.root.joinpath("etc").mkdir(mode=0o755, exist_ok=True)
         state.root.joinpath("etc/machine-id").write_text(f"{state.machine_id}\n")
 
-        if not state.do_run_build_script and state.config.bootable:
-            if state.get_partition(PartitionIdentifier.xbootldr):
-                # Create directories for kernels and entries if this is enabled
-                state.root.joinpath("boot/EFI").mkdir(mode=0o700)
-                state.root.joinpath("boot/EFI/Linux").mkdir(mode=0o700)
-                state.root.joinpath("boot/loader").mkdir(mode=0o700)
-                state.root.joinpath("boot/loader/entries").mkdir(mode=0o700)
-                state.root.joinpath("boot", state.machine_id).mkdir(mode=0o700)
-            else:
-                # If this is not enabled, let's create an empty directory on /boot
-                state.root.joinpath("boot").mkdir(mode=0o700)
-
-            if state.get_partition(PartitionIdentifier.esp):
-                state.root.joinpath("efi/EFI").mkdir(mode=0o700)
-                state.root.joinpath("efi/EFI/BOOT").mkdir(mode=0o700)
-                state.root.joinpath("efi/EFI/systemd").mkdir(mode=0o700)
-                state.root.joinpath("efi/loader").mkdir(mode=0o700)
-
-                if not state.get_partition(PartitionIdentifier.xbootldr):
-                    # Create directories for kernels and entries, unless the XBOOTLDR partition is turned on
-                    state.root.joinpath("efi/EFI/Linux").mkdir(mode=0o700)
-                    state.root.joinpath("efi/loader/entries").mkdir(mode=0o700)
-                    state.root.joinpath("efi", state.machine_id).mkdir(mode=0o700)
-
-                    # Create some compatibility symlinks in /boot in case that is not set up otherwise
-                    state.root.joinpath("boot/efi").symlink_to("../efi")
-                    state.root.joinpath("boot/loader").symlink_to("../efi/loader")
-                    state.root.joinpath("boot", state.machine_id).symlink_to(f"../efi/{state.machine_id}")
-
-            state.root.joinpath("etc/kernel").mkdir(mode=0o755)
-
-            state.root.joinpath("etc/kernel/cmdline").write_text(" ".join(state.config.kernel_command_line) + "\n")
-            state.root.joinpath("etc/kernel/entry-token").write_text(f"{state.machine_id}\n")
-            state.root.joinpath("etc/kernel/install.conf").write_text("layout=bls\n")
-
-        if state.do_run_build_script or state.config.ssh or state.config.usr_only:
-            root_home(state).mkdir(mode=0o750)
-
-        if state.config.ssh and not state.do_run_build_script:
-            root_home(state).joinpath(".ssh").mkdir(mode=0o700)
-
-        if state.do_run_build_script:
-            root_home(state).joinpath("dest").mkdir(mode=0o755)
-
-            if state.config.build_dir is not None:
-                root_home(state).joinpath("build").mkdir(0o755)
-
-        if state.config.netdev and not state.do_run_build_script:
-            state.root.joinpath("etc/systemd").mkdir(mode=0o755)
-            state.root.joinpath("etc/systemd/network").mkdir(mode=0o755)
-
-
-def make_rpm_list(state: MkosiState, packages: Set[str]) -> Set[str]:
-    packages = packages.copy()
-
-    if state.config.bootable:
-        # Temporary hack: dracut only adds crypto support to the initrd, if the cryptsetup binary is installed
-        if state.config.encrypt or state.config.verity:
-            add_packages(state.config, packages, "cryptsetup", conditional="dracut")
-
-        if state.config.output_format == OutputFormat.gpt_ext4:
-            add_packages(state.config, packages, "e2fsprogs")
-
-        if state.config.output_format == OutputFormat.gpt_xfs:
-            add_packages(state.config, packages, "xfsprogs")
-
-        if state.config.output_format == OutputFormat.gpt_btrfs:
-            add_packages(state.config, packages, "btrfs-progs")
-
-    if not state.do_run_build_script and state.config.ssh:
-        add_packages(state.config, packages, "openssh-server")
-
-    return packages
+        state.root.joinpath("etc/kernel").mkdir(mode=0o755, exist_ok=True)
+        state.root.joinpath("etc/kernel/cmdline").write_text(" ".join(state.config.kernel_command_line) + "\n")
+        state.root.joinpath("etc/kernel/entry-token").write_text(f"{state.machine_id}\n")
+        state.root.joinpath("etc/kernel/install.conf").write_text("layout=bls\n")
 
 
 def flatten(lists: Iterable[Iterable[T]]) -> List[T]:
@@ -1687,21 +638,6 @@ def configure_root_password(state: MkosiState, cached: bool) -> None:
             patch_file(state.root / "etc/shadow", set_root_pw)
 
 
-def invoke_fstrim(state: MkosiState) -> None:
-
-    if state.do_run_build_script:
-        return
-    if is_generated_root(state.config):
-        return
-    if not state.config.output_format.is_disk():
-        return
-    if state.for_cache:
-        return
-
-    with complete_step("Trimming File System"):
-        run(["fstrim", "-v", state.root], check=False)
-
-
 def pam_add_autologin(root: Path, ttys: List[str]) -> None:
     login = root / "etc/pam.d/login"
     original = login.read_text() if login.exists() else ""
@@ -1770,23 +706,15 @@ def nspawn_id_map_supported() -> bool:
         # If we can't check assume the kernel is new enough
         return True
 
-    return version.parse(platform.release()) >= version.LegacyVersion("5.12")
+    return version.parse(platform.release()) >= version.parse("5.12")
 
 
 def nspawn_params_for_build_sources(config: MkosiConfig, sft: SourceFileTransfer) -> List[str]:
-    params = []
-
-    if config.build_sources is not None:
-        params += ["--setenv=SRCDIR=/root/src",
-                   "--chdir=/root/src"]
-        if sft == SourceFileTransfer.mount:
-            idmap_opt = ":rootidmap" if nspawn_id_map_supported() and config.idmap else ""
-            params += [f"--bind={config.build_sources}:/root/src{idmap_opt}"]
-
-        if config.read_only:
-            params += ["--overlay=+/root/src::/root/src"]
-    else:
-        params += ["--chdir=/root"]
+    params = ["--setenv=SRCDIR=/root/src",
+              "--chdir=/root/src"]
+    if sft == SourceFileTransfer.mount:
+        idmap_opt = ":rootidmap" if nspawn_id_map_supported() and config.idmap else ""
+        params += [f"--bind={config.build_sources}:/root/src{idmap_opt}"]
 
     return params
 
@@ -1806,17 +734,17 @@ def run_prepare_script(state: MkosiState, cached: bool) -> None:
         # place to mount it to. But if we create that we might as well
         # just copy the file anyway.
 
-        shutil.copy2(state.config.prepare_script, root_home(state) / "prepare")
+        shutil.copy2(state.config.prepare_script, state.root / "root/prepare")
 
         nspawn_params = nspawn_params_for_build_sources(state.config, SourceFileTransfer.mount)
         run_workspace_command(state, ["/root/prepare", verb],
                               network=True, nspawn_params=nspawn_params, env=state.environment)
 
-        srcdir = root_home(state) / "src"
+        srcdir = state.root / "root/src"
         if srcdir.exists():
             os.rmdir(srcdir)
 
-        os.unlink(root_home(state) / "prepare")
+        os.unlink(state.root / "root/prepare")
 
 
 def run_postinst_script(state: MkosiState) -> None:
@@ -1834,15 +762,11 @@ def run_postinst_script(state: MkosiState) -> None:
         # place to mount it to. But if we create that we might as well
         # just copy the file anyway.
 
-        shutil.copy2(state.config.postinst_script, root_home(state) / "postinst")
+        shutil.copy2(state.config.postinst_script, state.root / "root/postinst")
 
         run_workspace_command(state, ["/root/postinst", verb],
                               network=(state.config.with_network is True), env=state.environment)
-        root_home(state).joinpath("postinst").unlink()
-
-
-def output_dir(config: MkosiConfig) -> Path:
-    return config.output_dir or Path(os.getcwd())
+        state.root.joinpath("root/postinst").unlink()
 
 
 def run_finalize_script(state: MkosiState) -> None:
@@ -1855,7 +779,7 @@ def run_finalize_script(state: MkosiState) -> None:
 
     with complete_step("Running finalize script…"):
         run([state.config.finalize_script, verb],
-            env={**state.environment, "BUILDROOT": str(state.root), "OUTPUTDIR": str(output_dir(state.config))})
+            env={**state.environment, "BUILDROOT": str(state.root), "OUTPUTDIR": str(state.config.output_dir or Path.cwd())})
 
 
 def install_boot_loader(state: MkosiState) -> None:
@@ -1863,8 +787,7 @@ def install_boot_loader(state: MkosiState) -> None:
         return
 
     with complete_step("Installing boot loader…"):
-        if state.get_partition(PartitionIdentifier.esp):
-            run_workspace_command(state, ["bootctl", "install"])
+        run(["bootctl", "install", "--root", state.root], env={"SYSTEMD_ESP_PATH": "/boot"})
 
 
 def install_extra_trees(state: MkosiState) -> None:
@@ -1947,7 +870,7 @@ def install_build_src(state: MkosiState) -> None:
     if state.do_run_build_script:
         if state.config.build_script is not None:
             with complete_step("Copying in build script…"):
-                copy_file(state.config.build_script, root_home(state) / state.config.build_script.name)
+                copy_file(state.config.build_script, state.root / "root" / state.config.build_script.name)
         else:
             return
 
@@ -1960,11 +883,11 @@ def install_build_src(state: MkosiState) -> None:
         sft = state.config.source_file_transfer_final
         resolve_symlinks = state.config.source_resolve_symlinks_final
 
-    if state.config.build_sources is None or sft is None:
+    if sft is None:
         return
 
     with complete_step("Copying in sources…"):
-        target = root_home(state) / "src"
+        target = state.root / "root/src"
 
         if sft in (
             SourceFileTransfer.copy_git_others,
@@ -2001,34 +924,17 @@ def install_build_dest(state: MkosiState) -> None:
         copy_path(install_dir(state), state.root, copystat=False)
 
 
-def make_read_only(state: MkosiState, directory: Path, b: bool = True) -> None:
-    if not state.config.read_only:
-        return
-    if state.for_cache:
-        return
-
-    if state.config.output_format not in (OutputFormat.gpt_btrfs, OutputFormat.subvolume):
-        return
-    if is_generated_root(state.config):
-        return
-
-    with complete_step("Marking subvolume read-only"):
-        btrfs_subvol_make_ro(directory, b)
-
-
 def xz_binary() -> str:
     return "pxz" if shutil.which("pxz") else "xz"
 
 
-def compressor_command(option: Union[str, bool]) -> List[str]:
+def compressor_command(option: Union[str, bool], src: Path) -> List[PathString]:
     """Returns a command suitable for compressing archives."""
 
     if option == "xz":
-        return [xz_binary(), "--check=crc32", "--lzma2=dict=1MiB", "-T0"]
+        return [xz_binary(), "--check=crc32", "--lzma2=dict=1MiB", "-T0", src]
     elif option == "zstd":
-        return ["zstd", "-15", "-q", "-T0"]
-    elif option is False:
-        return ["cat"]
+        return ["zstd", "-15", "-q", "-T0", "--rm", src]
     else:
         die(f"Unknown compression {option}")
 
@@ -2044,31 +950,22 @@ def tar_binary() -> str:
     return "gtar" if shutil.which("gtar") else "tar"
 
 
-def make_tar(state: MkosiState) -> Optional[BinaryIO]:
+def make_tar(state: MkosiState) -> None:
     if state.do_run_build_script:
-        return None
+        return
     if state.config.output_format != OutputFormat.tar:
-        return None
+        return
     if state.for_cache:
-        return None
+        return
 
-    root_dir = state.root / "usr" if state.config.usr_only else state.root
-
-    cmd: List[PathString] = [tar_binary(), "-C", root_dir, "-c", "--xattrs", "--xattrs-include=*"]
+    cmd: List[PathString] = [tar_binary(), "-C", state.root, "-c", "--xattrs", "--xattrs-include=*"]
     if state.config.tar_strip_selinux_context:
         cmd += ["--xattrs-exclude=security.selinux"]
 
-    compress = should_compress_output(state.config)
-    if compress:
-        cmd += ["--use-compress-program=" + " ".join(compressor_command(compress))]
-
-    cmd += ["."]
+    cmd += [".", "-f", state.staging / state.config.output.name]
 
     with complete_step("Creating archive…"):
-        f: BinaryIO = cast(BinaryIO, tempfile.NamedTemporaryFile(dir=os.path.dirname(state.config.output), prefix=".mkosi-"))
-        run(cmd, stdout=f)
-
-    return f
+        run(cmd)
 
 
 def find_files(root: Path) -> Iterator[Path]:
@@ -2077,432 +974,43 @@ def find_files(root: Path) -> Iterator[Path]:
                                  lambda entry: Path(entry.path).relative_to(root))
 
 
-def make_cpio(state: MkosiState) -> Optional[BinaryIO]:
+def make_cpio(state: MkosiState) -> None:
     if state.do_run_build_script:
-        return None
+        return
     if state.config.output_format != OutputFormat.cpio:
-        return None
+        return
     if state.for_cache:
-        return None
+        return
 
-    root_dir = state.root / "usr" if state.config.usr_only else state.root
-
-    with complete_step("Creating archive…"):
-        f: BinaryIO = cast(BinaryIO, tempfile.NamedTemporaryFile(dir=os.path.dirname(state.config.output), prefix=".mkosi-"))
-
-        compressor = compressor_command(should_compress_output(state.config))
-        files = find_files(root_dir)
+    with complete_step("Creating archive…"), open(state.staging / state.config.output.name, "wb") as f:
+        files = find_files(state.root)
         cmd: List[PathString] = [
-            "cpio", "-o", "--reproducible", "--null", "-H", "newc", "--quiet", "-D", root_dir
+            "cpio", "-o", "--reproducible", "--null", "-H", "newc", "--quiet", "-D", state.root
         ]
 
-        with spawn(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE) as cpio:
+        with spawn(cmd, stdin=subprocess.PIPE, stdout=f) as cpio:
             #  https://github.com/python/mypy/issues/10583
             assert cpio.stdin is not None
 
-            with spawn(compressor, stdin=cpio.stdout, stdout=f, delay_interrupt=False):
-                for file in files:
-                    cpio.stdin.write(os.fspath(file).encode("utf8") + b"\0")
-                cpio.stdin.close()
+            for file in files:
+                cpio.stdin.write(os.fspath(file).encode("utf8") + b"\0")
+            cpio.stdin.close()
         if cpio.wait() != 0:
             die("Failed to create archive")
 
-    return f
 
-
-def generate_squashfs(state: MkosiState, directory: Path) -> Optional[BinaryIO]:
-    if not state.config.output_format.is_squashfs():
-        return None
-    if state.for_cache:
-        return None
-
-    command = state.config.mksquashfs_tool[0] if state.config.mksquashfs_tool else "mksquashfs"
-    comp_args = state.config.mksquashfs_tool[1:] if state.config.mksquashfs_tool and state.config.mksquashfs_tool[1:] else ["-noappend"]
-
-    compress = should_compress_fs(state.config)
-    # mksquashfs default is true, so no need to specify anything to have the default compression.
-    if isinstance(compress, str):
-        comp_args += ["-comp", compress]
-    elif compress is False:
-        comp_args += ["-noI", "-noD", "-noF", "-noX"]
-
-    with complete_step("Creating squashfs file system…"):
-        f: BinaryIO = cast(
-            BinaryIO, tempfile.NamedTemporaryFile(prefix=".mkosi-squashfs", dir=os.path.dirname(state.config.output))
-        )
-        run([command, directory, f.name, *comp_args])
-
-    return f
-
-
-def generate_ext4(state: MkosiState, directory: Path, label: str) -> Optional[BinaryIO]:
-    if state.config.output_format != OutputFormat.gpt_ext4:
-        return None
-    if state.for_cache:
-        return None
-
-    with complete_step("Creating ext4 root file system…"):
-        f: BinaryIO = cast(
-            BinaryIO, tempfile.NamedTemporaryFile(prefix=".mkosi-mkfs-ext4", dir=os.path.dirname(state.config.output))
-        )
-        f.truncate(state.config.root_size)
-        run(["mkfs.ext4", "-I", "256", "-L", label, "-M", "/", "-d", directory, f.name])
-
-    if state.config.minimize:
-        with complete_step("Minimizing ext4 root file system…"):
-            run(["resize2fs", "-M", f.name])
-
-    return f
-
-
-def generate_btrfs(state: MkosiState, directory: Path, label: str) -> Optional[BinaryIO]:
-    if state.config.output_format != OutputFormat.gpt_btrfs:
-        return None
-    if state.for_cache:
-        return None
-
-    with complete_step("Creating minimal btrfs root file system…"):
-        f: BinaryIO = cast(BinaryIO, tempfile.NamedTemporaryFile(prefix=".mkosi-mkfs-btrfs", dir=state.config.output.parent))
-        f.truncate(state.config.root_size)
-
-        cmdline: Sequence[PathString] = [
-            "mkfs.btrfs", "-L", label, "-d", "single", "-m", "single", "--rootdir", directory, f.name
-        ]
-
-        if state.config.minimize:
-            try:
-                run([*cmdline, "--shrink"])
-            except subprocess.CalledProcessError:
-                # The --shrink option was added in btrfs-tools 4.14.1, before that it was the default behaviour.
-                # If the above fails, let's see if things work if we drop it
-                run(cmdline)
-        else:
-            run(cmdline)
-
-    return f
-
-
-def generate_xfs(state: MkosiState, directory: Path, label: str) -> Optional[BinaryIO]:
-    if state.config.output_format != OutputFormat.gpt_xfs:
-        return None
-    if state.for_cache:
-        return None
-
-    with complete_step("Creating xfs root file system…"):
-        f: BinaryIO = cast(
-            BinaryIO,
-            tempfile.NamedTemporaryFile(prefix=".mkosi-mkfs-xfs", dir=os.path.dirname(state.config.output))
-        )
-
-        f.truncate(state.config.root_size)
-        run(mkfs_xfs_cmd(label) + [f.name])
-
-        xfs_dir = state.workspace / "xfs"
-        xfs_dir.mkdir()
-        with get_loopdev(f) as loopdev, mount_loop(state.config, Path(loopdev.name), xfs_dir) as mp:
-            copy_path(directory, mp)
-
-    return f
-
-
-def make_generated_root(state: MkosiState) -> Optional[BinaryIO]:
-
-    if not is_generated_root(state.config):
-        return None
-
-    label = "usr" if state.config.usr_only else "root"
-    patched_root = state.root / "usr" if state.config.usr_only else state.root
-
-    if state.config.output_format == OutputFormat.gpt_xfs:
-        return generate_xfs(state, patched_root, label)
-    if state.config.output_format == OutputFormat.gpt_ext4:
-        return generate_ext4(state, patched_root, label)
-    if state.config.output_format == OutputFormat.gpt_btrfs:
-        return generate_btrfs(state, patched_root, label)
-    if state.config.output_format.is_squashfs():
-        return generate_squashfs(state, patched_root)
-
-    return None
-
-
-def insert_partition(
-    state: MkosiState,
-    raw: BinaryIO,
-    loopdev: Path,
-    blob: BinaryIO,
-    ident: PartitionIdentifier,
-    description: str,
-    type_uuid: uuid.UUID,
-    read_only: bool,
-    part_uuid: Optional[uuid.UUID] = None,
-) -> Partition:
-
-    assert state.partition_table is not None
-
-    blob.seek(0)
-
-    luks_extra = 16 * 1024 * 1024 if state.config.encrypt == "all" else 0
-    blob_size = os.stat(blob.name).st_size
-    if ident == PartitionIdentifier.root and not state.config.minimize:
-        # Make root partition at least as big as the specified size
-        blob_size = max(blob_size, state.config.root_size)
-    part = state.partition_table.add(ident, blob_size + luks_extra, type_uuid, description, part_uuid)
-
-    disk_size = state.partition_table.disk_size()
-    ss = f" ({disk_size // state.partition_table.sector_size} sectors)" if 'disk' in ARG_DEBUG else ""
-    with complete_step(f"Resizing disk image to {format_bytes(disk_size)}{ss}"):
-        os.truncate(raw.name, disk_size)
-        run(["losetup", "--set-capacity", loopdev])
-
-    part_size = part.n_sectors * state.partition_table.sector_size
-    ss = f" ({part.n_sectors} sectors)" if 'disk' in ARG_DEBUG else ""
-    with complete_step(f"Inserting partition of {format_bytes(part_size)}{ss}..."):
-        state.partition_table.run_sfdisk(loopdev)
-
-    with complete_step("Writing partition..."):
-        if ident == PartitionIdentifier.root:
-            luks_format_root(state, loopdev, False, False)
-            cm = luks_setup_root(state, loopdev, False)
-        else:
-            cm = contextlib.nullcontext()
-
-        with cm as dev:
-            path = dev if dev is not None else part.blockdev(loopdev)
-
-            # Without this the entire blob will be read into memory which could exceed system memory
-            with open(path, mode='wb') as path_fp:
-                # Chunk size for 32/64-bit systems
-                # Chunking required because sendfile under Linux has a maximum copy size
-                chunksize = 2 ** 30 if sys.maxsize < 2 ** 32 else 0x7ffff000
-                offset = 0
-                while True:
-                    sent = os.sendfile(path_fp.fileno(), blob.fileno(), offset=offset, count=chunksize)
-                    if not sent:
-                        break
-                    offset += sent
-
-    return part
-
-
-def insert_generated_root(
-    state: MkosiState,
-    raw: Optional[BinaryIO],
-    loopdev: Optional[Path],
-    image: Optional[BinaryIO],
-) -> Optional[Partition]:
-    if not is_generated_root(state.config):
-        return None
-    if not state.config.output_format.is_disk():
-        return None
-    if state.for_cache:
-        return None
-    assert raw is not None
-    assert loopdev is not None
-    assert image is not None
-    assert state.partition_table is not None
-
-    with complete_step("Inserting generated root partition…"):
-        return insert_partition(
-            state,
-            raw,
-            loopdev,
-            image,
-            PartitionIdentifier.root,
-            root_partition_description(state.config),
-            type_uuid=gpt_root_native(state.config.architecture, state.config.usr_only).root,
-            read_only=state.config.read_only)
-
-
-def make_verity(state: MkosiState, dev: Optional[Path]) -> Tuple[Optional[BinaryIO], Optional[str]]:
-    if state.do_run_build_script or state.config.verity is False:
-        return None, None
-    if state.for_cache:
-        return None, None
-    assert dev is not None
-
-    with complete_step("Generating verity hashes…"):
-        f: BinaryIO = cast(BinaryIO, tempfile.NamedTemporaryFile(dir=state.config.output.parent, prefix=".mkosi-"))
-        c = run(["veritysetup", "format", dev, f.name], stdout=subprocess.PIPE)
-
-        for line in c.stdout.decode("utf-8").split("\n"):
-            if line.startswith("Root hash:"):
-                root_hash = line[10:].strip()
-                return f, root_hash
-
-        raise ValueError("Root hash not found")
-
-
-def insert_verity(
-    state: MkosiState,
-    raw: Optional[BinaryIO],
-    loopdev: Optional[Path],
-    verity: Optional[BinaryIO],
-    root_hash: Optional[str],
-) -> Optional[Partition]:
-    if verity is None:
-        return None
-    if state.for_cache:
-        return None
-    assert loopdev is not None
-    assert raw is not None
-    assert root_hash is not None
-    assert state.partition_table is not None
-
-    # Use the final 128 bit of the root hash as partition UUID of the verity partition
-    u = uuid.UUID(root_hash[-32:])
-
-    with complete_step("Inserting verity partition…"):
-        return insert_partition(
-            state,
-            raw,
-            loopdev,
-            verity,
-            PartitionIdentifier.verity,
-            root_partition_description(state.config, "Verity"),
-            gpt_root_native(state.config.architecture, state.config.usr_only).verity,
-            read_only=True,
-            part_uuid=u)
-
-
-def make_verity_sig(
-    state: MkosiState, root_hash: Optional[str]
-) -> Tuple[Optional[BinaryIO], Optional[bytes], Optional[str]]:
-
-    if state.do_run_build_script or state.config.verity != "signed":
-        return None, None, None
-    if state.for_cache:
-        return None, None, None
-
-    assert root_hash is not None
-
-    try:
-        from cryptography import x509
-        from cryptography.hazmat.primitives import hashes, serialization
-        from cryptography.hazmat.primitives.asymmetric import ec, rsa
-        from cryptography.hazmat.primitives.serialization import pkcs7
-    except ImportError:
-        die("Verity support needs the cryptography module. Please install it.")
-
-    with complete_step("Signing verity root hash…"):
-
-        key = serialization.load_pem_private_key(state.config.secure_boot_key.read_bytes(), password=None)
-        certificate = x509.load_pem_x509_certificate(state.config.secure_boot_certificate.read_bytes())
-
-        if not isinstance(key, (ec.EllipticCurvePrivateKey, rsa.RSAPrivateKey)):
-            die(f"Secure boot key has unsupported type {type(key)}")
-
-        fingerprint = certificate.fingerprint(hashes.SHA256()).hex()
-
-        sigbytes = pkcs7.PKCS7SignatureBuilder().add_signer(
-            certificate,
-            key,
-            hashes.SHA256()
-        ).set_data(
-            root_hash.encode("utf-8")
-        ).sign(
-            options=[
-                pkcs7.PKCS7Options.DetachedSignature,
-                pkcs7.PKCS7Options.NoCerts,
-                pkcs7.PKCS7Options.NoAttributes,
-                pkcs7.PKCS7Options.Binary
-            ],
-            encoding=serialization.Encoding.DER
-        )
-
-        # We base64 the DER result, because we want to include it in JSON. This is not PEM
-        # (i.e. no header/footer line, no line breaks), but just base64 encapsulated DER).
-        b64encoded = base64.b64encode(sigbytes).decode("ascii")
-
-        print(b64encoded)
-
-        # This is supposed to be extensible, but care should be taken not to include unprotected
-        # data here.
-        j = json.dumps({
-                "rootHash": root_hash,
-                "certificateFingerprint": fingerprint,
-                "signature": b64encoded
-            }).encode("utf-8")
-
-        f: BinaryIO = cast(BinaryIO, tempfile.NamedTemporaryFile(mode="w+b", dir=state.config.output.parent, prefix=".mkosi-"))
-        f.write(j)
-        f.flush()
-
-        # Returns a file with JSON data to insert as signature partition as the first element, and
-        # the DER PKCS7 signature bytes as second argument (to store as a detached PKCS7 file), and
-        # finally the SHA256 fingerprint of the certificate used (which is used to
-        # deterministically generate the partition UUID for the signature partition).
-
-        return f, sigbytes, fingerprint
-
-
-def insert_verity_sig(
-    state: MkosiState,
-    raw: Optional[BinaryIO],
-    loopdev: Optional[Path],
-    verity_sig: Optional[BinaryIO],
-    root_hash: Optional[str],
-    fingerprint: Optional[str],
-) -> Optional[Partition]:
-    if verity_sig is None:
-        return None
-    if state.for_cache:
-        return None
-    assert loopdev is not None
-    assert raw is not None
-    assert root_hash is not None
-    assert fingerprint is not None
-    assert state.partition_table is not None
-
-    # Hash the concatenation of verity roothash and the X509 certificate
-    # fingerprint to generate a UUID for the signature partition.
-    u = uuid.UUID(hashlib.sha256(bytes.fromhex(root_hash) + bytes.fromhex(fingerprint)).hexdigest()[:32])
-
-    with complete_step("Inserting verity signature partition…"):
-        return insert_partition(
-            state,
-            raw,
-            loopdev,
-            verity_sig,
-            PartitionIdentifier.verity_sig,
-            root_partition_description(state.config, "Signature"),
-            gpt_root_native(state.config.architecture, state.config.usr_only).verity_sig,
-            read_only=True,
-            part_uuid=u)
-
-
-def patch_root_uuid(state: MkosiState, loopdev: Optional[Path], root_hash: Optional[str]) -> None:
-    if root_hash is None:
-        return
-    assert loopdev is not None
-
-    if state.for_cache:
+def make_directory(state: MkosiState) -> None:
+    if state.do_run_build_script or state.config.output_format != OutputFormat.directory or state.for_cache:
         return
 
-    # Use the first 128bit of the root hash as partition UUID of the root partition
-    u = uuid.UUID(root_hash[:32])
-
-    part = state.get_partition(PartitionIdentifier.root)
-    assert part is not None
-    part.part_uuid = u
-
-    print('Root partition-type UUID:', u)
-
-
-def extract_partition(state: MkosiState, dev: Optional[Path]) -> Optional[BinaryIO]:
-    if state.do_run_build_script or state.for_cache or not state.config.split_artifacts:
-        return None
-
-    assert dev is not None
-
-    with complete_step("Extracting partition…"):
-        f: BinaryIO = cast(BinaryIO, tempfile.NamedTemporaryFile(dir=os.path.dirname(state.config.output), prefix=".mkosi-"))
-        run(["dd", f"if={dev}", f"of={f.name}", "conv=nocreat,sparse"])
-
-    return f
+    os.rename(state.root, state.staging / state.config.output.name)
 
 
 def gen_kernel_images(state: MkosiState) -> Iterator[Tuple[str, Path]]:
     # Apparently openmandriva hasn't yet completed its usrmerge so we use lib here instead of usr/lib.
+    if not state.root.joinpath("lib/modules").exists():
+        return
+
     for kver in state.root.joinpath("lib/modules").iterdir():
         if not kver.is_dir():
             continue
@@ -2521,20 +1029,14 @@ def initrd_path(state: MkosiState, kver: str) -> Path:
     return initrd
 
 
-def install_unified_kernel(
-    state: MkosiState,
-    root_hash: Optional[str],
-    mount: Callable[[], ContextManager[None]],
-) -> None:
+def install_unified_kernel(state: MkosiState, label: Optional[str], root_hash: Optional[str], usr_only: bool) -> None:
     # Iterates through all kernel versions included in the image and generates a combined
     # kernel+initrd+cmdline+osrelease EFI file from it and places it in the /EFI/Linux directory of the ESP.
     # sd-boot iterates through them and shows them in the menu. These "unified" single-file images have the
     # benefit that they can be signed like normal EFI binaries, and can encode everything necessary to boot a
     # specific root device, including the root hash.
 
-    if not (state.config.bootable and
-            state.get_partition(PartitionIdentifier.esp) and
-            state.config.with_unified_kernel_images):
+    if not state.config.bootable:
         return
 
     # Don't run dracut if this is for the cache. The unified kernel
@@ -2557,19 +1059,11 @@ def install_unified_kernel(
     if state.do_run_build_script:
         return
 
-    prefix = "boot" if state.get_partition(PartitionIdentifier.xbootldr) else "efi"
+    prefix = "boot"
 
-    with mount(), complete_step("Generating combined kernel + initrd boot file…"):
+    with complete_step("Generating combined kernel + initrd boot file…"):
         for kver, kimg in gen_kernel_images(state):
-            if state.config.image_id:
-                image_id = state.config.image_id
-                if state.config.image_version:
-                    partlabel = f"{state.config.image_id}_{state.config.image_version}"
-                else:
-                    partlabel = f"{state.config.image_id}"
-            else:
-                image_id = f"mkosi-{state.config.distribution}"
-                partlabel = None
+            image_id = state.config.image_id or f"mkosi-{state.config.distribution}"
 
             # See https://systemd.io/AUTOMATIC_BOOT_ASSESSMENT/#boot-counting
             boot_count = ""
@@ -2591,14 +1085,17 @@ def install_unified_kernel(
                 boot_options = ""
 
             if root_hash:
-                option = "usrhash" if state.config.usr_only else "roothash"
+                option = "usrhash" if usr_only else "roothash"
                 boot_options = f"{boot_options} {option}={root_hash}"
-            elif partlabel:
-                option = "mount.usr" if state.config.usr_only else "root"
-                boot_options = f"{boot_options} {option}=PARTLABEL={partlabel}"
+            else:
+                # Direct Linux boot means we can't rely on systemd-gpt-auto-generator to
+                # figure out the root partition for us so we have to encode it manually
+                # in the kernel cmdline.
+                option = "mount.usr" if usr_only else "root"
+                boot_options = f"{boot_options} {option}=LABEL={label}"
 
             osrelease = state.root / "usr/lib/os-release"
-            cmdline = state.workspace / "cmdline"
+            cmdline = state.staging / state.config.output_split_cmdline
             cmdline.write_text(boot_options)
             initrd = initrd_path(state, kver)
             pcrsig = None
@@ -2659,532 +1156,197 @@ def install_unified_kernel(
 
             run(cmd)
 
-            cmdline.unlink()
             if pcrsig is not None:
                 pcrsig.unlink()
             if pcrpkey is not None:
                 pcrpkey.unlink()
 
 
-def secure_boot_sign(
-    state: MkosiState,
-    directory: Path,
-    cached: bool,
-    mount: Callable[[], ContextManager[None]],
-    replace: bool = False,
-) -> None:
+def secure_boot_sign(state: MkosiState, directory: Path, replace: bool = False) -> None:
     if state.do_run_build_script:
         return
     if not state.config.bootable:
         return
     if not state.config.secure_boot:
         return
-    if state.for_cache and state.config.verity:
-        return
-    if cached and state.config.verity is False:
+    if state.for_cache:
         return
 
-    with mount():
-        for f in itertools.chain(directory.glob('*.efi'), directory.glob('*.EFI')):
-            if os.path.exists(f"{f}.signed"):
-                MkosiPrinter.info(f"Not overwriting existing signed EFI binary {f}.signed")
+    for f in itertools.chain(directory.glob('*.efi'), directory.glob('*.EFI')):
+        if os.path.exists(f"{f}.signed"):
+            MkosiPrinter.info(f"Not overwriting existing signed EFI binary {f}.signed")
+            continue
+
+        with complete_step(f"Signing EFI binary {f}…"):
+            run(
+                [
+                    "sbsign",
+                    "--key",
+                    state.config.secure_boot_key,
+                    "--cert",
+                    state.config.secure_boot_certificate,
+                    "--output",
+                    f"{f}.signed",
+                    f,
+                ],
+            )
+
+            if replace:
+                os.rename(f"{f}.signed", f)
+
+
+def extract_unified_kernel(state: MkosiState) -> None:
+    if state.do_run_build_script or state.for_cache or not state.config.bootable:
+        return
+
+    kernel = None
+
+    for path, _, filenames in os.walk(state.root / "boot/EFI/Linux"):
+        for i in filenames:
+            if not i.endswith(".efi") and not i.endswith(".EFI"):
                 continue
 
-            with complete_step(f"Signing EFI binary {f}…"):
-                run(
-                    [
-                        "sbsign",
-                        "--key",
-                        state.config.secure_boot_key,
-                        "--cert",
-                        state.config.secure_boot_certificate,
-                        "--output",
-                        f"{f}.signed",
-                        f,
-                    ],
+            if kernel is not None:
+                raise ValueError(
+                    f"Multiple kernels found, don't know which one to extract. ({kernel} vs. {path}/{i})"
                 )
 
-                if replace:
-                    os.rename(f"{f}.signed", f)
+            kernel = os.path.join(path, i)
+
+    if kernel is None:
+        return
+
+    copy_file(kernel, state.staging / state.config.output_split_kernel.name)
 
 
-def extract_unified_kernel(
-    state: MkosiState,
-    mount: Callable[[], ContextManager[None]],
-) -> Optional[BinaryIO]:
-
-    if state.do_run_build_script or state.for_cache or not state.config.split_artifacts or not state.config.bootable:
-        return None
-
-    with mount():
-        kernel = None
-
-        for path, _, filenames in os.walk(state.root / "efi/EFI/Linux"):
-            for i in filenames:
-                if not i.endswith(".efi") and not i.endswith(".EFI"):
-                    continue
-
-                if kernel is not None:
-                    raise ValueError(
-                        f"Multiple kernels found, don't know which one to extract. ({kernel} vs. {path}/{i})"
-                    )
-
-                kernel = os.path.join(path, i)
-
-        if kernel is None:
-            raise ValueError("No kernel found in image, can't extract")
-
-        assert state.config.output_split_kernel is not None
-
-        f = copy_file_temporary(kernel, state.config.output_split_kernel.parent)
-
-    return f
-
-
-def extract_kernel_image_initrd(
-    state: MkosiState,
-    mount: Callable[[], ContextManager[None]],
-) -> Union[Tuple[BinaryIO, BinaryIO], Tuple[None, None]]:
+def extract_kernel_image_initrd(state: MkosiState) -> None:
     if state.do_run_build_script or state.for_cache or not state.config.bootable:
-        return None, None
+        return
 
-    with mount():
-        kimgabs = None
-        initrd = None
+    kimgabs = None
+    initrd = None
 
-        for kver, kimg in gen_kernel_images(state):
-            kimgabs = state.root / kimg
-            initrd = initrd_path(state, kver)
+    for kver, kimg in gen_kernel_images(state):
+        kimgabs = state.root / kimg
+        initrd = initrd_path(state, kver)
 
-        if kimgabs is None:
-            die("No kernel image found, can't extract.")
-        assert initrd is not None
+    if kimgabs is None:
+        return
+    assert initrd is not None
 
-        fkimg = copy_file_temporary(kimgabs, state.config.output_dir or Path())
-        finitrd = copy_file_temporary(initrd, state.config.output_dir or Path())
-
-    return (fkimg, finitrd)
+    copy_file(kimgabs, state.staging / state.config.output_split_kernel_image.name)
+    copy_file(initrd, state.staging / state.config.output_split_initrd.name)
 
 
-def extract_kernel_cmdline(
-    state: MkosiState,
-    mount: Callable[[], ContextManager[None]],
-) -> Optional[TextIO]:
-    if state.do_run_build_script or state.for_cache or not state.config.bootable:
-        return None
-
-    with mount():
-        if state.root.joinpath("etc/kernel/cmdline").exists():
-            p = state.root / "etc/kernel/cmdline"
-        elif state.root.joinpath("usr/lib/kernel/cmdline").exists():
-            p = state.root / "usr/lib/kernel/cmdline"
-        else:
-            die("No cmdline found")
-
-        # Direct Linux boot means we can't rely on systemd-gpt-auto-generator to
-        # figure out the root partition for us so we have to encode it manually
-        # in the kernel cmdline.
-        cmdline = f"{p.read_text().strip()} root=LABEL={PartitionIdentifier.root.name}\n"
-
-        f = cast(
-            TextIO,
-            tempfile.NamedTemporaryFile(mode="w+", prefix=".mkosi-", encoding="utf-8", dir=state.config.output_dir or Path()),
-        )
-
-        f.write(cmdline)
-        f.flush()
-
-    return f
-
-
-def compress_output(
-    config: MkosiConfig, data: Optional[BinaryIO], suffix: Optional[str] = None
-) -> Optional[BinaryIO]:
-
-    if data is None:
-        return None
+def compress_output(config: MkosiConfig, src: Path) -> None:
     compress = should_compress_output(config)
+
+    if not src.is_file():
+        return
 
     if not compress:
         # If we shan't compress, then at least make the output file sparse
-        with complete_step(f"Digging holes into output file {data.name}…"):
-            run(["fallocate", "--dig-holes", data.name])
-
-        return data
-
-    with complete_step(f"Compressing output file {data.name}…"):
-        f: BinaryIO = cast(
-            BinaryIO, tempfile.NamedTemporaryFile(prefix=".mkosi-", suffix=suffix, dir=os.path.dirname(config.output))
-        )
-        run([*compressor_command(compress), "--stdout", data.name], stdout=f)
-
-    return f
+        with complete_step(f"Digging holes into output file {src}…"):
+            run(["fallocate", "--dig-holes", src])
+    else:
+        with complete_step(f"Compressing output file {src}…"):
+            run(compressor_command(compress, src))
 
 
-def qcow2_output(config: MkosiConfig, raw: Optional[BinaryIO]) -> Optional[BinaryIO]:
-    if not config.output_format.is_disk():
-        return raw
-    assert raw is not None
+def qcow2_output(state: MkosiState) -> None:
+    if not state.config.output_format == OutputFormat.disk:
+        return
 
-    if not config.qcow2:
-        return raw
+    if not state.config.qcow2:
+        return
 
     with complete_step("Converting image file to qcow2…"):
-        f: BinaryIO = cast(BinaryIO, tempfile.NamedTemporaryFile(prefix=".mkosi-", dir=os.path.dirname(config.output)))
-        run(["qemu-img", "convert", "-onocow=on", "-fraw", "-Oqcow2", raw.name, f.name])
+        run(["qemu-img", "convert", "-onocow=on", "-fraw", "-Oqcow2",
+             state.staging / state.config.output.name,
+             state.staging / state.config.output.name])
 
-    return f
 
-
-def write_root_hash_file(config: MkosiConfig, root_hash: Optional[str]) -> Optional[BinaryIO]:
-    if root_hash is None:
+def copy_nspawn_settings(state: MkosiState) -> None:
+    if state.config.nspawn_settings is None:
         return None
-
-    assert config.output_root_hash_file is not None
-
-    suffix = roothash_suffix(config)
-    with complete_step(f"Writing {suffix} file…"):
-        f: BinaryIO = cast(
-            BinaryIO,
-            tempfile.NamedTemporaryFile(mode="w+b", prefix=".mkosi", dir=os.path.dirname(config.output_root_hash_file)),
-        )
-        f.write((root_hash + "\n").encode())
-        f.flush()
-
-    return f
-
-
-def write_root_hash_p7s_file(config: MkosiConfig, root_hash_p7s: Optional[bytes]) -> Optional[BinaryIO]:
-    if root_hash_p7s is None:
-        return None
-
-    assert config.output_root_hash_p7s_file is not None
-
-    suffix = roothash_p7s_suffix(config)
-    with complete_step(f"Writing {suffix} file…"):
-        f: BinaryIO = cast(
-            BinaryIO,
-            tempfile.NamedTemporaryFile(
-                mode="w+b", prefix=".mkosi", dir=config.output_root_hash_p7s_file.parent
-            ),
-        )
-        f.write(root_hash_p7s)
-        f.flush()
-
-    return f
-
-
-def copy_nspawn_settings(config: MkosiConfig) -> Optional[BinaryIO]:
-    if config.nspawn_settings is None:
-        return None
-
-    assert config.output_nspawn_settings is not None
 
     with complete_step("Copying nspawn settings file…"):
-        f: BinaryIO = cast(
-            BinaryIO,
-            tempfile.NamedTemporaryFile(
-                mode="w+b", prefix=".mkosi-", dir=os.path.dirname(config.output_nspawn_settings)
-            ),
-        )
-
-        with open(config.nspawn_settings, "rb") as c:
-            f.write(c.read())
-            f.flush()
-
-    return f
+        copy_file(state.config.nspawn_settings, state.staging / state.config.output_nspawn_settings.name)
 
 
-def hash_file(of: TextIO, sf: BinaryIO, fname: str) -> None:
-    bs = 16 * 1024 ** 2
+def hash_file(of: TextIO, path: Path) -> None:
+    bs = 16 * 1024**2
     h = hashlib.sha256()
 
-    sf.seek(0)
-    buf = sf.read(bs)
-    while len(buf) > 0:
-        h.update(buf)
+    with path.open("wb") as sf:
         buf = sf.read(bs)
+        while len(buf) > 0:
+            h.update(buf)
+            buf = sf.read(bs)
 
-    of.write(h.hexdigest() + " *" + fname + "\n")
+    of.write(h.hexdigest() + " *" + path.name + "\n")
 
 
-def calculate_sha256sum(
-    config: MkosiConfig, raw: Optional[BinaryIO],
-    archive: Optional[BinaryIO],
-    root_hash_file: Optional[BinaryIO],
-    root_hash_p7s_file: Optional[BinaryIO],
-    split_root: Optional[BinaryIO],
-    split_verity: Optional[BinaryIO],
-    split_verity_sig: Optional[BinaryIO],
-    split_kernel: Optional[BinaryIO],
-    nspawn_settings: Optional[BinaryIO],
-) -> Optional[TextIO]:
-    if config.output_format in (OutputFormat.directory, OutputFormat.subvolume):
+def calculate_sha256sum(state: MkosiState) -> None:
+    if state.config.output_format in (OutputFormat.directory, OutputFormat.subvolume):
         return None
 
-    if not config.checksum:
+    if not state.config.checksum:
         return None
-
-    assert config.output_checksum is not None
 
     with complete_step("Calculating SHA256SUMS…"):
-        f: TextIO = cast(
-            TextIO,
-            tempfile.NamedTemporaryFile(
-                mode="w+", prefix=".mkosi-", encoding="utf-8", dir=os.path.dirname(config.output_checksum)
-            ),
-        )
+        with open(state.workspace / state.config.output_checksum.name, "w") as f:
+            for p in state.staging.iterdir():
+                hash_file(f, p)
 
-        if raw is not None:
-            hash_file(f, raw, os.path.basename(config.output))
-        if archive is not None:
-            hash_file(f, archive, os.path.basename(config.output))
-        if root_hash_file is not None:
-            assert config.output_root_hash_file is not None
-            hash_file(f, root_hash_file, os.path.basename(config.output_root_hash_file))
-        if root_hash_p7s_file is not None:
-            assert config.output_root_hash_p7s_file is not None
-            hash_file(f, root_hash_p7s_file, config.output_root_hash_p7s_file.name)
-        if split_root is not None:
-            assert config.output_split_root is not None
-            hash_file(f, split_root, os.path.basename(config.output_split_root))
-        if split_verity is not None:
-            assert config.output_split_verity is not None
-            hash_file(f, split_verity, os.path.basename(config.output_split_verity))
-        if split_verity_sig is not None:
-            assert config.output_split_verity_sig is not None
-            hash_file(f, split_verity_sig, config.output_split_verity_sig.name)
-        if split_kernel is not None:
-            assert config.output_split_kernel is not None
-            hash_file(f, split_kernel, os.path.basename(config.output_split_kernel))
-        if nspawn_settings is not None:
-            assert config.output_nspawn_settings is not None
-            hash_file(f, nspawn_settings, os.path.basename(config.output_nspawn_settings))
-
-        f.flush()
-
-    return f
+        os.rename(state.workspace / state.config.output_checksum.name, state.staging / state.config.output_checksum.name)
 
 
-def calculate_signature(state: MkosiState, checksum: Optional[IO[Any]]) -> Optional[BinaryIO]:
+def calculate_signature(state: MkosiState) -> None:
     if not state.config.sign:
         return None
 
-    if checksum is None:
-        return None
-
-    assert state.config.output_signature is not None
-
     with complete_step("Signing SHA256SUMS…"):
-        f: BinaryIO = cast(
-            BinaryIO,
-            tempfile.NamedTemporaryFile(mode="wb", prefix=".mkosi-", dir=os.path.dirname(state.config.output_signature)),
-        )
-
-        cmdline = ["gpg", "--detach-sign"]
+        cmdline: List[PathString] = [
+            "gpg",
+            "--detach-sign",
+            "-o", state.staging / state.config.output_signature.name,
+            state.staging / state.config.output_checksum.name,
+        ]
 
         if state.config.key is not None:
             cmdline += ["--default-key", state.config.key]
 
-        checksum.seek(0)
-        run(cmdline, stdin=checksum, stdout=f)
-
-    return f
+        run(cmdline)
 
 
-def calculate_bmap(config: MkosiConfig, raw: Optional[BinaryIO]) -> Optional[TextIO]:
-    if not config.bmap:
-        return None
+def calculate_bmap(state: MkosiState) -> None:
+    if not state.config.bmap:
+        return
 
-    if not config.output_format.is_disk_rw():
-        return None
-    assert raw is not None
-    assert config.output_bmap is not None
+    if not state.config.output_format == OutputFormat.disk:
+        return
 
     with complete_step("Creating BMAP file…"):
-        f: TextIO = cast(
-            TextIO,
-            tempfile.NamedTemporaryFile(
-                mode="w+", prefix=".mkosi-", encoding="utf-8", dir=os.path.dirname(config.output_bmap)
-            ),
-        )
+        cmdline: List[PathString] = [
+            "bmaptool",
+            "create",
+            "--output", state.staging / state.config.output_bmap.name,
+            state.staging / state.config.output.name,
+        ]
 
-        cmdline = ["bmaptool", "create", raw.name]
-        run(cmdline, stdout=f)
-
-    return f
+        run(cmdline)
 
 
-def save_cache(state: MkosiState, raw: Optional[str], cache_path: Optional[Path]) -> None:
-    disk_rw = state.config.output_format.is_disk_rw()
-    if disk_rw:
-        if raw is None or cache_path is None:
-            return
-    else:
-        if cache_path is None:
-            return
+def save_cache(state: MkosiState) -> None:
+    cache = cache_tree_path(state.config, is_final_image=False) if state.do_run_build_script else cache_tree_path(state.config, is_final_image=True)
 
-    with complete_step("Installing cache copy…", f"Installed cache copy {path_relative_to_cwd(cache_path)}"):
-
-        if disk_rw:
-            assert raw is not None
-            shutil.move(raw, cache_path)
-        else:
-            unlink_try_hard(cache_path)
-            shutil.move(cast(str, state.root), cache_path)  # typing bug, .move() accepts Path
+    with complete_step("Installing cache copy…", f"Installed cache copy {path_relative_to_cwd(cache)}"):
+        unlink_try_hard(cache)
+        shutil.move(cast(str, state.root), cache)  # typing bug, .move() accepts Path
 
     if state.config.chown:
-        chown_to_running_user(cache_path)
-
-
-def _link_output(
-        config: MkosiConfig,
-        oldpath: PathString,
-        newpath: PathString,
-        mode: int = 0o666,
-) -> None:
-
-    assert oldpath is not None
-    assert newpath is not None
-
-    os.chmod(oldpath, mode)
-
-    os.link(oldpath, newpath)
-
-    if config.chown:
-        relpath = path_relative_to_cwd(newpath)
-        chown_to_running_user(relpath)
-
-
-def link_output(state: MkosiState, artifact: Optional[BinaryIO]) -> None:
-    with complete_step("Linking image file…", f"Linked {path_relative_to_cwd(state.config.output)}"):
-        if state.config.output_format in (OutputFormat.directory, OutputFormat.subvolume):
-            if not state.root.exists():
-                return
-
-            assert artifact is None
-
-            make_read_only(state, state.root, b=False)
-            os.rename(state.root, state.config.output)
-            make_read_only(state, state.config.output, b=True)
-
-        elif state.config.output_format.is_disk() or state.config.output_format in (
-            OutputFormat.plain_squashfs,
-            OutputFormat.tar,
-            OutputFormat.cpio,
-        ):
-            if artifact is None:
-                return
-
-            _link_output(state.config, artifact.name, state.config.output)
-
-
-def link_output_nspawn_settings(config: MkosiConfig, path: Optional[SomeIO]) -> None:
-    if path:
-        assert config.output_nspawn_settings
-        with complete_step(
-            "Linking nspawn settings file…", f"Linked {path_relative_to_cwd(config.output_nspawn_settings)}"
-        ):
-            _link_output(config, path.name, config.output_nspawn_settings)
-
-
-def link_output_checksum(config: MkosiConfig, checksum: Optional[SomeIO]) -> None:
-    if checksum:
-        assert config.output_checksum
-        with complete_step("Linking SHA256SUMS file…", f"Linked {path_relative_to_cwd(config.output_checksum)}"):
-            _link_output(config, checksum.name, config.output_checksum)
-
-
-def link_output_root_hash_file(config: MkosiConfig, root_hash_file: Optional[SomeIO]) -> None:
-    if root_hash_file:
-        assert config.output_root_hash_file
-        suffix = roothash_suffix(config)
-        with complete_step(f"Linking {suffix} file…", f"Linked {path_relative_to_cwd(config.output_root_hash_file)}"):
-            _link_output(config, root_hash_file.name, config.output_root_hash_file)
-
-
-def link_output_root_hash_p7s_file(config: MkosiConfig, root_hash_p7s_file: Optional[SomeIO]) -> None:
-    if root_hash_p7s_file:
-        assert config.output_root_hash_p7s_file
-        suffix = roothash_p7s_suffix(config)
-        with complete_step(
-            f"Linking {suffix} file…", f"Linked {path_relative_to_cwd(config.output_root_hash_p7s_file)}"
-        ):
-            _link_output(config, root_hash_p7s_file.name, config.output_root_hash_p7s_file)
-
-
-def link_output_signature(config: MkosiConfig, signature: Optional[SomeIO]) -> None:
-    if signature:
-        assert config.output_signature is not None
-        with complete_step("Linking SHA256SUMS.gpg file…", f"Linked {path_relative_to_cwd(config.output_signature)}"):
-            _link_output(config, signature.name, config.output_signature)
-
-
-def link_output_bmap(config: MkosiConfig, bmap: Optional[SomeIO]) -> None:
-    if bmap:
-        assert config.output_bmap
-        with complete_step("Linking .bmap file…", f"Linked {path_relative_to_cwd(config.output_bmap)}"):
-            _link_output(config, bmap.name, config.output_bmap)
-
-
-def link_output_sshkey(config: MkosiConfig, sshkey: Optional[SomeIO]) -> None:
-    if sshkey:
-        assert config.output_sshkey
-        with complete_step("Linking private ssh key file…", f"Linked {path_relative_to_cwd(config.output_sshkey)}"):
-            _link_output(config, sshkey.name, config.output_sshkey, mode=0o600)
-
-
-def link_output_split_root(config: MkosiConfig, split_root: Optional[SomeIO]) -> None:
-    if split_root:
-        assert config.output_split_root
-        with complete_step(
-            "Linking split root file system…", f"Linked {path_relative_to_cwd(config.output_split_root)}"
-        ):
-            _link_output(config, split_root.name, config.output_split_root)
-
-
-def link_output_split_verity(config: MkosiConfig, split_verity: Optional[SomeIO]) -> None:
-    if split_verity:
-        assert config.output_split_verity
-        with complete_step("Linking split Verity data…", f"Linked {path_relative_to_cwd(config.output_split_verity)}"):
-            _link_output(config, split_verity.name, config.output_split_verity)
-
-
-def link_output_split_verity_sig(config: MkosiConfig, split_verity_sig: Optional[SomeIO]) -> None:
-    if split_verity_sig:
-        assert config.output_split_verity_sig
-        with complete_step(
-            "Linking split Verity Signature data…", f"Linked {path_relative_to_cwd(config.output_split_verity_sig)}"
-        ):
-            _link_output(config, split_verity_sig.name, config.output_split_verity_sig)
-
-
-def link_output_split_kernel(config: MkosiConfig, split_kernel: Optional[SomeIO]) -> None:
-    if split_kernel:
-        assert config.output_split_kernel
-        with complete_step("Linking split kernel…", f"Linked {path_relative_to_cwd(config.output_split_kernel)}"):
-            _link_output(config, split_kernel.name, config.output_split_kernel)
-
-
-def link_output_split_kernel_image(config: MkosiConfig, split_kernel_image: Optional[SomeIO]) -> None:
-    if split_kernel_image:
-        output = build_auxiliary_output_path(config, '.vmlinuz')
-        with complete_step("Linking split kernel image…", f"Linked {path_relative_to_cwd(output)}"):
-            _link_output(config, split_kernel_image.name, output)
-
-
-def link_output_split_initrd(config: MkosiConfig, split_initrd: Optional[SomeIO]) -> None:
-    if split_initrd:
-        output = build_auxiliary_output_path(config, '.initrd')
-        with complete_step("Linking split initrd…", f"Linked {path_relative_to_cwd(output)}"):
-            _link_output(config, split_initrd.name, output)
-
-
-def link_output_split_kernel_cmdline(config: MkosiConfig, split_kernel_cmdline: Optional[SomeIO]) -> None:
-    if split_kernel_cmdline:
-        output = build_auxiliary_output_path(config, '.cmdline')
-        with complete_step("Linking split cmdline…", f"Linked {path_relative_to_cwd(output)}"):
-            _link_output(config, split_kernel_cmdline.name, output)
+        chown_to_running_user(cache)
 
 
 def dir_size(path: PathString) -> int:
@@ -3202,39 +1364,17 @@ def dir_size(path: PathString) -> int:
     return dir_sum
 
 
-def save_manifest(config: MkosiConfig, manifest: Manifest) -> None:
+def save_manifest(state: MkosiState, manifest: Manifest) -> None:
     if manifest.has_data():
-        relpath = path_relative_to_cwd(config.output)
-
-        if ManifestFormat.json in config.manifest_format:
-            with complete_step(f"Saving manifest {relpath}.manifest"):
-                f: TextIO = cast(
-                    TextIO,
-                    tempfile.NamedTemporaryFile(
-                        mode="w+",
-                        encoding="utf-8",
-                        prefix=".mkosi-",
-                        dir=os.path.dirname(config.output),
-                    ),
-                )
-                with f:
+        if ManifestFormat.json in state.config.manifest_format:
+            with complete_step(f"Saving manifest {state.config.output_manifest.name}"):
+                with open(state.staging / state.config.output_manifest.name, 'w') as f:
                     manifest.write_json(f)
-                    _link_output(config, f.name, f"{config.output}.manifest")
 
-        if ManifestFormat.changelog in config.manifest_format:
-            with complete_step(f"Saving report {relpath}.changelog"):
-                g: TextIO = cast(
-                    TextIO,
-                    tempfile.NamedTemporaryFile(
-                        mode="w+",
-                        encoding="utf-8",
-                        prefix=".mkosi-",
-                        dir=os.path.dirname(config.output),
-                    ),
-                )
-                with g:
-                    manifest.write_package_report(g)
-                    _link_output(config, g.name, f"{relpath}.changelog")
+        if ManifestFormat.changelog in state.config.manifest_format:
+            with complete_step(f"Saving report {state.config.output_changelog.name}"):
+                with open(state.staging / state.config.output_changelog.name, 'w') as f:
+                    manifest.write_package_report(f)
 
 
 def print_output_size(config: MkosiConfig) -> None:
@@ -3413,23 +1553,6 @@ class WithNetworkAction(BooleanAction):
             super().__call__(parser, namespace, values, option_string)
 
 
-class VerityAction(BooleanAction):
-    def __call__(
-        self,
-        parser: argparse.ArgumentParser,
-        namespace: argparse.Namespace,
-        values: Union[str, Sequence[Any], None, bool],
-        option_string: Optional[str] = None,
-    ) -> None:
-
-        if isinstance(values, str):
-            if values == "signed":
-                setattr(namespace, self.dest, "signed")
-                return
-
-        super().__call__(parser, namespace, values, option_string)
-
-
 def parse_sign_expected_pcr(value: Union[bool, str]) -> bool:
     if isinstance(value, bool):
         return value
@@ -3514,9 +1637,7 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
         "QCow2": "--qcow2",
         "OutputDirectory": "--output-dir",
         "WorkspaceDirectory": "--workspace-dir",
-        "XZ": "--compress-output=xz",
         "NSpawnSettings": "--settings",
-        "ESPSize": "--esp-size",
         "CheckSum": "--checksum",
         "BMap": "--bmap",
         "Packages": "--package",
@@ -3525,7 +1646,6 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
         "SkeletonTrees": "--skeleton-tree",
         "BuildPackages": "--build-package",
         "PostInstallationScript": "--postinst-script",
-        "GPTFirstLBA": "--gpt-first-lba",
         "TarStripSELinuxContext": "--tar-strip-selinux-context",
         "MachineID": "--machine-id",
         "SignExpectedPCR": "--sign-expected-pcr",
@@ -3776,30 +1896,6 @@ def create_parser() -> ArgumentParserMkosi:
         metavar="PATH",
     )
     group.add_argument(
-        "--output-split-root",
-        help="Output root or /usr/ partition image path (if --split-artifacts is used)",
-        type=Path,
-        metavar="PATH",
-    )
-    group.add_argument(
-        "--output-split-verity",
-        help="Output Verity partition image path (if --split-artifacts is used)",
-        type=Path,
-        metavar="PATH",
-    )
-    group.add_argument(
-        "--output-split-verity-sig",
-        help="Output Verity Signature partition image path (if --split-artifacts is used)",
-        type=Path,
-        metavar="PATH",
-    )
-    group.add_argument(
-        "--output-split-kernel",
-        help="Output kernel path (if --split-artifacts is used)",
-        type=Path,
-        metavar="PATH",
-    )
-    group.add_argument(
         "-O", "--output-dir",
         help="Output root directory",
         type=Path,
@@ -3825,22 +1921,11 @@ def create_parser() -> ArgumentParserMkosi:
         help="Make image bootable on EFI (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs)",
     )
     group.add_argument(
-        "--boot-protocols",
-        action=CommaDelimitedListAction,
-        help=argparse.SUPPRESS,
-    )
-    group.add_argument(
         "--kernel-command-line",
         metavar="OPTIONS",
         action=SpaceDelimitedListAction,
         default=["rhgb", "selinux=0", "audit=0"],
         help="Set the kernel command line (only bootable images)",
-    )
-    group.add_argument(
-        "--kernel-commandline",       # Compatibility option
-        action=SpaceDelimitedListAction,
-        dest="kernel_command_line",
-        help=argparse.SUPPRESS,
     )
     group.add_argument(
         "--secure-boot",
@@ -3875,22 +1960,6 @@ def create_parser() -> ArgumentParserMkosi:
         default="mkosi of %u",
     )
     group.add_argument(
-        "--read-only",
-        metavar="BOOL",
-        action=BooleanAction,
-        help="Make root volume read-only (only gpt_ext4, gpt_xfs, gpt_btrfs, subvolume, implied with gpt_squashfs and plain_squashfs)",
-    )
-    group.add_argument(
-        "--encrypt",
-        choices=("all", "data"),
-        help='Encrypt everything except: ESP ("all") or ESP and root ("data")'
-    )
-    group.add_argument(
-        "--verity",
-        action=VerityAction,
-        help="Add integrity partition, and optionally sign it (implies --read-only)",
-    )
-    group.add_argument(
         "--sign-expected-pcr",
         metavar="BOOL",
         default="auto",
@@ -3899,35 +1968,11 @@ def create_parser() -> ArgumentParserMkosi:
         help="Measure the components of the unified kernel image (UKI) and embed the PCR signature into the UKI",
     )
     group.add_argument(
-        "--compress",
-        type=parse_compression,
-        nargs="?",
-        metavar="ALG",
-        help="Enable compression (in-fs if supported, whole-output otherwise)",
-    )
-    group.add_argument(
-        "--compress-fs",
-        type=parse_compression,
-        nargs="?",
-        metavar="ALG",
-        help="Enable in-filesystem compression (gpt_btrfs, subvolume, gpt_squashfs, plain_squashfs)",
-    )
-    group.add_argument(
         "--compress-output",
         type=parse_compression,
         nargs="?",
         metavar="ALG",
         help="Enable whole-output compression (with images or archives)",
-    )
-    group.add_argument(
-        "--mksquashfs", dest="mksquashfs_tool", type=str.split, default=[], help="Script to call instead of mksquashfs"
-    )
-    group.add_argument(
-        "--xz",
-        action="store_const",
-        dest="compress_output",
-        const="xz",
-        help=argparse.SUPPRESS,
     )
     group.add_argument(
         "--qcow2",
@@ -3965,33 +2010,6 @@ def create_parser() -> ArgumentParserMkosi:
         help="Make use of and generate intermediary cache images",
     )
     group.add_argument(
-        "-M", "--minimize",
-        metavar="BOOL",
-        action=BooleanAction,
-        help="Minimize root file system size",
-    )
-    group.add_argument(
-        "--without-unified-kernel-images",
-        action=BooleanAction,
-        dest="with_unified_kernel_images",
-        default=True,
-        help="Do not install unified kernel images",
-    )
-    group.add_argument(
-        "--with-unified-kernel-images",
-        metavar="BOOL",
-        action=BooleanAction,
-        default=True,
-        help=argparse.SUPPRESS,
-    )
-    group.add_argument("--gpt-first-lba", type=int, help="Set the first LBA within GPT Header", metavar="FIRSTLBA")
-    group.add_argument(
-        "--hostonly-initrd",
-        metavar="BOOL",
-        action=BooleanAction,
-        help="Enable dracut hostonly option",
-    )
-    group.add_argument(
         "--cache-initrd",
         metavar="BOOL",
         action=BooleanAction,
@@ -4001,7 +2019,13 @@ def create_parser() -> ArgumentParserMkosi:
         "--split-artifacts",
         metavar="BOOL",
         action=BooleanAction,
-        help="Generate split out root/verity/kernel images, too",
+        help="Generate split partitions",
+    )
+    group.add_argument(
+        "--repart-directory",
+        metavar="PATH",
+        dest="repart_dir",
+        help="Directory containing systemd-repart partition definitions",
     )
 
     group = parser.add_argument_group("Content options")
@@ -4251,45 +2275,6 @@ def create_parser() -> ArgumentParserMkosi:
                        help='Use the given image as base (e.g. lower sysext layer)',
                        type=Path,
                        metavar='IMAGE')
-    group.add_argument(
-        "--root-size", help="Set size of root partition (only gpt_ext4, gpt_xfs, gpt_btrfs)", metavar="BYTES"
-    )
-    group.add_argument(
-        "--esp-size",
-        help="Set size of EFI system partition (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs)",
-        metavar="BYTES",
-    )
-    group.add_argument(
-        "--xbootldr-size",
-        help="Set size of the XBOOTLDR partition (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs)",
-        metavar="BYTES",
-    )
-    group.add_argument(
-        "--swap-size",
-        help="Set size of swap partition (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs)",
-        metavar="BYTES",
-    )
-    group.add_argument(
-        "--home-size", help="Set size of /home partition (only for GPT images)", metavar="BYTES"
-    )
-    group.add_argument(
-        "--srv-size", help="Set size of /srv partition (only for GPT images)", metavar="BYTES"
-    )
-    group.add_argument(
-        "--var-size", help="Set size of /var partition (only for GPT images)", metavar="BYTES"
-    )
-    group.add_argument(
-        "--tmp-size", help="Set size of /var/tmp partition (only for GPT images)", metavar="BYTES"
-    )
-    group.add_argument(
-        "--bios-size", help="Set size of BIOS boot partition (only for GPT images)", metavar="BYTES",
-    )
-    group.add_argument(
-        "--usr-only",
-        metavar="BOOL",
-        action=BooleanAction,
-        help="Generate a /usr/ partition instead of a root partition",
-    )
 
     group = parser.add_argument_group("Validation options (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs, tar, cpio)")
     group.add_argument(
@@ -4677,17 +2662,15 @@ def empty_directory(path: Path) -> None:
 def unlink_output(config: MkosiConfig) -> None:
     if not config.skip_final_phase:
         with complete_step("Removing output files…"):
-            unlink_try_hard(config.output)
+            if config.output.parent.exists():
+                for p in config.output.parent.iterdir():
+                    if p.name.startswith(config.output.name) and "cache" not in p.name:
+                        unlink_try_hard(p)
             unlink_try_hard(f"{config.output}.manifest")
             unlink_try_hard(f"{config.output}.changelog")
 
             if config.checksum:
                 unlink_try_hard(config.output_checksum)
-
-            if config.verity:
-                unlink_try_hard(config.output_root_hash_file)
-            if config.verity == "signed":
-                unlink_try_hard(config.output_root_hash_p7s_file)
 
             if config.sign:
                 unlink_try_hard(config.output_signature)
@@ -4695,15 +2678,14 @@ def unlink_output(config: MkosiConfig) -> None:
             if config.bmap:
                 unlink_try_hard(config.output_bmap)
 
-            if config.split_artifacts:
-                unlink_try_hard(config.output_split_root)
-                unlink_try_hard(config.output_split_verity)
-                unlink_try_hard(config.output_split_verity_sig)
-                unlink_try_hard(config.output_split_kernel)
-
-            unlink_try_hard(build_auxiliary_output_path(config, ".vmlinuz"))
-            unlink_try_hard(build_auxiliary_output_path(config, ".initrd"))
-            unlink_try_hard(build_auxiliary_output_path(config, ".cmdline"))
+            if config.output_split_kernel.parent.exists():
+                for p in config.output_split_kernel.parent.iterdir():
+                    if p.name.startswith(config.output_split_kernel.name):
+                        unlink_try_hard(p)
+            unlink_try_hard(config.output_split_kernel)
+            unlink_try_hard(config.output_split_kernel_image)
+            unlink_try_hard(config.output_split_initrd)
+            unlink_try_hard(config.output_split_cmdline)
 
             if config.nspawn_settings is not None:
                 unlink_try_hard(config.output_nspawn_settings)
@@ -4724,16 +2706,9 @@ def unlink_output(config: MkosiConfig) -> None:
         remove_package_cache = config.force > 2
 
     if remove_build_cache:
-        cache_pre_dev = cache_image_path(config, is_final_image=False)
-        cache_pre_inst = cache_image_path(config, is_final_image=True)
-
-        if cache_pre_dev is not None or cache_pre_inst is not None:
-            with complete_step("Removing incremental cache files…"):
-                if cache_pre_dev is not None:
-                    unlink_try_hard(cache_pre_dev)
-
-                if cache_pre_inst is not None:
-                    unlink_try_hard(cache_pre_inst)
+        with complete_step("Removing incremental cache files…"):
+            unlink_try_hard(cache_tree_path(config, is_final_image=False))
+            unlink_try_hard(cache_tree_path(config, is_final_image=True))
 
         if config.build_dir is not None:
             with complete_step("Clearing out build directory…"):
@@ -4836,7 +2811,7 @@ def find_cache(args: argparse.Namespace) -> None:
         return
 
 
-def require_private_file(name: str, description: str) -> None:
+def require_private_file(name: PathString, description: str) -> None:
     mode = os.stat(name).st_mode & 0o777
     if mode & 0o007:
         warn(dedent(f"""\
@@ -4846,24 +2821,16 @@ def require_private_file(name: str, description: str) -> None:
 
 
 def find_passphrase(args: argparse.Namespace) -> None:
-    if not needs_build(args) or args.encrypt is None:
+    if not needs_build(args):
         args.passphrase = None
         return
 
-    try:
-        require_private_file("mkosi.passphrase", "passphrase")
-
-        args.passphrase = {"type": "file", "content": "mkosi.passphrase"}
-
-    except FileNotFoundError:
-        while True:
-            passphrase = getpass.getpass("Please enter passphrase: ")
-            passphrase_confirmation = getpass.getpass("Passphrase confirmation: ")
-            if passphrase == passphrase_confirmation:
-                args.passphrase = {"type": "stdin", "content": passphrase}
-                break
-
-            MkosiPrinter.info("Passphrase doesn't match confirmation. Please try again.")
+    passphrase = Path("mkosi.passphrase")
+    if passphrase.exists():
+        require_private_file(passphrase, "passphrase")
+        args.passphrase = passphrase
+    else:
+        args.passphrase = None
 
 
 def find_password(args: argparse.Namespace) -> None:
@@ -4881,7 +2848,7 @@ def find_password(args: argparse.Namespace) -> None:
 
 
 def find_secure_boot(args: argparse.Namespace) -> None:
-    if not args.secure_boot and args.verity != "signed":
+    if not args.secure_boot:
         return
 
     if args.secure_boot_key is None:
@@ -4904,22 +2871,6 @@ def find_image_version(args: argparse.Namespace) -> None:
         pass
 
 
-KNOWN_SUFFIXES = {
-    ".xz",
-    ".zstd",
-    ".raw",
-    ".tar",
-    ".cpio",
-    ".qcow2",
-}
-
-
-def strip_suffixes(path: Path) -> Path:
-    while path.suffix in KNOWN_SUFFIXES:
-        path = path.with_suffix("")
-    return path
-
-
 def xescape(s: str) -> str:
     "Escape a string udev-style, for inclusion in /dev/disk/by-*/* symlinks"
 
@@ -4931,13 +2882,6 @@ def xescape(s: str) -> str:
             ret = ret + str(c)
 
     return ret
-
-
-def build_auxiliary_output_path(args: Union[argparse.Namespace, MkosiConfig], suffix: str, can_compress: bool = False) -> Path:
-    output = strip_suffixes(args.output)
-    should_compress = should_compress_output(args)
-    compression = f".{should_compress}" if can_compress and should_compress else ''
-    return output.with_name(f"{output.name}{suffix}{compression}")
 
 
 DISABLED = Path('DISABLED')  # A placeholder value to suppress autodetection.
@@ -4964,15 +2908,14 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
 
     args_find_path(args, "nspawn_settings", "mkosi.nspawn")
     args_find_path(args, "build_script", "mkosi.build")
-    args_find_path(args, "build_sources", ".")
     args_find_path(args, "include_dir", "mkosi.includedir/")
     args_find_path(args, "install_dir", "mkosi.installdir/")
     args_find_path(args, "postinst_script", "mkosi.postinst")
     args_find_path(args, "prepare_script", "mkosi.prepare")
     args_find_path(args, "finalize_script", "mkosi.finalize")
     args_find_path(args, "workspace_dir", "mkosi.workspace/")
-    args_find_path(args, "mksquashfs_tool", "mkosi.mksquashfs-tool", as_list=True)
     args_find_path(args, "repos_dir", "mkosi.reposdir/")
+    args_find_path(args, "repart_dir", "mkosi.repart/")
 
     find_extra(args)
     find_skeleton(args)
@@ -4985,7 +2928,7 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
         die(f"Parameters after verb are only accepted for {list_to_string(verb.name for verb in MKOSI_COMMANDS_CMDLINE)}.")
 
     if args.output_format is None:
-        args.output_format = OutputFormat.gpt_ext4
+        args.output_format = OutputFormat.disk
 
     args = load_distribution(args)
 
@@ -4995,9 +2938,9 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
         elif args.distribution in (Distribution.centos, Distribution.centos_epel):
             args.release = "9-stream"
         elif args.distribution in (Distribution.rocky, Distribution.rocky_epel):
-            args.release = "8"
+            args.release = "9"
         elif args.distribution in (Distribution.alma, Distribution.alma_epel):
-            args.release = "8"
+            args.release = "9"
         elif args.distribution == Distribution.mageia:
             args.release = "7"
         elif args.distribution == Distribution.debian:
@@ -5019,24 +2962,8 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
             OutputFormat.subvolume,
             OutputFormat.tar,
             OutputFormat.cpio,
-            OutputFormat.plain_squashfs,
         ):
             die("Directory, subvolume, tar, cpio, and plain squashfs images cannot be booted.", MkosiNotSupportedException)
-
-    if is_centos_variant(args.distribution):
-        epel_release = parse_epel_release(args.release)
-        if epel_release <= 9 and args.output_format == OutputFormat.gpt_btrfs:
-            die(f"Sorry, CentOS {epel_release} does not support btrfs", MkosiNotSupportedException)
-
-    if args.distribution in (Distribution.rocky, Distribution.rocky_epel):
-        epel_release = int(args.release.split(".")[0])
-        if epel_release == 8 and args.output_format == OutputFormat.gpt_btrfs:
-            die(f"Sorry, Rocky {epel_release} does not support btrfs", MkosiNotSupportedException)
-
-    if args.distribution in (Distribution.alma, Distribution.alma_epel):
-        epel_release = int(args.release.split(".")[0])
-        if epel_release == 8 and args.output_format == OutputFormat.gpt_btrfs:
-            die(f"Sorry, Alma {epel_release} does not support btrfs", MkosiNotSupportedException)
 
     if shutil.which("bsdtar") and args.distribution == Distribution.openmandriva and args.tar_strip_selinux_context:
         die("Sorry, bsdtar on OpenMandriva is incompatible with --tar-strip-selinux-context", MkosiNotSupportedException)
@@ -5067,38 +2994,19 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
         elif args.distribution in (Distribution.alma, Distribution.alma_epel):
             args.mirror = None
 
-    if args.minimize and not args.output_format.can_minimize():
-        die("Minimal file systems only supported for ext4 and btrfs.", MkosiNotSupportedException)
-
-    if is_generated_root(args) and args.incremental:
-        die("Sorry, incremental mode is currently not supported for squashfs or minimized file systems.", MkosiNotSupportedException)
-
-    if args.encrypt is not None:
-        if not args.output_format.is_disk():
-            die("Encryption is only supported for disk images.", MkosiNotSupportedException)
-
-        if args.encrypt == "data" and args.output_format == OutputFormat.gpt_btrfs:
-            die("'data' encryption mode not supported on btrfs, use 'all' instead.", MkosiNotSupportedException)
-
-        if args.encrypt == "all" and args.verity:
-            die("'all' encryption mode may not be combined with Verity.", MkosiNotSupportedException)
-
     if args.sign:
         args.checksum = True
 
     if args.output is None:
         iid = args.image_id if args.image_id is not None else "image"
         prefix = f"{iid}_{args.image_version}" if args.image_version is not None else iid
-        compress = should_compress_output(args)
 
-        if args.output_format.is_disk():
-            output = prefix + (".qcow2" if args.qcow2 else ".raw") + (f".{compress}" if compress else "")
+        if args.output_format == OutputFormat.disk:
+            output = prefix + (".qcow2" if args.qcow2 else ".raw")
         elif args.output_format == OutputFormat.tar:
-            output = f"{prefix}.tar" + (f".{compress}" if compress else "")
+            output = f"{prefix}.tar"
         elif args.output_format == OutputFormat.cpio:
-            output = f"{prefix}.cpio" + (f".{compress}" if compress else "")
-        elif args.output_format.is_squashfs():
-            output = f"{prefix}.raw"
+            output = f"{prefix}.cpio"
         else:
             output = prefix
         args.output = Path(output)
@@ -5116,52 +3024,13 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
 
     args.output = args.output.absolute()
 
-    if not args.output_format.is_disk():
-        args.split_artifacts = False
-
-    if args.output_format.is_squashfs():
-        args.read_only = True
-        if args.root_size is None:
-            # Size will be automatic
-            args.minimize = True
-        if args.compress is None:
-            args.compress = True
-
-    if args.verity:
-        args.read_only = True
-        args.output_root_hash_file = build_auxiliary_output_path(args, roothash_suffix(args))
-
-        if args.verity == "signed":
-            args.output_root_hash_p7s_file = build_auxiliary_output_path(args, roothash_p7s_suffix(args))
-
-    if args.checksum:
-        args.output_checksum = args.output.with_name("SHA256SUMS")
-
-    if args.sign:
-        args.output_signature = args.output.with_name("SHA256SUMS.gpg")
-
-    if args.bmap:
-        args.output_bmap = build_auxiliary_output_path(args, ".bmap")
-
     if args.nspawn_settings is not None:
         args.nspawn_settings = args.nspawn_settings.absolute()
-        args.output_nspawn_settings = build_auxiliary_output_path(args, ".nspawn")
-
-    # We want this set even if --ssh is not specified so we can find the SSH key when verb == "ssh".
-    if args.ssh_key is None and args.ssh_agent is None:
-        args.output_sshkey = args.output.with_name("id_rsa")
-
-    if args.split_artifacts:
-        args.output_split_root = build_auxiliary_output_path(args, f"{root_or_usr(args)}.raw", True)
-        if args.verity:
-            args.output_split_verity = build_auxiliary_output_path(args, f"{root_or_usr(args)}.verity", True)
-            if args.verity == "signed":
-                args.output_split_verity_sig = build_auxiliary_output_path(args, f"{roothash_suffix(args)}.p7s", True)
-        if args.bootable:
-            args.output_split_kernel = build_auxiliary_output_path(args, ".efi", True)
 
     if args.build_sources is not None:
         args.build_sources = args.build_sources.absolute()
+    else:
+        args.build_sources = Path.cwd()
 
     if args.build_dir is not None:
         args.build_dir = args.build_dir.absolute()
@@ -5198,37 +3067,21 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
         for i in range(len(args.skeleton_trees)):
             args.skeleton_trees[i] = args.skeleton_trees[i].absolute()
 
-    args.root_size = parse_bytes(args.root_size)
-    args.home_size = parse_bytes(args.home_size)
-    args.srv_size = parse_bytes(args.srv_size)
-    args.var_size = parse_bytes(args.var_size)
-    args.tmp_size = parse_bytes(args.tmp_size)
-    args.esp_size = parse_bytes(args.esp_size)
-    args.xbootldr_size = parse_bytes(args.xbootldr_size)
-    args.swap_size = parse_bytes(args.swap_size)
-    args.bios_size = parse_bytes(args.bios_size)
-
-    if args.root_size == 0:
-        args.root_size = 3 * 1024 * 1024 * 1024
-
-    if args.bootable and args.esp_size == 0:
-        args.esp_size = 256 * 1024 * 1024
-
     if args.secure_boot_key is not None:
         args.secure_boot_key = args.secure_boot_key.absolute()
 
     if args.secure_boot_certificate is not None:
         args.secure_boot_certificate = args.secure_boot_certificate.absolute()
 
-    if args.secure_boot or args.verity == "signed":
+    if args.secure_boot:
         if args.secure_boot_key is None:
             die(
-                "UEFI SecureBoot or signed Verity enabled, but couldn't find private key. (Consider placing it in mkosi.secure-boot.key?)"
+                "UEFI SecureBoot enabled, but couldn't find private key. (Consider placing it in mkosi.secure-boot.key?)"
             )  # NOQA: E501
 
         if args.secure_boot_certificate is None:
             die(
-                "UEFI SecureBoot or signed Verity enabled, but couldn't find certificate. (Consider placing it in mkosi.secure-boot.crt?)"
+                "UEFI SecureBoot enabled, but couldn't find certificate. (Consider placing it in mkosi.secure-boot.crt?)"
             )  # NOQA: E501
 
     # Resolve passwords late so we can accurately determine whether a build is needed
@@ -5245,7 +3098,7 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
             die(f"Sorry, can't {opname} using a qcow2 image.", MkosiNotSupportedException)
 
     if args.verb == Verb.qemu:
-        if not args.output_format.is_disk():
+        if not args.output_format == OutputFormat.disk:
             die("Sorry, can't boot non-disk images with qemu.", MkosiNotSupportedException)
 
     if needs_build(args) and args.verb == Verb.qemu and not args.bootable:
@@ -5262,22 +3115,6 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
     # --qemu-headless is enabled to avoid this spam.
     if args.qemu_headless and not any("loglevel" in x for x in args.kernel_command_line):
         args.kernel_command_line.append("loglevel=4")
-
-    if args.bootable and args.usr_only and not args.verity:
-        # GPT auto-discovery on empty kernel command lines only looks for root partitions
-        # (in order to avoid ambiguities), if we shall operate without one (and only have
-        # a /usr partition) we thus need to explicitly say which partition to mount.
-        name = root_partition_description(config=None,
-                                          image_id=args.image_id,
-                                          image_version=args.image_version,
-                                          usr_only=args.usr_only)
-        args.kernel_command_line.append(f"mount.usr=/dev/disk/by-partlabel/{xescape(name)}")
-
-    if not args.read_only:
-        args.kernel_command_line.append("rw")
-
-    if args.verity and not args.with_unified_kernel_images:
-        die("Sorry, --verity can only be used with unified kernel images", MkosiNotSupportedException)
 
     if args.source_file_transfer is None:
         if os.path.exists(".git") or args.build_sources.joinpath(".git").exists():
@@ -5317,15 +3154,11 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
     if args.qemu_kvm and not qemu_check_kvm_support():
         die("Sorry, the host machine does not support KVM acceleration.")
 
-    if args.boot_protocols is not None:
-        warn("The --boot-protocols is deprecated and has no effect anymore")
-    delattr(args, "boot_protocols")
-
     return MkosiConfig(**vars(args))
 
 
-def cache_image_path(config: MkosiConfig, is_final_image: bool) -> Optional[Path]:
-    suffix = "cache-pre-inst" if is_final_image else "cache-pre-dev"
+def cache_tree_path(config: MkosiConfig, is_final_image: bool) -> Path:
+    suffix = "final-cache" if is_final_image else "build-cache"
 
     # If the image ID is specified, use cache file names that are independent of the image versions, so that
     # rebuilding and bumping versions is cheap and reuses previous versions if cached.
@@ -5388,12 +3221,7 @@ def check_outputs(config: MkosiConfig) -> None:
         config.output_signature if config.sign else None,
         config.output_bmap if config.bmap else None,
         config.output_nspawn_settings if config.nspawn_settings is not None else None,
-        config.output_root_hash_file if config.verity else None,
         config.output_sshkey if config.ssh else None,
-        config.output_split_root if config.split_artifacts else None,
-        config.output_split_verity if config.split_artifacts else None,
-        config.output_split_verity_sig if config.split_artifacts else None,
-        config.output_split_kernel if config.split_artifacts else None,
     ):
         if f and f.exists():
             die(f"Output path {f} exists already. (Consider invocation with --force.)")
@@ -5495,9 +3323,6 @@ def print_summary(config: MkosiConfig) -> None:
     maniformats = (" ".join(str(i) for i in config.manifest_format)) or "(none)"
     print("          Manifest Formats:", maniformats)
 
-    if config.output_format.can_minimize():
-        print("                  Minimize:", yes_no(config.minimize))
-
     if config.output_dir:
         print("          Output Directory:", config.output_dir)
 
@@ -5508,43 +3333,27 @@ def print_summary(config: MkosiConfig) -> None:
     print("           Output Checksum:", none_to_na(config.output_checksum if config.checksum else None))
     print("          Output Signature:", none_to_na(config.output_signature if config.sign else None))
     print("               Output Bmap:", none_to_na(config.output_bmap if config.bmap else None))
-    print("  Generate split artifacts:", yes_no(config.split_artifacts))
-    print("      Output Split Root FS:", none_to_na(config.output_split_root if config.split_artifacts else None))
-    print("       Output Split Verity:", none_to_na(config.output_split_verity if config.split_artifacts else None))
-    print("  Output Split Verity Sig.:", none_to_na(config.output_split_verity_sig if config.split_artifacts else None))
-    print("       Output Split Kernel:", none_to_na(config.output_split_kernel if config.split_artifacts else None))
     print("    Output nspawn Settings:", none_to_na(config.output_nspawn_settings if config.nspawn_settings is not None else None))
     print("                   SSH key:", none_to_na((config.ssh_key or config.output_sshkey or config.ssh_agent) if config.ssh else None))
     if config.ssh_port != 22:
         print("                  SSH port:", config.ssh_port)
 
     print("               Incremental:", yes_no(config.incremental))
-    print("                 Read-only:", yes_no(config.read_only))
-    print(" Internal (FS) Compression:", yes_no_or(should_compress_fs(config)))
-    print("Outer (output) Compression:", yes_no_or(should_compress_output(config)))
+    print("               Compression:", yes_no_or(should_compress_output(config)))
 
-    if config.mksquashfs_tool:
-        print("           Mksquashfs tool:", " ".join(map(str, config.mksquashfs_tool)))
-
-    if config.output_format.is_disk():
+    if config.output_format == OutputFormat.disk:
         print("                     QCow2:", yes_no(config.qcow2))
 
-    print("                Encryption:", none_to_no(config.encrypt))
-    print("                    Verity:", yes_no_or(config.verity))
+    print("                  Bootable:", yes_no(config.bootable))
 
-    if config.output_format.is_disk():
-        print("                  Bootable:", yes_no(config.bootable))
+    if config.bootable:
+        print("       Kernel Command Line:", " ".join(config.kernel_command_line))
+        print("           UEFI SecureBoot:", yes_no(config.secure_boot))
 
-        if config.bootable:
-            print("       Kernel Command Line:", " ".join(config.kernel_command_line))
-            print("           UEFI SecureBoot:", yes_no(config.secure_boot))
-            print("     Unified Kernel Images:", yes_no(config.with_unified_kernel_images))
-            print("             GPT First LBA:", str(config.gpt_first_lba))
-            print("           Hostonly Initrd:", yes_no(config.hostonly_initrd))
-
-    if config.secure_boot or config.verity == "sign":
-        print("SecureBoot/Verity Sign Key:", config.secure_boot_key)
-        print("   SecureBoot/verity Cert.:", config.secure_boot_certificate)
+    if config.secure_boot_key:
+        print("SecureBoot Sign Key:", config.secure_boot_key)
+    if config.secure_boot_certificate:
+        print("   SecureBoot Cert.:", config.secure_boot_certificate)
 
     print("                Machine ID:", none_to_no(config.machine_id))
 
@@ -5574,7 +3383,7 @@ def print_summary(config: MkosiConfig) -> None:
     if config.remove_packages:
         print("           Remove Packages:", line_join_list(config.remove_packages))
 
-    print("             Build Sources:", none_to_none(config.build_sources))
+    print("             Build Sources:", config.build_sources)
     print("      Source File Transfer:", none_to_none(config.source_file_transfer))
     print("Source File Transfer Final:", none_to_none(config.source_file_transfer_final))
     print("           Build Directory:", none_to_none(config.build_dir))
@@ -5600,20 +3409,7 @@ def print_summary(config: MkosiConfig) -> None:
     print("                  Password:", ("(default)" if config.password is None else "(set)"))
     print("                 Autologin:", yes_no(config.autologin))
 
-    if config.output_format.is_disk():
-        print("\nPARTITIONS:")
-
-        print("            Root Partition:", format_bytes_or_auto(config.root_size))
-        print("            Swap Partition:", format_bytes_or_disabled(config.swap_size))
-        print("             EFI Partition:", format_bytes_or_disabled(config.esp_size))
-        print("        XBOOTLDR Partition:", format_bytes_or_disabled(config.xbootldr_size))
-        print("           /home Partition:", format_bytes_or_disabled(config.home_size))
-        print("            /srv Partition:", format_bytes_or_disabled(config.srv_size))
-        print("            /var Partition:", format_bytes_or_disabled(config.var_size))
-        print("        /var/tmp Partition:", format_bytes_or_disabled(config.tmp_size))
-        print("            BIOS Partition:", format_bytes_or_disabled(config.bios_size))
-        print("                 /usr only:", yes_no(config.usr_only))
-
+    if config.output_format == OutputFormat.disk:
         print("\nVALIDATION:")
 
         print("                  Checksum:", yes_no(config.checksum))
@@ -5626,32 +3422,6 @@ def print_summary(config: MkosiConfig) -> None:
     print("             QEMU Headless:", yes_no(config.qemu_headless))
     print("      QEMU Extra Arguments:", line_join_list(config.qemu_args))
     print("                    Netdev:", yes_no(config.netdev))
-
-
-def reuse_cache_tree(state: MkosiState, cached: bool) -> bool:
-    """If there's a cached version of this tree around, use it and
-    initialize our new root directly from it. Returns a boolean indicating
-    whether we are now operating on a cached version or not."""
-
-    if cached:
-        return True
-
-    if not state.config.incremental:
-        return False
-    if state.for_cache:
-        return False
-    if state.config.output_format.is_disk_rw():
-        return False
-
-    fname = state.cache_pre_dev if state.do_run_build_script else state.cache_pre_inst
-    if fname is None:
-        return False
-
-    if fname.exists():
-        with complete_step(f"Copying in cached tree {fname}…"):
-            copy_path(fname, state.root, copystat=False)
-
-    return True
 
 
 def make_output_dir(config: MkosiConfig) -> None:
@@ -5679,9 +3449,9 @@ def make_cache_dir(config: MkosiConfig) -> None:
         mkdirp_chown_current_user(config.cache_path, chown=config.chown, mode=0o755)
 
 
-def configure_ssh(state: MkosiState, cached: bool) -> Optional[TextIO]:
+def configure_ssh(state: MkosiState, cached: bool) -> None:
     if state.do_run_build_script or not state.config.ssh:
-        return None
+        return
 
     if state.config.distribution in (Distribution.debian, Distribution.ubuntu):
         unit = "ssh.socket"
@@ -5709,42 +3479,32 @@ def configure_ssh(state: MkosiState, cached: bool) -> Optional[TextIO]:
         run(["systemctl", "--root", state.root, "enable", unit])
 
     if state.for_cache:
-        return None
+        return
 
-    authorized_keys = root_home(state) / ".ssh/authorized_keys"
-    f: Optional[TextIO]
+    authorized_keys = state.root / "root/.ssh/authorized_keys"
     if state.config.ssh_key:
-        f = open(state.config.ssh_key, mode="r", encoding="utf-8")
         copy_file(f"{state.config.ssh_key}.pub", authorized_keys)
     elif state.config.ssh_agent is not None:
         env = {"SSH_AUTH_SOCK": state.config.ssh_agent}
         result = run(["ssh-add", "-L"], env=env, text=True, stdout=subprocess.PIPE)
         authorized_keys.write_text(result.stdout)
-        f = None
     else:
-        assert state.config.output_sshkey is not None
-
-        f = cast(
-            TextIO,
-            tempfile.NamedTemporaryFile(mode="w+", prefix=".mkosi-", encoding="utf-8", dir=state.config.output_sshkey.parent),
-        )
+        p = state.staging / state.config.output_sshkey.name
 
         with complete_step("Generating SSH key pair…"):
             # Write a 'y' to confirm to overwrite the file.
             run(
-                ["ssh-keygen", "-f", f.name, "-N", state.config.password or "", "-C", "mkosi", "-t", "ed25519"],
+                ["ssh-keygen", "-f", p, "-N", state.config.password or "", "-C", "mkosi", "-t", "ed25519"],
                 input="y\n",
                 text=True,
                 stdout=subprocess.DEVNULL,
             )
 
         authorized_keys.parent.mkdir(parents=True, exist_ok=True)
-        copy_file(f"{f.name}.pub", authorized_keys)
-        os.remove(f"{f.name}.pub")
+        copy_file(p.with_suffix(".pub"), authorized_keys)
+        os.remove(p.with_suffix(".pub"))
 
     authorized_keys.chmod(0o600)
-
-    return f
 
 
 def configure_netdev(state: MkosiState, cached: bool) -> None:
@@ -5781,8 +3541,7 @@ def configure_netdev(state: MkosiState, cached: bool) -> None:
 
 
 def boot_directory(state: MkosiState, kver: str) -> Path:
-    prefix = "boot" if state.get_partition(PartitionIdentifier.xbootldr) or not state.get_partition(PartitionIdentifier.esp) else "efi"
-    return Path(prefix) / state.machine_id / kver
+    return Path("boot") / state.machine_id / kver
 
 
 def run_kernel_install(state: MkosiState, cached: bool) -> None:
@@ -5800,188 +3559,138 @@ def run_kernel_install(state: MkosiState, cached: bool) -> None:
             run_workspace_command(state, ["kernel-install", "add", kver, Path("/") / kimg])
 
 
-@dataclasses.dataclass
-class BuildOutput:
-    raw: Optional[BinaryIO]
-    archive: Optional[BinaryIO]
-    root_hash: Optional[str]
-    root_hash_p7s: Optional[bytes]
-    sshkey: Optional[TextIO]
+def reuse_cache_tree(state: MkosiState) -> bool:
+    if not state.config.incremental:
+        return False
 
-    # Partition contents
-    split_root: Optional[BinaryIO]
-    split_verity: Optional[BinaryIO]
-    split_verity_sig: Optional[BinaryIO]
-    split_kernel: Optional[BinaryIO]
-    split_kernel_image: Optional[BinaryIO]
-    split_initrd: Optional[BinaryIO]
-    split_kernel_cmdline: Optional[TextIO]
+    cache = cache_tree_path(state.config, is_final_image=not state.do_run_build_script)
+    if not cache.exists():
+        return False
+    if state.for_cache and cache.exists():
+        return True
 
-    def raw_name(self) -> Optional[str]:
-        return self.raw.name if self.raw is not None else None
+    with complete_step(f"Basing off cached tree {cache}", "Copied cached tree"):
+        copy_path(cache, state.root)
 
-    @classmethod
-    def empty(cls) -> BuildOutput:
-        return cls(None, None, None, None, None, None, None, None, None, None, None, None)
+    return True
 
 
-def build_image(
+def invoke_repart(
     state: MkosiState,
-    *,
-    manifest: Optional[Manifest] = None,
-) -> BuildOutput:
+    skip: Sequence[str] = [],
+    split: bool = False,
+) -> Tuple[Optional[str], Optional[str], bool]:
+    if not state.config.output_format == OutputFormat.disk or state.for_cache or state.do_run_build_script:
+        return (None, None, False)
+
+    cmdline: List[PathString] = [
+        "systemd-repart",
+        "--empty=allow",
+        "--size=auto",
+        "--dry-run=no",
+        "--json=pretty",
+        "--root", state.root,
+        state.staging / state.config.output.name,
+    ]
+
+    if not state.staging.joinpath(state.config.output.name).exists():
+        cmdline += ["--empty=create"]
+    if state.config.passphrase:
+        cmdline += ["--key-file", state.config.passphrase]
+    if state.config.secure_boot_key.exists():
+        cmdline += ["--private-key", state.config.secure_boot_key]
+    if state.config.secure_boot_certificate.exists():
+        cmdline += ["--certificate", state.config.secure_boot_certificate]
+    if not state.config.bootable:
+        cmdline += ["--exclude-partitions=esp,xbootldr"]
+    if skip:
+        cmdline += ["--defer-partitions", ",".join(skip)]
+    if split and state.config.split_artifacts:
+        cmdline += ["--split=yes"]
+
+    with contextlib.ExitStack() as stack:
+        if state.config.repart_dir:
+            definitions = Path(state.config.repart_dir)
+        else:
+            definitions = stack.enter_context(importlib.resources.path("mkosi.resources", "repart"))
+
+        cmdline += ["--definitions", definitions]
+
+        output = json.loads(run(cmdline, stdout=subprocess.PIPE).stdout)
+
+        for p in output:
+            if p["type"].startswith("usr") or p["type"].startswith("root"):
+                usr_only = p["type"].startswith("usr")
+                return (p["label"], p.get("roothash"), usr_only)
+
+    return (None, None, False)
+
+
+def build_image(state: MkosiState, *, manifest: Optional[Manifest] = None) -> None:
     # If there's no build script set, there's no point in executing
     # the build script iteration. Let's quit early.
     if state.config.build_script is None and state.do_run_build_script:
-        return BuildOutput.empty()
+        return
 
     make_build_dir(state.config)
 
-    raw, cached = reuse_cache_image(state)
+    cached = reuse_cache_tree(state)
     if state.for_cache and cached:
-        # Found existing cache image, exiting build_image
-        return BuildOutput.empty()
+        return
 
-    if cached:
-        assert raw is not None
-        refresh_partition_table(state, raw)
-    else:
-        raw = create_image(state)
+    with mount_image(state, cached):
+        prepare_tree(state, cached)
+        install_skeleton_trees(state, cached)
+        install_distribution(state, cached)
+        configure_locale(state.root, cached)
+        configure_hostname(state, cached)
+        configure_root_password(state, cached)
+        configure_serial_terminal(state, cached)
+        configure_autologin(state, cached)
+        configure_dracut(state, cached)
+        configure_netdev(state, cached)
+        run_prepare_script(state, cached)
+        install_build_src(state)
+        install_build_dest(state)
+        install_extra_trees(state)
+        run_kernel_install(state, cached)
+        install_boot_loader(state)
+        configure_ssh(state, cached)
+        run_postinst_script(state)
+        # Sign systemd-boot / sd-boot EFI binaries
+        secure_boot_sign(state, state.root / 'usr/lib/systemd/boot/efi')
 
-    with attach_base_image(state.config.base_image, state.partition_table) as base_image, \
-         attach_image_loopback(raw, state.partition_table) as loopdev, \
-         set_umask(0o022):
+        cleanup = not state.for_cache and not state.do_run_build_script
 
-        prepare_swap(state, loopdev, cached)
-        prepare_esp(state, loopdev, cached)
-        prepare_xbootldr(state, loopdev, cached)
+        if cleanup:
+            remove_packages(state)
 
-        if loopdev is not None:
-            luks_format_root(state, loopdev, cached)
-            luks_format_home(state, loopdev, cached)
-            luks_format_srv(state, loopdev, cached)
-            luks_format_var(state, loopdev, cached)
-            luks_format_tmp(state, loopdev, cached)
+        if manifest:
+            with complete_step("Recording packages in manifest…"):
+                manifest.record_packages(state.root)
 
-        with luks_setup_all(state, loopdev) as encrypted:
-            prepare_root(state.config, encrypted.root, cached)
-            prepare_home(state.config, encrypted.home, cached)
-            prepare_srv(state.config, encrypted.srv, cached)
-            prepare_var(state.config, encrypted.var, cached)
-            prepare_tmp(state.config, encrypted.tmp, cached)
+        if cleanup:
+            clean_package_manager_metadata(state)
+            remove_files(state)
+        reset_machine_id(state)
+        reset_random_seed(state.root)
+        run_finalize_script(state)
 
-            for dev in encrypted:
-                refresh_file_system(state.config, dev, cached)
+    label, roothash, usr_only = invoke_repart(state, skip=("esp", "xbootldr"))
 
-            # Mount everything together, but let's not mount the root
-            # dir if we still have to generate the root image here
-            prepare_tree_root(state)
+    install_unified_kernel(state, label, roothash, usr_only)
+    # Sign EFI binaries under these directories within the ESP
+    for esp_dir in ['boot/EFI/BOOT', 'boot/EFI/systemd', 'boot/EFI/Linux']:
+        secure_boot_sign(state, state.root / esp_dir, replace=True)
 
-            with mount_image(state, cached, base_image, loopdev, encrypted.without_generated_root(state.config)):
+    invoke_repart(state, split=True)
 
-                prepare_tree(state, cached)
-                cached_tree = reuse_cache_tree(state, cached)
-                install_skeleton_trees(state, cached_tree)
-                install_distribution(state, cached_tree)
-                configure_locale(state.root, cached_tree)
-                configure_hostname(state, cached_tree)
-                configure_root_password(state, cached_tree)
-                configure_serial_terminal(state, cached_tree)
-                configure_autologin(state, cached_tree)
-                configure_dracut(state, cached_tree)
-                configure_netdev(state, cached_tree)
-                run_prepare_script(state, cached_tree)
-                install_build_src(state)
-                install_build_dest(state)
-                install_extra_trees(state)
-                run_kernel_install(state, cached_tree)
-                install_boot_loader(state)
-                sshkey = configure_ssh(state, cached_tree)
-                run_postinst_script(state)
-                # Sign systemd-boot / sd-boot EFI binaries
-                secure_boot_sign(state, state.root / 'usr/lib/systemd/boot/efi', cached,
-                                 mount=contextlib.nullcontext)
+    extract_unified_kernel(state)
+    extract_kernel_image_initrd(state)
 
-                cleanup = not state.for_cache and not state.do_run_build_script
-
-                if cleanup:
-                    remove_packages(state)
-
-                if manifest:
-                    with complete_step("Recording packages in manifest…"):
-                        manifest.record_packages(state.root)
-
-                if cleanup:
-                    clean_package_manager_metadata(state)
-                    remove_files(state)
-                reset_machine_id(state)
-                reset_random_seed(state.root)
-                run_finalize_script(state)
-                invoke_fstrim(state)
-                make_read_only(state, state.root)
-
-            generated_root = make_generated_root(state)
-            generated_root_part = insert_generated_root(state, raw, loopdev, generated_root)
-            split_root = (
-                (generated_root or extract_partition(state, encrypted.root))
-                if state.config.split_artifacts
-                else None
-            )
-
-            if state.config.verity:
-                root_for_verity = encrypted.root
-                if root_for_verity is None and generated_root_part is not None:
-                    assert loopdev is not None
-                    root_for_verity = generated_root_part.blockdev(loopdev)
-            else:
-                root_for_verity = None
-
-            verity, root_hash = make_verity(state, root_for_verity)
-
-            patch_root_uuid(state, loopdev, root_hash)
-
-            insert_verity(state, raw, loopdev, verity, root_hash)
-            split_verity = verity if state.config.split_artifacts else None
-
-            verity_sig, root_hash_p7s, fingerprint = make_verity_sig(state, root_hash)
-            insert_verity_sig(state, raw, loopdev, verity_sig, root_hash, fingerprint)
-            split_verity_sig = verity_sig if state.config.split_artifacts else None
-
-            # This time we mount read-only, as we already generated
-            # the verity data, and hence really shouldn't modify the
-            # image anymore.
-            mount = lambda: mount_image(state, cached, base_image, loopdev,
-                                        encrypted.without_generated_root(state.config),
-                                        root_read_only=True)
-
-            install_unified_kernel(state, root_hash, mount)
-            # Sign EFI binaries under these directories within the ESP
-            for esp_dir in ['efi/EFI/BOOT', 'efi/EFI/systemd', 'efi/EFI/Linux']:
-                secure_boot_sign(state, state.root / esp_dir, cached, mount, replace=True)
-            split_kernel = (
-                extract_unified_kernel(state, mount)
-                if state.config.split_artifacts
-                else None
-            )
-            split_kernel_image, split_initrd = extract_kernel_image_initrd(state, mount)
-            split_kernel_cmdline = extract_kernel_cmdline(state, mount)
-
-    archive = make_tar(state) or make_cpio(state)
-
-    return BuildOutput(
-        raw or generated_root,
-        archive,
-        root_hash,
-        root_hash_p7s,
-        sshkey,
-        split_root,
-        split_verity,
-        split_verity_sig,
-        split_kernel,
-        split_kernel_image,
-        split_initrd,
-        split_kernel_cmdline,
-    )
+    make_tar(state)
+    make_cpio(state)
+    make_directory(state)
 
 
 def one_zero(b: bool) -> str:
@@ -5992,7 +3701,7 @@ def install_dir(state: MkosiState) -> Path:
     return state.config.install_dir or state.workspace / "dest"
 
 
-def run_build_script(state: MkosiState, raw: Optional[BinaryIO]) -> None:
+def run_build_script(state: MkosiState) -> None:
     if state.config.build_script is None:
         return
 
@@ -6001,14 +3710,12 @@ def run_build_script(state: MkosiState, raw: Optional[BinaryIO]) -> None:
     with complete_step("Running build script…"):
         os.makedirs(install_dir(state), mode=0o755, exist_ok=True)
 
-        target = f"--directory={state.root}" if raw is None else f"--image={raw.name}"
-
         with_network = 1 if state.config.with_network is True else 0
 
         cmdline = [
             "systemd-nspawn",
             "--quiet",
-            target,
+            f"--directory={state.root}",
             f"--machine=mkosi-{uuid.uuid4().hex}",
             "--as-pid2",
             "--link-journal=no",
@@ -6048,9 +3755,6 @@ def run_build_script(state: MkosiState, raw: Optional[BinaryIO]) -> None:
         else:
             cmdline += ["--private-network"]
 
-        if state.config.usr_only:
-            cmdline += [f"--bind={root_home(state)}:/root{idmap_opt}"]
-
         if state.config.nspawn_keep_unit:
             cmdline += ["--keep-unit"]
 
@@ -6072,25 +3776,17 @@ def run_build_script(state: MkosiState, raw: Optional[BinaryIO]) -> None:
             die(f"Build script returned non-zero exit code {result.returncode}.")
 
 
-def need_cache_images(state: MkosiState) -> bool:
+def need_cache_trees(state: MkosiState) -> bool:
     if not state.config.incremental:
         return False
 
     if state.config.force > 1:
         return True
 
-    assert state.cache_pre_dev
-    assert state.cache_pre_inst
-
-    return not state.cache_pre_dev.exists() or not state.cache_pre_inst.exists()
+    return not cache_tree_path(state.config, is_final_image=True).exists() or not cache_tree_path(state.config, is_final_image=False).exists()
 
 
-def remove_artifacts(
-    state: MkosiState,
-    raw: Optional[BinaryIO],
-    archive: Optional[BinaryIO],
-    for_cache: bool = False,
-) -> None:
+def remove_artifacts(state: MkosiState, for_cache: bool = False) -> None:
     if for_cache:
         what = "cache build"
     elif state.do_run_build_script:
@@ -6098,41 +3794,27 @@ def remove_artifacts(
     else:
         return
 
-    if raw is not None:
-        with complete_step(f"Removing disk image from {what}…"):
-            del raw
-
-    if archive is not None:
-        with complete_step(f"Removing archive image from {what}…"):
-            del archive
-
     with complete_step(f"Removing artifacts from {what}…"):
         unlink_try_hard(state.root)
         unlink_try_hard(state.var_tmp())
-        if state.config.usr_only:
-            unlink_try_hard(root_home(state))
 
 
-def build_stuff(config: MkosiConfig) -> Manifest:
+def build_stuff(config: MkosiConfig) -> None:
     make_output_dir(config)
     make_cache_dir(config)
     workspace = setup_workspace(config)
     cache = setup_package_cache(config, Path(workspace.name))
 
-    image = BuildOutput.empty()
     manifest = Manifest(config)
 
     # Make sure tmpfiles' aging doesn't interfere with our workspace
     # while we are working on it.
-    with open_close(workspace.name, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC) as dir_fd, \
-         btrfs_forget_stale_devices(config):
+    with open_close(workspace.name, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC) as dir_fd:
 
         fcntl.flock(dir_fd, fcntl.LOCK_EX)
 
         state = MkosiState(
             config=config,
-            cache_pre_dev=cache_image_path(config, is_final_image=False) if config.incremental else None,
-            cache_pre_inst=cache_image_path(config, is_final_image=True) if config.incremental else None,
             workspace=Path(workspace.name),
             cache=cache,
             do_run_build_script=False,
@@ -6140,86 +3822,58 @@ def build_stuff(config: MkosiConfig) -> Manifest:
             for_cache=False,
         )
 
-        # If caching is requested, then make sure we have cache images around we can make use of
-        if need_cache_images(state):
+        # If caching is requested, then make sure we have cache trees around we can make use of
+        if need_cache_trees(state):
 
             # There is no point generating a pre-dev cache image if no build script is provided
             if config.build_script:
                 with complete_step("Running first (development) stage to generate cached copy…"):
                     # Generate the cache version of the build image, and store it as "cache-pre-dev"
                     state = dataclasses.replace(state, do_run_build_script=True, for_cache=True)
-                    image = build_image(state)
-                    save_cache(state, image.raw_name(), state.cache_pre_dev)
-                    remove_artifacts(state, image.raw, image.archive)
+                    build_image(state)
+                    save_cache(state)
+                    remove_artifacts(state)
 
             with complete_step("Running second (final) stage to generate cached copy…"):
                 # Generate the cache version of the build image, and store it as "cache-pre-inst"
                 state = dataclasses.replace(state, do_run_build_script=False, for_cache=True)
-                image = build_image(state)
-                save_cache(state, image.raw_name(), state.cache_pre_inst)
-                remove_artifacts(state, image.raw, image.archive)
+                build_image(state)
+                save_cache(state)
+                remove_artifacts(state)
 
         if config.build_script:
             with complete_step("Running first (development) stage…"):
                 # Run the image builder for the first (development) stage in preparation for the build script
                 state = dataclasses.replace(state, do_run_build_script=True, for_cache=False)
-                image = build_image(state)
-
-                run_build_script(state, image.raw)
-                remove_artifacts(state, image.raw, image.archive)
+                build_image(state)
+                run_build_script(state)
+                remove_artifacts(state)
 
         # Run the image builder for the second (final) stage
         if not config.skip_final_phase:
             with complete_step("Running second (final) stage…"):
                 state = dataclasses.replace(state, do_run_build_script=False, for_cache=False)
-                image = build_image(state, manifest=manifest)
+                build_image(state, manifest=manifest)
         else:
             MkosiPrinter.print_step("Skipping (second) final image build phase.")
 
-        raw = qcow2_output(config, image.raw)
-        bmap = calculate_bmap(config, raw)
-        raw = compress_output(config, raw)
-        split_root = compress_output(config, image.split_root, f"{root_or_usr(config)}.raw")
-        split_verity = compress_output(config, image.split_verity, f"{root_or_usr(config)}.verity")
-        split_verity_sig = compress_output(config, image.split_verity_sig, roothash_p7s_suffix(config))
-        split_kernel = compress_output(config, image.split_kernel, ".efi")
-        root_hash_file = write_root_hash_file(config, image.root_hash)
-        root_hash_p7s_file = write_root_hash_p7s_file(config, image.root_hash_p7s)
-        settings = copy_nspawn_settings(config)
-        checksum = calculate_sha256sum(
-            config, raw,
-            image.archive,
-            root_hash_file,
-            root_hash_p7s_file,
-            split_root,
-            split_verity,
-            split_verity_sig,
-            split_kernel,
-            settings,
-        )
-        signature = calculate_signature(state, checksum)
+        qcow2_output(state)
+        calculate_bmap(state)
+        copy_nspawn_settings(state)
+        calculate_sha256sum(state)
+        calculate_signature(state)
+        save_manifest(state, manifest)
 
-        link_output(state, raw or image.archive)
-        link_output_root_hash_file(config, root_hash_file)
-        link_output_root_hash_p7s_file(config, root_hash_p7s_file)
-        link_output_checksum(config, checksum)
-        link_output_signature(config, signature)
-        link_output_bmap(config, bmap)
-        link_output_nspawn_settings(config, settings)
-        if config.output_sshkey is not None:
-            link_output_sshkey(config, image.sshkey)
-        link_output_split_root(config, split_root)
-        link_output_split_verity(config, split_verity)
-        link_output_split_verity_sig(config, split_verity_sig)
-        link_output_split_kernel(config, split_kernel)
-        link_output_split_kernel_image(config, image.split_kernel_image)
-        link_output_split_initrd(config, image.split_initrd)
-        link_output_split_kernel_cmdline(config, image.split_kernel_cmdline)
+        for p in state.config.output_paths():
+            if state.staging.joinpath(p.name).exists():
+                os.rename(str(state.staging / p.name), str(p))
+                if p in (state.config.output, state.config.output_split_kernel):
+                    compress_output(state.config, p)
 
-        if image.root_hash is not None:
-            MkosiPrinter.print_step(f"Root hash is {image.root_hash}.")
-
-        return manifest
+        for p in state.staging.iterdir():
+            os.rename(str(p), str(state.config.output.parent / p.name))
+            if p.name.startswith(state.config.output.name):
+                compress_output(state.config, p)
 
 
 def check_root() -> None:
@@ -6300,7 +3954,7 @@ def ensure_networkd(config: MkosiConfig) -> bool:
     return True
 
 
-def run_shell_setup(config: MkosiConfig, pipe: bool = False, commands: Optional[Sequence[str]] = None) -> List[str]:
+def run_shell(config: MkosiConfig) -> None:
     if config.output_format in (OutputFormat.directory, OutputFormat.subvolume):
         target = f"--directory={config.output}"
     else:
@@ -6318,7 +3972,7 @@ def run_shell_setup(config: MkosiConfig, pipe: bool = False, commands: Optional[
         cmdline += nspawn_rlimit_params()
 
         # Redirecting output correctly when not running directly from the terminal.
-        console_arg = f"--console={'interactive' if not pipe else 'pipe'}"
+        console_arg = f"--console={'interactive' if sys.stdout.isatty() else 'pipe'}"
         if nspawn_knows_arg(console_arg):
             cmdline += [console_arg]
 
@@ -6339,19 +3993,15 @@ def run_shell_setup(config: MkosiConfig, pipe: bool = False, commands: Optional[
 
     if config.verb == Verb.boot:
         # Add nspawn options first since systemd-nspawn ignores all options after the first argument.
-        cmdline += commands or config.cmdline
+        cmdline += config.cmdline
         # kernel cmdline config of the form systemd.xxx= get interpreted by systemd when running in nspawn as
         # well.
         cmdline += config.kernel_command_line
-    elif commands or config.cmdline:
+    elif config.cmdline:
         cmdline += ["--"]
-        cmdline += commands or config.cmdline
+        cmdline += config.cmdline
 
-    return cmdline
-
-
-def run_shell(config: MkosiConfig) -> None:
-    run(run_shell_setup(config, pipe=not sys.stdout.isatty()), stdout=sys.stdout, stderr=sys.stderr)
+    run(cmdline)
 
 
 def find_qemu_binary(config: MkosiConfig) -> str:
@@ -6490,8 +4140,7 @@ def start_swtpm() -> Iterator[Optional[Path]]:
             swtpm_proc.wait()
 
 
-@contextlib.contextmanager
-def run_qemu_setup(config: MkosiConfig) -> Iterator[List[str]]:
+def run_qemu(config: MkosiConfig) -> None:
     accel = "kvm" if config.qemu_kvm else "tcg"
 
     firmware, fw_supports_sb = find_qemu_firmware(config)
@@ -6502,7 +4151,7 @@ def run_qemu_setup(config: MkosiConfig) -> Iterator[List[str]]:
     else:
         machine = f"type=q35,accel={accel},smm={smm}"
 
-    cmdline = [
+    cmdline: List[PathString] = [
         find_qemu_binary(config),
         "-machine",
         machine,
@@ -6546,9 +4195,9 @@ def run_qemu_setup(config: MkosiConfig) -> Iterator[List[str]]:
 
     if config.qemu_boot == "linux":
         cmdline += [
-            "-kernel", str(build_auxiliary_output_path(config, ".vmlinuz")),
-            "-initrd", str(build_auxiliary_output_path(config, ".initrd")),
-            "-append", build_auxiliary_output_path(config, ".cmdline").read_text().strip(),
+            "-kernel", config.output_split_kernel_image,
+            "-initrd", config.output_split_initrd,
+            "-append", config.output_split_cmdline.read_text().strip(),
         ]
 
     with contextlib.ExitStack() as stack:
@@ -6601,12 +4250,7 @@ def run_qemu_setup(config: MkosiConfig) -> Iterator[List[str]]:
         cmdline += config.cmdline
 
         print_running_cmd(cmdline)
-        yield cmdline
-
-
-def run_qemu(config: MkosiConfig) -> None:
-    with run_qemu_setup(config) as cmdline:
-        run(cmdline, stdout=sys.stdout, stderr=sys.stderr)
+        run(cmdline)
 
 
 def interface_exists(dev: str) -> bool:
@@ -6664,11 +4308,7 @@ def find_address(config: MkosiConfig) -> Tuple[str, str]:
     die("Container/VM address not found")
 
 
-def run_systemd_cmdline(config: MkosiConfig, commands: Sequence[str]) -> List[str]:
-    return ["systemd-run", "--quiet", "--wait", "--pipe", "-M", machine_name(config), "/usr/bin/env", *commands]
-
-
-def run_ssh_setup(config: MkosiConfig, commands: Optional[Sequence[str]] = None) -> List[str]:
+def run_ssh(config: MkosiConfig) -> None:
     cmd = [
             "ssh",
             # Silence known hosts file errors/warnings.
@@ -6696,13 +4336,9 @@ def run_ssh_setup(config: MkosiConfig, commands: Optional[Sequence[str]] = None)
 
     dev, address = find_address(config)
     cmd += [f"root@{address}{dev}"]
-    cmd += commands or config.cmdline
+    cmd += config.cmdline
 
-    return cmd
-
-
-def run_ssh(config: MkosiConfig) -> CompletedProcess:
-    return run(run_ssh_setup(config), stdout=sys.stdout, stderr=sys.stderr)
+    run(cmd)
 
 
 def run_serve(config: MkosiConfig) -> None:
@@ -6872,12 +4508,10 @@ def run_verb(raw: argparse.Namespace) -> None:
         if needs_build(config):
             check_native(config)
             init_namespace()
-            manifest = build_stuff(config)
+            build_stuff(config)
 
             if config.auto_bump:
                 bump_image_version(config)
-
-            save_manifest(config, manifest)
 
             print_output_size(config)
 

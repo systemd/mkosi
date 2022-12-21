@@ -11,8 +11,8 @@ class AlmaInstaller(CentosInstaller):
     @staticmethod
     def _gpg_locations(epel_release: int) -> Tuple[Path, str]:
         return (
-            Path("/etc/pki/rpm-gpg/RPM-GPG-KEY-AlmaLinux"),
-            "https://repo.almalinux.org/almalinux/RPM-GPG-KEY-AlmaLinux"
+            Path(f"/etc/pki/rpm-gpg/RPM-GPG-KEY-AlmaLinux-{epel_release}"),
+            f"https://repo.almalinux.org/almalinux/RPM-GPG-KEY-AlmaLinux-{epel_release}",
         )
 
     @classmethod

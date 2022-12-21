@@ -17,11 +17,8 @@ from mkosi.backend import (
     MkosiException,
     MkosiPrinter,
     MkosiState,
-    OutputFormat,
-    PartitionIdentifier,
     complete_step,
     die,
-    root_home,
     run_workspace_command,
     safe_tar_extract,
 )
@@ -226,23 +223,10 @@ class Gentoo:
         self.pkgs_sys = ["@world"]
 
         self.pkgs_fs = ["sys-fs/dosfstools"]
-        if state.config.output_format in (OutputFormat.subvolume, OutputFormat.gpt_btrfs):
-            self.pkgs_fs += ["sys-fs/btrfs-progs"]
-        elif state.config.output_format == OutputFormat.gpt_xfs:
-            self.pkgs_fs += ["sys-fs/xfsprogs"]
-        elif state.config.output_format == OutputFormat.gpt_squashfs:
-            self.pkgs_fs += ["sys-fs/squashfs-tools"]
-
-        if state.config.encrypt:
-            self.pkgs_fs += ["cryptsetup", "device-mapper"]
 
         if not state.do_run_build_script and state.config.bootable:
-            if state.get_partition(PartitionIdentifier.esp):
-                self.pkgs_boot = ["sys-kernel/installkernel-systemd-boot"]
-            else:
-                self.pkgs_boot = []
-
-            self.pkgs_boot += ["sys-kernel/gentoo-kernel-bin",
+            self.pkgs_boot += ["sys-kernel/installkernel-systemd-boot",
+                               "sys-kernel/gentoo-kernel-bin",
                                "sys-firmware/edk2-ovmf"]
 
         self.emerge_vars = {
@@ -495,9 +479,6 @@ class Gentoo:
                                     f"actions={actions} outside stage3")
             emerge_main([*pkgs, *opts, *actions] + PREFIX_OPTS + self.emerge_default_opts)
         else:
-            if state.config.usr_only:
-                root_home(state).mkdir(mode=0o750, exist_ok=True)
-
             cmd = ["/usr/bin/emerge", *pkgs, *self.emerge_default_opts, *opts, *actions]
 
             MkosiPrinter.print_step("Invoking emerge(1) inside stage3")
