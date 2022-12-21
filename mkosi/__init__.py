@@ -1094,72 +1094,35 @@ def install_unified_kernel(state: MkosiState, label: Optional[str], root_hash: O
                 option = "mount.usr" if usr_only else "root"
                 boot_options = f"{boot_options} {option}=LABEL={label}"
 
-            osrelease = state.root / "usr/lib/os-release"
-            cmdline = state.staging / state.config.output_split_cmdline
-            cmdline.write_text(boot_options)
-            initrd = initrd_path(state, kver)
-            pcrsig = None
-            pcrpkey = None
-
-            # If a SecureBoot key is configured, and we have the
-            # systemd-measure binary around, then also include a
-            # signature of expected PCR 11 values in the kernel image
-            if state.config.secure_boot and state.config.sign_expected_pcr:
-                from cryptography import x509
-                from cryptography.hazmat.primitives import serialization
-
-                with complete_step("Generating PCR 11 signature…"):
-                    # Extract the public key from the SecureBoot certificate
-                    cert = x509.load_pem_x509_certificate(state.config.secure_boot_certificate.read_bytes())
-                    pcrpkey = state.workspace / "pcrpkey.pem"
-                    pcrpkey.write_bytes(cert.public_key().public_bytes(
-                        encoding=serialization.Encoding.PEM,
-                        format=serialization.PublicFormat.SubjectPublicKeyInfo))
-
-                    cmd_measure = [
-                        "systemd-measure",
-                        "sign",
-                        f"--linux={state.root / kimg}",
-                        f"--osrel={osrelease}",
-                        f"--cmdline={cmdline}",
-                        f"--initrd={initrd}",
-                        f"--pcrpkey={pcrpkey}",
-                        f"--private-key={state.config.secure_boot_key}",
-                        f"--public-key={pcrpkey}",
-                        "--bank=sha1",
-                        "--bank=sha256",
-                    ]
-
-                    c = run(cmd_measure, stdout=subprocess.PIPE)
-
-                    pcrsig = state.workspace / "pcrsig.json"
-                    pcrsig.write_bytes(c.stdout)
+            state.staging.joinpath(state.config.output_split_cmdline).write_text(boot_options)
 
             cmd: List[PathString] = [
-                "objcopy",
-                "--add-section", f".osrel={osrelease}",         "--change-section-vma",   ".osrel=0x20000",
-                "--add-section", f".cmdline={cmdline}",         "--change-section-vma", ".cmdline=0x30000",
-                "--add-section", f".linux={state.root / kimg}", "--change-section-vma",   ".linux=0x2000000",
-                "--add-section", f".initrd={initrd}",           "--change-section-vma",  ".initrd=0x3000000",
+                "ukify",
+                "--cmdline", boot_options,
+                "--os-release", f"@{state.root / 'usr/lib/os-release'}",
+                "--stub", state.root / f"lib/systemd/boot/efi/linux{EFI_ARCHITECTURES[state.config.architecture]}.efi.stub",
+                "--output", boot_binary,
+                "--efi-arch", EFI_ARCHITECTURES[state.config.architecture],
             ]
 
-            if pcrsig is not None:
+            for p in state.config.extra_search_paths:
+                cmd += ["--tools", p]
+
+            if state.config.secure_boot:
                 cmd += [
-                    "--add-section", f".pcrsig={pcrsig}",       "--change-section-vma",  ".pcrsig=0x80000",
-                    "--add-section", f".pcrpkey={pcrpkey}",     "--change-section-vma", ".pcrpkey=0x100000",
+                    "--secureboot-private-key", state.config.secure_boot_key,
+                    "--secureboot-certificate", state.config.secure_boot_certificate,
                 ]
 
-            cmd += [
-                state.root / f"lib/systemd/boot/efi/linux{EFI_ARCHITECTURES[state.config.architecture]}.efi.stub",
-                boot_binary,
-            ]
+                if state.config.sign_expected_pcr:
+                    cmd += [
+                        "--pcr-private-key", state.config.secure_boot_key,
+                        "--pcr-banks", "sha1,sha256"
+                    ]
+
+            cmd += [state.root / kimg, initrd_path(state, kver)]
 
             run(cmd)
-
-            if pcrsig is not None:
-                pcrsig.unlink()
-            if pcrpkey is not None:
-                pcrpkey.unlink()
 
 
 def secure_boot_sign(state: MkosiState, directory: Path, replace: bool = False) -> None:
@@ -1559,24 +1522,10 @@ def parse_sign_expected_pcr(value: Union[bool, str]) -> bool:
         return value
 
     if value == "auto":
-        try:
-            # TODO: pyright stumbles over this with
-            # "import_module" is not a known member of module (reportGeneralTypeIssues)
-            # although importlib.import_module exists in Python 3.7
-            # a regular import trips pyflakes, though and I haven't found a way
-            # to silence that
-            importlib.import_module("cryptography") # type: ignore
-            return True if shutil.which('systemd-measure') else False
-        except ImportError:
-            return False
+        return bool(shutil.which('systemd-measure'))
 
     val = parse_boolean(value)
     if val:
-        try:
-            importlib.import_module("cryptography") # type: ignore
-        except ImportError:
-            die("Couldn't import the cryptography Python module. This is needed for the --sign-expected-pcr option.")
-
         if not shutil.which('systemd-measure'):
             die("Couldn't find systemd-measure binary. It is needed for the --sign-expected-pcr option.")
 
