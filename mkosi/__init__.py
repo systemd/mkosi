@@ -3867,12 +3867,14 @@ def build_stuff(config: MkosiConfig) -> None:
 
         for p in state.config.output_paths():
             if state.staging.joinpath(p.name).exists():
-                os.rename(str(state.staging / p.name), str(p))
+                shutil.move(str(state.staging / p.name), str(p))
                 if p in (state.config.output, state.config.output_split_kernel):
                     compress_output(state.config, p)
+            if state.config.chown and p.exists(): 
+                chown_to_running_user(p)
 
         for p in state.staging.iterdir():
-            os.rename(str(p), str(state.config.output.parent / p.name))
+            shutil.move(str(p), str(state.config.output.parent / p.name))
             if p.name.startswith(state.config.output.name):
                 compress_output(state.config, p)
 
