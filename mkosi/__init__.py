@@ -1263,7 +1263,8 @@ def qcow2_output(state: MkosiState) -> None:
     with complete_step("Converting image file to qcow2…"):
         run(["qemu-img", "convert", "-onocow=on", "-fraw", "-Oqcow2",
              state.staging / state.config.output.name,
-             state.staging / state.config.output.name])
+             state.workspace / "qemu.img"])
+        os.rename(state.workspace / "qemu.img", state.staging / state.config.output.name)
 
 
 def copy_nspawn_settings(state: MkosiState) -> None:
