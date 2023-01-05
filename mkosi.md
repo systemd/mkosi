@@ -556,6 +556,12 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 be used while building the image and the final image will be shipped without
 a machine ID.
 
+`Initrd=`, `--initrd`
+
+: Use user-provided initrd(s). Takes a comma separated list of paths to initrd
+  files. This option may be used multiple times in which case the initrd lists
+  are combined.
+
 ### [Content] Section
 
 `BasePackages=`, `--base-packages`

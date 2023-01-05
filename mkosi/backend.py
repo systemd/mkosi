@@ -171,12 +171,12 @@ def dictify(f: Callable[..., Iterator[tuple[T, V]]]) -> Callable[..., dict[T, V]
 
 
 @dictify
-def read_os_release() -> Iterator[tuple[str, str]]:
+def read_os_release(root: Path = Path("/")) -> Iterator[tuple[str, str]]:
     try:
-        filename = "/etc/os-release"
+        filename = root / "/etc/os-release"
         f = open(filename)
     except FileNotFoundError:
-        filename = "/usr/lib/os-release"
+        filename = root / "/usr/lib/os-release"
         f = open(filename)
 
     with f:
@@ -395,6 +395,7 @@ class MkosiConfig:
     auto_bump: bool
     workspace_dir: Optional[Path]
     machine_id: Optional[str]
+    initrds: list[Path]
 
     # QEMU-specific options
     qemu_headless: bool

@@ -66,6 +66,7 @@ from mkosi.backend import (
     nspawn_version,
     patch_file,
     path_relative_to_cwd,
+    read_os_release,
     run,
     run_workspace_command,
     scandir_recursive,
@@ -160,6 +161,13 @@ EFI_ARCHITECTURES = {
     "aarch64": "aa64",
     "armhfp": "arm",
     "riscv64:": "riscv64",
+}
+
+
+# Magic numbers for compression formats
+MAGIC_NUMBERS = {
+    "zstd": b"\x28\xB5\x2F\xFD",
+    "xz": b"\xFD\x37\x7A\x58\x5A\x00",
 }
 
 
@@ -881,6 +889,12 @@ def compressor_command(option: Union[str, bool], src: Path) -> list[PathString]:
         die(f"Unknown compression {option}")
 
 
+def uncompress_command(option: str, src: Path) -> list[PathString]:
+    """Returns a command suitable for decompressing archives to stdout."""
+
+    return [option, "-d", "-c", src]
+
+
 def tar_binary() -> str:
     # Some distros (Mandriva) install BSD tar as "tar", hence prefer
     # "gtar" if it exists, which should be GNU tar wherever it exists.
@@ -910,24 +924,26 @@ def make_tar(state: MkosiState) -> None:
         run(cmd)
 
 
-def find_files(root: Path) -> Iterator[Path]:
-    """Generate a list of all filepaths relative to @root"""
-    yield from scandir_recursive(root,
+def find_files(dir: Path, root: Path) -> Iterator[Path]:
+    """Generate a list of all filepaths in directory @dir relative to @root"""
+    yield from scandir_recursive(dir,
                                  lambda entry: Path(entry.path).relative_to(root))
 
 
-def make_cpio(state: MkosiState) -> None:
+def should_make_cpio(state: MkosiState) -> bool:
     if state.do_run_build_script:
-        return
+        return False
     if state.config.output_format != OutputFormat.cpio:
-        return
+        return False
     if state.for_cache:
-        return
+        return False
+    return True
 
-    with complete_step("Creating archive…"), open(state.staging / state.config.output.name, "wb") as f:
-        files = find_files(state.root)
+
+def make_cpio(root: Path, files: Iterator[Path], output: Path) -> None:
+    with complete_step("Creating archive…"), open(output, "wb") as f:
         cmd: list[PathString] = [
-            "cpio", "-o", "--reproducible", "--null", "-H", "newc", "--quiet", "-D", state.root
+            "cpio", "-o", "--reproducible", "--null", "-H", "newc", "--quiet", "-D", root
         ]
 
         with spawn(cmd, stdin=subprocess.PIPE, stdout=f) as cpio:
@@ -939,6 +955,23 @@ def make_cpio(state: MkosiState) -> None:
             cpio.stdin.close()
         if cpio.wait() != 0:
             die("Failed to create archive")
+
+
+def update_cpio(root: Path, files: Iterator[Path], output: Path) -> None:
+    with complete_step("Updating archive…"):
+        cmd: list[PathString] = [
+            "cpio", "-o", "-A", "-F", output, "--reproducible", "--null", "-H", "newc", "--quiet", "-D", root
+        ]
+
+        with spawn(cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL) as cpio:
+            #  https://github.com/python/mypy/issues/10583
+            assert cpio.stdin is not None
+
+            for file in files:
+                cpio.stdin.write(os.fspath(file).encode("utf8") + b"\0")
+            cpio.stdin.close()
+        if cpio.wait() != 0:
+            die("Failed to update archive")
 
 
 def make_directory(state: MkosiState) -> None:
@@ -962,13 +995,41 @@ def gen_kernel_images(state: MkosiState) -> Iterator[tuple[str, Path]]:
         yield kver.name, kimg
 
 
-def initrd_path(state: MkosiState, kver: str) -> Path:
+def initrd_paths(state: MkosiState, kver: str) -> list[Path]:
+    if state.config.initrds:
+        kmods_initrd = kernel_modules_initrd_path(state, kver)
+        assert kmods_initrd
+        return [*state.config.initrds, kmods_initrd]
+
     # initrd file is versioned in Debian Bookworm
     initrd = state.root / boot_directory(state, kver) / f"initrd.img-{kver}"
     if not initrd.exists():
         initrd = state.root / boot_directory(state, kver) / "initrd"
 
-    return initrd
+    return [initrd]
+
+
+def kernel_modules_initrd_path(state: MkosiState, kver: str) -> Optional[Path]:
+    if not state.config.initrds:
+        return None
+
+    compression = kernel_modules_initrd_compression(state.config)
+    if compression == "xz":
+        ext = "xz"
+    elif compression == "zstd":
+        ext = "zst"
+    else:
+        die(f"Unknown compression {compression}")
+
+    cpio_path = kernel_modules_initrd_cpio_path(state, kver)
+    assert cpio_path
+    return cpio_path.parent / f"{cpio_path.name}.{ext}"
+
+
+def kernel_modules_initrd_cpio_path(state: MkosiState, kver: str) -> Optional[Path]:
+    if not state.config.initrds:
+        return None
+    return state.workspace / f"initrd.{kver}.kmods"
 
 
 def install_unified_kernel(state: MkosiState, label: Optional[str], root_hash: Optional[str], usr_only: bool) -> None:
@@ -1060,7 +1121,7 @@ def install_unified_kernel(state: MkosiState, label: Optional[str], root_hash: O
                         "--pcr-banks", "sha1,sha256"
                     ]
 
-            cmd += [state.root / kimg, initrd_path(state, kver)]
+            cmd += [state.root / kimg, *initrd_paths(state, kver)]
 
             run(cmd)
 
@@ -1872,6 +1933,15 @@ def create_parser() -> ArgumentParserMkosi:
         metavar="PATH",
         dest="repart_dir",
         help="Directory containing systemd-repart partition definitions",
+    )
+    group.add_argument(
+        "--initrd",
+        dest="initrds",
+        action=CommaDelimitedListAction,
+        default=[],
+        help="Add a user-provided initrd to image",
+        type=Path,
+        metavar="PATH",
     )
 
     group = parser.add_argument_group("Content options")
@@ -3013,6 +3083,14 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
     if args.repositories and not is_rpm_distribution(args.distribution) and args.distribution not in (Distribution.debian, Distribution.ubuntu):
         die("Sorry, the --repositories option is only supported on RPM/Debian based distributions")
 
+    if args.initrds:
+        args.initrds = [p.absolute() for p in args.initrds]
+        for p in args.initrds:
+            if not p.exists():
+                die(f"File {p} not found")
+            if not p.is_file():
+                die(f"{p} is not a file")
+
     return MkosiConfig(**vars(args))
 
 
@@ -3398,7 +3476,133 @@ def boot_directory(state: MkosiState, kver: str) -> Path:
     return Path("boot") / state.machine_id / kver
 
 
-def run_kernel_install(state: MkosiState, cached: bool) -> None:
+def kernel_modules_initrd_compression(config: MkosiConfig) -> Union[bool, str]:
+    return should_compress_output(config) or "zstd"
+
+
+def find_compression(path: Path) -> Union[str, None]:
+    with open(path, "rb") as f:
+        magic = f.read(6)
+    if magic[:4] == MAGIC_NUMBERS["zstd"]:
+        return "zstd"
+    elif magic == MAGIC_NUMBERS["xz"]:
+        return "xz"
+    return None
+
+
+def list_kernel_modules_in_initrds(state: MkosiState) -> dict[str, Path]:
+    kernel_modules: dict[str, Path] = {}
+    for initrd in state.config.initrds:
+        try:
+            compression = find_compression(initrd)
+            if not compression:
+                raise MkosiException("Unsupported compression")
+            with subprocess.Popen(uncompress_command(compression, initrd), stdout=subprocess.PIPE) as archive:
+                output: str = run(["cpio", "-it"],
+                                  stdin=archive.stdout, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=True, text=True).stdout
+                for s in output.split("\n"):
+                    path = Path(s)
+                    if path.parent == Path("usr/lib/modules"):
+                        kernel_modules[path.name] = initrd
+                    if path == Path("init"):
+                        kernel_modules[path.name] = initrd
+                    if path == Path("etc/initrd-release"):
+                        kernel_modules[path.name] = initrd
+        except Exception as err:
+            MkosiPrinter.info(f"Couldn't list kernel modules in {initrd}: {err=}")
+    return kernel_modules
+
+
+def update_suffixed(items: dict[str, str], name: str, fallback: str) -> None:
+    value = items.get(name, fallback)
+    if 'mkosi-initrd' in value:
+        return
+    items[name] = value + ' (mkosi-initrd)'
+
+
+def initrd_dir_path(state: MkosiState, kver: str) -> Path:
+    return state.workspace / f"{kver}/initrd"
+
+
+def init_symlink_path(state: MkosiState, kver: str) -> Path:
+    return initrd_dir_path(state, kver) / "init"
+
+
+def initrd_release_path(state: MkosiState, kver: str) -> Path:
+    return initrd_dir_path(state, kver) / "etc/initrd-release"
+
+
+def make_init_symlink(state: MkosiState, kver: str) -> Path:
+    init = init_symlink_path(state, kver)
+    init.unlink(missing_ok=True)
+
+    if not init.parent.exists():
+        init.parent.mkdir(parents=True)
+
+    init.symlink_to('usr/lib/systemd/systemd')
+    return init
+
+
+def write_initrd_release(state: MkosiState, kver: str) -> Path:
+    initrd_release = initrd_release_path(state, kver)
+    initrd_release.unlink(missing_ok=True)
+
+    if not initrd_release.parent.exists():
+        initrd_release.parent.mkdir(parents=True)
+
+    with initrd_release.open('wt') as out:
+        os_release = read_os_release(state.root)
+
+        # Replacing fields in the original dictionary should maintain the order
+        update_suffixed(os_release, 'NAME', 'Linux')
+        update_suffixed(os_release, 'PRETTY_NAME', 'Linux')
+        os_release['VARIANT'] = 'mkosi-initrd'
+        os_release['VARIANT_ID'] = 'mkosi-initrd'
+
+        for name, value in os_release.items():
+            if value:
+                print(f'{name}={value!r}', file=out)
+
+    return initrd_release
+
+
+def generate_kernel_modules_initrd(state: MkosiState) -> None:
+    with complete_step("Generating initramfs images for kernel modules…"):
+        kernel_modules_in_initrds = list_kernel_modules_in_initrds(state)
+        for kver, _ in gen_kernel_images(state):
+            cpio_path = kernel_modules_initrd_cpio_path(state, kver)
+            assert cpio_path
+
+            # Kernel modules
+            if kver not in kernel_modules_in_initrds:
+                make_cpio(state.root, find_files(state.root / "usr/lib/modules", state.root), cpio_path)
+            else:
+                MkosiPrinter.info(f"Kernel modules for {kver} found in {kernel_modules_in_initrds[kver]}: skipping")
+
+            # /init, /etc/initrd-release
+            initrd_writers = {
+                "initrd-release": write_initrd_release,
+                "init": make_init_symlink,
+            }
+            initrd_files = []
+            for file in initrd_writers:
+                if file not in kernel_modules_in_initrds:
+                    path = initrd_writers[file](state, kver)
+                    initrd_files.append(path.relative_to(initrd_dir_path(state, kver)))
+                else:
+                    MkosiPrinter.info(f"{file} found in {kernel_modules_in_initrds[file]}: skipping")
+            if initrd_files:
+                if cpio_path.exists():
+                    update_cpio(initrd_dir_path(state, kver), iter(initrd_files), cpio_path)
+                else:
+                    make_cpio(initrd_dir_path(state, kver), iter(initrd_files), cpio_path)
+
+            # Compression
+            compression = kernel_modules_initrd_compression(state.config)
+            run(compressor_command(compression, cpio_path))
+
+
+def gen_initrds(state: MkosiState, cached: bool) -> None:
     if not state.config.bootable or state.do_run_build_script:
         return
 
@@ -3409,6 +3613,10 @@ def run_kernel_install(state: MkosiState, cached: bool) -> None:
         return
 
     with complete_step("Generating initramfs images…"):
+        if state.config.initrds:
+            generate_kernel_modules_initrd(state)
+            return
+
         for kver, kimg in gen_kernel_images(state):
             run_workspace_command(state, ["kernel-install", "add", kver, Path("/") / kimg])
 
@@ -3475,8 +3683,8 @@ def invoke_repart(
                     Type=esp
                     Format=vfat
                     CopyFiles=/boot:/
-                    SizeMinBytes=256M
-                    SizeMaxBytes=256M
+                    SizeMinBytes=512M
+                    SizeMaxBytes=512M
                     """
                 )
             )
@@ -3531,7 +3739,7 @@ def build_image(state: MkosiState, *, manifest: Optional[Manifest] = None) -> No
         install_build_src(state)
         install_build_dest(state)
         install_extra_trees(state)
-        run_kernel_install(state, cached)
+        gen_initrds(state, cached)
         install_boot_loader(state)
         configure_ssh(state, cached)
         run_postinst_script(state)
@@ -3564,7 +3772,8 @@ def build_image(state: MkosiState, *, manifest: Optional[Manifest] = None) -> No
     invoke_repart(state, split=True)
 
     make_tar(state)
-    make_cpio(state)
+    if should_make_cpio(state):
+        make_cpio(state.root, find_files(state.root, state.root), state.staging / state.config.output.name)
     make_directory(state)
 
 

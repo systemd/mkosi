@@ -109,3 +109,20 @@ def test_shell_boot() -> None:
 def test_compression() -> None:
     assert not parse(["--format", "disk", "--compress-output", "False"]).compress_output
 
+def test_initrd() -> None:
+    with cd_temp_dir():
+        for i in range(1, 5):
+            initrd = Path(f"path-to-initrd{i}")
+            initrd.write_text("initrd{i}")
+        assert parse([
+            "--initrd",
+            "path-to-initrd1,path-to-initrd2",
+            "--initrd",
+            "path-to-initrd3,path-to-initrd4",
+        ]).initrds == [
+            Path(Path.cwd() / "path-to-initrd1"),
+            Path(Path.cwd() / "path-to-initrd2"),
+            Path(Path.cwd() / "path-to-initrd3"),
+            Path(Path.cwd() / "path-to-initrd4"),
+        ]
+

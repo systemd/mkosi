@@ -120,6 +120,12 @@ jobs:
           - tar
           - cpio
           - disk
+        prebuilt-initrd:
+          - no
+          - yes
+        exclude:
+          - distro: debian
+            prebuilt-initrd: yes
 
     steps:
     - uses: actions/checkout@v3
@@ -162,6 +168,10 @@ jobs:
     - name: Install
       run: sudo python3 -m pip install .
 
+    - name: Build ${{ matrix.distro }} initrd
+      if: matrix.prebuilt-initrd == 'yes'
+      run: sudo python3 -m mkosi --directory=.github/initrd --config=${{ matrix.distro }}.conf build
+
     - name: Configure ${{ matrix.distro }}/${{ matrix.format }}
       run: |
         mkdir -p mkosi.conf.d
@@ -191,6 +201,14 @@ jobs:
         tee mkosi.skeleton/etc/portage/binrepos.conf <<- EOF
         [binhost]
         sync-uri = https://raw.githubusercontent.com/257/binpkgs/master
+        EOF
+
+    - name: Configure ${{ matrix.distro }}/${{ matrix.format }} initrd
+      if: matrix.prebuilt-initrd == 'yes'
+      run: |
+        tee mkosi.conf.d/initrd.conf <<- EOF
+        [Output]
+        Initrd=.github/initrd/initrd.cpio.zst
         EOF
 
     - name: Configure EPEL

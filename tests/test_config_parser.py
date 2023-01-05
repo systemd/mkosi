@@ -147,6 +147,7 @@ class MkosiConfig:
             "auto_bump": False,
             "workspace_dir": None,
             "repart_dir": None,
+            "initrds": [],
         }
 
     def __eq__(self, other: Mapping[str, Any]) -> bool: # type: ignore
