@@ -699,14 +699,8 @@ def nspawn_id_map_supported() -> bool:
     if nspawn_version() < 252:
         return False
 
-    try:
-        # Not part of stdlib
-        from packaging import version
-    except ImportError:
-        # If we can't check assume the kernel is new enough
-        return True
-
-    return version.parse(platform.release()) >= version.parse("5.12")
+    ret = run(["systemd-analyze", "compare-versions", platform.release(), ">=", "5.12"])
+    return ret.returncode == 0
 
 
 def nspawn_params_for_build_sources(config: MkosiConfig, sft: SourceFileTransfer) -> List[str]:
