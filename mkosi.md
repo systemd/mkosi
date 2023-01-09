@@ -1043,6 +1043,12 @@ a machine ID.
   in scripted environments where the `qemu` and `ssh` verbs are used in a quick
   succession and the virtual device might not get enough time to configure itself.
 
+`Credential=`, `--credential`
+
+: Set credentials to be passed to systemd-nspawn or qemu respectively when
+  `mkosi shell/boot` or `mkosi qemu` are used. This option takes a space separated
+  list of key=value assignments.
+
 ### Commandline-only Options
 
 Those settings cannot be configured in the configuration files.
