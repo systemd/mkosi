@@ -2355,6 +2355,14 @@ def create_parser() -> ArgumentParserMkosi:
         metavar="PORT",
         help="If specified, 'mkosi ssh' will use this port to connect",
     )
+    group.add_argument(
+        "--credential",
+        dest="credentials",
+        action=SpaceDelimitedListAction,
+        default=[],
+        help="Pass a systemd credential to systemd-nspawn or qemu",
+        metavar="NAME=VALUE",
+    )
 
     group = parser.add_argument_group("Additional configuration options")
     group.add_argument(
@@ -2999,6 +3007,15 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
         args.environment = env
     else:
         args.environment = {}
+
+    if args.credentials:
+        credentials = {}
+        for s in args.credentials:
+            key, _, value = s.partition("=")
+            credentials[key] = value
+        args.credentials = credentials
+    else:
+        args.credentials = {}
 
     if args.cache_path is not None:
         args.cache_path = args.cache_path.absolute()
@@ -3813,7 +3830,7 @@ def build_stuff(config: MkosiConfig) -> None:
                 shutil.move(str(state.staging / p.name), str(p))
                 if p in (state.config.output, state.config.output_split_kernel):
                     compress_output(state.config, p)
-            if state.config.chown and p.exists(): 
+            if state.config.chown and p.exists():
                 chown_to_running_user(p)
 
         for p in state.staging.iterdir():
@@ -3936,6 +3953,9 @@ def run_shell(config: MkosiConfig) -> None:
 
     if config.source_file_transfer_final == SourceFileTransfer.mount:
         cmdline += [f"--bind={config.build_sources}:/root/src", "--chdir=/root/src"]
+
+    for k, v in config.credentials.items():
+        cmdline += [f"--set-credential={k}:{v}"]
 
     if config.verb == Verb.boot:
         # Add nspawn options first since systemd-nspawn ignores all options after the first argument.
@@ -4145,6 +4165,9 @@ def run_qemu(config: MkosiConfig) -> None:
             "-initrd", config.output_split_initrd,
             "-append", config.output_split_cmdline.read_text().strip(),
         ]
+
+    for k, v in config.credentials.items():
+        cmdline += ["-smbios", f"type=11,value=io.systemd.credential:{k}={v}"]
 
     with contextlib.ExitStack() as stack:
         if config.qemu_boot == "uefi" and fw_supports_sb:

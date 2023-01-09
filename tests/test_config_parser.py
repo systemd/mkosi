@@ -142,6 +142,7 @@ class MkosiConfig:
             "ssh_timeout": 0,
             "ssh_agent": None,
             "ssh_port": 22,
+            "credentials": [],
             "split_artifacts": False,
             "image_id": None,
             "image_version": None,
