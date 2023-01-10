@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import List, Tuple
 
 from mkosi.backend import (
+    Distribution,
     MkosiConfig,
     MkosiState,
     add_packages,
@@ -53,7 +54,7 @@ class CentosInstaller(DistributionInstaller):
         if not state.do_run_build_script and is_epel_variant(state.config.distribution):
             if state.config.netdev:
                 add_packages(state.config, packages, "systemd-networkd", conditional="systemd")
-            if epel_release >= 9:
+            if state.config.distribution not in (Distribution.centos, Distribution.centos_epel) and epel_release >= 9:
                 add_packages(state.config, packages, "systemd-boot", conditional="systemd")
 
         install_packages_dnf(state, packages)
