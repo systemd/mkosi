@@ -133,7 +133,6 @@ class MkosiConfig:
             "qemu_kvm": mkosi.qemu_check_kvm_support(),
             "qemu_args": [],
             "nspawn_keep_unit": False,
-            "qemu_boot": "uefi",
             "netdev": False,
             "ephemeral": False,
             "cache_initrd": False,

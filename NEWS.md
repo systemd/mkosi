@@ -28,6 +28,7 @@
 
     We also remove the WithoutUnifiedKernelImages= switch as building unified
     kernel images is trivial and fast these days.
+- Support for --qemu-boot was dropped
 
 ## v14
 

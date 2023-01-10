@@ -984,12 +984,6 @@ a machine ID.
   scope unit for the containers. This option should be used when mkosi is
   run by a service unit.
 
-`QemuBoot=`, `--qemu-boot=`
-
-: When used with the `qemu` verb, this option specifies how qemu should
-  boot the image. Can be set to either `uefi` to do a UEFI boot or `linux`
-  to do a qemu direct linux boot.
-
 `Netdev=`, `--netdev`
 
 : When used with the boot or qemu verbs, this option creates a virtual
