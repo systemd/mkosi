@@ -429,7 +429,6 @@ class MkosiConfig:
     qemu_mem: str
     qemu_kvm: bool
     qemu_args: Sequence[str]
-    qemu_boot: str
 
     # systemd-nspawn specific options
     nspawn_keep_unit: bool
@@ -442,18 +441,6 @@ class MkosiConfig:
     @property
     def output_split_kernel(self) -> Path:
         return build_auxiliary_output_path(self, ".efi")
-
-    @property
-    def output_split_kernel_image(self) -> Path:
-        return build_auxiliary_output_path(self, ".vmlinuz")
-
-    @property
-    def output_split_initrd(self) -> Path:
-        return build_auxiliary_output_path(self, ".initrd")
-
-    @property
-    def output_split_cmdline(self) -> Path:
-        return build_auxiliary_output_path(self, ".cmdline")
 
     @property
     def output_nspawn_settings(self) -> Path:
@@ -487,9 +474,6 @@ class MkosiConfig:
         return (
             self.output,
             self.output_split_kernel,
-            self.output_split_kernel_image,
-            self.output_split_initrd,
-            self.output_split_cmdline,
             self.output_nspawn_settings,
             self.output_checksum,
             self.output_signature,

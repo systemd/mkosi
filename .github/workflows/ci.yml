@@ -206,16 +206,8 @@ jobs:
 
     - name: Boot ${{ matrix.distro }}/${{ matrix.format }} UEFI
       if: matrix.format == 'disk'
-      run: sudo timeout -k 30 10m python3 -m mkosi --qemu-boot=uefi qemu
+      run: sudo timeout -k 30 10m python3 -m mkosi qemu
 
     - name: Check ${{ matrix.distro }}/${{ matrix.format }} UEFI
-      if: matrix.format == 'disk' || matrix.format == 'directory'
-      run: sudo python3 -m mkosi shell bash -c "[[ -e /testok ]] || { cat /failed-services; exit 1; }"
-
-    - name: Boot ${{ matrix.distro }}/${{ matrix.format}} QEMU Linux Boot
-      if: matrix.format == 'disk'
-      run: sudo timeout -k 30 10m python3 -m mkosi --qemu-boot=linux qemu
-
-    - name: Check ${{ matrix.distro }}/${{ matrix.format }} QEMU Linux Boot
       if: matrix.format == 'disk' || matrix.format == 'directory'
       run: sudo python3 -m mkosi shell bash -c "[[ -e /testok ]] || { cat /failed-services; exit 1; }"

@@ -1086,8 +1086,6 @@ def install_unified_kernel(state: MkosiState, label: Optional[str], root_hash: O
                 option = "mount.usr" if usr_only else "root"
                 boot_options = f"{boot_options} {option}=LABEL={label}"
 
-            state.staging.joinpath(state.config.output_split_cmdline).write_text(boot_options)
-
             cmd: List[PathString] = [
                 "ukify",
                 "--cmdline", boot_options,
@@ -1115,6 +1113,9 @@ def install_unified_kernel(state: MkosiState, label: Optional[str], root_hash: O
             cmd += [state.root / kimg, initrd_path(state, kver)]
 
             run(cmd)
+
+            if not state.staging.joinpath(state.staging / state.config.output_split_kernel.name).exists():
+                copy_file(boot_binary, state.staging / state.config.output_split_kernel.name)
 
 
 def secure_boot_sign(state: MkosiState, directory: Path, replace: bool = False) -> None:
@@ -1148,49 +1149,6 @@ def secure_boot_sign(state: MkosiState, directory: Path, replace: bool = False) 
 
             if replace:
                 os.rename(f"{f}.signed", f)
-
-
-def extract_unified_kernel(state: MkosiState) -> None:
-    if state.do_run_build_script or state.for_cache or not state.config.bootable:
-        return
-
-    kernel = None
-
-    for path, _, filenames in os.walk(state.root / "boot/EFI/Linux"):
-        for i in filenames:
-            if not i.endswith(".efi") and not i.endswith(".EFI"):
-                continue
-
-            if kernel is not None:
-                raise ValueError(
-                    f"Multiple kernels found, don't know which one to extract. ({kernel} vs. {path}/{i})"
-                )
-
-            kernel = os.path.join(path, i)
-
-    if kernel is None:
-        return
-
-    copy_file(kernel, state.staging / state.config.output_split_kernel.name)
-
-
-def extract_kernel_image_initrd(state: MkosiState) -> None:
-    if state.do_run_build_script or state.for_cache or not state.config.bootable:
-        return
-
-    kimgabs = None
-    initrd = None
-
-    for kver, kimg in gen_kernel_images(state):
-        kimgabs = state.root / kimg
-        initrd = initrd_path(state, kver)
-
-    if kimgabs is None:
-        return
-    assert initrd is not None
-
-    copy_file(kimgabs, state.staging / state.config.output_split_kernel_image.name)
-    copy_file(initrd, state.staging / state.config.output_split_initrd.name)
 
 
 def compress_output(config: MkosiConfig, src: Path) -> None:
@@ -2294,13 +2252,6 @@ def create_parser() -> ArgumentParserMkosi:
         help="If specified, underlying systemd-nspawn containers use the resources of the current unit.",
     )
     group.add_argument(
-        "--qemu-boot",
-        help="Configure which qemu boot protocol to use",
-        choices=["uefi", "linux", None],
-        metavar="PROTOCOL",
-        default="uefi",
-    )
-    group.add_argument(
         "--network-veth",     # Compatibility option
         dest="netdev",
         metavar="BOOL",
@@ -2633,9 +2584,6 @@ def unlink_output(config: MkosiConfig) -> None:
                     if p.name.startswith(config.output_split_kernel.name):
                         unlink_try_hard(p)
             unlink_try_hard(config.output_split_kernel)
-            unlink_try_hard(config.output_split_kernel_image)
-            unlink_try_hard(config.output_split_initrd)
-            unlink_try_hard(config.output_split_cmdline)
 
             if config.nspawn_settings is not None:
                 unlink_try_hard(config.output_nspawn_settings)
@@ -3644,9 +3592,6 @@ def build_image(state: MkosiState, *, manifest: Optional[Manifest] = None) -> No
 
     invoke_repart(state, split=True)
 
-    extract_unified_kernel(state)
-    extract_kernel_image_initrd(state)
-
     make_tar(state)
     make_cpio(state)
     make_directory(state)
@@ -4108,7 +4053,7 @@ def run_qemu(config: MkosiConfig) -> None:
     accel = "kvm" if config.qemu_kvm else "tcg"
 
     firmware, fw_supports_sb = find_qemu_firmware(config)
-    smm = "on" if fw_supports_sb and config.qemu_boot == "uefi" else "off"
+    smm = "on" if fw_supports_sb else "off"
 
     if config.architecture == "aarch64":
         machine = f"type=virt,accel={accel}"
@@ -4154,21 +4099,13 @@ def run_qemu(config: MkosiConfig) -> None:
             # after it is created.
             cmdline += ["-nic", f"tap,script=no,downscript=no,ifname={ifname},model=virtio-net-pci"]
 
-    if config.qemu_boot == "uefi":
-        cmdline += ["-drive", f"if=pflash,format=raw,readonly=on,file={firmware}"]
-
-    if config.qemu_boot == "linux":
-        cmdline += [
-            "-kernel", config.output_split_kernel_image,
-            "-initrd", config.output_split_initrd,
-            "-append", config.output_split_cmdline.read_text().strip(),
-        ]
+    cmdline += ["-drive", f"if=pflash,format=raw,readonly=on,file={firmware}"]
 
     for k, v in config.credentials.items():
         cmdline += ["-smbios", f"type=11,value=io.systemd.credential:{k}={v}"]
 
     with contextlib.ExitStack() as stack:
-        if config.qemu_boot == "uefi" and fw_supports_sb:
+        if fw_supports_sb:
             ovmf_vars = stack.enter_context(copy_file_temporary(src=find_ovmf_vars(config), dir=tmp_dir()))
             cmdline += [
                 "-global",
