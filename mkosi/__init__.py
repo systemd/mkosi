@@ -13,8 +13,6 @@ import fcntl
 import glob
 import hashlib
 import http.server
-import importlib
-import importlib.resources
 import itertools
 import json
 import math
@@ -3515,20 +3513,44 @@ def invoke_repart(
     if split and state.config.split_artifacts:
         cmdline += ["--split=yes"]
 
-    with contextlib.ExitStack() as stack:
-        if state.config.repart_dir:
-            definitions = Path(state.config.repart_dir)
-        else:
-            definitions = stack.enter_context(importlib.resources.path("mkosi.resources", "repart"))
+    if state.config.repart_dir:
+        definitions = Path(state.config.repart_dir)
+    else:
+        definitions = state.workspace / "repart-definitions"
+        if not definitions.exists():
+            definitions.mkdir()
+            definitions.joinpath("00-esp.conf").write_text(
+                dedent(
+                    """\
+                    [Partition]
+                    Type=esp
+                    Format=vfat
+                    CopyFiles=/boot:/
+                    SizeMinBytes=256M
+                    SizeMaxBytes=256M
+                    """
+                )
+            )
+            definitions.joinpath("10-root.conf").write_text(
+                dedent(
+                    f"""\
+                    [Partition]
+                    Type=root
+                    Format={state.installer.filesystem()}
+                    CopyFiles=/
+                    Minimize=guess
+                    """
+                )
+            )
 
-        cmdline += ["--definitions", definitions]
+    cmdline += ["--definitions", definitions]
 
-        output = json.loads(run(cmdline, stdout=subprocess.PIPE).stdout)
+    output = json.loads(run(cmdline, stdout=subprocess.PIPE).stdout)
 
-        for p in output:
-            if p["type"].startswith("usr") or p["type"].startswith("root"):
-                usr_only = p["type"].startswith("usr")
-                return (p["label"], p.get("roothash"), usr_only)
+    for p in output:
+        if p["type"].startswith("usr") or p["type"].startswith("root"):
+            usr_only = p["type"].startswith("usr")
+            return (p["label"], p.get("roothash"), usr_only)
 
     return (None, None, False)
 

@@ -52,6 +52,10 @@ class DebianInstaller(DistributionInstaller):
     def cache_path(cls) -> List[str]:
         return ["var/cache/apt/archives"]
 
+    @classmethod
+    def filesystem(cls) -> str:
+        return "ext4"
+
     @staticmethod
     def kernel_image(name: str, architecture: str) -> Path:
         return Path(f"boot/vmlinuz-{name}")

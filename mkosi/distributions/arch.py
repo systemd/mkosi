@@ -23,6 +23,10 @@ class ArchInstaller(DistributionInstaller):
         return ["var/cache/pacman/pkg"]
 
     @classmethod
+    def filesystem(cls) -> str:
+        return "ext4"
+
+    @classmethod
     def install(cls, state: "MkosiState") -> None:
         return install_arch(state)
 

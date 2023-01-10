@@ -22,6 +22,10 @@ class OpensuseInstaller(DistributionInstaller):
         return ["var/cache/zypp/packages"]
 
     @classmethod
+    def filesystem(cls) -> str:
+        return "btrfs"
+
+    @classmethod
     def install(cls, state: "MkosiState") -> None:
         return install_opensuse(state)
 
