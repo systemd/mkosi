@@ -1,7 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
-from __future__ import annotations
-
 import argparse
 import ast
 import collections
@@ -283,7 +281,7 @@ class SourceFileTransfer(enum.Enum):
         return self.value
 
     @classmethod
-    def doc(cls) -> Dict[SourceFileTransfer, str]:
+    def doc(cls) -> Dict["SourceFileTransfer", str]:
         return {
             cls.copy_all: "normal file copy",
             cls.copy_git_cached: "use git ls-files --cached, ignoring any file that git itself ignores",
@@ -324,11 +322,6 @@ def strip_suffixes(path: Path) -> Path:
     while path.suffix in KNOWN_SUFFIXES:
         path = path.with_suffix("")
     return path
-
-
-def build_auxiliary_output_path(args: Union[argparse.Namespace, MkosiConfig], suffix: str) -> Path:
-    output = strip_suffixes(args.output)
-    return output.with_name(f"{output.name}{suffix}")
 
 
 @dataclasses.dataclass(frozen=True)
@@ -505,6 +498,11 @@ class MkosiConfig:
             self.output_manifest,
             self.output_changelog,
         )
+
+
+def build_auxiliary_output_path(args: Union[argparse.Namespace, MkosiConfig], suffix: str) -> Path:
+    output = strip_suffixes(args.output)
+    return output.with_name(f"{output.name}{suffix}")
 
 
 @dataclasses.dataclass
