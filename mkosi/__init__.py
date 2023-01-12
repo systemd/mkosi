@@ -511,21 +511,6 @@ def remove_files(state: MkosiState) -> None:
         remove_glob(*paths)
 
 
-def link_rpm_db(root: Path) -> None:
-    """Link /var/lib/rpm to /usr/lib/sysimage/rpm for compat with old rpm"""
-    rpmdb = root / "usr/lib/sysimage/rpm"
-    rpmdb_old = root / "var/lib/rpm"
-    if rpmdb.exists() and not rpmdb_old.is_symlink():
-        with complete_step("Creating compat symlink /var/lib/rpm → /usr/lib/sysimage/rpm"):
-            # Move content, if any, from the old location to the new one
-            if rpmdb_old.exists():
-                unlink_try_hard(rpmdb)
-                shutil.move(cast(str, rpmdb_old), rpmdb)
-
-            # Create the symlink in exactly the same fashion that Fedora does
-            rpmdb_old.symlink_to("../../usr/lib/sysimage/rpm")
-
-
 def parse_epel_release(release: str) -> int:
     fields = release.split(".")
     if fields[0].endswith("-stream"):
@@ -542,12 +527,6 @@ def install_distribution(state: MkosiState, cached: bool) -> None:
 
     with mount_cache(state):
         state.installer.install(state)
-
-    # Link /var/lib/rpm→/usr/lib/sysimage/rpm for compat with old rpm.
-    # We do this only if the new location is used, which depends on the dnf
-    # version and configuration on the host. Thus we do this reactively, after the
-    # installation has completed.
-    link_rpm_db(state.root)
 
 
 def remove_packages(state: MkosiState) -> None:

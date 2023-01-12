@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
+import shutil
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Tuple, cast
 
 from mkosi.backend import (
     Distribution,
@@ -15,6 +16,21 @@ from mkosi.backend import (
 )
 from mkosi.distributions import DistributionInstaller
 from mkosi.distributions.fedora import Repo, install_packages_dnf, invoke_dnf, setup_dnf
+from mkosi.remove import unlink_try_hard
+
+
+def move_rpm_db(root: Path) -> None:
+    """Link /var/lib/rpm to /usr/lib/sysimage/rpm for compat with old rpm"""
+    olddb = root / "var/lib/rpm"
+    newdb = root / "usr/lib/sysimage/rpm"
+
+    if newdb.exists():
+        with complete_step("Moving rpm database /usr/lib/sysimage/rpm → /var/lib/rpm"):
+            unlink_try_hard(olddb)
+            shutil.move(cast(str, newdb), olddb)
+
+            if not any(newdb.parent.iterdir()):
+                newdb.parent.rmdir()
 
 
 class CentosInstaller(DistributionInstaller):
@@ -58,6 +74,10 @@ class CentosInstaller(DistributionInstaller):
                 add_packages(state.config, packages, "systemd-boot", conditional="systemd")
 
         install_packages_dnf(state, packages)
+
+        # On Fedora, the default rpmdb has moved to /usr/lib/sysimage/rpm so if that's the case we need to
+        # move it back to /var/lib/rpm on CentOS.
+        move_rpm_db(state.root)
 
         # Centos Stream 8 and below can't write to the sqlite db backend used by
         # default in newer RPM releases so let's rebuild the DB to use the old bdb
