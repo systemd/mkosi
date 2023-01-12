@@ -346,11 +346,10 @@ def configure_dracut(state: MkosiState, cached: bool) -> None:
             for conf in state.root.joinpath("etc/systemd/system.conf.d").iterdir():
                 f.write(f'install_optional_items+=" {Path("/") / conf.relative_to(state.root)} "\n')
 
-    if state.config.bootable:
-        # efivarfs must be present in order to GPT root discovery work
-        dracut_dir.joinpath("30-mkosi-efivarfs.conf").write_text(
-            '[[ $(modinfo -k "$kernel" -F filename efivarfs 2>/dev/null) == /* ]] && add_drivers+=" efivarfs "\n'
-        )
+    # efivarfs must be present in order to GPT root discovery work
+    dracut_dir.joinpath("30-mkosi-efivarfs.conf").write_text(
+        '[[ $(modinfo -k "$kernel" -F filename efivarfs 2>/dev/null) == /* ]] && add_drivers+=" efivarfs "\n'
+    )
 
 
 def prepare_tree_root(state: MkosiState) -> None:
