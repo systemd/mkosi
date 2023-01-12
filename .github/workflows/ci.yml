@@ -114,6 +114,7 @@ jobs:
           - rocky_epel
           - alma_epel
           - gentoo
+          - opensuse
         format:
           - directory
           - tar
