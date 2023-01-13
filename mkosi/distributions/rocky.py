@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 from pathlib import Path
-from typing import Tuple
 
 from mkosi.backend import MkosiConfig
 from mkosi.distributions.centos import CentosInstaller
@@ -9,7 +8,7 @@ from mkosi.distributions.centos import CentosInstaller
 
 class RockyInstaller(CentosInstaller):
     @staticmethod
-    def _gpg_locations(epel_release: int) -> Tuple[Path, str]:
+    def _gpg_locations(epel_release: int) -> tuple[Path, str]:
         keyname = f"Rocky-{epel_release}" if epel_release >= 9 else "rockyofficial"
         return (
              Path(f"/etc/pki/rpm-gpg/RPM-GPG-KEY-{keyname}"),

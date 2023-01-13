@@ -2,7 +2,6 @@
 
 import os
 from textwrap import dedent
-from typing import List, Set
 
 from mkosi.backend import (
     MkosiPrinter,
@@ -19,7 +18,7 @@ from mkosi.mounts import mount_api_vfs
 
 class ArchInstaller(DistributionInstaller):
     @classmethod
-    def cache_path(cls) -> List[str]:
+    def cache_path(cls) -> list[str]:
         return ["var/cache/pacman/pkg"]
 
     @classmethod
@@ -62,8 +61,7 @@ def install_arch(state: MkosiState) -> None:
     }
 
     for dir, permissions in fix_permissions_dirs.items():
-        path = state.root / dir
-        if path.exists():
+        if (path := state.root / dir).exists():
             path.chmod(permissions)
 
     pacman_conf = state.workspace / "pacman.conf"
@@ -136,7 +134,7 @@ def install_arch(state: MkosiState) -> None:
                     )
                 )
 
-    packages: Set[str] = set()
+    packages: set[str] = set()
     add_packages(state.config, packages, "base")
 
     if not state.do_run_build_script and state.config.bootable:

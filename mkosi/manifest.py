@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from subprocess import DEVNULL, PIPE
 from textwrap import dedent
-from typing import IO, Any, Dict, List, Optional, Tuple, cast
+from typing import IO, Any, Optional
 
 from mkosi.backend import Distribution, ManifestFormat, MkosiConfig, PackageType, run
 
@@ -25,7 +25,7 @@ class PackageManifest:
     architecture: str
     size: int
 
-    def as_dict(self) -> Dict[str, str]:
+    def as_dict(self) -> dict[str, str]:
         return {
             "type": self.type,
             "name": self.name,
@@ -38,7 +38,7 @@ class PackageManifest:
 class SourcePackageManifest:
     name: str
     changelog: Optional[str]
-    packages: List[PackageManifest] = dataclasses.field(default_factory=list)
+    packages: list[PackageManifest] = dataclasses.field(default_factory=list)
 
     def add(self, package: PackageManifest) -> None:
         self.packages.append(package)
@@ -58,7 +58,7 @@ class SourcePackageManifest:
         return t
 
 
-def parse_pkg_desc(f: Path) -> Tuple[str, str, str, str]:
+def parse_pkg_desc(f: Path) -> tuple[str, str, str, str]:
     name = version = base = arch = ""
     with f.open() as desc:
         for line in desc:
@@ -78,8 +78,8 @@ def parse_pkg_desc(f: Path) -> Tuple[str, str, str, str]:
 @dataclasses.dataclass
 class Manifest:
     config: MkosiConfig
-    packages: List[PackageManifest] = dataclasses.field(default_factory=list)
-    source_packages: Dict[str, SourcePackageManifest] = dataclasses.field(default_factory=dict)
+    packages: list[PackageManifest] = dataclasses.field(default_factory=list)
+    source_packages: dict[str, SourcePackageManifest] = dataclasses.field(default_factory=dict)
 
     _init_timestamp: datetime = dataclasses.field(init=False, default_factory=datetime.now)
 
@@ -87,11 +87,11 @@ class Manifest:
         return ManifestFormat.changelog in self.config.manifest_format
 
     def record_packages(self, root: Path) -> None:
-        if cast(Any, self.config.distribution).package_type == PackageType.rpm:
+        if self.config.distribution.package_type == PackageType.rpm:
             self.record_rpm_packages(root)
-        if cast(Any, self.config.distribution).package_type == PackageType.deb:
+        if self.config.distribution.package_type == PackageType.deb:
             self.record_deb_packages(root)
-        if cast(Any, self.config.distribution).package_type == PackageType.pkg:
+        if self.config.distribution.package_type == PackageType.pkg:
             self.record_pkg_packages(root)
         # TODO: add implementations for other package managers
 
@@ -116,12 +116,12 @@ class Manifest:
             nevra, srpm, name, arch, size, installtime = package.split("\t")
 
             assert nevra.startswith(f"{name}-")
-            evra = nevra[len(name) + 1 :]
+            evra = nevra.removeprefix(f"{name}-")
             # Some packages have architecture '(none)', and it's not part of NEVRA, e.g.:
             # gpg-pubkey-45719a39-5f2c0192 gpg-pubkey (none) 0 1635985199
             if arch != "(none)":
                 assert nevra.endswith(f".{arch}")
-                evr = evra[: len(arch) + 1]
+                evr = evra.removesuffix(f".{arch}")
             else:
                 evr = evra
                 arch = ""
@@ -242,7 +242,7 @@ class Manifest:
         # We might add more data in the future
         return len(self.packages) > 0
 
-    def as_dict(self) -> Dict[str, Any]:
+    def as_dict(self) -> dict[str, Any]:
         config = {
             "name": self.config.image_id or "image",
             "distribution": self.config.distribution.name,

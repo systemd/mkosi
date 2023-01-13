@@ -7,9 +7,10 @@ import importlib.resources
 import os
 import shutil
 import stat
+from collections.abc import Iterator
 from pathlib import Path
 from textwrap import dedent
-from typing import Any, BinaryIO, Iterator, Optional, cast
+from typing import Any, BinaryIO, Optional, cast
 
 from mkosi.backend import MkosiState, PathString, complete_step
 
@@ -86,7 +87,7 @@ def copy_file(oldpath: PathString, newpath: PathString) -> None:
     newpath = Path(newpath)
 
     if oldpath.is_symlink():
-        src = os.readlink(oldpath)  # TODO: use oldpath.readlink() with python3.9+
+        src = oldpath.readlink()
         newpath.symlink_to(src)
         return
 
@@ -156,4 +157,4 @@ def install_skeleton_trees(state: MkosiState, cached: bool, *, late: bool=False)
             else:
                 # unpack_archive() groks Paths, but mypy doesn't know this.
                 # Pretend that tree is a str.
-                shutil.unpack_archive(cast(str, tree), state.root)
+                shutil.unpack_archive(tree, state.root)

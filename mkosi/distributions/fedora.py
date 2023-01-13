@@ -3,9 +3,10 @@
 import shutil
 import urllib.parse
 import urllib.request
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 from textwrap import dedent
-from typing import Iterable, List, NamedTuple, Optional, Sequence, Set, Tuple, cast
+from typing import NamedTuple, Optional
 
 from mkosi.backend import (
     Distribution,
@@ -32,7 +33,7 @@ FEDORA_KEYS_MAP = {
 
 class FedoraInstaller(DistributionInstaller):
     @classmethod
-    def cache_path(cls) -> List[str]:
+    def cache_path(cls) -> list[str]:
         return ["var/cache/dnf"]
 
     @classmethod
@@ -40,11 +41,11 @@ class FedoraInstaller(DistributionInstaller):
         return install_fedora(state)
 
     @classmethod
-    def remove_packages(cls, state: MkosiState, remove: List[str]) -> None:
+    def remove_packages(cls, state: MkosiState, remove: list[str]) -> None:
         invoke_dnf(state, 'remove', remove)
 
 
-def parse_fedora_release(release: str) -> Tuple[str, str]:
+def parse_fedora_release(release: str) -> tuple[str, str]:
     if release.startswith("rawhide-"):
         release, releasever = release.split("-")
         MkosiPrinter.info(f"Fedora rawhide — release version: {releasever}")
@@ -120,7 +121,7 @@ def url_exists(url: str) -> bool:
     return False
 
 
-def make_rpm_list(state: MkosiState, packages: Set[str]) -> Set[str]:
+def make_rpm_list(state: MkosiState, packages: set[str]) -> set[str]:
     packages = packages.copy()
 
     if not state.do_run_build_script and state.config.ssh:
@@ -129,7 +130,7 @@ def make_rpm_list(state: MkosiState, packages: Set[str]) -> Set[str]:
     return packages
 
 
-def install_packages_dnf(state: MkosiState, packages: Set[str],) -> None:
+def install_packages_dnf(state: MkosiState, packages: set[str],) -> None:
     packages = make_rpm_list(state, packages)
     invoke_dnf(state, 'install', packages)
 
@@ -248,4 +249,4 @@ def invoke_dnf(state: MkosiState, command: str, packages: Iterable[str]) -> None
         if not rpmdb.exists():
             rpmdb = state.root / "var/lib/rpm"
         unlink_try_hard(rpmdb)
-        shutil.move(cast(str, rpmdb_home), rpmdb)
+        shutil.move(rpmdb_home, rpmdb)

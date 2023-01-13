@@ -3,9 +3,10 @@
 import contextlib
 import os
 import subprocess
+from collections.abc import Iterable, Iterator
 from pathlib import Path
 from textwrap import dedent
-from typing import TYPE_CHECKING, Any, Iterable, Iterator, List, Set
+from typing import TYPE_CHECKING, Any
 
 from mkosi.backend import (
     MkosiState,
@@ -28,28 +29,26 @@ else:
 
 class DebianInstaller(DistributionInstaller):
     needs_skeletons_after_bootstrap = True
-    repositories_for_boot: Set[str] = set()
+    repositories_for_boot: set[str] = set()
 
     @classmethod
-    def _add_default_kernel_package(cls, state: MkosiState, extra_packages: Set[str]) -> None:
+    def _add_default_kernel_package(cls, state: MkosiState, extra_packages: set[str]) -> None:
         # Don't pull in a kernel if users specify one, but otherwise try to pick a default
         # one - try to infer from the architecture.
         if not any(package.startswith("linux-image") for package in extra_packages):
             add_packages(state.config, extra_packages, f"linux-image-{DEBIAN_KERNEL_ARCHITECTURES[state.config.architecture]}")
 
     @classmethod
-    def _fixup_resolved(cls, state: MkosiState, extra_packages: Set[str]) -> None:
+    def _fixup_resolved(cls, state: MkosiState, extra_packages: set[str]) -> None:
         if "systemd" in extra_packages and "systemd-resolved" not in extra_packages:
             # The default resolv.conf points to 127.0.0.1, and resolved is disabled, fix it in
             # the base image.
-            # TODO: use missing_ok=True when we drop Python << 3.8
-            if state.root.joinpath("etc/resolv.conf").exists():
-                state.root.joinpath("etc/resolv.conf").unlink()
+            state.root.joinpath("etc/resolv.conf").unlink(missing_ok=True)
             state.root.joinpath("etc/resolv.conf").symlink_to("../run/systemd/resolve/resolv.conf")
             run(["systemctl", "--root", state.root, "enable", "systemd-resolved"])
 
     @classmethod
-    def cache_path(cls) -> List[str]:
+    def cache_path(cls) -> list[str]:
         return ["var/cache/apt/archives"]
 
     @staticmethod
@@ -71,7 +70,7 @@ class DebianInstaller(DistributionInstaller):
 
         # debootstrap fails if a base image is used with an already populated root, so skip it.
         if state.config.base_image is None:
-            cmdline: List[PathString] = [
+            cmdline: list[PathString] = [
                 "debootstrap",
                 "--variant=minbase",
                 "--include=ca-certificates",
@@ -97,7 +96,7 @@ class DebianInstaller(DistributionInstaller):
         # Install extra packages via the secondary APT run, because it is smarter and can deal better with any
         # conflicts. dbus and libpam-systemd are optional dependencies for systemd in debian so we include them
         # explicitly.
-        extra_packages: Set[str] = set()
+        extra_packages: set[str] = set()
         add_packages(state.config, extra_packages, "systemd", "systemd-sysv", "dbus", "libpam-systemd")
         extra_packages.update(state.config.packages)
 
@@ -188,14 +187,11 @@ class DebianInstaller(DistributionInstaller):
 
         # Debian/Ubuntu use a different path to store the locale so let's make sure that path is a symlink to
         # etc/locale.conf.
-        try:
-            state.root.joinpath("etc/default/locale").unlink()
-        except FileNotFoundError:
-            pass
+        state.root.joinpath("etc/default/locale").unlink(missing_ok=True)
         state.root.joinpath("etc/default/locale").symlink_to("../locale.conf")
 
     @classmethod
-    def _add_apt_auxiliary_repos(cls, state: MkosiState, repos: Set[str]) -> None:
+    def _add_apt_auxiliary_repos(cls, state: MkosiState, repos: set[str]) -> None:
         if state.config.release in ("unstable", "sid"):
             return
 
@@ -211,7 +207,7 @@ class DebianInstaller(DistributionInstaller):
         state.root.joinpath(f"etc/apt/sources.list.d/{state.config.release}-security.list").write_text(f"{security}\n")
 
     @classmethod
-    def remove_packages(cls, state: MkosiState, remove: List[str]) -> None:
+    def remove_packages(cls, state: MkosiState, remove: list[str]) -> None:
         invoke_apt(state, "get", "purge", ["--assume-yes", "--auto-remove", *remove])
 
 
@@ -313,6 +309,6 @@ def invoke_apt(
         return run(cmdline, env=env, text=True, **kwargs)
 
 
-def add_apt_package_if_exists(state: MkosiState, extra_packages: Set[str], package: str) -> None:
+def add_apt_package_if_exists(state: MkosiState, extra_packages: set[str], package: str) -> None:
     if invoke_apt(state, "cache", "search", ["--names-only", f"^{package}$"], stdout=subprocess.PIPE).stdout.strip():
         add_packages(state.config, extra_packages, package)
