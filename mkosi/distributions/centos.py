@@ -10,7 +10,6 @@ from mkosi.backend import (
     add_packages,
     complete_step,
     die,
-    is_epel_variant,
     run_workspace_command,
 )
 from mkosi.distributions import DistributionInstaller
@@ -63,13 +62,11 @@ class CentosInstaller(DistributionInstaller):
         if state.do_run_build_script:
             packages.update(state.config.build_packages)
 
-        if state.do_run_build_script:
-            packages.update(state.config.build_packages)
-
-        if not state.do_run_build_script and is_epel_variant(state.config.distribution):
+        if not state.do_run_build_script and "epel" in state.config.repositories:
+            add_packages(state.config, packages, "epel-release")
             if state.config.netdev:
                 add_packages(state.config, packages, "systemd-networkd", conditional="systemd")
-            if state.config.distribution not in (Distribution.centos, Distribution.centos_epel) and epel_release >= 9:
+            if state.config.distribution != Distribution.centos and epel_release >= 9:
                 add_packages(state.config, packages, "systemd-boot", conditional="systemd")
 
         install_packages_dnf(state, packages)
@@ -90,12 +87,6 @@ class CentosInstaller(DistributionInstaller):
     @classmethod
     def remove_packages(cls, state: MkosiState, remove: list[str]) -> None:
         invoke_dnf(state, 'remove', remove)
-
-    @classmethod
-    def _is_epel(cls) -> bool:
-        name = cls.__name__
-        name = name.removesuffix("Installer")
-        return name.endswith("Epel")
 
     @staticmethod
     def _parse_epel_release(release: str) -> int:
@@ -167,8 +158,8 @@ class CentosInstaller(DistributionInstaller):
             repos += [Repo("CRB", crb_url, gpgpath, gpgurl)]
         if powertools_url is not None:
             repos += [Repo("PowerTools", powertools_url, gpgpath, gpgurl)]
-        if epel_url is not None and cls._is_epel():
-            repos += [Repo("epel", epel_url, epel_gpgpath, epel_gpgurl)]
+        if epel_url is not None:
+            repos += [Repo("epel", epel_url, epel_gpgpath, epel_gpgurl, enabled=False)]
 
         return repos
 
@@ -200,7 +191,7 @@ class CentosInstaller(DistributionInstaller):
             repos += [Repo("BaseOS", baseos_url, gpgpath, gpgurl)]
         if crb_url is not None:
             repos += [Repo("CRB", crb_url, gpgpath, gpgurl)]
-        if epel_url is not None and cls._is_epel():
-            repos += [Repo("epel", epel_url, epel_gpgpath, epel_gpgurl)]
+        if epel_url is not None:
+            repos += [Repo("epel", epel_url, epel_gpgpath, epel_gpgurl, enabled=False)]
 
         return repos

@@ -29,6 +29,13 @@
     We also remove the WithoutUnifiedKernelImages= switch as building unified
     kernel images is trivial and fast these days.
 - Support for --qemu-boot was dropped
+- Support for --use-host-repositories was dropped, use --repository-directory instead
+- `RepositoryDirectory` was renamed to `RepositoryDirectories` and now takes a comma-separated
+  list of directories to look for extra repository files.
+- `--repositories` is now only usable on Debian/RPM based distros and can only be used to enable additional
+  repositories. Specifically, it cannot be used on Arch Linux anymore to add new repositories.
+- The `_epel` distributions were removed. Use `--repositories=epel` instead to enable
+  the EPEL repository.
 
 ## v14
 

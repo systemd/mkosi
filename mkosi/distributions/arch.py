@@ -108,31 +108,8 @@ def install_arch(state: MkosiState) -> None:
                 )
             )
 
-        f.write(
-            dedent(
-                f"""\
-
-                {f"Include = {state.config.repos_dir}/*" if state.config.repos_dir else ""}
-                """
-            )
-        )
-
-        if state.config.repositories:
-            for repository in state.config.repositories:
-                # repositories must be passed in the form <repo name>::<repo url>
-                repository_name, repository_server = repository.split("::", 1)
-
-                # note: for additional repositories, signature checking options are set to pacman's default values
-                f.write(
-                    dedent(
-                        f"""\
-
-                        [{repository_name}]
-                        SigLevel = Optional TrustedOnly
-                        Server = {repository_server}
-                        """
-                    )
-                )
+        for d in state.config.repo_dirs:
+            f.write(f"Include = {d}/*\n")
 
     packages: set[str] = set()
     add_packages(state.config, packages, "base")

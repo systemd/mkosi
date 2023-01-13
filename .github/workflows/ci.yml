@@ -107,12 +107,12 @@ jobs:
       matrix:
         distro:
           - arch
-          - centos_epel
+          - centos
           - debian
           - ubuntu
           - fedora
-          - rocky_epel
-          - alma_epel
+          - rocky
+          - alma
           - gentoo
         format:
           - directory
@@ -190,6 +190,14 @@ jobs:
         tee mkosi.skeleton/etc/portage/binrepos.conf <<- EOF
         [binhost]
         sync-uri = https://raw.githubusercontent.com/257/binpkgs/master
+        EOF
+
+    - name: Configure EPEL
+      if: matrix.distro == 'centos' || matrix.distro == 'rocky' || matrix.distro == 'alma'
+      run: |
+        tee mkosi.conf.d/epel.conf <<- EOF
+        [Distribution]
+        Repositories=epel
         EOF
 
     - name: Build ${{ matrix.distro }}/${{ matrix.format }}

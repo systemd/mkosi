@@ -61,7 +61,6 @@ from mkosi.backend import (
     detect_distribution,
     die,
     is_centos_variant,
-    is_epel_variant,
     is_rpm_distribution,
     mkdirp_chown_current_user,
     nspawn_knows_arg,
@@ -1506,6 +1505,7 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
         "TarStripSELinuxContext": "--tar-strip-selinux-context",
         "MachineID": "--machine-id",
         "SignExpectedPCR": "--sign-expected-pcr",
+        "RepositoryDirectories": "--repository-directory",
     }
 
     def __init__(self, *kargs: Any, **kwargs: Any) -> None:
@@ -1718,16 +1718,13 @@ def create_parser() -> ArgumentParserMkosi:
         help="Repositories to use",
     )
     group.add_argument(
-        "--use-host-repositories",
-        metavar="BOOL",
-        action=BooleanAction,
-        help="Use host's existing software repositories (only for dnf-based distributions)",
-    )
-    group.add_argument(
         "--repository-directory",
+        action=CommaDelimitedListAction,
+        default=[],
         metavar="PATH",
-        dest="repos_dir",
-        help="Directory container extra distribution specific repository files",
+        dest="repo_dirs",
+        type=Path,
+        help="Specify a directory containing extra distribution specific repository files",
     )
 
     group = parser.add_argument_group("Output options")
@@ -2769,7 +2766,7 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
     args_find_path(args, "prepare_script", "mkosi.prepare")
     args_find_path(args, "finalize_script", "mkosi.finalize")
     args_find_path(args, "workspace_dir", "mkosi.workspace/")
-    args_find_path(args, "repos_dir", "mkosi.reposdir/")
+    args_find_path(args, "repo_dirs", "mkosi.reposdir/", as_list=True)
     args_find_path(args, "repart_dir", "mkosi.repart/")
 
     find_extra(args)
@@ -2790,11 +2787,11 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
     if args.release is None:
         if args.distribution == Distribution.fedora:
             args.release = "36"
-        elif args.distribution in (Distribution.centos, Distribution.centos_epel):
+        elif args.distribution == Distribution.centos:
             args.release = "9-stream"
-        elif args.distribution in (Distribution.rocky, Distribution.rocky_epel):
+        elif args.distribution == Distribution.rocky:
             args.release = "9"
-        elif args.distribution in (Distribution.alma, Distribution.alma_epel):
+        elif args.distribution == Distribution.alma:
             args.release = "9"
         elif args.distribution == Distribution.mageia:
             args.release = "7"
@@ -2844,9 +2841,9 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
                 args.mirror = "https://geo.mirror.pkgbuild.com"
         elif args.distribution == Distribution.opensuse:
             args.mirror = "http://download.opensuse.org"
-        elif args.distribution in (Distribution.rocky, Distribution.rocky_epel):
+        elif args.distribution == Distribution.rocky:
             args.mirror = None
-        elif args.distribution in (Distribution.alma, Distribution.alma_epel):
+        elif args.distribution == Distribution.alma:
             args.mirror = None
 
     if args.sign:
@@ -2998,10 +2995,13 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
     if args.ssh_port <= 0:
         die("--ssh-port must be > 0")
 
-    if args.repos_dir and not (is_rpm_distribution(args.distribution) or args.distribution == Distribution.arch):
+    if args.repo_dirs and not (is_rpm_distribution(args.distribution) or args.distribution == Distribution.arch):
         die("--repository-directory is only supported on RPM based distributions and Arch")
 
-    if args.netdev and is_centos_variant(args.distribution) and not is_epel_variant(args.distribution):
+    if args.repo_dirs:
+        args.repo_dirs = [p.absolute() for p in args.repo_dirs]
+
+    if args.netdev and is_centos_variant(args.distribution) and "epel" not in args.repositories:
         die("--netdev is only supported on EPEL centOS variants")
 
     if args.machine_id is not None:
@@ -3017,6 +3017,9 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
 
     if args.qemu_kvm and not qemu_check_kvm_support():
         die("Sorry, the host machine does not support KVM acceleration.")
+
+    if args.repositories and not is_rpm_distribution(args.distribution) and args.distribution not in (Distribution.debian, Distribution.ubuntu):
+        die("Sorry, the --repositories option is only supported on RPM/Debian based distributions")
 
     return MkosiConfig(**vars(args))
 
@@ -3169,8 +3172,6 @@ def print_summary(config: MkosiConfig) -> None:
     if config.repositories is not None and len(config.repositories) > 0:
         print("              Repositories:", ",".join(config.repositories))
 
-    print("     Use Host Repositories:", yes_no(config.use_host_repositories))
-
     print("\nOUTPUT:")
 
     if config.hostname:
@@ -3228,12 +3229,9 @@ def print_summary(config: MkosiConfig) -> None:
     if config.distribution in (
         Distribution.fedora,
         Distribution.centos,
-        Distribution.centos_epel,
         Distribution.mageia,
         Distribution.rocky,
-        Distribution.rocky_epel,
         Distribution.alma,
-        Distribution.alma_epel,
     ):
         print("        With Documentation:", yes_no(config.with_docs))
 

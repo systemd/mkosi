@@ -140,6 +140,7 @@ class Repo(NamedTuple):
     url: str
     gpgpath: Path
     gpgurl: Optional[str] = None
+    enabled: bool = True
 
 
 def setup_dnf(state: MkosiState, repos: Sequence[Repo] = ()) -> None:
@@ -165,15 +166,12 @@ def setup_dnf(state: MkosiState, repos: Sequence[Repo] = ()) -> None:
                     name={repo.id}
                     {repo.url}
                     gpgkey={gpgkey or ''}
-                    enabled=1
+                    enabled={int(repo.enabled)}
                     """
                 )
             )
 
-    if state.config.use_host_repositories:
-        default_repos  = ""
-    else:
-        default_repos  = f"reposdir={state.workspace} {state.config.repos_dir if state.config.repos_dir else ''}"
+    default_repos  = f"reposdir={state.workspace} {' '.join(str(p) for p in state.config.repo_dirs)}"
 
     vars_dir = state.workspace / "vars"
     vars_dir.mkdir(exist_ok=True)
@@ -218,7 +216,7 @@ def invoke_dnf(state: MkosiState, command: str, packages: Iterable[str]) -> None
         cmdline += ["--nogpgcheck"]
 
     if state.config.repositories:
-        cmdline += ["--disablerepo=*"] + [f"--enablerepo={repo}" for repo in state.config.repositories]
+        cmdline += [f"--enablerepo={repo}" for repo in state.config.repositories]
 
     # TODO: this breaks with a local, offline repository created with 'createrepo'
     if state.config.with_network == "never" and not state.config.local_mirror:
