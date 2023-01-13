@@ -170,10 +170,7 @@ def setup_dnf(state: MkosiState, repos: Sequence[Repo] = ()) -> None:
                 )
             )
 
-    if state.config.use_host_repositories:
-        default_repos  = ""
-    else:
-        default_repos  = f"reposdir={state.workspace} {state.config.repos_dir if state.config.repos_dir else ''}"
+    default_repos  = f"reposdir={state.workspace} {state.config.repos_dir if state.config.repos_dir else ''}"
 
     vars_dir = state.workspace / "vars"
     vars_dir.mkdir(exist_ok=True)

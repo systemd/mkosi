@@ -334,7 +334,6 @@ class MkosiConfig:
     local_mirror: Optional[str]
     repository_key_check: bool
     repositories: list[str]
-    use_host_repositories: bool
     repos_dir: Optional[str]
     repart_dir: Optional[str]
     architecture: str

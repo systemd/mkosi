@@ -29,6 +29,7 @@
     We also remove the WithoutUnifiedKernelImages= switch as building unified
     kernel images is trivial and fast these days.
 - Support for --qemu-boot was dropped
+- Support for --use-host-repositories was dropped, use --repository-directory instead
 
 ## v14
 

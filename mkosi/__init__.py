@@ -1718,12 +1718,6 @@ def create_parser() -> ArgumentParserMkosi:
         help="Repositories to use",
     )
     group.add_argument(
-        "--use-host-repositories",
-        metavar="BOOL",
-        action=BooleanAction,
-        help="Use host's existing software repositories (only for dnf-based distributions)",
-    )
-    group.add_argument(
         "--repository-directory",
         metavar="PATH",
         dest="repos_dir",
@@ -3168,8 +3162,6 @@ def print_summary(config: MkosiConfig) -> None:
 
     if config.repositories is not None and len(config.repositories) > 0:
         print("              Repositories:", ",".join(config.repositories))
-
-    print("     Use Host Repositories:", yes_no(config.use_host_repositories))
 
     print("\nOUTPUT:")
 

@@ -320,16 +320,6 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   Linux, additional repositories must be passed in the form `<name>::<url>`
   (e.g. `myrepo::https://myrepo.net`).
 
-`UseHostRepositories=`, `--use-host-repositories`
-
-: This option is only applicable for RPM-based distributions:
-  *CentOS*, *Fedora Linux*, *Mageia*, *Rocky Linux*, *Alma Linux*
-  and *OpenMandriva*.
-  Allows use of the host's existing RPM repositories.
-  By default, a hardcoded set of default RPM repositories is generated and used.
-  Use `--repositories=` to identify a custom set of repositories to be enabled
-  and used for the build.
-
 `RepositoryDirectory`, `--repository-directory`
 
 : This option can (for now) only be used with RPM-based distributions and Arch
