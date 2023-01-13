@@ -62,8 +62,7 @@ def install_arch(state: MkosiState) -> None:
     }
 
     for dir, permissions in fix_permissions_dirs.items():
-        path = state.root / dir
-        if path.exists():
+        if (path := state.root / dir).exists():
             path.chmod(permissions)
 
     pacman_conf = state.workspace / "pacman.conf"

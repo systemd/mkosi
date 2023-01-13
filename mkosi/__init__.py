@@ -1167,10 +1167,8 @@ def hash_file(of: TextIO, path: Path) -> None:
     h = hashlib.sha256()
 
     with path.open("wb") as sf:
-        buf = sf.read(bs)
-        while len(buf) > 0:
+        while (buf := sf.read(bs)):
             h.update(buf)
-            buf = sf.read(bs)
 
     of.write(h.hexdigest() + " *" + path.name + "\n")
 

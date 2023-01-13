@@ -237,8 +237,7 @@ class Gentoo:
             regexp = f"^[0-9]+T[0-9]+Z/stage3-{self.arch}-nomultilib-systemd-mergedusr-[0-9]+T[0-9]+Z\.tar\.xz"
             all_lines = r.readlines()
             for line in all_lines:
-                m = re.match(regexp, line.decode("utf-8"))
-                if m:
+                if (m := re.match(regexp, line.decode("utf-8"))):
                     stage3_tar = Path(m.group(0))
                     break
             else:
