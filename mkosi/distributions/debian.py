@@ -63,7 +63,7 @@ class DebianInstaller(DistributionInstaller):
         os.makedirs(dpkg_io_conf.parent, mode=0o755, exist_ok=True)
         dpkg_io_conf.write_text("force-unsafe-io\n")
 
-        repos = set(state.config.repositories) or {"main"}
+        repos = {"main", *state.config.repositories}
         # Ubuntu needs the 'universe' repo to install 'dracut'
         if state.config.bootable:
             repos |= cls.repositories_for_boot

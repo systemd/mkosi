@@ -215,7 +215,7 @@ def invoke_dnf(state: MkosiState, command: str, packages: Iterable[str]) -> None
         cmdline += ["--nogpgcheck"]
 
     if state.config.repositories:
-        cmdline += ["--disablerepo=*"] + [f"--enablerepo={repo}" for repo in state.config.repositories]
+        cmdline += [f"--enablerepo={repo}" for repo in state.config.repositories]
 
     # TODO: this breaks with a local, offline repository created with 'createrepo'
     if state.config.with_network == "never" and not state.config.local_mirror:

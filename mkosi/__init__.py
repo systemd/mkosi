@@ -3019,6 +3019,9 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
     if args.qemu_kvm and not qemu_check_kvm_support():
         die("Sorry, the host machine does not support KVM acceleration.")
 
+    if args.repositories and not is_rpm_distribution(args.distribution) and args.distribution not in (Distribution.debian, Distribution.ubuntu):
+        die("Sorry, the --repositories option is only supported on RPM/Debian based distributions")
+
     return MkosiConfig(**vars(args))
 
 
