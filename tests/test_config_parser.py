@@ -108,7 +108,7 @@ class MkosiConfig:
             "qcow2": False,
             "release": None,
             "repositories": [],
-            "repos_dir": None,
+            "repo_dirs": [],
             "base_image": None,
             "secure_boot": False,
             "secure_boot_certificate": Path("mkosi.secure-boot.crt"),

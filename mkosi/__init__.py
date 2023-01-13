@@ -1506,6 +1506,7 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
         "TarStripSELinuxContext": "--tar-strip-selinux-context",
         "MachineID": "--machine-id",
         "SignExpectedPCR": "--sign-expected-pcr",
+        "RepositoryDirectories": "--repository-directory",
     }
 
     def __init__(self, *kargs: Any, **kwargs: Any) -> None:
@@ -1719,9 +1720,12 @@ def create_parser() -> ArgumentParserMkosi:
     )
     group.add_argument(
         "--repository-directory",
+        action=CommaDelimitedListAction,
+        default=[],
         metavar="PATH",
-        dest="repos_dir",
-        help="Directory container extra distribution specific repository files",
+        dest="repo_dirs",
+        type=Path,
+        help="Specify a directory containing extra distribution specific repository files",
     )
 
     group = parser.add_argument_group("Output options")
@@ -2763,7 +2767,7 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
     args_find_path(args, "prepare_script", "mkosi.prepare")
     args_find_path(args, "finalize_script", "mkosi.finalize")
     args_find_path(args, "workspace_dir", "mkosi.workspace/")
-    args_find_path(args, "repos_dir", "mkosi.reposdir/")
+    args_find_path(args, "repo_dirs", "mkosi.reposdir/", as_list=True)
     args_find_path(args, "repart_dir", "mkosi.repart/")
 
     find_extra(args)
@@ -2992,10 +2996,13 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
     if args.ssh_port <= 0:
         die("--ssh-port must be > 0")
 
-    if args.repos_dir and not (is_rpm_distribution(args.distribution) or args.distribution == Distribution.arch):
+    if args.repo_dirs and not (is_rpm_distribution(args.distribution) or args.distribution == Distribution.arch):
         die("--repository-directory is only supported on RPM based distributions and Arch")
 
-    if args.netdev and is_centos_variant(args.distribution) and not is_epel_variant(args.distribution):
+    if args.repo_dirs:
+        args.repo_dirs = [p.absolute() for p in args.repo_dirs]
+
+    if args.netdev and is_centos_variant(args.distribution) and not is_epel_variant(args.distribution)::
         die("--netdev is only supported on EPEL centOS variants")
 
     if args.machine_id is not None:

@@ -108,14 +108,8 @@ def install_arch(state: MkosiState) -> None:
                 )
             )
 
-        f.write(
-            dedent(
-                f"""\
-
-                {f"Include = {state.config.repos_dir}/*" if state.config.repos_dir else ""}
-                """
-            )
-        )
+        for d in state.config.repo_dirs:
+            f.write(f"Include = {d}/*\n")
 
         if state.config.repositories:
             for repository in state.config.repositories:

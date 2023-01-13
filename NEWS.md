@@ -30,6 +30,10 @@
     kernel images is trivial and fast these days.
 - Support for --qemu-boot was dropped
 - Support for --use-host-repositories was dropped, use --repository-directory instead
+- `RepositoryDirectory` was renamed to `RepositoryDirectories` and now takes a comma-separated
+  list of directories to look for extra repository files.
+- The `_epel` distributions were removed. Use `--repositories=epel` instead to enable
+  the EPEL repository.
 
 ## v14
 
