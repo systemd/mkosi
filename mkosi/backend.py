@@ -145,12 +145,9 @@ class Distribution(enum.Enum):
     opensuse     = "opensuse", PackageType.rpm
     mageia       = "mageia", PackageType.rpm
     centos       = "centos", PackageType.rpm
-    centos_epel  = "centos_epel", PackageType.rpm
     openmandriva = "openmandriva", PackageType.rpm
     rocky        = "rocky", PackageType.rpm
-    rocky_epel   = "rocky_epel", PackageType.rpm
     alma         = "alma", PackageType.rpm
-    alma_epel    = "alma_epel", PackageType.rpm
     gentoo       = "gentoo", PackageType.ebuild
 
     def __new__(cls, name: str, package_type: PackageType) -> "Distribution":
@@ -233,31 +230,17 @@ def is_rpm_distribution(d: Distribution) -> bool:
         Distribution.fedora,
         Distribution.mageia,
         Distribution.centos,
-        Distribution.centos_epel,
         Distribution.openmandriva,
         Distribution.rocky,
-        Distribution.rocky_epel,
         Distribution.alma,
-        Distribution.alma_epel
     )
 
 
 def is_centos_variant(d: Distribution) -> bool:
     return d in (
         Distribution.centos,
-        Distribution.centos_epel,
         Distribution.alma,
-        Distribution.alma_epel,
         Distribution.rocky,
-        Distribution.rocky_epel,
-    )
-
-
-def is_epel_variant(d: Distribution) -> bool:
-    return d in (
-        Distribution.centos_epel,
-        Distribution.alma_epel,
-        Distribution.rocky_epel,
     )
 
 

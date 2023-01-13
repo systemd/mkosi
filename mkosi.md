@@ -277,8 +277,8 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 
 : The distribution to install in the image. Takes one of the following
   arguments: `fedora`, `debian`, `ubuntu`, `arch`, `opensuse`, `mageia`,
-  `centos`, `centos_epel`, `openmandriva`, `rocky`, `rocky_epel`, `alma`,
-  `alma_epel`. If not specified, defaults to the distribution of the host.
+  `centos`, `openmandriva`, `rocky`, and `alma`. If not specified,
+  defaults to the distribution of the host.
 
 `Release=`, `--release=`, `-r`
 

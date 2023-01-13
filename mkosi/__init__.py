@@ -61,7 +61,6 @@ from mkosi.backend import (
     detect_distribution,
     die,
     is_centos_variant,
-    is_epel_variant,
     is_rpm_distribution,
     mkdirp_chown_current_user,
     nspawn_knows_arg,
@@ -2788,11 +2787,11 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
     if args.release is None:
         if args.distribution == Distribution.fedora:
             args.release = "36"
-        elif args.distribution in (Distribution.centos, Distribution.centos_epel):
+        elif args.distribution == Distribution.centos:
             args.release = "9-stream"
-        elif args.distribution in (Distribution.rocky, Distribution.rocky_epel):
+        elif args.distribution == Distribution.rocky:
             args.release = "9"
-        elif args.distribution in (Distribution.alma, Distribution.alma_epel):
+        elif args.distribution == Distribution.alma:
             args.release = "9"
         elif args.distribution == Distribution.mageia:
             args.release = "7"
@@ -2842,9 +2841,9 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
                 args.mirror = "https://geo.mirror.pkgbuild.com"
         elif args.distribution == Distribution.opensuse:
             args.mirror = "http://download.opensuse.org"
-        elif args.distribution in (Distribution.rocky, Distribution.rocky_epel):
+        elif args.distribution == Distribution.rocky:
             args.mirror = None
-        elif args.distribution in (Distribution.alma, Distribution.alma_epel):
+        elif args.distribution == Distribution.alma:
             args.mirror = None
 
     if args.sign:
@@ -3002,7 +3001,7 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
     if args.repo_dirs:
         args.repo_dirs = [p.absolute() for p in args.repo_dirs]
 
-    if args.netdev and is_centos_variant(args.distribution) and not is_epel_variant(args.distribution)::
+    if args.netdev and is_centos_variant(args.distribution) and "epel" not in args.repositories:
         die("--netdev is only supported on EPEL centOS variants")
 
     if args.machine_id is not None:
@@ -3230,12 +3229,9 @@ def print_summary(config: MkosiConfig) -> None:
     if config.distribution in (
         Distribution.fedora,
         Distribution.centos,
-        Distribution.centos_epel,
         Distribution.mageia,
         Distribution.rocky,
-        Distribution.rocky_epel,
         Distribution.alma,
-        Distribution.alma_epel,
     ):
         print("        With Documentation:", yes_no(config.with_docs))
 

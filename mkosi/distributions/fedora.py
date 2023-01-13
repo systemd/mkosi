@@ -140,6 +140,7 @@ class Repo(NamedTuple):
     url: str
     gpgpath: Path
     gpgurl: Optional[str] = None
+    enabled: bool = True
 
 
 def setup_dnf(state: MkosiState, repos: Sequence[Repo] = ()) -> None:
@@ -165,7 +166,7 @@ def setup_dnf(state: MkosiState, repos: Sequence[Repo] = ()) -> None:
                     name={repo.id}
                     {repo.url}
                     gpgkey={gpgkey or ''}
-                    enabled=1
+                    enabled={int(repo.enabled)}
                     """
                 )
             )

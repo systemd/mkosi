@@ -34,6 +34,8 @@
   list of directories to look for extra repository files.
 - `--repositories` is now only usable on Debian/RPM based distros and can only be used to enable additional
   repositories. Specifically, it cannot be used on Arch Linux anymore to add new repositories.
+- The `_epel` distributions were removed. Use `--repositories=epel` instead to enable
+  the EPEL repository.
 
 ## v14
 
