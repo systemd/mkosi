@@ -62,9 +62,6 @@ class CentosInstaller(DistributionInstaller):
         if state.do_run_build_script:
             packages.update(state.config.build_packages)
 
-        if state.do_run_build_script:
-            packages.update(state.config.build_packages)
-
         if not state.do_run_build_script and "epel" in state.config.repositories:
             if state.config.netdev:
                 add_packages(state.config, packages, "systemd-networkd", conditional="systemd")
