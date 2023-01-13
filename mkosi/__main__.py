@@ -4,8 +4,8 @@
 import contextlib
 import os
 import sys
+from collections.abc import Iterator
 from subprocess import CalledProcessError
-from typing import Iterator
 
 from mkosi import complete_step, parse_args, run_verb
 from mkosi.backend import MkosiException, die

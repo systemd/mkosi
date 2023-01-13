@@ -20,6 +20,7 @@ import subprocess
 import sys
 import tarfile
 import uuid
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from pathlib import Path
 from types import FrameType
 from typing import (
@@ -28,17 +29,8 @@ from typing import (
     Any,
     Callable,
     Deque,
-    Dict,
-    Iterable,
-    Iterator,
-    List,
-    Mapping,
     NoReturn,
     Optional,
-    Sequence,
-    Set,
-    Tuple,
-    Type,
     TypeVar,
     Union,
     cast,
@@ -95,7 +87,7 @@ class MkosiNotSupportedException(MkosiException):
 
 
 # This global should be initialized after parsing arguments
-ARG_DEBUG: Set[str] = set()
+ARG_DEBUG: set[str] = set()
 
 
 class Parseable:
@@ -114,7 +106,7 @@ class Parseable:
             raise argparse.ArgumentTypeError(f"unknown Format: {name!r}")
 
     @classmethod
-    def parse_list(cls: Any, string: str) -> List[Any]:
+    def parse_list(cls: Any, string: str) -> list[Any]:
         return [cls.from_string(p) for p in string.split(",") if p]
 
 
@@ -174,15 +166,15 @@ class Distribution(enum.Enum):
         return self.name
 
 
-def dictify(f: Callable[..., Iterator[Tuple[T, V]]]) -> Callable[..., Dict[T, V]]:
-    def wrapper(*args: Any, **kwargs: Any) -> Dict[T, V]:
+def dictify(f: Callable[..., Iterator[tuple[T, V]]]) -> Callable[..., dict[T, V]]:
+    def wrapper(*args: Any, **kwargs: Any) -> dict[T, V]:
         return dict(f(*args, **kwargs))
 
     return functools.update_wrapper(wrapper, f)
 
 
 @dictify
-def read_os_release() -> Iterator[Tuple[str, str]]:
+def read_os_release() -> Iterator[tuple[str, str]]:
     try:
         filename = "/etc/os-release"
         f = open(filename)
@@ -204,7 +196,7 @@ def read_os_release() -> Iterator[Tuple[str, str]]:
                 print(f"{filename}:{line_number}: bad line {line!r}", file=sys.stderr)
 
 
-def detect_distribution() -> Tuple[Optional[Distribution], Optional[str]]:
+def detect_distribution() -> tuple[Optional[Distribution], Optional[str]]:
     try:
         os_release = read_os_release()
     except FileNotFoundError:
@@ -280,7 +272,7 @@ class SourceFileTransfer(enum.Enum):
         return self.value
 
     @classmethod
-    def doc(cls) -> Dict["SourceFileTransfer", str]:
+    def doc(cls) -> dict["SourceFileTransfer", str]:
         return {
             cls.copy_all: "normal file copy",
             cls.copy_git_cached: "use git ls-files --cached, ignoring any file that git itself ignores",
@@ -333,7 +325,7 @@ class MkosiConfig:
     """
 
     verb: Verb
-    cmdline: List[str]
+    cmdline: list[str]
     force: int
 
     distribution: Distribution
@@ -341,17 +333,17 @@ class MkosiConfig:
     mirror: Optional[str]
     local_mirror: Optional[str]
     repository_key_check: bool
-    repositories: List[str]
+    repositories: list[str]
     use_host_repositories: bool
     repos_dir: Optional[str]
     repart_dir: Optional[str]
     architecture: str
     output_format: OutputFormat
-    manifest_format: List[ManifestFormat]
+    manifest_format: list[ManifestFormat]
     output: Path
     output_dir: Optional[Path]
     bootable: bool
-    kernel_command_line: List[str]
+    kernel_command_line: list[str]
     secure_boot: bool
     secure_boot_key: Path
     secure_boot_certificate: Path
@@ -369,21 +361,21 @@ class MkosiConfig:
     incremental: bool
     cache_initrd: bool
     base_packages: Union[str, bool]
-    packages: List[str]
-    remove_packages: List[str]
+    packages: list[str]
+    remove_packages: list[str]
     with_docs: bool
     with_tests: bool
     cache_path: Path
-    extra_trees: List[Path]
-    skeleton_trees: List[Path]
+    extra_trees: list[Path]
+    skeleton_trees: list[Path]
     clean_package_metadata: Union[bool, str]
-    remove_files: List[Path]
-    environment: Dict[str, str]
+    remove_files: list[Path]
+    environment: dict[str, str]
     build_sources: Path
     build_dir: Optional[Path]
     include_dir: Optional[Path]
     install_dir: Optional[Path]
-    build_packages: List[str]
+    build_packages: list[str]
     skip_final_phase: bool
     build_script: Optional[Path]
     prepare_script: Optional[Path]
@@ -404,7 +396,7 @@ class MkosiConfig:
     password: Optional[str]
     password_is_hashed: bool
     autologin: bool
-    extra_search_paths: List[Path]
+    extra_search_paths: list[Path]
     netdev: bool
     ephemeral: bool
     ssh: bool
@@ -412,12 +404,12 @@ class MkosiConfig:
     ssh_agent: Optional[Path]
     ssh_timeout: int
     ssh_port: int
-    credentials: Dict[str, str]
+    credentials: dict[str, str]
     directory: Optional[Path]
     config_path: Optional[Path]
     all: bool
     all_directory: Optional[Path]
-    debug: List[str]
+    debug: list[str]
     auto_bump: bool
     workspace_dir: Optional[Path]
     machine_id: Optional[str]
@@ -469,7 +461,7 @@ class MkosiConfig:
     def output_changelog(self) -> Path:
         return build_auxiliary_output_path(self, ".changelog")
 
-    def output_paths(self) -> Tuple[Path, ...]:
+    def output_paths(self) -> tuple[Path, ...]:
         return (
             self.output,
             self.output_split_kernel,
@@ -498,7 +490,7 @@ class MkosiState:
     do_run_build_script: bool
     machine_id: str
     for_cache: bool
-    environment: Dict[str, str] = dataclasses.field(init=False)
+    environment: dict[str, str] = dataclasses.field(init=False)
     installer: DistributionInstaller = dataclasses.field(init=False)
 
     def __post_init__(self) -> None:
@@ -584,7 +576,7 @@ def run_workspace_command(
     cmd: Sequence[PathString],
     network: bool = False,
     env: Optional[Mapping[str, str]] = None,
-    nspawn_params: Optional[List[str]] = None,
+    nspawn_params: Optional[list[str]] = None,
     capture_stdout: bool = False,
     check: bool = True,
 ) -> CompletedProcess:
@@ -745,7 +737,7 @@ def path_relative_to_cwd(path: PathString) -> Path:
         return path
 
 
-def die(message: str, exception: Type[MkosiException] = MkosiException) -> NoReturn:
+def die(message: str, exception: type[MkosiException] = MkosiException) -> NoReturn:
     MkosiPrinter.warn(f"Error: {message}")
     raise exception(message)
 
@@ -796,12 +788,12 @@ class MkosiPrinter:
 
     @classmethod
     @contextlib.contextmanager
-    def complete_step(cls, text: str, text2: Optional[str] = None) -> Iterator[List[Any]]:
+    def complete_step(cls, text: str, text2: Optional[str] = None) -> Iterator[list[Any]]:
         cls.print_step(text)
 
         cls.level += 1
         try:
-            args: List[Any] = []
+            args: list[Any] = []
             yield args
         finally:
             cls.level -= 1
@@ -880,7 +872,7 @@ def disable_pam_securetty(root: Path) -> None:
 
 
 def add_packages(
-    config: MkosiConfig, packages: Set[str], *names: str, conditional: Optional[str] = None
+    config: MkosiConfig, packages: set[str], *names: str, conditional: Optional[str] = None
 ) -> None:
 
     """Add packages in @names to @packages, if enabled by --base-packages.
@@ -896,7 +888,7 @@ def add_packages(
             packages.add(f"({name} if {conditional})" if conditional else name)
 
 
-def sort_packages(packages: Iterable[str]) -> List[str]:
+def sort_packages(packages: Iterable[str]) -> list[str]:
     """Sorts packages: normal first, paths second, conditional third"""
 
     m = {"(": 2, "/": 1}

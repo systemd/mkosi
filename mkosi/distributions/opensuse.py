@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 import shutil
-from typing import List
 
 from mkosi.backend import (
     MkosiState,
@@ -18,7 +17,7 @@ from mkosi.mounts import mount_api_vfs
 
 class OpensuseInstaller(DistributionInstaller):
     @classmethod
-    def cache_path(cls) -> List[str]:
+    def cache_path(cls) -> list[str]:
         return ["var/cache/zypp/packages"]
 
     @classmethod
@@ -81,7 +80,7 @@ def install_opensuse(state: MkosiState) -> None:
     if not state.do_run_build_script and state.config.ssh:
         add_packages(state.config, packages, "openssh-server")
 
-    cmdline: List[PathString] = ["zypper"]
+    cmdline: list[PathString] = ["zypper"]
     # --reposd-dir needs to be before the verb
     if state.config.local_mirror:
         cmdline += ["--reposd-dir", state.workspace / "zypper-repos.d"]

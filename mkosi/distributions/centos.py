@@ -2,7 +2,6 @@
 
 import shutil
 from pathlib import Path
-from typing import List, Tuple
 
 from mkosi.backend import (
     Distribution,
@@ -35,7 +34,7 @@ def move_rpm_db(root: Path) -> None:
 
 class CentosInstaller(DistributionInstaller):
     @classmethod
-    def cache_path(cls) -> List[str]:
+    def cache_path(cls) -> list[str]:
         return ["var/cache/yum", "var/cache/dnf"]
 
     @classmethod
@@ -89,7 +88,7 @@ class CentosInstaller(DistributionInstaller):
             run_workspace_command(state, cmdline)
 
     @classmethod
-    def remove_packages(cls, state: MkosiState, remove: List[str]) -> None:
+    def remove_packages(cls, state: MkosiState, remove: list[str]) -> None:
         invoke_dnf(state, 'remove', remove)
 
     @classmethod
@@ -104,14 +103,14 @@ class CentosInstaller(DistributionInstaller):
         return int(fields[0].removesuffix("-stream"))
 
     @staticmethod
-    def _gpg_locations(epel_release: int) -> Tuple[Path, str]:
+    def _gpg_locations(epel_release: int) -> tuple[Path, str]:
         return (
             Path("/etc/pki/rpm-gpg/RPM-GPG-KEY-centosofficial"),
             "https://www.centos.org/keys/RPM-GPG-KEY-CentOS-Official"
         )
 
     @staticmethod
-    def _epel_gpg_locations(epel_release: int) -> Tuple[Path, str]:
+    def _epel_gpg_locations(epel_release: int) -> tuple[Path, str]:
         return (
             Path(f"/etc/pki/rpm-gpg/RPM-GPG-KEY-EPEL-{epel_release}"),
             f"https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-{epel_release}",
@@ -126,7 +125,7 @@ class CentosInstaller(DistributionInstaller):
         return f"http://mirrorlist.centos.org/?release={config.release}&arch=$basearch&repo={repo}"
 
     @classmethod
-    def _variant_repos(cls, config: MkosiConfig, epel_release: int) -> List[Repo]:
+    def _variant_repos(cls, config: MkosiConfig, epel_release: int) -> list[Repo]:
         # Repos for CentOS Linux 8, CentOS Stream 8 and CentOS variants
 
         directory = cls._mirror_directory()
@@ -174,7 +173,7 @@ class CentosInstaller(DistributionInstaller):
         return repos
 
     @classmethod
-    def _stream_repos(cls, config: MkosiConfig, epel_release: int) -> List[Repo]:
+    def _stream_repos(cls, config: MkosiConfig, epel_release: int) -> list[Repo]:
         # Repos for CentOS Stream 9 and later
 
         gpgpath, gpgurl = cls._gpg_locations(epel_release)

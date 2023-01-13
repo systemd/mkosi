@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 from pathlib import Path
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from mkosi.backend import MkosiState
@@ -19,9 +19,9 @@ class DistributionInstaller:
         return Path("lib/modules") / name / "vmlinuz"
 
     @classmethod
-    def cache_path(cls) -> List[str]:
+    def cache_path(cls) -> list[str]:
         raise NotImplementedError
 
     @classmethod
-    def remove_packages(cls, state: "MkosiState", remove: List[str]) -> None:
+    def remove_packages(cls, state: "MkosiState", remove: list[str]) -> None:
         raise NotImplementedError

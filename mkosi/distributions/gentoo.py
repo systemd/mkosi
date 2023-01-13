@@ -7,9 +7,9 @@ import re
 import tarfile
 import urllib.parse
 import urllib.request
+from collections.abc import Generator, Sequence
 from pathlib import Path
 from textwrap import dedent
-from typing import Dict, Generator, List, Sequence
 
 from mkosi.backend import (
     ARG_DEBUG,
@@ -45,14 +45,14 @@ class Gentoo:
     arch_profile: Path
     arch: str
     custom_profile_path: Path
-    DEFAULT_NSPAWN_PARAMS: List[str]
+    DEFAULT_NSPAWN_PARAMS: list[str]
     ebuild_sh_env_dir: Path
-    emerge_default_opts: List[str]
-    emerge_vars: Dict[str, str]
+    emerge_default_opts: list[str]
+    emerge_vars: dict[str, str]
     portage_cfg_dir: Path
     profile_path: Path
     root: Path
-    pkgs: Dict[str, List[str]] = {}
+    pkgs: dict[str, list[str]] = {}
     dracut_atom = "sys-kernel/dracut"
 
     EMERGE_UPDATE_OPTS = [
@@ -90,7 +90,7 @@ class Gentoo:
     ]
 
     @staticmethod
-    def try_import_portage() -> Dict[str, str]:
+    def try_import_portage() -> dict[str, str]:
         NEED_PORTAGE_MSG = "You need portage(5) for Gentoo"
         PORTAGE_INSTALL_INSTRUCTIONS = """\
         # Following is known to work on most systemd-based systems:
@@ -363,7 +363,7 @@ class Gentoo:
         if not inside_stage3:
             from _emerge.main import emerge_main  # type: ignore
 
-            PREFIX_OPTS: List[str] = []
+            PREFIX_OPTS: list[str] = []
             if "--sync" not in actions:
                 PREFIX_OPTS = [
                     f"--config-root={self.root.resolve()}",
@@ -393,7 +393,7 @@ class Gentoo:
 
 class GentooInstaller(DistributionInstaller):
     @classmethod
-    def cache_path(cls) -> List[str]:
+    def cache_path(cls) -> list[str]:
         return ["var/cache/binpkgs", "var/cache/distfiles"]
 
     @staticmethod

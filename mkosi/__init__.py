@@ -29,6 +29,7 @@ import sys
 import tempfile
 import time
 import uuid
+from collections.abc import Iterable, Iterator, Sequence
 from pathlib import Path
 from textwrap import dedent, wrap
 from typing import (
@@ -36,16 +37,9 @@ from typing import (
     Any,
     BinaryIO,
     Callable,
-    Dict,
-    Iterable,
-    Iterator,
-    List,
     NoReturn,
     Optional,
-    Sequence,
-    Set,
     TextIO,
-    Tuple,
     TypeVar,
     Union,
     cast,
@@ -375,7 +369,7 @@ def prepare_tree(state: MkosiState, cached: bool) -> None:
         state.root.joinpath("etc/kernel/install.conf").write_text("layout=bls\n")
 
 
-def flatten(lists: Iterable[Iterable[T]]) -> List[T]:
+def flatten(lists: Iterable[Iterable[T]]) -> list[T]:
     """Flatten a sequence of sequences into a single list."""
     return list(itertools.chain.from_iterable(lists))
 
@@ -601,7 +595,7 @@ def configure_root_password(state: MkosiState, cached: bool) -> None:
             patch_file(state.root / "etc/shadow", set_root_pw)
 
 
-def pam_add_autologin(root: Path, ttys: List[str]) -> None:
+def pam_add_autologin(root: Path, ttys: list[str]) -> None:
     login = root / "etc/pam.d/login"
     original = login.read_text() if login.exists() else ""
 
@@ -666,7 +660,7 @@ def nspawn_id_map_supported() -> bool:
     return ret.returncode == 0
 
 
-def nspawn_params_for_build_sources(config: MkosiConfig, sft: SourceFileTransfer) -> List[str]:
+def nspawn_params_for_build_sources(config: MkosiConfig, sft: SourceFileTransfer) -> list[str]:
     params = ["--setenv=SRCDIR=/root/src",
               "--chdir=/root/src"]
     if sft == SourceFileTransfer.mount:
@@ -772,7 +766,7 @@ def copy_git_files(src: Path, dest: Path, *, source_file_transfer: SourceFileTra
     uid = int(os.getenv("SUDO_UID", 0))
 
     c = run(["git", "-C", src, "ls-files", "-z", *what_files], stdout=subprocess.PIPE, text=False, user=uid)
-    files: Set[str] = {x.decode("utf-8") for x in c.stdout.rstrip(b"\0").split(b"\0")}
+    files = {x.decode("utf-8") for x in c.stdout.rstrip(b"\0").split(b"\0")}
 
     # Add the .git/ directory in as well.
     if source_file_transfer == SourceFileTransfer.copy_git_more:
@@ -885,7 +879,7 @@ def xz_binary() -> str:
     return "pxz" if shutil.which("pxz") else "xz"
 
 
-def compressor_command(option: Union[str, bool], src: Path) -> List[PathString]:
+def compressor_command(option: Union[str, bool], src: Path) -> list[PathString]:
     """Returns a command suitable for compressing archives."""
 
     if option == "xz":
@@ -915,7 +909,7 @@ def make_tar(state: MkosiState) -> None:
     if state.for_cache:
         return
 
-    cmd: List[PathString] = [tar_binary(), "-C", state.root, "-c", "--xattrs", "--xattrs-include=*"]
+    cmd: list[PathString] = [tar_binary(), "-C", state.root, "-c", "--xattrs", "--xattrs-include=*"]
     if state.config.tar_strip_selinux_context:
         cmd += ["--xattrs-exclude=security.selinux"]
 
@@ -941,7 +935,7 @@ def make_cpio(state: MkosiState) -> None:
 
     with complete_step("Creating archive…"), open(state.staging / state.config.output.name, "wb") as f:
         files = find_files(state.root)
-        cmd: List[PathString] = [
+        cmd: list[PathString] = [
             "cpio", "-o", "--reproducible", "--null", "-H", "newc", "--quiet", "-D", state.root
         ]
 
@@ -963,7 +957,7 @@ def make_directory(state: MkosiState) -> None:
     os.rename(state.root, state.staging / state.config.output.name)
 
 
-def gen_kernel_images(state: MkosiState) -> Iterator[Tuple[str, Path]]:
+def gen_kernel_images(state: MkosiState) -> Iterator[tuple[str, Path]]:
     # Apparently openmandriva hasn't yet completed its usrmerge so we use lib here instead of usr/lib.
     if not state.root.joinpath("lib/modules").exists():
         return
@@ -1051,7 +1045,7 @@ def install_unified_kernel(state: MkosiState, label: Optional[str], root_hash: O
                 option = "mount.usr" if usr_only else "root"
                 boot_options = f"{boot_options} {option}=LABEL={label}"
 
-            cmd: List[PathString] = [
+            cmd: list[PathString] = [
                 "ukify",
                 "--cmdline", boot_options,
                 "--os-release", f"@{state.root / 'usr/lib/os-release'}",
@@ -1184,7 +1178,7 @@ def calculate_signature(state: MkosiState) -> None:
         return None
 
     with complete_step("Signing SHA256SUMS…"):
-        cmdline: List[PathString] = [
+        cmdline: list[PathString] = [
             "gpg",
             "--detach-sign",
             "-o", state.staging / state.config.output_signature.name,
@@ -1205,7 +1199,7 @@ def calculate_bmap(state: MkosiState) -> None:
         return
 
     with complete_step("Creating BMAP file…"):
-        cmdline: List[PathString] = [
+        cmdline: list[PathString] = [
             "bmaptool",
             "create",
             "--output", state.staging / state.config.output_bmap.name,
@@ -1277,7 +1271,7 @@ def setup_package_cache(config: MkosiConfig, workspace: Path) -> Path:
     return cache
 
 
-def remove_duplicates(items: List[T]) -> List[T]:
+def remove_duplicates(items: list[T]) -> list[T]:
     "Return list with any repetitions removed"
     # We use a dictionary to simulate an ordered set
     return list({x: None for x in items})
@@ -1470,7 +1464,7 @@ class CustomHelpFormatter(argparse.HelpFormatter):
         args_string = self._format_args(action, default)
         return ", ".join(action.option_strings) + " " + args_string
 
-    def _split_lines(self, text: str, width: int) -> List[str]:
+    def _split_lines(self, text: str, width: int) -> list[str]:
         """Wraps text to width, each line separately.
         If the first line of text ends in a colon, we assume that
         this is a list of option descriptions, and subindent them.
@@ -1539,7 +1533,7 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
     def _ini_key_to_cli_arg(cls, key: str) -> str:
         return cls.SPECIAL_MKOSI_DEFAULT_PARAMS.get(key) or ("--" + cls._camel_to_arg(key))
 
-    def _read_args_from_files(self, arg_strings: List[str]) -> List[str]:
+    def _read_args_from_files(self, arg_strings: list[str]) -> list[str]:
         """Convert @-prefixed command line arguments with corresponding file content
 
         Regular arguments are just returned. Arguments prefixed with @ are considered
@@ -1622,7 +1616,7 @@ def parse_base_packages(value: str) -> Union[str, bool]:
     return parse_boolean(value)
 
 
-def parse_remove_files(value: str) -> List[str]:
+def parse_remove_files(value: str) -> list[str]:
     """Normalize paths as relative to / to ensure we don't go outside of our root."""
 
     # os.path.normpath() leaves leading '//' untouched, even though it normalizes '///'.
@@ -2353,7 +2347,7 @@ def load_distribution(args: argparse.Namespace) -> argparse.Namespace:
     return args
 
 
-def parse_args(argv: Optional[Sequence[str]] = None) -> Dict[str, argparse.Namespace]:
+def parse_args(argv: Optional[Sequence[str]] = None) -> dict[str, argparse.Namespace]:
     """Load config values from files and parse command line arguments
 
     Do all about config files and command line arguments parsing. If --all argument is passed
@@ -2440,7 +2434,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> Dict[str, argparse.Names
     return args_all
 
 
-def parse_args_file(argv: List[str], config_path: Path) -> argparse.Namespace:
+def parse_args_file(argv: list[str], config_path: Path) -> argparse.Namespace:
     """Parse just one mkosi.* file (--all mode)."""
 
     # Parse all parameters handled by mkosi.
@@ -2451,7 +2445,7 @@ def parse_args_file(argv: List[str], config_path: Path) -> argparse.Namespace:
 
 
 def parse_args_file_group(
-    argv: List[str], config_path: Path, distribution: Optional[Distribution] = None
+    argv: list[str], config_path: Path, distribution: Optional[Distribution] = None
 ) -> argparse.Namespace:
     """Parse a set of mkosi config files"""
     # Add the @ prefixed filenames to current argument list in inverse priority order.
@@ -2510,7 +2504,7 @@ def parse_bytes(num_bytes: Optional[str], *, sector_size: int = 512) -> int:
 
 def remove_glob(*patterns: PathString) -> None:
     pathgen = (glob.glob(str(pattern)) for pattern in patterns)
-    paths: Set[str] = set(sum(pathgen, []))  # uniquify
+    paths: set[str] = set(sum(pathgen, []))  # uniquify
     for path in paths:
         unlink_try_hard(Path(path))
 
@@ -3449,11 +3443,11 @@ def invoke_repart(
     state: MkosiState,
     skip: Sequence[str] = [],
     split: bool = False,
-) -> Tuple[Optional[str], Optional[str], bool]:
+) -> tuple[Optional[str], Optional[str], bool]:
     if not state.config.output_format == OutputFormat.disk or state.for_cache or state.do_run_build_script:
         return (None, None, False)
 
-    cmdline: List[PathString] = [
+    cmdline: list[PathString] = [
         "systemd-repart",
         "--empty=allow",
         "--size=auto",
@@ -3885,7 +3879,7 @@ def find_qemu_binary(config: MkosiConfig) -> str:
     die("Couldn't find QEMU/KVM binary")
 
 
-def find_qemu_firmware(config: MkosiConfig) -> Tuple[Path, bool]:
+def find_qemu_firmware(config: MkosiConfig) -> tuple[Path, bool]:
     FIRMWARE_LOCATIONS = {
         "x86_64": ["/usr/share/ovmf/x64/OVMF_CODE.secboot.fd"],
         "i386": [
@@ -4023,7 +4017,7 @@ def run_qemu(config: MkosiConfig) -> None:
     else:
         machine = f"type=q35,accel={accel},smm={smm}"
 
-    cmdline: List[PathString] = [
+    cmdline: list[PathString] = [
         find_qemu_binary(config),
         "-machine",
         machine,
@@ -4126,7 +4120,7 @@ def interface_exists(dev: str) -> bool:
     return rc == 0
 
 
-def find_address(config: MkosiConfig) -> Tuple[str, str]:
+def find_address(config: MkosiConfig) -> tuple[str, str]:
     if not ensure_networkd(config) and config.ssh_port != 22:
         return "", "127.0.0.1"
 
@@ -4250,7 +4244,7 @@ def generate_secure_boot_key(config: MkosiConfig) -> None:
         )
     )
 
-    cmd: List[PathString] = [
+    cmd: list[PathString] = [
         "openssl",
         "req",
         "-new",
@@ -4293,7 +4287,7 @@ def bump_image_version(config: MkosiConfig) -> None:
     Path("mkosi.version").write_text(new_version + "\n")
 
 
-def expand_paths(paths: Sequence[str]) -> List[Path]:
+def expand_paths(paths: Sequence[str]) -> list[Path]:
     if not paths:
         return []
 

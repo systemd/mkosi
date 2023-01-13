@@ -7,9 +7,10 @@ import importlib.resources
 import os
 import shutil
 import stat
+from collections.abc import Iterator
 from pathlib import Path
 from textwrap import dedent
-from typing import Any, BinaryIO, Iterator, Optional, cast
+from typing import Any, BinaryIO, Optional, cast
 
 from mkosi.backend import MkosiState, PathString, complete_step
 

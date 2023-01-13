@@ -3,8 +3,9 @@
 import contextlib
 import os
 import stat
+from collections.abc import Iterator, Sequence
 from pathlib import Path
-from typing import ContextManager, Iterator, List, Optional, Sequence, Union, cast
+from typing import ContextManager, Optional, Union, cast
 
 from mkosi.backend import complete_step, run, scandir_recursive
 
@@ -42,7 +43,7 @@ def mount(
     if read_only:
         options = ["ro", *options]
 
-    cmd: List[PathString] = ["mount", "--no-mtab"]
+    cmd: list[PathString] = ["mount", "--no-mtab"]
 
     if operation:
         cmd += [operation]

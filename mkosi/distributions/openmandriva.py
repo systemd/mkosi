@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 from pathlib import Path
-from typing import List
 
 from mkosi.backend import MkosiState, add_packages, complete_step
 from mkosi.distributions import DistributionInstaller
@@ -10,7 +9,7 @@ from mkosi.distributions.fedora import Repo, install_packages_dnf, invoke_dnf, s
 
 class OpenmandrivaInstaller(DistributionInstaller):
     @classmethod
-    def cache_path(cls) -> List[str]:
+    def cache_path(cls) -> list[str]:
         return ["var/cache/dnf"]
 
     @classmethod
@@ -18,7 +17,7 @@ class OpenmandrivaInstaller(DistributionInstaller):
         return install_openmandriva(state)
 
     @classmethod
-    def remove_packages(cls, state: MkosiState, remove: List[str]) -> None:
+    def remove_packages(cls, state: MkosiState, remove: list[str]) -> None:
         invoke_dnf(state, 'remove', remove)
 
 
