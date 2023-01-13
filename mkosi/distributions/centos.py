@@ -2,7 +2,7 @@
 
 import shutil
 from pathlib import Path
-from typing import List, Tuple, cast
+from typing import List, Tuple
 
 from mkosi.backend import (
     Distribution,
@@ -27,7 +27,7 @@ def move_rpm_db(root: Path) -> None:
     if newdb.exists():
         with complete_step("Moving rpm database /usr/lib/sysimage/rpm → /var/lib/rpm"):
             unlink_try_hard(olddb)
-            shutil.move(cast(str, newdb), olddb)
+            shutil.move(newdb, olddb)
 
             if not any(newdb.parent.iterdir()):
                 newdb.parent.rmdir()

@@ -732,7 +732,7 @@ def patch_file(filepath: Path, line_rewriter: Callable[[str], str]) -> None:
 
     shutil.copystat(filepath, temp_new_filepath)
     os.remove(filepath)
-    shutil.move(str(temp_new_filepath), filepath)
+    shutil.move(temp_new_filepath, filepath)
 
 
 def path_relative_to_cwd(path: PathString) -> Path:

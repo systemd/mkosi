@@ -4,7 +4,7 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Optional, cast
+from typing import Optional
 
 from mkosi.backend import PathString, run
 
@@ -23,7 +23,7 @@ def btrfs_subvol_delete(path: Path) -> None:
         if not line:
             continue
         child_subvol_path = line.split(" ", 8)[-1]
-        child_path = path / cast(str, os.path.relpath(child_subvol_path, subvol_path))
+        child_path = path / os.path.relpath(child_subvol_path, subvol_path)
         btrfs_subvol_delete(child_path)
     # Delete the subvolume now that all its descendants have been deleted
     run(["btrfs", "subvol", "delete", path],

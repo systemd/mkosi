@@ -5,7 +5,7 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 from textwrap import dedent
-from typing import Iterable, List, NamedTuple, Optional, Sequence, Set, Tuple, cast
+from typing import Iterable, List, NamedTuple, Optional, Sequence, Set, Tuple
 
 from mkosi.backend import (
     Distribution,
@@ -248,4 +248,4 @@ def invoke_dnf(state: MkosiState, command: str, packages: Iterable[str]) -> None
         if not rpmdb.exists():
             rpmdb = state.root / "var/lib/rpm"
         unlink_try_hard(rpmdb)
-        shutil.move(cast(str, rpmdb_home), rpmdb)
+        shutil.move(rpmdb_home, rpmdb)

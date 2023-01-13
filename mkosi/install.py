@@ -156,4 +156,4 @@ def install_skeleton_trees(state: MkosiState, cached: bool, *, late: bool=False)
             else:
                 # unpack_archive() groks Paths, but mypy doesn't know this.
                 # Pretend that tree is a str.
-                shutil.unpack_archive(cast(str, tree), state.root)
+                shutil.unpack_archive(tree, state.root)

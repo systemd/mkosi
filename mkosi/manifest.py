@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from subprocess import DEVNULL, PIPE
 from textwrap import dedent
-from typing import IO, Any, Dict, List, Optional, Tuple, cast
+from typing import IO, Any, Dict, List, Optional, Tuple
 
 from mkosi.backend import Distribution, ManifestFormat, MkosiConfig, PackageType, run
 
@@ -87,11 +87,11 @@ class Manifest:
         return ManifestFormat.changelog in self.config.manifest_format
 
     def record_packages(self, root: Path) -> None:
-        if cast(Any, self.config.distribution).package_type == PackageType.rpm:
+        if self.config.distribution.package_type == PackageType.rpm:
             self.record_rpm_packages(root)
-        if cast(Any, self.config.distribution).package_type == PackageType.deb:
+        if self.config.distribution.package_type == PackageType.deb:
             self.record_deb_packages(root)
-        if cast(Any, self.config.distribution).package_type == PackageType.pkg:
+        if self.config.distribution.package_type == PackageType.pkg:
             self.record_pkg_packages(root)
         # TODO: add implementations for other package managers
 

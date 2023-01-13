@@ -761,7 +761,7 @@ def install_extra_trees(state: MkosiState) -> None:
             else:
                 # unpack_archive() groks Paths, but mypy doesn't know this.
                 # Pretend that tree is a str.
-                shutil.unpack_archive(cast(str, tree), state.root)
+                shutil.unpack_archive(tree, state.root)
 
 
 def copy_git_files(src: Path, dest: Path, *, source_file_transfer: SourceFileTransfer) -> None:
@@ -1220,7 +1220,7 @@ def save_cache(state: MkosiState) -> None:
 
     with complete_step("Installing cache copy…", f"Installed cache copy {path_relative_to_cwd(cache)}"):
         unlink_try_hard(cache)
-        shutil.move(cast(str, state.root), cache)  # typing bug, .move() accepts Path
+        shutil.move(state.root, cache)
 
     if state.config.chown:
         chown_to_running_user(cache)
@@ -3733,14 +3733,14 @@ def build_stuff(config: MkosiConfig) -> None:
 
         for p in state.config.output_paths():
             if state.staging.joinpath(p.name).exists():
-                shutil.move(str(state.staging / p.name), str(p))
+                shutil.move(state.staging / p.name, p)
                 if p in (state.config.output, state.config.output_split_kernel):
                     compress_output(state.config, p)
             if state.config.chown and p.exists():
                 chown_to_running_user(p)
 
         for p in state.staging.iterdir():
-            shutil.move(str(p), str(state.config.output.parent / p.name))
+            shutil.move(p, state.config.output.parent / p.name)
             if p.name.startswith(state.config.output.name):
                 compress_output(state.config, p)
 
