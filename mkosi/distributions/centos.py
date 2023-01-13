@@ -63,6 +63,7 @@ class CentosInstaller(DistributionInstaller):
             packages.update(state.config.build_packages)
 
         if not state.do_run_build_script and "epel" in state.config.repositories:
+            add_packages(state.config, packages, "epel-release")
             if state.config.netdev:
                 add_packages(state.config, packages, "systemd-networkd", conditional="systemd")
             if state.config.distribution != Distribution.centos and epel_release >= 9:

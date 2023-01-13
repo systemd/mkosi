@@ -195,7 +195,7 @@ jobs:
     - name: Configure EPEL
       if: matrix.distro == 'centos' || matrix.distro == 'rocky' || matrix.distro == 'alma'
       run: |
-        tee mkosi.conf.d/mkosi.conf <<- EOF
+        tee mkosi.conf.d/epel.conf <<- EOF
         [Distribution]
         Repositories=epel
         EOF
