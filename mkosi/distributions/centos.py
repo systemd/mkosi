@@ -37,6 +37,10 @@ class CentosInstaller(DistributionInstaller):
         return ["var/cache/yum", "var/cache/dnf"]
 
     @classmethod
+    def filesystem(cls) -> str:
+        return "xfs"
+
+    @classmethod
     @complete_step("Installing CentOS…")
     def install(cls, state: "MkosiState") -> None:
         epel_release = cls._parse_epel_release(state.config.release)

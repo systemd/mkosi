@@ -21,6 +21,10 @@ class OpensuseInstaller(DistributionInstaller):
         return ["var/cache/zypp/packages"]
 
     @classmethod
+    def filesystem(cls) -> str:
+        return "btrfs"
+
+    @classmethod
     def install(cls, state: "MkosiState") -> None:
         return install_opensuse(state)
 
@@ -123,3 +127,9 @@ def install_opensuse(state: MkosiState) -> None:
                 if state.root.joinpath(f"usr/{prefix}/pam.d/login").exists():
                     shutil.copy2(state.root / f"usr/{prefix}/pam.d/login", state.root / "etc/pam.d/login")
                     break
+
+    if state.config.bootable and not state.do_run_build_script:
+        dracut_dir = state.root / "etc/dracut.conf.d"
+        dracut_dir.mkdir(mode=0o755, exist_ok=True)
+
+        dracut_dir.joinpath("30-mkosi-opensuse.conf").write_text('hostonly=no\n')

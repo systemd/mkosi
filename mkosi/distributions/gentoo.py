@@ -396,6 +396,10 @@ class GentooInstaller(DistributionInstaller):
     def cache_path(cls) -> list[str]:
         return ["var/cache/binpkgs", "var/cache/distfiles"]
 
+    @classmethod
+    def filesystem(cls) -> str:
+        return "ext4"
+
     @staticmethod
     def kernel_image(name: str, architecture: str) -> Path:
         _, kimg_path = ARCHITECTURES[architecture]

@@ -25,3 +25,7 @@ class DistributionInstaller:
     @classmethod
     def remove_packages(cls, state: "MkosiState", remove: list[str]) -> None:
         raise NotImplementedError
+
+    @classmethod
+    def filesystem(cls) -> str:
+        raise NotImplementedError

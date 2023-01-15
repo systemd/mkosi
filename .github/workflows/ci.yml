@@ -114,6 +114,7 @@ jobs:
           - rocky
           - alma
           - gentoo
+          - opensuse
         format:
           - directory
           - tar
