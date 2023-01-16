@@ -2,7 +2,6 @@
 
 from pathlib import Path
 
-from mkosi.backend import MkosiConfig
 from mkosi.distributions.centos import CentosInstaller
 
 
@@ -10,8 +9,8 @@ class AlmaInstaller(CentosInstaller):
     @staticmethod
     def _gpg_locations(epel_release: int) -> tuple[Path, str]:
         return (
-            Path(f"/etc/pki/rpm-gpg/RPM-GPG-KEY-AlmaLinux-{epel_release}"),
-            f"https://repo.almalinux.org/almalinux/RPM-GPG-KEY-AlmaLinux-{epel_release}",
+            Path("/etc/pki/rpm-gpg/RPM-GPG-KEY-AlmaLinux-$releasever"),
+            "https://repo.almalinux.org/almalinux/RPM-GPG-KEY-AlmaLinux-$releasever",
         )
 
     @classmethod
@@ -19,5 +18,5 @@ class AlmaInstaller(CentosInstaller):
         return "almalinux"
 
     @classmethod
-    def _mirror_repo_url(cls, config: MkosiConfig, repo: str) -> str:
-        return f"https://mirrors.almalinux.org/mirrorlist/{config.release}/{repo.lower()}"
+    def _mirror_repo_url(cls, repo: str) -> str:
+        return f"https://mirrors.almalinux.org/mirrorlist/$releasever/{repo.lower()}"
