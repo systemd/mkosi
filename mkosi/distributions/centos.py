@@ -153,15 +153,15 @@ class CentosInstaller(DistributionInstaller):
                 powertools_url = f"mirrorlist={cls._mirror_repo_url(config, 'PowerTools')}"
             epel_url = f"mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=epel-{epel_release}&arch=$basearch"
 
-        repos = [Repo("AppStream", appstream_url, gpgpath, gpgurl)]
+        repos = [Repo("appstream", appstream_url, gpgpath, gpgurl)]
         if baseos_url is not None:
-            repos += [Repo("BaseOS", baseos_url, gpgpath, gpgurl)]
+            repos += [Repo("baseos", baseos_url, gpgpath, gpgurl)]
         if extras_url is not None:
             repos += [Repo("extras", extras_url, gpgpath, gpgurl)]
         if crb_url is not None:
-            repos += [Repo("CRB", crb_url, gpgpath, gpgurl)]
+            repos += [Repo("crb", crb_url, gpgpath, gpgurl)]
         if powertools_url is not None:
-            repos += [Repo("PowerTools", powertools_url, gpgpath, gpgurl)]
+            repos += [Repo("powertools", powertools_url, gpgpath, gpgurl)]
         if epel_url is not None:
             repos += [Repo("epel", epel_url, epel_gpgpath, epel_gpgurl, enabled=False)]
 
@@ -190,11 +190,11 @@ class CentosInstaller(DistributionInstaller):
             crb_url = f"metalink=https://mirrors.centos.org/metalink?repo=centos-crb-{release}&arch=$basearch"
             epel_url = f"mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=epel-{epel_release}&arch=$basearch"
 
-        repos = [Repo("AppStream", appstream_url, gpgpath, gpgurl)]
+        repos = [Repo("appstream", appstream_url, gpgpath, gpgurl)]
         if baseos_url is not None:
-            repos += [Repo("BaseOS", baseos_url, gpgpath, gpgurl)]
+            repos += [Repo("baseos", baseos_url, gpgpath, gpgurl)]
         if crb_url is not None:
-            repos += [Repo("CRB", crb_url, gpgpath, gpgurl)]
+            repos += [Repo("crb", crb_url, gpgpath, gpgurl)]
         if epel_url is not None:
             repos += [Repo("epel", epel_url, epel_gpgpath, epel_gpgurl, enabled=False)]
 
