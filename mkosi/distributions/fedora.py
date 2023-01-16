@@ -197,7 +197,7 @@ def invoke_dnf(state: MkosiState, command: str, packages: Iterable[str]) -> None
     if state.config.distribution == Distribution.fedora:
         release, _ = parse_fedora_release(state.config.release)
     else:
-        release = state.config.release
+        release = state.config.release.strip("-stream")
 
     config_file = state.workspace / "dnf.conf"
 
