@@ -13,6 +13,13 @@ class AlmaInstaller(CentosInstaller):
             "https://repo.almalinux.org/almalinux/RPM-GPG-KEY-AlmaLinux-$releasever",
         )
 
+    @staticmethod
+    def _extras_gpg_locations(epel_release: int) -> tuple[Path, str]:
+        return (
+            Path("/etc/pki/rpm-gpg/RPM-GPG-KEY-AlmaLinux-$releasever"),
+            "https://repo.almalinux.org/almalinux/RPM-GPG-KEY-AlmaLinux-$releasever",
+        )
+
     @classmethod
     def _mirror_directory(cls) -> str:
         return "almalinux"
