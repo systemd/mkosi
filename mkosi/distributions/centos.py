@@ -43,19 +43,19 @@ class CentosInstaller(DistributionInstaller):
     @classmethod
     @complete_step("Installing CentOS…")
     def install(cls, state: "MkosiState") -> None:
-        epel_release = cls._parse_epel_release(state.config.release)
+        release = int(state.config.release)
 
-        if epel_release <= 7:
+        if release <= 7:
             die("CentOS 7 or earlier variants are not supported")
-        elif epel_release <= 8 or not "-stream" in state.config.release:
-            repos = cls._variant_repos(state.config, epel_release)
+        elif release == 8 or state.config.distribution != Distribution.centos:
+            repos = cls._variant_repos(state.config, release)
         else:
-            repos = cls._stream_repos(state.config, epel_release)
+            repos = cls._stream_repos(state.config, release)
 
         setup_dnf(state, repos)
 
-        if "-stream" in state.config.release:
-            state.workspace.joinpath("vars/stream").write_text(state.config.release)
+        if state.config.distribution == Distribution.centos:
+            state.workspace.joinpath("vars/stream").write_text(f"{state.config.release}-stream")
 
         packages = {*state.config.packages}
         add_packages(state.config, packages, "systemd", "dnf")
@@ -70,7 +70,7 @@ class CentosInstaller(DistributionInstaller):
             add_packages(state.config, packages, "epel-release")
             if state.config.netdev:
                 add_packages(state.config, packages, "systemd-networkd", conditional="systemd")
-            if state.config.distribution != Distribution.centos and epel_release >= 9:
+            if state.config.distribution != Distribution.centos and release >= 9:
                 add_packages(state.config, packages, "systemd-boot", conditional="systemd")
 
         install_packages_dnf(state, packages)
@@ -84,7 +84,7 @@ class CentosInstaller(DistributionInstaller):
         # backend instead. Because newer RPM releases have dropped support for the
         # bdb backend completely, we check if rpm is installed and use
         # run_workspace_command() to rebuild the rpm db.
-        if epel_release <= 8 and state.root.joinpath("usr/bin/rpm").exists():
+        if release <= 8 and state.root.joinpath("usr/bin/rpm").exists():
             cmdline = ["rpm", "--rebuilddb", "--define", "_db_backend bdb"]
             run_workspace_command(state, cmdline)
 
@@ -93,12 +93,7 @@ class CentosInstaller(DistributionInstaller):
         invoke_dnf(state, 'remove', remove)
 
     @staticmethod
-    def _parse_epel_release(release: str) -> int:
-        fields = release.split(".")
-        return int(fields[0].removesuffix("-stream"))
-
-    @staticmethod
-    def _gpg_locations(epel_release: int) -> tuple[Path, str]:
+    def _gpg_locations(release: int) -> tuple[Path, str]:
         return (
             Path("/etc/pki/rpm-gpg/RPM-GPG-KEY-centosofficial"),
             "https://www.centos.org/keys/RPM-GPG-KEY-CentOS-Official"
@@ -112,7 +107,7 @@ class CentosInstaller(DistributionInstaller):
         )
 
     @staticmethod
-    def _extras_gpg_locations(epel_release: int) -> tuple[Path, str]:
+    def _extras_gpg_locations(release: int) -> tuple[Path, str]:
         return (
             Path("/etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-SIG-Extras-SHA512"),
             "https://www.centos.org/keys/RPM-GPG-KEY-CentOS-SIG-Extras"
@@ -127,11 +122,11 @@ class CentosInstaller(DistributionInstaller):
         return f"http://mirrorlist.centos.org/?release=$stream&arch=$basearch&repo={repo}"
 
     @classmethod
-    def _variant_repos(cls, config: MkosiConfig, epel_release: int) -> list[Repo]:
+    def _variant_repos(cls, config: MkosiConfig, release: int) -> list[Repo]:
         # Repos for CentOS Linux 8, CentOS Stream 8 and CentOS variants
 
         directory = cls._mirror_directory()
-        gpgpath, gpgurl = cls._gpg_locations(epel_release)
+        gpgpath, gpgurl = cls._gpg_locations(release)
         epel_gpgpath, epel_gpgurl = cls._epel_gpg_locations()
 
         if config.local_mirror:
@@ -141,7 +136,7 @@ class CentosInstaller(DistributionInstaller):
             appstream_url = f"baseurl={config.mirror}/{directory}/$stream/AppStream/$basearch/os"
             baseos_url = f"baseurl={config.mirror}/{directory}/$stream/BaseOS/$basearch/os"
             extras_url = f"baseurl={config.mirror}/{directory}/$stream/extras/$basearch/os"
-            if epel_release >= 9:
+            if release >= 9:
                 crb_url = f"baseurl={config.mirror}/{directory}/$stream/CRB/$basearch/os"
                 powertools_url = None
             else:
@@ -152,7 +147,7 @@ class CentosInstaller(DistributionInstaller):
             appstream_url = f"mirrorlist={cls._mirror_repo_url('AppStream')}"
             baseos_url = f"mirrorlist={cls._mirror_repo_url('BaseOS')}"
             extras_url = f"mirrorlist={cls._mirror_repo_url('extras')}"
-            if epel_release >= 9:
+            if release >= 9:
                 crb_url = f"mirrorlist={cls._mirror_repo_url('CRB')}"
                 powertools_url = None
             else:
@@ -175,12 +170,12 @@ class CentosInstaller(DistributionInstaller):
         return repos
 
     @classmethod
-    def _stream_repos(cls, config: MkosiConfig, epel_release: int) -> list[Repo]:
+    def _stream_repos(cls, config: MkosiConfig, release: int) -> list[Repo]:
         # Repos for CentOS Stream 9 and later
 
-        gpgpath, gpgurl = cls._gpg_locations(epel_release)
+        gpgpath, gpgurl = cls._gpg_locations(release)
         epel_gpgpath, epel_gpgurl = cls._epel_gpg_locations()
-        extras_gpgpath, extras_gpgurl = cls._extras_gpg_locations(epel_release)
+        extras_gpgpath, extras_gpgurl = cls._extras_gpg_locations(release)
 
         if config.local_mirror:
             appstream_url = f"baseurl={config.local_mirror}"

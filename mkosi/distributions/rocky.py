@@ -7,16 +7,16 @@ from mkosi.distributions.centos import CentosInstaller
 
 class RockyInstaller(CentosInstaller):
     @staticmethod
-    def _gpg_locations(epel_release: int) -> tuple[Path, str]:
-        keyname = "Rocky-$releasever" if epel_release >= 9 else "rockyofficial"
+    def _gpg_locations(release: int) -> tuple[Path, str]:
+        keyname = "Rocky-$releasever" if release >= 9 else "rockyofficial"
         return (
              Path(f"/etc/pki/rpm-gpg/RPM-GPG-KEY-{keyname}"),
              f"https://download.rockylinux.org/pub/rocky/RPM-GPG-KEY-{keyname}"
         )
 
     @staticmethod
-    def _extras_gpg_locations(epel_release: int) -> tuple[Path, str]:
-        keyname = "Rocky-$releasever" if epel_release >= 9 else "rockyofficial"
+    def _extras_gpg_locations(release: int) -> tuple[Path, str]:
+        keyname = "Rocky-$releasever" if release >= 9 else "rockyofficial"
         return (
              Path(f"/etc/pki/rpm-gpg/RPM-GPG-KEY-{keyname}"),
              f"https://download.rockylinux.org/pub/rocky/RPM-GPG-KEY-{keyname}"

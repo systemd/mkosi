@@ -495,11 +495,6 @@ def remove_files(state: MkosiState) -> None:
         remove_glob(*paths)
 
 
-def parse_epel_release(release: str) -> int:
-    fields = release.split(".")
-    return int(fields[0].removesuffix("-stream"))
-
-
 def install_distribution(state: MkosiState, cached: bool) -> None:
     if cached:
         return
@@ -2785,7 +2780,7 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
         if args.distribution == Distribution.fedora:
             args.release = "36"
         elif args.distribution == Distribution.centos:
-            args.release = "9-stream"
+            args.release = "9"
         elif args.distribution == Distribution.rocky:
             args.release = "9"
         elif args.distribution == Distribution.alma:
