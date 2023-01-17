@@ -111,6 +111,13 @@ class CentosInstaller(DistributionInstaller):
             "https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-$releasever",
         )
 
+    @staticmethod
+    def _extras_gpg_locations(epel_release: int) -> tuple[Path, str]:
+        return (
+            Path("/etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-SIG-Extras-SHA512"),
+            "https://www.centos.org/keys/RPM-GPG-KEY-CentOS-SIG-Extras"
+        )
+
     @classmethod
     def _mirror_directory(cls) -> str:
         return "centos"
@@ -173,24 +180,29 @@ class CentosInstaller(DistributionInstaller):
 
         gpgpath, gpgurl = cls._gpg_locations(epel_release)
         epel_gpgpath, epel_gpgurl = cls._epel_gpg_locations()
+        extras_gpgpath, extras_gpgurl = cls._extras_gpg_locations(epel_release)
 
         if config.local_mirror:
             appstream_url = f"baseurl={config.local_mirror}"
-            baseos_url = crb_url = epel_url = None
+            baseos_url = extras_url = crb_url = epel_url = None
         elif config.mirror:
             appstream_url = f"baseurl={config.mirror}/centos-stream/$stream/AppStream/$basearch/os"
             baseos_url = f"baseurl={config.mirror}/centos-stream/$stream/BaseOS/$basearch/os"
+            extras_url = f"baseurl={config.mirror}/centos-stream/SIGS/$stream/extras/$basearch/extras-common"
             crb_url = f"baseurl={config.mirror}/centos-stream/$stream/CRB/$basearch/os"
             epel_url = f"baseurl={config.mirror}/epel/$stream/Everything/$basearch"
         else:
             appstream_url = "metalink=https://mirrors.centos.org/metalink?repo=centos-appstream-$stream&arch=$basearch&protocol=https,http"
             baseos_url = "metalink=https://mirrors.centos.org/metalink?repo=centos-baseos-$stream&arch=$basearch&protocol=https,http"
+            extras_url = "metalink=https://mirrors.centos.org/metalink?repo=centos-extras-sig-extras-common-$stream&arch=$basearch&protocol=https,http"
             crb_url = "metalink=https://mirrors.centos.org/metalink?repo=centos-crb-$stream&arch=$basearch&protocol=https,http"
             epel_url = "mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=epel-$releasever&arch=$basearch&protocol=https,http"
 
         repos = [Repo("appstream", appstream_url, gpgpath, gpgurl)]
         if baseos_url is not None:
             repos += [Repo("baseos", baseos_url, gpgpath, gpgurl)]
+        if extras_url is not None:
+            repos += [Repo("extras", extras_url, extras_gpgpath, extras_gpgurl)]
         if crb_url is not None:
             repos += [Repo("crb", crb_url, gpgpath, gpgurl)]
         if epel_url is not None:
