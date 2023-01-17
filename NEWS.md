@@ -36,6 +36,8 @@
   repositories. Specifically, it cannot be used on Arch Linux anymore to add new repositories.
 - The `_epel` distributions were removed. Use `--repositories=epel` instead to enable
   the EPEL repository.
+- Removed `-stream` from CentOS release specifiers. Instead of specifying `8-stream`,
+  you know just specify `8`.
 
 ## v14
 
