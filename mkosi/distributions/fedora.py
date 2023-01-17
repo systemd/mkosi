@@ -171,6 +171,7 @@ def setup_dnf(state: MkosiState, repos: Sequence[Repo] = ()) -> None:
                     {repo.url}
                     gpgkey={gpgkey or ''}
                     enabled={int(repo.enabled)}
+                    check_config_file_age=False
                     """
                 )
             )
