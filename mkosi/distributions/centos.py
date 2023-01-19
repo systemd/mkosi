@@ -73,6 +73,11 @@ class CentosInstaller(DistributionInstaller):
             if state.config.distribution != Distribution.centos and release >= 9:
                 add_packages(state.config, packages, "systemd-boot", conditional="systemd")
 
+        # Make sure we only install the minimal language files by default on CentOS Stream 8 which still
+        # defaults to all langpacks.
+        if release <= 8:
+            add_packages(state.config, packages, "glibc-minimal-langpack")
+
         install_packages_dnf(state, packages)
 
         # On Fedora, the default rpmdb has moved to /usr/lib/sysimage/rpm so if that's the case we need to
