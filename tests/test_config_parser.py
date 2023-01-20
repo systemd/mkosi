@@ -83,7 +83,7 @@ class MkosiConfig:
             "include_dir": None,
             "incremental": False,
             "install_dir": None,
-            "kernel_command_line": ["rhgb", "selinux=0", "audit=0"],
+            "kernel_command_line": [],
             "key": None,
             "local_mirror": None,
             "manifest_format": None,
