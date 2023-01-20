@@ -38,6 +38,7 @@
   the EPEL repository.
 - Removed `-stream` from CentOS release specifiers. Instead of specifying `8-stream`,
   you know just specify `8`.
+- Removed default kernel command line arguments `rhgb`, `selinux=0` and `audit=0`.
 
 ## v14
 
