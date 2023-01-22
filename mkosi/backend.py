@@ -2,49 +2,29 @@
 
 import argparse
 import ast
-import collections
 import contextlib
 import dataclasses
 import enum
 import functools
 import importlib
+import itertools
 import os
 import platform
 import pwd
 import re
 import resource
-import shlex
 import shutil
-import signal
-import subprocess
 import sys
 import tarfile
-import uuid
-from collections.abc import Iterable, Iterator, Mapping, Sequence
+from collections.abc import Iterable, Iterator, Sequence
 from pathlib import Path
-from types import FrameType
-from typing import (
-    IO,
-    TYPE_CHECKING,
-    Any,
-    Callable,
-    Deque,
-    NoReturn,
-    Optional,
-    TypeVar,
-    Union,
-    cast,
-)
+from typing import Any, Callable, Optional, TypeVar, Union, cast
 
 from mkosi.distributions import DistributionInstaller
+from mkosi.log import MkosiException, die
 
 T = TypeVar("T")
 V = TypeVar("V")
-PathString = Union[Path, str]
-
-
-def shell_join(cmd: Sequence[PathString]) -> str:
-    return " ".join(shlex.quote(str(x)) for x in cmd)
 
 
 @contextlib.contextmanager
@@ -65,29 +45,6 @@ def print_between_lines(s: str) -> None:
 
 def roundup(x: int, step: int) -> int:
     return ((x + step - 1) // step) * step
-
-
-# These types are only generic during type checking and not at runtime, leading
-# to a TypeError during compilation.
-# Let's be as strict as we can with the description for the usage we have.
-if TYPE_CHECKING:
-    CompletedProcess = subprocess.CompletedProcess[Any]
-    Popen = subprocess.Popen[Any]
-else:
-    CompletedProcess = subprocess.CompletedProcess
-    Popen = subprocess.Popen
-
-
-class MkosiException(Exception):
-    """Leads to sys.exit"""
-
-
-class MkosiNotSupportedException(MkosiException):
-    """Leads to sys.exit when an invalid combination of parsed arguments happens"""
-
-
-# This global should be initialized after parsing arguments
-ARG_DEBUG: set[str] = set()
 
 
 class Parseable:
@@ -244,27 +201,6 @@ def is_centos_variant(d: Distribution) -> bool:
     )
 
 
-class SourceFileTransfer(enum.Enum):
-    copy_all = "copy-all"
-    copy_git_cached = "copy-git-cached"
-    copy_git_others = "copy-git-others"
-    copy_git_more = "copy-git-more"
-    mount = "mount"
-
-    def __str__(self) -> str:
-        return self.value
-
-    @classmethod
-    def doc(cls) -> dict["SourceFileTransfer", str]:
-        return {
-            cls.copy_all: "normal file copy",
-            cls.copy_git_cached: "use git ls-files --cached, ignoring any file that git itself ignores",
-            cls.copy_git_others: "use git ls-files --others, ignoring any file that git itself ignores",
-            cls.copy_git_more: "use git ls-files --cached, ignoring any file that git itself ignores, but include the .git/ directory",
-            cls.mount: "bind mount source files into the build image",
-        }
-
-
 class OutputFormat(Parseable, enum.Enum):
     directory = enum.auto()
     subvolume = enum.auto()
@@ -337,8 +273,6 @@ class MkosiConfig:
     image_version: Optional[str]
     image_id: Optional[str]
     hostname: Optional[str]
-    chown: bool
-    idmap: bool
     tar_strip_selinux_context: bool
     incremental: bool
     cache_initrd: bool
@@ -363,10 +297,6 @@ class MkosiConfig:
     prepare_script: Optional[Path]
     postinst_script: Optional[Path]
     finalize_script: Optional[Path]
-    source_file_transfer: SourceFileTransfer
-    source_file_transfer_final: Optional[SourceFileTransfer]
-    source_resolve_symlinks: bool
-    source_resolve_symlinks_final: bool
     with_network: Union[bool, str]
     nspawn_settings: Optional[Path]
     base_image: Optional[Path]
@@ -400,9 +330,6 @@ class MkosiConfig:
     qemu_mem: str
     qemu_kvm: bool
     qemu_args: Sequence[str]
-
-    # systemd-nspawn specific options
-    nspawn_keep_unit: bool
 
     passphrase: Optional[Path]
 
@@ -464,6 +391,8 @@ def build_auxiliary_output_path(args: Union[argparse.Namespace, MkosiConfig], su
 class MkosiState:
     """State related properties."""
 
+    uid: int
+    gid: int
     config: MkosiConfig
     workspace: Path
     cache: Path
@@ -525,169 +454,11 @@ def workspace(root: Path) -> Path:
     return root.parent
 
 
-def nspawn_knows_arg(arg: str) -> bool:
-    # Specify some extra incompatible options so nspawn doesn't try to boot a container in the current
-    # directory if it has a compatible layout.
-    return "unrecognized option" not in run(["systemd-nspawn", arg,
-                                            "--directory", "/dev/null", "--image", "/dev/null"],
-                                            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, check=False,
-                                            text=True).stderr
-
-
 def format_rlimit(rlimit: int) -> str:
     limits = resource.getrlimit(rlimit)
     soft = "infinity" if limits[0] == resource.RLIM_INFINITY else str(limits[0])
     hard = "infinity" if limits[1] == resource.RLIM_INFINITY else str(limits[1])
     return f"{soft}:{hard}"
-
-
-def nspawn_rlimit_params() -> Sequence[str]:
-    return [
-        f"--rlimit=RLIMIT_CORE={format_rlimit(resource.RLIMIT_CORE)}",
-    ] if nspawn_knows_arg("--rlimit") else []
-
-
-def nspawn_version() -> int:
-    return int(run(["systemd-nspawn", "--version"], stdout=subprocess.PIPE).stdout.strip().split()[1])
-
-
-def run_workspace_command(
-    state: MkosiState,
-    cmd: Sequence[PathString],
-    network: bool = False,
-    env: Optional[Mapping[str, str]] = None,
-    nspawn_params: Optional[list[str]] = None,
-    capture_stdout: bool = False,
-    check: bool = True,
-) -> CompletedProcess:
-    nspawn = [
-        "systemd-nspawn",
-        "--quiet",
-        f"--directory={state.root}",
-        "--machine=mkosi-" + uuid.uuid4().hex,
-        "--as-pid2",
-        "--link-journal=no",
-        "--register=no",
-        f"--bind={state.var_tmp()}:/var/tmp",
-        "--setenv=SYSTEMD_OFFLINE=1",
-        *nspawn_rlimit_params(),
-    ]
-    stdout = None
-
-    if network:
-        # If we're using the host network namespace, use the same resolver
-        nspawn += ["--bind-ro=/etc/resolv.conf"]
-    else:
-        nspawn += ["--private-network"]
-
-    if env:
-        nspawn += [f"--setenv={k}={v}" for k, v in env.items()]
-    if "workspace-command" in ARG_DEBUG:
-        nspawn += ["--setenv=SYSTEMD_LOG_LEVEL=debug"]
-
-    if nspawn_params:
-        nspawn += nspawn_params
-
-    if capture_stdout:
-        stdout = subprocess.PIPE
-        nspawn += ["--console=pipe"]
-
-    if state.config.nspawn_keep_unit:
-        nspawn += ["--keep-unit"]
-
-    try:
-        return run([*nspawn, "--", *cmd], check=check, stdout=stdout, text=capture_stdout)
-    except subprocess.CalledProcessError as e:
-        if "workspace-command" in ARG_DEBUG:
-            run(nspawn, check=False)
-        die(f"Workspace command {shell_join(cmd)} returned non-zero exit code {e.returncode}.")
-
-
-@contextlib.contextmanager
-def do_delay_interrupt() -> Iterator[None]:
-    # CTRL+C is sent to the entire process group. We delay its handling in mkosi itself so the subprocess can
-    # exit cleanly before doing mkosi's cleanup. If we don't do this, we get device or resource is busy
-    # errors when unmounting stuff later on during cleanup. We only delay a single CTRL+C interrupt so that a
-    # user can always exit mkosi even if a subprocess hangs by pressing CTRL+C twice.
-    interrupted = False
-
-    def handler(signal: int, frame: Optional[FrameType]) -> None:
-        nonlocal interrupted
-        if interrupted:
-            raise KeyboardInterrupt()
-        else:
-            interrupted = True
-
-    s = signal.signal(signal.SIGINT, handler)
-
-    try:
-        yield
-    finally:
-        signal.signal(signal.SIGINT, s)
-
-        if interrupted:
-            die("Interrupted")
-
-
-@contextlib.contextmanager
-def do_noop() -> Iterator[None]:
-    yield
-
-
-# Borrowed from https://github.com/python/typeshed/blob/3d14016085aed8bcf0cf67e9e5a70790ce1ad8ea/stdlib/3/subprocess.pyi#L24
-_FILE = Union[None, int, IO[Any]]
-
-
-def spawn(
-    cmdline: Sequence[PathString],
-    delay_interrupt: bool = True,
-    stdout: _FILE = None,
-    stderr: _FILE = None,
-    **kwargs: Any,
-) -> Popen:
-    if "run" in ARG_DEBUG:
-        MkosiPrinter.info(f"+ {shell_join(cmdline)}")
-
-    if not stdout and not stderr:
-        # Unless explicit redirection is done, print all subprocess
-        # output on stderr, since we do so as well for mkosi's own
-        # output.
-        stdout = sys.stderr
-
-    cm = do_delay_interrupt if delay_interrupt else do_noop
-    try:
-        with cm():
-            return subprocess.Popen(cmdline, stdout=stdout, stderr=stderr, **kwargs)
-    except FileNotFoundError:
-        die(f"{cmdline[0]} not found in PATH.")
-
-
-def run(
-    cmdline: Sequence[PathString],
-    check: bool = True,
-    delay_interrupt: bool = True,
-    stdout: _FILE = None,
-    stderr: _FILE = None,
-    env: Mapping[str, Any] = {},
-    **kwargs: Any,
-) -> CompletedProcess:
-    cmdline = [os.fspath(x) for x in cmdline]
-
-    if "run" in ARG_DEBUG:
-        MkosiPrinter.info(f"+ {shell_join(cmdline)}")
-
-    if not stdout and not stderr:
-        # Unless explicit redirection is done, print all subprocess
-        # output on stderr, since we do so as well for mkosi's own
-        # output.
-        stdout = sys.stderr
-
-    cm = do_delay_interrupt if delay_interrupt else do_noop
-    try:
-        with cm():
-            return subprocess.run(cmdline, check=check, stdout=stdout, stderr=stderr, env={**os.environ, **env}, **kwargs)
-    except FileNotFoundError:
-        die(f"{cmdline[0]} not found in PATH.")
 
 
 def tmp_dir() -> Path:
@@ -715,105 +486,6 @@ def path_relative_to_cwd(path: Path) -> Path:
         return path
 
 
-def die(message: str, exception: type[MkosiException] = MkosiException) -> NoReturn:
-    MkosiPrinter.warn(f"Error: {message}")
-    raise exception(message)
-
-
-def warn(message: str) -> None:
-    MkosiPrinter.warn(f"Warning: {message}")
-
-
-class MkosiPrinter:
-    out_file = sys.stderr
-    isatty = out_file.isatty()
-
-    bold = "\033[0;1;39m" if isatty else ""
-    red = "\033[31;1m" if isatty else ""
-    reset = "\033[0m" if isatty else ""
-
-    prefix = "‣ "
-
-    level = 0
-
-    @classmethod
-    def _print(cls, text: str) -> None:
-        cls.out_file.write(text)
-
-    @classmethod
-    def color_error(cls, text: Any) -> str:
-        return f"{cls.red}{text}{cls.reset}"
-
-    @classmethod
-    def print_step(cls, text: str) -> None:
-        prefix = cls.prefix + " " * cls.level
-        if sys.exc_info()[0]:
-            # We are falling through exception handling blocks.
-            # De-emphasize this step here, so the user can tell more
-            # easily which step generated the exception. The exception
-            # or error will only be printed after we finish cleanup.
-            cls._print(f"{prefix}({text})\n")
-        else:
-            cls._print(f"{prefix}{cls.bold}{text}{cls.reset}\n")
-
-    @classmethod
-    def info(cls, text: str) -> None:
-        cls._print(text + "\n")
-
-    @classmethod
-    def warn(cls, text: str) -> None:
-        cls._print(f"{cls.prefix}{cls.color_error(text)}\n")
-
-    @classmethod
-    @contextlib.contextmanager
-    def complete_step(cls, text: str, text2: Optional[str] = None) -> Iterator[list[Any]]:
-        cls.print_step(text)
-
-        cls.level += 1
-        try:
-            args: list[Any] = []
-            yield args
-        finally:
-            cls.level -= 1
-            assert cls.level >= 0
-
-        if text2 is not None:
-            cls.print_step(text2.format(*args))
-
-
-def chown_to_running_user(path: Path) -> None:
-    uid = int(os.getenv("SUDO_UID") or os.getenv("PKEXEC_UID") or str(os.getuid()))
-    user = pwd.getpwuid(uid).pw_name
-    gid = pwd.getpwuid(uid).pw_gid
-
-    with MkosiPrinter.complete_step(
-        f"Changing ownership of output file {path} to user {user}…",
-        f"Changed ownership of {path}",
-    ):
-        os.chown(path, uid, gid)
-
-
-def mkdirp_chown_current_user(
-    path: PathString,
-    *,
-    chown: bool = True,
-    mode: int = 0o777,
-    exist_ok: bool = True
-) -> None:
-    abspath = Path(path).absolute()
-    path = Path()
-
-    for d in abspath.parts:
-        path /= d
-        if path.exists():
-            continue
-
-        path.mkdir(mode=mode, exist_ok=exist_ok)
-
-        if chown:
-            chown_to_running_user(path)
-
-
 def safe_tar_extract(tar: tarfile.TarFile, path: Path=Path("."), *, numeric_owner: bool=False) -> None:
     """Extract a tar without CVE-2007-4559.
 
@@ -835,9 +507,6 @@ def safe_tar_extract(tar: tarfile.TarFile, path: Path=Path("."), *, numeric_owne
             raise MkosiException(f"Attempted path traversal in tar file {tar.name!r}") from e
 
     tar.extractall(path, numeric_owner=numeric_owner)
-
-
-complete_step = MkosiPrinter.complete_step
 
 
 def disable_pam_securetty(root: Path) -> None:
@@ -874,17 +543,12 @@ def sort_packages(packages: Iterable[str]) -> list[str]:
     return sorted(packages, key=sort)
 
 
-def scandir_recursive(
-    root: Path,
-    filter: Optional[Callable[[os.DirEntry[str]], T]] = None,
-) -> Iterator[T]:
-    """Recursively walk the tree starting at @root, optionally apply filter, yield non-none values"""
-    queue: Deque[Union[str, Path]] = collections.deque([root])
+def flatten(lists: Iterable[Iterable[T]]) -> list[T]:
+    """Flatten a sequence of sequences into a single list."""
+    return list(itertools.chain.from_iterable(lists))
 
-    while queue:
-        for entry in os.scandir(queue.pop()):
-            pred = filter(entry) if filter is not None else entry
-            if pred is not None:
-                yield cast(T, pred)
-            if entry.is_dir(follow_symlinks=False):
-                queue.append(entry.path)
+
+def current_user_uid_gid() -> tuple[int, int]:
+    uid = int(os.getenv("SUDO_UID") or os.getenv("PKEXEC_UID") or os.getuid())
+    gid = pwd.getpwuid(uid).pw_gid
+    return uid, gid

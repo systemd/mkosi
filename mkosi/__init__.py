@@ -4,8 +4,6 @@ import argparse
 import configparser
 import contextlib
 import crypt
-import ctypes
-import ctypes.util
 import dataclasses
 import datetime
 import errno
@@ -18,6 +16,7 @@ import math
 import os
 import platform
 import re
+import resource
 import shlex
 import shutil
 import string
@@ -29,50 +28,26 @@ import uuid
 from collections.abc import Iterable, Iterator, Sequence
 from pathlib import Path
 from textwrap import dedent, wrap
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    BinaryIO,
-    Callable,
-    NoReturn,
-    Optional,
-    TextIO,
-    TypeVar,
-    Union,
-    cast,
-)
+from typing import Any, Callable, NoReturn, Optional, TextIO, TypeVar, Union, cast
 
 from mkosi.backend import (
-    ARG_DEBUG,
     Distribution,
     ManifestFormat,
     MkosiConfig,
-    MkosiException,
-    MkosiNotSupportedException,
-    MkosiPrinter,
     MkosiState,
     OutputFormat,
-    SourceFileTransfer,
     Verb,
-    chown_to_running_user,
+    current_user_uid_gid,
     detect_distribution,
-    die,
+    flatten,
+    format_rlimit,
     is_centos_variant,
     is_rpm_distribution,
-    mkdirp_chown_current_user,
-    nspawn_knows_arg,
-    nspawn_rlimit_params,
-    nspawn_version,
     patch_file,
     path_relative_to_cwd,
-    run,
-    run_workspace_command,
-    scandir_recursive,
     set_umask,
     should_compress_output,
-    spawn,
     tmp_dir,
-    warn,
 )
 from mkosi.install import (
     add_dropin_config,
@@ -81,9 +56,26 @@ from mkosi.install import (
     flock,
     install_skeleton_trees,
 )
+from mkosi.log import (
+    ARG_DEBUG,
+    MkosiException,
+    MkosiNotSupportedException,
+    MkosiPrinter,
+    die,
+    warn,
+)
 from mkosi.manifest import Manifest
-from mkosi.mounts import dissect_and_mount, mount_bind, mount_overlay, mount_tmpfs
+from mkosi.mounts import dissect_and_mount, mount_bind, mount_overlay, scandir_recursive
 from mkosi.remove import unlink_try_hard
+from mkosi.run import (
+    become_root,
+    fork_and_wait,
+    init_mount_namespace,
+    run,
+    run_workspace_command,
+    spawn,
+)
+from mkosi.types import PathString, TempDir
 
 complete_step = MkosiPrinter.complete_step
 color_error = MkosiPrinter.color_error
@@ -92,21 +84,8 @@ color_error = MkosiPrinter.color_error
 __version__ = "14"
 
 
-# These types are only generic during type checking and not at runtime, leading
-# to a TypeError during compilation.
-# Let's be as strict as we can with the description for the usage we have.
-if TYPE_CHECKING:
-    CompletedProcess = subprocess.CompletedProcess[Any]
-    TempDir = tempfile.TemporaryDirectory[str]
-else:
-    CompletedProcess = subprocess.CompletedProcess
-    TempDir = tempfile.TemporaryDirectory
-
-SomeIO = Union[BinaryIO, TextIO]
-PathString = Union[Path, str]
-
 MKOSI_COMMANDS_NEED_BUILD = (Verb.shell, Verb.boot, Verb.qemu, Verb.serve)
-MKOSI_COMMANDS_SUDO = (Verb.build, Verb.clean, Verb.shell, Verb.boot)
+MKOSI_COMMANDS_SUDO = (Verb.shell, Verb.boot)
 MKOSI_COMMANDS_CMDLINE = (Verb.build, Verb.shell, Verb.boot, Verb.qemu, Verb.ssh)
 
 DRACUT_SYSTEMD_EXTRAS = [
@@ -148,8 +127,6 @@ def print_running_cmd(cmdline: Iterable[PathString]) -> None:
     MkosiPrinter.print_step(" ".join(shlex.quote(str(x)) for x in cmdline) + "\n")
 
 
-CLONE_NEWNS = 0x00020000
-
 # EFI has its own conventions too
 EFI_ARCHITECTURES = {
     "x86_64": "x64",
@@ -158,17 +135,6 @@ EFI_ARCHITECTURES = {
     "armhfp": "arm",
     "riscv64:": "riscv64",
 }
-
-
-def unshare(flags: int) -> None:
-    libc_name = ctypes.util.find_library("c")
-    if libc_name is None:
-        die("Could not find libc")
-    libc = ctypes.CDLL(libc_name, use_errno=True)
-
-    if libc.unshare(ctypes.c_int(flags)) != 0:
-        e = ctypes.get_errno()
-        raise OSError(e, os.strerror(e))
 
 
 def format_bytes(num_bytes: int) -> str:
@@ -181,11 +147,6 @@ def format_bytes(num_bytes: int) -> str:
 
     return f"{num_bytes}B"
 
-
-@complete_step("Detaching namespace")
-def init_namespace() -> None:
-    unshare(CLONE_NEWNS)
-    run(["mount", "--make-rslave", "/"])
 
 
 def setup_workspace(config: MkosiConfig) -> TempDir:
@@ -202,7 +163,7 @@ def setup_workspace(config: MkosiConfig) -> TempDir:
             while str(p).startswith(str(config.build_sources)):
                 p = p.parent
 
-            d = tempfile.TemporaryDirectory(dir=p, prefix=f"mkosi.{config.build_sources.name}.tmp")
+            d = tempfile.TemporaryDirectory(dir=p, prefix=f".mkosi.{config.build_sources.name}.tmp")
         output.append(d)
 
     return d
@@ -226,14 +187,6 @@ def mount_image(state: MkosiState, cached: bool) -> Iterator[None]:
             workdir = state.workspace / "workdir"
             workdir.mkdir()
             stack.enter_context(mount_overlay(base, state.root, workdir, state.root))
-        else:
-            # always have a root of the tree as a mount point so we can recursively unmount anything that
-            # ends up mounted there.
-            stack.enter_context(mount_bind(state.root))
-
-        # Make sure /tmp and /run are not part of the image
-        stack.enter_context(mount_tmpfs(state.root / "run"))
-        stack.enter_context(mount_tmpfs(state.root / "tmp"))
 
         if state.do_run_build_script and state.config.include_dir and not cached:
             stack.enter_context(mount_bind(state.config.include_dir, state.root / "usr/include"))
@@ -268,17 +221,6 @@ def configure_hostname(state: MkosiState, cached: bool) -> None:
     if state.config.hostname:
         with complete_step("Assigning hostname"):
             etc_hostname.write_text(state.config.hostname + "\n")
-
-
-@contextlib.contextmanager
-def mount_cache(state: MkosiState) -> Iterator[None]:
-    cache_paths = state.installer.cache_path()
-
-    # We can't do this in mount_image() yet, as /var itself might have to be created as a subvolume first
-    with complete_step("Mounting Package Cache", "Unmounting Package Cache"), contextlib.ExitStack() as stack:
-        for cache_path in cache_paths:
-            stack.enter_context(mount_bind(state.cache, state.root / cache_path))
-        yield
 
 
 def configure_dracut(state: MkosiState, cached: bool) -> None:
@@ -320,6 +262,7 @@ def prepare_tree(state: MkosiState, cached: bool) -> None:
         return
 
     with complete_step("Setting up basic OS tree…"):
+        state.root.mkdir(mode=0o755, exist_ok=True)
         # We need an initialized machine ID for the build & boot logic to work
         state.root.joinpath("etc").mkdir(mode=0o755, exist_ok=True)
         state.root.joinpath("etc/machine-id").write_text(f"{state.machine_id}\n")
@@ -328,11 +271,6 @@ def prepare_tree(state: MkosiState, cached: bool) -> None:
         state.root.joinpath("etc/kernel/cmdline").write_text(" ".join(state.config.kernel_command_line) + "\n")
         state.root.joinpath("etc/kernel/entry-token").write_text(f"{state.machine_id}\n")
         state.root.joinpath("etc/kernel/install.conf").write_text("layout=bls\n")
-
-
-def flatten(lists: Iterable[Iterable[T]]) -> list[T]:
-    """Flatten a sequence of sequences into a single list."""
-    return list(itertools.chain.from_iterable(lists))
 
 
 def clean_paths(
@@ -464,8 +402,7 @@ def install_distribution(state: MkosiState, cached: bool) -> None:
     if cached:
         return
 
-    with mount_cache(state):
-        state.installer.install(state)
+    state.installer.install(state)
 
 
 def remove_packages(state: MkosiState) -> None:
@@ -608,22 +545,8 @@ def configure_serial_terminal(state: MkosiState, cached: bool) -> None:
                           """)
 
 
-def nspawn_id_map_supported() -> bool:
-    if nspawn_version() < 252:
-        return False
-
-    ret = run(["systemd-analyze", "compare-versions", platform.release(), ">=", "5.12"], check=False)
-    return ret.returncode == 0
-
-
-def nspawn_params_for_build_sources(config: MkosiConfig, sft: SourceFileTransfer) -> list[str]:
-    params = ["--setenv=SRCDIR=/root/src",
-              "--chdir=/root/src"]
-    if sft == SourceFileTransfer.mount:
-        idmap_opt = ":rootidmap" if nspawn_id_map_supported() and config.idmap else ""
-        params += [f"--bind={config.build_sources}:/root/src{idmap_opt}"]
-
-    return params
+def cache_params(state: MkosiState, root: Path) -> list[PathString]:
+    return flatten(("--bind", state.config.cache_path, root / p) for p in state.installer.cache_path())
 
 
 def run_prepare_script(state: MkosiState, cached: bool) -> None:
@@ -634,24 +557,22 @@ def run_prepare_script(state: MkosiState, cached: bool) -> None:
 
     verb = "build" if state.do_run_build_script else "final"
 
-    with mount_cache(state), complete_step("Running prepare script…"):
+    with complete_step("Running prepare script…"):
+        bwrap: list[PathString] = [
+            "--bind", state.config.build_sources, "/root/src",
+            "--bind", state.config.prepare_script, "/root/prepare",
+            *cache_params(state, Path("/")),
+            "--chdir", "/root/src",
+        ]
 
-        # We copy the prepare script into the build tree. We'd prefer
-        # mounting it into the tree, but for that we'd need a good
-        # place to mount it to. But if we create that we might as well
-        # just copy the file anyway.
-
-        shutil.copy2(state.config.prepare_script, state.root / "root/prepare")
-
-        nspawn_params = nspawn_params_for_build_sources(state.config, SourceFileTransfer.mount)
-        run_workspace_command(state, ["/root/prepare", verb],
-                              network=True, nspawn_params=nspawn_params, env=state.environment)
+        run_workspace_command(state, ["/root/prepare", verb], network=True, bwrap_params=bwrap,
+                              env=dict(SRCDIR="/root/src"))
 
         srcdir = state.root / "root/src"
         if srcdir.exists():
-            os.rmdir(srcdir)
+            srcdir.rmdir()
 
-        os.unlink(state.root / "root/prepare")
+        state.root.joinpath("root/prepare").unlink()
 
 
 def run_postinst_script(state: MkosiState) -> None:
@@ -662,17 +583,15 @@ def run_postinst_script(state: MkosiState) -> None:
 
     verb = "build" if state.do_run_build_script else "final"
 
-    with mount_cache(state), complete_step("Running postinstall script…"):
+    with complete_step("Running postinstall script…"):
+        bwrap: list[PathString] = [
+            "--bind", state.config.postinst_script, "/root/postinst",
+            *cache_params(state, Path("/")),
+        ]
 
-        # We copy the postinst script into the build tree. We'd prefer
-        # mounting it into the tree, but for that we'd need a good
-        # place to mount it to. But if we create that we might as well
-        # just copy the file anyway.
+        run_workspace_command(state, ["/root/postinst", verb], bwrap_params=bwrap,
+                              network=state.config.with_network is True)
 
-        shutil.copy2(state.config.postinst_script, state.root / "root/postinst")
-
-        run_workspace_command(state, ["/root/postinst", verb],
-                              network=(state.config.with_network is True), env=state.environment)
         state.root.joinpath("root/postinst").unlink()
 
 
@@ -694,7 +613,7 @@ def install_boot_loader(state: MkosiState) -> None:
         return
 
     with complete_step("Installing boot loader…"):
-        run(["bootctl", "install", "--root", state.root], env={"SYSTEMD_ESP_PATH": "/boot"})
+        run(["bootctl", "install", "--root", state.root], env={"SYSTEMD_ESP_PATH": "/boot", **os.environ})
 
 
 def install_extra_trees(state: MkosiState) -> None:
@@ -707,7 +626,7 @@ def install_extra_trees(state: MkosiState) -> None:
     with complete_step("Copying in extra file trees…"):
         for tree in state.config.extra_trees:
             if tree.is_dir():
-                copy_path(tree, state.root)
+                copy_path(tree, state.root, preserve_owner=False)
             else:
                 # unpack_archive() groks Paths, but mypy doesn't know this.
                 # Pretend that tree is a str.
@@ -724,104 +643,6 @@ def chdir(directory: Path) -> Iterator[Path]:
         os.chdir(c)
 
 
-def copy_git_files(src: Path, dest: Path, *, source_file_transfer: SourceFileTransfer) -> None:
-    what_files = ["--exclude-standard", "--cached"]
-    if source_file_transfer == SourceFileTransfer.copy_git_others:
-        what_files += ["--others", "--exclude=.mkosi-*"]
-
-    uid = int(os.getenv("SUDO_UID", 0))
-
-    c = run(["git", "-C", src, "ls-files", "-z", *what_files], stdout=subprocess.PIPE, text=False, user=uid)
-    files = {x.decode("utf-8") for x in c.stdout.rstrip(b"\0").split(b"\0")}
-
-    # Add the .git/ directory in as well.
-    if source_file_transfer == SourceFileTransfer.copy_git_more:
-        top = os.path.join(src, ".git/")
-        for path, _, filenames in os.walk(top):
-            for filename in filenames:
-                fp = os.path.join(path, filename)  # full path
-                fr = os.path.join(".git/", fp.removeprefix(top))  # relative to top
-                files.add(fr)
-
-    # Get submodule files
-    c = run(["git", "-C", src, "submodule", "status", "--recursive"], stdout=subprocess.PIPE, text=True, user=uid)
-    submodules = {x.split()[1] for x in c.stdout.splitlines()}
-
-    # workaround for git ls-files returning the path of submodules that we will
-    # still parse
-    files -= submodules
-
-    for sm in submodules:
-        sm = Path(sm)
-        c = run(
-            ["git", "-C", src / sm, "ls-files", "-z"] + what_files,
-            stdout=subprocess.PIPE,
-            text=False,
-            user=uid,
-        )
-        files |= {sm / x.decode("utf-8") for x in c.stdout.rstrip(b"\0").split(b"\0")}
-        files -= submodules
-
-        # Add the .git submodule file well.
-        if source_file_transfer == SourceFileTransfer.copy_git_more:
-            files.add(os.path.join(sm, ".git"))
-
-    del c
-
-    dest.mkdir(exist_ok=True)
-
-    with chdir(src):
-        run(["cp", "--parents", "--archive", "--reflink=auto", *files, dest])
-
-
-def install_build_src(state: MkosiState) -> None:
-    if state.for_cache:
-        return
-
-    if state.do_run_build_script:
-        if state.config.build_script is not None:
-            with complete_step("Copying in build script…"):
-                copy_path(state.config.build_script, state.root / "root" / state.config.build_script.name)
-        else:
-            return
-
-    sft: Optional[SourceFileTransfer] = None
-    resolve_symlinks: bool = False
-    if state.do_run_build_script:
-        sft = state.config.source_file_transfer
-        resolve_symlinks = state.config.source_resolve_symlinks
-    else:
-        sft = state.config.source_file_transfer_final
-        resolve_symlinks = state.config.source_resolve_symlinks_final
-
-    if sft is None:
-        return
-
-    with complete_step("Copying in sources…"):
-        target = state.root / "root/src"
-
-        if sft in (
-            SourceFileTransfer.copy_git_others,
-            SourceFileTransfer.copy_git_cached,
-            SourceFileTransfer.copy_git_more,
-        ):
-            copy_git_files(state.config.build_sources, target, source_file_transfer=sft)
-        elif sft == SourceFileTransfer.copy_all:
-            ignore = shutil.ignore_patterns(
-                ".git",
-                ".mkosi-*",
-                "*.cache-pre-dev",
-                "*.cache-pre-inst",
-                f"{state.config.output_dir.name}/" if state.config.output_dir else "mkosi.output/",
-                f"{state.config.workspace_dir.name}/" if state.config.workspace_dir else "mkosi.workspace/",
-                f"{state.config.cache_path.name}/" if state.config.cache_path else "mkosi.cache/",
-                f"{state.config.build_dir.name}/" if state.config.build_dir else "mkosi.builddir/",
-                f"{state.config.include_dir.name}/" if state.config.include_dir else "mkosi.includedir/",
-                f"{state.config.install_dir.name}/" if state.config.install_dir else "mkosi.installdir/",
-            )
-            shutil.copytree(state.config.build_sources, target, symlinks=not resolve_symlinks, ignore=ignore)
-
-
 def install_build_dest(state: MkosiState) -> None:
     if state.do_run_build_script:
         return
@@ -832,7 +653,8 @@ def install_build_dest(state: MkosiState) -> None:
         return
 
     with complete_step("Copying in build tree…"):
-        copy_path(install_dir(state), state.root)
+        # The build is executed as a regular user, so we don't want to copy ownership in this scenario.
+        copy_path(install_dir(state), state.root, preserve_owner=False)
 
 
 def xz_binary() -> str:
@@ -1123,7 +945,7 @@ def secure_boot_configure_auto_enroll(state: MkosiState) -> None:
             )
 
 
-def compress_output(config: MkosiConfig, src: Path) -> None:
+def compress_output(config: MkosiConfig, src: Path, uid: int, gid: int) -> None:
     compress = should_compress_output(config)
 
     if not src.is_file():
@@ -1132,10 +954,10 @@ def compress_output(config: MkosiConfig, src: Path) -> None:
     if not compress:
         # If we shan't compress, then at least make the output file sparse
         with complete_step(f"Digging holes into output file {src}…"):
-            run(["fallocate", "--dig-holes", src])
+            run(["fallocate", "--dig-holes", src], user=uid, group=gid)
     else:
         with complete_step(f"Compressing output file {src}…"):
-            run(compressor_command(compress, src))
+            run(compressor_command(compress, src), user=uid, group=gid)
 
 
 def qcow2_output(state: MkosiState) -> None:
@@ -1222,15 +1044,31 @@ def calculate_bmap(state: MkosiState) -> None:
         run(cmdline)
 
 
+def acl_toggle_remove(root: Path, uid: int, *, allow: bool) -> None:
+    ret = run(
+        [
+            "setfacl",
+            "--physical",
+            "--modify" if allow else "--remove",
+            f"user:{uid}:rwx" if allow else f"user:{uid}",
+            "-",
+        ],
+        check=False,
+        text=True,
+        # Supply files via stdin so we don't clutter --debug run output too much
+        input="\n".join([str(root), *(e.path for e in cast(Iterator[os.DirEntry[str]], scandir_recursive(root)) if e.is_dir())])
+    )
+    if ret.returncode != 0:
+        warn("Failed to set ACLs, you'll need root privileges to remove some generated files/directories")
+
+
 def save_cache(state: MkosiState) -> None:
     cache = cache_tree_path(state.config, is_final_image=False) if state.do_run_build_script else cache_tree_path(state.config, is_final_image=True)
 
     with complete_step("Installing cache copy…", f"Installed cache copy {path_relative_to_cwd(cache)}"):
         unlink_try_hard(cache)
         shutil.move(state.root, cache)
-
-    if state.config.chown:
-        chown_to_running_user(cache)
+        acl_toggle_remove(cache, state.uid, allow=True)
 
 
 def dir_size(path: PathString) -> int:
@@ -1279,7 +1117,6 @@ def setup_package_cache(config: MkosiConfig, workspace: Path) -> Path:
         cache = workspace / "cache"
     else:
         cache = config.cache_path
-        mkdirp_chown_current_user(cache, chown=config.chown, mode=0o755)
 
     return cache
 
@@ -1485,9 +1322,8 @@ class CustomHelpFormatter(argparse.HelpFormatter):
         """
         lines = text.splitlines()
         subindent = '    ' if lines[0].endswith(':') else ''
-        return list(itertools.chain.from_iterable(wrap(line, width,
-                                                       break_long_words=False, break_on_hyphens=False,
-                                                       subsequent_indent=subindent) for line in lines))
+        return flatten(wrap(line, width, break_long_words=False, break_on_hyphens=False,
+                            subsequent_indent=subindent) for line in lines)
 
 
 class ArgumentParserMkosi(argparse.ArgumentParser):
@@ -1614,15 +1450,6 @@ def parse_compression(value: str) -> Union[str, bool]:
     if value in COMPRESSION_ALGORITHMS:
         return value
     return parse_boolean(value)
-
-
-def parse_source_file_transfer(value: str) -> Optional[SourceFileTransfer]:
-    if value == "":
-        return None
-    try:
-        return SourceFileTransfer(value)
-    except Exception as exp:
-        raise argparse.ArgumentTypeError(str(exp))
 
 
 def parse_base_packages(value: str) -> Union[str, bool]:
@@ -1853,20 +1680,6 @@ def create_parser() -> ArgumentParserMkosi:
     group.add_argument("--image-version", help="Set version for image")
     group.add_argument("--image-id", help="Set ID for image")
     group.add_argument(
-        "--chown",
-        metavar="BOOL",
-        action=BooleanAction,
-        default=True,
-        help="When running with sudo, reassign ownership of the generated files to the original user",
-    )  # NOQA: E501
-    group.add_argument(
-        "--idmap",
-        metavar="BOOL",
-        action=BooleanAction,
-        default=True,
-        help="Use systemd-nspawn's rootidmap option for bind-mounted directories.",
-    )
-    group.add_argument(
         "--tar-strip-selinux-context",
         metavar="BOOL",
         action=BooleanAction,
@@ -2086,47 +1899,6 @@ def create_parser() -> ArgumentParserMkosi:
         metavar="PATH",
     )
     group.add_argument(
-        "--source-file-transfer",
-        type=parse_source_file_transfer,
-        choices=[*list(SourceFileTransfer), None],
-        metavar="METHOD",
-        default=None,
-        help='\n'.join(('How to copy build sources to the build image:',
-                        *(f"'{k}': {v}" for k, v in SourceFileTransfer.doc().items()),
-                        '(default: copy-git-others if in a git repository, otherwise copy-all)')),
-    )
-    group.add_argument(
-        "--source-file-transfer-final",
-        type=parse_source_file_transfer,
-        choices=[*list(SourceFileTransfer), None],
-        metavar="METHOD",
-        default=None,
-        help='\n'.join(('How to copy build sources to the final image:',
-                        *(f"'{k}': {v}" for k, v in SourceFileTransfer.doc().items()
-                          if k != SourceFileTransfer.mount),
-                        '(default: None)')),
-    )
-    group.add_argument(
-        "--source-resolve-symlinks",
-        metavar="BOOL",
-        action=BooleanAction,
-        help=("If true, symbolic links in the build sources are followed and the "
-              "file contents copied to the build image. If false, they are left as "
-              "symbolic links. "
-              "Only applies if --source-file-transfer-final is set to 'copy-all'.\n"
-              "(default: false)"),
-    )
-    group.add_argument(
-        "--source-resolve-symlinks-final",
-        metavar="BOOL",
-        action=BooleanAction,
-        help=("If true, symbolic links in the build sources are followed and the "
-              "file contents copied to the final image. If false, they are left as "
-              "symbolic links in the final image. "
-              "Only applies if --source-file-transfer-final is set to 'copy-all'.\n"
-              "(default: false)"),
-    )
-    group.add_argument(
         "--with-network",
         action=WithNetworkAction,
         help="Run build and postinst scripts with network access (instead of private network)",
@@ -2213,12 +1985,6 @@ def create_parser() -> ArgumentParserMkosi:
         # Suppress the command line option because it's already possible to pass qemu args as normal
         # arguments.
         help=argparse.SUPPRESS,
-    )
-    group.add_argument(
-        "--nspawn-keep-unit",
-        metavar="BOOL",
-        action=BooleanAction,
-        help="If specified, underlying systemd-nspawn containers use the resources of the current unit.",
     )
     group.add_argument(
         "--network-veth",     # Compatibility option
@@ -2725,7 +2491,6 @@ def normalize_script(path: Optional[Path]) -> Optional[Path]:
 
 
 def load_args(args: argparse.Namespace) -> MkosiConfig:
-    global ARG_DEBUG
     ARG_DEBUG.update(args.debug)
 
     args_find_path(args, "nspawn_settings", "mkosi.nspawn")
@@ -2946,15 +2711,6 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
     # --qemu-headless is enabled to avoid this spam.
     if args.qemu_headless and not any("loglevel" in x for x in args.kernel_command_line):
         args.kernel_command_line.append("loglevel=4")
-
-    if args.source_file_transfer is None:
-        if os.path.exists(".git") or args.build_sources.joinpath(".git").exists():
-            args.source_file_transfer = SourceFileTransfer.copy_git_others
-        else:
-            args.source_file_transfer = SourceFileTransfer.copy_all
-
-    if args.source_file_transfer_final == SourceFileTransfer.mount and args.verb == Verb.qemu:
-        die("Sorry, --source-file-transfer-final=mount is not supported when booting in QEMU")
 
     if args.skip_final_phase and args.verb != Verb.build:
         die("--skip-final-phase can only be used when building an image using 'mkosi build'", MkosiNotSupportedException)
@@ -3216,8 +2972,6 @@ def print_summary(config: MkosiConfig) -> None:
         print("           Remove Packages:", line_join_list(config.remove_packages))
 
     print("             Build Sources:", config.build_sources)
-    print("      Source File Transfer:", none_to_none(config.source_file_transfer))
-    print("Source File Transfer Final:", none_to_none(config.source_file_transfer_final))
     print("           Build Directory:", none_to_none(config.build_dir))
     print("         Include Directory:", none_to_none(config.include_dir))
     print("         Install Directory:", none_to_none(config.install_dir))
@@ -3256,33 +3010,40 @@ def print_summary(config: MkosiConfig) -> None:
     print("                    Netdev:", yes_no(config.netdev))
 
 
-def make_output_dir(config: MkosiConfig) -> None:
+def make_output_dir(state: MkosiState) -> None:
     """Create the output directory if set and not existing yet"""
-    if config.output_dir is None:
+    if state.config.output_dir is None:
         return
 
-    mkdirp_chown_current_user(config.output_dir, chown=config.chown, mode=0o755)
+    run(["mkdir", "-p", state.config.output_dir], user=state.uid, group=state.gid)
 
 
-def make_build_dir(config: MkosiConfig) -> None:
+def make_build_dir(state: MkosiState) -> None:
     """Create the build directory if set and not existing yet"""
-    if config.build_dir is None:
+    if state.config.build_dir is None:
         return
 
-    mkdirp_chown_current_user(config.build_dir, chown=config.chown, mode=0o755)
+    run(["mkdir", "-p", state.config.build_dir], user=state.uid, group=state.gid)
 
 
-def make_cache_dir(config: MkosiConfig) -> None:
-    """Create the output directory if set and not existing yet"""
-    # TODO: mypy complains that having the same structure as above, makes  the
-    # return on None unreachable code. I can't see right now, why it *should* be
-    # unreachable, so invert the structure here to be on the safe side.
-    if config.cache_path is not None:
-        mkdirp_chown_current_user(config.cache_path, chown=config.chown, mode=0o755)
+def make_cache_dir(state: MkosiState) -> None:
+    """Create the cache directory if set and not existing yet"""
+    run(["mkdir", "-p", state.config.cache_path], user=state.uid, group=state.gid)
 
 
-def configure_ssh(state: MkosiState, cached: bool) -> None:
-    if state.do_run_build_script or not state.config.ssh:
+def make_install_dir(state: MkosiState) -> None:
+    # If no install directory is configured, it'll be located in the workspace which is owned by root in the
+    # userns so we have to run as the same user.
+    run(["mkdir", "-p", install_dir(state)],
+        user=state.uid if state.config.install_dir else 0,
+        group=state.gid if state.config.install_dir else 0)
+    # Make sure the install dir is always owned by the user running mkosi since the build will be running as
+    # the same user and needs to be able to write files here.
+    os.chown(install_dir(state), state.uid, state.gid)
+
+
+def configure_ssh(state: MkosiState) -> None:
+    if state.do_run_build_script or state.for_cache or not state.config.ssh:
         return
 
     if state.config.distribution in (Distribution.debian, Distribution.ubuntu):
@@ -3304,20 +3065,13 @@ def configure_ssh(state: MkosiState, cached: bool) -> None:
     else:
         unit = "sshd"
 
-    # We cache the enable sshd step but not the keygen step because it creates a separate file on the host
-    # which introduces non-trivial issue when trying to cache it.
-
-    if not cached:
-        run(["systemctl", "--root", state.root, "enable", unit])
-
-    if state.for_cache:
-        return
+    run(["systemctl", "--root", state.root, "enable", unit])
 
     authorized_keys = state.root / "root/.ssh/authorized_keys"
     if state.config.ssh_key:
-        copy_path(Path(f"{state.config.ssh_key}.pub"), authorized_keys)
+        copy_path(Path(f"{state.config.ssh_key}.pub"), authorized_keys, preserve_owner=False)
     elif state.config.ssh_agent is not None:
-        env = {"SSH_AUTH_SOCK": state.config.ssh_agent}
+        env = {"SSH_AUTH_SOCK": str(state.config.ssh_agent), **os.environ}
         result = run(["ssh-add", "-L"], env=env, text=True, stdout=subprocess.PIPE)
         authorized_keys.write_text(result.stdout)
     else:
@@ -3330,10 +3084,12 @@ def configure_ssh(state: MkosiState, cached: bool) -> None:
                 input="y\n",
                 text=True,
                 stdout=subprocess.DEVNULL,
+                user=state.uid,
+                group=state.gid,
             )
 
         authorized_keys.parent.mkdir(parents=True, exist_ok=True)
-        copy_path(p.with_suffix(".pub"), authorized_keys)
+        copy_path(p.with_suffix(".pub"), authorized_keys, preserve_owner=False)
         os.remove(p.with_suffix(".pub"))
 
     authorized_keys.chmod(0o600)
@@ -3411,6 +3167,7 @@ def reuse_cache_tree(state: MkosiState) -> bool:
 
     with complete_step(f"Basing off cached tree {cache}", "Copied cached tree"):
         copy_path(cache, state.root)
+        acl_toggle_remove(state.root, state.uid, allow=False)
 
     return True
 
@@ -3501,8 +3258,6 @@ def build_image(state: MkosiState, *, manifest: Optional[Manifest] = None) -> No
     if state.config.build_script is None and state.do_run_build_script:
         return
 
-    make_build_dir(state.config)
-
     cached = reuse_cache_tree(state)
     if state.for_cache and cached:
         return
@@ -3519,12 +3274,11 @@ def build_image(state: MkosiState, *, manifest: Optional[Manifest] = None) -> No
         configure_dracut(state, cached)
         configure_netdev(state, cached)
         run_prepare_script(state, cached)
-        install_build_src(state)
         install_build_dest(state)
         install_extra_trees(state)
         run_kernel_install(state, cached)
         install_boot_loader(state)
-        configure_ssh(state, cached)
+        configure_ssh(state)
         run_postinst_script(state)
         run_preset_all(state)
         secure_boot_configure_auto_enroll(state)
@@ -3573,75 +3327,55 @@ def run_build_script(state: MkosiState) -> None:
     if state.config.build_script is None:
         return
 
-    idmap_opt = ":rootidmap" if nspawn_id_map_supported() and state.config.idmap else ""
-
     with complete_step("Running build script…"):
-        os.makedirs(install_dir(state), mode=0o755, exist_ok=True)
+        # Bubblewrap creates bind mount point parent directories with restrictive permissions so we create
+        # the work directory outselves here.
+        state.root.joinpath("work").mkdir(mode=0o755)
 
-        with_network = 1 if state.config.with_network is True else 0
-
-        cmdline = [
-            "systemd-nspawn",
-            "--quiet",
-            f"--directory={state.root}",
-            f"--machine=mkosi-{uuid.uuid4().hex}",
-            "--as-pid2",
-            "--link-journal=no",
-            "--register=no",
-            f"--bind={install_dir(state)}:/root/dest{idmap_opt}",
-            f"--bind={state.var_tmp()}:/var/tmp{idmap_opt}",
-            f"--setenv=WITH_DOCS={one_zero(state.config.with_docs)}",
-            f"--setenv=WITH_TESTS={one_zero(state.config.with_tests)}",
-            f"--setenv=WITH_NETWORK={with_network}",
-            "--setenv=DESTDIR=/root/dest",
-            *nspawn_rlimit_params(),
+        bwrap: list[PathString] = [
+            "--bind", state.config.build_sources, "/work/src",
+            "--bind", state.config.build_script, f"/work/{state.config.build_script.name}",
+            "--bind", install_dir(state), "/work/dest",
+            "--chdir", "/work/src",
         ]
 
-        # TODO: Use --autopipe once systemd v247 is widely available.
-        console_arg = f"--console={'interactive' if sys.stdout.isatty() else 'pipe'}"
-        if nspawn_knows_arg(console_arg):
-            cmdline += [console_arg]
+        env = dict(
+            WITH_DOCS=one_zero(state.config.with_docs),
+            WITH_TESTS=one_zero(state.config.with_tests),
+            WITH_NETWORK=one_zero(state.config.with_network is True),
+            SRCDIR="/work/src",
+            DESTDIR="/work/dest",
+        )
 
         if state.config.config_path is not None:
-            cmdline += [
-                f"--setenv=MKOSI_CONFIG={state.config.config_path}",
-                f"--setenv=MKOSI_DEFAULT={state.config.config_path}"
-            ]
-
-        cmdline += nspawn_params_for_build_sources(state.config, state.config.source_file_transfer)
+            env |= dict(
+                MKOSI_CONFIG=str(state.config.config_path),
+                MKOSI_DEFAULT=str(state.config.config_path),
+            )
 
         if state.config.build_dir is not None:
-            cmdline += ["--setenv=BUILDDIR=/root/build",
-                        f"--bind={state.config.build_dir}:/root/build{idmap_opt}"]
+            bwrap += ["--bind", state.config.build_dir, "/work/build"]
+            env |= dict(BUILDDIR="/work/build")
 
         if state.config.include_dir is not None:
-            cmdline += [f"--bind={state.config.include_dir}:/usr/include{idmap_opt}"]
+            bwrap += ["--bind", state.config.include_dir, "/usr/include"]
 
-        if state.config.with_network is True:
-            # If we're using the host network namespace, use the same resolver
-            cmdline += ["--bind-ro=/etc/resolv.conf"]
-        else:
-            cmdline += ["--private-network"]
-
-        if state.config.nspawn_keep_unit:
-            cmdline += ["--keep-unit"]
-
-        cmdline += [f"--setenv={env}={value}" for env, value in state.environment.items()]
-
-        cmdline += [f"/root/{state.config.build_script.name}"]
-
-        # When we're building the image because it's required for another verb, any passed arguments are most
-        # likely intended for the target verb, and not for "build", so don't add them in that case.
+        cmd = ["setpriv", f"--reuid={state.uid}", f"--regid={state.gid}", "--clear-groups", f"/work/{state.config.build_script.name}"]
+        # When we're building the image because it's required for another verb, any passed arguments are
+        # most likely intended for the target verb, and not for "build", so don't add them in that case.
         if state.config.verb == Verb.build:
-            cmdline += state.config.cmdline
+            cmd += state.config.cmdline
 
-        # build-script output goes to stdout so we can run language servers from within mkosi build-scripts.
-        # See https://github.com/systemd/mkosi/pull/566 for more information.
-        result = run(cmdline, stdout=sys.stdout, check=False)
-        if result.returncode != 0:
-            if "build-script" in ARG_DEBUG:
-                run(cmdline[:-1], check=False)
-            die(f"Build script returned non-zero exit code {result.returncode}.")
+        # build-script output goes to stdout so we can run language servers from within mkosi
+        # build-scripts. See https://github.com/systemd/mkosi/pull/566 for more information.
+        run_workspace_command(state, cmd, network=state.config.with_network is True, bwrap_params=bwrap,
+                              stdout=sys.stdout, env=env)
+
+        state.root.joinpath("work/dest").rmdir()
+        state.root.joinpath("work/src").rmdir()
+        state.root.joinpath("work/build").rmdir()
+        state.root.joinpath("work").joinpath(state.config.build_script.name).unlink()
+        state.root.joinpath("work").rmdir()
 
 
 def need_cache_trees(state: MkosiState) -> bool:
@@ -3667,27 +3401,32 @@ def remove_artifacts(state: MkosiState, for_cache: bool = False) -> None:
         unlink_try_hard(state.var_tmp())
 
 
-def build_stuff(config: MkosiConfig) -> None:
-    make_output_dir(config)
-    make_cache_dir(config)
+def build_stuff(uid: int, gid: int, config: MkosiConfig) -> None:
     workspace = setup_workspace(config)
     workspace_dir = Path(workspace.name)
     cache = setup_package_cache(config, workspace_dir)
 
+    state = MkosiState(
+        uid=uid,
+        gid=gid,
+        config=config,
+        workspace=workspace_dir,
+        cache=cache,
+        do_run_build_script=False,
+        machine_id=config.machine_id or uuid.uuid4().hex,
+        for_cache=False,
+    )
+
     manifest = Manifest(config)
+
+    make_output_dir(state)
+    make_cache_dir(state)
+    make_install_dir(state)
+    make_build_dir(state)
 
     # Make sure tmpfiles' aging doesn't interfere with our workspace
     # while we are working on it.
     with flock(workspace_dir):
-        state = MkosiState(
-            config=config,
-            workspace=workspace_dir,
-            cache=cache,
-            do_run_build_script=False,
-            machine_id=config.machine_id or uuid.uuid4().hex,
-            for_cache=False,
-        )
-
         # If caching is requested, then make sure we have cache trees around we can make use of
         if need_cache_trees(state):
 
@@ -3730,28 +3469,29 @@ def build_stuff(config: MkosiConfig) -> None:
         calculate_signature(state)
         save_manifest(state, manifest)
 
+        if state.config.cache_path:
+            acl_toggle_remove(state.config.cache_path, state.uid, allow=True)
+
         for p in state.config.output_paths():
             if state.staging.joinpath(p.name).exists():
                 shutil.move(state.staging / p.name, p)
+                if p != state.config.output or state.config.output_format != OutputFormat.directory:
+                    os.chown(p, state.uid, state.gid)
+                else:
+                    acl_toggle_remove(p, uid, allow=True)
                 if p in (state.config.output, state.config.output_split_kernel):
-                    compress_output(state.config, p)
-            if state.config.chown and p.exists():
-                chown_to_running_user(p)
+                    compress_output(state.config, p, uid=state.uid, gid=state.gid)
 
         for p in state.staging.iterdir():
             shutil.move(p, state.config.output.parent / p.name)
+            os.chown(state.config.output.parent / p.name, state.uid, state.gid)
             if p.name.startswith(state.config.output.name):
-                compress_output(state.config, p)
+                compress_output(state.config, p, uid=state.uid, gid=state.gid)
 
 
 def check_root() -> None:
     if os.getuid() != 0:
         die("Must be invoked as root.")
-
-
-def check_native(config: MkosiConfig) -> None:
-    if not config.architecture_is_native() and config.build_script and nspawn_version() < 250:
-        die("Cannot (currently) override the architecture and run build commands")
 
 
 @contextlib.contextmanager
@@ -3822,13 +3562,26 @@ def ensure_networkd(config: MkosiConfig) -> bool:
     return True
 
 
-def run_shell(config: MkosiConfig) -> None:
-    if config.output_format in (OutputFormat.directory, OutputFormat.subvolume):
-        target = f"--directory={config.output}"
-    else:
-        target = f"--image={config.output}"
+def nspawn_knows_arg(arg: str) -> bool:
+    # Specify some extra incompatible options so nspawn doesn't try to boot a container in the current
+    # directory if it has a compatible layout.
+    return "unrecognized option" not in run(["systemd-nspawn", arg,
+                                            "--directory", "/dev/null", "--image", "/dev/null"],
+                                            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, check=False,
+                                            text=True).stderr
 
-    cmdline = ["systemd-nspawn", "--quiet", target]
+
+def run_shell(config: MkosiConfig) -> None:
+    cmdline: list[PathString] = ["systemd-nspawn", "--quiet"]
+
+    if config.output_format in (OutputFormat.directory, OutputFormat.subvolume):
+        cmdline += ["--directory", config.output]
+
+        owner = os.stat(config.output).st_uid
+        if owner != 0:
+            cmdline += [f"--private-users={str(owner)}"]
+    else:
+        cmdline += ["--image", config.output]
 
     # If we copied in a .nspawn file, make sure it's actually honoured
     if config.nspawn_settings is not None:
@@ -3837,7 +3590,7 @@ def run_shell(config: MkosiConfig) -> None:
     if config.verb == Verb.boot:
         cmdline += ["--boot"]
     else:
-        cmdline += nspawn_rlimit_params()
+        cmdline += [f"--rlimit=RLIMIT_CORE={format_rlimit(resource.RLIMIT_CORE)}"]
 
         # Redirecting output correctly when not running directly from the terminal.
         console_arg = f"--console={'interactive' if sys.stdout.isatty() else 'pipe'}"
@@ -3852,12 +3605,7 @@ def run_shell(config: MkosiConfig) -> None:
         cmdline += ["--ephemeral"]
 
     cmdline += ["--machine", machine_name(config)]
-
-    if config.nspawn_keep_unit:
-        cmdline += ["--keep-unit"]
-
-    if config.source_file_transfer_final == SourceFileTransfer.mount:
-        cmdline += [f"--bind={config.build_sources}:/root/src", "--chdir=/root/src"]
+    cmdline += [f"--bind={config.build_sources}:/root/src", "--chdir=/root/src"]
 
     for k, v in config.credentials.items():
         cmdline += [f"--set-credential={k}:{v}"]
@@ -3872,7 +3620,16 @@ def run_shell(config: MkosiConfig) -> None:
         cmdline += ["--"]
         cmdline += config.cmdline
 
-    run(cmdline)
+    uid, _ = current_user_uid_gid()
+
+    if config.output_format == OutputFormat.directory:
+        acl_toggle_remove(config.output, uid, allow=False)
+
+    try:
+        run(cmdline)
+    finally:
+        if config.output_format == OutputFormat.directory:
+            acl_toggle_remove(config.output, uid, allow=True)
 
 
 def find_qemu_binary(config: MkosiConfig) -> str:
@@ -4353,7 +4110,10 @@ def run_verb(raw: argparse.Namespace) -> None:
             return generate_secure_boot_key(config)
 
         if config.verb == Verb.bump:
-            bump_image_version(config)
+            return bump_image_version(config)
+
+        if config.verb == Verb.summary:
+            return print_summary(config)
 
         if config.verb in MKOSI_COMMANDS_SUDO:
             check_root()
@@ -4365,16 +4125,19 @@ def run_verb(raw: argparse.Namespace) -> None:
                 check_outputs(config)
 
         if needs_build(config) or config.verb == Verb.clean:
-            check_root()
             unlink_output(config)
 
-        if config.verb == Verb.summary:
-            print_summary(config)
-
         if needs_build(config):
-            check_native(config)
-            init_namespace()
-            build_stuff(config)
+            def target() -> None:
+                # Get the user UID/GID either on the host or in the user namespace running the build
+                uid, gid = become_root() if os.getuid() != 0 else current_user_uid_gid()
+                init_mount_namespace()
+                build_stuff(uid, gid, config)
+
+            # We only want to run the build in a user namespace but not the following steps. Since we can't
+            # rejoin the parent user namespace after unsharing from it, let's run the build in a fork so that
+            # the main process does not leave its user namespace.
+            fork_and_wait(target)
 
             if config.auto_bump:
                 bump_image_version(config)

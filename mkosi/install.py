@@ -11,7 +11,9 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Optional
 
-from mkosi.backend import MkosiState, complete_step, run
+from mkosi.backend import MkosiState
+from mkosi.log import complete_step
+from mkosi.run import run
 
 
 def make_executable(path: Path) -> None:
@@ -57,8 +59,16 @@ def flock(path: Path) -> Iterator[Path]:
         os.close(fd)
 
 
-def copy_path(src: Path, dst: Path, parents: bool = False) -> None:
-    run(["cp", "--archive", "--no-target-directory", "--reflink=auto", src, dst])
+def copy_path(src: Path, dst: Path, preserve_owner: bool = True) -> None:
+    run([
+        "cp",
+        "--recursive",
+        "--no-dereference",
+        f"--preserve=mode,timestamps,links,xattr{',ownership' if preserve_owner else ''}",
+        "--no-target-directory",
+        "--reflink=auto",
+        src, dst,
+    ])
 
 
 def install_skeleton_trees(state: MkosiState, cached: bool, *, late: bool=False) -> None:
@@ -74,7 +84,7 @@ def install_skeleton_trees(state: MkosiState, cached: bool, *, late: bool=False)
     with complete_step("Copying in skeleton file trees…"):
         for tree in state.config.skeleton_trees:
             if tree.is_dir():
-                copy_path(tree, state.root)
+                copy_path(tree, state.root, preserve_owner=False)
             else:
                 # unpack_archive() groks Paths, but mypy doesn't know this.
                 # Pretend that tree is a str.

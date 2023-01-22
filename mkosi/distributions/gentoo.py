@@ -9,19 +9,12 @@ from collections.abc import Sequence
 from pathlib import Path
 from textwrap import dedent
 
-from mkosi.backend import (
-    ARG_DEBUG,
-    MkosiException,
-    MkosiPrinter,
-    MkosiState,
-    complete_step,
-    die,
-    run_workspace_command,
-    safe_tar_extract,
-)
+from mkosi.backend import MkosiState, safe_tar_extract
 from mkosi.distributions import DistributionInstaller
 from mkosi.install import copy_path, flock
+from mkosi.log import ARG_DEBUG, MkosiException, MkosiPrinter, complete_step, die
 from mkosi.remove import unlink_try_hard
+from mkosi.run import run_workspace_command
 
 ARCHITECTURES = {
     "x86_64": ("amd64", "arch/x86/boot/bzImage"),
@@ -160,13 +153,6 @@ class Gentoo:
         self.portage_cfg_dir = state.root / ret["portage_cfg_dir"]
 
         self.portage_cfg_dir.mkdir(parents=True, exist_ok=True)
-
-        self.DEFAULT_NSPAWN_PARAMS = [
-            "--capability=CAP_SYS_ADMIN,CAP_MKNOD",
-            f"--bind={self.portage_cfg['PORTDIR']}",
-            f"--bind={self.portage_cfg['DISTDIR']}",
-            f"--bind={self.portage_cfg['PKGDIR']}",
-        ]
 
         jobs = os.cpu_count() or 1
         self.emerge_default_opts = [
@@ -341,11 +327,11 @@ class Gentoo:
         if self.state.do_run_build_script:
             self.invoke_emerge(pkgs=self.state.config.build_packages)
         if self.state.config.packages:
-            self.invoke_emerge(pkgs=self.state.config.packages, check=False)
+            self.invoke_emerge(pkgs=self.state.config.packages)
+
 
     def invoke_emerge(
         self,
-        check: bool = True,
         inside_stage3: bool = True,
         pkgs: Sequence[str] = (),
         actions: Sequence[str] = (),
@@ -370,16 +356,23 @@ class Gentoo:
 
             MkosiPrinter.print_step("Invoking emerge(1) inside stage3"
                                     f"{self.root}")
-            run_workspace_command(self.state, cmd, network=True, env=self.emerge_vars,
-                                  nspawn_params=self.DEFAULT_NSPAWN_PARAMS,
-                                  check=check)
+
+            bwrap = [
+                "--bind", self.portage_cfg['PORTDIR'], self.portage_cfg['PORTDIR'],
+                "--bind", self.portage_cfg['DISTDIR'], self.portage_cfg['DISTDIR'],
+                "--bind", self.portage_cfg['PKGDIR'],  self.portage_cfg['PKGDIR'],
+            ]
+            run_workspace_command(self.state, cmd, network=True, bwrap_params=bwrap)
 
     def _dbg(self, state: MkosiState) -> None:
         """this is for dropping into shell to see what's wrong"""
 
-        cmd = ["/usr/bin/sh"]
-        run_workspace_command(self.state, cmd, network=True,
-                              nspawn_params=self.DEFAULT_NSPAWN_PARAMS)
+        bwrap = [
+            "--bind", self.portage_cfg['PORTDIR'], self.portage_cfg['PORTDIR'],
+            "--bind", self.portage_cfg['DISTDIR'], self.portage_cfg['DISTDIR'],
+            "--bind", self.portage_cfg['PKGDIR'],  self.portage_cfg['PKGDIR'],
+        ]
+        run_workspace_command(self.state, ["sh"], network=True, bwrap_params=bwrap)
 
 
 class GentooInstaller(DistributionInstaller):

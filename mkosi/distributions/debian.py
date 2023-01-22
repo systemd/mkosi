@@ -1,30 +1,17 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
-import contextlib
 import os
+import shutil
 import subprocess
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable
 from pathlib import Path
 from textwrap import dedent
-from typing import TYPE_CHECKING, Any
 
-from mkosi.backend import (
-    MkosiState,
-    PathString,
-    add_packages,
-    complete_step,
-    disable_pam_securetty,
-    run,
-    run_workspace_command,
-)
+from mkosi.backend import MkosiState, add_packages, disable_pam_securetty
 from mkosi.distributions import DistributionInstaller
 from mkosi.install import install_skeleton_trees, write_resource
-from mkosi.mounts import mount_api_vfs, mount_bind
-
-if TYPE_CHECKING:
-    CompletedProcess = subprocess.CompletedProcess[Any]
-else:
-    CompletedProcess = subprocess.CompletedProcess
+from mkosi.run import run, run_with_apivfs
+from mkosi.types import _FILE, CompletedProcess, PathString
 
 
 class DebianInstaller(DistributionInstaller):
@@ -45,7 +32,6 @@ class DebianInstaller(DistributionInstaller):
             # the base image.
             state.root.joinpath("etc/resolv.conf").unlink(missing_ok=True)
             state.root.joinpath("etc/resolv.conf").symlink_to("../run/systemd/resolve/resolv.conf")
-            run(["systemctl", "--root", state.root, "enable", "systemd-resolved"])
 
     @classmethod
     def cache_path(cls) -> list[str]:
@@ -79,6 +65,7 @@ class DebianInstaller(DistributionInstaller):
                 "--variant=minbase",
                 "--include=ca-certificates",
                 "--merged-usr",
+                f"--cache-dir={state.cache}",
                 f"--components={','.join(repos)}",
             ]
 
@@ -95,7 +82,9 @@ class DebianInstaller(DistributionInstaller):
             mirror = state.config.local_mirror or state.config.mirror
             assert mirror is not None
             cmdline += [state.config.release, state.root, mirror]
-            run(cmdline)
+
+            # Pretend we're lxc so debootstrap skips its mknod check.
+            run_with_apivfs(state, cmdline, env=dict(container="lxc"))
 
         # Install extra packages via the secondary APT run, because it is smarter and can deal better with any
         # conflicts. dbus and libpam-systemd are optional dependencies for systemd in debian so we include them
@@ -124,18 +113,21 @@ class DebianInstaller(DistributionInstaller):
         policyrcd.chmod(0o755)
 
         doc_paths = [
-            "/usr/share/locale",
-            "/usr/share/doc",
-            "/usr/share/man",
-            "/usr/share/groff",
-            "/usr/share/info",
-            "/usr/share/lintian",
-            "/usr/share/linda",
+            state.root / "usr/share/locale",
+            state.root / "usr/share/doc",
+            state.root / "usr/share/man",
+            state.root / "usr/share/groff",
+            state.root / "usr/share/info",
+            state.root / "usr/share/lintian",
+            state.root / "usr/share/linda",
         ]
         if not state.config.with_docs:
             # Remove documentation installed by debootstrap
-            cmdline = ["/bin/rm", "-rf", *doc_paths]
-            run_workspace_command(state, cmdline)
+            for d in doc_paths:
+                try:
+                    shutil.rmtree(d)
+                except FileNotFoundError:
+                    pass
             # Create dpkg.cfg to ignore documentation on new packages
             dpkg_nodoc_conf = state.root / "etc/dpkg/dpkg.cfg.d/01_nodoc"
             with dpkg_nodoc_conf.open("w") as f:
@@ -258,59 +250,52 @@ def debootstrap_knows_arg(arg: str) -> bool:
                                                        stdout=subprocess.PIPE, check=False).stdout
 
 
-@contextlib.contextmanager
-def mount_apt_local_mirror(state: MkosiState) -> Iterator[None]:
-    # Ensure apt inside the image can see the local mirror outside of it
-    mirror = state.config.local_mirror or state.config.mirror
-    if not mirror or not mirror.startswith("file:"):
-        yield
-        return
-
-    # Strip leading '/' as Path() does not behave well when concatenating
-    mirror_dir = mirror[5:].lstrip("/")
-
-    with complete_step("Mounting apt local mirror…", "Unmounting apt local mirror…"):
-        with mount_bind(Path("/") / mirror_dir, state.root / mirror_dir):
-            yield
-
-
 def invoke_apt(
     state: MkosiState,
     subcommand: str,
     operation: str,
     extra: Iterable[str],
-    **kwargs: Any,
+    stdout: _FILE = None,
 ) -> CompletedProcess:
 
-    config_file = state.workspace / "apt.conf"
+    state.workspace.joinpath("apt").mkdir(exist_ok=True)
+    state.workspace.joinpath("apt/log").mkdir(exist_ok=True)
+    state.root.joinpath("var/lib/dpkg").mkdir(exist_ok=True)
+    state.root.joinpath("var/lib/dpkg/status").touch()
+
+    config_file = state.workspace / "apt/apt.conf"
     debarch = DEBIAN_ARCHITECTURES[state.config.architecture]
 
-    if not config_file.exists():
-        config_file.write_text(
-            dedent(
-                f"""\
-                Dir "{state.root}";
-                DPkg::Chroot-Directory "{state.root}";
-                """
-            )
+    config_file.write_text(
+        dedent(
+            f"""\
+            APT::Architecture "{debarch}";
+            APT::Immediate-Configure "off";
+            Dir::Cache "{state.cache}";
+            Dir::State "{state.workspace / "apt"}";
+            Dir::State::status "{state.root / "var/lib/dpkg/status"}";
+            Dir::Etc "{state.root / "etc/apt"}";
+            Dir::Log "{state.workspace / "apt/log"}";
+            DPkg::Options:: "--root={state.root}";
+            DPkg::Options:: "--log={state.workspace / "apt/dpkg.log"}";
+            DPkg::Install::Recursive::Minimum "1000";
+            """
         )
+    )
 
     cmdline = [
         f"/usr/bin/apt-{subcommand}",
-        "-o", f"APT::Architecture={debarch}",
-        "-o", "dpkg::install::recursive::minimum=1000",
         operation,
         *extra,
     ]
     env = dict(
-        APT_CONFIG=f"{config_file}",
+        APT_CONFIG=config_file,
         DEBIAN_FRONTEND="noninteractive",
-        DEBCONF_NONINTERACTIVE_SEEN="true",
+        DEBCONF_INTERACTIVE_SEEN="true",
         INITRD="No",
     )
 
-    with mount_apt_local_mirror(state), mount_api_vfs(state.root):
-        return run(cmdline, env=env, text=True, **kwargs)
+    return run_with_apivfs(state, cmdline, stdout=stdout, env=env)
 
 
 def add_apt_package_if_exists(state: MkosiState, extra_packages: set[str], package: str) -> None:

@@ -26,7 +26,8 @@ runs:
         squashfs-tools \
         btrfs-progs \
         mtools \
-        python3-pefile
+        python3-pefile \
+        bubblewrap
 
       sudo pacman-key --init
       sudo pacman-key --populate archlinux
@@ -41,17 +42,13 @@ runs:
       sudo apt-get install libfdisk-dev
       git clone https://github.com/systemd/systemd --depth=1
       meson systemd/build systemd -Drepart=true -Defi=true
-      ninja -C systemd/build systemd-nspawn systemd-dissect systemd-repart systemd-analyze bootctl ukify
-      sudo ln -svf $PWD/systemd/build/systemd-nspawn /usr/bin/systemd-nspawn
-      sudo ln -svf $PWD/systemd/build/systemd-dissect /usr/bin/systemd-dissect
+      ninja -C systemd/build systemd-nspawn systemd-repart bootctl ukify
       sudo ln -svf $PWD/systemd/build/systemd-repart /usr/bin/systemd-repart
-      sudo ln -svf $PWD/systemd/build/systemd-analyze /usr/bin/systemd-analyze
       sudo ln -svf $PWD/systemd/build/bootctl /usr/bin/bootctl
       sudo ln -svf $PWD/systemd/build/ukify /usr/bin/ukify
-      systemd-nspawn --version
-      systemd-dissect --version
       systemd-repart --version
       bootctl --version
+      ukify --version
 
   - name: Install
     shell: bash

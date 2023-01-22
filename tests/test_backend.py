@@ -9,13 +9,13 @@ import pytest
 
 from mkosi.backend import (
     Distribution,
-    MkosiException,
     PackageType,
     safe_tar_extract,
     set_umask,
     strip_suffixes,
     workspace,
 )
+from mkosi.log import MkosiException
 
 
 def test_distribution() -> None:

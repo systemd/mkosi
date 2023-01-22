@@ -11,7 +11,8 @@ from typing import Iterator, List, Optional
 import pytest
 
 import mkosi
-from mkosi.backend import Distribution, MkosiConfig, MkosiException, Verb
+from mkosi.backend import Distribution, MkosiConfig, Verb
+from mkosi.log import MkosiException
 
 
 def parse(argv: Optional[List[str]] = None) -> MkosiConfig:

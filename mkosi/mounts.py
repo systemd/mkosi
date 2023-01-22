@@ -1,15 +1,34 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
+import collections
 import contextlib
 import os
 import stat
 from collections.abc import Iterator, Sequence
 from pathlib import Path
-from typing import ContextManager, Optional, Union, cast
+from typing import Callable, ContextManager, Deque, Optional, TypeVar, Union, cast
 
-from mkosi.backend import complete_step, run, scandir_recursive
+from mkosi.log import complete_step
+from mkosi.run import run
+from mkosi.types import PathString
 
-PathString = Union[Path, str]
+T = TypeVar("T")
+
+
+def scandir_recursive(
+    root: Path,
+    filter: Optional[Callable[[os.DirEntry[str]], T]] = None,
+) -> Iterator[T]:
+    """Recursively walk the tree starting at @root, optionally apply filter, yield non-none values"""
+    queue: Deque[Union[str, Path]] = collections.deque([root])
+
+    while queue:
+        for entry in os.scandir(queue.pop()):
+            pred = filter(entry) if filter is not None else entry
+            if pred is not None:
+                yield cast(T, pred)
+            if entry.is_dir(follow_symlinks=False):
+                queue.append(entry.path)
 
 
 def stat_is_whiteout(st: os.stat_result) -> bool:
@@ -31,12 +50,12 @@ def delete_whiteout_files(path: Path) -> None:
 
 @contextlib.contextmanager
 def mount(
-        what: PathString,
-        where: Path,
-        operation: Optional[str] = None,
-        options: Sequence[str] = (),
-        type: Optional[str] = None,
-        read_only: bool = False,
+    what: PathString,
+    where: Path,
+    operation: Optional[str] = None,
+    options: Sequence[str] = (),
+    type: Optional[str] = None,
+    read_only: bool = False,
 ) -> Iterator[Path]:
     os.makedirs(where, 0o755, True)
 
@@ -63,17 +82,13 @@ def mount(
         run(["umount", "--no-mtab", "--recursive", where])
 
 
-def mount_bind(what: Path, where: Optional[Path] = None) -> ContextManager[Path]:
+def mount_bind(what: Path, where: Optional[Path] = None, read_only: bool = False) -> ContextManager[Path]:
     if where is None:
         where = what
 
     os.makedirs(what, 0o755, True)
     os.makedirs(where, 0o755, True)
     return mount(what, where, operation="--bind")
-
-
-def mount_tmpfs(where: Path) -> ContextManager[Path]:
-    return mount("tmpfs", where, type="tmpfs")
 
 
 @contextlib.contextmanager
@@ -91,17 +106,6 @@ def mount_overlay(
     finally:
         with complete_step("Cleaning up overlayfs"):
             delete_whiteout_files(upper)
-
-
-@contextlib.contextmanager
-def mount_api_vfs(root: Path) -> Iterator[None]:
-    subdirs = ("proc", "dev", "sys")
-
-    with complete_step("Mounting API VFS…", "Unmounting API VFS…"), contextlib.ExitStack() as stack:
-        for subdir in subdirs:
-            stack.enter_context(mount_bind(Path("/") / subdir, root / subdir))
-
-        yield
 
 
 @contextlib.contextmanager

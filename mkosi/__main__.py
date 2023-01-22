@@ -8,7 +8,8 @@ from collections.abc import Iterator
 from subprocess import CalledProcessError
 
 from mkosi import parse_args, run_verb
-from mkosi.backend import MkosiException, die
+from mkosi.log import MkosiException, die
+from mkosi.run import excepthook
 
 
 @contextlib.contextmanager
@@ -36,4 +37,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    sys.excepthook = excepthook
     main()
