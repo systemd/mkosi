@@ -534,13 +534,6 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   image root, so any `CopyFiles=` source paths in partition definition files will
   be relative to the image root directory.
 
-`NoChown=`, `--no-chown`
-
-: By default, if `mkosi` is run inside a `sudo` environment all
-  generated artifacts have their UNIX user/group ownership changed to
-  the user which invoked `sudo`. With this option this may be turned
-  off and all generated files are owned by `root`.
-
 `TarStripSELinuxContext=`, `--tar-strip-selinux-context`
 
 : If running on a SELinux-enabled system (Fedora Linux, CentOS, Rocky Linux,
@@ -704,11 +697,8 @@ a machine ID.
 
 `BuildSources=`, `--build-sources=`
 
-: Takes a path to a source tree to copy into the development image, if
-  the build script is used. This only applies if a build script is
-  used, and defaults to the local directory. Use `SourceFileTransfer=`
-  to configure how the files are transferred from the host to the
-  container image.
+: Takes a path to a source tree to mount into the development image, if
+  the build script is used.
 
 `BuildDirectory=`, `--build-dir=`
 
@@ -792,33 +782,32 @@ a machine ID.
 : Takes a path to an executable that is used as build script for this
   image. If this option is used the build process will be two-phased
   instead of single-phased. The specified script is copied onto the
-  development image and executed inside an `systemd-nspawn` container
-  environment. If this option is not used, but the `mkosi.build` file
-  found in the local directory it is automatically used for this
-  purpose (also see the "Files" section below). Specify an empty value
-  to disable automatic detection.
+  development image and executed inside a namespaced chroot environment.
+  If this option is not used, but the `mkosi.build` file found in the
+  local directory it is automatically used for this purpose (also see
+  the "Files" section below). Specify an empty value to disable
+  automatic detection.
 
 `PrepareScript=`, `--prepare-script=`
 
 : Takes a path to an executable that is invoked inside the image right
   after installing the software packages. It is the last step before
   the image is cached (if incremental mode is enabled).  This script
-  is invoked inside a `systemd-nspawn` container environment, and thus
-  does not have access to host resources.  If this option is not used,
-  but an executable script `mkosi.prepare` is found in the local
-  directory, it is automatically used for this purpose. Specify an
-  empty value to disable automatic detection.
+  is invoked inside a namespaced chroot environment, and thus does not
+  have access to host resources.  If this option is not used, but an
+  executable script `mkosi.prepare` is found in the local directory, it
+  is automatically used for this purpose. Specify an empty value to
+  disable automatic detection.
 
 `PostInstallationScript=`, `--postinst-script=`
 
 : Takes a path to an executable that is invoked inside the final image
   right after copying in the build artifacts generated in the first
-  phase of the build. This script is invoked inside a `systemd-nspawn`
-  container environment, and thus does not have access to host
-  resources. If this option is not used, but an executable
-  `mkosi.postinst` is found in the local directory, it is
-  automatically used for this purpose. Specify an empty value to
-  disable automatic detection.
+  phase of the build. This script is invoked inside a namespaced chroot
+  environment, and thus does not have access to host resources. If this
+  option is not used, but an executable `mkosi.postinst` is found in the
+  local directory, it is automatically used for this purpose. Specify an
+  empty value to disable automatic detection.
 
 `FinalizeScript=`, `--finalize-script=`
 
@@ -831,38 +820,6 @@ a machine ID.
   executable `mkosi.finalize` is found in the local directory, it is
   automatically used for this purpose. Specify an empty value to
   disable automatic detection.
-
-`SourceFileTransfer=`, `--source-file-transfer=`
-
-: Configures how the source file tree (as configured with
-  `BuildSources=`) is transferred into the container image during the
-  first phase of the build. Takes one of `copy-all` (to copy all files
-  from the source tree), `copy-git-cached` (to copy only those files
-  `git ls-files --cached` lists), `copy-git-others` (to copy only
-  those files `git ls-files --others` lists), `mount` to bind mount
-  the source tree directly. Defaults to `copy-git-cached` if a `git`
-  source tree is detected, otherwise `copy-all`. When you specify
-  `copy-git-more`, it is the same as `copy-git-cached`, except it also
-  includes the `.git/` directory.
-
-`SourceFileTransferFinal=`, `--source-file-transfer-final=`
-
-: Same as `SourceFileTransfer=`, but for the final image instead of
-  the build image. Takes the same values as `SourceFileFransfer=`
-  except `mount`. By default, sources are not copied into the final
-  image.
-
-`SourceResolveSymlinks=`, `--source-resolve-symlinks`
-
-: If given, any symbolic links in the source file tree are resolved and the
-  file contents are copied to the build image. If not given, they are left as
-  symbolic links. This only applies if `SourceFileTransfer=` is `copy-all`.
-  Defaults to leaving them as symbolic links.
-
-`SourceResolveSymlinksFinal=`, `--source-resolve-symlinks-final`
-
-: Same as `SourceResolveSymlinks=`, but for the final image instead of
-  the build image.
 
 `WithNetwork=`, `--with-network`
 
@@ -966,13 +923,6 @@ a machine ID.
 
 : Space-delimited list of additional arguments to pass when invoking
   qemu.
-
-`NspawnKeepUnit=`, `--nspawn-keep-unit`
-
-: When used, this option instructs underlying calls of systemd-nspawn to
-  use the current unit scope, instead of creating a dedicated transcient
-  scope unit for the containers. This option should be used when mkosi is
-  run by a service unit.
 
 `Netdev=`, `--netdev`
 
@@ -1227,14 +1177,13 @@ local directory:
   image. The *development* image is used to build the project in the
   current working directory (the *source* tree). For that the whole
   directory is copied into the image, along with the `mkosi.build`
-  script. The script is then invoked inside the image (via
-  `systemd-nspawn`), with `$SRCDIR` pointing to the *source*
-  tree. `$DESTDIR` points to a directory where the script should place
-  any files generated it would like to end up in the *final*
-  image. Note that `make`/`automake`/`meson` based build systems
-  generally honor `$DESTDIR`, thus making it very natural to build
-  *source* trees from the build script. After the *development* image
-  was built and the build script ran inside of it, it is removed
+  script. The script is then invoked inside the image, with `$SRCDIR`
+  pointing to the *source* tree. `$DESTDIR` points to a directory where
+  the script should place any files generated it would like to end up
+  in the *final* image. Note that `make`/`automake`/`meson` based build
+  systems generally honor `$DESTDIR`, thus making it very natural to
+  build *source* trees from the build script. After the *development*
+  image was built and the build script ran inside of it, it is removed
   again. After that the *final* image is built, without any *source*
   tree or build script copied in. However, this time the contents of
   `$DESTDIR` are added into the image.
@@ -1574,7 +1523,7 @@ When not using distribution packages make sure to install the
 necessary dependencies. For example, on *Fedora Linux* you need:
 
 ```bash
-dnf install btrfs-progs apt debootstrap dosfstools mtools edk2-ovmf e2fsprogs squashfs-tools gnupg python3 tar xfsprogs xz zypper sbsigntools
+dnf install bubblewrap btrfs-progs apt debootstrap dosfstools mtools edk2-ovmf e2fsprogs squashfs-tools gnupg python3 tar xfsprogs xz zypper sbsigntools
 ```
 
 On Debian/Ubuntu it might be necessary to install the `ubuntu-keyring`,
@@ -1583,7 +1532,7 @@ in addition to `apt` and `debootstrap`, depending on what kind of distribution i
 you want to build. `debootstrap` on Debian only pulls in the Debian keyring
 on its own, and the version on Ubuntu only the one from Ubuntu.
 
-Note that the minimum required Python version is 3.7.
+Note that the minimum required Python version is 3.9.
 
 # REFERENCES
 * [Primary mkosi git repository on GitHub](https://github.com/systemd/mkosi/)

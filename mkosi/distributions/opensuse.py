@@ -2,17 +2,11 @@
 
 import shutil
 
-from mkosi.backend import (
-    MkosiState,
-    PathString,
-    add_packages,
-    complete_step,
-    patch_file,
-    run,
-    sort_packages,
-)
+from mkosi.backend import MkosiState, add_packages, patch_file, sort_packages
 from mkosi.distributions import DistributionInstaller
-from mkosi.mounts import mount_api_vfs
+from mkosi.log import complete_step
+from mkosi.run import run, run_with_apivfs
+from mkosi.types import PathString
 
 
 class OpensuseInstaller(DistributionInstaller):
@@ -92,6 +86,7 @@ def install_opensuse(state: MkosiState) -> None:
         "--root",
         state.root,
         "--gpg-auto-import-keys" if state.config.repository_key_check else "--no-gpg-checks",
+        "--cache-dir", state.cache,
         "install",
         "-y",
         "--no-recommends",
@@ -99,8 +94,7 @@ def install_opensuse(state: MkosiState) -> None:
         *sort_packages(packages),
     ]
 
-    with mount_api_vfs(state.root):
-        run(cmdline)
+    run_with_apivfs(state, cmdline)
 
     # Disable package caching in the image that was enabled previously to populate the package cache.
     run(["zypper", "--root", state.root, "modifyrepo", "-K", "repo-oss"])

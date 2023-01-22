@@ -3,25 +3,22 @@
 import shutil
 import urllib.parse
 import urllib.request
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
 from textwrap import dedent
-from typing import NamedTuple, Optional
+from typing import Any, NamedTuple, Optional
 
 from mkosi.backend import (
     Distribution,
-    MkosiPrinter,
     MkosiState,
     add_packages,
-    complete_step,
     detect_distribution,
-    run,
     sort_packages,
-    warn,
 )
 from mkosi.distributions import DistributionInstaller
-from mkosi.mounts import mount_api_vfs
+from mkosi.log import MkosiPrinter, complete_step, warn
 from mkosi.remove import unlink_try_hard
+from mkosi.run import run_with_apivfs
 
 FEDORA_KEYS_MAP = {
     "36": "53DED2CB922D8B8D9E63FD18999F7CBF38AB71F4",
@@ -134,9 +131,9 @@ def make_rpm_list(state: MkosiState, packages: set[str]) -> set[str]:
     return packages
 
 
-def install_packages_dnf(state: MkosiState, packages: set[str],) -> None:
+def install_packages_dnf(state: MkosiState, packages: set[str], env: Mapping[str, Any] = {}) -> None:
     packages = make_rpm_list(state, packages)
-    invoke_dnf(state, 'install', packages)
+    invoke_dnf(state, 'install', packages, env)
 
 
 class Repo(NamedTuple):
@@ -148,10 +145,9 @@ class Repo(NamedTuple):
 
 
 def setup_dnf(state: MkosiState, repos: Sequence[Repo] = ()) -> None:
-    gpgcheck = True
+    with state.workspace.joinpath("dnf.conf").open("w") as f:
+        gpgcheck = True
 
-    repo_file = state.workspace / "mkosi.repo"
-    with repo_file.open("w") as f:
         for repo in repos:
             gpgkey: Optional[str] = None
 
@@ -170,50 +166,35 @@ def setup_dnf(state: MkosiState, repos: Sequence[Repo] = ()) -> None:
                     name={repo.id}
                     {repo.url}
                     gpgkey={gpgkey or ''}
+                    gpgcheck={int(gpgcheck)}
                     enabled={int(repo.enabled)}
-                    check_config_file_age=False
+                    check_config_file_age=0
                     """
                 )
             )
 
-    default_repos  = f"reposdir={state.workspace} {' '.join(str(p) for p in state.config.repo_dirs)}"
 
-    vars_dir = state.workspace / "vars"
-    vars_dir.mkdir(exist_ok=True)
-
-    config_file = state.workspace / "dnf.conf"
-    config_file.write_text(
-        dedent(
-            f"""\
-            [main]
-            gpgcheck={'1' if gpgcheck else '0'}
-            {default_repos }
-            varsdir={vars_dir}
-            """
-        )
-    )
-
-
-def invoke_dnf(state: MkosiState, command: str, packages: Iterable[str]) -> None:
+def invoke_dnf(state: MkosiState, command: str, packages: Iterable[str], env: Mapping[str, Any] = {}) -> None:
     if state.config.distribution == Distribution.fedora:
         release, _ = parse_fedora_release(state.config.release)
     else:
-        release = state.config.release.strip("-stream")
+        release = state.config.release
 
-    config_file = state.workspace / "dnf.conf"
-
-    cmd = 'dnf' if shutil.which('dnf') else 'yum'
+    state.workspace.joinpath("vars").mkdir(exist_ok=True)
 
     cmdline = [
-        cmd,
+        'dnf' if shutil.which('dnf') else 'yum',
         "-y",
-        f"--config={config_file}",
+        f"--config={state.workspace.joinpath('dnf.conf')}",
         "--best",
         "--allowerasing",
         f"--releasever={release}",
         f"--installroot={state.root}",
         "--setopt=keepcache=1",
         "--setopt=install_weak_deps=0",
+        f"--setopt=cachedir={state.cache}",
+        f"--setopt=reposdir={' '.join(str(p) for p in state.config.repo_dirs)}",
+        f"--setopt=varsdir={state.workspace / 'vars'}",
         "--noplugins",
     ]
 
@@ -235,8 +216,7 @@ def invoke_dnf(state: MkosiState, command: str, packages: Iterable[str]) -> None
 
     cmdline += [command, *sort_packages(packages)]
 
-    with mount_api_vfs(state.root):
-        run(cmdline, env={"KERNEL_INSTALL_BYPASS": state.environment.get("KERNEL_INSTALL_BYPASS", "1")})
+    run_with_apivfs(state, cmdline, env=dict(KERNEL_INSTALL_BYPASS="1") | env)
 
     distribution, _ = detect_distribution()
     if distribution not in (Distribution.debian, Distribution.ubuntu):

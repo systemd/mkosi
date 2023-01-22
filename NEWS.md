@@ -2,10 +2,6 @@
 
 ## v15
 
-- Rename `--no-chown` to `--chown` and set it to default to `True`, preserving
-  current behaviour.
-- Add `--idmap` option to run `--systemd-nspawn` with ID mapping support. Defaults
-  to `True`. `--idmap=no` can be used to prevent usage of ID mapping.
 - Migrated to systemd-repart. Many options are dropped in favor of specifying them directly
   in repart partition definition files:
     - Format=gpt_xxx options are replaced with a single "disk" options. Filesystem to use can now be specified with repart's Format= option
@@ -41,6 +37,12 @@
 - Removed default kernel command line arguments `rhgb`, `selinux=0` and `audit=0`.
 - Dropped --all and --all-directory as this functionality is better implemented by
   using a build system.
+- mkosi now builds images without needing root privileges.
+- Removed `--no-chown`, `--idmap` and `--nspawn-keep-unit` options as they were made obsolete by moving to
+  rootless builds.
+- Removed `--source-file-transfer`, `--source-file-transfer-final`, `--source-resolve-symlinks` and
+  `--source-resolve-symlinks-final` in favor of always mounting the source directory into the build image.
+  `--source-file-transfer-final` might be reimplemented in the future using virtiofsd.
 
 ## v14
 

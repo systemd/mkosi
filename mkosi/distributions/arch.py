@@ -3,17 +3,11 @@
 import os
 from textwrap import dedent
 
-from mkosi.backend import (
-    MkosiPrinter,
-    MkosiState,
-    add_packages,
-    complete_step,
-    disable_pam_securetty,
-    run,
-    sort_packages,
-)
+from mkosi.backend import MkosiState, add_packages, disable_pam_securetty, sort_packages
 from mkosi.distributions import DistributionInstaller
-from mkosi.mounts import mount_api_vfs
+from mkosi.log import complete_step
+from mkosi.run import run_with_apivfs
+from mkosi.types import PathString
 
 
 class ArchInstaller(DistributionInstaller):
@@ -32,9 +26,6 @@ class ArchInstaller(DistributionInstaller):
 
 @complete_step("Installing Arch Linux…")
 def install_arch(state: MkosiState) -> None:
-    if state.config.release is not None:
-        MkosiPrinter.info("Distribution release specification is not supported for Arch Linux, ignoring.")
-
     assert state.config.mirror
 
     if state.config.local_mirror:
@@ -47,26 +38,6 @@ def install_arch(state: MkosiState) -> None:
 
     # Create base layout for pacman and pacman-key
     os.makedirs(state.root / "var/lib/pacman", 0o755, exist_ok=True)
-    os.makedirs(state.root / "etc/pacman.d/gnupg", 0o755, exist_ok=True)
-
-    # Permissions on these directories are all 0o777 because of 'mount --bind'
-    # limitations but pacman expects them to be 0o755 so we fix them before
-    # calling pacman (except /var/tmp which is 0o1777).
-    fix_permissions_dirs = {
-        "boot": 0o755,
-        "etc": 0o755,
-        "etc/pacman.d": 0o755,
-        "var": 0o755,
-        "var/lib": 0o755,
-        "var/cache": 0o755,
-        "var/cache/pacman": 0o755,
-        "var/tmp": 0o1777,
-        "run": 0o755,
-    }
-
-    for dir, permissions in fix_permissions_dirs.items():
-        if (path := state.root / dir).exists():
-            path.chmod(permissions)
 
     pacman_conf = state.workspace / "pacman.conf"
     if state.config.repository_key_check:
@@ -82,7 +53,7 @@ def install_arch(state: MkosiState) -> None:
                 [options]
                 RootDir = {state.root}
                 LogFile = /dev/null
-                CacheDir = {state.root}/var/cache/pacman/pkg/
+                CacheDir = {state.config.cache_path}
                 GPGDir = /etc/pacman.d/gnupg/
                 HookDir = {state.root}/etc/pacman.d/hooks/
                 HoldPkg = pacman glibc
@@ -141,9 +112,14 @@ def install_arch(state: MkosiState) -> None:
     if not state.do_run_build_script and state.config.ssh:
         add_packages(state.config, packages, "openssh")
 
-    with mount_api_vfs(state.root):
-        run(["pacman", "--config", pacman_conf, "--noconfirm", "-Sy", *sort_packages(packages)],
-            env={"KERNEL_INSTALL_BYPASS": state.environment.get("KERNEL_INSTALL_BYPASS", "1")})
+    cmdline: list[PathString] = [
+        "pacman",
+        "--config",  pacman_conf,
+        "--noconfirm",
+        "-Sy", *sort_packages(packages),
+    ]
+
+    run_with_apivfs(state, cmdline, env=dict(KERNEL_INSTALL_BYPASS="1"))
 
     state.root.joinpath("etc/pacman.d/mirrorlist").write_text(f"Server = {state.config.mirror}/$repo/os/$arch\n")
 

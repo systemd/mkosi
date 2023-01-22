@@ -2,9 +2,10 @@
 
 from pathlib import Path
 
-from mkosi.backend import MkosiState, add_packages, complete_step
+from mkosi.backend import MkosiState, add_packages
 from mkosi.distributions import DistributionInstaller
 from mkosi.distributions.fedora import Repo, install_packages_dnf, invoke_dnf, setup_dnf
+from mkosi.log import complete_step
 
 
 class OpenmandrivaInstaller(DistributionInstaller):
