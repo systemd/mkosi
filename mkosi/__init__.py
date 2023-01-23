@@ -647,7 +647,7 @@ def nspawn_id_map_supported() -> bool:
     if nspawn_version() < 252:
         return False
 
-    ret = run(["systemd-analyze", "compare-versions", platform.release(), ">=", "5.12"])
+    ret = run(["systemd-analyze", "compare-versions", platform.release(), ">=", "5.12"], check=False)
     return ret.returncode == 0
 
 
