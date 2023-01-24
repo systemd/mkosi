@@ -1498,6 +1498,7 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
         "MachineID": "--machine-id",
         "SignExpectedPCR": "--sign-expected-pcr",
         "RepositoryDirectories": "--repository-directory",
+        "Credentials": "--credential",
     }
 
     def __init__(self, *kargs: Any, **kwargs: Any) -> None:
