@@ -38,7 +38,10 @@ class CentosInstaller(DistributionInstaller):
 
     @classmethod
     def filesystem(cls) -> str:
-        return "xfs"
+        # This should really be "xfs" but unprivileged population of XFS filesystems with files containing
+        # spaces in their path is broken and needs fixing in xfsprogs, see
+        # https://marc.info/?l=linux-xfs&m=167450838316386&w=2.
+        return "ext4"
 
     @classmethod
     @complete_step("Installing CentOS…")
