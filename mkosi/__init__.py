@@ -2615,7 +2615,7 @@ def find_skeleton(args: argparse.Namespace) -> None:
 
 
 def args_find_path(args: argparse.Namespace, name: str, path: str, *, as_list: bool = False) -> None:
-    if getattr(args, name) is not None:
+    if getattr(args, name):
         return
     abspath = Path(path).absolute()
     if abspath.exists():
