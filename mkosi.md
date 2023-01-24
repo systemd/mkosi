@@ -1394,7 +1394,7 @@ local directory:
 
 * The **`mkosi.reposdir/`** directory, if it exists, is automatically
   used as the repository directory for extra repository files. See
-  the `RepositoryDirectory` option for more information.
+  the `RepositoryDirectories` option for more information.
 
 All these files are optional.
 
