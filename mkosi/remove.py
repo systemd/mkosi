@@ -6,7 +6,7 @@ import subprocess
 from pathlib import Path
 from typing import Optional
 
-from mkosi.backend import PathString, run
+from mkosi.backend import run
 
 
 def btrfs_subvol_delete(path: Path) -> None:
@@ -30,7 +30,7 @@ def btrfs_subvol_delete(path: Path) -> None:
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
-def unlink_try_hard(path: Optional[PathString]) -> None:
+def unlink_try_hard(path: Optional[Path]) -> None:
     if path is None:
         return
 

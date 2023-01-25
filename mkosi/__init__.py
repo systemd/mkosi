@@ -715,7 +715,7 @@ def install_extra_trees(state: MkosiState) -> None:
 
 
 @contextlib.contextmanager
-def chdir(directory: PathString) -> Iterator[Path]:
+def chdir(directory: Path) -> Iterator[Path]:
     c = os.getcwd()
     os.chdir(directory)
     try:
@@ -2461,7 +2461,7 @@ def parse_bytes(num_bytes: Optional[str], *, sector_size: int = 512) -> int:
     return result
 
 
-def remove_glob(*patterns: PathString) -> None:
+def remove_glob(*patterns: Path) -> None:
     pathgen = (glob.glob(str(pattern)) for pattern in patterns)
     paths: set[str] = set(sum(pathgen, []))  # uniquify
     for path in paths:
@@ -2483,8 +2483,8 @@ def unlink_output(config: MkosiConfig) -> None:
                 for p in config.output.parent.iterdir():
                     if p.name.startswith(config.output.name) and "cache" not in p.name:
                         unlink_try_hard(p)
-            unlink_try_hard(f"{config.output}.manifest")
-            unlink_try_hard(f"{config.output}.changelog")
+            unlink_try_hard(Path(f"{config.output}.manifest"))
+            unlink_try_hard(Path(f"{config.output}.changelog"))
 
             if config.checksum:
                 unlink_try_hard(config.output_checksum)
@@ -2625,7 +2625,7 @@ def find_cache(args: argparse.Namespace) -> None:
         return
 
 
-def require_private_file(name: PathString, description: str) -> None:
+def require_private_file(name: Path, description: str) -> None:
     mode = os.stat(name).st_mode & 0o777
     if mode & 0o007:
         warn(dedent(f"""\
@@ -2652,10 +2652,10 @@ def find_password(args: argparse.Namespace) -> None:
         return
 
     try:
-        require_private_file("mkosi.rootpw", "root password")
+        pwfile = Path("mkosi.rootpw")
+        require_private_file(pwfile, "root password")
 
-        with open("mkosi.rootpw") as f:
-            args.password = f.read().strip()
+        args.password = pwfile.read_text().strip()
 
     except FileNotFoundError:
         pass
@@ -3307,7 +3307,7 @@ def configure_ssh(state: MkosiState, cached: bool) -> None:
 
     authorized_keys = state.root / "root/.ssh/authorized_keys"
     if state.config.ssh_key:
-        copy_path(f"{state.config.ssh_key}.pub", authorized_keys)
+        copy_path(Path(f"{state.config.ssh_key}.pub"), authorized_keys)
     elif state.config.ssh_agent is not None:
         env = {"SSH_AUTH_SOCK": state.config.ssh_agent}
         result = run(["ssh-add", "-L"], env=env, text=True, stdout=subprocess.PIPE)
@@ -3648,16 +3648,17 @@ def build_stuff(config: MkosiConfig) -> None:
     make_output_dir(config)
     make_cache_dir(config)
     workspace = setup_workspace(config)
-    cache = setup_package_cache(config, Path(workspace.name))
+    workspace_dir = Path(workspace.name)
+    cache = setup_package_cache(config, workspace_dir)
 
     manifest = Manifest(config)
 
     # Make sure tmpfiles' aging doesn't interfere with our workspace
     # while we are working on it.
-    with flock(workspace.name):
+    with flock(workspace_dir):
         state = MkosiState(
             config=config,
-            workspace=Path(workspace.name),
+            workspace=workspace_dir,
             cache=cache,
             do_run_build_script=False,
             machine_id=config.machine_id or uuid.uuid4().hex,
@@ -4045,7 +4046,7 @@ def run_qemu(config: MkosiConfig) -> None:
     with contextlib.ExitStack() as stack:
         if fw_supports_sb:
             ovmf_vars = stack.enter_context(tempfile.NamedTemporaryFile(prefix=".mkosi-", dir=tmp_dir()))
-            copy_path(find_ovmf_vars(config), ovmf_vars.name)
+            copy_path(find_ovmf_vars(config), Path(ovmf_vars.name))
             cmdline += [
                 "-global",
                 "ICH9-LPC.disable_s3=1",
