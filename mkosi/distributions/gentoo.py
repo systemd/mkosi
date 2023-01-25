@@ -1,13 +1,11 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
-import contextlib
-import fcntl
 import os
 import re
 import tarfile
 import urllib.parse
 import urllib.request
-from collections.abc import Generator, Sequence
+from collections.abc import Sequence
 from pathlib import Path
 from textwrap import dedent
 
@@ -22,7 +20,7 @@ from mkosi.backend import (
     safe_tar_extract,
 )
 from mkosi.distributions import DistributionInstaller
-from mkosi.install import copy_path, open_close
+from mkosi.install import copy_path, flock
 from mkosi.remove import unlink_try_hard
 
 ARCHITECTURES = {
@@ -32,13 +30,6 @@ ARCHITECTURES = {
     # TODO:
     "armv7l": ("arm", "arch/arm/boot/zImage"),
 }
-
-
-@contextlib.contextmanager
-def flock_path(path: Path) -> Generator[int, None, None]:
-    with open_close(path, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC) as fd:
-        fcntl.flock(fd, fcntl.LOCK_EX)
-        yield fd
 
 
 class Gentoo:
@@ -256,7 +247,7 @@ class Gentoo:
 
         stage3_tmp_extract.mkdir(parents=True, exist_ok=True)
 
-        with flock_path(stage3_tmp_extract):
+        with flock(stage3_tmp_extract):
             if not stage3_tmp_extract.joinpath(".cache_isclean").exists():
                 with tarfile.open(stage3_tar_path) as tfd:
                     MkosiPrinter.print_step(f"Extracting {stage3_tar.name} to "

@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 import contextlib
-import errno
 import fcntl
 import importlib.resources
 import os
@@ -10,15 +9,9 @@ import stat
 from collections.abc import Iterator
 from pathlib import Path
 from textwrap import dedent
-from typing import Any, BinaryIO, Optional, cast
+from typing import Optional
 
-from mkosi.backend import MkosiState, PathString, complete_step
-
-
-def reflink(oldfd: int, newfd: int) -> None:
-    # FIXME: Replace with fcntl.FICLONE when we move to Python 3.12
-    FICLONE = 1074041865
-    fcntl.ioctl(newfd, FICLONE, oldfd)
+from mkosi.backend import MkosiState, PathString, complete_step, run
 
 
 def make_executable(path: Path) -> None:
@@ -54,90 +47,18 @@ def add_dropin_config_from_resource(
 
 
 @contextlib.contextmanager
-def open_close(path: PathString, flags: int, mode: int = 0o664) -> Iterator[int]:
-    fd = os.open(path, flags | os.O_CLOEXEC, mode)
+def flock(path: PathString) -> Iterator[Path]:
+    fd = os.open(path, os.O_CLOEXEC|os.O_DIRECTORY|os.O_RDONLY)
     try:
-        yield fd
+        fcntl.fcntl(fd, fcntl.FD_CLOEXEC)
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield Path(path)
     finally:
         os.close(fd)
 
 
-def copy_fd(oldfd: int, newfd: int) -> None:
-    try:
-        reflink(oldfd, newfd)
-    except OSError as e:
-        if e.errno not in {errno.EXDEV, errno.EOPNOTSUPP, errno.ENOTTY}:
-            raise
-        # While mypy handles this correctly, Pyright doesn't yet.
-        shutil.copyfileobj(open(oldfd, "rb", closefd=False), cast(Any, open(newfd, "wb", closefd=False)))
-
-
-def copy_file_object(oldobject: BinaryIO, newobject: BinaryIO) -> None:
-    try:
-        reflink(oldobject.fileno(), newobject.fileno())
-    except OSError as e:
-        if e.errno not in {errno.EXDEV, errno.EOPNOTSUPP, errno.ENOTTY}:
-            raise
-        shutil.copyfileobj(oldobject, newobject)
-        newobject.flush()
-
-
-def copy_file(oldpath: PathString, newpath: PathString) -> None:
-    oldpath = Path(oldpath)
-    newpath = Path(newpath)
-
-    if oldpath.is_symlink():
-        src = oldpath.readlink()
-        newpath.symlink_to(src)
-        return
-
-    with open_close(oldpath, os.O_RDONLY) as oldfd:
-        st = os.stat(oldfd)
-
-        try:
-            with open_close(newpath, os.O_WRONLY | os.O_CREAT | os.O_EXCL, st.st_mode) as newfd:
-                copy_fd(oldfd, newfd)
-        except FileExistsError:
-            newpath.unlink()
-            with open_close(newpath, os.O_WRONLY | os.O_CREAT, st.st_mode) as newfd:
-                copy_fd(oldfd, newfd)
-    shutil.copystat(oldpath, newpath, follow_symlinks=False)
-
-
-def symlink_f(target: str, path: Path) -> None:
-    try:
-        path.symlink_to(target)
-    except FileExistsError:
-        os.unlink(path)
-        path.symlink_to(target)
-
-
-def copy_path(oldpath: PathString, newpath: Path, *, copystat: bool = True) -> None:
-    try:
-        newpath.mkdir(exist_ok=True)
-    except FileExistsError:
-        # something that is not a directory already exists
-        newpath.unlink()
-        newpath.mkdir()
-
-    for entry in os.scandir(oldpath):
-        newentry = newpath / entry.name
-        if entry.is_dir(follow_symlinks=False):
-            copy_path(entry.path, newentry)
-        elif entry.is_symlink():
-            target = os.readlink(entry.path)
-            symlink_f(target, newentry)
-            shutil.copystat(entry.path, newentry, follow_symlinks=False)
-        else:
-            st = entry.stat(follow_symlinks=False)
-            if stat.S_ISREG(st.st_mode):
-                copy_file(entry.path, newentry)
-            else:
-                print("Ignoring", entry.path)
-                continue
-
-    if copystat:
-        shutil.copystat(oldpath, newpath, follow_symlinks=True)
+def copy_path(src: PathString, dst: PathString, parents: bool = False) -> None:
+    run(["cp", "--archive", "--no-target-directory", "--reflink=auto", src, dst])
 
 
 def install_skeleton_trees(state: MkosiState, cached: bool, *, late: bool=False) -> None:
@@ -153,7 +74,7 @@ def install_skeleton_trees(state: MkosiState, cached: bool, *, late: bool=False)
     with complete_step("Copying in skeleton file trees…"):
         for tree in state.config.skeleton_trees:
             if tree.is_dir():
-                copy_path(tree, state.root, copystat=False)
+                copy_path(tree, state.root)
             else:
                 # unpack_archive() groks Paths, but mypy doesn't know this.
                 # Pretend that tree is a str.
