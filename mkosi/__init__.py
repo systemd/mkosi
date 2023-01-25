@@ -3497,12 +3497,30 @@ def invoke_repart(
 
     output = json.loads(run(cmdline, stdout=subprocess.PIPE).stdout)
 
+    usr_label = None
+    root_label = None
+    usr_hash = None
+    root_hash = None
+    has_usr = False
+    has_root = False
     for p in output:
-        if p["type"].startswith("usr") or p["type"].startswith("root"):
-            usr_only = p["type"].startswith("usr")
-            return (p["label"], p.get("roothash"), usr_only)
+        is_data = not p["type"].endswith("-verity")
+        usr = p["type"].startswith("usr") and is_data
+        root = p["type"].startswith("root") and is_data
+        has_usr |= usr
+        has_root |= root
+        if usr:
+            usr_label = p["label"]
+            usr_hash = p.get("roothash")
+        elif root:
+            root_label = p["label"]
+            root_hash = p.get("roothash")
 
-    return (None, None, False)
+    usr_only = has_usr and not has_root
+    label = usr_label if usr_only else root_label
+    root_hash = usr_hash if usr_only else root_hash
+
+    return (label, root_hash, usr_only)
 
 
 def build_image(state: MkosiState, *, manifest: Optional[Manifest] = None) -> None:
