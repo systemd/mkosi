@@ -11,7 +11,7 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Optional
 
-from mkosi.backend import MkosiState, PathString, complete_step, run
+from mkosi.backend import MkosiState, complete_step, run
 
 
 def make_executable(path: Path) -> None:
@@ -47,7 +47,7 @@ def add_dropin_config_from_resource(
 
 
 @contextlib.contextmanager
-def flock(path: PathString) -> Iterator[Path]:
+def flock(path: Path) -> Iterator[Path]:
     fd = os.open(path, os.O_CLOEXEC|os.O_DIRECTORY|os.O_RDONLY)
     try:
         fcntl.fcntl(fd, fcntl.FD_CLOEXEC)
@@ -57,7 +57,7 @@ def flock(path: PathString) -> Iterator[Path]:
         os.close(fd)
 
 
-def copy_path(src: PathString, dst: PathString, parents: bool = False) -> None:
+def copy_path(src: Path, dst: Path, parents: bool = False) -> None:
     run(["cp", "--archive", "--no-target-directory", "--reflink=auto", src, dst])
 
 

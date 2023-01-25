@@ -709,10 +709,8 @@ def patch_file(filepath: Path, line_rewriter: Callable[[str], str]) -> None:
     shutil.move(temp_new_filepath, filepath)
 
 
-def path_relative_to_cwd(path: PathString) -> Path:
+def path_relative_to_cwd(path: Path) -> Path:
     "Return path as relative to $PWD if underneath, absolute path otherwise"
-    path = Path(path)
-
     try:
         return path.relative_to(os.getcwd())
     except ValueError:
@@ -785,7 +783,7 @@ class MkosiPrinter:
             cls.print_step(text2.format(*args))
 
 
-def chown_to_running_user(path: PathString) -> None:
+def chown_to_running_user(path: Path) -> None:
     uid = int(os.getenv("SUDO_UID") or os.getenv("PKEXEC_UID") or str(os.getuid()))
     user = pwd.getpwuid(uid).pw_name
     gid = pwd.getpwuid(uid).pw_gid
