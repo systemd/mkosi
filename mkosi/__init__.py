@@ -9,7 +9,6 @@ import ctypes.util
 import dataclasses
 import datetime
 import errno
-import fcntl
 import glob
 import hashlib
 import http.server
@@ -78,11 +77,9 @@ from mkosi.backend import (
 from mkosi.install import (
     add_dropin_config,
     add_dropin_config_from_resource,
-    copy_file,
-    copy_file_object,
     copy_path,
+    flock,
     install_skeleton_trees,
-    open_close,
 )
 from mkosi.manifest import Manifest
 from mkosi.mounts import dissect_and_mount, mount_bind, mount_overlay, mount_tmpfs
@@ -214,38 +211,6 @@ def setup_workspace(config: MkosiConfig) -> TempDir:
 def btrfs_subvol_create(path: Path, mode: int = 0o755) -> None:
     with set_umask(~mode & 0o7777):
         run(["btrfs", "subvol", "create", path])
-
-
-def disable_cow(path: PathString) -> None:
-    """Disable copy-on-write if applicable on filesystem"""
-
-    run(["chattr", "+C", path],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
-
-
-def copy_image_temporary(src: Path, dir: Path) -> BinaryIO:
-    with src.open("rb") as source:
-        f: BinaryIO = cast(BinaryIO, tempfile.NamedTemporaryFile(prefix=".mkosi-", dir=dir))
-
-        # So on one hand we want CoW off, since this stuff will
-        # have a lot of random write accesses. On the other we
-        # want the copy to be snappy, hence we do want CoW. Let's
-        # ask for both, and let the kernel figure things out:
-        # let's turn off CoW on the file, but start with a CoW
-        # copy. On btrfs that works: the initial copy is made as
-        # CoW but later changes do not result in CoW anymore.
-
-        disable_cow(f.name)
-        copy_file_object(source, f)
-
-        return f
-
-
-def copy_file_temporary(src: PathString, dir: Path) -> BinaryIO:
-    with open(src, "rb") as source:
-        f = cast(BinaryIO, tempfile.NamedTemporaryFile(prefix=".mkosi-", dir=dir))
-        copy_file_object(source, f)
-        return f
 
 
 @contextlib.contextmanager
@@ -742,11 +707,21 @@ def install_extra_trees(state: MkosiState) -> None:
     with complete_step("Copying in extra file trees…"):
         for tree in state.config.extra_trees:
             if tree.is_dir():
-                copy_path(tree, state.root, copystat=False)
+                copy_path(tree, state.root)
             else:
                 # unpack_archive() groks Paths, but mypy doesn't know this.
                 # Pretend that tree is a str.
                 shutil.unpack_archive(tree, state.root)
+
+
+@contextlib.contextmanager
+def chdir(directory: PathString) -> Iterator[Path]:
+    c = os.getcwd()
+    os.chdir(directory)
+    try:
+        yield Path(directory)
+    finally:
+        os.chdir(c)
 
 
 def copy_git_files(src: Path, dest: Path, *, source_file_transfer: SourceFileTransfer) -> None:
@@ -793,16 +768,10 @@ def copy_git_files(src: Path, dest: Path, *, source_file_transfer: SourceFileTra
 
     del c
 
-    for path in files:
-        src_path = src / path
-        dest_path = dest / path
+    dest.mkdir(exist_ok=True)
 
-        dest_path.parent.mkdir(parents=True, exist_ok=True)
-
-        if src_path.is_dir():
-            copy_path(src_path, dest_path)
-        else:
-            copy_file(src_path, dest_path)
+    with chdir(src):
+        run(["cp", "--parents", "--archive", "--reflink=auto", *files, dest])
 
 
 def install_build_src(state: MkosiState) -> None:
@@ -812,7 +781,7 @@ def install_build_src(state: MkosiState) -> None:
     if state.do_run_build_script:
         if state.config.build_script is not None:
             with complete_step("Copying in build script…"):
-                copy_file(state.config.build_script, state.root / "root" / state.config.build_script.name)
+                copy_path(state.config.build_script, state.root / "root" / state.config.build_script.name)
         else:
             return
 
@@ -863,7 +832,7 @@ def install_build_dest(state: MkosiState) -> None:
         return
 
     with complete_step("Copying in build tree…"):
-        copy_path(install_dir(state), state.root, copystat=False)
+        copy_path(install_dir(state), state.root)
 
 
 def xz_binary() -> str:
@@ -1065,7 +1034,7 @@ def install_unified_kernel(state: MkosiState, label: Optional[str], root_hash: O
             run(cmd)
 
             if not state.staging.joinpath(state.staging / state.config.output_split_kernel.name).exists():
-                copy_file(boot_binary, state.staging / state.config.output_split_kernel.name)
+                copy_path(boot_binary, state.staging / state.config.output_split_kernel.name)
 
 
 def secure_boot_sign(state: MkosiState, directory: Path, replace: bool = False) -> None:
@@ -1135,7 +1104,7 @@ def copy_nspawn_settings(state: MkosiState) -> None:
         return None
 
     with complete_step("Copying nspawn settings file…"):
-        copy_file(state.config.nspawn_settings, state.staging / state.config.output_nspawn_settings.name)
+        copy_path(state.config.nspawn_settings, state.staging / state.config.output_nspawn_settings.name)
 
 
 def hash_file(of: TextIO, path: Path) -> None:
@@ -3338,7 +3307,7 @@ def configure_ssh(state: MkosiState, cached: bool) -> None:
 
     authorized_keys = state.root / "root/.ssh/authorized_keys"
     if state.config.ssh_key:
-        copy_file(f"{state.config.ssh_key}.pub", authorized_keys)
+        copy_path(f"{state.config.ssh_key}.pub", authorized_keys)
     elif state.config.ssh_agent is not None:
         env = {"SSH_AUTH_SOCK": state.config.ssh_agent}
         result = run(["ssh-add", "-L"], env=env, text=True, stdout=subprocess.PIPE)
@@ -3356,7 +3325,7 @@ def configure_ssh(state: MkosiState, cached: bool) -> None:
             )
 
         authorized_keys.parent.mkdir(parents=True, exist_ok=True)
-        copy_file(p.with_suffix(".pub"), authorized_keys)
+        copy_path(p.with_suffix(".pub"), authorized_keys)
         os.remove(p.with_suffix(".pub"))
 
     authorized_keys.chmod(0o600)
@@ -3685,10 +3654,7 @@ def build_stuff(config: MkosiConfig) -> None:
 
     # Make sure tmpfiles' aging doesn't interfere with our workspace
     # while we are working on it.
-    with open_close(workspace.name, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC) as dir_fd:
-
-        fcntl.flock(dir_fd, fcntl.LOCK_EX)
-
+    with flock(workspace.name):
         state = MkosiState(
             config=config,
             workspace=Path(workspace.name),
@@ -4078,7 +4044,8 @@ def run_qemu(config: MkosiConfig) -> None:
 
     with contextlib.ExitStack() as stack:
         if fw_supports_sb:
-            ovmf_vars = stack.enter_context(copy_file_temporary(src=find_ovmf_vars(config), dir=tmp_dir()))
+            ovmf_vars = stack.enter_context(tempfile.NamedTemporaryFile(prefix=".mkosi-", dir=tmp_dir()))
+            copy_path(find_ovmf_vars(config), ovmf_vars.name)
             cmdline += [
                 "-global",
                 "ICH9-LPC.disable_s3=1",
@@ -4089,8 +4056,19 @@ def run_qemu(config: MkosiConfig) -> None:
             ]
 
         if config.ephemeral:
-            f = stack.enter_context(copy_image_temporary(src=config.output, dir=config.output.parent))
+            f = stack.enter_context(tempfile.NamedTemporaryFile(prefix=".mkosi-", dir=config.output.parent))
             fname = Path(f.name)
+
+            # So on one hand we want CoW off, since this stuff will
+            # have a lot of random write accesses. On the other we
+            # want the copy to be snappy, hence we do want CoW. Let's
+            # ask for both, and let the kernel figure things out:
+            # let's turn off CoW on the file, but start with a CoW
+            # copy. On btrfs that works: the initial copy is made as
+            # CoW but later changes do not result in CoW anymore.
+
+            run(["chattr", "+C", fname], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+            copy_path(config.output, fname)
         else:
             fname = config.output
 
