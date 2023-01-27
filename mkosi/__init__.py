@@ -940,7 +940,7 @@ def initrd_path(state: MkosiState, kver: str) -> Path:
     return initrd
 
 
-def install_unified_kernel(state: MkosiState, label: Optional[str], root_hash: Optional[str], usr_only: bool) -> None:
+def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
     # Iterates through all kernel versions included in the image and generates a combined
     # kernel+initrd+cmdline+osrelease EFI file from it and places it in the /EFI/Linux directory of the ESP.
     # sd-boot iterates through them and shows them in the menu. These "unified" single-file images have the
@@ -983,8 +983,9 @@ def install_unified_kernel(state: MkosiState, label: Optional[str], root_hash: O
 
             if state.config.image_version:
                 boot_binary = state.root / prefix / f"EFI/Linux/{image_id}_{state.config.image_version}{boot_count}.efi"
-            elif root_hash:
-                boot_binary = state.root / prefix / f"EFI/Linux/{image_id}-{kver}-{root_hash}{boot_count}.efi"
+            elif roothash:
+                _, _, h = roothash.partition("=")
+                boot_binary = state.root / prefix / f"EFI/Linux/{image_id}-{kver}-{h}{boot_count}.efi"
             else:
                 boot_binary = state.root / prefix / f"EFI/Linux/{image_id}-{kver}{boot_count}.efi"
 
@@ -995,15 +996,8 @@ def install_unified_kernel(state: MkosiState, label: Optional[str], root_hash: O
             else:
                 boot_options = ""
 
-            if root_hash:
-                option = "usrhash" if usr_only else "roothash"
-                boot_options = f"{boot_options} {option}={root_hash}"
-            else:
-                # Direct Linux boot means we can't rely on systemd-gpt-auto-generator to
-                # figure out the root partition for us so we have to encode it manually
-                # in the kernel cmdline.
-                option = "mount.usr" if usr_only else "root"
-                boot_options = f"{boot_options} {option}=LABEL={label}"
+            if roothash:
+                boot_options = f"{boot_options} {roothash}"
 
             cmd: list[PathString] = [
                 "ukify",
@@ -3399,13 +3393,9 @@ def reuse_cache_tree(state: MkosiState) -> bool:
     return True
 
 
-def invoke_repart(
-    state: MkosiState,
-    skip: Sequence[str] = [],
-    split: bool = False,
-) -> tuple[Optional[str], Optional[str], bool]:
+def invoke_repart(state: MkosiState, skip: Sequence[str] = [], split: bool = False) -> Optional[str]:
     if not state.config.output_format == OutputFormat.disk or state.for_cache or state.do_run_build_script:
-        return (None, None, False)
+        return None
 
     cmdline: list[PathString] = [
         "systemd-repart",
@@ -3466,12 +3456,21 @@ def invoke_repart(
 
     output = json.loads(run(cmdline, stdout=subprocess.PIPE).stdout)
 
+    roothash = usrhash = None
     for p in output:
-        if p["type"].startswith("usr") or p["type"].startswith("root"):
-            usr_only = p["type"].startswith("usr")
-            return (p["label"], p.get("roothash"), usr_only)
+        if (h := p.get("roothash")) is None:
+            continue
 
-    return (None, None, False)
+        if not p["type"].startswith("usr") or p["type"].startswith("root"):
+            die(f"Found roothash property on unexpected partition type {p['type']}")
+
+        # When there's multiple verity enabled root or usr partitions, the first one wins.
+        if p["type"].startswith("usr"):
+            usrhash = usrhash or h
+        else:
+            roothash = roothash or h
+
+    return f"roothash={roothash}" if roothash else f"usrhash={usrhash}" if usrhash else None
 
 
 def build_image(state: MkosiState, *, manifest: Optional[Manifest] = None) -> None:
@@ -3524,9 +3523,9 @@ def build_image(state: MkosiState, *, manifest: Optional[Manifest] = None) -> No
         reset_random_seed(state.root)
         run_finalize_script(state)
 
-    label, roothash, usr_only = invoke_repart(state, skip=("esp", "xbootldr"))
+    roothash = invoke_repart(state, skip=("esp", "xbootldr"))
 
-    install_unified_kernel(state, label, roothash, usr_only)
+    install_unified_kernel(state, roothash)
     # Sign EFI binaries under these directories within the ESP
     for esp_dir in ['boot/EFI/BOOT', 'boot/EFI/systemd', 'boot/EFI/Linux']:
         secure_boot_sign(state, state.root / esp_dir, replace=True)
