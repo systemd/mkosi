@@ -64,10 +64,7 @@ then
     else
         PREPEND_PYTHONPATH="$SITEDIR"
     fi
-
-    export PYTHONDONTWRITEBYTECODE=1
 fi
-
 
 if [[ -n "$PREPEND_PYTHONPATH" ]] && [[ -n "$PYTHONPATH" ]]
 then
@@ -79,5 +76,6 @@ then
     export PYTHONPATH
 fi
 
+export PYTHONDONTWRITEBYTECODE=1
 
 exec "$PYTHON" -m mkosi "$@"
