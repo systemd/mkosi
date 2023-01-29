@@ -69,12 +69,13 @@ class CentosInstaller(DistributionInstaller):
         if state.do_run_build_script:
             packages.update(state.config.build_packages)
 
-        if not state.do_run_build_script and "epel" in state.config.repositories:
+        if "epel" in state.config.repositories:
             add_packages(state.config, packages, "epel-release")
-            if state.config.netdev:
-                add_packages(state.config, packages, "systemd-networkd", conditional="systemd")
-            if state.config.distribution != Distribution.centos and release >= 9:
-                add_packages(state.config, packages, "systemd-boot", conditional="systemd")
+            if not state.do_run_build_script:
+                if state.config.netdev:
+                    add_packages(state.config, packages, "systemd-networkd", conditional="systemd")
+                if state.config.distribution != Distribution.centos and release >= 9:
+                    add_packages(state.config, packages, "systemd-boot", conditional="systemd")
 
         # Make sure we only install the minimal language files by default on CentOS Stream 8 which still
         # defaults to all langpacks.
