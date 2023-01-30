@@ -4022,20 +4022,8 @@ def run_qemu(config: MkosiConfig) -> None:
         cmdline += ["-vga", "virtio"]
 
     if config.netdev:
-        if not ensure_networkd(config) or os.getuid() != 0:
-            # Fall back to usermode networking if the host doesn't have networkd (eg: Debian).
-            # Also fall back if running as an unprivileged user, which likely can't set up the tap interface.
-            fwd = f",hostfwd=tcp::{config.ssh_port}-:{config.ssh_port}" if config.ssh_port != 22 else ""
-            cmdline += ["-nic", f"user,model=virtio-net-pci{fwd}"]
-        else:
-            # Use vt- prefix so we can take advantage of systemd-networkd's builtin network file for VMs.
-            ifname = f"vt-{interface_name(config)}"
-            # vt-<image-name> is the ifname on the host and is automatically picked up by systemd-networkd which
-            # starts a DHCP server on that interface. This gives IP connectivity to the VM. By default, QEMU
-            # itself tries to bring up the vt network interface which conflicts with systemd-networkd which is
-            # trying to do the same. By specifiying script=no and downscript=no, We tell QEMU to not touch vt
-            # after it is created.
-            cmdline += ["-nic", f"tap,script=no,downscript=no,ifname={ifname},model=virtio-net-pci"]
+        fwd = f",hostfwd=tcp::{config.ssh_port}-:{config.ssh_port}" if config.ssh_port != 22 else ""
+        cmdline += ["-nic", f"user,model=virtio-net-pci{fwd}"]
 
     cmdline += ["-drive", f"if=pflash,format=raw,readonly=on,file={firmware}"]
 
