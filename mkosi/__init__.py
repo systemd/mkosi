@@ -1787,7 +1787,7 @@ def create_parser() -> ArgumentParserMkosi:
         "-b", "--bootable",
         metavar="BOOL",
         action=BooleanAction,
-        help="Make image bootable on EFI (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs)",
+        help="Make image bootable on EFI",
     )
     group.add_argument(
         "--kernel-command-line",
@@ -1847,7 +1847,7 @@ def create_parser() -> ArgumentParserMkosi:
         "--qcow2",
         action=BooleanAction,
         metavar="BOOL",
-        help="Convert resulting image to qcow2 (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs)",
+        help="Convert resulting image to qcow2",
     )
     group.add_argument("--hostname", help="Set hostname")
     group.add_argument("--image-version", help="Set version for image")
@@ -2145,7 +2145,7 @@ def create_parser() -> ArgumentParserMkosi:
                        type=Path,
                        metavar='IMAGE')
 
-    group = parser.add_argument_group("Validation options (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs, tar, cpio)")
+    group = parser.add_argument_group("Validation options")
     group.add_argument(
         "--checksum",
         metavar="BOOL",
@@ -2163,7 +2163,7 @@ def create_parser() -> ArgumentParserMkosi:
         "--bmap",
         metavar="BOOL",
         action=BooleanAction,
-        help="Write block map file (.bmap) for bmaptool usage (only gpt_ext4, gpt_btrfs)",
+        help="Write block map file (.bmap) for bmaptool usage",
     )
 
     group = parser.add_argument_group("Host configuration options")
