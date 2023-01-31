@@ -1064,6 +1064,65 @@ def secure_boot_sign(state: MkosiState, directory: Path, replace: bool = False) 
                 os.rename(f"{f}.signed", f)
 
 
+def secure_boot_configure_auto_enroll(state: MkosiState) -> None:
+    if state.do_run_build_script:
+        return
+    if not state.config.bootable:
+        return
+    if not state.config.secure_boot:
+        return
+    if state.for_cache:
+        return
+
+    with complete_step("Setting up secure boot auto-enrollment…"):
+        keys_dir = state.root / "boot/loader/keys/auto"
+        keys_dir.mkdir(parents=True, exist_ok=True)
+
+        # sbsiglist expects a DER certificate.
+        run(
+            [
+                "openssl",
+                "x509",
+                "-outform",
+                "DER",
+                "-in",
+                state.config.secure_boot_certificate,
+                "-out",
+                state.workspace / "mkosi.der",
+            ],
+        )
+        run(
+            [
+                "sbsiglist",
+                "--owner",
+                str(uuid.uuid4()),
+                "--type",
+                "x509",
+                "--output",
+                state.workspace / "mkosi.esl",
+                state.workspace / "mkosi.der",
+            ],
+        )
+
+        # We reuse the key for all secure boot databases to keep things simple.
+        for db_name in ["PK", "KEK", "db"]:
+            run(
+                [
+                    "sbvarsign",
+                    "--attr",
+                    "NON_VOLATILE,BOOTSERVICE_ACCESS,RUNTIME_ACCESS,TIME_BASED_AUTHENTICATED_WRITE_ACCESS",
+                    "--key",
+                    state.config.secure_boot_key,
+                    "--cert",
+                    state.config.secure_boot_certificate,
+                    "--output",
+                    keys_dir / f"{db_name}.auth",
+                    db_name,
+                    state.workspace / "mkosi.esl",
+                ],
+            )
+
+
 def compress_output(config: MkosiConfig, src: Path) -> None:
     compress = should_compress_output(config)
 
@@ -3504,6 +3563,7 @@ def build_image(state: MkosiState, *, manifest: Optional[Manifest] = None) -> No
         install_boot_loader(state)
         configure_ssh(state, cached)
         run_postinst_script(state)
+        secure_boot_configure_auto_enroll(state)
         # Sign systemd-boot / sd-boot EFI binaries
         secure_boot_sign(state, state.root / 'usr/lib/systemd/boot/efi')
 
