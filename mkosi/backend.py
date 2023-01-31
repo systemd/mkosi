@@ -389,8 +389,6 @@ class MkosiConfig:
     credentials: dict[str, str]
     directory: Optional[Path]
     config_path: Optional[Path]
-    all: bool
-    all_directory: Optional[Path]
     debug: list[str]
     auto_bump: bool
     workspace_dir: Optional[Path]
