@@ -15,7 +15,8 @@ from mkosi.backend import Distribution, MkosiConfig, MkosiException, Verb
 
 
 def parse(argv: Optional[List[str]] = None) -> MkosiConfig:
-    return mkosi.load_args(mkosi.parse_args(argv)["default"])
+    return mkosi.load_args(mkosi.parse_args(argv))
+
 
 @contextmanager
 def cd_temp_dir() -> Iterator[None]:

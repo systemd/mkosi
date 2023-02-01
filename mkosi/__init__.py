@@ -1787,7 +1787,7 @@ def create_parser() -> ArgumentParserMkosi:
         "-b", "--bootable",
         metavar="BOOL",
         action=BooleanAction,
-        help="Make image bootable on EFI (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs)",
+        help="Make image bootable on EFI",
     )
     group.add_argument(
         "--kernel-command-line",
@@ -1847,7 +1847,7 @@ def create_parser() -> ArgumentParserMkosi:
         "--qcow2",
         action=BooleanAction,
         metavar="BOOL",
-        help="Convert resulting image to qcow2 (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs)",
+        help="Convert resulting image to qcow2",
     )
     group.add_argument("--hostname", help="Set hostname")
     group.add_argument("--image-version", help="Set version for image")
@@ -2145,7 +2145,7 @@ def create_parser() -> ArgumentParserMkosi:
                        type=Path,
                        metavar='IMAGE')
 
-    group = parser.add_argument_group("Validation options (only gpt_ext4, gpt_xfs, gpt_btrfs, gpt_squashfs, tar, cpio)")
+    group = parser.add_argument_group("Validation options")
     group.add_argument(
         "--checksum",
         metavar="BOOL",
@@ -2163,7 +2163,7 @@ def create_parser() -> ArgumentParserMkosi:
         "--bmap",
         metavar="BOOL",
         action=BooleanAction,
-        help="Write block map file (.bmap) for bmaptool usage (only gpt_ext4, gpt_btrfs)",
+        help="Write block map file (.bmap) for bmaptool usage",
     )
 
     group = parser.add_argument_group("Host configuration options")
@@ -2304,20 +2304,6 @@ def create_parser() -> ArgumentParserMkosi:
         metavar="PATH",
     )
     group.add_argument(
-        "-a", "--all",
-        action="store_true",
-        dest="all",
-        default=False,
-        help="Build all settings files in mkosi.files/",
-    )
-    group.add_argument(
-        "--all-directory",
-        metavar="PATH",
-        type=Path,
-        dest="all_directory",
-        help="Specify path to directory to read settings files from",
-    )
-    group.add_argument(
         "-B",
         "--auto-bump",
         metavar="BOOL",
@@ -2359,12 +2345,10 @@ def load_distribution(args: argparse.Namespace) -> argparse.Namespace:
     return args
 
 
-def parse_args(argv: Optional[Sequence[str]] = None) -> dict[str, argparse.Namespace]:
+def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     """Load config values from files and parse command line arguments
 
-    Do all about config files and command line arguments parsing. If --all argument is passed
-    more than one job needs to be processed. The returned tuple contains MkosiConfig
-    valid for all jobs as well as a dict containing the arguments per job.
+    Do all about config files and command line arguments parsing.
     """
     parser = create_parser()
 
@@ -2403,8 +2387,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> dict[str, argparse.Names
     else:
         directory = Path.cwd()
 
-    # Note that directory will be ignored if .all_directory or .config_path are absolute
-    all_directory = directory / (args_pre_parsed.all_directory or "mkosi.files")
+    # Note that directory will be ignored if .config_path are absolute
     if args_pre_parsed.config_path and not directory.joinpath(args_pre_parsed.config_path).exists():
         die(f"No config file found at {directory / args_pre_parsed.config_path}")
 
@@ -2418,42 +2401,14 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> dict[str, argparse.Names
     else:
         config_path = directory / "mkosi.default"
 
-    if args_pre_parsed.all and args_pre_parsed.config_path:
-        die("--all and --config= may not be combined.")
+    args = parse_args_file_group(argv, config_path)
+    args = load_distribution(args)
 
-    # Parse everything in --all mode
-    args_all = {}
-    if args_pre_parsed.all:
-        if not os.path.isdir(all_directory):
-            die(f"all-directory {all_directory} does not exist")
-        for f in os.scandir(all_directory):
-            if not f.name.startswith("mkosi."):
-                continue
-            args = parse_args_file(argv, Path(f.path))
-            args_all[f.name] = args
-    # Parse everything in normal mode
-    else:
-        args = parse_args_file_group(argv, config_path)
+    if args.distribution:
+        # Parse again with any extra distribution files included.
+        args = parse_args_file_group(argv, config_path, args.distribution)
 
-        args = load_distribution(args)
-
-        if args.distribution:
-            # Parse again with any extra distribution files included.
-            args = parse_args_file_group(argv, config_path, args.distribution)
-
-        args_all["default"] = args
-
-    return args_all
-
-
-def parse_args_file(argv: list[str], config_path: Path) -> argparse.Namespace:
-    """Parse just one mkosi.* file (--all mode)."""
-
-    # Parse all parameters handled by mkosi.
-    # Parameters forwarded to subprocesses such as nspawn or qemu end up in cmdline_argv.
-    argv = argv[:1] + [f"@{config_path}"] + argv[1:]
-
-    return create_parser().parse_args(argv)
+    return args
 
 
 def parse_args_file_group(

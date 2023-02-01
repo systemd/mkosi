@@ -7,7 +7,7 @@ import sys
 from collections.abc import Iterator
 from subprocess import CalledProcessError
 
-from mkosi import complete_step, parse_args, run_verb
+from mkosi import parse_args, run_verb
 from mkosi.backend import MkosiException, die
 
 
@@ -26,19 +26,13 @@ def propagate_failed_return() -> Iterator[None]:
 def main() -> None:
     args = parse_args()
 
-    for job_name, a in args.items():
-        # Change working directory if --directory is passed
-        if a.directory:
-            work_dir = a.directory
-            if os.path.isdir(work_dir):
-                os.chdir(work_dir)
-            else:
-                die(f"Error: {work_dir} is not a directory!")
-        if len(args) > 1:
-            with complete_step(f"Processing {job_name}"):
-                run_verb(a)
+    if args.directory:
+        if args.directory.isdir():
+            os.chdir(args.directory)
         else:
-            run_verb(a)
+            die(f"Error: {args.directory} is not a directory!")
+
+    run_verb(args)
 
 
 if __name__ == "__main__":

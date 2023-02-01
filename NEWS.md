@@ -39,6 +39,8 @@
 - Removed `-stream` from CentOS release specifiers. Instead of specifying `8-stream`,
   you know just specify `8`.
 - Removed default kernel command line arguments `rhgb`, `selinux=0` and `audit=0`.
+- Dropped --all and --all-directory as this functionality is better implemented by
+  using a build system.
 
 ## v14
 
