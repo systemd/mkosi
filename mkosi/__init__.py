@@ -1164,7 +1164,7 @@ def hash_file(of: TextIO, path: Path) -> None:
     bs = 16 * 1024**2
     h = hashlib.sha256()
 
-    with path.open("wb") as sf:
+    with path.open("rb") as sf:
         while (buf := sf.read(bs)):
             h.update(buf)
 
