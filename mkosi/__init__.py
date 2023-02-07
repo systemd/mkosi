@@ -3391,6 +3391,14 @@ def run_kernel_install(state: MkosiState, cached: bool) -> None:
             run_workspace_command(state, ["kernel-install", "add", kver, Path("/") / kimg])
 
 
+def run_preset_all(state: MkosiState) -> None:
+    if state.for_cache or state.do_run_build_script:
+        return
+
+    with complete_step("Applying presets…"):
+        run(["systemctl", "--root", state.root, "preset-all"])
+
+
 def reuse_cache_tree(state: MkosiState) -> bool:
     if not state.config.incremental:
         return False
@@ -3518,6 +3526,7 @@ def build_image(state: MkosiState, *, manifest: Optional[Manifest] = None) -> No
         install_boot_loader(state)
         configure_ssh(state, cached)
         run_postinst_script(state)
+        run_preset_all(state)
         secure_boot_configure_auto_enroll(state)
         # Sign systemd-boot / sd-boot EFI binaries
         secure_boot_sign(state, state.root / 'usr/lib/systemd/boot/efi')
