@@ -3399,6 +3399,17 @@ def run_preset_all(state: MkosiState) -> None:
         run(["systemctl", "--root", state.root, "preset-all"])
 
 
+def remove_apivfs_dirs(state: MkosiState):
+    for d in ("run", "dev", "tmp", "proc", "sys"):
+        p = state.root / d
+
+        if any(p.iterdir()):
+            die("Found non-empty API VFS directory")
+
+        if p.exists():
+            p.rmdir()
+
+
 def reuse_cache_tree(state: MkosiState) -> bool:
     if not state.config.incremental:
         return False
@@ -3545,6 +3556,7 @@ def build_image(state: MkosiState, *, manifest: Optional[Manifest] = None) -> No
             remove_files(state)
         reset_machine_id(state)
         reset_random_seed(state.root)
+        remove_apivfs_dirs(state)
         run_finalize_script(state)
 
     roothash = invoke_repart(state, skip=("esp", "xbootldr"))
