@@ -15,7 +15,7 @@ from typing import Any, Callable, Iterable, Mapping, Optional, Sequence, Type, T
 
 from mkosi.backend import MkosiState
 from mkosi.log import ARG_DEBUG, MkosiPrinter, die
-from mkosi.types import _FILE, CompletedProcess, PathString, Popen
+from mkosi.types import _FILE, CompletedProcess, CommandArgument, PathString, Popen
 
 CLONE_NEWNS = 0x00020000
 CLONE_NEWUSER = 0x10000000
@@ -188,6 +188,16 @@ def fork_and_wait(target: Callable[[], T]) -> T:
     return result
 
 
+def _stringify(x: CommandArgument) -> str:
+    """Stringify pathlike objects via their protocol and everything else via str()."""
+    # os.fspath(foo) can actually be bytes if foo.__fspath__ returns bytes (or
+    # whatever else it might return), but in our case all paths are instantiated
+    # from strings and will thus return strings.
+    # No cast is needed because mypy enforced the result will be string
+    # through CommandArgument.
+    return os.fspath(x) if isinstance(x, os.PathLike) else str(x)
+
+
 def run(
     cmdline: Iterable[PathString],
     check: bool = True,
@@ -196,10 +206,10 @@ def run(
     env: Mapping[str, PathString] = {},
     **kwargs: Any,
 ) -> CompletedProcess:
-    cmdline = [os.fspath(x) for x in cmdline]
+    cmd = [_stringify(x) for x in cmdline]
 
     if "run" in ARG_DEBUG:
-        MkosiPrinter.info(f"+ {shlex.join(str(s) for s in cmdline)}")
+        MkosiPrinter.info(f"+ {shlex.join(cmd)}")
 
     if not stdout and not stderr:
         # Unless explicit redirection is done, print all subprocess
@@ -217,10 +227,10 @@ def run(
         del env["PATH"]
 
     try:
-        return subprocess.run(cmdline, check=check, stdout=stdout, stderr=stderr, env=env, **kwargs,
+        return subprocess.run(cmd, check=check, stdout=stdout, stderr=stderr, env=env, **kwargs,
                               preexec_fn=foreground)
     except FileNotFoundError:
-        die(f"{cmdline[0]} not found in PATH.")
+        die(f"{cmd[0]} not found in PATH.")
 
 
 def spawn(
@@ -239,7 +249,8 @@ def spawn(
         stdout = sys.stderr
 
     try:
-        return subprocess.Popen(cmdline, stdout=stdout, stderr=stderr, **kwargs, preexec_fn=foreground)
+        cmd = [_stringify(x) for x in cmdline]
+        return subprocess.Popen(cmd, stdout=stdout, stderr=stderr, **kwargs, preexec_fn=foreground)
     except FileNotFoundError:
         die(f"{cmdline[0]} not found in PATH.")
 

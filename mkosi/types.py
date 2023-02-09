@@ -15,3 +15,5 @@ else:
 # Borrowed from https://github.com/python/typeshed/blob/3d14016085aed8bcf0cf67e9e5a70790ce1ad8ea/stdlib/3/subprocess.pyi#L24
 _FILE = Union[None, int, IO[Any]]
 PathString = Union[Path, str]
+
+CommandArgument = Union[str, Path]
