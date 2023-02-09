@@ -6,7 +6,7 @@ from pathlib import Path
 from mkosi.backend import Distribution, MkosiConfig, MkosiState, add_packages
 from mkosi.distributions import DistributionInstaller
 from mkosi.distributions.fedora import Repo, install_packages_dnf, invoke_dnf, setup_dnf
-from mkosi.log import complete_step, die
+from mkosi.log import MkosiPrinter, complete_step, die
 from mkosi.remove import unlink_try_hard
 from mkosi.run import run_workspace_command
 
@@ -82,6 +82,7 @@ class CentosInstaller(DistributionInstaller):
 
         syslog = state.root.joinpath("etc/systemd/system/syslog.service")
         if release <= 8 and syslog.is_symlink() and not syslog.exists():
+            MkosiPrinter.info("Removing dangling syslog.service symlink")
             syslog.unlink()
 
         # On Fedora, the default rpmdb has moved to /usr/lib/sysimage/rpm so if that's the case we need to
