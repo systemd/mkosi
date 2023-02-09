@@ -80,6 +80,10 @@ class CentosInstaller(DistributionInstaller):
 
         install_packages_dnf(state, packages, env)
 
+        syslog = state.root.joinpath("etc/systemd/system/syslog.service")
+        if release <= 8 and syslog.is_symlink() and not syslog.exists():
+            syslog.unlink()
+
         # On Fedora, the default rpmdb has moved to /usr/lib/sysimage/rpm so if that's the case we need to
         # move it back to /var/lib/rpm on CentOS.
         move_rpm_db(state.root)
