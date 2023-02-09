@@ -15,8 +15,12 @@ class DistributionInstaller:
         raise NotImplementedError
 
     @staticmethod
-    def kernel_image(name: str, architecture: str) -> Path:
-        return Path("lib/modules") / name / "vmlinuz"
+    def kernel_image(kver: str, architecture: str) -> Path:
+        return Path("lib/modules") / kver / "vmlinuz"
+
+    @staticmethod
+    def initrd_path(kver: str) -> Path:
+        return Path("boot") / f"initramfs-{kver}.img"
 
     @classmethod
     def cache_path(cls) -> list[str]:

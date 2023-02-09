@@ -13,7 +13,6 @@ from mkosi.backend import (
     safe_tar_extract,
     set_umask,
     strip_suffixes,
-    workspace,
 )
 from mkosi.log import MkosiException
 
@@ -35,13 +34,6 @@ def test_set_umask() -> None:
     assert tmp1 == 0o767
     assert tmp2 == 0o757
     assert tmp3 == 0o777
-
-
-def test_workspace() -> None:
-    assert workspace(Path("/home/folder/mkosi/mkosi")) == Path("/home/folder/mkosi")
-    assert workspace(Path("/home/../home/folder/mkosi/mkosi")) == Path("/home/../home/folder/mkosi")
-    assert workspace(Path("/")) == Path("/")
-    assert workspace(Path()) == Path()
 
 
 def test_safe_tar_extract(tmp_path: Path) -> None:

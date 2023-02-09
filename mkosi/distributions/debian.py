@@ -45,6 +45,10 @@ class DebianInstaller(DistributionInstaller):
     def kernel_image(name: str, architecture: str) -> Path:
         return Path(f"boot/vmlinuz-{name}")
 
+    @staticmethod
+    def initrd_path(kver: str) -> Path:
+        return Path("boot") / f"initrd.img-{kver}"
+
     @classmethod
     def install(cls, state: "MkosiState") -> None:
         # Either the image builds or it fails and we restart, we don't need safety fsyncs when bootstrapping

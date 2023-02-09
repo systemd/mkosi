@@ -2,7 +2,6 @@
 
 import argparse
 import tempfile
-import uuid
 from contextlib import contextmanager
 from os import chdir, getcwd
 from pathlib import Path
@@ -60,28 +59,6 @@ def test_os_distribution() -> None:
             config.write_text(f"[Distribution]\nDistribution={dist}")
             assert parse([]).distribution == dist
 
-def test_machine_id() -> None:
-    id = uuid.uuid4().hex
-    load_args = parse(["--machine-id", id])
-
-    assert load_args.machine_id == id
-
-    with pytest.raises(MkosiException):
-        parse(["--machine-id", "notValidKey"])
-    with pytest.raises(tuple((argparse.ArgumentError, SystemExit))):
-        parse(["--machine-id"])
-
-    with cd_temp_dir():
-        config = Path("mkosi.conf")
-        config.write_text(f"[Output]\nMachineID={id}")
-        load_args = parse([])
-        assert load_args.machine_id == id
-
-    with cd_temp_dir():
-        config = Path("mkosi.conf")
-        config.write_text("[Output]\nMachineID=")
-        with pytest.raises(MkosiException):
-            parse([])
 
 def test_hostname() -> None:
     assert parse(["--hostname", "name"]).hostname == "name"

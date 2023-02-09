@@ -45,6 +45,7 @@
   `--source-file-transfer-final` might be reimplemented in the future using virtiofsd.
 - Dropped `--include-dir` option. Usage can be replaced by using `--incremental` and reading includes from
   the cached build image tree.
+- Removed `--machine-id` in favor of shipping images without a machine ID at all.
 
 ## v14
 
