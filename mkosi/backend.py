@@ -289,7 +289,6 @@ class MkosiConfig:
     environment: dict[str, str]
     build_sources: Path
     build_dir: Optional[Path]
-    include_dir: Optional[Path]
     install_dir: Optional[Path]
     build_packages: list[str]
     skip_final_phase: bool

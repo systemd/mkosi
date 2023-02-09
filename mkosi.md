@@ -714,18 +714,6 @@ a machine ID.
   is automatically used for this purpose (also see the "Files" section
   below).
 
-`IncludeDirectory=`, `--include-directory=`
-
-: Takes a path of a directory to use as the include directory. This
-  directory is mounted at `/usr/include` when building the build image
-  and running the build script. This means all include files installed
-  to `/usr/include` will be stored in this directory. This is useful
-  to make include files available on the host system for use by
-  language servers to provide code completion. If this option is not
-  specified, but a directory `mkosi.includedir/` exists in the local
-  directory, it is automatically used for this purpose (also see the
-  "Files" section below).
-
 `InstallDirectory=`, `--install-directory=`
 
 : Takes a path of a directory to use as the install directory. The

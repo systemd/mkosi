@@ -6,7 +6,7 @@ import os
 import stat
 from collections.abc import Iterator, Sequence
 from pathlib import Path
-from typing import Callable, ContextManager, Deque, Optional, TypeVar, Union, cast
+from typing import Callable, Deque, Optional, TypeVar, Union, cast
 
 from mkosi.log import complete_step
 from mkosi.run import run
@@ -80,15 +80,6 @@ def mount(
         yield where
     finally:
         run(["umount", "--no-mtab", "--recursive", where])
-
-
-def mount_bind(what: Path, where: Optional[Path] = None, read_only: bool = False) -> ContextManager[Path]:
-    if where is None:
-        where = what
-
-    os.makedirs(what, 0o755, True)
-    os.makedirs(where, 0o755, True)
-    return mount(what, where, operation="--bind")
 
 
 @contextlib.contextmanager
