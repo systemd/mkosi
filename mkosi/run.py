@@ -4,6 +4,7 @@ import multiprocessing
 import os
 import pwd
 import shlex
+import shutil
 import signal
 import subprocess
 import sys
@@ -300,7 +301,14 @@ def run_workspace_command(
         *bwrap_params,
     ]
 
+    resolve = state.root.joinpath("etc/resolv.conf")
+
     if network:
+        # Bubblewrap does not mount over symlinks and /etc/resolv.conf might be a symlink. Deal with this by
+        # temporarily moving the file somewhere else.
+        if resolve.is_symlink():
+            shutil.copy2(resolve, state.workspace / "resolv.conf", follow_symlinks=False)
+
         # If we're using the host network namespace, use the same resolver
         cmdline += ["--ro-bind", "/etc/resolv.conf", "/etc/resolv.conf"]
     else:
@@ -323,3 +331,6 @@ def run_workspace_command(
         if "run" in ARG_DEBUG:
             run([*cmdline, template.format("sh")], check=False, env=env)
         die(f"\"{shlex.join(str(s) for s in cmd)}\" returned non-zero exit code {e.returncode}.")
+    finally:
+        if state.workspace.joinpath("resolv.conf").exists():
+            shutil.copy2(state.workspace.joinpath("resolv.conf"), resolve, follow_symlinks=False)
