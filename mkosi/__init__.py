@@ -249,27 +249,6 @@ def prepare_tree_root(state: MkosiState) -> None:
             btrfs_subvol_create(state.root)
 
 
-def prepare_tree(state: MkosiState, cached: bool) -> None:
-    if cached:
-        # Reuse machine-id from cached image.
-        state.machine_id = uuid.UUID(state.root.joinpath("etc/machine-id").read_text().strip()).hex
-        # Always update kernel command line.
-        if not state.do_run_build_script and state.config.bootable:
-            state.root.joinpath("etc/kernel/cmdline").write_text(" ".join(state.config.kernel_command_line) + "\n")
-        return
-
-    with complete_step("Setting up basic OS tree…"):
-        state.root.mkdir(mode=0o755, exist_ok=True)
-        # We need an initialized machine ID for the build & boot logic to work
-        state.root.joinpath("etc").mkdir(mode=0o755, exist_ok=True)
-        state.root.joinpath("etc/machine-id").write_text(f"{state.machine_id}\n")
-
-        state.root.joinpath("etc/kernel").mkdir(mode=0o755, exist_ok=True)
-        state.root.joinpath("etc/kernel/cmdline").write_text(" ".join(state.config.kernel_command_line) + "\n")
-        state.root.joinpath("etc/kernel/entry-token").write_text(f"{state.machine_id}\n")
-        state.root.joinpath("etc/kernel/install.conf").write_text("layout=bls\n")
-
-
 def clean_paths(
         root: Path,
         globs: Sequence[str],
@@ -429,18 +408,9 @@ def reset_machine_id(state: MkosiState) -> None:
         return
 
     with complete_step("Resetting machine ID"):
-        if not state.config.machine_id:
-            machine_id = state.root / "etc/machine-id"
-            machine_id.unlink(missing_ok=True)
-            machine_id.write_text("uninitialized\n")
-
-        dbus_machine_id = state.root / "var/lib/dbus/machine-id"
-        try:
-            dbus_machine_id.unlink()
-        except FileNotFoundError:
-            pass
-        else:
-            dbus_machine_id.symlink_to("../../../etc/machine-id")
+        machine_id = state.root / "etc/machine-id"
+        machine_id.unlink(missing_ok=True)
+        machine_id.write_text("uninitialized\n")
 
 
 def reset_random_seed(root: Path) -> None:
@@ -610,7 +580,7 @@ def install_boot_loader(state: MkosiState) -> None:
         return
 
     with complete_step("Installing boot loader…"):
-        run(["bootctl", "install", "--root", state.root], env={"SYSTEMD_ESP_PATH": "/boot", **os.environ})
+        run(["bootctl", "install", "--root", state.root], env={"SYSTEMD_ESP_PATH": "/boot"})
 
 
 def install_extra_trees(state: MkosiState) -> None:
@@ -750,15 +720,6 @@ def gen_kernel_images(state: MkosiState) -> Iterator[tuple[str, Path]]:
         yield kver.name, kimg
 
 
-def initrd_path(state: MkosiState, kver: str) -> Path:
-    # initrd file is versioned in Debian Bookworm
-    initrd = state.root / boot_directory(state, kver) / f"initrd.img-{kver}"
-    if not initrd.exists():
-        initrd = state.root / boot_directory(state, kver) / "initrd"
-
-    return initrd
-
-
 def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
     # Iterates through all kernel versions included in the image and generates a combined
     # kernel+initrd+cmdline+osrelease EFI file from it and places it in the /EFI/Linux directory of the ESP.
@@ -815,6 +776,9 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
             else:
                 boot_options = ""
 
+            if state.config.kernel_command_line:
+                boot_options = f"{boot_options} {' '.join(state.config.kernel_command_line)}"
+
             if roothash:
                 boot_options = f"{boot_options} {roothash}"
 
@@ -842,7 +806,11 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                         "--pcr-banks", "sha1,sha256"
                     ]
 
-            cmd += [state.root / kimg, initrd_path(state, kver)]
+            initrd = state.root.joinpath(state.installer.initrd_path(kver))
+            if not initrd.exists():
+                die(f"Initrd not found at {initrd}")
+
+            cmd += [state.root / kimg, initrd]
 
             run(cmd)
 
@@ -1341,7 +1309,6 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
         "BuildPackages": "--build-package",
         "PostInstallationScript": "--postinst-script",
         "TarStripSELinuxContext": "--tar-strip-selinux-context",
-        "MachineID": "--machine-id",
         "SignExpectedPCR": "--sign-expected-pcr",
         "RepositoryDirectories": "--repository-directory",
         "Credentials": "--credential",
@@ -1741,10 +1708,6 @@ def create_parser() -> ArgumentParserMkosi:
         action=BooleanAction,
         default=True,
         help=argparse.SUPPRESS,
-    )
-    group.add_argument(
-        "--machine-id",
-        help="Defines a fixed machine ID for all our build-time runs.",
     )
 
     group.add_argument("--password", help="Set the root password")
@@ -2711,12 +2674,6 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
     if args.netdev and is_centos_variant(args.distribution) and "epel" not in args.repositories:
         die("--netdev is only supported on EPEL centOS variants")
 
-    if args.machine_id is not None:
-        try:
-            uuid.UUID(hex=args.machine_id)
-        except ValueError:
-            die(f"Sorry, {args.machine_id} is not a valid machine ID.")
-
     # If we are building a sysext we don't want to add base packages to the
     # extension image, as they will already be in the base image.
     if args.base_image is not None:
@@ -2927,8 +2884,6 @@ def print_summary(config: MkosiConfig) -> None:
     if config.secure_boot_certificate:
         print("   SecureBoot Cert.:", config.secure_boot_certificate)
 
-    print("                Machine ID:", none_to_no(config.machine_id))
-
     print("\nCONTENT:")
 
     print("                  Packages:", line_join_list(config.packages))
@@ -3108,10 +3063,6 @@ def configure_netdev(state: MkosiState, cached: bool) -> None:
         run(["systemctl", "--root", state.root, "enable", "systemd-networkd"])
 
 
-def boot_directory(state: MkosiState, kver: str) -> Path:
-    return Path("boot") / state.machine_id / kver
-
-
 def run_kernel_install(state: MkosiState, cached: bool) -> None:
     if not state.config.bootable or state.do_run_build_script:
         return
@@ -3243,7 +3194,6 @@ def build_image(state: MkosiState, *, manifest: Optional[Manifest] = None) -> No
         return
 
     with mount_image(state, cached):
-        prepare_tree(state, cached)
         install_skeleton_trees(state, cached)
         install_distribution(state, cached)
         configure_locale(state.root, cached)
@@ -3375,7 +3325,7 @@ def remove_artifacts(state: MkosiState, for_cache: bool = False) -> None:
 
     with complete_step(f"Removing artifacts from {what}…"):
         unlink_try_hard(state.root)
-        unlink_try_hard(state.var_tmp())
+        unlink_try_hard(state.var_tmp)
 
 
 def build_stuff(uid: int, gid: int, config: MkosiConfig) -> None:
@@ -3390,7 +3340,6 @@ def build_stuff(uid: int, gid: int, config: MkosiConfig) -> None:
         workspace=workspace_dir,
         cache=cache,
         do_run_build_script=False,
-        machine_id=config.machine_id or uuid.uuid4().hex,
         for_cache=False,
     )
 

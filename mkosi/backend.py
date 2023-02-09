@@ -321,7 +321,6 @@ class MkosiConfig:
     debug: list[str]
     auto_bump: bool
     workspace_dir: Optional[Path]
-    machine_id: Optional[str]
 
     # QEMU-specific options
     qemu_headless: bool
@@ -396,7 +395,6 @@ class MkosiState:
     workspace: Path
     cache: Path
     do_run_build_script: bool
-    machine_id: str
     for_cache: bool
     environment: dict[str, str] = dataclasses.field(init=False)
     installer: DistributionInstaller = dataclasses.field(init=False)
@@ -418,20 +416,21 @@ class MkosiState:
             die("No installer for this distribution.")
         self.installer = instance
 
+        self.root.mkdir(exist_ok=True, mode=0o755)
+        self.var_tmp.mkdir(exist_ok=True)
+        self.staging.mkdir(exist_ok=True)
+
     @property
     def root(self) -> Path:
         return self.workspace / "root"
 
+    @property
     def var_tmp(self) -> Path:
-        p = self.workspace / "var-tmp"
-        p.mkdir(exist_ok=True)
-        return p
+        return self.workspace / "var-tmp"
 
     @property
     def staging(self) -> Path:
-        p = self.workspace / "staging"
-        p.mkdir(exist_ok=True)
-        return p
+        return self.workspace / "staging"
 
 
 def should_compress_output(config: Union[argparse.Namespace, MkosiConfig]) -> Union[bool, str]:
@@ -447,10 +446,6 @@ def should_compress_output(config: Union[argparse.Namespace, MkosiConfig]) -> Un
     if c is True:
         return "xz"  # default compression
     return False if c is None else c
-
-
-def workspace(root: Path) -> Path:
-    return root.parent
 
 
 def format_rlimit(rlimit: int) -> str:

@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 import shutil
+from pathlib import Path
 
 from mkosi.backend import MkosiState, add_packages, patch_file, sort_packages
 from mkosi.distributions import DistributionInstaller
@@ -21,6 +22,10 @@ class OpensuseInstaller(DistributionInstaller):
     @classmethod
     def install(cls, state: "MkosiState") -> None:
         return install_opensuse(state)
+
+    @staticmethod
+    def initrd_path(kver: str) -> Path:
+        return Path("boot") / f"initrd-{kver}"
 
 
 @complete_step("Installing openSUSE…")
