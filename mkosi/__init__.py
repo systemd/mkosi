@@ -65,7 +65,7 @@ from mkosi.log import (
     warn,
 )
 from mkosi.manifest import Manifest
-from mkosi.mounts import dissect_and_mount, mount_bind, mount_overlay, scandir_recursive
+from mkosi.mounts import dissect_and_mount, mount_overlay, scandir_recursive
 from mkosi.remove import unlink_try_hard
 from mkosi.run import (
     become_root,
@@ -187,9 +187,6 @@ def mount_image(state: MkosiState, cached: bool) -> Iterator[None]:
             workdir = state.workspace / "workdir"
             workdir.mkdir()
             stack.enter_context(mount_overlay(base, state.root, workdir, state.root))
-
-        if state.do_run_build_script and state.config.include_dir and not cached:
-            stack.enter_context(mount_bind(state.config.include_dir, state.root / "usr/include"))
 
         yield
 
@@ -1846,13 +1843,6 @@ def create_parser() -> ArgumentParserMkosi:
         metavar="PATH",
     )
     group.add_argument(
-        "--include-directory",
-        dest="include_dir",
-        help="Path to use as persistent include directory",
-        type=Path,
-        metavar="PATH",
-    )
-    group.add_argument(
         "--install-directory",
         dest="install_dir",
         help="Path to use as persistent install directory",
@@ -2302,10 +2292,6 @@ def unlink_output(config: MkosiConfig) -> None:
             with complete_step("Clearing out build directory…"):
                 empty_directory(config.build_dir)
 
-        if config.include_dir is not None:
-            with complete_step("Clearing out include directory…"):
-                empty_directory(config.include_dir)
-
         if config.install_dir is not None:
             with complete_step("Clearing out install directory…"):
                 empty_directory(config.install_dir)
@@ -2495,7 +2481,6 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
 
     args_find_path(args, "nspawn_settings", "mkosi.nspawn")
     args_find_path(args, "build_script", "mkosi.build")
-    args_find_path(args, "include_dir", "mkosi.includedir/")
     args_find_path(args, "install_dir", "mkosi.installdir/")
     args_find_path(args, "postinst_script", "mkosi.postinst")
     args_find_path(args, "prepare_script", "mkosi.prepare")
@@ -2621,9 +2606,6 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
 
     if args.build_dir is not None:
         args.build_dir = args.build_dir.absolute()
-
-    if args.include_dir is not None:
-        args.include_dir = args.include_dir.absolute()
 
     if args.install_dir is not None:
         args.install_dir = args.install_dir.absolute()
@@ -2973,7 +2955,6 @@ def print_summary(config: MkosiConfig) -> None:
 
     print("             Build Sources:", config.build_sources)
     print("           Build Directory:", none_to_none(config.build_dir))
-    print("         Include Directory:", none_to_none(config.include_dir))
     print("         Install Directory:", none_to_none(config.install_dir))
     print("            Build Packages:", line_join_list(config.build_packages))
     print("          Skip final phase:", yes_no(config.skip_final_phase))
@@ -3356,9 +3337,6 @@ def run_build_script(state: MkosiState) -> None:
         if state.config.build_dir is not None:
             bwrap += ["--bind", state.config.build_dir, "/work/build"]
             env |= dict(BUILDDIR="/work/build")
-
-        if state.config.include_dir is not None:
-            bwrap += ["--bind", state.config.include_dir, "/usr/include"]
 
         cmd = ["setpriv", f"--reuid={state.uid}", f"--regid={state.gid}", "--clear-groups", f"/work/{state.config.build_script.name}"]
         # When we're building the image because it's required for another verb, any passed arguments are
