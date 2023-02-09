@@ -88,21 +88,19 @@ def become_root() -> tuple[int, int]:
         # we can run still chown stuff to that user or run stuff as that user which will make sure any
         # generated files are owned by that user. We don't map to the last user in the range as the last user
         # is sometimes used in tests as a default value and mapping to that user might break those tests.
-        newuidmap = [
+        run([
             "newuidmap", pid,
             0, subuid, SUBRANGE - 100,
             SUBRANGE - 100, os.getuid(), 1,
             SUBRANGE - 100 + 1, subuid + SUBRANGE - 100 + 1, 99
-        ]
-        run([str(x) for x in newuidmap])
+        ])
 
-        newgidmap = [
+        run([
             "newgidmap", pid,
             0, subgid, SUBRANGE - 100,
             SUBRANGE - 100, os.getgid(), 1,
             SUBRANGE - 100 + 1, subgid + SUBRANGE - 100 + 1, 99
-        ]
-        run([str(x) for x in newgidmap])
+        ])
 
         sys.stdout.flush()
         sys.stderr.flush()
