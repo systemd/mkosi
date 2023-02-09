@@ -332,5 +332,5 @@ def run_workspace_command(
             run([*cmdline, template.format("sh")], check=False, env=env)
         die(f"\"{shlex.join(str(s) for s in cmd)}\" returned non-zero exit code {e.returncode}.")
     finally:
-        if state.workspace.joinpath("resolv.conf").exists():
+        if state.workspace.joinpath("resolv.conf").is_symlink():
             shutil.move(state.workspace.joinpath("resolv.conf"), resolve)
