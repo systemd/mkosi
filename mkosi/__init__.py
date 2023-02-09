@@ -4064,7 +4064,7 @@ def expand_paths(paths: Sequence[str]) -> list[Path]:
     expanded = []
     for path in paths:
         try:
-            expanded += [Path(string.Template(path).substitute(environ))]
+            expanded += [Path(string.Template(str(path)).substitute(environ))]
         except KeyError:
             # Skip path if it uses a variable not defined.
             pass
