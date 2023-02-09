@@ -307,7 +307,7 @@ def run_workspace_command(
         # Bubblewrap does not mount over symlinks and /etc/resolv.conf might be a symlink. Deal with this by
         # temporarily moving the file somewhere else.
         if resolve.is_symlink():
-            shutil.copy2(resolve, state.workspace / "resolv.conf", follow_symlinks=False)
+            shutil.move(resolve, state.workspace / "resolv.conf")
 
         # If we're using the host network namespace, use the same resolver
         cmdline += ["--ro-bind", "/etc/resolv.conf", "/etc/resolv.conf"]
@@ -333,4 +333,4 @@ def run_workspace_command(
         die(f"\"{shlex.join(str(s) for s in cmd)}\" returned non-zero exit code {e.returncode}.")
     finally:
         if state.workspace.joinpath("resolv.conf").exists():
-            shutil.copy2(state.workspace.joinpath("resolv.conf"), resolve, follow_symlinks=False)
+            shutil.move(state.workspace.joinpath("resolv.conf"), resolve)
