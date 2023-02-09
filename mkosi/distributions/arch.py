@@ -53,7 +53,7 @@ def install_arch(state: MkosiState) -> None:
                 [options]
                 RootDir = {state.root}
                 LogFile = /dev/null
-                CacheDir = {state.config.cache_path}
+                CacheDir = {state.cache}
                 GPGDir = /etc/pacman.d/gnupg/
                 HookDir = {state.root}/etc/pacman.d/hooks/
                 HoldPkg = pacman glibc

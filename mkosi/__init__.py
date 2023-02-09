@@ -543,7 +543,7 @@ def configure_serial_terminal(state: MkosiState, cached: bool) -> None:
 
 
 def cache_params(state: MkosiState, root: Path) -> list[PathString]:
-    return flatten(("--bind", state.config.cache_path, root / p) for p in state.installer.cache_path())
+    return flatten(("--bind", state.cache, root / p) for p in state.installer.cache_path())
 
 
 def run_prepare_script(state: MkosiState, cached: bool) -> None:
@@ -1107,15 +1107,6 @@ def print_output_size(config: MkosiConfig) -> None:
         size = format_bytes(st.st_size)
         space = format_bytes(st.st_blocks * 512)
         MkosiPrinter.print_step(f"Resulting image size is {size}, consumes {space}.")
-
-
-def setup_package_cache(config: MkosiConfig, workspace: Path) -> Path:
-    if not config.cache_path:
-        cache = workspace / "cache"
-    else:
-        cache = config.cache_path
-
-    return cache
 
 
 def remove_duplicates(items: list[T]) -> list[T]:
@@ -3009,7 +3000,7 @@ def make_build_dir(state: MkosiState) -> None:
 
 def make_cache_dir(state: MkosiState) -> None:
     """Create the cache directory if set and not existing yet"""
-    run(["mkdir", "-p", state.config.cache_path], user=state.uid, group=state.gid)
+    run(["mkdir", "-p", state.cache], user=state.uid, group=state.gid)
 
 
 def make_install_dir(state: MkosiState) -> None:
@@ -3382,7 +3373,7 @@ def remove_artifacts(state: MkosiState, for_cache: bool = False) -> None:
 def build_stuff(uid: int, gid: int, config: MkosiConfig) -> None:
     workspace = setup_workspace(config)
     workspace_dir = Path(workspace.name)
-    cache = setup_package_cache(config, workspace_dir)
+    cache = config.cache_path or workspace_dir / "cache"
 
     state = MkosiState(
         uid=uid,
