@@ -3009,6 +3009,11 @@ def make_build_dir(state: MkosiState) -> None:
 
 def make_cache_dir(state: MkosiState) -> None:
     """Create the cache directory if set and not existing yet"""
+    if state.config.cache_path is None:
+        # TODO: remove the type ignore, when mypy recognises that this defaults
+        # to None from argparse's side.
+        return # type: ignore
+
     run(["mkdir", "-p", state.config.cache_path], user=state.uid, group=state.gid)
 
 
