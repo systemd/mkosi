@@ -11,11 +11,18 @@ import sys
 import traceback
 from pathlib import Path
 from types import TracebackType
-from typing import Any, Callable, Iterable, Mapping, Optional, Sequence, Type, TypeVar
+from typing import Any, Callable, Mapping, Optional, Sequence, Type, TypeVar
 
 from mkosi.backend import MkosiState
 from mkosi.log import ARG_DEBUG, MkosiPrinter, die
-from mkosi.types import _FILE, CompletedProcess, CommandArgument, PathString, Popen
+from mkosi.types import (
+    _FILE,
+    CommandArgument,
+    CommandLine,
+    CompletedProcess,
+    PathString,
+    Popen,
+)
 
 CLONE_NEWNS = 0x00020000
 CLONE_NEWUSER = 0x10000000
@@ -87,7 +94,7 @@ def become_root() -> tuple[int, int]:
             SUBRANGE - 100, os.getuid(), 1,
             SUBRANGE - 100 + 1, subuid + SUBRANGE - 100 + 1, 99
         ]
-        run((str(x) for x in newuidmap))
+        run([str(x) for x in newuidmap])
 
         newgidmap = [
             "newgidmap", pid,
@@ -95,7 +102,7 @@ def become_root() -> tuple[int, int]:
             SUBRANGE - 100, os.getgid(), 1,
             SUBRANGE - 100 + 1, subgid + SUBRANGE - 100 + 1, 99
         ]
-        run(str(x) for x in newgidmap)
+        run([str(x) for x in newgidmap])
 
         sys.stdout.flush()
         sys.stderr.flush()
@@ -199,7 +206,7 @@ def _stringify(x: CommandArgument) -> str:
 
 
 def run(
-    cmdline: Iterable[PathString],
+    cmdline: CommandLine,
     check: bool = True,
     stdout: _FILE = None,
     stderr: _FILE = None,
@@ -234,7 +241,7 @@ def run(
 
 
 def spawn(
-    cmdline: Sequence[PathString],
+    cmdline: CommandLine,
     stdout: _FILE = None,
     stderr: _FILE = None,
     **kwargs: Any,

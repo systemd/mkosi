@@ -1,6 +1,6 @@
 import subprocess
 from pathlib import Path
-from typing import IO, TYPE_CHECKING, Any, Union
+from typing import IO, TYPE_CHECKING, Any, Sequence, Union
 
 # These types are only generic during type checking and not at runtime, leading
 # to a TypeError during compilation.
@@ -16,4 +16,6 @@ else:
 _FILE = Union[None, int, IO[Any]]
 PathString = Union[Path, str]
 
-CommandArgument = Union[str, Path]
+CommandArgument = Union[str, Path, int]
+CommandLine = Sequence[CommandArgument]
+MutableCommandLine = list[CommandArgument]
