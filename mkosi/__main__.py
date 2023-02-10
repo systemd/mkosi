@@ -25,6 +25,7 @@ def propagate_failed_return() -> Iterator[None]:
 
 @propagate_failed_return()
 def main() -> None:
+    sys.excepthook = excepthook
     args = parse_args()
 
     if args.directory:
@@ -37,5 +38,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    sys.excepthook = excepthook
     main()
