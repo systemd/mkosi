@@ -19,6 +19,7 @@ jobs:
 
     - name: Install
       run: |
+        python3 -m pip install --upgrade setuptools wheel pip
         python3 -m pip install pytest mypy types-cryptography isort pyflakes
         npm install -g pyright
 
@@ -49,40 +50,31 @@ jobs:
     - name: Test user installation
       run: |
         python3 -m pip install --user .
-        $HOME/.local/bin/mkosi -h
-        python3 -m pip uninstall --yes mkosi
-
-    - name: Test user installation (sudo call)
-      run: |
-        python3 -m pip install --user .
-        sudo $HOME/.local/bin/mkosi -h
+        command -v mkosi
+        mkosi -h
         python3 -m pip uninstall --yes mkosi
 
     - name: Test editable user installation
       run: |
-        python3 -m pip install --user --no-use-pep517 --editable .
-        $HOME/.local/bin/mkosi -h
-        python3 -m pip uninstall --yes mkosi
-
-    - name: Test editable user installation (sudo call)
-      run: |
-        python3 -m pip install --user --no-use-pep517 --editable .
-        sudo $HOME/.local/bin/mkosi -h
+        python3 -m pip install --user --editable .
+        command -v mkosi
+        mkosi -h
         python3 -m pip uninstall --yes mkosi
 
     - name: Test venv installation
       run: |
         python3 -m venv testvenv
+        testvenv/bin/python3 -m pip install --upgrade setuptools wheel pip
         testvenv/bin/python3 -m pip install .
         testvenv/bin/mkosi -h
-
-    - name: Test venv installation (sudo call)
-      run: |
-        sudo testvenv/bin/mkosi -h
+        rm -rf testenv
 
     - name: Test system installation
       run: |
-        sudo python3 -m pip install .
+        rm -f mkosi-*-py3-none-any.whl
+        python3 -m pip wheel .
+        sudo python3 -m pip install mkosi-*-py3-none-any.whl
+        sudo bash -c 'command -v mkosi'
         sudo mkosi -h
         sudo python3 -m pip uninstall --yes mkosi
 

@@ -27,7 +27,7 @@ If you want to hack on mkosi do
 # clone either this repository or your fork of it
 git clone https://github.com/systemd/mkosi/
 cd mkosi
-python3 -m pip install --user --no-use-pep517 --editable .
+python3 -m pip install --user --editable .
 ```
 This will install mkosi in editable mode to `~/.local/bin/mkosi`, allowing you
 to use your own changes right away.

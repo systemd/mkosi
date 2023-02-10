@@ -1,3 +1,37 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mkosi"
+authors = [
+    {name = "mkosi contributors", email = "systemd-devel@lists.freedesktop.org"},
+]
+version = "14"
+description = "Build Bespoke OS Images"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {file = "LICENSE"}
+
+[project.optional-dependencies]
+cryptography = ["cryptography"]
+dev = [
+    "pytest",
+    "mypy",
+    "types-cryptography",
+    "isort",
+    "pyflakes",
+]
+
+[project.scripts]
+mkosi = "mkosi.__main__:main"
+
+[tool.setuptools]
+packages = ["mkosi"]
+
+[tool.setuptools.package-data]
+"*" = ["*.sh", "*.hook", "*.conf", "*.install"]
+
 [tool.isort]
 profile = "black"
 include_trailing_comma = true
