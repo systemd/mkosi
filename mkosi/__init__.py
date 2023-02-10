@@ -2467,6 +2467,14 @@ def normalize_script(path: Optional[Path]) -> Optional[Path]:
     return Path(path).absolute()
 
 
+def default_credentials() -> dict[str, str]:
+    tz = run(["timedatectl", "show", "-p", "Timezone", "--value"], text=True, stdout=subprocess.PIPE).stdout.strip()
+
+    return {
+        "firstboot.timezone": tz,
+    }
+
+
 def load_args(args: argparse.Namespace) -> MkosiConfig:
     ARG_DEBUG.update(args.debug)
 
@@ -2617,13 +2625,13 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
         args.environment = {}
 
     if args.credentials:
-        credentials = {}
+        credentials = default_credentials()
         for s in args.credentials:
             key, _, value = s.partition("=")
             credentials[key] = value
         args.credentials = credentials
     else:
-        args.credentials = {}
+        args.credentials = default_credentials()
 
     if args.cache_path is not None:
         args.cache_path = args.cache_path.absolute()
