@@ -23,6 +23,10 @@ class OpensuseInstaller(DistributionInstaller):
     def install(cls, state: MkosiState) -> None:
         return install_opensuse(state)
 
+    @classmethod
+    def remove_packages(cls, state: MkosiState, packages: list[str]) -> None:
+        zypper_remove(state, packages)
+
     @staticmethod
     def initrd_path(kver: str) -> Path:
         return Path("boot") / f"initrd-{kver}"
@@ -58,6 +62,11 @@ def zypper_install(state: MkosiState, packages: Iterable[str]) -> None:
     ]
 
     run_with_apivfs(state, cmdline)
+
+
+def zypper_remove(state: MkosiState, packages: Iterable[str]) -> None:
+        cmdline = ["zypper", "--root", state.root, "remove", "-y", "--clean-deps", *packages]
+        run_with_apivfs(state, cmdline)
 
 
 @complete_step("Installing openSUSE…")
