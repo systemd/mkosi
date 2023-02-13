@@ -106,7 +106,7 @@ class Manifest:
 
         c = run(
             ["rpm", f"--root={root}", f"--dbpath={dbpath}", "-qa", "--qf",
-             r"%{NEVRA}\t%{SOURCERPM}\t%{NAME}\t%{ARCH}\t%{SIZE}\t%{INSTALLTIME}\n"],
+             r"%{NEVRA}\t%{SOURCERPM}\t%{NAME}\t%{ARCH}\t%{LONGSIZE}\t%{INSTALLTIME}\n"],
             stdout=PIPE,
             text=True,
         )
