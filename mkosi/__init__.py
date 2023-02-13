@@ -296,6 +296,17 @@ def clean_yum_metadata(root: Path, always: bool) -> None:
     clean_paths(root, paths, tool='/bin/yum', always=always)
 
 
+def clean_zypper_metadata(root: Path, always: bool) -> None:
+    """Remove zypper metadata if /usr/bin/zypper is not present in the image"""
+    paths = [
+        "/var/lib/zypp",
+        "/var/log/zypp",
+        "/var/cache/zypp",
+    ]
+
+    clean_paths(root, paths, tool='/usr/bin/zypper', always=always)
+
+
 def clean_rpm_metadata(root: Path, always: bool) -> None:
     """Remove rpm metadata if /bin/rpm is not present in the image"""
     paths = [
@@ -358,6 +369,7 @@ def clean_package_manager_metadata(state: MkosiState) -> None:
     clean_apt_metadata(state.root, always=always)
     clean_dpkg_metadata(state.root, always=always)
     clean_pacman_metadata(state.root, always=always)
+    clean_zypper_metadata(state.root, always=always)
     # FIXME: implement cleanup for other package managers: swupd
 
 
