@@ -3077,6 +3077,14 @@ def run_kernel_install(state: MkosiState, cached: bool) -> None:
     if state.config.cache_initrd and cached:
         return
 
+    # CentOS Stream 8 has an old version of kernel-install that unconditionally writes initrds to
+    # /boot/<machine-id>/<kver>, so let's detect that and move them to the correct location.
+
+    if (p := state.root / "etc/machine-id").exists():
+        machine_id = p.read_text().strip()
+    else:
+        machine_id = None
+
     with complete_step("Generating initramfs images…"):
         for kver, kimg in gen_kernel_images(state):
             cmd: list[PathString] = ["kernel-install", "add", kver, Path("/") / kimg]
@@ -3085,6 +3093,12 @@ def run_kernel_install(state: MkosiState, cached: bool) -> None:
                 cmd += ["--verbose"]
 
             run_workspace_command(state, cmd)
+
+            if machine_id and (p := state.root / "boot" / machine_id / kver / "initrd").exists():
+                shutil.move(p, state.root / state.installer.initrd_path(kver))
+
+    if machine_id and (p := state.root / "boot" / machine_id).exists():
+        shutil.rmtree(p)
 
 
 def run_preset_all(state: MkosiState) -> None:
