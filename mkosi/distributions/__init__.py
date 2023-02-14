@@ -33,3 +33,7 @@ class DistributionInstaller:
     @classmethod
     def filesystem(cls) -> str:
         raise NotImplementedError
+
+    @staticmethod
+    def kernel_command_line(state: "MkosiState") -> list[str]:
+        return []

@@ -776,6 +776,8 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
             else:
                 cmdline = []
 
+            cmdline += state.installer.kernel_command_line(state)
+
             if roothash:
                 cmdline += [roothash]
 
