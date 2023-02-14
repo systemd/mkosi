@@ -3075,7 +3075,12 @@ def run_kernel_install(state: MkosiState, cached: bool) -> None:
 
     with complete_step("Generating initramfs images…"):
         for kver, kimg in gen_kernel_images(state):
-            run_workspace_command(state, ["kernel-install", "add", kver, Path("/") / kimg])
+            cmd: list[PathString] = ["kernel-install", "add", kver, Path("/") / kimg]
+
+            if ARG_DEBUG:
+                cmd += ["--verbose"]
+
+            run_workspace_command(state, cmd)
 
 
 def run_preset_all(state: MkosiState) -> None:
@@ -3332,7 +3337,7 @@ def need_cache_trees(state: MkosiState) -> bool:
     if state.config.force > 1:
         return True
 
-    return not cache_tree_path(state.config, is_final_image=True).exists() or not cache_tree_path(state.config, is_final_image=False).exists()
+    return not cache_tree_path(state.config, is_final_image=True).exists() or state.config.build_script is not None and not cache_tree_path(state.config, is_final_image=False).exists()
 
 
 def remove_artifacts(state: MkosiState, for_cache: bool = False) -> None:
