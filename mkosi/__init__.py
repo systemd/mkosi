@@ -3075,7 +3075,12 @@ def run_kernel_install(state: MkosiState, cached: bool) -> None:
 
     with complete_step("Generating initramfs images…"):
         for kver, kimg in gen_kernel_images(state):
-            run_workspace_command(state, ["kernel-install", "add", kver, Path("/") / kimg])
+            cmd: list[PathString] = ["kernel-install", "add", kver, Path("/") / kimg]
+
+            if ARG_DEBUG:
+                cmd += ["--verbose"]
+
+            run_workspace_command(state, cmd)
 
 
 def run_preset_all(state: MkosiState) -> None:
