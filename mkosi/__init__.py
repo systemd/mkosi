@@ -3135,6 +3135,25 @@ def run_preset_all(state: MkosiState) -> None:
         run(["systemctl", "--root", state.root, "preset-all"])
 
 
+def run_selinux_relabel(state: MkosiState) -> None:
+    selinux = state.root / "etc/selinux/config"
+    if not selinux.exists():
+        return
+
+    policy = run(["sh", "-c", f". {selinux} && echo $SELINUXTYPE"], text=True, stdout=subprocess.PIPE).stdout.strip()
+    if not policy:
+        return
+
+    fc = Path('/etc/selinux') / policy / 'contexts/files/file_contexts'
+
+    # We want to be able to relabel the underlying APIVFS mountpoints, so mount root non-recursive to a
+    # temporary location so that the underlying mountpoints become visible.
+    cmd = f"mkdir /tmp/relabel && mount --bind / /tmp/relabel && exec setfiles -m -r /tmp/relabel -F {fc} /tmp/relabel || exit $?"
+
+    with complete_step(f"Relabeling files using {policy} policy"):
+        run_workspace_command(state, ["sh", "-c", cmd])
+
+
 def reuse_cache_tree(state: MkosiState) -> bool:
     if not state.config.incremental:
         return False
@@ -3280,6 +3299,7 @@ def build_image(state: MkosiState, *, manifest: Optional[Manifest] = None) -> No
         reset_machine_id(state)
         reset_random_seed(state.root)
         run_finalize_script(state)
+        run_selinux_relabel(state)
 
     roothash = invoke_repart(state, skip=("esp", "xbootldr"))
 
