@@ -782,9 +782,13 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
             if roothash:
                 boot_options = f"{boot_options} {roothash}"
 
+            # Older versions of systemd-stub expect the cmdline section to be null terminated. We can't embed
+            # nul terminators in argv so let's communicate the cmdline via a file instead.
+            state.workspace.joinpath("cmdline").write_text(f"{boot_options}\x00")
+
             cmd: list[PathString] = [
                 "ukify",
-                "--cmdline", boot_options,
+                "--cmdline", f"@{state.workspace / 'cmdline'}",
                 "--os-release", f"@{state.root / 'usr/lib/os-release'}",
                 "--stub", state.root / f"lib/systemd/boot/efi/linux{EFI_ARCHITECTURES[state.config.architecture]}.efi.stub",
                 "--output", boot_binary,
