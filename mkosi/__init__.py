@@ -3092,6 +3092,9 @@ def run_preset_all(state: MkosiState) -> None:
 
 
 def run_selinux_relabel(state: MkosiState) -> None:
+    if state.for_cache or state.do_run_build_script:
+        return
+
     selinux = state.root / "etc/selinux/config"
     if not selinux.exists():
         return
