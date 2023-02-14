@@ -3332,7 +3332,7 @@ def need_cache_trees(state: MkosiState) -> bool:
     if state.config.force > 1:
         return True
 
-    return not cache_tree_path(state.config, is_final_image=True).exists() or not cache_tree_path(state.config, is_final_image=False).exists()
+    return not cache_tree_path(state.config, is_final_image=True).exists() or state.config.build_script is not None and not cache_tree_path(state.config, is_final_image=False).exists()
 
 
 def remove_artifacts(state: MkosiState, for_cache: bool = False) -> None:
