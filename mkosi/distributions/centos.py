@@ -37,6 +37,18 @@ class CentosInstaller(DistributionInstaller):
         # https://marc.info/?l=linux-xfs&m=167450838316386&w=2.
         return "ext4"
 
+    @staticmethod
+    def kernel_command_line(state: MkosiState) -> list[str]:
+        kcl = []
+
+        # systemd-gpt-auto-generator only started applying the GPT partition read-only flag to gpt-auto
+        # mounts from v240 onwards, while CentOS Stream 8 ships systemd v239, so we have to nudge gpt-auto to
+        # mount the root partition rw by default.
+        if state.config.bootable and int(state.config.release) <= 8:
+            kcl += ["rw"]
+
+        return kcl + DistributionInstaller.kernel_command_line(state)
+
     @classmethod
     @complete_step("Installing CentOS…")
     def install(cls, state: "MkosiState") -> None:

@@ -770,21 +770,35 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                 boot_binary = state.root / prefix / f"EFI/Linux/{image_id}-{kver}{boot_count}.efi"
 
             if state.root.joinpath("etc/kernel/cmdline").exists():
-                boot_options = state.root.joinpath("etc/kernel/cmdline").read_text().strip()
+                cmdline = [state.root.joinpath("etc/kernel/cmdline").read_text().strip()]
             elif state.root.joinpath("/usr/lib/kernel/cmdline").exists():
-                boot_options = state.root.joinpath("usr/lib/kernel/cmdline").read_text().strip()
+                cmdline = [state.root.joinpath("usr/lib/kernel/cmdline").read_text().strip()]
             else:
-                boot_options = ""
+                cmdline = []
 
-            if state.config.kernel_command_line:
-                boot_options = f"{boot_options} {' '.join(state.config.kernel_command_line)}"
+            cmdline += state.installer.kernel_command_line(state)
 
             if roothash:
-                boot_options = f"{boot_options} {roothash}"
+                cmdline += [roothash]
+
+            cmdline += state.config.kernel_command_line
+
+            if state.config.qemu_headless and not any("console=ttyS0" in x for x in cmdline):
+                cmdline += ["console=ttyS0"]
+
+            # By default, the serial console gets spammed with kernel log messages.
+            # Let's up the log level to only show warning and error messages when
+            # --qemu-headless is enabled to avoid this spam.
+            if state.config.qemu_headless and not any("loglevel" in x for x in cmdline):
+                cmdline += ["loglevel=4"]
+
+            # Older versions of systemd-stub expect the cmdline section to be null terminated. We can't embed
+            # nul terminators in argv so let's communicate the cmdline via a file instead.
+            state.workspace.joinpath("cmdline").write_text(f"{' '.join(cmdline).strip()}\x00")
 
             cmd: list[PathString] = [
                 "ukify",
-                "--cmdline", boot_options,
+                "--cmdline", f"@{state.workspace / 'cmdline'}",
                 "--os-release", f"@{state.root / 'usr/lib/os-release'}",
                 "--stub", state.root / f"lib/systemd/boot/efi/linux{EFI_ARCHITECTURES[state.config.architecture]}.efi.stub",
                 "--output", boot_binary,
@@ -2647,15 +2661,6 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
     if needs_build(args) and args.qemu_headless and not args.bootable:
         die("--qemu-headless requires --bootable", MkosiNotSupportedException)
 
-    if args.qemu_headless and "console=ttyS0" not in args.kernel_command_line:
-        args.kernel_command_line.append("console=ttyS0")
-
-    # By default, the serial console gets spammed with kernel log messages.
-    # Let's up the log level to only show warning and error messages when
-    # --qemu-headless is enabled to avoid this spam.
-    if args.qemu_headless and not any("loglevel" in x for x in args.kernel_command_line):
-        args.kernel_command_line.append("loglevel=4")
-
     if args.skip_final_phase and args.verb != Verb.build:
         die("--skip-final-phase can only be used when building an image using 'mkosi build'", MkosiNotSupportedException)
 
@@ -3073,6 +3078,14 @@ def run_kernel_install(state: MkosiState, cached: bool) -> None:
     if state.config.cache_initrd and cached:
         return
 
+    # CentOS Stream 8 has an old version of kernel-install that unconditionally writes initrds to
+    # /boot/<machine-id>/<kver>, so let's detect that and move them to the correct location.
+
+    if (p := state.root / "etc/machine-id").exists():
+        machine_id = p.read_text().strip()
+    else:
+        machine_id = None
+
     with complete_step("Generating initramfs images…"):
         for kver, kimg in gen_kernel_images(state):
             cmd: list[PathString] = ["kernel-install", "add", kver, Path("/") / kimg]
@@ -3081,6 +3094,12 @@ def run_kernel_install(state: MkosiState, cached: bool) -> None:
                 cmd += ["--verbose"]
 
             run_workspace_command(state, cmd)
+
+            if machine_id and (p := state.root / "boot" / machine_id / kver / "initrd").exists():
+                shutil.move(p, state.root / state.installer.initrd_path(kver))
+
+    if machine_id and (p := state.root / "boot" / machine_id).exists():
+        shutil.rmtree(p)
 
 
 def run_preset_all(state: MkosiState) -> None:
