@@ -29,6 +29,7 @@ class MkosiPrinter:
 
     bold = "\033[0;1;39m" if isatty else ""
     red = "\033[31;1m" if isatty else ""
+    yellow = "\033[33;1m" if isatty else ""
     reset = "\033[0m" if isatty else ""
 
     prefix = "‣ "
@@ -42,6 +43,10 @@ class MkosiPrinter:
     @classmethod
     def color_error(cls, text: Any) -> str:
         return f"{cls.red}{text}{cls.reset}"
+
+    @classmethod
+    def color_warning(cls, text: Any) -> str:
+        return f"{cls.yellow}{text}{cls.reset}"
 
     @classmethod
     def print_step(cls, text: str) -> None:
@@ -61,7 +66,7 @@ class MkosiPrinter:
 
     @classmethod
     def warn(cls, text: str) -> None:
-        cls._print(f"{cls.prefix}{cls.color_error(text)}\n")
+        cls._print(f"{cls.prefix}{cls.color_warning(text)}\n")
 
     @classmethod
     @contextlib.contextmanager
