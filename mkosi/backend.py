@@ -433,19 +433,19 @@ class MkosiState:
         return self.workspace / "staging"
 
 
-def should_compress_output(config: Union[argparse.Namespace, MkosiConfig]) -> Union[bool, str]:
-    """A string or False.
+def should_compress_output(config: Union[argparse.Namespace, MkosiConfig]) -> Optional[str]:
+    """A string or None.
 
     When explicitly configured with --compress-output=, use
     that. Since we have complete freedom with selecting the outer
     compression algorithm, pick some default when True.
     """
     c = config.compress_output
-    if c is None and config.output_format == OutputFormat.tar:
+    if c is None and config.output_format in (OutputFormat.tar, OutputFormat.cpio):
         c = True
     if c is True:
-        return "xz"  # default compression
-    return False if c is None else c
+        return "zstd"  # default compression
+    return c if c else None
 
 
 def format_rlimit(rlimit: int) -> str:

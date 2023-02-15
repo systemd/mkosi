@@ -2820,7 +2820,7 @@ def print_summary(config: MkosiConfig) -> None:
         print("                  SSH port:", config.ssh_port)
 
     print("               Incremental:", yes_no(config.incremental))
-    print("               Compression:", yes_no_or(should_compress_output(config)))
+    print("               Compression:", should_compress_output(config) or "no")
 
     if config.output_format == OutputFormat.disk:
         print("                     QCow2:", yes_no(config.qcow2))
