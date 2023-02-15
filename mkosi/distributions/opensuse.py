@@ -1,13 +1,13 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 import shutil
+from collections.abc import Iterable
 from pathlib import Path
 
-from mkosi.backend import MkosiState, add_packages, patch_file, sort_packages
+from mkosi.backend import MkosiState, add_packages, patch_file
 from mkosi.distributions import DistributionInstaller
 from mkosi.log import complete_step
 from mkosi.run import run, run_with_apivfs
-from mkosi.types import PathString
 
 
 class OpensuseInstaller(DistributionInstaller):
@@ -20,12 +20,44 @@ class OpensuseInstaller(DistributionInstaller):
         return "btrfs"
 
     @classmethod
-    def install(cls, state: "MkosiState") -> None:
+    def install(cls, state: MkosiState) -> None:
         return install_opensuse(state)
 
     @staticmethod
     def initrd_path(kver: str) -> Path:
         return Path("boot") / f"initrd-{kver}"
+
+
+def zypper_addrepo(state: MkosiState, url: str, name: str, caching: bool = False) -> None:
+    run(["zypper", "--root", state.root, "addrepo", "--check", "--keep-packages" if caching else "--no-keep-packages", url, name])
+
+
+def zypper_removerepo(state: MkosiState, repo: str) -> None:
+    run(["zypper", "--root", state.root, "removerepo", repo])
+
+
+def zypper_modifyrepo(state: MkosiState, repo: str, caching: bool) -> None:
+    run(["zypper", f"--root={state.root}", "modifyrepo", "--keep-packages" if caching else "--no-keep-packages", repo])
+
+
+def zypper_install(state: MkosiState, packages: Iterable[str]) -> None:
+    if not state.config.with_docs:
+        # zypper has no option for excluding the docs...
+        state.root.joinpath("etc/zypp/zypp.conf").write_text("rpm.install.excludedocs = yes\n")
+
+    cmdline = [
+        "zypper",
+        f"--root={state.root}",
+        f"--cache-dir={state.cache}",
+        "--gpg-auto-import-keys" if state.config.repository_key_check else "--no-gpg-checks",
+        "install",
+        "-y",
+        "--no-recommends",
+        "--download-in-advance",
+        *packages,
+    ]
+
+    run_with_apivfs(state, cmdline)
 
 
 @complete_step("Installing openSUSE…")
@@ -50,18 +82,19 @@ def install_opensuse(state: MkosiState) -> None:
         release_url = f"{state.config.mirror}/distribution/leap/{release}/repo/oss/"
         updates_url = f"{state.config.mirror}/update/leap/{release}/oss/"
 
-    # state.configure the repositories: we need to enable packages caching here to make sure that the package cache
-    # stays populated after "zypper install".
-    run(["zypper", "--root", state.root, "addrepo", "-ck", release_url, "repo-oss"])
-    run(["zypper", "--root", state.root, "addrepo", "-ck", updates_url, "repo-update"])
+    # If we need to use a local mirror, create a temporary repository
+    # definition, which is valid only at image build time. It will be removed
+    # from the image and replaced with the final repositories at the end of the
+    # installation process.
+    #
+    # We need to enable packages caching in any cases to make sure that the package
+    # cache stays populated after "zypper install".
 
-    # If we need to use a local mirror, create a temporary repository definition
-    # that doesn't get in the image, as it is valid only at image build time.
     if state.config.local_mirror:
-        run(["zypper", "--reposd-dir", state.workspace / "zypper-repos.d", "--root", state.root, "addrepo", "-ck", state.config.local_mirror, "local-mirror"])
-
-    if not state.config.with_docs:
-        state.root.joinpath("etc/zypp/zypp.conf").write_text("rpm.install.excludedocs = yes\n")
+        zypper_addrepo(state, state.config.local_mirror, "local-mirror", caching=True)
+    else:
+        zypper_addrepo(state, release_url, "repo-oss", caching=True)
+        zypper_addrepo(state, updates_url, "repo-update", caching=True)
 
     packages = {*state.config.packages}
     add_packages(state.config, packages, "systemd", "glibc-locale-base", "zypper")
@@ -83,27 +116,17 @@ def install_opensuse(state: MkosiState) -> None:
     if not state.do_run_build_script and state.config.ssh:
         add_packages(state.config, packages, "openssh-server")
 
-    cmdline: list[PathString] = ["zypper"]
-    # --reposd-dir needs to be before the verb
+    zypper_install(state, packages)
+
     if state.config.local_mirror:
-        cmdline += ["--reposd-dir", state.workspace / "zypper-repos.d"]
-    cmdline += [
-        "--root",
-        state.root,
-        "--gpg-auto-import-keys" if state.config.repository_key_check else "--no-gpg-checks",
-        "--cache-dir", state.cache,
-        "install",
-        "-y",
-        "--no-recommends",
-        "--download-in-advance",
-        *sort_packages(packages),
-    ]
-
-    run_with_apivfs(state, cmdline)
-
-    # Disable package caching in the image that was enabled previously to populate the package cache.
-    run(["zypper", "--root", state.root, "modifyrepo", "-K", "repo-oss"])
-    run(["zypper", "--root", state.root, "modifyrepo", "-K", "repo-update"])
+        zypper_removerepo(state, "local-mirror")
+        zypper_addrepo(state, release_url, "repo-oss")
+        zypper_addrepo(state, updates_url, "repo-update")
+    else:
+        # Disable package caching in the image that was enabled previously to
+        # populate mkosi package cache.
+        zypper_modifyrepo(state, "repo-oss", caching=False)
+        zypper_modifyrepo(state, "repo-update", caching=False)
 
     if state.config.password == "":
         if not state.root.joinpath("etc/pam.d/common-auth").exists():
