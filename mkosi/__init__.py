@@ -3142,8 +3142,8 @@ def invoke_repart(state: MkosiState, skip: Sequence[str] = [], split: bool = Fal
                     Type=esp
                     Format=vfat
                     CopyFiles=/boot:/
-                    SizeMinBytes=256M
-                    SizeMaxBytes=256M
+                    SizeMinBytes=1024M
+                    SizeMaxBytes=1024M
                     """
                 )
             )
