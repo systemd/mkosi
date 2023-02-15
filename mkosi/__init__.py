@@ -716,13 +716,13 @@ def make_tar(state: MkosiState) -> None:
         run(cmd)
 
 
-def find_files(root: Path) -> Iterator[Path]:
-    """Generate a list of all filepaths relative to @root"""
-    yield from scandir_recursive(root,
+def find_files(dir: Path, root: Path) -> Iterator[Path]:
+    """Generate a list of all filepaths in directory @dir relative to @root"""
+    yield from scandir_recursive(dir,
                                  lambda entry: Path(entry.path).relative_to(root))
 
 
-def make_cpio(state: MkosiState) -> None:
+def make_initrd(state: MkosiState) -> None:
     if state.do_run_build_script:
         return
     if state.config.output_format != OutputFormat.cpio:
@@ -730,13 +730,16 @@ def make_cpio(state: MkosiState) -> None:
     if state.for_cache:
         return
 
-    with complete_step("Creating archive…"), open(state.staging / state.config.output.name, "wb") as f:
-        files = find_files(state.root)
+    make_cpio(state.root, find_files(state.root, state.root), state.staging / state.config.output.name)
+
+
+def make_cpio(root: Path, files: Iterator[Path], output: Path) -> None:
+    with complete_step("Creating archive…"):
         cmd: list[PathString] = [
-            "cpio", "-o", "--reproducible", "--null", "-H", "newc", "--quiet", "-D", state.root
+            "cpio", "-o", "--reproducible", "--null", "-H", "newc", "--quiet", "-D", root, "-O", output
         ]
 
-        with spawn(cmd, stdin=subprocess.PIPE, stdout=f, text=True) as cpio:
+        with spawn(cmd, stdin=subprocess.PIPE, text=True) as cpio:
             #  https://github.com/python/mypy/issues/10583
             assert cpio.stdin is not None
 
@@ -744,8 +747,6 @@ def make_cpio(state: MkosiState) -> None:
                 cpio.stdin.write(os.fspath(file))
                 cpio.stdin.write("\0")
             cpio.stdin.close()
-        if cpio.wait() != 0:
-            die("Failed to create archive")
 
 
 def make_directory(state: MkosiState) -> None:
@@ -3226,7 +3227,7 @@ def build_image(state: MkosiState, *, manifest: Optional[Manifest] = None) -> No
     invoke_repart(state, split=True)
 
     make_tar(state)
-    make_cpio(state)
+    make_initrd(state)
     make_directory(state)
 
 
