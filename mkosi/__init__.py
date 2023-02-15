@@ -1877,7 +1877,7 @@ def create_parser() -> ArgumentParserMkosi:
     group.add_argument(
         "--qemu-mem",
         metavar="MEM",
-        default="1G",
+        default="2G",
         help="Configure guest's RAM size",
     )
     group.add_argument(
