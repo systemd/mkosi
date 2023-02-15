@@ -2608,9 +2608,6 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
     if needs_build(args) and args.verb == Verb.qemu and not args.bootable:
         die("Images built without the --bootable option cannot be booted using qemu", MkosiNotSupportedException)
 
-    if needs_build(args) and args.qemu_headless and not args.bootable:
-        die("--qemu-headless requires --bootable", MkosiNotSupportedException)
-
     if args.skip_final_phase and args.verb != Verb.build:
         die("--skip-final-phase can only be used when building an image using 'mkosi build'", MkosiNotSupportedException)
 
