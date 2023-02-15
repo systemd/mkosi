@@ -309,6 +309,7 @@ class MkosiConfig:
     debug: list[str]
     auto_bump: bool
     workspace_dir: Optional[Path]
+    initrds: list[Path]
 
     # QEMU-specific options
     qemu_headless: bool

@@ -72,7 +72,9 @@ class CentosInstaller(DistributionInstaller):
         packages = state.config.packages.copy()
         add_packages(state.config, packages, "systemd", "rpm")
         if state.config.bootable:
-            add_packages(state.config, packages, "kernel", "dracut", "dracut-config-generic")
+            add_packages(state.config, packages, "kernel")
+            if not state.config.initrds:
+                add_packages(state.config, packages, "dracut", "dracut-config-generic")
             add_packages(state.config, packages, "systemd-udev", conditional="systemd")
         if state.config.ssh:
             add_packages(state.config, packages, "openssh-server")

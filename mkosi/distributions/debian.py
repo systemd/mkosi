@@ -97,7 +97,8 @@ class DebianInstaller(DistributionInstaller):
         add_packages(state.config, packages, "systemd", "systemd-sysv", "dbus", "libpam-systemd")
 
         if state.config.bootable:
-            add_packages(state.config, packages, "dracut", "dracut-config-generic")
+            if not state.config.initrds:
+                add_packages(state.config, packages, "dracut", "dracut-config-generic")
             cls._add_default_kernel_package(state, packages)
 
         if state.config.ssh:
@@ -182,9 +183,6 @@ class DebianInstaller(DistributionInstaller):
 
         cls._fixup_resolved(state, packages)
 
-        write_resource(state.root / "etc/kernel/install.d/50-mkosi-dpkg-reconfigure-dracut.install",
-                       "mkosi.resources", "dpkg-reconfigure-dracut.install", executable=True)
-
         # Debian/Ubuntu use a different path to store the locale so let's make sure that path is a symlink to
         # etc/locale.conf.
         state.root.joinpath("etc/default/locale").unlink(missing_ok=True)
@@ -194,6 +192,10 @@ class DebianInstaller(DistributionInstaller):
         presetdir = state.root / "etc/systemd/system-preset"
         presetdir.mkdir(exist_ok=True, mode=0o755)
         presetdir.joinpath("99-mkosi-disable.preset").write_text("disable *")
+
+        if state.config.bootable and not state.config.initrds:
+            write_resource(state.root / "etc/kernel/install.d/50-mkosi-dpkg-reconfigure-dracut.install",
+                           "mkosi.resources", "dpkg-reconfigure-dracut.install", executable=True)
 
     @classmethod
     def install_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:

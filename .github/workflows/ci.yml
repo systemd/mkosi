@@ -100,7 +100,7 @@ jobs:
     runs-on: ubuntu-22.04
     needs: unit-test
     concurrency:
-      group: ${{ github.workflow }}-${{ matrix.distro }}-${{ matrix.format }}-${{ github.ref }}
+      group: ${{ github.workflow }}-${{ matrix.distro }}-${{ matrix.format }}-${{ matrix.prebuilt-initrd }}-${{ github.ref }}
       cancel-in-progress: true
     strategy:
       fail-fast: false
@@ -120,6 +120,14 @@ jobs:
           - tar
           - cpio
           - disk
+        prebuilt-initrd:
+          - no
+          - yes
+        exclude:
+          # Debian prebuilt initrds are so large they cause OOMs.
+          # TODO: Revisit this if Debian ever decides to compress their kernel modules.
+          - distro: debian
+            prebuilt-initrd: yes
 
     steps:
     - uses: actions/checkout@v3
@@ -162,6 +170,10 @@ jobs:
     - name: Install
       run: sudo python3 -m pip install .
 
+    - name: Build ${{ matrix.distro }} initrd
+      if: matrix.prebuilt-initrd == 'yes'
+      run: python3 -m mkosi -d ${{ matrix.distro }} -t cpio -p systemd -p udev -p kmod -o $PWD/initrd build
+
     - name: Configure ${{ matrix.distro }}/${{ matrix.format }}
       run: |
         mkdir -p mkosi.conf.d
@@ -191,6 +203,14 @@ jobs:
         tee mkosi.skeleton/etc/portage/binrepos.conf <<- EOF
         [binhost]
         sync-uri = https://raw.githubusercontent.com/257/binpkgs/master
+        EOF
+
+    - name: Configure ${{ matrix.distro }}/${{ matrix.format }} initrd
+      if: matrix.prebuilt-initrd == 'yes'
+      run: |
+        tee mkosi.conf.d/initrd.conf <<- EOF
+        [Distribution]
+        Initrd=initrd.zst
         EOF
 
     - name: Configure EPEL

@@ -453,6 +453,12 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   in building or further container import stages.  This option strips
   SELinux context attributes from the resulting tar archive.
 
+`Initrd=`, `--initrd`
+
+: Use user-provided initrd(s). Takes a comma separated list of paths to initrd
+  files. This option may be used multiple times in which case the initrd lists
+  are combined.
+
 ### [Content] Section
 
 `BasePackages=`, `--base-packages`
