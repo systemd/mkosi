@@ -93,7 +93,7 @@ def install_arch(state: MkosiState) -> None:
     packages = state.config.packages.copy()
     add_packages(state.config, packages, "base")
 
-    if state.config.bootable:
+    if state.config.bootable and not state.config.initrds:
         add_packages(state.config, packages, "dracut")
 
     official_kernel_packages = {
@@ -127,5 +127,8 @@ def invoke_pacman(state: MkosiState, packages: Sequence[str]) -> None:
         "--noconfirm",
         "-Sy", *sort_packages(packages),
     ]
+
+    if state.config.initrds:
+        cmdline += ["--assume-installed", "initramfs"]
 
     run_with_apivfs(state, cmdline, env=dict(KERNEL_INSTALL_BYPASS="1"))

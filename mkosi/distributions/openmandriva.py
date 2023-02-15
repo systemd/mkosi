@@ -67,7 +67,9 @@ def install_openmandriva(state: MkosiState) -> None:
     add_packages(state.config, packages, "basesystem-minimal", "systemd", "dnf")
     if state.config.bootable:
         add_packages(state.config, packages, "systemd-boot", "systemd-cryptsetup", conditional="systemd")
-        add_packages(state.config, packages, "kernel-release-server", "dracut", "timezone")
+        add_packages(state.config, packages, "kernel-release-server", "timezone")
+        if not state.config.initrds:
+            add_packages(state.config, packages, "dracut")
     if state.config.netdev:
         add_packages(state.config, packages, "systemd-networkd", conditional="systemd")
     if state.config.ssh:

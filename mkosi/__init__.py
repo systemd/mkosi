@@ -205,7 +205,7 @@ def configure_hostname(state: MkosiState, cached: bool) -> None:
 
 
 def configure_dracut(state: MkosiState, cached: bool) -> None:
-    if not state.config.bootable or cached:
+    if not state.config.bootable or cached or state.config.initrds:
         return
 
     dracut_dir = state.root / "etc/dracut.conf.d"
@@ -790,6 +790,22 @@ def gen_kernel_images(state: MkosiState) -> Iterator[tuple[str, Path]]:
         yield kver.name, kimg
 
 
+def gen_kernel_modules_initrd(state: MkosiState, kver: str) -> Path:
+    kmods = state.workspace / f"initramfs-kernel-modules-{kver}.img"
+
+    def files() -> Iterator[Path]:
+        yield state.root.joinpath("usr/lib/modules").relative_to(state.root)
+        yield state.root.joinpath("usr/lib/modules").joinpath(kver).relative_to(state.root)
+        for p in find_files(state.root / "usr/lib/modules" / kver, state.root):
+            if p.name != "vmlinuz":
+                yield p
+
+    with complete_step(f"Generating kernel modules initrd for kernel {kver}"):
+        make_cpio(state.root, files(), kmods)
+
+    return kmods
+
+
 def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
     # Iterates through all kernel versions included in the image and generates a combined
     # kernel+initrd+cmdline+osrelease EFI file from it and places it in the /EFI/Linux directory of the ESP.
@@ -872,11 +888,16 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                         "--pcr-banks", "sha1,sha256"
                     ]
 
-            initrd = state.root.joinpath(state.installer.initrd_path(kver))
-            if not initrd.exists():
-                die(f"Initrd not found at {initrd}")
+            if state.config.initrds:
+                initrds = state.config.initrds + [gen_kernel_modules_initrd(state, kver)]
+            else:
+                initrd = state.root / state.installer.initrd_path(kver)
+                if not initrd.exists():
+                    die(f"Initrd not found at {initrd}")
 
-            cmd += [state.root / kimg, initrd]
+                initrds = [initrd]
+
+            cmd += [state.root / kimg] + initrds
 
             run(cmd)
 
@@ -1632,6 +1653,15 @@ def create_parser() -> ArgumentParserMkosi:
         metavar="PATH",
         dest="repart_dir",
         help="Directory containing systemd-repart partition definitions",
+    )
+    group.add_argument(
+        "--initrd",
+        dest="initrds",
+        action=CommaDelimitedListAction,
+        default=[],
+        help="Add a user-provided initrd to image",
+        type=Path,
+        metavar="PATH",
     )
 
     group = parser.add_argument_group("Content options")
@@ -2574,6 +2604,14 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
     if args.repositories and not is_dnf_distribution(args.distribution) and args.distribution not in (Distribution.debian, Distribution.ubuntu):
         die("Sorry, the --repositories option is only supported on DNF/Debian based distributions")
 
+    if args.initrds:
+        args.initrds = [p.absolute() for p in args.initrds]
+        for p in args.initrds:
+            if not p.exists():
+                die(f"Initrd {p} not found")
+            if not p.is_file():
+                die(f"Initrd {p} is not a file")
+
     return MkosiConfig(**vars(args))
 
 
@@ -2706,6 +2744,9 @@ def print_summary(config: MkosiConfig) -> None:
 
     if config.repositories is not None and len(config.repositories) > 0:
         print("              Repositories:", ",".join(config.repositories))
+
+    if config.initrds:
+        print("                   Initrds:", ",".join(os.fspath(p) for p in config.initrds))
 
     print("\nOUTPUT:")
 
@@ -2936,6 +2977,20 @@ def configure_netdev(state: MkosiState, cached: bool) -> None:
         run(["systemctl", "--root", state.root, "enable", "systemd-networkd"])
 
 
+def configure_initrd(state: MkosiState) -> None:
+    if state.for_cache or not state.config.output_format == OutputFormat.cpio:
+        return
+
+    if not state.root.joinpath("init").exists():
+        state.root.joinpath("init").symlink_to("/usr/lib/systemd/systemd")
+
+    if state.root.joinpath("etc/initrd-release").exists():
+        return
+
+    state.root.joinpath("etc/os-release").rename(state.root / "etc/initrd-release")
+    state.root.joinpath("etc/os-release").symlink_to("/etc/initrd-release")
+
+
 def run_kernel_install(state: MkosiState, cached: bool) -> None:
     if not state.config.bootable:
         return
@@ -2954,7 +3009,18 @@ def run_kernel_install(state: MkosiState, cached: bool) -> None:
     else:
         machine_id = None
 
-    with complete_step("Generating initramfs images…"):
+    # Fedora unconditionally pulls in dracut when installing a kernel and upstream dracut refuses to skip
+    # running when implement KERNEL_INSTALL_INITRD_GENERATOR support so let's disable it manually here if the
+    # user provided initrds.
+
+    if state.config.initrds:
+        for p in state.root.joinpath("usr/lib/kernel/install.d").iterdir():
+            if "dracut" in p.name:
+                install = state.root.joinpath("etc/kernel/install.d")
+                install.mkdir(parents=True, exist_ok=True)
+                install.joinpath(p.name).symlink_to("/dev/null")
+
+    with complete_step("Running kernel-install…"):
         for kver, kimg in gen_kernel_images(state):
             cmd: list[PathString] = ["kernel-install", "add", kver, Path("/") / kimg]
 
@@ -2965,6 +3031,11 @@ def run_kernel_install(state: MkosiState, cached: bool) -> None:
 
             if machine_id and (p := state.root / "boot" / machine_id / kver / "initrd").exists():
                 shutil.move(p, state.root / state.installer.initrd_path(kver))
+
+    if state.config.initrds:
+        for p in state.root.joinpath("etc/kernel/install.d").iterdir():
+            if "dracut" in p.name:
+                os.unlink(p)
 
     if machine_id and (p := state.root / "boot" / machine_id).exists():
         shutil.rmtree(p)
@@ -3116,6 +3187,7 @@ def build_image(state: MkosiState, *, manifest: Optional[Manifest] = None) -> No
         configure_autologin(state, cached)
         configure_dracut(state, cached)
         configure_netdev(state, cached)
+        configure_initrd(state)
         run_prepare_script(state, cached, build=False)
         install_build_packages(state, cached)
         run_prepare_script(state, cached, build=True)

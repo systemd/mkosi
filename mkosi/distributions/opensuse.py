@@ -156,7 +156,9 @@ def install_opensuse(state: MkosiState) -> None:
         add_packages(state.config, packages, "patterns-base-minimal_base")
 
     if state.config.bootable:
-        add_packages(state.config, packages, "kernel-default", "dracut")
+        add_packages(state.config, packages, "kernel-default")
+        if not state.config.initrds:
+            add_packages(state.config, packages, "dracut")
 
     if state.config.netdev:
         add_packages(state.config, packages, "systemd-network")
@@ -198,8 +200,7 @@ def install_opensuse(state: MkosiState) -> None:
                     shutil.copy2(state.root / f"usr/{prefix}/pam.d/login", state.root / "etc/pam.d/login")
                     break
 
-    if state.config.bootable:
+    if state.config.bootable and not state.config.initrds:
         dracut_dir = state.root / "etc/dracut.conf.d"
         dracut_dir.mkdir(mode=0o755, exist_ok=True)
-
         dracut_dir.joinpath("30-mkosi-opensuse.conf").write_text('hostonly=no\n')
