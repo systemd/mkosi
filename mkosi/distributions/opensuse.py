@@ -121,12 +121,9 @@ def install_opensuse(state: MkosiState) -> None:
     elif release == "leap":
         release_url = f"{state.config.mirror}/distribution/leap/15.1/repo/oss/"
         updates_url = f"{state.config.mirror}/update/leap/15.1/oss/"
-    elif release == "current":
+    elif release in ("current", "stable"):
         release_url = f"{state.config.mirror}/distribution/openSUSE-stable/repo/oss/"
-        updates_url = f"{state.config.mirror}/update/openSUSE-current/"
-    elif release == "stable":
-        release_url = f"{state.config.mirror}/distribution/openSUSE-stable/repo/oss/"
-        updates_url = f"{state.config.mirror}/update/openSUSE-stable/"
+        updates_url = f"{state.config.mirror}/update/openSUSE-{release}/"
     else:
         release_url = f"{state.config.mirror}/distribution/leap/{release}/repo/oss/"
         updates_url = f"{state.config.mirror}/update/leap/{release}/oss/"
