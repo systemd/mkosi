@@ -112,15 +112,14 @@ def zypper_remove(state: MkosiState, packages: Iterable[str]) -> None:
 @complete_step("Installing openSUSE…")
 def install_opensuse(state: MkosiState) -> None:
     release = state.config.release.strip('"')
+    if release == "leap":
+        release = "stable"
 
     # If the release looks like a timestamp, it's Tumbleweed. 13.x is legacy (14.x won't ever appear). For
     # anything else, let's default to Leap.
     if release.isdigit() or release == "tumbleweed":
         release_url = f"{state.config.mirror}/tumbleweed/repo/oss/"
         updates_url = f"{state.config.mirror}/update/tumbleweed/"
-    elif release == "leap":
-        release_url = f"{state.config.mirror}/distribution/leap/15.1/repo/oss/"
-        updates_url = f"{state.config.mirror}/update/leap/15.1/oss/"
     elif release in ("current", "stable"):
         release_url = f"{state.config.mirror}/distribution/openSUSE-stable/repo/oss/"
         updates_url = f"{state.config.mirror}/update/openSUSE-{release}/"
