@@ -75,7 +75,7 @@ from mkosi.run import (
     run_workspace_command,
     spawn,
 )
-from mkosi.types import PathString, TempDir
+from mkosi.types import PathString
 
 complete_step = MkosiPrinter.complete_step
 color_error = MkosiPrinter.color_error
@@ -146,27 +146,6 @@ def format_bytes(num_bytes: int) -> str:
         return f"{num_bytes/1024 :0.1f}K"
 
     return f"{num_bytes}B"
-
-
-
-def setup_workspace(config: MkosiConfig) -> TempDir:
-    with complete_step("Setting up temporary workspace.", "Temporary workspace set up in {.name}") as output:
-        if config.workspace_dir is not None:
-            d = tempfile.TemporaryDirectory(dir=config.workspace_dir, prefix="")
-        else:
-            p = config.output.parent
-
-            # The build sources might be mounted inside the workspace directory so if the workspace directory
-            # is located inside the build sources directory, we get an infinite mount loop which causes all
-            # sorts of issues, so let's make sure the workspace directory is located outside of the sources
-            # directory.
-            while str(p).startswith(str(config.build_sources)):
-                p = p.parent
-
-            d = tempfile.TemporaryDirectory(dir=p, prefix=f".mkosi.{config.build_sources.name}.tmp")
-        output.append(d)
-
-    return d
 
 
 def btrfs_subvol_create(path: Path, mode: int = 0o755) -> None:
@@ -3376,7 +3355,7 @@ def remove_artifacts(state: MkosiState, for_cache: bool = False) -> None:
 
 
 def build_stuff(uid: int, gid: int, config: MkosiConfig) -> None:
-    workspace = setup_workspace(config)
+    workspace = tempfile.TemporaryDirectory(dir=config.workspace_dir or Path.cwd(), prefix=".mkosi.tmp")
     workspace_dir = Path(workspace.name)
     cache = config.cache_path or workspace_dir / "cache"
 
@@ -3399,7 +3378,7 @@ def build_stuff(uid: int, gid: int, config: MkosiConfig) -> None:
 
     # Make sure tmpfiles' aging doesn't interfere with our workspace
     # while we are working on it.
-    with flock(workspace_dir):
+    with flock(workspace_dir), workspace:
         # If caching is requested, then make sure we have cache trees around we can make use of
         if need_cache_trees(state):
 
