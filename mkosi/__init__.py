@@ -2946,8 +2946,11 @@ def make_build_dir(state: MkosiState) -> None:
 
 
 def make_cache_dir(state: MkosiState) -> None:
-    """Create the cache directory if set and not existing yet"""
-    run(["mkdir", "-p", state.cache], user=state.uid, group=state.gid)
+    # If no cache directory is configured, it'll be located in the workspace which is owned by root in the
+    # userns so we have to run as the same user.
+    run(["mkdir", "-p", state.cache],
+        user=state.uid if state.config.cache_path else 0,
+        group=state.gid if state.config.cache_path else 0)
 
 
 def make_install_dir(state: MkosiState) -> None:
