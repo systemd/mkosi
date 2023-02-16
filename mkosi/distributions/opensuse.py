@@ -3,11 +3,13 @@
 import shutil
 from collections.abc import Iterable
 from pathlib import Path
+from textwrap import dedent
 
 from mkosi.backend import MkosiState, add_packages, patch_file
 from mkosi.distributions import DistributionInstaller
 from mkosi.log import complete_step
 from mkosi.run import run, run_with_apivfs
+from mkosi.types import PathString
 
 
 class OpensuseInstaller(DistributionInstaller):
@@ -32,41 +34,73 @@ class OpensuseInstaller(DistributionInstaller):
         return Path("boot") / f"initrd-{kver}"
 
 
+def invoke_zypper(state: MkosiState,
+                  global_opts: list[str],
+                  verb: str,
+                  verb_opts: list[str],
+                  *args: PathString,
+                  with_apivfs: bool = False) -> None:
+
+    cmdline: list[PathString] = ["zypper", "--root", state.root, *global_opts, verb, *verb_opts, *args]
+    env={"ZYPP_CONF": state.root.joinpath("etc/zypp/zypp.conf")}
+
+    if with_apivfs:
+        run_with_apivfs(state, cmdline, env=env)
+    else:
+        run(cmdline, env=env)
+
+
+def zypper_init(state: MkosiState) -> None:
+    state.root.joinpath("etc/zypp").mkdir(mode=0o755, parents=True, exist_ok=True)
+
+    # No matter if --root is used or not, zypper always considers its config
+    # files from the host environment. If we want to use our custom versions for
+    # the rootfs, we're left with two ways to specify them, depending on whether
+    # we need to customize a setting defined in zypp.conf or in zypper.conf. If
+    # it's in zypp.conf then the environment variable 'ZYPP_CONF' must be used
+    # (!) otherwise a custom zypper.conf can be specified with the global option
+    # '--config'.
+
+    zypp_conf = state.root.joinpath("etc/zypp/zypp.conf")
+
+    # For some reason zypper has no command line option to exclude the docs,
+    # this can only be configured via zypp.conf.
+    zypp_conf.write_text(
+        dedent(
+             f"""\
+             [main]
+             solver.onlyRequires = yes
+             rpm.install.excludedocs = {"no" if state.config.with_docs else "yes"}
+             """
+        )
+    )
+
+
 def zypper_addrepo(state: MkosiState, url: str, name: str, caching: bool = False) -> None:
-    run(["zypper", "--root", state.root, "addrepo", "--check", "--keep-packages" if caching else "--no-keep-packages", url, name])
+    invoke_zypper(state, [], "addrepo", ["--check", "--keep-packages" if caching else "--no-keep-packages"], url, name)
 
 
 def zypper_removerepo(state: MkosiState, repo: str) -> None:
-    run(["zypper", "--root", state.root, "removerepo", repo])
+    invoke_zypper(state, [], "removerepo", [], repo)
 
 
 def zypper_modifyrepo(state: MkosiState, repo: str, caching: bool) -> None:
-    run(["zypper", f"--root={state.root}", "modifyrepo", "--keep-packages" if caching else "--no-keep-packages", repo])
+    invoke_zypper(state, [], "modifyrepo", ["--keep-packages" if caching else "--no-keep-packages"], repo)
 
 
 def zypper_install(state: MkosiState, packages: Iterable[str]) -> None:
-    if not state.config.with_docs:
-        # zypper has no option for excluding the docs...
-        state.root.joinpath("etc/zypp/zypp.conf").write_text("rpm.install.excludedocs = yes\n")
-
-    cmdline = [
-        "zypper",
-        f"--root={state.root}",
+    global_opts = [
         f"--cache-dir={state.cache}",
         "--gpg-auto-import-keys" if state.config.repository_key_check else "--no-gpg-checks",
-        "install",
-        "-y",
-        "--no-recommends",
-        "--download-in-advance",
-        *packages,
     ]
 
-    run_with_apivfs(state, cmdline)
+    verb_opts = ["-y", "--download-in-advance"]
+
+    invoke_zypper(state, global_opts, "install", verb_opts, *packages, with_apivfs=True)
 
 
 def zypper_remove(state: MkosiState, packages: Iterable[str]) -> None:
-        cmdline = ["zypper", "--root", state.root, "remove", "-y", "--clean-deps", *packages]
-        run_with_apivfs(state, cmdline)
+    invoke_zypper(state, [], "remove", ["-y", "--clean-deps"], *packages, with_apivfs=True)
 
 
 @complete_step("Installing openSUSE…")
@@ -90,6 +124,8 @@ def install_opensuse(state: MkosiState) -> None:
     else:
         release_url = f"{state.config.mirror}/distribution/leap/{release}/repo/oss/"
         updates_url = f"{state.config.mirror}/update/leap/{release}/oss/"
+
+    zypper_init(state)
 
     # If we need to use a local mirror, create a temporary repository
     # definition, which is valid only at image build time. It will be removed
