@@ -23,6 +23,12 @@ class OpensuseInstaller(DistributionInstaller):
 
     @classmethod
     def install(cls, state: MkosiState) -> None:
+        if state.config.base_image:
+            # We assume that the base image has been properly initialized and it
+            # contains all the metadata we need to install the additional
+            # packages.
+            return zypper_install(state, {*state.config.packages})
+
         return install_opensuse(state)
 
     @classmethod
