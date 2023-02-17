@@ -182,7 +182,7 @@ def detect_distribution() -> tuple[Optional[Distribution], Optional[str]]:
     return d, version_id
 
 
-def is_rpm_distribution(d: Distribution) -> bool:
+def is_dnf_distribution(d: Distribution) -> bool:
     return d in (
         Distribution.fedora,
         Distribution.mageia,

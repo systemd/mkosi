@@ -42,7 +42,7 @@ from mkosi.backend import (
     flatten,
     format_rlimit,
     is_centos_variant,
-    is_rpm_distribution,
+    is_dnf_distribution,
     patch_file,
     path_relative_to_cwd,
     set_umask,
@@ -275,6 +275,17 @@ def clean_yum_metadata(root: Path, always: bool) -> None:
     clean_paths(root, paths, tool='/bin/yum', always=always)
 
 
+def clean_zypper_metadata(root: Path, always: bool) -> None:
+    """Remove zypper metadata if /usr/bin/zypper is not present in the image"""
+    paths = [
+        "/var/lib/zypp",
+        "/var/log/zypp",
+        "/var/cache/zypp",
+    ]
+
+    clean_paths(root, paths, tool='/usr/bin/zypper', always=always)
+
+
 def clean_rpm_metadata(root: Path, always: bool) -> None:
     """Remove rpm metadata if /bin/rpm is not present in the image"""
     paths = [
@@ -337,6 +348,7 @@ def clean_package_manager_metadata(state: MkosiState) -> None:
     clean_apt_metadata(state.root, always=always)
     clean_dpkg_metadata(state.root, always=always)
     clean_pacman_metadata(state.root, always=always)
+    clean_zypper_metadata(state.root, always=always)
     # FIXME: implement cleanup for other package managers: swupd
 
 
@@ -2649,8 +2661,8 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
     if args.ssh_port <= 0:
         die("--ssh-port must be > 0")
 
-    if args.repo_dirs and not (is_rpm_distribution(args.distribution) or args.distribution == Distribution.arch):
-        die("--repository-directory is only supported on RPM based distributions and Arch")
+    if args.repo_dirs and not (is_dnf_distribution(args.distribution) or args.distribution == Distribution.arch):
+        die("--repository-directory is only supported on DNF based distributions and Arch")
 
     if args.repo_dirs:
         args.repo_dirs = [p.absolute() for p in args.repo_dirs]
@@ -2666,8 +2678,8 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
     if args.qemu_kvm and not qemu_check_kvm_support():
         die("Sorry, the host machine does not support KVM acceleration.")
 
-    if args.repositories and not is_rpm_distribution(args.distribution) and args.distribution not in (Distribution.debian, Distribution.ubuntu):
-        die("Sorry, the --repositories option is only supported on RPM/Debian based distributions")
+    if args.repositories and not is_dnf_distribution(args.distribution) and args.distribution not in (Distribution.debian, Distribution.ubuntu):
+        die("Sorry, the --repositories option is only supported on DNF/Debian based distributions")
 
     return MkosiConfig(**vars(args))
 
