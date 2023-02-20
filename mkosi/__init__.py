@@ -3204,7 +3204,8 @@ def invoke_repart(state: MkosiState, skip: Sequence[str] = [], split: bool = Fal
 
     cmdline += ["--definitions", definitions]
 
-    output = json.loads(run(cmdline, stdout=subprocess.PIPE, env={"TMPDIR": state.workspace}).stdout)
+    with complete_step("Generating disk image"):
+        output = json.loads(run(cmdline, stdout=subprocess.PIPE, env={"TMPDIR": state.workspace}).stdout)
 
     roothash = usrhash = None
     for p in output:
