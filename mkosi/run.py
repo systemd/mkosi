@@ -193,7 +193,7 @@ def run(
     check: bool = True,
     stdout: _FILE = None,
     stderr: _FILE = None,
-    env: Mapping[str, Any] = {},
+    env: Mapping[str, PathString] = {},
     **kwargs: Any,
 ) -> CompletedProcess:
     cmdline = [os.fspath(x) for x in cmdline]
@@ -247,7 +247,7 @@ def run_with_apivfs(
     cmd: Sequence[PathString],
     bwrap_params: Sequence[PathString] = tuple(),
     stdout: _FILE = None,
-    env: Mapping[str, Any] = {},
+    env: Mapping[str, PathString] = {},
 ) -> CompletedProcess:
     cmdline: list[PathString] = [
         "bwrap",
@@ -283,7 +283,7 @@ def run_workspace_command(
     bwrap_params: Sequence[PathString] = tuple(),
     network: bool = False,
     stdout: _FILE = None,
-    env: Mapping[str, Any] = {},
+    env: Mapping[str, PathString] = {},
 ) -> CompletedProcess:
     cmdline: list[PathString] = [
         "bwrap",
