@@ -3005,7 +3005,7 @@ def configure_ssh(state: MkosiState) -> None:
     if state.config.ssh_key:
         copy_path(Path(f"{state.config.ssh_key}.pub"), authorized_keys, preserve_owner=False)
     elif state.config.ssh_agent is not None:
-        env = {"SSH_AUTH_SOCK": str(state.config.ssh_agent), **os.environ}
+        env = {"SSH_AUTH_SOCK": str(state.config.ssh_agent)}
         result = run(["ssh-add", "-L"], env=env, text=True, stdout=subprocess.PIPE)
         authorized_keys.write_text(result.stdout)
     else:

@@ -193,7 +193,7 @@ def run(
     check: bool = True,
     stdout: _FILE = None,
     stderr: _FILE = None,
-    env: Optional[Mapping[str, Any]] = None,
+    env: Mapping[str, Any] = {},
     **kwargs: Any,
 ) -> CompletedProcess:
     cmdline = [os.fspath(x) for x in cmdline]
@@ -207,13 +207,12 @@ def run(
         # output.
         stdout = sys.stderr
 
-    if env is None:
-        env = os.environ
-    else:
-        env = dict(
-            PATH=os.environ["PATH"],
-            TERM=os.getenv("TERM", "vt220"),
-        ) | env
+    env = dict(
+        PATH=os.environ["PATH"],
+        TERM=os.getenv("TERM", "vt220"),
+        LANG="C.UTF-8",
+        **env,
+    )
 
     try:
         return subprocess.run(cmdline, check=check, stdout=stdout, stderr=stderr, env=env, **kwargs,
