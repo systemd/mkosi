@@ -292,7 +292,7 @@ def invoke_apt(
         operation,
         *extra,
     ]
-    env = dict(
+    env: dict[str, PathString] = dict(
         APT_CONFIG=config_file,
         DEBIAN_FRONTEND="noninteractive",
         DEBCONF_INTERACTIVE_SEEN="true",
