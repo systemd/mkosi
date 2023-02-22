@@ -570,8 +570,75 @@ def install_boot_loader(state: MkosiState) -> None:
     if not state.config.bootable or state.do_run_build_script or state.for_cache:
         return
 
+    if state.config.secure_boot:
+        p = state.root / "usr/lib/systemd/boot/efi"
+
+        with complete_step("Signing systemd-boot binaries…"):
+            for f in itertools.chain(p.glob('*.efi'), p.glob('*.EFI')):
+                run(
+                    [
+                        "sbsign",
+                        "--key",
+                        state.config.secure_boot_key,
+                        "--cert",
+                        state.config.secure_boot_certificate,
+                        "--output",
+                        f"{f}.signed",
+                        f,
+                    ],
+                )
+
     with complete_step("Installing boot loader…"):
         run(["bootctl", "install", "--root", state.root], env={"SYSTEMD_ESP_PATH": "/boot"})
+
+    if state.config.secure_boot:
+        with complete_step("Setting up secure boot auto-enrollment…"):
+            keys = state.root / "boot/loader/keys/auto"
+            keys.mkdir(parents=True, exist_ok=True)
+
+            # sbsiglist expects a DER certificate.
+            run(
+                [
+                    "openssl",
+                    "x509",
+                    "-outform",
+                    "DER",
+                    "-in",
+                    state.config.secure_boot_certificate,
+                    "-out",
+                    state.workspace / "mkosi.der",
+                ],
+            )
+            run(
+                [
+                    "sbsiglist",
+                    "--owner",
+                    str(uuid.uuid4()),
+                    "--type",
+                    "x509",
+                    "--output",
+                    state.workspace / "mkosi.esl",
+                    state.workspace / "mkosi.der",
+                ],
+            )
+
+            # We reuse the key for all secure boot databases to keep things simple.
+            for db in ["PK", "KEK", "db"]:
+                run(
+                    [
+                        "sbvarsign",
+                        "--attr",
+                        "NON_VOLATILE,BOOTSERVICE_ACCESS,RUNTIME_ACCESS,TIME_BASED_AUTHENTICATED_WRITE_ACCESS",
+                        "--key",
+                        state.config.secure_boot_key,
+                        "--cert",
+                        state.config.secure_boot_certificate,
+                        "--output",
+                        keys / f"{db}.auth",
+                        db,
+                        state.workspace / "mkosi.esl",
+                    ],
+                )
 
 
 def install_extra_trees(state: MkosiState) -> None:
@@ -821,98 +888,6 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
 
             if not state.staging.joinpath(state.staging / state.config.output_split_kernel.name).exists():
                 copy_path(boot_binary, state.staging / state.config.output_split_kernel.name)
-
-
-def secure_boot_sign(state: MkosiState, directory: Path, replace: bool = False) -> None:
-    if state.do_run_build_script:
-        return
-    if not state.config.bootable:
-        return
-    if not state.config.secure_boot:
-        return
-    if state.for_cache:
-        return
-
-    for f in itertools.chain(directory.glob('*.efi'), directory.glob('*.EFI')):
-        if os.path.exists(f"{f}.signed"):
-            MkosiPrinter.info(f"Not overwriting existing signed EFI binary {f}.signed")
-            continue
-
-        with complete_step(f"Signing EFI binary {f}…"):
-            run(
-                [
-                    "sbsign",
-                    "--key",
-                    state.config.secure_boot_key,
-                    "--cert",
-                    state.config.secure_boot_certificate,
-                    "--output",
-                    f"{f}.signed",
-                    f,
-                ],
-            )
-
-            if replace:
-                os.rename(f"{f}.signed", f)
-
-
-def secure_boot_configure_auto_enroll(state: MkosiState) -> None:
-    if state.do_run_build_script:
-        return
-    if not state.config.bootable:
-        return
-    if not state.config.secure_boot:
-        return
-    if state.for_cache:
-        return
-
-    with complete_step("Setting up secure boot auto-enrollment…"):
-        keys_dir = state.root / "boot/loader/keys/auto"
-        keys_dir.mkdir(parents=True, exist_ok=True)
-
-        # sbsiglist expects a DER certificate.
-        run(
-            [
-                "openssl",
-                "x509",
-                "-outform",
-                "DER",
-                "-in",
-                state.config.secure_boot_certificate,
-                "-out",
-                state.workspace / "mkosi.der",
-            ],
-        )
-        run(
-            [
-                "sbsiglist",
-                "--owner",
-                str(uuid.uuid4()),
-                "--type",
-                "x509",
-                "--output",
-                state.workspace / "mkosi.esl",
-                state.workspace / "mkosi.der",
-            ],
-        )
-
-        # We reuse the key for all secure boot databases to keep things simple.
-        for db_name in ["PK", "KEK", "db"]:
-            run(
-                [
-                    "sbvarsign",
-                    "--attr",
-                    "NON_VOLATILE,BOOTSERVICE_ACCESS,RUNTIME_ACCESS,TIME_BASED_AUTHENTICATED_WRITE_ACCESS",
-                    "--key",
-                    state.config.secure_boot_key,
-                    "--cert",
-                    state.config.secure_boot_certificate,
-                    "--output",
-                    keys_dir / f"{db_name}.auth",
-                    db_name,
-                    state.workspace / "mkosi.esl",
-                ],
-            )
 
 
 def compress_output(config: MkosiConfig, src: Path, uid: int, gid: int) -> None:
@@ -3252,9 +3227,6 @@ def build_image(state: MkosiState, *, manifest: Optional[Manifest] = None) -> No
         configure_ssh(state)
         run_postinst_script(state)
         run_preset_all(state)
-        secure_boot_configure_auto_enroll(state)
-        # Sign systemd-boot / sd-boot EFI binaries
-        secure_boot_sign(state, state.root / 'usr/lib/systemd/boot/efi')
 
         cleanup = not state.for_cache and not state.do_run_build_script
 
@@ -3274,12 +3246,7 @@ def build_image(state: MkosiState, *, manifest: Optional[Manifest] = None) -> No
         run_selinux_relabel(state)
 
     roothash = invoke_repart(state, skip=("esp", "xbootldr"))
-
     install_unified_kernel(state, roothash)
-    # Sign EFI binaries under these directories within the ESP
-    for esp_dir in ['boot/EFI/BOOT', 'boot/EFI/systemd', 'boot/EFI/Linux']:
-        secure_boot_sign(state, state.root / esp_dir, replace=True)
-
     invoke_repart(state, split=True)
 
     make_tar(state)
