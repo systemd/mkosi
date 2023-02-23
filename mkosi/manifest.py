@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 import dataclasses
+import functools
 import json
 from datetime import datetime
 from pathlib import Path
@@ -280,3 +281,21 @@ class Manifest:
         for package in self.source_packages.values():
             print(f"\n{80*'-'}\n", file=out)
             out.write(package.report())
+
+
+@functools.total_ordering
+class GenericVersion:
+    def __init__(self, version: str):
+        self._version = version
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, GenericVersion):
+            return False
+        cmd = ["systemd-analyze", "compare-versions", self._version, "eq", other._version]
+        return run(cmd, check=False).returncode == 0
+
+    def __lt__(self, other: object) -> bool:
+        if not isinstance(other, GenericVersion):
+            return False
+        cmd = ["systemd-analyze", "compare-versions", self._version, "lt", other._version]
+        return run(cmd, check=False).returncode == 0
