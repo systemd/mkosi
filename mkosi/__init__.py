@@ -64,7 +64,7 @@ from mkosi.log import (
     die,
     warn,
 )
-from mkosi.manifest import Manifest
+from mkosi.manifest import GenericVersion, Manifest
 from mkosi.mounts import dissect_and_mount, mount_overlay, scandir_recursive
 from mkosi.remove import unlink_try_hard
 from mkosi.run import (
@@ -769,10 +769,11 @@ def gen_kernel_images(state: MkosiState) -> Iterator[tuple[str, Path]]:
     if not state.root.joinpath("lib/modules").exists():
         return
 
-    for kver in state.root.joinpath("lib/modules").iterdir():
-        if not kver.is_dir():
-            continue
-
+    for kver in sorted(
+        (k for k in state.root.joinpath("lib/modules").iterdir() if k.is_dir()),
+        key=lambda k: GenericVersion(k.name),
+        reverse=True
+    ):
         kimg = state.installer.kernel_image(kver.name, state.config.architecture)
 
         yield kver.name, kimg
