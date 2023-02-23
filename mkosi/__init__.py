@@ -336,7 +336,7 @@ def clean_package_manager_metadata(state: MkosiState) -> None:
     """
 
     assert state.config.clean_package_metadata in (False, True, 'auto')
-    if state.config.clean_package_metadata is False:
+    if state.config.clean_package_metadata is False or state.do_run_build_script or state.for_cache:
         return
 
     # we try then all: metadata will only be touched if any of them are in the
@@ -355,7 +355,7 @@ def clean_package_manager_metadata(state: MkosiState) -> None:
 def remove_files(state: MkosiState) -> None:
     """Remove files based on user-specified patterns"""
 
-    if not state.config.remove_files:
+    if not state.config.remove_files or state.do_run_build_script or state.for_cache:
         return
 
     with complete_step("Removing files…"):
@@ -375,7 +375,7 @@ def install_distribution(state: MkosiState, cached: bool) -> None:
 def remove_packages(state: MkosiState) -> None:
     """Remove packages listed in config.remove_packages"""
 
-    if not state.config.remove_packages:
+    if not state.config.remove_packages or state.do_run_build_script or state.for_cache:
         return
 
     with complete_step(f"Removing {len(state.config.packages)} packages…"):
@@ -3227,19 +3227,14 @@ def build_image(state: MkosiState, *, manifest: Optional[Manifest] = None) -> No
         configure_ssh(state)
         run_postinst_script(state)
         run_preset_all(state)
-
-        cleanup = not state.for_cache and not state.do_run_build_script
-
-        if cleanup:
-            remove_packages(state)
+        remove_packages(state)
 
         if manifest:
             with complete_step("Recording packages in manifest…"):
                 manifest.record_packages(state.root)
 
-        if cleanup:
-            clean_package_manager_metadata(state)
-            remove_files(state)
+        clean_package_manager_metadata(state)
+        remove_files(state)
         reset_machine_id(state)
         reset_random_seed(state.root)
         run_finalize_script(state)
