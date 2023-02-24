@@ -390,5 +390,5 @@ class GentooInstaller(DistributionInstaller):
         return Path(f"usr/src/linux-{name}") / kimg_path
 
     @classmethod
-    def install(cls, state: "MkosiState") -> None:
+    def install(cls, state: MkosiState) -> None:
         Gentoo(state)

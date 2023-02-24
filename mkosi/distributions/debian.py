@@ -50,7 +50,7 @@ class DebianInstaller(DistributionInstaller):
         return Path("boot") / f"initrd.img-{kver}"
 
     @classmethod
-    def install(cls, state: "MkosiState") -> None:
+    def install(cls, state: MkosiState) -> None:
         # Either the image builds or it fails and we restart, we don't need safety fsyncs when bootstrapping
         # Add it before debootstrap, as the second stage already uses dpkg from the chroot
         dpkg_io_conf = state.root / "etc/dpkg/dpkg.cfg.d/unsafe_io"
