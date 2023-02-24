@@ -792,7 +792,6 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
     if state.do_run_build_script:
         return
 
-    prefix = "boot"
 
     with complete_step("Generating combined kernel + initrd boot file…"):
         for kver, kimg in gen_kernel_images(state):
@@ -804,12 +803,12 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                 boot_count = f'+{state.root.joinpath("etc/kernel/tries").read_text().strip()}'
 
             if state.config.image_version:
-                boot_binary = state.root / prefix / f"EFI/Linux/{image_id}_{state.config.image_version}{boot_count}.efi"
+                boot_binary = state.root / f"boot/EFI/Linux/{image_id}_{state.config.image_version}{boot_count}.efi"
             elif roothash:
                 _, _, h = roothash.partition("=")
-                boot_binary = state.root / prefix / f"EFI/Linux/{image_id}-{kver}-{h}{boot_count}.efi"
+                boot_binary = state.root / f"boot/EFI/Linux/{image_id}-{kver}-{h}{boot_count}.efi"
             else:
-                boot_binary = state.root / prefix / f"EFI/Linux/{image_id}-{kver}{boot_count}.efi"
+                boot_binary = state.root / f"boot/EFI/Linux/{image_id}-{kver}{boot_count}.efi"
 
             if state.root.joinpath("etc/kernel/cmdline").exists():
                 cmdline = [state.root.joinpath("etc/kernel/cmdline").read_text().strip()]
