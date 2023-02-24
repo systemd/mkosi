@@ -7,7 +7,6 @@ import crypt
 import dataclasses
 import datetime
 import errno
-import glob
 import hashlib
 import http.server
 import itertools
@@ -358,10 +357,9 @@ def remove_files(state: MkosiState) -> None:
         return
 
     with complete_step("Removing files…"):
-        # Note: Path('/foo') / '/bar' == '/bar'. We need to strip the slash.
-        # https://bugs.python.org/issue44452
-        paths = [state.root / str(p).lstrip("/") for p in state.config.remove_files]
-        remove_glob(*paths)
+        for pattern in state.config.remove_files:
+            for p in state.root.glob(pattern.lstrip("/")):
+                unlink_try_hard(p)
 
 
 def install_distribution(state: MkosiState, cached: bool) -> None:
@@ -1375,16 +1373,6 @@ def parse_base_packages(value: str) -> Union[str, bool]:
     return parse_boolean(value)
 
 
-def parse_remove_files(value: str) -> list[str]:
-    """Normalize paths as relative to / to ensure we don't go outside of our root."""
-
-    # os.path.normpath() leaves leading '//' untouched, even though it normalizes '///'.
-    # This follows POSIX specification, see
-    # https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap04.html#tag_04_13.
-    # Let's use lstrip() to handle zero or more leading slashes correctly.
-    return ["/" + os.path.normpath(p).lstrip("/") for p in value.split(",") if p]
-
-
 def parse_ssh_agent(value: str) -> Optional[Path]:
     """Will return None or a path to a socket."""
 
@@ -1721,7 +1709,6 @@ def create_parser() -> ArgumentParserMkosi:
         action=CommaDelimitedListAction,
         default=[],
         help="Remove files from built image",
-        type=parse_remove_files,
         metavar="GLOB",
     )
     group.add_argument(
@@ -2111,13 +2098,6 @@ def parse_args_file_group(
     # Parse all parameters handled by mkosi.
     # Parameters forwarded to subprocesses such as nspawn or qemu end up in cmdline_argv.
     return create_parser().parse_args(config_files + argv)
-
-
-def remove_glob(*patterns: Path) -> None:
-    pathgen = (glob.glob(str(pattern)) for pattern in patterns)
-    paths: set[str] = set(sum(pathgen, []))  # uniquify
-    for path in paths:
-        unlink_try_hard(Path(path))
 
 
 def empty_directory(path: Path) -> None:

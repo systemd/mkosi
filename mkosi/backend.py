@@ -285,7 +285,7 @@ class MkosiConfig:
     extra_trees: list[Path]
     skeleton_trees: list[Path]
     clean_package_metadata: Union[bool, str]
-    remove_files: list[Path]
+    remove_files: list[str]
     environment: dict[str, str]
     build_sources: Path
     build_dir: Optional[Path]
