@@ -96,7 +96,7 @@ def install_fedora(state: MkosiState) -> None:
     setup_dnf(state, repos)
 
     packages = {*state.config.packages}
-    add_packages(state.config, packages, "systemd", "util-linux", "dnf")
+    add_packages(state.config, packages, "systemd", "util-linux", "rpm")
 
     if not state.do_run_build_script and state.config.bootable:
         add_packages(state.config, packages, "kernel-core", "kernel-modules", "dracut", "dracut-config-generic")

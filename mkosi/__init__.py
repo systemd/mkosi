@@ -7,12 +7,10 @@ import crypt
 import dataclasses
 import datetime
 import errno
-import glob
 import hashlib
 import http.server
 import itertools
 import json
-import math
 import os
 import platform
 import re
@@ -359,10 +357,9 @@ def remove_files(state: MkosiState) -> None:
         return
 
     with complete_step("Removing files…"):
-        # Note: Path('/foo') / '/bar' == '/bar'. We need to strip the slash.
-        # https://bugs.python.org/issue44452
-        paths = [state.root / str(p).lstrip("/") for p in state.config.remove_files]
-        remove_glob(*paths)
+        for pattern in state.config.remove_files:
+            for p in state.root.glob(pattern.lstrip("/")):
+                unlink_try_hard(p)
 
 
 def install_distribution(state: MkosiState, cached: bool) -> None:
@@ -658,16 +655,6 @@ def install_extra_trees(state: MkosiState) -> None:
                 shutil.unpack_archive(tree, state.root)
 
 
-@contextlib.contextmanager
-def chdir(directory: Path) -> Iterator[Path]:
-    c = os.getcwd()
-    os.chdir(directory)
-    try:
-        yield Path(directory)
-    finally:
-        os.chdir(c)
-
-
 def install_build_dest(state: MkosiState) -> None:
     if state.do_run_build_script:
         return
@@ -726,13 +713,13 @@ def make_tar(state: MkosiState) -> None:
         run(cmd)
 
 
-def find_files(root: Path) -> Iterator[Path]:
-    """Generate a list of all filepaths relative to @root"""
-    yield from scandir_recursive(root,
+def find_files(dir: Path, root: Path) -> Iterator[Path]:
+    """Generate a list of all filepaths in directory @dir relative to @root"""
+    yield from scandir_recursive(dir,
                                  lambda entry: Path(entry.path).relative_to(root))
 
 
-def make_cpio(state: MkosiState) -> None:
+def make_initrd(state: MkosiState) -> None:
     if state.do_run_build_script:
         return
     if state.config.output_format != OutputFormat.cpio:
@@ -740,21 +727,23 @@ def make_cpio(state: MkosiState) -> None:
     if state.for_cache:
         return
 
-    with complete_step("Creating archive…"), open(state.staging / state.config.output.name, "wb") as f:
-        files = find_files(state.root)
+    make_cpio(state.root, find_files(state.root, state.root), state.staging / state.config.output.name)
+
+
+def make_cpio(root: Path, files: Iterator[Path], output: Path) -> None:
+    with complete_step("Creating archive…"):
         cmd: list[PathString] = [
-            "cpio", "-o", "--reproducible", "--null", "-H", "newc", "--quiet", "-D", state.root
+            "cpio", "-o", "--reproducible", "--null", "-H", "newc", "--quiet", "-D", root, "-O", output
         ]
 
-        with spawn(cmd, stdin=subprocess.PIPE, stdout=f) as cpio:
+        with spawn(cmd, stdin=subprocess.PIPE, text=True) as cpio:
             #  https://github.com/python/mypy/issues/10583
             assert cpio.stdin is not None
 
             for file in files:
-                cpio.stdin.write(os.fspath(file).encode("utf8") + b"\0")
+                cpio.stdin.write(os.fspath(file))
+                cpio.stdin.write("\0")
             cpio.stdin.close()
-        if cpio.wait() != 0:
-            die("Failed to create archive")
 
 
 def make_directory(state: MkosiState) -> None:
@@ -765,12 +754,11 @@ def make_directory(state: MkosiState) -> None:
 
 
 def gen_kernel_images(state: MkosiState) -> Iterator[tuple[str, Path]]:
-    # Apparently openmandriva hasn't yet completed its usrmerge so we use lib here instead of usr/lib.
-    if not state.root.joinpath("lib/modules").exists():
+    if not state.root.joinpath("usr/lib/modules").exists():
         return
 
     for kver in sorted(
-        (k for k in state.root.joinpath("lib/modules").iterdir() if k.is_dir()),
+        (k for k in state.root.joinpath("usr/lib/modules").iterdir() if k.is_dir()),
         key=lambda k: GenericVersion(k.name),
         reverse=True
     ):
@@ -789,15 +777,7 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
     if not state.config.bootable:
         return
 
-    # Don't run dracut if this is for the cache. The unified kernel
-    # typically includes the image ID, roothash and other data that
-    # differs between cached version and final result. Moreover, we
-    # want that the initrd for the image actually takes the changes we
-    # make to the image into account (e.g. when we build a systemd
-    # test image with this we want that the systemd we just built is
-    # in the initrd, and not one from the cache. Hence even though
-    # dracut is slow we invoke it only during the last final build,
-    # never for the cached builds.
+    # The roothash is specific to the final image so we cannot cache this step.
     if state.for_cache:
         return
 
@@ -809,7 +789,6 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
     if state.do_run_build_script:
         return
 
-    prefix = "boot"
 
     with complete_step("Generating combined kernel + initrd boot file…"):
         for kver, kimg in gen_kernel_images(state):
@@ -821,12 +800,12 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                 boot_count = f'+{state.root.joinpath("etc/kernel/tries").read_text().strip()}'
 
             if state.config.image_version:
-                boot_binary = state.root / prefix / f"EFI/Linux/{image_id}_{state.config.image_version}{boot_count}.efi"
+                boot_binary = state.root / f"boot/EFI/Linux/{image_id}_{state.config.image_version}{boot_count}.efi"
             elif roothash:
                 _, _, h = roothash.partition("=")
-                boot_binary = state.root / prefix / f"EFI/Linux/{image_id}-{kver}-{h}{boot_count}.efi"
+                boot_binary = state.root / f"boot/EFI/Linux/{image_id}-{kver}-{h}{boot_count}.efi"
             else:
-                boot_binary = state.root / prefix / f"EFI/Linux/{image_id}-{kver}{boot_count}.efi"
+                boot_binary = state.root / f"boot/EFI/Linux/{image_id}-{kver}{boot_count}.efi"
 
             if state.root.joinpath("etc/kernel/cmdline").exists():
                 cmdline = [state.root.joinpath("etc/kernel/cmdline").read_text().strip()]
@@ -1394,16 +1373,6 @@ def parse_base_packages(value: str) -> Union[str, bool]:
     return parse_boolean(value)
 
 
-def parse_remove_files(value: str) -> list[str]:
-    """Normalize paths as relative to / to ensure we don't go outside of our root."""
-
-    # os.path.normpath() leaves leading '//' untouched, even though it normalizes '///'.
-    # This follows POSIX specification, see
-    # https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap04.html#tag_04_13.
-    # Let's use lstrip() to handle zero or more leading slashes correctly.
-    return ["/" + os.path.normpath(p).lstrip("/") for p in value.split(",") if p]
-
-
 def parse_ssh_agent(value: str) -> Optional[Path]:
     """Will return None or a path to a socket."""
 
@@ -1740,7 +1709,6 @@ def create_parser() -> ArgumentParserMkosi:
         action=CommaDelimitedListAction,
         default=[],
         help="Remove files from built image",
-        type=parse_remove_files,
         metavar="GLOB",
     )
     group.add_argument(
@@ -1893,7 +1861,7 @@ def create_parser() -> ArgumentParserMkosi:
     group.add_argument(
         "--qemu-mem",
         metavar="MEM",
-        default="1G",
+        default="2G",
         help="Configure guest's RAM size",
     )
     group.add_argument(
@@ -2132,41 +2100,6 @@ def parse_args_file_group(
     return create_parser().parse_args(config_files + argv)
 
 
-def parse_bytes(num_bytes: Optional[str], *, sector_size: int = 512) -> int:
-    """Convert a string for a number of bytes into a number rounding up to sector size."""
-    if num_bytes is None:
-        return 0
-
-    if num_bytes.endswith("G"):
-        factor = 1024 ** 3
-    elif num_bytes.endswith("M"):
-        factor = 1024 ** 2
-    elif num_bytes.endswith("K"):
-        factor = 1024
-    else:
-        factor = 1
-
-    if factor > 1:
-        num_bytes = num_bytes[:-1]
-
-    result = math.ceil(float(num_bytes) * factor)
-    if result <= 0:
-        raise ValueError("Size out of range")
-
-    rem = result % sector_size
-    if rem != 0:
-        result += sector_size - rem
-
-    return result
-
-
-def remove_glob(*patterns: Path) -> None:
-    pathgen = (glob.glob(str(pattern)) for pattern in patterns)
-    paths: set[str] = set(sum(pathgen, []))  # uniquify
-    for path in paths:
-        unlink_try_hard(Path(path))
-
-
 def empty_directory(path: Path) -> None:
     try:
         for f in os.listdir(path):
@@ -2378,19 +2311,6 @@ def find_image_version(args: argparse.Namespace) -> None:
             args.image_version = f.read().strip()
     except FileNotFoundError:
         pass
-
-
-def xescape(s: str) -> str:
-    "Escape a string udev-style, for inclusion in /dev/disk/by-*/* symlinks"
-
-    ret = ""
-    for c in s:
-        if ord(c) <= 32 or ord(c) >= 127 or c == "/":
-            ret = ret + "\\x%02x" % ord(c)
-        else:
-            ret = ret + str(c)
-
-    return ret
 
 
 DISABLED = Path('DISABLED')  # A placeholder value to suppress autodetection.
@@ -2625,9 +2545,6 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
     if needs_build(args) and args.verb == Verb.qemu and not args.bootable:
         die("Images built without the --bootable option cannot be booted using qemu", MkosiNotSupportedException)
 
-    if needs_build(args) and args.qemu_headless and not args.bootable:
-        die("--qemu-headless requires --bootable", MkosiNotSupportedException)
-
     if args.skip_final_phase and args.verb != Verb.build:
         die("--skip-final-phase can only be used when building an image using 'mkosi build'", MkosiNotSupportedException)
 
@@ -2738,20 +2655,6 @@ def yes_no_or(b: Union[bool, str]) -> str:
     return b if isinstance(b, str) else yes_no(b)
 
 
-def format_bytes_or_disabled(sz: int) -> str:
-    if sz == 0:
-        return "(disabled)"
-
-    return format_bytes(sz)
-
-
-def format_bytes_or_auto(sz: int) -> str:
-    if sz == 0:
-        return "(automatic)"
-
-    return format_bytes(sz)
-
-
 def none_to_na(s: Optional[T]) -> Union[T, str]:
     return "n/a" if s is None else s
 
@@ -2840,7 +2743,7 @@ def print_summary(config: MkosiConfig) -> None:
         print("                  SSH port:", config.ssh_port)
 
     print("               Incremental:", yes_no(config.incremental))
-    print("               Compression:", yes_no_or(should_compress_output(config)))
+    print("               Compression:", should_compress_output(config) or "no")
 
     if config.output_format == OutputFormat.disk:
         print("                     QCow2:", yes_no(config.qcow2))
@@ -3161,8 +3064,8 @@ def invoke_repart(state: MkosiState, skip: Sequence[str] = [], split: bool = Fal
                     Type=esp
                     Format=vfat
                     CopyFiles=/boot:/
-                    SizeMinBytes=256M
-                    SizeMaxBytes=256M
+                    SizeMinBytes=1024M
+                    SizeMaxBytes=1024M
                     """
                 )
             )
@@ -3246,7 +3149,7 @@ def build_image(state: MkosiState, *, manifest: Optional[Manifest] = None) -> No
     invoke_repart(state, split=True)
 
     make_tar(state)
-    make_cpio(state)
+    make_initrd(state)
     make_directory(state)
 
 

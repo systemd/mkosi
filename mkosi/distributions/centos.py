@@ -69,7 +69,7 @@ class CentosInstaller(DistributionInstaller):
             env = {}
 
         packages = {*state.config.packages}
-        add_packages(state.config, packages, "systemd", "dnf")
+        add_packages(state.config, packages, "systemd", "rpm")
         if not state.do_run_build_script and state.config.bootable:
             add_packages(state.config, packages, "kernel", "dracut", "dracut-config-generic")
             add_packages(state.config, packages, "systemd-udev", conditional="systemd")
