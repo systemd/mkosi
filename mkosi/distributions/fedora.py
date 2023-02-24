@@ -38,7 +38,7 @@ class FedoraInstaller(DistributionInstaller):
         return "btrfs"
 
     @classmethod
-    def install(cls, state: "MkosiState") -> None:
+    def install(cls, state: MkosiState) -> None:
         return install_fedora(state)
 
     @classmethod

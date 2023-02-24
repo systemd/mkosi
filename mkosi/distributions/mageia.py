@@ -18,7 +18,7 @@ class MageiaInstaller(DistributionInstaller):
         return "ext4"
 
     @classmethod
-    def install(cls, state: "MkosiState") -> None:
+    def install(cls, state: MkosiState) -> None:
         return install_mageia(state)
 
     @classmethod

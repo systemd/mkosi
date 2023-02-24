@@ -51,7 +51,7 @@ class CentosInstaller(DistributionInstaller):
 
     @classmethod
     @complete_step("Installing CentOS…")
-    def install(cls, state: "MkosiState") -> None:
+    def install(cls, state: MkosiState) -> None:
         release = int(state.config.release)
 
         if release <= 7:
