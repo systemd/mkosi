@@ -658,16 +658,6 @@ def install_extra_trees(state: MkosiState) -> None:
                 shutil.unpack_archive(tree, state.root)
 
 
-@contextlib.contextmanager
-def chdir(directory: Path) -> Iterator[Path]:
-    c = os.getcwd()
-    os.chdir(directory)
-    try:
-        yield Path(directory)
-    finally:
-        os.chdir(c)
-
-
 def install_build_dest(state: MkosiState) -> None:
     if state.do_run_build_script:
         return
