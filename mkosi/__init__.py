@@ -757,12 +757,11 @@ def make_directory(state: MkosiState) -> None:
 
 
 def gen_kernel_images(state: MkosiState) -> Iterator[tuple[str, Path]]:
-    # Apparently openmandriva hasn't yet completed its usrmerge so we use lib here instead of usr/lib.
-    if not state.root.joinpath("lib/modules").exists():
+    if not state.root.joinpath("usr/lib/modules").exists():
         return
 
     for kver in sorted(
-        (k for k in state.root.joinpath("lib/modules").iterdir() if k.is_dir()),
+        (k for k in state.root.joinpath("usr/lib/modules").iterdir() if k.is_dir()),
         key=lambda k: GenericVersion(k.name),
         reverse=True
     ):
