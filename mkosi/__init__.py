@@ -12,7 +12,6 @@ import hashlib
 import http.server
 import itertools
 import json
-import math
 import os
 import platform
 import re
@@ -2114,34 +2113,6 @@ def parse_args_file_group(
     return create_parser().parse_args(config_files + argv)
 
 
-def parse_bytes(num_bytes: Optional[str], *, sector_size: int = 512) -> int:
-    """Convert a string for a number of bytes into a number rounding up to sector size."""
-    if num_bytes is None:
-        return 0
-
-    if num_bytes.endswith("G"):
-        factor = 1024 ** 3
-    elif num_bytes.endswith("M"):
-        factor = 1024 ** 2
-    elif num_bytes.endswith("K"):
-        factor = 1024
-    else:
-        factor = 1
-
-    if factor > 1:
-        num_bytes = num_bytes[:-1]
-
-    result = math.ceil(float(num_bytes) * factor)
-    if result <= 0:
-        raise ValueError("Size out of range")
-
-    rem = result % sector_size
-    if rem != 0:
-        result += sector_size - rem
-
-    return result
-
-
 def remove_glob(*patterns: Path) -> None:
     pathgen = (glob.glob(str(pattern)) for pattern in patterns)
     paths: set[str] = set(sum(pathgen, []))  # uniquify
@@ -2715,20 +2686,6 @@ def yes_no(b: Optional[bool]) -> str:
 
 def yes_no_or(b: Union[bool, str]) -> str:
     return b if isinstance(b, str) else yes_no(b)
-
-
-def format_bytes_or_disabled(sz: int) -> str:
-    if sz == 0:
-        return "(disabled)"
-
-    return format_bytes(sz)
-
-
-def format_bytes_or_auto(sz: int) -> str:
-    if sz == 0:
-        return "(automatic)"
-
-    return format_bytes(sz)
 
 
 def none_to_na(s: Optional[T]) -> Union[T, str]:
