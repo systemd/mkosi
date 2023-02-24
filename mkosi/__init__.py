@@ -736,12 +736,13 @@ def make_cpio(state: MkosiState) -> None:
             "cpio", "-o", "--reproducible", "--null", "-H", "newc", "--quiet", "-D", state.root
         ]
 
-        with spawn(cmd, stdin=subprocess.PIPE, stdout=f) as cpio:
+        with spawn(cmd, stdin=subprocess.PIPE, stdout=f, text=True) as cpio:
             #  https://github.com/python/mypy/issues/10583
             assert cpio.stdin is not None
 
             for file in files:
-                cpio.stdin.write(os.fspath(file).encode("utf8") + b"\0")
+                cpio.stdin.write(os.fspath(file))
+                cpio.stdin.write("\0")
             cpio.stdin.close()
         if cpio.wait() != 0:
             die("Failed to create archive")
