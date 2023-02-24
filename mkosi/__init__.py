@@ -780,15 +780,7 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
     if not state.config.bootable:
         return
 
-    # Don't run dracut if this is for the cache. The unified kernel
-    # typically includes the image ID, roothash and other data that
-    # differs between cached version and final result. Moreover, we
-    # want that the initrd for the image actually takes the changes we
-    # make to the image into account (e.g. when we build a systemd
-    # test image with this we want that the systemd we just built is
-    # in the initrd, and not one from the cache. Hence even though
-    # dracut is slow we invoke it only during the last final build,
-    # never for the cached builds.
+    # The roothash is specific to the final image so we cannot cache this step.
     if state.for_cache:
         return
 
