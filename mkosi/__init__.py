@@ -2313,19 +2313,6 @@ def find_image_version(args: argparse.Namespace) -> None:
         pass
 
 
-def xescape(s: str) -> str:
-    "Escape a string udev-style, for inclusion in /dev/disk/by-*/* symlinks"
-
-    ret = ""
-    for c in s:
-        if ord(c) <= 32 or ord(c) >= 127 or c == "/":
-            ret = ret + "\\x%02x" % ord(c)
-        else:
-            ret = ret + str(c)
-
-    return ret
-
-
 DISABLED = Path('DISABLED')  # A placeholder value to suppress autodetection.
                              # This is used as a singleton, i.e. should be compared with
                              # 'is' in other parts of the code.
