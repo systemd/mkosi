@@ -156,6 +156,8 @@ class DebianInstaller(DistributionInstaller):
         invoke_apt(state, "get", "update", ["--assume-yes"])
 
         if state.config.bootable and not state.do_run_build_script:
+            # Ensure /efi exists so that the ESP is mounted there, and we never run dpkg -i on vfat
+            state.root.joinpath("efi").mkdir(mode=0o755)
             add_apt_package_if_exists(state, extra_packages, "systemd-boot")
 
         # systemd-resolved was split into a separate package
