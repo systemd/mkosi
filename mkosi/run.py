@@ -325,7 +325,7 @@ def run_workspace_command(
         PATH="",
     ) | env | state.environment
 
-    template = "chmod 1777 /tmp /var/tmp /dev/shm && exec {} || exit $?"
+    template = "chmod 1777 /tmp /var/tmp /dev/shm && PATH=$PATH:/usr/bin:/usr/sbin exec {} || exit $?"
 
     try:
         return run([*cmdline, template.format(shlex.join(str(s) for s in cmd))],
