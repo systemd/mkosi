@@ -3,10 +3,10 @@
 import shutil
 import urllib.parse
 import urllib.request
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 from textwrap import dedent
-from typing import Any, NamedTuple, Optional
+from typing import NamedTuple, Optional
 
 from mkosi.backend import (
     Distribution,
@@ -19,6 +19,7 @@ from mkosi.distributions import DistributionInstaller
 from mkosi.log import MkosiPrinter, complete_step, warn
 from mkosi.remove import unlink_try_hard
 from mkosi.run import run_with_apivfs
+from mkosi.types import Environment
 
 FEDORA_KEYS_MAP = {
     "36": "53DED2CB922D8B8D9E63FD18999F7CBF38AB71F4",
@@ -167,7 +168,7 @@ def setup_dnf(state: MkosiState, repos: Sequence[Repo] = ()) -> None:
             )
 
 
-def invoke_dnf(state: MkosiState, command: str, packages: Iterable[str], env: Mapping[str, Any] = {}) -> None:
+def invoke_dnf(state: MkosiState, command: str, packages: Iterable[str], env: Environment = {}) -> None:
     if state.config.distribution == Distribution.fedora:
         release, _ = parse_fedora_release(state.config.release)
     else:

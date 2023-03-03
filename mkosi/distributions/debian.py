@@ -11,7 +11,7 @@ from mkosi.backend import MkosiState, add_packages, disable_pam_securetty
 from mkosi.distributions import DistributionInstaller
 from mkosi.install import install_skeleton_trees, write_resource
 from mkosi.run import run, run_with_apivfs
-from mkosi.types import _FILE, CompletedProcess, PathString
+from mkosi.types import _FILE, CompletedProcess, Environment, PathString
 
 
 class DebianInstaller(DistributionInstaller):
@@ -305,7 +305,7 @@ def invoke_apt(
         operation,
         *extra,
     ]
-    env: dict[str, PathString] = dict(
+    env: Environment = dict(
         APT_CONFIG=config_file,
         DEBIAN_FRONTEND="noninteractive",
         DEBCONF_INTERACTIVE_SEEN="true",
