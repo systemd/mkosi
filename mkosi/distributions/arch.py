@@ -7,7 +7,7 @@ from mkosi.backend import MkosiState, add_packages, disable_pam_securetty, sort_
 from mkosi.distributions import DistributionInstaller
 from mkosi.log import complete_step
 from mkosi.run import run_with_apivfs
-from mkosi.types import PathString
+from mkosi.types import MutableCommandLine
 
 
 class ArchInstaller(DistributionInstaller):
@@ -124,7 +124,7 @@ def install_arch(state: MkosiState) -> None:
 
 
 def invoke_pacman(state: MkosiState, packages: Sequence[str]) -> None:
-    cmdline: list[PathString] = [
+    cmdline: MutableCommandLine = [
         "pacman",
         "--config", state.workspace / "pacman.conf",
         "--noconfirm",

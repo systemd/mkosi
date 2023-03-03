@@ -11,7 +11,7 @@ from mkosi.backend import MkosiState, add_packages, disable_pam_securetty
 from mkosi.distributions import DistributionInstaller
 from mkosi.install import install_skeleton_trees, write_resource
 from mkosi.run import run, run_with_apivfs
-from mkosi.types import _FILE, CompletedProcess, Environment, PathString
+from mkosi.types import _FILE, CompletedProcess, Environment, MutableCommandLine
 
 
 class DebianInstaller(DistributionInstaller):
@@ -64,7 +64,7 @@ class DebianInstaller(DistributionInstaller):
 
         # debootstrap fails if a base image is used with an already populated root, so skip it.
         if state.config.base_image is None:
-            cmdline: list[PathString] = [
+            cmdline: MutableCommandLine = [
                 "debootstrap",
                 "--variant=minbase",
                 "--include=ca-certificates",

@@ -9,7 +9,7 @@ from mkosi.backend import MkosiState, add_packages, patch_file
 from mkosi.distributions import DistributionInstaller
 from mkosi.log import complete_step
 from mkosi.run import run, run_with_apivfs
-from mkosi.types import PathString
+from mkosi.types import CommandArgument, MutableCommandLine
 
 
 class OpensuseInstaller(DistributionInstaller):
@@ -48,10 +48,10 @@ def invoke_zypper(state: MkosiState,
                   global_opts: list[str],
                   verb: str,
                   verb_opts: list[str],
-                  *args: PathString,
+                  *args: CommandArgument,
                   with_apivfs: bool = False) -> None:
 
-    cmdline: list[PathString] = ["zypper", "--root", state.root, *global_opts, verb, *verb_opts, *args]
+    cmdline: MutableCommandLine = ["zypper", "--root", state.root, *global_opts, verb, *verb_opts, *args]
     env={"ZYPP_CONF": state.root.joinpath("etc/zypp/zypp.conf")}
 
     if with_apivfs:

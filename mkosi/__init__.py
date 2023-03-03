@@ -73,7 +73,7 @@ from mkosi.run import (
     run_workspace_command,
     spawn,
 )
-from mkosi.types import PathString
+from mkosi.types import CommandLine, MutableCommandLine
 
 complete_step = MkosiPrinter.complete_step
 color_error = MkosiPrinter.color_error
@@ -120,7 +120,7 @@ def list_to_string(seq: Iterator[str]) -> str:
     return str(list(seq))[1:-1]
 
 
-def print_running_cmd(cmdline: Iterable[PathString]) -> None:
+def print_running_cmd(cmdline: CommandLine) -> None:
     MkosiPrinter.print_step("Running command:")
     MkosiPrinter.print_step(" ".join(shlex.quote(str(x)) for x in cmdline) + "\n")
 
@@ -500,7 +500,7 @@ def configure_serial_terminal(state: MkosiState, cached: bool) -> None:
                           """)
 
 
-def cache_params(state: MkosiState, root: Path) -> list[PathString]:
+def cache_params(state: MkosiState, root: Path) -> MutableCommandLine:
     return flatten(("--bind", state.cache, root / p) for p in state.installer.cache_path())
 
 
@@ -513,7 +513,7 @@ def run_prepare_script(state: MkosiState, cached: bool) -> None:
     verb = "build" if state.do_run_build_script else "final"
 
     with complete_step("Running prepare script…"):
-        bwrap: list[PathString] = [
+        bwrap: MutableCommandLine = [
             "--bind", state.config.build_sources, "/root/src",
             "--bind", state.config.prepare_script, "/root/prepare",
             *cache_params(state, Path("/")),
@@ -539,7 +539,7 @@ def run_postinst_script(state: MkosiState) -> None:
     verb = "build" if state.do_run_build_script else "final"
 
     with complete_step("Running postinstall script…"):
-        bwrap: list[PathString] = [
+        bwrap: MutableCommandLine = [
             "--bind", state.config.postinst_script, "/root/postinst",
             *cache_params(state, Path("/")),
         ]
@@ -673,7 +673,7 @@ def xz_binary() -> str:
     return "pxz" if shutil.which("pxz") else "xz"
 
 
-def compressor_command(option: Union[str, bool], src: Path) -> list[PathString]:
+def compressor_command(option: Union[str, bool], src: Path) -> MutableCommandLine:
     """Returns a command suitable for compressing archives."""
 
     if option == "xz":
@@ -703,7 +703,7 @@ def make_tar(state: MkosiState) -> None:
     if state.for_cache:
         return
 
-    cmd: list[PathString] = [tar_binary(), "-C", state.root, "-c", "--xattrs", "--xattrs-include=*"]
+    cmd: MutableCommandLine = [tar_binary(), "-C", state.root, "-c", "--xattrs", "--xattrs-include=*"]
     if state.config.tar_strip_selinux_context:
         cmd += ["--xattrs-exclude=security.selinux"]
 
@@ -732,7 +732,7 @@ def make_initrd(state: MkosiState) -> None:
 
 def make_cpio(root: Path, files: Iterator[Path], output: Path) -> None:
     with complete_step("Creating archive…"):
-        cmd: list[PathString] = [
+        cmd: MutableCommandLine = [
             "cpio", "-o", "--reproducible", "--null", "-H", "newc", "--quiet", "-D", root, "-O", output
         ]
 
@@ -834,7 +834,7 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
             # nul terminators in argv so let's communicate the cmdline via a file instead.
             state.workspace.joinpath("cmdline").write_text(f"{' '.join(cmdline).strip()}\x00")
 
-            cmd: list[PathString] = [
+            cmd: MutableCommandLine = [
                 shutil.which("ukify") or "/usr/lib/systemd/ukify",
                 "--cmdline", f"@{state.workspace / 'cmdline'}",
                 "--os-release", f"@{state.root / 'usr/lib/os-release'}",
@@ -938,7 +938,7 @@ def calculate_signature(state: MkosiState) -> None:
         return None
 
     with complete_step("Signing SHA256SUMS…"):
-        cmdline: list[PathString] = [
+        cmdline: MutableCommandLine = [
             "gpg",
             "--detach-sign",
             "-o", state.staging / state.config.output_signature.name,
@@ -959,7 +959,7 @@ def calculate_bmap(state: MkosiState) -> None:
         return
 
     with complete_step("Creating BMAP file…"):
-        cmdline: list[PathString] = [
+        cmdline: MutableCommandLine = [
             "bmaptool",
             "create",
             "--output", state.staging / state.config.output_bmap.name,
@@ -996,7 +996,7 @@ def save_cache(state: MkosiState) -> None:
         acl_toggle_remove(cache, state.uid, allow=True)
 
 
-def dir_size(path: PathString) -> int:
+def dir_size(path: Union[str, Path]) -> int:
     dir_sum = 0
     for entry in os.scandir(path):
         if entry.is_symlink():
@@ -2678,7 +2678,7 @@ def path_or_none(
         return path
 
 def line_join_list(
-        array: Sequence[PathString],
+        array: CommandLine,
         checker: Optional[Callable[[Optional[Path]], None]] = None,
 ) -> str:
     if not array:
@@ -2961,7 +2961,7 @@ def run_kernel_install(state: MkosiState, cached: bool) -> None:
 
     with complete_step("Generating initramfs images…"):
         for kver, kimg in gen_kernel_images(state):
-            cmd: list[PathString] = ["kernel-install", "add", kver, Path("/") / kimg]
+            cmd: MutableCommandLine = ["kernel-install", "add", kver, Path("/") / kimg]
 
             if ARG_DEBUG:
                 cmd += ["--verbose"]
@@ -3026,7 +3026,7 @@ def invoke_repart(state: MkosiState, skip: Sequence[str] = [], split: bool = Fal
     if not state.config.output_format == OutputFormat.disk or state.for_cache or state.do_run_build_script:
         return None
 
-    cmdline: list[PathString] = [
+    cmdline: MutableCommandLine = [
         "systemd-repart",
         "--empty=allow",
         "--size=auto",
@@ -3170,7 +3170,7 @@ def run_build_script(state: MkosiState) -> None:
         # the work directory outselves here.
         state.root.joinpath("work").mkdir(mode=0o755)
 
-        bwrap: list[PathString] = [
+        bwrap: MutableCommandLine = [
             "--bind", state.config.build_sources, "/work/src",
             "--bind", state.config.build_script, f"/work/{state.config.build_script.name}",
             "--bind", install_dir(state), "/work/dest",
@@ -3406,7 +3406,7 @@ def nspawn_knows_arg(arg: str) -> bool:
 
 
 def run_shell(config: MkosiConfig) -> None:
-    cmdline: list[PathString] = ["systemd-nspawn", "--quiet"]
+    cmdline: MutableCommandLine = ["systemd-nspawn", "--quiet"]
 
     if config.output_format in (OutputFormat.directory, OutputFormat.subvolume):
         cmdline += ["--directory", config.output]
@@ -3613,7 +3613,7 @@ def run_qemu(config: MkosiConfig) -> None:
     else:
         machine = f"type=q35,accel={accel},smm={smm}"
 
-    cmdline: list[PathString] = [
+    cmdline: MutableCommandLine = [
         find_qemu_binary(config),
         "-machine",
         machine,
@@ -3840,7 +3840,7 @@ def generate_secure_boot_key(config: MkosiConfig) -> None:
         )
     )
 
-    cmd: list[PathString] = [
+    cmd: MutableCommandLine = [
         "openssl",
         "req",
         "-new",

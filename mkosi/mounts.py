@@ -10,7 +10,7 @@ from typing import Callable, Deque, Optional, TypeVar, Union, cast
 
 from mkosi.log import complete_step
 from mkosi.run import run
-from mkosi.types import PathString
+from mkosi.types import CommandArgument, MutableCommandLine
 
 T = TypeVar("T")
 
@@ -50,7 +50,7 @@ def delete_whiteout_files(path: Path) -> None:
 
 @contextlib.contextmanager
 def mount(
-    what: PathString,
+    what: CommandArgument,
     where: Path,
     operation: Optional[str] = None,
     options: Sequence[str] = (),
@@ -62,7 +62,7 @@ def mount(
     if read_only:
         options = ["ro", *options]
 
-    cmd: list[PathString] = ["mount", "--no-mtab"]
+    cmd: MutableCommandLine = ["mount", "--no-mtab"]
 
     if operation:
         cmd += [operation]

@@ -11,7 +11,7 @@ import sys
 import traceback
 from pathlib import Path
 from types import TracebackType
-from typing import Any, Callable, Optional, Sequence, Type, TypeVar
+from typing import Any, Callable, Optional, Type, TypeVar
 
 from mkosi.backend import MkosiState
 from mkosi.log import ARG_DEBUG, MkosiPrinter, die
@@ -21,7 +21,7 @@ from mkosi.types import (
     CommandLine,
     CompletedProcess,
     Environment,
-    PathString,
+    MutableCommandLine,
     Popen,
 )
 
@@ -263,12 +263,12 @@ def spawn(
 
 def run_with_apivfs(
     state: MkosiState,
-    cmd: Sequence[PathString],
-    bwrap_params: Sequence[PathString] = tuple(),
+    cmd: CommandLine,
+    bwrap_params: CommandLine = tuple(),
     stdout: _FILE = None,
     env: Environment = {},
 ) -> CompletedProcess:
-    cmdline: list[PathString] = [
+    cmdline: MutableCommandLine = [
         "bwrap",
         # Required to make chroot detection via /proc/1/root work properly.
         "--unshare-pid",
@@ -298,13 +298,13 @@ def run_with_apivfs(
 
 def run_workspace_command(
     state: MkosiState,
-    cmd: Sequence[PathString],
-    bwrap_params: Sequence[PathString] = tuple(),
+    cmd: CommandLine,
+    bwrap_params: CommandLine = tuple(),
     network: bool = False,
     stdout: _FILE = None,
     env: Environment = {},
 ) -> CompletedProcess:
-    cmdline: list[PathString] = [
+    cmdline: MutableCommandLine = [
         "bwrap",
         "--unshare-ipc",
         "--unshare-pid",
