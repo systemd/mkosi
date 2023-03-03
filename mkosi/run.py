@@ -211,8 +211,7 @@ def run(
         PATH=os.environ["PATH"],
         TERM=os.getenv("TERM", "vt220"),
         LANG="C.UTF-8",
-        **env,
-    )
+    ) | env
 
     try:
         return subprocess.run(cmdline, check=check, stdout=stdout, stderr=stderr, env=env, **kwargs,
