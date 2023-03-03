@@ -213,6 +213,9 @@ def run(
         LANG="C.UTF-8",
     ) | env
 
+    if env["PATH"] == "":
+        del env["PATH"]
+
     try:
         return subprocess.run(cmdline, check=check, stdout=stdout, stderr=stderr, env=env, **kwargs,
                               preexec_fn=foreground)
@@ -318,6 +321,8 @@ def run_workspace_command(
         container="mkosi",
         SYSTEMD_OFFLINE=str(int(network)),
         HOME="/",
+        # Make sure the default PATH of the distro shell is used.
+        PATH="",
     ) | env | state.environment
 
     template = "chmod 1777 /tmp /var/tmp /dev/shm && exec {} || exit $?"
