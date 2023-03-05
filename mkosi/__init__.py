@@ -835,7 +835,7 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
             state.workspace.joinpath("cmdline").write_text(f"{' '.join(cmdline).strip()}\x00")
 
             cmd: list[PathString] = [
-                "ukify",
+                shutil.which("ukify") or "/usr/lib/systemd/ukify",
                 "--cmdline", f"@{state.workspace / 'cmdline'}",
                 "--os-release", f"@{state.root / 'usr/lib/os-release'}",
                 "--stub", state.root / f"lib/systemd/boot/efi/linux{EFI_ARCHITECTURES[state.config.architecture]}.efi.stub",
