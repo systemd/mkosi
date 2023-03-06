@@ -3,7 +3,7 @@
 import os
 import shutil
 import subprocess
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 from textwrap import dedent
 
@@ -19,15 +19,15 @@ class DebianInstaller(DistributionInstaller):
     repositories_for_boot: set[str] = set()
 
     @classmethod
-    def _add_default_kernel_package(cls, state: MkosiState, extra_packages: set[str]) -> None:
+    def _add_default_kernel_package(cls, state: MkosiState, packages: list[str]) -> None:
         # Don't pull in a kernel if users specify one, but otherwise try to pick a default
         # one - try to infer from the architecture.
-        if not any(package.startswith("linux-image") for package in extra_packages):
-            add_packages(state.config, extra_packages, f"linux-image-{DEBIAN_KERNEL_ARCHITECTURES[state.config.architecture]}")
+        if not any(package.startswith("linux-image") for package in packages):
+            add_packages(state.config, packages, f"linux-image-{DEBIAN_KERNEL_ARCHITECTURES[state.config.architecture]}")
 
     @classmethod
-    def _fixup_resolved(cls, state: MkosiState, extra_packages: set[str]) -> None:
-        if "systemd" in extra_packages and "systemd-resolved" not in extra_packages:
+    def _fixup_resolved(cls, state: MkosiState, packages: list[str]) -> None:
+        if "systemd" in packages and "systemd-resolved" not in packages:
             # The default resolv.conf points to 127.0.0.1, and resolved is disabled, fix it in
             # the base image.
             state.root.joinpath("etc/resolv.conf").unlink(missing_ok=True)
@@ -93,19 +93,18 @@ class DebianInstaller(DistributionInstaller):
         # Install extra packages via the secondary APT run, because it is smarter and can deal better with any
         # conflicts. dbus and libpam-systemd are optional dependencies for systemd in debian so we include them
         # explicitly.
-        extra_packages: set[str] = set()
-        add_packages(state.config, extra_packages, "systemd", "systemd-sysv", "dbus", "libpam-systemd")
-        extra_packages.update(state.config.packages)
+        packages = state.config.packages.copy()
+        add_packages(state.config, packages, "systemd", "systemd-sysv", "dbus", "libpam-systemd")
 
         if state.do_run_build_script:
-            extra_packages.update(state.config.build_packages)
+            packages += state.config.build_packages
 
         if not state.do_run_build_script and state.config.bootable:
-            add_packages(state.config, extra_packages, "dracut", "dracut-config-generic")
-            cls._add_default_kernel_package(state, extra_packages)
+            add_packages(state.config, packages, "dracut", "dracut-config-generic")
+            cls._add_default_kernel_package(state, packages)
 
         if not state.do_run_build_script and state.config.ssh:
-            add_packages(state.config, extra_packages, "openssh-server")
+            add_packages(state.config, packages, "openssh-server")
 
         # Debian policy is to start daemons by default. The policy-rc.d script can be used choose which ones to
         # start. Let's install one that denies all daemon startups.
@@ -158,12 +157,12 @@ class DebianInstaller(DistributionInstaller):
         if state.config.bootable and not state.do_run_build_script:
             # Ensure /efi exists so that the ESP is mounted there, and we never run dpkg -i on vfat
             state.root.joinpath("efi").mkdir(mode=0o755)
-            add_apt_package_if_exists(state, extra_packages, "systemd-boot")
+            add_apt_package_if_exists(state, packages, "systemd-boot")
 
         # systemd-resolved was split into a separate package
-        add_apt_package_if_exists(state, extra_packages, "systemd-resolved")
+        add_apt_package_if_exists(state, packages, "systemd-resolved")
 
-        invoke_apt(state, "get", "install", ["--assume-yes", "--no-install-recommends", *extra_packages])
+        invoke_apt(state, "get", "install", ["--assume-yes", "--no-install-recommends", *packages])
 
         # Now clean up and add the real repositories, so that the image is ready
         if state.config.local_mirror:
@@ -182,7 +181,7 @@ class DebianInstaller(DistributionInstaller):
             # Debian still has pam_securetty module enabled, disable it in the base image.
             disable_pam_securetty(state.root)
 
-        cls._fixup_resolved(state, extra_packages)
+        cls._fixup_resolved(state, packages)
 
         write_resource(state.root / "etc/kernel/install.d/50-mkosi-dpkg-reconfigure-dracut.install",
                        "mkosi.resources", "dpkg-reconfigure-dracut.install", executable=True)
@@ -191,6 +190,10 @@ class DebianInstaller(DistributionInstaller):
         # etc/locale.conf.
         state.root.joinpath("etc/default/locale").unlink(missing_ok=True)
         state.root.joinpath("etc/default/locale").symlink_to("../locale.conf")
+
+    @classmethod
+    def install_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
+        invoke_apt(state, "get", "install", ["--assume-yes", "--no-install-recommends", *packages])
 
     @classmethod
     def _add_apt_auxiliary_repos(cls, state: MkosiState, repos: set[str]) -> None:
@@ -209,8 +212,8 @@ class DebianInstaller(DistributionInstaller):
         state.root.joinpath(f"etc/apt/sources.list.d/{state.config.release}-security.list").write_text(f"{security}\n")
 
     @classmethod
-    def remove_packages(cls, state: MkosiState, remove: list[str]) -> None:
-        invoke_apt(state, "get", "purge", ["--assume-yes", "--auto-remove", *remove])
+    def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
+        invoke_apt(state, "get", "purge", ["--assume-yes", "--auto-remove", *packages])
 
 
 # Debian calls their architectures differently, so when calling debootstrap we
@@ -304,6 +307,6 @@ def invoke_apt(
     return run_with_apivfs(state, cmdline, stdout=stdout, env=env)
 
 
-def add_apt_package_if_exists(state: MkosiState, extra_packages: set[str], package: str) -> None:
+def add_apt_package_if_exists(state: MkosiState, packages: list[str], package: str) -> None:
     if invoke_apt(state, "cache", "search", ["--names-only", f"^{package}$"], stdout=subprocess.PIPE).stdout.strip():
-        add_packages(state.config, extra_packages, package)
+        add_packages(state.config, packages, package)

@@ -1,10 +1,11 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
+from collections.abc import Sequence
 from pathlib import Path
 
 from mkosi.backend import MkosiState, add_packages
 from mkosi.distributions import DistributionInstaller
-from mkosi.distributions.fedora import Repo, install_packages_dnf, invoke_dnf, setup_dnf
+from mkosi.distributions.fedora import Repo, invoke_dnf, setup_dnf
 from mkosi.log import complete_step
 
 
@@ -22,8 +23,12 @@ class OpenmandrivaInstaller(DistributionInstaller):
         return install_openmandriva(state)
 
     @classmethod
-    def remove_packages(cls, state: MkosiState, remove: list[str]) -> None:
-        invoke_dnf(state, 'remove', remove)
+    def install_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
+        invoke_dnf(state, "install", packages)
+
+    @classmethod
+    def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
+        invoke_dnf(state, "remove", packages)
 
 
 @complete_step("Installing OpenMandriva…")
@@ -57,7 +62,7 @@ def install_openmandriva(state: MkosiState) -> None:
 
     setup_dnf(state, repos)
 
-    packages = {*state.config.packages}
+    packages = state.config.packages.copy()
     # well we may use basesystem here, but that pulls lot of stuff
     add_packages(state.config, packages, "basesystem-minimal", "systemd", "dnf")
     if not state.do_run_build_script and state.config.bootable:
@@ -65,7 +70,10 @@ def install_openmandriva(state: MkosiState) -> None:
         add_packages(state.config, packages, "kernel-release-server", "dracut", "timezone")
     if state.config.netdev:
         add_packages(state.config, packages, "systemd-networkd", conditional="systemd")
+    if state.config.ssh:
+        add_packages(state.config, packages, "openssh-server")
 
     if state.do_run_build_script:
-        packages.update(state.config.build_packages)
-    install_packages_dnf(state, packages)
+        packages += state.config.build_packages
+
+    invoke_dnf(state, "install", packages)

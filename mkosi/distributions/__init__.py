@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
+from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -27,7 +28,11 @@ class DistributionInstaller:
         raise NotImplementedError
 
     @classmethod
-    def remove_packages(cls, state: "MkosiState", remove: list[str]) -> None:
+    def install_packages(cls, state: "MkosiState", packages: Sequence[str]) -> None:
+        raise NotImplementedError
+
+    @classmethod
+    def remove_packages(cls, state: "MkosiState", packages: Sequence[str]) -> None:
         raise NotImplementedError
 
     @classmethod

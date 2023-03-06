@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
-import os
+from collections.abc import Sequence
 from textwrap import dedent
 
 from mkosi.backend import MkosiState, add_packages, disable_pam_securetty, sort_packages
@@ -23,6 +23,10 @@ class ArchInstaller(DistributionInstaller):
     def install(cls, state: MkosiState) -> None:
         return install_arch(state)
 
+    @classmethod
+    def install_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
+        return invoke_pacman(state, packages)
+
 
 @complete_step("Installing Arch Linux…")
 def install_arch(state: MkosiState) -> None:
@@ -37,7 +41,7 @@ def install_arch(state: MkosiState) -> None:
             server = f"Server = {state.config.mirror}/$repo/os/$arch"
 
     # Create base layout for pacman and pacman-key
-    os.makedirs(state.root / "var/lib/pacman", 0o755, exist_ok=True)
+    state.root.joinpath("var/lib/pacman").mkdir(mode=0o755, exist_ok=True, parents=True)
 
     pacman_conf = state.workspace / "pacman.conf"
     if state.config.repository_key_check:
@@ -86,13 +90,11 @@ def install_arch(state: MkosiState) -> None:
         for d in state.config.repo_dirs:
             f.write(f"Include = {d}/*\n")
 
-    packages: set[str] = set()
+    packages = state.config.packages.copy()
     add_packages(state.config, packages, "base")
 
     if not state.do_run_build_script and state.config.bootable:
         add_packages(state.config, packages, "dracut")
-
-    packages.update(state.config.packages)
 
     official_kernel_packages = {
         "linux",
@@ -107,22 +109,26 @@ def install_arch(state: MkosiState) -> None:
         add_packages(state.config, packages, "linux")
 
     if state.do_run_build_script:
-        packages.update(state.config.build_packages)
+        packages += state.config.build_packages
 
     if not state.do_run_build_script and state.config.ssh:
         add_packages(state.config, packages, "openssh")
 
-    cmdline: list[PathString] = [
-        "pacman",
-        "--config",  pacman_conf,
-        "--noconfirm",
-        "-Sy", *sort_packages(packages),
-    ]
-
-    run_with_apivfs(state, cmdline, env=dict(KERNEL_INSTALL_BYPASS="1"))
+    invoke_pacman(state, packages)
 
     state.root.joinpath("etc/pacman.d/mirrorlist").write_text(f"Server = {state.config.mirror}/$repo/os/$arch\n")
 
     # Arch still uses pam_securetty which prevents root login into
     # systemd-nspawn containers. See https://bugs.archlinux.org/task/45903.
     disable_pam_securetty(state.root)
+
+
+def invoke_pacman(state: MkosiState, packages: Sequence[str]) -> None:
+    cmdline: list[PathString] = [
+        "pacman",
+        "--config", state.workspace / "pacman.conf",
+        "--noconfirm",
+        "-Sy", *sort_packages(packages),
+    ]
+
+    run_with_apivfs(state, cmdline, env=dict(KERNEL_INSTALL_BYPASS="1"))

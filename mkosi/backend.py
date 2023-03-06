@@ -513,7 +513,7 @@ def disable_pam_securetty(root: Path) -> None:
 
 
 def add_packages(
-    config: MkosiConfig, packages: set[str], *names: str, conditional: Optional[str] = None
+    config: MkosiConfig, packages: list[str], *names: str, conditional: Optional[str] = None
 ) -> None:
 
     """Add packages in @names to @packages, if enabled by --base-packages.
@@ -526,7 +526,7 @@ def add_packages(
 
     if config.base_packages is True or (config.base_packages == "conditional" and conditional):
         for name in names:
-            packages.add(f"({name} if {conditional})" if conditional else name)
+            packages.append(f"({name} if {conditional})" if conditional else name)
 
 
 def sort_packages(packages: Iterable[str]) -> list[str]:
