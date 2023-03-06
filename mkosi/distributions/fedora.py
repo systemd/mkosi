@@ -42,8 +42,12 @@ class FedoraInstaller(DistributionInstaller):
         return install_fedora(state)
 
     @classmethod
-    def remove_packages(cls, state: MkosiState, remove: list[str]) -> None:
-        invoke_dnf(state, 'remove', remove)
+    def install_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
+        invoke_dnf(state, "install", packages)
+
+    @classmethod
+    def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
+        invoke_dnf(state, "remove", packages)
 
 
 def parse_fedora_release(release: str) -> tuple[str, str]:
@@ -95,17 +99,20 @@ def install_fedora(state: MkosiState) -> None:
 
     setup_dnf(state, repos)
 
-    packages = {*state.config.packages}
+    packages = state.config.packages.copy()
     add_packages(state.config, packages, "systemd", "util-linux", "rpm")
 
     if not state.do_run_build_script and state.config.bootable:
         add_packages(state.config, packages, "kernel-core", "kernel-modules", "dracut", "dracut-config-generic")
         add_packages(state.config, packages, "systemd-udev", conditional="systemd")
     if state.do_run_build_script:
-        packages.update(state.config.build_packages)
+        packages += state.config.build_packages
     if not state.do_run_build_script and state.config.netdev:
         add_packages(state.config, packages, "systemd-networkd", conditional="systemd")
-    install_packages_dnf(state, packages)
+    if state.config.ssh:
+        add_packages(state.config, packages, "openssh-server")
+
+    invoke_dnf(state, "install", packages)
 
     # FIXME: should this be conditionalized on config.with_docs like in install_debian_or_ubuntu()?
     #        But we set LANG=C.UTF-8 anyway.
@@ -120,20 +127,6 @@ def url_exists(url: str) -> bool:
     except Exception:
         pass
     return False
-
-
-def make_rpm_list(state: MkosiState, packages: set[str]) -> set[str]:
-    packages = packages.copy()
-
-    if not state.do_run_build_script and state.config.ssh:
-        add_packages(state.config, packages, "openssh-server")
-
-    return packages
-
-
-def install_packages_dnf(state: MkosiState, packages: set[str], env: Mapping[str, Any] = {}) -> None:
-    packages = make_rpm_list(state, packages)
-    invoke_dnf(state, 'install', packages, env)
 
 
 class Repo(NamedTuple):

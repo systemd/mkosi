@@ -1,11 +1,12 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 import shutil
+from collections.abc import Sequence
 from pathlib import Path
 
 from mkosi.backend import Distribution, MkosiConfig, MkosiState, add_packages
 from mkosi.distributions import DistributionInstaller
-from mkosi.distributions.fedora import Repo, install_packages_dnf, invoke_dnf, setup_dnf
+from mkosi.distributions.fedora import Repo, invoke_dnf, setup_dnf
 from mkosi.log import complete_step, die
 from mkosi.remove import unlink_try_hard
 from mkosi.run import run_workspace_command
@@ -68,14 +69,17 @@ class CentosInstaller(DistributionInstaller):
         else:
             env = {}
 
-        packages = {*state.config.packages}
+        packages = state.config.packages.copy()
         add_packages(state.config, packages, "systemd", "rpm")
-        if not state.do_run_build_script and state.config.bootable:
-            add_packages(state.config, packages, "kernel", "dracut", "dracut-config-generic")
-            add_packages(state.config, packages, "systemd-udev", conditional="systemd")
+        if not state.do_run_build_script:
+            if state.config.bootable:
+                add_packages(state.config, packages, "kernel", "dracut", "dracut-config-generic")
+                add_packages(state.config, packages, "systemd-udev", conditional="systemd")
+            if state.config.ssh:
+                add_packages(state.config, packages, "openssh-server")
 
         if state.do_run_build_script:
-            packages.update(state.config.build_packages)
+            packages += state.config.build_packages
 
         if "epel" in state.config.repositories:
             add_packages(state.config, packages, "epel-release")
@@ -90,7 +94,7 @@ class CentosInstaller(DistributionInstaller):
         if release <= 8:
             add_packages(state.config, packages, "glibc-minimal-langpack")
 
-        install_packages_dnf(state, packages, env)
+        invoke_dnf(state, "install", packages, env)
 
         syslog = state.root.joinpath("etc/systemd/system/syslog.service")
         if release <= 8 and syslog.is_symlink():
@@ -110,8 +114,17 @@ class CentosInstaller(DistributionInstaller):
             run_workspace_command(state, cmdline)
 
     @classmethod
-    def remove_packages(cls, state: MkosiState, remove: list[str]) -> None:
-        invoke_dnf(state, 'remove', remove)
+    def install_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
+        if state.config.distribution == Distribution.centos:
+            env = dict(DNF_VAR_stream=f"{state.config.release}-stream")
+        else:
+            env = {}
+
+        invoke_dnf(state, "install", packages, env)
+
+    @classmethod
+    def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
+        invoke_dnf(state, "remove", packages)
 
     @staticmethod
     def _gpg_locations(release: int) -> tuple[Path, str]:

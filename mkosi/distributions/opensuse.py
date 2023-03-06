@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 import shutil
-from collections.abc import Iterable
+from collections.abc import Sequence
 from pathlib import Path
 from textwrap import dedent
 
@@ -27,12 +27,16 @@ class OpensuseInstaller(DistributionInstaller):
             # We assume that the base image has been properly initialized and it
             # contains all the metadata we need to install the additional
             # packages.
-            return zypper_install(state, {*state.config.packages})
+            return zypper_install(state, state.config.packages)
 
         return install_opensuse(state)
 
     @classmethod
-    def remove_packages(cls, state: MkosiState, packages: list[str]) -> None:
+    def install_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
+        zypper_install(state, packages)
+
+    @classmethod
+    def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
         zypper_remove(state, packages)
 
     @staticmethod
@@ -94,7 +98,7 @@ def zypper_modifyrepo(state: MkosiState, repo: str, caching: bool) -> None:
     invoke_zypper(state, [], "modifyrepo", ["--keep-packages" if caching else "--no-keep-packages"], repo)
 
 
-def zypper_install(state: MkosiState, packages: Iterable[str]) -> None:
+def zypper_install(state: MkosiState, packages: Sequence[str]) -> None:
     global_opts = [
         f"--cache-dir={state.cache}",
         "--gpg-auto-import-keys" if state.config.repository_key_check else "--no-gpg-checks",
@@ -105,7 +109,7 @@ def zypper_install(state: MkosiState, packages: Iterable[str]) -> None:
     invoke_zypper(state, global_opts, "install", verb_opts, *packages, with_apivfs=True)
 
 
-def zypper_remove(state: MkosiState, packages: Iterable[str]) -> None:
+def zypper_remove(state: MkosiState, packages: Sequence[str]) -> None:
     invoke_zypper(state, [], "remove", ["-y", "--clean-deps"], *packages, with_apivfs=True)
 
 
@@ -143,7 +147,7 @@ def install_opensuse(state: MkosiState) -> None:
         zypper_addrepo(state, release_url, "repo-oss", caching=True)
         zypper_addrepo(state, updates_url, "repo-update", caching=True)
 
-    packages = {*state.config.packages}
+    packages = state.config.packages.copy()
     add_packages(state.config, packages, "systemd", "glibc-locale-base", "zypper")
 
     if release.startswith("42."):
@@ -158,7 +162,7 @@ def install_opensuse(state: MkosiState) -> None:
         add_packages(state.config, packages, "systemd-network")
 
     if state.do_run_build_script:
-        packages.update(state.config.build_packages)
+        packages += state.config.build_packages
 
     if not state.do_run_build_script and state.config.ssh:
         add_packages(state.config, packages, "openssh-server")
