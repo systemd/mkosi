@@ -246,44 +246,20 @@ build script?  -------exists----->     copy           .
 .PP
 The following output formats are supported:
 .IP \[bu] 2
-Raw \f[I]GPT\f[R] disk image, with ext4 as root (\f[I]gpt_ext4\f[R])
-.IP \[bu] 2
-Raw \f[I]GPT\f[R] disk image, with xfs as root (\f[I]gpt_xfs\f[R])
-.IP \[bu] 2
-Raw \f[I]GPT\f[R] disk image, with btrfs as root (\f[I]gpt_btrfs\f[R])
-.IP \[bu] 2
-Raw \f[I]GPT\f[R] disk image, with squashfs as read-only root
-(\f[I]gpt_squashfs\f[R])
-.IP \[bu] 2
-Plain squashfs image, without partition table, as read-only root
-(\f[I]plain_squashfs\f[R])
+Raw \f[I]GPT\f[R] disk image, created using systemd-repart
 .IP \[bu] 2
 Plain directory, containing the OS tree (\f[I]directory\f[R])
 .IP \[bu] 2
-btrfs subvolume, with separate subvolumes for \f[C]/var\f[R],
-\f[C]/home\f[R], \f[C]/srv\f[R], \f[C]/var/tmp\f[R]
-(\f[I]subvolume\f[R])
+btrfs subvolume
 .IP \[bu] 2
 Tar archive (\f[I]tar\f[R])
 .IP \[bu] 2
 CPIO archive (\f[I]cpio\f[R]) in the format appropriate for a kernel
 initrd
 .PP
-When a \f[I]GPT\f[R] disk image is created, the following additional
-options are available:
-.IP \[bu] 2
-A swap partition may be added in
-.IP \[bu] 2
-The image may be made bootable on \f[I]EFI\f[R] systems
-.IP \[bu] 2
-Separate partitions for \f[C]/srv\f[R] and \f[C]/home\f[R] may be added
-in
-.IP \[bu] 2
-The root, \f[C]/srv\f[R] and \f[C]/home\f[R] partitions may optionally
-be encrypted with LUKS.
-.IP \[bu] 2
-A dm-verity partition may be added in that adds runtime integrity data
-for the root partition
+When a \f[I]GPT\f[R] disk image is created, repart partition definition
+files may be placed in \f[C]mkosi.repart/\f[R] to configure the
+generated disk image.
 .SS Configuration Settings
 .PP
 The following settings can be set through configuration files (the
@@ -305,9 +281,8 @@ either \[lq]1\[rq], \[lq]yes\[rq], or \[lq]true\[rq] to enable, or
 The distribution to install in the image.
 Takes one of the following arguments: \f[C]fedora\f[R],
 \f[C]debian\f[R], \f[C]ubuntu\f[R], \f[C]arch\f[R], \f[C]opensuse\f[R],
-\f[C]mageia\f[R], \f[C]centos\f[R], \f[C]centos_epel\f[R],
-\f[C]openmandriva\f[R], \f[C]rocky\f[R], \f[C]rocky_epel\f[R],
-\f[C]alma\f[R], \f[C]alma_epel\f[R].
+\f[C]mageia\f[R], \f[C]centos\f[R], \f[C]openmandriva\f[R],
+\f[C]rocky\f[R], and \f[C]alma\f[R].
 If not specified, defaults to the distribution of the host.
 .TP
 \f[B]\f[CB]Release=\f[B]\f[R], \f[B]\f[CB]--release=\f[B]\f[R], \f[B]\f[CB]-r\f[B]\f[R]
@@ -350,21 +325,11 @@ e.g.\ \[lq]!repo-url\[rq] to remove just one specific repository.
 For Arch Linux, additional repositories must be passed in the form
 \f[C]<name>::<url>\f[R] (e.g.\ \f[C]myrepo::https://myrepo.net\f[R]).
 .TP
-\f[B]\f[CB]UseHostRepositories=\f[B]\f[R], \f[B]\f[CB]--use-host-repositories\f[B]\f[R]
-This option is only applicable for RPM-based distributions:
-\f[I]CentOS\f[R], \f[I]Fedora Linux\f[R], \f[I]Mageia\f[R], \f[I]Rocky
-Linux\f[R], \f[I]Alma Linux\f[R] and \f[I]OpenMandriva\f[R].
-Allows use of the host\[cq]s existing RPM repositories.
-By default, a hardcoded set of default RPM repositories is generated and
-used.
-Use \f[C]--repositories=\f[R] to identify a custom set of repositories
-to be enabled and used for the build.
-.TP
-\f[B]\f[CB]RepositoryDirectory\f[B]\f[R], \f[B]\f[CB]--repository-directory\f[B]\f[R]
+\f[B]\f[CB]RepositoryDirectories\f[B]\f[R], \f[B]\f[CB]--repository-directory\f[B]\f[R]
 This option can (for now) only be used with RPM-based distributions and
 Arch Linux.
-It identifies a directory containing extra repository definitions that
-will be used when installing packages.
+It takes a comma separated list of directories containing extra
+repository definitions that will be used when installing packages.
 The files are passed directly to the corresponding package manager and
 should be written in the format expected by the package manager of the
 image\[cq]s distro.
@@ -381,12 +346,7 @@ One of \f[C]directory\f[R] (for generating OS images inside a local
 directory), \f[C]subvolume\f[R] (similar, but as a btrfs subvolume),
 \f[C]tar\f[R] (similar, but a tarball of the image is generated),
 \f[C]cpio\f[R] (similar, but a cpio archive is generated),
-\f[C]gpt_ext4\f[R] (a block device image with an ext4 file system inside
-a GPT partition table), \f[C]gpt_xfs\f[R] (similar, but with an xfs file
-system), \f[C]gpt_btrfs\f[R] (similar, but with an btrfs file system),
-\f[C]gpt_squashfs\f[R] (similar, but with a squashfs file system),
-\f[C]plain_squashfs\f[R] (a plain squashfs file system without a
-partition table).
+\f[C]disk\f[R] (a block device image with a GPT partition table).
 .TP
 \f[B]\f[CB]ManifestFormat=\f[B]\f[R], \f[B]\f[CB]--manifest-format=\f[B]\f[R]
 The manifest format type or types to generate.
@@ -411,14 +371,6 @@ included in the default name, e.g.\ a specified image version of
 \f[C]7.8\f[R] might result in an image file name of
 \f[C]image_7.8.raw.xz\f[R].
 .TP
-\f[B]\f[CB]OutputSplitRoot=\f[B]\f[R], \f[B]\f[CB]--output-split-root=\f[B]\f[R], \f[B]\f[CB]OutputSplitVerify=\f[B]\f[R], \f[B]\f[CB]--output-split-verity=\f[B]\f[R], \f[B]\f[CB]OutputSplitKernel=\f[B]\f[R], \f[B]\f[CB]--output-split-kernel=\f[B]\f[R]
-Paths for the split-out output image files, when
-\f[C]SplitArtifacts=yes\f[R] is used.
-If unspecified, the relevant split artifact files will be named like the
-main image, but with \f[C].root\f[R], \f[C].verity\f[R], and
-\f[C].efi\f[R] suffixes inserted (and in turn possibly suffixed by
-compression suffix, if compression is enabled).
-.TP
 \f[B]\f[CB]OutputDirectory=\f[B]\f[R], \f[B]\f[CB]--output-dir=\f[B]\f[R], \f[B]\f[CB]-O\f[B]\f[R]
 Path to a directory where to place all generated artifacts (i.e.\ the
 generated image when an output path is not given, \f[C]SHA256SUMS\f[R]
@@ -439,14 +391,11 @@ This directory should have enough space to store the full OS image,
 though in most modes the actually used disk space is smaller.
 If not specified, and \f[C]mkosi.workspace/\f[R] exists in the local
 directory, it is used for this purpose.
-Otherwise, a subdirectory in the temporary storage area is used
-(\f[C]$TMPDIR\f[R] if set, \f[C]/var/tmp/\f[R] otherwise).
+Otherwise, a subdirectory in the output directory is used.
 The data in this directory is removed automatically after each build.
 It\[cq]s safe to manually remove the contents of this directory should
 an \f[C]mkosi\f[R] invocation be aborted abnormally (for example, due to
 reboot/power failure).
-If the \f[C]btrfs\f[R] output modes are selected this directory must be
-backed by \f[C]btrfs\f[R] too.
 .TP
 \f[B]\f[CB]Force=\f[B]\f[R], \f[B]\f[CB]--force\f[B]\f[R], \f[B]\f[CB]-f\f[B]\f[R]
 Replace the output file if it already exists, when building an image.
@@ -465,15 +414,6 @@ effect: by default the verb will only remove build artifacts from a
 previous run, when specified once the incremental cache files are
 deleted too, and when specified twice the package cache is also removed.
 .PP
-.TP
-\f[B]\f[CB]GPTFirstLBA=\f[B]\f[R], \f[B]\f[CB]--gpt-first-lba=\f[B]\f[R]
-Override the first usable LBA (Logical Block Address) within the GPT
-header.
-This defaults to \f[C]2048\f[R], which is actually the desired value.
-However, some tools, e.g.\ the \f[C]prl_disk_tool\f[R] utility from the
-Parallels virtualization suite require this to be set to \f[C]34\f[R],
-otherwise they might fail to resize the disk image and/or partitions
-inside it.
 .TP
 \f[B]\f[CB]Bootable=\f[B]\f[R], \f[B]\f[CB]--bootable\f[B]\f[R], \f[B]\f[CB]-b\f[B]\f[R]
 Generate a bootable image for UEFI systems.
@@ -513,65 +453,6 @@ Number of days that the keys should remain valid when generating
 SecureBoot keys via mkosi\[cq]s \f[C]genkey\f[R] command.
 Defaults to two years (730 days).
 .TP
-\f[B]\f[CB]ReadOnly=\f[B]\f[R], \f[B]\f[CB]--read-only\f[B]\f[R]
-Set the read-only flag on the root partition in the partition table.
-Only applies to \f[C]gpt_ext4\f[R], \f[C]gpt_xfs\f[R],
-\f[C]gpt_btrfs\f[R], \f[C]subvolume\f[R] output formats, and is implied
-on \f[C]gpt_squashfs\f[R] and \f[C]plain_squashfs\f[R].
-The read-only flag is essentially a hint to tools using the image (see
-https://systemd.io/DISCOVERABLE_PARTITIONS/).
-In particular, all systemd tools like \f[C]systemd-nspawn\f[R] and
-\f[C]systemd-gpt-auto-generator\f[R] will mount such partitions
-read-only, but tools from other project may ignore the flag.
-.TP
-\f[B]\f[CB]Minimize=\f[B]\f[R], \f[B]\f[CB]--minimize\f[B]\f[R]
-Attempt to make the resulting root file system as small as possible by
-removing free space from the file system.
-Only supported for \f[C]gpt_ext4\f[R] and \f[C]gpt_btrfs\f[R].
-For ext4 this relies on \f[C]resize2fs -M\f[R], which reduces the free
-disk space but is not perfect and generally leaves some free space.
-For btrfs the results are optimal and no free space is left.
-.TP
-\f[B]\f[CB]Encrypt=\f[B]\f[R], \f[B]\f[CB]--encrypt\f[B]\f[R]
-Encrypt all partitions in the file system or just the root file system.
-Takes either \f[C]all\f[R] or \f[C]data\f[R] as argument.
-If \f[C]all\f[R], the root, \f[C]/home\f[R] and \f[C]/srv\f[R] file
-systems will be encrypted using dm-crypt/LUKS (with its default
-settings).
-If \f[C]data\f[R], the root file system will be left unencrypted, but
-\f[C]/home\f[R] and \f[C]/srv\f[R] will be encrypted.
-The passphrase to use is read from the \f[C]mkosi.passphrase\f[R] file
-in the current working directory.
-Note that the UEFI System Partition (ESP) containing the boot loader and
-kernel to boot is never encrypted since it needs to be accessible by the
-firmware.
-.TP
-\f[B]\f[CB]Verity=\f[B]\f[R], \f[B]\f[CB]--verity\f[B]\f[R]
-Add a \[lq]Verity\[rq] integrity partition to the image.
-Takes a boolean or the special value \f[C]signed\f[R], and defaults to
-disabled.
-If enabled, the root partition (or \f[C]/usr/\f[R] partition, in case
-\f[C]UsrOnly=\f[R] is enabled) is protected with \f[C]dm-verity\f[R]
-against offline modification, the verification data is placed in an
-additional GPT partition.
-Implies \f[C]ReadOnly=yes\f[R].
-If this is enabled, the Verity root hash is written to an output file
-with \f[C].roothash\f[R] or \f[C].usrhash\f[R] suffix.
-If set to \f[C]signed\f[R], Verity is also enabled, but the resulting
-root hash is then also signed (in PKCS#7 format) with the signature key
-configured with \f[C]SecureBootKey=\f[R].
-Or in other words: the SecureBoot key pair is then used to both sign the
-kernel, if that is enabled, and the root/\f[C]/usr/\f[R] file system.
-This signature is then stored in an additional output file with the
-\f[C].roothash.p7s\f[R] or \f[C].usrhash.p7s\f[R] suffix in DER format.
-It is also written to an additional partition in the image.
-The latter allows generating self-contained signed disk images,
-implementing the Verity provisions described in the Discoverable
-Partitions Specification (https://systemd.io/DISCOVERABLE_PARTITIONS).
-.PP
-This option requires the
-\f[C]cryptography\f[R] (https://cryptography.io/) module.
-.TP
 \f[B]\f[CB]SignExpectedPCR=\f[B]\f[R], \f[B]\f[CB]--sign-expected-pcr\f[B]\f[R]
 Measure the components of the unified kernel image (UKI) using
 \f[C]systemd-measure\f[R] and embed the PCR signature into the unified
@@ -580,16 +461,6 @@ This option takes a boolean value or the special value \f[C]auto\f[R],
 which is the default, which is equal to a true value if the
 \f[C]cryptography\f[R] (https://cryptography.io/) module is importable
 and the \f[C]systemd-measure\f[R] binary is in \f[C]PATH\f[R].
-.TP
-\f[B]\f[CB]CompressFs=\f[B]\f[R], \f[B]\f[CB]--compress-fs=\f[B]\f[R]
-Enable or disable internal compression in the file system.
-Only applies to output formats with squashfs or btrfs.
-Takes one of \f[C]zlib\f[R], \f[C]lzo\f[R], \f[C]zstd\f[R],
-\f[C]lz4\f[R], \f[C]xz\f[R] or a boolean value as argument.
-If the latter is used compression is enabled/disabled and the default
-algorithm is used.
-In case of the \f[C]squashfs\f[R] output formats compression is implied,
-but this option may be used to select the algorithm.
 .TP
 \f[B]\f[CB]CompressOutput=\f[B]\f[R], \f[B]\f[CB]--compress-output=\f[B]\f[R]
 Configure compression for the resulting image or archive.
@@ -602,22 +473,9 @@ This also means that the \f[C]shell\f[R], \f[C]boot\f[R], \f[C]qemu\f[R]
 verbs are not available when this option is used.
 Implied for \f[C]tar\f[R] and \f[C]cpio\f[R].
 .TP
-\f[B]\f[CB]Compress=\f[B]\f[R], \f[B]\f[CB]--compress=\f[B]\f[R]
-Enable compression.
-Using this option is equivalent to either \f[C]CompressFs=\f[R] or
-\f[C]CompressOutput=\f[R]; the appropriate type of compression is
-selected automatically.
-.TP
-\f[B]\f[CB]Mksquashfs=\f[B]\f[R], \f[B]\f[CB]--mksquashfs=\f[B]\f[R]
-Set the path to the \f[C]mksquashfs\f[R] executable to use.
-This is useful in case the parameters for the tool shall be augmented,
-as the tool may be replaced by a script invoking it with the right
-parameters, this way.
-.TP
 \f[B]\f[CB]QCow2=\f[B]\f[R], \f[B]\f[CB]--qcow2\f[B]\f[R]
 Encode the resulting image as QEMU QCOW2 image.
-This only applies to \f[C]gpt_ext4\f[R], \f[C]gpt_xfs\f[R],
-\f[C]gpt_btrfs\f[R], \f[C]gpt_squashfs\f[R].
+This only applies when generating disk images.
 QCOW2 images can be read natively by \f[C]qemu\f[R], but not by the
 Linux kernel.
 This means the \f[C]shell\f[R] and \f[C]boot\f[R] verbs are not
@@ -656,48 +514,32 @@ scripts invoked (which may be useful to patch it into
 \f[C]/etc/os-release\f[R] or similar, in particular the
 \f[C]IMAGE_ID=\f[R] field of it).
 .TP
-\f[B]\f[CB]WithUnifiedKernelImages=\f[B]\f[R], \f[B]\f[CB]--without-unified-kernel-images\f[B]\f[R]
-If specified, mkosi does not build unified kernel images and instead
-installs kernels with a separate initrd and boot loader config to the
-efi or bootloader partition.
-.TP
-\f[B]\f[CB]HostonlyInitrd=\f[B]\f[R], \f[B]\f[CB]--hostonly-initrd\f[B]\f[R]
-If specified, mkosi will run the tool to create the initrd such that a
-non-generic initrd is created that will only be able to run on the
-system mkosi is run on.
-Currently mkosi uses dracut for all supported distributions and this
-option translates to enabling dracut\[cq]s hostonly option.
-.TP
 \f[B]\f[CB]CacheInitrd=\f[B]\f[R], \f[B]\f[CB]--cache-initrd\f[B]\f[R]
 If specified, and incremental mode is used, mkosi will build the initrd
 in the cache image and reuse it in the final image.
 Note that this means that any changes that are only applied to the final
 image and not the cached image won\[cq]t be included in the initrd.
 .TP
-\f[B]\f[CB]UsrOnly=\f[B]\f[R], \f[B]\f[CB]--usr-only\f[B]\f[R]
-If specified, \f[C]mkosi\f[R] will only add the \f[C]/usr/\f[R]
-directory tree (instead of the whole root file system) to the image.
-This is useful for fully stateless systems that come up pristine on
-every single boot, where \f[C]/etc/\f[R] and \f[C]/var/\f[R] are
-populated by \f[C]systemd-tmpfiles\f[R]/\f[C]systemd-sysusers\f[R] and
-related calls, or systems that are originally shipped without a root
-file system, but where \f[C]systemd-repart\f[R] adds one on the first
-boot.
-.TP
 \f[B]\f[CB]SplitArtifacts=\f[B]\f[R], \f[B]\f[CB]--split-artifacts\f[B]\f[R]
-If specified and building an image with a partition table, also write
-out the root file system partition, its Verity partition (if configured)
-and the generated unified kernel (if configured) into separate output
-files.
+If specified and building a disk image, pass \f[C]--split=yes\f[R] to
+systemd-repart to have it write out split partition files for each
+configured partition.
+Read the
+man (https://www.freedesktop.org/software/systemd/man/systemd-repart.html#--split=BOOL)
+page for more information.
 This is useful in A/B update scenarios where an existing disk image
 shall be augmented with a new version of a root or \f[C]/usr\f[R]
 partition along with its Verity partition and unified kernel.
 .TP
-\f[B]\f[CB]Chown=\f[B]\f[R], \f[B]\f[CB]--chown\f[B]\f[R]
-By default, if \f[C]mkosi\f[R] is run inside a \f[C]sudo\f[R]
-environment all generated artifacts have their UNIX user/group ownership
-changed to the user which invoked \f[C]sudo\f[R].
-This behaviour can be disabled with \f[C]--chown=no\f[R].
+\f[B]\f[CB]RepartDirectory=\f[B]\f[R], \f[B]\f[CB]--repart-directory\f[B]\f[R]
+Path to a directory containing systemd-repart partition definition files
+that are used when mkosi invokes systemd-repart when building a disk
+image.
+If not specified and \f[C]mkosi.repart/\f[R] exists in the local
+directory, it will be used instead.
+Note that mkosi invokes repart with \f[C]--root=\f[R] set to the root of
+the image root, so any \f[C]CopyFiles=\f[R] source paths in partition
+definition files will be relative to the image root directory.
 .TP
 \f[B]\f[CB]TarStripSELinuxContext=\f[B]\f[R], \f[B]\f[CB]--tar-strip-selinux-context\f[B]\f[R]
 If running on a SELinux-enabled system (Fedora Linux, CentOS, Rocky
@@ -706,17 +548,6 @@ context extended attributes (\f[C]xattrs\f[R]), which may interfere with
 host SELinux rules in building or further container import stages.
 This option strips SELinux context attributes from the resulting tar
 archive.
-.TP
-\f[B]\f[CB]MachineID=\f[B]\f[R], \f[B]\f[CB]--machine-id\f[B]\f[R]
-Set the machine\[cq]s ID to the specified value.
-If unused, a random ID will be used while building the image and the
-final image will be shipped without a machine ID.
-.TP
-\f[B]\f[CB]Idmap=\f[B]\f[R], \f[B]\f[CB]--idmap\f[B]\f[R]
-By default, \f[C]mkosi\f[R] will run \f[C]systemd-nspawn\f[R] with
-ID mapping enabled. This ensures newly-created directories and files are
-owned by the user calling \f[C]sudo\f[R] or \f[C]pkexec\f[R] instead of
-\f[C]root\f[R]. This behaviour can be disabled with \f[C]--idmap=no\f[R].
 .SS [Content] Section
 .TP
 \f[B]\f[CB]BasePackages=\f[B]\f[R], \f[B]\f[CB]--base-packages\f[B]\f[R]
@@ -863,12 +694,8 @@ If the same variable is set twice, the later setting overrides the
 earlier one.
 .TP
 \f[B]\f[CB]BuildSources=\f[B]\f[R], \f[B]\f[CB]--build-sources=\f[B]\f[R]
-Takes a path to a source tree to copy into the development image, if the
-build script is used.
-This only applies if a build script is used, and defaults to the local
-directory.
-Use \f[C]SourceFileTransfer=\f[R] to configure how the files are
-transferred from the host to the container image.
+Takes a path to a source tree to mount into the development image, if
+the build script is used.
 .TP
 \f[B]\f[CB]BuildDirectory=\f[B]\f[R], \f[B]\f[CB]--build-dir=\f[B]\f[R]
 Takes a path of a directory to use as build directory for build systems
@@ -882,19 +709,6 @@ The build script can find the path to this directory in the
 \f[C]$BUILDDIR\f[R] environment variable.
 If this option is not specified, but a directory
 \f[C]mkosi.builddir/\f[R] exists in the local directory it is
-automatically used for this purpose (also see the \[lq]Files\[rq]
-section below).
-.TP
-\f[B]\f[CB]IncludeDirectory=\f[B]\f[R], \f[B]\f[CB]--include-directory=\f[B]\f[R]
-Takes a path of a directory to use as the include directory.
-This directory is mounted at \f[C]/usr/include\f[R] when building the
-build image and running the build script.
-This means all include files installed to \f[C]/usr/include\f[R] will be
-stored in this directory.
-This is useful to make include files available on the host system for
-use by language servers to provide code completion.
-If this option is not specified, but a directory
-\f[C]mkosi.includedir/\f[R] exists in the local directory, it is
 automatically used for this purpose (also see the \[lq]Files\[rq]
 section below).
 .TP
@@ -952,7 +766,7 @@ image.
 If this option is used the build process will be two-phased instead of
 single-phased.
 The specified script is copied onto the development image and executed
-inside an \f[C]systemd-nspawn\f[R] container environment.
+inside a namespaced chroot environment.
 If this option is not used, but the \f[C]mkosi.build\f[R] file found in
 the local directory it is automatically used for this purpose (also see
 the \[lq]Files\[rq] section below).
@@ -963,8 +777,8 @@ Takes a path to an executable that is invoked inside the image right
 after installing the software packages.
 It is the last step before the image is cached (if incremental mode is
 enabled).
-This script is invoked inside a \f[C]systemd-nspawn\f[R] container
-environment, and thus does not have access to host resources.
+This script is invoked inside a namespaced chroot environment, and thus
+does not have access to host resources.
 If this option is not used, but an executable script
 \f[C]mkosi.prepare\f[R] is found in the local directory, it is
 automatically used for this purpose.
@@ -974,8 +788,8 @@ Specify an empty value to disable automatic detection.
 Takes a path to an executable that is invoked inside the final image
 right after copying in the build artifacts generated in the first phase
 of the build.
-This script is invoked inside a \f[C]systemd-nspawn\f[R] container
-environment, and thus does not have access to host resources.
+This script is invoked inside a namespaced chroot environment, and thus
+does not have access to host resources.
 If this option is not used, but an executable \f[C]mkosi.postinst\f[R]
 is found in the local directory, it is automatically used for this
 purpose.
@@ -992,40 +806,6 @@ If this option is not used, but an executable \f[C]mkosi.finalize\f[R]
 is found in the local directory, it is automatically used for this
 purpose.
 Specify an empty value to disable automatic detection.
-.TP
-\f[B]\f[CB]SourceFileTransfer=\f[B]\f[R], \f[B]\f[CB]--source-file-transfer=\f[B]\f[R]
-Configures how the source file tree (as configured with
-\f[C]BuildSources=\f[R]) is transferred into the container image during
-the first phase of the build.
-Takes one of \f[C]copy-all\f[R] (to copy all files from the source
-tree), \f[C]copy-git-cached\f[R] (to copy only those files
-\f[C]git ls-files --cached\f[R] lists), \f[C]copy-git-others\f[R] (to
-copy only those files \f[C]git ls-files --others\f[R] lists),
-\f[C]mount\f[R] to bind mount the source tree directly.
-Defaults to \f[C]copy-git-cached\f[R] if a \f[C]git\f[R] source tree is
-detected, otherwise \f[C]copy-all\f[R].
-When you specify \f[C]copy-git-more\f[R], it is the same as
-\f[C]copy-git-cached\f[R], except it also includes the \f[C].git/\f[R]
-directory.
-.TP
-\f[B]\f[CB]SourceFileTransferFinal=\f[B]\f[R], \f[B]\f[CB]--source-file-transfer-final=\f[B]\f[R]
-Same as \f[C]SourceFileTransfer=\f[R], but for the final image instead
-of the build image.
-Takes the same values as \f[C]SourceFileFransfer=\f[R] except
-\f[C]mount\f[R].
-By default, sources are not copied into the final image.
-.TP
-\f[B]\f[CB]SourceResolveSymlinks=\f[B]\f[R], \f[B]\f[CB]--source-resolve-symlinks\f[B]\f[R]
-If given, any symbolic links in the source file tree are resolved and
-the file contents are copied to the build image.
-If not given, they are left as symbolic links.
-This only applies if \f[C]SourceFileTransfer=\f[R] is
-\f[C]copy-all\f[R].
-Defaults to leaving them as symbolic links.
-.TP
-\f[B]\f[CB]SourceResolveSymlinksFinal=\f[B]\f[R], \f[B]\f[CB]--source-resolve-symlinks-final\f[B]\f[R]
-Same as \f[C]SourceResolveSymlinks=\f[R], but for the final image
-instead of the build image.
 .TP
 \f[B]\f[CB]WithNetwork=\f[B]\f[R], \f[B]\f[CB]--with-network\f[B]\f[R]
 When true, enables network connectivity while the build script
@@ -1061,37 +841,6 @@ This option may be used to create systemd \[lq]system extensions\[rq] or
 portable services.
 See https://systemd.io/PORTABLE_SERVICES/#extension-images for more
 information.
-.TP
-\f[B]\f[CB]RootSize=\f[B]\f[R], \f[B]\f[CB]--root-size=\f[B]\f[R]
-Takes a size in bytes for the root file system.
-The specified numeric value may be suffixed with \f[C]K\f[R],
-\f[C]M\f[R], \f[C]G\f[R] to indicate kilo-, mega- and gigabytes (all to
-the base of 1024).
-This applies to output formats \f[C]gpt_ext4\f[R], \f[C]gpt_xfs\f[R],
-\f[C]gpt_btrfs\f[R].
-Defaults to 3G.
-.TP
-\f[B]\f[CB]ESPSize=\f[B]\f[R], \f[B]\f[CB]--esp-size=\f[B]\f[R]
-Similar to \f[C]RootSize=\f[R], configures the size of the UEFI System
-Partition (ESP).
-This is only relevant if the \f[C]Bootable=\f[R] option is used to
-generate a bootable image.
-Defaults to 256 MB.
-.TP
-\f[B]\f[CB]SwapSize=\f[B]\f[R], \f[B]\f[CB]--swap-size=\f[B]\f[R]
-Similar to \f[C]RootSize=\f[R], configures the size of a swap partition
-on the image.
-If omitted, no swap partition is created.
-.TP
-\f[B]\f[CB]HomeSize=\f[B]\f[R], \f[B]\f[CB]--home-size=\f[B]\f[R]
-Similar to \f[C]RootSize=\f[R], configures the size of the
-\f[C]/home\f[R] partition.
-If omitted, no separate \f[C]/home\f[R] partition is created.
-.TP
-\f[B]\f[CB]SrvSize=\f[B]\f[R], \f[B]\f[CB]--srv-size=\f[B]\f[R]
-Similar to \f[C]RootSize=\f[R], configures the size of the
-\f[C]/srv\f[R] partition.
-If omitted, no separate \f[C]/srv\f[R] partition is created.
 .SS [Validation] Section
 .TP
 \f[B]\f[CB]Checksum=\f[B]\f[R], \f[B]\f[CB]--checksum\f[B]\f[R]
@@ -1150,18 +899,6 @@ otherwise.
 \f[B]\f[CB]QemuArgs=\f[B]\f[R]
 Space-delimited list of additional arguments to pass when invoking qemu.
 .TP
-\f[B]\f[CB]NspawnKeepUnit=\f[B]\f[R], \f[B]\f[CB]--nspawn-keep-unit\f[B]\f[R]
-When used, this option instructs underlying calls of systemd-nspawn to
-use the current unit scope, instead of creating a dedicated transcient
-scope unit for the containers.
-This option should be used when mkosi is run by a service unit.
-.TP
-\f[B]\f[CB]QemuBoot=\f[B]\f[R], \f[B]\f[CB]--qemu-boot=\f[B]\f[R]
-When used with the \f[C]qemu\f[R] verb, this option specifies how qemu
-should boot the image.
-Can be set to either \f[C]uefi\f[R] to do a UEFI boot or \f[C]linux\f[R]
-to do a qemu direct linux boot.
-.TP
 \f[B]\f[CB]Netdev=\f[B]\f[R], \f[B]\f[CB]--netdev\f[B]\f[R]
 When used with the boot or qemu verbs, this option creates a virtual
 ethernet link between the host and the container/VM.
@@ -1219,6 +956,11 @@ fails.
 This option is useful mainly in scripted environments where the
 \f[C]qemu\f[R] and \f[C]ssh\f[R] verbs are used in a quick succession
 and the virtual device might not get enough time to configure itself.
+.TP
+\f[B]\f[CB]Credentials=\f[B]\f[R], \f[B]\f[CB]--credential\f[B]\f[R]
+Set credentials to be passed to systemd-nspawn or qemu respectively when
+\f[C]mkosi shell/boot\f[R] or \f[C]mkosi qemu\f[R] are used.
+This option takes a space separated list of key=value assignments.
 .SS Commandline-only Options
 .PP
 Those settings cannot be configured in the configuration files.
@@ -1240,20 +982,6 @@ the local directory it is automatically used for this purpose.
 If a setting is configured both on the command line and in the settings
 file, the command line generally wins, except for options taking lists
 in which case both lists are combined.
-.TP
-\f[B]\f[CB]--all\f[B]\f[R], \f[B]\f[CB]-a\f[B]\f[R]
-Iterate through all files \f[C]mkosi.*\f[R] in the
-\f[C]mkosi.files/\f[R] subdirectory, and build each as if
-\f[C]--config=mkosi.files/mkosi.\&...\f[R] was invoked.
-This is a quick way to build a large number of images in one go.
-Any additional specified command line arguments override the relevant
-options in all files processed this way.
-.TP
-\f[B]\f[CB]--all-directory=\f[B]\f[R]
-If specified, overrides the directory the \f[C]--all\f[R] logic
-described above looks for settings files in.
-If unspecified, defaults to \f[C]mkosi.files/\f[R] in the current
-working directory.
 .TP
 \f[B]\f[CB]--incremental\f[B]\f[R], \f[B]\f[CB]-i\f[B]\f[R]
 Enable incremental build mode.
@@ -1322,18 +1050,17 @@ operating systems:
 In theory, any distribution may be used on the host for building images
 containing any other distribution, as long as the necessary tools are
 available.
-Specifically, any distribution that packages \f[C]debootstrap\f[R] may
-be used to build \f[I]Debian\f[R] or \f[I]Ubuntu\f[R] images.
+Specifically, any distribution that packages \f[C]debootstrap\f[R] and
+\f[C]apt\f[R] may be used to build \f[I]Debian\f[R] or \f[I]Ubuntu\f[R]
+images.
 Any distribution that packages \f[C]dnf\f[R] may be used to build
+\f[I]CentOS\f[R], \f[I]Alma Linux\f[R], \f[I]Rocky Linux\f[R],
 \f[I]Fedora Linux\f[R], \f[I]Mageia\f[R] or \f[I]OpenMandriva\f[R]
 images.
 Any distro that packages \f[C]pacman\f[R] may be used to build \f[I]Arch
 Linux\f[R] images.
 Any distribution that packages \f[C]zypper\f[R] may be used to build
 \f[I]openSUSE\f[R] images.
-Any distribution that packages \f[C]yum\f[R] (or the newer replacement
-\f[C]dnf\f[R]) may be used to build \f[I]CentOS\f[R], \f[I]Rocky
-Linux\f[R], or \f[I]Alma Linux\f[R] images.
 Any distribution that packages \f[C]emerge\f[R] may be used to build
 \f[I]Gentoo\f[R] images.
 .PP
@@ -1451,9 +1178,8 @@ The \f[I]development\f[R] image is used to build the project in the
 current working directory (the \f[I]source\f[R] tree).
 For that the whole directory is copied into the image, along with the
 \f[C]mkosi.build\f[R] script.
-The script is then invoked inside the image (via
-\f[C]systemd-nspawn\f[R]), with \f[C]$SRCDIR\f[R] pointing to the
-\f[I]source\f[R] tree.
+The script is then invoked inside the image, with \f[C]$SRCDIR\f[R]
+pointing to the \f[I]source\f[R] tree.
 \f[C]$DESTDIR\f[R] points to a directory where the script should place
 any files generated it would like to end up in the \f[I]final\f[R]
 image.
@@ -1541,9 +1267,6 @@ regards: it has access to the host file system so it\[cq]s easier to
 copy in additional files or to modify the image based on external
 configuration, and the script is run in the host, so it can be used even
 without emulation even if the image has a foreign architecture.
-.IP \[bu] 2
-The \f[B]\f[CB]mkosi.mksquashfs-tool\f[B]\f[R] script, if it exists,
-will be called wherever \f[C]mksquashfs\f[R] would be called.
 .IP \[bu] 2
 The \f[B]\f[CB]mkosi.nspawn\f[B]\f[R] nspawn settings file will be
 copied into the same place as the output image file, if it exists.
@@ -1633,7 +1356,7 @@ source tree (see above).
 The \f[B]\f[CB]mkosi.reposdir/\f[B]\f[R] directory, if it exists, is
 automatically used as the repository directory for extra repository
 files.
-See the \f[C]RepositoryDirectory\f[R] option for more information.
+See the \f[C]RepositoryDirectories\f[R] option for more information.
 .PP
 All these files are optional.
 .PP
@@ -1760,12 +1483,11 @@ Create and run a raw \f[I]GPT\f[R] image with \f[I]ext4\f[R], as
 \f[R]
 .fi
 .PP
-Create and run a bootable btrfs \f[I]GPT\f[R] image, as
-\f[C]foobar.raw\f[R]:
+Create and run a bootable \f[I]GPT\f[R] image, as \f[C]foobar.raw\f[R]:
 .IP
 .nf
 \f[C]
-# mkosi --format gpt_btrfs --bootable -o foobar.raw
+# mkosi --format disk --bootable -o foobar.raw
 # mkosi --output foobar.raw boot
 # mkosi --output foobar.raw qemu
 \f[R]
@@ -1784,7 +1506,7 @@ file, and install \f[I]SSH\f[R] into it:
 .IP
 .nf
 \f[C]
-# mkosi --distribution fedora --format gpt_squashfs --checksum --compress --package=openssh-clients
+# mkosi --distribution fedora --format disk --checksum --compress-output --package=openssh-clients
 \f[R]
 .fi
 .PP
@@ -1801,7 +1523,7 @@ Distribution=fedora
 Release=24
 
 [Output]
-Format=gpt_btrfs
+Format=disk
 Bootable=yes
 
 [Content]
@@ -1847,8 +1569,7 @@ mkosi is packaged for various distributions: Debian, Ubuntu, Arch Linux,
 Fedora Linux, OpenMandriva, Gentoo.
 It is usually easiest to use the distribution package.
 .PP
-The current version requires systemd 233 (or actually, systemd-nspawn of
-it).
+The latest code from git requires systemd 253.
 .PP
 When not using distribution packages make sure to install the necessary
 dependencies.
@@ -1856,19 +1577,19 @@ For example, on \f[I]Fedora Linux\f[R] you need:
 .IP
 .nf
 \f[C]
-dnf install arch-install-scripts btrfs-progs debootstrap dosfstools edk2-ovmf e2fsprogs squashfs-tools gnupg python3 tar veritysetup xfsprogs xz zypper sbsigntools
+dnf install bubblewrap btrfs-progs apt debootstrap dosfstools mtools edk2-ovmf e2fsprogs squashfs-tools gnupg python3 tar xfsprogs xz zypper sbsigntools
 \f[R]
 .fi
 .PP
 On Debian/Ubuntu it might be necessary to install the
 \f[C]ubuntu-keyring\f[R], \f[C]ubuntu-archive-keyring\f[R] and/or
 \f[C]debian-archive-keyring\f[R] packages explicitly, in addition to
-\f[C]debootstrap\f[R], depending on what kind of distribution images you
-want to build.
+\f[C]apt\f[R] and \f[C]debootstrap\f[R], depending on what kind of
+distribution images you want to build.
 \f[C]debootstrap\f[R] on Debian only pulls in the Debian keyring on its
 own, and the version on Ubuntu only the one from Ubuntu.
 .PP
-Note that the minimum required Python version is 3.7.
+Note that the minimum required Python version is 3.9.
 .SH REFERENCES
 .IP \[bu] 2
 Primary mkosi git repository on
