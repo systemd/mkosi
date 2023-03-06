@@ -280,7 +280,6 @@ class MkosiConfig:
     build_dir: Optional[Path]
     install_dir: Optional[Path]
     build_packages: list[str]
-    skip_final_phase: bool
     build_script: Optional[Path]
     prepare_script: Optional[Path]
     postinst_script: Optional[Path]
@@ -383,7 +382,6 @@ class MkosiState:
     config: MkosiConfig
     workspace: Path
     cache: Path
-    do_run_build_script: bool
     for_cache: bool
     environment: dict[str, str] = dataclasses.field(init=False)
     installer: DistributionInstaller = dataclasses.field(init=False)
@@ -406,12 +404,22 @@ class MkosiState:
         self.installer = instance
 
         self.root.mkdir(exist_ok=True, mode=0o755)
+        self.build_overlay.mkdir(exist_ok=True, mode=0o755)
+        self.workdir.mkdir(exist_ok=True)
         self.var_tmp.mkdir(exist_ok=True)
         self.staging.mkdir(exist_ok=True)
 
     @property
     def root(self) -> Path:
         return self.workspace / "root"
+
+    @property
+    def build_overlay(self) -> Path:
+        return self.workspace / "build-overlay"
+
+    @property
+    def workdir(self) -> Path:
+        return self.workspace / "workdir"
 
     @property
     def var_tmp(self) -> Path:
@@ -459,14 +467,6 @@ def patch_file(filepath: Path, line_rewriter: Callable[[str], str]) -> None:
     shutil.copystat(filepath, temp_new_filepath)
     os.remove(filepath)
     shutil.move(temp_new_filepath, filepath)
-
-
-def path_relative_to_cwd(path: Path) -> Path:
-    "Return path as relative to $PWD if underneath, absolute path otherwise"
-    try:
-        return path.relative_to(os.getcwd())
-    except ValueError:
-        return path
 
 
 def safe_tar_extract(tar: tarfile.TarFile, path: Path=Path("."), *, numeric_owner: bool=False) -> None:

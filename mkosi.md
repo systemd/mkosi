@@ -127,119 +127,29 @@ The following command line verbs are known:
 : This verb is equivalent to the `--help` switch documented below: it
   shows a brief usage explanation.
 
-## Execution flow
+## Execution Flow
 
-Execution flow for `mkosi build`. Columns represent the execution context.
-Default values/calls are shown in parentheses.
+Execution flow for `mkosi build`. Default values/calls are shown in parentheses.
 When building with `--incremental` mkosi creates a cache of the distribution
-installation for both images if not already existing and replaces the
-distribution installation in consecutive runs with data from the cached one.
+installation if not already existing and replaces the distribution installation
+in consecutive runs with data from the cached one.
 
-```
-            HOST            .          BUILD          .          FINAL
-                            .          IMAGE          .          IMAGE
-                            .                         .
-   start                    .                         .
-     |                      .                         .
-     v                      .                         .
-build script?  -------exists----->     copy           .
-     |                      .      skeleton trees     .
-     |                      .     (mkosi.skeleton/)   .
-    none                    .            |            .
-     |                      .            v            .
-     v                      .         install         .
-    skip                    .       distribution,     .
- build image                .       packages and      .
-     |                      .      build packages,    .
-     |                      .           run           .
-     |                      .      prepare script     .
-     |                      .   (mkosi.prepare build) .
-     |                      .     or if incremental   .
-     |                      .  use cached build image .
-     |                      .            |            .
-     |                      .            v            .
-     |                      .          copy           .
-     |                      .      build sources      .
-     |                      .          (./)           .
-     |                      .            |            .
-     |                      .            v            .
-     |                      .          copy           .
-     |                      .       extra trees       .
-     |                      .      (mkosi.extra/)     .
-     |                      .            |            .
-     |                      .            v            .
-     |                      .           run           .
-     |                      .    postinstall script   .
-     |                      .  (mkosi.postinst build) .
-     |                      .            |            .
-     |         .-------------------------'            .
-     |         |            .                         .
-     |         v            .                         .
-     |        run           .                         .
-     |   finalize script    .                         .
-     |(mkosi.finalize build).                         .
-     |         |            .                         .
-     |         '-------------------------.            .
-     |                      .            |            .
-     |                      .            v            .
-     |                      .           run           .
-     |                      .       build script      .
-     |                      .      (mkosi.build)      .
-     |                      .            |            .
-     '-----------------------------------+------------------------.
-                            .                         .           |
-                            .                         .           v
-                            .                         .          copy
-                            .                         .     skeleton trees
-                            .                         .    (mkosi.skeleton/)
-                            .                         .           |
-                            .                         .           v
-                            .                         .        install
-                            .                         .      distribution
-                            .                         .      and packages,
-                            .                         .          run
-                            .                         .     prepare script
-                            .                         .  (mkosi.prepare final)
-                            .                         .    or if incremental
-                            .                         . use cached final image
-                            .                         .           |
-                            .                         .           v
-                            .                         .         copy
-                            .                         .     build results
-                            .                         .           |
-                            .                         .           v
-                            .                         .         copy
-                            .                         .      extra trees
-                            .                         .     (mkosi.extra/)
-                            .                         .           |
-                            .                         .           v
-                            .                         .          run
-                            .                         .    postinstall script
-                            .                         .  (mkosi.postinst final)
-                            .                         .           |
-                            .                         .           v
-                            .                         .           |
-                            .                         .     perform cleanup
-                            .                         . (remove files, packages,
-                            .                         .     package metadata)
-                            .                         .           |
-               .--------------------------------------------------'
-               |            .                         .
-               v            .                         .
-              run           .                         .
-        finalize script     .                         .
-    (mkosi.finalize final)  .                         .
-               |            .                         .
-     .---------'            .                         .
-     |                      .                         .
-     v                      .                         .
-    end                     .                         .
-                            .                         .
-            HOST            .          BUILD          .          FINAL
-                            .          IMAGE          .          IMAGE
-                            .                         .
-```
-
+* Copy skeleton trees (`mkosi.skeleton`) into image
+* Install distribution and packages into image or use cache tree if available
+* Install build packages in overlay if a build script is configured
+* Run prepare script on image and on image + build overlay if a build script is configured (`mkosi.prepare`)
+* Run build script on image + build overlay if a build script is configured (`mkosi.build`)
+* Copy the build script outputs into the image
+* Copy the extra trees into the image (`mkosi.extra`)
+* Run `kernel-install`
+* Install systemd-boot
+* Run post-install script (`mkosi.postinst`)
+* Run `systemctl preset-all`
+* Remove packages and files (`RemovePackages=`, `RemoveFiles=`)
+* Run finalize script (`mkosi.finalize`)
+* Run SELinux relabel is a SELinux policy is installed
+* Generate unified kernel image
+* Generate final output format
 ## Supported output formats
 
 The following output formats are supported:
@@ -752,23 +662,14 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   `/dev/tty1` (QEMU) and `/dev/ttyS0` (QEMU with `QemuHeadless=yes`)
   by patching `/etc/pam.d/login`.
 
-`SkipFinalPhase=`, `--skip-final-phase=`
-
-: Causes the (second) final image build stage to be skipped. This is
-  useful in combination with a build script, for when you care about
-  the artifacts that were created locally in `$BUILDDIR`, but
-  ultimately plan to discard the final image.
-
 `BuildScript=`, `--build-script=`
 
 : Takes a path to an executable that is used as build script for this
-  image. If this option is used the build process will be two-phased
-  instead of single-phased. The specified script is copied onto the
-  development image and executed inside a namespaced chroot environment.
-  If this option is not used, but the `mkosi.build` file found in the
-  local directory it is automatically used for this purpose (also see
-  the "Files" section below). Specify an empty value to disable
-  automatic detection.
+  image. The specified script is copied onto the development image and
+  executed inside a namespaced chroot environment. If this option is not
+  used, but the `mkosi.build` file found in the local directory it is
+  automatically used for this purpose (also see the "Files" section below).
+  Specify an empty value to disable automatic detection.
 
 `PrepareScript=`, `--prepare-script=`
 

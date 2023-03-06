@@ -65,15 +65,12 @@ def install_openmandriva(state: MkosiState) -> None:
     packages = state.config.packages.copy()
     # well we may use basesystem here, but that pulls lot of stuff
     add_packages(state.config, packages, "basesystem-minimal", "systemd", "dnf")
-    if not state.do_run_build_script and state.config.bootable:
+    if state.config.bootable:
         add_packages(state.config, packages, "systemd-boot", "systemd-cryptsetup", conditional="systemd")
         add_packages(state.config, packages, "kernel-release-server", "dracut", "timezone")
     if state.config.netdev:
         add_packages(state.config, packages, "systemd-networkd", conditional="systemd")
     if state.config.ssh:
         add_packages(state.config, packages, "openssh-server")
-
-    if state.do_run_build_script:
-        packages += state.config.build_packages
 
     invoke_dnf(state, "install", packages)

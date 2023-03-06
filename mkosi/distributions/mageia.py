@@ -63,7 +63,7 @@ def install_mageia(state: MkosiState) -> None:
 
     packages = state.config.packages.copy()
     add_packages(state.config, packages, "basesystem-minimal", "dnf")
-    if not state.do_run_build_script and state.config.bootable:
+    if state.config.bootable:
         add_packages(state.config, packages, "kernel-server-latest", "dracut")
         # Mageia ships /etc/50-mageia.conf that omits systemd from the initramfs and disables hostonly.
         # We override that again so our defaults get applied correctly on Mageia as well.
@@ -73,9 +73,6 @@ def install_mageia(state: MkosiState) -> None:
         )
     if state.config.ssh:
         add_packages(state.config, packages, "openssh-server")
-
-    if state.do_run_build_script:
-        packages += state.config.build_packages
 
     invoke_dnf(state, "install", packages)
 

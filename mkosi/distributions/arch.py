@@ -93,7 +93,7 @@ def install_arch(state: MkosiState) -> None:
     packages = state.config.packages.copy()
     add_packages(state.config, packages, "base")
 
-    if not state.do_run_build_script and state.config.bootable:
+    if state.config.bootable:
         add_packages(state.config, packages, "dracut")
 
     official_kernel_packages = {
@@ -104,14 +104,11 @@ def install_arch(state: MkosiState) -> None:
     }
 
     has_kernel_package = official_kernel_packages.intersection(state.config.packages)
-    if not state.do_run_build_script and state.config.bootable and not has_kernel_package:
+    if state.config.bootable and not has_kernel_package:
         # No user-specified kernel
         add_packages(state.config, packages, "linux")
 
-    if state.do_run_build_script:
-        packages += state.config.build_packages
-
-    if not state.do_run_build_script and state.config.ssh:
+    if state.config.ssh:
         add_packages(state.config, packages, "openssh")
 
     invoke_pacman(state, packages)

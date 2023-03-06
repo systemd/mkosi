@@ -155,16 +155,13 @@ def install_opensuse(state: MkosiState) -> None:
     else:
         add_packages(state.config, packages, "patterns-base-minimal_base")
 
-    if not state.do_run_build_script and state.config.bootable:
+    if state.config.bootable:
         add_packages(state.config, packages, "kernel-default", "dracut")
 
     if state.config.netdev:
         add_packages(state.config, packages, "systemd-network")
 
-    if state.do_run_build_script:
-        packages += state.config.build_packages
-
-    if not state.do_run_build_script and state.config.ssh:
+    if state.config.ssh:
         add_packages(state.config, packages, "openssh-server")
 
     zypper_install(state, packages)
@@ -201,7 +198,7 @@ def install_opensuse(state: MkosiState) -> None:
                     shutil.copy2(state.root / f"usr/{prefix}/pam.d/login", state.root / "etc/pam.d/login")
                     break
 
-    if state.config.bootable and not state.do_run_build_script:
+    if state.config.bootable:
         dracut_dir = state.root / "etc/dracut.conf.d"
         dracut_dir.mkdir(mode=0o755, exist_ok=True)
 

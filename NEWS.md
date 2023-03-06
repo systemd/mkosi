@@ -46,6 +46,9 @@
 - Dropped `--include-dir` option. Usage can be replaced by using `--incremental` and reading includes from
   the cached build image tree.
 - Removed `--machine-id` in favor of shipping images without a machine ID at all.
+- Removed `--skip-final-phase` as we only have a single phase now.
+- The post install script is only called for the final image now and not for the build image anymore. Use the
+  prepare script instead.
 
 ## v14
 
