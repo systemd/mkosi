@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
-import os
 from textwrap import dedent
 
 from mkosi.backend import MkosiState, add_packages, disable_pam_securetty, sort_packages
@@ -37,7 +36,7 @@ def install_arch(state: MkosiState) -> None:
             server = f"Server = {state.config.mirror}/$repo/os/$arch"
 
     # Create base layout for pacman and pacman-key
-    os.makedirs(state.root / "var/lib/pacman", 0o755, exist_ok=True)
+    state.root.joinpath("var/lib/pacman").mkdir(mode=0o755, exist_ok=True, parents=True)
 
     pacman_conf = state.workspace / "pacman.conf"
     if state.config.repository_key_check:
