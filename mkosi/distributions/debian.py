@@ -96,14 +96,11 @@ class DebianInstaller(DistributionInstaller):
         packages = state.config.packages.copy()
         add_packages(state.config, packages, "systemd", "systemd-sysv", "dbus", "libpam-systemd")
 
-        if state.do_run_build_script:
-            packages += state.config.build_packages
-
-        if not state.do_run_build_script and state.config.bootable:
+        if state.config.bootable:
             add_packages(state.config, packages, "dracut", "dracut-config-generic")
             cls._add_default_kernel_package(state, packages)
 
-        if not state.do_run_build_script and state.config.ssh:
+        if state.config.ssh:
             add_packages(state.config, packages, "openssh-server")
 
         # Debian policy is to start daemons by default. The policy-rc.d script can be used choose which ones to
@@ -136,7 +133,7 @@ class DebianInstaller(DistributionInstaller):
             with dpkg_nodoc_conf.open("w") as f:
                 f.writelines(f"path-exclude {d}/*\n" for d in doc_paths)
 
-        if not state.do_run_build_script and state.config.bootable and state.config.base_image is None:
+        if state.config.bootable and state.config.base_image is None:
             # systemd-boot won't boot unified kernel images generated without a BUILD_ID or VERSION_ID in
             # /etc/os-release. Build one with the mtime of os-release if we don't find them.
             with state.root.joinpath("etc/os-release").open("r+") as f:
@@ -154,9 +151,11 @@ class DebianInstaller(DistributionInstaller):
 
         invoke_apt(state, "get", "update", ["--assume-yes"])
 
-        if state.config.bootable and not state.do_run_build_script:
+        if state.config.bootable:
             # Ensure /efi exists so that the ESP is mounted there, and we never run dpkg -i on vfat
             state.root.joinpath("efi").mkdir(mode=0o755)
+
+        if state.config.bootable:
             add_apt_package_if_exists(state, packages, "systemd-boot")
 
         # systemd-resolved was split into a separate package
@@ -192,10 +191,9 @@ class DebianInstaller(DistributionInstaller):
         state.root.joinpath("etc/default/locale").symlink_to("../locale.conf")
 
         # Don't enable any services by default.
-        if not state.do_run_build_script:
-            presetdir = state.root / "etc/systemd/system-preset"
-            presetdir.mkdir(exist_ok=True, mode=0o755)
-            presetdir.joinpath("99-mkosi-disable.preset").write_text("disable *")
+        presetdir = state.root / "etc/systemd/system-preset"
+        presetdir.mkdir(exist_ok=True, mode=0o755)
+        presetdir.joinpath("99-mkosi-disable.preset").write_text("disable *")
 
     @classmethod
     def install_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:

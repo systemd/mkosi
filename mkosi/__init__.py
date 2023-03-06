@@ -26,7 +26,17 @@ import uuid
 from collections.abc import Iterable, Iterator, Sequence
 from pathlib import Path
 from textwrap import dedent, wrap
-from typing import Any, Callable, NoReturn, Optional, TextIO, TypeVar, Union, cast
+from typing import (
+    Any,
+    Callable,
+    ContextManager,
+    NoReturn,
+    Optional,
+    TextIO,
+    TypeVar,
+    Union,
+    cast,
+)
 
 from mkosi.backend import (
     Distribution,
@@ -42,7 +52,6 @@ from mkosi.backend import (
     is_centos_variant,
     is_dnf_distribution,
     patch_file,
-    path_relative_to_cwd,
     set_umask,
     should_compress_output,
     tmp_dir,
@@ -161,9 +170,7 @@ def mount_image(state: MkosiState, cached: bool) -> Iterator[None]:
             else:
                 base = stack.enter_context(dissect_and_mount(state.config.base_image, state.workspace / "base"))
 
-            workdir = state.workspace / "workdir"
-            workdir.mkdir()
-            stack.enter_context(mount_overlay(base, state.root, workdir, state.root))
+            stack.enter_context(mount_overlay(base, state.root, state.workdir, state.root))
 
         yield
 
@@ -198,7 +205,7 @@ def configure_hostname(state: MkosiState, cached: bool) -> None:
 
 
 def configure_dracut(state: MkosiState, cached: bool) -> None:
-    if not state.config.bootable or state.do_run_build_script or cached:
+    if not state.config.bootable or cached:
         return
 
     dracut_dir = state.root / "etc/dracut.conf.d"
@@ -334,7 +341,7 @@ def clean_package_manager_metadata(state: MkosiState) -> None:
     """
 
     assert state.config.clean_package_metadata in (False, True, 'auto')
-    if state.config.clean_package_metadata is False or state.do_run_build_script or state.for_cache:
+    if state.config.clean_package_metadata is False or state.for_cache:
         return
 
     # we try then all: metadata will only be touched if any of them are in the
@@ -353,7 +360,7 @@ def clean_package_manager_metadata(state: MkosiState) -> None:
 def remove_files(state: MkosiState) -> None:
     """Remove files based on user-specified patterns"""
 
-    if not state.config.remove_files or state.do_run_build_script or state.for_cache:
+    if not state.config.remove_files or state.for_cache:
         return
 
     with complete_step("Removing files…"):
@@ -369,10 +376,18 @@ def install_distribution(state: MkosiState, cached: bool) -> None:
     state.installer.install(state)
 
 
+def install_build_packages(state: MkosiState, cached: bool) -> None:
+    if state.config.build_script is None or cached:
+        return
+
+    with mount_build_overlay(state):
+        state.installer.install_packages(state, state.config.build_packages)
+
+
 def remove_packages(state: MkosiState) -> None:
     """Remove packages listed in config.remove_packages"""
 
-    if not state.config.remove_packages or state.do_run_build_script or state.for_cache:
+    if not state.config.remove_packages or state.for_cache:
         return
 
     with complete_step(f"Removing {len(state.config.packages)} packages…"):
@@ -390,8 +405,6 @@ def reset_machine_id(state: MkosiState) -> None:
     each boot (if the image is read-only).
     """
 
-    if state.do_run_build_script:
-        return
     if state.for_cache:
         return
 
@@ -414,8 +427,6 @@ def reset_random_seed(root: Path) -> None:
 def configure_root_password(state: MkosiState, cached: bool) -> None:
     "Set the root account password, or just delete it so it's easy to log in"
 
-    if state.do_run_build_script:
-        return
     if cached:
         return
 
@@ -457,7 +468,7 @@ def pam_add_autologin(root: Path, ttys: list[str]) -> None:
 
 
 def configure_autologin(state: MkosiState, cached: bool) -> None:
-    if state.do_run_build_script or cached or not state.config.autologin:
+    if cached or not state.config.autologin:
         return
 
     with complete_step("Setting up autologin…"):
@@ -484,7 +495,7 @@ def configure_autologin(state: MkosiState, cached: bool) -> None:
 def configure_serial_terminal(state: MkosiState, cached: bool) -> None:
     """Override TERM for the serial console with the terminal type from the host."""
 
-    if state.do_run_build_script or cached or not state.config.qemu_headless:
+    if cached or not state.config.qemu_headless:
         return
 
     with complete_step("Configuring serial tty (/dev/ttyS0)…"):
@@ -504,30 +515,52 @@ def cache_params(state: MkosiState, root: Path) -> list[PathString]:
     return flatten(("--bind", state.cache, root / p) for p in state.installer.cache_path())
 
 
-def run_prepare_script(state: MkosiState, cached: bool) -> None:
+def mount_build_overlay(state: MkosiState) -> ContextManager[Path]:
+    return mount_overlay(state.root, state.build_overlay, state.workdir, state.root)
+
+
+def run_prepare_script(state: MkosiState, cached: bool, build: bool) -> None:
     if state.config.prepare_script is None:
         return
     if cached:
         return
+    if build and state.config.build_script is None:
+        return
 
-    verb = "build" if state.do_run_build_script else "final"
+    bwrap: list[PathString] = [
+        "--bind", state.config.build_sources, "/root/src",
+        "--bind", state.config.prepare_script, "/root/prepare",
+        *cache_params(state, Path("/")),
+        "--chdir", "/root/src",
+    ]
 
-    with complete_step("Running prepare script…"):
-        bwrap: list[PathString] = [
-            "--bind", state.config.build_sources, "/root/src",
-            "--bind", state.config.prepare_script, "/root/prepare",
-            *cache_params(state, Path("/")),
-            "--chdir", "/root/src",
-        ]
-
-        run_workspace_command(state, ["/root/prepare", verb], network=True, bwrap_params=bwrap,
-                              env=dict(SRCDIR="/root/src"))
-
+    def clean() -> None:
         srcdir = state.root / "root/src"
         if srcdir.exists():
             srcdir.rmdir()
 
         state.root.joinpath("root/prepare").unlink()
+
+    if build:
+        with complete_step("Running prepare script in build overlay…"), mount_build_overlay(state):
+            run_workspace_command(
+                state,
+                ["/root/prepare", "build"],
+                network=True,
+                bwrap_params=bwrap,
+                env=dict(SRCDIR="/root/src"),
+            )
+            clean()
+    else:
+        with complete_step("Running prepare script…"):
+            run_workspace_command(
+                state,
+                ["/root/prepare", "final"],
+                network=True,
+                bwrap_params=bwrap,
+                env=dict(SRCDIR="/root/src"),
+            )
+            clean()
 
 
 def run_postinst_script(state: MkosiState) -> None:
@@ -536,15 +569,13 @@ def run_postinst_script(state: MkosiState) -> None:
     if state.for_cache:
         return
 
-    verb = "build" if state.do_run_build_script else "final"
-
     with complete_step("Running postinstall script…"):
         bwrap: list[PathString] = [
             "--bind", state.config.postinst_script, "/root/postinst",
             *cache_params(state, Path("/")),
         ]
 
-        run_workspace_command(state, ["/root/postinst", verb], bwrap_params=bwrap,
+        run_workspace_command(state, ["/root/postinst", "final"], bwrap_params=bwrap,
                               network=state.config.with_network is True)
 
         state.root.joinpath("root/postinst").unlink()
@@ -556,15 +587,13 @@ def run_finalize_script(state: MkosiState) -> None:
     if state.for_cache:
         return
 
-    verb = "build" if state.do_run_build_script else "final"
-
     with complete_step("Running finalize script…"):
-        run([state.config.finalize_script, verb],
+        run([state.config.finalize_script],
             env={**state.environment, "BUILDROOT": str(state.root), "OUTPUTDIR": str(state.config.output_dir or Path.cwd())})
 
 
 def install_boot_loader(state: MkosiState) -> None:
-    if not state.config.bootable or state.do_run_build_script or state.for_cache:
+    if not state.config.bootable or state.for_cache:
         return
 
     if state.config.secure_boot:
@@ -656,8 +685,6 @@ def install_extra_trees(state: MkosiState) -> None:
 
 
 def install_build_dest(state: MkosiState) -> None:
-    if state.do_run_build_script:
-        return
     if state.for_cache:
         return
 
@@ -696,8 +723,6 @@ def tar_binary() -> str:
 
 
 def make_tar(state: MkosiState) -> None:
-    if state.do_run_build_script:
-        return
     if state.config.output_format != OutputFormat.tar:
         return
     if state.for_cache:
@@ -720,8 +745,6 @@ def find_files(dir: Path, root: Path) -> Iterator[Path]:
 
 
 def make_initrd(state: MkosiState) -> None:
-    if state.do_run_build_script:
-        return
     if state.config.output_format != OutputFormat.cpio:
         return
     if state.for_cache:
@@ -747,7 +770,7 @@ def make_cpio(root: Path, files: Iterator[Path], output: Path) -> None:
 
 
 def make_directory(state: MkosiState) -> None:
-    if state.do_run_build_script or state.config.output_format != OutputFormat.directory or state.for_cache:
+    if state.config.output_format != OutputFormat.directory or state.for_cache:
         return
 
     os.rename(state.root, state.staging / state.config.output.name)
@@ -780,15 +803,6 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
     # The roothash is specific to the final image so we cannot cache this step.
     if state.for_cache:
         return
-
-    # Don't bother running dracut if this is a development build. Strictly speaking it would probably be a
-    # good idea to run it, so that the development environment differs as little as possible from the final
-    # build, but then again the initrd should not be relevant for building, and dracut is simply very slow,
-    # hence let's avoid it invoking it needlessly, given that we never actually invoke the boot loader on the
-    # development image.
-    if state.do_run_build_script:
-        return
-
 
     with complete_step("Generating combined kernel + initrd boot file…"):
         for kver, kimg in gen_kernel_images(state):
@@ -988,12 +1002,17 @@ def acl_toggle_remove(root: Path, uid: int, *, allow: bool) -> None:
 
 
 def save_cache(state: MkosiState) -> None:
-    cache = cache_tree_path(state.config, is_final_image=False) if state.do_run_build_script else cache_tree_path(state.config, is_final_image=True)
+    final, build = cache_tree_paths(state.config)
 
-    with complete_step("Installing cache copy…", f"Installed cache copy {path_relative_to_cwd(cache)}"):
-        unlink_try_hard(cache)
-        shutil.move(state.root, cache)
-        acl_toggle_remove(cache, state.uid, allow=True)
+    with complete_step("Installing cache copies"):
+        unlink_try_hard(final)
+        shutil.move(state.root, final)
+        acl_toggle_remove(final, state.uid, allow=True)
+
+        if state.config.build_script:
+            unlink_try_hard(build)
+            shutil.move(state.build_overlay, build)
+            acl_toggle_remove(build, state.uid, allow=True)
 
 
 def dir_size(path: PathString) -> int:
@@ -1761,13 +1780,6 @@ def create_parser() -> ArgumentParserMkosi:
         metavar="PACKAGE",
     )
     group.add_argument(
-        "--skip-final-phase",
-        metavar="BOOL",
-        action=BooleanAction,
-        help="Skip the (second) final image building phase.",
-        default=False,
-    )
-    group.add_argument(
         "--build-script",
         help="Build script to run inside image",
         type=script_path,
@@ -2109,35 +2121,34 @@ def empty_directory(path: Path) -> None:
 
 
 def unlink_output(config: MkosiConfig) -> None:
-    if not config.skip_final_phase:
-        with complete_step("Removing output files…"):
-            if config.output.parent.exists():
-                for p in config.output.parent.iterdir():
-                    if p.name.startswith(config.output.name) and "cache" not in p.name:
-                        unlink_try_hard(p)
-            unlink_try_hard(Path(f"{config.output}.manifest"))
-            unlink_try_hard(Path(f"{config.output}.changelog"))
+    with complete_step("Removing output files…"):
+        if config.output.parent.exists():
+            for p in config.output.parent.iterdir():
+                if p.name.startswith(config.output.name) and "cache" not in p.name:
+                    unlink_try_hard(p)
+        unlink_try_hard(Path(f"{config.output}.manifest"))
+        unlink_try_hard(Path(f"{config.output}.changelog"))
 
-            if config.checksum:
-                unlink_try_hard(config.output_checksum)
+        if config.checksum:
+            unlink_try_hard(config.output_checksum)
 
-            if config.sign:
-                unlink_try_hard(config.output_signature)
+        if config.sign:
+            unlink_try_hard(config.output_signature)
 
-            if config.bmap:
-                unlink_try_hard(config.output_bmap)
+        if config.bmap:
+            unlink_try_hard(config.output_bmap)
 
-            if config.output_split_kernel.parent.exists():
-                for p in config.output_split_kernel.parent.iterdir():
-                    if p.name.startswith(config.output_split_kernel.name):
-                        unlink_try_hard(p)
-            unlink_try_hard(config.output_split_kernel)
+        if config.output_split_kernel.parent.exists():
+            for p in config.output_split_kernel.parent.iterdir():
+                if p.name.startswith(config.output_split_kernel.name):
+                    unlink_try_hard(p)
+        unlink_try_hard(config.output_split_kernel)
 
-            if config.nspawn_settings is not None:
-                unlink_try_hard(config.output_nspawn_settings)
+        if config.nspawn_settings is not None:
+            unlink_try_hard(config.output_nspawn_settings)
 
-        if config.ssh and config.output_sshkey is not None:
-            unlink_try_hard(config.output_sshkey)
+    if config.ssh and config.output_sshkey is not None:
+        unlink_try_hard(config.output_sshkey)
 
     # We remove any cached images if either the user used --force
     # twice, or he/she called "clean" with it passed once. Let's also
@@ -2153,8 +2164,8 @@ def unlink_output(config: MkosiConfig) -> None:
 
     if remove_build_cache:
         with complete_step("Removing incremental cache files…"):
-            unlink_try_hard(cache_tree_path(config, is_final_image=False))
-            unlink_try_hard(cache_tree_path(config, is_final_image=True))
+            for p in cache_tree_paths(config):
+                unlink_try_hard(p)
 
         if config.build_dir is not None:
             with complete_step("Clearing out build directory…"):
@@ -2537,9 +2548,6 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
     if needs_build(args) and args.verb == Verb.qemu and not args.bootable:
         die("Images built without the --bootable option cannot be booted using qemu", MkosiNotSupportedException)
 
-    if args.skip_final_phase and args.verb != Verb.build:
-        die("--skip-final-phase can only be used when building an image using 'mkosi build'", MkosiNotSupportedException)
-
     if args.ssh_timeout < 0:
         die("--ssh-timeout must be >= 0")
 
@@ -2569,18 +2577,19 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
     return MkosiConfig(**vars(args))
 
 
-def cache_tree_path(config: MkosiConfig, is_final_image: bool) -> Path:
-    suffix = "final-cache" if is_final_image else "build-cache"
+def cache_tree_paths(config: MkosiConfig) -> tuple[Path, Path]:
 
     # If the image ID is specified, use cache file names that are independent of the image versions, so that
     # rebuilding and bumping versions is cheap and reuses previous versions if cached.
     if config.image_id is not None and config.output_dir:
-        return config.output_dir / f"{config.image_id}.{suffix}"
+        prefix = config.output_dir / config.image_id
     elif config.image_id:
-        return Path(f"{config.image_id}.{suffix}")
+        prefix = Path(config.image_id)
     # Otherwise, derive the cache file names directly from the output file names.
     else:
-        return Path(f"{config.output}.{suffix}")
+        prefix = config.output
+
+    return (Path(f"{prefix}.cache"), Path(f"{prefix}.build.cache"))
 
 
 def check_tree_input(path: Optional[Path]) -> None:
@@ -2624,9 +2633,6 @@ def check_inputs(config: MkosiConfig) -> None:
 
 
 def check_outputs(config: MkosiConfig) -> None:
-    if config.skip_final_phase:
-        return
-
     for f in (
         config.output,
         config.output_checksum if config.checksum else None,
@@ -2776,7 +2782,6 @@ def print_summary(config: MkosiConfig) -> None:
     print("           Build Directory:", none_to_none(config.build_dir))
     print("         Install Directory:", none_to_none(config.install_dir))
     print("            Build Packages:", line_join_list(config.build_packages))
-    print("          Skip final phase:", yes_no(config.skip_final_phase))
 
     print("              Build Script:", path_or_none(config.build_script, check_script_input))
 
@@ -2846,7 +2851,7 @@ def make_install_dir(state: MkosiState) -> None:
 
 
 def configure_ssh(state: MkosiState) -> None:
-    if state.do_run_build_script or state.for_cache or not state.config.ssh:
+    if state.for_cache or not state.config.ssh:
         return
 
     if state.config.distribution in (Distribution.debian, Distribution.ubuntu):
@@ -2899,7 +2904,7 @@ def configure_ssh(state: MkosiState) -> None:
 
 
 def configure_netdev(state: MkosiState, cached: bool) -> None:
-    if state.do_run_build_script or cached or not state.config.netdev:
+    if cached or not state.config.netdev:
         return
 
     with complete_step("Setting up netdev…"):
@@ -2932,7 +2937,7 @@ def configure_netdev(state: MkosiState, cached: bool) -> None:
 
 
 def run_kernel_install(state: MkosiState, cached: bool) -> None:
-    if not state.config.bootable or state.do_run_build_script:
+    if not state.config.bootable:
         return
 
     if not state.config.cache_initrd and state.for_cache:
@@ -2966,7 +2971,7 @@ def run_kernel_install(state: MkosiState, cached: bool) -> None:
 
 
 def run_preset_all(state: MkosiState) -> None:
-    if state.for_cache or state.do_run_build_script:
+    if state.for_cache:
         return
 
     with complete_step("Applying presets…"):
@@ -2974,7 +2979,7 @@ def run_preset_all(state: MkosiState) -> None:
 
 
 def run_selinux_relabel(state: MkosiState) -> None:
-    if state.for_cache or state.do_run_build_script:
+    if state.for_cache:
         return
 
     selinux = state.root / "etc/selinux/config"
@@ -2999,21 +3004,24 @@ def reuse_cache_tree(state: MkosiState) -> bool:
     if not state.config.incremental:
         return False
 
-    cache = cache_tree_path(state.config, is_final_image=not state.do_run_build_script)
-    if not cache.exists():
+    final, build = cache_tree_paths(state.config)
+    if not final.exists() or (state.config.build_script and not build.exists()):
         return False
-    if state.for_cache and cache.exists():
+    if state.for_cache and final.exists() and (not state.config.build_script or build.exists()):
         return True
 
-    with complete_step(f"Basing off cached tree {cache}", "Copied cached tree"):
-        copy_path(cache, state.root)
+    with complete_step("Copying cached trees"):
+        copy_path(final, state.root)
         acl_toggle_remove(state.root, state.uid, allow=False)
+        if state.config.build_script:
+            copy_path(build, state.build_overlay)
+            acl_toggle_remove(state.build_overlay, state.uid, allow=False)
 
     return True
 
 
 def invoke_repart(state: MkosiState, skip: Sequence[str] = [], split: bool = False) -> Optional[str]:
-    if not state.config.output_format == OutputFormat.disk or state.for_cache or state.do_run_build_script:
+    if not state.config.output_format == OutputFormat.disk or state.for_cache:
         return None
 
     cmdline: list[PathString] = [
@@ -3094,11 +3102,6 @@ def invoke_repart(state: MkosiState, skip: Sequence[str] = [], split: bool = Fal
 
 
 def build_image(state: MkosiState, *, manifest: Optional[Manifest] = None) -> None:
-    # If there's no build script set, there's no point in executing
-    # the build script iteration. Let's quit early.
-    if state.config.build_script is None and state.do_run_build_script:
-        return
-
     cached = reuse_cache_tree(state)
     if state.for_cache and cached:
         return
@@ -3113,7 +3116,10 @@ def build_image(state: MkosiState, *, manifest: Optional[Manifest] = None) -> No
         configure_autologin(state, cached)
         configure_dracut(state, cached)
         configure_netdev(state, cached)
-        run_prepare_script(state, cached)
+        run_prepare_script(state, cached, build=False)
+        install_build_packages(state, cached)
+        run_prepare_script(state, cached, build=True)
+        run_build_script(state)
         install_build_dest(state)
         install_extra_trees(state)
         run_kernel_install(state, cached)
@@ -3152,10 +3158,10 @@ def install_dir(state: MkosiState) -> Path:
 
 
 def run_build_script(state: MkosiState) -> None:
-    if state.config.build_script is None:
+    if state.config.build_script is None or state.for_cache:
         return
 
-    with complete_step("Running build script…"):
+    with complete_step("Running build script…"), mount_build_overlay(state):
         # Bubblewrap creates bind mount point parent directories with restrictive permissions so we create
         # the work directory outselves here.
         state.root.joinpath("work").mkdir(mode=0o755)
@@ -3203,27 +3209,16 @@ def run_build_script(state: MkosiState) -> None:
         state.root.joinpath("work").rmdir()
 
 
-def need_cache_trees(state: MkosiState) -> bool:
+def need_cache_tree(state: MkosiState) -> bool:
     if not state.config.incremental:
         return False
 
     if state.config.force > 1:
         return True
 
-    return not cache_tree_path(state.config, is_final_image=True).exists() or state.config.build_script is not None and not cache_tree_path(state.config, is_final_image=False).exists()
+    final, build = cache_tree_paths(state.config)
 
-
-def remove_artifacts(state: MkosiState, for_cache: bool = False) -> None:
-    if for_cache:
-        what = "cache build"
-    elif state.do_run_build_script:
-        what = "development build"
-    else:
-        return
-
-    with complete_step(f"Removing artifacts from {what}…"):
-        unlink_try_hard(state.root)
-        unlink_try_hard(state.var_tmp)
+    return not final.exists() or (state.config.build_script is not None and not build.exists())
 
 
 def build_stuff(uid: int, gid: int, config: MkosiConfig) -> None:
@@ -3237,7 +3232,6 @@ def build_stuff(uid: int, gid: int, config: MkosiConfig) -> None:
         config=config,
         workspace=workspace_dir,
         cache=cache,
-        do_run_build_script=False,
         for_cache=False,
     )
 
@@ -3252,39 +3246,15 @@ def build_stuff(uid: int, gid: int, config: MkosiConfig) -> None:
     # while we are working on it.
     with flock(workspace_dir), workspace:
         # If caching is requested, then make sure we have cache trees around we can make use of
-        if need_cache_trees(state):
-
-            # There is no point generating a pre-dev cache image if no build script is provided
-            if config.build_script:
-                with complete_step("Running first (development) stage to generate cached copy…"):
-                    # Generate the cache version of the build image, and store it as "cache-pre-dev"
-                    state = dataclasses.replace(state, do_run_build_script=True, for_cache=True)
-                    build_image(state)
-                    save_cache(state)
-                    remove_artifacts(state)
-
-            with complete_step("Running second (final) stage to generate cached copy…"):
-                # Generate the cache version of the build image, and store it as "cache-pre-inst"
-                state = dataclasses.replace(state, do_run_build_script=False, for_cache=True)
+        if need_cache_tree(state):
+            with complete_step("Building cache image"):
+                state = dataclasses.replace(state, for_cache=True)
                 build_image(state)
                 save_cache(state)
-                remove_artifacts(state)
 
-        if config.build_script:
-            with complete_step("Running first (development) stage…"):
-                # Run the image builder for the first (development) stage in preparation for the build script
-                state = dataclasses.replace(state, do_run_build_script=True, for_cache=False)
-                build_image(state)
-                run_build_script(state)
-                remove_artifacts(state)
-
-        # Run the image builder for the second (final) stage
-        if not config.skip_final_phase:
-            with complete_step("Running second (final) stage…"):
-                state = dataclasses.replace(state, do_run_build_script=False, for_cache=False)
-                build_image(state, manifest=manifest)
-        else:
-            MkosiPrinter.print_step("Skipping (second) final image build phase.")
+        with complete_step("Building image"):
+            state = dataclasses.replace(state, for_cache=False)
+            build_image(state, manifest=manifest)
 
         qcow2_output(state)
         calculate_bmap(state)

@@ -324,8 +324,6 @@ class Gentoo:
         self.invoke_emerge(actions=["--depclean"])
 
     def merge_user_pkgs(self) -> None:
-        if self.state.do_run_build_script:
-            self.invoke_emerge(pkgs=self.state.config.build_packages)
         if self.state.config.packages:
             self.invoke_emerge(pkgs=self.state.config.packages)
 

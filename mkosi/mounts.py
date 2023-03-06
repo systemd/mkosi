@@ -89,7 +89,7 @@ def mount_overlay(
     workdir: Path,
     where: Path
 ) -> Iterator[Path]:
-    options = [f'lowerdir={lower}', f'upperdir={upper}', f'workdir={workdir}']
+    options = [f"lowerdir={lower}", f"upperdir={upper}", f"workdir={workdir}", "userxattr"]
 
     try:
         with mount("overlay", where, options=options, type="overlay"):
