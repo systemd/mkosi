@@ -191,6 +191,12 @@ class DebianInstaller(DistributionInstaller):
         state.root.joinpath("etc/default/locale").unlink(missing_ok=True)
         state.root.joinpath("etc/default/locale").symlink_to("../locale.conf")
 
+        # Don't enable any services by default.
+        if not state.do_run_build_script:
+            presetdir = state.root / "etc/systemd/system-preset"
+            presetdir.mkdir(exist_ok=True, mode=0o755)
+            presetdir.joinpath("99-mkosi-disable.preset").write_text("disable *")
+
     @classmethod
     def install_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
         invoke_apt(state, "get", "install", ["--assume-yes", "--no-install-recommends", *packages])
