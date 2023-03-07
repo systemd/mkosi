@@ -285,6 +285,8 @@ def invoke_apt(
             Dir::State::status "{state.root / "var/lib/dpkg/status"}";
             Dir::Etc "{state.root / "etc/apt"}";
             Dir::Log "{state.workspace / "apt/log"}";
+            Dir::Bin::dpkg "dpkg";
+            DPkg::Path "{os.environ["PATH"]}";
             DPkg::Options:: "--root={state.root}";
             DPkg::Options:: "--log={state.workspace / "apt/dpkg.log"}";
             DPkg::Install::Recursive::Minimum "1000";
