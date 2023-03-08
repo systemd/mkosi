@@ -19,12 +19,6 @@ class OpensuseInstaller(DistributionInstaller):
 
     @classmethod
     def install(cls, state: MkosiState) -> None:
-        if state.config.base_image:
-            # We assume that the base image has been properly initialized and it
-            # contains all the metadata we need to install the additional
-            # packages.
-            return zypper_install(state, state.config.packages)
-
         return install_opensuse(state)
 
     @classmethod
@@ -38,6 +32,26 @@ class OpensuseInstaller(DistributionInstaller):
     @staticmethod
     def initrd_path(kver: str) -> Path:
         return Path("boot") / f"initrd-{kver}"
+
+    @staticmethod
+    def repositories(state: MkosiState) -> Sequence[tuple[str, str]]:
+        release = state.config.release
+        if release == "leap":
+            release = "stable"
+
+        # If the release looks like a timestamp, it's Tumbleweed. 13.x is legacy
+        # (14.x won't ever appear). For anything else, let's default to Leap.
+        if release.isdigit() or release == "tumbleweed":
+            release_url = f"{state.config.mirror}/tumbleweed/repo/oss/"
+            updates_url = f"{state.config.mirror}/update/tumbleweed/"
+        elif release in ("current", "stable"):
+            release_url = f"{state.config.mirror}/distribution/openSUSE-stable/repo/oss/"
+            updates_url = f"{state.config.mirror}/update/openSUSE-{release}/"
+        else:
+            release_url = f"{state.config.mirror}/distribution/leap/{release}/repo/oss/"
+            updates_url = f"{state.config.mirror}/update/leap/{release}/oss/"
+
+        return (("repo-oss", release_url), ("repo-update", updates_url))
 
 
 def invoke_zypper(state: MkosiState,
@@ -57,6 +71,9 @@ def invoke_zypper(state: MkosiState,
 
 
 def zypper_init(state: MkosiState) -> None:
+    if state.config.base_image is not None:
+        return
+
     state.root.joinpath("etc/zypp").mkdir(mode=0o755, parents=True, exist_ok=True)
 
     # No matter if --root is used or not, zypper always considers its config
@@ -94,6 +111,40 @@ def zypper_modifyrepo(state: MkosiState, repo: str, caching: bool) -> None:
     invoke_zypper(state, [], "modifyrepo", ["--keep-packages" if caching else "--no-keep-packages"], repo)
 
 
+def zypper_init_repositories(state: MkosiState) -> None:
+    # If we need to use a local mirror, create a temporary repository
+    # definition, which is valid only at image build time. It will be removed
+    # from the image and replaced with the final repositories at the end of the
+    # installation process.
+    #
+    # We need to enable packages caching in any cases to make sure that the
+    # package cache stays populated after "zypper install".
+
+    if state.config.local_mirror:
+        zypper_addrepo(state, state.config.local_mirror, "local-mirror", caching=True)
+    else:
+        for name, url in OpensuseInstaller.repositories(state):
+            if state.config.base_image is None:
+                zypper_addrepo(state, url, name, caching=True)
+            else:
+                zypper_modifyrepo(state, name, caching=True)
+
+
+def zypper_finalize_repositories(state: MkosiState) -> None:
+    if state.config.local_mirror:
+        zypper_removerepo(state, "local-mirror")
+
+    # Disable package caching in the image that was enabled previously to
+    # populate mkosi package cache.
+    for name, url in OpensuseInstaller.repositories(state):
+        if state.config.local_mirror and state.config.base_image is None:
+            zypper_addrepo(state, url, name)
+        elif state.config.base_image is None:
+            zypper_modifyrepo(state, name, caching=False)
+        else:
+            zypper_removerepo(state, name)
+
+
 def zypper_install(state: MkosiState, packages: Sequence[str]) -> None:
     global_opts = [
         f"--cache-dir={state.cache}",
@@ -111,68 +162,36 @@ def zypper_remove(state: MkosiState, packages: Sequence[str]) -> None:
 
 @complete_step("Installing openSUSE…")
 def install_opensuse(state: MkosiState) -> None:
-    release = state.config.release.strip('"')
-    if release == "leap":
-        release = "stable"
-
-    # If the release looks like a timestamp, it's Tumbleweed. 13.x is legacy (14.x won't ever appear). For
-    # anything else, let's default to Leap.
-    if release.isdigit() or release == "tumbleweed":
-        release_url = f"{state.config.mirror}/tumbleweed/repo/oss/"
-        updates_url = f"{state.config.mirror}/update/tumbleweed/"
-    elif release in ("current", "stable"):
-        release_url = f"{state.config.mirror}/distribution/openSUSE-stable/repo/oss/"
-        updates_url = f"{state.config.mirror}/update/openSUSE-{release}/"
-    else:
-        release_url = f"{state.config.mirror}/distribution/leap/{release}/repo/oss/"
-        updates_url = f"{state.config.mirror}/update/leap/{release}/oss/"
 
     zypper_init(state)
-
-    # If we need to use a local mirror, create a temporary repository
-    # definition, which is valid only at image build time. It will be removed
-    # from the image and replaced with the final repositories at the end of the
-    # installation process.
-    #
-    # We need to enable packages caching in any cases to make sure that the package
-    # cache stays populated after "zypper install".
-
-    if state.config.local_mirror:
-        zypper_addrepo(state, state.config.local_mirror, "local-mirror", caching=True)
-    else:
-        zypper_addrepo(state, release_url, "repo-oss", caching=True)
-        zypper_addrepo(state, updates_url, "repo-update", caching=True)
+    zypper_init_repositories(state)
 
     packages = state.config.packages.copy()
-    add_packages(state.config, packages, "systemd", "glibc-locale-base", "zypper")
 
-    if release.startswith("42."):
-        add_packages(state.config, packages, "patterns-openSUSE-minimal_base")
-    else:
-        add_packages(state.config, packages, "patterns-base-minimal_base")
+    if state.config.base_image is None:
+        add_packages(state.config, packages, "systemd", "glibc-locale-base", "zypper")
 
-    if state.config.bootable:
-        add_packages(state.config, packages, "kernel-default")
-        if not state.config.initrds:
-            add_packages(state.config, packages, "dracut")
+        if state.config.release.startswith("42."):
+            add_packages(state.config, packages, "patterns-openSUSE-minimal_base")
+        else:
+            add_packages(state.config, packages, "patterns-base-minimal_base")
 
-    if state.config.netdev:
-        add_packages(state.config, packages, "systemd-network")
+        if state.config.bootable:
+            add_packages(state.config, packages, "kernel-default")
+            if not state.config.initrds:
+                add_packages(state.config, packages, "dracut")
 
-    if state.config.ssh:
-        add_packages(state.config, packages, "openssh-server")
+        if state.config.netdev:
+            add_packages(state.config, packages, "systemd-network")
+
+        if state.config.ssh:
+            add_packages(state.config, packages, "openssh-server")
 
     zypper_install(state, packages)
+    zypper_finalize_repositories(state)
 
-    if state.config.local_mirror:
-        zypper_removerepo(state, "local-mirror")
-        zypper_addrepo(state, release_url, "repo-oss")
-        zypper_addrepo(state, updates_url, "repo-update")
-    else:
-        # Disable package caching in the image that was enabled previously to
-        # populate mkosi package cache.
-        zypper_modifyrepo(state, "repo-oss", caching=False)
-        zypper_modifyrepo(state, "repo-update", caching=False)
+    if state.config.base_image is not None:
+        return
 
     if state.config.password == "":
         if not state.root.joinpath("etc/pam.d/common-auth").exists():
