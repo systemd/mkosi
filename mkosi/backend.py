@@ -36,17 +36,6 @@ def set_umask(mask: int) -> Iterator[int]:
         os.umask(old)
 
 
-def print_between_lines(s: str) -> None:
-    size = os.get_terminal_size()
-    print('-' * size.columns)
-    print(s.rstrip('\n'))
-    print('-' * size.columns)
-
-
-def roundup(x: int, step: int) -> int:
-    return ((x + step - 1) // step) * step
-
-
 class Parseable:
     "A mix-in to provide conversions for argparse"
 
