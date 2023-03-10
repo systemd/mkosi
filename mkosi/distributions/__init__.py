@@ -39,6 +39,10 @@ class DistributionInstaller:
     def filesystem(cls) -> str:
         raise NotImplementedError
 
+    @classmethod
+    def filesystem_options(cls, state: "MkosiState") -> dict[str, list[str]]:
+        return {}
+
     @staticmethod
     def kernel_command_line(state: "MkosiState") -> list[str]:
         return []
