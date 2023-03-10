@@ -161,7 +161,7 @@ def btrfs_subvol_create(path: Path, mode: int = 0o755) -> None:
 
 
 @contextlib.contextmanager
-def mount_image(state: MkosiState, cached: bool) -> Iterator[None]:
+def mount_image(state: MkosiState) -> Iterator[None]:
     with complete_step("Mounting image…", "Unmounting image…"), contextlib.ExitStack() as stack:
 
         if state.config.base_image is not None:
@@ -175,22 +175,14 @@ def mount_image(state: MkosiState, cached: bool) -> Iterator[None]:
         yield
 
 
-def configure_locale(root: Path, cached: bool) -> None:
-    if cached:
-        return
-
+def configure_locale(root: Path) -> None:
     etc_locale = root / "etc/locale.conf"
-
     etc_locale.unlink(missing_ok=True)
-
     # Let's ensure we use a UTF-8 locale everywhere.
     etc_locale.write_text("LANG=C.UTF-8\n")
 
 
-def configure_hostname(state: MkosiState, cached: bool) -> None:
-    if cached:
-        return
-
+def configure_hostname(state: MkosiState) -> None:
     etc_hostname = state.root / "etc/hostname"
 
     # Always unlink first, so that we don't get in trouble due to a
@@ -204,8 +196,8 @@ def configure_hostname(state: MkosiState, cached: bool) -> None:
             etc_hostname.write_text(state.config.hostname + "\n")
 
 
-def configure_dracut(state: MkosiState, cached: bool) -> None:
-    if not state.config.bootable or cached or state.config.initrds:
+def configure_dracut(state: MkosiState) -> None:
+    if not state.config.bootable or state.config.initrds:
         return
 
     dracut_dir = state.root / "etc/dracut.conf.d"
@@ -424,11 +416,8 @@ def reset_random_seed(root: Path) -> None:
         random_seed.unlink()
 
 
-def configure_root_password(state: MkosiState, cached: bool) -> None:
+def configure_root_password(state: MkosiState) -> None:
     "Set the root account password, or just delete it so it's easy to log in"
-
-    if cached:
-        return
 
     if state.config.password == "":
         with complete_step("Deleting root password"):
@@ -467,8 +456,8 @@ def pam_add_autologin(root: Path, ttys: list[str]) -> None:
         f.write(original)
 
 
-def configure_autologin(state: MkosiState, cached: bool) -> None:
-    if cached or not state.config.autologin:
+def configure_autologin(state: MkosiState) -> None:
+    if not state.config.autologin:
         return
 
     with complete_step("Setting up autologin…"):
@@ -492,10 +481,10 @@ def configure_autologin(state: MkosiState, cached: bool) -> None:
         pam_add_autologin(state.root, ttys)
 
 
-def configure_serial_terminal(state: MkosiState, cached: bool) -> None:
+def configure_serial_terminal(state: MkosiState) -> None:
     """Override TERM for the serial console with the terminal type from the host."""
 
-    if cached or not state.config.qemu_headless:
+    if not state.config.qemu_headless:
         return
 
     with complete_step("Configuring serial tty (/dev/ttyS0)…"):
@@ -2944,8 +2933,8 @@ def configure_ssh(state: MkosiState) -> None:
     authorized_keys.chmod(0o600)
 
 
-def configure_netdev(state: MkosiState, cached: bool) -> None:
-    if cached or not state.config.netdev:
+def configure_netdev(state: MkosiState) -> None:
+    if not state.config.netdev:
         return
 
     with complete_step("Setting up netdev…"):
@@ -3177,20 +3166,20 @@ def build_image(state: MkosiState, *, manifest: Optional[Manifest] = None) -> No
     if state.for_cache and cached:
         return
 
-    with mount_image(state, cached):
+    with mount_image(state):
         install_skeleton_trees(state, cached)
         install_distribution(state, cached)
-        configure_locale(state.root, cached)
-        configure_hostname(state, cached)
-        configure_root_password(state, cached)
-        configure_serial_terminal(state, cached)
-        configure_autologin(state, cached)
-        configure_dracut(state, cached)
-        configure_netdev(state, cached)
-        configure_initrd(state)
         run_prepare_script(state, cached, build=False)
         install_build_packages(state, cached)
         run_prepare_script(state, cached, build=True)
+        configure_locale(state.root)
+        configure_hostname(state)
+        configure_root_password(state)
+        configure_serial_terminal(state)
+        configure_autologin(state)
+        configure_dracut(state)
+        configure_netdev(state)
+        configure_initrd(state)
         run_build_script(state)
         install_build_dest(state)
         install_extra_trees(state)
