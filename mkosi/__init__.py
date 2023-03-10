@@ -2182,14 +2182,6 @@ def parse_boolean(s: str) -> bool:
     raise ValueError(f"Invalid literal for bool(): {s!r}")
 
 
-def find_nspawn_settings(args: argparse.Namespace) -> None:
-    if args.nspawn_settings is not None:
-        return
-
-    if os.path.exists("mkosi.nspawn"):
-        args.nspawn_settings = "mkosi.nspawn"
-
-
 def find_extra(args: argparse.Namespace) -> None:
 
     if len(args.extra_trees) > 0:
@@ -2658,8 +2650,6 @@ def yes_no_or(b: Union[bool, str]) -> str:
 def none_to_na(s: Optional[T]) -> Union[T, str]:
     return "n/a" if s is None else s
 
-def none_to_no(s: Optional[T]) -> Union[T, str]:
-    return "no" if s is None else s
 
 def none_to_none(s: Optional[T]) -> Union[T, str]:
     return "none" if s is None else s
