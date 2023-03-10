@@ -3141,8 +3141,12 @@ def invoke_repart(state: MkosiState, skip: Sequence[str] = [], split: bool = Fal
 
     cmdline += ["--definitions", definitions]
 
+    env = dict(TMPDIR=str(state.workspace))
+    for fs, options in state.installer.filesystem_options(state).items():
+        env[f"SYSTEMD_REPART_MKFS_OPTIONS_{fs.upper()}"] = " ".join(options)
+
     with complete_step("Generating disk image"):
-        output = json.loads(run(cmdline, stdout=subprocess.PIPE, env={"TMPDIR": state.workspace}).stdout)
+        output = json.loads(run(cmdline, stdout=subprocess.PIPE, env=env).stdout)
 
     roothash = usrhash = None
     for p in output:

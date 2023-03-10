@@ -38,6 +38,18 @@ class CentosInstaller(DistributionInstaller):
         # https://marc.info/?l=linux-xfs&m=167450838316386&w=2.
         return "ext4"
 
+    @classmethod
+    def filesystem_options(cls, state: MkosiState) -> dict[str, list[str]]:
+        # Hard code the features from /etc/mke2fs.conf from CentOS 8 Stream to ensure that filesystems
+        # created on distros with newer versions of e2fsprogs are compatible with e2fsprogs from CentOS
+        # Stream 8.
+
+        return {
+            "8": {
+                "ext4": ["-O", "none,has_journal,extent,huge_file,flex_bg,metadata_csum,64bit,dir_nlink,extra_isize"],
+            },
+        }.get(state.config.release, {})
+
     @staticmethod
     def kernel_command_line(state: MkosiState) -> list[str]:
         kcl = []
