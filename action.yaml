@@ -27,6 +27,7 @@ runs:
         btrfs-progs \
         mtools \
         python3-pefile \
+        python3-pyelftools \
         bubblewrap
 
       sudo pacman-key --init
@@ -41,7 +42,7 @@ runs:
       sudo apt-get build-dep systemd
       sudo apt-get install libfdisk-dev
       git clone https://github.com/systemd/systemd --depth=1
-      meson systemd/build systemd -Drepart=true -Defi=true
+      meson systemd/build systemd -Drepart=true -Defi=true -Dbootloader=true
       ninja -C systemd/build systemd-nspawn systemd-repart bootctl ukify systemd-analyze systemd-nspawn
       sudo ln -svf $PWD/systemd/build/systemd-repart /usr/bin/systemd-repart
       sudo ln -svf $PWD/systemd/build/bootctl /usr/bin/bootctl
