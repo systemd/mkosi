@@ -34,10 +34,6 @@ class DebianInstaller(DistributionInstaller):
             state.root.joinpath("etc/resolv.conf").symlink_to("../run/systemd/resolve/resolv.conf")
 
     @classmethod
-    def cache_path(cls) -> list[str]:
-        return ["var/cache/apt/archives"]
-
-    @classmethod
     def filesystem(cls) -> str:
         return "ext4"
 

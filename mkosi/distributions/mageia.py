@@ -11,10 +11,6 @@ from mkosi.log import complete_step
 
 class MageiaInstaller(DistributionInstaller):
     @classmethod
-    def cache_path(cls) -> list[str]:
-        return ["var/cache/dnf"]
-
-    @classmethod
     def filesystem(cls) -> str:
         return "ext4"
 

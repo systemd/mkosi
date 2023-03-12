@@ -500,10 +500,6 @@ def configure_serial_terminal(state: MkosiState) -> None:
                           """)
 
 
-def cache_params(state: MkosiState, root: Path) -> list[PathString]:
-    return flatten(("--bind", state.cache, root / p) for p in state.installer.cache_path())
-
-
 def mount_build_overlay(state: MkosiState) -> ContextManager[Path]:
     return mount_overlay(state.root, state.build_overlay, state.workdir, state.root)
 
@@ -519,7 +515,6 @@ def run_prepare_script(state: MkosiState, cached: bool, build: bool) -> None:
     bwrap: list[PathString] = [
         "--bind", state.config.build_sources, "/root/src",
         "--bind", state.config.prepare_script, "/root/prepare",
-        *cache_params(state, Path("/")),
         "--chdir", "/root/src",
     ]
 
@@ -561,7 +556,6 @@ def run_postinst_script(state: MkosiState) -> None:
     with complete_step("Running postinstall script…"):
         bwrap: list[PathString] = [
             "--bind", state.config.postinst_script, "/root/postinst",
-            *cache_params(state, Path("/")),
         ]
 
         run_workspace_command(state, ["/root/postinst", "final"], bwrap_params=bwrap,
