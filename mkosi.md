@@ -813,6 +813,11 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 : Space-delimited list of additional arguments to pass when invoking
   qemu.
 
+`QemuSMBIOS=`
+
+: Space-delimited list of additional SMBIOS Type 11 strings to pass
+  when invoking qemu.
+
 `Netdev=`, `--netdev`
 
 : When used with the boot or qemu verbs, this option creates a virtual

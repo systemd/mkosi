@@ -1301,6 +1301,7 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
         "SignExpectedPCR": "--sign-expected-pcr",
         "RepositoryDirectories": "--repository-directory",
         "Credentials": "--credential",
+        "QemuSMBIOS": "--qemu-smbios",
     }
 
     def __init__(self, *kargs: Any, **kwargs: Any) -> None:
@@ -1909,6 +1910,12 @@ def create_parser() -> ArgumentParserMkosi:
         # Suppress the command line option because it's already possible to pass qemu args as normal
         # arguments.
         help=argparse.SUPPRESS,
+    )
+    group.add_argument(
+        "--qemu-smbios",
+        action=RepeatableSpaceDelimitedListAction,
+        default=[],
+        help="Set an SMBIOS Type 11 string when running qemu",
     )
     group.add_argument(
         "--network-veth",     # Compatibility option
@@ -3672,6 +3679,8 @@ def run_qemu(config: MkosiConfig) -> None:
 
     for k, v in config.credentials.items():
         cmdline += ["-smbios", f"type=11,value=io.systemd.credential:{k}={v}"]
+    for v in config.qemu_smbios:
+        cmdline += ["-smbios", f"type=11,value={v}"]
 
     with contextlib.ExitStack() as stack:
         if fw_supports_sb:

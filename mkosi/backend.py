@@ -317,6 +317,7 @@ class MkosiConfig:
     qemu_mem: str
     qemu_kvm: bool
     qemu_args: Sequence[str]
+    qemu_smbios: Sequence[str]
 
     passphrase: Optional[Path]
 
