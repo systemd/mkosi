@@ -14,10 +14,6 @@ from mkosi.types import PathString
 
 class OpensuseInstaller(DistributionInstaller):
     @classmethod
-    def cache_path(cls) -> list[str]:
-        return ["var/cache/zypp/packages"]
-
-    @classmethod
     def filesystem(cls) -> str:
         return "btrfs"
 

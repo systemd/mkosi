@@ -30,10 +30,6 @@ FEDORA_KEYS_MAP = {
 
 class FedoraInstaller(DistributionInstaller):
     @classmethod
-    def cache_path(cls) -> list[str]:
-        return ["var/cache/dnf"]
-
-    @classmethod
     def filesystem(cls) -> str:
         return "btrfs"
 

@@ -12,10 +12,6 @@ from mkosi.types import PathString
 
 class ArchInstaller(DistributionInstaller):
     @classmethod
-    def cache_path(cls) -> list[str]:
-        return ["var/cache/pacman/pkg"]
-
-    @classmethod
     def filesystem(cls) -> str:
         return "ext4"
 

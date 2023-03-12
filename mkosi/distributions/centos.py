@@ -27,9 +27,6 @@ def move_rpm_db(root: Path) -> None:
 
 
 class CentosInstaller(DistributionInstaller):
-    @classmethod
-    def cache_path(cls) -> list[str]:
-        return ["var/cache/yum", "var/cache/dnf"]
 
     @classmethod
     def filesystem(cls) -> str:

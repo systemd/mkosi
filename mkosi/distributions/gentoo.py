@@ -375,10 +375,6 @@ class Gentoo:
 
 class GentooInstaller(DistributionInstaller):
     @classmethod
-    def cache_path(cls) -> list[str]:
-        return ["var/cache/binpkgs", "var/cache/distfiles"]
-
-    @classmethod
     def filesystem(cls) -> str:
         return "ext4"
 

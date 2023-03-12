@@ -24,10 +24,6 @@ class DistributionInstaller:
         return Path("boot") / f"initramfs-{kver}.img"
 
     @classmethod
-    def cache_path(cls) -> list[str]:
-        raise NotImplementedError
-
-    @classmethod
     def install_packages(cls, state: "MkosiState", packages: Sequence[str]) -> None:
         raise NotImplementedError
 
