@@ -1220,6 +1220,14 @@ local directory:
   used as the repository directory for extra repository files. See
   the `RepositoryDirectories` option for more information.
 
+* The **`mkosi.credentials/`** directory is used as a
+  source of extra credentials similar to the `Credentials=` option. For
+  each file in the directory, the filename will be used as the credential
+  name and the file contents become the credential value, or, if the file is
+  executable, mkosi will execute the file and the command's
+  output to stdout will be used as the credential value. Output to stderr will be ignored. 
+  Credentials configured with `Credentials=` take precedence over files in `mkosi.credentials`.
+
 All these files are optional.
 
 Note that the location of all these files may also be configured
