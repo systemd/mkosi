@@ -114,10 +114,6 @@ def install_fedora(state: MkosiState) -> None:
 
     invoke_dnf(state, "install", packages)
 
-    # FIXME: should this be conditionalized on config.with_docs like in install_debian_or_ubuntu()?
-    #        But we set LANG=C.UTF-8 anyway.
-    shutil.rmtree(state.root / "usr/share/locale", ignore_errors=True)
-
 
 def url_exists(url: str) -> bool:
     req = urllib.request.Request(url, method="HEAD")
