@@ -3922,6 +3922,8 @@ def expand_paths(paths: Sequence[str]) -> list[Path]:
     # No os.path.expandvars because it treats unset variables as empty.
     expanded = []
     for path in paths:
+        if not sudo_user:
+            path = os.path.expanduser(path)
         try:
             expanded += [Path(string.Template(str(path)).substitute(environ))]
         except KeyError:
