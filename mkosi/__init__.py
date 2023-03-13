@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 import argparse
+import base64
 import configparser
 import contextlib
 import crypt
@@ -1295,6 +1296,7 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
         "SignExpectedPCR": "--sign-expected-pcr",
         "RepositoryDirectories": "--repository-directory",
         "Credentials": "--credential",
+        "QemuSMBIOS": "--qemu-smbios",
     }
 
     def __init__(self, *kargs: Any, **kwargs: Any) -> None:
@@ -1905,6 +1907,12 @@ def create_parser() -> ArgumentParserMkosi:
         help=argparse.SUPPRESS,
     )
     group.add_argument(
+        "--qemu-smbios",
+        action=RepeatableSpaceDelimitedListAction,
+        default=[],
+        help="Set an SMBIOS Type 11 string when running qemu",
+    )
+    group.add_argument(
         "--network-veth",     # Compatibility option
         dest="netdev",
         metavar="BOOL",
@@ -2347,12 +2355,26 @@ def normalize_script(path: Optional[Path]) -> Optional[Path]:
     return Path(path).absolute()
 
 
-def default_credentials() -> dict[str, str]:
-    tz = run(["timedatectl", "show", "-p", "Timezone", "--value"], text=True, stdout=subprocess.PIPE).stdout.strip()
+def load_credentials(args: argparse.Namespace) -> dict[str, str]:
+    creds = {}
 
-    return {
-        "firstboot.timezone": tz,
-    }
+    d = Path("mkosi.credentials")
+    if d.is_dir():
+        for e in d.iterdir():
+            if os.access(e, os.X_OK):
+                creds[e.name] = run([e], text=True, stdout=subprocess.PIPE).stdout
+            else:
+                creds[e.name] = e.read_text()
+
+    for s in args.credentials:
+        key, _, value = s.partition("=")
+        creds[key] = value
+
+    if "firstboot.timezone" not in creds:
+        tz = run(["timedatectl", "show", "-p", "Timezone", "--value"], text=True, stdout=subprocess.PIPE).stdout.strip()
+        creds["firstboot.timezone"] = tz
+
+    return creds
 
 
 def load_args(args: argparse.Namespace) -> MkosiConfig:
@@ -2504,14 +2526,7 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
     else:
         args.environment = {}
 
-    if args.credentials:
-        credentials = default_credentials()
-        for s in args.credentials:
-            key, _, value = s.partition("=")
-            credentials[key] = value
-        args.credentials = credentials
-    else:
-        args.credentials = default_credentials()
+    args.credentials = load_credentials(args)
 
     if args.cache_path is not None:
         args.cache_path = args.cache_path.absolute()
@@ -3662,7 +3677,9 @@ def run_qemu(config: MkosiConfig) -> None:
     cmdline += ["-drive", f"if=pflash,format=raw,readonly=on,file={firmware}"]
 
     for k, v in config.credentials.items():
-        cmdline += ["-smbios", f"type=11,value=io.systemd.credential:{k}={v}"]
+        cmdline += ["-smbios", f"type=11,value=io.systemd.credential.binary:{k}={base64.b64encode(v.encode()).decode()}"]
+    for v in config.qemu_smbios:
+        cmdline += ["-smbios", f"type=11,value={v}"]
 
     with contextlib.ExitStack() as stack:
         if fw_supports_sb:

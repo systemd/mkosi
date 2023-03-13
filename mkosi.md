@@ -813,6 +813,11 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 : Space-delimited list of additional arguments to pass when invoking
   qemu.
 
+`QemuSMBIOS=`
+
+: Space-delimited list of additional SMBIOS Type 11 strings to pass
+  when invoking qemu.
+
 `Netdev=`, `--netdev`
 
 : When used with the boot or qemu verbs, this option creates a virtual
@@ -1219,6 +1224,14 @@ local directory:
 * The **`mkosi.reposdir/`** directory, if it exists, is automatically
   used as the repository directory for extra repository files. See
   the `RepositoryDirectories` option for more information.
+
+* The **`mkosi.credentials/`** directory is used as a
+  source of extra credentials similar to the `Credentials=` option. For
+  each file in the directory, the filename will be used as the credential
+  name and the file contents become the credential value, or, if the file is
+  executable, mkosi will execute the file and the command's
+  output to stdout will be used as the credential value. Output to stderr will be ignored. 
+  Credentials configured with `Credentials=` take precedence over files in `mkosi.credentials`.
 
 All these files are optional.
 
