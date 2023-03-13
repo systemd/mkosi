@@ -29,7 +29,6 @@ class Gentoo:
     arch_profile: Path
     arch: str
     custom_profile_path: Path
-    DEFAULT_NSPAWN_PARAMS: list[str]
     ebuild_sh_env_dir: Path
     emerge_default_opts: list[str]
     emerge_vars: dict[str, str]
@@ -47,6 +46,7 @@ class Gentoo:
         "--deep",
         "--with-bdeps=y",
         "--complete-graph-if-new-use=y",
+        "--verbose-conflicts",
     ]
 
     portage_use_flags = [
@@ -66,9 +66,6 @@ class Gentoo:
         "-pid-sandbox",  # for cross-compile scenarios
         "-network-sandbox",
         "parallel-install",
-        "buildpkg",
-        "binpkg-multi-instance",
-        "-binpkg-docompress",
         "getbinpkg",
         "-candy",
     ]
@@ -169,8 +166,7 @@ class Gentoo:
             self.emerge_default_opts += ["--quiet-build", "--quiet"]
 
         self.arch, _ = ARCHITECTURES[state.config.architecture or "x86_64"]
-        self.arch_profile = Path(f"default/linux/{self.arch}/"
-                                 f"{state.config.release}/no-multilib/systemd/merged-usr")
+        self.arch_profile = Path(f"default/linux/{self.arch}/{state.config.release}/no-multilib/systemd/merged-usr")
         self.pkgs['sys'] = ["@world"]
 
         self.pkgs['boot'] = [
@@ -183,17 +179,13 @@ class Gentoo:
             "USE": " ".join(self.portage_use_flags),
         }
 
-        self.sync_portage_tree()
         self.fetch_fix_stage3()
-        self.set_default_repo()
         self.set_useflags()
         self.mkosi_conf()
+        self.get_snapshot_of_portage_tree()
         self.update_stage3()
         self.depclean()
         self.merge_user_pkgs()
-
-    def sync_portage_tree(self) -> None:
-        self.invoke_emerge(inside_stage3=False, actions=["--sync"])
 
     def fetch_fix_stage3(self) -> None:
         """usrmerge tracker bug: https://bugs.gentoo.org/690294"""
@@ -224,7 +216,7 @@ class Gentoo:
             self.portage_cfg["GENTOO_MIRRORS"],
             f"releases/{self.arch}/autobuilds/{stage3_tar}",
         )
-        stage3_tar_path = self.portage_cfg["DISTDIR"] / stage3_tar
+        stage3_tar_path = self.state.cache / stage3_tar
         stage3_tmp_extract = stage3_tar_path.with_name(stage3_tar.name + ".tmp")
         if not stage3_tar_path.is_file():
             MkosiPrinter.print_step(f"Fetching {stage3_url_path}")
@@ -248,21 +240,6 @@ class Gentoo:
 
         MkosiPrinter.print_step(f"Copying {stage3_tmp_extract} to {self.root}")
         copy_path(stage3_tmp_extract, self.root)
-
-    def set_default_repo(self) -> None:
-        eselect_repo_conf = self.portage_cfg_dir / "repos.conf"
-        eselect_repo_conf.mkdir(exist_ok=True)
-        eselect_repo_conf.joinpath("eselect-repo.conf").write_text(
-            dedent(
-                f"""\
-                [gentoo]
-                location = {self.portage_cfg["PORTDIR"]}
-                sync-uri = https://anongit.gentoo.org/git/repo/gentoo.git
-                sync-type = git
-                sync-dept = 1
-                """
-            )
-        )
 
     def set_useflags(self) -> None:
         package_use = self.portage_cfg_dir / "package.use"
@@ -313,12 +290,13 @@ class Gentoo:
             )
         )
 
+    def get_snapshot_of_portage_tree(self) -> None:
+        run_workspace_command(self.state, ["/usr/bin/emerge-webrsync"], network=True)
+
     def update_stage3(self) -> None:
         self.invoke_emerge(opts=self.EMERGE_UPDATE_OPTS, pkgs=self.pkgs['boot'])
-        self.invoke_emerge(opts=["--config"],
-                           pkgs=["sys-kernel/gentoo-kernel-bin"])
-        self.invoke_emerge(opts=self.EMERGE_UPDATE_OPTS,
-                           pkgs=self.pkgs['sys'])
+        self.invoke_emerge(opts=["--config"], pkgs=["sys-kernel/gentoo-kernel-bin"])
+        self.invoke_emerge(opts=self.EMERGE_UPDATE_OPTS, pkgs=self.pkgs['sys'])
 
     def depclean(self) -> None:
         self.invoke_emerge(actions=["--depclean"])
@@ -327,50 +305,14 @@ class Gentoo:
         if self.state.config.packages:
             self.invoke_emerge(pkgs=self.state.config.packages)
 
-
     def invoke_emerge(
         self,
-        inside_stage3: bool = True,
         pkgs: Sequence[str] = (),
         actions: Sequence[str] = (),
         opts: Sequence[str] = (),
     ) -> None:
-        if not inside_stage3:
-            from _emerge.main import emerge_main  # type: ignore
-
-            PREFIX_OPTS: list[str] = []
-            if "--sync" not in actions:
-                PREFIX_OPTS = [
-                    f"--config-root={self.root.resolve()}",
-                    f"--root={self.root.resolve()}",
-                    f"--sysroot={self.root.resolve()}",
-                ]
-
-            MkosiPrinter.print_step(f"Invoking emerge(1) pkgs={pkgs} "
-                                    f"actions={actions} outside stage3")
-            emerge_main([*pkgs, *opts, *actions] + PREFIX_OPTS + self.emerge_default_opts)
-        else:
-            cmd = ["/usr/bin/emerge", *pkgs, *self.emerge_default_opts, *opts, *actions]
-
-            MkosiPrinter.print_step("Invoking emerge(1) inside stage3"
-                                    f"{self.root}")
-
-            bwrap = [
-                "--bind", self.portage_cfg['PORTDIR'], self.portage_cfg['PORTDIR'],
-                "--bind", self.portage_cfg['DISTDIR'], self.portage_cfg['DISTDIR'],
-                "--bind", self.portage_cfg['PKGDIR'],  self.portage_cfg['PKGDIR'],
-            ]
-            run_workspace_command(self.state, cmd, network=True, bwrap_params=bwrap)
-
-    def _dbg(self, state: MkosiState) -> None:
-        """this is for dropping into shell to see what's wrong"""
-
-        bwrap = [
-            "--bind", self.portage_cfg['PORTDIR'], self.portage_cfg['PORTDIR'],
-            "--bind", self.portage_cfg['DISTDIR'], self.portage_cfg['DISTDIR'],
-            "--bind", self.portage_cfg['PKGDIR'],  self.portage_cfg['PKGDIR'],
-        ]
-        run_workspace_command(self.state, ["sh"], network=True, bwrap_params=bwrap)
+        cmd = ["emerge", *pkgs, *self.emerge_default_opts, *opts, *actions]
+        run_workspace_command(self.state, cmd, network=True)
 
 
 class GentooInstaller(DistributionInstaller):

@@ -113,7 +113,7 @@ jobs:
           - fedora
           - rocky
           - alma
-          # gentoo (see https://github.com/systemd/mkosi/pull/1313#issuecomment-1406277198)
+          - gentoo
           - opensuse
         format:
           - directory
@@ -127,6 +127,8 @@ jobs:
           # Debian prebuilt initrds are so large they cause OOMs.
           # TODO: Revisit this if Debian ever decides to compress their kernel modules.
           - distro: debian
+            prebuilt-initrd: yes
+          - distro: gentoo
             prebuilt-initrd: yes
 
     steps:

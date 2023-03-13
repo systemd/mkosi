@@ -482,15 +482,18 @@ def safe_tar_extract(tar: tarfile.TarFile, path: Path=Path("."), *, numeric_owne
     See https://github.com/advisories/GHSA-gw9q-c7gh-j9vm
     """
     path = path.resolve()
+    members = []
     for member in tar.getmembers():
         target = path / member.name
         try:
-            # a.relative_to(b) throws a ValueError if a is not a subpath of b
-            target.resolve().relative_to(path)
+            if not (member.ischr() or member.isblk()):
+                # a.relative_to(b) throws a ValueError if a is not a subpath of b
+                target.resolve().relative_to(path)
+                members += [member]
         except ValueError as e:
             raise MkosiException(f"Attempted path traversal in tar file {tar.name!r}") from e
 
-    tar.extractall(path, numeric_owner=numeric_owner)
+    tar.extractall(path, members=members, numeric_owner=numeric_owner)
 
 
 def disable_pam_securetty(root: Path) -> None:
