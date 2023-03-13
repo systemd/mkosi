@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 import argparse
+import base64
 import configparser
 import contextlib
 import crypt
@@ -3678,7 +3679,7 @@ def run_qemu(config: MkosiConfig) -> None:
     cmdline += ["-drive", f"if=pflash,format=raw,readonly=on,file={firmware}"]
 
     for k, v in config.credentials.items():
-        cmdline += ["-smbios", f"type=11,value=io.systemd.credential:{k}={v}"]
+        cmdline += ["-smbios", f"type=11,value=io.systemd.credential.binary:{k}={base64.b64encode(v.encode()).decode()}"]
     for v in config.qemu_smbios:
         cmdline += ["-smbios", f"type=11,value={v}"]
 
