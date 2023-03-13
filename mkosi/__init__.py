@@ -3162,7 +3162,7 @@ def invoke_repart(state: MkosiState, skip: Sequence[str] = [], split: bool = Fal
         if (h := p.get("roothash")) is None:
             continue
 
-        if not p["type"].startswith("usr") or p["type"].startswith("root"):
+        if not (p["type"].startswith("usr") or p["type"].startswith("root")):
             die(f"Found roothash property on unexpected partition type {p['type']}")
 
         # When there's multiple verity enabled root or usr partitions, the first one wins.
