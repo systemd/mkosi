@@ -1137,6 +1137,10 @@ class RepeatableSpaceDelimitedListAction(SpaceDelimitedListAction):
     deduplicate = False
 
 
+class RepeatableCommaDelimitedListAction(CommaDelimitedListAction):
+    deduplicate = False
+
+
 class BooleanAction(argparse.Action):
     """Parse boolean command line arguments
 
@@ -1908,7 +1912,7 @@ def create_parser() -> ArgumentParserMkosi:
     )
     group.add_argument(
         "--qemu-smbios",
-        action=RepeatableSpaceDelimitedListAction,
+        action=RepeatableCommaDelimitedListAction,
         default=[],
         help="Set an SMBIOS Type 11 string when running qemu",
     )
