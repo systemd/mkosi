@@ -1296,7 +1296,6 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
         "SignExpectedPCR": "--sign-expected-pcr",
         "RepositoryDirectories": "--repository-directory",
         "Credentials": "--credential",
-        "QemuSMBIOS": "--qemu-smbios",
     }
 
     def __init__(self, *kargs: Any, **kwargs: Any) -> None:
@@ -1972,6 +1971,13 @@ def create_parser() -> ArgumentParserMkosi:
         default=[],
         help="Pass a systemd credential to systemd-nspawn or qemu",
         metavar="NAME=VALUE",
+    )
+    group.add_argument(
+        "--kernel-command-line-extra",
+        metavar="OPTIONS",
+        action=SpaceDelimitedListAction,
+        default=[],
+        help="Append extra entries to the kernel command line when booting the image",
     )
 
     group = parser.add_argument_group("Additional configuration options")
@@ -3484,6 +3490,7 @@ def run_shell(config: MkosiConfig) -> None:
         # kernel cmdline config of the form systemd.xxx= get interpreted by systemd when running in nspawn as
         # well.
         cmdline += config.kernel_command_line
+        cmdline += config.kernel_command_line_extra
     elif config.cmdline:
         cmdline += ["--"]
         cmdline += config.cmdline
@@ -3678,8 +3685,7 @@ def run_qemu(config: MkosiConfig) -> None:
 
     for k, v in config.credentials.items():
         cmdline += ["-smbios", f"type=11,value=io.systemd.credential.binary:{k}={base64.b64encode(v.encode()).decode()}"]
-    for v in config.qemu_smbios:
-        cmdline += ["-smbios", f"type=11,value={v}"]
+    cmdline += ["-smbios", f"type=11,value=io.systemd.stub.kernel-cmdline-extra={' '.join(config.kernel_command_line_extra)}"]
 
     with contextlib.ExitStack() as stack:
         if fw_supports_sb:

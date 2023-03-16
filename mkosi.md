@@ -813,11 +813,6 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 : Space-delimited list of additional arguments to pass when invoking
   qemu.
 
-`QemuSMBIOS=`
-
-: Space-delimited list of additional SMBIOS Type 11 strings to pass
-  when invoking qemu.
-
 `Netdev=`, `--netdev`
 
 : When used with the boot or qemu verbs, this option creates a virtual
@@ -871,11 +866,20 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   in scripted environments where the `qemu` and `ssh` verbs are used in a quick
   succession and the virtual device might not get enough time to configure itself.
 
-`Credentials=`, `--credential`
+`Credentials=`, `--credential=`
 
 : Set credentials to be passed to systemd-nspawn or qemu respectively when
   `mkosi shell/boot` or `mkosi qemu` are used. This option takes a space separated
   list of key=value assignments.
+
+`KernelCommandLineExtra=`, `--kernel-command-line-extra=`
+
+: Set extra kernel command line entries that are appended to the kernel command
+  line at runtime when booting the image. When booting in a container, these are
+  passed as extra arguments to systemd. When booting in a VM, these are appended
+  to the kernel command line via the SMBIOS io.systemd.stub.kernel-cmdline-extra
+  OEM string. This will only be picked up by systemd-boot/systemd-stub versions
+  newer than or equal to v254.
 
 ### Commandline-only Options
 
@@ -1230,7 +1234,7 @@ local directory:
   each file in the directory, the filename will be used as the credential
   name and the file contents become the credential value, or, if the file is
   executable, mkosi will execute the file and the command's
-  output to stdout will be used as the credential value. Output to stderr will be ignored. 
+  output to stdout will be used as the credential value. Output to stderr will be ignored.
   Credentials configured with `Credentials=` take precedence over files in `mkosi.credentials`.
 
 All these files are optional.
