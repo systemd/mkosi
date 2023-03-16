@@ -272,7 +272,7 @@ class Gentoo:
         package_env.mkdir(exist_ok=True)
         self.ebuild_sh_env_dir.mkdir(exist_ok=True)
 
-        # apply whatever we put in mkosi_conf to runs invokation of emerge
+        # apply whatever we put in mkosi_conf to runs invocation of emerge
         package_env.joinpath("mkosi.conf").write_text("*/*    mkosi.conf\n")
 
         # we use this so we don't need to touch upstream files.

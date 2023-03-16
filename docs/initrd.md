@@ -1,7 +1,7 @@
 # Building a custom initrd and using it in a mkosi image
 
 Building an image with a mkosi-built initrd is a two step process, because you will build two images - the initrd and your distribution image.
-1. Build an initrd image using the `cpio` output format with the same target distribtution as you want to use for your distribution image. mkosi compresses the `cpio` output format by default.
+1. Build an initrd image using the `cpio` output format with the same target distributions as you want to use for your distribution image. mkosi compresses the `cpio` output format by default.
 ```
 [Output]
 Format=cpio

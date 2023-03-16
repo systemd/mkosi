@@ -3237,7 +3237,7 @@ def run_build_script(state: MkosiState) -> None:
 
     with complete_step("Running build script…"), mount_build_overlay(state):
         # Bubblewrap creates bind mount point parent directories with restrictive permissions so we create
-        # the work directory outselves here.
+        # the work directory ourselves here.
         state.root.joinpath("work").mkdir(mode=0o755)
 
         bwrap: list[PathString] = [
