@@ -310,6 +310,7 @@ class MkosiConfig:
     auto_bump: bool
     workspace_dir: Optional[Path]
     initrds: list[Path]
+    kernel_command_line_extra: list[str]
 
     # QEMU-specific options
     qemu_headless: bool
