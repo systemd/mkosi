@@ -147,7 +147,7 @@ class RemoteException(Exception):
 
 
 def excepthook(exctype: Type[BaseException], exc: BaseException, tb: Optional[TracebackType]) -> None:
-    """Attach to sys.excepthook to automically format exceptions with a RemoteException attached correctly."""
+    """Attach to sys.excepthook to automatically format exceptions with a RemoteException attached correctly."""
     if isinstance(exc.__cause__, RemoteException):
         print(exc.__cause__, file=sys.stderr)
     else:
