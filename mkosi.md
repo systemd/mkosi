@@ -544,12 +544,16 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 
 `SkeletonTree=`, `--skeleton-tree=`
 
-: Takes a path to a directory to copy into the OS tree before invoking
-  the package manager. Use this to insert files and directories into
-  the OS tree before the package manager installs any packages. If
-  this option is not used, but the `mkosi.skeleton/` directory is
-  found in the local directory it is automatically used for this
-  purpose (also see the "Files" section below).
+: Takes a colon separated pair of paths. The first path refers to a
+  directory to copy into the OS tree before invoking the package
+  manager. The second path refers to the target directory inside the
+  image. If the second path is not provided, the directory is copied
+  on top of the root directory of the image. Use this to insert files
+  and directories into the OS tree before the package manager installs
+  any packages. If this option is not used, but the `mkosi.skeleton/`
+  directory is found in the local directory it is automatically used
+  for this purpose with the root directory as target (also see the
+  "Files" section below).
 
 : Instead of a directory, a tar file may be provided. In this case
   it is unpacked into the OS tree before the package manager is
@@ -562,12 +566,15 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 
 `ExtraTree=`, `--extra-tree=`
 
-: Takes a path to a directory to copy on top of the OS tree the
-  package manager generated. Use this to override any default
-  configuration files shipped with the distribution. If this option is
-  not used, but the `mkosi.extra/` directory is found in the local
-  directory it is automatically used for this purpose (also see the
-  "Files" section below).
+: Takes a colon separated pair of paths. The first path refers to a
+  directory to copy from the host into the image. The second path refers
+  to the target directory inside the image. If the second path is not
+  provided, the directory is copied on top of the root directory of the
+  image. Use this to override any default configuration files shipped
+  with the distribution. If this option is not used, but the
+  `mkosi.extra/` directory is found in the local directory it is
+  automatically used for this purpose with the root directory as target.
+  (also see the "Files" section below).
 
 : As with the skeleton tree logic above, instead of a directory, a tar
   file may be provided too. `mkosi.skeleton.tar` will be automatically
