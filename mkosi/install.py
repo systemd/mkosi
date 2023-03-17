@@ -82,10 +82,15 @@ def install_skeleton_trees(state: MkosiState, cached: bool, *, late: bool=False)
         return
 
     with complete_step("Copying in skeleton file trees…"):
-        for tree in state.config.skeleton_trees:
-            if tree.is_dir():
-                copy_path(tree, state.root, preserve_owner=False)
+        for source, target in state.config.skeleton_trees:
+            t = state.root
+            if target:
+                t = state.root / target.relative_to("/")
+
+            t.mkdir(mode=0o755, parents=True, exist_ok=True)
+            if source.is_dir():
+                copy_path(source, t, preserve_owner=False)
             else:
                 # unpack_archive() groks Paths, but mypy doesn't know this.
                 # Pretend that tree is a str.
-                shutil.unpack_archive(tree, state.root)
+                shutil.unpack_archive(source, t)

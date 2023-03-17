@@ -271,8 +271,8 @@ class MkosiConfig:
     with_docs: bool
     with_tests: bool
     cache_path: Path
-    extra_trees: list[Path]
-    skeleton_trees: list[Path]
+    extra_trees: list[tuple[Path, Optional[Path]]]
+    skeleton_trees: list[tuple[Path, Optional[Path]]]
     clean_package_metadata: Union[bool, str]
     remove_files: list[str]
     environment: dict[str, str]

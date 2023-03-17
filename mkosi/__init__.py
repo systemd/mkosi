@@ -659,13 +659,19 @@ def install_extra_trees(state: MkosiState) -> None:
         return
 
     with complete_step("Copying in extra file trees…"):
-        for tree in state.config.extra_trees:
-            if tree.is_dir():
-                copy_path(tree, state.root, preserve_owner=False)
+        for source, target in state.config.extra_trees:
+            t = state.root
+            if target:
+                t = state.root / target.relative_to("/")
+
+            t.mkdir(mode=0o755, parents=True, exist_ok=True)
+
+            if source.is_dir():
+                copy_path(source, t, preserve_owner=False)
             else:
                 # unpack_archive() groks Paths, but mypy doesn't know this.
                 # Pretend that tree is a str.
-                shutil.unpack_archive(tree, state.root)
+                shutil.unpack_archive(source, t)
 
 
 def install_build_dest(state: MkosiState) -> None:
@@ -1434,6 +1440,14 @@ USAGE = """
        mkosi --version
 """.format(b=MkosiPrinter.bold, e=MkosiPrinter.reset)
 
+
+def parse_source_target_paths(value: str) -> tuple[Path, Optional[Path]]:
+    src, _, target = value.partition(':')
+    if target and not Path(target).absolute():
+        die("Target path must be absolute")
+    return Path(src), Path(target) if target else None
+
+
 def create_parser() -> ArgumentParserMkosi:
     parser = ArgumentParserMkosi(
         prog="mkosi",
@@ -1719,7 +1733,7 @@ def create_parser() -> ArgumentParserMkosi:
         dest="extra_trees",
         default=[],
         help="Copy an extra tree on top of image",
-        type=Path,
+        type=parse_source_target_paths,
         metavar="PATH",
     )
     group.add_argument(
@@ -1728,7 +1742,7 @@ def create_parser() -> ArgumentParserMkosi:
         dest="skeleton_trees",
         default=[],
         help="Use a skeleton tree to bootstrap the image before installing anything",
-        type=Path,
+        type=parse_source_target_paths,
         metavar="PATH",
     )
     group.add_argument(
@@ -2226,9 +2240,9 @@ def find_extra(args: argparse.Namespace) -> None:
         return
 
     if os.path.isdir("mkosi.extra"):
-        args.extra_trees.append(Path("mkosi.extra"))
+        args.extra_trees.append((Path("mkosi.extra"), None))
     if os.path.isfile("mkosi.extra.tar"):
-        args.extra_trees.append(Path("mkosi.extra.tar"))
+        args.extra_trees.append((Path("mkosi.extra.tar"), None))
 
 
 def find_skeleton(args: argparse.Namespace) -> None:
@@ -2237,9 +2251,9 @@ def find_skeleton(args: argparse.Namespace) -> None:
         return
 
     if os.path.isdir("mkosi.skeleton"):
-        args.skeleton_trees.append(Path("mkosi.skeleton"))
+        args.skeleton_trees.append((Path("mkosi.skeleton"), None))
     if os.path.isfile("mkosi.skeleton.tar"):
-        args.skeleton_trees.append(Path("mkosi.skeleton.tar"))
+        args.skeleton_trees.append((Path("mkosi.skeleton.tar"), None))
 
 
 def args_find_path(args: argparse.Namespace, name: str, path: str, *, as_list: bool = False) -> None:
@@ -2539,11 +2553,13 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
 
     if args.extra_trees:
         for i in range(len(args.extra_trees)):
-            args.extra_trees[i] = args.extra_trees[i].absolute()
+            source, target = args.extra_trees[i]
+            args.extra_trees[i] = (source.absolute(), target)
 
     if args.skeleton_trees is not None:
         for i in range(len(args.skeleton_trees)):
-            args.skeleton_trees[i] = args.skeleton_trees[i].absolute()
+            source, target = args.skeleton_trees[i]
+            args.skeleton_trees[i] = (source.absolute(), target)
 
     if args.secure_boot_key is not None:
         args.secure_boot_key = args.secure_boot_key.absolute()
@@ -2644,6 +2660,11 @@ def check_tree_input(path: Optional[Path]) -> None:
     os.open(path, os.R_OK)
 
 
+def check_source_target_input(tree: tuple[Path, Optional[Path]]) -> None:
+    source, _ = tree
+    os.open(source, os.R_OK)
+
+
 def check_script_input(path: Optional[Path]) -> None:
     if not path:
         return
@@ -2663,7 +2684,7 @@ def check_inputs(config: MkosiConfig) -> None:
         for tree in (config.skeleton_trees,
                      config.extra_trees):
             for item in tree:
-                check_tree_input(item)
+                check_source_target_input(item)
 
         for path in (config.build_script,
                      config.prepare_script,
@@ -2723,6 +2744,14 @@ def line_join_list(
         return "none"
 
     items = (str(path_or_none(cast(Path, item), checker=checker)) for item in array)
+    return "\n                            ".join(items)
+
+
+def line_join_source_target_list(array: Sequence[tuple[Path, Optional[Path]]]) -> str:
+    if not array:
+        return "none"
+
+    items = [f"{source}:{target}" if target else f"{source}" for source, target in array]
     return "\n                            ".join(items)
 
 
@@ -2814,8 +2843,8 @@ def print_summary(config: MkosiConfig) -> None:
         print("        With Documentation:", yes_no(config.with_docs))
 
     print("             Package Cache:", none_to_none(config.cache_path))
-    print("               Extra Trees:", line_join_list(config.extra_trees, check_tree_input))
-    print("            Skeleton Trees:", line_join_list(config.skeleton_trees, check_tree_input))
+    print("               Extra Trees:", line_join_source_target_list(config.extra_trees))
+    print("            Skeleton Trees:", line_join_source_target_list(config.skeleton_trees))
     print("      CleanPackageMetadata:", yes_no_or(config.clean_package_metadata))
 
     if config.remove_files:
