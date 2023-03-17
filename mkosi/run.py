@@ -216,6 +216,9 @@ def run(
     if env["PATH"] == "":
         del env["PATH"]
 
+    if "run" in ARG_DEBUG:
+        env["SYSTEMD_LOG_LEVEL"] = "debug"
+
     try:
         return subprocess.run(cmdline, check=check, stdout=stdout, stderr=stderr, env=env, **kwargs,
                               preexec_fn=foreground)
