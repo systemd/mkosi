@@ -43,7 +43,23 @@ class CentosInstaller(DistributionInstaller):
 
         return {
             "8": {
-                "ext4": ["-O", "none,has_journal,extent,huge_file,flex_bg,metadata_csum,64bit,dir_nlink,extra_isize"],
+                "ext4": ["-O", ",".join([
+                    "none",
+                    "sparse_super",
+                    "large_file",
+                    "filetype",
+                    "resize_inode",
+                    "dir_index",
+                    "ext_attr",
+                    "has_journal",
+                    "extent",
+                    "huge_file",
+                    "flex_bg",
+                    "metadata_csum",
+                    "64bit",
+                    "dir_nlink",
+                    "extra_isize"
+                ])],
             },
         }.get(state.config.release, {})
 
