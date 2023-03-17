@@ -49,6 +49,10 @@
 - Removed `--skip-final-phase` as we only have a single phase now.
 - The post install script is only called for the final image now and not for the build image anymore. Use the
   prepare script instead.
+- `--ssh-key`, `--ssh-agent`, `--ssh-port` and `--ssh-timeout` options were dropped as the SSH support was
+  reimplemented using VSock. `mkosi ssh` can only be used with images booted with `mkosi qemu`. Use
+  `machinectl` to access images booted with `mkosi boot`. Use --extra-tree or --credential with the
+  `.ssh.authorized_keys.root` credentials as alternatives for provisioning the public key inside the image.
 
 ## v14
 
