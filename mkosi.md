@@ -832,39 +832,12 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 
 `Ssh=`, `--ssh`
 
-: If specified, installs and enables `sshd` in the final image and generates
-  a SSH keypair and adds the public key to root's `authorized_keys` in the final
-  image. The private key is stored in mkosi's output directory. When building
-  with this  option and running the image using `mkosi boot` or `mkosi qemu`,
-  the `mkosi ssh` command can be used to connect to the container/VM via SSH.
-
-`SshKey=`, `--ssh-key=`
-
-: If specified, use the given private key when connecting to the guest machine
-  via `mkosi ssh`. This requires the public key counterpart to be present in
-  the same location, suffixed with `.pub` (as done by `ssh-keygen`). If this
-  option is not present, `mkosi` generates a new key pair automatically.
-
-`SshAgent=`, `--ssh-agent=`
-
-: If specified as a path, use the given socket to connect to the ssh agent when
-  building an image and when connecting via `mkosi ssh` instead of hard-coding
-  a key. If specified as `true`, `$SSH_AUTH_SOCK` will be parsed instead (hint:
-  use `sudo` with `-E`). The keys listed by `ssh-add -L` will be installed as
-  authorized keys in the built image. The `ssh` invocation done by `mkosi ssh`
-  will inherit `$SSH_AUTH_SOCK` for authentication purposes.
-
-`SshPort=`, `--ssh-port=`
-
-: In the image, sshd will be configured to listen on this port. `mkosi ssh` will
-  connect to this port.
-
-`SshTimeout=`, `--ssh-timeout=`
-
-: When used with the `ssh` verb, `mkosi` will attempt to retry the SSH connection
-  up to given timeout (in seconds) in case it fails. This option is useful mainly
-  in scripted environments where the `qemu` and `ssh` verbs are used in a quick
-  succession and the virtual device might not get enough time to configure itself.
+: If specified, installs and enables `sshd` in the final image. When building
+  with this option and running the image using `mkosi qemu`, the `mkosi ssh` command
+  can be used to connect to the container/VM via SSH. Note that mkosi doesn't provision
+  a public SSH key into the image automatically. One way to do this is by setting the
+  `ssh.authorized_keys.root` credential using the `Credential=` option or by copying it
+  in using `ExtraTrees=`. To access images booted using `mkosi boot`, use `machinectl`.
 
 `Credentials=`, `--credential=`
 

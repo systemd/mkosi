@@ -14,6 +14,7 @@ import itertools
 import json
 import os
 import platform
+import random
 import re
 import resource
 import shlex
@@ -22,7 +23,6 @@ import string
 import subprocess
 import sys
 import tempfile
-import time
 import uuid
 from collections.abc import Iterable, Iterator, Sequence
 from pathlib import Path
@@ -1397,27 +1397,6 @@ def parse_base_packages(value: str) -> Union[str, bool]:
     return parse_boolean(value)
 
 
-def parse_ssh_agent(value: str) -> Optional[Path]:
-    """Will return None or a path to a socket."""
-
-    if not value:
-        return None
-
-    try:
-        if not parse_boolean(value):
-            return None
-    except ValueError:
-        pass
-    else:
-        value = os.getenv("SSH_AUTH_SOCK", "")
-        if not value:
-            die("--ssh-agent=true but $SSH_AUTH_SOCK is not set (consider running 'sudo' with '-E')")
-
-    sock = Path(value)
-    if not sock.is_socket():
-        die(f"SSH agent socket {sock} is not an AF_UNIX socket")
-    return sock
-
 USAGE = """
        mkosi [options...] {b}summary{e}
        mkosi [options...] {b}build{e} [script parameters...]
@@ -1938,33 +1917,6 @@ def create_parser() -> ArgumentParserMkosi:
         help="Set up SSH access from the host to the final image via 'mkosi ssh'",
     )
     group.add_argument(
-        "--ssh-key",
-        type=Path,
-        metavar="PATH",
-        help="Use the specified private key when using 'mkosi ssh' (requires a corresponding public key)",
-    )
-    group.add_argument(
-        "--ssh-timeout",
-        metavar="SECONDS",
-        type=int,
-        default=0,
-        help="Wait up to SECONDS seconds for the SSH connection to be available when using 'mkosi ssh'",
-    )
-    group.add_argument(
-        "--ssh-agent",
-        type=parse_ssh_agent,
-        default="",
-        metavar="PATH",
-        help="Path to the ssh agent socket, or true to use $SSH_AUTH_SOCK.",
-    )
-    group.add_argument(
-        "--ssh-port",
-        type=int,
-        default=22,
-        metavar="PORT",
-        help="If specified, 'mkosi ssh' will use this port to connect",
-    )
-    group.add_argument(
         "--credential",
         dest="credentials",
         action=SpaceDelimitedListAction,
@@ -2368,7 +2320,7 @@ def load_credentials(args: argparse.Namespace) -> dict[str, str]:
     if d.is_dir():
         for e in d.iterdir():
             if os.access(e, os.X_OK):
-                creds[e.name] = run([e], text=True, stdout=subprocess.PIPE).stdout
+                creds[e.name] = run([e], text=True, stdout=subprocess.PIPE, env=os.environ).stdout
             else:
                 creds[e.name] = e.read_text()
 
@@ -2582,12 +2534,6 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
     if needs_build(args) and args.verb == Verb.qemu and not args.bootable:
         die("Images built without the --bootable option cannot be booted using qemu", MkosiNotSupportedException)
 
-    if args.ssh_timeout < 0:
-        die("--ssh-timeout must be >= 0")
-
-    if args.ssh_port <= 0:
-        die("--ssh-port must be > 0")
-
     if args.repo_dirs and not (is_dnf_distribution(args.distribution) or args.distribution == Distribution.arch):
         die("--repository-directory is only supported on DNF based distributions and Arch")
 
@@ -2779,9 +2725,6 @@ def print_summary(config: MkosiConfig) -> None:
     print("          Output Signature:", none_to_na(config.output_signature if config.sign else None))
     print("               Output Bmap:", none_to_na(config.output_bmap if config.bmap else None))
     print("    Output nspawn Settings:", none_to_na(config.output_nspawn_settings if config.nspawn_settings is not None else None))
-    print("                   SSH key:", none_to_na((config.ssh_key or config.output_sshkey or config.ssh_agent) if config.ssh else None))
-    if config.ssh_port != 22:
-        print("                  SSH port:", config.ssh_port)
 
     print("               Incremental:", yes_no(config.incremental))
     print("               Compression:", should_compress_output(config) or "no")
@@ -2899,53 +2842,41 @@ def configure_ssh(state: MkosiState) -> None:
     if state.for_cache or not state.config.ssh:
         return
 
-    if state.config.distribution in (Distribution.debian, Distribution.ubuntu):
-        unit = "ssh.socket"
+    state.root.joinpath("etc/systemd/system/ssh.socket").write_text(
+        dedent(
+            """\
+            [Unit]
+            Description=Mkosi SSH Server VSock Socket
+            ConditionVirtualization=!container
 
-        if state.config.ssh_port != 22:
-            add_dropin_config(state.root, unit, "port",
-                              f"""\
-                              [Socket]
-                              ListenStream=
-                              ListenStream={state.config.ssh_port}
-                              """)
+            [Socket]
+            ListenStream=vsock::22
+            Accept=yes
+            Service=ssh@.service
 
-        add_dropin_config(state.root, "ssh@.service", "runtime-directory-preserve",
-                          """\
-                          [Service]
-                          RuntimeDirectoryPreserve=yes
-                          """)
-    else:
-        unit = "sshd"
+            [Install]
+            WantedBy=sockets.target
+            """
+        )
+    )
 
-    run(["systemctl", "--root", state.root, "enable", unit])
+    state.root.joinpath("etc/systemd/system/ssh@.service").write_text(
+        dedent(
+            """\
+            [Unit]
+            Description=Mkosi SSH Server
 
-    authorized_keys = state.root / "root/.ssh/authorized_keys"
-    if state.config.ssh_key:
-        copy_path(Path(f"{state.config.ssh_key}.pub"), authorized_keys, preserve_owner=False)
-    elif state.config.ssh_agent is not None:
-        env = {"SSH_AUTH_SOCK": str(state.config.ssh_agent)}
-        result = run(["ssh-add", "-L"], env=env, text=True, stdout=subprocess.PIPE)
-        authorized_keys.write_text(result.stdout)
-    else:
-        p = state.staging / state.config.output_sshkey.name
+            [Service]
+            ExecStart=sshd -i
+            StandardInput=socket
+            RuntimeDirectoryPreserve=yes
+            """
+        )
+    )
 
-        with complete_step("Generating SSH key pair…"):
-            # Write a 'y' to confirm to overwrite the file.
-            run(
-                ["ssh-keygen", "-f", p, "-N", state.config.password or "", "-C", "mkosi", "-t", "ed25519"],
-                input="y\n",
-                text=True,
-                stdout=subprocess.DEVNULL,
-                user=state.uid,
-                group=state.gid,
-            )
-
-        authorized_keys.parent.mkdir(parents=True, exist_ok=True)
-        copy_path(p.with_suffix(".pub"), authorized_keys, preserve_owner=False)
-        os.remove(p.with_suffix(".pub"))
-
-    authorized_keys.chmod(0o600)
+    presetdir = state.root / "etc/systemd/system-preset"
+    presetdir.mkdir(exist_ok=True, mode=0o755)
+    presetdir.joinpath("80-mkosi-ssh.preset").write_text("enable ssh.socket")
 
 
 def configure_netdev(state: MkosiState) -> None:
@@ -3394,48 +3325,6 @@ def has_networkd_vm_vt() -> bool:
     )
 
 
-def ensure_networkd(config: MkosiConfig) -> bool:
-    networkd_is_running = run(["systemctl", "is-active", "--quiet", "systemd-networkd"], check=False).returncode == 0
-    if not networkd_is_running:
-        if config.verb != Verb.ssh:
-            # Some programs will use 'mkosi ssh' with pexpect, so don't print warnings that will break
-            # them.
-            warn("--netdev requires systemd-networkd to be running to initialize the host interface "
-                 "of the virtual link ('systemctl enable --now systemd-networkd')")
-        return False
-
-    if config.verb == Verb.qemu and not has_networkd_vm_vt():
-        warn(dedent(r"""\
-            mkosi didn't find 80-vm-vt.network. This is one of systemd's built-in
-            systemd-networkd config files which configures vt-* interfaces.
-            mkosi needs this file in order for --netdev to work properly for QEMU
-            virtual machines. The file likely cannot be found because the systemd version
-            on the host is too old (< 246) and it isn't included yet.
-
-            As a workaround until the file is shipped by the systemd package of your distro,
-            add a network file /etc/systemd/network/80-vm-vt.network with the following
-            contents:
-
-            [Match]
-            Name=vt-*
-            Driver=tun
-
-            [Network]
-            # Default to using a /28 prefix, giving up to 13 addresses per VM.
-            Address=0.0.0.0/28
-            LinkLocalAddressing=yes
-            DHCPServer=yes
-            IPMasquerade=yes
-            LLDP=yes
-            EmitLLDP=customer-bridge
-            IPv6PrefixDelegation=yes
-            """
-        ))
-        return False
-
-    return True
-
-
 def nspawn_knows_arg(arg: str) -> bool:
     # Specify some extra incompatible options so nspawn doesn't try to boot a container in the current
     # directory if it has a compatible layout.
@@ -3472,8 +3361,7 @@ def run_shell(config: MkosiConfig) -> None:
             cmdline += [console_arg]
 
     if config.netdev:
-        if ensure_networkd(config):
-            cmdline += ["--network-veth"]
+        cmdline += ["--network-veth"]
 
     if config.ephemeral:
         cmdline += ["--ephemeral"]
@@ -3668,6 +3556,15 @@ def run_qemu(config: MkosiConfig) -> None:
         "virtio-rng-pci,rng=rng0,id=rng-device0",
     ]
 
+    try:
+        os.open("/dev/vhost-vsock", os.R_OK|os.W_OK)
+        cmdline += ["-device", f"vhost-vsock-pci,guest-cid={random.randrange(100, 0xFFFFFFFF)}"]
+    except OSError as e:
+        if e.errno == errno.ENOENT:
+            warn("/dev/vhost-vsock not found. Not adding a vsock device to the virtual machine.")
+        elif e.errno in (errno.EPERM, errno.EACCES):
+            warn("Permission denied to access /dev/vhost-vsock. Not adding a vsock device to the virtual machine.")
+
     cmdline += ["-cpu", "max"]
 
     if config.qemu_headless:
@@ -3678,8 +3575,7 @@ def run_qemu(config: MkosiConfig) -> None:
         cmdline += ["-vga", "virtio"]
 
     if config.netdev:
-        fwd = f",hostfwd=tcp::{config.ssh_port}-:{config.ssh_port}" if config.ssh_port != 22 else ""
-        cmdline += ["-nic", f"user,model=virtio-net-pci{fwd}"]
+        cmdline += ["-nic", "user,model=virtio-net-pci"]
 
     cmdline += ["-drive", f"if=pflash,format=raw,readonly=on,file={firmware}"]
 
@@ -3752,89 +3648,17 @@ def run_qemu(config: MkosiConfig) -> None:
         run(cmdline)
 
 
-def interface_exists(dev: str) -> bool:
-    rc = run(["ip", "link", "show", dev],
-             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False).returncode
-    return rc == 0
-
-
-def find_address(config: MkosiConfig) -> tuple[str, str]:
-    if not ensure_networkd(config) and config.ssh_port != 22:
-        return "", "127.0.0.1"
-
-    name = interface_name(config)
-    timeout = float(config.ssh_timeout)
-
-    while timeout >= 0:
-        stime = time.time()
-        try:
-            if interface_exists(f"ve-{name}"):
-                dev = f"ve-{name}"
-            elif interface_exists(f"vt-{name}"):
-                dev = f"vt-{name}"
-            else:
-                die(f"Container/VM interface ve-{name}/vt-{name} not found")
-
-            link = json.loads(run(["ip", "-j", "link", "show", "dev", dev],
-                                  stdout=subprocess.PIPE, text=True).stdout)[0]
-            if link["operstate"] == "DOWN":
-                raise MkosiException(
-                    f"{dev} is not enabled. Make sure systemd-networkd is running so it can manage the interface."
-                )
-
-            # Trigger IPv6 neighbor discovery of which we can access the results via 'ip neighbor'. This allows us to
-            # find out the link-local IPv6 address of the container/VM via which we can connect to it.
-            run(["ping", "-c", "1", "-w", "15", f"ff02::1%{dev}"], stdout=subprocess.DEVNULL)
-
-            for _ in range(50):
-                neighbors = json.loads(
-                    run(["ip", "-j", "neighbor", "show", "dev", dev], stdout=subprocess.PIPE, text=True).stdout
-                )
-
-                for neighbor in neighbors:
-                    dst = cast(str, neighbor["dst"])
-                    if dst.startswith("fe80"):
-                        return f"%{dev}", dst
-
-                time.sleep(0.4)
-        except MkosiException as e:
-            if time.time() - stime > timeout:
-                die(str(e))
-
-        time.sleep(1)
-        timeout -= time.time() - stime
-
-    die("Container/VM address not found")
-
-
 def run_ssh(config: MkosiConfig) -> None:
     cmd = [
-            "ssh",
-            # Silence known hosts file errors/warnings.
-            "-o", "UserKnownHostsFile=/dev/null",
-            "-o", "StrictHostKeyChecking=no",
-            "-o", "LogLevel=ERROR",
-        ]
+        "ssh",
+        # Silence known hosts file errors/warnings.
+        "-o", "UserKnownHostsFile=/dev/null",
+        "-o", "StrictHostKeyChecking=no",
+        "-o", "LogLevel=ERROR",
+        "-o", "ProxyCommand=socat - VSOCK-CONNECT:3:%p",
+        "root@mkosi",
+    ]
 
-    if config.ssh_agent is None:
-        ssh_key = config.ssh_key or config.output_sshkey
-        assert ssh_key is not None
-
-        if not ssh_key.exists():
-            die(
-                f"SSH key not found at {ssh_key}. Are you running from the project's root directory "
-                "and did you build with the --ssh option?"
-            )
-
-        cmd += ["-i", cast(str, ssh_key)]
-    else:
-        cmd += ["-o", f"IdentityAgent={config.ssh_agent}"]
-
-    if config.ssh_port != 22:
-        cmd += ["-p", f"{config.ssh_port}"]
-
-    dev, address = find_address(config)
-    cmd += [f"root@{address}{dev}"]
     cmd += config.cmdline
 
     run(cmd)

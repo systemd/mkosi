@@ -299,10 +299,6 @@ class MkosiConfig:
     netdev: bool
     ephemeral: bool
     ssh: bool
-    ssh_key: Optional[Path]
-    ssh_agent: Optional[Path]
-    ssh_timeout: int
-    ssh_port: int
     credentials: dict[str, str]
     directory: Optional[Path]
     config_path: Optional[Path]
