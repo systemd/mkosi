@@ -8,7 +8,6 @@ import shutil
 import stat
 from collections.abc import Iterator
 from pathlib import Path
-from textwrap import dedent
 from typing import Optional
 
 from mkosi.backend import MkosiState
@@ -30,14 +29,6 @@ def write_resource(
         where.chmod(mode)
     elif executable:
         make_executable(where)
-
-
-def add_dropin_config(root: Path, unit: str, name: str, content: str) -> None:
-    """Add a dropin config `name.conf` in /etc/systemd/system for `unit`."""
-    dropin = root / f"etc/systemd/system/{unit}.d/{name}.conf"
-    dropin.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
-    dropin.write_text(dedent(content))
-    dropin.chmod(0o644)
 
 
 def add_dropin_config_from_resource(

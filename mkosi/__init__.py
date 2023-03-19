@@ -57,7 +57,6 @@ from mkosi.backend import (
     tmp_dir,
 )
 from mkosi.install import (
-    add_dropin_config,
     add_dropin_config_from_resource,
     copy_path,
     flock,
@@ -496,25 +495,6 @@ def configure_autologin(state: MkosiState) -> None:
         pam_add_autologin(state.root, ttys)
 
 
-def configure_serial_terminal(state: MkosiState) -> None:
-    """Override TERM for the serial console with the terminal type from the host."""
-
-    if not state.config.qemu_headless or state.for_cache:
-        return
-
-    with complete_step("Configuring serial tty (/dev/ttyS0)…"):
-        columns, lines = shutil.get_terminal_size(fallback=(80, 24))
-        add_dropin_config(state.root, "serial-getty@ttyS0.service", "term",
-                          f"""\
-                          [Service]
-                          Environment=TERM={os.getenv('TERM', 'vt220')}
-                          Environment=COLUMNS={columns}
-                          Environment=LINES={lines}
-                          TTYColumns={columns}
-                          TTYRows={lines}
-                          """)
-
-
 def mount_build_overlay(state: MkosiState) -> ContextManager[Path]:
     return mount_overlay(state.root, state.build_overlay, state.workdir, state.root)
 
@@ -854,15 +834,6 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                 cmdline += [roothash]
 
             cmdline += state.config.kernel_command_line
-
-            if state.config.qemu_headless and not any("console=ttyS0" in x for x in cmdline):
-                cmdline += ["console=ttyS0"]
-
-            # By default, the serial console gets spammed with kernel log messages.
-            # Let's up the log level to only show warning and error messages when
-            # --qemu-headless is enabled to avoid this spam.
-            if state.config.qemu_headless and not any("loglevel" in x for x in cmdline):
-                cmdline += ["loglevel=4"]
 
             # Older versions of systemd-stub expect the cmdline section to be null terminated. We can't embed
             # nul terminators in argv so let's communicate the cmdline via a file instead.
@@ -1883,10 +1854,10 @@ def create_parser() -> ArgumentParserMkosi:
         help=argparse.SUPPRESS,
     )
     group.add_argument(
-        "--qemu-headless",
+        "--qemu-gui",
         metavar="BOOL",
         action=BooleanAction,
-        help="Configure image for qemu's -nographic mode",
+        help="Start QEMU in graphical mode",
     )
     group.add_argument(
         "--qemu-smp",
@@ -2370,6 +2341,27 @@ def load_credentials(args: argparse.Namespace) -> dict[str, str]:
     return creds
 
 
+def load_kernel_command_line_extra(args: argparse.Namespace) -> list[str]:
+    cmdline = []
+
+    for s in args.kernel_command_line_extra:
+        key, sep, value = s.partition("=")
+        if " " in value:
+            value = f'"{value}"'
+        cmdline += [key if not sep else f"{key}={value}"]
+
+    columns, lines = shutil.get_terminal_size()
+
+    cmdline += [
+        f"systemd.tty.term.ttyS0={os.getenv('TERM', 'vt220')}",
+        f"systemd.tty.columns.ttyS0={columns}",
+        f"systemd.tty.rows.ttyS0={lines}",
+        "console=ttyS0",
+    ]
+
+    return cmdline
+
+
 def load_args(args: argparse.Namespace) -> MkosiConfig:
     ARG_DEBUG.update(args.debug)
 
@@ -2520,6 +2512,7 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
         args.environment = {}
 
     args.credentials = load_credentials(args)
+    args.kernel_command_line_extra = load_kernel_command_line_extra(args)
 
     if args.cache_path is not None:
         args.cache_path = args.cache_path.absolute()
@@ -2853,7 +2846,6 @@ def print_summary(config: MkosiConfig) -> None:
     print("\nHOST CONFIGURATION:")
 
     print("        Extra search paths:", line_join_list(config.extra_search_paths))
-    print("             QEMU Headless:", yes_no(config.qemu_headless))
     print("      QEMU Extra Arguments:", line_join_list(config.qemu_args))
     print("                    Netdev:", yes_no(config.netdev))
 
@@ -3186,7 +3178,6 @@ def build_image(state: MkosiState, *, manifest: Optional[Manifest] = None) -> No
         configure_locale(state)
         configure_hostname(state)
         configure_root_password(state)
-        configure_serial_terminal(state)
         configure_autologin(state)
         configure_dracut(state, cached)
         configure_netdev(state)
@@ -3445,7 +3436,7 @@ def run_shell(config: MkosiConfig) -> None:
         acl_toggle_remove(config, config.output, uid, allow=False)
 
     try:
-        run(cmdline, stdout=sys.stdout)
+        run(cmdline, stdout=sys.stdout, env=os.environ)
     finally:
         if config.output_format == OutputFormat.directory:
             acl_toggle_remove(config, config.output, uid, allow=True)
@@ -3623,12 +3614,12 @@ def run_qemu(config: MkosiConfig) -> None:
 
     cmdline += ["-cpu", "max"]
 
-    if config.qemu_headless:
+    if config.qemu_gui:
+        cmdline += ["-vga", "virtio"]
+    else:
         # -nodefaults removes the default CDROM device which avoids an error message during boot
         # -serial mon:stdio adds back the serial device removed by -nodefaults.
         cmdline += ["-nographic", "-nodefaults", "-serial", "mon:stdio"]
-    else:
-        cmdline += ["-vga", "virtio"]
 
     if config.netdev:
         cmdline += ["-nic", "user,model=virtio-net-pci"]
@@ -3701,7 +3692,7 @@ def run_qemu(config: MkosiConfig) -> None:
         cmdline += config.cmdline
 
         print_running_cmd(cmdline)
-        run(cmdline, stdout=sys.stdout)
+        run(cmdline, stdout=sys.stdout, env=os.environ)
 
 
 def run_ssh(config: MkosiConfig) -> None:

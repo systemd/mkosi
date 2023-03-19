@@ -310,7 +310,7 @@ class MkosiConfig:
     acl: bool
 
     # QEMU-specific options
-    qemu_headless: bool
+    qemu_gui: bool
     qemu_smp: str
     qemu_mem: str
     qemu_kvm: bool

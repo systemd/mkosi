@@ -54,6 +54,8 @@
   `machinectl` to access images booted with `mkosi boot`. Use --extra-tree or --credential with the
   `.ssh.authorized_keys.root` credentials as alternatives for provisioning the public key inside the image.
 - Only configuration files matching `*.conf` are parsed in dropin directories now.
+- Removed `--qemu-headless`, we now start qemu in the terminal by default and configure the serial console at
+  runtime. Use the new `--qemu-gui` option to start qemu in its graphical interface.
 
 ## v14
 
