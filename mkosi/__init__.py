@@ -176,14 +176,20 @@ def mount_image(state: MkosiState) -> Iterator[None]:
         yield
 
 
-def configure_locale(root: Path) -> None:
-    etc_locale = root / "etc/locale.conf"
+def configure_locale(state: MkosiState) -> None:
+    if state.for_cache:
+        return
+
+    etc_locale = state.root / "etc/locale.conf"
     etc_locale.unlink(missing_ok=True)
     # Let's ensure we use a UTF-8 locale everywhere.
     etc_locale.write_text("LANG=C.UTF-8\n")
 
 
 def configure_hostname(state: MkosiState) -> None:
+    if state.for_cache:
+        return
+
     etc_hostname = state.root / "etc/hostname"
 
     # Always unlink first, so that we don't get in trouble due to a
@@ -197,8 +203,14 @@ def configure_hostname(state: MkosiState) -> None:
             etc_hostname.write_text(state.config.hostname + "\n")
 
 
-def configure_dracut(state: MkosiState) -> None:
+def configure_dracut(state: MkosiState, cached: bool) -> None:
     if not state.config.bootable or state.config.initrds:
+        return
+
+    if not state.config.cache_initrd and state.for_cache:
+        return
+
+    if state.config.cache_initrd and cached:
         return
 
     dracut_dir = state.root / "etc/dracut.conf.d"
@@ -420,6 +432,9 @@ def reset_random_seed(root: Path) -> None:
 def configure_root_password(state: MkosiState) -> None:
     "Set the root account password, or just delete it so it's easy to log in"
 
+    if state.for_cache:
+        return
+
     if state.config.password == "":
         with complete_step("Deleting root password"):
 
@@ -458,7 +473,7 @@ def pam_add_autologin(root: Path, ttys: list[str]) -> None:
 
 
 def configure_autologin(state: MkosiState) -> None:
-    if not state.config.autologin:
+    if not state.config.autologin or state.for_cache:
         return
 
     with complete_step("Setting up autologin…"):
@@ -485,7 +500,7 @@ def configure_autologin(state: MkosiState) -> None:
 def configure_serial_terminal(state: MkosiState) -> None:
     """Override TERM for the serial console with the terminal type from the host."""
 
-    if not state.config.qemu_headless:
+    if not state.config.qemu_headless or state.for_cache:
         return
 
     with complete_step("Configuring serial tty (/dev/ttyS0)…"):
@@ -2880,7 +2895,7 @@ def configure_ssh(state: MkosiState) -> None:
 
 
 def configure_netdev(state: MkosiState) -> None:
-    if not state.config.netdev:
+    if not state.config.netdev or state.for_cache:
         return
 
     with complete_step("Setting up netdev…"):
@@ -3122,12 +3137,12 @@ def build_image(state: MkosiState, *, manifest: Optional[Manifest] = None) -> No
         run_prepare_script(state, cached, build=False)
         install_build_packages(state, cached)
         run_prepare_script(state, cached, build=True)
-        configure_locale(state.root)
+        configure_locale(state)
         configure_hostname(state)
         configure_root_password(state)
         configure_serial_terminal(state)
         configure_autologin(state)
-        configure_dracut(state)
+        configure_dracut(state, cached)
         configure_netdev(state)
         configure_initrd(state)
         run_build_script(state)
