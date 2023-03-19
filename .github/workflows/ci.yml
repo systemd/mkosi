@@ -194,7 +194,6 @@ jobs:
 
         [Host]
         Autologin=yes
-        QemuHeadless=yes
 
         [Content]
         ExtraTrees=.github/mkosi.extra

@@ -672,8 +672,7 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 `Autologin=`, `--autologin`
 
 : Enable autologin for the `root` user on `/dev/pts/0` (nspawn),
-  `/dev/tty1` (QEMU) and `/dev/ttyS0` (QEMU with `QemuHeadless=yes`)
-  by patching `/etc/pam.d/login`.
+  `/dev/tty1` and `/dev/ttyS0` by patching `/etc/pam.d/login`.
 
 `BuildScript=`, `--build-script=`
 
@@ -784,20 +783,10 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 : List of colon-separated paths to look for tools in, before using the
   regular `$PATH` search path.
 
-`QemuHeadless=`, `--qemu-headless=`
+`QemuGui=`, `--qemu-gui=`
 
-: When used with the `build` verb, this option adds `console=ttyS0` to
-  the image's kernel command line and sets the terminal type of the
-  serial console in the image to the terminal type of the host (more
-  specifically, the value of the `$TERM` environment variable passed
-  to mkosi). This makes sure that all terminal features such as colors
-  and shortcuts still work as expected when connecting to the qemu VM
-  over the serial console (for example via `-nographic`).
-
-: When used with the `qemu` verb, this option adds the `-nographic`
-  option to `qemu`'s command line so qemu starts a headless vm and
-  connects to its serial console from the current terminal instead of
-  launching the VM in a separate window.
+: If enabled, qemu is executed with its graphical interface instead of
+  with a serial console.
 
 `QemuSmp=`, `--qemu-smp=`
 
