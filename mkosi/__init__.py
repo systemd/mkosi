@@ -1914,12 +1914,6 @@ def create_parser() -> ArgumentParserMkosi:
         help=argparse.SUPPRESS,
     )
     group.add_argument(
-        "--qemu-smbios",
-        action=RepeatableSpaceDelimitedListAction,
-        default=[],
-        help="Set an SMBIOS Type 11 string when running qemu",
-    )
-    group.add_argument(
         "--network-veth",     # Compatibility option
         dest="netdev",
         metavar="BOOL",
@@ -3356,17 +3350,6 @@ def machine_name(config: MkosiConfig) -> str:
     return config.hostname or config.image_id or config.output.with_suffix("").name.partition("_")[0]
 
 
-def interface_name(config: MkosiConfig) -> str:
-    # Shorten to 12 characters so we can prefix with ve- or vt- for the netdev ifname which is limited
-    # to 15 characters.
-    return machine_name(config)[:12]
-
-
-def has_networkd_vm_vt() -> bool:
-    return any(
-        Path(path, "80-vm-vt.network").exists()
-        for path in ("/usr/lib/systemd/network", "/lib/systemd/network", "/etc/systemd/network")
-    )
 
 
 def nspawn_knows_arg(arg: str) -> bool:
