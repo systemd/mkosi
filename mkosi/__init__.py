@@ -14,7 +14,6 @@ import itertools
 import json
 import os
 import platform
-import random
 import re
 import resource
 import shlex
@@ -1914,12 +1913,6 @@ def create_parser() -> ArgumentParserMkosi:
         help=argparse.SUPPRESS,
     )
     group.add_argument(
-        "--qemu-smbios",
-        action=RepeatableSpaceDelimitedListAction,
-        default=[],
-        help="Set an SMBIOS Type 11 string when running qemu",
-    )
-    group.add_argument(
         "--network-veth",     # Compatibility option
         dest="netdev",
         metavar="BOOL",
@@ -2892,11 +2885,11 @@ def configure_ssh(state: MkosiState) -> None:
             [Unit]
             Description=Mkosi SSH Server VSock Socket
             ConditionVirtualization=!container
+            Wants=sshd-keygen.target
 
             [Socket]
             ListenStream=vsock::22
             Accept=yes
-            Service=ssh@.service
 
             [Install]
             WantedBy=sockets.target
@@ -2909,9 +2902,12 @@ def configure_ssh(state: MkosiState) -> None:
             """\
             [Unit]
             Description=Mkosi SSH Server
+            After=sshd-keygen.target
 
             [Service]
-            ExecStart=sshd -i
+            # We disable PAM because of an openssh-server bug where it sets PAM_RHOST=UNKNOWN when -i is used
+            # causing a very slow reverse DNS lookup by pam.
+            ExecStart=sshd -i -o UsePAM=no
             StandardInput=socket
             RuntimeDirectoryPreserve=yes
             """
@@ -3356,17 +3352,10 @@ def machine_name(config: MkosiConfig) -> str:
     return config.hostname or config.image_id or config.output.with_suffix("").name.partition("_")[0]
 
 
-def interface_name(config: MkosiConfig) -> str:
-    # Shorten to 12 characters so we can prefix with ve- or vt- for the netdev ifname which is limited
-    # to 15 characters.
-    return machine_name(config)[:12]
-
-
-def has_networkd_vm_vt() -> bool:
-    return any(
-        Path(path, "80-vm-vt.network").exists()
-        for path in ("/usr/lib/systemd/network", "/lib/systemd/network", "/etc/systemd/network")
-    )
+def machine_cid(config: MkosiConfig) -> int:
+    cid = int.from_bytes(hashlib.sha256(machine_name(config).encode()).digest()[:4], byteorder='little')
+    # Make sure we don't return any of the well-known CIDs.
+    return max(3, min(cid, 0xFFFFFFFF - 1))
 
 
 def nspawn_knows_arg(arg: str) -> bool:
@@ -3602,7 +3591,7 @@ def run_qemu(config: MkosiConfig) -> None:
 
     try:
         os.open("/dev/vhost-vsock", os.R_OK|os.W_OK)
-        cmdline += ["-device", f"vhost-vsock-pci,guest-cid={random.randrange(100, 0xFFFFFFFF)}"]
+        cmdline += ["-device", f"vhost-vsock-pci,guest-cid={machine_cid(config)}"]
     except OSError as e:
         if e.errno == errno.ENOENT:
             warn("/dev/vhost-vsock not found. Not adding a vsock device to the virtual machine.")
@@ -3699,13 +3688,13 @@ def run_ssh(config: MkosiConfig) -> None:
         "-o", "UserKnownHostsFile=/dev/null",
         "-o", "StrictHostKeyChecking=no",
         "-o", "LogLevel=ERROR",
-        "-o", "ProxyCommand=socat - VSOCK-CONNECT:3:%p",
+        "-o", f"ProxyCommand=socat - VSOCK-CONNECT:{machine_cid(config)}:%p",
         "root@mkosi",
     ]
 
     cmd += config.cmdline
 
-    run(cmd)
+    run(cmd, env=os.environ)
 
 
 def run_serve(config: MkosiConfig) -> None:
