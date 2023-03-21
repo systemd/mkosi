@@ -3425,7 +3425,7 @@ def run_shell(config: MkosiConfig) -> None:
         acl_toggle_remove(config.output, uid, allow=False)
 
     try:
-        run(cmdline)
+        run(cmdline, stdout=sys.stdout)
     finally:
         if config.output_format == OutputFormat.directory:
             acl_toggle_remove(config.output, uid, allow=True)
@@ -3681,7 +3681,7 @@ def run_qemu(config: MkosiConfig) -> None:
         cmdline += config.cmdline
 
         print_running_cmd(cmdline)
-        run(cmdline)
+        run(cmdline, stdout=sys.stdout)
 
 
 def run_ssh(config: MkosiConfig) -> None:
@@ -3697,7 +3697,7 @@ def run_ssh(config: MkosiConfig) -> None:
 
     cmd += config.cmdline
 
-    run(cmd, env=os.environ)
+    run(cmd, stdout=sys.stdout, env=os.environ)
 
 
 def run_serve(config: MkosiConfig) -> None:
