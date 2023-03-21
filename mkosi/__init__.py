@@ -2354,6 +2354,10 @@ def load_credentials(args: argparse.Namespace) -> dict[str, str]:
         tz = run(["timedatectl", "show", "-p", "Timezone", "--value"], text=True, stdout=subprocess.PIPE).stdout.strip()
         creds["firstboot.timezone"] = tz
 
+    if args.ssh and "ssh.authorized_keys.root" not in creds:
+        key = run(["ssh-add", "-L"], text=True, stdout=subprocess.PIPE, env=os.environ).stdout.strip()
+        creds["ssh.authorized_keys.root"] = key
+
     return creds
 
 
