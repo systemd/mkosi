@@ -2105,7 +2105,7 @@ def parse_args_file_group(
     for dropin_dir in dirs:
         if dropin_dir.is_dir():
             for entry in sorted(dropin_dir.iterdir()):
-                if entry.is_file():
+                if entry.is_file() and entry.match("*.conf"):
                     config_files += [f"@{entry}"]
 
     # Parse all parameters handled by mkosi.

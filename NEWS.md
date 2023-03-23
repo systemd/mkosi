@@ -53,6 +53,7 @@
   reimplemented using VSock. `mkosi ssh` can only be used with images booted with `mkosi qemu`. Use
   `machinectl` to access images booted with `mkosi boot`. Use --extra-tree or --credential with the
   `.ssh.authorized_keys.root` credentials as alternatives for provisioning the public key inside the image.
+- Only configuration files matching `*.conf` are parsed in dropin directories now.
 
 ## v14
 
