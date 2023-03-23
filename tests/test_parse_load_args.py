@@ -59,6 +59,15 @@ def test_os_distribution() -> None:
             config.write_text(f"[Distribution]\nDistribution={dist}")
             assert parse([]).distribution == dist
 
+def test_parse_config_files_filter() -> None:
+    with cd_temp_dir():
+        confd = Path("mkosi.conf.d")
+        confd.mkdir(0o755)
+
+        (confd / "10-file.conf").write_text("[Content]\nPackages=yes")
+        (confd / "20-file.noconf").write_text("[Content]\nPackages=nope")
+
+        assert parse([]).packages == ["yes"]
 
 def test_hostname() -> None:
     assert parse(["--hostname", "name"]).hostname == "name"
