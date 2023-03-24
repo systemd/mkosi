@@ -3,12 +3,14 @@
 import collections
 import contextlib
 import os
+import platform
 import stat
 from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import Callable, Deque, Optional, TypeVar, Union, cast
 
 from mkosi.log import complete_step
+from mkosi.manifest import GenericVersion
 from mkosi.run import run
 from mkosi.types import PathString
 
@@ -89,7 +91,11 @@ def mount_overlay(
     workdir: Path,
     where: Path
 ) -> Iterator[Path]:
-    options = [f"lowerdir={lower}", f"upperdir={upper}", f"workdir={workdir}", "userxattr"]
+    options = [f"lowerdir={lower}", f"upperdir={upper}", f"workdir={workdir}"]
+
+    # userxattr is only supported on overlayfs since kernel 5.11
+    if GenericVersion(platform.release()) >= GenericVersion("5.11"):
+        options.append("userxattr")
 
     try:
         with mount("overlay", where, options=options, type="overlay"):

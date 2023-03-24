@@ -2590,6 +2590,11 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
             if not p.is_file():
                 die(f"Initrd {p} is not a file")
 
+    # For unprivileged builds we need the userxattr OverlayFS mount option, which is only available in Linux v5.11 and later.
+    with prepend_to_environ_path(args.extra_search_paths):
+        if (args.build_script is not None or args.base_image is not None) and GenericVersion(platform.release()) < GenericVersion("5.11") and os.geteuid() != 0:
+            die("This unprivileged build configuration requires at least Linux v5.11")
+
     return MkosiConfig(**vars(args))
 
 
