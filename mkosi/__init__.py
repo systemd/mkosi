@@ -1008,7 +1008,10 @@ def calculate_bmap(state: MkosiState) -> None:
         run(cmdline)
 
 
-def acl_toggle_remove(root: Path, uid: int, *, allow: bool) -> None:
+def acl_toggle_remove(config: MkosiConfig, root: Path, uid: int, *, allow: bool) -> None:
+    if not config.acl:
+        return
+
     ret = run(
         [
             "setfacl",
@@ -1032,12 +1035,12 @@ def save_cache(state: MkosiState) -> None:
     with complete_step("Installing cache copies"):
         unlink_try_hard(final)
         shutil.move(state.root, final)
-        acl_toggle_remove(final, state.uid, allow=True)
+        acl_toggle_remove(state.config, final, state.uid, allow=True)
 
         if state.config.build_script:
             unlink_try_hard(build)
             shutil.move(state.build_overlay, build)
-            acl_toggle_remove(build, state.uid, allow=True)
+            acl_toggle_remove(state.config, build, state.uid, allow=True)
 
 
 def dir_size(path: PathString) -> int:
@@ -1952,6 +1955,12 @@ def create_parser() -> ArgumentParserMkosi:
         action=SpaceDelimitedListAction,
         default=[],
         help="Append extra entries to the kernel command line when booting the image",
+    )
+    group.add_argument(
+        "--acl",
+        metavar="BOOL",
+        action=BooleanAction,
+        help="Set ACLs on generated directories to permit the user running mkosi to remove them",
     )
 
     group = parser.add_argument_group("Additional configuration options")
@@ -3070,10 +3079,10 @@ def reuse_cache_tree(state: MkosiState) -> bool:
 
     with complete_step("Copying cached trees"):
         copy_path(final, state.root)
-        acl_toggle_remove(state.root, state.uid, allow=False)
+        acl_toggle_remove(state.config, state.root, state.uid, allow=False)
         if state.config.build_script:
             copy_path(build, state.build_overlay)
-            acl_toggle_remove(state.build_overlay, state.uid, allow=False)
+            acl_toggle_remove(state.config, state.build_overlay, state.uid, allow=False)
 
     return True
 
@@ -3327,7 +3336,7 @@ def build_stuff(uid: int, gid: int, config: MkosiConfig) -> None:
         save_manifest(state, manifest)
 
         if state.config.cache_path:
-            acl_toggle_remove(state.config.cache_path, state.uid, allow=True)
+            acl_toggle_remove(state.config, state.config.cache_path, state.uid, allow=True)
 
         for p in state.config.output_paths():
             if state.staging.joinpath(p.name).exists():
@@ -3335,7 +3344,7 @@ def build_stuff(uid: int, gid: int, config: MkosiConfig) -> None:
                 if p != state.config.output or state.config.output_format != OutputFormat.directory:
                     os.chown(p, state.uid, state.gid)
                 else:
-                    acl_toggle_remove(p, uid, allow=True)
+                    acl_toggle_remove(state.config, p, uid, allow=True)
                 if p in (state.config.output, state.config.output_split_kernel):
                     compress_output(state.config, p, uid=state.uid, gid=state.gid)
 
@@ -3344,6 +3353,8 @@ def build_stuff(uid: int, gid: int, config: MkosiConfig) -> None:
             os.chown(state.config.output.parent / p.name, state.uid, state.gid)
             if p.name.startswith(state.config.output.name):
                 compress_output(state.config, p, uid=state.uid, gid=state.gid)
+
+    print_output_size(config)
 
 
 def check_root() -> None:
@@ -3431,13 +3442,13 @@ def run_shell(config: MkosiConfig) -> None:
     uid, _ = current_user_uid_gid()
 
     if config.output_format == OutputFormat.directory:
-        acl_toggle_remove(config.output, uid, allow=False)
+        acl_toggle_remove(config, config.output, uid, allow=False)
 
     try:
         run(cmdline, stdout=sys.stdout)
     finally:
         if config.output_format == OutputFormat.directory:
-            acl_toggle_remove(config.output, uid, allow=True)
+            acl_toggle_remove(config, config.output, uid, allow=True)
 
 
 def find_qemu_binary(config: MkosiConfig) -> str:
@@ -3872,7 +3883,12 @@ def run_verb(raw: argparse.Namespace) -> None:
                 check_outputs(config)
 
         if needs_build(config) or config.verb == Verb.clean:
-            unlink_output(config)
+            def target() -> None:
+                if os.getuid() != 0:
+                    become_root()
+                unlink_output(config)
+
+            fork_and_wait(target)
 
         if needs_build(config):
             def target() -> None:
@@ -3888,8 +3904,6 @@ def run_verb(raw: argparse.Namespace) -> None:
 
             if config.auto_bump:
                 bump_image_version(config)
-
-            print_output_size(config)
 
         with suppress_stacktrace():
             if config.verb in (Verb.shell, Verb.boot):
