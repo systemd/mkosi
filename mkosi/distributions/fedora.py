@@ -164,7 +164,6 @@ def setup_dnf(state: MkosiState, repos: Sequence[Repo] = ()) -> None:
                     gpgkey={gpgkey or ''}
                     gpgcheck={int(gpgcheck)}
                     enabled={int(repo.enabled)}
-                    check_config_file_age=0
                     """
                 )
             )
@@ -191,6 +190,7 @@ def invoke_dnf(state: MkosiState, command: str, packages: Iterable[str], env: Ma
         f"--setopt=cachedir={state.cache}",
         f"--setopt=reposdir={' '.join(str(p) for p in state.config.repo_dirs)}",
         f"--setopt=varsdir={state.workspace / 'vars'}",
+        "--setopt=check_config_file_age=0",
         "--noplugins",
     ]
 
