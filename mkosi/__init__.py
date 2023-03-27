@@ -868,11 +868,19 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
             # nul terminators in argv so let's communicate the cmdline via a file instead.
             state.workspace.joinpath("cmdline").write_text(f"{' '.join(cmdline).strip()}\x00")
 
+            run([
+                "strip",
+                "-s",
+                state.root / f"lib/systemd/boot/efi/linux{EFI_ARCHITECTURES[state.config.architecture]}.efi.stub",
+                "-o",
+                state.workspace / "stub",
+            ])
+
             cmd: list[PathString] = [
                 shutil.which("ukify") or "/usr/lib/systemd/ukify",
                 "--cmdline", f"@{state.workspace / 'cmdline'}",
                 "--os-release", f"@{state.root / 'usr/lib/os-release'}",
-                "--stub", state.root / f"lib/systemd/boot/efi/linux{EFI_ARCHITECTURES[state.config.architecture]}.efi.stub",
+                "--stub", state.workspace / "stub",
                 "--output", boot_binary,
                 "--efi-arch", EFI_ARCHITECTURES[state.config.architecture],
             ]
