@@ -861,6 +861,11 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   OEM string. This will only be picked up by systemd-boot/systemd-stub versions
   newer than or equal to v254.
 
+`Acl=`, `--acl=`
+
+: If specified, ACLs will be set on any generated root filesystem directories that
+  allow the user running mkosi to remove them without needing privileges.
+
 ### Commandline-only Options
 
 Those settings cannot be configured in the configuration files.
