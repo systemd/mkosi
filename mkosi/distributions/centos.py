@@ -101,6 +101,8 @@ class CentosInstaller(DistributionInstaller):
             if not state.config.initrds:
                 add_packages(state.config, packages, "dracut", "dracut-config-generic")
             add_packages(state.config, packages, "systemd-udev", conditional="systemd")
+            if release >= 9:
+                add_packages(state.config, packages, "systemd-boot", conditional="systemd")
         if state.config.ssh:
             add_packages(state.config, packages, "openssh-server")
 
@@ -108,8 +110,6 @@ class CentosInstaller(DistributionInstaller):
             add_packages(state.config, packages, "epel-release")
             if state.config.netdev:
                 add_packages(state.config, packages, "systemd-networkd", conditional="systemd")
-            if release >= 9:
-                add_packages(state.config, packages, "systemd-boot", conditional="systemd")
 
         # Make sure we only install the minimal language files by default on CentOS Stream 8 which still
         # defaults to all langpacks.
