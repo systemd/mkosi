@@ -108,8 +108,6 @@ class CentosInstaller(DistributionInstaller):
 
         if "epel" in state.config.repositories:
             add_packages(state.config, packages, "epel-release")
-            if state.config.netdev:
-                add_packages(state.config, packages, "systemd-networkd", conditional="systemd")
 
         # Make sure we only install the minimal language files by default on CentOS Stream 8 which still
         # defaults to all langpacks.

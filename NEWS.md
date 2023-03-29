@@ -56,6 +56,8 @@
 - Only configuration files matching `*.conf` are parsed in dropin directories now.
 - Removed `--qemu-headless`, we now start qemu in the terminal by default and configure the serial console at
   runtime. Use the new `--qemu-gui` option to start qemu in its graphical interface.
+- Removed `--netdev`. Can be replaced by manually installing systemd-networkd, putting a network file in the
+  image and enabling systemd-networkd.
 
 ## v14
 

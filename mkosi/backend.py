@@ -182,14 +182,6 @@ def is_dnf_distribution(d: Distribution) -> bool:
     )
 
 
-def is_centos_variant(d: Distribution) -> bool:
-    return d in (
-        Distribution.centos,
-        Distribution.alma,
-        Distribution.rocky,
-    )
-
-
 class OutputFormat(Parseable, enum.Enum):
     directory = enum.auto()
     subvolume = enum.auto()
@@ -296,7 +288,6 @@ class MkosiConfig:
     password_is_hashed: bool
     autologin: bool
     extra_search_paths: list[Path]
-    netdev: bool
     ephemeral: bool
     ssh: bool
     credentials: dict[str, str]

@@ -49,7 +49,6 @@ from mkosi.backend import (
     detect_distribution,
     flatten,
     format_rlimit,
-    is_centos_variant,
     is_dnf_distribution,
     patch_file,
     set_umask,
@@ -1887,19 +1886,6 @@ def create_parser() -> ArgumentParserMkosi:
         help=argparse.SUPPRESS,
     )
     group.add_argument(
-        "--network-veth",     # Compatibility option
-        dest="netdev",
-        metavar="BOOL",
-        action=BooleanAction,
-        help=argparse.SUPPRESS,
-    )
-    group.add_argument(
-        "--netdev",
-        metavar="BOOL",
-        action=BooleanAction,
-        help="Create a virtual Ethernet link between the host and the container/VM",
-    )
-    group.add_argument(
         "--ephemeral",
         metavar="BOOL",
         action=BooleanAction,
@@ -2570,9 +2556,6 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
     if args.repo_dirs:
         args.repo_dirs = [p.absolute() for p in args.repo_dirs]
 
-    if args.netdev and is_centos_variant(args.distribution) and "epel" not in args.repositories:
-        die("--netdev is only supported on EPEL centOS variants")
-
     # If we are building a sysext we don't want to add base packages to the
     # extension image, as they will already be in the base image.
     if args.base_image is not None:
@@ -2847,7 +2830,6 @@ def print_summary(config: MkosiConfig) -> None:
 
     print("        Extra search paths:", line_join_list(config.extra_search_paths))
     print("      QEMU Extra Arguments:", line_join_list(config.qemu_args))
-    print("                    Netdev:", yes_no(config.netdev))
 
 
 def make_output_dir(state: MkosiState) -> None:
@@ -2930,39 +2912,6 @@ def configure_ssh(state: MkosiState) -> None:
     presetdir = state.root / "etc/systemd/system-preset"
     presetdir.mkdir(exist_ok=True, mode=0o755)
     presetdir.joinpath("80-mkosi-ssh.preset").write_text("enable ssh.socket")
-
-
-def configure_netdev(state: MkosiState) -> None:
-    if not state.config.netdev or state.for_cache:
-        return
-
-    with complete_step("Setting up netdev…"):
-        network_file = state.root / "etc/systemd/network/80-mkosi-netdev.network"
-        with open(network_file, "w") as f:
-            # Adapted from https://github.com/systemd/systemd/blob/v247/network/80-container-host0.network
-            f.write(
-                dedent(
-                    """\
-                    [Match]
-                    Virtualization=!container
-                    Type=ether
-                    Driver=virtio_net
-
-                    [Network]
-                    DHCP=yes
-                    LinkLocalAddressing=yes
-                    LLDP=yes
-                    EmitLLDP=customer-bridge
-
-                    [DHCP]
-                    UseTimezone=yes
-                    """
-                )
-            )
-
-        os.chmod(network_file, 0o644)
-
-        run(["systemctl", "--root", state.root, "enable", "systemd-networkd"])
 
 
 def configure_initrd(state: MkosiState) -> None:
@@ -3180,7 +3129,6 @@ def build_image(state: MkosiState, *, manifest: Optional[Manifest] = None) -> No
         configure_root_password(state)
         configure_autologin(state)
         configure_dracut(state, cached)
-        configure_netdev(state)
         configure_initrd(state)
         run_build_script(state)
         install_build_dest(state)
@@ -3407,9 +3355,6 @@ def run_shell(config: MkosiConfig) -> None:
         if nspawn_knows_arg(console_arg):
             cmdline += [console_arg]
 
-    if config.netdev:
-        cmdline += ["--network-veth"]
-
     if config.ephemeral:
         cmdline += ["--ephemeral"]
 
@@ -3601,6 +3546,8 @@ def run_qemu(config: MkosiConfig) -> None:
         "rng-random,filename=/dev/urandom,id=rng0",
         "-device",
         "virtio-rng-pci,rng=rng0,id=rng-device0",
+        "-nic",
+        "user,model=virtio-net-pci",
     ]
 
     try:
@@ -3620,9 +3567,6 @@ def run_qemu(config: MkosiConfig) -> None:
         # -nodefaults removes the default CDROM device which avoids an error message during boot
         # -serial mon:stdio adds back the serial device removed by -nodefaults.
         cmdline += ["-nographic", "-nodefaults", "-serial", "mon:stdio"]
-
-    if config.netdev:
-        cmdline += ["-nic", "user,model=virtio-net-pci"]
 
     cmdline += ["-drive", f"if=pflash,format=raw,readonly=on,file={firmware}"]
 
