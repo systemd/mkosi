@@ -104,8 +104,6 @@ def install_fedora(state: MkosiState) -> None:
         add_packages(state.config, packages, "systemd-udev", conditional="systemd")
         if not state.config.initrds:
             add_packages(state.config, packages, "dracut", "dracut-config-generic")
-    if  state.config.netdev:
-        add_packages(state.config, packages, "systemd-networkd", conditional="systemd")
     if state.config.ssh:
         add_packages(state.config, packages, "openssh-server")
 

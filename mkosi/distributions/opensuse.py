@@ -181,9 +181,6 @@ def install_opensuse(state: MkosiState) -> None:
             if not state.config.initrds:
                 add_packages(state.config, packages, "dracut")
 
-        if state.config.netdev:
-            add_packages(state.config, packages, "systemd-network")
-
         if state.config.ssh:
             add_packages(state.config, packages, "openssh-server")
 

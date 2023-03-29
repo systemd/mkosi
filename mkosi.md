@@ -809,14 +809,6 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 : Space-delimited list of additional arguments to pass when invoking
   qemu.
 
-`Netdev=`, `--netdev`
-
-: When used with the boot or qemu verbs, this option creates a virtual
-  ethernet link between the host and the container/VM. The host
-  interface is automatically picked up by systemd-networkd as documented
-  in systemd-nspawn's man page:
-  https://www.freedesktop.org/software/systemd/man/systemd-nspawn.html#-n
-
 `Ephemeral=`, `--ephemeral`
 
 : When used with the `shell`, `boot`, or `qemu` verbs, this option
