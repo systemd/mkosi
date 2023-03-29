@@ -58,6 +58,8 @@
   runtime. Use the new `--qemu-gui` option to start qemu in its graphical interface.
 - Removed `--netdev`. Can be replaced by manually installing systemd-networkd, putting a network file in the
   image and enabling systemd-networkd.
+- If `mkosi.extra/` or `mkosi.skeleton/` exist, they are now always used instead of only when no explicit
+  extra/skeleton trees are defined.
 
 ## v14
 
