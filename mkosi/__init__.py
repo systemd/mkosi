@@ -2161,10 +2161,6 @@ def parse_boolean(s: str) -> bool:
 
 
 def find_extra(args: argparse.Namespace) -> None:
-
-    if len(args.extra_trees) > 0:
-        return
-
     if os.path.isdir("mkosi.extra"):
         args.extra_trees.append((Path("mkosi.extra"), None))
     if os.path.isfile("mkosi.extra.tar"):
@@ -2172,10 +2168,6 @@ def find_extra(args: argparse.Namespace) -> None:
 
 
 def find_skeleton(args: argparse.Namespace) -> None:
-
-    if len(args.skeleton_trees) > 0:
-        return
-
     if os.path.isdir("mkosi.skeleton"):
         args.skeleton_trees.append((Path("mkosi.skeleton"), None))
     if os.path.isfile("mkosi.skeleton.tar"):
