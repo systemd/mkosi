@@ -16,7 +16,6 @@ import os
 import platform
 import re
 import resource
-import shlex
 import shutil
 import string
 import subprocess
@@ -125,11 +124,6 @@ def list_to_string(seq: Iterator[str]) -> str:
     ['a', "b", 11] → "'a', 'b', 11"
     """
     return str(list(seq))[1:-1]
-
-
-def print_running_cmd(cmdline: Iterable[PathString]) -> None:
-    MkosiPrinter.print_step("Running command:")
-    MkosiPrinter.print_step(" ".join(shlex.quote(str(x)) for x in cmdline) + "\n")
 
 
 # EFI has its own conventions too
@@ -3493,7 +3487,6 @@ def qemu_check_kvm_support() -> bool:
 def start_swtpm() -> Iterator[Optional[Path]]:
 
     if not shutil.which("swtpm"):
-        MkosiPrinter.info("Couldn't find swtpm binary, not invoking qemu with TPM2 device.")
         yield None
         return
 
@@ -3639,7 +3632,6 @@ def run_qemu(config: MkosiConfig) -> None:
         cmdline += config.qemu_args
         cmdline += config.cmdline
 
-        print_running_cmd(cmdline)
         run(cmdline, stdout=sys.stdout, env=os.environ)
 
 
