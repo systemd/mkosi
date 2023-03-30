@@ -480,10 +480,10 @@ def configure_autologin(state: MkosiState) -> None:
         ttys = []
         ttys += ["pts/0"]
 
-        add_dropin_config_from_resource(state.root, "serial-getty@ttyS0.service", "autologin",
+        add_dropin_config_from_resource(state.root, "serial-getty@hvc0.service", "autologin",
                                         "mkosi.resources", "serial_getty_autologin.conf")
 
-        ttys += ["ttyS0"]
+        ttys += ["hvc0"]
 
         add_dropin_config_from_resource(state.root, "getty@tty1.service", "autologin",
                                         "mkosi.resources", "getty_autologin.conf")
@@ -2331,10 +2331,10 @@ def load_kernel_command_line_extra(args: argparse.Namespace) -> list[str]:
     columns, lines = shutil.get_terminal_size()
 
     cmdline += [
-        f"systemd.tty.term.ttyS0={os.getenv('TERM', 'vt220')}",
-        f"systemd.tty.columns.ttyS0={columns}",
-        f"systemd.tty.rows.ttyS0={lines}",
-        "console=ttyS0",
+        f"systemd.tty.term.hvc0={os.getenv('TERM', 'vt220')}",
+        f"systemd.tty.columns.hvc0={columns}",
+        f"systemd.tty.rows.hvc0={lines}",
+        "console=hvc0",
     ]
 
     return cmdline
@@ -3558,7 +3558,19 @@ def run_qemu(config: MkosiConfig) -> None:
     else:
         # -nodefaults removes the default CDROM device which avoids an error message during boot
         # -serial mon:stdio adds back the serial device removed by -nodefaults.
-        cmdline += ["-nographic", "-nodefaults", "-serial", "mon:stdio"]
+        cmdline += [
+            "-nographic",
+            "-nodefaults",
+            "-chardev", "stdio,mux=on,id=console,signal=off",
+            # Use virtconsole which appears as /dev/hvc0 in the guest on which a getty is automatically
+            # by spawned by systemd without needing a console= cmdline argument.
+            "-device", "virtio-serial",
+            "-device", "virtconsole,chardev=console",
+            "-mon", "console",
+            # EDK2 doesn't support virtio-serial, so add a regular serial console as well to get bootloader
+            # output.
+            "-serial", "chardev:console",
+        ]
 
     cmdline += ["-drive", f"if=pflash,format=raw,readonly=on,file={firmware}"]
 
