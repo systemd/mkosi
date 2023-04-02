@@ -205,7 +205,6 @@ KNOWN_SUFFIXES = {
     ".raw",
     ".tar",
     ".cpio",
-    ".qcow2",
 }
 
 
@@ -250,7 +249,6 @@ class MkosiConfig:
     secure_boot_common_name: str
     sign_expected_pcr: bool
     compress_output: Union[None, str, bool]
-    qcow2: bool
     image_version: Optional[str]
     image_id: Optional[str]
     hostname: Optional[str]
@@ -283,7 +281,6 @@ class MkosiConfig:
     split_artifacts: bool
     sign: bool
     key: Optional[str]
-    bmap: bool
     password: Optional[str]
     password_is_hashed: bool
     autologin: bool
@@ -329,10 +326,6 @@ class MkosiConfig:
         return Path("SHA256SUMS.gpg")
 
     @property
-    def output_bmap(self) -> Path:
-        return build_auxiliary_output_path(self, ".bmap")
-
-    @property
     def output_sshkey(self) -> Path:
         return build_auxiliary_output_path(self, ".ssh")
 
@@ -351,7 +344,6 @@ class MkosiConfig:
             self.output_nspawn_settings,
             self.output_checksum,
             self.output_signature,
-            self.output_bmap,
             self.output_sshkey,
             self.output_manifest,
             self.output_changelog,

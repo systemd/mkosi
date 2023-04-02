@@ -381,13 +381,6 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   the `shell`, `boot`, `qemu` verbs are not available when this option
   is used. Implied for `tar` and `cpio`.
 
-`QCow2=`, `--qcow2`
-
-: Encode the resulting image as QEMU QCOW2 image. This only applies when
-  generating disk images. QCOW2 images can be read natively by `qemu`, but
-  not by the Linux kernel. This means the `shell` and `boot` verbs are not
-  available when this option is used, however `qemu` will work.
-
 `Hostname=`, `--hostname=`
 
 : Set the image's hostname to the specified name.
@@ -770,11 +763,6 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 
 : Select the `gpg` key to use for signing `SHA256SUMS`. This key must
   be already present in the `gpg` keyring.
-
-`BMap=`, `--bmap`
-
-: Generate a `bmap` file for usage with `bmaptool` from the generated
-  image file.
 
 ### [Host] Section
 

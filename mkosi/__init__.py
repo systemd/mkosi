@@ -888,20 +888,6 @@ def compress_output(config: MkosiConfig, src: Path, uid: int, gid: int) -> None:
             run(compressor_command(compress, src), user=uid, group=gid)
 
 
-def qcow2_output(state: MkosiState) -> None:
-    if not state.config.output_format == OutputFormat.disk:
-        return
-
-    if not state.config.qcow2:
-        return
-
-    with complete_step("Converting image file to qcow2…"):
-        run(["qemu-img", "convert", "-onocow=on", "-fraw", "-Oqcow2",
-             state.staging / state.config.output.name,
-             state.workspace / "qemu.img"])
-        os.rename(state.workspace / "qemu.img", state.staging / state.config.output.name)
-
-
 def copy_nspawn_settings(state: MkosiState) -> None:
     if state.config.nspawn_settings is None:
         return None
@@ -950,24 +936,6 @@ def calculate_signature(state: MkosiState) -> None:
 
         if state.config.key is not None:
             cmdline += ["--default-key", state.config.key]
-
-        run(cmdline)
-
-
-def calculate_bmap(state: MkosiState) -> None:
-    if not state.config.bmap:
-        return
-
-    if not state.config.output_format == OutputFormat.disk:
-        return
-
-    with complete_step("Creating BMAP file…"):
-        cmdline: list[PathString] = [
-            "bmaptool",
-            "create",
-            "--output", state.staging / state.config.output_bmap.name,
-            state.staging / state.config.output.name,
-        ]
 
         run(cmdline)
 
@@ -1267,7 +1235,6 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
 
     # Mapping of parameters supported in config files but not as command line arguments.
     SPECIAL_MKOSI_DEFAULT_PARAMS = {
-        "QCow2": "--qcow2",
         "OutputDirectory": "--output-dir",
         "WorkspaceDirectory": "--workspace-dir",
         "CacheDirectory": "--cache-dir",
@@ -1275,7 +1242,6 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
         "BuildDirectory": "--build-dir",
         "NSpawnSettings": "--settings",
         "CheckSum": "--checksum",
-        "BMap": "--bmap",
         "Packages": "--package",
         "RemovePackages": "--remove-package",
         "ExtraTrees": "--extra-tree",
@@ -1576,12 +1542,6 @@ def create_parser() -> ArgumentParserMkosi:
         metavar="ALG",
         help="Enable whole-output compression (with images or archives)",
     )
-    group.add_argument(
-        "--qcow2",
-        action=BooleanAction,
-        metavar="BOOL",
-        help="Convert resulting image to qcow2",
-    )
     group.add_argument("--hostname", help="Set hostname")
     group.add_argument("--image-version", help="Set version for image")
     group.add_argument("--image-id", help="Set ID for image")
@@ -1804,12 +1764,6 @@ def create_parser() -> ArgumentParserMkosi:
         help="Write and sign SHA256SUMS file",
     )
     group.add_argument("--key", help="GPG key to use for signing")
-    group.add_argument(
-        "--bmap",
-        metavar="BOOL",
-        action=BooleanAction,
-        help="Write block map file (.bmap) for bmaptool usage",
-    )
 
     group = parser.add_argument_group("Host configuration options")
     group.add_argument(
@@ -2062,9 +2016,6 @@ def unlink_output(config: MkosiConfig) -> None:
 
         if config.sign:
             unlink_try_hard(config.output_signature)
-
-        if config.bmap:
-            unlink_try_hard(config.output_bmap)
 
         if config.output_split_kernel.parent.exists():
             for p in config.output_split_kernel.parent.iterdir():
@@ -2399,7 +2350,7 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
         prefix = f"{iid}_{args.image_version}" if args.image_version is not None else iid
 
         if args.output_format == OutputFormat.disk:
-            output = prefix + (".qcow2" if args.qcow2 else ".raw")
+            output = f"{prefix}.raw"
         elif args.output_format == OutputFormat.tar:
             output = f"{prefix}.tar"
         elif args.output_format == OutputFormat.cpio:
@@ -2493,8 +2444,6 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
             die(f"Sorry, can't {opname} with a {args.output_format} archive.", MkosiNotSupportedException)
         if should_compress_output(args):
             die(f"Sorry, can't {opname} with a compressed image.", MkosiNotSupportedException)
-        if args.qcow2:
-            die(f"Sorry, can't {opname} using a qcow2 image.", MkosiNotSupportedException)
 
     if args.verb == Verb.qemu:
         if not args.output_format == OutputFormat.disk:
@@ -2601,7 +2550,6 @@ def check_outputs(config: MkosiConfig) -> None:
         config.output,
         config.output_checksum if config.checksum else None,
         config.output_signature if config.sign else None,
-        config.output_bmap if config.bmap else None,
         config.output_nspawn_settings if config.nspawn_settings is not None else None,
         config.output_sshkey if config.ssh else None,
     ):
@@ -2707,14 +2655,10 @@ def print_summary(config: MkosiConfig) -> None:
     print("                    Output:", config.output)
     print("           Output Checksum:", none_to_na(config.output_checksum if config.checksum else None))
     print("          Output Signature:", none_to_na(config.output_signature if config.sign else None))
-    print("               Output Bmap:", none_to_na(config.output_bmap if config.bmap else None))
     print("    Output nspawn Settings:", none_to_na(config.output_nspawn_settings if config.nspawn_settings is not None else None))
 
     print("               Incremental:", yes_no(config.incremental))
     print("               Compression:", should_compress_output(config) or "no")
-
-    if config.output_format == OutputFormat.disk:
-        print("                     QCow2:", yes_no(config.qcow2))
 
     print("                  Bootable:", yes_no(config.bootable))
 
@@ -3220,8 +3164,6 @@ def build_stuff(uid: int, gid: int, config: MkosiConfig) -> None:
             state = dataclasses.replace(state, for_cache=False)
             build_image(state, manifest=manifest)
 
-        qcow2_output(state)
-        calculate_bmap(state)
         copy_nspawn_settings(state)
         calculate_sha256sum(state)
         calculate_signature(state)
@@ -3572,12 +3514,12 @@ def run_qemu(config: MkosiConfig) -> None:
         if config.distribution == Distribution.debian:
             cmdline += [
                 "-drive",
-                f"if=virtio,id=hd,file={fname},format={'qcow2' if config.qcow2 else 'raw'}",
+                f"if=virtio,id=hd,file={fname},format=raw",
             ]
         else:
             cmdline += [
                 "-drive",
-                f"if=none,id=hd,file={fname},format={'qcow2' if config.qcow2 else 'raw'}",
+                f"if=none,id=hd,file={fname},format=raw",
                 "-device",
                 "virtio-scsi-pci,id=scsi",
                 "-device",

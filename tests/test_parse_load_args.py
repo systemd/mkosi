@@ -91,9 +91,6 @@ def test_shell_boot() -> None:
     with pytest.raises(MkosiException, match=".boot.*compressed" ):
         parse(["--format", "disk", "--compress-output=yes", "boot"])
 
-    with pytest.raises(MkosiException, match=".boot.*qcow2"):
-        parse(["--format", "disk", "--qcow2", "boot"])
-
 def test_compression() -> None:
     assert not parse(["--format", "disk", "--compress-output", "False"]).compress_output
 
