@@ -1393,6 +1393,25 @@ def create_parser() -> ArgumentParserMkosi:
         version="%(prog)s " + __version__,
         help=argparse.SUPPRESS,
     )
+    parser.add_argument(
+        "-C", "--directory",
+        help="Change to specified directory before doing anything",
+        type=Path,
+        metavar="PATH",
+    )
+    parser.add_argument(
+        "--config",
+        dest="config_path",
+        help="Read configuration data from file",
+        type=Path,
+        metavar="PATH",
+    )
+    parser.add_argument(
+        "--debug",
+        action=CommaDelimitedListAction,
+        default=[],
+        help="Turn on debugging output",
+    )
 
     group = parser.add_argument_group("Distribution options")
     group.add_argument("-d", "--distribution", choices=Distribution.__members__, help="Distribution to install")
@@ -1839,26 +1858,6 @@ def create_parser() -> ArgumentParserMkosi:
         help="Set ACLs on generated directories to permit the user running mkosi to remove them",
     )
 
-    group = parser.add_argument_group("Additional configuration options")
-    group.add_argument(
-        "-C", "--directory",
-        help="Change to specified directory before doing anything",
-        type=Path,
-        metavar="PATH",
-    )
-    group.add_argument(
-        "--config",
-        dest="config_path",
-        help="Read configuration data from file",
-        type=Path,
-        metavar="PATH",
-    )
-    group.add_argument(
-        "--debug",
-        action=CommaDelimitedListAction,
-        default=[],
-        help="Turn on debugging output",
-    )
     try:
         import argcomplete
 
