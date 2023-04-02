@@ -1662,12 +1662,6 @@ def create_parser() -> ArgumentParserMkosi:
         default=True,
         help="Do not run tests as part of build script, if supported",
     )
-    group.add_argument(
-        "--with-tests",       # Compatibility option
-        action=BooleanAction,
-        default=True,
-        help=argparse.SUPPRESS,
-    )
 
     group.add_argument("--password", help="Set the root password")
     group.add_argument(
@@ -1726,13 +1720,6 @@ def create_parser() -> ArgumentParserMkosi:
         default=[],
         help="Set an environment variable when running scripts",
         metavar="NAME[=VALUE]",
-    )
-    group.add_argument(
-        "--build-environment",   # Compatibility option
-        action=SpaceDelimitedListAction,
-        default=[],
-        dest="environment",
-        help=argparse.SUPPRESS,
     )
     group.add_argument(
         "--build-sources",
@@ -1834,12 +1821,6 @@ def create_parser() -> ArgumentParserMkosi:
         help="List of colon-separated paths to look for programs before looking in PATH",
     )
     group.add_argument(
-        "--extra-search-paths",    # Compatibility option
-        dest="extra_search_paths",
-        action=ColonDelimitedListAction,
-        help=argparse.SUPPRESS,
-    )
-    group.add_argument(
         "--qemu-gui",
         metavar="BOOL",
         action=BooleanAction,
@@ -1918,13 +1899,6 @@ def create_parser() -> ArgumentParserMkosi:
         "--config",
         dest="config_path",
         help="Read configuration data from file",
-        type=Path,
-        metavar="PATH",
-    )
-    group.add_argument(
-        "--default",
-        dest="config_path",
-        help=argparse.SUPPRESS,
         type=Path,
         metavar="PATH",
     )
