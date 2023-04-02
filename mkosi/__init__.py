@@ -1734,12 +1734,12 @@ def create_parser() -> ArgumentParserMkosi:
         type=Path,
         metavar="PATH",
     )
-
-    group = parser.add_argument_group("Partitions options")
-    group.add_argument('--base-image',
-                       help='Use the given image as base (e.g. lower sysext layer)',
-                       type=Path,
-                       metavar='IMAGE')
+    group.add_argument(
+        '--base-image',
+        help='Use the given image as base (e.g. lower sysext layer)',
+        type=Path,
+        metavar='IMAGE'
+    )
 
     group = parser.add_argument_group("Validation options")
     group.add_argument(

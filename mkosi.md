@@ -733,10 +733,6 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   an `mkosi.nspawn` file found in the local directory it is
   automatically used for this purpose.
 
-<!-- FIXME: shouldn't this be in [Host] ? -->
-
-### [Partitions] Section
-
 `BaseImage=`, `--base-image=`
 
 : Use the specified directory or file system image as the base image,
