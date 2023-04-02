@@ -391,13 +391,21 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   recommended to specify a series of dot separated components. The
   version may also be configured in a file `mkosi.version` in which
   case it may be conveniently managed via the `bump` verb or the
-  `--auto-bump` switch. When specified the image version is included
+  `--auto-bump` option. When specified the image version is included
   in the default output file name, i.e. instead of `image.raw` the
   default will be `image_0.1.raw` for version `0.1` of the image, and
   similar. The version is also passed via the `$IMAGE_VERSION` to any
   build scripts invoked (which may be useful to patch it into
   `/etc/os-release` or similar, in particular the `IMAGE_VERSION=`
   field of it).
+
+`AutoBump=`, `--auto-bump=`, `-B`
+
+: If specified, after each successful build the the version is bumped
+  in a fashion equivalent to the `bump` verb, in preparation for the
+  next build. This is useful for simple, linear version management:
+  each build in a series will have a version number one higher then
+  the previous one.
 
 `ImageId=`, `--image-id=`
 
@@ -888,14 +896,6 @@ Those settings cannot be configured in the configuration files.
 `--help`, `-h`
 
 : Show brief usage information.
-
-`--auto-bump`, `-B`
-
-: If specified, after each successful build the the version is bumped
-  in a fashion equivalent to the `bump` verb, in preparation for the
-  next build. This is useful for simple, linear version management:
-  each build in a series will have a version number one higher then
-  the previous one.
 
 ## Supported distributions
 

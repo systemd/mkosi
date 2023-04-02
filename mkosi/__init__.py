@@ -1531,6 +1531,12 @@ def create_parser() -> ArgumentParserMkosi:
     group.add_argument("--image-version", help="Set version for image")
     group.add_argument("--image-id", help="Set ID for image")
     group.add_argument(
+        "-B", "--auto-bump",
+        metavar="BOOL",
+        action=BooleanAction,
+        help="Automatically bump image version after building",
+    )
+    group.add_argument(
         "--tar-strip-selinux-context",
         metavar="BOOL",
         action=BooleanAction,
@@ -1846,13 +1852,6 @@ def create_parser() -> ArgumentParserMkosi:
         help="Read configuration data from file",
         type=Path,
         metavar="PATH",
-    )
-    group.add_argument(
-        "-B",
-        "--auto-bump",
-        metavar="BOOL",
-        action=BooleanAction,
-        help="Automatically bump image version after building",
     )
     group.add_argument(
         "--debug",
