@@ -274,7 +274,8 @@ class MkosiConfig:
     prepare_script: Optional[Path]
     postinst_script: Optional[Path]
     finalize_script: Optional[Path]
-    with_network: Union[bool, str]
+    with_network: bool
+    cache_only: bool
     nspawn_settings: Optional[Path]
     base_image: Optional[Path]
     checksum: bool

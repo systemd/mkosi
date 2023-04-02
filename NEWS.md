@@ -61,6 +61,7 @@
 - If `mkosi.extra/` exists, it is now always used instead of only when no explicit extra trees are defined.
 - Removed `--qcow2` option in favor of supporting only raw disk images as the disk image output format.
 - Removed `--bmap` option as it can be trivially added manually by utilizing a finalize script.
+- The `never` value for `--with-network` was spun of into its own custom option `--cache-only`.
 
 ## v14
 

@@ -547,7 +547,7 @@ def run_postinst_script(state: MkosiState) -> None:
         ]
 
         run_workspace_command(state, ["/root/postinst", "final"], bwrap_params=bwrap,
-                              network=state.config.with_network is True)
+                              network=state.config.with_network)
 
         state.root.joinpath("root/postinst").unlink()
 
@@ -1154,21 +1154,6 @@ class CleanPackageMetadataAction(BooleanAction):
             super().__call__(parser, namespace, values, option_string)
 
 
-class WithNetworkAction(BooleanAction):
-    def __call__(
-        self,
-        parser: argparse.ArgumentParser,
-        namespace: argparse.Namespace,
-        values: Union[str, Sequence[Any], None, bool],
-        option_string: Optional[str] = None,
-    ) -> None:
-
-        if isinstance(values, str) and values == "never":
-            setattr(namespace, self.dest, "never")
-        else:
-            super().__call__(parser, namespace, values, option_string)
-
-
 def parse_sign_expected_pcr(value: Union[bool, str]) -> bool:
     if isinstance(value, bool):
         return value
@@ -1733,8 +1718,14 @@ def create_parser() -> ArgumentParserMkosi:
     )
     group.add_argument(
         "--with-network",
-        action=WithNetworkAction,
+        action=BooleanAction,
         help="Run build and postinst scripts with network access (instead of private network)",
+    )
+    group.add_argument(
+        "--cache-only",
+        help="Only use the package cache when installing packages",
+        action=BooleanAction,
+        metavar="BOOL",
     )
     group.add_argument(
         "--settings",
@@ -2710,7 +2701,7 @@ def print_summary(config: MkosiConfig) -> None:
     print("           Finalize Script:", path_or_none(config.finalize_script, check_script_input))
 
     print("        Script Environment:", line_join_list(env))
-    print("      Scripts with network:", yes_no_or(config.with_network))
+    print("      Scripts with network:", yes_no(config.with_network))
     print("           nspawn Settings:", none_to_none(config.nspawn_settings))
 
     print("                  Password:", ("(default)" if config.password is None else "(set)"))
@@ -3084,7 +3075,7 @@ def run_build_script(state: MkosiState) -> None:
         env = dict(
             WITH_DOCS=one_zero(state.config.with_docs),
             WITH_TESTS=one_zero(state.config.with_tests),
-            WITH_NETWORK=one_zero(state.config.with_network is True),
+            WITH_NETWORK=one_zero(state.config.with_network),
             SRCDIR="/work/src",
             DESTDIR="/work/dest",
         )
@@ -3107,7 +3098,7 @@ def run_build_script(state: MkosiState) -> None:
 
         # build-script output goes to stdout so we can run language servers from within mkosi
         # build-scripts. See https://github.com/systemd/mkosi/pull/566 for more information.
-        run_workspace_command(state, cmd, network=state.config.with_network is True, bwrap_params=bwrap,
+        run_workspace_command(state, cmd, network=state.config.with_network, bwrap_params=bwrap,
                               stdout=sys.stdout, env=env)
 
         state.root.joinpath("work/dest").rmdir()

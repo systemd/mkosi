@@ -709,15 +709,18 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   automatically used for this purpose. Specify an empty value to
   disable automatic detection.
 
-`WithNetwork=`, `--with-network`
+`WithNetwork=`, `--with-network=`
 
 : When true, enables network connectivity while the build script
   `mkosi.build` is invoked. By default, the build script runs with
   networking turned off. The `$WITH_NETWORK` environment variable is
   passed to the `mkosi.build` build script indicating whether the
-  build is done with or without network. If specified as `never`, the
-  package manager is instructed not to contact the network for
-  updating package data. This provides a minimal level of
+  build is done with or without network.
+
+`CacheOnly=`, `--cache-only=`
+
+: If specified, the package manager is instructed not to contact the
+  network for updating package data. This provides a minimal level of
   reproducibility, as long as the package data cache is already fully
   populated.
 

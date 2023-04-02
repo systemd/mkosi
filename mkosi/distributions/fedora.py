@@ -199,7 +199,7 @@ def invoke_dnf(state: MkosiState, command: str, packages: Iterable[str], env: Ma
         cmdline += [f"--enablerepo={repo}" for repo in state.config.repositories]
 
     # TODO: this breaks with a local, offline repository created with 'createrepo'
-    if state.config.with_network == "never" and not state.config.local_mirror:
+    if state.config.cache_only and not state.config.local_mirror:
         cmdline += ["-C"]
 
     if not state.config.architecture_is_native():
