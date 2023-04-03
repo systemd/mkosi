@@ -1270,6 +1270,9 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
         "QCow2": "--qcow2",
         "OutputDirectory": "--output-dir",
         "WorkspaceDirectory": "--workspace-dir",
+        "CacheDirectory": "--cache-dir",
+        "RepartDirectory": "--repart-dir",
+        "BuildDirectory": "--build-dir",
         "NSpawnSettings": "--settings",
         "CheckSum": "--checksum",
         "BMap": "--bmap",
@@ -1281,7 +1284,7 @@ class ArgumentParserMkosi(argparse.ArgumentParser):
         "PostInstallationScript": "--postinst-script",
         "TarStripSELinuxContext": "--tar-strip-selinux-context",
         "SignExpectedPCR": "--sign-expected-pcr",
-        "RepositoryDirectories": "--repository-directory",
+        "RepositoryDirectories": "--repo-dir",
         "Credentials": "--credential",
     }
 
@@ -1463,7 +1466,7 @@ def create_parser() -> ArgumentParserMkosi:
         help="Repositories to use",
     )
     group.add_argument(
-        "--repository-directory",
+        "--repo-dir",
         action=CommaDelimitedListAction,
         default=[],
         metavar="PATH",
@@ -1607,9 +1610,8 @@ def create_parser() -> ArgumentParserMkosi:
         help="Generate split partitions",
     )
     group.add_argument(
-        "--repart-directory",
+        "--repart-dir",
         metavar="PATH",
-        dest="repart_dir",
         help="Directory containing systemd-repart partition definitions",
     )
     group.add_argument(
@@ -1681,8 +1683,7 @@ def create_parser() -> ArgumentParserMkosi:
         help="Enable root autologin",
     )
     group.add_argument(
-        "--cache",
-        dest="cache_path",
+        "--cache-dir",
         help="Package cache path",
         type=Path,
         metavar="PATH",
@@ -1740,21 +1741,13 @@ def create_parser() -> ArgumentParserMkosi:
         type=Path,
     )
     group.add_argument(
-        "--build-dir",           # Compatibility option
-        help=argparse.SUPPRESS,
+        "--build-dir",
         type=Path,
         metavar="PATH",
-    )
-    group.add_argument(
-        "--build-directory",
-        dest="build_dir",
         help="Path to use as persistent build directory",
-        type=Path,
-        metavar="PATH",
     )
     group.add_argument(
-        "--install-directory",
-        dest="install_dir",
+        "--install-dir",
         help="Path to use as persistent install directory",
         type=Path,
         metavar="PATH",
@@ -2137,9 +2130,9 @@ def unlink_output(config: MkosiConfig) -> None:
                 empty_directory(config.install_dir)
 
     if remove_package_cache:
-        if config.cache_path is not None:
+        if config.cache_dir is not None:
             with complete_step("Clearing out package cache…"):
-                empty_directory(config.cache_path)
+                empty_directory(config.cache_dir)
 
 
 def parse_boolean(s: str) -> bool:
@@ -2201,10 +2194,10 @@ def find_builddir(args: argparse.Namespace) -> None:
 def find_cache(args: argparse.Namespace) -> None:
     subdir = f"{args.distribution}~{args.release}"
 
-    if args.cache_path is not None:
-        args.cache_path = Path(args.cache_path, subdir)
+    if args.cache_dir is not None:
+        args.cache_dir = Path(args.cache_dir, subdir)
     elif os.path.exists("mkosi.cache/"):
-        args.cache_path = Path("mkosi.cache", subdir)
+        args.cache_dir = Path("mkosi.cache", subdir)
     else:
         return
 
@@ -2486,8 +2479,8 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
     args.credentials = load_credentials(args)
     args.kernel_command_line_extra = load_kernel_command_line_extra(args)
 
-    if args.cache_path is not None:
-        args.cache_path = args.cache_path.absolute()
+    if args.cache_dir is not None:
+        args.cache_dir = args.cache_dir.absolute()
 
     if args.extra_trees:
         for i in range(len(args.extra_trees)):
@@ -2537,7 +2530,7 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
         die("Images built without the --bootable option cannot be booted using qemu", MkosiNotSupportedException)
 
     if args.repo_dirs and not (is_dnf_distribution(args.distribution) or args.distribution == Distribution.arch):
-        die("--repository-directory is only supported on DNF based distributions and Arch")
+        die("--repo-dir is only supported on DNF based distributions and Arch")
 
     if args.repo_dirs:
         args.repo_dirs = [p.absolute() for p in args.repo_dirs]
@@ -2773,7 +2766,7 @@ def print_summary(config: MkosiConfig) -> None:
     ):
         print("        With Documentation:", yes_no(config.with_docs))
 
-    print("             Package Cache:", none_to_none(config.cache_path))
+    print("             Package Cache:", none_to_none(config.cache_dir))
     print("               Extra Trees:", line_join_source_target_list(config.extra_trees))
     print("            Skeleton Trees:", line_join_source_target_list(config.skeleton_trees))
     print("      CleanPackageMetadata:", yes_no_or(config.clean_package_metadata))
@@ -2838,8 +2831,8 @@ def make_cache_dir(state: MkosiState) -> None:
     # If no cache directory is configured, it'll be located in the workspace which is owned by root in the
     # userns so we have to run as the same user.
     run(["mkdir", "-p", state.cache],
-        user=state.uid if state.config.cache_path else 0,
-        group=state.gid if state.config.cache_path else 0)
+        user=state.uid if state.config.cache_dir else 0,
+        group=state.gid if state.config.cache_dir else 0)
 
 
 def make_install_dir(state: MkosiState) -> None:
@@ -3221,7 +3214,7 @@ def need_cache_tree(state: MkosiState) -> bool:
 def build_stuff(uid: int, gid: int, config: MkosiConfig) -> None:
     workspace = tempfile.TemporaryDirectory(dir=config.workspace_dir or Path.cwd(), prefix=".mkosi.tmp")
     workspace_dir = Path(workspace.name)
-    cache = config.cache_path or workspace_dir / "cache"
+    cache = config.cache_dir or workspace_dir / "cache"
 
     state = MkosiState(
         uid=uid,
@@ -3260,8 +3253,8 @@ def build_stuff(uid: int, gid: int, config: MkosiConfig) -> None:
         calculate_signature(state)
         save_manifest(state, manifest)
 
-        if state.config.cache_path:
-            acl_toggle_remove(state.config, state.config.cache_path, state.uid, allow=True)
+        if state.config.cache_dir:
+            acl_toggle_remove(state.config, state.config.cache_dir, state.uid, allow=True)
 
         for p in state.config.output_paths():
             if state.staging.joinpath(p.name).exists():

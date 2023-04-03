@@ -230,7 +230,7 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   Linux, additional repositories must be passed in the form `<name>::<url>`
   (e.g. `myrepo::https://myrepo.net`).
 
-`RepositoryDirectories`, `--repository-directory`
+`RepositoryDirectories`, `--repo-dir=`
 
 : This option can (for now) only be used with RPM-based distributions and Arch
   Linux. It takes a comma separated list of directories containing extra repository
@@ -435,7 +435,7 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   root or `/usr` partition along with its Verity partition and unified
   kernel.
 
-`RepartDirectory=`, `--repart-directory`
+`RepartDirectory=`, `--repart-dir=`
 
 : Path to a directory containing systemd-repart partition definition files that
   are used when mkosi invokes systemd-repart when building a disk image. If not
@@ -533,7 +533,7 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   normally run during the source build process. Note that this option
   has no effect unless the `mkosi.build` build script honors it.
 
-`Cache=`, `--cache=`
+`CacheDirectory=`, `--cache-dir=`
 
 : Takes a path to a directory to use as package cache for the
   distribution package manager used. If this option is not used, but a
@@ -631,7 +631,7 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   is automatically used for this purpose (also see the "Files" section
   below).
 
-`InstallDirectory=`, `--install-directory=`
+`InstallDirectory=`, `--install-dir=`
 
 : Takes a path of a directory to use as the install directory. The
   directory used this way is shared between builds and allows the
@@ -1245,7 +1245,7 @@ with `mkosi.skeleton` but nothing else.
 re-building of images. Specifically:
 
 1. The package cache of the distribution package manager may be cached
-   between builds. This is configured with the `--cache=` option or
+   between builds. This is configured with the `--cache-dir=` option or
    the `mkosi.cache/` directory. This form of caching relies on the
    distribution's package manager, and caches distribution packages
    (RPM, DEB, …) after they are downloaded, but before they are
