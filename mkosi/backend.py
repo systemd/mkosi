@@ -18,7 +18,7 @@ import sys
 import tarfile
 from collections.abc import Iterable, Iterator, Sequence
 from pathlib import Path
-from typing import Any, Callable, Optional, TypeVar, Union, cast
+from typing import Any, Callable, Optional, TypeVar, Union
 
 from mkosi.distributions import DistributionInstaller
 from mkosi.log import MkosiException, die
@@ -34,26 +34,6 @@ def set_umask(mask: int) -> Iterator[int]:
         yield old
     finally:
         os.umask(old)
-
-
-class Parseable:
-    "A mix-in to provide conversions for argparse"
-
-    def __str__(self) -> str:
-        """Return the member name without the class name"""
-        return cast(str, getattr(self, "name"))
-
-    @classmethod
-    def from_string(cls: Any, name: str) -> Any:
-        """A convenience method to be used with argparse"""
-        try:
-            return cls[name]
-        except KeyError:
-            raise argparse.ArgumentTypeError(f"unknown Format: {name!r}")
-
-    @classmethod
-    def parse_list(cls: Any, string: str) -> list[Any]:
-        return [cls.from_string(p) for p in string.split(",") if p]
 
 
 class PackageType(enum.Enum):
@@ -182,22 +162,18 @@ def is_dnf_distribution(d: Distribution) -> bool:
     )
 
 
-class OutputFormat(Parseable, enum.Enum):
-    directory = enum.auto()
-    subvolume = enum.auto()
-    tar = enum.auto()
-    cpio = enum.auto()
-    disk = enum.auto()
+class OutputFormat(str, enum.Enum):
+    directory = "directory"
+    subvolume = "subvolume"
+    tar = "tar"
+    cpio = "cpio"
+    disk = "disk"
 
-    def __str__(self) -> str:
-        return Parseable.__str__(self)
 
-class ManifestFormat(Parseable, enum.Enum):
+class ManifestFormat(str, enum.Enum):
     json      = "json"       # the standard manifest in json format
     changelog = "changelog"  # human-readable text file with package changelogs
 
-    def __str__(self) -> str:
-        return Parseable.__str__(self)
 
 KNOWN_SUFFIXES = {
     ".xz",
@@ -243,8 +219,8 @@ class MkosiConfig:
     bootable: bool
     kernel_command_line: list[str]
     secure_boot: bool
-    secure_boot_key: Path
-    secure_boot_certificate: Path
+    secure_boot_key: Optional[Path]
+    secure_boot_certificate: Optional[Path]
     secure_boot_valid_days: str
     secure_boot_common_name: str
     sign_expected_pcr: bool
@@ -260,10 +236,10 @@ class MkosiConfig:
     remove_packages: list[str]
     with_docs: bool
     with_tests: bool
-    cache_dir: Path
+    cache_dir: Optional[Path]
     extra_trees: list[tuple[Path, Optional[Path]]]
     skeleton_trees: list[tuple[Path, Optional[Path]]]
-    clean_package_metadata: Union[bool, str]
+    clean_package_metadata: Optional[bool]
     remove_files: list[str]
     environment: dict[str, str]
     build_sources: Path
@@ -290,7 +266,6 @@ class MkosiConfig:
     ssh: bool
     credentials: dict[str, str]
     directory: Optional[Path]
-    config_path: Optional[Path]
     debug: list[str]
     auto_bump: bool
     workspace_dir: Optional[Path]

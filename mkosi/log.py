@@ -15,7 +15,7 @@ class MkosiNotSupportedException(MkosiException):
 
 
 def die(message: str, exception: type[MkosiException] = MkosiException) -> NoReturn:
-    MkosiPrinter.warn(f"Error: {message}")
+    MkosiPrinter.error(f"Error: {message}")
     raise exception(message)
 
 
@@ -67,6 +67,10 @@ class MkosiPrinter:
     @classmethod
     def warn(cls, text: str) -> None:
         cls._print(f"{cls.prefix}{cls.color_warning(text)}\n")
+
+    @classmethod
+    def error(cls, text: str) -> None:
+        cls._print(f"{cls.prefix}{cls.color_error(text)}\n")
 
     @classmethod
     @contextlib.contextmanager
