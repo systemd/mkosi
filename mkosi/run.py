@@ -11,7 +11,7 @@ import sys
 import traceback
 from pathlib import Path
 from types import TracebackType
-from typing import Any, Callable, Iterable, Mapping, Optional, Sequence, Type, TypeVar
+from typing import Any, Callable, Mapping, Optional, Sequence, Type, TypeVar
 
 from mkosi.backend import MkosiState
 from mkosi.log import ARG_DEBUG, MkosiPrinter, die
@@ -87,7 +87,7 @@ def become_root() -> tuple[int, int]:
             SUBRANGE - 100, os.getuid(), 1,
             SUBRANGE - 100 + 1, subuid + SUBRANGE - 100 + 1, 99
         ]
-        run((str(x) for x in newuidmap))
+        run([str(x) for x in newuidmap])
 
         newgidmap = [
             "newgidmap", pid,
@@ -95,7 +95,7 @@ def become_root() -> tuple[int, int]:
             SUBRANGE - 100, os.getgid(), 1,
             SUBRANGE - 100 + 1, subgid + SUBRANGE - 100 + 1, 99
         ]
-        run(str(x) for x in newgidmap)
+        run([str(x) for x in newgidmap])
 
         sys.stdout.flush()
         sys.stderr.flush()
@@ -189,17 +189,17 @@ def fork_and_wait(target: Callable[[], T]) -> T:
 
 
 def run(
-    cmdline: Iterable[PathString],
+    cmdline: Sequence[PathString],
     check: bool = True,
     stdout: _FILE = None,
     stderr: _FILE = None,
     env: Mapping[str, PathString] = {},
     **kwargs: Any,
 ) -> CompletedProcess:
-    cmdline = [os.fspath(x) for x in cmdline]
-
     if "run" in ARG_DEBUG:
         MkosiPrinter.info(f"+ {shlex.join(str(s) for s in cmdline)}")
+
+    cmdline = [os.fspath(x) for x in cmdline]
 
     if not stdout and not stderr:
         # Unless explicit redirection is done, print all subprocess
