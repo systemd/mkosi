@@ -31,7 +31,3 @@ class UbuntuInstaller(DebianInstaller):
             security = f"deb http://ports.ubuntu.com/ {state.config.release}-security {' '.join(repos)}"
 
         state.root.joinpath(f"etc/apt/sources.list.d/{state.config.release}-security.list").write_text(f"{security}\n")
-
-    @classmethod
-    def _fixup_resolved(cls, state: MkosiState, packages: Sequence[str]) -> None:
-        pass

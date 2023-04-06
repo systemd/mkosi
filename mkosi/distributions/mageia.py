@@ -58,7 +58,7 @@ def install_mageia(state: MkosiState) -> None:
     setup_dnf(state, repos)
 
     packages = state.config.packages.copy()
-    add_packages(state.config, packages, "basesystem-minimal", "dnf")
+    add_packages(state.config, packages, "filesystem")
     if state.config.bootable and not state.config.initrds:
         add_packages(state.config, packages, "dracut")
         # Mageia ships /etc/50-mageia.conf that omits systemd from the initramfs and disables hostonly.

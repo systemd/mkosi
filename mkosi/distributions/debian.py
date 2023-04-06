@@ -26,14 +26,6 @@ class DebianInstaller(DistributionInstaller):
             add_packages(state.config, packages, f"linux-image-{DEBIAN_KERNEL_ARCHITECTURES[state.config.architecture]}")
 
     @classmethod
-    def _fixup_resolved(cls, state: MkosiState, packages: list[str]) -> None:
-        if "systemd" in packages and "systemd-resolved" not in packages:
-            # The default resolv.conf points to 127.0.0.1, and resolved is disabled, fix it in
-            # the base image.
-            state.root.joinpath("etc/resolv.conf").unlink(missing_ok=True)
-            state.root.joinpath("etc/resolv.conf").symlink_to("../run/systemd/resolve/resolv.conf")
-
-    @classmethod
     def filesystem(cls) -> str:
         return "ext4"
 
@@ -90,7 +82,7 @@ class DebianInstaller(DistributionInstaller):
         # conflicts. dbus and libpam-systemd are optional dependencies for systemd in debian so we include them
         # explicitly.
         packages = state.config.packages.copy()
-        add_packages(state.config, packages, "systemd", "systemd-sysv", "dbus", "libpam-systemd")
+        add_packages(state.config, packages, "base-files")
 
         if state.config.bootable:
             if not state.config.initrds:
@@ -155,9 +147,6 @@ class DebianInstaller(DistributionInstaller):
         if state.config.bootable:
             add_apt_package_if_exists(state, packages, "systemd-boot")
 
-        # systemd-resolved was split into a separate package
-        add_apt_package_if_exists(state, packages, "systemd-resolved")
-
         invoke_apt(state, "get", "install", ["--assume-yes", "--no-install-recommends", *packages])
 
         # Now clean up and add the real repositories, so that the image is ready
@@ -172,8 +161,6 @@ class DebianInstaller(DistributionInstaller):
         if not state.config.with_docs and state.config.base_image is not None:
             # Don't ship dpkg config files in extensions, they belong with dpkg in the base image.
             dpkg_nodoc_conf.unlink() # type: ignore
-
-        cls._fixup_resolved(state, packages)
 
         # Debian/Ubuntu use a different path to store the locale so let's make sure that path is a symlink to
         # etc/locale.conf.

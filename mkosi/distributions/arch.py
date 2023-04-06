@@ -87,7 +87,7 @@ def install_arch(state: MkosiState) -> None:
             f.write(f"Include = {d}/*\n")
 
     packages = state.config.packages.copy()
-    add_packages(state.config, packages, "base")
+    add_packages(state.config, packages, "filesystem")
 
     if state.config.bootable and not state.config.initrds:
         add_packages(state.config, packages, "dracut")

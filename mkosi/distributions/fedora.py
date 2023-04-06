@@ -97,7 +97,7 @@ def install_fedora(state: MkosiState) -> None:
     setup_dnf(state, repos)
 
     packages = state.config.packages.copy()
-    add_packages(state.config, packages, "systemd", "util-linux", "rpm")
+    add_packages(state.config, packages, "filesystem")
 
     if state.config.bootable:
         add_packages(state.config, packages, "kernel-core", "kernel-modules")

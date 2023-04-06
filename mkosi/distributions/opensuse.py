@@ -169,12 +169,7 @@ def install_opensuse(state: MkosiState) -> None:
     packages = state.config.packages.copy()
 
     if state.config.base_image is None:
-        add_packages(state.config, packages, "systemd", "glibc-locale-base", "zypper")
-
-        if state.config.release.startswith("42."):
-            add_packages(state.config, packages, "patterns-openSUSE-minimal_base")
-        else:
-            add_packages(state.config, packages, "patterns-base-minimal_base")
+        add_packages(state.config, packages, "filesystem")
 
         if state.config.bootable:
             add_packages(state.config, packages, "kernel-default")

@@ -95,7 +95,7 @@ class CentosInstaller(DistributionInstaller):
             env = {}
 
         packages = state.config.packages.copy()
-        add_packages(state.config, packages, "systemd", "rpm")
+        add_packages(state.config, packages, "filesystem")
         if state.config.bootable:
             add_packages(state.config, packages, "kernel")
             if not state.config.initrds:
@@ -105,14 +105,6 @@ class CentosInstaller(DistributionInstaller):
                 add_packages(state.config, packages, "systemd-boot", conditional="systemd")
         if state.config.ssh:
             add_packages(state.config, packages, "openssh-server")
-
-        if "epel" in state.config.repositories:
-            add_packages(state.config, packages, "epel-release")
-
-        # Make sure we only install the minimal language files by default on CentOS Stream 8 which still
-        # defaults to all langpacks.
-        if release <= 8:
-            add_packages(state.config, packages, "glibc-minimal-langpack")
 
         invoke_dnf(state, "install", packages, env)
 

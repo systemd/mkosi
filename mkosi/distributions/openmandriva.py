@@ -60,7 +60,7 @@ def install_openmandriva(state: MkosiState) -> None:
 
     packages = state.config.packages.copy()
     # well we may use basesystem here, but that pulls lot of stuff
-    add_packages(state.config, packages, "basesystem-minimal", "systemd", "dnf")
+    add_packages(state.config, packages, "filesystem")
     if state.config.bootable:
         add_packages(state.config, packages, "systemd-boot", "systemd-cryptsetup", conditional="systemd")
         add_packages(state.config, packages, "kernel-release-server", "timezone")
