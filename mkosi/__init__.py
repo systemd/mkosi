@@ -2294,7 +2294,7 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
     args.credentials = load_credentials(args)
     args.kernel_command_line_extra = load_kernel_command_line_extra(args)
 
-    if args.secure_boot:
+    if args.secure_boot and args.verb != Verb.genkey:
         if args.secure_boot_key is None:
             die(
                 "UEFI SecureBoot enabled, but couldn't find private key. (Consider placing it in mkosi.secure-boot.key?)"
