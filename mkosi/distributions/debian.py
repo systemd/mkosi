@@ -65,7 +65,7 @@ class DebianInstaller(DistributionInstaller):
                 "--variant=minbase",
                 "--include=ca-certificates",
                 "--merged-usr",
-                f"--cache-dir={state.cache}",
+                f"--cache-dir={state.cache.absolute()}",
                 f"--components={','.join(repos)}",
             ]
 
@@ -282,15 +282,15 @@ def invoke_apt(
             f"""\
             APT::Architecture "{debarch}";
             APT::Immediate-Configure "off";
-            Dir::Cache "{state.cache}";
-            Dir::State "{state.workspace / "apt"}";
+            Dir::Cache "{state.cache.absolute()}";
+            Dir::State "{state.workspace.absolute() / "apt"}";
             Dir::State::status "{state.root / "var/lib/dpkg/status"}";
-            Dir::Etc "{state.root / "etc/apt"}";
-            Dir::Log "{state.workspace / "apt/log"}";
+            Dir::Etc "{state.root.absolute() / "etc/apt"}";
+            Dir::Log "{state.workspace.absolute() / "apt/log"}";
             Dir::Bin::dpkg "dpkg";
             DPkg::Path "{os.environ["PATH"]}";
-            DPkg::Options:: "--root={state.root}";
-            DPkg::Options:: "--log={state.workspace / "apt/dpkg.log"}";
+            DPkg::Options:: "--root={state.root.absolute()}";
+            DPkg::Options:: "--log={state.workspace.absolute() / "apt/dpkg.log"}";
             DPkg::Install::Recursive::Minimum "1000";
             """
         )

@@ -188,7 +188,6 @@ jobs:
         Format=${{ matrix.format }}
         Bootable=yes
         KernelCommandLine=systemd.unit=mkosi-check-and-shutdown.service
-                          !quiet
                           systemd.log_target=console
                           systemd.default_standard_output=journal+console
 
@@ -211,7 +210,7 @@ jobs:
       run: |
         tee mkosi.conf.d/initrd.conf <<- EOF
         [Distribution]
-        Initrd=initrd.zst
+        Initrds=initrd.zst
         EOF
 
     - name: Configure EPEL

@@ -188,7 +188,9 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 : The distribution to install in the image. Takes one of the following
   arguments: `fedora`, `debian`, `ubuntu`, `arch`, `opensuse`, `mageia`,
   `centos`, `openmandriva`, `rocky`, and `alma`. If not specified,
-  defaults to the distribution of the host.
+  defaults to the distribution of the host. Whenever a distribution is
+  assigned, the release is reset to the default release configured
+  for that distribution.
 
 `Release=`, `--release=`, `-r`
 
@@ -230,7 +232,7 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   Linux, additional repositories must be passed in the form `<name>::<url>`
   (e.g. `myrepo::https://myrepo.net`).
 
-`RepositoryDirectories`, `--repository-directory`
+`RepositoryDirectories`, `--repo-dir=`
 
 : This option can (for now) only be used with RPM-based distributions and Arch
   Linux. It takes a comma separated list of directories containing extra repository
@@ -381,13 +383,6 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   the `shell`, `boot`, `qemu` verbs are not available when this option
   is used. Implied for `tar` and `cpio`.
 
-`QCow2=`, `--qcow2`
-
-: Encode the resulting image as QEMU QCOW2 image. This only applies when
-  generating disk images. QCOW2 images can be read natively by `qemu`, but
-  not by the Linux kernel. This means the `shell` and `boot` verbs are not
-  available when this option is used, however `qemu` will work.
-
 `Hostname=`, `--hostname=`
 
 : Set the image's hostname to the specified name.
@@ -398,13 +393,21 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   recommended to specify a series of dot separated components. The
   version may also be configured in a file `mkosi.version` in which
   case it may be conveniently managed via the `bump` verb or the
-  `--auto-bump` switch. When specified the image version is included
+  `--auto-bump` option. When specified the image version is included
   in the default output file name, i.e. instead of `image.raw` the
   default will be `image_0.1.raw` for version `0.1` of the image, and
   similar. The version is also passed via the `$IMAGE_VERSION` to any
   build scripts invoked (which may be useful to patch it into
   `/etc/os-release` or similar, in particular the `IMAGE_VERSION=`
   field of it).
+
+`AutoBump=`, `--auto-bump=`, `-B`
+
+: If specified, after each successful build the the version is bumped
+  in a fashion equivalent to the `bump` verb, in preparation for the
+  next build. This is useful for simple, linear version management:
+  each build in a series will have a version number one higher then
+  the previous one.
 
 `ImageId=`, `--image-id=`
 
@@ -435,7 +438,7 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   root or `/usr` partition along with its Verity partition and unified
   kernel.
 
-`RepartDirectory=`, `--repart-directory`
+`RepartDirectory=`, `--repart-dir=`
 
 : Path to a directory containing systemd-repart partition definition files that
   are used when mkosi invokes systemd-repart when building a disk image. If not
@@ -533,7 +536,7 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   normally run during the source build process. Note that this option
   has no effect unless the `mkosi.build` build script honors it.
 
-`Cache=`, `--cache=`
+`CacheDirectory=`, `--cache-dir=`
 
 : Takes a path to a directory to use as package cache for the
   distribution package manager used. If this option is not used, but a
@@ -631,7 +634,7 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   is automatically used for this purpose (also see the "Files" section
   below).
 
-`InstallDirectory=`, `--install-directory=`
+`InstallDirectory=`, `--install-dir=`
 
 : Takes a path of a directory to use as the install directory. The
   directory used this way is shared between builds and allows the
@@ -716,15 +719,18 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   automatically used for this purpose. Specify an empty value to
   disable automatic detection.
 
-`WithNetwork=`, `--with-network`
+`WithNetwork=`, `--with-network=`
 
 : When true, enables network connectivity while the build script
   `mkosi.build` is invoked. By default, the build script runs with
   networking turned off. The `$WITH_NETWORK` environment variable is
   passed to the `mkosi.build` build script indicating whether the
-  build is done with or without network. If specified as `never`, the
-  package manager is instructed not to contact the network for
-  updating package data. This provides a minimal level of
+  build is done with or without network.
+
+`CacheOnly=`, `--cache-only=`
+
+: If specified, the package manager is instructed not to contact the
+  network for updating package data. This provides a minimal level of
   reproducibility, as long as the package data cache is already fully
   populated.
 
@@ -736,10 +742,6 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   environment when the image is run. If this setting is not used but
   an `mkosi.nspawn` file found in the local directory it is
   automatically used for this purpose.
-
-<!-- FIXME: shouldn't this be in [Host] ? -->
-
-### [Partitions] Section
 
 `BaseImage=`, `--base-image=`
 
@@ -770,11 +772,6 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 
 : Select the `gpg` key to use for signing `SHA256SUMS`. This key must
   be already present in the `gpg` keyring.
-
-`BMap=`, `--bmap`
-
-: Generate a `bmap` file for usage with `bmaptool` from the generated
-  image file.
 
 ### [Host] Section
 
@@ -901,14 +898,6 @@ Those settings cannot be configured in the configuration files.
 `--help`, `-h`
 
 : Show brief usage information.
-
-`--auto-bump`, `-B`
-
-: If specified, after each successful build the the version is bumped
-  in a fashion equivalent to the `bump` verb, in preparation for the
-  next build. This is useful for simple, linear version management:
-  each build in a series will have a version number one higher then
-  the previous one.
 
 ## Supported distributions
 
@@ -1210,56 +1199,26 @@ during invocation via command line switches, and as settings in
 `mkosi.conf`, in case the default settings are not acceptable for a
 project.
 
-# BUILD PHASES
-
-If no build script `mkosi.build` (see above) is used the build
-consists of a single phase only: the final image is generated as the
-combination of `mkosi.skeleton/` (see above), the unpacked
-distribution packages and `mkosi.extra/`.
-
-If a build script `mkosi.build` is used the build consists of two
-phases: in the the first `development` phase an image that includes
-necessary build tools (i.e. the combination of `Packages=` and
-`BuildPackages=` is installed) is generated (i.e. the combination of
-`mkosi.skeleton/` and unpacked distribution packages). Into this image
-the source tree is copied and `mkosi.build` executed. The artifacts
-the `mkosi.build` generates are saved. Then, the second `final` phase
-starts: an image that excludes the build tools (i.e. only `Packages=`
-is installed, `BuildPackages=` is not) is generated. This time the
-build artifacts saved from the first phase are copied in, and
-`mkosi.extra` copied on top, thus generating the final image.
-
-The two-phased approach ensures that source tree is executed in a
-clean and comprehensive environment, while at the same the final image
-remains minimal and contains only those packages necessary at runtime,
-but avoiding those necessary at build-time.
-
-Note that only the package cache `mkosi.cache/` is shared between the
-two phases. The distribution package manager is executed exactly once
-in each phase, always starting from a directory tree that is populated
-with `mkosi.skeleton` but nothing else.
-
 # CACHING
 
 `mkosi` supports three different caches for speeding up repetitive
 re-building of images. Specifically:
 
 1. The package cache of the distribution package manager may be cached
-   between builds. This is configured with the `--cache=` option or
+   between builds. This is configured with the `--cache-dir=` option or
    the `mkosi.cache/` directory. This form of caching relies on the
    distribution's package manager, and caches distribution packages
    (RPM, DEB, …) after they are downloaded, but before they are
    unpacked.
 
-2. If an `mkosi.build` script is used, by enabling incremental build
-   mode with `--incremental`, a cached copy of the development and
-   final images can be made immediately before the build sources are
-   copied in (for the development image) or the artifacts generated by
-   `mkosi.build` are copied in (in case of the final image). This form
-   of caching allows bypassing the time-consuming package unpacking
-   step of the distribution package managers, but is only effective if
-   the list of packages to use remains stable, but the build sources
-   and its scripts change regularly. Note that this cache requires
+2. If the incremental build mode is enabled with `--incremental`, cached
+   copies of the final image and build overlay are made immediately
+   before the build sources are copied in (for the build overlay) or the
+   artifacts generated by `mkosi.build` are copied in (in case of the
+   final image). This form of caching allows bypassing the time-consuming
+   package unpacking step of the distribution package managers, but is only
+   effective if the list of packages to use remains stable, but the build
+   sources and its scripts change regularly. Note that this cache requires
    manual flushing: whenever the package list is modified the cached
    images need to be explicitly removed before the next re-build,
    using the `-f` switch.
