@@ -7,7 +7,7 @@ from collections.abc import Iterable, Sequence
 from pathlib import Path
 from textwrap import dedent
 
-from mkosi.backend import MkosiState, add_packages
+from mkosi.backend import MkosiState
 from mkosi.distributions import DistributionInstaller
 from mkosi.install import install_skeleton_trees
 from mkosi.run import run, run_with_apivfs
@@ -67,12 +67,6 @@ class DebianInstaller(DistributionInstaller):
             # Pretend we're lxc so debootstrap skips its mknod check.
             run_with_apivfs(state, cmdline, env=dict(container="lxc"))
 
-        # Install extra packages via the secondary APT run, because it is smarter and can deal better with any
-        # conflicts. dbus and libpam-systemd are optional dependencies for systemd in debian so we include them
-        # explicitly.
-        packages = state.config.packages.copy()
-        add_packages(state.config, packages, "base-files")
-
         # Debian policy is to start daemons by default. The policy-rc.d script can be used choose which ones to
         # start. Let's install one that denies all daemon startups.
         # See https://people.debian.org/~hmh/invokerc.d-policyrc.d-specification.txt for more information.
@@ -124,7 +118,8 @@ class DebianInstaller(DistributionInstaller):
         # Ensure /efi exists so that the ESP is mounted there, and we never run dpkg -i on vfat
         state.root.joinpath("efi").mkdir(mode=0o755, exist_ok=True)
 
-        invoke_apt(state, "get", "install", ["--assume-yes", "--no-install-recommends", *packages])
+        invoke_apt(state, "get", "install",
+                   ["--assume-yes", "--no-install-recommends", "base-files", *state.config.packages])
 
         # Now clean up and add the real repositories, so that the image is ready
         if state.config.local_mirror:
@@ -266,8 +261,3 @@ def invoke_apt(
     )
 
     return run_with_apivfs(state, cmdline, stdout=stdout, env=env)
-
-
-def add_apt_package_if_exists(state: MkosiState, packages: list[str], package: str) -> None:
-    if invoke_apt(state, "cache", "search", ["--names-only", f"^{package}$"], stdout=subprocess.PIPE).stdout.strip():
-        add_packages(state.config, packages, package)

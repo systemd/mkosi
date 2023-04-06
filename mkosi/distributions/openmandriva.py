@@ -3,7 +3,7 @@
 from collections.abc import Sequence
 from pathlib import Path
 
-from mkosi.backend import MkosiState, add_packages
+from mkosi.backend import MkosiState
 from mkosi.distributions import DistributionInstaller
 from mkosi.distributions.fedora import Repo, invoke_dnf, setup_dnf
 from mkosi.log import complete_step
@@ -58,7 +58,4 @@ def install_openmandriva(state: MkosiState) -> None:
 
     setup_dnf(state, repos)
 
-    packages = state.config.packages.copy()
-    add_packages(state.config, packages, "filesystem")
-
-    invoke_dnf(state, "install", packages)
+    invoke_dnf(state, "install", ["filesystem", *state.config.packages])

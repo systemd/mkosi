@@ -105,16 +105,6 @@ def config_parse_compression(dest: str, value: Optional[str], namespace: argpars
     return parse_boolean(value) if value else None
 
 
-def config_parse_base_packages(dest: str, value: Optional[str], namespace: argparse.Namespace) -> Union[bool, str]:
-    if dest in namespace:
-        return getattr(namespace, dest) # type: ignore
-
-    if value == "conditional":
-        return value
-
-    return parse_boolean(value) if value else False
-
-
 def config_default_release(namespace: argparse.Namespace) -> Any:
     # If we encounter Release in [Match] and no distribution has been set yet, configure the default
     # distribution as well since the default release depends on the selected distribution.
@@ -476,12 +466,6 @@ class MkosiConfigParser:
             dest="initrds",
             section="Output",
             parse=config_make_list_parser(delimiter=",", parse=make_path_parser(required=False)),
-        ),
-        MkosiConfigSetting(
-            dest="base_packages",
-            section="Content",
-            parse=config_parse_base_packages,
-            default=True,
         ),
         MkosiConfigSetting(
             dest="packages",
@@ -1036,12 +1020,6 @@ class MkosiConfigParser:
         )
 
         group = parser.add_argument_group("Content options")
-        group.add_argument(
-            "--base-packages",
-            metavar="OPTION",
-            help="Automatically inject basic packages in the system (systemd, kernel, …)",
-            action=action,
-        )
         group.add_argument(
             "-p", "--package",
             metavar="PACKAGE",

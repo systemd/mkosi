@@ -1217,11 +1217,6 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
     if args.repo_dirs and not (is_dnf_distribution(args.distribution) or args.distribution == Distribution.arch):
         die("--repo-dir is only supported on DNF based distributions and Arch")
 
-    # If we are building a sysext we don't want to add base packages to the
-    # extension image, as they will already be in the base image.
-    if args.base_image is not None:
-        args.base_packages = False
-
     if args.qemu_kvm is True and not qemu_check_kvm_support():
         die("Sorry, the host machine does not support KVM acceleration.")
 

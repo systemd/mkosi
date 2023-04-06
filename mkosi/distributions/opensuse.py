@@ -5,7 +5,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from textwrap import dedent
 
-from mkosi.backend import MkosiState, add_packages, patch_file
+from mkosi.backend import MkosiState, patch_file
 from mkosi.distributions import DistributionInstaller
 from mkosi.log import complete_step
 from mkosi.run import run, run_with_apivfs
@@ -166,12 +166,7 @@ def install_opensuse(state: MkosiState) -> None:
     zypper_init(state)
     zypper_init_repositories(state)
 
-    packages = state.config.packages.copy()
-
-    if state.config.base_image is None:
-        add_packages(state.config, packages, "filesystem")
-
-    zypper_install(state, packages)
+    zypper_install(state, ["filesystem", *state.config.packages])
     zypper_finalize_repositories(state)
 
     if state.config.base_image is not None:

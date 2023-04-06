@@ -3,7 +3,7 @@
 from collections.abc import Sequence
 from textwrap import dedent
 
-from mkosi.backend import MkosiState, add_packages, sort_packages
+from mkosi.backend import MkosiState, sort_packages
 from mkosi.distributions import DistributionInstaller
 from mkosi.log import complete_step
 from mkosi.run import run_with_apivfs
@@ -86,10 +86,7 @@ def install_arch(state: MkosiState) -> None:
         for d in state.config.repo_dirs:
             f.write(f"Include = {d}/*\n")
 
-    packages = state.config.packages.copy()
-    add_packages(state.config, packages, "filesystem")
-
-    invoke_pacman(state, packages)
+    invoke_pacman(state, ["filesystem", *state.config.packages])
 
 
 def invoke_pacman(state: MkosiState, packages: Sequence[str]) -> None:

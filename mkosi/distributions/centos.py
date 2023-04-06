@@ -4,7 +4,7 @@ import shutil
 from collections.abc import Sequence
 from pathlib import Path
 
-from mkosi.backend import Distribution, MkosiConfig, MkosiState, add_packages
+from mkosi.backend import Distribution, MkosiConfig, MkosiState
 from mkosi.distributions import DistributionInstaller
 from mkosi.distributions.fedora import Repo, invoke_dnf, setup_dnf
 from mkosi.log import complete_step, die
@@ -94,10 +94,7 @@ class CentosInstaller(DistributionInstaller):
         else:
             env = {}
 
-        packages = state.config.packages.copy()
-        add_packages(state.config, packages, "filesystem")
-
-        invoke_dnf(state, "install", packages, env)
+        invoke_dnf(state, "install", ["filesystem", *state.config.packages], env)
 
         syslog = state.root.joinpath("etc/systemd/system/syslog.service")
         if release <= 8 and syslog.is_symlink():

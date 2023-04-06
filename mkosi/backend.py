@@ -230,7 +230,6 @@ class MkosiConfig:
     tar_strip_selinux_context: bool
     incremental: bool
     cache_initrd: bool
-    base_packages: Union[str, bool]
     packages: list[str]
     remove_packages: list[str]
     with_docs: bool
@@ -450,23 +449,6 @@ def safe_tar_extract(tar: tarfile.TarFile, path: Path=Path("."), *, numeric_owne
             raise MkosiException(f"Attempted path traversal in tar file {tar.name!r}") from e
 
     tar.extractall(path, members=members, numeric_owner=numeric_owner)
-
-
-def add_packages(
-    config: MkosiConfig, packages: list[str], *names: str, conditional: Optional[str] = None
-) -> None:
-
-    """Add packages in @names to @packages, if enabled by --base-packages.
-
-    If @conditional is specified, rpm-specific syntax for boolean
-    dependencies will be used to include @names if @conditional is
-    satisfied.
-    """
-    assert config.base_packages is True or config.base_packages is False or config.base_packages == "conditional"
-
-    if config.base_packages is True or (config.base_packages == "conditional" and conditional):
-        for name in names:
-            packages.append(f"({name} if {conditional})" if conditional else name)
 
 
 def sort_packages(packages: Iterable[str]) -> list[str]:

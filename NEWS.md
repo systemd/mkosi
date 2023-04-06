@@ -62,6 +62,8 @@
   extra/skeleton trees are defined.
 - mkosi doesn't install any default packages anymore aside from the base filesystem layout package. In
   practice, this means systemd and other basic tools have to be installed explicitly from now on.
+- Removed `--base-packages` as it's not needed anymore since we don't install any packages by default anymore
+  aside from the base filesystem layout package.
 - Removed `--qcow2` option in favor of supporting only raw disk images as the disk image output format.
 - Removed `--bmap` option as it can be trivially added manually by utilizing a finalize script.
 - The `never` value for `--with-network` was spun of into its own custom option `--cache-only`.

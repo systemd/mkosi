@@ -9,13 +9,7 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Any, NamedTuple, Optional
 
-from mkosi.backend import (
-    Distribution,
-    MkosiState,
-    add_packages,
-    detect_distribution,
-    sort_packages,
-)
+from mkosi.backend import Distribution, MkosiState, detect_distribution, sort_packages
 from mkosi.distributions import DistributionInstaller
 from mkosi.log import MkosiPrinter, complete_step, warn
 from mkosi.remove import unlink_try_hard
@@ -96,10 +90,7 @@ def install_fedora(state: MkosiState) -> None:
 
     setup_dnf(state, repos)
 
-    packages = state.config.packages.copy()
-    add_packages(state.config, packages, "filesystem")
-
-    invoke_dnf(state, "install", packages)
+    invoke_dnf(state, "install", ["filesystem", *state.config.packages])
 
     # Fedora defaults to sssd authselect profile, let's override it with the minimal profile if it exists and
     # extend it with the with-homed feature if we can find it.

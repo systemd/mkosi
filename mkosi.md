@@ -509,28 +509,6 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 
 ### [Content] Section
 
-`BasePackages=`, `--base-packages`
-
-: Takes a boolean or the special value `conditional`. If true,
-  automatically install packages to ensure basic functionality, as
-  appropriate for the given image type. For example, `systemd` is
-  always included, `systemd-udev` and `dracut` if the image is
-  bootable, and so on.
-
-: If false, only packages specified with `Packages=` will be
-  installed.
-
-: If `conditional`, the list of packages to install will be extended
-  with boolean dependencies
-  (c.f. https://rpm.org/user_doc/boolean_dependencies.html), to
-  install specific packages when *other* packages are in the list. For
-  example, `systemd-udev` may be automatically included if the image
-  is bootable and `systemd` is installed. With this, various "base"
-  packages still need to be specified if they should be included, but
-  the corresponding "extension" packages will be added automatically
-  when appropriate. This feature depends on support in the package
-  manager, so it is not implemented for all distributions.
-
 `Packages=`, `--package=`, `-p`
 
 : Install the specified distribution packages (i.e. RPM, DEB, …) in the
