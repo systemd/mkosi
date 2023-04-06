@@ -96,8 +96,6 @@ class CentosInstaller(DistributionInstaller):
 
         packages = state.config.packages.copy()
         add_packages(state.config, packages, "filesystem")
-        if state.config.ssh:
-            add_packages(state.config, packages, "openssh-server")
 
         invoke_dnf(state, "install", packages, env)
 

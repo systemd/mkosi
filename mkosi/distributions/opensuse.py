@@ -171,9 +171,6 @@ def install_opensuse(state: MkosiState) -> None:
     if state.config.base_image is None:
         add_packages(state.config, packages, "filesystem")
 
-        if state.config.ssh:
-            add_packages(state.config, packages, "openssh-server")
-
     zypper_install(state, packages)
     zypper_finalize_repositories(state)
 

@@ -89,9 +89,6 @@ def install_arch(state: MkosiState) -> None:
     packages = state.config.packages.copy()
     add_packages(state.config, packages, "filesystem")
 
-    if state.config.ssh:
-        add_packages(state.config, packages, "openssh")
-
     invoke_pacman(state, packages)
 
 

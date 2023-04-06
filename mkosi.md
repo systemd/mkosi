@@ -862,9 +862,11 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 
 `Ssh=`, `--ssh`
 
-: If specified, installs and enables `sshd` in the final image. When building
-  with this option and running the image using `mkosi qemu`, the `mkosi ssh` command
-  can be used to connect to the container/VM via SSH. Note that mkosi doesn't provision
+: If specified, an sshd socket unit and matching service are installed in the final
+  image that expose sshd over VSock. When building with this option and running the
+  image using `mkosi qemu`, the `mkosi ssh` command can be used to connect to the
+  container/VM via SSH. Note that you still have to make sure openssh is installed in
+  the image to make this option behave correctly. Also note that mkosi doesn't provision
   a public SSH key into the image automatically. One way to do this is by setting the
   `ssh.authorized_keys.root` credential using the `Credential=` option or by copying it
   in using `ExtraTrees=`. To access images booted using `mkosi boot`, use `machinectl`.

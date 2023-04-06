@@ -99,9 +99,6 @@ def install_fedora(state: MkosiState) -> None:
     packages = state.config.packages.copy()
     add_packages(state.config, packages, "filesystem")
 
-    if state.config.ssh:
-        add_packages(state.config, packages, "openssh-server")
-
     invoke_dnf(state, "install", packages)
 
     # Fedora defaults to sssd authselect profile, let's override it with the minimal profile if it exists and

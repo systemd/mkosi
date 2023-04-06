@@ -73,9 +73,6 @@ class DebianInstaller(DistributionInstaller):
         packages = state.config.packages.copy()
         add_packages(state.config, packages, "base-files")
 
-        if state.config.ssh:
-            add_packages(state.config, packages, "openssh-server")
-
         # Debian policy is to start daemons by default. The policy-rc.d script can be used choose which ones to
         # start. Let's install one that denies all daemon startups.
         # See https://people.debian.org/~hmh/invokerc.d-policyrc.d-specification.txt for more information.

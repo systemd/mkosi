@@ -59,9 +59,6 @@ def install_openmandriva(state: MkosiState) -> None:
     setup_dnf(state, repos)
 
     packages = state.config.packages.copy()
-    # well we may use basesystem here, but that pulls lot of stuff
     add_packages(state.config, packages, "filesystem")
-    if state.config.ssh:
-        add_packages(state.config, packages, "openssh-server")
 
     invoke_dnf(state, "install", packages)
