@@ -29,7 +29,7 @@ def main() -> None:
     args = MkosiConfigParser().parse()
 
     if args.directory:
-        if args.directory.isdir():
+        if args.directory.is_dir():
             os.chdir(args.directory)
         else:
             die(f"Error: {args.directory} is not a directory!")
