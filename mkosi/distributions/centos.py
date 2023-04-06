@@ -70,7 +70,7 @@ class CentosInstaller(DistributionInstaller):
         # systemd-gpt-auto-generator only started applying the GPT partition read-only flag to gpt-auto
         # mounts from v240 onwards, while CentOS Stream 8 ships systemd v239, so we have to nudge gpt-auto to
         # mount the root partition rw by default.
-        if state.config.bootable and int(state.config.release) <= 8:
+        if int(state.config.release) <= 8:
             kcl += ["rw"]
 
         return kcl + DistributionInstaller.kernel_command_line(state)
@@ -96,13 +96,6 @@ class CentosInstaller(DistributionInstaller):
 
         packages = state.config.packages.copy()
         add_packages(state.config, packages, "filesystem")
-        if state.config.bootable:
-            add_packages(state.config, packages, "kernel")
-            if not state.config.initrds:
-                add_packages(state.config, packages, "dracut", "dracut-config-generic")
-            add_packages(state.config, packages, "systemd-udev", conditional="systemd")
-            if release >= 9:
-                add_packages(state.config, packages, "systemd-boot", conditional="systemd")
         if state.config.ssh:
             add_packages(state.config, packages, "openssh-server")
 

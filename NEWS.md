@@ -65,6 +65,9 @@
 - Removed `--qcow2` option in favor of supporting only raw disk images as the disk image output format.
 - Removed `--bmap` option as it can be trivially added manually by utilizing a finalize script.
 - The `never` value for `--with-network` was spun of into its own custom option `--cache-only`.
+- Removed `--bootable` in favor of automatically generating a bootable image if all the necessary packages
+  are installed. Documentation was added in docs/bootable.ld on how a bootable image can be generated on
+  mainstream distros.
 
 ## v14
 

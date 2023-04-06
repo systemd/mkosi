@@ -43,7 +43,7 @@ def test_parse_load_verb() -> None:
         assert parse(["build"]).verb == Verb.build
         assert parse(["shell"]).verb == Verb.shell
         assert parse(["boot"]).verb == Verb.boot
-        assert parse(["--bootable", "qemu"]).verb == Verb.qemu
+        assert parse(["qemu"]).verb == Verb.qemu
         with pytest.raises(SystemExit):
             parse(["invalid"])
 

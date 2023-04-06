@@ -89,27 +89,10 @@ def install_arch(state: MkosiState) -> None:
     packages = state.config.packages.copy()
     add_packages(state.config, packages, "filesystem")
 
-    if state.config.bootable and not state.config.initrds:
-        add_packages(state.config, packages, "dracut")
-
-    official_kernel_packages = {
-        "linux",
-        "linux-lts",
-        "linux-hardened",
-        "linux-zen",
-    }
-
-    has_kernel_package = official_kernel_packages.intersection(state.config.packages)
-    if state.config.bootable and not has_kernel_package:
-        # No user-specified kernel
-        add_packages(state.config, packages, "linux")
-
     if state.config.ssh:
         add_packages(state.config, packages, "openssh")
 
     invoke_pacman(state, packages)
-
-    state.root.joinpath("etc/pacman.d/mirrorlist").write_text(f"Server = {state.config.mirror}/$repo/os/$arch\n")
 
 
 def invoke_pacman(state: MkosiState, packages: Sequence[str]) -> None:

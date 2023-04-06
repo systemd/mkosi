@@ -9,21 +9,13 @@ from textwrap import dedent
 
 from mkosi.backend import MkosiState, add_packages
 from mkosi.distributions import DistributionInstaller
-from mkosi.install import install_skeleton_trees, write_resource
+from mkosi.install import install_skeleton_trees
 from mkosi.run import run, run_with_apivfs
 from mkosi.types import _FILE, CompletedProcess, PathString
 
 
 class DebianInstaller(DistributionInstaller):
     needs_skeletons_after_bootstrap = True
-    repositories_for_boot: set[str] = set()
-
-    @classmethod
-    def _add_default_kernel_package(cls, state: MkosiState, packages: list[str]) -> None:
-        # Don't pull in a kernel if users specify one, but otherwise try to pick a default
-        # one - try to infer from the architecture.
-        if not any(package.startswith("linux-image") for package in packages):
-            add_packages(state.config, packages, f"linux-image-{DEBIAN_KERNEL_ARCHITECTURES[state.config.architecture]}")
 
     @classmethod
     def filesystem(cls) -> str:
@@ -46,9 +38,6 @@ class DebianInstaller(DistributionInstaller):
         dpkg_io_conf.write_text("force-unsafe-io\n")
 
         repos = {"main", *state.config.repositories}
-        # Ubuntu needs the 'universe' repo to install 'dracut'
-        if state.config.bootable:
-            repos |= cls.repositories_for_boot
 
         # debootstrap fails if a base image is used with an already populated root, so skip it.
         if state.config.base_image is None:
@@ -84,11 +73,6 @@ class DebianInstaller(DistributionInstaller):
         packages = state.config.packages.copy()
         add_packages(state.config, packages, "base-files")
 
-        if state.config.bootable:
-            if not state.config.initrds:
-                add_packages(state.config, packages, "dracut", "dracut-config-generic")
-            cls._add_default_kernel_package(state, packages)
-
         if state.config.ssh:
             add_packages(state.config, packages, "openssh-server")
 
@@ -122,7 +106,7 @@ class DebianInstaller(DistributionInstaller):
             with dpkg_nodoc_conf.open("w") as f:
                 f.writelines(f"path-exclude {d}/*\n" for d in doc_paths)
 
-        if state.config.bootable and state.config.base_image is None:
+        if state.config.base_image is None:
             # systemd-boot won't boot unified kernel images generated without a BUILD_ID or VERSION_ID in
             # /etc/os-release. Build one with the mtime of os-release if we don't find them.
             with state.root.joinpath("etc/os-release").open("r+") as f:
@@ -140,12 +124,8 @@ class DebianInstaller(DistributionInstaller):
 
         invoke_apt(state, "get", "update", ["--assume-yes"])
 
-        if state.config.bootable:
-            # Ensure /efi exists so that the ESP is mounted there, and we never run dpkg -i on vfat
-            state.root.joinpath("efi").mkdir(mode=0o755)
-
-        if state.config.bootable:
-            add_apt_package_if_exists(state, packages, "systemd-boot")
+        # Ensure /efi exists so that the ESP is mounted there, and we never run dpkg -i on vfat
+        state.root.joinpath("efi").mkdir(mode=0o755, exist_ok=True)
 
         invoke_apt(state, "get", "install", ["--assume-yes", "--no-install-recommends", *packages])
 
@@ -171,10 +151,6 @@ class DebianInstaller(DistributionInstaller):
         presetdir = state.root / "etc/systemd/system-preset"
         presetdir.mkdir(exist_ok=True, mode=0o755)
         presetdir.joinpath("99-mkosi-disable.preset").write_text("disable *")
-
-        if state.config.bootable and not state.config.initrds:
-            write_resource(state.root / "etc/kernel/install.d/50-mkosi-dpkg-reconfigure-dracut.install",
-                           "mkosi.resources", "dpkg-reconfigure-dracut.install", executable=True)
 
     @classmethod
     def install_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
@@ -288,6 +264,7 @@ def invoke_apt(
         APT_CONFIG=config_file,
         DEBIAN_FRONTEND="noninteractive",
         DEBCONF_INTERACTIVE_SEEN="true",
+        KERNEL_INSTALL_BYPASS="1",
         INITRD="No",
     )
 

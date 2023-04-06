@@ -381,11 +381,6 @@ class MkosiConfigParser:
             paths=("mkosi.workspace",),
         ),
         MkosiConfigSetting(
-            dest="bootable",
-            section="Output",
-            parse=config_parse_boolean,
-        ),
-        MkosiConfigSetting(
             dest="kernel_command_line",
             section="Output",
             parse=config_make_list_parser(delimiter=" "),
@@ -930,13 +925,6 @@ class MkosiConfigParser:
             "--workspace-dir",
             metavar="DIR",
             help="Workspace directory",
-            action=action,
-        )
-        group.add_argument(
-            "-b", "--bootable",
-            metavar="BOOL",
-            help="Make image bootable on EFI",
-            nargs="?",
             action=action,
         )
         group.add_argument(

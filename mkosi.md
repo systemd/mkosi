@@ -75,9 +75,7 @@ The following command line verbs are known:
 
 : Similar to `boot`, but uses `qemu` to boot up the image, i.e. instead of
   container virtualization virtual machine virtualization is used. This verb is
-  only supported for images that contain a boot loader, i.e. those built with
-  `Bootable=yes` (see below). This command must be executed as `root` unless
-  the image already exists and `-f` is not specified. Any options specified
+  only supported for disk images that contain a boot loader. Any options specified
   after the `qemu` verb are appended to the `qemu` invocation.
 
 `ssh`
@@ -372,21 +370,17 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 
   <!--  FIXME: allow `Force=<n>` -->
 
-`Bootable=`, `--bootable`, `-b`
-
-: Generate a bootable image for UEFI systems.
-
 `KernelCommandLine=`, `--kernel-command-line=`
 
-: Use the specified kernel command line when building bootable
-  images. By default command line arguments get appended. To remove all
-  arguments from the current list pass "!\*". To remove specific arguments
-  add a space separated list of "!" prefixed arguments.
-  For example adding "!\* console=ttyS0 rw" to a `mkosi.conf` file or the
-  command line arguments passes "console=ttyS0 rw" to the kernel in any
-  case. Just adding "console=ttyS0 rw" would append these two arguments
-  to the kernel command line created by lower priority configuration
-  files or previous `KernelCommandLine=` command line arguments.
+: Use the specified kernel command line when building images. By default
+  command line arguments get appended. To remove all arguments from the
+  current list pass "!\*". To remove specific arguments add a space
+  separated list of "!" prefixed arguments. For example adding
+  "!\* console=ttyS0 rw" to a `mkosi.conf` file or the command line
+  arguments passes "console=ttyS0 rw" to the kernel in any case. Just
+  adding "console=ttyS0 rw" would append these two arguments to the kernel
+  command line created by lower priority configuration files or previous
+  `KernelCommandLine=` command line arguments.
 
 `SecureBoot=`, `--secure-boot`
 
@@ -989,38 +983,6 @@ that packages `emerge` may be used to build *Gentoo* images.
 
 Currently, *Fedora Linux* packages all relevant tools as of Fedora 28.
 
-## Compatibility
-
-Legacy concepts are avoided: generated images use *GPT* disk labels
-(and no *MBR* labels), and only systemd-based images may be generated.
-
-All generated *GPT* disk images may be booted in a local
-container directly with:
-
-```bash
-systemd-nspawn -bi image.raw
-```
-
-Additionally, bootable *GPT* disk images (as created with the
-`--bootable` flag) work when booted directly by *EFI* systems,
-for example in *KVM* via:
-
-```bash
-qemu-kvm -m 512 -smp 2 -bios /usr/share/edk2/ovmf/OVMF_CODE.fd -drive format=raw,file=image.raw
-```
-
-*EFI* bootable *GPT* images are larger than plain *GPT* images, as
-they additionally carry an *EFI* system partition containing a
-boot loader, as well as a kernel, kernel modules, udev and
-more.
-
-All directory or btrfs subvolume images may be booted directly
-with:
-
-```bash
-systemd-nspawn -bD image
-```
-
 # Files
 
 To make it easy to build images for development versions of your
@@ -1323,13 +1285,13 @@ variables:
 Create and run a raw *GPT* image with *ext4*, as `image.raw`:
 
 ```bash
-# mkosi --bootable --incremental boot
+# mkosi -p systemd --incremental boot
 ```
 
 Create and run a bootable *GPT* image, as `foobar.raw`:
 
 ```bash
-# mkosi --format disk --bootable -o foobar.raw
+# mkosi -d fedora -p kernel -p systemd -p udev -o foobar.raw
 # mkosi --output foobar.raw boot
 # mkosi --output foobar.raw qemu
 ```
@@ -1360,10 +1322,9 @@ Release=24
 
 [Output]
 Format=disk
-Bootable=yes
 
 [Content]
-Packages=openssh-clients,httpd
+Packages=kernel,systemd,systemd-udev,openssh-clients,httpd
 BuildPackages=make,gcc,libcurl-devel
 EOF
 # cat >mkosi.build <<EOF
@@ -1375,7 +1336,7 @@ make -j `nproc`
 make install
 EOF
 # chmod +x mkosi.build
-# mkosi --bootable --incremental boot
+# mkosi --incremental boot
 # systemd-nspawn -bi image.raw
 ```
 

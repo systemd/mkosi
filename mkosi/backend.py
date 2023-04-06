@@ -216,7 +216,6 @@ class MkosiConfig:
     manifest_format: list[ManifestFormat]
     output: Path
     output_dir: Optional[Path]
-    bootable: bool
     kernel_command_line: list[str]
     secure_boot: bool
     secure_boot_key: Optional[Path]

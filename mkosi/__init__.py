@@ -75,28 +75,6 @@ MKOSI_COMMANDS_NEED_BUILD = (Verb.shell, Verb.boot, Verb.qemu, Verb.serve)
 MKOSI_COMMANDS_SUDO = (Verb.shell, Verb.boot)
 MKOSI_COMMANDS_CMDLINE = (Verb.build, Verb.shell, Verb.boot, Verb.qemu, Verb.ssh)
 
-DRACUT_SYSTEMD_EXTRAS = [
-    "/usr/bin/systemd-ask-password",
-    "/usr/bin/systemd-repart",
-    "/usr/bin/systemd-tty-ask-password-agent",
-    "/usr/lib/systemd/system-generators/systemd-veritysetup-generator",
-    "/usr/lib/systemd/system/initrd-root-fs.target.wants/systemd-repart.service",
-    "/usr/lib/systemd/system/initrd-usr-fs.target",
-    "/usr/lib/systemd/system/initrd.target.wants/systemd-pcrphase-initrd.service",
-    "/usr/lib/systemd/system/sysinit.target.wants/veritysetup.target",
-    "/usr/lib/systemd/system/systemd-pcrphase-initrd.service",
-    "/usr/lib/systemd/system/systemd-repart.service",
-    "/usr/lib/systemd/system/systemd-volatile-root.service",
-    "/usr/lib/systemd/system/veritysetup.target",
-    "/usr/lib/systemd/systemd-pcrphase",
-    "/usr/lib/systemd/systemd-veritysetup",
-    "/usr/lib/systemd/systemd-volatile-root",
-    "/usr/lib64/libtss2-esys.so.0",
-    "/usr/lib64/libtss2-mu.so.0",
-    "/usr/lib64/libtss2-rc.so.0",
-    "/usr/lib64/libtss2-tcti-device.so.0",
-]
-
 
 T = TypeVar("T")
 
@@ -175,35 +153,6 @@ def configure_hostname(state: MkosiState) -> None:
     if state.config.hostname:
         with complete_step("Assigning hostname"):
             etc_hostname.write_text(state.config.hostname + "\n")
-
-
-def configure_dracut(state: MkosiState, cached: bool) -> None:
-    if not state.config.bootable or state.config.initrds:
-        return
-
-    if not state.config.cache_initrd and state.for_cache:
-        return
-
-    if state.config.cache_initrd and cached:
-        return
-
-    dracut_dir = state.root / "etc/dracut.conf.d"
-    dracut_dir.mkdir(mode=0o755, exist_ok=True)
-
-    dracut_dir.joinpath("30-mkosi-qemu.conf").write_text('add_dracutmodules+=" qemu "\n')
-
-    with dracut_dir.joinpath("30-mkosi-systemd-extras.conf").open("w") as f:
-        for extra in DRACUT_SYSTEMD_EXTRAS:
-            f.write(f'install_optional_items+=" {extra} "\n')
-        f.write('install_optional_items+=" /etc/systemd/system.conf "\n')
-        if state.root.joinpath("etc/systemd/system.conf.d").exists():
-            for conf in state.root.joinpath("etc/systemd/system.conf.d").iterdir():
-                f.write(f'install_optional_items+=" {Path("/") / conf.relative_to(state.root)} "\n')
-
-    # efivarfs must be present in order to GPT root discovery work
-    dracut_dir.joinpath("30-mkosi-efivarfs.conf").write_text(
-        '[[ $(modinfo -k "$kernel" -F filename efivarfs 2>/dev/null) == /* ]] && add_drivers+=" efivarfs "\n'
-    )
 
 
 def prepare_tree_root(state: MkosiState) -> None:
@@ -523,17 +472,19 @@ def run_finalize_script(state: MkosiState) -> None:
 
 
 def install_boot_loader(state: MkosiState) -> None:
-    if not state.config.bootable or state.for_cache:
+    if state.for_cache:
+        return
+
+    directory = state.root / "usr/lib/systemd/boot/efi"
+    if not directory.exists():
         return
 
     if state.config.secure_boot:
         assert state.config.secure_boot_key
         assert state.config.secure_boot_certificate
 
-        p = state.root / "usr/lib/systemd/boot/efi"
-
         with complete_step("Signing systemd-boot binaries…"):
-            for f in itertools.chain(p.glob('*.efi'), p.glob('*.EFI')):
+            for f in itertools.chain(directory.glob('*.efi'), directory.glob('*.EFI')):
                 run(
                     [
                         "sbsign",
@@ -754,9 +705,6 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
     # sd-boot iterates through them and shows them in the menu. These "unified" single-file images have the
     # benefit that they can be signed like normal EFI binaries, and can encode everything necessary to boot a
     # specific root device, including the root hash.
-
-    if not state.config.bootable:
-        return
 
     # The roothash is specific to the final image so we cannot cache this step.
     if state.for_cache:
@@ -1159,14 +1107,13 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
     if args.cmdline and args.verb not in MKOSI_COMMANDS_CMDLINE:
         die(f"Parameters after verb are only accepted for {list_to_string(verb.name for verb in MKOSI_COMMANDS_CMDLINE)}.")
 
-    if args.bootable:
-        if args.verb == Verb.qemu and args.output_format in (
-            OutputFormat.directory,
-            OutputFormat.subvolume,
-            OutputFormat.tar,
-            OutputFormat.cpio,
-        ):
-            die("Directory, subvolume, tar, cpio, and plain squashfs images cannot be booted.", MkosiNotSupportedException)
+    if args.verb == Verb.qemu and args.output_format in (
+        OutputFormat.directory,
+        OutputFormat.subvolume,
+        OutputFormat.tar,
+        OutputFormat.cpio,
+    ):
+        die("Directory, subvolume, tar, cpio, and plain squashfs images cannot be booted in qemu.", MkosiNotSupportedException)
 
     if shutil.which("bsdtar") and args.distribution == Distribution.openmandriva and args.tar_strip_selinux_context:
         die("Sorry, bsdtar on OpenMandriva is incompatible with --tar-strip-selinux-context", MkosiNotSupportedException)
@@ -1266,9 +1213,6 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
     if args.verb == Verb.qemu:
         if not args.output_format == OutputFormat.disk:
             die("Sorry, can't boot non-disk images with qemu.", MkosiNotSupportedException)
-
-    if needs_build(args) and args.verb == Verb.qemu and not args.bootable:
-        die("Images built without the --bootable option cannot be booted using qemu", MkosiNotSupportedException)
 
     if args.repo_dirs and not (is_dnf_distribution(args.distribution) or args.distribution == Distribution.arch):
         die("--repo-dir is only supported on DNF based distributions and Arch")
@@ -1478,11 +1422,8 @@ def print_summary(config: MkosiConfig) -> None:
     print("               Incremental:", yes_no(config.incremental))
     print("               Compression:", should_compress_output(config) or "no")
 
-    print("                  Bootable:", yes_no(config.bootable))
-
-    if config.bootable:
-        print("       Kernel Command Line:", " ".join(config.kernel_command_line))
-        print("           UEFI SecureBoot:", yes_no(config.secure_boot))
+    print("       Kernel Command Line:", " ".join(config.kernel_command_line))
+    print("           UEFI SecureBoot:", yes_no(config.secure_boot))
 
     if config.secure_boot_key:
         print("       SecureBoot Sign Key:", config.secure_boot_key)
@@ -1643,13 +1584,13 @@ def configure_initrd(state: MkosiState) -> None:
 
 
 def run_kernel_install(state: MkosiState, cached: bool) -> None:
-    if not state.config.bootable:
-        return
-
     if not state.config.cache_initrd and state.for_cache:
         return
 
     if state.config.cache_initrd and cached:
+        return
+
+    if state.config.initrds:
         return
 
     # CentOS Stream 8 has an old version of kernel-install that unconditionally writes initrds to
@@ -1660,16 +1601,14 @@ def run_kernel_install(state: MkosiState, cached: bool) -> None:
     else:
         machine_id = None
 
-    # Fedora unconditionally pulls in dracut when installing a kernel and upstream dracut refuses to skip
-    # running when implement KERNEL_INSTALL_INITRD_GENERATOR support so let's disable it manually here if the
-    # user provided initrds.
-
-    if state.config.initrds:
-        for p in state.root.joinpath("usr/lib/kernel/install.d").iterdir():
-            if "dracut" in p.name:
-                install = state.root.joinpath("etc/kernel/install.d")
-                install.mkdir(parents=True, exist_ok=True)
-                install.joinpath(p.name).symlink_to("/dev/null")
+    # kernel-install on Debian/Ubuntu does not rebuild the dracut initrd, so we do it manually here.
+    if (state.root.joinpath("usr/bin/dracut").exists() and
+        state.config.distribution in (Distribution.ubuntu, Distribution.debian) and
+        not state.root.joinpath("usr/lib/kernel/install.d/50-dracut.install").exists() and
+        not state.root.joinpath("etc/kernel/install.d/50-dracut.install").exists()):
+        with complete_step("Running dpkg-reconfigure dracut…"):
+            run_workspace_command(state, ["dpkg-reconfigure", "dracut"], env=dict(hostonly_l="no"))
+            return
 
     with complete_step("Running kernel-install…"):
         for kver, kimg in gen_kernel_images(state):
@@ -1678,15 +1617,11 @@ def run_kernel_install(state: MkosiState, cached: bool) -> None:
             if ARG_DEBUG:
                 cmd += ["--verbose"]
 
-            run_workspace_command(state, cmd)
+            # Make dracut think --no-host-only was passed via the CLI.
+            run_workspace_command(state, cmd, env=dict(hostonly_l="no"))
 
             if machine_id and (p := state.root / "boot" / machine_id / kver / "initrd").exists():
                 shutil.move(p, state.root / state.installer.initrd_path(kver))
-
-    if state.config.initrds:
-        for p in state.root.joinpath("etc/kernel/install.d").iterdir():
-            if "dracut" in p.name:
-                os.unlink(p)
 
     if machine_id and (p := state.root / "boot" / machine_id).exists():
         shutil.rmtree(p)
@@ -1764,8 +1699,6 @@ def invoke_repart(state: MkosiState, skip: Sequence[str] = [], split: bool = Fal
         cmdline += ["--private-key", state.config.secure_boot_key]
     if state.config.secure_boot_certificate:
         cmdline += ["--certificate", state.config.secure_boot_certificate]
-    if not state.config.bootable:
-        cmdline += ["--exclude-partitions=esp,xbootldr"]
     if skip:
         cmdline += ["--defer-partitions", ",".join(skip)]
     if split and state.config.split_artifacts:
@@ -1778,18 +1711,23 @@ def invoke_repart(state: MkosiState, skip: Sequence[str] = [], split: bool = Fal
         definitions = state.workspace / "repart-definitions"
         if not definitions.exists():
             definitions.mkdir()
-            definitions.joinpath("00-esp.conf").write_text(
-                dedent(
-                    """\
-                    [Partition]
-                    Type=esp
-                    Format=vfat
-                    CopyFiles=/boot:/
-                    SizeMinBytes=1024M
-                    SizeMaxBytes=1024M
-                    """
+            bootdir = state.root.joinpath("boot/EFI/BOOT")
+
+            if bootdir.exists() and any(bootdir.iterdir()) and any(gen_kernel_images(state)):
+                # If we have at least one kernel images and a bootloader, let's generate an ESP partition.
+                definitions.joinpath("00-esp.conf").write_text(
+                    dedent(
+                        """\
+                        [Partition]
+                        Type=esp
+                        Format=vfat
+                        CopyFiles=/boot:/
+                        SizeMinBytes=1024M
+                        SizeMaxBytes=1024M
+                        """
+                    )
                 )
-            )
+
             definitions.joinpath("10-root.conf").write_text(
                 dedent(
                     f"""\
@@ -1843,7 +1781,6 @@ def build_image(state: MkosiState, *, manifest: Optional[Manifest] = None) -> No
         configure_hostname(state)
         configure_root_password(state)
         configure_autologin(state)
-        configure_dracut(state, cached)
         configure_initrd(state)
         run_build_script(state)
         install_build_dest(state)

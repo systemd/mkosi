@@ -36,7 +36,6 @@ class Gentoo:
     profile_path: Path
     root: Path
     pkgs: dict[str, list[str]] = {}
-    dracut_atom = "sys-kernel/dracut"
 
     EMERGE_UPDATE_OPTS = [
         "--update",
