@@ -59,6 +59,7 @@ from mkosi.config import (
     config_parse_script,
     config_parse_string,
     make_enum_parser,
+    make_path_parser,
     parse_source_target_paths,
 )
 from mkosi.install import (
@@ -1118,7 +1119,7 @@ SETTINGS = (
         dest="repo_dirs",
         name="RepositoryDirectories",
         section="Distribution",
-        parse=config_make_list_parser(delimiter=",", parse=Path),
+        parse=config_make_list_parser(delimiter=",", parse=make_path_parser(required=True)),
         paths=("mkosi.reposdir",),
     ),
     MkosiConfigSetting(
@@ -1253,7 +1254,7 @@ SETTINGS = (
     MkosiConfigSetting(
         dest="initrds",
         section="Output",
-        parse=config_make_list_parser(delimiter=",", parse=Path),
+        parse=config_make_list_parser(delimiter=",", parse=make_path_parser(required=False)),
     ),
     MkosiConfigSetting(
         dest="base_packages",
@@ -1419,7 +1420,7 @@ SETTINGS = (
     MkosiConfigSetting(
         dest="extra_search_paths",
         section="Host",
-        parse=config_make_list_parser(delimiter=",", parse=Path),
+        parse=config_make_list_parser(delimiter=",", parse=make_path_parser(required=True)),
     ),
     MkosiConfigSetting(
         dest="qemu_gui",

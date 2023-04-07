@@ -26,6 +26,8 @@ def parse_boolean(s: str) -> bool:
 
 def parse_source_target_paths(value: str) -> tuple[Path, Optional[Path]]:
     src, _, target = value.partition(':')
+    if not Path(src).exists():
+        die(f"{src} does not exist")
     if target and not Path(target).absolute():
         die("Target path must be absolute")
     return Path(src), Path(target) if target else None
@@ -304,6 +306,16 @@ def config_make_list_parser(delimiter: str, parse: Callable[[str], Any] = str) -
         return l
 
     return config_parse_list
+
+
+def make_path_parser(required: bool) -> Callable[[str], Path]:
+    def parse_path(value: str) -> Path:
+        if required and not Path(value).exists():
+            die(f"{value} does not exist")
+
+        return Path(value)
+
+    return parse_path
 
 
 def config_make_path_parser(required: bool) -> ConfigParseCallback:
