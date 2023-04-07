@@ -3,7 +3,7 @@
 from collections.abc import Sequence
 from textwrap import dedent
 
-from mkosi.backend import MkosiState, add_packages, disable_pam_securetty, sort_packages
+from mkosi.backend import MkosiState, add_packages, sort_packages
 from mkosi.distributions import DistributionInstaller
 from mkosi.log import complete_step
 from mkosi.run import run_with_apivfs
@@ -110,10 +110,6 @@ def install_arch(state: MkosiState) -> None:
     invoke_pacman(state, packages)
 
     state.root.joinpath("etc/pacman.d/mirrorlist").write_text(f"Server = {state.config.mirror}/$repo/os/$arch\n")
-
-    # Arch still uses pam_securetty which prevents root login into
-    # systemd-nspawn containers. See https://bugs.archlinux.org/task/45903.
-    disable_pam_securetty(state.root)
 
 
 def invoke_pacman(state: MkosiState, packages: Sequence[str]) -> None:

@@ -453,15 +453,6 @@ def safe_tar_extract(tar: tarfile.TarFile, path: Path=Path("."), *, numeric_owne
     tar.extractall(path, members=members, numeric_owner=numeric_owner)
 
 
-def disable_pam_securetty(root: Path) -> None:
-    def _rm_securetty(line: str) -> str:
-        if "pam_securetty.so" in line:
-            return ""
-        return line
-
-    patch_file(root / "etc/pam.d/login", _rm_securetty)
-
-
 def add_packages(
     config: MkosiConfig, packages: list[str], *names: str, conditional: Optional[str] = None
 ) -> None:

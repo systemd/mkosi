@@ -433,19 +433,6 @@ def configure_root_password(state: MkosiState) -> None:
             patch_file(state.root / "etc/shadow", set_root_pw)
 
 
-def pam_add_autologin(root: Path, ttys: list[str]) -> None:
-    login = root / "etc/pam.d/login"
-    original = login.read_text() if login.exists() else ""
-
-    login.parent.mkdir(exist_ok=True)
-    with open(login, "w") as f:
-        for tty in ttys:
-            # Some PAM versions require the /dev/ prefix, others don't. Just add both variants.
-            f.write(f"auth sufficient pam_succeed_if.so tty = {tty}\n")
-            f.write(f"auth sufficient pam_succeed_if.so tty = /dev/{tty}\n")
-        f.write(original)
-
-
 def configure_autologin(state: MkosiState) -> None:
     if not state.config.autologin or state.for_cache:
         return
@@ -453,22 +440,11 @@ def configure_autologin(state: MkosiState) -> None:
     with complete_step("Setting up autologin…"):
         add_dropin_config_from_resource(state.root, "console-getty.service", "autologin",
                                         "mkosi.resources", "console_getty_autologin.conf")
-
-        ttys = []
-        ttys += ["pts/0"]
-
         add_dropin_config_from_resource(state.root, "serial-getty@hvc0.service", "autologin",
                                         "mkosi.resources", "serial_getty_autologin.conf")
-
-        ttys += ["hvc0"]
-
         add_dropin_config_from_resource(state.root, "getty@tty1.service", "autologin",
                                         "mkosi.resources", "getty_autologin.conf")
 
-        ttys += ["tty1"]
-        ttys += ["console"]
-
-        pam_add_autologin(state.root, ttys)
 
 
 def mount_build_overlay(state: MkosiState) -> ContextManager[Path]:

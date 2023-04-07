@@ -7,7 +7,7 @@ from collections.abc import Iterable, Sequence
 from pathlib import Path
 from textwrap import dedent
 
-from mkosi.backend import MkosiState, add_packages, disable_pam_securetty
+from mkosi.backend import MkosiState, add_packages
 from mkosi.distributions import DistributionInstaller
 from mkosi.install import install_skeleton_trees, write_resource
 from mkosi.run import run, run_with_apivfs
@@ -172,10 +172,6 @@ class DebianInstaller(DistributionInstaller):
         if not state.config.with_docs and state.config.base_image is not None:
             # Don't ship dpkg config files in extensions, they belong with dpkg in the base image.
             dpkg_nodoc_conf.unlink() # type: ignore
-
-        if state.config.base_image is None:
-            # Debian still has pam_securetty module enabled, disable it in the base image.
-            disable_pam_securetty(state.root)
 
         cls._fixup_resolved(state, packages)
 
