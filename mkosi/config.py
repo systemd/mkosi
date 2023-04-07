@@ -2,12 +2,13 @@ import argparse
 import configparser
 import dataclasses
 import enum
+import fnmatch
 import os
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, Callable, Optional, Type, Union, cast
 
-from mkosi.backend import Distribution
+from mkosi.backend import Distribution, detect_distribution
 from mkosi.log import die
 
 
@@ -30,61 +31,85 @@ def parse_source_target_paths(value: str) -> tuple[Path, Optional[Path]]:
     return Path(src), Path(target) if target else None
 
 
-def config_parse_string(dest: str, value: Optional[str], namespace: argparse.Namespace) -> None:
-    setattr(namespace, dest, value)
+def config_parse_string(dest: str, value: Optional[str], namespace: argparse.Namespace) -> Optional[str]:
+    if dest in namespace:
+        return getattr(namespace, dest) # type: ignore
+
+    return value if value else None
 
 
 def config_match_string(dest: str, value: str, namespace: argparse.Namespace) -> bool:
     return cast(bool, value == getattr(namespace, dest))
 
 
-def config_parse_script(dest: str, value: Optional[str], namespace: argparse.Namespace) -> None:
-    if value is not None:
+def config_parse_script(dest: str, value: Optional[str], namespace: argparse.Namespace) -> Optional[Path]:
+    if dest in namespace:
+        return getattr(namespace, dest) # type: ignore
+
+    if value:
         if not Path(value).exists():
             die(f"{value} does not exist")
         if not os.access(value, os.X_OK):
             die(f"{value} is not executable")
 
-    config_make_path_parser(required=True)(dest, value, namespace)
+    return Path(value) if value else None
 
 
-def config_parse_boolean(dest: str, value: Optional[str], namespace: argparse.Namespace) -> None:
-    setattr(namespace, dest, parse_boolean(value) if value is not None else False)
+def config_parse_boolean(dest: str, value: Optional[str], namespace: argparse.Namespace) -> bool:
+    if dest in namespace:
+        return getattr(namespace, dest) # type: ignore
+
+    return parse_boolean(value) if value else False
 
 
 def config_match_boolean(dest: str, value: str, namespace: argparse.Namespace) -> bool:
     return cast(bool, getattr(namespace, dest) == parse_boolean(value))
 
 
-def config_parse_feature(dest: str, value: Optional[str], namespace: argparse.Namespace) -> None:
-    if value is None:
-        value = "auto"
-    setattr(namespace, dest, parse_boolean(value) if value != "auto" else None)
+def config_parse_feature(dest: str, value: Optional[str], namespace: argparse.Namespace) -> Optional[bool]:
+    if dest in namespace:
+        return getattr(namespace, dest) # type: ignore
+
+    if value and value == "auto":
+        return None
+
+    return parse_boolean(value) if value else None
 
 
-def config_parse_compression(dest: str, value: Optional[str], namespace: argparse.Namespace) -> None:
+def config_parse_compression(dest: str, value: Optional[str], namespace: argparse.Namespace) -> Union[None, str, bool]:
+    if dest in namespace:
+        return getattr(namespace, dest) # type: ignore
+
     if value in ("zlib", "lzo", "zstd", "lz4", "xz"):
-        setattr(namespace, dest, value)
-    else:
-        setattr(namespace, dest, parse_boolean(value) if value is not None else None)
+        return value
+
+    return parse_boolean(value) if value else None
 
 
-def config_parse_base_packages(dest: str, value: Optional[str], namespace: argparse.Namespace) -> None:
+def config_parse_base_packages(dest: str, value: Optional[str], namespace: argparse.Namespace) -> Union[bool, str]:
+    if dest in namespace:
+        return getattr(namespace, dest) # type: ignore
+
     if value == "conditional":
-        setattr(namespace, dest, value)
-    else:
-        setattr(namespace, dest, parse_boolean(value) if value is not None else False)
+        return value
+
+    return parse_boolean(value) if value else False
 
 
-def config_parse_distribution(dest: str, value: Optional[str], namespace: argparse.Namespace) -> None:
-    assert value is not None
+def config_default_release(namespace: argparse.Namespace) -> Any:
+    # If we encounter Release in [Match] and no distribution has been set yet, configure the default
+    # distribution as well since the default release depends on the selected distribution.
+    if "distribution" not in namespace:
+        setattr(namespace, "distribution", detect_distribution()[0])
 
-    try:
-        d = Distribution[value]
-    except KeyError:
-        die(f"Invalid distribution {value}")
+    d = getattr(namespace, "distribution")
 
-    r = {
+    # If the configured distribution matches the host distribution, use the same release as the host.
+    hd, hr = detect_distribution()
+    if d == hd:
+        return hr
+
+    return {
         Distribution.fedora: "37",
         Distribution.centos: "9",
         Distribution.rocky: "9",
@@ -97,12 +122,10 @@ def config_parse_distribution(dest: str, value: Optional[str], namespace: argpar
         Distribution.gentoo: "17.1",
     }.get(d, "rolling")
 
-    setattr(namespace, dest, d)
-    setattr(namespace, "release", r)
 
-
-ConfigParseCallback = Callable[[str, Optional[str], argparse.Namespace], None]
+ConfigParseCallback = Callable[[str, Optional[str], argparse.Namespace], Any]
 ConfigMatchCallback = Callable[[str, str, argparse.Namespace], bool]
+ConfigDefaultCallback = Callable[[argparse.Namespace], Any]
 
 
 @dataclasses.dataclass(frozen=True)
@@ -113,6 +136,7 @@ class MkosiConfigSetting:
     match: Optional[ConfigMatchCallback] = None
     name: str = ""
     default: Any = None
+    default_factory: Optional[ConfigDefaultCallback] = None
     paths: tuple[str, ...] = tuple()
 
     def __post_init__(self) -> None:
@@ -121,12 +145,11 @@ class MkosiConfigSetting:
 
 
 class MkosiConfigParser:
-    def __init__(self, settings: Sequence[MkosiConfigSetting], directory: Path) -> None:
+    def __init__(self, settings: Sequence[MkosiConfigSetting]) -> None:
         self.settings = settings
-        self.directory = directory
         self.lookup = {s.name: s for s in settings}
 
-    def _parse_config(self, path: Path, namespace: argparse.Namespace) -> None:
+    def parse(self, path: Path, namespace: argparse.Namespace) -> argparse.Namespace:
         extras = path.is_dir()
 
         if path.is_dir():
@@ -150,32 +173,46 @@ class MkosiConfigParser:
                 if not (s := self.lookup.get(k)):
                     die(f"Unknown setting {k}")
 
-                if s.match and not s.match(s.dest, v, namespace):
-                    return
+                if not (match := s.match):
+                    die(f"{k} cannot be used in [Match]")
+
+                # If we encounter a setting in [Match] that has not been explicitly configured yet, we assign
+                # it it's default value first so that we can [Match] on default values for settings.
+                if s.dest not in namespace:
+                    if s.default_factory:
+                        default = s.default_factory(namespace)
+                    elif s.default is None:
+                        default = s.parse(s.dest, None, namespace)
+                    else:
+                        default = s.default
+
+                    setattr(namespace, s.dest, default)
+
+                if not match(s.dest, v, namespace):
+                    return namespace
 
         parser.remove_section("Match")
-
-        if extras:
-            for s in self.settings:
-                for f in s.paths:
-                    if path.parent.joinpath(f).exists():
-                        s.parse(s.dest, str(path.parent / f), namespace)
 
         for section in parser.sections():
             for k, v in parser.items(section):
                 if not (s := self.lookup.get(k)):
                     die(f"Unknown setting {k}")
 
-                s.parse(s.dest, v, namespace)
+                setattr(namespace, s.dest, s.parse(s.dest, v, namespace))
 
-        if extras and path.parent.joinpath("mkosi.conf.d").exists():
-            for p in sorted(path.parent.joinpath("mkosi.conf.d").iterdir()):
-                if p.is_dir() or p.suffix == ".conf":
-                    self._parse_config(p, namespace)
+        if extras:
+            # Dropin configuration has priority over any default paths.
 
+            if path.parent.joinpath("mkosi.conf.d").exists():
+                for p in sorted(path.parent.joinpath("mkosi.conf.d").iterdir()):
+                    if p.is_dir() or p.suffix == ".conf":
+                        namespace = self.parse(p, namespace)
 
-    def parse(self, namespace: argparse.Namespace = argparse.Namespace()) -> argparse.Namespace:
-        self._parse_config(self.directory, namespace)
+            for s in self.settings:
+                for f in s.paths:
+                    if path.parent.joinpath(f).exists():
+                        setattr(namespace, s.dest, s.parse(s.dest, str(path.parent / f), namespace))
+
         return namespace
 
 
@@ -201,11 +238,11 @@ def config_make_action(settings: Sequence[MkosiConfigSetting]) -> Type[argparse.
                 die(f"Unknown setting {option_string}")
 
             if values is None or isinstance(values, str):
-                s.parse(self.dest, values, namespace)
+                setattr(namespace, s.dest, s.parse(self.dest, values, namespace))
             else:
                 for v in values:
                     assert isinstance(v, str)
-                    s.parse(self.dest, v, namespace)
+                    setattr(namespace, s.dest, s.parse(self.dest, v, namespace))
 
     return MkosiAction
 
@@ -215,14 +252,17 @@ def make_enum_parser(type: Type[enum.Enum]) -> Callable[[str], enum.Enum]:
         try:
             return type[value]
         except KeyError:
-            die(f"Invalid enum value {value}")
+            die(f"Invalid {type.__name__} value \"{value}\"")
 
     return parse_enum
 
 
 def config_make_enum_parser(type: Type[enum.Enum]) -> ConfigParseCallback:
-    def config_parse_enum(dest: str, value: Optional[str], namespace: argparse.Namespace) -> None:
-        setattr(namespace, dest, make_enum_parser(type)(value) if value else None)
+    def config_parse_enum(dest: str, value: Optional[str], namespace: argparse.Namespace) -> Optional[enum.Enum]:
+        if dest in namespace:
+            return getattr(namespace, dest) # type: ignore
+
+        return make_enum_parser(type)(value) if value else None
 
     return config_parse_enum
 
@@ -235,30 +275,45 @@ def config_make_enum_matcher(type: Type[enum.Enum]) -> ConfigMatchCallback:
 
 
 def config_make_list_parser(delimiter: str, parse: Callable[[str], Any] = str) -> ConfigParseCallback:
-    def config_parse_list(dest: str, value: Optional[str], namespace: argparse.Namespace) -> None:
+    ignore: set[str] = set()
+
+    def config_parse_list(dest: str, value: Optional[str], namespace: argparse.Namespace) -> list[Any]:
+        if dest not in namespace:
+            ignore.clear()
+            l = []
+        else:
+            l = getattr(namespace, dest).copy()
+
         if not value:
-            setattr(namespace, dest, [])
-            return
+            return l # type: ignore
 
         value = value.replace("\n", delimiter)
         values = [v for v in value.split(delimiter) if v]
 
         for v in values:
-            if v == "!*":
-                getattr(namespace, dest).clear()
-            elif v.startswith("!"):
-                setattr(namespace, dest, [i for i in getattr(namespace, dest) if i == parse(v[1:])])
+            if v.startswith("!"):
+                ignore.add(v[1:])
+                continue
+
+            for i in ignore:
+                if fnmatch.fnmatchcase(v, i):
+                    break
             else:
-                getattr(namespace, dest).append(parse(v))
+                l.insert(0, parse(v))
+
+        return l
 
     return config_parse_list
 
 
 def config_make_path_parser(required: bool) -> ConfigParseCallback:
-    def config_parse_path(dest: str, value: Optional[str], namespace: argparse.Namespace) -> None:
-        if value is not None and required and not Path(value).exists():
+    def config_parse_path(dest: str, value: Optional[str], namespace: argparse.Namespace) -> Optional[Path]:
+        if dest in namespace:
+            return getattr(namespace, dest) # type: ignore
+
+        if value and required and not Path(value).exists():
             die(f"{value} does not exist")
 
-        setattr(namespace, dest, Path(value) if value else None)
+        return Path(value) if value else None
 
     return config_parse_path
