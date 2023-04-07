@@ -150,6 +150,7 @@ in consecutive runs with data from the cached one.
 * Run SELinux relabel is a SELinux policy is installed
 * Generate unified kernel image
 * Generate final output format
+
 ## Supported output formats
 
 The following output formats are supported:
@@ -176,10 +177,54 @@ single-letter shortcut is also allowed. In the configuration files,
 the setting must be in the appropriate section, so the settings are
 grouped by section below.
 
+Configuration is parsed in the following order:
+
+* The command line arguments are parsed
+* `mkosi.conf` is parsed if it exists in the directory set with
+  `--directory=` or the current working directory if `--directory=` is
+  not used.
+* `mkosi.conf.d/` is parsed in the same directory if it exists. Each
+  directory and each file with the `.conf` extension in `mkosi.conf.d/`
+  is parsed. Any directory in `mkosi.conf.d` is parsed as if it were
+  a regular top level directory.
+* Any default paths (depending on the option) are configured if the
+  corresponding path exists.
+
+If a setting is specified multiple times across the different sources
+of configuration, the first assignment that is found is used. For example,
+a setting specified on the command line will always take precedence over
+the same setting configured in a config file. To override settings in a
+dropin file, make sure your dropin file is alphanumerically ordered
+before the config file that you're trying to override.
+
+Settings that take a list of values are merged by prepending each value
+to the previously configured values. If a value of a list setting is
+prefixed with `!`, if any later assignment of that setting tries to add
+the same value, that value is ignored. Values prefixed with `!` can be
+globs to ignore more than one value.
+
+To conditionally include configuration files, the `[Match]` section can
+be used. A configuration file is only included if all the conditions in the
+`[Match]` block are satisfied. If a condition in `[Match]` depends on a
+setting and the setting has not been explicitly configured when the condition
+is evaluated, the setting is assigned its default value.
+
 Command line options that take no argument are shown without "=" in
 their long version. In the config files, they should be specified with
 a boolean argument: either "1", "yes", or "true" to enable, or "0",
 "no", "false" to disable.
+
+### [Match] Section.
+
+`Distribution=`
+
+: Matches against the configured distribution.
+
+`Release=`
+
+: Matches against the configured distribution release. If this condition
+  is used and no distribution has been explicitly configured yet, the
+  host distribution and release are used.
 
 ### [Distribution] Section
 

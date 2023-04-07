@@ -45,6 +45,7 @@ from mkosi.backend import (
 from mkosi.config import (
     MkosiConfigParser,
     MkosiConfigSetting,
+    config_default_release,
     config_make_action,
     config_make_enum_matcher,
     config_make_enum_parser,
@@ -54,7 +55,6 @@ from mkosi.config import (
     config_parse_base_packages,
     config_parse_boolean,
     config_parse_compression,
-    config_parse_distribution,
     config_parse_feature,
     config_parse_script,
     config_parse_string,
@@ -1079,7 +1079,7 @@ SETTINGS = (
     MkosiConfigSetting(
         dest="distribution",
         section="Distribution",
-        parse=config_parse_distribution,
+        parse=config_make_enum_parser(Distribution),
         match=config_make_enum_matcher(Distribution),
         default=detect_distribution()[0],
     ),
@@ -1088,7 +1088,7 @@ SETTINGS = (
         section="Distribution",
         parse=config_parse_string,
         match=config_match_string,
-        default=detect_distribution()[1],
+        default_factory=config_default_release,
     ),
     MkosiConfigSetting(
         dest="architecture",
@@ -1217,6 +1217,11 @@ SETTINGS = (
     MkosiConfigSetting(
         dest="image_id",
         section="Output",
+    ),
+    MkosiConfigSetting(
+        dest="auto_bump",
+        section="Output",
+        parse=config_parse_boolean,
     ),
     MkosiConfigSetting(
         dest="tar_strip_selinux_context",
@@ -1478,6 +1483,7 @@ def create_argument_parser() -> argparse.ArgumentParser:
         usage=USAGE,
         add_help=False,
         allow_abbrev=False,
+        argument_default=argparse.SUPPRESS,
     )
 
     parser.add_argument(
@@ -1993,17 +1999,10 @@ def create_argument_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def parse_args(
-    argv: Optional[Sequence[str]] = None,
-    directory: Optional[Path] = None,
-    namespace: Optional[argparse.Namespace] = None
-) -> argparse.Namespace:
+def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     if argv is None:
         argv = sys.argv[1:]
     argv = list(argv)  # make a copy 'cause we'll be modifying the list later on
-
-    if namespace is None:
-        namespace = argparse.Namespace()
 
     # Make sure the verb command gets explicitly passed. Insert a -- before the positional verb argument
     # otherwise it might be considered as an argument of a parameter with nargs='?'. For example mkosi -i
@@ -2020,24 +2019,33 @@ def parse_args(
     else:
         argv += ["--", "build"]
 
-    for s in SETTINGS:
-        if s.dest in namespace:
-            continue
-
-        if s.default is None:
-            s.parse(s.dest, None, namespace)
-        else:
-            setattr(namespace, s.dest, s.default)
-
-    if directory:
-        namespace = MkosiConfigParser(SETTINGS, directory).parse(namespace)
-
     argparser = create_argument_parser()
-    namespace = argparser.parse_args(argv, namespace)
+    namespace = argparser.parse_args(argv)
 
     if namespace.verb == Verb.help:
         argparser.print_help()
         argparser.exit()
+
+    if "directory" not in namespace:
+        setattr(namespace, "directory", None)
+
+    if namespace.directory and not namespace.directory.is_dir():
+        die(f"Error: {namespace.directory} is not a directory!")
+
+    namespace = MkosiConfigParser(SETTINGS).parse(namespace.directory or Path("."), namespace)
+
+    for s in SETTINGS:
+        if s.dest in namespace:
+            continue
+
+        if s.default_factory:
+            default = s.default_factory(namespace)
+        elif s.default is None:
+            default = s.parse(s.dest, None, namespace)
+        else:
+            default = s.default
+
+        setattr(namespace, s.dest, default)
 
     return namespace
 

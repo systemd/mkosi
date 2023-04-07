@@ -5,7 +5,6 @@ import contextlib
 import os
 import sys
 from collections.abc import Iterator
-from pathlib import Path
 from subprocess import CalledProcessError
 
 from mkosi import parse_args, run_verb
@@ -34,7 +33,6 @@ def main() -> None:
         else:
             die(f"Error: {args.directory} is not a directory!")
 
-    args = parse_args(directory=Path("."))
     run_verb(args)
 
 

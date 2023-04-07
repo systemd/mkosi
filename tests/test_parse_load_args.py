@@ -27,7 +27,7 @@ def cd_temp_dir() -> Iterator[None]:
 
 
 def parse(argv: Optional[List[str]] = None) -> MkosiConfig:
-    return mkosi.load_args(mkosi.parse_args(argv, directory=Path(".")))
+    return mkosi.load_args(mkosi.parse_args(argv))
 
 
 def test_parse_load_verb() -> None:
