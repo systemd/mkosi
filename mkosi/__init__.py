@@ -1219,6 +1219,11 @@ SETTINGS = (
         section="Output",
     ),
     MkosiConfigSetting(
+        dest="auto_bump",
+        section="Output",
+        parse=config_parse_boolean,
+    ),
+    MkosiConfigSetting(
         dest="tar_strip_selinux_context",
         section="Output",
         parse=config_parse_boolean,
