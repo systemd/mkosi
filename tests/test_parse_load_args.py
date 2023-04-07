@@ -12,6 +12,7 @@ import pytest
 import mkosi
 from mkosi.backend import Distribution, MkosiConfig, Verb
 from mkosi.log import MkosiException
+from mkosi.config import MkosiConfigParser
 
 
 @contextmanager
@@ -27,7 +28,7 @@ def cd_temp_dir() -> Iterator[None]:
 
 
 def parse(argv: Optional[List[str]] = None) -> MkosiConfig:
-    return mkosi.load_args(mkosi.parse_args(argv))
+    return mkosi.load_args(MkosiConfigParser().parse(argv))
 
 
 def test_parse_load_verb() -> None:
