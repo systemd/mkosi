@@ -3,7 +3,7 @@
 from collections.abc import Sequence
 from pathlib import Path
 
-from mkosi.backend import MkosiState, add_packages, disable_pam_securetty
+from mkosi.backend import MkosiState, add_packages
 from mkosi.distributions import DistributionInstaller
 from mkosi.distributions.fedora import Repo, invoke_dnf, setup_dnf
 from mkosi.log import complete_step
@@ -71,5 +71,3 @@ def install_mageia(state: MkosiState) -> None:
         add_packages(state.config, packages, "openssh-server")
 
     invoke_dnf(state, "install", packages)
-
-    disable_pam_securetty(state.root)

@@ -204,14 +204,6 @@ def install_opensuse(state: MkosiState) -> None:
 
         patch_file(state.root / "etc/pam.d/common-auth", jj)
 
-    if state.config.autologin:
-        # copy now, patch later (in configure_autologin())
-        if not state.root.joinpath("etc/pam.d/login").exists():
-            for prefix in ("lib", "etc"):
-                if state.root.joinpath(f"usr/{prefix}/pam.d/login").exists():
-                    shutil.copy2(state.root / f"usr/{prefix}/pam.d/login", state.root / "etc/pam.d/login")
-                    break
-
     if state.config.bootable and not state.config.initrds:
         dracut_dir = state.root / "etc/dracut.conf.d"
         dracut_dir.mkdir(mode=0o755, exist_ok=True)
