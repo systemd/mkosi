@@ -7,7 +7,8 @@ import sys
 from collections.abc import Iterator
 from subprocess import CalledProcessError
 
-from mkosi import parse_args, run_verb
+from mkosi import load_args, run_verb
+from mkosi.config import MkosiConfigParser
 from mkosi.log import MkosiException, die
 from mkosi.run import excepthook
 
@@ -25,7 +26,7 @@ def propagate_failed_return() -> Iterator[None]:
 
 @propagate_failed_return()
 def main() -> None:
-    args = parse_args()
+    args = MkosiConfigParser().parse()
 
     if args.directory:
         if args.directory.isdir():
@@ -33,7 +34,7 @@ def main() -> None:
         else:
             die(f"Error: {args.directory} is not a directory!")
 
-    run_verb(args)
+    run_verb(load_args(args))
 
 
 if __name__ == "__main__":

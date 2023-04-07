@@ -210,7 +210,7 @@ class MkosiConfig:
     repository_key_check: bool
     repositories: list[str]
     repo_dirs: list[Path]
-    repart_dir: Optional[str]
+    repart_dirs: list[Path]
     architecture: str
     output_format: OutputFormat
     manifest_format: list[ManifestFormat]

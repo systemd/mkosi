@@ -226,6 +226,12 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   is used and no distribution has been explicitly configured yet, the
   host distribution and release are used.
 
+`PathExists=`
+
+: This condition is satisfied if the given path exists. Relative paths are
+  interpreted relative to the parent directory of the config file that the
+  condition is read from.
+
 ### [Distribution] Section
 
 `Distribution=`, `--distribution=`, `-d`
