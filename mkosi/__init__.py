@@ -1245,10 +1245,10 @@ SETTINGS = (
         parse=config_parse_boolean,
     ),
     MkosiConfigSetting(
-        dest="repart_dir",
-        name="RepartDirectory",
+        dest="repart_dirs",
+        name="RepartDirectories",
         section="Output",
-        parse=config_make_path_parser(required=True),
+        parse=config_make_list_parser(delimiter=",", parse=make_path_parser(required=True)),
         paths=("mkosi.repart",),
     ),
     MkosiConfigSetting(
@@ -1719,6 +1719,7 @@ def create_argument_parser() -> argparse.ArgumentParser:
         "--repart-dir",
         metavar="PATH",
         help="Directory containing systemd-repart partition definitions",
+        dest="repart_dirs",
         action=action,
     )
     group.add_argument(
@@ -2838,8 +2839,9 @@ def invoke_repart(state: MkosiState, skip: Sequence[str] = [], split: bool = Fal
     if split and state.config.split_artifacts:
         cmdline += ["--split=yes"]
 
-    if state.config.repart_dir:
-        definitions = Path(state.config.repart_dir)
+    if state.config.repart_dirs:
+        for d in state.config.repart_dirs:
+            cmdline += ["--definitions", d]
     else:
         definitions = state.workspace / "repart-definitions"
         if not definitions.exists():
@@ -2868,7 +2870,7 @@ def invoke_repart(state: MkosiState, skip: Sequence[str] = [], split: bool = Fal
                 )
             )
 
-    cmdline += ["--definitions", definitions]
+        cmdline += ["--definitions", definitions]
 
     env = dict(TMPDIR=str(state.workspace))
     for fs, options in state.installer.filesystem_options(state).items():
