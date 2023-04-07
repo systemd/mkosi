@@ -224,6 +224,10 @@ def config_make_path_parser(required: bool) -> ConfigParseCallback:
     return config_parse_path
 
 
+def match_path_exists(path: Path, value: str) -> bool:
+    return path.parent.joinpath(value).exists()
+
+
 @dataclasses.dataclass(frozen=True)
 class MkosiConfigSetting:
     dest: str
@@ -238,6 +242,12 @@ class MkosiConfigSetting:
     def __post_init__(self) -> None:
         if not self.name:
             object.__setattr__(self, 'name', ''.join(x.capitalize() for x in self.dest.split('_') if x))
+
+
+@dataclasses.dataclass(frozen=True)
+class MkosiMatch:
+    name: str
+    match: Callable[[Path, str], bool]
 
 
 class CustomHelpFormatter(argparse.HelpFormatter):
@@ -690,8 +700,16 @@ class MkosiConfigParser:
         ),
     )
 
+    MATCHES = (
+        MkosiMatch(
+            name="PathExists",
+            match=match_path_exists,
+        ),
+    )
+
     def __init__(self) -> None:
-        self.lookup = {s.name: s for s in self.SETTINGS}
+        self.settings_lookup = {s.name: s for s in self.SETTINGS}
+        self.match_lookup = {m.name: m for m in self.MATCHES}
 
     def parse_config(self, path: Path, namespace: argparse.Namespace) -> None:
         extras = path.is_dir()
@@ -714,32 +732,34 @@ class MkosiConfigParser:
 
         if "Match" in parser.sections():
             for k, v in parser.items("Match"):
-                if not (s := self.lookup.get(k)):
-                    die(f"Unknown setting {k}")
+                if (s := self.settings_lookup.get(k)):
+                    if not (match := s.match):
+                        die(f"{k} cannot be used in [Match]")
 
-                if not (match := s.match):
-                    die(f"{k} cannot be used in [Match]")
+                    # If we encounter a setting in [Match] that has not been explicitly configured yet, we assign
+                    # it it's default value first so that we can [Match] on default values for settings.
+                    if s.dest not in namespace:
+                        if s.default_factory:
+                            default = s.default_factory(namespace)
+                        elif s.default is None:
+                            default = s.parse(s.dest, None, namespace)
+                        else:
+                            default = s.default
 
-                # If we encounter a setting in [Match] that has not been explicitly configured yet, we assign
-                # it it's default value first so that we can [Match] on default values for settings.
-                if s.dest not in namespace:
-                    if s.default_factory:
-                        default = s.default_factory(namespace)
-                    elif s.default is None:
-                        default = s.parse(s.dest, None, namespace)
-                    else:
-                        default = s.default
+                        setattr(namespace, s.dest, default)
 
-                    setattr(namespace, s.dest, default)
+                    if not match(s.dest, v, namespace):
+                        return
 
-                if not match(s.dest, v, namespace):
-                    return
+                elif (m := self.match_lookup.get(k)):
+                    if not m.match(path, v):
+                        return
 
         parser.remove_section("Match")
 
         for section in parser.sections():
             for k, v in parser.items(section):
-                if not (s := self.lookup.get(k)):
+                if not (s := self.settings_lookup.get(k)):
                     die(f"Unknown setting {k}")
 
                 setattr(namespace, s.dest, s.parse(s.dest, v, namespace))
