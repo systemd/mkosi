@@ -693,7 +693,7 @@ class MkosiConfigParser:
     def __init__(self) -> None:
         self.lookup = {s.name: s for s in self.SETTINGS}
 
-    def parse_config(self, path: Path, namespace: argparse.Namespace) -> argparse.Namespace:
+    def parse_config(self, path: Path, namespace: argparse.Namespace) -> None:
         extras = path.is_dir()
 
         if path.is_dir():
@@ -733,7 +733,7 @@ class MkosiConfigParser:
                     setattr(namespace, s.dest, default)
 
                 if not match(s.dest, v, namespace):
-                    return namespace
+                    return
 
         parser.remove_section("Match")
 
@@ -750,14 +750,12 @@ class MkosiConfigParser:
             if path.parent.joinpath("mkosi.conf.d").exists():
                 for p in sorted(path.parent.joinpath("mkosi.conf.d").iterdir()):
                     if p.is_dir() or p.suffix == ".conf":
-                        namespace = self.parse_config(p, namespace)
+                        self.parse_config(p, namespace)
 
             for s in self.SETTINGS:
                 for f in s.paths:
                     if path.parent.joinpath(f).exists():
                         setattr(namespace, s.dest, s.parse(s.dest, str(path.parent / f), namespace))
-
-        return namespace
 
     def create_argument_parser(self) -> argparse.ArgumentParser:
         action = config_make_action(self.SETTINGS)
