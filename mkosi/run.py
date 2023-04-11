@@ -265,6 +265,7 @@ def run_with_apivfs(
         "--dev", state.root / "dev",
         "--ro-bind", "/sys", state.root / "sys",
         "--bind", state.var_tmp, state.root / "var/tmp",
+        "--die-with-parent",
         *bwrap_params,
         "sh", "-c",
     ]
@@ -302,6 +303,7 @@ def run_workspace_command(
         "--proc", "/proc",
         "--ro-bind", "/sys", "/sys",
         "--bind", state.var_tmp, "/var/tmp",
+        "--die-with-parent",
         *bwrap_params,
     ]
 
