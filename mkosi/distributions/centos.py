@@ -4,7 +4,7 @@ import shutil
 from collections.abc import Sequence
 from pathlib import Path
 
-from mkosi.backend import Distribution, MkosiConfig, MkosiState, add_packages
+from mkosi.backend import Distribution, MkosiConfig, MkosiState
 from mkosi.distributions import DistributionInstaller
 from mkosi.distributions.fedora import Repo, invoke_dnf, setup_dnf
 from mkosi.log import complete_step, die
@@ -70,7 +70,7 @@ class CentosInstaller(DistributionInstaller):
         # systemd-gpt-auto-generator only started applying the GPT partition read-only flag to gpt-auto
         # mounts from v240 onwards, while CentOS Stream 8 ships systemd v239, so we have to nudge gpt-auto to
         # mount the root partition rw by default.
-        if state.config.bootable and int(state.config.release) <= 8:
+        if int(state.config.release) <= 8:
             kcl += ["rw"]
 
         return kcl + DistributionInstaller.kernel_command_line(state)
@@ -94,27 +94,7 @@ class CentosInstaller(DistributionInstaller):
         else:
             env = {}
 
-        packages = state.config.packages.copy()
-        add_packages(state.config, packages, "systemd", "rpm")
-        if state.config.bootable:
-            add_packages(state.config, packages, "kernel")
-            if not state.config.initrds:
-                add_packages(state.config, packages, "dracut", "dracut-config-generic")
-            add_packages(state.config, packages, "systemd-udev", conditional="systemd")
-            if release >= 9:
-                add_packages(state.config, packages, "systemd-boot", conditional="systemd")
-        if state.config.ssh:
-            add_packages(state.config, packages, "openssh-server")
-
-        if "epel" in state.config.repositories:
-            add_packages(state.config, packages, "epel-release")
-
-        # Make sure we only install the minimal language files by default on CentOS Stream 8 which still
-        # defaults to all langpacks.
-        if release <= 8:
-            add_packages(state.config, packages, "glibc-minimal-langpack")
-
-        invoke_dnf(state, "install", packages, env)
+        invoke_dnf(state, "install", ["filesystem", *state.config.packages], env)
 
         syslog = state.root.joinpath("etc/systemd/system/syslog.service")
         if release <= 8 and syslog.is_symlink():

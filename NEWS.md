@@ -58,10 +58,18 @@
   runtime. Use the new `--qemu-gui` option to start qemu in its graphical interface.
 - Removed `--netdev`. Can be replaced by manually installing systemd-networkd, putting a network file in the
   image and enabling systemd-networkd.
-- If `mkosi.extra/` exists, it is now always used instead of only when no explicit extra trees are defined.
+- If `mkosi.extra/` or `mkosi.skeleton/` exist, they are now always used instead of only when no explicit
+  extra/skeleton trees are defined.
+- mkosi doesn't install any default packages anymore aside from the base filesystem layout package. In
+  practice, this means systemd and other basic tools have to be installed explicitly from now on.
+- Removed `--base-packages` as it's not needed anymore since we don't install any packages by default anymore
+  aside from the base filesystem layout package.
 - Removed `--qcow2` option in favor of supporting only raw disk images as the disk image output format.
 - Removed `--bmap` option as it can be trivially added manually by utilizing a finalize script.
 - The `never` value for `--with-network` was spun of into its own custom option `--cache-only`.
+- Removed `--bootable` in favor of automatically generating a bootable image if all the necessary packages
+  are installed. Documentation was added in docs/bootable.ld on how a bootable image can be generated on
+  mainstream distros.
 
 ## v14
 

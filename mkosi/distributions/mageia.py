@@ -3,7 +3,7 @@
 from collections.abc import Sequence
 from pathlib import Path
 
-from mkosi.backend import MkosiState, add_packages
+from mkosi.backend import MkosiState
 from mkosi.distributions import DistributionInstaller
 from mkosi.distributions.fedora import Repo, invoke_dnf, setup_dnf
 from mkosi.log import complete_step
@@ -57,17 +57,4 @@ def install_mageia(state: MkosiState) -> None:
 
     setup_dnf(state, repos)
 
-    packages = state.config.packages.copy()
-    add_packages(state.config, packages, "basesystem-minimal", "dnf")
-    if state.config.bootable and not state.config.initrds:
-        add_packages(state.config, packages, "dracut")
-        # Mageia ships /etc/50-mageia.conf that omits systemd from the initramfs and disables hostonly.
-        # We override that again so our defaults get applied correctly on Mageia as well.
-        state.root.joinpath("etc/dracut.conf.d/51-mkosi-override-mageia.conf").write_text(
-            'hostonly=no\n'
-            'omit_dracutmodules=""\n'
-        )
-    if state.config.ssh:
-        add_packages(state.config, packages, "openssh-server")
-
-    invoke_dnf(state, "install", packages)
+    invoke_dnf(state, "install", ["filesystem", *state.config.packages])

@@ -102,6 +102,9 @@ jobs:
     concurrency:
       group: ${{ github.workflow }}-${{ matrix.distro }}-${{ matrix.format }}-${{ matrix.prebuilt-initrd }}-${{ github.ref }}
       cancel-in-progress: true
+    defaults:
+      run:
+        working-directory: ./.github
     strategy:
       fail-fast: false
       matrix:
@@ -124,10 +127,6 @@ jobs:
           - no
           - yes
         exclude:
-          # Debian prebuilt initrds are so large they cause OOMs.
-          # TODO: Revisit this if Debian ever decides to compress their kernel modules.
-          - distro: debian
-            prebuilt-initrd: yes
           - distro: gentoo
             prebuilt-initrd: yes
 
@@ -170,55 +169,30 @@ jobs:
 
     # Do a manual install so we have the latest changes from the pull request available.
     - name: Install
-      run: sudo python3 -m pip install .
+      run: sudo python3 -m pip install ..
 
     - name: Build ${{ matrix.distro }} initrd
       if: matrix.prebuilt-initrd == 'yes'
+      # Run the build in .github/workflows/ so we don't pick up any of the configuration files in .github/
       run: python3 -m mkosi -d ${{ matrix.distro }} -t cpio -p systemd -p udev -p kmod -o $PWD/initrd build
+      working-directory: ./.github/workflows
 
     - name: Configure ${{ matrix.distro }}/${{ matrix.format }}
       run: |
-        mkdir -p mkosi.conf.d
-
-        tee mkosi.conf.d/mkosi.conf <<- EOF
+        tee mkosi.conf.d/00-ci.conf <<- EOF
         [Distribution]
         Distribution=${{ matrix.distro }}
 
         [Output]
         Format=${{ matrix.format }}
-        Bootable=yes
-        KernelCommandLine=systemd.unit=mkosi-check-and-shutdown.service
-                          systemd.log_target=console
-                          systemd.default_standard_output=journal+console
-
-        [Host]
-        Autologin=yes
-
-        [Content]
-        ExtraTrees=.github/mkosi.extra
-        EOF
-
-        mkdir -p mkosi.skeleton/etc/portage
-
-        tee mkosi.skeleton/etc/portage/binrepos.conf <<- EOF
-        [binhost]
-        sync-uri = https://raw.githubusercontent.com/257/binpkgs/master
         EOF
 
     - name: Configure ${{ matrix.distro }}/${{ matrix.format }} initrd
       if: matrix.prebuilt-initrd == 'yes'
       run: |
-        tee mkosi.conf.d/initrd.conf <<- EOF
+        tee mkosi.conf.d/00-initrd.conf <<- EOF
         [Distribution]
-        Initrds=initrd.zst
-        EOF
-
-    - name: Configure EPEL
-      if: matrix.distro == 'centos' || matrix.distro == 'rocky' || matrix.distro == 'alma'
-      run: |
-        tee mkosi.conf.d/epel.conf <<- EOF
-        [Distribution]
-        Repositories=epel
+        Initrds=workflows/initrd.zst
         EOF
 
     - name: Build ${{ matrix.distro }}/${{ matrix.format }}
@@ -229,7 +203,7 @@ jobs:
     # FIXME: Remove when Arch/Debian/Ubuntu ship systemd v253
     - name: Mask systemd-resolved
       if: matrix.format == 'directory'
-      run: sudo systemctl --root mkosi.output/${{ matrix.distro }}~*/image mask systemd-resolved
+      run: sudo systemctl --root image mask systemd-resolved
 
     - name: Boot ${{ matrix.distro }}/${{ matrix.format }} systemd-nspawn
       if: matrix.format == 'disk' || matrix.format == 'directory'

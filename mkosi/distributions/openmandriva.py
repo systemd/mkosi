@@ -3,7 +3,7 @@
 from collections.abc import Sequence
 from pathlib import Path
 
-from mkosi.backend import MkosiState, add_packages
+from mkosi.backend import MkosiState
 from mkosi.distributions import DistributionInstaller
 from mkosi.distributions.fedora import Repo, invoke_dnf, setup_dnf
 from mkosi.log import complete_step
@@ -58,15 +58,4 @@ def install_openmandriva(state: MkosiState) -> None:
 
     setup_dnf(state, repos)
 
-    packages = state.config.packages.copy()
-    # well we may use basesystem here, but that pulls lot of stuff
-    add_packages(state.config, packages, "basesystem-minimal", "systemd", "dnf")
-    if state.config.bootable:
-        add_packages(state.config, packages, "systemd-boot", "systemd-cryptsetup", conditional="systemd")
-        add_packages(state.config, packages, "kernel-release-server", "timezone")
-        if not state.config.initrds:
-            add_packages(state.config, packages, "dracut")
-    if state.config.ssh:
-        add_packages(state.config, packages, "openssh-server")
-
-    invoke_dnf(state, "install", packages)
+    invoke_dnf(state, "install", ["filesystem", *state.config.packages])

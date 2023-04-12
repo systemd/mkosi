@@ -5,7 +5,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from textwrap import dedent
 
-from mkosi.backend import MkosiState, add_packages, patch_file
+from mkosi.backend import MkosiState, patch_file
 from mkosi.distributions import DistributionInstaller
 from mkosi.log import complete_step
 from mkosi.run import run, run_with_apivfs
@@ -62,7 +62,7 @@ def invoke_zypper(state: MkosiState,
                   with_apivfs: bool = False) -> None:
 
     cmdline: list[PathString] = ["zypper", "--root", state.root, *global_opts, verb, *verb_opts, *args]
-    env={"ZYPP_CONF": state.root.joinpath("etc/zypp/zypp.conf")}
+    env = dict(ZYPP_CONF=str(state.root / "etc/zypp/zypp.conf"), KERNEL_INSTALL_BYPASS="1")
 
     if with_apivfs:
         run_with_apivfs(state, cmdline, env=env)
@@ -166,25 +166,7 @@ def install_opensuse(state: MkosiState) -> None:
     zypper_init(state)
     zypper_init_repositories(state)
 
-    packages = state.config.packages.copy()
-
-    if state.config.base_image is None:
-        add_packages(state.config, packages, "systemd", "glibc-locale-base", "zypper")
-
-        if state.config.release.startswith("42."):
-            add_packages(state.config, packages, "patterns-openSUSE-minimal_base")
-        else:
-            add_packages(state.config, packages, "patterns-base-minimal_base")
-
-        if state.config.bootable:
-            add_packages(state.config, packages, "kernel-default")
-            if not state.config.initrds:
-                add_packages(state.config, packages, "dracut")
-
-        if state.config.ssh:
-            add_packages(state.config, packages, "openssh-server")
-
-    zypper_install(state, packages)
+    zypper_install(state, ["filesystem", *state.config.packages])
     zypper_finalize_repositories(state)
 
     if state.config.base_image is not None:
@@ -203,8 +185,3 @@ def install_opensuse(state: MkosiState) -> None:
             return line
 
         patch_file(state.root / "etc/pam.d/common-auth", jj)
-
-    if state.config.bootable and not state.config.initrds:
-        dracut_dir = state.root / "etc/dracut.conf.d"
-        dracut_dir.mkdir(mode=0o755, exist_ok=True)
-        dracut_dir.joinpath("30-mkosi-opensuse.conf").write_text('hostonly=no\n')

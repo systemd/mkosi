@@ -1,21 +1,10 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
-from collections.abc import Sequence
-
-from mkosi.backend import MkosiState, add_packages
+from mkosi.backend import MkosiState
 from mkosi.distributions.debian import DebianInstaller
 
 
 class UbuntuInstaller(DebianInstaller):
-    repositories_for_boot = {"universe"}
-
-    @classmethod
-    def _add_default_kernel_package(cls, state: MkosiState, packages: list[str]) -> None:
-        # use the global metapckage linux-generic if the user didn't pick one
-        if ("linux-generic" not in packages and
-            not any(package.startswith("linux-image") for package in packages)):
-            add_packages(state.config, packages, "linux-generic")
-
     @classmethod
     def _add_apt_auxiliary_repos(cls, state: MkosiState, repos: set[str]) -> None:
         if state.config.release in ("unstable", "sid"):
@@ -31,7 +20,3 @@ class UbuntuInstaller(DebianInstaller):
             security = f"deb http://ports.ubuntu.com/ {state.config.release}-security {' '.join(repos)}"
 
         state.root.joinpath(f"etc/apt/sources.list.d/{state.config.release}-security.list").write_text(f"{security}\n")
-
-    @classmethod
-    def _fixup_resolved(cls, state: MkosiState, packages: Sequence[str]) -> None:
-        pass
