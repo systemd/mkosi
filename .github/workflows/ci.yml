@@ -195,6 +195,10 @@ jobs:
         Initrds=workflows/initrd.zst
         EOF
 
+    - name: Resolve Arch geo mirror location
+      if: matrix.distro == 'arch'
+      run: curl -I geo.mirror.pkgbuild.com
+
     - name: Build ${{ matrix.distro }}/${{ matrix.format }}
       run: python3 -m mkosi build
 
