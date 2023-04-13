@@ -38,7 +38,6 @@ class DebianInstaller(DistributionInstaller):
             cmdline: list[PathString] = [
                 "debootstrap",
                 "--variant=minbase",
-                "--include=ca-certificates",
                 "--merged-usr",
                 f"--cache-dir={state.cache.absolute()}",
                 f"--components={','.join(repos)}",
