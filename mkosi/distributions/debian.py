@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 import os
-import shutil
 import subprocess
 from collections.abc import Iterable, Sequence
 from pathlib import Path
@@ -69,27 +68,6 @@ class DebianInstaller(DistributionInstaller):
         policyrcd.write_text("#!/bin/sh\nexit 101\n")
         policyrcd.chmod(0o755)
 
-        doc_paths = [
-            state.root / "usr/share/locale",
-            state.root / "usr/share/doc",
-            state.root / "usr/share/man",
-            state.root / "usr/share/groff",
-            state.root / "usr/share/info",
-            state.root / "usr/share/lintian",
-            state.root / "usr/share/linda",
-        ]
-        if not state.config.with_docs:
-            # Remove documentation installed by debootstrap
-            for d in doc_paths:
-                try:
-                    shutil.rmtree(d)
-                except FileNotFoundError:
-                    pass
-            # Create dpkg.cfg to ignore documentation on new packages
-            dpkg_nodoc_conf = state.root / "etc/dpkg/dpkg.cfg.d/01_nodoc"
-            with dpkg_nodoc_conf.open("w") as f:
-                f.writelines(f"path-exclude {d}/*\n" for d in doc_paths)
-
         if state.config.base_image is None:
             # systemd-boot won't boot unified kernel images generated without a BUILD_ID or VERSION_ID in
             # /etc/os-release. Build one with the mtime of os-release if we don't find them.
@@ -122,9 +100,6 @@ class DebianInstaller(DistributionInstaller):
             cls._add_apt_auxiliary_repos(state, repos)
 
         policyrcd.unlink()
-        if not state.config.with_docs and state.config.base_image is not None:
-            # Don't ship dpkg config files in extensions, they belong with dpkg in the base image.
-            dpkg_nodoc_conf.unlink() # type: ignore
 
         # Don't enable any services by default.
         presetdir = state.root / "etc/systemd/system-preset"
