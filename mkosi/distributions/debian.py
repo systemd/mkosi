@@ -31,12 +31,6 @@ class DebianInstaller(DistributionInstaller):
 
     @classmethod
     def install(cls, state: MkosiState) -> None:
-        # Either the image builds or it fails and we restart, we don't need safety fsyncs when bootstrapping
-        # Add it before debootstrap, as the second stage already uses dpkg from the chroot
-        dpkg_io_conf = state.root / "etc/dpkg/dpkg.cfg.d/unsafe_io"
-        os.makedirs(dpkg_io_conf.parent, mode=0o755, exist_ok=True)
-        dpkg_io_conf.write_text("force-unsafe-io\n")
-
         repos = {"main", *state.config.repositories}
 
         # debootstrap fails if a base image is used with an already populated root, so skip it.
@@ -65,7 +59,7 @@ class DebianInstaller(DistributionInstaller):
             cmdline += [state.config.release, state.root, mirror]
 
             # Pretend we're lxc so debootstrap skips its mknod check.
-            run_with_apivfs(state, cmdline, env=dict(container="lxc"))
+            run_with_apivfs(state, cmdline, env=dict(container="lxc", DPKG_FORCE="unsafe-io"))
 
         # Debian policy is to start daemons by default. The policy-rc.d script can be used choose which ones to
         # start. Let's install one that denies all daemon startups.
@@ -129,7 +123,6 @@ class DebianInstaller(DistributionInstaller):
             cls._add_apt_auxiliary_repos(state, repos)
 
         policyrcd.unlink()
-        dpkg_io_conf.unlink()
         if not state.config.with_docs and state.config.base_image is not None:
             # Don't ship dpkg config files in extensions, they belong with dpkg in the base image.
             dpkg_nodoc_conf.unlink() # type: ignore
@@ -237,6 +230,7 @@ def invoke_apt(
             DPkg::Path "{os.environ["PATH"]}";
             DPkg::Options:: "--root={state.root.absolute()}";
             DPkg::Options:: "--log={state.workspace.absolute() / "apt/dpkg.log"}";
+            DPkg::Options:: "--force-unsafe-io";
             DPkg::Install::Recursive::Minimum "1000";
             """
         )
