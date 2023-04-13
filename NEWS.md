@@ -161,6 +161,9 @@
   image. Note that this option is currently only supported for `pacman` and
   `dnf`-based distros.
 - Option `--skeleton-tree` is now supported on Debian-based distros.
+- Removed `--hostname` as its trivial to configure using systemd-firstboot.
+- Removed default locale configuration as its trivial to configure using
+  systemd-firstboot and systemd writes a default locale well.
 
 
 ## v12

@@ -75,19 +75,6 @@ def test_parse_config_files_filter() -> None:
         assert parse([]).packages == ["yes"]
 
 
-def test_hostname() -> None:
-    with cd_temp_dir():
-        assert parse(["--hostname", "name"]).hostname == "name"
-        with pytest.raises(SystemExit):
-            parse(["--hostname", "name", "additional_name"])
-        with pytest.raises(SystemExit):
-            parse(["--hostname"])
-
-        config = Path("mkosi.conf")
-        config.write_text("[Output]\nHostname=name")
-        assert parse([]).hostname == "name"
-
-
 def test_shell_boot() -> None:
     with cd_temp_dir():
         with pytest.raises(MkosiException, match=".boot.*tar"):

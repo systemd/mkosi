@@ -226,7 +226,6 @@ class MkosiConfig:
     compress_output: Union[None, str, bool]
     image_version: Optional[str]
     image_id: Optional[str]
-    hostname: Optional[str]
     tar_strip_selinux_context: bool
     incremental: bool
     cache_initrd: bool

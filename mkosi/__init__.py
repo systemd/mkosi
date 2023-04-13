@@ -128,33 +128,6 @@ def mount_image(state: MkosiState) -> Iterator[None]:
         yield
 
 
-def configure_locale(state: MkosiState) -> None:
-    if state.for_cache:
-        return
-
-    etc_locale = state.root / "etc/locale.conf"
-    etc_locale.unlink(missing_ok=True)
-    # Let's ensure we use a UTF-8 locale everywhere.
-    etc_locale.write_text("LANG=C.UTF-8\n")
-
-
-def configure_hostname(state: MkosiState) -> None:
-    if state.for_cache:
-        return
-
-    etc_hostname = state.root / "etc/hostname"
-
-    # Always unlink first, so that we don't get in trouble due to a
-    # symlink or suchlike. Also if no hostname is configured we really
-    # don't want the file to exist, so that systemd's implicit
-    # hostname logic can take effect.
-    etc_hostname.unlink(missing_ok=True)
-
-    if state.config.hostname:
-        with complete_step("Assigning hostname"):
-            etc_hostname.write_text(state.config.hostname + "\n")
-
-
 def prepare_tree_root(state: MkosiState) -> None:
     if state.config.output_format == OutputFormat.subvolume:
         with complete_step("Setting up OS tree root…"):
@@ -1069,6 +1042,12 @@ def load_credentials(args: argparse.Namespace) -> dict[str, str]:
         tz = run(["timedatectl", "show", "-p", "Timezone", "--value"], text=True, stdout=subprocess.PIPE).stdout.strip()
         creds["firstboot.timezone"] = tz
 
+    if "firstboot.locale" not in creds:
+        creds["firstboot.locale"] = "C.UTF-8"
+
+    if "firstboot.hostname" not in creds:
+        creds["firstboot.hostname"] = machine_name(args)
+
     if args.ssh and "ssh.authorized_keys.root" not in creds and "SSH_AUTH_SOCK" in os.environ:
         key = run(["ssh-add", "-L"], text=True, stdout=subprocess.PIPE, env=os.environ).stdout.strip()
         creds["ssh.authorized_keys.root"] = key
@@ -1388,9 +1367,6 @@ def print_summary(config: MkosiConfig) -> None:
         print("                   Initrds:", ",".join(os.fspath(p) for p in config.initrds))
 
     print("\nOUTPUT:")
-
-    if config.hostname:
-        print("                  Hostname:", config.hostname)
 
     if config.image_id is not None:
         print("                  Image ID:", config.image_id)
@@ -1772,8 +1748,6 @@ def build_image(state: MkosiState, *, manifest: Optional[Manifest] = None) -> No
         run_prepare_script(state, cached, build=False)
         install_build_packages(state, cached)
         run_prepare_script(state, cached, build=True)
-        configure_locale(state)
-        configure_hostname(state)
         configure_root_password(state)
         configure_autologin(state)
         configure_initrd(state)
@@ -1949,8 +1923,8 @@ def suppress_stacktrace() -> Iterator[None]:
         raise MkosiException() from e
 
 
-def machine_name(config: MkosiConfig) -> str:
-    return config.hostname or config.image_id or config.output.with_suffix("").name.partition("_")[0]
+def machine_name(config: Union[MkosiConfig, argparse.Namespace]) -> str:
+    return config.image_id or config.output.with_suffix("").name.partition("_")[0]
 
 
 def machine_cid(config: MkosiConfig) -> int:
