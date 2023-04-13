@@ -94,6 +94,7 @@ def invoke_pacman(state: MkosiState, packages: Sequence[str]) -> None:
         "pacman",
         "--config", state.workspace / "pacman.conf",
         "--noconfirm",
+        "--needed",
         "-Sy", *sort_packages(packages),
     ]
 
