@@ -32,49 +32,37 @@ class DebianInstaller(DistributionInstaller):
     def install(cls, state: MkosiState) -> None:
         repos = {"main", *state.config.repositories}
 
-        # debootstrap fails if a base image is used with an already populated root, so skip it.
-        if state.config.base_image is None:
-            cmdline: list[PathString] = [
-                "debootstrap",
-                "--variant=minbase",
-                "--merged-usr",
-                f"--cache-dir={state.cache.absolute()}",
-                f"--components={','.join(repos)}",
-            ]
+        cmdline: list[PathString] = [
+            "debootstrap",
+            "--variant=minbase",
+            "--merged-usr",
+            f"--cache-dir={state.cache.absolute()}",
+            f"--components={','.join(repos)}",
+        ]
 
-            debarch = DEBIAN_ARCHITECTURES[state.config.architecture]
-            cmdline += [f"--arch={debarch}"]
+        debarch = DEBIAN_ARCHITECTURES[state.config.architecture]
+        cmdline += [f"--arch={debarch}"]
 
-            # Let's use --no-check-valid-until only if debootstrap knows it
-            if debootstrap_knows_arg("--no-check-valid-until"):
-                cmdline += ["--no-check-valid-until"]
+        # Let's use --no-check-valid-until only if debootstrap knows it
+        if debootstrap_knows_arg("--no-check-valid-until"):
+            cmdline += ["--no-check-valid-until"]
 
-            if not state.config.repository_key_check:
-                cmdline += ["--no-check-gpg"]
+        if not state.config.repository_key_check:
+            cmdline += ["--no-check-gpg"]
 
-            mirror = state.config.local_mirror or state.config.mirror
-            assert mirror is not None
-            cmdline += [state.config.release, state.root, mirror]
+        mirror = state.config.local_mirror or state.config.mirror
+        assert mirror is not None
+        cmdline += [state.config.release, state.root, mirror]
 
-            # Pretend we're lxc so debootstrap skips its mknod check.
-            run_with_apivfs(state, cmdline, env=dict(container="lxc", DPKG_FORCE="unsafe-io"))
+        # Pretend we're lxc so debootstrap skips its mknod check.
+        run_with_apivfs(state, cmdline, env=dict(container="lxc", DPKG_FORCE="unsafe-io"))
 
-        # Debian policy is to start daemons by default. The policy-rc.d script can be used choose which ones to
-        # start. Let's install one that denies all daemon startups.
-        # See https://people.debian.org/~hmh/invokerc.d-policyrc.d-specification.txt for more information.
-        # Note: despite writing in /usr/sbin, this file is not shipped by the OS and instead should be managed by
-        # the admin.
-        policyrcd = state.root / "usr/sbin/policy-rc.d"
-        policyrcd.write_text("#!/bin/sh\nexit 101\n")
-        policyrcd.chmod(0o755)
-
-        if state.config.base_image is None:
-            # systemd-boot won't boot unified kernel images generated without a BUILD_ID or VERSION_ID in
-            # /etc/os-release. Build one with the mtime of os-release if we don't find them.
-            with state.root.joinpath("etc/os-release").open("r+") as f:
-                os_release = f.read()
-                if "VERSION_ID" not in os_release and "BUILD_ID" not in os_release:
-                    f.write(f"BUILD_ID=mkosi-{state.config.release}\n")
+        # systemd-boot won't boot unified kernel images generated without a BUILD_ID or VERSION_ID in
+        # /etc/os-release. Build one with the mtime of os-release if we don't find them.
+        with state.root.joinpath("etc/os-release").open("r+") as f:
+            os_release = f.read()
+            if "VERSION_ID" not in os_release and "BUILD_ID" not in os_release:
+                f.write(f"BUILD_ID=mkosi-{state.config.release}\n")
 
         if not state.config.local_mirror:
             cls._add_apt_auxiliary_repos(state, repos)
@@ -84,12 +72,10 @@ class DebianInstaller(DistributionInstaller):
 
         install_skeleton_trees(state, False, late=True)
 
-        invoke_apt(state, "get", "update")
+        cls.install_packages(state, ["base-files", *state.config.packages])
 
         # Ensure /efi exists so that the ESP is mounted there, and we never run dpkg -i on vfat
         state.root.joinpath("efi").mkdir(mode=0o755, exist_ok=True)
-
-        invoke_apt(state, "get", "install", ["base-files", *state.config.packages])
 
         # Now clean up and add the real repositories, so that the image is ready
         if state.config.local_mirror:
@@ -98,8 +84,6 @@ class DebianInstaller(DistributionInstaller):
             state.root.joinpath("etc/apt/sources.list.d/mirror.list").unlink()
             cls._add_apt_auxiliary_repos(state, repos)
 
-        policyrcd.unlink()
-
         # Don't enable any services by default.
         presetdir = state.root / "etc/systemd/system-preset"
         presetdir.mkdir(exist_ok=True, mode=0o755)
@@ -107,7 +91,19 @@ class DebianInstaller(DistributionInstaller):
 
     @classmethod
     def install_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
+        # Debian policy is to start daemons by default. The policy-rc.d script can be used choose which ones to
+        # start. Let's install one that denies all daemon startups.
+        # See https://people.debian.org/~hmh/invokerc.d-policyrc.d-specification.txt for more information.
+        # Note: despite writing in /usr/sbin, this file is not shipped by the OS and instead should be managed by
+        # the admin.
+        policyrcd = state.root / "usr/sbin/policy-rc.d"
+        policyrcd.write_text("#!/bin/sh\nexit 101\n")
+        policyrcd.chmod(0o755)
+
+        invoke_apt(state, "get", "update")
         invoke_apt(state, "get", "install", packages)
+
+        policyrcd.unlink()
 
     @classmethod
     def _add_apt_auxiliary_repos(cls, state: MkosiState, repos: set[str]) -> None:

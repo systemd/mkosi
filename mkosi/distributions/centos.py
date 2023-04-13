@@ -9,7 +9,6 @@ from mkosi.distributions import DistributionInstaller
 from mkosi.distributions.fedora import Repo, invoke_dnf, setup_dnf
 from mkosi.log import complete_step, die
 from mkosi.remove import unlink_try_hard
-from mkosi.run import run_workspace_command
 
 
 def move_rpm_db(root: Path) -> None:
@@ -17,13 +16,12 @@ def move_rpm_db(root: Path) -> None:
     olddb = root / "var/lib/rpm"
     newdb = root / "usr/lib/sysimage/rpm"
 
-    if newdb.exists():
+    if newdb.exists() and not newdb.is_symlink():
         with complete_step("Moving rpm database /usr/lib/sysimage/rpm → /var/lib/rpm"):
             unlink_try_hard(olddb)
             shutil.move(newdb, olddb)
 
-            if not any(newdb.parent.iterdir()):
-                newdb.parent.rmdir()
+            newdb.symlink_to(olddb)
 
 
 class CentosInstaller(DistributionInstaller):
@@ -76,8 +74,15 @@ class CentosInstaller(DistributionInstaller):
         return kcl + DistributionInstaller.kernel_command_line(state)
 
     @classmethod
-    @complete_step("Installing CentOS…")
     def install(cls, state: MkosiState) -> None:
+        cls.install_packages(state, ["filesystem", *state.config.packages])
+
+        # On Fedora, the default rpmdb has moved to /usr/lib/sysimage/rpm so if that's the case we need to
+        # move it back to /var/lib/rpm on CentOS.
+        move_rpm_db(state.root)
+
+    @classmethod
+    def install_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
         release = int(state.config.release)
 
         if release <= 7:
@@ -89,20 +94,6 @@ class CentosInstaller(DistributionInstaller):
 
         setup_dnf(state, repos)
 
-        if state.config.distribution == Distribution.centos:
-            env = dict(DNF_VAR_stream=f"{state.config.release}-stream")
-        else:
-            env = {}
-
-        invoke_dnf(state, "install", ["filesystem", *state.config.packages], env)
-
-        # On Fedora, the default rpmdb has moved to /usr/lib/sysimage/rpm so if that's the case we need to
-        # move it back to /var/lib/rpm on CentOS.
-        move_rpm_db(state.root)
-
-
-    @classmethod
-    def install_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
         if state.config.distribution == Distribution.centos:
             env = dict(DNF_VAR_stream=f"{state.config.release}-stream")
         else:

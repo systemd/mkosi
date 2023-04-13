@@ -10,7 +10,7 @@ from typing import Any, NamedTuple, Optional
 
 from mkosi.backend import Distribution, MkosiState, detect_distribution, sort_packages
 from mkosi.distributions import DistributionInstaller
-from mkosi.log import MkosiPrinter, complete_step, warn
+from mkosi.log import MkosiPrinter, warn
 from mkosi.remove import unlink_try_hard
 from mkosi.run import run_with_apivfs
 
@@ -29,10 +29,47 @@ class FedoraInstaller(DistributionInstaller):
 
     @classmethod
     def install(cls, state: MkosiState) -> None:
-        return install_fedora(state)
+        cls.install_packages(state, ["filesystem", *state.config.packages])
 
     @classmethod
     def install_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
+        release, releasever = parse_fedora_release(state.config.release)
+
+        if state.config.local_mirror:
+            release_url = f"baseurl={state.config.local_mirror}"
+            updates_url = None
+        elif state.config.mirror:
+            baseurl = urllib.parse.urljoin(state.config.mirror, f"releases/{release}/Everything/$basearch/os/")
+            media = urllib.parse.urljoin(baseurl.replace("$basearch", state.config.architecture), "media.repo")
+            if not url_exists(media):
+                baseurl = urllib.parse.urljoin(state.config.mirror, f"development/{release}/Everything/$basearch/os/")
+
+            release_url = f"baseurl={baseurl}"
+            updates_url = f"baseurl={state.config.mirror}/updates/{release}/Everything/$basearch/"
+        else:
+            release_url = f"metalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-{release}&arch=$basearch"
+            updates_url = (
+                "metalink=https://mirrors.fedoraproject.org/metalink?"
+                f"repo=updates-released-f{release}&arch=$basearch"
+            )
+        if release == 'rawhide':
+            # On rawhide, the "updates" repo is the same as the "fedora" repo.
+            # In other versions, the "fedora" repo is frozen at release, and "updates" provides any new packages.
+            updates_url = None
+
+        if releasever in FEDORA_KEYS_MAP:
+            gpgid = f"keys/{FEDORA_KEYS_MAP[releasever]}.txt"
+        else:
+            gpgid = "fedora.gpg"
+
+        gpgpath = Path(f"/etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-{releasever}-{state.config.architecture}")
+        gpgurl = urllib.parse.urljoin("https://getfedora.org/static/", gpgid)
+
+        repos = [Repo("fedora", release_url, gpgpath, gpgurl)]
+        if updates_url is not None:
+            repos += [Repo("updates", updates_url, gpgpath, gpgurl)]
+
+        setup_dnf(state, repos)
         invoke_dnf(state, "install", packages)
 
     @classmethod
@@ -47,49 +84,6 @@ def parse_fedora_release(release: str) -> tuple[str, str]:
         return ("rawhide", releasever)
     else:
         return (release, release)
-
-
-@complete_step("Installing Fedora Linux…")
-def install_fedora(state: MkosiState) -> None:
-    release, releasever = parse_fedora_release(state.config.release)
-
-    if state.config.local_mirror:
-        release_url = f"baseurl={state.config.local_mirror}"
-        updates_url = None
-    elif state.config.mirror:
-        baseurl = urllib.parse.urljoin(state.config.mirror, f"releases/{release}/Everything/$basearch/os/")
-        media = urllib.parse.urljoin(baseurl.replace("$basearch", state.config.architecture), "media.repo")
-        if not url_exists(media):
-            baseurl = urllib.parse.urljoin(state.config.mirror, f"development/{release}/Everything/$basearch/os/")
-
-        release_url = f"baseurl={baseurl}"
-        updates_url = f"baseurl={state.config.mirror}/updates/{release}/Everything/$basearch/"
-    else:
-        release_url = f"metalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-{release}&arch=$basearch"
-        updates_url = (
-            "metalink=https://mirrors.fedoraproject.org/metalink?"
-            f"repo=updates-released-f{release}&arch=$basearch"
-        )
-    if release == 'rawhide':
-        # On rawhide, the "updates" repo is the same as the "fedora" repo.
-        # In other versions, the "fedora" repo is frozen at release, and "updates" provides any new packages.
-        updates_url = None
-
-    if releasever in FEDORA_KEYS_MAP:
-        gpgid = f"keys/{FEDORA_KEYS_MAP[releasever]}.txt"
-    else:
-        gpgid = "fedora.gpg"
-
-    gpgpath = Path(f"/etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-{releasever}-{state.config.architecture}")
-    gpgurl = urllib.parse.urljoin("https://getfedora.org/static/", gpgid)
-
-    repos = [Repo("fedora", release_url, gpgpath, gpgurl)]
-    if updates_url is not None:
-        repos += [Repo("updates", updates_url, gpgpath, gpgurl)]
-
-    setup_dnf(state, repos)
-
-    invoke_dnf(state, "install", ["filesystem", *state.config.packages])
 
 
 def url_exists(url: str) -> bool:

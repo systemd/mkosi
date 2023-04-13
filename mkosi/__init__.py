@@ -274,7 +274,15 @@ def install_distribution(state: MkosiState, cached: bool) -> None:
     if cached:
         return
 
-    state.installer.install(state)
+    if state.config.base_image:
+        if not state.config.packages:
+            return
+
+        with complete_step(f"Installing extra packages for {str(state.config.distribution).capitalize()}"):
+            state.installer.install_packages(state, state.config.packages)
+    else:
+        with complete_step(f"Installing {str(state.config.distribution).capitalize()}"):
+            state.installer.install(state)
 
 
 def install_build_packages(state: MkosiState, cached: bool) -> None:
