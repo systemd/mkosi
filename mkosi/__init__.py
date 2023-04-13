@@ -1005,24 +1005,6 @@ def find_image_version(args: argparse.Namespace) -> None:
         pass
 
 
-DISABLED = Path('DISABLED')  # A placeholder value to suppress autodetection.
-                             # This is used as a singleton, i.e. should be compared with
-                             # 'is' in other parts of the code.
-
-def script_path(value: Optional[str]) -> Optional[Path]:
-    if value is None:
-        return None
-    if value == '':
-        return DISABLED
-    return Path(value)
-
-
-def normalize_script(path: Optional[Path]) -> Optional[Path]:
-    if not path or path is DISABLED:
-        return None
-    return Path(path).absolute()
-
-
 def load_credentials(args: argparse.Namespace) -> dict[str, str]:
     creds = {}
 
