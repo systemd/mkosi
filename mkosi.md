@@ -798,7 +798,7 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 
 ### [Host] Section
 
-`ExtraSearchPaths=`, `--extra-search-paths=`
+`ExtraSearchPaths=`, `--extra-search-path=`
 
 : List of colon-separated paths to look for tools in, before using the
   regular `$PATH` search path.
