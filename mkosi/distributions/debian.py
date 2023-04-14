@@ -10,7 +10,7 @@ from mkosi.backend import MkosiState
 from mkosi.distributions import DistributionInstaller
 from mkosi.install import install_skeleton_trees
 from mkosi.run import run, run_with_apivfs
-from mkosi.types import _FILE, CompletedProcess, PathString
+from mkosi.types import CompletedProcess, PathString
 
 
 class DebianInstaller(DistributionInstaller):
@@ -179,7 +179,6 @@ def invoke_apt(
     subcommand: str,
     operation: str,
     extra: Iterable[str],
-    stdout: _FILE = None,
 ) -> CompletedProcess:
 
     state.workspace.joinpath("apt").mkdir(exist_ok=True)
@@ -223,4 +222,4 @@ def invoke_apt(
         INITRD="No",
     )
 
-    return run_with_apivfs(state, cmdline, stdout=stdout, env=env)
+    return run_with_apivfs(state, cmdline, env=env)
