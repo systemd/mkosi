@@ -84,13 +84,12 @@ class DebianInstaller(DistributionInstaller):
 
         install_skeleton_trees(state, False, late=True)
 
-        invoke_apt(state, "get", "update", ["--assume-yes"])
+        invoke_apt(state, "get", "update")
 
         # Ensure /efi exists so that the ESP is mounted there, and we never run dpkg -i on vfat
         state.root.joinpath("efi").mkdir(mode=0o755, exist_ok=True)
 
-        invoke_apt(state, "get", "install",
-                   ["--assume-yes", "--no-install-recommends", "base-files", *state.config.packages])
+        invoke_apt(state, "get", "install", ["base-files", *state.config.packages])
 
         # Now clean up and add the real repositories, so that the image is ready
         if state.config.local_mirror:
@@ -108,7 +107,7 @@ class DebianInstaller(DistributionInstaller):
 
     @classmethod
     def install_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
-        invoke_apt(state, "get", "install", ["--assume-yes", "--no-install-recommends", *packages])
+        invoke_apt(state, "get", "install", packages)
 
     @classmethod
     def _add_apt_auxiliary_repos(cls, state: MkosiState, repos: set[str]) -> None:
@@ -128,7 +127,7 @@ class DebianInstaller(DistributionInstaller):
 
     @classmethod
     def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
-        invoke_apt(state, "get", "purge", ["--assume-yes", "--auto-remove", *packages])
+        invoke_apt(state, "get", "purge", packages)
 
 
 # Debian calls their architectures differently, so when calling debootstrap we
@@ -194,6 +193,9 @@ def invoke_apt(
             f"""\
             APT::Architecture "{debarch}";
             APT::Immediate-Configure "off";
+            APT::Install-Recommends "false";
+            APT::Get::Assume-Yes "true";
+            APT::Get::AutomaticRemove "true";
             Dir::Cache "{state.cache.absolute()}";
             Dir::State "{state.workspace.absolute() / "apt"}";
             Dir::State::status "{state.root / "var/lib/dpkg/status"}";
