@@ -75,7 +75,7 @@ class CentosInstaller(DistributionInstaller):
 
     @classmethod
     def install(cls, state: MkosiState) -> None:
-        cls.install_packages(state, ["filesystem", *state.config.packages])
+        cls.install_packages(state, ["setup"])
 
         # On Fedora, the default rpmdb has moved to /usr/lib/sysimage/rpm so if that's the case we need to
         # move it back to /var/lib/rpm on CentOS.

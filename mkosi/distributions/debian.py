@@ -72,7 +72,7 @@ class DebianInstaller(DistributionInstaller):
 
         install_skeleton_trees(state, False, late=True)
 
-        cls.install_packages(state, ["base-files", *state.config.packages])
+        cls.install_packages(state, ["base-passwd"])
 
         # Ensure /efi exists so that the ESP is mounted there, and we never run dpkg -i on vfat
         state.root.joinpath("efi").mkdir(mode=0o755, exist_ok=True)

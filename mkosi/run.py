@@ -266,6 +266,19 @@ def run_with_apivfs(
         "--ro-bind", "/sys", state.root / "sys",
         "--bind", state.var_tmp, state.root / "var/tmp",
         "--die-with-parent",
+    ]
+
+    # If passwd or a related file exists in the root directory, bind mount it over the host files while we
+    # run the command, to make sure that the command we run uses user/group information from the root instead
+    # of from the host. If the file doesn't exist yet, mount over /dev/null instead.
+    for f in ("passwd", "group", "shadow", "gshadow"):
+        p = state.root / "etc" / f
+        if p.exists():
+            cmdline += ["--bind", p, f"/etc/{f}"]
+        else:
+            cmdline += ["--bind", "/dev/null", f"/etc/{f}"]
+
+    cmdline += [
         *bwrap_params,
         "sh", "-c",
     ]

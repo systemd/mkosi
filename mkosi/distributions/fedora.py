@@ -29,7 +29,7 @@ class FedoraInstaller(DistributionInstaller):
 
     @classmethod
     def install(cls, state: MkosiState) -> None:
-        cls.install_packages(state, ["filesystem", *state.config.packages])
+        cls.install_packages(state, ["setup"])
 
     @classmethod
     def install_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:

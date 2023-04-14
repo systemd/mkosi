@@ -17,7 +17,7 @@ class OpensuseInstaller(DistributionInstaller):
 
     @classmethod
     def install(cls, state: MkosiState) -> None:
-        cls.install_packages(state, ["filesystem", *state.config.packages])
+        cls.install_packages(state, ["filesystem", "system-user-root"])
 
     @classmethod
     def install_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
