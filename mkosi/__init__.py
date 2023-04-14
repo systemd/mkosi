@@ -1141,7 +1141,7 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
             else:
                 args.mirror = "https://geo.mirror.pkgbuild.com"
         elif args.distribution == Distribution.opensuse:
-            args.mirror = "http://download.opensuse.org"
+            args.mirror = "https://download.opensuse.org"
         elif args.distribution == Distribution.rocky:
             args.mirror = None
         elif args.distribution == Distribution.alma:
