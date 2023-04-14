@@ -1,11 +1,10 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
-import shutil
 from collections.abc import Sequence
 from pathlib import Path
 from textwrap import dedent
 
-from mkosi.backend import MkosiState, patch_file
+from mkosi.backend import MkosiState
 from mkosi.distributions import DistributionInstaller
 from mkosi.log import complete_step
 from mkosi.run import run, run_with_apivfs
@@ -168,20 +167,3 @@ def install_opensuse(state: MkosiState) -> None:
 
     zypper_install(state, ["filesystem", *state.config.packages])
     zypper_finalize_repositories(state)
-
-    if state.config.base_image is not None:
-        return
-
-    if state.config.password == "":
-        if not state.root.joinpath("etc/pam.d/common-auth").exists():
-            for prefix in ("lib", "etc"):
-                if state.root.joinpath(f"usr/{prefix}/pam.d/common-auth").exists():
-                    shutil.copy2(state.root / f"usr/{prefix}/pam.d/common-auth", state.root / "etc/pam.d/common-auth")
-                    break
-
-        def jj(line: str) -> str:
-            if "pam_unix.so" in line:
-                return f"{line.strip()} nullok"
-            return line
-
-        patch_file(state.root / "etc/pam.d/common-auth", jj)
