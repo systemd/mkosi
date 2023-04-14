@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 import shutil
-import subprocess
 import urllib.parse
 import urllib.request
 from collections.abc import Iterable, Mapping, Sequence
@@ -13,7 +12,7 @@ from mkosi.backend import Distribution, MkosiState, detect_distribution, sort_pa
 from mkosi.distributions import DistributionInstaller
 from mkosi.log import MkosiPrinter, complete_step, warn
 from mkosi.remove import unlink_try_hard
-from mkosi.run import run_with_apivfs, run_workspace_command
+from mkosi.run import run_with_apivfs
 
 FEDORA_KEYS_MAP = {
     "36": "53DED2CB922D8B8D9E63FD18999F7CBF38AB71F4",
@@ -91,16 +90,6 @@ def install_fedora(state: MkosiState) -> None:
     setup_dnf(state, repos)
 
     invoke_dnf(state, "install", ["filesystem", *state.config.packages])
-
-    # Fedora defaults to sssd authselect profile, let's override it with the minimal profile if it exists and
-    # extend it with the with-homed feature if we can find it.
-    if state.root.joinpath("usr/share/authselect/default/minimal").exists():
-        run_workspace_command(state, ["authselect", "select", "minimal"])
-
-        features = run_workspace_command(state, ["authselect", "list-features", "minimal"],
-                                         stdout=subprocess.PIPE).stdout.split()
-        if "with-homed" in features:
-            run_workspace_command(state, ["authselect", "enable-feature", "with-homed"])
 
 
 def url_exists(url: str) -> bool:
