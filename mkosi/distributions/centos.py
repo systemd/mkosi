@@ -104,14 +104,6 @@ class CentosInstaller(DistributionInstaller):
         # move it back to /var/lib/rpm on CentOS.
         move_rpm_db(state.root)
 
-        # Centos Stream 8 and below can't write to the sqlite db backend used by
-        # default in newer RPM releases so let's rebuild the DB to use the old bdb
-        # backend instead. Because newer RPM releases have dropped support for the
-        # bdb backend completely, we check if rpm is installed and use
-        # run_workspace_command() to rebuild the rpm db.
-        if release <= 8 and state.root.joinpath("usr/bin/rpm").exists():
-            cmdline = ["rpm", "--rebuilddb", "--define", "_db_backend bdb"]
-            run_workspace_command(state, cmdline)
 
     @classmethod
     def install_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
