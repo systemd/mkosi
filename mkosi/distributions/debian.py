@@ -2,7 +2,7 @@
 
 import os
 import subprocess
-from collections.abc import Iterable, Sequence
+from collections.abc import Sequence
 from pathlib import Path
 from textwrap import dedent
 
@@ -178,7 +178,7 @@ def invoke_apt(
     state: MkosiState,
     subcommand: str,
     operation: str,
-    extra: Iterable[str],
+    extra: Sequence[str] = tuple(),
 ) -> CompletedProcess:
 
     state.workspace.joinpath("apt").mkdir(exist_ok=True)
