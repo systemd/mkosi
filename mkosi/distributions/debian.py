@@ -134,11 +134,6 @@ class DebianInstaller(DistributionInstaller):
             # Don't ship dpkg config files in extensions, they belong with dpkg in the base image.
             dpkg_nodoc_conf.unlink() # type: ignore
 
-        # Debian/Ubuntu use a different path to store the locale so let's make sure that path is a symlink to
-        # etc/locale.conf.
-        state.root.joinpath("etc/default/locale").unlink(missing_ok=True)
-        state.root.joinpath("etc/default/locale").symlink_to("../locale.conf")
-
         # Don't enable any services by default.
         presetdir = state.root / "etc/systemd/system-preset"
         presetdir.mkdir(exist_ok=True, mode=0o755)

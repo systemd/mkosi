@@ -419,10 +419,6 @@ class MkosiConfigParser:
             parse=config_parse_compression,
         ),
         MkosiConfigSetting(
-            dest="hostname",
-            section="Output",
-        ),
-        MkosiConfigSetting(
             dest="image_version",
             section="Output",
         ),
@@ -967,7 +963,6 @@ class MkosiConfigParser:
             nargs="?",
             action=action,
         )
-        group.add_argument("--hostname", help="Set hostname", action=action)
         group.add_argument("--image-version", help="Set version for image", action=action)
         group.add_argument("--image-id", help="Set ID for image", action=action)
         group.add_argument(

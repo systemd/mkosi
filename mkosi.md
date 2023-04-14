@@ -428,10 +428,6 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   the `shell`, `boot`, `qemu` verbs are not available when this option
   is used. Implied for `tar` and `cpio`.
 
-`Hostname=`, `--hostname=`
-
-: Set the image's hostname to the specified name.
-
 `ImageVersion=`, `--image-version=`
 
 : Configure the image version. This accepts any string, but it is
@@ -1318,20 +1314,6 @@ EOF
 # chmod +x mkosi.build
 # mkosi --incremental boot
 # systemd-nspawn -bi image.raw
-```
-
-To create a *Fedora Linux* image with hostname:
-```bash
-# mkosi --distribution fedora --hostname image
-```
-
-Also you could set hostname in configuration file:
-```bash
-# cat mkosi.conf
-...
-[Output]
-Hostname=image
-...
 ```
 
 # REQUIREMENTS
