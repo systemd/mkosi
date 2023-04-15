@@ -142,9 +142,10 @@ def invoke_dnf(state: MkosiState, command: str, packages: Iterable[str], env: Ma
     state.workspace.joinpath("vars").mkdir(exist_ok=True)
 
     cmdline = [
-        'dnf' if shutil.which('dnf') else 'yum',
+        shutil.which('dnf5') or shutil.which('dnf') or 'yum',
         "-y",
         f"--config={state.workspace.joinpath('dnf.conf')}",
+        command,
         "--best",
         "--allowerasing",
         f"--releasever={release}",
@@ -174,7 +175,7 @@ def invoke_dnf(state: MkosiState, command: str, packages: Iterable[str], env: Ma
     if not state.config.with_docs:
         cmdline += ["--nodocs"]
 
-    cmdline += [command, *sort_packages(packages)]
+    cmdline += sort_packages(packages)
 
     run_with_apivfs(state, cmdline, env=dict(KERNEL_INSTALL_BYPASS="1") | env)
 
