@@ -259,6 +259,7 @@ def run_with_apivfs(
         # Required to make chroot detection via /proc/1/root work properly.
         "--unshare-pid",
         "--dev-bind", "/", "/",
+        "--chdir", Path.cwd(),
         "--tmpfs", state.root / "run",
         "--tmpfs", state.root / "tmp",
         "--proc", state.root / "proc",
