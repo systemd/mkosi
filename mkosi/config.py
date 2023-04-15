@@ -45,9 +45,9 @@ def parse_source_target_paths(value: str) -> tuple[Path, Optional[Path]]:
     src, _, target = value.partition(':')
     if not Path(src).exists():
         die(f"{src} does not exist")
-    if target and not Path(target).absolute():
+    if target and not Path(target).is_absolute():
         die("Target path must be absolute")
-    return Path(src), Path(target) if target else None
+    return Path(src).absolute(), Path(target) if target else None
 
 
 def config_parse_string(dest: str, value: Optional[str], namespace: argparse.Namespace) -> Optional[str]:
@@ -71,7 +71,7 @@ def config_parse_script(dest: str, value: Optional[str], namespace: argparse.Nam
         if not os.access(value, os.X_OK):
             die(f"{value} is not executable")
 
-    return Path(value) if value else None
+    return Path(value).absolute() if value else None
 
 
 def config_parse_boolean(dest: str, value: Optional[str], namespace: argparse.Namespace) -> bool:
@@ -196,7 +196,7 @@ def make_path_parser(required: bool) -> Callable[[str], Path]:
         if required and not Path(value).exists():
             die(f"{value} does not exist")
 
-        return Path(value)
+        return Path(value).absolute()
 
     return parse_path
 
@@ -209,7 +209,7 @@ def config_make_path_parser(required: bool) -> ConfigParseCallback:
         if value and required and not Path(value).exists():
             die(f"{value} does not exist")
 
-        return Path(value) if value else None
+        return Path(value).absolute() if value else None
 
     return config_parse_path
 
