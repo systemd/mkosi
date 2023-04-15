@@ -137,7 +137,7 @@ class DebianInstaller(DistributionInstaller):
         # Don't enable any services by default.
         presetdir = state.root / "etc/systemd/system-preset"
         presetdir.mkdir(exist_ok=True, mode=0o755)
-        presetdir.joinpath("99-mkosi-disable.preset").write_text("disable *")
+        presetdir.joinpath("99-mkosi-ignore.preset").write_text("ignore *")
 
     @classmethod
     def install_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
