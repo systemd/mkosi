@@ -36,7 +36,7 @@ class DebianInstaller(DistributionInstaller):
             "debootstrap",
             "--variant=minbase",
             "--merged-usr",
-            f"--cache-dir={state.cache.absolute()}",
+            f"--cache-dir={state.cache}",
             f"--components={','.join(repos)}",
         ]
 
@@ -174,15 +174,15 @@ def invoke_apt(
             APT::Install-Recommends "false";
             APT::Get::Assume-Yes "true";
             APT::Get::AutomaticRemove "true";
-            Dir::Cache "{state.cache.absolute()}";
-            Dir::State "{state.workspace.absolute() / "apt"}";
+            Dir::Cache "{state.cache}";
+            Dir::State "{state.workspace / "apt"}";
             Dir::State::status "{state.root / "var/lib/dpkg/status"}";
-            Dir::Etc "{state.root.absolute() / "etc/apt"}";
-            Dir::Log "{state.workspace.absolute() / "apt/log"}";
+            Dir::Etc "{state.root / "etc/apt"}";
+            Dir::Log "{state.workspace / "apt/log"}";
             Dir::Bin::dpkg "dpkg";
             DPkg::Path "{os.environ["PATH"]}";
-            DPkg::Options:: "--root={state.root.absolute()}";
-            DPkg::Options:: "--log={state.workspace.absolute() / "apt/dpkg.log"}";
+            DPkg::Options:: "--root={state.root}";
+            DPkg::Options:: "--log={state.workspace / "apt/dpkg.log"}";
             DPkg::Options:: "--force-unsafe-io";
             DPkg::Install::Recursive::Minimum "1000";
             """
