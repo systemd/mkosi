@@ -41,12 +41,7 @@ from mkosi.backend import (
     should_compress_output,
     tmp_dir,
 )
-from mkosi.install import (
-    add_dropin_config_from_resource,
-    copy_path,
-    flock,
-    install_skeleton_trees,
-)
+from mkosi.install import add_dropin_config_from_resource, copy_path, flock
 from mkosi.log import (
     ARG_DEBUG,
     MkosiException,
@@ -535,6 +530,23 @@ def install_boot_loader(state: MkosiState) -> None:
                         state.workspace / "mkosi.esl",
                     ],
                 )
+
+
+def install_skeleton_trees(state: MkosiState, cached: bool) -> None:
+    if not state.config.skeleton_trees or cached:
+        return
+
+    with complete_step("Copying in skeleton file trees…"):
+        for source, target in state.config.skeleton_trees:
+            t = state.root
+            if target:
+                t = state.root / target.relative_to("/")
+
+            t.mkdir(mode=0o755, parents=True, exist_ok=True)
+            if source.is_dir():
+                copy_path(source, t, preserve_owner=False)
+            else:
+                shutil.unpack_archive(source, t)
 
 
 def install_extra_trees(state: MkosiState) -> None:

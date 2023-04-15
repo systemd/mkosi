@@ -12,7 +12,6 @@ runs:
       sudo add-apt-repository ppa:michel-slm/kernel-utils
       sudo apt-get update
       sudo apt-get install --assume-yes --no-install-recommends \
-        debootstrap \
         zypper \
         dnf \
         pacman-package-manager \

@@ -2,20 +2,18 @@
 
 import os
 import subprocess
+import tempfile
 from collections.abc import Sequence
 from pathlib import Path
 from textwrap import dedent
 
 from mkosi.backend import MkosiState
 from mkosi.distributions import DistributionInstaller
-from mkosi.install import install_skeleton_trees
 from mkosi.run import run, run_with_apivfs
-from mkosi.types import CompletedProcess, PathString
+from mkosi.types import _FILE, CompletedProcess, PathString
 
 
 class DebianInstaller(DistributionInstaller):
-    needs_skeletons_after_bootstrap = True
-
     @classmethod
     def filesystem(cls) -> str:
         return "ext4"
@@ -52,36 +50,72 @@ class DebianInstaller(DistributionInstaller):
 
     @classmethod
     def install(cls, state: MkosiState) -> None:
-        repos = {"main", *state.config.repositories}
+        # Instead of using debootstrap, we replicate its core functionality here. Because dpkg does not have
+        # an option to delay running pre-install maintainer scripts when it installs a package, it's
+        # impossible to use apt directly to bootstrap a Debian chroot since dpkg will try to run a maintainer
+        # script which depends on some basic tool to be available in the chroot from a deb which hasn't been
+        # unpacked yet, causing the script to fail. To avoid these issues, we have to extract all the
+        # essential debs first, and only then run the maintainer scripts for them.
 
-        cmdline: list[PathString] = [
-            "debootstrap",
-            "--variant=minbase",
-            "--merged-usr",
-            f"--cache-dir={state.cache}",
-            f"--components={','.join(repos)}",
-        ]
+        # First, we set up merged usr.
+        # This list is taken from https://salsa.debian.org/installer-team/debootstrap/-/blob/master/functions#L1369.
+        subdirs = ["bin", "sbin", "lib"] + {
+            "amd64"       : ["lib32", "lib64", "libx32"],
+            "i386"        : ["lib64", "libx32"],
+            "mips"        : ["lib32", "lib64"],
+            "mipsel"      : ["lib32", "lib64"],
+            "mips64el"    : ["lib32", "lib64", "libo32"],
+            "loongarch64" : ["lib32", "lib64"],
+            "powerpc"     : ["lib64"],
+            "ppc64"       : ["lib32", "lib64"],
+            "ppc64el"     : ["lib64"],
+            "s390x"       : ["lib32"],
+            "sparc"       : ["lib64"],
+            "sparc64"     : ["lib32", "lib64"],
+            "x32"         : ["lib32", "lib64", "libx32"],
+        }.get(DEBIAN_ARCHITECTURES[state.config.architecture], [])
 
-        debarch = DEBIAN_ARCHITECTURES[state.config.architecture]
-        cmdline += [f"--arch={debarch}"]
+        state.root.joinpath("usr").mkdir(mode=0o755)
+        for d in subdirs:
+            state.root.joinpath(d).symlink_to(f"usr/{d}")
+            state.root.joinpath(f"usr/{d}").mkdir(mode=0o755)
 
-        # Let's use --no-check-valid-until only if debootstrap knows it
-        if debootstrap_knows_arg("--no-check-valid-until"):
-            cmdline += ["--no-check-valid-until"]
+        # Next, we download the essential debs. We add usr-is-merged to assert the system is usr-merged
+        # already and to prevent usrmerge from being installed and pulling in all its dependencies.
+        setup_apt(state, cls.repositories(state))
+        invoke_apt(state, "update")
+        invoke_apt(state, "install", ["--download-only", "?essential", "?name(usr-is-merged)"])
 
-        if not state.config.repository_key_check:
-            cmdline += ["--no-check-gpg"]
+        # Next, invoke apt install with an info fd to which it writes the debs it's operating on. However, by
+        # passing "-oDebug::pkgDpkgPm=1", apt will not actually execute any dpkg commands, which turns the
+        # install command into a noop that tells us the full paths to the essential debs and any dependencies
+        # that apt would install in the apt cache.
+        with tempfile.TemporaryFile(dir=state.workspace, mode="w+") as f:
+            os.set_inheritable(f.fileno(), True)
 
-        mirror = state.config.local_mirror or state.config.mirror
-        assert mirror is not None
-        cmdline += [state.config.release, state.root, mirror]
+            invoke_apt(state, "install", [
+                "-oDebug::pkgDpkgPm=1",
+                f"-oAPT::Keep-Fds::={f.fileno()}",
+                f"-oDPkg::Tools::options::'cat >&$fd'::InfoFD={f.fileno()}",
+                f"-oDpkg::Pre-Install-Pkgs::=cat >&{f.fileno()}",
+                "?essential", "?name(usr-is-merged)",
+            ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-        # Pretend we're lxc so debootstrap skips its mknod check.
-        run_with_apivfs(state, cmdline, env=dict(container="lxc", DPKG_FORCE="unsafe-io"))
+            f.seek(0)
+            essential = f.read().strip().splitlines()
 
-        install_skeleton_trees(state, False, late=True)
+        # Now, extract the debs to the chroot by first extracting the sources tar file out of the deb and
+        # then extracting the tar file into the chroot.
 
-        cls.install_packages(state, ["base-passwd"])
+        for deb in essential:
+            with tempfile.NamedTemporaryFile(dir=state.workspace) as f:
+                run(["dpkg-deb", "--fsys-tarfile", deb], stdout=f)
+                run(["tar", "-C", state.root, "--keep-directory-symlink", "--extract", "--file", f.name])
+
+        # Finally, run apt to properly install packages in the chroot without having to worry that maintainer
+        # scripts won't find basic tools that they depend on.
+
+        cls.install_packages(state, [Path(deb).name.partition("_")[0] for deb in essential])
 
         # Ensure /efi exists so that the ESP is mounted there, and we never run dpkg -i on vfat
         state.root.joinpath("efi").mkdir(mode=0o755, exist_ok=True)
@@ -114,8 +148,7 @@ class DebianInstaller(DistributionInstaller):
         invoke_apt(state, "purge", packages)
 
 
-# Debian calls their architectures differently, so when calling debootstrap we
-# will have to map to their names
+# Debian calls their architectures differently, so when calling apt we will have to map to their names.
 # uname -m -> dpkg --print-architecture
 DEBIAN_ARCHITECTURES = {
     "aarch64": "arm64",
@@ -132,11 +165,6 @@ DEBIAN_ARCHITECTURES = {
     "x86": "i386",
     "x86_64": "amd64",
 }
-
-
-def debootstrap_knows_arg(arg: str) -> bool:
-    return bytes("invalid option", "UTF-8") not in run(["debootstrap", arg],
-                                                       stdout=subprocess.PIPE, check=False).stdout
 
 
 def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
@@ -160,6 +188,7 @@ def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
             APT::Install-Recommends "false";
             APT::Get::Assume-Yes "true";
             APT::Get::AutomaticRemove "true";
+            APT::Sandbox::User "root";
             Dir::Cache "{state.cache}";
             Dir::State "{state.workspace / "apt"}";
             Dir::State::status "{state.root / "var/lib/dpkg/status"}";
@@ -172,7 +201,9 @@ def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
             DPkg::Options:: "--root={state.root}";
             DPkg::Options:: "--log={state.workspace / "apt/dpkg.log"}";
             DPkg::Options:: "--force-unsafe-io";
+            Dpkg::Use-Pty "false";
             DPkg::Install::Recursive::Minimum "1000";
+            pkgCacheGen::ForceEssential ",";
             """
         )
     )
@@ -186,6 +217,8 @@ def invoke_apt(
     state: MkosiState,
     operation: str,
     extra: Sequence[str] = tuple(),
+    stdout: _FILE = None,
+    stderr: _FILE = None,
 ) -> CompletedProcess:
     env: dict[str, PathString] = dict(
         APT_CONFIG=state.workspace / "apt/apt.conf",
@@ -195,4 +228,4 @@ def invoke_apt(
         INITRD="No",
     )
 
-    return run_with_apivfs(state, ["apt-get", operation, *extra], env=env)
+    return run_with_apivfs(state, ["apt-get", operation, *extra], env=env, stdout=stdout, stderr=stderr)
