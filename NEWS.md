@@ -70,6 +70,9 @@
 - Removed `--bootable` in favor of automatically generating a bootable image if all the necessary packages
   are installed. Documentation was added in docs/bootable.ld on how a bootable image can be generated on
   mainstream distros.
+- The RPM db is no longer rebuilt in bdb format on CentOS Stream 8. To be able to install packages on a
+  CentOS Stream 8 image with a RPM db in sqlite format, rewrite the db in bdb format using
+  `rpm --rebuilddb --define _db_backend bdb`.
 
 ## v14
 

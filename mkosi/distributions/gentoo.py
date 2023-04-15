@@ -25,12 +25,34 @@ ARCHITECTURES = {
 }
 
 
+def invoke_emerge(
+    state: MkosiState,
+    pkgs: Sequence[str] = (),
+    actions: Sequence[str] = (),
+    opts: Sequence[str] = (),
+) -> None:
+    jobs = os.cpu_count() or 1
+    emerge_default_opts = [
+        "--buildpkg=y",
+        "--usepkg=y",
+        "--keep-going=y",
+        f"--jobs={jobs}",
+        f"--load-average={jobs+1}",
+        "--nospinner",
+    ]
+    if "build-script" in ARG_DEBUG:
+        emerge_default_opts += ["--verbose", "--quiet=n", "--quiet-fail=n"]
+    else:
+        emerge_default_opts += ["--quiet-build", "--quiet"]
+    cmd = ["emerge", *pkgs, *emerge_default_opts, *opts, *actions]
+    run_workspace_command(state, cmd, network=True)
+
+
 class Gentoo:
     arch_profile: Path
     arch: str
     custom_profile_path: Path
     ebuild_sh_env_dir: Path
-    emerge_default_opts: list[str]
     emerge_vars: dict[str, str]
     portage_cfg_dir: Path
     profile_path: Path
@@ -150,20 +172,6 @@ class Gentoo:
 
         self.portage_cfg_dir.mkdir(parents=True, exist_ok=True)
 
-        jobs = os.cpu_count() or 1
-        self.emerge_default_opts = [
-            "--buildpkg=y",
-            "--usepkg=y",
-            "--keep-going=y",
-            f"--jobs={jobs}",
-            f"--load-average={jobs+1}",
-            "--nospinner",
-        ]
-        if "build-script" in ARG_DEBUG:
-            self.emerge_default_opts += ["--verbose", "--quiet=n", "--quiet-fail=n"]
-        else:
-            self.emerge_default_opts += ["--quiet-build", "--quiet"]
-
         self.arch, _ = ARCHITECTURES[state.config.architecture or "x86_64"]
         self.arch_profile = Path(f"default/linux/{self.arch}/{state.config.release}/no-multilib/systemd/merged-usr")
         self.pkgs['sys'] = ["@world"]
@@ -184,7 +192,6 @@ class Gentoo:
         self.get_snapshot_of_portage_tree()
         self.update_stage3()
         self.depclean()
-        self.merge_user_pkgs()
 
     def fetch_fix_stage3(self) -> None:
         """usrmerge tracker bug: https://bugs.gentoo.org/690294"""
@@ -293,25 +300,12 @@ class Gentoo:
         run_workspace_command(self.state, ["/usr/bin/emerge-webrsync"], network=True)
 
     def update_stage3(self) -> None:
-        self.invoke_emerge(opts=self.EMERGE_UPDATE_OPTS, pkgs=self.pkgs['boot'])
-        self.invoke_emerge(opts=["--config"], pkgs=["sys-kernel/gentoo-kernel-bin"])
-        self.invoke_emerge(opts=self.EMERGE_UPDATE_OPTS, pkgs=self.pkgs['sys'])
+        invoke_emerge(self.state, opts=self.EMERGE_UPDATE_OPTS, pkgs=self.pkgs['boot'])
+        invoke_emerge(self.state, opts=["--config"], pkgs=["sys-kernel/gentoo-kernel-bin"])
+        invoke_emerge(self.state, opts=self.EMERGE_UPDATE_OPTS, pkgs=self.pkgs['sys'])
 
     def depclean(self) -> None:
-        self.invoke_emerge(actions=["--depclean"])
-
-    def merge_user_pkgs(self) -> None:
-        if self.state.config.packages:
-            self.invoke_emerge(pkgs=self.state.config.packages)
-
-    def invoke_emerge(
-        self,
-        pkgs: Sequence[str] = (),
-        actions: Sequence[str] = (),
-        opts: Sequence[str] = (),
-    ) -> None:
-        cmd = ["emerge", *pkgs, *self.emerge_default_opts, *opts, *actions]
-        run_workspace_command(self.state, cmd, network=True)
+        invoke_emerge(self.state, actions=["--depclean"])
 
 
 class GentooInstaller(DistributionInstaller):
@@ -327,3 +321,7 @@ class GentooInstaller(DistributionInstaller):
     @classmethod
     def install(cls, state: MkosiState) -> None:
         Gentoo(state)
+
+    @classmethod
+    def install_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
+        invoke_emerge(state, packages)
