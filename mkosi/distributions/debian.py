@@ -145,24 +145,6 @@ DEBIAN_ARCHITECTURES = {
     "x86_64": "amd64",
 }
 
-# And the kernel package names have yet another format, so adjust accordingly
-# uname -m -> linux-image-$arch
-DEBIAN_KERNEL_ARCHITECTURES = {
-    "aarch64": "arm64",
-    "armhfp": "armmp",
-    "alpha": "alpha-generic",
-    "ia64": "itanium",
-    "m68k": "m68k",
-    "parisc64": "parisc64",
-    "ppc": "powerpc",
-    "ppc64": "powerpc64",
-    "ppc64le": "powerpc64le",
-    "riscv64:": "riscv64",
-    "s390x": "s390x",
-    "x86": "i386",
-    "x86_64": "amd64",
-}
-
 
 def debootstrap_knows_arg(arg: str) -> bool:
     return bytes("invalid option", "UTF-8") not in run(["debootstrap", arg],
