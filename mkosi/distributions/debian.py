@@ -84,7 +84,7 @@ class DebianInstaller(DistributionInstaller):
             state.root.joinpath("etc/apt/sources.list.d/mirror.list").unlink()
             cls._add_apt_auxiliary_repos(state, repos)
 
-        # Don't enable any services by default.
+        # Make sure preset doesn't touch services unless explicitly configured.
         presetdir = state.root / "etc/systemd/system-preset"
         presetdir.mkdir(exist_ok=True, mode=0o755)
         presetdir.joinpath("99-mkosi-ignore.preset").write_text("ignore *")

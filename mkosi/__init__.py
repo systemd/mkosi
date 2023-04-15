@@ -555,8 +555,6 @@ def install_extra_trees(state: MkosiState) -> None:
             if source.is_dir():
                 copy_path(source, t, preserve_owner=False)
             else:
-                # unpack_archive() groks Paths, but mypy doesn't know this.
-                # Pretend that tree is a str.
                 shutil.unpack_archive(source, t)
 
 
