@@ -1359,7 +1359,7 @@ def print_summary(config: MkosiConfig) -> None:
 
     print("             Output Format:", config.output_format.name)
 
-    maniformats = (" ".join(str(i) for i in config.manifest_format)) or "(none)"
+    maniformats = (" ".join(i.name for i in config.manifest_format)) or "(none)"
     print("          Manifest Formats:", maniformats)
 
     if config.output_dir:
