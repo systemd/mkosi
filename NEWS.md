@@ -73,6 +73,7 @@
 - The RPM db is no longer rebuilt in bdb format on CentOS Stream 8. To be able to install packages on a
   CentOS Stream 8 image with a RPM db in sqlite format, rewrite the db in bdb format using
   `rpm --rebuilddb --define _db_backend bdb`.
+- Repositories are now only written to /etc/apt/sources.list if apt is installed in the image.
 
 ## v14
 

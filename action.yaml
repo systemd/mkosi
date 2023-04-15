@@ -17,6 +17,7 @@ runs:
         dnf \
         pacman-package-manager \
         archlinux-keyring \
+        debian-archive-keyring \
         makepkg \
         systemd-container \
         qemu-system-x86 \

@@ -28,6 +28,28 @@ class DebianInstaller(DistributionInstaller):
     def initrd_path(kver: str) -> Path:
         return Path("boot") / f"initrd.img-{kver}"
 
+    @staticmethod
+    def repositories(state: MkosiState, local: bool = True) -> list[str]:
+        repos = ' '.join(("main", *state.config.repositories))
+
+        if state.config.local_mirror and local:
+            return [f"deb [trusted=yes] {state.config.local_mirror} {state.config.release} {repos}"]
+
+        main = f"deb {state.config.mirror} {state.config.release} {repos}"
+
+        if state.config.release in ("unstable", "sid"):
+            return [main]
+
+        updates = f"deb {state.config.mirror} {state.config.release}-updates {repos}"
+
+        # Security updates repos are never mirrored
+        if state.config.release in ("stretch", "buster"):
+            security = f"deb http://security.debian.org/debian-security {state.config.release}/updates {repos}"
+        else:
+            security = f"deb http://security.debian.org/debian-security {state.config.release}-security {repos}"
+
+        return [main, updates, security]
+
     @classmethod
     def install(cls, state: MkosiState) -> None:
         repos = {"main", *state.config.repositories}
@@ -64,25 +86,12 @@ class DebianInstaller(DistributionInstaller):
             if "VERSION_ID" not in os_release and "BUILD_ID" not in os_release:
                 f.write(f"BUILD_ID=mkosi-{state.config.release}\n")
 
-        if not state.config.local_mirror:
-            cls._add_apt_auxiliary_repos(state, repos)
-        else:
-            # Add a single local offline repository, and then remove it after apt has ran
-            state.root.joinpath("etc/apt/sources.list.d/mirror.list").write_text(f"deb [trusted=yes] {state.config.local_mirror} {state.config.release} main\n")
-
         install_skeleton_trees(state, False, late=True)
 
         cls.install_packages(state, ["base-passwd"])
 
         # Ensure /efi exists so that the ESP is mounted there, and we never run dpkg -i on vfat
         state.root.joinpath("efi").mkdir(mode=0o755, exist_ok=True)
-
-        # Now clean up and add the real repositories, so that the image is ready
-        if state.config.local_mirror:
-            main_repo = f"deb {state.config.mirror} {state.config.release} {' '.join(repos)}\n"
-            state.root.joinpath("etc/apt/sources.list").write_text(main_repo)
-            state.root.joinpath("etc/apt/sources.list.d/mirror.list").unlink()
-            cls._add_apt_auxiliary_repos(state, repos)
 
         # Make sure preset doesn't touch services unless explicitly configured.
         presetdir = state.root / "etc/systemd/system-preset"
@@ -100,26 +109,17 @@ class DebianInstaller(DistributionInstaller):
         policyrcd.write_text("#!/bin/sh\nexit 101\n")
         policyrcd.chmod(0o755)
 
+        setup_apt(state, cls.repositories(state))
         invoke_apt(state, "get", "update")
         invoke_apt(state, "get", "install", packages)
 
         policyrcd.unlink()
 
-    @classmethod
-    def _add_apt_auxiliary_repos(cls, state: MkosiState, repos: set[str]) -> None:
-        if state.config.release in ("unstable", "sid"):
-            return
-
-        updates = f"deb {state.config.mirror} {state.config.release}-updates {' '.join(repos)}"
-        state.root.joinpath(f"etc/apt/sources.list.d/{state.config.release}-updates.list").write_text(f"{updates}\n")
-
-        # Security updates repos are never mirrored
-        if state.config.release in ("stretch", "buster"):
-            security = f"deb http://security.debian.org/debian-security/ {state.config.release}/updates main"
-        else:
-            security = f"deb https://security.debian.org/debian-security {state.config.release}-security main"
-
-        state.root.joinpath(f"etc/apt/sources.list.d/{state.config.release}-security.list").write_text(f"{security}\n")
+        sources = state.root / "etc/apt/sources.list"
+        if not sources.exists() and state.root.joinpath("usr/bin/apt").exists():
+            with sources.open("w") as f:
+                for repo in cls.repositories(state, local=False):
+                    f.write(f"{repo}\n")
 
     @classmethod
     def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
@@ -151,24 +151,20 @@ def debootstrap_knows_arg(arg: str) -> bool:
                                                        stdout=subprocess.PIPE, check=False).stdout
 
 
-def invoke_apt(
-    state: MkosiState,
-    subcommand: str,
-    operation: str,
-    extra: Sequence[str] = tuple(),
-) -> CompletedProcess:
-
+def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
     state.workspace.joinpath("apt").mkdir(exist_ok=True)
+    state.workspace.joinpath("apt/apt.conf.d").mkdir(exist_ok=True)
+    state.workspace.joinpath("apt/preferences.d").mkdir(exist_ok=True)
     state.workspace.joinpath("apt/log").mkdir(exist_ok=True)
     state.root.joinpath("var").mkdir(mode=0o755, exist_ok=True)
     state.root.joinpath("var/lib").mkdir(mode=0o755, exist_ok=True)
     state.root.joinpath("var/lib/dpkg").mkdir(mode=0o755, exist_ok=True)
     state.root.joinpath("var/lib/dpkg/status").touch()
 
-    config_file = state.workspace / "apt/apt.conf"
+    config = state.workspace / "apt/apt.conf"
     debarch = DEBIAN_ARCHITECTURES[state.config.architecture]
 
-    config_file.write_text(
+    config.write_text(
         dedent(
             f"""\
             APT::Architecture "{debarch}";
@@ -179,7 +175,9 @@ def invoke_apt(
             Dir::Cache "{state.cache}";
             Dir::State "{state.workspace / "apt"}";
             Dir::State::status "{state.root / "var/lib/dpkg/status"}";
-            Dir::Etc "{state.root / "etc/apt"}";
+            Dir::Etc "{state.workspace / "apt"}";
+            Dir::Etc::trusted "/usr/share/keyrings/{state.config.release}-archive-keyring";
+            Dir::Etc::trustedparts "/usr/share/keyrings";
             Dir::Log "{state.workspace / "apt/log"}";
             Dir::Bin::dpkg "dpkg";
             DPkg::Path "{os.environ["PATH"]}";
@@ -191,13 +189,24 @@ def invoke_apt(
         )
     )
 
+    with state.workspace.joinpath("apt/sources.list").open("w") as f:
+        for repo in repos:
+            f.write(f"{repo}\n")
+
+
+def invoke_apt(
+    state: MkosiState,
+    subcommand: str,
+    operation: str,
+    extra: Sequence[str] = tuple(),
+) -> CompletedProcess:
     cmdline = [
         f"/usr/bin/apt-{subcommand}",
         operation,
         *extra,
     ]
     env: dict[str, PathString] = dict(
-        APT_CONFIG=config_file,
+        APT_CONFIG=state.workspace / "apt/apt.conf",
         DEBIAN_FRONTEND="noninteractive",
         DEBCONF_INTERACTIVE_SEEN="true",
         KERNEL_INSTALL_BYPASS="1",
