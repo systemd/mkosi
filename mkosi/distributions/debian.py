@@ -160,7 +160,9 @@ def invoke_apt(
 
     state.workspace.joinpath("apt").mkdir(exist_ok=True)
     state.workspace.joinpath("apt/log").mkdir(exist_ok=True)
-    state.root.joinpath("var/lib/dpkg").mkdir(exist_ok=True)
+    state.root.joinpath("var").mkdir(mode=0o755, exist_ok=True)
+    state.root.joinpath("var/lib").mkdir(mode=0o755, exist_ok=True)
+    state.root.joinpath("var/lib/dpkg").mkdir(mode=0o755, exist_ok=True)
     state.root.joinpath("var/lib/dpkg/status").touch()
 
     config_file = state.workspace / "apt/apt.conf"
