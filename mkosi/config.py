@@ -771,13 +771,13 @@ class MkosiConfigParser:
         parser = argparse.ArgumentParser(
             prog="mkosi",
             description="Build Bespoke OS Images",
-            usage=textwrap.dedent("""
-                    mkosi [options...] {b}summary{e}
+            usage="\n  " + textwrap.dedent("""\
+                  mkosi [options...] {b}summary{e}
                     mkosi [options...] {b}build{e} [script parameters...]
                     mkosi [options...] {b}shell{e} [command line...]
-                    mkosi [options...] {b}boot{e} [nspawn settings...]
-                    mkosi [options...] {b}qemu{e} [qemu parameters...]
-                    mkosi [options...] {b}ssh{e} [command line...]
+                    mkosi [options...] {b}boot{e}  [nspawn settings...]
+                    mkosi [options...] {b}qemu{e}  [qemu parameters...]
+                    mkosi [options...] {b}ssh{e}   [command line...]
                     mkosi [options...] {b}clean{e}
                     mkosi [options...] {b}serve{e}
                     mkosi [options...] {b}bump{e}
