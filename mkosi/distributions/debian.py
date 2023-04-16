@@ -79,13 +79,6 @@ class DebianInstaller(DistributionInstaller):
         # Pretend we're lxc so debootstrap skips its mknod check.
         run_with_apivfs(state, cmdline, env=dict(container="lxc", DPKG_FORCE="unsafe-io"))
 
-        # systemd-boot won't boot unified kernel images generated without a BUILD_ID or VERSION_ID in
-        # /etc/os-release. Build one with the mtime of os-release if we don't find them.
-        with state.root.joinpath("etc/os-release").open("r+") as f:
-            os_release = f.read()
-            if "VERSION_ID" not in os_release and "BUILD_ID" not in os_release:
-                f.write(f"BUILD_ID=mkosi-{state.config.release}\n")
-
         install_skeleton_trees(state, False, late=True)
 
         cls.install_packages(state, ["base-passwd"])
