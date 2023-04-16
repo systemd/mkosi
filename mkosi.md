@@ -1256,6 +1256,9 @@ variables:
   The build script should avoid any network communication in case
   `$WITH_NETWORK` is `0`.
 
+* `$MKOSI_LESS` overrides options for `less` when it is invoked by
+  `mkosi` to page output.
+
 # EXAMPLES
 
 Create and run a raw *GPT* image with *ext4*, as `image.raw`:

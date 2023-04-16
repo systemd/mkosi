@@ -9,6 +9,7 @@ import datetime
 import errno
 import hashlib
 import http.server
+import io
 import itertools
 import json
 import os
@@ -57,6 +58,7 @@ from mkosi.log import (
 )
 from mkosi.manifest import GenericVersion, Manifest
 from mkosi.mounts import dissect_and_mount, mount_overlay, scandir_recursive
+from mkosi.pager import page
 from mkosi.remove import unlink_try_hard
 from mkosi.run import (
     become_root,
@@ -1031,7 +1033,12 @@ def load_credentials(args: argparse.Namespace) -> dict[str, str]:
         creds[key] = value
 
     if "firstboot.timezone" not in creds:
-        tz = run(["timedatectl", "show", "-p", "Timezone", "--value"], text=True, stdout=subprocess.PIPE).stdout.strip()
+        tz = run(
+            ["timedatectl", "show", "-p", "Timezone", "--value"],
+            text=True,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+        ).stdout.strip()
         creds["firstboot.timezone"] = tz
 
     if "firstboot.locale" not in creds:
@@ -1041,7 +1048,13 @@ def load_credentials(args: argparse.Namespace) -> dict[str, str]:
         creds["firstboot.hostname"] = machine_name(args)
 
     if args.ssh and "ssh.authorized_keys.root" not in creds and "SSH_AUTH_SOCK" in os.environ:
-        key = run(["ssh-add", "-L"], text=True, stdout=subprocess.PIPE, env=os.environ).stdout.strip()
+        key = run(
+            ["ssh-add", "-L"],
+            text=True,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            env=os.environ,
+        ).stdout.strip()
         creds["ssh.authorized_keys.root"] = key
 
     return creds
@@ -1334,69 +1347,72 @@ def line_join_source_target_list(array: Sequence[tuple[Path, Optional[Path]]]) -
 
 
 def print_summary(config: MkosiConfig) -> None:
-    print("COMMANDS:")
+    f = io.StringIO()
+    say: Callable[..., None] = lambda *args, **kwargs: print(*args, **kwargs, file=f)
 
-    print("                      verb:", config.verb)
-    print("                   cmdline:", " ".join(config.cmdline))
+    say("COMMANDS:")
 
-    print("\nDISTRIBUTION:")
+    say("                      verb:", config.verb)
+    say("                   cmdline:", " ".join(config.cmdline))
 
-    print("              Distribution:", config.distribution.name)
-    print("                   Release:", none_to_na(config.release))
-    print("              Architecture:", config.architecture)
+    say("\nDISTRIBUTION:")
+
+    say("              Distribution:", config.distribution.name)
+    say("                   Release:", none_to_na(config.release))
+    say("              Architecture:", config.architecture)
 
     if config.mirror is not None:
-        print("                    Mirror:", config.mirror)
+        say("                    Mirror:", config.mirror)
 
     if config.local_mirror is not None:
-        print("      Local Mirror (build):", config.local_mirror)
+        say("      Local Mirror (build):", config.local_mirror)
 
-    print("  Repo Signature/Key check:", yes_no(config.repository_key_check))
+    say("  Repo Signature/Key check:", yes_no(config.repository_key_check))
 
     if config.repositories is not None and len(config.repositories) > 0:
-        print("              Repositories:", ",".join(config.repositories))
+        say("              Repositories:", ",".join(config.repositories))
 
     if config.initrds:
-        print("                   Initrds:", ",".join(os.fspath(p) for p in config.initrds))
+        say("                   Initrds:", ",".join(os.fspath(p) for p in config.initrds))
 
-    print("\nOUTPUT:")
+    say("\nOUTPUT:")
 
     if config.image_id is not None:
-        print("                  Image ID:", config.image_id)
+        say("                  Image ID:", config.image_id)
 
     if config.image_version is not None:
-        print("             Image Version:", config.image_version)
+        say("             Image Version:", config.image_version)
 
-    print("             Output Format:", config.output_format.name)
+    say("             Output Format:", config.output_format.name)
 
     maniformats = (" ".join(i.name for i in config.manifest_format)) or "(none)"
-    print("          Manifest Formats:", maniformats)
+    say("          Manifest Formats:", maniformats)
 
     if config.output_dir:
-        print("          Output Directory:", config.output_dir)
+        say("          Output Directory:", config.output_dir)
 
     if config.workspace_dir:
-        print("       Workspace Directory:", config.workspace_dir)
+        say("       Workspace Directory:", config.workspace_dir)
 
-    print("                    Output:", config.output)
-    print("           Output Checksum:", none_to_na(config.output_checksum if config.checksum else None))
-    print("          Output Signature:", none_to_na(config.output_signature if config.sign else None))
-    print("    Output nspawn Settings:", none_to_na(config.output_nspawn_settings if config.nspawn_settings is not None else None))
+    say("                    Output:", config.output)
+    say("           Output Checksum:", none_to_na(config.output_checksum if config.checksum else None))
+    say("          Output Signature:", none_to_na(config.output_signature if config.sign else None))
+    say("    Output nspawn Settings:", none_to_na(config.output_nspawn_settings if config.nspawn_settings is not None else None))
 
-    print("               Incremental:", yes_no(config.incremental))
-    print("               Compression:", should_compress_output(config) or "no")
+    say("               Incremental:", yes_no(config.incremental))
+    say("               Compression:", should_compress_output(config) or "no")
 
-    print("       Kernel Command Line:", " ".join(config.kernel_command_line))
-    print("           UEFI SecureBoot:", yes_no(config.secure_boot))
+    say("       Kernel Command Line:", " ".join(config.kernel_command_line))
+    say("           UEFI SecureBoot:", yes_no(config.secure_boot))
 
     if config.secure_boot_key:
-        print("       SecureBoot Sign Key:", config.secure_boot_key)
+        say("       SecureBoot Sign Key:", config.secure_boot_key)
     if config.secure_boot_certificate:
-        print("    SecureBoot Certificate:", config.secure_boot_certificate)
+        say("    SecureBoot Certificate:", config.secure_boot_certificate)
 
-    print("\nCONTENT:")
+    say("\nCONTENT:")
 
-    print("                  Packages:", line_join_list(config.packages))
+    say("                  Packages:", line_join_list(config.packages))
 
     if config.distribution in (
         Distribution.fedora,
@@ -1405,50 +1421,51 @@ def print_summary(config: MkosiConfig) -> None:
         Distribution.rocky,
         Distribution.alma,
     ):
-        print("        With Documentation:", yes_no(config.with_docs))
+        say("        With Documentation:", yes_no(config.with_docs))
 
-    print("             Package Cache:", none_to_none(config.cache_dir))
-    print("               Extra Trees:", line_join_source_target_list(config.extra_trees))
-    print("      CleanPackageMetadata:", yes_no_auto(config.clean_package_metadata))
+    say("             Package Cache:", none_to_none(config.cache_dir))
+    say("               Extra Trees:", line_join_source_target_list(config.extra_trees))
+    say("      CleanPackageMetadata:", yes_no_auto(config.clean_package_metadata))
 
     if config.remove_files:
-        print("              Remove Files:", line_join_list(config.remove_files))
+        say("              Remove Files:", line_join_list(config.remove_files))
     if config.remove_packages:
-        print("           Remove Packages:", line_join_list(config.remove_packages))
+        say("           Remove Packages:", line_join_list(config.remove_packages))
 
-    print("             Build Sources:", config.build_sources)
-    print("           Build Directory:", none_to_none(config.build_dir))
-    print("         Install Directory:", none_to_none(config.install_dir))
-    print("            Build Packages:", line_join_list(config.build_packages))
+    say("             Build Sources:", config.build_sources)
+    say("           Build Directory:", none_to_none(config.build_dir))
+    say("         Install Directory:", none_to_none(config.install_dir))
+    say("            Build Packages:", line_join_list(config.build_packages))
 
-    print("              Build Script:", path_or_none(config.build_script, check_script_input))
+    say("              Build Script:", path_or_none(config.build_script, check_script_input))
 
     env = [f"{k}={v}" for k, v in config.environment.items()]
     if config.build_script:
-        print("                 Run tests:", yes_no(config.with_tests))
+        say("                 Run tests:", yes_no(config.with_tests))
 
-    print("        Postinstall Script:", path_or_none(config.postinst_script, check_script_input))
-    print("            Prepare Script:", path_or_none(config.prepare_script, check_script_input))
-    print("           Finalize Script:", path_or_none(config.finalize_script, check_script_input))
+    say("        Postinstall Script:", path_or_none(config.postinst_script, check_script_input))
+    say("            Prepare Script:", path_or_none(config.prepare_script, check_script_input))
+    say("           Finalize Script:", path_or_none(config.finalize_script, check_script_input))
 
-    print("        Script Environment:", line_join_list(env))
-    print("      Scripts with network:", yes_no(config.with_network))
-    print("           nspawn Settings:", none_to_none(config.nspawn_settings))
+    say("        Script Environment:", line_join_list(env))
+    say("      Scripts with network:", yes_no(config.with_network))
+    say("           nspawn Settings:", none_to_none(config.nspawn_settings))
 
-    print("                  Password:", ("(default)" if config.password is None else "(set)"))
-    print("                 Autologin:", yes_no(config.autologin))
+    say("                  Password:", ("(default)" if config.password is None else "(set)"))
+    say("                 Autologin:", yes_no(config.autologin))
 
     if config.output_format == OutputFormat.disk:
-        print("\nVALIDATION:")
+        say("\nVALIDATION:")
 
-        print("                  Checksum:", yes_no(config.checksum))
-        print("                      Sign:", yes_no(config.sign))
-        print("                   GPG Key:", ("default" if config.key is None else config.key))
+        say("                  Checksum:", yes_no(config.checksum))
+        say("                      Sign:", yes_no(config.sign))
+        say("                   GPG Key:", ("default" if config.key is None else config.key))
 
-    print("\nHOST CONFIGURATION:")
+    say("\nHOST CONFIGURATION:")
 
-    print("        Extra search paths:", line_join_list(config.extra_search_paths))
-    print("      QEMU Extra Arguments:", line_join_list(config.qemu_args))
+    say("        Extra search paths:", line_join_list(config.extra_search_paths))
+    say("      QEMU Extra Arguments:", line_join_list(config.qemu_args))
+    page(f.getvalue(), config.pager)
 
 
 def make_output_dir(state: MkosiState) -> None:

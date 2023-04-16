@@ -821,6 +821,13 @@ class MkosiConfigParser:
             action="append",
             default=[],
         )
+        parser.add_argument(
+            "--no-pager",
+            action="store_false",
+            dest="pager",
+            default=True,
+            help="Enable paging for long output",
+        )
 
 
         group = parser.add_argument_group("Distribution options")
@@ -1329,4 +1336,3 @@ class MkosiConfigParser:
             setattr(namespace, s.dest, default)
 
         return namespace
-

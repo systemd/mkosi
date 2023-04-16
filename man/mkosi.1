@@ -1472,6 +1472,9 @@ whether a build without or with networking is being executed
 (\f[C]WithNetwork=no\f[R]).
 The build script should avoid any network communication in case
 \f[C]$WITH_NETWORK\f[R] is \f[C]0\f[R].
+.IP \[bu] 2
+\f[V]$MKOSI_LESS\f[R] overrides options for \f[V]less\f[R] when it is
+invoked by \f[V]mkosi\f[R] to page output.
 .SH EXAMPLES
 .PP
 Create and run a raw \f[I]GPT\f[R] image with \f[I]ext4\f[R], as
