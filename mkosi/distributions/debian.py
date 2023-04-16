@@ -98,8 +98,8 @@ class DebianInstaller(DistributionInstaller):
         policyrcd.chmod(0o755)
 
         setup_apt(state, cls.repositories(state))
-        invoke_apt(state, "get", "update")
-        invoke_apt(state, "get", "install", packages)
+        invoke_apt(state, "update")
+        invoke_apt(state, "install", packages)
 
         policyrcd.unlink()
 
@@ -111,7 +111,7 @@ class DebianInstaller(DistributionInstaller):
 
     @classmethod
     def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
-        invoke_apt(state, "get", "purge", packages)
+        invoke_apt(state, "purge", packages)
 
 
 # Debian calls their architectures differently, so when calling debootstrap we
@@ -184,15 +184,9 @@ def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
 
 def invoke_apt(
     state: MkosiState,
-    subcommand: str,
     operation: str,
     extra: Sequence[str] = tuple(),
 ) -> CompletedProcess:
-    cmdline = [
-        f"/usr/bin/apt-{subcommand}",
-        operation,
-        *extra,
-    ]
     env: dict[str, PathString] = dict(
         APT_CONFIG=state.workspace / "apt/apt.conf",
         DEBIAN_FRONTEND="noninteractive",
@@ -201,4 +195,4 @@ def invoke_apt(
         INITRD="No",
     )
 
-    return run_with_apivfs(state, cmdline, env=env)
+    return run_with_apivfs(state, ["apt-get", operation, *extra], env=env)
