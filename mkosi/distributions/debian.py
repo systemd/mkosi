@@ -86,11 +86,6 @@ class DebianInstaller(DistributionInstaller):
         # Ensure /efi exists so that the ESP is mounted there, and we never run dpkg -i on vfat
         state.root.joinpath("efi").mkdir(mode=0o755, exist_ok=True)
 
-        # Make sure preset doesn't touch services unless explicitly configured.
-        presetdir = state.root / "etc/systemd/system-preset"
-        presetdir.mkdir(exist_ok=True, mode=0o755)
-        presetdir.joinpath("99-mkosi-ignore.preset").write_text("ignore *")
-
     @classmethod
     def install_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
         # Debian policy is to start daemons by default. The policy-rc.d script can be used choose which ones to
