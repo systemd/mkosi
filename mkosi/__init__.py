@@ -1348,17 +1348,20 @@ def line_join_source_target_list(array: Sequence[tuple[Path, Optional[Path]]]) -
 
 def print_summary(config: MkosiConfig) -> None:
     f = io.StringIO()
+    b = MkosiPrinter.bold
+    e = MkosiPrinter.reset
     say: Callable[..., None] = lambda *args, **kwargs: print(*args, **kwargs, file=f)
+    bold: Callable[..., str] = lambda s: f"{b}{s}{e}"
 
-    say("COMMANDS:")
+    say(f"{b}COMMANDS{e}:")
 
-    say("                      verb:", config.verb)
-    say("                   cmdline:", " ".join(config.cmdline))
+    say("                      verb:", bold(config.verb))
+    say("                   cmdline:", bold(" ".join(config.cmdline)))
 
-    say("\nDISTRIBUTION:")
+    say(f"\n{b}DISTRIBUTION{e}:")
 
-    say("              Distribution:", config.distribution.name)
-    say("                   Release:", none_to_na(config.release))
+    say("              Distribution:", bold(config.distribution.name))
+    say("                   Release:", bold(none_to_na(config.release)))
     say("              Architecture:", config.architecture)
 
     if config.mirror is not None:
@@ -1375,7 +1378,7 @@ def print_summary(config: MkosiConfig) -> None:
     if config.initrds:
         say("                   Initrds:", ",".join(os.fspath(p) for p in config.initrds))
 
-    say("\nOUTPUT:")
+    say(f"\n{b}OUTPUT{e}:")
 
     if config.image_id is not None:
         say("                  Image ID:", config.image_id)
@@ -1394,7 +1397,7 @@ def print_summary(config: MkosiConfig) -> None:
     if config.workspace_dir:
         say("       Workspace Directory:", config.workspace_dir)
 
-    say("                    Output:", config.output)
+    say("                    Output:", bold(config.output))
     say("           Output Checksum:", none_to_na(config.output_checksum if config.checksum else None))
     say("          Output Signature:", none_to_na(config.output_signature if config.sign else None))
     say("    Output nspawn Settings:", none_to_na(config.output_nspawn_settings if config.nspawn_settings is not None else None))
@@ -1410,7 +1413,7 @@ def print_summary(config: MkosiConfig) -> None:
     if config.secure_boot_certificate:
         say("    SecureBoot Certificate:", config.secure_boot_certificate)
 
-    say("\nCONTENT:")
+    say(f"\n{b}CONTENT{e}:")
 
     say("                  Packages:", line_join_list(config.packages))
 
@@ -1455,13 +1458,13 @@ def print_summary(config: MkosiConfig) -> None:
     say("                 Autologin:", yes_no(config.autologin))
 
     if config.output_format == OutputFormat.disk:
-        say("\nVALIDATION:")
+        say(f"\n{b}VALIDATION{e}:")
 
         say("                  Checksum:", yes_no(config.checksum))
         say("                      Sign:", yes_no(config.sign))
         say("                   GPG Key:", ("default" if config.key is None else config.key))
 
-    say("\nHOST CONFIGURATION:")
+    say(f"\n{b}HOST CONFIGURATION{e}:")
 
     say("        Extra search paths:", line_join_list(config.extra_search_paths))
     say("      QEMU Extra Arguments:", line_join_list(config.qemu_args))
