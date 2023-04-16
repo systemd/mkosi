@@ -20,6 +20,7 @@ from mkosi.backend import (
     flatten,
 )
 from mkosi.log import MkosiPrinter, die
+from mkosi.pager import page
 
 __version__ = "14"
 
@@ -289,6 +290,18 @@ def config_make_action(settings: Sequence[MkosiConfigSetting]) -> Type[argparse.
                     setattr(namespace, s.dest, s.parse(self.dest, v, namespace))
 
     return MkosiAction
+
+
+class PagerHelpAction(argparse._HelpAction):
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: Union[str, Sequence[Any], None] = None,
+        option_string: Optional[str] = None
+    ) -> None:
+        page(parser.format_help(), namespace.pager)
+        parser.exit()
 
 
 class MkosiConfigParser:
@@ -793,7 +806,7 @@ class MkosiConfigParser:
         )
         parser.add_argument(
             "-h", "--help",
-            action="help",
+            action=PagerHelpAction,
             help=argparse.SUPPRESS,
         )
         parser.add_argument(
@@ -1311,8 +1324,7 @@ class MkosiConfigParser:
         argparser.parse_args(args, namespace)
 
         if namespace.verb == Verb.help:
-            argparser.print_help()
-            argparser.exit()
+            PagerHelpAction.__call__(None, argparser, namespace)  # type: ignore
 
         if "directory" not in namespace:
             setattr(namespace, "directory", None)

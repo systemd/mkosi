@@ -12,7 +12,8 @@ def page(text: str, enabled: Optional[bool]) -> None:
         # X: do not clear screen
         # M: verbose prompt
         # K: quit on ^C
-        os.environ["LESS"] = os.getenv("MKOSI_LESS", "FXMK")
+        # R: allow rich formatting
+        os.environ["LESS"] = os.getenv("MKOSI_LESS", "FXMKR")
         pydoc.pager(text)
     else:
         print(text)
