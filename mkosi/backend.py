@@ -269,6 +269,7 @@ class MkosiConfig:
     initrds: list[Path]
     kernel_command_line_extra: list[str]
     acl: bool
+    pager: bool
 
     # QEMU-specific options
     qemu_gui: bool
