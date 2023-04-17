@@ -145,7 +145,6 @@ def detect_distribution() -> tuple[Optional[Distribution], Optional[str]]:
             break
 
     if d in {Distribution.debian, Distribution.ubuntu} and (version_codename or extracted_codename):
-        # debootstrap needs release codenames, not version numbers
         version_id = version_codename or extracted_codename
 
     return d, version_id

@@ -2,20 +2,18 @@
 
 import os
 import subprocess
+import tempfile
 from collections.abc import Sequence
 from pathlib import Path
 from textwrap import dedent
 
 from mkosi.backend import MkosiState
 from mkosi.distributions import DistributionInstaller
-from mkosi.install import install_skeleton_trees
 from mkosi.run import run, run_with_apivfs
-from mkosi.types import CompletedProcess, PathString
+from mkosi.types import _FILE, CompletedProcess, PathString
 
 
 class DebianInstaller(DistributionInstaller):
-    needs_skeletons_after_bootstrap = True
-
     @classmethod
     def filesystem(cls) -> str:
         return "ext4"
@@ -28,66 +26,99 @@ class DebianInstaller(DistributionInstaller):
     def initrd_path(kver: str) -> Path:
         return Path("boot") / f"initrd.img-{kver}"
 
+    @staticmethod
+    def repositories(state: MkosiState, local: bool = True) -> list[str]:
+        repos = ' '.join(("main", *state.config.repositories))
+
+        if state.config.local_mirror and local:
+            return [f"deb [trusted=yes] {state.config.local_mirror} {state.config.release} {repos}"]
+
+        main = f"deb {state.config.mirror} {state.config.release} {repos}"
+
+        if state.config.release in ("unstable", "sid"):
+            return [main]
+
+        updates = f"deb {state.config.mirror} {state.config.release}-updates {repos}"
+
+        # Security updates repos are never mirrored
+        if state.config.release in ("stretch", "buster"):
+            security = f"deb http://security.debian.org/debian-security {state.config.release}/updates {repos}"
+        else:
+            security = f"deb http://security.debian.org/debian-security {state.config.release}-security {repos}"
+
+        return [main, updates, security]
+
     @classmethod
     def install(cls, state: MkosiState) -> None:
-        repos = {"main", *state.config.repositories}
+        # Instead of using debootstrap, we replicate its core functionality here. Because dpkg does not have
+        # an option to delay running pre-install maintainer scripts when it installs a package, it's
+        # impossible to use apt directly to bootstrap a Debian chroot since dpkg will try to run a maintainer
+        # script which depends on some basic tool to be available in the chroot from a deb which hasn't been
+        # unpacked yet, causing the script to fail. To avoid these issues, we have to extract all the
+        # essential debs first, and only then run the maintainer scripts for them.
 
-        cmdline: list[PathString] = [
-            "debootstrap",
-            "--variant=minbase",
-            "--merged-usr",
-            f"--cache-dir={state.cache.absolute()}",
-            f"--components={','.join(repos)}",
-        ]
+        # First, we set up merged usr.
+        # This list is taken from https://salsa.debian.org/installer-team/debootstrap/-/blob/master/functions#L1369.
+        subdirs = ["bin", "sbin", "lib"] + {
+            "amd64"       : ["lib32", "lib64", "libx32"],
+            "i386"        : ["lib64", "libx32"],
+            "mips"        : ["lib32", "lib64"],
+            "mipsel"      : ["lib32", "lib64"],
+            "mips64el"    : ["lib32", "lib64", "libo32"],
+            "loongarch64" : ["lib32", "lib64"],
+            "powerpc"     : ["lib64"],
+            "ppc64"       : ["lib32", "lib64"],
+            "ppc64el"     : ["lib64"],
+            "s390x"       : ["lib32"],
+            "sparc"       : ["lib64"],
+            "sparc64"     : ["lib32", "lib64"],
+            "x32"         : ["lib32", "lib64", "libx32"],
+        }.get(DEBIAN_ARCHITECTURES[state.config.architecture], [])
 
-        debarch = DEBIAN_ARCHITECTURES[state.config.architecture]
-        cmdline += [f"--arch={debarch}"]
+        state.root.joinpath("usr").mkdir(mode=0o755)
+        for d in subdirs:
+            state.root.joinpath(d).symlink_to(f"usr/{d}")
+            state.root.joinpath(f"usr/{d}").mkdir(mode=0o755)
 
-        # Let's use --no-check-valid-until only if debootstrap knows it
-        if debootstrap_knows_arg("--no-check-valid-until"):
-            cmdline += ["--no-check-valid-until"]
+        # Next, we download the essential debs. We add usr-is-merged to assert the system is usr-merged
+        # already and to prevent usrmerge from being installed and pulling in all its dependencies.
+        setup_apt(state, cls.repositories(state))
+        invoke_apt(state, "update")
+        invoke_apt(state, "install", ["--download-only", "?essential", "?name(usr-is-merged)"])
 
-        if not state.config.repository_key_check:
-            cmdline += ["--no-check-gpg"]
+        # Next, invoke apt install with an info fd to which it writes the debs it's operating on. However, by
+        # passing "-oDebug::pkgDpkgPm=1", apt will not actually execute any dpkg commands, which turns the
+        # install command into a noop that tells us the full paths to the essential debs and any dependencies
+        # that apt would install in the apt cache.
+        with tempfile.TemporaryFile(dir=state.workspace, mode="w+") as f:
+            os.set_inheritable(f.fileno(), True)
 
-        mirror = state.config.local_mirror or state.config.mirror
-        assert mirror is not None
-        cmdline += [state.config.release, state.root, mirror]
+            invoke_apt(state, "install", [
+                "-oDebug::pkgDpkgPm=1",
+                f"-oAPT::Keep-Fds::={f.fileno()}",
+                f"-oDPkg::Tools::options::'cat >&$fd'::InfoFD={f.fileno()}",
+                f"-oDpkg::Pre-Install-Pkgs::=cat >&{f.fileno()}",
+                "?essential", "?name(usr-is-merged)",
+            ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-        # Pretend we're lxc so debootstrap skips its mknod check.
-        run_with_apivfs(state, cmdline, env=dict(container="lxc", DPKG_FORCE="unsafe-io"))
+            f.seek(0)
+            essential = f.read().strip().splitlines()
 
-        # systemd-boot won't boot unified kernel images generated without a BUILD_ID or VERSION_ID in
-        # /etc/os-release. Build one with the mtime of os-release if we don't find them.
-        with state.root.joinpath("etc/os-release").open("r+") as f:
-            os_release = f.read()
-            if "VERSION_ID" not in os_release and "BUILD_ID" not in os_release:
-                f.write(f"BUILD_ID=mkosi-{state.config.release}\n")
+        # Now, extract the debs to the chroot by first extracting the sources tar file out of the deb and
+        # then extracting the tar file into the chroot.
 
-        if not state.config.local_mirror:
-            cls._add_apt_auxiliary_repos(state, repos)
-        else:
-            # Add a single local offline repository, and then remove it after apt has ran
-            state.root.joinpath("etc/apt/sources.list.d/mirror.list").write_text(f"deb [trusted=yes] {state.config.local_mirror} {state.config.release} main\n")
+        for deb in essential:
+            with tempfile.NamedTemporaryFile(dir=state.workspace) as f:
+                run(["dpkg-deb", "--fsys-tarfile", deb], stdout=f)
+                run(["tar", "-C", state.root, "--keep-directory-symlink", "--extract", "--file", f.name])
 
-        install_skeleton_trees(state, False, late=True)
+        # Finally, run apt to properly install packages in the chroot without having to worry that maintainer
+        # scripts won't find basic tools that they depend on.
 
-        cls.install_packages(state, ["base-passwd"])
+        cls.install_packages(state, [Path(deb).name.partition("_")[0] for deb in essential])
 
         # Ensure /efi exists so that the ESP is mounted there, and we never run dpkg -i on vfat
         state.root.joinpath("efi").mkdir(mode=0o755, exist_ok=True)
-
-        # Now clean up and add the real repositories, so that the image is ready
-        if state.config.local_mirror:
-            main_repo = f"deb {state.config.mirror} {state.config.release} {' '.join(repos)}\n"
-            state.root.joinpath("etc/apt/sources.list").write_text(main_repo)
-            state.root.joinpath("etc/apt/sources.list.d/mirror.list").unlink()
-            cls._add_apt_auxiliary_repos(state, repos)
-
-        # Don't enable any services by default.
-        presetdir = state.root / "etc/systemd/system-preset"
-        presetdir.mkdir(exist_ok=True, mode=0o755)
-        presetdir.joinpath("99-mkosi-ignore.preset").write_text("ignore *")
 
     @classmethod
     def install_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
@@ -100,34 +131,24 @@ class DebianInstaller(DistributionInstaller):
         policyrcd.write_text("#!/bin/sh\nexit 101\n")
         policyrcd.chmod(0o755)
 
-        invoke_apt(state, "get", "update")
-        invoke_apt(state, "get", "install", packages)
+        setup_apt(state, cls.repositories(state))
+        invoke_apt(state, "update")
+        invoke_apt(state, "install", packages)
 
         policyrcd.unlink()
 
-    @classmethod
-    def _add_apt_auxiliary_repos(cls, state: MkosiState, repos: set[str]) -> None:
-        if state.config.release in ("unstable", "sid"):
-            return
-
-        updates = f"deb {state.config.mirror} {state.config.release}-updates {' '.join(repos)}"
-        state.root.joinpath(f"etc/apt/sources.list.d/{state.config.release}-updates.list").write_text(f"{updates}\n")
-
-        # Security updates repos are never mirrored
-        if state.config.release in ("stretch", "buster"):
-            security = f"deb http://security.debian.org/debian-security/ {state.config.release}/updates main"
-        else:
-            security = f"deb https://security.debian.org/debian-security {state.config.release}-security main"
-
-        state.root.joinpath(f"etc/apt/sources.list.d/{state.config.release}-security.list").write_text(f"{security}\n")
+        sources = state.root / "etc/apt/sources.list"
+        if not sources.exists() and state.root.joinpath("usr/bin/apt").exists():
+            with sources.open("w") as f:
+                for repo in cls.repositories(state, local=False):
+                    f.write(f"{repo}\n")
 
     @classmethod
     def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
-        invoke_apt(state, "get", "purge", packages)
+        invoke_apt(state, "purge", packages)
 
 
-# Debian calls their architectures differently, so when calling debootstrap we
-# will have to map to their names
+# Debian calls their architectures differently, so when calling apt we will have to map to their names.
 # uname -m -> dpkg --print-architecture
 DEBIAN_ARCHITECTURES = {
     "aarch64": "arm64",
@@ -145,46 +166,21 @@ DEBIAN_ARCHITECTURES = {
     "x86_64": "amd64",
 }
 
-# And the kernel package names have yet another format, so adjust accordingly
-# uname -m -> linux-image-$arch
-DEBIAN_KERNEL_ARCHITECTURES = {
-    "aarch64": "arm64",
-    "armhfp": "armmp",
-    "alpha": "alpha-generic",
-    "ia64": "itanium",
-    "m68k": "m68k",
-    "parisc64": "parisc64",
-    "ppc": "powerpc",
-    "ppc64": "powerpc64",
-    "ppc64le": "powerpc64le",
-    "riscv64:": "riscv64",
-    "s390x": "s390x",
-    "x86": "i386",
-    "x86_64": "amd64",
-}
 
-
-def debootstrap_knows_arg(arg: str) -> bool:
-    return bytes("invalid option", "UTF-8") not in run(["debootstrap", arg],
-                                                       stdout=subprocess.PIPE, check=False).stdout
-
-
-def invoke_apt(
-    state: MkosiState,
-    subcommand: str,
-    operation: str,
-    extra: Sequence[str] = tuple(),
-) -> CompletedProcess:
-
+def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
     state.workspace.joinpath("apt").mkdir(exist_ok=True)
+    state.workspace.joinpath("apt/apt.conf.d").mkdir(exist_ok=True)
+    state.workspace.joinpath("apt/preferences.d").mkdir(exist_ok=True)
     state.workspace.joinpath("apt/log").mkdir(exist_ok=True)
-    state.root.joinpath("var/lib/dpkg").mkdir(exist_ok=True)
+    state.root.joinpath("var").mkdir(mode=0o755, exist_ok=True)
+    state.root.joinpath("var/lib").mkdir(mode=0o755, exist_ok=True)
+    state.root.joinpath("var/lib/dpkg").mkdir(mode=0o755, exist_ok=True)
     state.root.joinpath("var/lib/dpkg/status").touch()
 
-    config_file = state.workspace / "apt/apt.conf"
+    config = state.workspace / "apt/apt.conf"
     debarch = DEBIAN_ARCHITECTURES[state.config.architecture]
 
-    config_file.write_text(
+    config.write_text(
         dedent(
             f"""\
             APT::Architecture "{debarch}";
@@ -192,32 +188,44 @@ def invoke_apt(
             APT::Install-Recommends "false";
             APT::Get::Assume-Yes "true";
             APT::Get::AutomaticRemove "true";
-            Dir::Cache "{state.cache.absolute()}";
-            Dir::State "{state.workspace.absolute() / "apt"}";
+            APT::Sandbox::User "root";
+            Dir::Cache "{state.cache}";
+            Dir::State "{state.workspace / "apt"}";
             Dir::State::status "{state.root / "var/lib/dpkg/status"}";
-            Dir::Etc "{state.root.absolute() / "etc/apt"}";
-            Dir::Log "{state.workspace.absolute() / "apt/log"}";
+            Dir::Etc "{state.workspace / "apt"}";
+            Dir::Etc::trusted "/usr/share/keyrings/{state.config.release}-archive-keyring";
+            Dir::Etc::trustedparts "/usr/share/keyrings";
+            Dir::Log "{state.workspace / "apt/log"}";
             Dir::Bin::dpkg "dpkg";
             DPkg::Path "{os.environ["PATH"]}";
-            DPkg::Options:: "--root={state.root.absolute()}";
-            DPkg::Options:: "--log={state.workspace.absolute() / "apt/dpkg.log"}";
+            DPkg::Options:: "--root={state.root}";
+            DPkg::Options:: "--log={state.workspace / "apt/dpkg.log"}";
             DPkg::Options:: "--force-unsafe-io";
+            Dpkg::Use-Pty "false";
             DPkg::Install::Recursive::Minimum "1000";
+            pkgCacheGen::ForceEssential ",";
             """
         )
     )
 
-    cmdline = [
-        f"/usr/bin/apt-{subcommand}",
-        operation,
-        *extra,
-    ]
+    with state.workspace.joinpath("apt/sources.list").open("w") as f:
+        for repo in repos:
+            f.write(f"{repo}\n")
+
+
+def invoke_apt(
+    state: MkosiState,
+    operation: str,
+    extra: Sequence[str] = tuple(),
+    stdout: _FILE = None,
+    stderr: _FILE = None,
+) -> CompletedProcess:
     env: dict[str, PathString] = dict(
-        APT_CONFIG=config_file,
+        APT_CONFIG=state.workspace / "apt/apt.conf",
         DEBIAN_FRONTEND="noninteractive",
         DEBCONF_INTERACTIVE_SEEN="true",
         KERNEL_INSTALL_BYPASS="1",
         INITRD="No",
     )
 
-    return run_with_apivfs(state, cmdline, env=env)
+    return run_with_apivfs(state, ["apt-get", operation, *extra], env=env, stdout=stdout, stderr=stderr)

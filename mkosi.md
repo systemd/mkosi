@@ -33,9 +33,8 @@ mkosi — Build Bespoke OS Images
 # DESCRIPTION
 
 `mkosi` is a tool for easily building customized OS images. It's a
-fancy wrapper around `dnf --installroot`, `debootstrap`, `pacman`
-and `zypper` that may generate disk images with a number of bells and
-whistles.
+fancy wrapper around `dnf --installroot`, `apt`, `pacman` and `zypper`
+that may generate disk images with a number of bells and whistles.
 
 ## Command Line Verbs
 
@@ -950,11 +949,11 @@ following operating systems:
 In theory, any distribution may be used on the host for building
 images containing any other distribution, as long as the necessary
 tools are available. Specifically, any distribution that packages
-`debootstrap` and `apt` may be used to build *Debian* or *Ubuntu* images. Any
-distribution that packages `dnf` may be used to build *CentOS*, *Alma Linux*,
-*Rocky Linux*, *Fedora Linux*, *Mageia* or *OpenMandriva* images. Any distro
-that packages `pacman` may be used to build *Arch Linux* images. Any distribution
-that packages `zypper` may be used to build *openSUSE* images. Any distribution
+`apt` may be used to build *Debian* or *Ubuntu* images. Any distribution that
+packages `dnf` may be used to build *CentOS*, *Alma Linux*, *Rocky Linux*,
+*Fedora Linux*, *Mageia* or *OpenMandriva* images. Any distro that packages
+`pacman` may be used to build *Arch Linux* images. Any distribution that
+packages `zypper` may be used to build *openSUSE* images. Any distribution
 that packages `emerge` may be used to build *Gentoo* images.
 
 Currently, *Fedora Linux* packages all relevant tools as of Fedora 28.
@@ -1331,14 +1330,13 @@ When not using distribution packages make sure to install the
 necessary dependencies. For example, on *Fedora Linux* you need:
 
 ```bash
-dnf install bubblewrap btrfs-progs apt debootstrap dosfstools mtools edk2-ovmf e2fsprogs squashfs-tools gnupg python3 tar xfsprogs xz zypper sbsigntools
+dnf install bubblewrap btrfs-progs apt dosfstools mtools edk2-ovmf e2fsprogs squashfs-tools gnupg python3 tar xfsprogs xz zypper sbsigntools
 ```
 
 On Debian/Ubuntu it might be necessary to install the `ubuntu-keyring`,
 `ubuntu-archive-keyring` and/or `debian-archive-keyring` packages explicitly,
-in addition to `apt` and `debootstrap`, depending on what kind of distribution images
-you want to build. `debootstrap` on Debian only pulls in the Debian keyring
-on its own, and the version on Ubuntu only the one from Ubuntu.
+in addition to `apt`, depending on what kind of distribution images you want
+to build.
 
 Note that the minimum required Python version is 3.9.
 
@@ -1348,4 +1346,4 @@ Note that the minimum required Python version is 3.9.
 * [The mkosi OS generation tool](https://lwn.net/Articles/726655/) story on LWN
 
 # SEE ALSO
-`systemd-nspawn(1)`, `dnf(8)`, `debootstrap(8)`
+`systemd-nspawn(1)`, `dnf(8)`,

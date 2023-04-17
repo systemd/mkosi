@@ -60,8 +60,9 @@
   image and enabling systemd-networkd.
 - If `mkosi.extra/` or `mkosi.skeleton/` exist, they are now always used instead of only when no explicit
   extra/skeleton trees are defined.
-- mkosi doesn't install any default packages anymore aside from the base filesystem layout package. In
-  practice, this means systemd and other basic tools have to be installed explicitly from now on.
+- mkosi doesn't install any default packages anymore aside from packages required by the distro or the base
+  filesystem layout package if there are no required packages. In practice, this means systemd and other
+  basic tools have to be installed explicitly from now on.
 - Removed `--base-packages` as it's not needed anymore since we don't install any packages by default anymore
   aside from the base filesystem layout package.
 - Removed `--qcow2` option in favor of supporting only raw disk images as the disk image output format.
@@ -73,6 +74,11 @@
 - The RPM db is no longer rebuilt in bdb format on CentOS Stream 8. To be able to install packages on a
   CentOS Stream 8 image with a RPM db in sqlite format, rewrite the db in bdb format using
   `rpm --rebuilddb --define _db_backend bdb`.
+- Repositories are now only written to /etc/apt/sources.list if apt is installed in the image.
+- Removed the dependency on `debootstrap` to build Ubuntu or Debian images.
+- Apt now uses the keyring from the host instead of the keyring from the image. This means
+  `debian-archive-keyring` or `ubuntu-archive-keyring` are now required to be installed to build Debian or
+  Ubuntu images respectively.
 
 ## v14
 

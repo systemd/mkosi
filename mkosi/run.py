@@ -221,7 +221,7 @@ def run(
 
     try:
         return subprocess.run(cmdline, check=check, stdout=stdout, stderr=stderr, env=env, **kwargs,
-                              preexec_fn=foreground)
+                              preexec_fn=foreground, close_fds=False)
     except FileNotFoundError:
         die(f"{cmdline[0]} not found in PATH.")
 
@@ -252,6 +252,7 @@ def run_with_apivfs(
     cmd: Sequence[PathString],
     bwrap_params: Sequence[PathString] = tuple(),
     stdout: _FILE = None,
+    stderr: _FILE = None,
     env: Mapping[str, PathString] = {},
 ) -> CompletedProcess:
     cmdline: list[PathString] = [
@@ -290,7 +291,7 @@ def run_with_apivfs(
 
     try:
         return run([*cmdline, template.format(shlex.join(str(s) for s in cmd))],
-                   text=True, stdout=stdout, env=env)
+                   text=True, stdout=stdout, stderr=stderr, env=env)
     except subprocess.CalledProcessError as e:
         if "run" in ARG_DEBUG:
             run([*cmdline, template.format("sh")], check=False, env=env)

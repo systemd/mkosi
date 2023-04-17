@@ -4,14 +4,11 @@ import contextlib
 import fcntl
 import importlib.resources
 import os
-import shutil
 import stat
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Optional
 
-from mkosi.backend import MkosiState
-from mkosi.log import complete_step
 from mkosi.run import run
 
 
@@ -60,28 +57,3 @@ def copy_path(src: Path, dst: Path, preserve_owner: bool = True) -> None:
         "--reflink=auto",
         src, dst,
     ])
-
-
-def install_skeleton_trees(state: MkosiState, cached: bool, *, late: bool=False) -> None:
-    if not state.config.skeleton_trees:
-        return
-
-    if cached:
-        return
-
-    if not late and state.installer.needs_skeletons_after_bootstrap:
-        return
-
-    with complete_step("Copying in skeleton file trees…"):
-        for source, target in state.config.skeleton_trees:
-            t = state.root
-            if target:
-                t = state.root / target.relative_to("/")
-
-            t.mkdir(mode=0o755, parents=True, exist_ok=True)
-            if source.is_dir():
-                copy_path(source, t, preserve_owner=False)
-            else:
-                # unpack_archive() groks Paths, but mypy doesn't know this.
-                # Pretend that tree is a str.
-                shutil.unpack_archive(source, t)
