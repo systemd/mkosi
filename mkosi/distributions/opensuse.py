@@ -48,12 +48,14 @@ class OpensuseInstaller(DistributionInstaller):
 
     @classmethod
     def install_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
+        before = state.root.joinpath("usr/bin/zypper").exists()
+
         setup_zypper(state, cls.repositories(state))
         invoke_zypper(state, "install", ["-y", "--download-in-advance", "--no-recommends"], packages)
 
         for (id, url) in cls.repositories(state, local=False):
             path = state.root / f"etc/zypp/repos.d/{id}.repo"
-            if not path.exists() and state.root.joinpath("usr/bin/zypper").exists():
+            if not path.exists() and not before and state.root.joinpath("usr/bin/zypper").exists():
                 path.write_text(
                     dedent(
                         f"""\

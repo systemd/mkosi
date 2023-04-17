@@ -131,6 +131,8 @@ class DebianInstaller(DistributionInstaller):
         policyrcd.write_text("#!/bin/sh\nexit 101\n")
         policyrcd.chmod(0o755)
 
+        before = state.root.joinpath("usr/bin/apt").exists()
+
         setup_apt(state, cls.repositories(state))
         invoke_apt(state, "update")
         invoke_apt(state, "install", packages)
@@ -138,7 +140,7 @@ class DebianInstaller(DistributionInstaller):
         policyrcd.unlink()
 
         sources = state.root / "etc/apt/sources.list"
-        if not sources.exists() and state.root.joinpath("usr/bin/apt").exists():
+        if not sources.exists() and not before and state.root.joinpath("usr/bin/apt").exists():
             with sources.open("w") as f:
                 for repo in cls.repositories(state, local=False):
                     f.write(f"{repo}\n")
