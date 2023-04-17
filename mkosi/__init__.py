@@ -995,7 +995,9 @@ def require_private_file(name: Path, description: str) -> None:
 
 
 def find_password(args: argparse.Namespace) -> None:
-    if not needs_build(args) or args.password is not None:
+    if args.password is not None:
+        return
+    if not (args.verb == Verb.summary or needs_build(args)):
         return
 
     try:
