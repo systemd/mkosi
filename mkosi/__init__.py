@@ -9,7 +9,6 @@ import datetime
 import errno
 import hashlib
 import http.server
-import io
 import itertools
 import json
 import os
@@ -1338,6 +1337,10 @@ def none_to_none(s: Optional[T]) -> Union[T, str]:
     return "none" if s is None else s
 
 
+def none_to_default(s: Optional[T]) -> Union[T, str]:
+    return "default" if s is None else s
+
+
 def path_or_none(
         path: Optional[Path],
         checker: Optional[Callable[[Optional[Path]], None]] = None,
@@ -1349,6 +1352,7 @@ def path_or_none(
         return f'{color_error(path)} ({e.strerror})'
     else:
         return path
+
 
 def line_join_list(
         array: Sequence[PathString],
@@ -1370,128 +1374,84 @@ def line_join_source_target_list(array: Sequence[tuple[Path, Optional[Path]]]) -
 
 
 def print_summary(config: MkosiConfig) -> None:
-    f = io.StringIO()
     b = MkosiPrinter.bold
     e = MkosiPrinter.reset
-    say: Callable[..., None] = lambda *args, **kwargs: print(*args, **kwargs, file=f)
     bold: Callable[..., str] = lambda s: f"{b}{s}{e}"
 
-    say(f"{b}COMMANDS{e}:")
-
-    say("                      verb:", bold(config.verb))
-    say("                   cmdline:", bold(" ".join(config.cmdline)))
-
-    say(f"\n{b}DISTRIBUTION{e}:")
-
-    say("              Distribution:", bold(config.distribution.name))
-    say("                   Release:", bold(none_to_na(config.release)))
-    say("              Architecture:", config.architecture)
-
-    if config.mirror is not None:
-        say("                    Mirror:", config.mirror)
-
-    if config.local_mirror is not None:
-        say("      Local Mirror (build):", config.local_mirror)
-
-    say("  Repo Signature/Key check:", yes_no(config.repository_key_check))
-
-    if config.repositories is not None and len(config.repositories) > 0:
-        say("              Repositories:", ",".join(config.repositories))
-
-    if config.initrds:
-        say("                   Initrds:", ",".join(os.fspath(p) for p in config.initrds))
-
-    say(f"\n{b}OUTPUT{e}:")
-
-    if config.image_id is not None:
-        say("                  Image ID:", config.image_id)
-
-    if config.image_version is not None:
-        say("             Image Version:", config.image_version)
-
-    say("             Output Format:", config.output_format.name)
-
     maniformats = (" ".join(i.name for i in config.manifest_format)) or "(none)"
-    say("          Manifest Formats:", maniformats)
-
-    if config.output_dir:
-        say("          Output Directory:", config.output_dir)
-
-    if config.workspace_dir:
-        say("       Workspace Directory:", config.workspace_dir)
-
-    say("                    Output:", bold(config.output))
-    say("           Output Checksum:", none_to_na(config.output_checksum if config.checksum else None))
-    say("          Output Signature:", none_to_na(config.output_signature if config.sign else None))
-    say("    Output nspawn Settings:", none_to_na(config.output_nspawn_settings if config.nspawn_settings is not None else None))
-
-    say("               Incremental:", yes_no(config.incremental))
-    say("               Compression:", should_compress_output(config) or "no")
-
-    say("       Kernel Command Line:", " ".join(config.kernel_command_line))
-    say("           UEFI SecureBoot:", yes_no(config.secure_boot))
-
-    if config.secure_boot_key:
-        say("       SecureBoot Sign Key:", config.secure_boot_key)
-    if config.secure_boot_certificate:
-        say("    SecureBoot Certificate:", config.secure_boot_certificate)
-
-    say(f"\n{b}CONTENT{e}:")
-
-    say("                  Packages:", line_join_list(config.packages))
-
-    if config.distribution in (
-        Distribution.fedora,
-        Distribution.centos,
-        Distribution.mageia,
-        Distribution.rocky,
-        Distribution.alma,
-    ):
-        say("        With Documentation:", yes_no(config.with_docs))
-
-    say("             Package Cache:", none_to_none(config.cache_dir))
-    say("               Extra Trees:", line_join_source_target_list(config.extra_trees))
-    say("      CleanPackageMetadata:", yes_no_auto(config.clean_package_metadata))
-
-    if config.remove_files:
-        say("              Remove Files:", line_join_list(config.remove_files))
-    if config.remove_packages:
-        say("           Remove Packages:", line_join_list(config.remove_packages))
-
-    say("             Build Sources:", config.build_sources)
-    say("           Build Directory:", none_to_none(config.build_dir))
-    say("         Install Directory:", none_to_none(config.install_dir))
-    say("            Build Packages:", line_join_list(config.build_packages))
-
-    say("              Build Script:", path_or_none(config.build_script, check_script_input))
-
     env = [f"{k}={v}" for k, v in config.environment.items()]
-    if config.build_script:
-        say("                 Run tests:", yes_no(config.with_tests))
 
-    say("        Postinstall Script:", path_or_none(config.postinst_script, check_script_input))
-    say("            Prepare Script:", path_or_none(config.prepare_script, check_script_input))
-    say("           Finalize Script:", path_or_none(config.finalize_script, check_script_input))
+    summary = f"""\
+{bold("COMMANDS")}:
+                      verb: {bold(config.verb)}
+                   cmdline: {bold(" ".join(config.cmdline))}
 
-    say("        Script Environment:", line_join_list(env))
-    say("      Scripts with network:", yes_no(config.with_network))
-    say("           nspawn Settings:", none_to_none(config.nspawn_settings))
+{bold("DISTRIBUTION")}
+              Distribution: {bold(config.distribution.name)}
+                   Release: {bold(none_to_na(config.release))}
+              Architecture: {config.architecture}
+                    Mirror: {none_to_default(config.mirror)}
+      Local Mirror (build): {none_to_none(config.local_mirror)}
+  Repo Signature/Key check: {yes_no(config.repository_key_check)}
+              Repositories: {",".join(config.repositories)}
+                   Initrds: {",".join(os.fspath(p) for p in config.initrds)}
 
-    say("                  Password:", ("(default)" if config.password is None else "(set)"))
-    say("                 Autologin:", yes_no(config.autologin))
+{bold("OUTPUT")}:
+                  Image ID: {config.image_id}
+             Image Version: {config.image_version}
+             Output Format: {config.output_format.name}
+          Manifest Formats: {maniformats}
+          Output Directory: {none_to_default(config.output_dir)}
+       Workspace Directory: {none_to_default(config.workspace_dir)}
+                    Output: {bold(config.output)}
+           Output Checksum: {none_to_na(config.output_checksum if config.checksum else None)}
+          Output Signature: {none_to_na(config.output_signature if config.sign else None)}
+    Output nspawn Settings: {none_to_na(config.output_nspawn_settings if config.nspawn_settings is not None else None)}
+               Incremental: {yes_no(config.incremental)}
+               Compression: {should_compress_output(config) or "no"}
+       Kernel Command Line: {" ".join(config.kernel_command_line)}
+           UEFI SecureBoot: {yes_no(config.secure_boot)}
+       SecureBoot Sign Key: {none_to_none(config.secure_boot_key)}
+    SecureBoot Certificate: {none_to_none(config.secure_boot_certificate)}
+
+{bold("CONTENT")}:
+                  Packages: {line_join_list(config.packages)}
+        With Documentation: {yes_no(config.with_docs)}
+             Package Cache: {none_to_none(config.cache_dir)}
+               Extra Trees: {line_join_source_target_list(config.extra_trees)}
+    Clean Package Metadata: {yes_no_auto(config.clean_package_metadata)}
+              Remove Files: {line_join_list(config.remove_files)}
+           Remove Packages: {line_join_list(config.remove_packages)}
+             Build Sources: {config.build_sources}
+           Build Directory: {none_to_none(config.build_dir)}
+         Install Directory: {none_to_none(config.install_dir)}
+            Build Packages: {line_join_list(config.build_packages)}
+              Build Script: {path_or_none(config.build_script, check_script_input)}
+ Run Tests in Build Script: {yes_no(config.with_tests)}
+        Postinstall Script: {path_or_none(config.postinst_script, check_script_input)}
+            Prepare Script: {path_or_none(config.prepare_script, check_script_input)}
+           Finalize Script: {path_or_none(config.finalize_script, check_script_input)}
+        Script Environment: {line_join_list(env)}
+      Scripts with network: {yes_no(config.with_network)}
+           nspawn Settings: {none_to_none(config.nspawn_settings)}
+                  Password: {("(default)" if config.password is None else "(set)")}
+                 Autologin: {yes_no(config.autologin)}
+
+{bold("HOST CONFIGURATION")}:
+        Extra search paths: {line_join_list(config.extra_search_paths)}
+      QEMU Extra Arguments: {line_join_list(config.qemu_args)}
+    """
 
     if config.output_format == OutputFormat.disk:
-        say(f"\n{b}VALIDATION{e}:")
+        summary += f"""\
 
-        say("                  Checksum:", yes_no(config.checksum))
-        say("                      Sign:", yes_no(config.sign))
-        say("                   GPG Key:", ("default" if config.key is None else config.key))
+{bold("VALIDATION")}:
+                  Checksum: {yes_no(config.checksum)}
+                      Sign: {yes_no(config.sign)}
+                   GPG Key: ({"default" if config.key is None else config.key})
+        """
 
-    say(f"\n{b}HOST CONFIGURATION{e}:")
-
-    say("        Extra search paths:", line_join_list(config.extra_search_paths))
-    say("      QEMU Extra Arguments:", line_join_list(config.qemu_args))
-    page(f.getvalue(), config.pager)
+    page(summary, config.pager)
 
 
 def make_output_dir(state: MkosiState) -> None:
