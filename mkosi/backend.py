@@ -269,6 +269,7 @@ class MkosiConfig:
     kernel_command_line_extra: list[str]
     acl: bool
     pager: bool
+    bootable: Optional[bool]
 
     # QEMU-specific options
     qemu_gui: bool

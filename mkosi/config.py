@@ -498,6 +498,11 @@ class MkosiConfigParser:
             default=True,
         ),
         MkosiConfigSetting(
+            dest="bootable",
+            section="Content",
+            parse=config_parse_feature,
+        ),
+        MkosiConfigSetting(
             dest="password",
             section="Content",
         ),
@@ -1064,7 +1069,12 @@ class MkosiConfigParser:
             dest="with_tests",
             action=action,
         )
-
+        group.add_argument(
+            "--bootable",
+            metavar="FEATURE",
+            help="Generate ESP partition with systemd-boot and UKIs for installed kernels",
+            action=action,
+        )
         group.add_argument("--password", help="Set the root password", action=action)
         group.add_argument(
             "--password-is-hashed",

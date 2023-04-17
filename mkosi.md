@@ -369,6 +369,19 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 
   <!--  FIXME: allow `Force=<n>` -->
 
+`Bootable=`, `--bootable=`
+
+: Takes a boolean or `auto`. Enables or disable generating of a bootable
+  image. If enabled, mkosi will install systemd-boot, run kernel-install,
+  generate unified kernel images for installed kernels and add an ESP
+  partition when the disk image output is used. If systemd-boot is not
+  installed or no kernel images can be found, the build will fail. `auto`
+  behaves as if the option was enabled, but the build won't fail if either
+  no kernel images or systemd-boot can't be found. If disabled, systemd-boot
+  won't be installed even if found inside the image, kernel-install won't be
+  executed, no unified kernel images will be generated and no ESP partition
+  will be added to the image if the disk output format is used.
+
 `KernelCommandLine=`, `--kernel-command-line=`
 
 : Use the specified kernel command line when building images. By default
