@@ -19,18 +19,18 @@ class OpensuseInstaller(DistributionInstaller):
     def install(cls, state: MkosiState) -> None:
         cls.install_packages(state, ["filesystem", "system-user-root"])
 
-    @classmethod
-    def install_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
+    @staticmethod
+    def repositories(state: MkosiState, local: bool = True) -> list[tuple[str, str]]:
         release = state.config.release
         if release == "leap":
             release = "stable"
 
         # If the release looks like a timestamp, it's Tumbleweed. 13.x is legacy
         # (14.x won't ever appear). For anything else, let's default to Leap.
-        if state.config.local_mirror:
+        if state.config.local_mirror and local:
             release_url = f"{state.config.local_mirror}"
             updates_url = None
-        if release.isdigit() or release == "tumbleweed":
+        elif release.isdigit() or release == "tumbleweed":
             release_url = f"{state.config.mirror}/tumbleweed/repo/oss/"
             updates_url = f"{state.config.mirror}/update/tumbleweed/"
         elif release in ("current", "stable"):
@@ -44,8 +44,27 @@ class OpensuseInstaller(DistributionInstaller):
         if updates_url is not None:
             repos += [("repo-update", updates_url)]
 
-        setup_zypper(state, repos)
+        return repos
+
+    @classmethod
+    def install_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
+        setup_zypper(state, cls.repositories(state))
         invoke_zypper(state, "install", ["-y", "--download-in-advance", "--no-recommends"], packages)
+
+        for (id, url) in cls.repositories(state, local=False):
+            path = state.root / f"etc/zypp/repos.d/{id}.repo"
+            if not path.exists() and state.root.joinpath("usr/bin/zypper").exists():
+                path.write_text(
+                    dedent(
+                        f"""\
+                        [{id}]
+                        name={id}
+                        baseurl={url}
+                        autorefresh=1
+                        enabled=1
+                        """
+                    )
+                )
 
     @classmethod
     def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
@@ -77,7 +96,7 @@ def setup_zypper(state: MkosiState, repos: Sequence[tuple[str, str]] = ()) -> No
                     [{id}]
                     name={id}
                     baseurl={url}
-                    autorefresh=0
+                    autorefresh=1
                     enabled=1
                     keeppackages=1
                     """
