@@ -363,7 +363,7 @@ def configure_root_password(state: MkosiState) -> None:
             try:
                 patch_file(shadow, set_root_pw)
             except FileNotFoundError:
-                shadow.write_text(f"root:{password}:0:0:99999:7:::")
+                shadow.write_text(f"root:{password}:0:0:99999:7:::\n")
 
 
 def configure_autologin(state: MkosiState) -> None:
