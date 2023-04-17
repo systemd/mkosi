@@ -117,9 +117,6 @@ class DebianInstaller(DistributionInstaller):
 
         cls.install_packages(state, [Path(deb).name.partition("_")[0] for deb in essential])
 
-        # Ensure /efi exists so that the ESP is mounted there, and we never run dpkg -i on vfat
-        state.root.joinpath("efi").mkdir(mode=0o755, exist_ok=True)
-
     @classmethod
     def install_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
         # Debian policy is to start daemons by default. The policy-rc.d script can be used choose which ones to
