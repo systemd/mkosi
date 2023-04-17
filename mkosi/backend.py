@@ -467,3 +467,18 @@ def current_user_uid_gid() -> tuple[int, int]:
     uid = int(os.getenv("SUDO_UID") or os.getenv("PKEXEC_UID") or os.getuid())
     gid = pwd.getpwuid(uid).pw_gid
     return uid, gid
+
+
+@contextlib.contextmanager
+def chdir(directory: Path) -> Iterator[None]:
+    old = Path.cwd()
+
+    if old == directory:
+        yield
+        return
+
+    try:
+        os.chdir(directory)
+        yield
+    finally:
+        os.chdir(old)
