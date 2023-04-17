@@ -280,6 +280,13 @@ def install_distribution(state: MkosiState, cached: bool) -> None:
     else:
         with complete_step(f"Installing {str(state.config.distribution).capitalize()}"):
             state.installer.install(state)
+
+            # Ensure /efi exists so that the ESP is mounted there, as recommended by
+            # https://0pointer.net/blog/linux-boot-partitions.html. Use the most restrictive access mode we
+            # can without tripping up mkfs tools since this directory is only meant to be overmounted and
+            # should not be read from or written to.
+            state.root.joinpath("efi").mkdir(mode=0o500, exist_ok=True)
+
             if state.config.packages:
                 state.installer.install_packages(state, state.config.packages)
 
