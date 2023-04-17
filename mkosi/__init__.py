@@ -463,11 +463,17 @@ def run_finalize_script(state: MkosiState) -> None:
 
 
 def install_boot_loader(state: MkosiState) -> None:
-    if state.for_cache:
+    if state.for_cache or state.config.bootable is False:
+        return
+
+    if state.config.output_format == OutputFormat.cpio and state.config.bootable is None:
         return
 
     directory = state.root / "usr/lib/systemd/boot/efi"
-    if not directory.exists():
+    if not directory.exists() or not any(directory.iterdir()):
+        if state.config.bootable is True:
+            die("A bootable image was requested but systemd-boot was not found at "
+                f"{directory.relative_to(state.root)}")
         return
 
     if state.config.secure_boot:
@@ -712,12 +718,14 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
     # benefit that they can be signed like normal EFI binaries, and can encode everything necessary to boot a
     # specific root device, including the root hash.
 
-    # The roothash is specific to the final image so we cannot cache this step.
-    if state.for_cache:
+    if state.for_cache or state.config.bootable is False:
         return
 
-    with complete_step("Generating combined kernel + initrd boot file…"):
-        for kver, kimg in gen_kernel_images(state):
+    if state.config.output_format == OutputFormat.cpio and state.config.bootable is None:
+        return
+
+    for kver, kimg in gen_kernel_images(state):
+        with complete_step(f"Generating unified kernel image for {kimg}"):
             image_id = state.config.image_id or f"mkosi-{state.config.distribution}"
 
             # See https://systemd.io/AUTOMATIC_BOOT_ASSESSMENT/#boot-counting
@@ -791,8 +799,11 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
 
             run(cmd)
 
-            if not state.staging.joinpath(state.staging / state.config.output_split_kernel.name).exists():
+            if not state.staging.joinpath(state.config.output_split_kernel.name).exists():
                 copy_path(boot_binary, state.staging / state.config.output_split_kernel.name)
+
+    if state.config.bootable is True and not state.staging.joinpath(state.config.output_split_kernel.name).exists():
+        die("A bootable image was requested but no kernel was found")
 
 
 def compress_output(config: MkosiConfig, src: Path, uid: int, gid: int) -> None:
@@ -1600,6 +1611,9 @@ def run_kernel_install(state: MkosiState, cached: bool) -> None:
     if state.config.initrds:
         return
 
+    if state.config.bootable is False:
+        return
+
     # CentOS Stream 8 has an old version of kernel-install that unconditionally writes initrds to
     # /boot/<machine-id>/<kver>, so let's detect that and move them to the correct location.
 
@@ -1720,8 +1734,14 @@ def invoke_repart(state: MkosiState, skip: Sequence[str] = [], split: bool = Fal
             definitions.mkdir()
             bootdir = state.root.joinpath("boot/EFI/BOOT")
 
-            if bootdir.exists() and any(bootdir.iterdir()) and any(gen_kernel_images(state)):
-                # If we have at least one kernel images and a bootloader, let's generate an ESP partition.
+            # If Bootable=auto and we have at least one UKI and a bootloader, let's generate an ESP partition.
+            add = (state.config.bootable is True or
+                  (state.config.bootable is None and
+                   bootdir.exists() and
+                   any(bootdir.iterdir()) and
+                   any(gen_kernel_images(state))))
+
+            if add:
                 definitions.joinpath("00-esp.conf").write_text(
                     dedent(
                         """\
