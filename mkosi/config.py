@@ -16,6 +16,7 @@ from mkosi.backend import (
     ManifestFormat,
     OutputFormat,
     Verb,
+    chdir,
     detect_distribution,
     flatten,
 )
@@ -758,12 +759,13 @@ class MkosiConfigParser:
             if path.parent.joinpath("mkosi.conf.d").exists():
                 for p in sorted(path.parent.joinpath("mkosi.conf.d").iterdir()):
                     if p.is_dir() or p.suffix == ".conf":
-                        self.parse_config(p, namespace)
+                        with chdir(p if p.is_dir() else Path.cwd()):
+                            self.parse_config(p, namespace)
 
             for s in self.SETTINGS:
                 for f in s.paths:
-                    if path.parent.joinpath(f).exists():
-                        setattr(namespace, s.dest, s.parse(s.dest, str(path.parent / f), namespace))
+                    if Path(f).exists():
+                        setattr(namespace, s.dest, s.parse(s.dest, f, namespace))
 
     def create_argument_parser(self) -> argparse.ArgumentParser:
         action = config_make_action(self.SETTINGS)
@@ -1332,7 +1334,9 @@ class MkosiConfigParser:
         if namespace.directory and not namespace.directory.is_dir():
             die(f"Error: {namespace.directory} is not a directory!")
 
-        self.parse_config(namespace.directory or Path("."), namespace)
+        p = namespace.directory or Path.cwd()
+        with chdir(p):
+            self.parse_config(namespace.directory or Path.cwd(), namespace)
 
         for s in self.SETTINGS:
             if s.dest in namespace:
