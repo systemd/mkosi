@@ -364,7 +364,11 @@ def configure_root_password(state: MkosiState) -> None:
                     return ":".join(["root", password] + line.split(":")[2:])
                 return line
 
-            patch_file(state.root / "etc/shadow", set_root_pw)
+            shadow = state.root / "etc/shadow"
+            try:
+                patch_file(shadow, set_root_pw)
+            except FileNotFoundError:
+                shadow.write_text(f"root:{password}:0:0:99999:7:::")
 
 
 def configure_autologin(state: MkosiState) -> None:
@@ -993,7 +997,9 @@ def require_private_file(name: Path, description: str) -> None:
 
 
 def find_password(args: argparse.Namespace) -> None:
-    if not needs_build(args) or args.password is not None:
+    if args.password is not None:
+        return
+    if not (args.verb == Verb.summary or needs_build(args)):
         return
 
     try:
