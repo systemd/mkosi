@@ -12,7 +12,7 @@ from textwrap import dedent
 from mkosi.backend import MkosiState, safe_tar_extract
 from mkosi.distributions import DistributionInstaller
 from mkosi.install import copy_path, flock
-from mkosi.log import ARG_DEBUG, MkosiException, MkosiPrinter, complete_step, die
+from mkosi.log import ARG_DEBUG, MkosiPrinter, complete_step, die
 from mkosi.remove import unlink_try_hard
 from mkosi.run import run_workspace_command
 
@@ -139,7 +139,7 @@ class Gentoo:
         except ImportError as e:
             MkosiPrinter.warn(NEED_PORTAGE_MSG)
             MkosiPrinter.info(PORTAGE_INSTALL_INSTRUCTIONS)
-            raise MkosiException(e)
+            raise e
 
         return dict(profile_path=PROFILE_PATH,
                     custom_profile_path=CUSTOM_PROFILE_PATH,

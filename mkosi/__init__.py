@@ -42,14 +42,7 @@ from mkosi.backend import (
     tmp_dir,
 )
 from mkosi.install import add_dropin_config_from_resource, copy_path, flock
-from mkosi.log import (
-    ARG_DEBUG,
-    MkosiException,
-    MkosiNotSupportedException,
-    MkosiPrinter,
-    die,
-    warn,
-)
+from mkosi.log import ARG_DEBUG, MkosiPrinter, die, warn
 from mkosi.manifest import GenericVersion, Manifest
 from mkosi.mounts import dissect_and_mount, mount_overlay, scandir_recursive
 from mkosi.pager import page
@@ -1130,10 +1123,10 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
         OutputFormat.tar,
         OutputFormat.cpio,
     ):
-        die("Directory, subvolume, tar, cpio, and plain squashfs images cannot be booted in qemu.", MkosiNotSupportedException)
+        die("Directory, subvolume, tar, cpio, and plain squashfs images cannot be booted in qemu.")
 
     if shutil.which("bsdtar") and args.distribution == Distribution.openmandriva and args.tar_strip_selinux_context:
-        die("Sorry, bsdtar on OpenMandriva is incompatible with --tar-strip-selinux-context", MkosiNotSupportedException)
+        die("Sorry, bsdtar on OpenMandriva is incompatible with --tar-strip-selinux-context")
 
     if args.cache_dir:
         args.cache_dir = args.cache_dir / f"{args.distribution}~{args.release}"
@@ -1224,13 +1217,13 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
     if args.verb in (Verb.shell, Verb.boot):
         opname = "acquire shell" if args.verb == Verb.shell else "boot"
         if args.output_format in (OutputFormat.tar, OutputFormat.cpio):
-            die(f"Sorry, can't {opname} with a {args.output_format} archive.", MkosiNotSupportedException)
+            die(f"Sorry, can't {opname} with a {args.output_format} archive.")
         if should_compress_output(args):
-            die(f"Sorry, can't {opname} with a compressed image.", MkosiNotSupportedException)
+            die(f"Sorry, can't {opname} with a compressed image.")
 
     if args.verb == Verb.qemu:
         if not args.output_format == OutputFormat.disk:
-            die("Sorry, can't boot non-disk images with qemu.", MkosiNotSupportedException)
+            die("Sorry, can't boot non-disk images with qemu.")
 
     if args.repo_dirs and not (is_dnf_distribution(args.distribution) or args.distribution == Distribution.arch):
         die("--repo-dir is only supported on DNF based distributions and Arch")
@@ -1930,15 +1923,6 @@ def check_root() -> None:
         die("Must be invoked as root.")
 
 
-@contextlib.contextmanager
-def suppress_stacktrace() -> Iterator[None]:
-    try:
-        yield
-    except subprocess.CalledProcessError as e:
-        # MkosiException is silenced in main() so it doesn't print a stacktrace.
-        raise MkosiException() from e
-
-
 def machine_name(config: Union[MkosiConfig, argparse.Namespace]) -> str:
     return config.image_id or config.output.with_suffix("").name.partition("_")[0]
 
@@ -2480,15 +2464,14 @@ def run_verb(config: MkosiConfig) -> None:
             if config.auto_bump:
                 bump_image_version(config)
 
-        with suppress_stacktrace():
-            if config.verb in (Verb.shell, Verb.boot):
-                run_shell(config)
+        if config.verb in (Verb.shell, Verb.boot):
+            run_shell(config)
 
-            if config.verb == Verb.qemu:
-                run_qemu(config)
+        if config.verb == Verb.qemu:
+            run_qemu(config)
 
-            if config.verb == Verb.ssh:
-                run_ssh(config)
+        if config.verb == Verb.ssh:
+            run_ssh(config)
 
         if config.verb == Verb.serve:
             run_serve(config)

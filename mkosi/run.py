@@ -187,8 +187,7 @@ def fork_and_wait(target: Callable[[], T]) -> T:
 
     return result
 
-
-def run(
+def _run(
     cmdline: Sequence[PathString],
     check: bool = True,
     stdout: _FILE = None,
@@ -222,8 +221,22 @@ def run(
     try:
         return subprocess.run(cmdline, check=check, stdout=stdout, stderr=stderr, env=env, **kwargs,
                               preexec_fn=foreground, close_fds=False)
-    except FileNotFoundError:
-        die(f"{cmdline[0]} not found in PATH.")
+    except FileNotFoundError as e:
+        die(f"{cmdline[0]} not found in PATH.", e)
+
+
+def run(
+    cmdline: Sequence[PathString],
+    check: bool = True,
+    stdout: _FILE = None,
+    stderr: _FILE = None,
+    env: Mapping[str, PathString] = {},
+    **kwargs: Any,
+) -> CompletedProcess:
+    try:
+        return _run(cmdline, check, stdout, stderr, env, **kwargs)
+    except subprocess.CalledProcessError as e:
+        die(f"\"{shlex.join(str(s) for s in cmdline)}\" returned non-zero exit code {e.returncode}.", e)
 
 
 def spawn(
@@ -245,6 +258,8 @@ def spawn(
         return subprocess.Popen(cmdline, stdout=stdout, stderr=stderr, **kwargs, preexec_fn=foreground)
     except FileNotFoundError:
         die(f"{cmdline[0]} not found in PATH.")
+    except subprocess.CalledProcessError as e:
+        die(f"\"{shlex.join(str(s) for s in cmdline)}\" returned non-zero exit code {e.returncode}.", e)
 
 
 def run_with_apivfs(
@@ -290,13 +305,12 @@ def run_with_apivfs(
     template = f"chmod 1777 {state.root / 'tmp'} {state.root / 'var/tmp'} {state.root / 'dev/shm'} && exec {{}} || exit $?"
 
     try:
-        return run([*cmdline, template.format(shlex.join(str(s) for s in cmd))],
+        return _run([*cmdline, template.format(shlex.join(str(s) for s in cmd))],
                    text=True, stdout=stdout, stderr=stderr, env=env)
     except subprocess.CalledProcessError as e:
         if "run" in ARG_DEBUG:
-            run([*cmdline, template.format("sh")], check=False, env=env)
-        die(f"\"{shlex.join(str(s) for s in cmd)}\" returned non-zero exit code {e.returncode}.")
-
+            _run([*cmdline, template.format("sh")], check=False, env=env)
+        raise e
 
 def run_workspace_command(
     state: MkosiState,
@@ -348,12 +362,12 @@ def run_workspace_command(
     template = "chmod 1777 /tmp /var/tmp /dev/shm && PATH=$PATH:/usr/bin:/usr/sbin exec {} || exit $?"
 
     try:
-        return run([*cmdline, template.format(shlex.join(str(s) for s in cmd))],
+        return _run([*cmdline, template.format(shlex.join(str(s) for s in cmd))],
                    text=True, stdout=stdout, env=env)
     except subprocess.CalledProcessError as e:
         if "run" in ARG_DEBUG:
-            run([*cmdline, template.format("sh")], check=False, env=env)
-        die(f"\"{shlex.join(str(s) for s in cmd)}\" returned non-zero exit code {e.returncode}.")
+            _run([*cmdline, template.format("sh")], check=False, env=env)
+        raise e
     finally:
         if state.workspace.joinpath("resolv.conf").is_symlink():
             resolve.unlink(missing_ok=True)
