@@ -372,6 +372,8 @@ def configure_autologin(state: MkosiState) -> None:
     with complete_step("Setting up autologin…"):
         add_dropin_config_from_resource(state.root, "console-getty.service", "autologin",
                                         "mkosi.resources", "console_getty_autologin.conf")
+        add_dropin_config_from_resource(state.root, "serial-getty@ttyS0.service", "autologin",
+                                        "mkosi.resources", "serial_getty_autologin.conf")
         add_dropin_config_from_resource(state.root, "serial-getty@hvc0.service", "autologin",
                                         "mkosi.resources", "serial_getty_autologin.conf")
         add_dropin_config_from_resource(state.root, "getty@tty1.service", "autologin",
@@ -1101,6 +1103,9 @@ def load_kernel_command_line_extra(args: argparse.Namespace) -> list[str]:
         f"systemd.tty.term.hvc0={os.getenv('TERM', 'vt220')}",
         f"systemd.tty.columns.hvc0={columns}",
         f"systemd.tty.rows.hvc0={lines}",
+        f"systemd.tty.term.ttyS0={os.getenv('TERM', 'vt220')}",
+        f"systemd.tty.columns.ttyS0={columns}",
+        f"systemd.tty.rows.ttyS0={lines}",
         "console=hvc0",
     ]
 
