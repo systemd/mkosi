@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any, Callable, Optional, TypeVar, Union
 
 from mkosi.distributions import DistributionInstaller
-from mkosi.log import MkosiException, die
+from mkosi.log import die
 
 T = TypeVar("T")
 V = TypeVar("V")
@@ -428,7 +428,7 @@ def patch_file(filepath: Path, line_rewriter: Callable[[str], str]) -> None:
 def safe_tar_extract(tar: tarfile.TarFile, path: Path=Path("."), *, numeric_owner: bool=False) -> None:
     """Extract a tar without CVE-2007-4559.
 
-    Throws a MkosiException if a member of the tar resolves to a path that would
+    Throws an exception if a member of the tar resolves to a path that would
     be outside of the passed in target path.
 
     Omits the member argument from TarFile.extractall, since we don't need it at
@@ -446,7 +446,7 @@ def safe_tar_extract(tar: tarfile.TarFile, path: Path=Path("."), *, numeric_owne
                 target.resolve().relative_to(path)
                 members += [member]
         except ValueError as e:
-            raise MkosiException(f"Attempted path traversal in tar file {tar.name!r}") from e
+            die(f"Attempted path traversal in tar file {tar.name!r}", e)
 
     tar.extractall(path, members=members, numeric_owner=numeric_owner)
 

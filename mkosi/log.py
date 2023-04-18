@@ -6,17 +6,9 @@ from typing import Any, Iterator, NoReturn, Optional
 ARG_DEBUG: set[str] = set()
 
 
-class MkosiException(Exception):
-    """Leads to sys.exit"""
-
-
-class MkosiNotSupportedException(MkosiException):
-    """Leads to sys.exit when an invalid combination of parsed arguments happens"""
-
-
-def die(message: str, exception: type[MkosiException] = MkosiException) -> NoReturn:
+def die(message: str, exception: Optional[Exception] = None) -> NoReturn:
     MkosiPrinter.error(f"Error: {message}")
-    raise exception(message)
+    raise exception or RuntimeError(message)
 
 
 def warn(message: str) -> None:

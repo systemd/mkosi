@@ -14,8 +14,6 @@ from mkosi.backend import (
     set_umask,
     strip_suffixes,
 )
-from mkosi.log import MkosiException
-
 
 def test_distribution() -> None:
     assert Distribution.fedora.package_type == PackageType.rpm
@@ -55,7 +53,7 @@ def test_safe_tar_extract(tmp_path: Path) -> None:
     assert (safe_target / name).exists()
 
     evil_target = tmp_path / "evil_target"
-    with pytest.raises(MkosiException):
+    with pytest.raises(ValueError):
         with tarfile.TarFile.open(evil_tar) as t:
             safe_tar_extract(t, evil_target)
     assert not (evil_target / name).exists()
