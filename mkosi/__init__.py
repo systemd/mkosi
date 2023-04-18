@@ -1606,6 +1606,14 @@ def run_kernel_install(state: MkosiState, cached: bool) -> None:
         shutil.rmtree(p)
 
 
+def run_sysusers(state: MkosiState) -> None:
+    if state.for_cache:
+        return
+
+    with complete_step("Generating system users"):
+        run(["systemd-sysusers", "--root", state.root])
+
+
 def run_preset_all(state: MkosiState) -> None:
     if state.for_cache:
         return
@@ -1772,6 +1780,7 @@ def build_image(state: MkosiState, *, manifest: Optional[Manifest] = None) -> No
         install_boot_loader(state)
         configure_ssh(state)
         run_postinst_script(state)
+        run_sysusers(state)
         run_preset_all(state)
         remove_packages(state)
 
