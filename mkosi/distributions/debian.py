@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 import os
+import shutil
 import subprocess
 import tempfile
 from collections.abc import Sequence
@@ -202,8 +203,7 @@ def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
             Dir::Etc::trusted "/usr/share/keyrings/{state.config.release}-archive-keyring";
             Dir::Etc::trustedparts "/usr/share/keyrings";
             Dir::Log "{state.workspace / "apt/log"}";
-            Dir::Bin::dpkg "dpkg";
-            DPkg::Path "{os.environ["PATH"]}";
+            Dir::Bin::dpkg "{shutil.which("dpkg")}";
             DPkg::Options:: "--root={state.root}";
             DPkg::Options:: "--log={state.workspace / "apt/dpkg.log"}";
             DPkg::Options:: "--force-unsafe-io";
