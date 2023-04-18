@@ -93,13 +93,22 @@ class DebianInstaller(DistributionInstaller):
         with tempfile.TemporaryFile(dir=state.workspace, mode="w+") as f:
             os.set_inheritable(f.fileno(), True)
 
-            invoke_apt(state, "install", [
+            options = [
                 "-oDebug::pkgDpkgPm=1",
                 f"-oAPT::Keep-Fds::={f.fileno()}",
                 f"-oDPkg::Tools::options::'cat >&$fd'::InfoFD={f.fileno()}",
                 f"-oDpkg::Pre-Install-Pkgs::=cat >&{f.fileno()}",
                 "?essential", "?name(usr-is-merged)",
-            ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            ]
+
+            try:
+                invoke_apt(state, "install", options, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except subprocess.CalledProcessError:
+                # By default, we run the command with stdout/stderr redirected to /dev/null because it
+                # produces a lot of useless output. If it fails, let's rerun it with regular stdout/stderr so
+                # we can debug the error.
+                invoke_apt(state, "install", options)
+                raise
 
             f.seek(0)
             essential = f.read().strip().splitlines()
