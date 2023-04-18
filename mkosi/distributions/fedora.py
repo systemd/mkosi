@@ -14,13 +14,6 @@ from mkosi.log import MkosiPrinter, warn
 from mkosi.remove import unlink_try_hard
 from mkosi.run import run_with_apivfs
 
-FEDORA_KEYS_MAP = {
-    "36": "53DED2CB922D8B8D9E63FD18999F7CBF38AB71F4",
-    "37": "ACB5EE4E831C74BB7C168D27F55AD3FB5323552A",
-    "38": "6A51BBABBA3D5467B6171221809A8D7CEB10B464",
-    "39": "E8F23996F23218640CB44CBE75CF5AC418B8E74C",
-}
-
 
 class FedoraInstaller(DistributionInstaller):
     @classmethod
@@ -57,13 +50,9 @@ class FedoraInstaller(DistributionInstaller):
             # In other versions, the "fedora" repo is frozen at release, and "updates" provides any new packages.
             updates_url = None
 
-        if releasever in FEDORA_KEYS_MAP:
-            gpgid = f"keys/{FEDORA_KEYS_MAP[releasever]}.txt"
-        else:
-            gpgid = "fedora.gpg"
-
         gpgpath = Path(f"/etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-{releasever}-{state.config.architecture}")
-        gpgurl = urllib.parse.urljoin("https://getfedora.org/static/", gpgid)
+        # See: https://fedoraproject.org/security/
+        gpgurl = "https://fedoraproject.org/fedora.gpg"
 
         repos = [Repo("fedora", release_url, gpgpath, gpgurl)]
         if updates_url is not None:
