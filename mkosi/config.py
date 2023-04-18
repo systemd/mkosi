@@ -203,7 +203,7 @@ def make_path_parser(required: bool) -> Callable[[str], Path]:
     return parse_path
 
 
-def config_make_path_parser(required: bool) -> ConfigParseCallback:
+def config_make_path_parser(required: bool, absolute: bool = True) -> ConfigParseCallback:
     def config_parse_path(dest: str, value: Optional[str], namespace: argparse.Namespace) -> Optional[Path]:
         if dest in namespace:
             return getattr(namespace, dest) # type: ignore
@@ -211,7 +211,10 @@ def config_make_path_parser(required: bool) -> ConfigParseCallback:
         if value and required and not Path(value).exists():
             die(f"{value} does not exist")
 
-        return Path(value).absolute() if value else None
+        if value:
+            return Path(value).absolute() if absolute else Path(value)
+
+        return None
 
     return config_parse_path
 
@@ -368,7 +371,7 @@ class MkosiConfigParser:
         MkosiConfigSetting(
             dest="output",
             section="Output",
-            parse=config_make_path_parser(required=False),
+            parse=config_make_path_parser(required=False, absolute=False),
         ),
         MkosiConfigSetting(
             dest="output_dir",
