@@ -1186,7 +1186,8 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
             args.output = args.output_dir / args.output
         else:
             warn("Ignoring configured output directory as output file is a qualified path.")
-            args.output = args.output.absolute()
+
+    args.output = args.output.absolute()
 
     if args.environment:
         env = {}
