@@ -220,7 +220,7 @@ def _run(
 
     try:
         return subprocess.run(cmdline, check=check, stdout=stdout, stderr=stderr, env=env, **kwargs,
-                              preexec_fn=foreground, close_fds=False)
+                              preexec_fn=foreground)
     except FileNotFoundError as e:
         die(f"{cmdline[0]} not found in PATH.", e)
 

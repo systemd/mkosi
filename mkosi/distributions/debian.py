@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
-import os
 import shutil
 import tempfile
 from collections.abc import Sequence
@@ -80,22 +79,18 @@ class DebianInstaller(DistributionInstaller):
             state.root.joinpath(d).symlink_to(f"usr/{d}")
             state.root.joinpath(f"usr/{d}").mkdir(mode=0o755)
 
-        # Next, we invoke apt install with an info fd to which it writes the debs it's operating on. When
-        # passing "-oDebug::pkgDpkgPm=1", apt will not actually execute any dpkg commands, which turns the
-        # install command into a command that downloads the debs and tells us the full paths to the essential
-        # debs and any dependencies that apt would install in the apt cache.
-        with tempfile.TemporaryFile(dir=state.workspace, mode="w+") as f:
-            os.set_inheritable(f.fileno(), True)
-
+        # Next, we invoke apt-get install to download all the essential packages. With DPkg::Pre-Install-Pkgs,
+        # we specify a shell command that will receive the list of packages that will be installed on stdin.
+        # By configuring Debug::pkgDpkgPm=1, apt-get install will not actually execute any dpkg commands, so
+        # all it does is download the essential debs and tell us their full in the apt cache without actually
+        # installing them.
+        with tempfile.NamedTemporaryFile(dir=state.workspace, mode="r") as f:
             cls.install_packages(state, [
-                "-oDebug::pkgDpkgPm=1",
-                f"-oAPT::Keep-Fds::={f.fileno()}",
-                f"-oDPkg::Tools::options::'cat >&{f.fileno()}'::InfoFD={f.fileno()}",
-                f"-oDpkg::Pre-Install-Pkgs::=cat >&{f.fileno()}",
+                "-oDebug::pkgDPkgPm=1",
+                f"-oDPkg::Pre-Install-Pkgs::=cat >{f.name}",
                 "?essential", "?name(usr-is-merged)",
             ])
 
-            f.seek(0)
             essential = f.read().strip().splitlines()
 
         # Now, extract the debs to the chroot by first extracting the sources tar file out of the deb and
