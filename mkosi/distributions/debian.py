@@ -2,7 +2,6 @@
 
 import os
 import shutil
-import subprocess
 import tempfile
 from collections.abc import Sequence
 from pathlib import Path
@@ -11,7 +10,7 @@ from textwrap import dedent
 from mkosi.backend import MkosiState
 from mkosi.distributions import DistributionInstaller
 from mkosi.run import run, run_with_apivfs
-from mkosi.types import _FILE, CompletedProcess, PathString
+from mkosi.types import CompletedProcess, PathString
 
 
 class DebianInstaller(DistributionInstaller):
@@ -81,35 +80,20 @@ class DebianInstaller(DistributionInstaller):
             state.root.joinpath(d).symlink_to(f"usr/{d}")
             state.root.joinpath(f"usr/{d}").mkdir(mode=0o755)
 
-        # Next, we download the essential debs. We add usr-is-merged to assert the system is usr-merged
-        # already and to prevent usrmerge from being installed and pulling in all its dependencies.
-        setup_apt(state, cls.repositories(state))
-        invoke_apt(state, "update")
-        invoke_apt(state, "install", ["--download-only", "?essential", "?name(usr-is-merged)"])
-
-        # Next, invoke apt install with an info fd to which it writes the debs it's operating on. However, by
+        # Next, we invoke apt install with an info fd to which it writes the debs it's operating on. When
         # passing "-oDebug::pkgDpkgPm=1", apt will not actually execute any dpkg commands, which turns the
-        # install command into a noop that tells us the full paths to the essential debs and any dependencies
-        # that apt would install in the apt cache.
+        # install command into a command that downloads the debs and tells us the full paths to the essential
+        # debs and any dependencies that apt would install in the apt cache.
         with tempfile.TemporaryFile(dir=state.workspace, mode="w+") as f:
             os.set_inheritable(f.fileno(), True)
 
-            options = [
+            cls.install_packages(state, [
                 "-oDebug::pkgDpkgPm=1",
                 f"-oAPT::Keep-Fds::={f.fileno()}",
-                f"-oDPkg::Tools::options::'cat >&$fd'::InfoFD={f.fileno()}",
+                f"-oDPkg::Tools::options::'cat >&{f.fileno()}'::InfoFD={f.fileno()}",
                 f"-oDpkg::Pre-Install-Pkgs::=cat >&{f.fileno()}",
                 "?essential", "?name(usr-is-merged)",
-            ]
-
-            try:
-                invoke_apt(state, "install", options, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            except subprocess.CalledProcessError:
-                # By default, we run the command with stdout/stderr redirected to /dev/null because it
-                # produces a lot of useless output. If it fails, let's rerun it with regular stdout/stderr so
-                # we can debug the error.
-                invoke_apt(state, "install", options)
-                raise
+            ])
 
             f.seek(0)
             essential = f.read().strip().splitlines()
@@ -223,8 +207,6 @@ def invoke_apt(
     state: MkosiState,
     operation: str,
     extra: Sequence[str] = tuple(),
-    stdout: _FILE = None,
-    stderr: _FILE = None,
 ) -> CompletedProcess:
     env: dict[str, PathString] = dict(
         APT_CONFIG=state.workspace / "apt/apt.conf",
@@ -234,4 +216,4 @@ def invoke_apt(
         INITRD="No",
     )
 
-    return run_with_apivfs(state, ["apt-get", operation, *extra], env=env, stdout=stdout, stderr=stderr)
+    return run_with_apivfs(state, ["apt-get", operation, *extra], env=env)

@@ -267,7 +267,6 @@ def run_with_apivfs(
     cmd: Sequence[PathString],
     bwrap_params: Sequence[PathString] = tuple(),
     stdout: _FILE = None,
-    stderr: _FILE = None,
     env: Mapping[str, PathString] = {},
 ) -> CompletedProcess:
     cmdline: list[PathString] = [
@@ -306,7 +305,7 @@ def run_with_apivfs(
 
     try:
         return _run([*cmdline, template.format(shlex.join(str(s) for s in cmd))],
-                   text=True, stdout=stdout, stderr=stderr, env=env)
+                   text=True, stdout=stdout, env=env)
     except subprocess.CalledProcessError as e:
         if "run" in ARG_DEBUG:
             _run([*cmdline, template.format("sh")], check=False, env=env)
