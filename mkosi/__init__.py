@@ -1611,7 +1611,7 @@ def run_kernel_install(state: MkosiState, cached: bool) -> None:
             cmd: list[PathString] = ["kernel-install", "add", kver, Path("/") / kimg]
 
             if ARG_DEBUG:
-                cmd += ["--verbose"]
+                cmd.insert(1, "--verbose")
 
             # Make dracut think --no-host-only was passed via the CLI.
             run_workspace_command(state, cmd, env=dict(hostonly_l="no"))
