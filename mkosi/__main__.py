@@ -38,7 +38,7 @@ def propagate_failed_return() -> Iterator[None]:
         if ARG_DEBUG:
             raise e
 
-        MkosiPrinter.error("Error: mkosi failed because of an exception, rerun mkosi with --debug run to get more information")
+        MkosiPrinter.error(f"Error: {str(e)}, rerun mkosi with --debug run to get more information")
         sys.exit(1)
 
 
