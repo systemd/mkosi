@@ -1919,7 +1919,7 @@ def build_stuff(uid: int, gid: int, config: MkosiConfig) -> None:
                     os.chown(p, state.uid, state.gid)
                 else:
                     acl_toggle_remove(state.config, p, uid, allow=True)
-                if p in (state.config.output, state.config.output_split_kernel):
+                if p == state.config.output:
                     compress_output(state.config, p, uid=state.uid, gid=state.gid)
 
         for p in state.staging.iterdir():
