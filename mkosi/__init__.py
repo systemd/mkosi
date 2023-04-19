@@ -684,7 +684,9 @@ def gen_kernel_images(state: MkosiState) -> Iterator[tuple[str, Path]]:
         key=lambda k: GenericVersion(k.name),
         reverse=True
     ):
-        kimg = state.installer.kernel_image(kver.name, state.config.architecture)
+        kimg = Path("usr/lib/modules") / kver.name / "vmlinuz"
+        if not kimg.exists():
+            kimg = state.installer.kernel_image(kver.name, state.config.architecture)
 
         yield kver.name, kimg
 
