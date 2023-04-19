@@ -89,6 +89,16 @@ class Distribution(enum.Enum):
         return self.name
 
 
+class Compression(str, enum.Enum):
+    none = "none"
+    zst = "zst"
+    xz = "xz"
+    bz2 = "bz2"
+    gz = "gz"
+    lz4 = "lz4"
+    lzma = "lzma"
+
+
 def dictify(f: Callable[..., Iterator[tuple[T, V]]]) -> Callable[..., dict[T, V]]:
     def wrapper(*args: Any, **kwargs: Any) -> dict[T, V]:
         return dict(f(*args, **kwargs))
@@ -222,7 +232,7 @@ class MkosiConfig:
     secure_boot_valid_days: str
     secure_boot_common_name: str
     sign_expected_pcr: bool
-    compress_output: Union[None, str, bool]
+    compress_output: Compression
     image_version: Optional[str]
     image_id: Optional[str]
     tar_strip_selinux_context: bool
@@ -311,6 +321,13 @@ class MkosiConfig:
     def output_changelog(self) -> Path:
         return build_auxiliary_output_path(self, ".changelog")
 
+    @property
+    def output_compressed(self) -> Path:
+        if self.compress_output == Compression.none:
+            return self.output
+
+        return self.output.parent / f"{self.output.name}.{self.compress_output.name}"
+
     def output_paths(self) -> tuple[Path, ...]:
         return (
             self.output,
@@ -384,21 +401,6 @@ class MkosiState:
     @property
     def staging(self) -> Path:
         return self.workspace / "staging"
-
-
-def should_compress_output(config: Union[argparse.Namespace, MkosiConfig]) -> Optional[str]:
-    """A string or None.
-
-    When explicitly configured with --compress-output=, use
-    that. Since we have complete freedom with selecting the outer
-    compression algorithm, pick some default when True.
-    """
-    c = config.compress_output
-    if c is None and config.output_format in (OutputFormat.tar, OutputFormat.cpio):
-        c = True
-    if c is True:
-        return "zstd"  # default compression
-    return c if c else None
 
 
 def format_rlimit(rlimit: int) -> str:

@@ -10,7 +10,7 @@ from typing import Iterator, List, Optional
 import pytest
 
 import mkosi
-from mkosi.backend import Distribution, MkosiConfig, Verb
+from mkosi.backend import Compression, Distribution, MkosiConfig, Verb
 from mkosi.config import MkosiConfigParser
 
 
@@ -88,5 +88,5 @@ def test_shell_boot() -> None:
 
 def test_compression() -> None:
     with cd_temp_dir():
-        assert not parse(["--format", "disk", "--compress-output", "False"]).compress_output
+        assert parse(["--format", "disk", "--compress-output", "False"]).compress_output == Compression.none
 
