@@ -715,6 +715,10 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
     if state.for_cache or state.config.bootable is False:
         return
 
+    for kver, kimg in gen_kernel_images(state):
+        copy_path(state.root / kimg, state.staging / state.config.output_split_kernel.name)
+        break
+
     if state.config.output_format == OutputFormat.cpio and state.config.bootable is None:
         return
 
@@ -793,10 +797,10 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
 
             run(cmd)
 
-            if not state.staging.joinpath(state.config.output_split_kernel.name).exists():
-                copy_path(boot_binary, state.staging / state.config.output_split_kernel.name)
+            if not state.staging.joinpath(state.config.output_split_uki.name).exists():
+                copy_path(boot_binary, state.staging / state.config.output_split_uki.name)
 
-    if state.config.bootable is True and not state.staging.joinpath(state.config.output_split_kernel.name).exists():
+    if state.config.bootable is True and not state.staging.joinpath(state.config.output_split_uki.name).exists():
         die("A bootable image was requested but no kernel was found")
 
 
@@ -970,6 +974,12 @@ def unlink_output(config: MkosiConfig) -> None:
                     unlink_try_hard(p)
         unlink_try_hard(config.output_split_kernel)
 
+        if config.output_split_uki.parent.exists():
+            for p in config.output_split_uki.parent.iterdir():
+                if p.name.startswith(config.output_split_uki.name):
+                    unlink_try_hard(p)
+        unlink_try_hard(config.output_split_uki)
+
         if config.nspawn_settings is not None:
             unlink_try_hard(config.output_nspawn_settings)
 
@@ -1085,17 +1095,9 @@ def load_credentials(args: argparse.Namespace) -> dict[str, str]:
 
 
 def load_kernel_command_line_extra(args: argparse.Namespace) -> list[str]:
-    cmdline = []
-
-    for s in args.kernel_command_line_extra:
-        key, sep, value = s.partition("=")
-        if " " in value:
-            value = f'"{value}"'
-        cmdline += [key if not sep else f"{key}={value}"]
-
     columns, lines = shutil.get_terminal_size()
 
-    cmdline += [
+    cmdline = [
         f"systemd.tty.term.hvc0={os.getenv('TERM', 'vt220')}",
         f"systemd.tty.columns.hvc0={columns}",
         f"systemd.tty.rows.hvc0={lines}",
@@ -1104,6 +1106,15 @@ def load_kernel_command_line_extra(args: argparse.Namespace) -> list[str]:
         f"systemd.tty.rows.ttyS0={lines}",
         "console=hvc0",
     ]
+
+    if args.output_format == OutputFormat.cpio:
+        cmdline += ["rd.systemd.unit=default.target"]
+
+    for s in args.kernel_command_line_extra:
+        key, sep, value = s.partition("=")
+        if " " in value:
+            value = f'"{value}"'
+        cmdline += [key if not sep else f"{key}={value}"]
 
     return cmdline
 
@@ -1122,7 +1133,6 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
         OutputFormat.directory,
         OutputFormat.subvolume,
         OutputFormat.tar,
-        OutputFormat.cpio,
     ):
         die("Directory, subvolume, tar, cpio, and plain squashfs images cannot be booted in qemu.")
 
@@ -1224,10 +1234,6 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
             die(f"Sorry, can't {opname} with a {args.output_format} archive.")
         if args.compress_output != Compression.none:
             die(f"Sorry, can't {opname} with a compressed image.")
-
-    if args.verb == Verb.qemu:
-        if not args.output_format == OutputFormat.disk:
-            die("Sorry, can't boot non-disk images with qemu.")
 
     if args.repo_dirs and not (is_dnf_distribution(args.distribution) or args.distribution == Distribution.arch):
         die("--repo-dir is only supported on DNF based distributions and Arch")
@@ -2242,6 +2248,15 @@ def run_qemu(config: MkosiConfig) -> None:
             fname = config.output_compressed
 
         # Debian images fail to boot with virtio-scsi, see: https://github.com/systemd/mkosi/issues/725
+        if config.output_format == OutputFormat.cpio:
+            kernel = (config.output_dir or Path.cwd()) / config.output_split_kernel
+            if not kernel.exists() and "-kernel" not in config.cmdline:
+                die("No kernel found, please install a kernel in the cpio or provide a -kernel argument to mkosi qemu")
+            cmdline += [
+                "-kernel", kernel,
+                "-initrd", fname,
+                "-append", " ".join(config.kernel_command_line + config.kernel_command_line_extra),
+            ]
         if config.distribution == Distribution.debian:
             cmdline += [
                 "-drive",

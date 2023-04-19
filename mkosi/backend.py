@@ -294,8 +294,12 @@ class MkosiConfig:
         return self.architecture == platform.machine()
 
     @property
-    def output_split_kernel(self) -> Path:
+    def output_split_uki(self) -> Path:
         return build_auxiliary_output_path(self, ".efi")
+
+    @property
+    def output_split_kernel(self) -> Path:
+        return build_auxiliary_output_path(self, ".vmlinuz")
 
     @property
     def output_nspawn_settings(self) -> Path:
@@ -331,6 +335,7 @@ class MkosiConfig:
     def output_paths(self) -> tuple[Path, ...]:
         return (
             self.output,
+            self.output_split_uki,
             self.output_split_kernel,
             self.output_nspawn_settings,
             self.output_checksum,
