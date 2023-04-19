@@ -15,7 +15,7 @@ class DistributionInstaller:
 
     @staticmethod
     def kernel_image(kver: str, architecture: str) -> Path:
-        return Path("lib/modules") / kver / "vmlinuz"
+        return Path("usr/lib/modules") / kver / "vmlinuz"
 
     @staticmethod
     def initrd_path(kver: str) -> Path:

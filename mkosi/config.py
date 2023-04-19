@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Callable, Optional, Type, Union, cast
 
 from mkosi.backend import (
+    Compression,
     Distribution,
     ManifestFormat,
     OutputFormat,
@@ -97,14 +98,17 @@ def config_parse_feature(dest: str, value: Optional[str], namespace: argparse.Na
     return parse_boolean(value) if value else None
 
 
-def config_parse_compression(dest: str, value: Optional[str], namespace: argparse.Namespace) -> Union[None, str, bool]:
+def config_parse_compression(dest: str, value: Optional[str], namespace: argparse.Namespace) -> Optional[Compression]:
     if dest in namespace:
         return getattr(namespace, dest) # type: ignore
 
-    if value in ("zlib", "lzo", "zstd", "lz4", "xz"):
-        return value
+    if not value:
+        return None
 
-    return parse_boolean(value) if value else None
+    try:
+        return Compression[value]
+    except KeyError:
+        return Compression.zst if parse_boolean(value) else Compression.none
 
 
 def config_default_release(namespace: argparse.Namespace) -> Any:

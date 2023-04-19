@@ -26,6 +26,7 @@ from textwrap import dedent
 from typing import Callable, ContextManager, Optional, TextIO, TypeVar, Union, cast
 
 from mkosi.backend import (
+    Compression,
     Distribution,
     ManifestFormat,
     MkosiConfig,
@@ -38,7 +39,6 @@ from mkosi.backend import (
     is_dnf_distribution,
     patch_file,
     set_umask,
-    should_compress_output,
     tmp_dir,
 )
 from mkosi.install import add_dropin_config_from_resource, copy_path, flock
@@ -379,6 +379,8 @@ def configure_autologin(state: MkosiState) -> None:
     with complete_step("Setting up autologin…"):
         add_dropin_config_from_resource(state.root, "console-getty.service", "autologin",
                                         "mkosi.resources", "console_getty_autologin.conf")
+        add_dropin_config_from_resource(state.root, "serial-getty@ttyS0.service", "autologin",
+                                        "mkosi.resources", "serial_getty_autologin.conf")
         add_dropin_config_from_resource(state.root, "serial-getty@hvc0.service", "autologin",
                                         "mkosi.resources", "serial_getty_autologin.conf")
         add_dropin_config_from_resource(state.root, "getty@tty1.service", "autologin",
@@ -604,15 +606,15 @@ def xz_binary() -> str:
     return "pxz" if shutil.which("pxz") else "xz"
 
 
-def compressor_command(option: Union[str, bool], src: Path) -> list[PathString]:
+def compressor_command(compression: Compression, src: Path) -> list[PathString]:
     """Returns a command suitable for compressing archives."""
 
-    if option == "xz":
+    if compression == Compression.xz:
         return [xz_binary(), "--check=crc32", "--lzma2=dict=1MiB", "-T0", src]
-    elif option == "zstd":
-        return ["zstd", "-15", "-q", "-T0", "--rm", src]
+    elif compression == Compression.zst:
+        return ["zstd", "-q", "-T0", "--rm", src]
     else:
-        die(f"Unknown compression {option}")
+        die(f"Unknown compression {compression}")
 
 
 def tar_binary() -> str:
@@ -689,7 +691,9 @@ def gen_kernel_images(state: MkosiState) -> Iterator[tuple[str, Path]]:
         key=lambda k: GenericVersion(k.name),
         reverse=True
     ):
-        kimg = state.installer.kernel_image(kver.name, state.config.architecture)
+        kimg = Path("usr/lib/modules") / kver.name / "vmlinuz"
+        if not kimg.exists():
+            kimg = state.installer.kernel_image(kver.name, state.config.architecture)
 
         yield kver.name, kimg
 
@@ -719,6 +723,10 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
 
     if state.for_cache or state.config.bootable is False:
         return
+
+    for kver, kimg in gen_kernel_images(state):
+        copy_path(state.root / kimg, state.staging / state.config.output_split_kernel.name)
+        break
 
     if state.config.output_format == OutputFormat.cpio and state.config.bootable is None:
         return
@@ -798,26 +806,24 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
 
             run(cmd)
 
-            if not state.staging.joinpath(state.config.output_split_kernel.name).exists():
-                copy_path(boot_binary, state.staging / state.config.output_split_kernel.name)
+            if not state.staging.joinpath(state.config.output_split_uki.name).exists():
+                copy_path(boot_binary, state.staging / state.config.output_split_uki.name)
 
-    if state.config.bootable is True and not state.staging.joinpath(state.config.output_split_kernel.name).exists():
+    if state.config.bootable is True and not state.staging.joinpath(state.config.output_split_uki.name).exists():
         die("A bootable image was requested but no kernel was found")
 
 
 def compress_output(config: MkosiConfig, src: Path, uid: int, gid: int) -> None:
-    compress = should_compress_output(config)
-
     if not src.is_file():
         return
 
-    if not compress:
+    if config.compress_output == Compression.none:
         # If we shan't compress, then at least make the output file sparse
         with complete_step(f"Digging holes into output file {src}…"):
             run(["fallocate", "--dig-holes", src], user=uid, group=gid)
     else:
         with complete_step(f"Compressing output file {src}…"):
-            run(compressor_command(compress, src), user=uid, group=gid)
+            run(compressor_command(config.compress_output, src), user=uid, group=gid)
 
 
 def copy_nspawn_settings(state: MkosiState) -> None:
@@ -936,13 +942,13 @@ def save_manifest(state: MkosiState, manifest: Manifest) -> None:
 
 
 def print_output_size(config: MkosiConfig) -> None:
-    if not config.output.exists():
+    if not config.output_compressed.exists():
         return
 
     if config.output_format in (OutputFormat.directory, OutputFormat.subvolume):
         MkosiPrinter.print_step("Resulting image size is " + format_bytes(dir_size(config.output)) + ".")
     else:
-        st = os.stat(config.output)
+        st = os.stat(config.output_compressed)
         size = format_bytes(st.st_size)
         space = format_bytes(st.st_blocks * 512)
         MkosiPrinter.print_step(f"Resulting image size is {size}, consumes {space}.")
@@ -976,6 +982,12 @@ def unlink_output(config: MkosiConfig) -> None:
                 if p.name.startswith(config.output_split_kernel.name):
                     unlink_try_hard(p)
         unlink_try_hard(config.output_split_kernel)
+
+        if config.output_split_uki.parent.exists():
+            for p in config.output_split_uki.parent.iterdir():
+                if p.name.startswith(config.output_split_uki.name):
+                    unlink_try_hard(p)
+        unlink_try_hard(config.output_split_uki)
 
         if config.nspawn_settings is not None:
             unlink_try_hard(config.output_nspawn_settings)
@@ -1025,8 +1037,6 @@ def require_private_file(name: Path, description: str) -> None:
 
 def find_password(args: argparse.Namespace) -> None:
     if args.password is not None:
-        return
-    if not (args.verb == Verb.summary or needs_build(args)):
         return
 
     try:
@@ -1094,22 +1104,26 @@ def load_credentials(args: argparse.Namespace) -> dict[str, str]:
 
 
 def load_kernel_command_line_extra(args: argparse.Namespace) -> list[str]:
-    cmdline = []
+    columns, lines = shutil.get_terminal_size()
+
+    cmdline = [
+        f"systemd.tty.term.hvc0={os.getenv('TERM', 'vt220')}",
+        f"systemd.tty.columns.hvc0={columns}",
+        f"systemd.tty.rows.hvc0={lines}",
+        f"systemd.tty.term.ttyS0={os.getenv('TERM', 'vt220')}",
+        f"systemd.tty.columns.ttyS0={columns}",
+        f"systemd.tty.rows.ttyS0={lines}",
+        "console=hvc0",
+    ]
+
+    if args.output_format == OutputFormat.cpio:
+        cmdline += ["rd.systemd.unit=default.target"]
 
     for s in args.kernel_command_line_extra:
         key, sep, value = s.partition("=")
         if " " in value:
             value = f'"{value}"'
         cmdline += [key if not sep else f"{key}={value}"]
-
-    columns, lines = shutil.get_terminal_size()
-
-    cmdline += [
-        f"systemd.tty.term.hvc0={os.getenv('TERM', 'vt220')}",
-        f"systemd.tty.columns.hvc0={columns}",
-        f"systemd.tty.rows.hvc0={lines}",
-        "console=hvc0",
-    ]
 
     return cmdline
 
@@ -1128,7 +1142,6 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
         OutputFormat.directory,
         OutputFormat.subvolume,
         OutputFormat.tar,
-        OutputFormat.cpio,
     ):
         die("Directory, subvolume, tar, cpio, and plain squashfs images cannot be booted in qemu.")
 
@@ -1166,6 +1179,9 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
 
     if args.sign:
         args.checksum = True
+
+    if args.compress_output is None:
+        args.compress_output = Compression.zst if args.output_format == OutputFormat.cpio else Compression.none
 
     if args.output is None:
         iid = args.image_id if args.image_id is not None else "image"
@@ -1226,12 +1242,8 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
         opname = "acquire shell" if args.verb == Verb.shell else "boot"
         if args.output_format in (OutputFormat.tar, OutputFormat.cpio):
             die(f"Sorry, can't {opname} with a {args.output_format} archive.")
-        if should_compress_output(args):
+        if args.compress_output != Compression.none:
             die(f"Sorry, can't {opname} with a compressed image.")
-
-    if args.verb == Verb.qemu:
-        if not args.output_format == OutputFormat.disk:
-            die("Sorry, can't boot non-disk images with qemu.")
 
     if args.repo_dirs and not (is_dnf_distribution(args.distribution) or args.distribution == Distribution.arch):
         die("--repo-dir is only supported on DNF based distributions and Arch")
@@ -1415,12 +1427,12 @@ def print_summary(config: MkosiConfig) -> None:
           Manifest Formats: {maniformats}
           Output Directory: {none_to_default(config.output_dir)}
        Workspace Directory: {none_to_default(config.workspace_dir)}
-                    Output: {bold(config.output)}
+                    Output: {bold(config.output_compressed)}
            Output Checksum: {none_to_na(config.output_checksum if config.checksum else None)}
           Output Signature: {none_to_na(config.output_signature if config.sign else None)}
     Output nspawn Settings: {none_to_na(config.output_nspawn_settings if config.nspawn_settings is not None else None)}
                Incremental: {yes_no(config.incremental)}
-               Compression: {should_compress_output(config) or "no"}
+               Compression: {config.compress_output.name}
        Kernel Command Line: {" ".join(config.kernel_command_line)}
            UEFI SecureBoot: {yes_no(config.secure_boot)}
        SecureBoot Sign Key: {none_to_none(config.secure_boot_key)}
@@ -1555,11 +1567,8 @@ def configure_initrd(state: MkosiState) -> None:
     if not state.root.joinpath("init").exists():
         state.root.joinpath("init").symlink_to("/usr/lib/systemd/systemd")
 
-    if state.root.joinpath("etc/initrd-release").exists():
-        return
-
-    state.root.joinpath("etc/os-release").rename(state.root / "etc/initrd-release")
-    state.root.joinpath("etc/os-release").symlink_to("/etc/initrd-release")
+    if not state.root.joinpath("etc/initrd-release").exists():
+        state.root.joinpath("etc/initrd-release").symlink_to("/etc/os-release")
 
 
 def run_kernel_install(state: MkosiState, cached: bool) -> None:
@@ -1573,6 +1582,9 @@ def run_kernel_install(state: MkosiState, cached: bool) -> None:
         return
 
     if state.config.bootable is False:
+        return
+
+    if state.config.bootable is None and state.config.output_format == OutputFormat.cpio:
         return
 
     # CentOS Stream 8 has an old version of kernel-install that unconditionally writes initrds to
@@ -1607,6 +1619,14 @@ def run_kernel_install(state: MkosiState, cached: bool) -> None:
 
     if machine_id and (p := state.root / "boot" / machine_id).exists():
         shutil.rmtree(p)
+
+
+def run_sysusers(state: MkosiState) -> None:
+    if state.for_cache:
+        return
+
+    with complete_step("Generating system users"):
+        run(["systemd-sysusers", "--root", state.root])
 
 
 def run_preset_all(state: MkosiState) -> None:
@@ -1775,6 +1795,7 @@ def build_image(state: MkosiState, *, manifest: Optional[Manifest] = None) -> No
         install_boot_loader(state)
         configure_ssh(state)
         run_postinst_script(state)
+        run_sysusers(state)
         run_preset_all(state)
         remove_packages(state)
 
@@ -1904,7 +1925,7 @@ def build_stuff(uid: int, gid: int, config: MkosiConfig) -> None:
                     os.chown(p, state.uid, state.gid)
                 else:
                     acl_toggle_remove(state.config, p, uid, allow=True)
-                if p in (state.config.output, state.config.output_split_kernel):
+                if p == state.config.output:
                     compress_output(state.config, p, uid=state.uid, gid=state.gid)
 
         for p in state.staging.iterdir():
@@ -2222,11 +2243,20 @@ def run_qemu(config: MkosiConfig) -> None:
             # CoW but later changes do not result in CoW anymore.
 
             run(["chattr", "+C", fname], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
-            copy_path(config.output, fname)
+            copy_path(config.output_compressed, fname)
         else:
-            fname = config.output
+            fname = config.output_compressed
 
         # Debian images fail to boot with virtio-scsi, see: https://github.com/systemd/mkosi/issues/725
+        if config.output_format == OutputFormat.cpio:
+            kernel = (config.output_dir or Path.cwd()) / config.output_split_kernel
+            if not kernel.exists() and "-kernel" not in config.cmdline:
+                die("No kernel found, please install a kernel in the cpio or provide a -kernel argument to mkosi qemu")
+            cmdline += [
+                "-kernel", kernel,
+                "-initrd", fname,
+                "-append", " ".join(config.kernel_command_line + config.kernel_command_line_extra),
+            ]
         if config.distribution == Distribution.debian:
             cmdline += [
                 "-drive",
@@ -2416,7 +2446,7 @@ def expand_specifier(s: str) -> str:
 
 
 def needs_build(config: Union[argparse.Namespace, MkosiConfig]) -> bool:
-    return config.verb == Verb.build or (config.verb in MKOSI_COMMANDS_NEED_BUILD and (not config.output.exists() or config.force > 0))
+    return config.verb == Verb.build or (config.verb in MKOSI_COMMANDS_NEED_BUILD and (not config.output_compressed.exists() or config.force > 0))
 
 
 def run_verb(config: MkosiConfig) -> None:
