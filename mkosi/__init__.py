@@ -605,7 +605,7 @@ def compressor_command(option: Union[str, bool], src: Path) -> list[PathString]:
     if option == "xz":
         return [xz_binary(), "--check=crc32", "--lzma2=dict=1MiB", "-T0", src]
     elif option == "zstd":
-        return ["zstd", "-15", "-q", "-T0", "--rm", src]
+        return ["zstd", "-q", "-T0", "--rm", src]
     else:
         die(f"Unknown compression {option}")
 
