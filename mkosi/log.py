@@ -6,8 +6,14 @@ from typing import Any, Iterator, NoReturn, Optional
 ARG_DEBUG: set[str] = set()
 
 
-def die(message: str, exception: Optional[Exception] = None) -> NoReturn:
+def die(
+        message: str,
+        exception: Optional[Exception] = None,
+        *,
+        hint: Optional[str] = None) -> NoReturn:
     MkosiPrinter.error(f"Error: {message}")
+    if hint:
+        MkosiPrinter.info(f"({hint})")
     raise exception or RuntimeError(message)
 
 

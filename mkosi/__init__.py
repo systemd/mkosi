@@ -1220,17 +1220,15 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
 
     if args.secure_boot and args.verb != Verb.genkey:
         if args.secure_boot_key is None:
-            die(
-                "UEFI SecureBoot enabled, but couldn't find private key. (Consider placing it in mkosi.secure-boot.key?)"
-            )  # NOQA: E501
+            die("UEFI SecureBoot enabled, but couldn't find private key.",
+                hint="Consider placing it in mkosi.secure-boot.key")
 
         if args.secure_boot_certificate is None:
-            die(
-                "UEFI SecureBoot enabled, but couldn't find certificate. (Consider placing it in mkosi.secure-boot.crt?)"
-            )  # NOQA: E501
+            die("UEFI SecureBoot enabled, but couldn't find certificate.",
+                hint="Consider placing it in mkosi.secure-boot.crt")
 
     if args.sign_expected_pcr is True and not shutil.which("systemd-measure"):
-        die("Couldn't find systemd-measure binary. It is needed for the --sign-expected-pcr option.")
+        die("Couldn't find systemd-measure needed for the --sign-expected-pcr option.")
 
     if args.sign_expected_pcr is None:
         args.sign_expected_pcr = bool(shutil.which("systemd-measure"))
@@ -2328,15 +2326,9 @@ def generate_secure_boot_key(config: MkosiConfig) -> None:
 
     for f in (config.secure_boot_key, config.secure_boot_certificate):
         if f and not config.force:
-            die(
-                dedent(
-                    f"""\
-                    {f} already exists.
-                    If you are sure you want to generate new secure boot keys
-                    remove {config.secure_boot_key} and {config.secure_boot_certificate} first.
-                    """
-                )
-            )
+            die(f"{f} already exists",
+                hint=("To generate new secure boot keys, "
+                      f"first remove {config.secure_boot_key} {config.secure_boot_certificate}"))
 
     MkosiPrinter.print_step(f"Generating secure boot keys rsa:{keylength} for CN {cn!r}.")
     MkosiPrinter.info(
