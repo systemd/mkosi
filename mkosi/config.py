@@ -121,7 +121,7 @@ def config_default_release(namespace: argparse.Namespace) -> Any:
         return hr
 
     return {
-        Distribution.fedora: "37",
+        Distribution.fedora: "38",
         Distribution.centos: "9",
         Distribution.rocky: "9",
         Distribution.alma: "9",
