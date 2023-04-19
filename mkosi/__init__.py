@@ -1568,6 +1568,9 @@ def run_kernel_install(state: MkosiState, cached: bool) -> None:
     if state.config.bootable is False:
         return
 
+    if state.config.bootable is None and state.config.output_format == OutputFormat.cpio:
+        return
+
     # CentOS Stream 8 has an old version of kernel-install that unconditionally writes initrds to
     # /boot/<machine-id>/<kver>, so let's detect that and move them to the correct location.
 
