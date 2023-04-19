@@ -290,6 +290,13 @@ def install_build_packages(state: MkosiState, cached: bool) -> None:
     with mount_build_overlay(state):
         state.installer.install_packages(state, state.config.build_packages)
 
+        # Create a few necessary mount points inside the build overlay for later.
+        state.root.joinpath("work").mkdir(mode=0o755)
+        state.root.joinpath("work/src").mkdir(mode=0o755)
+        state.root.joinpath("work/dest").mkdir(mode=0o755)
+        state.root.joinpath("work/build-script").touch(mode=0o755)
+        state.root.joinpath("work/build").mkdir(mode=0o755)
+
 
 def remove_packages(state: MkosiState) -> None:
     """Remove packages listed in config.remove_packages"""
@@ -379,8 +386,8 @@ def configure_autologin(state: MkosiState) -> None:
 
 
 
-def mount_build_overlay(state: MkosiState) -> ContextManager[Path]:
-    return mount_overlay(state.root, state.build_overlay, state.workdir, state.root)
+def mount_build_overlay(state: MkosiState, read_only: bool = False) -> ContextManager[Path]:
+    return mount_overlay(state.root, state.build_overlay, state.workdir, state.root, read_only)
 
 
 def run_prepare_script(state: MkosiState, cached: bool, build: bool) -> None:
@@ -1645,8 +1652,8 @@ def reuse_cache_tree(state: MkosiState) -> bool:
         copy_path(final, state.root)
         acl_toggle_remove(state.config, state.root, state.uid, allow=False)
         if state.config.build_script:
-            copy_path(build, state.build_overlay)
-            acl_toggle_remove(state.config, state.build_overlay, state.uid, allow=False)
+            state.build_overlay.rmdir()
+            state.build_overlay.symlink_to(build)
 
     return True
 
@@ -1802,14 +1809,10 @@ def run_build_script(state: MkosiState) -> None:
     if state.config.build_script is None or state.for_cache:
         return
 
-    with complete_step("Running build script…"), mount_build_overlay(state):
-        # Bubblewrap creates bind mount point parent directories with restrictive permissions so we create
-        # the work directory ourselves here.
-        state.root.joinpath("work").mkdir(mode=0o755)
-
+    with complete_step("Running build script…"), mount_build_overlay(state, read_only=True):
         bwrap: list[PathString] = [
             "--bind", state.config.build_sources, "/work/src",
-            "--bind", state.config.build_script, f"/work/{state.config.build_script.name}",
+            "--bind", state.config.build_script, "/work/build-script",
             "--bind", install_dir(state), "/work/dest",
             "--chdir", "/work/src",
         ]
@@ -1826,7 +1829,7 @@ def run_build_script(state: MkosiState) -> None:
             bwrap += ["--bind", state.config.build_dir, "/work/build"]
             env |= dict(BUILDDIR="/work/build")
 
-        cmd = ["setpriv", f"--reuid={state.uid}", f"--regid={state.gid}", "--clear-groups", f"/work/{state.config.build_script.name}"]
+        cmd = ["setpriv", f"--reuid={state.uid}", f"--regid={state.gid}", "--clear-groups", "/work/build-script"]
         # When we're building the image because it's required for another verb, any passed arguments are
         # most likely intended for the target verb, and not for "build", so don't add them in that case.
         if state.config.verb == Verb.build:
@@ -1836,12 +1839,6 @@ def run_build_script(state: MkosiState) -> None:
         # build-scripts. See https://github.com/systemd/mkosi/pull/566 for more information.
         run_workspace_command(state, cmd, network=state.config.with_network, bwrap_params=bwrap,
                               stdout=sys.stdout, env=env)
-
-        state.root.joinpath("work/dest").rmdir()
-        state.root.joinpath("work/src").rmdir()
-        state.root.joinpath("work/build").rmdir()
-        state.root.joinpath("work").joinpath(state.config.build_script.name).unlink()
-        state.root.joinpath("work").rmdir()
 
 
 def need_cache_tree(state: MkosiState) -> bool:

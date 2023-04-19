@@ -89,7 +89,8 @@ def mount_overlay(
     lower: Path,
     upper: Path,
     workdir: Path,
-    where: Path
+    where: Path,
+    read_only: bool = True,
 ) -> Iterator[Path]:
     options = [f"lowerdir={lower}", f"upperdir={upper}", f"workdir={workdir}"]
 
@@ -98,7 +99,7 @@ def mount_overlay(
         options.append("userxattr")
 
     try:
-        with mount("overlay", where, options=options, type="overlay"):
+        with mount("overlay", where, options=options, type="overlay", read_only=read_only):
             yield where
     finally:
         with complete_step("Cleaning up overlayfs"):
