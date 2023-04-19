@@ -1551,11 +1551,8 @@ def configure_initrd(state: MkosiState) -> None:
     if not state.root.joinpath("init").exists():
         state.root.joinpath("init").symlink_to("/usr/lib/systemd/systemd")
 
-    if state.root.joinpath("etc/initrd-release").exists():
-        return
-
-    state.root.joinpath("etc/os-release").rename(state.root / "etc/initrd-release")
-    state.root.joinpath("etc/os-release").symlink_to("/etc/initrd-release")
+    if not state.root.joinpath("etc/initrd-release").exists():
+        state.root.joinpath("etc/initrd-release").symlink_to("/etc/os-release")
 
 
 def run_kernel_install(state: MkosiState, cached: bool) -> None:
