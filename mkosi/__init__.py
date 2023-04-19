@@ -768,7 +768,7 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
 
             stub = state.root / f"lib/systemd/boot/efi/linux{EFI_ARCHITECTURES[state.config.architecture]}.efi.stub"
             if not stub.exists():
-                die(f"sd-stub not found at {stub.relative_to(state.root)}")
+                die(f"sd-stub not found at /{stub.relative_to(state.root)} in the image")
 
             cmd: list[PathString] = [
                 shutil.which("ukify") or "/usr/lib/systemd/ukify",
