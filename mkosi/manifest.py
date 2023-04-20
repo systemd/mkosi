@@ -105,12 +105,13 @@ class Manifest:
         if not (root / dbpath).exists():
             dbpath = "/var/lib/rpm"
 
-        c = run(
-            ["rpm", f"--root={root}", f"--dbpath={dbpath}", "-qa", "--qf",
-             r"%{NEVRA}\t%{SOURCERPM}\t%{NAME}\t%{ARCH}\t%{LONGSIZE}\t%{INSTALLTIME}\n"],
-            stdout=PIPE,
-            text=True,
-        )
+        c = run(["rpm",
+                 f"--root={root}",
+                 f"--dbpath={dbpath}",
+                 "-qa",
+                 "--qf", r"%{NEVRA}\t%{SOURCERPM}\t%{NAME}\t%{ARCH}\t%{LONGSIZE}\t%{INSTALLTIME}\n"],
+                stdout=PIPE,
+                text=True)
 
         packages = sorted(c.stdout.splitlines())
 
@@ -145,7 +146,12 @@ class Manifest:
 
             source = self.source_packages.get(srpm)
             if source is None:
-                c = run(["rpm", f"--root={root}", f"--dbpath={dbpath}", "-q", "--changelog", nevra],
+                c = run(["rpm",
+                         f"--root={root}",
+                         f"--dbpath={dbpath}",
+                         "-q",
+                         "--changelog",
+                         nevra],
                         stdout=PIPE,
                         stderr=DEVNULL,
                         text=True)
@@ -156,9 +162,11 @@ class Manifest:
             source.add(package)
 
     def record_deb_packages(self, root: Path) -> None:
-        c = run(
-            ["dpkg-query", f"--admindir={root}/var/lib/dpkg", "--show", "--showformat",
-             r'${Package}\t${source:Package}\t${Version}\t${Architecture}\t${Installed-Size}\t${db-fsys:Last-Modified}\n'],
+        c = run(["dpkg-query",
+                 f"--admindir={root}/var/lib/dpkg",
+                 "--show",
+                 "--showformat",
+                     r'${Package}\t${source:Package}\t${Version}\t${Architecture}\t${Installed-Size}\t${db-fsys:Last-Modified}\n'],
             stdout=PIPE,
             text=True,
         )
