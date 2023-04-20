@@ -33,7 +33,7 @@ from mkosi.backend import (
     MkosiState,
     OutputFormat,
     Verb,
-    current_user_uid_gid,
+    current_user,
     flatten,
     format_rlimit,
     is_dnf_distribution,
@@ -1981,7 +1981,7 @@ def run_shell(config: MkosiConfig) -> None:
         cmdline += ["--"]
         cmdline += config.cmdline
 
-    uid, _ = current_user_uid_gid()
+    uid = current_user().uid
 
     if config.output_format == OutputFormat.directory:
         acl_toggle_remove(config, config.output, uid, allow=False)
@@ -2381,9 +2381,7 @@ def prepend_to_environ_path(paths: Sequence[Path]) -> Iterator[None]:
 
 
 def expand_specifier(s: str) -> str:
-    user = os.getenv("SUDO_USER") or os.getenv("USER")
-    assert user is not None
-    return s.replace("%u", user)
+    return s.replace("%u", current_user().name)
 
 
 def needs_build(config: Union[argparse.Namespace, MkosiConfig]) -> bool:

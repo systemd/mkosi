@@ -13,7 +13,7 @@ from pathlib import Path
 from types import TracebackType
 from typing import Any, Callable, Mapping, Optional, Sequence, Type, TypeVar
 
-from mkosi.backend import MkosiState, current_user_uid_gid
+from mkosi.backend import MkosiState, current_user
 from mkosi.log import ARG_DEBUG, MkosiPrinter, die
 from mkosi.types import _FILE, CompletedProcess, PathString, Popen
 
@@ -67,7 +67,9 @@ def become_root() -> tuple[int, int]:
     The function returns the UID-GID pair of the invoking user in the namespace (65436, 65436).
     """
     if os.getuid() == 0:
-        return current_user_uid_gid()
+        user = current_user()
+        return user.uid, user.gid
+
     subuid = read_subrange(Path("/etc/subuid"))
     subgid = read_subrange(Path("/etc/subgid"))
 

@@ -471,10 +471,49 @@ def flatten(lists: Iterable[Iterable[T]]) -> list[T]:
     return list(itertools.chain.from_iterable(lists))
 
 
-def current_user_uid_gid() -> tuple[int, int]:
-    uid = int(os.getenv("SUDO_UID") or os.getenv("PKEXEC_UID") or os.getuid())
-    gid = pwd.getpwuid(uid).pw_gid
-    return uid, gid
+@dataclasses.dataclass
+class InvokingUser:
+    _pw: Optional[pwd.struct_passwd] = None
+
+    @classmethod
+    def for_uid(cls, uid: int) -> "InvokingUser":
+        return cls(pwd.getpwuid(uid))
+
+    @property
+    def uid(self) -> int:
+        if self._pw is not None:
+            return self._pw.pw_uid
+        return os.getuid()
+
+    @property
+    def gid(self) -> int:
+        if self._pw is not None:
+            return self._pw.pw_gid
+        return os.getgid()
+
+    @property
+    def name(self) -> str:
+        if self._pw is not None:
+            return self._pw.pw_name
+        return os.getlogin()
+
+    @property
+    def home(self) -> Path:
+        if self._pw is not None:
+            return Path(self._pw.pw_dir)
+        return Path.home()
+
+    def is_running_user(self) -> bool:
+        if self._pw is not None:
+            return self._pw.pw_uid == os.getuid()
+        return True
+
+
+def current_user() -> InvokingUser:
+    uid = os.getenv("SUDO_UID") or os.getenv("PKEXEC_UID")
+    if uid:
+        return InvokingUser.for_uid(int(uid))
+    return InvokingUser()
 
 
 @contextlib.contextmanager
