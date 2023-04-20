@@ -52,22 +52,10 @@ jobs:
         $HOME/.local/bin/mkosi -h
         python3 -m pip uninstall --yes mkosi
 
-    - name: Test user installation (sudo call)
-      run: |
-        python3 -m pip install --user .
-        sudo $HOME/.local/bin/mkosi -h
-        python3 -m pip uninstall --yes mkosi
-
     - name: Test editable user installation
       run: |
         python3 -m pip install --user --no-use-pep517 --editable .
         $HOME/.local/bin/mkosi -h
-        python3 -m pip uninstall --yes mkosi
-
-    - name: Test editable user installation (sudo call)
-      run: |
-        python3 -m pip install --user --no-use-pep517 --editable .
-        sudo $HOME/.local/bin/mkosi -h
         python3 -m pip uninstall --yes mkosi
 
     - name: Test venv installation

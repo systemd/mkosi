@@ -28,7 +28,7 @@ setup(
     packages = find_packages(".", exclude=["tests"]),
     package_data = {"": ["*.sh", "*.hook", "*.conf", "*.install"]},
     include_package_data = True,
-    scripts = ["bin/mkosi"],
+    entry_points = { "console_scripts": ["mkosi = mkosi.__main__:main"] },
     cmdclass = { "man": BuildManpage },
     data_files = [('share/man/man1', ["man/mkosi.1"])],
 )
