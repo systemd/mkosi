@@ -10,7 +10,7 @@ from collections.abc import Iterator
 from mkosi import load_args, run_verb
 from mkosi.config import MkosiConfigParser
 from mkosi.log import ARG_DEBUG, MkosiError, MkosiPrinter, die
-from mkosi.run import excepthook
+from mkosi.run import excepthook, RemoteException
 
 
 @contextlib.contextmanager
@@ -39,9 +39,15 @@ def propagate_failed_return() -> Iterator[None]:
             raise e
         sys.exit(1)
     except Exception as e:
-        if not ARG_DEBUG:
+        remote_mkosi_error = isinstance(e, RemoteException) and isinstance(e.exception, MkosiError)
+
+        if not remote_mkosi_error and not ARG_DEBUG:
             MkosiPrinter.info(f"Hint: mkosi failed because of an internal exception {e.__class__.__name__}, "
                               "rerun mkosi with --debug to get more information")
+
+        if remote_mkosi_error:
+            sys.exit(1)
+
         raise e
 
 

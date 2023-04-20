@@ -183,7 +183,7 @@ def fork_and_wait(target: Callable[[], T]) -> T:
     result = pout.recv()
     if isinstance(result, RemoteException):
         # Reraise the original exception and attach the remote exception with full traceback as the cause.
-        raise result.exception from result
+        raise result
 
     return result
 
