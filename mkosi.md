@@ -570,7 +570,7 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   way is mounted into both the development and the final image while
   the package manager is running.
 
-`SkeletonTree=`, `--skeleton-tree=`
+`SkeletonTrees=`, `--skeleton-tree=`
 
 : Takes a colon separated pair of paths. The first path refers to a
   directory to copy into the OS tree before invoking the package
@@ -592,7 +592,7 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   `mkosi.skeleton.tar` is found in the local directory it will be
   automatically used for this purpose.
 
-`ExtraTree=`, `--extra-tree=`
+`ExtraTrees=`, `--extra-tree=`
 
 : Takes a colon separated pair of paths. The first path refers to a
   directory to copy from the host into the image. The second path refers
