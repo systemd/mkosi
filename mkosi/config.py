@@ -480,11 +480,6 @@ class MkosiConfigParser:
             paths=("mkosi.repart",),
         ),
         MkosiConfigSetting(
-            dest="initrds",
-            section="Output",
-            parse=config_make_list_parser(delimiter=",", parse=make_path_parser(required=False)),
-        ),
-        MkosiConfigSetting(
             dest="packages",
             section="Content",
             parse=config_make_list_parser(delimiter=","),
@@ -629,6 +624,11 @@ class MkosiConfigParser:
             dest="base_image",
             section="Content",
             parse=config_make_path_parser(required=True),
+        ),
+        MkosiConfigSetting(
+            dest="initrds",
+            section="Content",
+            parse=config_make_list_parser(delimiter=",", parse=make_path_parser(required=False)),
         ),
         MkosiConfigSetting(
             dest="checksum",
@@ -1040,13 +1040,6 @@ class MkosiConfigParser:
             dest="repart_dirs",
             action=action,
         )
-        group.add_argument(
-            "--initrd",
-            help="Add a user-provided initrd to image",
-            metavar="PATH",
-            dest="initrds",
-            action=action,
-        )
 
         group = parser.add_argument_group("Content options")
         group.add_argument(
@@ -1210,6 +1203,13 @@ class MkosiConfigParser:
             '--base-image',
             metavar='IMAGE',
             help='Use the given image as base (e.g. lower sysext layer)',
+            action=action,
+        )
+        group.add_argument(
+            "--initrd",
+            help="Add a user-provided initrd to image",
+            metavar="PATH",
+            dest="initrds",
             action=action,
         )
 
