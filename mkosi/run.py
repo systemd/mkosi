@@ -190,6 +190,7 @@ def fork_and_wait(target: Callable[[], T]) -> T:
 def run(
     cmdline: Sequence[PathString],
     check: bool = True,
+    stdin: _FILE = None,
     stdout: _FILE = None,
     stderr: _FILE = None,
     env: Mapping[str, PathString] = {},
@@ -219,8 +220,19 @@ def run(
     if "run" in ARG_DEBUG:
         env["SYSTEMD_LOG_LEVEL"] = "debug"
 
+    if "input" in kwargs:
+        assert stdin is None  # stdin and input can be specified together
+    elif stdin is None:
+        stdin = subprocess.DEVNULL
+
     try:
-        return subprocess.run(cmdline, check=check, stdout=stdout, stderr=stderr, env=env, **kwargs,
+        return subprocess.run(cmdline,
+                              check=check,
+                              stdin=stdin,
+                              stdout=stdout,
+                              stderr=stderr,
+                              env=env,
+                              **kwargs,
                               preexec_fn=foreground)
     except FileNotFoundError as e:
         die(f"{cmdline[0]} not found in PATH.", e)

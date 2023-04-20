@@ -1083,7 +1083,6 @@ def load_credentials(args: argparse.Namespace) -> dict[str, str]:
         tz = run(
             ["timedatectl", "show", "-p", "Timezone", "--value"],
             text=True,
-            stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
         ).stdout.strip()
         creds["firstboot.timezone"] = tz
@@ -1098,7 +1097,6 @@ def load_credentials(args: argparse.Namespace) -> dict[str, str]:
         key = run(
             ["ssh-add", "-L"],
             text=True,
-            stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             env=os.environ,
         ).stdout.strip()
