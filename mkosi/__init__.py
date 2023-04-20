@@ -2412,8 +2412,7 @@ def run_verb(config: MkosiConfig) -> None:
 
         if needs_build(config) or config.verb == Verb.clean:
             def target() -> None:
-                if os.getuid() != 0:
-                    become_root()
+                become_root()
                 unlink_output(config)
 
             fork_and_wait(target)
@@ -2421,7 +2420,7 @@ def run_verb(config: MkosiConfig) -> None:
         if needs_build(config):
             def target() -> None:
                 # Get the user UID/GID either on the host or in the user namespace running the build
-                uid, gid = become_root() if os.getuid() != 0 else current_user_uid_gid()
+                uid, gid = become_root()
                 init_mount_namespace()
                 build_stuff(uid, gid, config)
 
