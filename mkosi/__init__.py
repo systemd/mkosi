@@ -483,18 +483,11 @@ def install_boot_loader(state: MkosiState) -> None:
 
         with complete_step("Signing systemd-boot binaries…"):
             for f in itertools.chain(directory.glob('*.efi'), directory.glob('*.EFI')):
-                run(
-                    [
-                        "sbsign",
-                        "--key",
-                        state.config.secure_boot_key,
-                        "--cert",
-                        state.config.secure_boot_certificate,
-                        "--output",
-                        f"{f}.signed",
-                        f,
-                    ],
-                )
+                run(["sbsign",
+                     "--key", state.config.secure_boot_key,
+                     "--cert", state.config.secure_boot_certificate,
+                     "--output", f"{f}.signed",
+                     f])
 
     with complete_step("Installing boot loader…"):
         run(["bootctl", "install", "--root", state.root], env={"SYSTEMD_ESP_PATH": "/boot"})
@@ -508,48 +501,27 @@ def install_boot_loader(state: MkosiState) -> None:
             keys.mkdir(parents=True, exist_ok=True)
 
             # sbsiglist expects a DER certificate.
-            run(
-                [
-                    "openssl",
-                    "x509",
-                    "-outform",
-                    "DER",
-                    "-in",
-                    state.config.secure_boot_certificate,
-                    "-out",
-                    state.workspace / "mkosi.der",
-                ],
-            )
-            run(
-                [
-                    "sbsiglist",
-                    "--owner",
-                    str(uuid.uuid4()),
-                    "--type",
-                    "x509",
-                    "--output",
-                    state.workspace / "mkosi.esl",
-                    state.workspace / "mkosi.der",
-                ],
-            )
+            run(["openssl",
+                 "x509",
+                 "-outform", "DER",
+                 "-in", state.config.secure_boot_certificate,
+                 "-out", state.workspace / "mkosi.der"])
+            run(["sbsiglist",
+                 "--owner", str(uuid.uuid4()),
+                 "--type", "x509",
+                 "--output", state.workspace / "mkosi.esl",
+                 state.workspace / "mkosi.der"])
 
             # We reuse the key for all secure boot databases to keep things simple.
             for db in ["PK", "KEK", "db"]:
-                run(
-                    [
-                        "sbvarsign",
-                        "--attr",
-                        "NON_VOLATILE,BOOTSERVICE_ACCESS,RUNTIME_ACCESS,TIME_BASED_AUTHENTICATED_WRITE_ACCESS",
-                        "--key",
-                        state.config.secure_boot_key,
-                        "--cert",
-                        state.config.secure_boot_certificate,
-                        "--output",
-                        keys / f"{db}.auth",
-                        db,
-                        state.workspace / "mkosi.esl",
-                    ],
-                )
+                run(["sbvarsign",
+                     "--attr",
+                         "NON_VOLATILE,BOOTSERVICE_ACCESS,RUNTIME_ACCESS,TIME_BASED_AUTHENTICATED_WRITE_ACCESS",
+                     "--key", state.config.secure_boot_key,
+                     "--cert", state.config.secure_boot_certificate,
+                     "--output", keys / f"{db}.auth",
+                     db,
+                     state.workspace / "mkosi.esl"])
 
 
 def install_skeleton_trees(state: MkosiState, cached: bool) -> None:
@@ -794,7 +766,7 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                 if state.config.sign_expected_pcr:
                     cmd += [
                         "--pcr-private-key", state.config.secure_boot_key,
-                        "--pcr-banks", "sha1,sha256"
+                        "--pcr-banks", "sha1,sha256",
                     ]
 
             if state.config.initrds:
@@ -886,18 +858,16 @@ def acl_toggle_remove(config: MkosiConfig, root: Path, uid: int, *, allow: bool)
     if not config.acl:
         return
 
-    ret = run(
-        [
-            "setfacl",
-            "--physical",
-            "--modify" if allow else "--remove",
-            f"user:{uid}:rwx" if allow else f"user:{uid}",
-            "-",
-        ],
-        check=False,
-        text=True,
-        # Supply files via stdin so we don't clutter --debug run output too much
-        input="\n".join([str(root), *(e.path for e in cast(Iterator[os.DirEntry[str]], scandir_recursive(root)) if e.is_dir())])
+    ret = run(["setfacl",
+               "--physical",
+               "--modify" if allow else "--remove",
+               f"user:{uid}:rwx" if allow else f"user:{uid}",
+               "-"],
+              check=False,
+              text=True,
+              # Supply files via stdin so we don't clutter --debug run output too much
+              input="\n".join([str(root),
+                               *(e.path for e in cast(Iterator[os.DirEntry[str]], scandir_recursive(root)) if e.is_dir())])
     )
     if ret.returncode != 0:
         warn("Failed to set ACLs, you'll need root privileges to remove some generated files/directories")
@@ -1083,7 +1053,6 @@ def load_credentials(args: argparse.Namespace) -> dict[str, str]:
         tz = run(
             ["timedatectl", "show", "-p", "Timezone", "--value"],
             text=True,
-            stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
         ).stdout.strip()
         creds["firstboot.timezone"] = tz
@@ -1098,7 +1067,6 @@ def load_credentials(args: argparse.Namespace) -> dict[str, str]:
         key = run(
             ["ssh-add", "-L"],
             text=True,
-            stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             env=os.environ,
         ).stdout.strip()
@@ -1611,7 +1579,7 @@ def run_kernel_install(state: MkosiState, cached: bool) -> None:
             cmd: list[PathString] = ["kernel-install", "add", kver, Path("/") / kimg]
 
             if ARG_DEBUG:
-                cmd += ["--verbose"]
+                cmd.insert(1, "--verbose")
 
             # Make dracut think --no-host-only was passed via the CLI.
             run_workspace_command(state, cmd, env=dict(hostonly_l="no"))
@@ -1957,10 +1925,14 @@ def machine_cid(config: MkosiConfig) -> int:
 def nspawn_knows_arg(arg: str) -> bool:
     # Specify some extra incompatible options so nspawn doesn't try to boot a container in the current
     # directory if it has a compatible layout.
-    return "unrecognized option" not in run(["systemd-nspawn", arg,
-                                            "--directory", "/dev/null", "--image", "/dev/null"],
-                                            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, check=False,
-                                            text=True).stderr
+    c = run(["systemd-nspawn", arg,
+             "--directory", "/dev/null",
+             "--image", "/dev/null"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            check=False,
+            text=True)
+    return "unrecognized option" not in c.stderr
 
 
 def run_shell(config: MkosiConfig) -> None:
@@ -2169,18 +2141,12 @@ def run_qemu(config: MkosiConfig) -> None:
 
     cmdline: list[PathString] = [
         find_qemu_binary(config),
-        "-machine",
-        machine,
-        "-smp",
-        config.qemu_smp,
-        "-m",
-        config.qemu_mem,
-        "-object",
-        "rng-random,filename=/dev/urandom,id=rng0",
-        "-device",
-        "virtio-rng-pci,rng=rng0,id=rng-device0",
-        "-nic",
-        "user,model=virtio-net-pci",
+        "-machine", machine,
+        "-smp", config.qemu_smp,
+        "-m", config.qemu_mem,
+        "-object", "rng-random,filename=/dev/urandom,id=rng0",
+        "-device", "virtio-rng-pci,rng=rng0,id=rng-device0",
+        "-nic", "user,model=virtio-net-pci",
     ]
 
     try:
@@ -2213,23 +2179,20 @@ def run_qemu(config: MkosiConfig) -> None:
             "-serial", "chardev:console",
         ]
 
-    cmdline += ["-drive", f"if=pflash,format=raw,readonly=on,file={firmware}"]
-
     for k, v in config.credentials.items():
         cmdline += ["-smbios", f"type=11,value=io.systemd.credential.binary:{k}={base64.b64encode(v.encode()).decode()}"]
     cmdline += ["-smbios", f"type=11,value=io.systemd.stub.kernel-cmdline-extra={' '.join(config.kernel_command_line_extra)}"]
+
+    cmdline += ["-drive", f"if=pflash,format=raw,readonly=on,file={firmware}"]
 
     with contextlib.ExitStack() as stack:
         if fw_supports_sb:
             ovmf_vars = stack.enter_context(tempfile.NamedTemporaryFile(prefix=".mkosi-", dir=tmp_dir()))
             copy_path(find_ovmf_vars(config), Path(ovmf_vars.name))
             cmdline += [
-                "-global",
-                "ICH9-LPC.disable_s3=1",
-                "-global",
-                "driver=cfi.pflash01,property=secure,value=on",
-                "-drive",
-                f"file={ovmf_vars.name},if=pflash,format=raw",
+                "-global", "ICH9-LPC.disable_s3=1",
+                "-global", "driver=cfi.pflash01,property=secure,value=on",
+                "-drive", f"file={ovmf_vars.name},if=pflash,format=raw",
             ]
 
         if config.ephemeral:
@@ -2254,32 +2217,20 @@ def run_qemu(config: MkosiConfig) -> None:
             kernel = (config.output_dir or Path.cwd()) / config.output_split_kernel
             if not kernel.exists() and "-kernel" not in config.cmdline:
                 die("No kernel found, please install a kernel in the cpio or provide a -kernel argument to mkosi qemu")
-            cmdline += [
-                "-kernel", kernel,
-                "-initrd", fname,
-                "-append", " ".join(config.kernel_command_line + config.kernel_command_line_extra),
-            ]
+            cmdline += ["-kernel", kernel,
+                        "-initrd", fname,
+                        "-append", " ".join(config.kernel_command_line + config.kernel_command_line_extra)]
         if config.distribution == Distribution.debian:
-            cmdline += [
-                "-drive",
-                f"if=virtio,id=hd,file={fname},format=raw",
-            ]
+            cmdline += ["-drive", f"if=virtio,id=hd,file={fname},format=raw"]
         else:
-            cmdline += [
-                "-drive",
-                f"if=none,id=hd,file={fname},format=raw",
-                "-device",
-                "virtio-scsi-pci,id=scsi",
-                "-device",
-                "scsi-hd,drive=hd,bootindex=1",
-            ]
+            cmdline += ["-drive", f"if=none,id=hd,file={fname},format=raw",
+                        "-device", "virtio-scsi-pci,id=scsi",
+                        "-device", "scsi-hd,drive=hd,bootindex=1"]
 
         swtpm_socket = stack.enter_context(start_swtpm())
         if swtpm_socket is not None:
-            cmdline += [
-                "-chardev", f"socket,id=chrtpm,path={swtpm_socket}",
-                "-tpmdev", "emulator,id=tpm0,chardev=chrtpm",
-            ]
+            cmdline += ["-chardev", f"socket,id=chrtpm,path={swtpm_socket}",
+                        "-tpmdev", "emulator,id=tpm0,chardev=chrtpm"]
 
             if config.architecture == "x86_64":
                 cmdline += ["-device", "tpm-tis,tpmdev=tpm0"]
@@ -2348,20 +2299,14 @@ def generate_secure_boot_key(config: MkosiConfig) -> None:
     crt = config.secure_boot_certificate or "mkosi.secure-boot.crt"
 
     cmd: list[PathString] = [
-        "openssl",
-        "req",
+        "openssl", "req",
         "-new",
         "-x509",
-        "-newkey",
-        f"rsa:{keylength}",
-        "-keyout",
-        key,
-        "-out",
-        crt,
-        "-days",
-        str(config.secure_boot_valid_days),
-        "-subj",
-        f"/CN={cn}/",
+        "-newkey", f"rsa:{keylength}",
+        "-keyout", key,
+        "-out", crt,
+        "-days", str(config.secure_boot_valid_days),
+        "-subj", f"/CN={cn}/",
         "-nodes",
     ]
     run(cmd)
