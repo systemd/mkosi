@@ -2179,11 +2179,11 @@ def run_qemu(config: MkosiConfig) -> None:
             "-serial", "chardev:console",
         ]
 
-    cmdline += ["-drive", f"if=pflash,format=raw,readonly=on,file={firmware}"]
-
     for k, v in config.credentials.items():
         cmdline += ["-smbios", f"type=11,value=io.systemd.credential.binary:{k}={base64.b64encode(v.encode()).decode()}"]
     cmdline += ["-smbios", f"type=11,value=io.systemd.stub.kernel-cmdline-extra={' '.join(config.kernel_command_line_extra)}"]
+
+    cmdline += ["-drive", f"if=pflash,format=raw,readonly=on,file={firmware}"]
 
     with contextlib.ExitStack() as stack:
         if fw_supports_sb:
