@@ -6,6 +6,10 @@ from typing import Any, Iterator, NoReturn, Optional
 ARG_DEBUG: set[str] = set()
 
 
+class MkosiError(Exception):
+    "Exception thrown by mkosi itself after it printed an error"
+
+
 def die(
         message: str,
         exception: Optional[Exception] = None,
@@ -14,7 +18,7 @@ def die(
     MkosiPrinter.error(f"Error: {message}")
     if hint:
         MkosiPrinter.info(f"({hint})")
-    raise exception or RuntimeError(message)
+    raise MkosiError(message) from exception
 
 
 def warn(message: str) -> None:

@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
+import contextlib
 import os
 import secrets
 import tarfile
+from collections.abc import Iterator
 from pathlib import Path
-
-import pytest
 
 from mkosi.backend import (
     Distribution,
@@ -14,6 +14,8 @@ from mkosi.backend import (
     set_umask,
     strip_suffixes,
 )
+from mkosi.log import MkosiError
+
 
 def test_distribution() -> None:
     assert Distribution.fedora.package_type == PackageType.rpm
@@ -32,6 +34,16 @@ def test_set_umask() -> None:
     assert tmp1 == 0o767
     assert tmp2 == 0o757
     assert tmp3 == 0o777
+
+
+@contextlib.contextmanager
+def assert_raises_cause(type1: type, type2: type) -> Iterator[None]:
+    try:
+        yield
+    except type1 as e:   # type: ignore
+        if isinstance(e.__cause__, type2):
+            return
+    raise ValueError(f'Expected {type1} exception')
 
 
 def test_safe_tar_extract(tmp_path: Path) -> None:
@@ -53,7 +65,7 @@ def test_safe_tar_extract(tmp_path: Path) -> None:
     assert (safe_target / name).exists()
 
     evil_target = tmp_path / "evil_target"
-    with pytest.raises(ValueError):
+    with assert_raises_cause(MkosiError, ValueError):
         with tarfile.TarFile.open(evil_tar) as t:
             safe_tar_extract(t, evil_target)
     assert not (evil_target / name).exists()

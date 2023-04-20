@@ -12,6 +12,7 @@ import pytest
 import mkosi
 from mkosi.backend import Compression, Distribution, MkosiConfig, Verb
 from mkosi.config import MkosiConfigParser
+from mkosi.log import MkosiError
 
 
 @contextmanager
@@ -76,13 +77,13 @@ def test_parse_config_files_filter() -> None:
 
 def test_shell_boot() -> None:
     with cd_temp_dir():
-        with pytest.raises(RuntimeError, match=".boot.*tar"):
+        with pytest.raises(MkosiError, match=".boot.*tar"):
             parse(["--format", "tar", "boot"])
 
-        with pytest.raises(RuntimeError, match=".boot.*cpio"):
+        with pytest.raises(MkosiError, match=".boot.*cpio"):
             parse(["--format", "cpio", "boot"])
 
-        with pytest.raises(RuntimeError, match=".boot.*compressed" ):
+        with pytest.raises(MkosiError, match=".boot.*compressed" ):
             parse(["--format", "disk", "--compress-output=yes", "boot"])
 
 

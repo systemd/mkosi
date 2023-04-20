@@ -9,7 +9,7 @@ from collections.abc import Iterator
 
 from mkosi import load_args, run_verb
 from mkosi.config import MkosiConfigParser
-from mkosi.log import ARG_DEBUG, MkosiPrinter, die
+from mkosi.log import ARG_DEBUG, MkosiError, MkosiPrinter, die
 from mkosi.run import excepthook
 
 
@@ -34,14 +34,15 @@ def propagate_failed_return() -> Iterator[None]:
 
         # We always log when subprocess.CalledProcessError is raised, so we don't log again here.
         sys.exit(e.returncode)
-    except Exception as e:
+    except MkosiError as e:
         if ARG_DEBUG:
             raise e
-        elif not isinstance(e, RuntimeError):
-            # RuntimeError is used to wrap generic errors, and the message that was printed should be enough.
+        sys.exit(1)
+    except Exception as e:
+        if not ARG_DEBUG:
             MkosiPrinter.info(f"Hint: mkosi failed because of an internal exception {e.__class__.__name__}, "
                               "rerun mkosi with --debug to get more information")
-        sys.exit(1)
+        raise e
 
 
 @propagate_failed_return()
