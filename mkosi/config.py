@@ -738,7 +738,7 @@ class MkosiConfigParser:
                         die(f"{k} cannot be used in [Match]")
 
                     # If we encounter a setting in [Match] that has not been explicitly configured yet, we assign
-                    # it it's default value first so that we can [Match] on default values for settings.
+                    # the default value first so that we can [Match] on default values for settings.
                     if s.dest not in namespace:
                         if s.default_factory:
                             default = s.default_factory(namespace)
