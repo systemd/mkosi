@@ -220,6 +220,7 @@ class MkosiConfig:
     repositories: list[str]
     repo_dirs: list[Path]
     repart_dirs: list[Path]
+    overlay: bool
     architecture: str
     output_format: OutputFormat
     manifest_format: list[ManifestFormat]
@@ -243,6 +244,7 @@ class MkosiConfig:
     with_docs: bool
     with_tests: bool
     cache_dir: Optional[Path]
+    base_trees: list[Path]
     extra_trees: list[tuple[Path, Optional[Path]]]
     skeleton_trees: list[tuple[Path, Optional[Path]]]
     clean_package_metadata: Optional[bool]
@@ -259,7 +261,6 @@ class MkosiConfig:
     with_network: bool
     cache_only: bool
     nspawn_settings: Optional[Path]
-    base_image: Optional[Path]
     checksum: bool
     split_artifacts: bool
     sign: bool

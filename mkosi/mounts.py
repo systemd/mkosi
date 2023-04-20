@@ -86,13 +86,13 @@ def mount(
 
 @contextlib.contextmanager
 def mount_overlay(
-    lower: Path,
-    upper: Path,
+    lowerdirs: Sequence[Path],
+    upperdir: Path,
     workdir: Path,
     where: Path,
     read_only: bool = True,
 ) -> Iterator[Path]:
-    options = [f"lowerdir={lower}", f"upperdir={upper}", f"workdir={workdir}"]
+    options = [f"lowerdir={lower}" for lower in lowerdirs] + [f"upperdir={upperdir}", f"workdir={workdir}"]
 
     # userxattr is only supported on overlayfs since kernel 5.11
     if GenericVersion(platform.release()) >= GenericVersion("5.11"):
@@ -103,7 +103,7 @@ def mount_overlay(
             yield where
     finally:
         with complete_step("Cleaning up overlayfs"):
-            delete_whiteout_files(upper)
+            delete_whiteout_files(upperdir)
 
 
 @contextlib.contextmanager
@@ -112,4 +112,4 @@ def dissect_and_mount(image: Path, where: Path) -> Iterator[Path]:
     try:
         yield where
     finally:
-        run(["umount", "--recursive", where])
+        run(["systemd-dissect", "-U", where])
