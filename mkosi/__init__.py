@@ -15,7 +15,6 @@ import os
 import platform
 import resource
 import shutil
-import string
 import subprocess
 import sys
 import tempfile
@@ -1104,8 +1103,6 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
     ARG_DEBUG.update(args.debug)
 
     find_image_version(args)
-
-    args.extra_search_paths = expand_paths(args.extra_search_paths)
 
     if args.cmdline and args.verb not in MKOSI_COMMANDS_CMDLINE:
         die(f"Parameters after verb are only accepted for {list_to_string(verb.name for verb in MKOSI_COMMANDS_CMDLINE)}.")
@@ -2333,30 +2330,6 @@ def bump_image_version(config: MkosiConfig) -> None:
             print(f"Increasing last component of version by one, bumping '{config.image_version}' → '{new_version}'.")
 
     Path("mkosi.version").write_text(new_version + "\n")
-
-
-def expand_paths(paths: Sequence[str]) -> list[Path]:
-    if not paths:
-        return []
-
-    environ = os.environ.copy()
-    # Add a fake SUDO_HOME variable to allow non-root users specify
-    # paths in their home when using mkosi via sudo.
-    sudo_user = os.getenv("SUDO_USER")
-    if sudo_user and "SUDO_HOME" not in environ:
-        environ["SUDO_HOME"] = os.path.expanduser(f"~{sudo_user}")
-
-    # No os.path.expandvars because it treats unset variables as empty.
-    expanded = []
-    for path in paths:
-        if not sudo_user:
-            path = os.path.expanduser(path)
-        try:
-            expanded += [Path(string.Template(str(path)).substitute(environ))]
-        except KeyError:
-            # Skip path if it uses a variable not defined.
-            pass
-    return expanded
 
 
 @contextlib.contextmanager

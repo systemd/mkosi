@@ -4,7 +4,7 @@ import dataclasses
 import enum
 import fnmatch
 import functools
-import os
+import os.path
 import platform
 import sys
 import textwrap
@@ -19,6 +19,7 @@ from mkosi.backend import (
     OutputFormat,
     Verb,
     chdir,
+    current_user,
     detect_distribution,
     flatten,
 )
@@ -45,8 +46,18 @@ def parse_boolean(s: str) -> bool:
     die(f"Invalid boolean literal: {s!r}")
 
 
-def parse_path(value: str, *, required: bool, absolute: bool = True) -> Path:
+def parse_path(value: str, *, required: bool, absolute: bool = True, expanduser: bool = True, expandvars: bool = True) -> Path:
+    if expandvars:
+        value = os.path.expandvars(value)
+
     path = Path(value)
+
+    if expanduser:
+        user = current_user()
+        if path.is_relative_to("~") and not user.is_running_user():
+            path = user.home / path.relative_to("~")
+        else:
+            path = path.expanduser()
 
     if required and not path.exists():
         die(f"{value} does not exist")
@@ -61,7 +72,7 @@ def parse_source_target_paths(value: str) -> tuple[Path, Optional[Path]]:
     src, _, target = value.partition(':')
     src_path = parse_path(src, required=True)
     if target:
-        target_path = parse_path(target, required=False, absolute=False)
+        target_path = parse_path(target, required=False, absolute=False, expanduser=False)
         if not target_path.is_absolute():
             die("Target path must be absolute")
     else:
@@ -213,15 +224,17 @@ def config_make_list_parser(delimiter: str, parse: Callable[[str], Any] = str) -
     return config_parse_list
 
 
-def make_path_parser(*, required: bool, absolute: bool = True) -> Callable[[str], Path]:
+def make_path_parser(*, required: bool, absolute: bool = True, expanduser: bool = True, expandvars: bool = True) -> Callable[[str], Path]:
     return functools.partial(
         parse_path,
         required=required,
         absolute=absolute,
+        expanduser=expanduser,
+        expandvars=expandvars,
     )
 
 
-def config_make_path_parser(*, required: bool, absolute: bool = True) -> ConfigParseCallback:
+def config_make_path_parser(*, required: bool, absolute: bool = True, expanduser: bool = True, expandvars: bool = True) -> ConfigParseCallback:
     def config_parse_path(dest: str, value: Optional[str], namespace: argparse.Namespace) -> Optional[Path]:
         if dest in namespace:
             return getattr(namespace, dest) # type: ignore
@@ -231,6 +244,8 @@ def config_make_path_parser(*, required: bool, absolute: bool = True) -> ConfigP
                 value,
                 required=required,
                 absolute=absolute,
+                expanduser=expanduser,
+                expandvars=expandvars,
             )
 
         return None
