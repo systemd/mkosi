@@ -15,6 +15,8 @@ from mkosi.run import excepthook
 
 @contextlib.contextmanager
 def propagate_failed_return() -> Iterator[None]:
+    sys.excepthook = excepthook
+
     try:
         yield
     except SystemExit as e:
@@ -58,5 +60,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    sys.excepthook = excepthook
     main()
