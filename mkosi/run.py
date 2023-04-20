@@ -238,7 +238,7 @@ def run(
         die(f"{cmdline[0]} not found in PATH.", e)
     except subprocess.CalledProcessError as e:
         if log:
-            die(f"\"{shlex.join(str(s) for s in cmdline)}\" returned non-zero exit code {e.returncode}.", e)
+            die(f'"{shlex.join(str(s) for s in cmdline)}" returned non-zero exit code {e.returncode}.', e)
         raise e
 
 
@@ -262,7 +262,7 @@ def spawn(
     except FileNotFoundError:
         die(f"{cmdline[0]} not found in PATH.")
     except subprocess.CalledProcessError as e:
-        die(f"\"{shlex.join(str(s) for s in cmdline)}\" returned non-zero exit code {e.returncode}.", e)
+        die(f'"{shlex.join(str(s) for s in cmdline)}" returned non-zero exit code {e.returncode}.', e)
 
 
 def run_with_apivfs(
@@ -312,7 +312,7 @@ def run_with_apivfs(
     except subprocess.CalledProcessError as e:
         if "run" in ARG_DEBUG:
             run([*cmdline, template.format("sh")], check=False, env=env, log=False)
-        die(f"\"{shlex.join(str(s) for s in cmd)}\" returned non-zero exit code {e.returncode}.")
+        die(f'"{shlex.join(str(s) for s in cmd)}" returned non-zero exit code {e.returncode}.')
 
 
 def run_workspace_command(
@@ -370,7 +370,7 @@ def run_workspace_command(
     except subprocess.CalledProcessError as e:
         if "run" in ARG_DEBUG:
             run([*cmdline, template.format("sh")], check=False, env=env, log=False)
-        die(f"\"{shlex.join(str(s) for s in cmd)}\" returned non-zero exit code {e.returncode}.")
+        die(f'"{shlex.join(str(s) for s in cmd)}" returned non-zero exit code {e.returncode}.')
     finally:
         if state.workspace.joinpath("resolv.conf").is_symlink():
             resolve.unlink(missing_ok=True)
