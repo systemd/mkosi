@@ -2,7 +2,6 @@
 
 import ast
 import contextlib
-import dataclasses
 import enum
 import functools
 import getpass
@@ -221,49 +220,36 @@ def flatten(lists: Iterable[Iterable[T]]) -> list[T]:
     return list(itertools.chain.from_iterable(lists))
 
 
-@dataclasses.dataclass
 class InvokingUser:
-    _pw: Optional[pwd.struct_passwd] = None
+    @staticmethod
+    def _uid_from_env() -> Optional[str]:
+        return os.getenv("SUDO_UID") or os.getenv("PKEXEC_UID")
 
     @classmethod
-    def for_uid(cls, uid: int) -> "InvokingUser":
-        return cls(pwd.getpwuid(uid))
+    def uid(cls) -> int:
+        return int(cls._uid_from_env() or os.getuid())
 
-    @property
-    def uid(self) -> int:
-        if self._pw is not None:
-            return self._pw.pw_uid
-        return os.getuid()
+    @classmethod
+    def uid_gid(cls) -> tuple[int, int]:
+        if uid := cls._uid_from_env:
+            gid = int(os.getenv("SUDO_GID") or pwd.getpwuid(uid).pw_gid)
+            return uid, gid
+        return os.getuid(), os.getgid()
 
-    @property
-    def gid(self) -> int:
-        if self._pw is not None:
-            return self._pw.pw_gid
-        return os.getgid()
-
-    @property
-    def name(self) -> str:
-        if self._pw is not None:
-            return self._pw.pw_name
+    @classmethod
+    def name(cls) -> str:
+        if uid := cls._uid_from_env():
+            return pwd.getpwuid(uid).pw_name
         return getpass.getuser()
 
-    @property
-    def home(self) -> Path:
-        if self._pw is not None:
-            return Path(self._pw.pw_dir)
-        return Path.home()
+    @classmethod
+    def home(cls) -> Path:
+        home = os.getenv("SUDO_HOME") or os.getenv("HOME") or pwd.getpwuid(cls.uid()).pw_dir
+        return Path(home)
 
-    def is_running_user(self) -> bool:
-        if self._pw is not None:
-            return self._pw.pw_uid == os.getuid()
-        return True
-
-
-def current_user() -> InvokingUser:
-    uid = os.getenv("SUDO_UID") or os.getenv("PKEXEC_UID")
-    if uid:
-        return InvokingUser.for_uid(int(uid))
-    return InvokingUser()
+    @classmethod
+    def is_running_user(cls) -> bool:
+        return cls.uid() == os.getuid()
 
 
 @contextlib.contextmanager

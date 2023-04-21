@@ -23,11 +23,11 @@ from mkosi.run import run
 from mkosi.util import (
     Compression,
     Distribution,
+    InvokingUser,
     ManifestFormat,
     OutputFormat,
     Verb,
     chdir,
-    current_user,
     detect_distribution,
     flatten,
     is_apt_distribution,
@@ -64,11 +64,9 @@ def parse_path(value: str, *, required: bool, absolute: bool = True, expanduser:
     path = Path(value)
 
     if expanduser:
-        user = current_user()
-        if path.is_relative_to("~") and not user.is_running_user():
-            path = user.home / path.relative_to("~")
-        else:
-            path = path.expanduser()
+        if path.is_relative_to("~") and not InvokingUser.is_running_user():
+            path = InvokingUser.home() / path.relative_to("~")
+        path = path.expanduser()
 
     if required and not path.exists():
         die(f"{value} does not exist")

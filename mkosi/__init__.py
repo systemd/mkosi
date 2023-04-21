@@ -44,10 +44,10 @@ from mkosi.types import PathString
 from mkosi.util import (
     Compression,
     Distribution,
+    InvokingUser,
     ManifestFormat,
     OutputFormat,
     Verb,
-    current_user,
     flatten,
     format_rlimit,
     patch_file,
@@ -1722,7 +1722,7 @@ def run_shell(config: MkosiConfig) -> None:
         cmdline += ["--"]
         cmdline += config.cmdline
 
-    uid = current_user().uid
+    uid = InvokingUser.uid()
 
     if config.output_format == OutputFormat.directory:
         acl_toggle_remove(config, config.output, uid, allow=False)
@@ -2065,7 +2065,7 @@ def bump_image_version(config: MkosiConfig) -> None:
 
 
 def expand_specifier(s: str) -> str:
-    return s.replace("%u", current_user().name)
+    return s.replace("%u", InvokingUser.name())
 
 
 def needs_build(config: Union[argparse.Namespace, MkosiConfig]) -> bool:
