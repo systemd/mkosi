@@ -5,8 +5,9 @@ from textwrap import dedent
 
 from mkosi.distributions import DistributionInstaller
 from mkosi.run import bwrap
+from mkosi.state import MkosiState
 from mkosi.types import PathString
-from mkosi.util import MkosiState, sort_packages
+from mkosi.util import sort_packages
 
 
 class ArchInstaller(DistributionInstaller):

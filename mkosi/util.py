@@ -7,7 +7,6 @@ import dataclasses
 import enum
 import functools
 import getpass
-import importlib
 import itertools
 import os
 import platform
@@ -21,7 +20,6 @@ from collections.abc import Iterable, Iterator, Sequence
 from pathlib import Path
 from typing import Any, Callable, Optional, TypeVar, Union
 
-from mkosi.distributions import DistributionInstaller
 from mkosi.log import die
 
 T = TypeVar("T")
@@ -352,63 +350,6 @@ class MkosiConfig:
 def build_auxiliary_output_path(args: Union[argparse.Namespace, MkosiConfig], suffix: str) -> Path:
     output = strip_suffixes(args.output)
     return output.with_name(f"{output.name}{suffix}")
-
-
-@dataclasses.dataclass
-class MkosiState:
-    """State related properties."""
-
-    uid: int
-    gid: int
-    config: MkosiConfig
-    workspace: Path
-    cache: Path
-    for_cache: bool
-    environment: dict[str, str] = dataclasses.field(init=False)
-    installer: DistributionInstaller = dataclasses.field(init=False)
-
-    def __post_init__(self) -> None:
-        self.environment = self.config.environment.copy()
-        if self.config.image_id is not None:
-            self.environment['IMAGE_ID'] = self.config.image_id
-        if self.config.image_version is not None:
-            self.environment['IMAGE_VERSION'] = self.config.image_version
-        try:
-            distro = str(self.config.distribution)
-            mod = importlib.import_module(f"mkosi.distributions.{distro}")
-            installer = getattr(mod, f"{distro.title().replace('_','')}Installer")
-            instance = installer() if issubclass(installer, DistributionInstaller) else None
-        except (ImportError, AttributeError):
-            instance = None
-        if instance is None:
-            die("No installer for this distribution.")
-        self.installer = instance
-
-        self.root.mkdir(exist_ok=True, mode=0o755)
-        self.build_overlay.mkdir(exist_ok=True, mode=0o755)
-        self.workdir.mkdir(exist_ok=True)
-        self.var_tmp.mkdir(exist_ok=True)
-        self.staging.mkdir(exist_ok=True)
-
-    @property
-    def root(self) -> Path:
-        return self.workspace / "root"
-
-    @property
-    def build_overlay(self) -> Path:
-        return self.workspace / "build-overlay"
-
-    @property
-    def workdir(self) -> Path:
-        return self.workspace / "workdir"
-
-    @property
-    def var_tmp(self) -> Path:
-        return self.workspace / "var-tmp"
-
-    @property
-    def staging(self) -> Path:
-        return self.workspace / "staging"
 
 
 def format_rlimit(rlimit: int) -> str:

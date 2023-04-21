@@ -15,7 +15,8 @@ from mkosi.install import copy_path, flock
 from mkosi.log import ARG_DEBUG, complete_step, die, log_step
 from mkosi.remove import unlink_try_hard
 from mkosi.run import run_workspace_command
-from mkosi.util import MkosiState, safe_tar_extract
+from mkosi.state import MkosiState
+from mkosi.util import safe_tar_extract
 
 ARCHITECTURES = {
     "x86_64": ("amd64", "arch/x86/boot/bzImage"),

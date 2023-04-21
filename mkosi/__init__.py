@@ -39,13 +39,13 @@ from mkosi.run import (
     run_workspace_command,
     spawn,
 )
+from mkosi.state import MkosiState
 from mkosi.types import PathString
 from mkosi.util import (
     Compression,
     Distribution,
     ManifestFormat,
     MkosiConfig,
-    MkosiState,
     OutputFormat,
     Verb,
     current_user,

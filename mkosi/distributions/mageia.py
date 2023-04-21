@@ -5,7 +5,7 @@ from pathlib import Path
 
 from mkosi.distributions import DistributionInstaller
 from mkosi.distributions.fedora import Repo, invoke_dnf, setup_dnf
-from mkosi.util import MkosiState
+from mkosi.state import MkosiState
 
 
 class MageiaInstaller(DistributionInstaller):

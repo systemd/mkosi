@@ -13,7 +13,8 @@ from typing import Any, NamedTuple, Optional
 from mkosi.distributions import DistributionInstaller
 from mkosi.remove import unlink_try_hard
 from mkosi.run import bwrap
-from mkosi.util import Distribution, MkosiState, detect_distribution, sort_packages
+from mkosi.state import MkosiState
+from mkosi.util import Distribution, detect_distribution, sort_packages
 
 
 class FedoraInstaller(DistributionInstaller):

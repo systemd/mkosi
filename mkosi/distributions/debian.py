@@ -8,8 +8,8 @@ from textwrap import dedent
 
 from mkosi.distributions import DistributionInstaller
 from mkosi.run import bwrap, run
+from mkosi.state import MkosiState
 from mkosi.types import CompletedProcess, PathString
-from mkosi.util import MkosiState
 
 
 class DebianInstaller(DistributionInstaller):
