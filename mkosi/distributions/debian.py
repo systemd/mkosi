@@ -101,6 +101,12 @@ class DebianInstaller(DistributionInstaller):
                 run(["dpkg-deb", "--fsys-tarfile", deb], stdout=f)
                 run(["tar", "-C", state.root, "--keep-directory-symlink", "--extract", "--file", f.name])
 
+        # There is a bug in Debian stretch where libuuid1 (which is essential) unecessarily depends on passwd,
+        # which breaks the installation as passwd is then configured before base-passwd
+
+        if state.config.release == "stretch":
+            cls.install_packages(state, ["base-passwd"])
+
         # Finally, run apt to properly install packages in the chroot without having to worry that maintainer
         # scripts won't find basic tools that they depend on.
 
