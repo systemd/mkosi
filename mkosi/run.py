@@ -9,6 +9,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import traceback
 from pathlib import Path
 from types import TracebackType
@@ -16,7 +17,7 @@ from typing import Any, Callable, Mapping, Optional, Sequence, Type, TypeVar
 
 from mkosi.log import ARG_DEBUG, die
 from mkosi.types import _FILE, CompletedProcess, PathString, Popen
-from mkosi.util import MkosiState, current_user
+from mkosi.util import current_user
 
 CLONE_NEWNS = 0x00020000
 CLONE_NEWUSER = 0x10000000
@@ -219,9 +220,6 @@ def run(
         LANG="C.UTF-8",
     ) | env
 
-    if env["PATH"] == "":
-        del env["PATH"]
-
     if "run" in ARG_DEBUG:
         env["SYSTEMD_LOG_LEVEL"] = "debug"
 
@@ -270,10 +268,10 @@ def spawn(
         die(f'"{shlex.join(str(s) for s in cmdline)}" returned non-zero exit code {e.returncode}.', e)
 
 
-def run_with_apivfs(
-    state: MkosiState,
+def bwrap(
     cmd: Sequence[PathString],
-    bwrap_params: Sequence[PathString] = tuple(),
+    *,
+    apivfs: Optional[Path] = None,
     stdout: _FILE = None,
     env: Mapping[str, PathString] = {},
 ) -> CompletedProcess:
@@ -283,45 +281,41 @@ def run_with_apivfs(
         "--unshare-pid",
         "--dev-bind", "/", "/",
         "--chdir", Path.cwd(),
-        "--tmpfs", state.root / "run",
-        "--tmpfs", state.root / "tmp",
-        "--proc", state.root / "proc",
-        "--dev", state.root / "dev",
-        "--ro-bind", "/sys", state.root / "sys",
-        "--bind", state.var_tmp, state.root / "var/tmp",
         "--die-with-parent",
     ]
 
-    # If passwd or a related file exists in the root directory, bind mount it over the host files while we
-    # run the command, to make sure that the command we run uses user/group information from the root instead
-    # of from the host. If the file doesn't exist yet, mount over /dev/null instead.
-    for f in ("passwd", "group", "shadow", "gshadow"):
-        p = state.root / "etc" / f
-        if p.exists():
-            cmdline += ["--bind", p, f"/etc/{f}"]
-        else:
-            cmdline += ["--bind", "/dev/null", f"/etc/{f}"]
+    if apivfs:
+        cmdline += [
+            "--tmpfs", apivfs / "run",
+            "--proc", apivfs / "proc",
+            "--dev", apivfs / "dev",
+            "--ro-bind", "/sys", apivfs / "sys",
+            "--bind", "/tmp", apivfs / "tmp",
+            "--bind", "/var/tmp", apivfs / "var/tmp",
+            "--bind", "/dev/shm", apivfs / "dev/shm",
+        ]
 
-    cmdline += [
-        *bwrap_params,
-        "sh", "-c",
-    ]
-
-    env = env | state.environment
-
-    template = f"chmod 1777 {state.root / 'tmp'} {state.root / 'var/tmp'} {state.root / 'dev/shm'} && exec {{}} || exit $?"
+        # If passwd or a related file exists in the apivfs directory, bind mount it over the host files while
+        # we run the command, to make sure that the command we run uses user/group information from the
+        # apivfs directory instead of from the host. If the file doesn't exist yet, mount over /dev/null
+        # instead.
+        for f in ("passwd", "group", "shadow", "gshadow"):
+            p = apivfs / "etc" / f
+            if p.exists():
+                cmdline += ["--bind", p, f"/etc/{f}"]
+            else:
+                cmdline += ["--bind", "/dev/null", f"/etc/{f}"]
 
     try:
-        return run([*cmdline, template.format(shlex.join(str(s) for s in cmd))],
-                   text=True, stdout=stdout, env=env, log=False)
+        return run([*cmdline, *cmd], text=True, stdout=stdout, env=env, log=False)
     except subprocess.CalledProcessError as e:
         if "run" in ARG_DEBUG:
-            run([*cmdline, template.format("sh")], check=False, env=env, log=False)
+            run([*cmdline, "sh"], stdin=sys.stdin, check=False, env=env, log=False)
         die(f'"{shlex.join(str(s) for s in cmd)}" returned non-zero exit code {e.returncode}.')
 
 
 def run_workspace_command(
-    state: MkosiState,
+    root: Path,
     cmd: Sequence[PathString],
     bwrap_params: Sequence[PathString] = tuple(),
     network: bool = False,
@@ -333,50 +327,47 @@ def run_workspace_command(
         "--unshare-ipc",
         "--unshare-pid",
         "--unshare-cgroup",
-        "--bind", state.root, "/",
+        "--bind", root, "/",
         "--tmpfs", "/run",
-        "--tmpfs", "/tmp",
         "--dev", "/dev",
         "--proc", "/proc",
         "--ro-bind", "/sys", "/sys",
-        "--bind", state.var_tmp, "/var/tmp",
+        "--bind", "/tmp", "/tmp",
+        "--bind", "/var/tmp", "/var/tmp",
+        "--bind", "/dev/shm", "/dev/shm",
         "--die-with-parent",
         *bwrap_params,
     ]
 
-    resolve = state.root.joinpath("etc/resolv.conf")
+    resolve = root.joinpath("etc/resolv.conf")
+
+    tmp = Path(tempfile.NamedTemporaryFile(delete=False).name)
 
     if network:
         # Bubblewrap does not mount over symlinks and /etc/resolv.conf might be a symlink. Deal with this by
         # temporarily moving the file somewhere else.
         if resolve.is_symlink():
-            shutil.move(resolve, state.workspace / "resolv.conf")
+            shutil.move(resolve, tmp)
 
         # If we're using the host network namespace, use the same resolver
         cmdline += ["--ro-bind", "/etc/resolv.conf", "/etc/resolv.conf"]
     else:
         cmdline += ["--unshare-net"]
 
-    cmdline += ["sh", "-c"]
-
     env = dict(
         container="mkosi",
         SYSTEMD_OFFLINE=str(int(network)),
         HOME="/",
-        # Make sure the default PATH of the distro shell is used.
-        PATH="",
-    ) | env | state.environment
-
-    template = "chmod 1777 /tmp /var/tmp /dev/shm && PATH=$PATH:/usr/bin:/usr/sbin exec {} || exit $?"
+        PATH="/usr/bin:/usr/sbin",
+    ) | env
 
     try:
-        return run([*cmdline, template.format(shlex.join(str(s) for s in cmd))],
-                   text=True, stdout=stdout, env=env, log=False)
+        return run([*cmdline, *cmd], text=True, stdout=stdout, env=env, log=False)
     except subprocess.CalledProcessError as e:
         if "run" in ARG_DEBUG:
-            run([*cmdline, template.format("sh")], check=False, env=env, log=False)
+            run([*cmdline, "sh"], stdin=sys.stdin, check=False, env=env, log=False)
         die(f'"{shlex.join(str(s) for s in cmd)}" returned non-zero exit code {e.returncode}.')
     finally:
-        if state.workspace.joinpath("resolv.conf").is_symlink():
+        if tmp.is_symlink():
             resolve.unlink(missing_ok=True)
-            shutil.move(state.workspace.joinpath("resolv.conf"), resolve)
+            shutil.move(tmp, resolve)

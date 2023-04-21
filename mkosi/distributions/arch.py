@@ -4,7 +4,7 @@ from collections.abc import Sequence
 from textwrap import dedent
 
 from mkosi.distributions import DistributionInstaller
-from mkosi.run import run_with_apivfs
+from mkosi.run import bwrap
 from mkosi.types import PathString
 from mkosi.util import MkosiState, sort_packages
 
@@ -96,4 +96,4 @@ def invoke_pacman(state: MkosiState, packages: Sequence[str]) -> None:
     if state.config.initrds:
         cmdline += ["--assume-installed", "initramfs"]
 
-    run_with_apivfs(state, cmdline, env=dict(KERNEL_INSTALL_BYPASS="1"))
+    bwrap(cmdline, apivfs=state.root, env=dict(KERNEL_INSTALL_BYPASS="1") | state.environment)

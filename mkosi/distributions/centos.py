@@ -76,14 +76,14 @@ class CentosInstaller(DistributionInstaller):
 
     @classmethod
     def install(cls, state: MkosiState) -> None:
-        cls.install_packages(state, ["setup"])
+        cls.install_packages(state, ["filesystem"], apivfs=False)
 
         # On Fedora, the default rpmdb has moved to /usr/lib/sysimage/rpm so if that's the case we need to
         # move it back to /var/lib/rpm on CentOS.
         move_rpm_db(state.root)
 
     @classmethod
-    def install_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
+    def install_packages(cls, state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
         release = int(state.config.release)
 
         if release <= 7:
@@ -100,7 +100,7 @@ class CentosInstaller(DistributionInstaller):
         else:
             env = {}
 
-        invoke_dnf(state, "install", packages, env)
+        invoke_dnf(state, "install", packages, env, apivfs=apivfs)
 
     @classmethod
     def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:

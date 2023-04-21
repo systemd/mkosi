@@ -426,21 +426,21 @@ def run_prepare_script(state: MkosiState, cached: bool, build: bool) -> None:
     if build:
         with complete_step("Running prepare script in build overlay…"), mount_build_overlay(state):
             run_workspace_command(
-                state,
+                state.root,
                 ["/root/prepare", "build"],
                 network=True,
                 bwrap_params=bwrap,
-                env=dict(SRCDIR="/root/src"),
+                env=dict(SRCDIR="/root/src") | state.environment,
             )
             clean()
     else:
         with complete_step("Running prepare script…"):
             run_workspace_command(
-                state,
+                state.root,
                 ["/root/prepare", "final"],
                 network=True,
                 bwrap_params=bwrap,
-                env=dict(SRCDIR="/root/src"),
+                env=dict(SRCDIR="/root/src") | state.environment,
             )
             clean()
 
@@ -456,8 +456,8 @@ def run_postinst_script(state: MkosiState) -> None:
             "--bind", state.config.postinst_script, "/root/postinst",
         ]
 
-        run_workspace_command(state, ["/root/postinst", "final"], bwrap_params=bwrap,
-                              network=state.config.with_network)
+        run_workspace_command(state.root, ["/root/postinst", "final"], bwrap_params=bwrap,
+                              network=state.config.with_network, env=state.environment)
 
         state.root.joinpath("root/postinst").unlink()
 
@@ -1606,7 +1606,8 @@ def run_kernel_install(state: MkosiState, cached: bool) -> None:
         not state.root.joinpath("usr/lib/kernel/install.d/50-dracut.install").exists() and
         not state.root.joinpath("etc/kernel/install.d/50-dracut.install").exists()):
         with complete_step("Running dpkg-reconfigure dracut…"):
-            run_workspace_command(state, ["dpkg-reconfigure", "dracut"], env=dict(hostonly_l="no"))
+            run_workspace_command(state.root, ["dpkg-reconfigure", "dracut"],
+                                  env=dict(hostonly_l="no") | state.environment)
             return
 
     with complete_step("Running kernel-install…"):
@@ -1617,7 +1618,7 @@ def run_kernel_install(state: MkosiState, cached: bool) -> None:
                 cmd.insert(1, "--verbose")
 
             # Make dracut think --no-host-only was passed via the CLI.
-            run_workspace_command(state, cmd, env=dict(hostonly_l="no"))
+            run_workspace_command(state.root, cmd, env=dict(hostonly_l="no") | state.environment)
 
             if machine_id and (p := state.root / "boot" / machine_id / kver / "initrd").exists():
                 shutil.move(p, state.root / state.installer.initrd_path(kver))
@@ -1661,7 +1662,7 @@ def run_selinux_relabel(state: MkosiState) -> None:
     cmd = f"mkdir /tmp/relabel && mount --bind / /tmp/relabel && exec setfiles -m -r /tmp/relabel -F {fc} /tmp/relabel || exit $?"
 
     with complete_step(f"Relabeling files using {policy} policy"):
-        run_workspace_command(state, ["sh", "-c", cmd])
+        run_workspace_command(state.root, ["sh", "-c", cmd], env=state.environment)
 
 
 def reuse_cache_tree(state: MkosiState) -> bool:
@@ -1866,8 +1867,8 @@ def run_build_script(state: MkosiState) -> None:
 
         # build-script output goes to stdout so we can run language servers from within mkosi
         # build-scripts. See https://github.com/systemd/mkosi/pull/566 for more information.
-        run_workspace_command(state, cmd, network=state.config.with_network, bwrap_params=bwrap,
-                              stdout=sys.stdout, env=env)
+        run_workspace_command(state.root, cmd, network=state.config.with_network, bwrap_params=bwrap,
+                              stdout=sys.stdout, env=env | state.environment)
 
 
 def need_cache_tree(state: MkosiState) -> bool:
