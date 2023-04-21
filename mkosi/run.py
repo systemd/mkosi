@@ -14,9 +14,9 @@ from pathlib import Path
 from types import TracebackType
 from typing import Any, Callable, Mapping, Optional, Sequence, Type, TypeVar
 
-from mkosi.backend import MkosiState, current_user
 from mkosi.log import ARG_DEBUG, die
 from mkosi.types import _FILE, CompletedProcess, PathString, Popen
+from mkosi.util import MkosiState, current_user
 
 CLONE_NEWNS = 0x00020000
 CLONE_NEWUSER = 0x10000000

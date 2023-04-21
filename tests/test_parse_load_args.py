@@ -10,7 +10,7 @@ from typing import Iterator, List, Optional
 import pytest
 
 import mkosi
-from mkosi.backend import Compression, Distribution, MkosiConfig, Verb
+from mkosi.util import Compression, Distribution, MkosiConfig, Verb
 from mkosi.config import MkosiConfigParser
 
 

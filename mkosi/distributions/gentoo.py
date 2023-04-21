@@ -10,12 +10,12 @@ from collections.abc import Sequence
 from pathlib import Path
 from textwrap import dedent
 
-from mkosi.backend import MkosiState, safe_tar_extract
 from mkosi.distributions import DistributionInstaller
 from mkosi.install import copy_path, flock
 from mkosi.log import ARG_DEBUG, complete_step, die, log_step
 from mkosi.remove import unlink_try_hard
 from mkosi.run import run_workspace_command
+from mkosi.util import MkosiState, safe_tar_extract
 
 ARCHITECTURES = {
     "x86_64": ("amd64", "arch/x86/boot/bzImage"),

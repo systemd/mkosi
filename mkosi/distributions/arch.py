@@ -3,10 +3,10 @@
 from collections.abc import Sequence
 from textwrap import dedent
 
-from mkosi.backend import MkosiState, sort_packages
 from mkosi.distributions import DistributionInstaller
 from mkosi.run import run_with_apivfs
 from mkosi.types import PathString
+from mkosi.util import MkosiState, sort_packages
 
 
 class ArchInstaller(DistributionInstaller):

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
-from mkosi.backend import MkosiState
 from mkosi.distributions.debian import DebianInstaller
+from mkosi.util import MkosiState
 
 
 class UbuntuInstaller(DebianInstaller):

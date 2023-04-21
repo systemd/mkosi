@@ -25,22 +25,6 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Callable, ContextManager, Optional, TextIO, TypeVar, Union, cast
 
-from mkosi.backend import (
-    Compression,
-    Distribution,
-    ManifestFormat,
-    MkosiConfig,
-    MkosiState,
-    OutputFormat,
-    Verb,
-    current_user,
-    flatten,
-    format_rlimit,
-    is_dnf_distribution,
-    patch_file,
-    set_umask,
-    tmp_dir,
-)
 from mkosi.install import add_dropin_config_from_resource, copy_path, flock
 from mkosi.log import ARG_DEBUG, Style, color_error, complete_step, die, log_step
 from mkosi.manifest import GenericVersion, Manifest
@@ -56,6 +40,22 @@ from mkosi.run import (
     spawn,
 )
 from mkosi.types import PathString
+from mkosi.util import (
+    Compression,
+    Distribution,
+    ManifestFormat,
+    MkosiConfig,
+    MkosiState,
+    OutputFormat,
+    Verb,
+    current_user,
+    flatten,
+    format_rlimit,
+    is_dnf_distribution,
+    patch_file,
+    set_umask,
+    tmp_dir,
+)
 
 MKOSI_COMMANDS_NEED_BUILD = (Verb.shell, Verb.boot, Verb.qemu, Verb.serve)
 MKOSI_COMMANDS_SUDO = (Verb.shell, Verb.boot)

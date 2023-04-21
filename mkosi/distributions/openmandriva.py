@@ -3,9 +3,9 @@
 from collections.abc import Sequence
 from pathlib import Path
 
-from mkosi.backend import MkosiState
 from mkosi.distributions import DistributionInstaller
 from mkosi.distributions.fedora import Repo, invoke_dnf, setup_dnf
+from mkosi.util import MkosiState
 
 
 class OpenmandrivaInstaller(DistributionInstaller):

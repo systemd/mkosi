@@ -9,10 +9,10 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Any, NamedTuple, Optional
 
-from mkosi.backend import Distribution, MkosiState, detect_distribution, sort_packages
 from mkosi.distributions import DistributionInstaller
 from mkosi.remove import unlink_try_hard
 from mkosi.run import run_with_apivfs
+from mkosi.util import Distribution, MkosiState, detect_distribution, sort_packages
 
 
 class FedoraInstaller(DistributionInstaller):

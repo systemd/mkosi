@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from mkosi.backend import (
+from mkosi.util import (
     Distribution,
     PackageType,
     safe_tar_extract,

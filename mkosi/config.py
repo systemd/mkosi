@@ -13,7 +13,9 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, Callable, Optional, Type, Union, cast
 
-from mkosi.backend import (
+from mkosi.log import Style, die
+from mkosi.pager import page
+from mkosi.util import (
     Compression,
     Distribution,
     ManifestFormat,
@@ -24,8 +26,6 @@ from mkosi.backend import (
     detect_distribution,
     flatten,
 )
-from mkosi.log import Style, die
-from mkosi.pager import page
 
 __version__ = "14"
 
