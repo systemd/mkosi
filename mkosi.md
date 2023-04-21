@@ -798,6 +798,11 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   files. This option may be used multiple times in which case the initrd lists
   are combined.
 
+`MakeInitrd=`, `--make-initrd`
+
+: Add `/etc/initrd-release` and `/init` to the image so that it can be
+  used as an initramfs.
+
 ### [Validation] Section
 
 `Checksum=`, `--checksum`
