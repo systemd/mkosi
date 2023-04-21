@@ -4,9 +4,9 @@ import dataclasses
 import importlib
 from pathlib import Path
 
+from mkosi.config import MkosiConfig
 from mkosi.distributions import DistributionInstaller
 from mkosi.log import die
-from mkosi.util import MkosiConfig
 
 
 @dataclasses.dataclass

@@ -9,9 +9,8 @@ from typing import Iterator, List, Optional
 
 import pytest
 
-import mkosi
-from mkosi.util import Compression, Distribution, MkosiConfig, Verb
-from mkosi.config import MkosiConfigParser
+from mkosi.util import Compression, Distribution, Verb
+from mkosi.config import MkosiConfigParser, MkosiConfig, load_args
 
 
 @contextmanager
@@ -27,7 +26,7 @@ def cd_temp_dir() -> Iterator[None]:
 
 
 def parse(argv: Optional[List[str]] = None) -> MkosiConfig:
-    return mkosi.load_args(MkosiConfigParser().parse(argv))
+    return load_args(MkosiConfigParser().parse(argv))
 
 
 def test_parse_load_verb() -> None:

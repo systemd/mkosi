@@ -5,12 +5,13 @@ import shutil
 from collections.abc import Sequence
 from pathlib import Path
 
+from mkosi.config import MkosiConfig
 from mkosi.distributions import DistributionInstaller
 from mkosi.distributions.fedora import Repo, invoke_dnf, setup_dnf
 from mkosi.log import complete_step, die
 from mkosi.remove import unlink_try_hard
 from mkosi.state import MkosiState
-from mkosi.util import Distribution, MkosiConfig
+from mkosi.util import Distribution
 
 
 def move_rpm_db(root: Path) -> None:
