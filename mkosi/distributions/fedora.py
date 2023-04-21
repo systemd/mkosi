@@ -10,7 +10,7 @@ from typing import Any, NamedTuple, Optional
 
 from mkosi.backend import Distribution, MkosiState, detect_distribution, sort_packages
 from mkosi.distributions import DistributionInstaller
-from mkosi.log import MkosiPrinter, warn
+from mkosi.log import log_info, log_warning
 from mkosi.remove import unlink_try_hard
 from mkosi.run import run_with_apivfs
 
@@ -69,7 +69,7 @@ class FedoraInstaller(DistributionInstaller):
 def parse_fedora_release(release: str) -> tuple[str, str]:
     if release.startswith("rawhide-"):
         release, releasever = release.split("-")
-        MkosiPrinter.info(f"Fedora rawhide — release version: {releasever}")
+        log_info(f"Fedora rawhide — release version: {releasever}")
         return ("rawhide", releasever)
     else:
         return (release, release)
@@ -105,7 +105,7 @@ def setup_dnf(state: MkosiState, repos: Sequence[Repo] = ()) -> None:
             elif repo.gpgurl:
                 gpgkey = repo.gpgurl
             else:
-                warn(f"GPG key not found at {repo.gpgpath}. Not checking GPG signatures.")
+                log_warning(f"GPG key not found at {repo.gpgpath}. Not checking GPG signatures.")
                 gpgcheck = False
 
             f.write(

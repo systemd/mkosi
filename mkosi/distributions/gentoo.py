@@ -12,7 +12,7 @@ from textwrap import dedent
 from mkosi.backend import MkosiState, safe_tar_extract
 from mkosi.distributions import DistributionInstaller
 from mkosi.install import copy_path, flock
-from mkosi.log import ARG_DEBUG, MkosiPrinter, complete_step, die
+from mkosi.log import ARG_DEBUG, complete_step, die, log_info, log_step, log_warning
 from mkosi.remove import unlink_try_hard
 from mkosi.run import run_workspace_command
 
@@ -137,8 +137,8 @@ class Gentoo:
                 USER_CONFIG_PATH,
             )
         except ImportError as e:
-            MkosiPrinter.warn(NEED_PORTAGE_MSG)
-            MkosiPrinter.info(PORTAGE_INSTALL_INSTRUCTIONS)
+            log_warning(NEED_PORTAGE_MSG)
+            log_info(PORTAGE_INSTALL_INSTRUCTIONS)
             raise e
 
         return dict(profile_path=PROFILE_PATH,
@@ -225,7 +225,7 @@ class Gentoo:
         stage3_tar_path = self.state.cache / stage3_tar
         stage3_tmp_extract = stage3_tar_path.with_name(stage3_tar.name + ".tmp")
         if not stage3_tar_path.is_file():
-            MkosiPrinter.print_step(f"Fetching {stage3_url_path}")
+            log_step(f"Fetching {stage3_url_path}")
             stage3_tar_path.parent.mkdir(parents=True, exist_ok=True)
             urllib.request.urlretrieve(stage3_url_path, stage3_tar_path)
 
@@ -234,8 +234,7 @@ class Gentoo:
         with flock(stage3_tmp_extract):
             if not stage3_tmp_extract.joinpath(".cache_isclean").exists():
                 with tarfile.open(stage3_tar_path) as tfd:
-                    MkosiPrinter.print_step(f"Extracting {stage3_tar.name} to "
-                                            f"{stage3_tmp_extract}")
+                    log_step(f"Extracting {stage3_tar.name} to {stage3_tmp_extract}")
                     safe_tar_extract(tfd, stage3_tmp_extract, numeric_owner=True)
 
                 unlink_try_hard(stage3_tmp_extract.joinpath("dev"))
@@ -244,7 +243,7 @@ class Gentoo:
 
                 stage3_tmp_extract.joinpath(".cache_isclean").touch()
 
-        MkosiPrinter.print_step(f"Copying {stage3_tmp_extract} to {self.root}")
+        log_step(f"Copying {stage3_tmp_extract} to {self.root}")
         copy_path(stage3_tmp_extract, self.root)
 
     def set_useflags(self) -> None:

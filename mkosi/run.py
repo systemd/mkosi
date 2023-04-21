@@ -14,7 +14,7 @@ from types import TracebackType
 from typing import Any, Callable, Mapping, Optional, Sequence, Type, TypeVar
 
 from mkosi.backend import MkosiState, current_user
-from mkosi.log import ARG_DEBUG, MkosiPrinter, die
+from mkosi.log import ARG_DEBUG, die, log_info
 from mkosi.types import _FILE, CompletedProcess, PathString, Popen
 
 CLONE_NEWNS = 0x00020000
@@ -202,7 +202,7 @@ def run(
     **kwargs: Any,
 ) -> CompletedProcess:
     if "run" in ARG_DEBUG:
-        MkosiPrinter.info(f"+ {shlex.join(str(s) for s in cmdline)}")
+        log_info(f"+ {shlex.join(str(s) for s in cmdline)}")
 
     cmdline = [os.fspath(x) for x in cmdline]
 
@@ -253,7 +253,7 @@ def spawn(
     **kwargs: Any,
 ) -> Popen:
     if "run" in ARG_DEBUG:
-        MkosiPrinter.info(f"+ {shlex.join(str(s) for s in cmdline)}")
+        log_info(f"+ {shlex.join(str(s) for s in cmdline)}")
 
     if not stdout and not stderr:
         # Unless explicit redirection is done, print all subprocess
