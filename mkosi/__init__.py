@@ -1801,6 +1801,10 @@ def run_build_script(state: MkosiState) -> None:
     if state.config.build_script is None or state.for_cache:
         return
 
+    # Make sure that if mkosi.installdir/ is used, any leftover files from a previous run are removed.
+    if state.config.install_dir:
+        empty_directory(state.config.install_dir)
+
     with complete_step("Running build script…"), mount_build_overlay(state, read_only=True):
         bwrap: list[PathString] = [
             "--bind", state.config.build_sources, "/work/src",
