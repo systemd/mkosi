@@ -106,13 +106,26 @@ def btrfs_subvol_create(path: Path, mode: int = 0o755) -> None:
 def mount_image(state: MkosiState) -> Iterator[None]:
     with complete_step("Mounting image…", "Unmounting image…"), contextlib.ExitStack() as stack:
 
-        if state.config.base_image is not None:
-            if state.config.base_image.is_dir():
-                base = state.config.base_image
-            else:
-                base = stack.enter_context(dissect_and_mount(state.config.base_image, state.workspace / "base"))
+        if state.config.base_trees and state.config.overlay:
+            bases = []
+            state.workspace.joinpath("bases").mkdir(exist_ok=True)
 
-            stack.enter_context(mount_overlay(base, state.root, state.workdir, state.root))
+            for path in state.config.base_trees:
+                d = Path(stack.enter_context(tempfile.TemporaryDirectory(dir=state.workspace / "base", prefix=path.name)))
+                d.rmdir() # We need the random name, but we want to create the directory ourselves
+
+                if path.is_dir():
+                    bases += [path]
+                elif path.suffix == ".tar":
+                    shutil.unpack_archive(path, d)
+                    bases += [d]
+                elif path.suffix == ".raw":
+                    stack.enter_context(dissect_and_mount(path, d))
+                    bases += [d]
+                else:
+                    die(f"Unsupported base tree source {path}")
+
+            stack.enter_context(mount_overlay(bases, state.root, state.workdir, state.root, read_only=False))
 
         yield
 
@@ -263,7 +276,7 @@ def install_distribution(state: MkosiState, cached: bool) -> None:
     if cached:
         return
 
-    if state.config.base_image:
+    if state.config.base_trees:
         if not state.config.packages:
             return
 
@@ -389,7 +402,7 @@ def configure_autologin(state: MkosiState) -> None:
 
 
 def mount_build_overlay(state: MkosiState, read_only: bool = False) -> ContextManager[Path]:
-    return mount_overlay(state.root, state.build_overlay, state.workdir, state.root, read_only)
+    return mount_overlay([state.root], state.build_overlay, state.workdir, state.root, read_only)
 
 
 def run_prepare_script(state: MkosiState, cached: bool, build: bool) -> None:
@@ -522,6 +535,28 @@ def install_boot_loader(state: MkosiState) -> None:
                      "--output", keys / f"{db}.auth",
                      db,
                      state.workspace / "mkosi.esl"])
+
+
+def install_base_trees(state: MkosiState, cached: bool) -> None:
+    if not state.config.base_trees or cached or state.config.overlay:
+        return
+
+    with complete_step("Copying in base trees…"):
+        for path in state.config.base_trees:
+
+            if path.is_dir():
+                copy_path(path, state.root)
+            elif path.suffix == ".tar":
+                shutil.unpack_archive(path, state.root)
+            elif path.suffix == ".raw":
+                run(["systemd-dissect", "--copy-from", path, "/", state.root])
+            else:
+                die(f"Unsupported base tree source {path}")
+
+            if path.is_dir():
+                copy_path(path, state.root)
+            else:
+                shutil.unpack_archive(path, state.root)
 
 
 def install_skeleton_trees(state: MkosiState, cached: bool) -> None:
@@ -1235,9 +1270,12 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
             if not p.is_file():
                 die(f"Initrd {p} is not a file")
 
+    if args.overlay and not args.base_trees:
+        die("--overlay can only be used with --base-tree")
+
     # For unprivileged builds we need the userxattr OverlayFS mount option, which is only available in Linux v5.11 and later.
     with prepend_to_environ_path(args.extra_search_paths):
-        if (args.build_script is not None or args.base_image is not None) and GenericVersion(platform.release()) < GenericVersion("5.11") and os.geteuid() != 0:
+        if (args.build_script is not None or args.base_trees) and GenericVersion(platform.release()) < GenericVersion("5.11") and os.geteuid() != 0:
             die("This unprivileged build configuration requires at least Linux v5.11")
 
     return MkosiConfig(**vars(args))
@@ -1287,7 +1325,8 @@ def check_script_input(path: Optional[Path]) -> None:
 
 def check_inputs(config: MkosiConfig) -> None:
     try:
-        check_tree_input(config.base_image)
+        for base in config.base_trees:
+            check_tree_input(base)
 
         for tree in (config.skeleton_trees,
                      config.extra_trees):
@@ -1745,11 +1784,9 @@ def invoke_repart(state: MkosiState, skip: Sequence[str] = [], split: bool = Fal
 
 
 def build_image(state: MkosiState, *, manifest: Optional[Manifest] = None) -> None:
-    cached = reuse_cache_tree(state)
-    if state.for_cache and cached:
-        return
-
     with mount_image(state):
+        cached = reuse_cache_tree(state)
+        install_base_trees(state, cached)
         install_skeleton_trees(state, cached)
         install_distribution(state, cached)
         run_prepare_script(state, cached, build=False)

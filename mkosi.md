@@ -500,6 +500,19 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   image root, so any `CopyFiles=` source paths in partition definition files will
   be relative to the image root directory.
 
+`Overlay=`, `--overlay`
+
+: When used together with `BaseTrees=`, the output will consist only out of
+  changes to the specified base trees. Each base tree is attached as a lower
+  layer in an overlayfs structure, and the output becomes the upper layer,
+  initially empty. Thus files that are not modified compared to the base trees
+  will not be present in the final output.
+
+: This option may be used to create systemd "system extensions" or
+  portable services. See
+  https://uapi-group.org/specifications/specs/extension_image for more
+  information.
+
 `TarStripSELinuxContext=`, `--tar-strip-selinux-context`
 
 : If running on a SELinux-enabled system (Fedora Linux, CentOS, Rocky Linux,
@@ -508,12 +521,6 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   attributes (`xattrs`), which may interfere with host SELinux rules
   in building or further container import stages.  This option strips
   SELinux context attributes from the resulting tar archive.
-
-`Initrd=`, `--initrd`
-
-: Use user-provided initrd(s). Takes a comma separated list of paths to initrd
-  files. This option may be used multiple times in which case the initrd lists
-  are combined.
 
 ### [Content] Section
 
@@ -576,7 +583,23 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   way is mounted into both the development and the final image while
   the package manager is running.
 
-`SkeletonTree=`, `--skeleton-tree=`
+`BaseTrees=`, `--base-tree=`
+
+: Takes a colon separated pair of directories to use as base images. When
+  used, these base images are each copied into the OS tree and form the
+  base distribution instead of installing the distribution from scratch.
+  Only extra packages are installed on top of the ones already installed
+  in the base images. Note that for this to work properly, the base image
+  still needs to contain the package manager metadata (see
+  `CleanPackageMetadata=`).
+
+: Instead of a directory, a tar file or a disk image may be provided. In
+  this case it is unpacked into the OS tree. This mode of operation allows
+  setting permissions and file ownership explicitly, in particular for projects
+  stored in a version control system such as `git` which retain full file
+  ownership and access mode metadata for committed files.
+
+`SkeletonTrees=`, `--skeleton-tree=`
 
 : Takes a colon separated pair of paths. The first path refers to a
   directory to copy into the OS tree before invoking the package
@@ -589,16 +612,11 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   for this purpose with the root directory as target (also see the
   "Files" section below).
 
-: Instead of a directory, a tar file may be provided. In this case
-  it is unpacked into the OS tree before the package manager is
-  invoked. This mode of operation allows setting permissions and file
-  ownership explicitly, in particular for projects stored in a version
-  control system such as `git` which retain full file ownership and
-  access mode metadata for committed files. If the tar file
-  `mkosi.skeleton.tar` is found in the local directory it will be
-  automatically used for this purpose.
+: As with the base tree logic above, instead of a directory, a tar
+  file may be provided too. `mkosi.skeleton.tar` will be automatically
+  used if found in the local directory.
 
-`ExtraTree=`, `--extra-tree=`
+`ExtraTrees=`, `--extra-tree=`
 
 : Takes a colon separated pair of paths. The first path refers to a
   directory to copy from the host into the image. The second path refers
@@ -610,8 +628,8 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   automatically used for this purpose with the root directory as target.
   (also see the "Files" section below).
 
-: As with the skeleton tree logic above, instead of a directory, a tar
-  file may be provided too. `mkosi.skeleton.tar` will be automatically
+: As with the base tree logic above, instead of a directory, a tar
+  file may be provided too. `mkosi.extra.tar` will be automatically
   used if found in the local directory.
 
 `CleanPackageMetadata=`, `--clean-package-metadata=`
@@ -774,19 +792,11 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   an `mkosi.nspawn` file found in the local directory it is
   automatically used for this purpose.
 
-`BaseImage=`, `--base-image=`
+`Initrd=`, `--initrd`
 
-: Use the specified directory or file system image as the base image,
-  and create the output image that consists only of changes from this
-  base. The base image is attached as the lower file system in an
-  overlayfs structure, and the output filesystem becomes the upper
-  layer, initially empty. Thus files that are not modified compared to
-  the base image are not present in the output image.
-
-: This option may be used to create systemd "system extensions" or
-  portable services. See
-  https://systemd.io/PORTABLE_SERVICES/#extension-images for more
-  information.
+: Use user-provided initrd(s). Takes a comma separated list of paths to initrd
+  files. This option may be used multiple times in which case the initrd lists
+  are combined.
 
 ### [Validation] Section
 

@@ -135,7 +135,7 @@ class Manifest:
             # If we are creating a layer based on a BaseImage=, e.g. a sysext, filter by
             # packages that were installed in this execution of mkosi. We assume that the
             # upper layer is put together in one go, which currently is always true.
-            if self.config.base_image and installtime < self._init_timestamp:
+            if self.config.base_trees and installtime < self._init_timestamp:
                 continue
 
             package = PackageManifest("rpm", name, evr, arch, size)
@@ -186,7 +186,7 @@ class Manifest:
             # If we are creating a layer based on a BaseImage=, e.g. a sysext, filter by
             # packages that were installed in this execution of mkosi. We assume that the
             # upper layer is put together in one go, which currently is always true.
-            if self.config.base_image and installtime < self._init_timestamp:
+            if self.config.base_trees and installtime < self._init_timestamp:
                 continue
 
             package = PackageManifest("deb", name, version, arch, size)

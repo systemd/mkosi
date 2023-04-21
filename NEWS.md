@@ -79,6 +79,7 @@
 - Apt now uses the keyring from the host instead of the keyring from the image. This means
   `debian-archive-keyring` or `ubuntu-archive-keyring` are now required to be installed to build Debian or
   Ubuntu images respectively.
+- `--base-image` is split into `--base-tree` and `--overlay`.
 
 ## v14
 

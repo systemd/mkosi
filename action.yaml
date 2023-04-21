@@ -41,21 +41,26 @@ runs:
       sudo apt-get update
       sudo apt-get build-dep systemd
       sudo apt-get install libfdisk-dev
+
       git clone https://github.com/systemd/systemd --depth=1
       meson systemd/build systemd -Drepart=true -Defi=true -Dbootloader=true
-      ninja -C systemd/build systemd-nspawn systemd-repart bootctl ukify systemd-analyze systemd-nspawn systemctl
-      sudo ln -svf $PWD/systemd/build/systemd-repart /usr/bin/systemd-repart
-      sudo ln -svf $PWD/systemd/build/bootctl /usr/bin/bootctl
-      sudo ln -svf $PWD/systemd/build/ukify /usr/bin/ukify
-      sudo ln -svf $PWD/systemd/build/systemd-analyze /usr/bin/systemd-analyze
-      sudo ln -svf $PWD/systemd/build/systemd-nspawn /usr/bin/systemd-nspawn
-      sudo ln -svf $PWD/systemd/build/systemctl /usr/bin/systemctl
-      systemd-repart --version
-      bootctl --version
-      ukify --version
-      systemd-analyze --version
-      systemd-nspawn --version
-      systemctl --version
+
+      BINARIES=(
+        bootctl
+        systemctl
+        systemd-analyze
+        systemd-dissect
+        systemd-nspawn
+        systemd-nspawn
+        systemd-repart
+        ukify
+      )
+
+      ninja -C systemd/build ${BINARIES[@]}
+
+      for BINARY in "${BINARIES[@]}"; do
+        sudo ln -svf $PWD/systemd/build/$BINARY /usr/bin/$BINARY
+      done
 
   - name: Install
     shell: bash

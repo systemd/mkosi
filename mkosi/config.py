@@ -480,9 +480,9 @@ class MkosiConfigParser:
             paths=("mkosi.repart",),
         ),
         MkosiConfigSetting(
-            dest="initrds",
+            dest="overlay",
             section="Output",
-            parse=config_make_list_parser(delimiter=",", parse=make_path_parser(required=False)),
+            parse=config_parse_boolean,
         ),
         MkosiConfigSetting(
             dest="packages",
@@ -530,6 +530,11 @@ class MkosiConfigParser:
             section="Content",
             parse=config_make_path_parser(required=False),
             paths=("mkosi.cache",),
+        ),
+        MkosiConfigSetting(
+            dest="base_trees",
+            section="Content",
+            parse=config_make_list_parser(delimiter=",", parse=make_path_parser(required=True)),
         ),
         MkosiConfigSetting(
             dest="extra_trees",
@@ -626,9 +631,9 @@ class MkosiConfigParser:
             paths=("mkosi.nspawn",),
         ),
         MkosiConfigSetting(
-            dest="base_image",
+            dest="initrds",
             section="Content",
-            parse=config_make_path_parser(required=True),
+            parse=config_make_list_parser(delimiter=",", parse=make_path_parser(required=False)),
         ),
         MkosiConfigSetting(
             dest="checksum",
@@ -1041,10 +1046,10 @@ class MkosiConfigParser:
             action=action,
         )
         group.add_argument(
-            "--initrd",
-            help="Add a user-provided initrd to image",
-            metavar="PATH",
-            dest="initrds",
+            "--overlay",
+            metavar="BOOL",
+            help="Only output the additions on top of the given base trees",
+            nargs="?",
             action=action,
         )
 
@@ -1103,6 +1108,13 @@ class MkosiConfigParser:
             "--cache-dir",
             metavar="PATH",
             help="Package cache path",
+            action=action,
+        )
+        group.add_argument(
+            '--base-tree',
+            metavar='PATH',
+            help='Use the given tree as base tree (e.g. lower sysext layer)',
+            dest="base_trees",
             action=action,
         )
         group.add_argument(
@@ -1207,9 +1219,10 @@ class MkosiConfigParser:
             action=action,
         )
         group.add_argument(
-            '--base-image',
-            metavar='IMAGE',
-            help='Use the given image as base (e.g. lower sysext layer)',
+            "--initrd",
+            help="Add a user-provided initrd to image",
+            metavar="PATH",
+            dest="initrds",
             action=action,
         )
 
