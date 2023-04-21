@@ -11,6 +11,7 @@ import hashlib
 import http.server
 import itertools
 import json
+import logging
 import os
 import platform
 import resource
@@ -41,7 +42,7 @@ from mkosi.backend import (
     tmp_dir,
 )
 from mkosi.install import add_dropin_config_from_resource, copy_path, flock
-from mkosi.log import ARG_DEBUG, MkosiPrinter, die, warn
+from mkosi.log import ARG_DEBUG, Style, color_error, complete_step, die, log_step
 from mkosi.manifest import GenericVersion, Manifest
 from mkosi.mounts import dissect_and_mount, mount_overlay, scandir_recursive
 from mkosi.pager import page
@@ -55,9 +56,6 @@ from mkosi.run import (
     spawn,
 )
 from mkosi.types import PathString
-
-complete_step = MkosiPrinter.complete_step
-color_error = MkosiPrinter.color_error
 
 MKOSI_COMMANDS_NEED_BUILD = (Verb.shell, Verb.boot, Verb.qemu, Verb.serve)
 MKOSI_COMMANDS_SUDO = (Verb.shell, Verb.boot)
@@ -904,7 +902,7 @@ def acl_toggle_remove(config: MkosiConfig, root: Path, uid: int, *, allow: bool)
                                *(e.path for e in cast(Iterator[os.DirEntry[str]], scandir_recursive(root)) if e.is_dir())])
     )
     if ret.returncode != 0:
-        warn("Failed to set ACLs, you'll need root privileges to remove some generated files/directories")
+        logging.warning("Failed to set ACLs, you'll need root privileges to remove some generated files/directories")
 
 
 def save_cache(state: MkosiState) -> None:
@@ -954,12 +952,12 @@ def print_output_size(config: MkosiConfig) -> None:
         return
 
     if config.output_format in (OutputFormat.directory, OutputFormat.subvolume):
-        MkosiPrinter.print_step("Resulting image size is " + format_bytes(dir_size(config.output)) + ".")
+        log_step("Resulting image size is " + format_bytes(dir_size(config.output)) + ".")
     else:
         st = os.stat(config.output_compressed)
         size = format_bytes(st.st_size)
         space = format_bytes(st.st_blocks * 512)
-        MkosiPrinter.print_step(f"Resulting image size is {size}, consumes {space}.")
+        log_step(f"Resulting image size is {size}, consumes {space}.")
 
 
 def empty_directory(path: Path) -> None:
@@ -1037,7 +1035,7 @@ def unlink_output(config: MkosiConfig) -> None:
 def require_private_file(name: Path, description: str) -> None:
     mode = os.stat(name).st_mode & 0o777
     if mode & 0o007:
-        warn(dedent(f"""\
+        logging.warning(dedent(f"""\
             Permissions of '{name}' of '{mode:04o}' are too open.
             When creating {description} files use an access mode that restricts access to the owner only.
         """))
@@ -1205,7 +1203,7 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
         if "/" not in str(args.output):
             args.output = args.output_dir / args.output
         else:
-            warn("Ignoring configured output directory as output file is a qualified path.")
+            logging.warning("Ignoring configured output directory as output file is a qualified path.")
 
     args.output = args.output.absolute()
 
@@ -1404,8 +1402,8 @@ def line_join_source_target_list(array: Sequence[tuple[Path, Optional[Path]]]) -
 
 
 def print_summary(config: MkosiConfig) -> None:
-    b = MkosiPrinter.bold
-    e = MkosiPrinter.reset
+    b = Style.bold
+    e = Style.reset
     bold: Callable[..., str] = lambda s: f"{b}{s}{e}"
 
     maniformats = (" ".join(i.name for i in config.manifest_format)) or "(none)"
@@ -2067,8 +2065,8 @@ def find_qemu_firmware(config: MkosiConfig) -> tuple[Path, bool]:
 
     for firmware in FIRMWARE_LOCATIONS:
         if os.path.exists(firmware):
-            warn("Couldn't find OVMF firmware blob with secure boot support, "
-                 "falling back to OVMF firmware blobs without secure boot support.")
+            logging.warning("Couldn't find OVMF firmware blob with secure boot support, "
+                            "falling back to OVMF firmware blobs without secure boot support.")
             return Path(firmware), False
 
     # If we can't find an architecture specific path, fall back to some generic paths that might also work.
@@ -2095,8 +2093,8 @@ def find_qemu_firmware(config: MkosiConfig) -> tuple[Path, bool]:
 
     for firmware in FIRMWARE_LOCATIONS:
         if os.path.exists(firmware):
-            warn("Couldn't find OVMF firmware blob with secure boot support, "
-                 "falling back to OVMF firmware blobs without secure boot support.")
+            logging.warn("Couldn't find OVMF firmware blob with secure boot support, "
+                         "falling back to OVMF firmware blobs without secure boot support.")
             return Path(firmware), False
 
     die("Couldn't find OVMF UEFI firmware blob.")
@@ -2193,9 +2191,9 @@ def run_qemu(config: MkosiConfig) -> None:
         cmdline += ["-device", f"vhost-vsock-pci,guest-cid={machine_cid(config)}"]
     except OSError as e:
         if e.errno == errno.ENOENT:
-            warn("/dev/vhost-vsock not found. Not adding a vsock device to the virtual machine.")
+            logging.warning("/dev/vhost-vsock not found. Not adding a vsock device to the virtual machine.")
         elif e.errno in (errno.EPERM, errno.EACCES):
-            warn("Permission denied to access /dev/vhost-vsock. Not adding a vsock device to the virtual machine.")
+            logging.warning("Permission denied to access /dev/vhost-vsock. Not adding a vsock device to the virtual machine.")
 
     cmdline += ["-cpu", "max"]
 
@@ -2324,8 +2322,8 @@ def generate_secure_boot_key(config: MkosiConfig) -> None:
                 hint=("To generate new secure boot keys, "
                       f"first remove {config.secure_boot_key} {config.secure_boot_certificate}"))
 
-    MkosiPrinter.print_step(f"Generating secure boot keys rsa:{keylength} for CN {cn!r}.")
-    MkosiPrinter.info(
+    log_step(f"Generating secure boot keys rsa:{keylength} for CN {cn!r}.")
+    logging.info(
         dedent(
             f"""
             The keys will expire in {config.secure_boot_valid_days} days ({expiration_date:%A %d. %B %Y}).

@@ -1,90 +1,94 @@
 import contextlib
+import logging
+import os
 import sys
 from typing import Any, Iterator, NoReturn, Optional
 
 # This global should be initialized after parsing arguments
 ARG_DEBUG: set[str] = set()
+LEVEL = 0
 
 
-def die(
-        message: str,
+class Style:
+    bold = "\033[0;1;39m" if sys.stderr.isatty() else ""
+    gray = "\x1b[38;20m" if sys.stderr.isatty() else ""
+    red = "\033[31;1m" if sys.stderr.isatty() else ""
+    yellow = "\033[33;1m" if sys.stderr.isatty() else ""
+    reset = "\033[0m" if sys.stderr.isatty() else ""
+
+
+def die(message: str,
         exception: Optional[Exception] = None,
         *,
         hint: Optional[str] = None) -> NoReturn:
-    MkosiPrinter.error(f"Error: {message}")
+    logging.error(f"{message}")
     if hint:
-        MkosiPrinter.info(f"({hint})")
+        logging.info(f"({hint})")
     raise exception or RuntimeError(message)
 
 
-def warn(message: str) -> None:
-    MkosiPrinter.warn(f"Warning: {message}")
+def color_error(text: Any) -> str:
+    return f"{Style.red}{text}{Style.reset}"
 
 
-class MkosiPrinter:
-    out_file = sys.stderr
-    isatty = out_file.isatty()
-
-    bold = "\033[0;1;39m" if isatty else ""
-    red = "\033[31;1m" if isatty else ""
-    yellow = "\033[33;1m" if isatty else ""
-    reset = "\033[0m" if isatty else ""
-
-    prefix = "‣ "
-
-    level = 0
-
-    @classmethod
-    def _print(cls, text: str) -> None:
-        cls.out_file.write(text)
-
-    @classmethod
-    def color_error(cls, text: Any) -> str:
-        return f"{cls.red}{text}{cls.reset}"
-
-    @classmethod
-    def color_warning(cls, text: Any) -> str:
-        return f"{cls.yellow}{text}{cls.reset}"
-
-    @classmethod
-    def print_step(cls, text: str) -> None:
-        prefix = cls.prefix + " " * cls.level
-        if sys.exc_info()[0]:
-            # We are falling through exception handling blocks.
-            # De-emphasize this step here, so the user can tell more
-            # easily which step generated the exception. The exception
-            # or error will only be printed after we finish cleanup.
-            cls._print(f"{prefix}({text})\n")
-        else:
-            cls._print(f"{prefix}{cls.bold}{text}{cls.reset}\n")
-
-    @classmethod
-    def info(cls, text: str) -> None:
-        cls._print(text + "\n")
-
-    @classmethod
-    def warn(cls, text: str) -> None:
-        cls._print(f"{cls.prefix}{cls.color_warning(text)}\n")
-
-    @classmethod
-    def error(cls, text: str) -> None:
-        cls._print(f"{cls.prefix}{cls.color_error(text)}\n")
-
-    @classmethod
-    @contextlib.contextmanager
-    def complete_step(cls, text: str, text2: Optional[str] = None) -> Iterator[list[Any]]:
-        cls.print_step(text)
-
-        cls.level += 1
-        try:
-            args: list[Any] = []
-            yield args
-        finally:
-            cls.level -= 1
-            assert cls.level >= 0
-
-        if text2 is not None:
-            cls.print_step(text2.format(*args))
+def color_warning(text: Any) -> str:
+    return f"{Style.yellow}{text}{Style.reset}"
 
 
-complete_step = MkosiPrinter.complete_step
+def log_step(text: str) -> None:
+    prefix = " " * LEVEL
+
+    if sys.exc_info()[0]:
+        # We are falling through exception handling blocks.
+        # De-emphasize this step here, so the user can tell more
+        # easily which step generated the exception. The exception
+        # or error will only be printed after we finish cleanup.
+        logging.info(f"{prefix}({text})\n")
+    else:
+        logging.info(f"{prefix}{Style.bold}{text}{Style.reset}")
+
+
+@contextlib.contextmanager
+def complete_step(text: str, text2: Optional[str] = None) -> Iterator[list[Any]]:
+    global LEVEL
+
+    log_step(text)
+
+    LEVEL += 1
+    try:
+        args: list[Any] = []
+        yield args
+    finally:
+        LEVEL -= 1
+        assert LEVEL >= 0
+
+    if text2 is not None:
+        log_step(text2.format(*args))
+
+
+class MkosiFormatter(logging.Formatter):
+    def __init__(self, fmt: Optional[str] = None, *args: Any, **kwargs: Any) -> None:
+        fmt = fmt or "%(message)s"
+
+        self.formatters = {
+            logging.DEBUG:    logging.Formatter(f"‣ {Style.gray}{fmt}{Style.reset}"),
+            logging.INFO:     logging.Formatter(f"‣ {fmt}"),
+            logging.WARNING:  logging.Formatter(f"‣ {Style.yellow}{fmt}{Style.reset}"),
+            logging.ERROR:    logging.Formatter(f"‣ {Style.red}{fmt}{Style.reset}"),
+            logging.CRITICAL: logging.Formatter(f"‣ {Style.red}{Style.bold}{fmt}{Style.reset}"),
+        }
+
+        super().__init__(fmt, *args, **kwargs)
+
+    def format(self, record: logging.LogRecord) -> str:
+        return self.formatters[record.levelno].format(record)
+
+
+def log_setup() -> None:
+    handler = logging.StreamHandler(stream=sys.stderr)
+
+    level = logging.getLevelName(os.getenv("SYSTEMD_LOG_LEVEL", "info").upper())
+    handler.setFormatter(MkosiFormatter())
+
+    logging.getLogger().addHandler(handler)
+    logging.getLogger().setLevel(level)
