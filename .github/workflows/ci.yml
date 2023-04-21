@@ -174,7 +174,7 @@ jobs:
     - name: Build ${{ matrix.distro }} initrd
       if: matrix.prebuilt-initrd == 'yes'
       # Run the build in .github/workflows/ so we don't pick up any of the configuration files in .github/
-      run: python3 -m mkosi -d ${{ matrix.distro }} -t cpio -p systemd -p udev -p kmod -o $PWD/initrd build
+      run: python3 -m mkosi -d ${{ matrix.distro }} -t cpio -p systemd -p udev -p kmod --make-initrd -o $PWD/initrd build
       working-directory: ./.github/workflows
 
     - name: Configure ${{ matrix.distro }}/${{ matrix.format }}

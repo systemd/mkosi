@@ -277,6 +277,7 @@ class MkosiConfig:
     auto_bump: bool
     workspace_dir: Optional[Path]
     initrds: list[Path]
+    make_initrd: bool
     kernel_command_line_extra: list[str]
     acl: bool
     pager: bool

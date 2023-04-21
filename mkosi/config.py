@@ -666,6 +666,11 @@ class MkosiConfigParser:
             parse=config_make_list_parser(delimiter=",", parse=make_path_parser(required=False)),
         ),
         MkosiConfigSetting(
+            dest="make_initrd",
+            section="Content",
+            parse=config_parse_boolean,
+        ),
+        MkosiConfigSetting(
             dest="checksum",
             section="Validation",
             parse=config_parse_boolean,
@@ -1253,6 +1258,13 @@ class MkosiConfigParser:
             help="Add a user-provided initrd to image",
             metavar="PATH",
             dest="initrds",
+            action=action,
+        )
+        group.add_argument(
+            "--make-initrd",
+            help="Make sure the image can be used as an initramfs",
+            metavar="BOOL",
+            nargs="?",
             action=action,
         )
 

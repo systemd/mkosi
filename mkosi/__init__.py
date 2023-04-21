@@ -1567,7 +1567,7 @@ def configure_ssh(state: MkosiState) -> None:
 
 
 def configure_initrd(state: MkosiState) -> None:
-    if state.for_cache or not state.config.output_format == OutputFormat.cpio:
+    if state.for_cache or not state.config.make_initrd:
         return
 
     if not state.root.joinpath("init").exists():
