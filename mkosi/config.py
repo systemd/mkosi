@@ -23,7 +23,7 @@ from mkosi.backend import (
     detect_distribution,
     flatten,
 )
-from mkosi.log import MkosiPrinter, die
+from mkosi.log import Style, die
 from mkosi.pager import page
 
 __version__ = "14"
@@ -834,7 +834,7 @@ class MkosiConfigParser:
                     mkosi [options...] {b}help{e}
                     mkosi -h | --help
                     mkosi --version
-            """).format(b=MkosiPrinter.bold, e=MkosiPrinter.reset),
+            """).format(b=Style.bold, e=Style.reset),
             add_help=False,
             allow_abbrev=False,
             argument_default=argparse.SUPPRESS,
