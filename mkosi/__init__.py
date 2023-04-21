@@ -15,7 +15,6 @@ import os
 import platform
 import resource
 import shutil
-import string
 import subprocess
 import sys
 import tempfile
@@ -33,7 +32,7 @@ from mkosi.backend import (
     MkosiState,
     OutputFormat,
     Verb,
-    current_user_uid_gid,
+    current_user,
     flatten,
     format_rlimit,
     is_dnf_distribution,
@@ -1140,8 +1139,6 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
 
     find_image_version(args)
 
-    args.extra_search_paths = expand_paths(args.extra_search_paths)
-
     if args.cmdline and args.verb not in MKOSI_COMMANDS_CMDLINE:
         die(f"Parameters after verb are only accepted for {list_to_string(verb.name for verb in MKOSI_COMMANDS_CMDLINE)}.")
 
@@ -2022,7 +2019,7 @@ def run_shell(config: MkosiConfig) -> None:
         cmdline += ["--"]
         cmdline += config.cmdline
 
-    uid, _ = current_user_uid_gid()
+    uid = current_user().uid
 
     if config.output_format == OutputFormat.directory:
         acl_toggle_remove(config, config.output, uid, allow=False)
@@ -2376,30 +2373,6 @@ def bump_image_version(config: MkosiConfig) -> None:
     Path("mkosi.version").write_text(new_version + "\n")
 
 
-def expand_paths(paths: Sequence[str]) -> list[Path]:
-    if not paths:
-        return []
-
-    environ = os.environ.copy()
-    # Add a fake SUDO_HOME variable to allow non-root users specify
-    # paths in their home when using mkosi via sudo.
-    sudo_user = os.getenv("SUDO_USER")
-    if sudo_user and "SUDO_HOME" not in environ:
-        environ["SUDO_HOME"] = os.path.expanduser(f"~{sudo_user}")
-
-    # No os.path.expandvars because it treats unset variables as empty.
-    expanded = []
-    for path in paths:
-        if not sudo_user:
-            path = os.path.expanduser(path)
-        try:
-            expanded += [Path(string.Template(str(path)).substitute(environ))]
-        except KeyError:
-            # Skip path if it uses a variable not defined.
-            pass
-    return expanded
-
-
 @contextlib.contextmanager
 def prepend_to_environ_path(paths: Sequence[Path]) -> Iterator[None]:
     if not paths:
@@ -2422,9 +2395,7 @@ def prepend_to_environ_path(paths: Sequence[Path]) -> Iterator[None]:
 
 
 def expand_specifier(s: str) -> str:
-    user = os.getenv("SUDO_USER") or os.getenv("USER")
-    assert user is not None
-    return s.replace("%u", user)
+    return s.replace("%u", current_user().name)
 
 
 def needs_build(config: Union[argparse.Namespace, MkosiConfig]) -> bool:
@@ -2453,8 +2424,7 @@ def run_verb(config: MkosiConfig) -> None:
 
         if needs_build(config) or config.verb == Verb.clean:
             def target() -> None:
-                if os.getuid() != 0:
-                    become_root()
+                become_root()
                 unlink_output(config)
 
             fork_and_wait(target)
@@ -2462,7 +2432,7 @@ def run_verb(config: MkosiConfig) -> None:
         if needs_build(config):
             def target() -> None:
                 # Get the user UID/GID either on the host or in the user namespace running the build
-                uid, gid = become_root() if os.getuid() != 0 else current_user_uid_gid()
+                uid, gid = become_root()
                 init_mount_namespace()
                 build_stuff(uid, gid, config)
 

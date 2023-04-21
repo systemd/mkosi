@@ -3,7 +3,8 @@ import configparser
 import dataclasses
 import enum
 import fnmatch
-import os
+import functools
+import os.path
 import platform
 import sys
 import textwrap
@@ -18,6 +19,7 @@ from mkosi.backend import (
     OutputFormat,
     Verb,
     chdir,
+    current_user,
     detect_distribution,
     flatten,
 )
@@ -44,13 +46,38 @@ def parse_boolean(s: str) -> bool:
     die(f"Invalid boolean literal: {s!r}")
 
 
+def parse_path(value: str, *, required: bool, absolute: bool = True, expanduser: bool = True, expandvars: bool = True) -> Path:
+    if expandvars:
+        value = os.path.expandvars(value)
+
+    path = Path(value)
+
+    if expanduser:
+        user = current_user()
+        if path.is_relative_to("~") and not user.is_running_user():
+            path = user.home / path.relative_to("~")
+        else:
+            path = path.expanduser()
+
+    if required and not path.exists():
+        die(f"{value} does not exist")
+
+    if absolute:
+        path = path.absolute()
+
+    return path
+
+
 def parse_source_target_paths(value: str) -> tuple[Path, Optional[Path]]:
     src, _, target = value.partition(':')
-    if not Path(src).exists():
-        die(f"{src} does not exist")
-    if target and not Path(target).is_absolute():
-        die("Target path must be absolute")
-    return Path(src).absolute(), Path(target) if target else None
+    src_path = parse_path(src, required=True)
+    if target:
+        target_path = parse_path(target, required=False, absolute=False, expanduser=False)
+        if not target_path.is_absolute():
+            die("Target path must be absolute")
+    else:
+        target_path = None
+    return src_path, target_path
 
 
 def config_parse_string(dest: str, value: Optional[str], namespace: argparse.Namespace) -> Optional[str]:
@@ -69,12 +96,12 @@ def config_parse_script(dest: str, value: Optional[str], namespace: argparse.Nam
         return getattr(namespace, dest) # type: ignore
 
     if value:
-        if not Path(value).exists():
-            die(f"{value} does not exist")
-        if not os.access(value, os.X_OK):
+        path = parse_path(value, required=True)
+        if not os.access(path, os.X_OK):
             die(f"{value} is not executable")
+        return path
 
-    return Path(value).absolute() if value else None
+    return None
 
 
 def config_parse_boolean(dest: str, value: Optional[str], namespace: argparse.Namespace) -> bool:
@@ -197,26 +224,29 @@ def config_make_list_parser(delimiter: str, parse: Callable[[str], Any] = str) -
     return config_parse_list
 
 
-def make_path_parser(required: bool) -> Callable[[str], Path]:
-    def parse_path(value: str) -> Path:
-        if required and not Path(value).exists():
-            die(f"{value} does not exist")
+def make_path_parser(*, required: bool, absolute: bool = True, expanduser: bool = True, expandvars: bool = True) -> Callable[[str], Path]:
+    return functools.partial(
+        parse_path,
+        required=required,
+        absolute=absolute,
+        expanduser=expanduser,
+        expandvars=expandvars,
+    )
 
-        return Path(value).absolute()
 
-    return parse_path
-
-
-def config_make_path_parser(required: bool, absolute: bool = True) -> ConfigParseCallback:
+def config_make_path_parser(*, required: bool, absolute: bool = True, expanduser: bool = True, expandvars: bool = True) -> ConfigParseCallback:
     def config_parse_path(dest: str, value: Optional[str], namespace: argparse.Namespace) -> Optional[Path]:
         if dest in namespace:
             return getattr(namespace, dest) # type: ignore
 
-        if value and required and not Path(value).exists():
-            die(f"{value} does not exist")
-
         if value:
-            return Path(value).absolute() if absolute else Path(value)
+            return parse_path(
+                value,
+                required=required,
+                absolute=absolute,
+                expanduser=expanduser,
+                expandvars=expandvars,
+            )
 
         return None
 
