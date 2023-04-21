@@ -6,6 +6,7 @@ import fnmatch
 import functools
 import os.path
 import platform
+import shlex
 import sys
 import textwrap
 from collections.abc import Sequence
@@ -192,7 +193,7 @@ def config_make_enum_matcher(type: Type[enum.Enum]) -> ConfigMatchCallback:
     return config_match_enum
 
 
-def config_make_list_parser(delimiter: str, parse: Callable[[str], Any] = str) -> ConfigParseCallback:
+def config_make_list_parser(delimiter: str, unescape: bool = False, parse: Callable[[str], Any] = str) -> ConfigParseCallback:
     ignore: set[str] = set()
 
     def config_parse_list(dest: str, value: Optional[str], namespace: argparse.Namespace) -> list[Any]:
@@ -205,10 +206,19 @@ def config_make_list_parser(delimiter: str, parse: Callable[[str], Any] = str) -
         if not value:
             return l # type: ignore
 
-        value = value.replace("\n", delimiter)
-        values = [v for v in value.split(delimiter) if v]
+        if unescape:
+            lex = shlex.shlex(value, posix=True)
+            lex.whitespace_split = True
+            lex.whitespace = f"\n{delimiter}"
+            lex.commenters = ""
+            values = list(lex)
+        else:
+            values = value.replace(delimiter, "\n").split("\n")
 
         for v in values:
+            if not v:
+                continue
+
             if v.startswith("!"):
                 ignore.add(v[1:])
                 continue
@@ -591,7 +601,7 @@ class MkosiConfigParser:
         MkosiConfigSetting(
             dest="environment",
             section="Content",
-            parse=config_make_list_parser(delimiter=" "),
+            parse=config_make_list_parser(delimiter=" ", unescape=True),
         ),
         MkosiConfigSetting(
             dest="build_sources",
