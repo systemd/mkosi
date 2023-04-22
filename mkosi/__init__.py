@@ -231,7 +231,7 @@ def clean_package_manager_metadata(state: MkosiState) -> None:
     """
 
     assert state.config.clean_package_metadata in (False, True, None)
-    if state.config.clean_package_metadata is False or state.for_cache:
+    if state.config.clean_package_metadata is False:
         return
 
     # we try then all: metadata will only be touched if any of them are in the
@@ -250,7 +250,7 @@ def clean_package_manager_metadata(state: MkosiState) -> None:
 def remove_files(state: MkosiState) -> None:
     """Remove files based on user-specified patterns"""
 
-    if not state.config.remove_files or state.for_cache:
+    if not state.config.remove_files:
         return
 
     with complete_step("Removing files…"):
@@ -259,10 +259,7 @@ def remove_files(state: MkosiState) -> None:
                 unlink_try_hard(p)
 
 
-def install_distribution(state: MkosiState, cached: bool) -> None:
-    if cached:
-        return
-
+def install_distribution(state: MkosiState) -> None:
     if state.config.base_trees:
         if not state.config.packages:
             return
@@ -283,8 +280,8 @@ def install_distribution(state: MkosiState, cached: bool) -> None:
                 state.installer.install_packages(state, state.config.packages)
 
 
-def install_build_packages(state: MkosiState, cached: bool) -> None:
-    if state.config.build_script is None or cached:
+def install_build_packages(state: MkosiState) -> None:
+    if state.config.build_script is None:
         return
 
     with complete_step(f"Installing build packages for {str(state.config.distribution).capitalize()}"), mount_build_overlay(state):
@@ -301,7 +298,7 @@ def install_build_packages(state: MkosiState, cached: bool) -> None:
 def remove_packages(state: MkosiState) -> None:
     """Remove packages listed in config.remove_packages"""
 
-    if not state.config.remove_packages or state.for_cache:
+    if not state.config.remove_packages:
         return
 
     with complete_step(f"Removing {len(state.config.packages)} packages…"):
@@ -318,10 +315,6 @@ def reset_machine_id(state: MkosiState) -> None:
     writable) or the image runs with a transient machine ID, that changes on
     each boot (if the image is read-only).
     """
-
-    if state.for_cache:
-        return
-
     with complete_step("Resetting machine ID"):
         machine_id = state.root / "etc/machine-id"
         machine_id.unlink(missing_ok=True)
@@ -340,9 +333,6 @@ def reset_random_seed(root: Path) -> None:
 
 def configure_root_password(state: MkosiState) -> None:
     "Set the root account password, or just delete it so it's easy to log in"
-
-    if state.for_cache:
-        return
 
     if state.config.password == "":
         with complete_step("Deleting root password"):
@@ -373,7 +363,7 @@ def configure_root_password(state: MkosiState) -> None:
 
 
 def configure_autologin(state: MkosiState) -> None:
-    if not state.config.autologin or state.for_cache:
+    if not state.config.autologin:
         return
 
     with complete_step("Setting up autologin…"):
@@ -392,10 +382,8 @@ def mount_build_overlay(state: MkosiState, read_only: bool = False) -> ContextMa
     return mount_overlay([state.root], state.build_overlay, state.workdir, state.root, read_only)
 
 
-def run_prepare_script(state: MkosiState, cached: bool, build: bool) -> None:
+def run_prepare_script(state: MkosiState, build: bool) -> None:
     if state.config.prepare_script is None:
-        return
-    if cached:
         return
     if build and state.config.build_script is None:
         return
@@ -438,8 +426,6 @@ def run_prepare_script(state: MkosiState, cached: bool, build: bool) -> None:
 def run_postinst_script(state: MkosiState) -> None:
     if state.config.postinst_script is None:
         return
-    if state.for_cache:
-        return
 
     with complete_step("Running postinstall script…"):
         bwrap: list[PathString] = [
@@ -455,8 +441,6 @@ def run_postinst_script(state: MkosiState) -> None:
 def run_finalize_script(state: MkosiState) -> None:
     if state.config.finalize_script is None:
         return
-    if state.for_cache:
-        return
 
     with complete_step("Running finalize script…"):
         run([state.config.finalize_script],
@@ -464,7 +448,7 @@ def run_finalize_script(state: MkosiState) -> None:
 
 
 def install_boot_loader(state: MkosiState) -> None:
-    if state.for_cache or state.config.bootable is False:
+    if state.config.bootable is False:
         return
 
     if state.config.output_format == OutputFormat.cpio and state.config.bootable is None:
@@ -524,8 +508,8 @@ def install_boot_loader(state: MkosiState) -> None:
                      state.workspace / "mkosi.esl"])
 
 
-def install_base_trees(state: MkosiState, cached: bool) -> None:
-    if not state.config.base_trees or cached or state.config.overlay:
+def install_base_trees(state: MkosiState) -> None:
+    if not state.config.base_trees or state.config.overlay:
         return
 
     with complete_step("Copying in base trees…"):
@@ -546,8 +530,8 @@ def install_base_trees(state: MkosiState, cached: bool) -> None:
                 shutil.unpack_archive(path, state.root)
 
 
-def install_skeleton_trees(state: MkosiState, cached: bool) -> None:
-    if not state.config.skeleton_trees or cached:
+def install_skeleton_trees(state: MkosiState) -> None:
+    if not state.config.skeleton_trees:
         return
 
     with complete_step("Copying in skeleton file trees…"):
@@ -567,9 +551,6 @@ def install_extra_trees(state: MkosiState) -> None:
     if not state.config.extra_trees:
         return
 
-    if state.for_cache:
-        return
-
     with complete_step("Copying in extra file trees…"):
         for source, target in state.config.extra_trees:
             t = state.root
@@ -585,9 +566,6 @@ def install_extra_trees(state: MkosiState) -> None:
 
 
 def install_build_dest(state: MkosiState) -> None:
-    if state.for_cache:
-        return
-
     if state.config.build_script is None:
         return
 
@@ -625,8 +603,6 @@ def tar_binary() -> str:
 def make_tar(state: MkosiState) -> None:
     if state.config.output_format != OutputFormat.tar:
         return
-    if state.for_cache:
-        return
 
     cmd: list[PathString] = [tar_binary(), "-C", state.root, "-c", "--xattrs", "--xattrs-include=*"]
     if state.config.tar_strip_selinux_context:
@@ -646,8 +622,6 @@ def find_files(dir: Path, root: Path) -> Iterator[Path]:
 
 def make_initrd(state: MkosiState) -> None:
     if state.config.output_format != OutputFormat.cpio:
-        return
-    if state.for_cache:
         return
 
     make_cpio(state.root, find_files(state.root, state.root), state.staging / state.config.output.name)
@@ -670,7 +644,7 @@ def make_cpio(root: Path, files: Iterator[Path], output: Path) -> None:
 
 
 def make_directory(state: MkosiState) -> None:
-    if state.config.output_format != OutputFormat.directory or state.for_cache:
+    if state.config.output_format != OutputFormat.directory:
         return
 
     os.rename(state.root, state.staging / state.config.output.name)
@@ -715,7 +689,7 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
     # benefit that they can be signed like normal EFI binaries, and can encode everything necessary to boot a
     # specific root device, including the root hash.
 
-    if state.for_cache or state.config.bootable is False:
+    if state.config.bootable is False:
         return
 
     for kver, kimg in gen_kernel_images(state):
@@ -1265,7 +1239,7 @@ def make_install_dir(state: MkosiState) -> None:
 
 
 def configure_ssh(state: MkosiState) -> None:
-    if state.for_cache or not state.config.ssh:
+    if not state.config.ssh:
         return
 
     state.root.joinpath("etc/systemd/system/ssh.socket").write_text(
@@ -1312,7 +1286,7 @@ def configure_ssh(state: MkosiState) -> None:
 
 
 def configure_initrd(state: MkosiState) -> None:
-    if state.for_cache or not state.config.make_initrd:
+    if not state.config.make_initrd:
         return
 
     if not state.root.joinpath("init").exists():
@@ -1323,9 +1297,6 @@ def configure_initrd(state: MkosiState) -> None:
 
 
 def run_kernel_install(state: MkosiState) -> None:
-    if state.for_cache:
-        return
-
     if state.config.initrds:
         return
 
@@ -1371,25 +1342,16 @@ def run_kernel_install(state: MkosiState) -> None:
 
 
 def run_sysusers(state: MkosiState) -> None:
-    if state.for_cache:
-        return
-
     with complete_step("Generating system users"):
         run(["systemd-sysusers", "--root", state.root])
 
 
 def run_preset_all(state: MkosiState) -> None:
-    if state.for_cache:
-        return
-
     with complete_step("Applying presets…"):
         run(["systemctl", "--root", state.root, "preset-all"])
 
 
 def run_selinux_relabel(state: MkosiState) -> None:
-    if state.for_cache:
-        return
-
     selinux = state.root / "etc/selinux/config"
     if not selinux.exists():
         return
@@ -1415,8 +1377,6 @@ def reuse_cache_tree(state: MkosiState) -> bool:
     final, build = cache_tree_paths(state.config)
     if not final.exists() or (state.config.build_script and not build.exists()):
         return False
-    if state.for_cache and final.exists() and (not state.config.build_script or build.exists()):
-        return True
 
     with complete_step("Copying cached trees"):
         copy_path(final, state.root)
@@ -1429,7 +1389,7 @@ def reuse_cache_tree(state: MkosiState) -> bool:
 
 
 def invoke_repart(state: MkosiState, skip: Sequence[str] = [], split: bool = False) -> Optional[str]:
-    if not state.config.output_format == OutputFormat.disk or state.for_cache:
+    if not state.config.output_format == OutputFormat.disk:
         return None
 
     cmdline: list[PathString] = [
@@ -1523,15 +1483,21 @@ def invoke_repart(state: MkosiState, skip: Sequence[str] = [], split: bool = Fal
     return f"roothash={roothash}" if roothash else f"usrhash={usrhash}" if usrhash else None
 
 
-def build_image(state: MkosiState, *, manifest: Optional[Manifest] = None) -> None:
+def build_image(state: MkosiState, *, for_cache: bool, manifest: Optional[Manifest] = None) -> None:
     with mount_image(state):
-        cached = reuse_cache_tree(state)
-        install_base_trees(state, cached)
-        install_skeleton_trees(state, cached)
-        install_distribution(state, cached)
-        run_prepare_script(state, cached, build=False)
-        install_build_packages(state, cached)
-        run_prepare_script(state, cached, build=True)
+        cached = reuse_cache_tree(state) if not for_cache else False
+
+        if not cached:
+            install_base_trees(state)
+            install_skeleton_trees(state)
+            install_distribution(state)
+            run_prepare_script(state, build=False)
+            install_build_packages(state)
+            run_prepare_script(state, build=True)
+
+        if for_cache:
+            return
+
         configure_root_password(state)
         configure_autologin(state)
         configure_initrd(state)
@@ -1575,7 +1541,7 @@ def install_dir(state: MkosiState) -> Path:
 
 
 def run_build_script(state: MkosiState) -> None:
-    if state.config.build_script is None or state.for_cache:
+    if state.config.build_script is None:
         return
 
     # Make sure that if mkosi.installdir/ is used, any leftover files from a previous run are removed.
@@ -1637,7 +1603,6 @@ def build_stuff(uid: int, gid: int, config: MkosiConfig) -> None:
         config=config,
         workspace=workspace_dir,
         cache=cache,
-        for_cache=False,
     )
 
     manifest = Manifest(config)
@@ -1653,13 +1618,12 @@ def build_stuff(uid: int, gid: int, config: MkosiConfig) -> None:
         # If caching is requested, then make sure we have cache trees around we can make use of
         if need_cache_tree(state):
             with complete_step("Building cache image"):
-                state = dataclasses.replace(state, for_cache=True)
-                build_image(state)
+                build_image(state, for_cache=True)
                 save_cache(state)
 
         with complete_step("Building image"):
-            state = dataclasses.replace(state, for_cache=False)
-            build_image(state, manifest=manifest)
+            state = dataclasses.replace(state, )
+            build_image(state, manifest=manifest, for_cache=False)
 
         copy_nspawn_settings(state)
         calculate_sha256sum(state)

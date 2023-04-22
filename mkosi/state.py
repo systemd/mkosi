@@ -18,7 +18,6 @@ class MkosiState:
     config: MkosiConfig
     workspace: Path
     cache: Path
-    for_cache: bool
     environment: dict[str, str] = dataclasses.field(init=False)
     installer: DistributionInstaller = dataclasses.field(init=False)
 
