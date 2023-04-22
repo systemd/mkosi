@@ -1322,11 +1322,8 @@ def configure_initrd(state: MkosiState) -> None:
         state.root.joinpath("etc/initrd-release").symlink_to("/etc/os-release")
 
 
-def run_kernel_install(state: MkosiState, cached: bool) -> None:
-    if not state.config.cache_initrd and state.for_cache:
-        return
-
-    if state.config.cache_initrd and cached:
+def run_kernel_install(state: MkosiState) -> None:
+    if state.for_cache:
         return
 
     if state.config.initrds:
@@ -1541,7 +1538,7 @@ def build_image(state: MkosiState, *, manifest: Optional[Manifest] = None) -> No
         run_build_script(state)
         install_build_dest(state)
         install_extra_trees(state)
-        run_kernel_install(state, cached)
+        run_kernel_install(state)
         install_boot_loader(state)
         configure_ssh(state)
         run_postinst_script(state)

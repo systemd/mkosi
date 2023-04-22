@@ -477,13 +477,6 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   `/etc/os-release` or similar, in particular the `IMAGE_ID=` field of
   it).
 
-`CacheInitrd=`, `--cache-initrd`
-
-: If specified, and incremental mode is used, mkosi will build the initrd
-  in the cache image and reuse it in the final image. Note that this means
-  that any changes that are only applied to the final image and not the
-  cached image won't be included in the initrd.
-
 `SplitArtifacts=`, `--split-artifacts`
 
 : If specified and building a disk image, pass `--split=yes` to systemd-repart

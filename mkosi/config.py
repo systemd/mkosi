@@ -540,11 +540,6 @@ class MkosiConfigParser:
             parse=config_parse_boolean,
         ),
         MkosiConfigSetting(
-            dest="cache_initrd",
-            section="Output",
-            parse=config_parse_boolean,
-        ),
-        MkosiConfigSetting(
             dest="split_artifacts",
             section="Output",
             parse=config_parse_boolean,
@@ -1107,13 +1102,6 @@ class MkosiConfigParser:
             action=action,
         )
         group.add_argument(
-            "--cache-initrd",
-            metavar="BOOL",
-            help="When using incremental mode, build the initrd in the cache image and don't rebuild it in the final image",
-            nargs="?",
-            action=action,
-        )
-        group.add_argument(
             "--split-artifacts",
             metavar="BOOL",
             help="Generate split partitions",
@@ -1532,7 +1520,6 @@ class MkosiConfig:
     image_id: Optional[str]
     tar_strip_selinux_context: bool
     incremental: bool
-    cache_initrd: bool
     packages: list[str]
     remove_packages: list[str]
     with_docs: bool
