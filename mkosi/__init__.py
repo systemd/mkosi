@@ -1670,23 +1670,23 @@ def build_stuff(uid: int, gid: int, config: MkosiConfig) -> None:
         save_manifest(state, manifest)
 
         if state.config.cache_dir:
-            acl_toggle_remove(state.config, state.config.cache_dir, state.uid, allow=True)
+            acl_toggle_remove(state.config, state.config.cache_dir, uid, allow=True)
 
         for p in state.config.output_paths():
             if state.staging.joinpath(p.name).exists():
                 shutil.move(state.staging / p.name, p)
                 if p != state.config.output or state.config.output_format != OutputFormat.directory:
-                    os.chown(p, state.uid, state.gid)
+                    os.chown(p, uid, gid)
                 else:
                     acl_toggle_remove(state.config, p, uid, allow=True)
                 if p == state.config.output:
-                    compress_output(state.config, p, uid=state.uid, gid=state.gid)
+                    compress_output(state.config, p, uid=uid, gid=gid)
 
         for p in state.staging.iterdir():
             shutil.move(p, state.config.output.parent / p.name)
-            os.chown(state.config.output.parent / p.name, state.uid, state.gid)
+            os.chown(state.config.output.parent / p.name, uid, gid)
             if p.name.startswith(state.config.output.name):
-                compress_output(state.config, p, uid=state.uid, gid=state.gid)
+                compress_output(state.config, p, uid=uid, gid=gid)
 
     print_output_size(config)
 
