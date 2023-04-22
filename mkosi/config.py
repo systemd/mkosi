@@ -192,6 +192,20 @@ def config_make_enum_matcher(type: Type[enum.Enum]) -> ConfigMatchCallback:
 
     return config_match_enum
 
+def config_make_list_matcher(type: Type[enum.Enum], delimiter: str, parse: Callable[[str], Any] = bool) -> ConfigMatchCallback:
+    def config_match_list(dest: str, value: str, namespace: argparse.Namespace) -> bool:
+        values = value.replace(delimiter, "\n").split("\n")
+
+        for v in values:
+            if not v:
+                continue
+
+            if cast(bool, make_enum_parser(type)(v) == getattr(namespace, dest)):
+                return True
+
+        return False
+
+    return config_match_list
 
 def config_make_list_parser(delimiter: str, unescape: bool = False, parse: Callable[[str], Any] = str) -> ConfigParseCallback:
     ignore: set[str] = set()
@@ -358,7 +372,7 @@ class MkosiConfigParser:
             dest="distribution",
             section="Distribution",
             parse=config_make_enum_parser(Distribution),
-            match=config_make_enum_matcher(Distribution),
+            match=config_make_list_matcher(Distribution, delimiter="|"),
             default=detect_distribution()[0],
         ),
         MkosiConfigSetting(

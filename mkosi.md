@@ -216,6 +216,8 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 `Distribution=`
 
 : Matches against the configured distribution.
+  Matches any one of multiple distributions. Separate multiple distribution
+  names with "|" e.g: "debian|ubuntu".
 
 `Release=`
 
