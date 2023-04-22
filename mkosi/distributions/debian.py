@@ -164,6 +164,8 @@ def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
     state.workspace.joinpath("apt/apt.conf.d").mkdir(exist_ok=True)
     state.workspace.joinpath("apt/preferences.d").mkdir(exist_ok=True)
     state.workspace.joinpath("apt/log").mkdir(exist_ok=True)
+
+    # TODO: Drop once apt 2.5.4 is widely available.
     state.root.joinpath("var").mkdir(mode=0o755, exist_ok=True)
     state.root.joinpath("var/lib").mkdir(mode=0o755, exist_ok=True)
     state.root.joinpath("var/lib/dpkg").mkdir(mode=0o755, exist_ok=True)
@@ -189,6 +191,7 @@ def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
             Dir::Etc::trustedparts "/usr/share/keyrings";
             Dir::Log "{state.workspace / "apt/log"}";
             Dir::Bin::dpkg "{shutil.which("dpkg")}";
+            Debug::NoLocking "true";
             DPkg::Options:: "--root={state.root}";
             DPkg::Options:: "--log={state.workspace / "apt/dpkg.log"}";
             DPkg::Options:: "--force-unsafe-io";
