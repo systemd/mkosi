@@ -54,7 +54,8 @@ class DebianInstaller(DistributionInstaller):
         # impossible to use apt directly to bootstrap a Debian chroot since dpkg will try to run a maintainer
         # script which depends on some basic tool to be available in the chroot from a deb which hasn't been
         # unpacked yet, causing the script to fail. To avoid these issues, we have to extract all the
-        # essential debs first, and only then run the maintainer scripts for them.
+        # essential debs first, and only then run the maintainer scripts for them. Each call to apt-get requires
+        # --no-install-recommends as 'APT::Install-Recommends "false"' could be overrided by a skeleton file.
 
         # First, we set up merged usr.
         # This list is taken from https://salsa.debian.org/installer-team/debootstrap/-/blob/master/functions#L1369.
@@ -88,6 +89,7 @@ class DebianInstaller(DistributionInstaller):
             cls.install_packages(state, [
                 "-oDebug::pkgDPkgPm=1",
                 f"-oDPkg::Pre-Install-Pkgs::=cat >{f.name}",
+                "--no-install-recommends",
                 "?essential", "?name(usr-is-merged)",
             ])
 
@@ -105,12 +107,12 @@ class DebianInstaller(DistributionInstaller):
         # which breaks the installation as passwd is then configured before base-passwd
 
         if state.config.release == "stretch":
-            cls.install_packages(state, ["base-passwd"])
+            cls.install_packages(state, ["--no-install-recommends", "base-passwd"])
 
         # Finally, run apt to properly install packages in the chroot without having to worry that maintainer
         # scripts won't find basic tools that they depend on.
 
-        cls.install_packages(state, [Path(deb).name.partition("_")[0] for deb in essential])
+        cls.install_packages(state, ["--no-install-recommends", "?essential", "?name(usr-is-merged)"])
 
     @classmethod
     def install_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
@@ -161,15 +163,18 @@ DEBIAN_ARCHITECTURES = {
 
 def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
     state.workspace.joinpath("apt").mkdir(exist_ok=True)
-    state.workspace.joinpath("apt/apt.conf.d").mkdir(exist_ok=True)
-    state.workspace.joinpath("apt/preferences.d").mkdir(exist_ok=True)
     state.workspace.joinpath("apt/log").mkdir(exist_ok=True)
+    state.root.joinpath("etc").mkdir(exist_ok=True)
+    state.root.joinpath("etc/apt").mkdir(exist_ok=True)
+    state.root.joinpath("etc/apt/apt.conf.d").mkdir(exist_ok=True)
+    state.root.joinpath("etc/apt/preferences.d").mkdir(exist_ok=True)
     state.root.joinpath("var").mkdir(mode=0o755, exist_ok=True)
     state.root.joinpath("var/lib").mkdir(mode=0o755, exist_ok=True)
     state.root.joinpath("var/lib/dpkg").mkdir(mode=0o755, exist_ok=True)
     state.root.joinpath("var/lib/dpkg/status").touch()
 
     config = state.workspace / "apt/apt.conf"
+    sources = state.workspace / "apt/sources.list"
     debarch = DEBIAN_ARCHITECTURES[state.config.architecture]
 
     config.write_text(
@@ -184,7 +189,8 @@ def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
             Dir::Cache "{state.cache}";
             Dir::State "{state.workspace / "apt"}";
             Dir::State::status "{state.root / "var/lib/dpkg/status"}";
-            Dir::Etc "{state.workspace / "apt"}";
+            Dir::Etc "{state.root / "etc/apt"}";
+            Dir::Etc::sourcelist "{sources}";
             Dir::Etc::trusted "/usr/share/keyrings/{state.config.release}-archive-keyring";
             Dir::Etc::trustedparts "/usr/share/keyrings";
             Dir::Log "{state.workspace / "apt/log"}";
@@ -199,7 +205,7 @@ def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
         )
     )
 
-    with state.workspace.joinpath("apt/sources.list").open("w") as f:
+    with sources.open("w") as f:
         for repo in repos:
             f.write(f"{repo}\n")
 
