@@ -1448,6 +1448,7 @@ def print_summary(config: MkosiConfig) -> None:
                   Packages: {line_join_list(config.packages)}
         With Documentation: {yes_no(config.with_docs)}
              Package Cache: {none_to_none(config.cache_dir)}
+            Skeleton Trees: {line_join_source_target_list(config.skeleton_trees)}
                Extra Trees: {line_join_source_target_list(config.extra_trees)}
     Clean Package Metadata: {yes_no_auto(config.clean_package_metadata)}
               Remove Files: {line_join_list(config.remove_files)}
