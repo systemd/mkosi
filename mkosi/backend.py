@@ -6,6 +6,7 @@ import contextlib
 import dataclasses
 import enum
 import functools
+import getpass
 import importlib
 import itertools
 import os
@@ -497,7 +498,7 @@ class InvokingUser:
     def name(self) -> str:
         if self._pw is not None:
             return self._pw.pw_name
-        return os.getlogin()
+        return getpass.getuser()
 
     @property
     def home(self) -> Path:
