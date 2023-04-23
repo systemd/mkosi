@@ -126,14 +126,9 @@ class DebianInstaller(DistributionInstaller):
         setup_apt(state, cls.repositories(state))
         invoke_apt(state, "update", apivfs=False)
         invoke_apt(state, "install", packages, apivfs=apivfs)
+        install_apt_sources(state, cls.repositories(state, local=False))
 
         policyrcd.unlink()
-
-        sources = state.root / "etc/apt/sources.list"
-        if not sources.exists() and state.root.joinpath("usr/bin/apt").exists():
-            with sources.open("w") as f:
-                for repo in cls.repositories(state, local=False):
-                    f.write(f"{repo}\n")
 
     @classmethod
     def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
@@ -163,6 +158,7 @@ def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
     state.workspace.joinpath("apt").mkdir(exist_ok=True)
     state.workspace.joinpath("apt/apt.conf.d").mkdir(exist_ok=True)
     state.workspace.joinpath("apt/preferences.d").mkdir(exist_ok=True)
+    state.workspace.joinpath("apt/sources.list.d").mkdir(exist_ok=True)
     state.workspace.joinpath("apt/log").mkdir(exist_ok=True)
 
     # TODO: Drop once apt 2.5.4 is widely available.
@@ -206,6 +202,13 @@ def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
         for repo in repos:
             f.write(f"{repo}\n")
 
+    for repo_dir in state.config.repo_dirs:
+        for src in repo_dir.iterdir():
+            if not src.is_file():
+                continue
+            if src.suffix in (".list", ".sources"):
+                shutil.copyfile(src, state.workspace.joinpath("apt/sources.list.d", src.name))
+
 
 def invoke_apt(
     state: MkosiState,
@@ -222,3 +225,21 @@ def invoke_apt(
     )
 
     return bwrap(["apt-get", operation, *extra], apivfs=state.root if apivfs else None, env=env | state.environment)
+
+
+def install_apt_sources(state: MkosiState, repos: Sequence[str]) -> None:
+    if not state.root.joinpath("usr/bin/apt").exists():
+        return
+
+    sources = state.root / "etc/apt/sources.list"
+    if not sources.exists():
+        with sources.open("w") as f:
+            for repo in repos:
+                f.write(f"{repo}\n")
+
+    # Already contains a merged tree of repo_dirs after setup_apt
+    for src in state.workspace.joinpath("apt/sources.list.d").iterdir():
+        dst = state.root.joinpath("etc/apt/sources.list.d", src.name)
+        if dst.exists():
+            continue
+        shutil.copyfile(src, dst)

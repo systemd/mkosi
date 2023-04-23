@@ -29,6 +29,7 @@ from mkosi.util import (
     current_user,
     detect_distribution,
     flatten,
+    is_apt_distribution,
     is_dnf_distribution,
     prepend_to_environ_path,
     qemu_check_kvm_support,
@@ -1874,8 +1875,12 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
         if args.compress_output != Compression.none:
             die(f"Sorry, can't {opname} with a compressed image.")
 
-    if args.repo_dirs and not (is_dnf_distribution(args.distribution) or args.distribution == Distribution.arch):
-        die("--repo-dir is only supported on DNF based distributions and Arch")
+    if args.repo_dirs and not (
+        is_dnf_distribution(args.distribution)
+        or is_apt_distribution(args.distribution)
+        or args.distribution == Distribution.arch
+    ):
+        die("--repo-dir is only supported on DNF/Debian based distributions and Arch")
 
     if args.qemu_kvm is True and not qemu_check_kvm_support():
         die("Sorry, the host machine does not support KVM acceleration.")
@@ -1883,7 +1888,7 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
     if args.qemu_kvm is None:
         args.qemu_kvm = qemu_check_kvm_support()
 
-    if args.repositories and not is_dnf_distribution(args.distribution) and args.distribution not in (Distribution.debian, Distribution.ubuntu):
+    if args.repositories and not (is_dnf_distribution(args.distribution) or is_apt_distribution(args.distribution)):
         die("Sorry, the --repositories option is only supported on DNF/Debian based distributions")
 
     if args.initrds:
@@ -1903,4 +1908,3 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
             die("This unprivileged build configuration requires at least Linux v5.11")
 
     return MkosiConfig(**vars(args))
-
