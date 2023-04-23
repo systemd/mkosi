@@ -70,9 +70,9 @@ def parse_path(value: str, *, required: bool, absolute: bool = True, expanduser:
 
 
 def parse_source_target_paths(value: str) -> tuple[Path, Optional[Path]]:
-    src, _, target = value.partition(':')
+    src, sep, target = value.partition(':')
     src_path = parse_path(src, required=True)
-    if target:
+    if sep:
         target_path = parse_path(target, required=False, absolute=False, expanduser=False)
         if not target_path.is_absolute():
             die("Target path must be absolute")
