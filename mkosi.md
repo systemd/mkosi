@@ -215,7 +215,10 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 
 `Distribution=`
 
-: Matches against the configured distribution.
+: Matches against the configured distribution. Multiple distributions may
+  be specified, separated by spaces. If multiple distributions are specified,
+  the condition is satisfied if the current distribution equals any of the
+  specified distributions.
 
 `Release=`
 
