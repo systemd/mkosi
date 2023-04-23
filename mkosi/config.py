@@ -234,6 +234,35 @@ def config_make_list_parser(delimiter: str, unescape: bool = False, parse: Calla
     return config_parse_list
 
 
+def config_make_list_matcher(
+    delimiter: str,
+    unescape: bool = False,
+    all: bool = False,
+    parse: Callable[[str], Any] = str,
+) -> ConfigMatchCallback:
+    def config_match_list(dest: str, value: str, namespace: argparse.Namespace) -> bool:
+        if unescape:
+            lex = shlex.shlex(value, posix=True)
+            lex.whitespace_split = True
+            lex.whitespace = f"\n{delimiter}"
+            lex.commenters = ""
+            values = list(lex)
+        else:
+            values = value.replace(delimiter, "\n").split("\n")
+
+        for v in values:
+            m = getattr(namespace, dest) == parse(v)
+
+            if not all and m:
+                return True
+            if all and not m:
+                return False
+
+        return all
+
+    return config_match_list
+
+
 def make_path_parser(*, required: bool, absolute: bool = True, expanduser: bool = True, expandvars: bool = True) -> Callable[[str], Path]:
     return functools.partial(
         parse_path,
@@ -358,7 +387,7 @@ class MkosiConfigParser:
             dest="distribution",
             section="Distribution",
             parse=config_make_enum_parser(Distribution),
-            match=config_make_enum_matcher(Distribution),
+            match=config_make_list_matcher(delimiter=" ", parse=make_enum_parser(Distribution)),
             default=detect_distribution()[0],
         ),
         MkosiConfigSetting(
