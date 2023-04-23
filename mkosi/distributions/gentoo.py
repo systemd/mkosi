@@ -3,7 +3,6 @@
 import logging
 import os
 import re
-import tarfile
 import urllib.parse
 import urllib.request
 from collections.abc import Sequence
@@ -14,9 +13,8 @@ from mkosi.distributions import DistributionInstaller
 from mkosi.install import copy_path, flock
 from mkosi.log import ARG_DEBUG, complete_step, die, log_step
 from mkosi.remove import unlink_try_hard
-from mkosi.run import run_workspace_command
+from mkosi.run import run, run_workspace_command
 from mkosi.state import MkosiState
-from mkosi.util import safe_tar_extract
 
 ARCHITECTURES = {
     "x86_64": ("amd64", "arch/x86/boot/bzImage"),
@@ -235,10 +233,16 @@ class Gentoo:
 
         with flock(stage3_tmp_extract):
             if not stage3_tmp_extract.joinpath(".cache_isclean").exists():
-                with tarfile.open(stage3_tar_path) as tfd:
-                    log_step(f"Extracting {stage3_tar.name} to "
-                             f"{stage3_tmp_extract}")
-                    safe_tar_extract(tfd, stage3_tmp_extract, numeric_owner=True)
+                log_step(f"Extracting {stage3_tar.name} to {stage3_tmp_extract}")
+
+                run([
+                    "tar",
+                    "--numeric-owner",
+                    "-C", stage3_tmp_extract,
+                    "--extract",
+                    "--file", stage3_tar_path,
+                    "--exclude", "./dev",
+                ])
 
                 unlink_try_hard(stage3_tmp_extract.joinpath("dev"))
                 unlink_try_hard(stage3_tmp_extract.joinpath("proc"))
