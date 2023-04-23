@@ -20,13 +20,12 @@ class Style:
 
 
 def die(message: str,
-        exception: Optional[Exception] = None,
         *,
         hint: Optional[str] = None) -> NoReturn:
     logging.error(f"{message}")
     if hint:
         logging.info(f"({hint})")
-    raise exception or RuntimeError(message)
+    sys.exit(1)
 
 
 def color_error(text: Any) -> str:

@@ -37,14 +37,6 @@ def propagate_failed_return() -> Iterator[None]:
 
         # We always log when subprocess.CalledProcessError is raised, so we don't log again here.
         sys.exit(e.returncode)
-    except Exception as e:
-        if ARG_DEBUG.get():
-            raise e
-        elif not isinstance(e, RuntimeError):
-            # RuntimeError is used to wrap generic errors, and the message that was printed should be enough.
-            logging.info(f"Hint: mkosi failed because of an internal exception {e.__class__.__name__}, "
-                          "rerun mkosi with --debug to get more information")
-        sys.exit(1)
 
 
 @propagate_failed_return()
