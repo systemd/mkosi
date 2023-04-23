@@ -169,6 +169,10 @@ def is_dnf_distribution(d: Distribution) -> bool:
     )
 
 
+def is_apt_distribution(d: Distribution) -> bool:
+    return d in (Distribution.debian, Distribution.ubuntu)
+
+
 class OutputFormat(str, enum.Enum):
     directory = "directory"
     subvolume = "subvolume"

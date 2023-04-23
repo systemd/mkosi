@@ -287,11 +287,12 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 
 `RepositoryDirectories`, `--repo-dir=`
 
-: This option can (for now) only be used with RPM-based distributions and Arch
-  Linux. It takes a comma separated list of directories containing extra repository
-  definitions that will be used when installing packages. The files are passed
-  directly to the corresponding package manager and should be written in the format
-  expected by the package manager of the image's distro.
+: This option can (for now) only be used with RPM-based distributions,
+  Debian-based distributions and Arch Linux. It takes a comma separated list of
+  directories containing extra repository definitions that will be used when
+  installing packages. The files are passed directly to the corresponding
+  package manager and should be written in the format expected by the package
+  manager of the image's distro.
 
 `Architecture=`, `--architecture=`
 

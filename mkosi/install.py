@@ -47,11 +47,17 @@ def flock(path: Path) -> Iterator[Path]:
         os.close(fd)
 
 
-def copy_path(src: Path, dst: Path, preserve_owner: bool = True) -> None:
+def copy_path(
+    src: Path,
+    dst: Path,
+    *,
+    dereference: bool = False,
+    preserve_owner: bool = True,
+) -> None:
     run([
         "cp",
         "--recursive",
-        "--no-dereference",
+        f"--{'' if dereference else 'no-'}dereference",
         f"--preserve=mode,timestamps,links,xattr{',ownership' if preserve_owner else ''}",
         "--no-target-directory",
         "--reflink=auto",
