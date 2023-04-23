@@ -1212,8 +1212,8 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
     if args.environment:
         env = {}
         for s in args.environment:
-            key, _, value = s.partition("=")
-            value = value or os.getenv(key, "")
+            key, sep, value = s.partition("=")
+            value = value if sep else os.getenv(key, "")
             env[key] = value
         args.environment = env
     else:
