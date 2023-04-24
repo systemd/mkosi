@@ -394,7 +394,7 @@ class MkosiConfigParser:
             dest="release",
             section="Distribution",
             parse=config_parse_string,
-            match=config_match_string,
+            match=config_make_list_matcher(delimiter=" "),
             default_factory=config_default_release,
         ),
         MkosiConfigSetting(

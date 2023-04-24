@@ -224,7 +224,9 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 
 : Matches against the configured distribution release. If this condition
   is used and no distribution has been explicitly configured yet, the
-  host distribution and release are used.
+  host distribution and release are used. Multiple releases may be specified,
+  separated by spaces. If multiple releases are specified, the condition is
+  satisfied if the current release equals any of the specified releases.
 
 `PathExists=`
 
