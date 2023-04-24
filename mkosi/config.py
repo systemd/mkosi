@@ -206,7 +206,10 @@ def config_make_enum_matcher(type: Type[enum.Enum]) -> ConfigMatchCallback:
     return config_match_enum
 
 
-def config_make_list_parser(delimiter: str, unescape: bool = False, parse: Callable[[str], Any] = str) -> ConfigParseCallback:
+def config_make_list_parser(delimiter: str,
+                            *,
+                            parse: Callable[[str], Any] = str,
+                            unescape: bool = False) -> ConfigParseCallback:
     ignore: set[str] = set()
 
     def config_parse_list(dest: str, value: Optional[str], namespace: argparse.Namespace) -> list[Any]:
