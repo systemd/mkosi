@@ -41,7 +41,6 @@ class MkosiState:
         self.root.mkdir(exist_ok=True, mode=0o755)
         self.build_overlay.mkdir(exist_ok=True, mode=0o755)
         self.workdir.mkdir(exist_ok=True)
-        self.var_tmp.mkdir(exist_ok=True)
         self.staging.mkdir(exist_ok=True)
 
     @property
@@ -55,10 +54,6 @@ class MkosiState:
     @property
     def workdir(self) -> Path:
         return self.workspace / "workdir"
-
-    @property
-    def var_tmp(self) -> Path:
-        return self.workspace / "var-tmp"
 
     @property
     def staging(self) -> Path:
