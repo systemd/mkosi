@@ -179,6 +179,33 @@ def config_default_release(namespace: argparse.Namespace) -> Any:
     }.get(d, "rolling")
 
 
+def config_default_mirror(namespace: argparse.Namespace) -> Optional[str]:
+    if "distribution" not in namespace:
+        setattr(namespace, "distribution", detect_distribution()[0])
+    if "architecture" not in namespace:
+        setattr(namespace, "architecture", platform.machine())
+
+    d = getattr(namespace, "distribution")
+    a = getattr(namespace, "architecture")
+
+    if d == Distribution.debian:
+        return "http://deb.debian.org/debian"
+    elif d == Distribution.ubuntu:
+        if a == "x86" or a == "x86_64":
+            return "http://archive.ubuntu.com/ubuntu"
+        else:
+            return "http://ports.ubuntu.com"
+    elif d == Distribution.arch:
+        if a == "aarch64":
+            return "http://mirror.archlinuxarm.org"
+        else:
+            return "https://geo.mirror.pkgbuild.com"
+    elif d == Distribution.opensuse:
+        return "https://download.opensuse.org"
+
+    return None
+
+
 def make_enum_parser(type: Type[enum.Enum]) -> Callable[[str], enum.Enum]:
     def parse_enum(value: str) -> enum.Enum:
         try:
@@ -477,6 +504,7 @@ class MkosiConfigParser:
         MkosiConfigSetting(
             dest="mirror",
             section="Distribution",
+            default_factory=config_default_mirror,
         ),
         MkosiConfigSetting(
             dest="local_mirror",
@@ -1872,28 +1900,6 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
         args.build_dir = args.build_dir / f"{args.distribution}~{args.release}"
     if args.output_dir:
         args.output_dir = args.output_dir / f"{args.distribution}~{args.release}"
-
-    if args.mirror is None:
-        if args.distribution in (Distribution.fedora, Distribution.centos):
-            args.mirror = None
-        elif args.distribution == Distribution.debian:
-            args.mirror = "http://deb.debian.org/debian"
-        elif args.distribution == Distribution.ubuntu:
-            if args.architecture == "x86" or args.architecture == "x86_64":
-                args.mirror = "http://archive.ubuntu.com/ubuntu"
-            else:
-                args.mirror = "http://ports.ubuntu.com"
-        elif args.distribution == Distribution.arch:
-            if args.architecture == "aarch64":
-                args.mirror = "http://mirror.archlinuxarm.org"
-            else:
-                args.mirror = "https://geo.mirror.pkgbuild.com"
-        elif args.distribution == Distribution.opensuse:
-            args.mirror = "https://download.opensuse.org"
-        elif args.distribution == Distribution.rocky:
-            args.mirror = None
-        elif args.distribution == Distribution.alma:
-            args.mirror = None
 
     if args.sign:
         args.checksum = True
