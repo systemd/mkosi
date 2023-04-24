@@ -244,6 +244,7 @@ def config_make_list_parser(delimiter: str, unescape: bool = False, parse: Calla
 
 def config_make_list_matcher(
     delimiter: str,
+    *,
     unescape: bool = False,
     all: bool = False,
     parse: Callable[[str], Any] = str,
@@ -522,6 +523,7 @@ class MkosiConfigParser:
         ),
         MkosiConfigSetting(
             dest="image_id",
+            match=config_make_list_matcher(delimiter=" "),
             section="Output",
         ),
         MkosiConfigSetting(

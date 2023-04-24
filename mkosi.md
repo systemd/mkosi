@@ -234,6 +234,14 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   interpreted relative to the parent directory of the config file that the
   condition is read from.
 
+`ImageId=`
+
+: Matches against the configured image ID. If this condition is used and no
+  image ID has been explicitly configured yet, this condition fails. Multiple
+  image IDs may be specified, separated by spaces. If multiple image IDs are
+  specified, the condition is satisfied if the configured image ID equals any of
+  the specified image IDs.
+
 ### [Distribution] Section
 
 `Distribution=`, `--distribution=`, `-d`

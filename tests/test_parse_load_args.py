@@ -211,3 +211,67 @@ def test_match_release(release1: int, release2: int) -> None:
         if release1 == release2:
             assert "testpkg2" in conf.packages
         assert "testpkg3" in conf.packages
+
+
+@pytest.mark.parametrize(
+    "image1,image2", itertools.combinations_with_replacement(
+        ["image_a", "image_b", "image_c"], 2
+    )
+)
+def test_match_imageid(image1: str, image2: str) -> None:
+    with cd_temp_dir():
+        parent = Path("mkosi.conf")
+        parent.write_text(
+            dedent(
+                f"""\
+                [Distribution]
+                Distribution=fedora
+                ImageId={image1}
+                """
+            )
+        )
+
+        Path("mkosi.conf.d").mkdir()
+
+        child1 = Path("mkosi.conf.d/child1.conf")
+        child1.write_text(
+            dedent(
+                f"""\
+                [Match]
+                ImageId={image1}
+
+                [Content]
+                Packages=testpkg1
+                """
+            )
+        )
+        child2 = Path("mkosi.conf.d/child2.conf")
+        child2.write_text(
+            dedent(
+                f"""\
+                [Match]
+                ImageId={image2}
+
+                [Content]
+                Packages=testpkg2
+                """
+            )
+        )
+        child3 = Path("mkosi.conf.d/child3.conf")
+        child3.write_text(
+            dedent(
+                f"""\
+                [Match]
+                ImageId={image1} {image2}
+
+                [Content]
+                Packages=testpkg3
+                """
+            )
+        )
+
+        conf = parse([])
+        assert "testpkg1" in conf.packages
+        if image1 == image2:
+            assert "testpkg2" in conf.packages
+        assert "testpkg3" in conf.packages
