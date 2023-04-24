@@ -83,14 +83,20 @@ class Distribution(enum.Enum):
         return self.name
 
 
-class Compression(str, enum.Enum):
-    none = "none"
+class Compression(enum.Enum):
+    none = None
     zst = "zst"
     xz = "xz"
     bz2 = "bz2"
     gz = "gz"
     lz4 = "lz4"
     lzma = "lzma"
+
+    def __str__(self) -> str:
+        return str(self.value).lower()
+
+    def __bool__(self) -> bool:
+        return bool(self.value)
 
 
 def dictify(f: Callable[..., Iterator[tuple[T, V]]]) -> Callable[..., dict[T, V]]:

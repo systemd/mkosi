@@ -789,7 +789,7 @@ def compress_output(config: MkosiConfig, src: Path, uid: int, gid: int) -> None:
     if not src.is_file():
         return
 
-    if config.compress_output == Compression.none:
+    if not config.compress_output:
         # If we shan't compress, then at least make the output file sparse
         with complete_step(f"Digging holes into output file {src}…"):
             run(["fallocate", "--dig-holes", src], user=uid, group=gid)
@@ -1156,7 +1156,7 @@ def print_summary(config: MkosiConfig) -> None:
           Output Signature: {none_to_na(config.output_signature if config.sign else None)}
     Output nspawn Settings: {none_to_na(config.output_nspawn_settings if config.nspawn_settings is not None else None)}
                Incremental: {yes_no(config.incremental)}
-               Compression: {config.compress_output.name}
+               Compression: {config.compress_output}
                   Bootable: {config.bootable}
        Kernel Command Line: {" ".join(config.kernel_command_line)}
            UEFI SecureBoot: {yes_no(config.secure_boot)}

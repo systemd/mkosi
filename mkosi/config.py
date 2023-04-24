@@ -1687,10 +1687,10 @@ class MkosiConfig:
 
     @property
     def output_compressed(self) -> Path:
-        if self.compress_output == Compression.none:
+        if not self.compress_output:
             return self.output
 
-        return self.output.parent / f"{self.output.name}.{self.compress_output.name}"
+        return self.output.parent / f"{self.output.name}.{self.compress_output}"
 
     def output_paths(self) -> tuple[Path, ...]:
         return (
@@ -1941,7 +1941,7 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
         opname = "acquire shell" if args.verb == Verb.shell else "boot"
         if args.output_format in (OutputFormat.tar, OutputFormat.cpio):
             die(f"Sorry, can't {opname} with a {args.output_format} archive.")
-        if args.compress_output != Compression.none:
+        if args.compress_output:
             die(f"Sorry, can't {opname} with a compressed image.")
 
     if args.repo_dirs and not (
