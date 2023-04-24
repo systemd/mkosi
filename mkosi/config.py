@@ -1463,8 +1463,6 @@ class MkosiConfigParser:
         return namespace
 
 
-
-@functools.total_ordering
 class GenericVersion:
     def __init__(self, version: str):
         self._version = version
@@ -1481,6 +1479,23 @@ class GenericVersion:
         cmd = ["systemd-analyze", "compare-versions", self._version, "lt", other._version]
         return run(cmd, check=False).returncode == 0
 
+    def __le__(self, other: object) -> bool:
+        if not isinstance(other, GenericVersion):
+            return False
+        cmd = ["systemd-analyze", "compare-versions", self._version, "le", other._version]
+        return run(cmd, check=False).returncode == 0
+
+    def __gt__(self, other: object) -> bool:
+        if not isinstance(other, GenericVersion):
+            return False
+        cmd = ["systemd-analyze", "compare-versions", self._version, "gt", other._version]
+        return run(cmd, check=False).returncode == 0
+
+    def __ge__(self, other: object) -> bool:
+        if not isinstance(other, GenericVersion):
+            return False
+        cmd = ["systemd-analyze", "compare-versions", self._version, "ge", other._version]
+        return run(cmd, check=False).returncode == 0
 
 
 @dataclasses.dataclass(frozen=True)
