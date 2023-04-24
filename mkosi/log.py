@@ -45,7 +45,7 @@ def log_step(text: str) -> None:
         # De-emphasize this step here, so the user can tell more
         # easily which step generated the exception. The exception
         # or error will only be printed after we finish cleanup.
-        logging.info(f"{prefix}({text})\n")
+        logging.info(f"{prefix}({text})")
     else:
         logging.info(f"{prefix}{Style.bold}{text}{Style.reset}")
 

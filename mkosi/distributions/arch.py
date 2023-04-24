@@ -17,10 +17,10 @@ class ArchInstaller(DistributionInstaller):
 
     @classmethod
     def install(cls, state: MkosiState) -> None:
-        cls.install_packages(state, ["filesystem"])
+        cls.install_packages(state, ["filesystem"], apivfs=False)
 
     @classmethod
-    def install_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
+    def install_packages(cls, state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
         assert state.config.mirror
 
         if state.config.local_mirror:
@@ -82,10 +82,10 @@ class ArchInstaller(DistributionInstaller):
             for d in state.config.repo_dirs:
                 f.write(f"Include = {d}/*\n")
 
-        return invoke_pacman(state, packages)
+        return invoke_pacman(state, packages, apivfs=apivfs)
 
 
-def invoke_pacman(state: MkosiState, packages: Sequence[str]) -> None:
+def invoke_pacman(state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
     cmdline: list[PathString] = [
         "pacman",
         "--config", state.workspace / "pacman.conf",
@@ -97,4 +97,4 @@ def invoke_pacman(state: MkosiState, packages: Sequence[str]) -> None:
     if state.config.initrds:
         cmdline += ["--assume-installed", "initramfs"]
 
-    bwrap(cmdline, apivfs=state.root, env=dict(KERNEL_INSTALL_BYPASS="1") | state.environment)
+    bwrap(cmdline, apivfs=state.root if apivfs else None, env=dict(KERNEL_INSTALL_BYPASS="1") | state.environment)

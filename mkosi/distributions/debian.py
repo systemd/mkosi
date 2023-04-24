@@ -89,7 +89,7 @@ class DebianInstaller(DistributionInstaller):
                 "-oDebug::pkgDPkgPm=1",
                 f"-oDPkg::Pre-Install-Pkgs::=cat >{f.name}",
                 "?essential", "?name(usr-is-merged)",
-            ])
+            ], apivfs=False)
 
             essential = f.read().strip().splitlines()
 
@@ -113,7 +113,7 @@ class DebianInstaller(DistributionInstaller):
         cls.install_packages(state, [Path(deb).name.partition("_")[0] for deb in essential])
 
     @classmethod
-    def install_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
+    def install_packages(cls, state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
         # Debian policy is to start daemons by default. The policy-rc.d script can be used choose which ones to
         # start. Let's install one that denies all daemon startups.
         # See https://people.debian.org/~hmh/invokerc.d-policyrc.d-specification.txt for more information.
@@ -124,8 +124,8 @@ class DebianInstaller(DistributionInstaller):
         policyrcd.chmod(0o755)
 
         setup_apt(state, cls.repositories(state))
-        invoke_apt(state, "update")
-        invoke_apt(state, "install", packages)
+        invoke_apt(state, "update", apivfs=False)
+        invoke_apt(state, "install", packages, apivfs=apivfs)
 
         policyrcd.unlink()
 
@@ -211,6 +211,7 @@ def invoke_apt(
     state: MkosiState,
     operation: str,
     extra: Sequence[str] = tuple(),
+    apivfs: bool = True,
 ) -> CompletedProcess:
     env: dict[str, PathString] = dict(
         APT_CONFIG=state.workspace / "apt/apt.conf",
@@ -220,4 +221,4 @@ def invoke_apt(
         INITRD="No",
     )
 
-    return bwrap(["apt-get", operation, *extra], apivfs=state.root, env=env | state.environment)
+    return bwrap(["apt-get", operation, *extra], apivfs=state.root if apivfs else None, env=env | state.environment)

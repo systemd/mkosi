@@ -131,10 +131,11 @@ def foreground() -> None:
     If we're connected to a terminal, put the process in a new process group and make that the foreground
     process group so that only this process receives SIGINT.
     """
-    if sys.stdin.isatty():
+    STDERR_FILENO = 2
+    if os.isatty(STDERR_FILENO):
         os.setpgrp()
         old = signal.signal(signal.SIGTTOU, signal.SIG_IGN)
-        os.tcsetpgrp(0, os.getpgrp())
+        os.tcsetpgrp(STDERR_FILENO, os.getpgrp())
         signal.signal(signal.SIGTTOU, old)
 
 
@@ -287,12 +288,10 @@ def bwrap(
     if apivfs:
         cmdline += [
             "--tmpfs", apivfs / "run",
+            "--tmpfs", apivfs / "tmp",
             "--proc", apivfs / "proc",
             "--dev", apivfs / "dev",
             "--ro-bind", "/sys", apivfs / "sys",
-            "--bind", "/tmp", apivfs / "tmp",
-            "--bind", "/var/tmp", apivfs / "var/tmp",
-            "--bind", "/dev/shm", apivfs / "dev/shm",
         ]
 
         # If passwd or a related file exists in the apivfs directory, bind mount it over the host files while
@@ -306,12 +305,25 @@ def bwrap(
             else:
                 cmdline += ["--bind", "/dev/null", f"/etc/{f}"]
 
-    try:
-        return run([*cmdline, *cmd], text=True, stdout=stdout, env=env, log=False)
-    except subprocess.CalledProcessError as e:
-        if ARG_DEBUG_SHELL.get():
-            run([*cmdline, "sh"], stdin=sys.stdin, check=False, env=env, log=False)
-        die(f'"{shlex.join(str(s) for s in cmd)}" returned non-zero exit code {e.returncode}.')
+    if apivfs:
+        chmod = f"chmod 1777 {apivfs / 'tmp'} {apivfs / 'var/tmp'} {apivfs / 'dev/shm'}"
+    else:
+        chmod = ":"
+
+    with tempfile.TemporaryDirectory(dir="/var/tmp", prefix="mkosi-var-tmp") as var_tmp:
+        if apivfs:
+            cmdline += ["--bind", var_tmp, apivfs / "var/tmp"]
+
+        cmdline += ["sh", "-c"]
+        template = f"{chmod} && exec {{}} || exit $?"
+
+        try:
+            return run([*cmdline, template.format(shlex.join(str(s) for s in cmd))],
+                       text=True, stdout=stdout, env=env, log=False)
+        except subprocess.CalledProcessError as e:
+            if ARG_DEBUG_SHELL.get():
+                run([*cmdline, template.format("sh")], stdin=sys.stdin, check=False, env=env, log=False)
+            die(f'"{shlex.join(str(s) for s in cmd)}" returned non-zero exit code {e.returncode}.')
 
 
 def run_workspace_command(
@@ -329,12 +341,10 @@ def run_workspace_command(
         "--unshare-cgroup",
         "--bind", root, "/",
         "--tmpfs", "/run",
+        "--tmpfs", "/tmp",
         "--dev", "/dev",
         "--proc", "/proc",
         "--ro-bind", "/sys", "/sys",
-        "--bind", "/tmp", "/tmp",
-        "--bind", "/var/tmp", "/var/tmp",
-        "--bind", "/dev/shm", "/dev/shm",
         "--die-with-parent",
         *bwrap_params,
     ]
@@ -361,13 +371,20 @@ def run_workspace_command(
         PATH="/usr/bin:/usr/sbin",
     ) | env
 
-    try:
-        return run([*cmdline, *cmd], text=True, stdout=stdout, env=env, log=False)
-    except subprocess.CalledProcessError as e:
-        if ARG_DEBUG_SHELL.get():
-            run([*cmdline, "sh"], stdin=sys.stdin, check=False, env=env, log=False)
-        die(f'"{shlex.join(str(s) for s in cmd)}" returned non-zero exit code {e.returncode}.')
-    finally:
-        if tmp.is_symlink():
-            resolve.unlink(missing_ok=True)
-            shutil.move(tmp, resolve)
+    with tempfile.TemporaryDirectory(dir="/var/tmp", prefix="mkosi-var-tmp") as var_tmp:
+        cmdline += ["--bind", var_tmp, "/var/tmp"]
+
+        cmdline += ["sh", "-c"]
+        template = "chmod 1777 /tmp /var/tmp /dev/shm && exec {} || exit $?"
+
+        try:
+            return run([*cmdline, template.format(shlex.join(str(s) for s in cmd))],
+                       text=True, stdout=stdout, env=env, log=False)
+        except subprocess.CalledProcessError as e:
+            if ARG_DEBUG_SHELL.get():
+                run([*cmdline, template.format("sh")], stdin=sys.stdin, check=False, env=env, log=False)
+            die(f'"{shlex.join(str(s) for s in cmd)}" returned non-zero exit code {e.returncode}.')
+        finally:
+            if tmp.is_symlink():
+                resolve.unlink(missing_ok=True)
+                shutil.move(tmp, resolve)
