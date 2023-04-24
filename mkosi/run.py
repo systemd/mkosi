@@ -131,10 +131,11 @@ def foreground() -> None:
     If we're connected to a terminal, put the process in a new process group and make that the foreground
     process group so that only this process receives SIGINT.
     """
-    if sys.stdin.isatty():
+    STDERR_FILENO = 2
+    if os.isatty(STDERR_FILENO):
         os.setpgrp()
         old = signal.signal(signal.SIGTTOU, signal.SIG_IGN)
-        os.tcsetpgrp(0, os.getpgrp())
+        os.tcsetpgrp(STDERR_FILENO, os.getpgrp())
         signal.signal(signal.SIGTTOU, old)
 
 
