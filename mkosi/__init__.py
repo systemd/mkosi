@@ -297,7 +297,7 @@ def install_build_packages(state: MkosiState, cached: bool) -> None:
     if state.config.build_script is None or cached:
         return
 
-    with mount_build_overlay(state):
+    with complete_step(f"Installing build packages for {str(state.config.distribution).capitalize()}"), mount_build_overlay(state):
         state.installer.install_packages(state, state.config.build_packages)
 
         # Create a few necessary mount points inside the build overlay for later.
