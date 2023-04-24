@@ -42,7 +42,7 @@ def invoke_emerge(
         f"--load-average={jobs+1}",
         "--nospinner",
     ]
-    if "build-script" in ARG_DEBUG:
+    if ARG_DEBUG.get():
         emerge_default_opts += ["--verbose", "--quiet=n", "--quiet-fail=n"]
     else:
         emerge_default_opts += ["--quiet-build", "--quiet"]

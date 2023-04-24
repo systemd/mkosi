@@ -21,24 +21,24 @@ def propagate_failed_return() -> Iterator[None]:
     try:
         yield
     except SystemExit as e:
-        if ARG_DEBUG:
+        if ARG_DEBUG.get():
             raise e
 
         sys.exit(e.code)
     except KeyboardInterrupt as e:
-        if ARG_DEBUG:
+        if ARG_DEBUG.get():
             raise e
 
         logging.error("Interrupted")
         sys.exit(1)
     except subprocess.CalledProcessError as e:
-        if ARG_DEBUG:
+        if ARG_DEBUG.get():
             raise e
 
         # We always log when subprocess.CalledProcessError is raised, so we don't log again here.
         sys.exit(e.returncode)
     except Exception as e:
-        if ARG_DEBUG:
+        if ARG_DEBUG.get():
             raise e
         elif not isinstance(e, RuntimeError):
             # RuntimeError is used to wrap generic errors, and the message that was printed should be enough.
@@ -52,7 +52,7 @@ def main() -> None:
     log_setup()
     args = MkosiConfigParser().parse()
 
-    if ARG_DEBUG:
+    if ARG_DEBUG.get():
         logging.getLogger().setLevel(logging.DEBUG)
 
     if args.directory:

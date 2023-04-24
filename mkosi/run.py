@@ -15,7 +15,7 @@ from pathlib import Path
 from types import TracebackType
 from typing import Any, Callable, Mapping, Optional, Sequence, Type, TypeVar
 
-from mkosi.log import ARG_DEBUG, die
+from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, die
 from mkosi.types import _FILE, CompletedProcess, PathString, Popen
 from mkosi.util import current_user
 
@@ -203,7 +203,7 @@ def run(
     log: bool = True,
     **kwargs: Any,
 ) -> CompletedProcess:
-    if "run" in ARG_DEBUG:
+    if ARG_DEBUG.get():
         logging.info(f"+ {shlex.join(str(s) for s in cmdline)}")
 
     cmdline = [os.fspath(x) for x in cmdline]
@@ -220,7 +220,7 @@ def run(
         LANG="C.UTF-8",
     ) | env
 
-    if "run" in ARG_DEBUG:
+    if ARG_DEBUG.get():
         env["SYSTEMD_LOG_LEVEL"] = "debug"
 
     if "input" in kwargs:
@@ -251,7 +251,7 @@ def spawn(
     stderr: _FILE = None,
     **kwargs: Any,
 ) -> Popen:
-    if "run" in ARG_DEBUG:
+    if ARG_DEBUG.get():
         logging.info(f"+ {shlex.join(str(s) for s in cmdline)}")
 
     if not stdout and not stderr:
@@ -309,7 +309,7 @@ def bwrap(
     try:
         return run([*cmdline, *cmd], text=True, stdout=stdout, env=env, log=False)
     except subprocess.CalledProcessError as e:
-        if "run" in ARG_DEBUG:
+        if ARG_DEBUG_SHELL.get():
             run([*cmdline, "sh"], stdin=sys.stdin, check=False, env=env, log=False)
         die(f'"{shlex.join(str(s) for s in cmd)}" returned non-zero exit code {e.returncode}.')
 
@@ -364,7 +364,7 @@ def run_workspace_command(
     try:
         return run([*cmdline, *cmd], text=True, stdout=stdout, env=env, log=False)
     except subprocess.CalledProcessError as e:
-        if "run" in ARG_DEBUG:
+        if ARG_DEBUG_SHELL.get():
             run([*cmdline, "sh"], stdin=sys.stdin, check=False, env=env, log=False)
         die(f'"{shlex.join(str(s) for s in cmd)}" returned non-zero exit code {e.returncode}.')
     finally:

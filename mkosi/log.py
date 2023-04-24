@@ -1,11 +1,13 @@
 import contextlib
+import contextvars
 import logging
 import os
 import sys
 from typing import Any, Iterator, NoReturn, Optional
 
 # This global should be initialized after parsing arguments
-ARG_DEBUG: set[str] = set()
+ARG_DEBUG = contextvars.ContextVar("debug", default=False)
+ARG_DEBUG_SHELL = contextvars.ContextVar("debug-shell", default=False)
 LEVEL = 0
 
 

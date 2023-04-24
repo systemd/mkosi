@@ -931,9 +931,12 @@ Those settings cannot be configured in the configuration files.
 
 `--debug=`
 
-: Enable additional debugging output. Takes a comma-separated list of
-  arguments specifying the area of interest. Pass any invalid value
-  (e.g. empty) to list currently accepted values.
+: Enable additional debugging output.
+
+`--debug-shell=`
+
+: When executing a command in the image fails, mkosi will start an interactive
+  shell in the image allowing further debugging.
 
 `--version`
 

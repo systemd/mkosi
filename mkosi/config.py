@@ -16,7 +16,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, Callable, Optional, Type, Union, cast
 
-from mkosi.log import ARG_DEBUG, Style, die
+from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, Style, die
 from mkosi.pager import page
 from mkosi.run import run
 from mkosi.util import (
@@ -927,8 +927,14 @@ class MkosiConfigParser:
         parser.add_argument(
             "--debug",
             help="Turn on debugging output",
-            action="append",
-            default=[],
+            action="store_true",
+            default=False,
+        )
+        parser.add_argument(
+            "--debug-shell",
+            help="Spawn an interactive shell in the image if a chroot command fails",
+            action="store_true",
+            default=False,
         )
         parser.add_argument(
             "--no-pager",
@@ -1554,7 +1560,8 @@ class MkosiConfig:
     ssh: bool
     credentials: dict[str, str]
     directory: Optional[Path]
-    debug: list[str]
+    debug: bool
+    debug_shell: bool
     auto_bump: bool
     workspace_dir: Optional[Path]
     initrds: list[Path]
@@ -1754,7 +1761,8 @@ def load_kernel_command_line_extra(args: argparse.Namespace) -> list[str]:
 
 
 def load_args(args: argparse.Namespace) -> MkosiConfig:
-    ARG_DEBUG.update(args.debug)
+    ARG_DEBUG.set(args.debug)
+    ARG_DEBUG_SHELL.set(args.debug_shell)
 
     find_image_version(args)
 
