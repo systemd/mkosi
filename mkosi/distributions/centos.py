@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
+import os
 import shutil
 from collections.abc import Sequence
 from pathlib import Path
@@ -21,7 +22,7 @@ def move_rpm_db(root: Path) -> None:
             unlink_try_hard(olddb)
             shutil.move(newdb, olddb)
 
-            newdb.symlink_to(olddb)
+            newdb.symlink_to(os.path.relpath(olddb, start=newdb.parent))
 
 
 class CentosInstaller(DistributionInstaller):

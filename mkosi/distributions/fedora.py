@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 import logging
+import os
 import shutil
 import urllib.parse
 import urllib.request
@@ -172,14 +173,15 @@ def invoke_dnf(state: MkosiState, command: str, packages: Iterable[str], env: Ma
     if distribution not in (Distribution.debian, Distribution.ubuntu):
         return
 
-    # On Debian, rpm/dnf ship with a patch to store the rpmdb under ~/
-    # so it needs to be copied back in the right location, otherwise
-    # the rpmdb will be broken. See: https://bugs.debian.org/1004863
+    # On Debian, rpm/dnf ship with a patch to store the rpmdb under ~/ so it needs to be copied back in the
+    # right location, otherwise the rpmdb will be broken. See: https://bugs.debian.org/1004863. We also
+    # replace it with a symlink so that any further rpm operations immediately use the correct location.
     rpmdb_home = state.root / "root/.rpmdb"
-    if rpmdb_home.exists():
+    if rpmdb_home.exists() and not rpmdb_home.is_symlink():
         # Take into account the new location in F36
         rpmdb = state.root / "usr/lib/sysimage/rpm"
         if not rpmdb.exists():
             rpmdb = state.root / "var/lib/rpm"
         unlink_try_hard(rpmdb)
         shutil.move(rpmdb_home, rpmdb)
+        rpmdb_home.symlink_to(os.path.relpath(rpmdb, start=rpmdb_home.parent))
