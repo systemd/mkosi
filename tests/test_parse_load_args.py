@@ -2,6 +2,7 @@
 
 import argparse
 import itertools
+import operator
 import tempfile
 from contextlib import contextmanager
 from os import chdir, getcwd
@@ -275,3 +276,75 @@ def test_match_imageid(image1: str, image2: str) -> None:
         if image1 == image2:
             assert "testpkg2" in conf.packages
         assert "testpkg3" in conf.packages
+
+
+
+@pytest.mark.parametrize(
+    "op,version", itertools.product(
+        ["", "==", "<", ">", "<=", ">="],
+        [122, 123, 124],
+    )
+)
+def test_match_imageversion(op: str, version: str) -> None:
+    opfunc = {
+        "==": operator.eq,
+        "<": operator.lt,
+        "<=": operator.le,
+        ">": operator.gt,
+        ">=": operator.ge,
+    }.get(op, operator.eq,)
+
+    with cd_temp_dir():
+        parent = Path("mkosi.conf")
+        parent.write_text(
+            dedent(
+                """\
+                [Distribution]
+                ImageId=testimage
+                ImageVersion=123
+                """
+            )
+        )
+
+        Path("mkosi.conf.d").mkdir()
+        child1 = Path("mkosi.conf.d/child1.conf")
+        child1.write_text(
+            dedent(
+                f"""\
+                [Match]
+                ImageVersion={op}{version}
+
+                [Content]
+                Packages=testpkg1
+                """
+            )
+        )
+        child2 = Path("mkosi.conf.d/child2.conf")
+        child2.write_text(
+            dedent(
+                f"""\
+                [Match]
+                ImageVersion=<200 {op}{version}
+
+                [Content]
+                Packages=testpkg2
+                """
+            )
+        )
+        child3 = Path("mkosi.conf.d/child3.conf")
+        child3.write_text(
+            dedent(
+                f"""\
+                [Match]
+                ImageVersion=>9000 {op}{version}
+
+                [Content]
+                Packages=testpkg3
+                """
+            )
+        )
+
+        conf = parse([])
+        assert ("testpkg1" in conf.packages) == opfunc(123, version)
+        assert ("testpkg2" in conf.packages) == opfunc(123, version)
+        assert "testpkg3" not in conf.packages

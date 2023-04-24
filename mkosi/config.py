@@ -5,6 +5,7 @@ import enum
 import fnmatch
 import functools
 import logging
+import operator
 import os.path
 import platform
 import shlex
@@ -272,6 +273,42 @@ def config_make_list_matcher(
     return config_match_list
 
 
+def config_make_image_version_list_matcher(delimiter: str) -> ConfigMatchCallback:
+    def config_match_image_version_list(dest: str, value: str, namespace: argparse.Namespace) -> bool:
+        version_specs = value.replace(delimiter, "\n").splitlines()
+
+        image_version = getattr(namespace, dest)
+        # If the version is not set it cannot positively compare to anything
+        if image_version is None:
+            return False
+        image_version = GenericVersion(image_version)
+
+        for v in version_specs:
+            for sigil, opfunc in {
+                "==": operator.eq,
+                "<=": operator.le,
+                ">=": operator.ge,
+                ">": operator.gt,
+                "<": operator.lt,
+            }.items():
+                if v.startswith(sigil):
+                    op = opfunc
+                    comp_version = GenericVersion(v[len(sigil):])
+                    break
+            else:
+                # default to equality if no operation is specified
+                op = operator.eq
+                comp_version = GenericVersion(v)
+
+            # all constraints must be fulfilled
+            if not op(image_version, comp_version):
+                return False
+
+        return True
+
+    return config_match_image_version_list
+
+
 def make_path_parser(*, required: bool, absolute: bool = True, expanduser: bool = True, expandvars: bool = True) -> Callable[[str], Path]:
     return functools.partial(
         parse_path,
@@ -519,6 +556,7 @@ class MkosiConfigParser:
         ),
         MkosiConfigSetting(
             dest="image_version",
+            match=config_make_image_version_list_matcher(delimiter=" "),
             section="Output",
         ),
         MkosiConfigSetting(
