@@ -238,11 +238,11 @@ def run(
                               env=env,
                               **kwargs,
                               preexec_fn=foreground)
-    except FileNotFoundError as e:
-        die(f"{cmdline[0]} not found in PATH.", e)
+    except FileNotFoundError:
+        die(f"{cmdline[0]} not found in PATH.")
     except subprocess.CalledProcessError as e:
         if log:
-            die(f'"{shlex.join(str(s) for s in cmdline)}" returned non-zero exit code {e.returncode}.', e)
+            logging.error(f'"{shlex.join(str(s) for s in cmdline)}" returned non-zero exit code {e.returncode}.')
         raise e
 
 
@@ -266,7 +266,8 @@ def spawn(
     except FileNotFoundError:
         die(f"{cmdline[0]} not found in PATH.")
     except subprocess.CalledProcessError as e:
-        die(f'"{shlex.join(str(s) for s in cmdline)}" returned non-zero exit code {e.returncode}.', e)
+        logging.error(f'"{shlex.join(str(s) for s in cmdline)}" returned non-zero exit code {e.returncode}.')
+        raise e
 
 
 def bwrap(
@@ -321,9 +322,10 @@ def bwrap(
             return run([*cmdline, template.format(shlex.join(str(s) for s in cmd))],
                        text=True, stdout=stdout, env=env, log=False)
         except subprocess.CalledProcessError as e:
+            logging.error(f'"{shlex.join(str(s) for s in cmd)}" returned non-zero exit code {e.returncode}.')
             if ARG_DEBUG_SHELL.get():
                 run([*cmdline, template.format("sh")], stdin=sys.stdin, check=False, env=env, log=False)
-            die(f'"{shlex.join(str(s) for s in cmd)}" returned non-zero exit code {e.returncode}.')
+            raise e
 
 
 def run_workspace_command(
@@ -382,9 +384,10 @@ def run_workspace_command(
             return run([*cmdline, template.format(shlex.join(str(s) for s in cmd))],
                        text=True, stdout=stdout, env=env, log=False)
         except subprocess.CalledProcessError as e:
+            logging.error(f'"{shlex.join(str(s) for s in cmd)}" returned non-zero exit code {e.returncode}.')
             if ARG_DEBUG_SHELL.get():
                 run([*cmdline, template.format("sh")], stdin=sys.stdin, check=False, env=env, log=False)
-            die(f'"{shlex.join(str(s) for s in cmd)}" returned non-zero exit code {e.returncode}.')
+            raise e
         finally:
             if tmp.is_symlink():
                 resolve.unlink(missing_ok=True)

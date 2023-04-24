@@ -75,13 +75,13 @@ def test_parse_config_files_filter() -> None:
 
 def test_shell_boot() -> None:
     with cd_temp_dir():
-        with pytest.raises(RuntimeError, match=".boot.*tar"):
+        with pytest.raises(SystemExit):
             parse(["--format", "tar", "boot"])
 
-        with pytest.raises(RuntimeError, match=".boot.*cpio"):
+        with pytest.raises(SystemExit):
             parse(["--format", "cpio", "boot"])
 
-        with pytest.raises(RuntimeError, match=".boot.*compressed" ):
+        with pytest.raises(SystemExit):
             parse(["--format", "disk", "--compress-output=yes", "boot"])
 
 

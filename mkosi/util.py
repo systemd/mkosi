@@ -13,13 +13,10 @@ import re
 import resource
 import shutil
 import sys
-import tarfile
 import tempfile
 from collections.abc import Iterable, Iterator, Sequence
 from pathlib import Path
 from typing import Any, Callable, Optional, TypeVar
-
-from mkosi.log import die
 
 T = TypeVar("T")
 V = TypeVar("V")
@@ -205,32 +202,6 @@ def patch_file(filepath: Path, line_rewriter: Callable[[str], str]) -> None:
     shutil.copystat(filepath, temp_new_filepath)
     os.remove(filepath)
     shutil.move(temp_new_filepath, filepath)
-
-
-def safe_tar_extract(tar: tarfile.TarFile, path: Path=Path("."), *, numeric_owner: bool=False) -> None:
-    """Extract a tar without CVE-2007-4559.
-
-    Throws an exception if a member of the tar resolves to a path that would
-    be outside of the passed in target path.
-
-    Omits the member argument from TarFile.extractall, since we don't need it at
-    the moment.
-
-    See https://github.com/advisories/GHSA-gw9q-c7gh-j9vm
-    """
-    path = path.resolve()
-    members = []
-    for member in tar.getmembers():
-        target = path / member.name
-        try:
-            if not (member.ischr() or member.isblk()):
-                # a.relative_to(b) throws a ValueError if a is not a subpath of b
-                target.resolve().relative_to(path)
-                members += [member]
-        except ValueError as e:
-            die(f"Attempted path traversal in tar file {tar.name!r}", e)
-
-    tar.extractall(path, members=members, numeric_owner=numeric_owner)
 
 
 def sort_packages(packages: Iterable[str]) -> list[str]:
