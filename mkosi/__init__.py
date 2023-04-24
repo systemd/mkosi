@@ -1157,6 +1157,7 @@ def print_summary(config: MkosiConfig) -> None:
     Output nspawn Settings: {none_to_na(config.output_nspawn_settings if config.nspawn_settings is not None else None)}
                Incremental: {yes_no(config.incremental)}
                Compression: {config.compress_output.name}
+                  Bootable: {config.bootable}
        Kernel Command Line: {" ".join(config.kernel_command_line)}
            UEFI SecureBoot: {yes_no(config.secure_boot)}
        SecureBoot Sign Key: {none_to_none(config.secure_boot_key)}
