@@ -57,7 +57,12 @@ def parse_boolean(s: str) -> bool:
     die(f"Invalid boolean literal: {s!r}")
 
 
-def parse_path(value: str, *, required: bool, absolute: bool = True, expanduser: bool = True, expandvars: bool = True) -> Path:
+def parse_path(value: str,
+               *,
+               required: bool = True,
+               absolute: bool = True,
+               expanduser: bool = True,
+               expandvars: bool = True) -> Path:
     if expandvars:
         value = os.path.expandvars(value)
 
@@ -105,7 +110,7 @@ def config_parse_script(dest: str, value: Optional[str], namespace: argparse.Nam
         return getattr(namespace, dest) # type: ignore
 
     if value:
-        path = parse_path(value, required=True)
+        path = parse_path(value)
         if not os.access(path, os.X_OK):
             die(f"{value} is not executable")
         return path
@@ -308,7 +313,11 @@ def config_make_image_version_list_matcher(delimiter: str) -> ConfigMatchCallbac
     return config_match_image_version_list
 
 
-def make_path_parser(*, required: bool, absolute: bool = True, expanduser: bool = True, expandvars: bool = True) -> Callable[[str], Path]:
+def make_path_parser(*,
+                     required: bool = True,
+                     absolute: bool = True,
+                     expanduser: bool = True,
+                     expandvars: bool = True) -> Callable[[str], Path]:
     return functools.partial(
         parse_path,
         required=required,
@@ -318,7 +327,11 @@ def make_path_parser(*, required: bool, absolute: bool = True, expanduser: bool 
     )
 
 
-def config_make_path_parser(*, required: bool, absolute: bool = True, expanduser: bool = True, expandvars: bool = True) -> ConfigParseCallback:
+def config_make_path_parser(*,
+                            required: bool = True,
+                            absolute: bool = True,
+                            expanduser: bool = True,
+                            expandvars: bool = True) -> ConfigParseCallback:
     def config_parse_path(dest: str, value: Optional[str], namespace: argparse.Namespace) -> Optional[Path]:
         if dest in namespace:
             return getattr(namespace, dest) # type: ignore
@@ -470,7 +483,7 @@ class MkosiConfigParser:
             dest="repo_dirs",
             name="RepositoryDirectories",
             section="Distribution",
-            parse=config_make_list_parser(delimiter=",", parse=make_path_parser(required=True)),
+            parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
             paths=("mkosi.reposdir",),
         ),
         MkosiConfigSetting(
@@ -587,7 +600,7 @@ class MkosiConfigParser:
             dest="repart_dirs",
             name="RepartDirectories",
             section="Output",
-            parse=config_make_list_parser(delimiter=",", parse=make_path_parser(required=True)),
+            parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
             paths=("mkosi.repart",),
         ),
         MkosiConfigSetting(
@@ -645,7 +658,7 @@ class MkosiConfigParser:
         MkosiConfigSetting(
             dest="base_trees",
             section="Content",
-            parse=config_make_list_parser(delimiter=",", parse=make_path_parser(required=True)),
+            parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
         ),
         MkosiConfigSetting(
             dest="extra_trees",
@@ -677,7 +690,7 @@ class MkosiConfigParser:
         MkosiConfigSetting(
             dest="build_sources",
             section="Content",
-            parse=config_make_path_parser(required=True),
+            parse=config_make_path_parser(),
             default=".",
         ),
         MkosiConfigSetting(
@@ -738,7 +751,7 @@ class MkosiConfigParser:
             dest="nspawn_settings",
             name="NSpawnSettings",
             section="Content",
-            parse=config_make_path_parser(required=True),
+            parse=config_make_path_parser(),
             paths=("mkosi.nspawn",),
         ),
         MkosiConfigSetting(
@@ -768,7 +781,7 @@ class MkosiConfigParser:
         MkosiConfigSetting(
             dest="extra_search_paths",
             section="Host",
-            parse=config_make_list_parser(delimiter=",", parse=make_path_parser(required=True)),
+            parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
         ),
         MkosiConfigSetting(
             dest="qemu_gui",
