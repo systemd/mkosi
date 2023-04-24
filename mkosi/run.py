@@ -352,6 +352,7 @@ def run_workspace_command(
     resolve = root.joinpath("etc/resolv.conf")
 
     tmp = Path(tempfile.NamedTemporaryFile(delete=False).name)
+    tmp.unlink()
 
     if network:
         # Bubblewrap does not mount over symlinks and /etc/resolv.conf might be a symlink. Deal with this by
