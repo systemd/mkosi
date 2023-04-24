@@ -1,10 +1,12 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 import argparse
+import itertools
 import tempfile
 from contextlib import contextmanager
 from os import chdir, getcwd
 from pathlib import Path
+from textwrap import dedent
 from typing import Iterator, List, Optional
 
 import pytest
@@ -89,3 +91,123 @@ def test_compression() -> None:
     with cd_temp_dir():
         assert parse(["--format", "disk", "--compress-output", "False"]).compress_output == Compression.none
 
+
+@pytest.mark.parametrize("dist1,dist2", itertools.combinations_with_replacement(Distribution, 2))
+def test_match_distribution(dist1: Distribution, dist2: Distribution) -> None:
+    with cd_temp_dir():
+        parent = Path("mkosi.conf")
+        parent.write_text(
+            dedent(
+                f"""\
+                [Distribution]
+                Distribution={dist1}
+                """
+            )
+        )
+
+        Path("mkosi.conf.d").mkdir()
+
+        child1 = Path("mkosi.conf.d/child1.conf")
+        child1.write_text(
+            dedent(
+                f"""\
+                [Match]
+                Distribution={dist1}
+
+                [Content]
+                Packages=testpkg1
+                """
+            )
+        )
+        child2 = Path("mkosi.conf.d/child2.conf")
+        child2.write_text(
+            dedent(
+                f"""\
+                [Match]
+                Distribution={dist2}
+
+                [Content]
+                Packages=testpkg2
+                """
+            )
+        )
+        child3 = Path("mkosi.conf.d/child3.conf")
+        child3.write_text(
+            dedent(
+                f"""\
+                [Match]
+                Distribution={dist1} {dist2}
+
+                [Content]
+                Packages=testpkg3
+                """
+            )
+        )
+
+        conf = parse([])
+        assert "testpkg1" in conf.packages
+        if dist1 == dist2:
+            assert "testpkg2" in conf.packages
+        assert "testpkg3" in conf.packages
+
+
+@pytest.mark.parametrize(
+    "release1,release2", itertools.combinations_with_replacement([36, 37, 38], 2)
+)
+def test_match_release(release1: int, release2: int) -> None:
+    with cd_temp_dir():
+        parent = Path("mkosi.conf")
+        parent.write_text(
+            dedent(
+                f"""\
+                [Distribution]
+                Distribution=fedora
+                Release={release1}
+                """
+            )
+        )
+
+        Path("mkosi.conf.d").mkdir()
+
+        child1 = Path("mkosi.conf.d/child1.conf")
+        child1.write_text(
+            dedent(
+                f"""\
+                [Match]
+                Release={release1}
+
+                [Content]
+                Packages=testpkg1
+                """
+            )
+        )
+        child2 = Path("mkosi.conf.d/child2.conf")
+        child2.write_text(
+            dedent(
+                f"""\
+                [Match]
+                Release={release2}
+
+                [Content]
+                Packages=testpkg2
+                """
+            )
+        )
+        child3 = Path("mkosi.conf.d/child3.conf")
+        child3.write_text(
+            dedent(
+                f"""\
+                [Match]
+                Release={release1} {release2}
+
+                [Content]
+                Packages=testpkg3
+                """
+            )
+        )
+
+        conf = parse([])
+        assert "testpkg1" in conf.packages
+        if release1 == release2:
+            assert "testpkg2" in conf.packages
+        assert "testpkg3" in conf.packages
