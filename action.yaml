@@ -51,7 +51,6 @@ runs:
         systemd-analyze
         systemd-dissect
         systemd-nspawn
-        systemd-nspawn
         systemd-repart
         ukify
       )
