@@ -7,12 +7,11 @@ from pathlib import Path
 
 import pytest
 
-from mkosi.backend import (
+from mkosi.util import (
     Distribution,
     PackageType,
     safe_tar_extract,
     set_umask,
-    strip_suffixes,
 )
 
 def test_distribution() -> None:
@@ -59,13 +58,3 @@ def test_safe_tar_extract(tmp_path: Path) -> None:
     assert not (evil_target / name).exists()
     assert not (Path("/tmp") / name).exists()
 
-
-def test_strip_suffixes() -> None:
-    assert strip_suffixes(Path("home/test.zstd")) == Path("home/test")
-    assert strip_suffixes(Path("home/test.xz")) == Path("home/test")
-    assert strip_suffixes(Path("home/test.raw")) == Path("home/test")
-    assert strip_suffixes(Path("home/test.tar")) == Path("home/test")
-    assert strip_suffixes(Path("home/test.cpio")) == Path("home/test")
-    assert strip_suffixes(Path("home.xz/test.xz")) == Path("home.xz/test")
-    assert strip_suffixes(Path("home.xz/test")) == Path("home.xz/test")
-    assert strip_suffixes(Path("home.xz/test.txt")) == Path("home.xz/test.txt")

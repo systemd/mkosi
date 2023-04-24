@@ -10,12 +10,13 @@ from collections.abc import Sequence
 from pathlib import Path
 from textwrap import dedent
 
-from mkosi.backend import MkosiState, safe_tar_extract
 from mkosi.distributions import DistributionInstaller
 from mkosi.install import copy_path, flock
 from mkosi.log import ARG_DEBUG, complete_step, die, log_step
 from mkosi.remove import unlink_try_hard
 from mkosi.run import run_workspace_command
+from mkosi.state import MkosiState
+from mkosi.util import safe_tar_extract
 
 ARCHITECTURES = {
     "x86_64": ("amd64", "arch/x86/boot/bzImage"),
@@ -46,7 +47,7 @@ def invoke_emerge(
     else:
         emerge_default_opts += ["--quiet-build", "--quiet"]
     cmd = ["emerge", *pkgs, *emerge_default_opts, *opts, *actions]
-    run_workspace_command(state, cmd, network=True)
+    run_workspace_command(state.root, cmd, network=True, env=state.environment)
 
 
 class Gentoo:
@@ -298,7 +299,8 @@ class Gentoo:
         )
 
     def get_snapshot_of_portage_tree(self) -> None:
-        run_workspace_command(self.state, ["/usr/bin/emerge-webrsync"], network=True)
+        run_workspace_command(self.state.root, ["/usr/bin/emerge-webrsync"], network=True,
+                              env=self.state.environment)
 
     def update_stage3(self) -> None:
         invoke_emerge(self.state, opts=self.EMERGE_UPDATE_OPTS, pkgs=self.pkgs['boot'])

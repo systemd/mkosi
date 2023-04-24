@@ -3,9 +3,9 @@
 from collections.abc import Sequence
 from pathlib import Path
 
-from mkosi.backend import MkosiState
 from mkosi.distributions import DistributionInstaller
 from mkosi.distributions.fedora import Repo, invoke_dnf, setup_dnf
+from mkosi.state import MkosiState
 
 
 class MageiaInstaller(DistributionInstaller):
@@ -15,10 +15,10 @@ class MageiaInstaller(DistributionInstaller):
 
     @classmethod
     def install(cls, state: MkosiState) -> None:
-        cls.install_packages(state, ["setup"])
+        cls.install_packages(state, ["filesystem"], apivfs=False)
 
     @classmethod
-    def install_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
+    def install_packages(cls, state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
         release = state.config.release.strip("'")
 
         if state.config.local_mirror:
@@ -46,7 +46,7 @@ class MageiaInstaller(DistributionInstaller):
             repos += [Repo(f"mageia-{release}-updates", updates_url, gpgpath)]
 
         setup_dnf(state, repos)
-        invoke_dnf(state, "install", packages)
+        invoke_dnf(state, "install", packages, apivfs=apivfs)
 
     @classmethod
     def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:

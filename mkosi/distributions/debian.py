@@ -6,9 +6,9 @@ from collections.abc import Sequence
 from pathlib import Path
 from textwrap import dedent
 
-from mkosi.backend import MkosiState
 from mkosi.distributions import DistributionInstaller
-from mkosi.run import run, run_with_apivfs
+from mkosi.run import bwrap, run
+from mkosi.state import MkosiState
 from mkosi.types import CompletedProcess, PathString
 
 
@@ -220,4 +220,4 @@ def invoke_apt(
         INITRD="No",
     )
 
-    return run_with_apivfs(state, ["apt-get", operation, *extra], env=env)
+    return bwrap(["apt-get", operation, *extra], apivfs=state.root, env=env | state.environment)

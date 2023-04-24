@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from mkosi.backend import MkosiState
+    from mkosi.state import MkosiState
 
 
 class DistributionInstaller:

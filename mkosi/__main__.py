@@ -8,8 +8,8 @@ import subprocess
 import sys
 from collections.abc import Iterator
 
-from mkosi import load_args, run_verb
-from mkosi.config import MkosiConfigParser
+from mkosi import run_verb
+from mkosi.config import MkosiConfigParser, load_args
 from mkosi.log import ARG_DEBUG, die, log_setup
 from mkosi.run import excepthook
 

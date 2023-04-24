@@ -9,8 +9,8 @@ from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import Callable, Deque, Optional, TypeVar, Union, cast
 
+from mkosi.config import GenericVersion
 from mkosi.log import complete_step
-from mkosi.manifest import GenericVersion
 from mkosi.run import run
 from mkosi.types import PathString
 

@@ -1,14 +1,17 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
+import os
 import shutil
 from collections.abc import Sequence
 from pathlib import Path
 
-from mkosi.backend import Distribution, MkosiConfig, MkosiState
+from mkosi.config import MkosiConfig
 from mkosi.distributions import DistributionInstaller
 from mkosi.distributions.fedora import Repo, invoke_dnf, setup_dnf
 from mkosi.log import complete_step, die
 from mkosi.remove import unlink_try_hard
+from mkosi.state import MkosiState
+from mkosi.util import Distribution
 
 
 def move_rpm_db(root: Path) -> None:
@@ -21,7 +24,7 @@ def move_rpm_db(root: Path) -> None:
             unlink_try_hard(olddb)
             shutil.move(newdb, olddb)
 
-            newdb.symlink_to(olddb)
+            newdb.symlink_to(os.path.relpath(olddb, start=newdb.parent))
 
 
 class CentosInstaller(DistributionInstaller):
@@ -75,14 +78,14 @@ class CentosInstaller(DistributionInstaller):
 
     @classmethod
     def install(cls, state: MkosiState) -> None:
-        cls.install_packages(state, ["setup"])
+        cls.install_packages(state, ["filesystem"], apivfs=False)
 
         # On Fedora, the default rpmdb has moved to /usr/lib/sysimage/rpm so if that's the case we need to
         # move it back to /var/lib/rpm on CentOS.
         move_rpm_db(state.root)
 
     @classmethod
-    def install_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
+    def install_packages(cls, state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
         release = int(state.config.release)
 
         if release <= 7:
@@ -99,7 +102,7 @@ class CentosInstaller(DistributionInstaller):
         else:
             env = {}
 
-        invoke_dnf(state, "install", packages, env)
+        invoke_dnf(state, "install", packages, env, apivfs=apivfs)
 
     @classmethod
     def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:

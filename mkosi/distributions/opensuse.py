@@ -4,9 +4,9 @@ from collections.abc import Sequence
 from pathlib import Path
 from textwrap import dedent
 
-from mkosi.backend import MkosiState
 from mkosi.distributions import DistributionInstaller
-from mkosi.run import run_with_apivfs
+from mkosi.run import bwrap
+from mkosi.state import MkosiState
 from mkosi.types import PathString
 
 
@@ -17,10 +17,10 @@ class OpensuseInstaller(DistributionInstaller):
 
     @classmethod
     def install(cls, state: MkosiState) -> None:
-        cls.install_packages(state, ["filesystem", "system-user-root"])
+        cls.install_packages(state, ["filesystem"], apivfs=False)
 
     @classmethod
-    def install_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
+    def install_packages(cls, state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
         release = state.config.release
         if release == "leap":
             release = "stable"
@@ -45,7 +45,7 @@ class OpensuseInstaller(DistributionInstaller):
             repos += [("repo-update", updates_url)]
 
         setup_zypper(state, repos)
-        invoke_zypper(state, "install", ["-y", "--download-in-advance", "--no-recommends"], packages)
+        invoke_zypper(state, "install", ["-y", "--download-in-advance", "--no-recommends"], packages, apivfs=apivfs)
 
     @classmethod
     def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
@@ -85,7 +85,13 @@ def setup_zypper(state: MkosiState, repos: Sequence[tuple[str, str]] = ()) -> No
             )
 
 
-def invoke_zypper(state: MkosiState, verb: str, options: Sequence[str], packages: Sequence[str]) -> None:
+def invoke_zypper(
+    state: MkosiState,
+    verb: str,
+    options: Sequence[str],
+    packages: Sequence[str],
+    apivfs: bool = True
+) -> None:
     cmdline: list[PathString] = [
         "zypper",
         "--root", state.root,
@@ -98,5 +104,7 @@ def invoke_zypper(state: MkosiState, verb: str, options: Sequence[str], packages
         *packages,
     ]
 
-    run_with_apivfs(state, cmdline,
-                    env=dict(ZYPP_CONF=str(state.workspace / "zypp.conf"), KERNEL_INSTALL_BYPASS="1"))
+    env = dict(ZYPP_CONF=str(state.workspace / "zypp.conf"), KERNEL_INSTALL_BYPASS="1") | state.environment
+
+    bwrap(cmdline, apivfs=state.root if apivfs else None, env=env)
+

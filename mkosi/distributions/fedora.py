@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 import logging
+import os
 import shutil
 import urllib.parse
 import urllib.request
@@ -9,10 +10,11 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Any, NamedTuple, Optional
 
-from mkosi.backend import Distribution, MkosiState, detect_distribution, sort_packages
 from mkosi.distributions import DistributionInstaller
 from mkosi.remove import unlink_try_hard
-from mkosi.run import run_with_apivfs
+from mkosi.run import bwrap
+from mkosi.state import MkosiState
+from mkosi.util import Distribution, detect_distribution, sort_packages
 
 
 class FedoraInstaller(DistributionInstaller):
@@ -22,10 +24,10 @@ class FedoraInstaller(DistributionInstaller):
 
     @classmethod
     def install(cls, state: MkosiState) -> None:
-        cls.install_packages(state, ["setup"])
+        cls.install_packages(state, ["filesystem"], apivfs=False)
 
     @classmethod
-    def install_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
+    def install_packages(cls, state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
         release, releasever = parse_fedora_release(state.config.release)
 
         if state.config.local_mirror:
@@ -59,7 +61,7 @@ class FedoraInstaller(DistributionInstaller):
             repos += [Repo("updates", updates_url, gpgpath, gpgurl)]
 
         setup_dnf(state, repos)
-        invoke_dnf(state, "install", packages)
+        invoke_dnf(state, "install", packages, apivfs=apivfs)
 
     @classmethod
     def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
@@ -122,7 +124,13 @@ def setup_dnf(state: MkosiState, repos: Sequence[Repo] = ()) -> None:
             )
 
 
-def invoke_dnf(state: MkosiState, command: str, packages: Iterable[str], env: Mapping[str, Any] = {}) -> None:
+def invoke_dnf(
+    state: MkosiState,
+    command: str,
+    packages: Iterable[str],
+    env: Mapping[str, Any] = {},
+    apivfs: bool = True
+) -> None:
     if state.config.distribution == Distribution.fedora:
         release, _ = parse_fedora_release(state.config.release)
     else:
@@ -166,20 +174,22 @@ def invoke_dnf(state: MkosiState, command: str, packages: Iterable[str], env: Ma
 
     cmdline += sort_packages(packages)
 
-    run_with_apivfs(state, cmdline, env=dict(KERNEL_INSTALL_BYPASS="1") | env)
+    bwrap(cmdline, apivfs=state.root if apivfs else None,
+          env=dict(KERNEL_INSTALL_BYPASS="1") | env | state.environment)
 
     distribution, _ = detect_distribution()
     if distribution not in (Distribution.debian, Distribution.ubuntu):
         return
 
-    # On Debian, rpm/dnf ship with a patch to store the rpmdb under ~/
-    # so it needs to be copied back in the right location, otherwise
-    # the rpmdb will be broken. See: https://bugs.debian.org/1004863
+    # On Debian, rpm/dnf ship with a patch to store the rpmdb under ~/ so it needs to be copied back in the
+    # right location, otherwise the rpmdb will be broken. See: https://bugs.debian.org/1004863. We also
+    # replace it with a symlink so that any further rpm operations immediately use the correct location.
     rpmdb_home = state.root / "root/.rpmdb"
-    if rpmdb_home.exists():
+    if rpmdb_home.exists() and not rpmdb_home.is_symlink():
         # Take into account the new location in F36
         rpmdb = state.root / "usr/lib/sysimage/rpm"
         if not rpmdb.exists():
             rpmdb = state.root / "var/lib/rpm"
         unlink_try_hard(rpmdb)
         shutil.move(rpmdb_home, rpmdb)
+        rpmdb_home.symlink_to(os.path.relpath(rpmdb, start=rpmdb_home.parent))

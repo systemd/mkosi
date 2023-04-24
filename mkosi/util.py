@@ -1,27 +1,24 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
-import argparse
 import ast
 import contextlib
 import dataclasses
 import enum
 import functools
 import getpass
-import importlib
 import itertools
 import os
-import platform
 import pwd
 import re
 import resource
 import shutil
 import sys
 import tarfile
+import tempfile
 from collections.abc import Iterable, Iterator, Sequence
 from pathlib import Path
-from typing import Any, Callable, Optional, TypeVar, Union
+from typing import Any, Callable, Optional, TypeVar
 
-from mkosi.distributions import DistributionInstaller
 from mkosi.log import die
 
 T = TypeVar("T")
@@ -185,231 +182,6 @@ class ManifestFormat(str, enum.Enum):
     changelog = "changelog"  # human-readable text file with package changelogs
 
 
-KNOWN_SUFFIXES = {
-    ".xz",
-    ".zstd",
-    ".raw",
-    ".tar",
-    ".cpio",
-}
-
-
-def strip_suffixes(path: Path) -> Path:
-    while path.suffix in KNOWN_SUFFIXES:
-        path = path.with_suffix("")
-    return path
-
-
-@dataclasses.dataclass(frozen=True)
-class MkosiConfig:
-    """Type-hinted storage for command line arguments.
-
-    Only user configuration is stored here while dynamic state exists in
-    MkosiState. If a field of the same name exists in both classes always
-    access the value from state.
-    """
-
-    verb: Verb
-    cmdline: list[str]
-    force: int
-
-    distribution: Distribution
-    release: str
-    mirror: Optional[str]
-    local_mirror: Optional[str]
-    repository_key_check: bool
-    repositories: list[str]
-    repo_dirs: list[Path]
-    repart_dirs: list[Path]
-    overlay: bool
-    architecture: str
-    output_format: OutputFormat
-    manifest_format: list[ManifestFormat]
-    output: Path
-    output_dir: Optional[Path]
-    kernel_command_line: list[str]
-    secure_boot: bool
-    secure_boot_key: Optional[Path]
-    secure_boot_certificate: Optional[Path]
-    secure_boot_valid_days: str
-    secure_boot_common_name: str
-    sign_expected_pcr: bool
-    compress_output: Compression
-    image_version: Optional[str]
-    image_id: Optional[str]
-    tar_strip_selinux_context: bool
-    incremental: bool
-    cache_initrd: bool
-    packages: list[str]
-    remove_packages: list[str]
-    with_docs: bool
-    with_tests: bool
-    cache_dir: Optional[Path]
-    base_trees: list[Path]
-    extra_trees: list[tuple[Path, Optional[Path]]]
-    skeleton_trees: list[tuple[Path, Optional[Path]]]
-    clean_package_metadata: Optional[bool]
-    remove_files: list[str]
-    environment: dict[str, str]
-    build_sources: Path
-    build_dir: Optional[Path]
-    install_dir: Optional[Path]
-    build_packages: list[str]
-    build_script: Optional[Path]
-    prepare_script: Optional[Path]
-    postinst_script: Optional[Path]
-    finalize_script: Optional[Path]
-    with_network: bool
-    cache_only: bool
-    nspawn_settings: Optional[Path]
-    checksum: bool
-    split_artifacts: bool
-    sign: bool
-    key: Optional[str]
-    password: Optional[str]
-    password_is_hashed: bool
-    autologin: bool
-    extra_search_paths: list[Path]
-    ephemeral: bool
-    ssh: bool
-    credentials: dict[str, str]
-    directory: Optional[Path]
-    debug: list[str]
-    auto_bump: bool
-    workspace_dir: Optional[Path]
-    initrds: list[Path]
-    make_initrd: bool
-    kernel_command_line_extra: list[str]
-    acl: bool
-    pager: bool
-    bootable: Optional[bool]
-
-    # QEMU-specific options
-    qemu_gui: bool
-    qemu_smp: str
-    qemu_mem: str
-    qemu_kvm: bool
-    qemu_args: Sequence[str]
-
-    passphrase: Optional[Path]
-
-    def architecture_is_native(self) -> bool:
-        return self.architecture == platform.machine()
-
-    @property
-    def output_split_uki(self) -> Path:
-        return build_auxiliary_output_path(self, ".efi")
-
-    @property
-    def output_split_kernel(self) -> Path:
-        return build_auxiliary_output_path(self, ".vmlinuz")
-
-    @property
-    def output_nspawn_settings(self) -> Path:
-        return build_auxiliary_output_path(self, ".nspawn")
-
-    @property
-    def output_checksum(self) -> Path:
-        return Path("SHA256SUMS")
-
-    @property
-    def output_signature(self) -> Path:
-        return Path("SHA256SUMS.gpg")
-
-    @property
-    def output_sshkey(self) -> Path:
-        return build_auxiliary_output_path(self, ".ssh")
-
-    @property
-    def output_manifest(self) -> Path:
-        return build_auxiliary_output_path(self, ".manifest")
-
-    @property
-    def output_changelog(self) -> Path:
-        return build_auxiliary_output_path(self, ".changelog")
-
-    @property
-    def output_compressed(self) -> Path:
-        if self.compress_output == Compression.none:
-            return self.output
-
-        return self.output.parent / f"{self.output.name}.{self.compress_output.name}"
-
-    def output_paths(self) -> tuple[Path, ...]:
-        return (
-            self.output,
-            self.output_split_uki,
-            self.output_split_kernel,
-            self.output_nspawn_settings,
-            self.output_checksum,
-            self.output_signature,
-            self.output_sshkey,
-            self.output_manifest,
-            self.output_changelog,
-        )
-
-
-def build_auxiliary_output_path(args: Union[argparse.Namespace, MkosiConfig], suffix: str) -> Path:
-    output = strip_suffixes(args.output)
-    return output.with_name(f"{output.name}{suffix}")
-
-
-@dataclasses.dataclass
-class MkosiState:
-    """State related properties."""
-
-    uid: int
-    gid: int
-    config: MkosiConfig
-    workspace: Path
-    cache: Path
-    for_cache: bool
-    environment: dict[str, str] = dataclasses.field(init=False)
-    installer: DistributionInstaller = dataclasses.field(init=False)
-
-    def __post_init__(self) -> None:
-        self.environment = self.config.environment.copy()
-        if self.config.image_id is not None:
-            self.environment['IMAGE_ID'] = self.config.image_id
-        if self.config.image_version is not None:
-            self.environment['IMAGE_VERSION'] = self.config.image_version
-        try:
-            distro = str(self.config.distribution)
-            mod = importlib.import_module(f"mkosi.distributions.{distro}")
-            installer = getattr(mod, f"{distro.title().replace('_','')}Installer")
-            instance = installer() if issubclass(installer, DistributionInstaller) else None
-        except (ImportError, AttributeError):
-            instance = None
-        if instance is None:
-            die("No installer for this distribution.")
-        self.installer = instance
-
-        self.root.mkdir(exist_ok=True, mode=0o755)
-        self.build_overlay.mkdir(exist_ok=True, mode=0o755)
-        self.workdir.mkdir(exist_ok=True)
-        self.var_tmp.mkdir(exist_ok=True)
-        self.staging.mkdir(exist_ok=True)
-
-    @property
-    def root(self) -> Path:
-        return self.workspace / "root"
-
-    @property
-    def build_overlay(self) -> Path:
-        return self.workspace / "build-overlay"
-
-    @property
-    def workdir(self) -> Path:
-        return self.workspace / "workdir"
-
-    @property
-    def var_tmp(self) -> Path:
-        return self.workspace / "var-tmp"
-
-    @property
-    def staging(self) -> Path:
-        return self.workspace / "staging"
-
 
 def format_rlimit(rlimit: int) -> str:
     limits = resource.getrlimit(rlimit)
@@ -532,3 +304,36 @@ def chdir(directory: Path) -> Iterator[None]:
         yield
     finally:
         os.chdir(old)
+
+
+@contextlib.contextmanager
+def prepend_to_environ_path(paths: Sequence[Path]) -> Iterator[None]:
+    if not paths:
+        yield
+        return
+
+    with tempfile.TemporaryDirectory(prefix="mkosi.path", dir=tmp_dir()) as d:
+
+        for path in paths:
+            if not path.is_dir():
+                Path(d).joinpath(path.name).symlink_to(path.absolute())
+
+        paths = [Path(d), *paths]
+
+        news = [os.fspath(path) for path in paths if path.is_dir()]
+        olds = os.getenv("PATH", "").split(":")
+        os.environ["PATH"] = ":".join(news + olds)
+
+        yield
+
+
+def qemu_check_kvm_support() -> bool:
+    kvm = Path("/dev/kvm")
+    if not kvm.is_char_device():
+        return False
+    # some CI runners may present a non-working KVM device
+    try:
+        with kvm.open("r+b"):
+            return True
+    except OSError:
+        return False

@@ -13,7 +13,6 @@ import itertools
 import json
 import logging
 import os
-import platform
 import resource
 import shutil
 import subprocess
@@ -25,25 +24,10 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Callable, ContextManager, Optional, TextIO, TypeVar, Union, cast
 
-from mkosi.backend import (
-    Compression,
-    Distribution,
-    ManifestFormat,
-    MkosiConfig,
-    MkosiState,
-    OutputFormat,
-    Verb,
-    current_user,
-    flatten,
-    format_rlimit,
-    is_dnf_distribution,
-    patch_file,
-    set_umask,
-    tmp_dir,
-)
+from mkosi.config import GenericVersion, MkosiConfig, machine_name
 from mkosi.install import add_dropin_config_from_resource, copy_path, flock
 from mkosi.log import ARG_DEBUG, Style, color_error, complete_step, die, log_step
-from mkosi.manifest import GenericVersion, Manifest
+from mkosi.manifest import Manifest
 from mkosi.mounts import dissect_and_mount, mount_overlay, scandir_recursive
 from mkosi.pager import page
 from mkosi.remove import unlink_try_hard
@@ -55,22 +39,28 @@ from mkosi.run import (
     run_workspace_command,
     spawn,
 )
+from mkosi.state import MkosiState
 from mkosi.types import PathString
+from mkosi.util import (
+    Compression,
+    Distribution,
+    ManifestFormat,
+    OutputFormat,
+    Verb,
+    current_user,
+    flatten,
+    format_rlimit,
+    patch_file,
+    prepend_to_environ_path,
+    set_umask,
+    tmp_dir,
+)
 
 MKOSI_COMMANDS_NEED_BUILD = (Verb.shell, Verb.boot, Verb.qemu, Verb.serve)
 MKOSI_COMMANDS_SUDO = (Verb.shell, Verb.boot)
-MKOSI_COMMANDS_CMDLINE = (Verb.build, Verb.shell, Verb.boot, Verb.qemu, Verb.ssh)
 
 
 T = TypeVar("T")
-
-
-def list_to_string(seq: Iterator[str]) -> str:
-    """Print contents of a list to a comma-separated string
-
-    ['a', "b", 11] → "'a', 'b', 11"
-    """
-    return str(list(seq))[1:-1]
 
 
 # EFI has its own conventions too
@@ -241,7 +231,7 @@ def clean_package_manager_metadata(state: MkosiState) -> None:
     """
 
     assert state.config.clean_package_metadata in (False, True, None)
-    if state.config.clean_package_metadata is False or state.for_cache:
+    if state.config.clean_package_metadata is False:
         return
 
     # we try then all: metadata will only be touched if any of them are in the
@@ -260,7 +250,7 @@ def clean_package_manager_metadata(state: MkosiState) -> None:
 def remove_files(state: MkosiState) -> None:
     """Remove files based on user-specified patterns"""
 
-    if not state.config.remove_files or state.for_cache:
+    if not state.config.remove_files:
         return
 
     with complete_step("Removing files…"):
@@ -269,10 +259,7 @@ def remove_files(state: MkosiState) -> None:
                 unlink_try_hard(p)
 
 
-def install_distribution(state: MkosiState, cached: bool) -> None:
-    if cached:
-        return
-
+def install_distribution(state: MkosiState) -> None:
     if state.config.base_trees:
         if not state.config.packages:
             return
@@ -293,8 +280,8 @@ def install_distribution(state: MkosiState, cached: bool) -> None:
                 state.installer.install_packages(state, state.config.packages)
 
 
-def install_build_packages(state: MkosiState, cached: bool) -> None:
-    if state.config.build_script is None or cached:
+def install_build_packages(state: MkosiState) -> None:
+    if state.config.build_script is None:
         return
 
     with complete_step(f"Installing build packages for {str(state.config.distribution).capitalize()}"), mount_build_overlay(state):
@@ -311,7 +298,7 @@ def install_build_packages(state: MkosiState, cached: bool) -> None:
 def remove_packages(state: MkosiState) -> None:
     """Remove packages listed in config.remove_packages"""
 
-    if not state.config.remove_packages or state.for_cache:
+    if not state.config.remove_packages:
         return
 
     with complete_step(f"Removing {len(state.config.packages)} packages…"):
@@ -328,10 +315,6 @@ def reset_machine_id(state: MkosiState) -> None:
     writable) or the image runs with a transient machine ID, that changes on
     each boot (if the image is read-only).
     """
-
-    if state.for_cache:
-        return
-
     with complete_step("Resetting machine ID"):
         machine_id = state.root / "etc/machine-id"
         machine_id.unlink(missing_ok=True)
@@ -350,9 +333,6 @@ def reset_random_seed(root: Path) -> None:
 
 def configure_root_password(state: MkosiState) -> None:
     "Set the root account password, or just delete it so it's easy to log in"
-
-    if state.for_cache:
-        return
 
     if state.config.password == "":
         with complete_step("Deleting root password"):
@@ -383,7 +363,7 @@ def configure_root_password(state: MkosiState) -> None:
 
 
 def configure_autologin(state: MkosiState) -> None:
-    if not state.config.autologin or state.for_cache:
+    if not state.config.autologin:
         return
 
     with complete_step("Setting up autologin…"):
@@ -402,10 +382,8 @@ def mount_build_overlay(state: MkosiState, read_only: bool = False) -> ContextMa
     return mount_overlay([state.root], state.build_overlay, state.workdir, state.root, read_only)
 
 
-def run_prepare_script(state: MkosiState, cached: bool, build: bool) -> None:
+def run_prepare_script(state: MkosiState, build: bool) -> None:
     if state.config.prepare_script is None:
-        return
-    if cached:
         return
     if build and state.config.build_script is None:
         return
@@ -426,21 +404,21 @@ def run_prepare_script(state: MkosiState, cached: bool, build: bool) -> None:
     if build:
         with complete_step("Running prepare script in build overlay…"), mount_build_overlay(state):
             run_workspace_command(
-                state,
+                state.root,
                 ["/root/prepare", "build"],
                 network=True,
                 bwrap_params=bwrap,
-                env=dict(SRCDIR="/root/src"),
+                env=dict(SRCDIR="/root/src") | state.environment,
             )
             clean()
     else:
         with complete_step("Running prepare script…"):
             run_workspace_command(
-                state,
+                state.root,
                 ["/root/prepare", "final"],
                 network=True,
                 bwrap_params=bwrap,
-                env=dict(SRCDIR="/root/src"),
+                env=dict(SRCDIR="/root/src") | state.environment,
             )
             clean()
 
@@ -448,24 +426,20 @@ def run_prepare_script(state: MkosiState, cached: bool, build: bool) -> None:
 def run_postinst_script(state: MkosiState) -> None:
     if state.config.postinst_script is None:
         return
-    if state.for_cache:
-        return
 
     with complete_step("Running postinstall script…"):
         bwrap: list[PathString] = [
             "--bind", state.config.postinst_script, "/root/postinst",
         ]
 
-        run_workspace_command(state, ["/root/postinst", "final"], bwrap_params=bwrap,
-                              network=state.config.with_network)
+        run_workspace_command(state.root, ["/root/postinst", "final"], bwrap_params=bwrap,
+                              network=state.config.with_network, env=state.environment)
 
         state.root.joinpath("root/postinst").unlink()
 
 
 def run_finalize_script(state: MkosiState) -> None:
     if state.config.finalize_script is None:
-        return
-    if state.for_cache:
         return
 
     with complete_step("Running finalize script…"):
@@ -474,7 +448,7 @@ def run_finalize_script(state: MkosiState) -> None:
 
 
 def install_boot_loader(state: MkosiState) -> None:
-    if state.for_cache or state.config.bootable is False:
+    if state.config.bootable is False:
         return
 
     if state.config.output_format == OutputFormat.cpio and state.config.bootable is None:
@@ -534,8 +508,8 @@ def install_boot_loader(state: MkosiState) -> None:
                      state.workspace / "mkosi.esl"])
 
 
-def install_base_trees(state: MkosiState, cached: bool) -> None:
-    if not state.config.base_trees or cached or state.config.overlay:
+def install_base_trees(state: MkosiState) -> None:
+    if not state.config.base_trees or state.config.overlay:
         return
 
     with complete_step("Copying in base trees…"):
@@ -556,8 +530,8 @@ def install_base_trees(state: MkosiState, cached: bool) -> None:
                 shutil.unpack_archive(path, state.root)
 
 
-def install_skeleton_trees(state: MkosiState, cached: bool) -> None:
-    if not state.config.skeleton_trees or cached:
+def install_skeleton_trees(state: MkosiState) -> None:
+    if not state.config.skeleton_trees:
         return
 
     with complete_step("Copying in skeleton file trees…"):
@@ -577,9 +551,6 @@ def install_extra_trees(state: MkosiState) -> None:
     if not state.config.extra_trees:
         return
 
-    if state.for_cache:
-        return
-
     with complete_step("Copying in extra file trees…"):
         for source, target in state.config.extra_trees:
             t = state.root
@@ -595,9 +566,6 @@ def install_extra_trees(state: MkosiState) -> None:
 
 
 def install_build_dest(state: MkosiState) -> None:
-    if state.for_cache:
-        return
-
     if state.config.build_script is None:
         return
 
@@ -635,8 +603,6 @@ def tar_binary() -> str:
 def make_tar(state: MkosiState) -> None:
     if state.config.output_format != OutputFormat.tar:
         return
-    if state.for_cache:
-        return
 
     cmd: list[PathString] = [tar_binary(), "-C", state.root, "-c", "--xattrs", "--xattrs-include=*"]
     if state.config.tar_strip_selinux_context:
@@ -656,8 +622,6 @@ def find_files(dir: Path, root: Path) -> Iterator[Path]:
 
 def make_initrd(state: MkosiState) -> None:
     if state.config.output_format != OutputFormat.cpio:
-        return
-    if state.for_cache:
         return
 
     make_cpio(state.root, find_files(state.root, state.root), state.staging / state.config.output.name)
@@ -680,7 +644,7 @@ def make_cpio(root: Path, files: Iterator[Path], output: Path) -> None:
 
 
 def make_directory(state: MkosiState) -> None:
-    if state.config.output_format != OutputFormat.directory or state.for_cache:
+    if state.config.output_format != OutputFormat.directory:
         return
 
     os.rename(state.root, state.staging / state.config.output.name)
@@ -725,7 +689,7 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
     # benefit that they can be signed like normal EFI binaries, and can encode everything necessary to boot a
     # specific root device, including the root hash.
 
-    if state.for_cache or state.config.bootable is False:
+    if state.config.bootable is False:
         return
 
     for kver, kimg in gen_kernel_images(state):
@@ -1032,250 +996,6 @@ def unlink_output(config: MkosiConfig) -> None:
                 empty_directory(config.cache_dir)
 
 
-def require_private_file(name: Path, description: str) -> None:
-    mode = os.stat(name).st_mode & 0o777
-    if mode & 0o007:
-        logging.warning(dedent(f"""\
-            Permissions of '{name}' of '{mode:04o}' are too open.
-            When creating {description} files use an access mode that restricts access to the owner only.
-        """))
-
-
-def find_password(args: argparse.Namespace) -> None:
-    if args.password is not None:
-        return
-
-    try:
-        pwfile = Path("mkosi.rootpw")
-        require_private_file(pwfile, "root password")
-
-        args.password = pwfile.read_text().strip()
-
-    except FileNotFoundError:
-        pass
-
-
-def find_image_version(args: argparse.Namespace) -> None:
-    if args.image_version is not None:
-        return
-
-    try:
-        with open("mkosi.version") as f:
-            args.image_version = f.read().strip()
-    except FileNotFoundError:
-        pass
-
-
-def load_credentials(args: argparse.Namespace) -> dict[str, str]:
-    creds = {}
-
-    d = Path("mkosi.credentials")
-    if d.is_dir():
-        for e in d.iterdir():
-            if os.access(e, os.X_OK):
-                creds[e.name] = run([e], text=True, stdout=subprocess.PIPE, env=os.environ).stdout
-            else:
-                creds[e.name] = e.read_text()
-
-    for s in args.credentials:
-        key, _, value = s.partition("=")
-        creds[key] = value
-
-    if "firstboot.timezone" not in creds:
-        tz = run(
-            ["timedatectl", "show", "-p", "Timezone", "--value"],
-            text=True,
-            stdout=subprocess.PIPE,
-        ).stdout.strip()
-        creds["firstboot.timezone"] = tz
-
-    if "firstboot.locale" not in creds:
-        creds["firstboot.locale"] = "C.UTF-8"
-
-    if "firstboot.hostname" not in creds:
-        creds["firstboot.hostname"] = machine_name(args)
-
-    if args.ssh and "ssh.authorized_keys.root" not in creds and "SSH_AUTH_SOCK" in os.environ:
-        key = run(
-            ["ssh-add", "-L"],
-            text=True,
-            stdout=subprocess.PIPE,
-            env=os.environ,
-        ).stdout.strip()
-        creds["ssh.authorized_keys.root"] = key
-
-    return creds
-
-
-def load_kernel_command_line_extra(args: argparse.Namespace) -> list[str]:
-    columns, lines = shutil.get_terminal_size()
-
-    cmdline = [
-        f"systemd.tty.term.hvc0={os.getenv('TERM', 'vt220')}",
-        f"systemd.tty.columns.hvc0={columns}",
-        f"systemd.tty.rows.hvc0={lines}",
-        f"systemd.tty.term.ttyS0={os.getenv('TERM', 'vt220')}",
-        f"systemd.tty.columns.ttyS0={columns}",
-        f"systemd.tty.rows.ttyS0={lines}",
-        "console=hvc0",
-    ]
-
-    if args.output_format == OutputFormat.cpio:
-        cmdline += ["rd.systemd.unit=default.target"]
-
-    for s in args.kernel_command_line_extra:
-        key, sep, value = s.partition("=")
-        if " " in value:
-            value = f'"{value}"'
-        cmdline += [key if not sep else f"{key}={value}"]
-
-    return cmdline
-
-
-def load_args(args: argparse.Namespace) -> MkosiConfig:
-    ARG_DEBUG.update(args.debug)
-
-    find_image_version(args)
-
-    if args.cmdline and args.verb not in MKOSI_COMMANDS_CMDLINE:
-        die(f"Parameters after verb are only accepted for {list_to_string(verb.name for verb in MKOSI_COMMANDS_CMDLINE)}.")
-
-    if args.verb == Verb.qemu and args.output_format in (
-        OutputFormat.directory,
-        OutputFormat.subvolume,
-        OutputFormat.tar,
-    ):
-        die("Directory, subvolume, tar, cpio, and plain squashfs images cannot be booted in qemu.")
-
-    if shutil.which("bsdtar") and args.distribution == Distribution.openmandriva and args.tar_strip_selinux_context:
-        die("Sorry, bsdtar on OpenMandriva is incompatible with --tar-strip-selinux-context")
-
-    if args.cache_dir:
-        args.cache_dir = args.cache_dir / f"{args.distribution}~{args.release}"
-    if args.build_dir:
-        args.build_dir = args.build_dir / f"{args.distribution}~{args.release}"
-    if args.output_dir:
-        args.output_dir = args.output_dir / f"{args.distribution}~{args.release}"
-
-    if args.mirror is None:
-        if args.distribution in (Distribution.fedora, Distribution.centos):
-            args.mirror = None
-        elif args.distribution == Distribution.debian:
-            args.mirror = "http://deb.debian.org/debian"
-        elif args.distribution == Distribution.ubuntu:
-            if args.architecture == "x86" or args.architecture == "x86_64":
-                args.mirror = "http://archive.ubuntu.com/ubuntu"
-            else:
-                args.mirror = "http://ports.ubuntu.com"
-        elif args.distribution == Distribution.arch:
-            if args.architecture == "aarch64":
-                args.mirror = "http://mirror.archlinuxarm.org"
-            else:
-                args.mirror = "https://geo.mirror.pkgbuild.com"
-        elif args.distribution == Distribution.opensuse:
-            args.mirror = "https://download.opensuse.org"
-        elif args.distribution == Distribution.rocky:
-            args.mirror = None
-        elif args.distribution == Distribution.alma:
-            args.mirror = None
-
-    if args.sign:
-        args.checksum = True
-
-    if args.compress_output is None:
-        args.compress_output = Compression.zst if args.output_format == OutputFormat.cpio else Compression.none
-
-    if args.output is None:
-        iid = args.image_id if args.image_id is not None else "image"
-        prefix = f"{iid}_{args.image_version}" if args.image_version is not None else iid
-
-        if args.output_format == OutputFormat.disk:
-            output = f"{prefix}.raw"
-        elif args.output_format == OutputFormat.tar:
-            output = f"{prefix}.tar"
-        elif args.output_format == OutputFormat.cpio:
-            output = f"{prefix}.cpio"
-        else:
-            output = prefix
-        args.output = Path(output)
-
-    if args.output_dir is not None:
-        if "/" not in str(args.output):
-            args.output = args.output_dir / args.output
-        else:
-            logging.warning("Ignoring configured output directory as output file is a qualified path.")
-
-    args.output = args.output.absolute()
-
-    if args.environment:
-        env = {}
-        for s in args.environment:
-            key, sep, value = s.partition("=")
-            value = value if sep else os.getenv(key, "")
-            env[key] = value
-        args.environment = env
-    else:
-        args.environment = {}
-
-    args.credentials = load_credentials(args)
-    args.kernel_command_line_extra = load_kernel_command_line_extra(args)
-
-    if args.secure_boot and args.verb != Verb.genkey:
-        if args.secure_boot_key is None:
-            die("UEFI SecureBoot enabled, but couldn't find private key.",
-                hint="Consider placing it in mkosi.secure-boot.key")
-
-        if args.secure_boot_certificate is None:
-            die("UEFI SecureBoot enabled, but couldn't find certificate.",
-                hint="Consider placing it in mkosi.secure-boot.crt")
-
-    if args.sign_expected_pcr is True and not shutil.which("systemd-measure"):
-        die("Couldn't find systemd-measure needed for the --sign-expected-pcr option.")
-
-    if args.sign_expected_pcr is None:
-        args.sign_expected_pcr = bool(shutil.which("systemd-measure"))
-
-    # Resolve passwords late so we can accurately determine whether a build is needed
-    find_password(args)
-
-    if args.verb in (Verb.shell, Verb.boot):
-        opname = "acquire shell" if args.verb == Verb.shell else "boot"
-        if args.output_format in (OutputFormat.tar, OutputFormat.cpio):
-            die(f"Sorry, can't {opname} with a {args.output_format} archive.")
-        if args.compress_output != Compression.none:
-            die(f"Sorry, can't {opname} with a compressed image.")
-
-    if args.repo_dirs and not (is_dnf_distribution(args.distribution) or args.distribution == Distribution.arch):
-        die("--repo-dir is only supported on DNF based distributions and Arch")
-
-    if args.qemu_kvm is True and not qemu_check_kvm_support():
-        die("Sorry, the host machine does not support KVM acceleration.")
-
-    if args.qemu_kvm is None:
-        args.qemu_kvm = qemu_check_kvm_support()
-
-    if args.repositories and not is_dnf_distribution(args.distribution) and args.distribution not in (Distribution.debian, Distribution.ubuntu):
-        die("Sorry, the --repositories option is only supported on DNF/Debian based distributions")
-
-    if args.initrds:
-        args.initrds = [p.absolute() for p in args.initrds]
-        for p in args.initrds:
-            if not p.exists():
-                die(f"Initrd {p} not found")
-            if not p.is_file():
-                die(f"Initrd {p} is not a file")
-
-    if args.overlay and not args.base_trees:
-        die("--overlay can only be used with --base-tree")
-
-    # For unprivileged builds we need the userxattr OverlayFS mount option, which is only available in Linux v5.11 and later.
-    with prepend_to_environ_path(args.extra_search_paths):
-        if (args.build_script is not None or args.base_trees) and GenericVersion(platform.release()) < GenericVersion("5.11") and os.geteuid() != 0:
-            die("This unprivileged build configuration requires at least Linux v5.11")
-
-    return MkosiConfig(**vars(args))
-
-
 def cache_tree_paths(config: MkosiConfig) -> tuple[Path, Path]:
 
     # If the image ID is specified, use cache file names that are independent of the image versions, so that
@@ -1519,7 +1239,7 @@ def make_install_dir(state: MkosiState) -> None:
 
 
 def configure_ssh(state: MkosiState) -> None:
-    if state.for_cache or not state.config.ssh:
+    if not state.config.ssh:
         return
 
     state.root.joinpath("etc/systemd/system/ssh.socket").write_text(
@@ -1566,7 +1286,7 @@ def configure_ssh(state: MkosiState) -> None:
 
 
 def configure_initrd(state: MkosiState) -> None:
-    if state.for_cache or not state.config.make_initrd:
+    if not state.config.make_initrd:
         return
 
     if not state.root.joinpath("init").exists():
@@ -1576,13 +1296,7 @@ def configure_initrd(state: MkosiState) -> None:
         state.root.joinpath("etc/initrd-release").symlink_to("/etc/os-release")
 
 
-def run_kernel_install(state: MkosiState, cached: bool) -> None:
-    if not state.config.cache_initrd and state.for_cache:
-        return
-
-    if state.config.cache_initrd and cached:
-        return
-
+def run_kernel_install(state: MkosiState) -> None:
     if state.config.initrds:
         return
 
@@ -1606,7 +1320,8 @@ def run_kernel_install(state: MkosiState, cached: bool) -> None:
         not state.root.joinpath("usr/lib/kernel/install.d/50-dracut.install").exists() and
         not state.root.joinpath("etc/kernel/install.d/50-dracut.install").exists()):
         with complete_step("Running dpkg-reconfigure dracut…"):
-            run_workspace_command(state, ["dpkg-reconfigure", "dracut"], env=dict(hostonly_l="no"))
+            run_workspace_command(state.root, ["dpkg-reconfigure", "dracut"],
+                                  env=dict(hostonly_l="no") | state.environment)
             return
 
     with complete_step("Running kernel-install…"):
@@ -1617,7 +1332,7 @@ def run_kernel_install(state: MkosiState, cached: bool) -> None:
                 cmd.insert(1, "--verbose")
 
             # Make dracut think --no-host-only was passed via the CLI.
-            run_workspace_command(state, cmd, env=dict(hostonly_l="no"))
+            run_workspace_command(state.root, cmd, env=dict(hostonly_l="no") | state.environment)
 
             if machine_id and (p := state.root / "boot" / machine_id / kver / "initrd").exists():
                 shutil.move(p, state.root / state.installer.initrd_path(kver))
@@ -1627,25 +1342,16 @@ def run_kernel_install(state: MkosiState, cached: bool) -> None:
 
 
 def run_sysusers(state: MkosiState) -> None:
-    if state.for_cache:
-        return
-
     with complete_step("Generating system users"):
         run(["systemd-sysusers", "--root", state.root])
 
 
 def run_preset_all(state: MkosiState) -> None:
-    if state.for_cache:
-        return
-
     with complete_step("Applying presets…"):
         run(["systemctl", "--root", state.root, "preset-all"])
 
 
 def run_selinux_relabel(state: MkosiState) -> None:
-    if state.for_cache:
-        return
-
     selinux = state.root / "etc/selinux/config"
     if not selinux.exists():
         return
@@ -1661,7 +1367,7 @@ def run_selinux_relabel(state: MkosiState) -> None:
     cmd = f"mkdir /tmp/relabel && mount --bind / /tmp/relabel && exec setfiles -m -r /tmp/relabel -F {fc} /tmp/relabel || exit $?"
 
     with complete_step(f"Relabeling files using {policy} policy"):
-        run_workspace_command(state, ["sh", "-c", cmd])
+        run_workspace_command(state.root, ["sh", "-c", cmd], env=state.environment)
 
 
 def reuse_cache_tree(state: MkosiState) -> bool:
@@ -1671,8 +1377,6 @@ def reuse_cache_tree(state: MkosiState) -> bool:
     final, build = cache_tree_paths(state.config)
     if not final.exists() or (state.config.build_script and not build.exists()):
         return False
-    if state.for_cache and final.exists() and (not state.config.build_script or build.exists()):
-        return True
 
     with complete_step("Copying cached trees"):
         copy_path(final, state.root)
@@ -1685,7 +1389,7 @@ def reuse_cache_tree(state: MkosiState) -> bool:
 
 
 def invoke_repart(state: MkosiState, skip: Sequence[str] = [], split: bool = False) -> Optional[str]:
-    if not state.config.output_format == OutputFormat.disk or state.for_cache:
+    if not state.config.output_format == OutputFormat.disk:
         return None
 
     cmdline: list[PathString] = [
@@ -1779,22 +1483,28 @@ def invoke_repart(state: MkosiState, skip: Sequence[str] = [], split: bool = Fal
     return f"roothash={roothash}" if roothash else f"usrhash={usrhash}" if usrhash else None
 
 
-def build_image(state: MkosiState, *, manifest: Optional[Manifest] = None) -> None:
+def build_image(state: MkosiState, *, for_cache: bool, manifest: Optional[Manifest] = None) -> None:
     with mount_image(state):
-        cached = reuse_cache_tree(state)
-        install_base_trees(state, cached)
-        install_skeleton_trees(state, cached)
-        install_distribution(state, cached)
-        run_prepare_script(state, cached, build=False)
-        install_build_packages(state, cached)
-        run_prepare_script(state, cached, build=True)
+        cached = reuse_cache_tree(state) if not for_cache else False
+
+        if not cached:
+            install_base_trees(state)
+            install_skeleton_trees(state)
+            install_distribution(state)
+            run_prepare_script(state, build=False)
+            install_build_packages(state)
+            run_prepare_script(state, build=True)
+
+        if for_cache:
+            return
+
         configure_root_password(state)
         configure_autologin(state)
         configure_initrd(state)
         run_build_script(state)
         install_build_dest(state)
         install_extra_trees(state)
-        run_kernel_install(state, cached)
+        run_kernel_install(state)
         install_boot_loader(state)
         configure_ssh(state)
         run_postinst_script(state)
@@ -1831,7 +1541,7 @@ def install_dir(state: MkosiState) -> Path:
 
 
 def run_build_script(state: MkosiState) -> None:
-    if state.config.build_script is None or state.for_cache:
+    if state.config.build_script is None:
         return
 
     # Make sure that if mkosi.installdir/ is used, any leftover files from a previous run are removed.
@@ -1866,8 +1576,8 @@ def run_build_script(state: MkosiState) -> None:
 
         # build-script output goes to stdout so we can run language servers from within mkosi
         # build-scripts. See https://github.com/systemd/mkosi/pull/566 for more information.
-        run_workspace_command(state, cmd, network=state.config.with_network, bwrap_params=bwrap,
-                              stdout=sys.stdout, env=env)
+        run_workspace_command(state.root, cmd, network=state.config.with_network, bwrap_params=bwrap,
+                              stdout=sys.stdout, env=env | state.environment)
 
 
 def need_cache_tree(state: MkosiState) -> bool:
@@ -1893,7 +1603,6 @@ def build_stuff(uid: int, gid: int, config: MkosiConfig) -> None:
         config=config,
         workspace=workspace_dir,
         cache=cache,
-        for_cache=False,
     )
 
     manifest = Manifest(config)
@@ -1909,13 +1618,12 @@ def build_stuff(uid: int, gid: int, config: MkosiConfig) -> None:
         # If caching is requested, then make sure we have cache trees around we can make use of
         if need_cache_tree(state):
             with complete_step("Building cache image"):
-                state = dataclasses.replace(state, for_cache=True)
-                build_image(state)
+                build_image(state, for_cache=True)
                 save_cache(state)
 
         with complete_step("Building image"):
-            state = dataclasses.replace(state, for_cache=False)
-            build_image(state, manifest=manifest)
+            state = dataclasses.replace(state, )
+            build_image(state, manifest=manifest, for_cache=False)
 
         copy_nspawn_settings(state)
         calculate_sha256sum(state)
@@ -1923,23 +1631,23 @@ def build_stuff(uid: int, gid: int, config: MkosiConfig) -> None:
         save_manifest(state, manifest)
 
         if state.config.cache_dir:
-            acl_toggle_remove(state.config, state.config.cache_dir, state.uid, allow=True)
+            acl_toggle_remove(state.config, state.config.cache_dir, uid, allow=True)
 
         for p in state.config.output_paths():
             if state.staging.joinpath(p.name).exists():
                 shutil.move(state.staging / p.name, p)
                 if p != state.config.output or state.config.output_format != OutputFormat.directory:
-                    os.chown(p, state.uid, state.gid)
+                    os.chown(p, uid, gid)
                 else:
                     acl_toggle_remove(state.config, p, uid, allow=True)
                 if p == state.config.output:
-                    compress_output(state.config, p, uid=state.uid, gid=state.gid)
+                    compress_output(state.config, p, uid=uid, gid=gid)
 
         for p in state.staging.iterdir():
             shutil.move(p, state.config.output.parent / p.name)
-            os.chown(state.config.output.parent / p.name, state.uid, state.gid)
+            os.chown(state.config.output.parent / p.name, uid, gid)
             if p.name.startswith(state.config.output.name):
-                compress_output(state.config, p, uid=state.uid, gid=state.gid)
+                compress_output(state.config, p, uid=uid, gid=gid)
 
     print_output_size(config)
 
@@ -1947,10 +1655,6 @@ def build_stuff(uid: int, gid: int, config: MkosiConfig) -> None:
 def check_root() -> None:
     if os.getuid() != 0:
         die("Must be invoked as root.")
-
-
-def machine_name(config: Union[MkosiConfig, argparse.Namespace]) -> str:
-    return config.image_id or config.output.with_suffix("").name.partition("_")[0]
 
 
 def machine_cid(config: MkosiConfig) -> int:
@@ -2126,18 +1830,6 @@ def find_ovmf_vars(config: MkosiConfig) -> Path:
             return Path(location)
 
     die("Couldn't find OVMF UEFI variables file.")
-
-
-def qemu_check_kvm_support() -> bool:
-    kvm = Path("/dev/kvm")
-    if not kvm.is_char_device():
-        return False
-    # some CI runners may present a non-working KVM device
-    try:
-        with kvm.open("r+b"):
-            return True
-    except OSError:
-        return False
 
 
 @contextlib.contextmanager
@@ -2370,27 +2062,6 @@ def bump_image_version(config: MkosiConfig) -> None:
             print(f"Increasing last component of version by one, bumping '{config.image_version}' → '{new_version}'.")
 
     Path("mkosi.version").write_text(new_version + "\n")
-
-
-@contextlib.contextmanager
-def prepend_to_environ_path(paths: Sequence[Path]) -> Iterator[None]:
-    if not paths:
-        yield
-        return
-
-    with tempfile.TemporaryDirectory(prefix="mkosi.path", dir=tmp_dir()) as d:
-
-        for path in paths:
-            if not path.is_dir():
-                Path(d).joinpath(path.name).symlink_to(path.absolute())
-
-        paths = [Path(d), *paths]
-
-        news = [os.fspath(path) for path in paths if path.is_dir()]
-        olds = os.getenv("PATH", "").split(":")
-        os.environ["PATH"] = ":".join(news + olds)
-
-        yield
 
 
 def expand_specifier(s: str) -> str:

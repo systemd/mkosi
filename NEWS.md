@@ -80,6 +80,8 @@
   `debian-archive-keyring` or `ubuntu-archive-keyring` are now required to be installed to build Debian or
   Ubuntu images respectively.
 - `--base-image` is split into `--base-tree` and `--overlay`.
+- Removed `--cache-initrd`, instead, use a prebuilt initrd with `Initrds=` to avoid rebuilding the initrd all
+  the time.
 
 ## v14
 
