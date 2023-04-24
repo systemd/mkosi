@@ -1328,7 +1328,7 @@ def run_kernel_install(state: MkosiState) -> None:
         for kver, kimg in gen_kernel_images(state):
             cmd: list[PathString] = ["kernel-install", "add", kver, Path("/") / kimg]
 
-            if ARG_DEBUG:
+            if ARG_DEBUG.get():
                 cmd.insert(1, "--verbose")
 
             # Make dracut think --no-host-only was passed via the CLI.
