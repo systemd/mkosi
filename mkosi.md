@@ -1350,7 +1350,6 @@ state:
 $ cat >mkosi.conf <<EOF
 [Distribution]
 Distribution=fedora
-Release=24
 
 [Output]
 Format=disk
