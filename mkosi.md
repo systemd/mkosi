@@ -381,6 +381,40 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   should an `mkosi` invocation be aborted abnormally (for example, due
   to reboot/power failure).
 
+`CacheDirectory=`, `--cache-dir=`
+
+: Takes a path to a directory to use as package cache for the
+  distribution package manager used. If this option is not used, but a
+  `mkosi.cache/` directory is found in the local directory it is
+  automatically used for this purpose. The directory configured this
+  way is mounted into both the development and the final image while
+  the package manager is running.
+
+`BuildDirectory=`, `--build-dir=`
+
+: Takes a path of a directory to use as build directory for build
+  systems that support out-of-tree builds (such as Meson). The
+  directory used this way is shared between repeated builds, and
+  allows the build system to reuse artifacts (such as object files,
+  executable, …) generated on previous invocations. This directory is
+  mounted into the development image when the build script is
+  invoked. The build script can find the path to this directory in the
+  `$BUILDDIR` environment variable. If this option is not specified,
+  but a directory `mkosi.builddir/` exists in the local directory it
+  is automatically used for this purpose (also see the "Files" section
+  below).
+
+`InstallDirectory=`, `--install-dir=`
+
+: Takes a path of a directory to use as the install directory. The
+  directory used this way is shared between builds and allows the
+  build system to not have to reinstall files that were already
+  installed by a previous build and didn't change. The build script
+  can find the path to this directory in the `$DESTDIR` environment
+  variable. If this option is not specified, but a directory
+  `mkosi.installdir` exists in the local directory, it is automatically
+  used for this purpose (also see the "Files" section below).
+
 `Force=`, `--force`, `-f`
 
 : Replace the output file if it already exists, when building an
@@ -579,15 +613,6 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   normally run during the source build process. Note that this option
   has no effect unless the `mkosi.build` build script honors it.
 
-`CacheDirectory=`, `--cache-dir=`
-
-: Takes a path to a directory to use as package cache for the
-  distribution package manager used. If this option is not used, but a
-  `mkosi.cache/` directory is found in the local directory it is
-  automatically used for this purpose. The directory configured this
-  way is mounted into both the development and the final image while
-  the package manager is running.
-
 `BaseTrees=`, `--base-tree=`
 
 : Takes a colon separated pair of directories to use as base images. When
@@ -673,31 +698,6 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 
 : Takes a path to a source tree to mount into the development image, if
   the build script is used.
-
-`BuildDirectory=`, `--build-dir=`
-
-: Takes a path of a directory to use as build directory for build
-  systems that support out-of-tree builds (such as Meson). The
-  directory used this way is shared between repeated builds, and
-  allows the build system to reuse artifacts (such as object files,
-  executable, …) generated on previous invocations. This directory is
-  mounted into the development image when the build script is
-  invoked. The build script can find the path to this directory in the
-  `$BUILDDIR` environment variable. If this option is not specified,
-  but a directory `mkosi.builddir/` exists in the local directory it
-  is automatically used for this purpose (also see the "Files" section
-  below).
-
-`InstallDirectory=`, `--install-dir=`
-
-: Takes a path of a directory to use as the install directory. The
-  directory used this way is shared between builds and allows the
-  build system to not have to reinstall files that were already
-  installed by a previous build and didn't change. The build script
-  can find the path to this directory in the `$DESTDIR` environment
-  variable. If this option is not specified, but a directory
-  `mkosi.installdir` exists in the local directory, it is automatically
-  used for this purpose (also see the "Files" section below).
 
 `BuildPackages=`, `--build-package=`
 

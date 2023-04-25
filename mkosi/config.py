@@ -728,6 +728,27 @@ class MkosiConfigParser:
             paths=("mkosi.workspace",),
         ),
         MkosiConfigSetting(
+            dest="cache_dir",
+            name="CacheDirectory",
+            section="Content",
+            parse=config_make_path_parser(required=False),
+            paths=("mkosi.cache",),
+        ),
+        MkosiConfigSetting(
+            dest="build_dir",
+            name="BuildDirectory",
+            section="Content",
+            parse=config_make_path_parser(required=False),
+            paths=("mkosi.builddir",),
+        ),
+        MkosiConfigSetting(
+            dest="install_dir",
+            name="InstallDirectory",
+            section="Content",
+            parse=config_make_path_parser(required=False),
+            paths=("mkosi.installdir",),
+        ),
+        MkosiConfigSetting(
             dest="kernel_command_line",
             section="Output",
             parse=config_make_list_parser(delimiter=" "),
@@ -843,13 +864,6 @@ class MkosiConfigParser:
             parse=config_parse_boolean,
         ),
         MkosiConfigSetting(
-            dest="cache_dir",
-            name="CacheDirectory",
-            section="Content",
-            parse=config_make_path_parser(required=False),
-            paths=("mkosi.cache",),
-        ),
-        MkosiConfigSetting(
             dest="base_trees",
             section="Content",
             parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
@@ -886,20 +900,6 @@ class MkosiConfigParser:
             section="Content",
             parse=config_make_path_parser(),
             default=".",
-        ),
-        MkosiConfigSetting(
-            dest="build_dir",
-            name="BuildDirectory",
-            section="Content",
-            parse=config_make_path_parser(required=False),
-            paths=("mkosi.builddir",),
-        ),
-        MkosiConfigSetting(
-            dest="install_dir",
-            name="InstallDirectory",
-            section="Content",
-            parse=config_make_path_parser(required=False),
-            paths=("mkosi.installdir",),
         ),
         MkosiConfigSetting(
             dest="build_packages",
@@ -1296,6 +1296,24 @@ class MkosiConfigParser:
             action=action,
         )
         group.add_argument(
+            "--cache-dir",
+            metavar="PATH",
+            help="Package cache path",
+            action=action,
+        )
+        group.add_argument(
+            "--build-dir",
+            metavar="PATH",
+            help="Path to use as persistent build directory",
+            action=action,
+        )
+        group.add_argument(
+            "--install-dir",
+            metavar="PATH",
+            help="Path to use as persistent install directory",
+            action=action,
+        )
+        group.add_argument(
             "--kernel-command-line",
             metavar="OPTIONS",
             help="Set the kernel command line (only bootable images)",
@@ -1429,12 +1447,6 @@ class MkosiConfigParser:
             action=action,
         )
         group.add_argument(
-            "--cache-dir",
-            metavar="PATH",
-            help="Package cache path",
-            action=action,
-        )
-        group.add_argument(
             '--base-tree',
             metavar='PATH',
             help='Use the given tree as base tree (e.g. lower sysext layer)',
@@ -1477,18 +1489,6 @@ class MkosiConfigParser:
             "--build-sources",
             metavar="PATH",
             help="Path for sources to build",
-            action=action,
-        )
-        group.add_argument(
-            "--build-dir",
-            metavar="PATH",
-            help="Path to use as persistent build directory",
-            action=action,
-        )
-        group.add_argument(
-            "--install-dir",
-            metavar="PATH",
-            help="Path to use as persistent install directory",
             action=action,
         )
         group.add_argument(
