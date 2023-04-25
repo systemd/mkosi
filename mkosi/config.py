@@ -480,6 +480,155 @@ class PagerHelpAction(argparse._HelpAction):
         parser.exit()
 
 
+@dataclasses.dataclass(frozen=True)
+class MkosiConfig:
+    """Type-hinted storage for command line arguments.
+
+    Only user configuration is stored here while dynamic state exists in
+    MkosiState. If a field of the same name exists in both classes always
+    access the value from state.
+    """
+
+    verb: Verb
+    cmdline: list[str]
+    force: int
+
+    distribution: Distribution
+    release: str
+    mirror: Optional[str]
+    local_mirror: Optional[str]
+    repository_key_check: bool
+    repositories: list[str]
+    repo_dirs: list[Path]
+    repart_dirs: list[Path]
+    overlay: bool
+    architecture: str
+    output_format: OutputFormat
+    manifest_format: list[ManifestFormat]
+    output: Path
+    output_dir: Optional[Path]
+    kernel_command_line: list[str]
+    secure_boot: bool
+    secure_boot_key: Optional[Path]
+    secure_boot_certificate: Optional[Path]
+    secure_boot_valid_days: str
+    secure_boot_common_name: str
+    sign_expected_pcr: bool
+    compress_output: Compression
+    image_version: Optional[str]
+    image_id: Optional[str]
+    tar_strip_selinux_context: bool
+    incremental: bool
+    packages: list[str]
+    remove_packages: list[str]
+    with_docs: bool
+    with_tests: bool
+    cache_dir: Optional[Path]
+    base_trees: list[Path]
+    extra_trees: list[tuple[Path, Optional[Path]]]
+    skeleton_trees: list[tuple[Path, Optional[Path]]]
+    clean_package_metadata: Optional[bool]
+    remove_files: list[str]
+    environment: dict[str, str]
+    build_sources: Path
+    build_dir: Optional[Path]
+    install_dir: Optional[Path]
+    build_packages: list[str]
+    build_script: Optional[Path]
+    prepare_script: Optional[Path]
+    postinst_script: Optional[Path]
+    finalize_script: Optional[Path]
+    with_network: bool
+    cache_only: bool
+    nspawn_settings: Optional[Path]
+    checksum: bool
+    split_artifacts: bool
+    sign: bool
+    key: Optional[str]
+    password: Optional[str]
+    password_is_hashed: bool
+    autologin: bool
+    extra_search_paths: list[Path]
+    ephemeral: bool
+    ssh: bool
+    credentials: dict[str, str]
+    directory: Optional[Path]
+    debug: bool
+    debug_shell: bool
+    auto_bump: bool
+    workspace_dir: Optional[Path]
+    initrds: list[Path]
+    make_initrd: bool
+    kernel_command_line_extra: list[str]
+    acl: bool
+    pager: bool
+    bootable: Optional[bool]
+
+    # QEMU-specific options
+    qemu_gui: bool
+    qemu_smp: str
+    qemu_mem: str
+    qemu_kvm: bool
+    qemu_args: Sequence[str]
+
+    passphrase: Optional[Path]
+
+    def architecture_is_native(self) -> bool:
+        return self.architecture == platform.machine()
+
+    @property
+    def output_split_uki(self) -> Path:
+        return build_auxiliary_output_path(self, ".efi")
+
+    @property
+    def output_split_kernel(self) -> Path:
+        return build_auxiliary_output_path(self, ".vmlinuz")
+
+    @property
+    def output_nspawn_settings(self) -> Path:
+        return build_auxiliary_output_path(self, ".nspawn")
+
+    @property
+    def output_checksum(self) -> Path:
+        return Path("SHA256SUMS")
+
+    @property
+    def output_signature(self) -> Path:
+        return Path("SHA256SUMS.gpg")
+
+    @property
+    def output_sshkey(self) -> Path:
+        return build_auxiliary_output_path(self, ".ssh")
+
+    @property
+    def output_manifest(self) -> Path:
+        return build_auxiliary_output_path(self, ".manifest")
+
+    @property
+    def output_changelog(self) -> Path:
+        return build_auxiliary_output_path(self, ".changelog")
+
+    @property
+    def output_compressed(self) -> Path:
+        if not self.compress_output:
+            return self.output
+
+        return self.output.parent / f"{self.output.name}.{self.compress_output}"
+
+    def output_paths(self) -> tuple[Path, ...]:
+        return (
+            self.output,
+            self.output_split_uki,
+            self.output_split_kernel,
+            self.output_nspawn_settings,
+            self.output_checksum,
+            self.output_signature,
+            self.output_sshkey,
+            self.output_manifest,
+            self.output_changelog,
+        )
+
+
 class MkosiConfigParser:
     SETTINGS = (
         MkosiConfigSetting(
@@ -1507,7 +1656,7 @@ class MkosiConfigParser:
 
         return parser
 
-    def parse(self, args: Optional[Sequence[str]] = None) -> argparse.Namespace:
+    def parse(self, args: Optional[Sequence[str]] = None) -> MkosiConfig:
         namespace = argparse.Namespace()
 
         if args is None:
@@ -1558,7 +1707,7 @@ class MkosiConfigParser:
 
             setattr(namespace, s.dest, default)
 
-        return namespace
+        return load_args(namespace)
 
 
 class GenericVersion:
@@ -1600,157 +1749,6 @@ class GenericVersion:
             return False
         cmd = ["systemd-analyze", "compare-versions", self._version, "ge", other._version]
         return run(cmd, check=False).returncode == 0
-
-
-@dataclasses.dataclass(frozen=True)
-class MkosiConfig:
-    """Type-hinted storage for command line arguments.
-
-    Only user configuration is stored here while dynamic state exists in
-    MkosiState. If a field of the same name exists in both classes always
-    access the value from state.
-    """
-
-    verb: Verb
-    cmdline: list[str]
-    force: int
-
-    distribution: Distribution
-    release: str
-    mirror: Optional[str]
-    local_mirror: Optional[str]
-    repository_key_check: bool
-    repositories: list[str]
-    repo_dirs: list[Path]
-    repart_dirs: list[Path]
-    overlay: bool
-    architecture: str
-    output_format: OutputFormat
-    manifest_format: list[ManifestFormat]
-    output: Path
-    output_dir: Optional[Path]
-    kernel_command_line: list[str]
-    secure_boot: bool
-    secure_boot_key: Optional[Path]
-    secure_boot_certificate: Optional[Path]
-    secure_boot_valid_days: str
-    secure_boot_common_name: str
-    sign_expected_pcr: bool
-    compress_output: Compression
-    image_version: Optional[str]
-    image_id: Optional[str]
-    tar_strip_selinux_context: bool
-    incremental: bool
-    packages: list[str]
-    remove_packages: list[str]
-    with_docs: bool
-    with_tests: bool
-    cache_dir: Optional[Path]
-    base_trees: list[Path]
-    extra_trees: list[tuple[Path, Optional[Path]]]
-    skeleton_trees: list[tuple[Path, Optional[Path]]]
-    clean_package_metadata: Optional[bool]
-    remove_files: list[str]
-    environment: dict[str, str]
-    build_sources: Path
-    build_dir: Optional[Path]
-    install_dir: Optional[Path]
-    build_packages: list[str]
-    build_script: Optional[Path]
-    prepare_script: Optional[Path]
-    postinst_script: Optional[Path]
-    finalize_script: Optional[Path]
-    with_network: bool
-    cache_only: bool
-    nspawn_settings: Optional[Path]
-    checksum: bool
-    split_artifacts: bool
-    sign: bool
-    key: Optional[str]
-    password: Optional[str]
-    password_is_hashed: bool
-    autologin: bool
-    extra_search_paths: list[Path]
-    ephemeral: bool
-    ssh: bool
-    credentials: dict[str, str]
-    directory: Optional[Path]
-    debug: bool
-    debug_shell: bool
-    auto_bump: bool
-    workspace_dir: Optional[Path]
-    initrds: list[Path]
-    make_initrd: bool
-    kernel_command_line_extra: list[str]
-    acl: bool
-    pager: bool
-    bootable: Optional[bool]
-
-    # QEMU-specific options
-    qemu_gui: bool
-    qemu_smp: str
-    qemu_mem: str
-    qemu_kvm: bool
-    qemu_args: Sequence[str]
-
-    passphrase: Optional[Path]
-
-    def architecture_is_native(self) -> bool:
-        return self.architecture == platform.machine()
-
-    @property
-    def output_split_uki(self) -> Path:
-        return build_auxiliary_output_path(self, ".efi")
-
-    @property
-    def output_split_kernel(self) -> Path:
-        return build_auxiliary_output_path(self, ".vmlinuz")
-
-    @property
-    def output_nspawn_settings(self) -> Path:
-        return build_auxiliary_output_path(self, ".nspawn")
-
-    @property
-    def output_checksum(self) -> Path:
-        return Path("SHA256SUMS")
-
-    @property
-    def output_signature(self) -> Path:
-        return Path("SHA256SUMS.gpg")
-
-    @property
-    def output_sshkey(self) -> Path:
-        return build_auxiliary_output_path(self, ".ssh")
-
-    @property
-    def output_manifest(self) -> Path:
-        return build_auxiliary_output_path(self, ".manifest")
-
-    @property
-    def output_changelog(self) -> Path:
-        return build_auxiliary_output_path(self, ".changelog")
-
-    @property
-    def output_compressed(self) -> Path:
-        if not self.compress_output:
-            return self.output
-
-        return self.output.parent / f"{self.output.name}.{self.compress_output}"
-
-    def output_paths(self) -> tuple[Path, ...]:
-        return (
-            self.output,
-            self.output_split_uki,
-            self.output_split_kernel,
-            self.output_nspawn_settings,
-            self.output_checksum,
-            self.output_signature,
-            self.output_sshkey,
-            self.output_manifest,
-            self.output_changelog,
-        )
-
-
 
 def strip_suffixes(path: Path) -> Path:
     while path.suffix in {

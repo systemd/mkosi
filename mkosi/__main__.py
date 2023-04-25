@@ -9,7 +9,7 @@ import sys
 from collections.abc import Iterator
 
 from mkosi import run_verb
-from mkosi.config import MkosiConfigParser, load_args
+from mkosi.config import MkosiConfigParser
 from mkosi.log import ARG_DEBUG, die, log_setup
 from mkosi.run import excepthook
 
@@ -42,18 +42,18 @@ def propagate_failed_return() -> Iterator[None]:
 @propagate_failed_return()
 def main() -> None:
     log_setup()
-    args = MkosiConfigParser().parse()
+    config = MkosiConfigParser().parse()
 
     if ARG_DEBUG.get():
         logging.getLogger().setLevel(logging.DEBUG)
 
-    if args.directory:
-        if args.directory.is_dir():
-            os.chdir(args.directory)
+    if config.directory:
+        if config.directory.is_dir():
+            os.chdir(config.directory)
         else:
-            die(f"Error: {args.directory} is not a directory!")
+            die(f"Error: {config.directory} is not a directory!")
 
-    run_verb(load_args(args))
+    run_verb(config)
 
 
 if __name__ == "__main__":

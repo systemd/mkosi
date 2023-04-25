@@ -13,7 +13,7 @@ from typing import Iterator, List, Optional
 import pytest
 
 from mkosi.util import Compression, Distribution, Verb
-from mkosi.config import MkosiConfigParser, MkosiConfig, load_args
+from mkosi.config import MkosiConfigParser, MkosiConfig
 
 
 @contextmanager
@@ -29,7 +29,7 @@ def cd_temp_dir() -> Iterator[None]:
 
 
 def parse(argv: Optional[List[str]] = None) -> MkosiConfig:
-    return load_args(MkosiConfigParser().parse(argv))
+    return MkosiConfigParser().parse(argv)
 
 
 def test_parse_load_verb() -> None:
