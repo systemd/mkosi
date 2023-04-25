@@ -1385,13 +1385,13 @@ Create and run a bootable \f[I]GPT\f[R] image, as \f[V]foobar.raw\f[R]:
 .IP
 .nf
 \f[C]
-# mkosi -d fedora -p kernel -p systemd -p udev -o foobar.raw
+$ mkosi -d fedora -p kernel -p systemd -p udev -o foobar.raw
 # mkosi --output foobar.raw boot
-# mkosi --output foobar.raw qemu
+$ mkosi --output foobar.raw qemu
 \f[R]
 .fi
 .PP
-Create and run a \f[I]Fedora Linux\f[R] image into a plain directory:
+Create and run a \f[I]Fedora Linux\f[R] image in a plain directory:
 .IP
 .nf
 \f[C]
@@ -1399,12 +1399,12 @@ Create and run a \f[I]Fedora Linux\f[R] image into a plain directory:
 \f[R]
 .fi
 .PP
-Create a compressed image \f[V]image.raw.xz\f[R] and add a checksum
-file, and install \f[I]SSH\f[R] into it:
+Create a compressed image \f[V]image.raw.xz\f[R] with \f[I]SSH\f[R]
+installed and add a checksum file:
 .IP
 .nf
 \f[C]
-# mkosi --distribution fedora --format disk --checksum --compress-output --package=openssh-clients
+$ mkosi --distribution fedora --format disk --checksum --compress-output --package=openssh-clients
 \f[R]
 .fi
 .PP
@@ -1415,7 +1415,7 @@ the project in its current state:
 .IP
 .nf
 \f[C]
-# cat >mkosi.conf <<EOF
+$ cat >mkosi.conf <<EOF
 [Distribution]
 Distribution=fedora
 Release=24
@@ -1427,7 +1427,7 @@ Format=disk
 Packages=kernel,systemd,systemd-udev,openssh-clients,httpd
 BuildPackages=make,gcc,libcurl-devel
 EOF
-# cat >mkosi.build <<EOF
+$ cat >mkosi.build <<EOF
 #!/bin/sh
 cd $SRCDIR
 \&./autogen.sh
@@ -1435,7 +1435,7 @@ cd $SRCDIR
 make -j \[ga]nproc\[ga]
 make install
 EOF
-# chmod +x mkosi.build
+$ chmod +x mkosi.build
 # mkosi --incremental boot
 # systemd-nspawn -bi image.raw
 \f[R]
@@ -1481,7 +1481,7 @@ It is also copied into the output directory and may be booted directly:
 .IP
 .nf
 \f[C]
-# mkosi qemu -kernel mkosi.output/fedora\[ti]38/image.efi
+$ mkosi qemu -kernel mkosi.output/fedora\[ti]38/image.efi
 \f[R]
 .fi
 .PP
@@ -1495,7 +1495,7 @@ valid UEFI binary:
 .IP
 .nf
 \f[C]
-# mkosi qemu -kernel /usr/lib/systemd/boot/efi/systemd-bootx64.efi
+$ mkosi qemu -kernel /usr/lib/systemd/boot/efi/systemd-bootx64.efi
 \f[R]
 .fi
 .PP
@@ -1515,7 +1515,7 @@ For example, on \f[I]Fedora Linux\f[R] you need:
 .IP
 .nf
 \f[C]
-dnf install bubblewrap btrfs-progs apt dosfstools mtools edk2-ovmf e2fsprogs squashfs-tools gnupg python3 tar xfsprogs xz zypper sbsigntools
+# dnf install bubblewrap btrfs-progs apt dosfstools mtools edk2-ovmf e2fsprogs squashfs-tools gnupg python3 tar xfsprogs xz zypper sbsigntools
 \f[R]
 .fi
 .PP
@@ -1539,4 +1539,4 @@ The mkosi OS generation tool (https://lwn.net/Articles/726655/) story on
 LWN
 .SH SEE ALSO
 .PP
-\f[V]systemd-nspawn(1)\f[R], \f[V]dnf(8)\f[R],
+\f[V]systemd-nspawn(1)\f[R], \f[V]dnf(8)\f[R]

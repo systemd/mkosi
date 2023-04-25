@@ -1324,22 +1324,21 @@ Create and run a raw *GPT* image with *ext4*, as `image.raw`:
 Create and run a bootable *GPT* image, as `foobar.raw`:
 
 ```console
-# mkosi -d fedora -p kernel -p systemd -p udev -o foobar.raw
+$ mkosi -d fedora -p kernel -p systemd -p udev -o foobar.raw
 # mkosi --output foobar.raw boot
-# mkosi --output foobar.raw qemu
+$ mkosi --output foobar.raw qemu
 ```
 
-Create and run a *Fedora Linux* image into a plain directory:
+Create and run a *Fedora Linux* image in a plain directory:
 
 ```console
 # mkosi --distribution fedora --format directory boot
 ```
 
-Create a compressed image `image.raw.xz` and add a checksum file, and
-install *SSH* into it:
+Create a compressed image `image.raw.xz` with *SSH* installed and add a checksum file:
 
 ```console
-# mkosi --distribution fedora --format disk --checksum --compress-output --package=openssh-clients
+$ mkosi --distribution fedora --format disk --checksum --compress-output --package=openssh-clients
 ```
 
 Inside the source directory of an `automake`-based project, configure
@@ -1348,7 +1347,7 @@ an OS image containing a built version of the project in its current
 state:
 
 ```console
-# cat >mkosi.conf <<EOF
+$ cat >mkosi.conf <<EOF
 [Distribution]
 Distribution=fedora
 Release=24
@@ -1360,7 +1359,7 @@ Format=disk
 Packages=kernel,systemd,systemd-udev,openssh-clients,httpd
 BuildPackages=make,gcc,libcurl-devel
 EOF
-# cat >mkosi.build <<EOF
+$ cat >mkosi.build <<EOF
 #!/bin/sh
 cd $SRCDIR
 ./autogen.sh
@@ -1368,7 +1367,7 @@ cd $SRCDIR
 make -j `nproc`
 make install
 EOF
-# chmod +x mkosi.build
+$ chmod +x mkosi.build
 # mkosi --incremental boot
 # systemd-nspawn -bi image.raw
 ```
@@ -1405,7 +1404,7 @@ and any previous `-append` specifications.
 `mkosi` builds a Unified Kernel Image (UKI).
 It is also copied into the output directory and may be booted directly:
 ```console
-# mkosi qemu -kernel mkosi.output/fedora~38/image.efi
+$ mkosi qemu -kernel mkosi.output/fedora~38/image.efi
 ```
 
 When booting using an external kernel, we don't need the kernel *in* the image,
@@ -1414,7 +1413,7 @@ but we would still want the kernel modules to be installed.
 It is also possible to do a "direct kernel boot" into a boot loader,
 taking advantage of the fact that `systemd-boot(7)` is a valid UEFI binary:
 ```console
-# mkosi qemu -kernel /usr/lib/systemd/boot/efi/systemd-bootx64.efi
+$ mkosi qemu -kernel /usr/lib/systemd/boot/efi/systemd-bootx64.efi
 ```
 In this scenario, the kernel is loaded from the ESP in the image by `systemd-boot`.
 
@@ -1430,7 +1429,7 @@ When not using distribution packages make sure to install the
 necessary dependencies. For example, on *Fedora Linux* you need:
 
 ```bash
-dnf install bubblewrap btrfs-progs apt dosfstools mtools edk2-ovmf e2fsprogs squashfs-tools gnupg python3 tar xfsprogs xz zypper sbsigntools
+# dnf install bubblewrap btrfs-progs apt dosfstools mtools edk2-ovmf e2fsprogs squashfs-tools gnupg python3 tar xfsprogs xz zypper sbsigntools
 ```
 
 On Debian/Ubuntu it might be necessary to install the `ubuntu-keyring`,
@@ -1446,4 +1445,4 @@ Note that the minimum required Python version is 3.9.
 * [The mkosi OS generation tool](https://lwn.net/Articles/726655/) story on LWN
 
 # SEE ALSO
-`systemd-nspawn(1)`, `dnf(8)`,
+`systemd-nspawn(1)`, `dnf(8)`
