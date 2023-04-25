@@ -1903,8 +1903,6 @@ def load_config(args: argparse.Namespace) -> MkosiConfig:
         args.cache_dir = args.cache_dir / f"{args.distribution}~{args.release}"
     if args.build_dir:
         args.build_dir = args.build_dir / f"{args.distribution}~{args.release}"
-    if args.output_dir:
-        args.output_dir = args.output_dir / f"{args.distribution}~{args.release}"
 
     if args.sign:
         args.checksum = True
@@ -1998,6 +1996,9 @@ def load_config(args: argparse.Namespace) -> MkosiConfig:
 
     if args.overlay and not args.base_trees:
         die("--overlay can only be used with --base-tree")
+
+    if args.incremental and not args.cache_dir:
+        die("A cache directory must be configured in order to use --incremental")
 
     # For unprivileged builds we need the userxattr OverlayFS mount option, which is only available in Linux v5.11 and later.
     with prepend_to_environ_path(args.extra_search_paths):

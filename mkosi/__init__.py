@@ -998,15 +998,15 @@ def unlink_output(args: MkosiArgs, config: MkosiConfig) -> None:
 
 def cache_tree_paths(config: MkosiConfig) -> tuple[Path, Path]:
 
+    assert config.cache_dir
+
     # If the image ID is specified, use cache file names that are independent of the image versions, so that
     # rebuilding and bumping versions is cheap and reuses previous versions if cached.
-    if config.image_id is not None and config.output_dir:
-        prefix = config.output_dir / config.image_id
-    elif config.image_id:
-        prefix = Path(config.image_id)
+    if config.image_id:
+        prefix = config.cache_dir / config.image_id
     # Otherwise, derive the cache file names directly from the output file names.
     else:
-        prefix = config.output
+        prefix = config.cache_dir / config.output.name
 
     return (Path(f"{prefix}.cache"), Path(f"{prefix}.build.cache"))
 
