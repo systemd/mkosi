@@ -245,9 +245,7 @@ class InvokingUser:
 
     @classmethod
     def name(cls) -> str:
-        if uid := cls._uid_from_env():
-            return pwd.getpwuid(uid).pw_name
-        return getpass.getuser()
+        return pwd.getpwuid(cls.uid()).pw_name
 
     @classmethod
     def home(cls) -> Path:
