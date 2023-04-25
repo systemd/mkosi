@@ -253,6 +253,14 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   space-separated list. If multiple image version constraints are specified, all
   must be satisfied for the match to succeed.
 
+| Matcher         | Multiple Values | Globs | Rich Comparisons | Default                 |
+|-----------------|-----------------|-------|------------------|-------------------------|
+| `Distribution=` | yes             | no    | no               | match host distribution |
+| `Release=`      | yes             | no    | no               | match host release      |
+| `PathExists=`   | no              | no    | no               | match fails             |
+| `ImageId=`      | yes             | yes   | no               | match fails             |
+| `ImageVersion=` | yes             | no    | yes              | match fails             |
+
 ### [Distribution] Section
 
 `Distribution=`, `--distribution=`, `-d`
