@@ -490,6 +490,9 @@ class MkosiArgs:
     debug: bool
     debug_shell: bool
     pager: bool
+    secure_boot_valid_days: str
+    secure_boot_common_name: str
+    auto_bump: bool
 
     @classmethod
     def from_namespace(cls, ns: argparse.Namespace) -> "MkosiArgs":
@@ -526,8 +529,6 @@ class MkosiConfig:
     secure_boot: bool
     secure_boot_key: Optional[Path]
     secure_boot_certificate: Optional[Path]
-    secure_boot_valid_days: str
-    secure_boot_common_name: str
     sign_expected_pcr: bool
     compress_output: Compression
     image_version: Optional[str]
@@ -567,7 +568,6 @@ class MkosiConfig:
     ephemeral: bool
     ssh: bool
     credentials: dict[str, str]
-    auto_bump: bool
     workspace_dir: Optional[Path]
     initrds: list[Path]
     make_initrd: bool
@@ -750,16 +750,6 @@ class MkosiConfigParser:
             paths=("mkosi.secure-boot.crt",),
         ),
         MkosiConfigSetting(
-            dest="secure_boot_valid_days",
-            section="Output",
-            default="730",
-        ),
-        MkosiConfigSetting(
-            dest="secure_boot_common_name",
-            section="Output",
-            default="mkosi of %u",
-        ),
-        MkosiConfigSetting(
             dest="sign_expected_pcr",
             section="Output",
             parse=config_parse_feature,
@@ -784,11 +774,6 @@ class MkosiConfigParser:
             dest="image_id",
             match=config_make_list_matcher(delimiter=" ", allow_globs=True),
             section="Output",
-        ),
-        MkosiConfigSetting(
-            dest="auto_bump",
-            section="Output",
-            parse=config_parse_boolean,
         ),
         MkosiConfigSetting(
             dest="tar_strip_selinux_context",
@@ -1205,7 +1190,26 @@ class MkosiConfigParser:
             default=True,
             help="Enable paging for long output",
         )
-
+        parser.add_argument(
+            "--secure-boot-valid-days",
+            metavar="DAYS",
+            help="Number of days UEFI SecureBoot keys should be valid when generating keys",
+            action=action,
+            default="730",
+        )
+        parser.add_argument(
+            "--secure-boot-common-name",
+            metavar="CN",
+            help="Template for the UEFI SecureBoot CN when generating keys",
+            action=action,
+            default="mkosi of %u",
+        )
+        parser.add_argument(
+            "-B", "--auto-bump",
+            help="Automatically bump image version after building",
+            action="store_true",
+            default=False,
+        )
 
         group = parser.add_argument_group("Distribution options")
         group.add_argument(
@@ -1317,18 +1321,6 @@ class MkosiConfigParser:
             action=action,
         )
         group.add_argument(
-            "--secure-boot-valid-days",
-            metavar="DAYS",
-            help="Number of days UEFI SecureBoot keys should be valid when generating keys",
-            action=action,
-        )
-        group.add_argument(
-            "--secure-boot-common-name",
-            metavar="CN",
-            help="Template for the UEFI SecureBoot CN when generating keys",
-            action=action,
-        )
-        group.add_argument(
             "--sign-expected-pcr",
             metavar="FEATURE",
             help="Measure the components of the unified kernel image (UKI) and embed the PCR signature into the UKI",
@@ -1349,12 +1341,6 @@ class MkosiConfigParser:
         )
         group.add_argument("--image-version", help="Set version for image", action=action)
         group.add_argument("--image-id", help="Set ID for image", action=action)
-        group.add_argument(
-            "-B", "--auto-bump",
-            metavar="BOOL",
-            help="Automatically bump image version after building",
-            action=action,
-        )
         group.add_argument(
             "--tar-strip-selinux-context",
             metavar="BOOL",

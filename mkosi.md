@@ -104,11 +104,9 @@ The following command line verbs are known:
 
 `bump`
 
-: Determines the current image version string (as configured with
-  `ImageVersion=`/`--image-version=`), increases its last
-  dot-separated component by one and writes the resulting version
-  string to `mkosi.version`. This is useful for implementing a simple
-  versioning scheme: each time this verb is called the version is
+: Bumps the image version from `mkosi.version` and writes the resulting
+  version string to `mkosi.version`. This is useful for implementing a
+  simple versioning scheme: each time this verb is called the version is
   bumped in preparation for the subsequent build. Note that
   `--auto-bump`/`-B` may be used to automatically bump the version
   after each successful build.
@@ -441,17 +439,6 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 : Path to the X.509 file containing the certificate for the signed
   UEFI kernel image, if `SecureBoot=` is used.
 
-`SecureBootCommonName=`, `--secure-boot-common-name=`
-
-: Common name to be used when generating SecureBoot keys via mkosi's `genkey`
-  command. Defaults to `mkosi of %u`, where `%u` expands to the username of the
-  user invoking mkosi.
-
-`SecureBootValidDays=`, `--secure-boot-valid-days=`
-
-: Number of days that the keys should remain valid when generating SecureBoot
-  keys via mkosi's `genkey` command. Defaults to two years (730 days).
-
 [//]: # (Please add external tools to the list here.)
 
 `SignExpectedPCR=`, `--sign-expected-pcr`
@@ -486,14 +473,6 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   build scripts invoked (which may be useful to patch it into
   `/etc/os-release` or similar, in particular the `IMAGE_VERSION=`
   field of it).
-
-`AutoBump=`, `--auto-bump=`, `-B`
-
-: If specified, after each successful build the the version is bumped
-  in a fashion equivalent to the `bump` verb, in preparation for the
-  next build. This is useful for simple, linear version management:
-  each build in a series will have a version number one higher then
-  the previous one.
 
 `ImageId=`, `--image-id=`
 
@@ -975,6 +954,25 @@ Those settings cannot be configured in the configuration files.
 `--help`, `-h`
 
 : Show brief usage information.
+
+`--secure-boot-common-name=`
+
+: Common name to be used when generating SecureBoot keys via mkosi's `genkey`
+  command. Defaults to `mkosi of %u`, where `%u` expands to the username of the
+  user invoking mkosi.
+
+`--secure-boot-valid-days=`
+
+: Number of days that the keys should remain valid when generating SecureBoot
+  keys via mkosi's `genkey` command. Defaults to two years (730 days).
+
+`--auto-bump=`, `-B`
+
+: If specified, after each successful build the the version is bumped
+  in a fashion equivalent to the `bump` verb, in preparation for the
+  next build. This is useful for simple, linear version management:
+  each build in a series will have a version number one higher then
+  the previous one.
 
 ## Supported distributions
 

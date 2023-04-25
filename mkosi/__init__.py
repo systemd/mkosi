@@ -1998,67 +1998,61 @@ def run_serve(config: MkosiConfig) -> None:
         httpd.serve_forever()
 
 
-def generate_secure_boot_key(args: MkosiArgs, config: MkosiConfig) -> None:
+def generate_secure_boot_key(args: MkosiArgs) -> None:
     """Generate secure boot keys using openssl"""
 
     keylength = 2048
-    expiration_date = datetime.date.today() + datetime.timedelta(int(config.secure_boot_valid_days))
-    cn = expand_specifier(config.secure_boot_common_name)
+    expiration_date = datetime.date.today() + datetime.timedelta(int(args.secure_boot_valid_days))
+    cn = expand_specifier(args.secure_boot_common_name)
 
-    for f in (config.secure_boot_key, config.secure_boot_certificate):
+    for f in ("mkosi.secure-boot.key", "mkosi.secure-boot.crt"):
         if f and not args.force:
             die(f"{f} already exists",
                 hint=("To generate new secure boot keys, "
-                      f"first remove {config.secure_boot_key} {config.secure_boot_certificate}"))
+                      f"first remove mkosi.secure-boot.key and mkosi.secure-boot.crt"))
 
     log_step(f"Generating secure boot keys rsa:{keylength} for CN {cn!r}.")
     logging.info(
         dedent(
             f"""
-            The keys will expire in {config.secure_boot_valid_days} days ({expiration_date:%A %d. %B %Y}).
+            The keys will expire in {args.secure_boot_valid_days} days ({expiration_date:%A %d. %B %Y}).
             Remember to roll them over to new ones before then.
             """
         )
     )
-
-    key = config.secure_boot_key or "mkosi.secure-boot.key"
-    crt = config.secure_boot_certificate or "mkosi.secure-boot.crt"
 
     cmd: list[PathString] = [
         "openssl", "req",
         "-new",
         "-x509",
         "-newkey", f"rsa:{keylength}",
-        "-keyout", key,
-        "-out", crt,
-        "-days", str(config.secure_boot_valid_days),
+        "-keyout", "mkosi.secure-boot.key",
+        "-out", "mkosi.secure-boot.crt",
+        "-days", str(args.secure_boot_valid_days),
         "-subj", f"/CN={cn}/",
         "-nodes",
     ]
     run(cmd)
 
 
-def bump_image_version(config: MkosiConfig) -> None:
+def bump_image_version() -> None:
     """Write current image version plus one to mkosi.version"""
 
-    if config.image_version is None or config.image_version == "":
-        print("No version configured so far, starting with version 1.")
-        new_version = "1"
+    version = Path("mkosi.version").read_text().strip()
+    v = version.split(".")
+
+    try:
+        m = int(v[-1])
+    except ValueError:
+        new_version = version + ".2"
+        logging.info(
+            f"Last component of current version is not a decimal integer, appending '.2', bumping '{version}' → '{new_version}'."
+        )
     else:
-        v = config.image_version.split(".")
+        new_version = ".".join(v[:-1] + [str(m + 1)])
+        logging.info(f"Increasing last component of version by one, bumping '{version}' → '{new_version}'.")
 
-        try:
-            m = int(v[-1])
-        except ValueError:
-            new_version = config.image_version + ".2"
-            print(
-                f"Last component of current version is not a decimal integer, appending '.2', bumping '{config.image_version}' → '{new_version}'."
-            )
-        else:
-            new_version = ".".join(v[:-1] + [str(m + 1)])
-            print(f"Increasing last component of version by one, bumping '{config.image_version}' → '{new_version}'.")
-
-    Path("mkosi.version").write_text(new_version + "\n")
+    Path("mkosi.version").write_text(f"{new_version}\n")
 
 
 def expand_specifier(s: str) -> str:
@@ -2072,10 +2066,10 @@ def needs_build(args: MkosiArgs, config: MkosiConfig) -> bool:
 def run_verb(args: MkosiArgs, config: MkosiConfig) -> None:
     with prepend_to_environ_path(config.extra_search_paths):
         if args.verb == Verb.genkey:
-            return generate_secure_boot_key(args, config)
+            return generate_secure_boot_key(args)
 
         if args.verb == Verb.bump:
-            return bump_image_version(config)
+            return bump_image_version()
 
         if args.verb == Verb.summary:
             return print_summary(args, config)
@@ -2108,8 +2102,8 @@ def run_verb(args: MkosiArgs, config: MkosiConfig) -> None:
             # the main process does not leave its user namespace.
             fork_and_wait(target)
 
-            if config.auto_bump:
-                bump_image_version(config)
+            if args.auto_bump:
+                bump_image_version()
 
         if args.verb in (Verb.shell, Verb.boot):
             run_shell(args, config)
