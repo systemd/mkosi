@@ -5,6 +5,7 @@ import enum
 import fnmatch
 import functools
 import logging
+import operator
 import os.path
 import platform
 import shlex
@@ -245,6 +246,7 @@ def config_make_list_parser(delimiter: str, unescape: bool = False, parse: Calla
 
 def config_make_list_matcher(
     delimiter: str,
+    *,
     unescape: bool = False,
     all: bool = False,
     parse: Callable[[str], Any] = str,
@@ -270,6 +272,42 @@ def config_make_list_matcher(
         return all
 
     return config_match_list
+
+
+def config_make_image_version_list_matcher(delimiter: str) -> ConfigMatchCallback:
+    def config_match_image_version_list(dest: str, value: str, namespace: argparse.Namespace) -> bool:
+        version_specs = value.replace(delimiter, "\n").splitlines()
+
+        image_version = getattr(namespace, dest)
+        # If the version is not set it cannot positively compare to anything
+        if image_version is None:
+            return False
+        image_version = GenericVersion(image_version)
+
+        for v in version_specs:
+            for sigil, opfunc in {
+                "==": operator.eq,
+                "<=": operator.le,
+                ">=": operator.ge,
+                ">": operator.gt,
+                "<": operator.lt,
+            }.items():
+                if v.startswith(sigil):
+                    op = opfunc
+                    comp_version = GenericVersion(v[len(sigil):])
+                    break
+            else:
+                # default to equality if no operation is specified
+                op = operator.eq
+                comp_version = GenericVersion(v)
+
+            # all constraints must be fulfilled
+            if not op(image_version, comp_version):
+                return False
+
+        return True
+
+    return config_match_image_version_list
 
 
 def make_path_parser(*, required: bool, absolute: bool = True, expanduser: bool = True, expandvars: bool = True) -> Callable[[str], Path]:
@@ -519,10 +557,12 @@ class MkosiConfigParser:
         ),
         MkosiConfigSetting(
             dest="image_version",
+            match=config_make_image_version_list_matcher(delimiter=" "),
             section="Output",
         ),
         MkosiConfigSetting(
             dest="image_id",
+            match=config_make_list_matcher(delimiter=" "),
             section="Output",
         ),
         MkosiConfigSetting(
@@ -1468,8 +1508,6 @@ class MkosiConfigParser:
         return namespace
 
 
-
-@functools.total_ordering
 class GenericVersion:
     def __init__(self, version: str):
         self._version = version
@@ -1486,6 +1524,23 @@ class GenericVersion:
         cmd = ["systemd-analyze", "compare-versions", self._version, "lt", other._version]
         return run(cmd, check=False).returncode == 0
 
+    def __le__(self, other: object) -> bool:
+        if not isinstance(other, GenericVersion):
+            return False
+        cmd = ["systemd-analyze", "compare-versions", self._version, "le", other._version]
+        return run(cmd, check=False).returncode == 0
+
+    def __gt__(self, other: object) -> bool:
+        if not isinstance(other, GenericVersion):
+            return False
+        cmd = ["systemd-analyze", "compare-versions", self._version, "gt", other._version]
+        return run(cmd, check=False).returncode == 0
+
+    def __ge__(self, other: object) -> bool:
+        if not isinstance(other, GenericVersion):
+            return False
+        cmd = ["systemd-analyze", "compare-versions", self._version, "ge", other._version]
+        return run(cmd, check=False).returncode == 0
 
 
 @dataclasses.dataclass(frozen=True)

@@ -17,6 +17,23 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
+  - name: Update systemd-analyze
+    shell: bash
+    working-directory: ${{ github.action_path }}
+    run: |
+      echo "deb-src http://archive.ubuntu.com/ubuntu/ $(lsb_release -cs) main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
+      sudo apt-get update
+      sudo apt-get build-dep systemd
+      sudo apt-get install libfdisk-dev
+
+      git clone https://github.com/systemd/systemd --depth=1
+      meson systemd/build systemd
+
+      ninja -C systemd/build systemd-analyze
+
+      sudo ln -svf $PWD/systemd/build/systemd-analyze /usr/bin/systemd-analyze
+      systemd-analyze --version
+
     - name: Install
       run: |
         python3 -m pip install pytest mypy types-cryptography isort pyflakes

@@ -234,6 +234,25 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   interpreted relative to the parent directory of the config file that the
   condition is read from.
 
+`ImageId=`
+
+: Matches against the configured image ID. If this condition is used and no
+  image ID has been explicitly configured yet, this condition fails. Multiple
+  image IDs may be specified, separated by spaces. If multiple image IDs are
+  specified, the condition is satisfied if the configured image ID equals any of
+  the specified image IDs.
+
+`ImageVersion=`
+
+: Matches against the configured image version. Image versions can be prepended
+  by the operators `==`, `>=`, `<=`, `<`, `>` for rich version comparisons
+  according to the UAPI group version format specification. If no operator is
+  prepended, the equality operator is assumed by default If this condition is
+  used and no image Version has be explicitly configured yet, this condition
+  fails. Multiple image version constraints can be specified as a
+  space-separated list. If multiple image version constraints are specified, all
+  must be satisfied for the match to succeed.
+
 ### [Distribution] Section
 
 `Distribution=`, `--distribution=`, `-d`
