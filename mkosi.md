@@ -104,11 +104,9 @@ The following command line verbs are known:
 
 `bump`
 
-: Determines the current image version string (as configured with
-  `ImageVersion=`/`--image-version=`), increases its last
-  dot-separated component by one and writes the resulting version
-  string to `mkosi.version`. This is useful for implementing a simple
-  versioning scheme: each time this verb is called the version is
+: Bumps the image version from `mkosi.version` and writes the resulting
+  version string to `mkosi.version`. This is useful for implementing a
+  simple versioning scheme: each time this verb is called the version is
   bumped in preparation for the subsequent build. Note that
   `--auto-bump`/`-B` may be used to automatically bump the version
   after each successful build.
@@ -383,6 +381,40 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   should an `mkosi` invocation be aborted abnormally (for example, due
   to reboot/power failure).
 
+`CacheDirectory=`, `--cache-dir=`
+
+: Takes a path to a directory to use as package cache for the
+  distribution package manager used. If this option is not used, but a
+  `mkosi.cache/` directory is found in the local directory it is
+  automatically used for this purpose. The directory configured this
+  way is mounted into both the development and the final image while
+  the package manager is running.
+
+`BuildDirectory=`, `--build-dir=`
+
+: Takes a path of a directory to use as build directory for build
+  systems that support out-of-tree builds (such as Meson). The
+  directory used this way is shared between repeated builds, and
+  allows the build system to reuse artifacts (such as object files,
+  executable, …) generated on previous invocations. This directory is
+  mounted into the development image when the build script is
+  invoked. The build script can find the path to this directory in the
+  `$BUILDDIR` environment variable. If this option is not specified,
+  but a directory `mkosi.builddir/` exists in the local directory it
+  is automatically used for this purpose (also see the "Files" section
+  below).
+
+`InstallDirectory=`, `--install-dir=`
+
+: Takes a path of a directory to use as the install directory. The
+  directory used this way is shared between builds and allows the
+  build system to not have to reinstall files that were already
+  installed by a previous build and didn't change. The build script
+  can find the path to this directory in the `$DESTDIR` environment
+  variable. If this option is not specified, but a directory
+  `mkosi.installdir` exists in the local directory, it is automatically
+  used for this purpose (also see the "Files" section below).
+
 `Force=`, `--force`, `-f`
 
 : Replace the output file if it already exists, when building an
@@ -441,17 +473,6 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 : Path to the X.509 file containing the certificate for the signed
   UEFI kernel image, if `SecureBoot=` is used.
 
-`SecureBootCommonName=`, `--secure-boot-common-name=`
-
-: Common name to be used when generating SecureBoot keys via mkosi's `genkey`
-  command. Defaults to `mkosi of %u`, where `%u` expands to the username of the
-  user invoking mkosi.
-
-`SecureBootValidDays=`, `--secure-boot-valid-days=`
-
-: Number of days that the keys should remain valid when generating SecureBoot
-  keys via mkosi's `genkey` command. Defaults to two years (730 days).
-
 [//]: # (Please add external tools to the list here.)
 
 `SignExpectedPCR=`, `--sign-expected-pcr`
@@ -486,14 +507,6 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   build scripts invoked (which may be useful to patch it into
   `/etc/os-release` or similar, in particular the `IMAGE_VERSION=`
   field of it).
-
-`AutoBump=`, `--auto-bump=`, `-B`
-
-: If specified, after each successful build the the version is bumped
-  in a fashion equivalent to the `bump` verb, in preparation for the
-  next build. This is useful for simple, linear version management:
-  each build in a series will have a version number one higher then
-  the previous one.
 
 `ImageId=`, `--image-id=`
 
@@ -600,15 +613,6 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   normally run during the source build process. Note that this option
   has no effect unless the `mkosi.build` build script honors it.
 
-`CacheDirectory=`, `--cache-dir=`
-
-: Takes a path to a directory to use as package cache for the
-  distribution package manager used. If this option is not used, but a
-  `mkosi.cache/` directory is found in the local directory it is
-  automatically used for this purpose. The directory configured this
-  way is mounted into both the development and the final image while
-  the package manager is running.
-
 `BaseTrees=`, `--base-tree=`
 
 : Takes a colon separated pair of directories to use as base images. When
@@ -694,31 +698,6 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 
 : Takes a path to a source tree to mount into the development image, if
   the build script is used.
-
-`BuildDirectory=`, `--build-dir=`
-
-: Takes a path of a directory to use as build directory for build
-  systems that support out-of-tree builds (such as Meson). The
-  directory used this way is shared between repeated builds, and
-  allows the build system to reuse artifacts (such as object files,
-  executable, …) generated on previous invocations. This directory is
-  mounted into the development image when the build script is
-  invoked. The build script can find the path to this directory in the
-  `$BUILDDIR` environment variable. If this option is not specified,
-  but a directory `mkosi.builddir/` exists in the local directory it
-  is automatically used for this purpose (also see the "Files" section
-  below).
-
-`InstallDirectory=`, `--install-dir=`
-
-: Takes a path of a directory to use as the install directory. The
-  directory used this way is shared between builds and allows the
-  build system to not have to reinstall files that were already
-  installed by a previous build and didn't change. The build script
-  can find the path to this directory in the `$DESTDIR` environment
-  variable. If this option is not specified, but a directory
-  `mkosi.installdir` exists in the local directory, it is automatically
-  used for this purpose (also see the "Files" section below).
 
 `BuildPackages=`, `--build-package=`
 
@@ -975,6 +954,25 @@ Those settings cannot be configured in the configuration files.
 `--help`, `-h`
 
 : Show brief usage information.
+
+`--secure-boot-common-name=`
+
+: Common name to be used when generating SecureBoot keys via mkosi's `genkey`
+  command. Defaults to `mkosi of %u`, where `%u` expands to the username of the
+  user invoking mkosi.
+
+`--secure-boot-valid-days=`
+
+: Number of days that the keys should remain valid when generating SecureBoot
+  keys via mkosi's `genkey` command. Defaults to two years (730 days).
+
+`--auto-bump=`, `-B`
+
+: If specified, after each successful build the the version is bumped
+  in a fashion equivalent to the `bump` verb, in preparation for the
+  next build. This is useful for simple, linear version management:
+  each build in a series will have a version number one higher then
+  the previous one.
 
 ## Supported distributions
 

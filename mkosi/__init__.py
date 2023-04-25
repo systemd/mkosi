@@ -24,7 +24,7 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Callable, ContextManager, Optional, TextIO, TypeVar, Union, cast
 
-from mkosi.config import GenericVersion, MkosiConfig, machine_name
+from mkosi.config import GenericVersion, MkosiArgs, MkosiConfig, machine_name
 from mkosi.install import add_dropin_config_from_resource, copy_path, flock
 from mkosi.log import ARG_DEBUG, Style, color_error, complete_step, die, log_step
 from mkosi.manifest import Manifest
@@ -932,7 +932,7 @@ def empty_directory(path: Path) -> None:
         pass
 
 
-def unlink_output(config: MkosiConfig) -> None:
+def unlink_output(args: MkosiArgs, config: MkosiConfig) -> None:
     with complete_step("Removing output files…"):
         if config.output.parent.exists():
             for p in config.output.parent.iterdir():
@@ -970,12 +970,12 @@ def unlink_output(config: MkosiConfig) -> None:
     # remove the downloaded package cache if the user specified one
     # additional "--force".
 
-    if config.verb == Verb.clean:
-        remove_build_cache = config.force > 0
-        remove_package_cache = config.force > 1
+    if args.verb == Verb.clean:
+        remove_build_cache = args.force > 0
+        remove_package_cache = args.force > 1
     else:
-        remove_build_cache = config.force > 1
-        remove_package_cache = config.force > 2
+        remove_build_cache = args.force > 1
+        remove_package_cache = args.force > 2
 
     if remove_build_cache:
         with complete_step("Removing incremental cache files…"):
@@ -998,15 +998,15 @@ def unlink_output(config: MkosiConfig) -> None:
 
 def cache_tree_paths(config: MkosiConfig) -> tuple[Path, Path]:
 
+    assert config.cache_dir
+
     # If the image ID is specified, use cache file names that are independent of the image versions, so that
     # rebuilding and bumping versions is cheap and reuses previous versions if cached.
-    if config.image_id is not None and config.output_dir:
-        prefix = config.output_dir / config.image_id
-    elif config.image_id:
-        prefix = Path(config.image_id)
+    if config.image_id:
+        prefix = config.cache_dir / config.image_id
     # Otherwise, derive the cache file names directly from the output file names.
     else:
-        prefix = config.output
+        prefix = config.cache_dir / config.output.name
 
     return (Path(f"{prefix}.cache"), Path(f"{prefix}.build.cache"))
 
@@ -1121,7 +1121,7 @@ def line_join_source_target_list(array: Sequence[tuple[Path, Optional[Path]]]) -
     return "\n                            ".join(items)
 
 
-def print_summary(config: MkosiConfig) -> None:
+def print_summary(args: MkosiArgs, config: MkosiConfig) -> None:
     b = Style.bold
     e = Style.reset
     bold: Callable[..., str] = lambda s: f"{b}{s}{e}"
@@ -1131,8 +1131,8 @@ def print_summary(config: MkosiConfig) -> None:
 
     summary = f"""\
 {bold("COMMANDS")}:
-                      verb: {bold(config.verb)}
-                   cmdline: {bold(" ".join(config.cmdline))}
+                      verb: {bold(args.verb)}
+                   cmdline: {bold(" ".join(args.cmdline))}
 
 {bold("DISTRIBUTION")}
               Distribution: {bold(config.distribution.name)}
@@ -1201,7 +1201,7 @@ def print_summary(config: MkosiConfig) -> None:
                    GPG Key: ({"default" if config.key is None else config.key})
         """
 
-    page(summary, config.pager)
+    page(summary, args.pager)
 
 
 def make_output_dir(state: MkosiState) -> None:
@@ -1570,10 +1570,6 @@ def run_build_script(state: MkosiState) -> None:
             env |= dict(BUILDDIR="/work/build")
 
         cmd = ["setpriv", f"--reuid={state.uid}", f"--regid={state.gid}", "--clear-groups", "/work/build-script"]
-        # When we're building the image because it's required for another verb, any passed arguments are
-        # most likely intended for the target verb, and not for "build", so don't add them in that case.
-        if state.config.verb == Verb.build:
-            cmd += state.config.cmdline
 
         # build-script output goes to stdout so we can run language servers from within mkosi
         # build-scripts. See https://github.com/systemd/mkosi/pull/566 for more information.
@@ -1581,11 +1577,11 @@ def run_build_script(state: MkosiState) -> None:
                               stdout=sys.stdout, env=env | state.environment)
 
 
-def need_cache_tree(state: MkosiState) -> bool:
+def need_cache_tree(args: MkosiArgs, state: MkosiState) -> bool:
     if not state.config.incremental:
         return False
 
-    if state.config.force > 1:
+    if args.force > 1:
         return True
 
     final, build = cache_tree_paths(state.config)
@@ -1593,7 +1589,7 @@ def need_cache_tree(state: MkosiState) -> bool:
     return not final.exists() or (state.config.build_script is not None and not build.exists())
 
 
-def build_stuff(uid: int, gid: int, config: MkosiConfig) -> None:
+def build_stuff(uid: int, gid: int, args: MkosiArgs, config: MkosiConfig) -> None:
     workspace = tempfile.TemporaryDirectory(dir=config.workspace_dir or Path.cwd(), prefix=".mkosi.tmp")
     workspace_dir = Path(workspace.name)
     cache = config.cache_dir or workspace_dir / "cache"
@@ -1617,7 +1613,7 @@ def build_stuff(uid: int, gid: int, config: MkosiConfig) -> None:
     # while we are working on it.
     with flock(workspace_dir), workspace:
         # If caching is requested, then make sure we have cache trees around we can make use of
-        if need_cache_tree(state):
+        if need_cache_tree(args, state):
             with complete_step("Building cache image"):
                 build_image(state, for_cache=True)
                 save_cache(state)
@@ -1677,7 +1673,7 @@ def nspawn_knows_arg(arg: str) -> bool:
     return "unrecognized option" not in c.stderr
 
 
-def run_shell(config: MkosiConfig) -> None:
+def run_shell(args: MkosiArgs, config: MkosiConfig) -> None:
     cmdline: list[PathString] = ["systemd-nspawn", "--quiet"]
 
     if config.output_format in (OutputFormat.directory, OutputFormat.subvolume):
@@ -1693,7 +1689,7 @@ def run_shell(config: MkosiConfig) -> None:
     if config.nspawn_settings is not None:
         cmdline += ["--settings=trusted"]
 
-    if config.verb == Verb.boot:
+    if args.verb == Verb.boot:
         cmdline += ["--boot"]
     else:
         cmdline += [f"--rlimit=RLIMIT_CORE={format_rlimit(resource.RLIMIT_CORE)}"]
@@ -1712,16 +1708,16 @@ def run_shell(config: MkosiConfig) -> None:
     for k, v in config.credentials.items():
         cmdline += [f"--set-credential={k}:{v}"]
 
-    if config.verb == Verb.boot:
+    if args.verb == Verb.boot:
         # Add nspawn options first since systemd-nspawn ignores all options after the first argument.
-        cmdline += config.cmdline
+        cmdline += args.cmdline
         # kernel cmdline config of the form systemd.xxx= get interpreted by systemd when running in nspawn as
         # well.
         cmdline += config.kernel_command_line
         cmdline += config.kernel_command_line_extra
-    elif config.cmdline:
+    elif args.cmdline:
         cmdline += ["--"]
-        cmdline += config.cmdline
+        cmdline += args.cmdline
 
     uid = InvokingUser.uid()
 
@@ -1858,7 +1854,7 @@ def start_swtpm() -> Iterator[Optional[Path]]:
             swtpm_proc.wait()
 
 
-def run_qemu(config: MkosiConfig) -> None:
+def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
     accel = "kvm" if config.qemu_kvm else "tcg"
 
     firmware, fw_supports_sb = find_qemu_firmware(config)
@@ -1945,7 +1941,7 @@ def run_qemu(config: MkosiConfig) -> None:
         # Debian images fail to boot with virtio-scsi, see: https://github.com/systemd/mkosi/issues/725
         if config.output_format == OutputFormat.cpio:
             kernel = (config.output_dir or Path.cwd()) / config.output_split_kernel
-            if not kernel.exists() and "-kernel" not in config.cmdline:
+            if not kernel.exists() and "-kernel" not in args.cmdline:
                 die("No kernel found, please install a kernel in the cpio or provide a -kernel argument to mkosi qemu")
             cmdline += ["-kernel", kernel,
                         "-initrd", fname,
@@ -1968,12 +1964,12 @@ def run_qemu(config: MkosiConfig) -> None:
                 cmdline += ["-device", "tpm-tis-device,tpmdev=tpm0"]
 
         cmdline += config.qemu_args
-        cmdline += config.cmdline
+        cmdline += args.cmdline
 
         run(cmdline, stdin=sys.stdin, stdout=sys.stdout, env=os.environ, log=False)
 
 
-def run_ssh(config: MkosiConfig) -> None:
+def run_ssh(args: MkosiArgs, config: MkosiConfig) -> None:
     cmd = [
         "ssh",
         # Silence known hosts file errors/warnings.
@@ -1984,7 +1980,7 @@ def run_ssh(config: MkosiConfig) -> None:
         "root@mkosi",
     ]
 
-    cmd += config.cmdline
+    cmd += args.cmdline
 
     run(cmd, stdin=sys.stdin, stdout=sys.stdout, env=os.environ, log=False)
 
@@ -2002,127 +1998,121 @@ def run_serve(config: MkosiConfig) -> None:
         httpd.serve_forever()
 
 
-def generate_secure_boot_key(config: MkosiConfig) -> None:
+def generate_secure_boot_key(args: MkosiArgs) -> None:
     """Generate secure boot keys using openssl"""
 
     keylength = 2048
-    expiration_date = datetime.date.today() + datetime.timedelta(int(config.secure_boot_valid_days))
-    cn = expand_specifier(config.secure_boot_common_name)
+    expiration_date = datetime.date.today() + datetime.timedelta(int(args.secure_boot_valid_days))
+    cn = expand_specifier(args.secure_boot_common_name)
 
-    for f in (config.secure_boot_key, config.secure_boot_certificate):
-        if f and not config.force:
+    for f in ("mkosi.secure-boot.key", "mkosi.secure-boot.crt"):
+        if f and not args.force:
             die(f"{f} already exists",
                 hint=("To generate new secure boot keys, "
-                      f"first remove {config.secure_boot_key} {config.secure_boot_certificate}"))
+                      f"first remove mkosi.secure-boot.key and mkosi.secure-boot.crt"))
 
     log_step(f"Generating secure boot keys rsa:{keylength} for CN {cn!r}.")
     logging.info(
         dedent(
             f"""
-            The keys will expire in {config.secure_boot_valid_days} days ({expiration_date:%A %d. %B %Y}).
+            The keys will expire in {args.secure_boot_valid_days} days ({expiration_date:%A %d. %B %Y}).
             Remember to roll them over to new ones before then.
             """
         )
     )
-
-    key = config.secure_boot_key or "mkosi.secure-boot.key"
-    crt = config.secure_boot_certificate or "mkosi.secure-boot.crt"
 
     cmd: list[PathString] = [
         "openssl", "req",
         "-new",
         "-x509",
         "-newkey", f"rsa:{keylength}",
-        "-keyout", key,
-        "-out", crt,
-        "-days", str(config.secure_boot_valid_days),
+        "-keyout", "mkosi.secure-boot.key",
+        "-out", "mkosi.secure-boot.crt",
+        "-days", str(args.secure_boot_valid_days),
         "-subj", f"/CN={cn}/",
         "-nodes",
     ]
     run(cmd)
 
 
-def bump_image_version(config: MkosiConfig) -> None:
+def bump_image_version() -> None:
     """Write current image version plus one to mkosi.version"""
 
-    if config.image_version is None or config.image_version == "":
-        print("No version configured so far, starting with version 1.")
-        new_version = "1"
+    version = Path("mkosi.version").read_text().strip()
+    v = version.split(".")
+
+    try:
+        m = int(v[-1])
+    except ValueError:
+        new_version = version + ".2"
+        logging.info(
+            f"Last component of current version is not a decimal integer, appending '.2', bumping '{version}' → '{new_version}'."
+        )
     else:
-        v = config.image_version.split(".")
+        new_version = ".".join(v[:-1] + [str(m + 1)])
+        logging.info(f"Increasing last component of version by one, bumping '{version}' → '{new_version}'.")
 
-        try:
-            m = int(v[-1])
-        except ValueError:
-            new_version = config.image_version + ".2"
-            print(
-                f"Last component of current version is not a decimal integer, appending '.2', bumping '{config.image_version}' → '{new_version}'."
-            )
-        else:
-            new_version = ".".join(v[:-1] + [str(m + 1)])
-            print(f"Increasing last component of version by one, bumping '{config.image_version}' → '{new_version}'.")
-
-    Path("mkosi.version").write_text(new_version + "\n")
+    Path("mkosi.version").write_text(f"{new_version}\n")
 
 
 def expand_specifier(s: str) -> str:
     return s.replace("%u", InvokingUser.name())
 
 
-def needs_build(config: Union[argparse.Namespace, MkosiConfig]) -> bool:
-    return config.verb == Verb.build or (config.verb in MKOSI_COMMANDS_NEED_BUILD and (not config.output_compressed.exists() or config.force > 0))
+def needs_build(args: MkosiArgs, config: MkosiConfig) -> bool:
+    return args.verb == Verb.build or (args.verb in MKOSI_COMMANDS_NEED_BUILD and (not config.output_compressed.exists() or args.force > 0))
 
 
-def run_verb(config: MkosiConfig) -> None:
+def run_verb(args: MkosiArgs, config: MkosiConfig) -> None:
     with prepend_to_environ_path(config.extra_search_paths):
-        if config.verb == Verb.genkey:
-            return generate_secure_boot_key(config)
+        if args.verb == Verb.genkey:
+            return generate_secure_boot_key(args)
 
-        if config.verb == Verb.bump:
-            return bump_image_version(config)
+        if args.verb == Verb.bump:
+            return bump_image_version()
 
-        if config.verb == Verb.summary:
-            return print_summary(config)
+        if args.verb == Verb.summary:
+            return print_summary(args, config)
 
-        if config.verb in MKOSI_COMMANDS_SUDO:
+        if args.verb in MKOSI_COMMANDS_SUDO:
             check_root()
 
-        if config.verb == Verb.build:
+        if args.verb == Verb.build:
             check_inputs(config)
 
-            if not config.force:
+            if not args.force:
                 check_outputs(config)
 
-        if needs_build(config) or config.verb == Verb.clean:
+        if needs_build(args, config) or args.verb == Verb.clean:
             def target() -> None:
                 become_root()
-                unlink_output(config)
+                unlink_output(args, config)
 
             fork_and_wait(target)
 
-        if needs_build(config):
+        if needs_build(args, config):
             def target() -> None:
                 # Get the user UID/GID either on the host or in the user namespace running the build
                 uid, gid = become_root()
                 init_mount_namespace()
-                build_stuff(uid, gid, config)
+                build_stuff(uid, gid, args, config)
 
             # We only want to run the build in a user namespace but not the following steps. Since we can't
             # rejoin the parent user namespace after unsharing from it, let's run the build in a fork so that
             # the main process does not leave its user namespace.
             fork_and_wait(target)
 
-            if config.auto_bump:
-                bump_image_version(config)
+            if args.auto_bump:
+                bump_image_version()
 
-        if config.verb in (Verb.shell, Verb.boot):
-            run_shell(config)
+        if args.verb in (Verb.shell, Verb.boot):
+            run_shell(args, config)
 
-        if config.verb == Verb.qemu:
-            run_qemu(config)
+        if args.verb == Verb.qemu:
+            run_qemu(args, config)
 
-        if config.verb == Verb.ssh:
-            run_ssh(config)
+        if args.verb == Verb.ssh:
+            run_ssh(args, config)
 
-        if config.verb == Verb.serve:
+        if args.verb == Verb.serve:
             run_serve(config)

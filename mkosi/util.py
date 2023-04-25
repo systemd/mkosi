@@ -291,7 +291,10 @@ def prepend_to_environ_path(paths: Sequence[Path]) -> Iterator[None]:
         olds = os.getenv("PATH", "").split(":")
         os.environ["PATH"] = ":".join(news + olds)
 
-        yield
+        try:
+            yield
+        finally:
+            os.environ["PATH"] = ":".join(olds)
 
 
 def qemu_check_kvm_support() -> bool:

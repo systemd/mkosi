@@ -4,6 +4,7 @@ import dataclasses
 import enum
 import fnmatch
 import functools
+import inspect
 import logging
 import operator
 import os.path
@@ -177,6 +178,33 @@ def config_default_release(namespace: argparse.Namespace) -> Any:
         Distribution.openmandriva: "cooker",
         Distribution.gentoo: "17.1",
     }.get(d, "rolling")
+
+
+def config_default_mirror(namespace: argparse.Namespace) -> Optional[str]:
+    if "distribution" not in namespace:
+        setattr(namespace, "distribution", detect_distribution()[0])
+    if "architecture" not in namespace:
+        setattr(namespace, "architecture", platform.machine())
+
+    d = getattr(namespace, "distribution")
+    a = getattr(namespace, "architecture")
+
+    if d == Distribution.debian:
+        return "http://deb.debian.org/debian"
+    elif d == Distribution.ubuntu:
+        if a == "x86" or a == "x86_64":
+            return "http://archive.ubuntu.com/ubuntu"
+        else:
+            return "http://ports.ubuntu.com"
+    elif d == Distribution.arch:
+        if a == "aarch64":
+            return "http://mirror.archlinuxarm.org"
+        else:
+            return "https://geo.mirror.pkgbuild.com"
+    elif d == Distribution.opensuse:
+        return "https://download.opensuse.org"
+
+    return None
 
 
 def make_enum_parser(type: Type[enum.Enum]) -> Callable[[str], enum.Enum]:
@@ -453,6 +481,172 @@ class PagerHelpAction(argparse._HelpAction):
         parser.exit()
 
 
+@dataclasses.dataclass(frozen=True)
+class MkosiArgs:
+    verb: Verb
+    cmdline: list[str]
+    force: int
+    directory: Optional[Path]
+    debug: bool
+    debug_shell: bool
+    pager: bool
+    secure_boot_valid_days: str
+    secure_boot_common_name: str
+    auto_bump: bool
+
+    @classmethod
+    def from_namespace(cls, ns: argparse.Namespace) -> "MkosiArgs":
+        return cls(**{
+            k: v for k, v in vars(ns).items()
+            if k in inspect.signature(cls).parameters
+        })
+
+
+@dataclasses.dataclass(frozen=True)
+class MkosiConfig:
+    """Type-hinted storage for command line arguments.
+
+    Only user configuration is stored here while dynamic state exists in
+    MkosiState. If a field of the same name exists in both classes always
+    access the value from state.
+    """
+
+    distribution: Distribution
+    release: str
+    mirror: Optional[str]
+    local_mirror: Optional[str]
+    repository_key_check: bool
+    repositories: list[str]
+    repo_dirs: list[Path]
+    repart_dirs: list[Path]
+    overlay: bool
+    architecture: str
+    output_format: OutputFormat
+    manifest_format: list[ManifestFormat]
+    output: Path
+    output_dir: Optional[Path]
+    kernel_command_line: list[str]
+    secure_boot: bool
+    secure_boot_key: Optional[Path]
+    secure_boot_certificate: Optional[Path]
+    sign_expected_pcr: bool
+    compress_output: Compression
+    image_version: Optional[str]
+    image_id: Optional[str]
+    tar_strip_selinux_context: bool
+    incremental: bool
+    packages: list[str]
+    remove_packages: list[str]
+    with_docs: bool
+    with_tests: bool
+    cache_dir: Optional[Path]
+    base_trees: list[Path]
+    extra_trees: list[tuple[Path, Optional[Path]]]
+    skeleton_trees: list[tuple[Path, Optional[Path]]]
+    clean_package_metadata: Optional[bool]
+    remove_files: list[str]
+    environment: dict[str, str]
+    build_sources: Path
+    build_dir: Optional[Path]
+    install_dir: Optional[Path]
+    build_packages: list[str]
+    build_script: Optional[Path]
+    prepare_script: Optional[Path]
+    postinst_script: Optional[Path]
+    finalize_script: Optional[Path]
+    with_network: bool
+    cache_only: bool
+    nspawn_settings: Optional[Path]
+    checksum: bool
+    split_artifacts: bool
+    sign: bool
+    key: Optional[str]
+    password: Optional[str]
+    password_is_hashed: bool
+    autologin: bool
+    extra_search_paths: list[Path]
+    ephemeral: bool
+    ssh: bool
+    credentials: dict[str, str]
+    workspace_dir: Optional[Path]
+    initrds: list[Path]
+    make_initrd: bool
+    kernel_command_line_extra: list[str]
+    acl: bool
+    bootable: Optional[bool]
+
+    # QEMU-specific options
+    qemu_gui: bool
+    qemu_smp: str
+    qemu_mem: str
+    qemu_kvm: bool
+    qemu_args: Sequence[str]
+
+    passphrase: Optional[Path]
+
+    @classmethod
+    def from_namespace(cls, ns: argparse.Namespace) -> "MkosiConfig":
+        return cls(**{
+            k: v for k, v in vars(ns).items()
+            if k in inspect.signature(cls).parameters
+        })
+
+    def architecture_is_native(self) -> bool:
+        return self.architecture == platform.machine()
+
+    @property
+    def output_split_uki(self) -> Path:
+        return build_auxiliary_output_path(self, ".efi")
+
+    @property
+    def output_split_kernel(self) -> Path:
+        return build_auxiliary_output_path(self, ".vmlinuz")
+
+    @property
+    def output_nspawn_settings(self) -> Path:
+        return build_auxiliary_output_path(self, ".nspawn")
+
+    @property
+    def output_checksum(self) -> Path:
+        return Path("SHA256SUMS")
+
+    @property
+    def output_signature(self) -> Path:
+        return Path("SHA256SUMS.gpg")
+
+    @property
+    def output_sshkey(self) -> Path:
+        return build_auxiliary_output_path(self, ".ssh")
+
+    @property
+    def output_manifest(self) -> Path:
+        return build_auxiliary_output_path(self, ".manifest")
+
+    @property
+    def output_changelog(self) -> Path:
+        return build_auxiliary_output_path(self, ".changelog")
+
+    @property
+    def output_compressed(self) -> Path:
+        if not self.compress_output:
+            return self.output
+
+        return self.output.parent / f"{self.output.name}.{self.compress_output}"
+
+    def output_paths(self) -> tuple[Path, ...]:
+        return (
+            self.output,
+            self.output_split_uki,
+            self.output_split_kernel,
+            self.output_nspawn_settings,
+            self.output_checksum,
+            self.output_signature,
+            self.output_sshkey,
+            self.output_manifest,
+            self.output_changelog,
+        )
+
+
 class MkosiConfigParser:
     SETTINGS = (
         MkosiConfigSetting(
@@ -477,6 +671,7 @@ class MkosiConfigParser:
         MkosiConfigSetting(
             dest="mirror",
             section="Distribution",
+            default_factory=config_default_mirror,
         ),
         MkosiConfigSetting(
             dest="local_mirror",
@@ -533,6 +728,27 @@ class MkosiConfigParser:
             paths=("mkosi.workspace",),
         ),
         MkosiConfigSetting(
+            dest="cache_dir",
+            name="CacheDirectory",
+            section="Content",
+            parse=config_make_path_parser(required=False),
+            paths=("mkosi.cache",),
+        ),
+        MkosiConfigSetting(
+            dest="build_dir",
+            name="BuildDirectory",
+            section="Content",
+            parse=config_make_path_parser(required=False),
+            paths=("mkosi.builddir",),
+        ),
+        MkosiConfigSetting(
+            dest="install_dir",
+            name="InstallDirectory",
+            section="Content",
+            parse=config_make_path_parser(required=False),
+            paths=("mkosi.installdir",),
+        ),
+        MkosiConfigSetting(
             dest="kernel_command_line",
             section="Output",
             parse=config_make_list_parser(delimiter=" "),
@@ -553,16 +769,6 @@ class MkosiConfigParser:
             section="Output",
             parse=config_make_path_parser(required=False),
             paths=("mkosi.secure-boot.crt",),
-        ),
-        MkosiConfigSetting(
-            dest="secure_boot_valid_days",
-            section="Output",
-            default="730",
-        ),
-        MkosiConfigSetting(
-            dest="secure_boot_common_name",
-            section="Output",
-            default="mkosi of %u",
         ),
         MkosiConfigSetting(
             dest="sign_expected_pcr",
@@ -589,11 +795,6 @@ class MkosiConfigParser:
             dest="image_id",
             match=config_make_list_matcher(delimiter=" ", allow_globs=True),
             section="Output",
-        ),
-        MkosiConfigSetting(
-            dest="auto_bump",
-            section="Output",
-            parse=config_parse_boolean,
         ),
         MkosiConfigSetting(
             dest="tar_strip_selinux_context",
@@ -663,13 +864,6 @@ class MkosiConfigParser:
             parse=config_parse_boolean,
         ),
         MkosiConfigSetting(
-            dest="cache_dir",
-            name="CacheDirectory",
-            section="Content",
-            parse=config_make_path_parser(required=False),
-            paths=("mkosi.cache",),
-        ),
-        MkosiConfigSetting(
             dest="base_trees",
             section="Content",
             parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
@@ -706,20 +900,6 @@ class MkosiConfigParser:
             section="Content",
             parse=config_make_path_parser(),
             default=".",
-        ),
-        MkosiConfigSetting(
-            dest="build_dir",
-            name="BuildDirectory",
-            section="Content",
-            parse=config_make_path_parser(required=False),
-            paths=("mkosi.builddir",),
-        ),
-        MkosiConfigSetting(
-            dest="install_dir",
-            name="InstallDirectory",
-            section="Content",
-            parse=config_make_path_parser(required=False),
-            paths=("mkosi.installdir",),
         ),
         MkosiConfigSetting(
             dest="build_packages",
@@ -920,7 +1100,7 @@ class MkosiConfigParser:
                 for p in sorted(path.parent.joinpath("mkosi.conf.d").iterdir()):
                     if p.is_dir() or p.suffix == ".conf":
                         with chdir(p if p.is_dir() else Path.cwd()):
-                            self.parse_config(p, namespace)
+                            self.parse_config(p if p.is_file() else Path("."), namespace)
 
             for s in self.SETTINGS:
                 for f in s.paths:
@@ -989,6 +1169,7 @@ class MkosiConfigParser:
             help="Change to specified directory before doing anything",
             type=Path,
             metavar="PATH",
+            default=None,
         )
         parser.add_argument(
             "--debug",
@@ -1009,7 +1190,26 @@ class MkosiConfigParser:
             default=True,
             help="Enable paging for long output",
         )
-
+        parser.add_argument(
+            "--secure-boot-valid-days",
+            metavar="DAYS",
+            help="Number of days UEFI SecureBoot keys should be valid when generating keys",
+            action=action,
+            default="730",
+        )
+        parser.add_argument(
+            "--secure-boot-common-name",
+            metavar="CN",
+            help="Template for the UEFI SecureBoot CN when generating keys",
+            action=action,
+            default="mkosi of %u",
+        )
+        parser.add_argument(
+            "-B", "--auto-bump",
+            help="Automatically bump image version after building",
+            action="store_true",
+            default=False,
+        )
 
         group = parser.add_argument_group("Distribution options")
         group.add_argument(
@@ -1096,6 +1296,24 @@ class MkosiConfigParser:
             action=action,
         )
         group.add_argument(
+            "--cache-dir",
+            metavar="PATH",
+            help="Package cache path",
+            action=action,
+        )
+        group.add_argument(
+            "--build-dir",
+            metavar="PATH",
+            help="Path to use as persistent build directory",
+            action=action,
+        )
+        group.add_argument(
+            "--install-dir",
+            metavar="PATH",
+            help="Path to use as persistent install directory",
+            action=action,
+        )
+        group.add_argument(
             "--kernel-command-line",
             metavar="OPTIONS",
             help="Set the kernel command line (only bootable images)",
@@ -1121,18 +1339,6 @@ class MkosiConfigParser:
             action=action,
         )
         group.add_argument(
-            "--secure-boot-valid-days",
-            metavar="DAYS",
-            help="Number of days UEFI SecureBoot keys should be valid when generating keys",
-            action=action,
-        )
-        group.add_argument(
-            "--secure-boot-common-name",
-            metavar="CN",
-            help="Template for the UEFI SecureBoot CN when generating keys",
-            action=action,
-        )
-        group.add_argument(
             "--sign-expected-pcr",
             metavar="FEATURE",
             help="Measure the components of the unified kernel image (UKI) and embed the PCR signature into the UKI",
@@ -1153,12 +1359,6 @@ class MkosiConfigParser:
         )
         group.add_argument("--image-version", help="Set version for image", action=action)
         group.add_argument("--image-id", help="Set ID for image", action=action)
-        group.add_argument(
-            "-B", "--auto-bump",
-            metavar="BOOL",
-            help="Automatically bump image version after building",
-            action=action,
-        )
         group.add_argument(
             "--tar-strip-selinux-context",
             metavar="BOOL",
@@ -1247,12 +1447,6 @@ class MkosiConfigParser:
             action=action,
         )
         group.add_argument(
-            "--cache-dir",
-            metavar="PATH",
-            help="Package cache path",
-            action=action,
-        )
-        group.add_argument(
             '--base-tree',
             metavar='PATH',
             help='Use the given tree as base tree (e.g. lower sysext layer)',
@@ -1295,18 +1489,6 @@ class MkosiConfigParser:
             "--build-sources",
             metavar="PATH",
             help="Path for sources to build",
-            action=action,
-        )
-        group.add_argument(
-            "--build-dir",
-            metavar="PATH",
-            help="Path to use as persistent build directory",
-            action=action,
-        )
-        group.add_argument(
-            "--install-dir",
-            metavar="PATH",
-            help="Path to use as persistent install directory",
             action=action,
         )
         group.add_argument(
@@ -1479,43 +1661,43 @@ class MkosiConfigParser:
 
         return parser
 
-    def parse(self, args: Optional[Sequence[str]] = None) -> argparse.Namespace:
+    def parse(self, argv: Optional[Sequence[str]] = None) -> tuple[MkosiArgs, MkosiConfig]:
         namespace = argparse.Namespace()
 
-        if args is None:
-            args = sys.argv[1:]
-        args = list(args)
+        if argv is None:
+            argv = sys.argv[1:]
+        argv = list(argv)
 
         # Make sure the verb command gets explicitly passed. Insert a -- before the positional verb argument
         # otherwise it might be considered as an argument of a parameter with nargs='?'. For example mkosi -i
         # summary would be treated as -i=summary.
         for verb in Verb:
             try:
-                v_i = args.index(verb.name)
+                v_i = argv.index(verb.name)
             except ValueError:
                 continue
 
-            if v_i > 0 and args[v_i - 1] != "--":
-                args.insert(v_i, "--")
+            if v_i > 0 and argv[v_i - 1] != "--":
+                argv.insert(v_i, "--")
             break
         else:
-            args += ["--", "build"]
+            argv += ["--", "build"]
 
         argparser = self.create_argument_parser()
-        argparser.parse_args(args, namespace)
+        argparser.parse_args(argv, namespace)
 
-        if namespace.verb == Verb.help:
+        args = load_args(namespace)
+
+        if args.verb == Verb.help:
             PagerHelpAction.__call__(None, argparser, namespace)  # type: ignore
 
-        if "directory" not in namespace:
-            setattr(namespace, "directory", None)
+        if args.directory and not args.directory.is_dir():
+            die(f"{args.directory} is not a directory!")
 
-        if namespace.directory and not namespace.directory.is_dir():
-            die(f"Error: {namespace.directory} is not a directory!")
+        if args.directory:
+            os.chdir(args.directory)
 
-        p = namespace.directory or Path.cwd()
-        with chdir(p):
-            self.parse_config(namespace.directory or Path.cwd(), namespace)
+        self.parse_config(Path("."), namespace)
 
         for s in self.SETTINGS:
             if s.dest in namespace:
@@ -1530,7 +1712,7 @@ class MkosiConfigParser:
 
             setattr(namespace, s.dest, default)
 
-        return namespace
+        return args, load_config(namespace)
 
 
 class GenericVersion:
@@ -1572,157 +1754,6 @@ class GenericVersion:
             return False
         cmd = ["systemd-analyze", "compare-versions", self._version, "ge", other._version]
         return run(cmd, check=False).returncode == 0
-
-
-@dataclasses.dataclass(frozen=True)
-class MkosiConfig:
-    """Type-hinted storage for command line arguments.
-
-    Only user configuration is stored here while dynamic state exists in
-    MkosiState. If a field of the same name exists in both classes always
-    access the value from state.
-    """
-
-    verb: Verb
-    cmdline: list[str]
-    force: int
-
-    distribution: Distribution
-    release: str
-    mirror: Optional[str]
-    local_mirror: Optional[str]
-    repository_key_check: bool
-    repositories: list[str]
-    repo_dirs: list[Path]
-    repart_dirs: list[Path]
-    overlay: bool
-    architecture: str
-    output_format: OutputFormat
-    manifest_format: list[ManifestFormat]
-    output: Path
-    output_dir: Optional[Path]
-    kernel_command_line: list[str]
-    secure_boot: bool
-    secure_boot_key: Optional[Path]
-    secure_boot_certificate: Optional[Path]
-    secure_boot_valid_days: str
-    secure_boot_common_name: str
-    sign_expected_pcr: bool
-    compress_output: Compression
-    image_version: Optional[str]
-    image_id: Optional[str]
-    tar_strip_selinux_context: bool
-    incremental: bool
-    packages: list[str]
-    remove_packages: list[str]
-    with_docs: bool
-    with_tests: bool
-    cache_dir: Optional[Path]
-    base_trees: list[Path]
-    extra_trees: list[tuple[Path, Optional[Path]]]
-    skeleton_trees: list[tuple[Path, Optional[Path]]]
-    clean_package_metadata: Optional[bool]
-    remove_files: list[str]
-    environment: dict[str, str]
-    build_sources: Path
-    build_dir: Optional[Path]
-    install_dir: Optional[Path]
-    build_packages: list[str]
-    build_script: Optional[Path]
-    prepare_script: Optional[Path]
-    postinst_script: Optional[Path]
-    finalize_script: Optional[Path]
-    with_network: bool
-    cache_only: bool
-    nspawn_settings: Optional[Path]
-    checksum: bool
-    split_artifacts: bool
-    sign: bool
-    key: Optional[str]
-    password: Optional[str]
-    password_is_hashed: bool
-    autologin: bool
-    extra_search_paths: list[Path]
-    ephemeral: bool
-    ssh: bool
-    credentials: dict[str, str]
-    directory: Optional[Path]
-    debug: bool
-    debug_shell: bool
-    auto_bump: bool
-    workspace_dir: Optional[Path]
-    initrds: list[Path]
-    make_initrd: bool
-    kernel_command_line_extra: list[str]
-    acl: bool
-    pager: bool
-    bootable: Optional[bool]
-
-    # QEMU-specific options
-    qemu_gui: bool
-    qemu_smp: str
-    qemu_mem: str
-    qemu_kvm: bool
-    qemu_args: Sequence[str]
-
-    passphrase: Optional[Path]
-
-    def architecture_is_native(self) -> bool:
-        return self.architecture == platform.machine()
-
-    @property
-    def output_split_uki(self) -> Path:
-        return build_auxiliary_output_path(self, ".efi")
-
-    @property
-    def output_split_kernel(self) -> Path:
-        return build_auxiliary_output_path(self, ".vmlinuz")
-
-    @property
-    def output_nspawn_settings(self) -> Path:
-        return build_auxiliary_output_path(self, ".nspawn")
-
-    @property
-    def output_checksum(self) -> Path:
-        return Path("SHA256SUMS")
-
-    @property
-    def output_signature(self) -> Path:
-        return Path("SHA256SUMS.gpg")
-
-    @property
-    def output_sshkey(self) -> Path:
-        return build_auxiliary_output_path(self, ".ssh")
-
-    @property
-    def output_manifest(self) -> Path:
-        return build_auxiliary_output_path(self, ".manifest")
-
-    @property
-    def output_changelog(self) -> Path:
-        return build_auxiliary_output_path(self, ".changelog")
-
-    @property
-    def output_compressed(self) -> Path:
-        if not self.compress_output:
-            return self.output
-
-        return self.output.parent / f"{self.output.name}.{self.compress_output}"
-
-    def output_paths(self) -> tuple[Path, ...]:
-        return (
-            self.output,
-            self.output_split_uki,
-            self.output_split_kernel,
-            self.output_nspawn_settings,
-            self.output_checksum,
-            self.output_signature,
-            self.output_sshkey,
-            self.output_manifest,
-            self.output_changelog,
-        )
-
-
 
 def strip_suffixes(path: Path) -> Path:
     while path.suffix in {
@@ -1847,10 +1878,14 @@ def load_kernel_command_line_extra(args: argparse.Namespace) -> list[str]:
     return cmdline
 
 
-def load_args(args: argparse.Namespace) -> MkosiConfig:
+def load_args(args: argparse.Namespace) -> MkosiArgs:
     ARG_DEBUG.set(args.debug)
     ARG_DEBUG_SHELL.set(args.debug_shell)
 
+    return MkosiArgs.from_namespace(args)
+
+
+def load_config(args: argparse.Namespace) -> MkosiConfig:
     find_image_version(args)
 
     if args.cmdline and args.verb not in MKOSI_COMMANDS_CMDLINE:
@@ -1870,30 +1905,6 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
         args.cache_dir = args.cache_dir / f"{args.distribution}~{args.release}"
     if args.build_dir:
         args.build_dir = args.build_dir / f"{args.distribution}~{args.release}"
-    if args.output_dir:
-        args.output_dir = args.output_dir / f"{args.distribution}~{args.release}"
-
-    if args.mirror is None:
-        if args.distribution in (Distribution.fedora, Distribution.centos):
-            args.mirror = None
-        elif args.distribution == Distribution.debian:
-            args.mirror = "http://deb.debian.org/debian"
-        elif args.distribution == Distribution.ubuntu:
-            if args.architecture == "x86" or args.architecture == "x86_64":
-                args.mirror = "http://archive.ubuntu.com/ubuntu"
-            else:
-                args.mirror = "http://ports.ubuntu.com"
-        elif args.distribution == Distribution.arch:
-            if args.architecture == "aarch64":
-                args.mirror = "http://mirror.archlinuxarm.org"
-            else:
-                args.mirror = "https://geo.mirror.pkgbuild.com"
-        elif args.distribution == Distribution.opensuse:
-            args.mirror = "https://download.opensuse.org"
-        elif args.distribution == Distribution.rocky:
-            args.mirror = None
-        elif args.distribution == Distribution.alma:
-            args.mirror = None
 
     if args.sign:
         args.checksum = True
@@ -1988,9 +1999,13 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
     if args.overlay and not args.base_trees:
         die("--overlay can only be used with --base-tree")
 
+    if args.incremental and not args.cache_dir:
+        die("A cache directory must be configured in order to use --incremental")
+
     # For unprivileged builds we need the userxattr OverlayFS mount option, which is only available in Linux v5.11 and later.
     with prepend_to_environ_path(args.extra_search_paths):
         if (args.build_script is not None or args.base_trees) and GenericVersion(platform.release()) < GenericVersion("5.11") and os.geteuid() != 0:
             die("This unprivileged build configuration requires at least Linux v5.11")
 
-    return MkosiConfig(**vars(args))
+    return MkosiConfig.from_namespace(args)
+
