@@ -17,7 +17,7 @@ from typing import Any, Callable, Mapping, Optional, Sequence, Type, TypeVar
 
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, die
 from mkosi.types import _FILE, CompletedProcess, PathString, Popen
-from mkosi.util import current_user
+from mkosi.util import InvokingUser
 
 CLONE_NEWNS = 0x00020000
 CLONE_NEWUSER = 0x10000000
@@ -69,8 +69,7 @@ def become_root() -> tuple[int, int]:
     The function returns the UID-GID pair of the invoking user in the namespace (65436, 65436).
     """
     if os.getuid() == 0:
-        user = current_user()
-        return user.uid, user.gid
+        return InvokingUser.uid_gid()
 
     subuid = read_subrange(Path("/etc/subuid"))
     subgid = read_subrange(Path("/etc/subgid"))
