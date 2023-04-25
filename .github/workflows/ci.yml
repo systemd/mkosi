@@ -24,7 +24,6 @@ jobs:
       echo "deb-src http://archive.ubuntu.com/ubuntu/ $(lsb_release -cs) main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
       sudo apt-get update
       sudo apt-get build-dep systemd
-      sudo apt-get install libfdisk-dev
 
       git clone https://github.com/systemd/systemd --depth=1
       meson systemd/build systemd
