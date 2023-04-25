@@ -59,6 +59,7 @@ runs:
 
       for BINARY in "${BINARIES[@]}"; do
         sudo ln -svf $PWD/systemd/build/$BINARY /usr/bin/$BINARY
+        $BINARY --version
       done
 
   - name: Install
