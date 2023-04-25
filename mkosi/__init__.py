@@ -1570,10 +1570,6 @@ def run_build_script(state: MkosiState) -> None:
             env |= dict(BUILDDIR="/work/build")
 
         cmd = ["setpriv", f"--reuid={state.uid}", f"--regid={state.gid}", "--clear-groups", "/work/build-script"]
-        # When we're building the image because it's required for another verb, any passed arguments are
-        # most likely intended for the target verb, and not for "build", so don't add them in that case.
-        if state.config.verb == Verb.build:
-            cmd += state.config.cmdline
 
         # build-script output goes to stdout so we can run language servers from within mkosi
         # build-scripts. See https://github.com/systemd/mkosi/pull/566 for more information.
