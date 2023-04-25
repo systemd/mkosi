@@ -1,6 +1,6 @@
 % mkosi(1)
-% The mkosi Authors
-% 2016-
+%
+%
 
 # NAME
 
