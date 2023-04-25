@@ -245,7 +245,7 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 `ImageVersion=`
 
 : Matches against the configured image version. Image versions can be prepended
-  by the operators `==`, `>=`, `<=`, `<`, `>` for rich version comparisons
+  by the operators `==`, `!=`, `>=`, `<=`, `<`, `>` for rich version comparisons
   according to the UAPI group version format specification. If no operator is
   prepended, the equality operator is assumed by default If this condition is
   used and no image Version has be explicitly configured yet, this condition

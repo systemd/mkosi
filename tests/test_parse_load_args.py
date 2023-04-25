@@ -288,6 +288,7 @@ def test_match_imageid(image1: str, image2: str) -> None:
 def test_match_imageversion(op: str, version: str) -> None:
     opfunc = {
         "==": operator.eq,
+        "!=": operator.ne,
         "<": operator.lt,
         "<=": operator.le,
         ">": operator.gt,

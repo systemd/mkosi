@@ -287,6 +287,7 @@ def config_make_image_version_list_matcher(delimiter: str) -> ConfigMatchCallbac
         for v in version_specs:
             for sigil, opfunc in {
                 "==": operator.eq,
+                "!=": operator.ne,
                 "<=": operator.le,
                 ">=": operator.ge,
                 ">": operator.gt,
@@ -1516,6 +1517,12 @@ class GenericVersion:
         if not isinstance(other, GenericVersion):
             return False
         cmd = ["systemd-analyze", "compare-versions", self._version, "eq", other._version]
+        return run(cmd, check=False).returncode == 0
+
+    def __ne__(self, other: object) -> bool:
+        if not isinstance(other, GenericVersion):
+            return False
+        cmd = ["systemd-analyze", "compare-versions", self._version, "ne", other._version]
         return run(cmd, check=False).returncode == 0
 
     def __lt__(self, other: object) -> bool:
