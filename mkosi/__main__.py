@@ -42,18 +42,18 @@ def propagate_failed_return() -> Iterator[None]:
 @propagate_failed_return()
 def main() -> None:
     log_setup()
-    config = MkosiConfigParser().parse()
+    args, config = MkosiConfigParser().parse()
 
     if ARG_DEBUG.get():
         logging.getLogger().setLevel(logging.DEBUG)
 
-    if config.directory:
-        if config.directory.is_dir():
-            os.chdir(config.directory)
+    if args.directory:
+        if args.directory.is_dir():
+            os.chdir(args.directory)
         else:
-            die(f"Error: {config.directory} is not a directory!")
+            die(f"Error: {args.directory} is not a directory!")
 
-    run_verb(config)
+    run_verb(args, config)
 
 
 if __name__ == "__main__":

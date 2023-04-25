@@ -4,6 +4,7 @@ import dataclasses
 import enum
 import fnmatch
 import functools
+import inspect
 import logging
 import operator
 import os.path
@@ -481,6 +482,24 @@ class PagerHelpAction(argparse._HelpAction):
 
 
 @dataclasses.dataclass(frozen=True)
+class MkosiArgs:
+    verb: Verb
+    cmdline: list[str]
+    force: int
+    directory: Optional[Path]
+    debug: bool
+    debug_shell: bool
+    pager: bool
+
+    @classmethod
+    def from_namespace(cls, ns: argparse.Namespace) -> "MkosiArgs":
+        return cls(**{
+            k: v for k, v in vars(ns).items()
+            if k in inspect.signature(cls).parameters
+        })
+
+
+@dataclasses.dataclass(frozen=True)
 class MkosiConfig:
     """Type-hinted storage for command line arguments.
 
@@ -488,10 +507,6 @@ class MkosiConfig:
     MkosiState. If a field of the same name exists in both classes always
     access the value from state.
     """
-
-    verb: Verb
-    cmdline: list[str]
-    force: int
 
     distribution: Distribution
     release: str
@@ -552,16 +567,12 @@ class MkosiConfig:
     ephemeral: bool
     ssh: bool
     credentials: dict[str, str]
-    directory: Optional[Path]
-    debug: bool
-    debug_shell: bool
     auto_bump: bool
     workspace_dir: Optional[Path]
     initrds: list[Path]
     make_initrd: bool
     kernel_command_line_extra: list[str]
     acl: bool
-    pager: bool
     bootable: Optional[bool]
 
     # QEMU-specific options
@@ -572,6 +583,13 @@ class MkosiConfig:
     qemu_args: Sequence[str]
 
     passphrase: Optional[Path]
+
+    @classmethod
+    def from_namespace(cls, ns: argparse.Namespace) -> "MkosiConfig":
+        return cls(**{
+            k: v for k, v in vars(ns).items()
+            if k in inspect.signature(cls).parameters
+        })
 
     def architecture_is_native(self) -> bool:
         return self.architecture == platform.machine()
@@ -1166,6 +1184,7 @@ class MkosiConfigParser:
             help="Change to specified directory before doing anything",
             type=Path,
             metavar="PATH",
+            default=None,
         )
         parser.add_argument(
             "--debug",
@@ -1656,43 +1675,41 @@ class MkosiConfigParser:
 
         return parser
 
-    def parse(self, args: Optional[Sequence[str]] = None) -> MkosiConfig:
+    def parse(self, argv: Optional[Sequence[str]] = None) -> tuple[MkosiArgs, MkosiConfig]:
         namespace = argparse.Namespace()
 
-        if args is None:
-            args = sys.argv[1:]
-        args = list(args)
+        if argv is None:
+            argv = sys.argv[1:]
+        argv = list(argv)
 
         # Make sure the verb command gets explicitly passed. Insert a -- before the positional verb argument
         # otherwise it might be considered as an argument of a parameter with nargs='?'. For example mkosi -i
         # summary would be treated as -i=summary.
         for verb in Verb:
             try:
-                v_i = args.index(verb.name)
+                v_i = argv.index(verb.name)
             except ValueError:
                 continue
 
-            if v_i > 0 and args[v_i - 1] != "--":
-                args.insert(v_i, "--")
+            if v_i > 0 and argv[v_i - 1] != "--":
+                argv.insert(v_i, "--")
             break
         else:
-            args += ["--", "build"]
+            argv += ["--", "build"]
 
         argparser = self.create_argument_parser()
-        argparser.parse_args(args, namespace)
+        argparser.parse_args(argv, namespace)
 
-        if namespace.verb == Verb.help:
+        args = load_args(namespace)
+
+        if args.verb == Verb.help:
             PagerHelpAction.__call__(None, argparser, namespace)  # type: ignore
 
-        if "directory" not in namespace:
-            setattr(namespace, "directory", None)
-
-        if namespace.directory and not namespace.directory.is_dir():
+        if args.directory and not args.directory.is_dir():
             die(f"Error: {namespace.directory} is not a directory!")
 
-        p = namespace.directory or Path.cwd()
-        with chdir(p):
-            self.parse_config(namespace.directory or Path.cwd(), namespace)
+        with chdir(args.directory or Path.cwd()):
+            self.parse_config(Path("."), namespace)
 
         for s in self.SETTINGS:
             if s.dest in namespace:
@@ -1707,7 +1724,7 @@ class MkosiConfigParser:
 
             setattr(namespace, s.dest, default)
 
-        return load_args(namespace)
+        return args, load_config(namespace)
 
 
 class GenericVersion:
@@ -1873,10 +1890,14 @@ def load_kernel_command_line_extra(args: argparse.Namespace) -> list[str]:
     return cmdline
 
 
-def load_args(args: argparse.Namespace) -> MkosiConfig:
+def load_args(args: argparse.Namespace) -> MkosiArgs:
     ARG_DEBUG.set(args.debug)
     ARG_DEBUG_SHELL.set(args.debug_shell)
 
+    return MkosiArgs.from_namespace(args)
+
+
+def load_config(args: argparse.Namespace) -> MkosiConfig:
     find_image_version(args)
 
     if args.cmdline and args.verb not in MKOSI_COMMANDS_CMDLINE:
@@ -1997,4 +2018,5 @@ def load_args(args: argparse.Namespace) -> MkosiConfig:
         if (args.build_script is not None or args.base_trees) and GenericVersion(platform.release()) < GenericVersion("5.11") and os.geteuid() != 0:
             die("This unprivileged build configuration requires at least Linux v5.11")
 
-    return MkosiConfig(**vars(args))
+    return MkosiConfig.from_namespace(args)
+

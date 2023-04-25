@@ -13,7 +13,7 @@ from typing import Iterator, List, Optional
 import pytest
 
 from mkosi.util import Compression, Distribution, Verb
-from mkosi.config import MkosiConfigParser, MkosiConfig
+from mkosi.config import MkosiConfigParser, MkosiConfig, MkosiArgs
 
 
 @contextmanager
@@ -28,23 +28,23 @@ def cd_temp_dir() -> Iterator[None]:
             chdir(old_dir)
 
 
-def parse(argv: Optional[List[str]] = None) -> MkosiConfig:
+def parse(argv: Optional[List[str]] = None) -> tuple[MkosiArgs, MkosiConfig]:
     return MkosiConfigParser().parse(argv)
 
 
 def test_parse_load_verb() -> None:
     with cd_temp_dir():
-        assert parse(["build"]).verb == Verb.build
-        assert parse(["clean"]).verb == Verb.clean
+        assert parse(["build"])[0].verb == Verb.build
+        assert parse(["clean"])[0].verb == Verb.clean
         with pytest.raises(SystemExit):
             parse(["help"])
-        assert parse(["genkey"]).verb == Verb.genkey
-        assert parse(["bump"]).verb == Verb.bump
-        assert parse(["serve"]).verb == Verb.serve
-        assert parse(["build"]).verb == Verb.build
-        assert parse(["shell"]).verb == Verb.shell
-        assert parse(["boot"]).verb == Verb.boot
-        assert parse(["qemu"]).verb == Verb.qemu
+        assert parse(["genkey"])[0].verb == Verb.genkey
+        assert parse(["bump"])[0].verb == Verb.bump
+        assert parse(["serve"])[0].verb == Verb.serve
+        assert parse(["build"])[0].verb == Verb.build
+        assert parse(["shell"])[0].verb == Verb.shell
+        assert parse(["boot"])[0].verb == Verb.boot
+        assert parse(["qemu"])[0].verb == Verb.qemu
         with pytest.raises(SystemExit):
             parse(["invalid"])
 
@@ -52,7 +52,7 @@ def test_parse_load_verb() -> None:
 def test_os_distribution() -> None:
     with cd_temp_dir():
         for dist in Distribution:
-            assert parse(["-d", dist.name]).distribution == dist
+            assert parse(["-d", dist.name])[1].distribution == dist
 
         with pytest.raises(tuple((argparse.ArgumentError, SystemExit))):
             parse(["-d", "invalidDistro"])
@@ -62,7 +62,7 @@ def test_os_distribution() -> None:
         for dist in Distribution:
             config = Path("mkosi.conf")
             config.write_text(f"[Distribution]\nDistribution={dist}")
-            assert parse([]).distribution == dist
+            assert parse([])[1].distribution == dist
 
 
 def test_parse_config_files_filter() -> None:
@@ -73,7 +73,7 @@ def test_parse_config_files_filter() -> None:
         (confd / "10-file.conf").write_text("[Content]\nPackages=yes")
         (confd / "20-file.noconf").write_text("[Content]\nPackages=nope")
 
-        assert parse([]).packages == ["yes"]
+        assert parse([])[1].packages == ["yes"]
 
 
 def test_shell_boot() -> None:
@@ -90,7 +90,7 @@ def test_shell_boot() -> None:
 
 def test_compression() -> None:
     with cd_temp_dir():
-        assert parse(["--format", "disk", "--compress-output", "False"]).compress_output == Compression.none
+        assert parse(["--format", "disk", "--compress-output", "False"])[1].compress_output == Compression.none
 
 
 @pytest.mark.parametrize("dist1,dist2", itertools.combinations_with_replacement(Distribution, 2))
