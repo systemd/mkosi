@@ -228,17 +228,18 @@ def flatten(lists: Iterable[Iterable[T]]) -> list[T]:
 
 class InvokingUser:
     @staticmethod
-    def _uid_from_env() -> Optional[str]:
-        return os.getenv("SUDO_UID") or os.getenv("PKEXEC_UID")
+    def _uid_from_env() -> Optional[int]:
+        uid = os.getenv("SUDO_UID") or os.getenv("PKEXEC_UID")
+        return int(uid) if uid is not None else None
 
     @classmethod
     def uid(cls) -> int:
-        return int(cls._uid_from_env() or os.getuid())
+        return cls._uid_from_env() or os.getuid()
 
     @classmethod
     def uid_gid(cls) -> tuple[int, int]:
-        if uid := cls._uid_from_env:
-            gid = int(os.getenv("SUDO_GID") or pwd.getpwuid(uid).pw_gid)
+        if (uid := cls._uid_from_env()) is not None:
+            gid = int(os.getenv("SUDO_GID", pwd.getpwuid(uid).pw_gid))
             return uid, gid
         return os.getuid(), os.getgid()
 
@@ -250,8 +251,7 @@ class InvokingUser:
 
     @classmethod
     def home(cls) -> Path:
-        home = os.getenv("SUDO_HOME") or os.getenv("HOME") or pwd.getpwuid(cls.uid()).pw_dir
-        return Path(home)
+        return Path(f"~{cls.name()}").expanduser()
 
     @classmethod
     def is_running_user(cls) -> bool:
