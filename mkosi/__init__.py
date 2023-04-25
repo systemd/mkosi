@@ -715,7 +715,7 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
         # Default values are assigned via the parser so we go via the argument parser to construct
         # the config for the initrd.
         with complete_step("Building initrd"):
-            args, config = MkosiConfigParser().parse([
+            args, presets = MkosiConfigParser().parse([
                 "--directory", "",
                 "--distribution", str(state.config.distribution),
                 "--release", state.config.release,
@@ -744,9 +744,9 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                 "build",
             ])
 
-            build_stuff(state.uid, state.gid, args, config)
+            build_stuff(state.uid, state.gid, args, presets[0])
 
-            initrds = [config.output_compressed]
+            initrds = [presets[0].output_compressed]
 
     for kver, kimg in gen_kernel_images(state):
         with complete_step(f"Generating unified kernel image for {kimg}"):
@@ -1083,6 +1083,13 @@ def check_inputs(config: MkosiConfig) -> None:
                      config.postinst_script,
                      config.finalize_script):
             check_script_input(path)
+
+        for p in config.initrds:
+            if not p.exists():
+                die(f"Initrd {p} not found")
+            if not p.is_file():
+                die(f"Initrd {p} is not a file")
+
     except OSError as e:
         die(f'{e.filename}: {e.strerror}')
 
@@ -1140,7 +1147,7 @@ def line_join_list(
         return "none"
 
     items = (str(path_or_none(cast(Path, item), checker=checker)) for item in array)
-    return "\n                            ".join(items)
+    return "\n                                ".join(items)
 
 
 def line_join_source_target_list(array: Sequence[tuple[Path, Optional[Path]]]) -> str:
@@ -1148,7 +1155,7 @@ def line_join_source_target_list(array: Sequence[tuple[Path, Optional[Path]]]) -
         return "none"
 
     items = [f"{source}:{target}" if target else f"{source}" for source, target in array]
-    return "\n                            ".join(items)
+    return "\n                                ".join(items)
 
 
 def print_summary(args: MkosiArgs, config: MkosiConfig) -> None:
@@ -1160,75 +1167,77 @@ def print_summary(args: MkosiArgs, config: MkosiConfig) -> None:
     env = [f"{k}={v}" for k, v in config.environment.items()]
 
     summary = f"""\
-{bold("COMMANDS")}:
-                      verb: {bold(args.verb)}
-                   cmdline: {bold(" ".join(args.cmdline))}
+{bold(f"PRESET: {config.preset or 'default'}")}
 
-{bold("DISTRIBUTION")}
-              Distribution: {bold(config.distribution.name)}
-                   Release: {bold(none_to_na(config.release))}
-              Architecture: {config.architecture}
-                    Mirror: {none_to_default(config.mirror)}
-      Local Mirror (build): {none_to_none(config.local_mirror)}
-  Repo Signature/Key check: {yes_no(config.repository_key_check)}
-              Repositories: {",".join(config.repositories)}
-                   Initrds: {",".join(os.fspath(p) for p in config.initrds)}
+    {bold("COMMANDS")}:
+                          verb: {bold(args.verb)}
+                       cmdline: {bold(" ".join(args.cmdline))}
 
-{bold("OUTPUT")}:
-                  Image ID: {config.image_id}
-             Image Version: {config.image_version}
-             Output Format: {config.output_format.name}
-          Manifest Formats: {maniformats}
-          Output Directory: {none_to_default(config.output_dir)}
-       Workspace Directory: {none_to_default(config.workspace_dir)}
-                    Output: {bold(config.output_compressed)}
-           Output Checksum: {none_to_na(config.output_checksum if config.checksum else None)}
-          Output Signature: {none_to_na(config.output_signature if config.sign else None)}
-    Output nspawn Settings: {none_to_na(config.output_nspawn_settings if config.nspawn_settings is not None else None)}
-               Incremental: {yes_no(config.incremental)}
-               Compression: {config.compress_output}
-                  Bootable: {config.bootable}
-       Kernel Command Line: {" ".join(config.kernel_command_line)}
-           UEFI SecureBoot: {yes_no(config.secure_boot)}
-       SecureBoot Sign Key: {none_to_none(config.secure_boot_key)}
-    SecureBoot Certificate: {none_to_none(config.secure_boot_certificate)}
+    {bold("DISTRIBUTION")}:
+                  Distribution: {bold(config.distribution.name)}
+                       Release: {bold(none_to_na(config.release))}
+                  Architecture: {config.architecture}
+                        Mirror: {none_to_default(config.mirror)}
+          Local Mirror (build): {none_to_none(config.local_mirror)}
+      Repo Signature/Key check: {yes_no(config.repository_key_check)}
+                  Repositories: {",".join(config.repositories)}
+                       Initrds: {",".join(os.fspath(p) for p in config.initrds)}
 
-{bold("CONTENT")}:
-                  Packages: {line_join_list(config.packages)}
-        With Documentation: {yes_no(config.with_docs)}
-             Package Cache: {none_to_none(config.cache_dir)}
-            Skeleton Trees: {line_join_source_target_list(config.skeleton_trees)}
-               Extra Trees: {line_join_source_target_list(config.extra_trees)}
-    Clean Package Metadata: {yes_no_auto(config.clean_package_metadata)}
-              Remove Files: {line_join_list(config.remove_files)}
-           Remove Packages: {line_join_list(config.remove_packages)}
-             Build Sources: {config.build_sources}
-           Build Directory: {none_to_none(config.build_dir)}
-         Install Directory: {none_to_none(config.install_dir)}
-            Build Packages: {line_join_list(config.build_packages)}
-              Build Script: {path_or_none(config.build_script, check_script_input)}
- Run Tests in Build Script: {yes_no(config.with_tests)}
-        Postinstall Script: {path_or_none(config.postinst_script, check_script_input)}
-            Prepare Script: {path_or_none(config.prepare_script, check_script_input)}
-           Finalize Script: {path_or_none(config.finalize_script, check_script_input)}
-        Script Environment: {line_join_list(env)}
-      Scripts with network: {yes_no(config.with_network)}
-           nspawn Settings: {none_to_none(config.nspawn_settings)}
-                  Password: {("(default)" if config.password is None else "(set)")}
-                 Autologin: {yes_no(config.autologin)}
+    {bold("OUTPUT")}:
+                      Image ID: {config.image_id}
+                 Image Version: {config.image_version}
+                 Output Format: {config.output_format.name}
+              Manifest Formats: {maniformats}
+              Output Directory: {none_to_default(config.output_dir)}
+           Workspace Directory: {none_to_default(config.workspace_dir)}
+                        Output: {bold(config.output_compressed)}
+               Output Checksum: {none_to_na(config.output_checksum if config.checksum else None)}
+              Output Signature: {none_to_na(config.output_signature if config.sign else None)}
+        Output nspawn Settings: {none_to_na(config.output_nspawn_settings if config.nspawn_settings is not None else None)}
+                   Incremental: {yes_no(config.incremental)}
+                   Compression: {config.compress_output.name}
+                      Bootable: {yes_no_auto(config.bootable)}
+           Kernel Command Line: {" ".join(config.kernel_command_line)}
+               UEFI SecureBoot: {yes_no(config.secure_boot)}
+           SecureBoot Sign Key: {none_to_none(config.secure_boot_key)}
+        SecureBoot Certificate: {none_to_none(config.secure_boot_certificate)}
 
-{bold("HOST CONFIGURATION")}:
-        Extra search paths: {line_join_list(config.extra_search_paths)}
-      QEMU Extra Arguments: {line_join_list(config.qemu_args)}
-    """
+    {bold("CONTENT")}:
+                      Packages: {line_join_list(config.packages)}
+            With Documentation: {yes_no(config.with_docs)}
+                 Package Cache: {none_to_none(config.cache_dir)}
+                Skeleton Trees: {line_join_source_target_list(config.skeleton_trees)}
+                   Extra Trees: {line_join_source_target_list(config.extra_trees)}
+        Clean Package Metadata: {yes_no_auto(config.clean_package_metadata)}
+                  Remove Files: {line_join_list(config.remove_files)}
+               Remove Packages: {line_join_list(config.remove_packages)}
+                 Build Sources: {config.build_sources}
+               Build Directory: {none_to_none(config.build_dir)}
+             Install Directory: {none_to_none(config.install_dir)}
+                Build Packages: {line_join_list(config.build_packages)}
+                  Build Script: {path_or_none(config.build_script, check_script_input)}
+     Run Tests in Build Script: {yes_no(config.with_tests)}
+            Postinstall Script: {path_or_none(config.postinst_script, check_script_input)}
+                Prepare Script: {path_or_none(config.prepare_script, check_script_input)}
+               Finalize Script: {path_or_none(config.finalize_script, check_script_input)}
+            Script Environment: {line_join_list(env)}
+          Scripts with network: {yes_no(config.with_network)}
+               nspawn Settings: {none_to_none(config.nspawn_settings)}
+                      Password: {("(default)" if config.password is None else "(set)")}
+                     Autologin: {yes_no(config.autologin)}
+
+    {bold("HOST CONFIGURATION")}:
+            Extra search paths: {line_join_list(config.extra_search_paths)}
+          QEMU Extra Arguments: {line_join_list(config.qemu_args)}
+        """
 
     if config.output_format == OutputFormat.disk:
         summary += f"""\
 
-{bold("VALIDATION")}:
-                  Checksum: {yes_no(config.checksum)}
-                      Sign: {yes_no(config.sign)}
-                   GPG Key: ({"default" if config.key is None else config.key})
+    {bold("VALIDATION")}:
+                      Checksum: {yes_no(config.checksum)}
+                          Sign: {yes_no(config.sign)}
+                       GPG Key: ({"default" if config.key is None else config.key})
         """
 
     page(summary, args.pager)
@@ -2096,56 +2105,89 @@ def needs_build(args: MkosiArgs, config: MkosiConfig) -> bool:
     return args.verb == Verb.build or (args.verb in MKOSI_COMMANDS_NEED_BUILD and (not config.output_compressed.exists() or args.force > 0))
 
 
-def run_verb(args: MkosiArgs, config: MkosiConfig) -> None:
-    with prepend_to_environ_path(config.extra_search_paths):
-        if args.verb == Verb.genkey:
-            return generate_secure_boot_key(args)
+def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
+    if args.verb in MKOSI_COMMANDS_SUDO:
+        check_root()
 
-        if args.verb == Verb.bump:
-            return bump_image_version()
+    if args.verb == Verb.genkey:
+        return generate_secure_boot_key(args)
 
-        if args.verb == Verb.summary:
-            return print_summary(args, config)
+    if args.verb == Verb.bump:
+        return bump_image_version()
 
-        if args.verb in MKOSI_COMMANDS_SUDO:
-            check_root()
+    if args.verb == Verb.summary:
+        for config in presets:
+            print_summary(args, config)
 
-        if args.verb == Verb.build:
-            check_inputs(config)
+        return
 
-            if not args.force:
-                check_outputs(config)
+    last = presets[-1]
 
-        if needs_build(args, config) or args.verb == Verb.clean:
-            def target() -> None:
-                become_root()
-                unlink_output(args, config)
+    if args.verb == Verb.qemu and last.output_format in (
+        OutputFormat.directory,
+        OutputFormat.subvolume,
+        OutputFormat.tar,
+    ):
+        die(f"{last.output_format} images cannot be booted in qemu.")
 
-            fork_and_wait(target)
+    if args.verb in (Verb.shell, Verb.boot):
+        opname = "acquire shell in" if args.verb == Verb.shell else "boot"
+        if last.output_format in (OutputFormat.tar, OutputFormat.cpio):
+            die(f"Sorry, can't {opname} a {last.output_format} archive.")
+        if last.compress_output:
+            die(f"Sorry, can't {opname} a compressed image.")
 
-        if needs_build(args, config):
+    # First, process all directory removals because otherwise if different presets share directories a later
+    # preset could end up output generated by an earlier preset.
+
+    for config in presets:
+        if not needs_build(args, config) and args.verb != Verb.clean:
+            continue
+
+        def target() -> None:
+            become_root()
+            unlink_output(args, config)
+
+        fork_and_wait(target)
+
+    build = False
+
+    for config in presets:
+        if not needs_build(args, config):
+            continue
+
+        check_inputs(config)
+
+        if not args.force:
+            check_outputs(config)
+
+        with prepend_to_environ_path(config.extra_search_paths):
             def target() -> None:
                 # Get the user UID/GID either on the host or in the user namespace running the build
                 uid, gid = become_root()
                 init_mount_namespace()
                 build_stuff(uid, gid, args, config)
 
-            # We only want to run the build in a user namespace but not the following steps. Since we can't
-            # rejoin the parent user namespace after unsharing from it, let's run the build in a fork so that
-            # the main process does not leave its user namespace.
-            fork_and_wait(target)
+            # We only want to run the build in a user namespace but not the following steps. Since we
+            # can't rejoin the parent user namespace after unsharing from it, let's run the build in a
+            # fork so that the main process does not leave its user namespace.
+            with complete_step(f"Building {config.preset or 'default'} image"):
+                fork_and_wait(target)
 
-            if args.auto_bump:
-                bump_image_version()
+            build = True
 
+    if build and args.auto_bump:
+        bump_image_version()
+
+    with prepend_to_environ_path(last.extra_search_paths):
         if args.verb in (Verb.shell, Verb.boot):
-            run_shell(args, config)
+            run_shell(args, last)
 
         if args.verb == Verb.qemu:
-            run_qemu(args, config)
+            run_qemu(args, last)
 
         if args.verb == Verb.ssh:
-            run_ssh(args, config)
+            run_ssh(args, last)
 
         if args.verb == Verb.serve:
-            run_serve(config)
+            run_serve(last)
