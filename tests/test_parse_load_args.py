@@ -270,13 +270,25 @@ def test_match_imageid(image1: str, image2: str) -> None:
                 """
             )
         )
+        child4 = Path("mkosi.conf.d/child4.conf")
+        child4.write_text(
+            dedent(
+                """\
+                [Match]
+                ImageId=image*
+
+                [Content]
+                Packages=testpkg4
+                """
+            )
+        )
 
         conf = parse([])
         assert "testpkg1" in conf.packages
         if image1 == image2:
             assert "testpkg2" in conf.packages
         assert "testpkg3" in conf.packages
-
+        assert "testpkg4" in conf.packages
 
 
 @pytest.mark.parametrize(

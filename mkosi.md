@@ -236,11 +236,11 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 
 `ImageId=`
 
-: Matches against the configured image ID. If this condition is used and no
-  image ID has been explicitly configured yet, this condition fails. Multiple
-  image IDs may be specified, separated by spaces. If multiple image IDs are
-  specified, the condition is satisfied if the configured image ID equals any of
-  the specified image IDs.
+: Matches against the configured image ID, supporting globs. If this condition
+  is used and no image ID has been explicitly configured yet, this condition
+  fails. Multiple image IDs may be specified, separated by spaces. If multiple
+  image IDs are specified, the condition is satisfied if the configured image ID
+  equals any of the specified image IDs.
 
 `ImageVersion=`
 

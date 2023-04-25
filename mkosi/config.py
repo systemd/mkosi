@@ -248,6 +248,7 @@ def config_make_list_matcher(
     delimiter: str,
     *,
     unescape: bool = False,
+    allow_globs: bool = False,
     all: bool = False,
     parse: Callable[[str], Any] = str,
 ) -> ConfigMatchCallback:
@@ -262,7 +263,16 @@ def config_make_list_matcher(
             values = value.replace(delimiter, "\n").split("\n")
 
         for v in values:
-            m = getattr(namespace, dest) == parse(v)
+            current_value = getattr(namespace, dest)
+            comparison_value = parse(v)
+            if allow_globs:
+                # check if the option has been set, since fnmatch wants strings
+                if isinstance(current_value, str):
+                    m = fnmatch.fnmatchcase(current_value, comparison_value)
+                else:
+                    m = False
+            else:
+                m = current_value == comparison_value
 
             if not all and m:
                 return True
@@ -563,7 +573,7 @@ class MkosiConfigParser:
         ),
         MkosiConfigSetting(
             dest="image_id",
-            match=config_make_list_matcher(delimiter=" "),
+            match=config_make_list_matcher(delimiter=" ", allow_globs=True),
             section="Output",
         ),
         MkosiConfigSetting(
