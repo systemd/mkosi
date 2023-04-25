@@ -1100,7 +1100,7 @@ class MkosiConfigParser:
                 for p in sorted(path.parent.joinpath("mkosi.conf.d").iterdir()):
                     if p.is_dir() or p.suffix == ".conf":
                         with chdir(p if p.is_dir() else Path.cwd()):
-                            self.parse_config(p, namespace)
+                            self.parse_config(p if p.is_file() else Path("."), namespace)
 
             for s in self.SETTINGS:
                 for f in s.paths:
