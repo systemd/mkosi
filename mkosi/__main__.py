@@ -3,14 +3,13 @@
 
 import contextlib
 import logging
-import os
 import subprocess
 import sys
 from collections.abc import Iterator
 
 from mkosi import run_verb
 from mkosi.config import MkosiConfigParser
-from mkosi.log import ARG_DEBUG, die, log_setup
+from mkosi.log import ARG_DEBUG, log_setup
 from mkosi.run import excepthook
 
 
@@ -46,12 +45,6 @@ def main() -> None:
 
     if ARG_DEBUG.get():
         logging.getLogger().setLevel(logging.DEBUG)
-
-    if args.directory:
-        if args.directory.is_dir():
-            os.chdir(args.directory)
-        else:
-            die(f"Error: {args.directory} is not a directory!")
 
     run_verb(args, config)
 

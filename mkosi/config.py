@@ -1692,10 +1692,12 @@ class MkosiConfigParser:
             PagerHelpAction.__call__(None, argparser, namespace)  # type: ignore
 
         if args.directory and not args.directory.is_dir():
-            die(f"Error: {namespace.directory} is not a directory!")
+            die(f"{args.directory} is not a directory!")
 
-        with chdir(args.directory or Path.cwd()):
-            self.parse_config(Path("."), namespace)
+        if args.directory:
+            os.chdir(args.directory)
+
+        self.parse_config(Path("."), namespace)
 
         for s in self.SETTINGS:
             if s.dest in namespace:
