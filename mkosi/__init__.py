@@ -848,7 +848,21 @@ def calculate_signature(state: MkosiState) -> None:
             state.staging / state.config.output_checksum.name,
         ]
 
-        run(cmdline)
+        run(
+            cmdline,
+            # Do not output warnings about keyring permissions
+            stderr=subprocess.DEVNULL,
+            env={
+                # Set the path of the keyring to use based on the environment
+                # if possible and fallback to the default path. Without this the
+                # keyring for the root user will instead be used which will fail
+                # for a non-root build.
+                'GNUPGHOME': os.environ.get(
+                    'GNUPGHOME',
+                    Path(os.environ['HOME']).joinpath('.gnupg')
+                )
+            }
+        )
 
 
 def acl_toggle_remove(config: MkosiConfig, root: Path, uid: int, *, allow: bool) -> None:
