@@ -17,21 +17,19 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
-  - name: Update systemd-analyze
-    shell: bash
-    working-directory: ${{ github.action_path }}
-    run: |
-      echo "deb-src http://archive.ubuntu.com/ubuntu/ $(lsb_release -cs) main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
-      sudo apt-get update
-      sudo apt-get build-dep systemd
+    - name: Update systemd-analyze
+      run: |
+        echo "deb-src http://archive.ubuntu.com/ubuntu/ $(lsb_release -cs) main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
+        sudo apt-get update
+        sudo apt-get build-dep systemd
 
-      git clone https://github.com/systemd/systemd --depth=1
-      meson systemd/build systemd
+        git clone https://github.com/systemd/systemd --depth=1
+        meson setup systemd/build systemd
 
-      ninja -C systemd/build systemd-analyze
+        ninja -C systemd/build systemd-analyze
 
-      sudo ln -svf $PWD/systemd/build/systemd-analyze /usr/bin/systemd-analyze
-      systemd-analyze --version
+        sudo ln -svf $PWD/systemd/build/systemd-analyze /usr/bin/systemd-analyze
+        systemd-analyze --version
 
     - name: Install
       run: |
@@ -51,7 +49,7 @@ jobs:
       run: python3 -m mypy mkosi/ tests/
 
     - name: Type Checking (pyright)
-      run: pyright .
+      run: pyright mkosi/ tests/
 
     - name: Unit Tests
       run: python3 -m pytest -sv tests
@@ -98,7 +96,7 @@ jobs:
     - name: Test shell scripts
       run: |
         sudo apt-get update && sudo apt-get install --no-install-recommends shellcheck
-        bash -c 'shopt -s globstar; shellcheck **/*.sh'
+        bash -c 'shopt -s globstar; shellcheck bin/mkosi tools/*.sh'
 
   integration-test:
     runs-on: ubuntu-22.04
