@@ -837,17 +837,32 @@ def calculate_signature(state: MkosiState) -> None:
         return None
 
     with complete_step("Signing SHA256SUMS…"):
-        cmdline: list[PathString] = [
-            "gpg",
-            "--detach-sign",
-            "-o", state.staging / state.config.output_signature.name,
-            state.staging / state.config.output_checksum.name,
-        ]
+        cmdline: list[PathString] = ["gpg", "--detach-sign"]
 
+        # Need to specify key before file to sign
         if state.config.key is not None:
             cmdline += ["--default-key", state.config.key]
 
-        run(cmdline)
+        cmdline += [
+            "--output", state.staging / state.config.output_signature.name,
+            state.staging / state.config.output_checksum.name,
+        ]
+
+        run(
+            cmdline,
+            # Do not output warnings about keyring permissions
+            stderr=subprocess.DEVNULL,
+            env={
+                # Set the path of the keyring to use based on the environment
+                # if possible and fallback to the default path. Without this the
+                # keyring for the root user will instead be used which will fail
+                # for a non-root build.
+                'GNUPGHOME': os.environ.get(
+                    'GNUPGHOME',
+                    Path(os.environ['HOME']).joinpath('.gnupg')
+                )
+            }
+        )
 
 
 def acl_toggle_remove(config: MkosiConfig, root: Path, uid: int, *, allow: bool) -> None:
