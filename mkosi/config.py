@@ -608,11 +608,11 @@ class MkosiConfig:
 
     @property
     def output_checksum(self) -> Path:
-        return Path("SHA256SUMS")
+        return build_auxiliary_output_path(self, ".SHA256SUMS")
 
     @property
     def output_signature(self) -> Path:
-        return Path("SHA256SUMS.gpg")
+        return build_auxiliary_output_path(self, ".SHA256SUMS.gpg")
 
     @property
     def output_sshkey(self) -> Path:
