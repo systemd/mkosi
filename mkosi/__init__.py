@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
-import argparse
 import base64
 import contextlib
 import crypt
@@ -2024,7 +2023,7 @@ def generate_secure_boot_key(args: MkosiArgs) -> None:
         if f and not args.force:
             die(f"{f} already exists",
                 hint=("To generate new secure boot keys, "
-                      f"first remove mkosi.secure-boot.key and mkosi.secure-boot.crt"))
+                      "first remove mkosi.secure-boot.key and mkosi.secure-boot.crt"))
 
     log_step(f"Generating secure boot keys rsa:{keylength} for CN {cn!r}.")
     logging.info(

@@ -43,7 +43,7 @@ runs:
       sudo apt-get install libfdisk-dev
 
       git clone https://github.com/systemd/systemd --depth=1
-      meson systemd/build systemd -Drepart=true -Defi=true -Dbootloader=true
+      meson setup systemd/build systemd -Drepart=true -Defi=true -Dbootloader=true -Dukify=true
 
       BINARIES=(
         bootctl

@@ -145,7 +145,7 @@ def test_match_distribution(dist1: Distribution, dist2: Distribution) -> None:
             )
         )
 
-        conf = parse([])
+        conf = parse([])[1]
         assert "testpkg1" in conf.packages
         if dist1 == dist2:
             assert "testpkg2" in conf.packages
@@ -207,7 +207,7 @@ def test_match_release(release1: int, release2: int) -> None:
             )
         )
 
-        conf = parse([])
+        conf = parse([])[1]
         assert "testpkg1" in conf.packages
         if release1 == release2:
             assert "testpkg2" in conf.packages
@@ -283,7 +283,7 @@ def test_match_imageid(image1: str, image2: str) -> None:
             )
         )
 
-        conf = parse([])
+        conf = parse([])[1]
         assert "testpkg1" in conf.packages
         if image1 == image2:
             assert "testpkg2" in conf.packages
@@ -357,7 +357,7 @@ def test_match_imageversion(op: str, version: str) -> None:
             )
         )
 
-        conf = parse([])
+        conf = parse([])[1]
         assert ("testpkg1" in conf.packages) == opfunc(123, version)
         assert ("testpkg2" in conf.packages) == opfunc(123, version)
         assert "testpkg3" not in conf.packages

@@ -4,7 +4,6 @@ import ast
 import contextlib
 import enum
 import functools
-import getpass
 import itertools
 import os
 import pwd
