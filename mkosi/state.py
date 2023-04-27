@@ -40,12 +40,17 @@ class MkosiState:
 
         self.root.mkdir(exist_ok=True, mode=0o755)
         self.build_overlay.mkdir(exist_ok=True, mode=0o755)
+        self.cache_overlay.mkdir(exist_ok=True, mode=0o755)
         self.workdir.mkdir(exist_ok=True)
         self.staging.mkdir(exist_ok=True)
 
     @property
     def root(self) -> Path:
         return self.workspace / "root"
+
+    @property
+    def cache_overlay(self) -> Path:
+        return self.workspace / "cache-overlay"
 
     @property
     def build_overlay(self) -> Path:

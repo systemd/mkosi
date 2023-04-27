@@ -377,6 +377,16 @@ def configure_autologin(state: MkosiState) -> None:
 
 
 
+@contextlib.contextmanager
+def mount_cache_overlay(state: MkosiState) -> Iterator[None]:
+    if not state.config.incremental:
+        yield
+        return
+
+    with mount_overlay([state.root], state.cache_overlay, state.workdir, state.root, read_only=False):
+        yield
+
+
 def mount_build_overlay(state: MkosiState, read_only: bool = False) -> ContextManager[Path]:
     return mount_overlay([state.root], state.build_overlay, state.workdir, state.root, read_only)
 
@@ -888,7 +898,7 @@ def save_cache(state: MkosiState) -> None:
 
     with complete_step("Installing cache copies"):
         unlink_try_hard(final)
-        shutil.move(state.root, final)
+        shutil.move(state.cache_overlay, final)
         acl_toggle_remove(state.config, final, state.uid, allow=True)
 
         if state.config.build_script:
@@ -1500,15 +1510,16 @@ def invoke_repart(state: MkosiState, skip: Sequence[str] = [], split: bool = Fal
 
 def build_image(state: MkosiState, *, for_cache: bool, manifest: Optional[Manifest] = None) -> None:
     with mount_image(state):
+        install_base_trees(state)
         cached = reuse_cache_tree(state) if not for_cache else False
 
         if not cached:
-            install_base_trees(state)
-            install_skeleton_trees(state)
-            install_distribution(state)
-            run_prepare_script(state, build=False)
-            install_build_packages(state)
-            run_prepare_script(state, build=True)
+            with mount_cache_overlay(state):
+                install_skeleton_trees(state)
+                install_distribution(state)
+                run_prepare_script(state, build=False)
+                install_build_packages(state)
+                run_prepare_script(state, build=True)
 
         if for_cache:
             return
