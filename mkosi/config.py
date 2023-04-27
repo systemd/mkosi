@@ -392,8 +392,11 @@ def config_make_path_parser(*,
     return config_parse_path
 
 
-def match_path_exists(path: Path, value: str) -> bool:
-    return path.parent.joinpath(value).exists()
+def match_path_exists(value: str) -> bool:
+    if not value:
+        return False
+
+    return Path(value).exists()
 
 
 @dataclasses.dataclass(frozen=True)
@@ -415,7 +418,7 @@ class MkosiConfigSetting:
 @dataclasses.dataclass(frozen=True)
 class MkosiMatch:
     name: str
-    match: Callable[[Path, str], bool]
+    match: Callable[[str], bool]
 
 
 class CustomHelpFormatter(argparse.HelpFormatter):
@@ -1081,7 +1084,7 @@ class MkosiConfigParser:
                         return
 
                 elif (m := self.match_lookup.get(k)):
-                    if not m.match(path, v):
+                    if not m.match(v):
                         return
 
         parser.remove_section("Match")
