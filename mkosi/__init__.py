@@ -280,18 +280,11 @@ def install_distribution(state: MkosiState) -> None:
 
 
 def install_build_packages(state: MkosiState) -> None:
-    if state.config.build_script is None:
+    if state.config.build_script is None or not state.config.build_packages:
         return
 
     with complete_step(f"Installing build packages for {str(state.config.distribution).capitalize()}"), mount_build_overlay(state):
         state.installer.install_packages(state, state.config.build_packages)
-
-        # Create a few necessary mount points inside the build overlay for later.
-        state.root.joinpath("work").mkdir(mode=0o755)
-        state.root.joinpath("work/src").mkdir(mode=0o755)
-        state.root.joinpath("work/dest").mkdir(mode=0o755)
-        state.root.joinpath("work/build-script").touch(mode=0o755)
-        state.root.joinpath("work/build").mkdir(mode=0o755)
 
 
 def remove_packages(state: MkosiState) -> None:
@@ -1573,6 +1566,14 @@ def run_build_script(state: MkosiState) -> None:
     # Make sure that if mkosi.installdir/ is used, any leftover files from a previous run are removed.
     if state.config.install_dir:
         empty_directory(state.config.install_dir)
+
+    # Create a few necessary mount points inside the build overlay.
+    with mount_build_overlay(state):
+        state.root.joinpath("work").mkdir(mode=0o755, exist_ok=True)
+        state.root.joinpath("work/src").mkdir(mode=0o755, exist_ok=True)
+        state.root.joinpath("work/dest").mkdir(mode=0o755, exist_ok=True)
+        state.root.joinpath("work/build-script").touch(mode=0o755, exist_ok=True)
+        state.root.joinpath("work/build").mkdir(mode=0o755, exist_ok=True)
 
     with complete_step("Running build script…"), mount_build_overlay(state, read_only=True):
         bwrap: list[PathString] = [
