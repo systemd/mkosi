@@ -3,10 +3,12 @@
 import shutil
 import tempfile
 from collections.abc import Sequence
+from contextlib import ExitStack
 from pathlib import Path
 from textwrap import dedent
 
 from mkosi.distributions import DistributionInstaller
+from mkosi.mounts import mount
 from mkosi.run import bwrap, run
 from mkosi.state import MkosiState
 from mkosi.types import CompletedProcess, PathString
@@ -74,10 +76,11 @@ class DebianInstaller(DistributionInstaller):
             "x32"         : ["lib32", "lib64", "libx32"],
         }.get(DEBIAN_ARCHITECTURES[state.config.architecture], [])
 
-        state.root.joinpath("usr").mkdir(mode=0o755)
+        # Anything can be populated through a skeleton so do not fail if a directory already exists
+        state.root.joinpath("usr").mkdir(mode=0o755, exist_ok=True)
         for d in subdirs:
             state.root.joinpath(d).symlink_to(f"usr/{d}")
-            state.root.joinpath(f"usr/{d}").mkdir(mode=0o755)
+            state.root.joinpath(f"usr/{d}").mkdir(mode=0o755, exist_ok=True)
 
         # Next, we invoke apt-get install to download all the essential packages. With DPkg::Pre-Install-Pkgs,
         # we specify a shell command that will receive the list of packages that will be installed on stdin.
@@ -224,7 +227,27 @@ def invoke_apt(
         INITRD="No",
     )
 
-    return bwrap(["apt-get", operation, *extra], apivfs=state.root if apivfs else None, env=env | state.environment)
+    with ExitStack() as stack:
+        extra_apt_keyrings = state.root / "etc/apt/keyrings"
+        extra_usr_keyrings = state.root / "usr/share/keyrings"
+
+        if extra_apt_keyrings.exists():
+            stack.enter_context(mount(extra_apt_keyrings, Path("/etc/apt/keyrings"), options=['bind']))
+
+        if extra_usr_keyrings.exists():
+            keydir = stack.enter_context(tempfile.TemporaryDirectory(prefix="usr-share-keyrings-", dir=state.workspace))
+
+            # Copy the contents of the host keyring to prevent bootstrap issues
+            shutil.copytree("/usr/share/keyrings", keydir, dirs_exist_ok=True)
+
+            # Copy the additonal keyrings
+            shutil.copytree(extra_usr_keyrings, keydir, dirs_exist_ok=True)
+
+            # Create a bind mount using the combined key directory
+            # OverlayFS is not used because it is unknown which partitions data resides on
+            stack.enter_context(mount(keydir, Path("/usr/share/keyrings"), options=['bind']))
+
+        return bwrap(["apt-get", operation, *extra], apivfs=state.root if apivfs else None, env=env | state.environment)
 
 
 def install_apt_sources(state: MkosiState, repos: Sequence[str]) -> None:
