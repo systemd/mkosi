@@ -2028,7 +2028,7 @@ def generate_secure_boot_key(args: MkosiArgs) -> None:
     cn = expand_specifier(args.secure_boot_common_name)
 
     for f in ("mkosi.secure-boot.key", "mkosi.secure-boot.crt"):
-        if f and not args.force:
+        if Path(f).exists() and not args.force:
             die(f"{f} already exists",
                 hint=("To generate new secure boot keys, "
                       "first remove mkosi.secure-boot.key and mkosi.secure-boot.crt"))
