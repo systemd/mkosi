@@ -1296,7 +1296,7 @@ def configure_ssh(state: MkosiState) -> None:
 
     presetdir = state.root / "etc/systemd/system-preset"
     presetdir.mkdir(exist_ok=True, mode=0o755)
-    presetdir.joinpath("80-mkosi-ssh.preset").write_text("enable ssh.socket")
+    presetdir.joinpath("80-mkosi-ssh.preset").write_text("enable ssh.socket\n")
 
 
 def configure_initrd(state: MkosiState) -> None:
