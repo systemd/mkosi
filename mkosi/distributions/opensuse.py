@@ -5,6 +5,7 @@ from pathlib import Path
 from textwrap import dedent
 
 from mkosi.distributions import DistributionInstaller
+from mkosi.distributions.fedora import fixup_rpmdb_location
 from mkosi.run import bwrap
 from mkosi.state import MkosiState
 from mkosi.types import PathString
@@ -108,3 +109,4 @@ def invoke_zypper(
 
     bwrap(cmdline, apivfs=state.root if apivfs else None, env=env)
 
+    fixup_rpmdb_location(state.root)
