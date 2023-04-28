@@ -1071,7 +1071,7 @@ def check_inputs(config: MkosiConfig) -> None:
                      config.finalize_script):
             check_script_input(path)
     except OSError as e:
-        die(f'{e.filename} {e.strerror}')
+        die(f'{e.filename}: {e.strerror}')
 
 
 def check_outputs(config: MkosiConfig) -> None:
