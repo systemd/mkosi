@@ -953,16 +953,11 @@ def unlink_output(args: MkosiArgs, config: MkosiConfig) -> None:
     with complete_step("Removing output files…"):
         if config.output.parent.exists():
             for p in config.output.parent.iterdir():
-                if p.name.startswith(config.output.name) and "cache" not in p.name:
+                if p.name.startswith(config.output.name):
                     unlink_try_hard(p)
+
         unlink_try_hard(Path(f"{config.output}.manifest"))
         unlink_try_hard(Path(f"{config.output}.changelog"))
-
-        if config.checksum:
-            unlink_try_hard(config.output_checksum)
-
-        if config.sign:
-            unlink_try_hard(config.output_signature)
 
         if config.output_split_kernel.parent.exists():
             for p in config.output_split_kernel.parent.iterdir():
@@ -995,20 +990,21 @@ def unlink_output(args: MkosiArgs, config: MkosiConfig) -> None:
         remove_package_cache = args.force > 2
 
     if remove_build_cache:
-        with complete_step("Removing incremental cache files…"):
-            for p in cache_tree_paths(config):
-                unlink_try_hard(p)
+        for p in cache_tree_paths(config):
+            if p.exists():
+                with complete_step(f"Removing cache directory {p}…"):
+                    unlink_try_hard(p)
 
-        if config.build_dir is not None:
+        if config.build_dir is not None and config.build_dir.exists() and any(config.build_dir.iterdir()):
             with complete_step("Clearing out build directory…"):
                 empty_directory(config.build_dir)
 
-        if config.install_dir is not None:
+        if config.install_dir is not None and config.install_dir.exists() and any(config.install_dir.iterdir()):
             with complete_step("Clearing out install directory…"):
                 empty_directory(config.install_dir)
 
     if remove_package_cache:
-        if config.cache_dir is not None:
+        if config.cache_dir is not None and config.cache_dir.exists() and any(config.cache_dir.iterdir()):
             with complete_step("Clearing out package cache…"):
                 empty_directory(config.cache_dir)
 
