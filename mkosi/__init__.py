@@ -576,15 +576,11 @@ def install_build_dest(state: MkosiState) -> None:
         copy_path(install_dir(state), state.root, preserve_owner=False)
 
 
-def xz_binary() -> str:
-    return "pxz" if shutil.which("pxz") else "xz"
-
-
 def compressor_command(compression: Compression, src: Path) -> list[PathString]:
     """Returns a command suitable for compressing archives."""
 
     if compression == Compression.xz:
-        return [xz_binary(), "--check=crc32", "--lzma2=dict=1MiB", "-T0", src]
+        return ["xz", "--check=crc32", "--fast", "-T0", src]
     elif compression == Compression.zst:
         return ["zstd", "-q", "-T0", "--rm", src]
     else:
