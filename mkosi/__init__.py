@@ -576,10 +576,16 @@ def install_build_dest(state: MkosiState) -> None:
         copy_path(install_dir(state), state.root, preserve_owner=False)
 
 
+def gzip_binary() -> str:
+    return "pigz" if shutil.which("pigz") else "gzip"
+
+
 def compressor_command(compression: Compression, src: Path) -> list[PathString]:
     """Returns a command suitable for compressing archives."""
 
-    if compression == Compression.xz:
+    if compression == Compression.gz:
+        return [gzip_binary(), "--fast", src]
+    elif compression == Compression.xz:
         return ["xz", "--check=crc32", "--fast", "-T0", src]
     elif compression == Compression.zst:
         return ["zstd", "-q", "-T0", "--rm", src]
