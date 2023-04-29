@@ -1021,30 +1021,22 @@ under the assumption that it is invoked from a *source*
 tree. Specifically, the following files are used if they exist in the
 local directory:
 
-* The **`mkosi.conf`** file provides the default configuration for
-  the image building process. For example, it may specify the
-  distribution to use (`fedora`, `ubuntu`, `debian`, `arch`,
-  `opensuse`, `mageia`, `openmandriva`, `gentoo`) for the image, or additional
-  distribution packages to install. Note that all options encoded in
-  this configuration file may also be set on the command line, and
-  this file is hence little more than a way to make sure invoking
-  `mkosi` without further parameters in your *source* tree is enough
-  to get the right image of your choice set up.
+* The **`mkosi.conf`** file provides the default configuration for the image building process. For example,
+  it may specify the distribution to use (`fedora`, `ubuntu`, `debian`, `arch`, `opensuse`, `mageia`,
+  `openmandriva`, `gentoo`) for the image, or additional distribution packages to install. Note that all
+  options encoded in this configuration file may also be set on the command line, and this file is hence
+  little more than a way to make sure invoking `mkosi` without further parameters in your *source* tree is
+  enough to get the right image of your choice set up.
 
-  Additionally, if a *`mkosi.conf.d/`* directory exists, each file
-  in it is loaded in the same manner adding/overriding the values
-  specified in `mkosi.conf`. If `mkosi.conf.d/` contains a
-  directory named after the distribution being built, each file in
-  that directory is also processed.
+  Additionally, if a `mkosi.conf.d/` directory exists, each file in it is loaded in the same manner extending
+  the values specified in `mkosi.conf`. Each directory in `mkosi.conf.d/` containing a `mkosi.conf` file is
+  parsed as another top level directory.
 
-  The file format is inspired by Windows `.ini` files and supports
-  multi-line assignments: any line with initial whitespace is
-  considered a continuation line of the line before. Command-line
-  arguments, as shown in the help description, have to be included in
-  a configuration block (e.g.  "`[Content]`") corresponding to the
-  argument group (e.g. "`Content`"), and the argument gets converted
-  as follows: "`--with-network`" becomes "`WithNetwork=yes`". For
-  further details see the table above.
+  The file format is inspired by Windows `.ini` files and supports multi-line assignments: any line with
+  initial whitespace is considered a continuation line of the line before. Command-line arguments, as shown
+  in the help description, have to be included in a configuration block (e.g.  "`[Content]`") corresponding
+  to the argument group (e.g. "`Content`"), and the argument gets converted as follows: "`--with-network`"
+  becomes "`WithNetwork=yes`".
 
 * The **`mkosi.skeleton/`** directory or **`mkosi.skeleton.tar`**
   archive may be used to insert files into the image. The files are
@@ -1067,126 +1059,64 @@ local directory:
   copied will be owned by root. To preserve ownership, use a tar
   archive.
 
-* **`mkosi.build`** may be an executable script. If it exists, the
-  image will be built twice: the first iteration will be the
-  *development* image, the second iteration will be the *final*
-  image. The *development* image is used to build the project in the
-  current working directory (the *source* tree). For that the whole
-  directory is copied into the image, along with the `mkosi.build`
-  script. The script is then invoked inside the image, with `$SRCDIR`
-  pointing to the *source* tree. `$DESTDIR` points to a directory where
-  the script should place any files generated it would like to end up
-  in the *final* image. Note that `make`/`automake`/`meson` based build
-  systems generally honor `$DESTDIR`, thus making it very natural to
-  build *source* trees from the build script. After the *development*
-  image was built and the build script ran inside of it, it is removed
-  again. After that the *final* image is built, without any *source*
-  tree or build script copied in. However, this time the contents of
-  `$DESTDIR` are added into the image.
+* **`mkosi.build`** may be an executable script. If it exists, the configured build packages will be
+  installed as a build overlay on top of the image. The build overlay is used to build the project in the
+  current working directory (the *source* tree). For that the whole directory is mounted into the image,
+  along with the `mkosi.build` script. The script is then invoked inside the build overlay, with `$SRCDIR`
+  pointing to the *source* tree. `$DESTDIR` points to a directory where the script should place any files
+  generated it would like to end up in the image. Note that `make`/`automake`/`meson` based build systems
+  generally honor `$DESTDIR`, thus making it very natural to build *source* trees from the build script.
+  After running the build script, the contents of `$DESTDIR` are copied into the image.
 
-  When the source tree is copied into the *build* image, all files are
-  copied, except for `mkosi.builddir/`, `mkosi.cache/` and
-  `mkosi.output/`. That said, `.gitignore` is respected if the source
-  tree is a `git` checkout. If multiple different images shall be
-  built from the same source tree it is essential to exclude their
-  output files from this copy operation, as otherwise a version of an
-  image built earlier might be included in a later build, which is
-  usually not intended. An alternative to excluding these built images
-  via `.gitignore` entries is to use the `mkosi.output/` directory,
-  which is an easy way to exclude all build artifacts.
+  The `$MKOSI_CONFIG` environment variable will be set inside of this script so that you know which
+  `mkosi.conf` (if any) was passed in.
 
-  The `$MKOSI_CONFIG` environment variable will be set inside of this
-  script so that you know which `mkosi.conf` (if any) was passed
-  in.
+* The **`mkosi.prepare`** script is invoked directly after the software packages are installed, from within
+  the image context, if it exists. It is first called for the image with the "final" command line argument,
+  right after the software packages are installed. It is called a second time for the build overlay (if
+  this is enabled, see above) with the "build" command line parameter, right after the build packages are
+  installed and before the build script is executed. This script has network access and may be used to
+  install packages from other sources than the distro's package manager (e.g. `pip`, `npm`, ...), after all
+  software packages are installed but before the image is cached (if incremental mode is enabled). This
+  script is executed within `$SRCDIR`. In contrast to a general purpose installation, it is safe to install
+  packages to the system ( `pip install`, `npm install -g`) instead of in `$SRCDIR` itself because the build
+  image is only used for a single project and can easily be thrown away and rebuilt so there's no risk of
+  conflicting dependencies and no risk of polluting the host system.
 
-* The **`mkosi.prepare`** script is invoked directly after the
-  software packages are installed, from within the image context, if
-  it exists. It is once called for the *development* image (if this is
-  enabled, see above) with the "build" command line parameter, right
-  before copying the extra tree. It is called a second time for the
-  *final* image with the "final" command line parameter. This script
-  has network access and may be used to install packages from other
-  sources than the distro's package manager (e.g. `pip`, `npm`, ...),
-  after all software packages are installed but before the image is
-  cached (if incremental mode is enabled). This script is executed
-  within `$SRCDIR`. In contrast to a general purpose installation, it
-  is safe to install packages to the system (`pip install`, `npm
-  install -g`) instead of in `$SRCDIR` itself because the build image
-  is only used for a single project and can easily be thrown away and
-  rebuilt so there's no risk of conflicting dependencies and no risk
-  of polluting the host system.
+* The **`mkosi.postinst`** script is invoked as the penultimate step of preparing an image, from within the
+  image context. This script may be used to alter the images without any restrictions, after all software
+  packages and built sources have been installed. Note that this script is executed directly in the image
+  context with the final root directory in place, without any `$SRCDIR`/`$DESTDIR` setup.
 
-* The **`mkosi.postinst`** script is invoked as the penultimate step
-  of preparing an image, from within the image context, if it exists.
-  It is called first for the *development* image (if this is enabled,
-  see above) with the "build" command line parameter, right before
-  invoking the build script. It is called a second time for the
-  *final* image with the "final" command line parameter, right before
-  the image is considered complete. This script may be used to alter
-  the images without any restrictions, after all software packages and
-  built sources have been installed. Note that this script is executed
-  directly in the image context with the final root directory in
-  place, without any `$SRCDIR`/`$DESTDIR` setup.
-
-* The **`mkosi.finalize`** script, if it exists, is invoked as last
-  step of preparing an image, from the host system.  It is once called
-  for the *development* image (if this is enabled, see above) with the
-  "build" command line parameter, as the last step before invoking the
-  build script, after the `mkosi.postinst` script is invoked. It is
-  called the second time with the "final" command line parameter as
-  the last step before the image is considered complete. The
-  environment variable `$BUILDROOT` points to the root directory of
-  the installation image. Additional verbs may be added in the future,
-  the script should be prepared for that. This script may be used to
-  alter the images without any restrictions, after all software
-  packages and built sources have been installed. This script is more
-  flexible than `mkosi.postinst` in two regards: it has access to the
-  host file system so it's easier to copy in additional files or to
-  modify the image based on external configuration, and the script is
-  run in the host, so it can be used even without emulation even if
+* The **`mkosi.finalize`** script, if it exists, is invoked as the last step of preparing an image, from the
+  host system. The environment variable `$BUILDROOT` points to the root directory of the installation image.
+  This script may be used to alter the images without any restrictions, after all software packages and built
+  sources have been installed. This script is more flexible than `mkosi.postinst` in two regards: it has
+  access to the host file system so it's easier to copy in additional files or to modify the image based on
+  external configuration, and the script is run in the host, so it can be used even without emulation even if
   the image has a foreign architecture.
 
-* The **`mkosi.nspawn`** nspawn settings file will be copied into the
-  same place as the output image file, if it exists. This is useful since nspawn
-  looks for settings files next to image files it boots, for
+* The **`mkosi.nspawn`** nspawn settings file will be copied into the same place as the output image file, if
+  it exists. This is useful since nspawn looks for settings files next to image files it boots, for
   additional container runtime settings.
 
-* The **`mkosi.cache/`** directory, if it exists, is automatically
-  used as package download cache, in order to speed repeated runs of
-  the tool.
+* The **`mkosi.cache/`** directory, if it exists, is automatically used as package download cache, in order
+  to speed repeated runs of the tool.
 
-* The **`mkosi.builddir/`** directory, if it exists, is automatically
-  used as out-of-tree build directory, if the build commands in the
-  `mkosi.build` script support it. Specifically, this directory will
-  be mounted into the build container, and the `$BUILDDIR` environment
-  variable will be set to it when the build script is invoked. The
-  build script may then use this directory as build directory, for
-  automake-style or ninja-style out-of-tree builds. This speeds up
-  builds considerably, in particular when `mkosi` is used in
-  incremental mode (`-i`): not only the disk images, but also the
-  build tree is reused between subsequent invocations. Note that if
-  this directory does not exist the `$BUILDDIR` environment variable
-  is not set, and it is up to build script to decide whether to do in
-  in-tree or an out-of-tree build, and which build directory to use.
+* The **`mkosi.builddir/`** directory, if it exists, is automatically used as out-of-tree build directory, if
+  the build commands in the `mkosi.build` script support it. Specifically, this directory will be mounted
+  into the build container, and the `$BUILDDIR` environment variable will be set to it when the build script
+  is invoked. The build script may then use this directory as build directory, for automake-style or
+  ninja-style out-of-tree builds. This speeds up builds considerably, in particular when `mkosi` is used in
+  incremental mode (`-i`): not only the image and build overlay, but also the build tree is reused between
+  subsequent invocations. Note that if this directory does not exist the `$BUILDDIR` environment variable is
+  not set, and it is up to build script to decide whether to do in in-tree or an out-of-tree build, and which
+  build directory to use.
 
-* The **`mkosi.includedir/`** directory, if it exists, is
-  automatically used as an out-of-tree include directory for header
-  files.  Specifically, it will be mounted in the build container at
-  `/usr/include/` when building the build image and when running the
-  build script. After building the (cached) build image, this
-  directory will contain all the files installed to
-  `/usr/include`. Language servers or other tools can use these files
-  to provide a better editing experience for developers working on a
-  project.
-
-* The **`mkosi.installdir/`** directory, if it exists, is
-  automatically used as the install directory. Specifically, this
-  directory will be mounted into the container at `/root/dest` when
-  running the build script. After running the build script, the
-  contents of this directory are installed into the final image. This
-  is useful to cache the install step of the build. If used,
-  subsequent builds will only have to reinstall files that have
-  changed since the previous build.
+* The **`mkosi.installdir/`** directory, if it exists, is automatically used as the install directory.
+  Specifically, this directory will be mounted into the build overlay at `$DESTDIR` when running the build
+  script. After running the build script, the contents of this directory are installed into the final image.
+  This is useful to inspect the results of the install step of the build.
 
 * The **`mkosi.rootpw`** file can be used to provide the password or
   hashed password (if `--password-is-hashed` is set) for the root user
