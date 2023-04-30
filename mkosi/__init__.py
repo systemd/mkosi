@@ -1281,11 +1281,11 @@ def configure_ssh(state: MkosiState) -> None:
 
 
 def configure_initrd(state: MkosiState) -> None:
+    if not state.root.joinpath("init").exists() and state.root.joinpath("usr/lib/systemd/systemd").exists():
+        state.root.joinpath("init").symlink_to("/usr/lib/systemd/systemd")
+
     if not state.config.make_initrd:
         return
-
-    if not state.root.joinpath("init").exists():
-        state.root.joinpath("init").symlink_to("/usr/lib/systemd/systemd")
 
     if not state.root.joinpath("etc/initrd-release").exists():
         state.root.joinpath("etc/initrd-release").symlink_to("/etc/os-release")
