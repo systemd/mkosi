@@ -363,8 +363,6 @@ def configure_autologin(state: MkosiState) -> None:
                                         "mkosi.resources", "console_getty_autologin.conf")
         add_dropin_config_from_resource(state.root, "serial-getty@ttyS0.service", "autologin",
                                         "mkosi.resources", "serial_getty_autologin.conf")
-        add_dropin_config_from_resource(state.root, "serial-getty@hvc0.service", "autologin",
-                                        "mkosi.resources", "serial_getty_autologin.conf")
         add_dropin_config_from_resource(state.root, "getty@tty1.service", "autologin",
                                         "mkosi.resources", "getty_autologin.conf")
 
@@ -1934,14 +1932,8 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
             "-nographic",
             "-nodefaults",
             "-chardev", "stdio,mux=on,id=console,signal=off",
-            # Use virtconsole which appears as /dev/hvc0 in the guest on which a getty is automatically
-            # by spawned by systemd without needing a console= cmdline argument.
-            "-device", "virtio-serial",
-            "-device", "virtconsole,chardev=console",
-            "-mon", "console",
-            # EDK2 doesn't support virtio-serial, so add a regular serial console as well to get bootloader
-            # output.
             "-serial", "chardev:console",
+            "-mon", "console",
         ]
 
     for k, v in config.credentials.items():
