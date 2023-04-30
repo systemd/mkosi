@@ -1432,6 +1432,7 @@ class MkosiConfigParser:
             "--bootable",
             metavar="FEATURE",
             help="Generate ESP partition with systemd-boot and UKIs for installed kernels",
+            nargs="?",
             action=action,
         )
         group.add_argument("--password", help="Set the root password", action=action)
