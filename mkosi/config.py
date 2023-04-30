@@ -1171,7 +1171,6 @@ class MkosiConfigParser:
         parser.add_argument(
             "-C", "--directory",
             help="Change to specified directory before doing anything",
-            type=Path,
             metavar="PATH",
             default=None,
         )
@@ -1695,13 +1694,14 @@ class MkosiConfigParser:
         if args.verb == Verb.help:
             PagerHelpAction.__call__(None, argparser, namespace)  # type: ignore
 
-        if args.directory and not args.directory.is_dir():
+        if args.directory and not Path(args.directory).is_dir():
             die(f"{args.directory} is not a directory!")
 
         if args.directory:
             os.chdir(args.directory)
 
-        self.parse_config(Path("."), namespace)
+        if args.directory != "":
+            self.parse_config(Path("."), namespace)
 
         for s in self.SETTINGS:
             if s.dest in namespace:
@@ -1820,7 +1820,7 @@ def load_credentials(args: argparse.Namespace) -> dict[str, str]:
     creds = {}
 
     d = Path("mkosi.credentials")
-    if d.is_dir():
+    if args.directory != "" and d.is_dir():
         for e in d.iterdir():
             if os.access(e, os.X_OK):
                 creds[e.name] = run([e], text=True, stdout=subprocess.PIPE, env=os.environ).stdout
