@@ -22,10 +22,6 @@ class DebianInstaller(DistributionInstaller):
         return Path(f"boot/vmlinuz-{name}")
 
     @staticmethod
-    def initrd_path(kver: str) -> Path:
-        return Path("boot") / f"initrd.img-{kver}"
-
-    @staticmethod
     def repositories(state: MkosiState, local: bool = True) -> list[str]:
         repos = ' '.join(("main", *state.config.repositories))
 

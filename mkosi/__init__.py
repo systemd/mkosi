@@ -23,9 +23,15 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Callable, ContextManager, Optional, TextIO, TypeVar, Union, cast
 
-from mkosi.config import GenericVersion, MkosiArgs, MkosiConfig, machine_name
+from mkosi.config import (
+    GenericVersion,
+    MkosiArgs,
+    MkosiConfig,
+    MkosiConfigParser,
+    machine_name,
+)
 from mkosi.install import add_dropin_config_from_resource, copy_path, flock
-from mkosi.log import ARG_DEBUG, Style, color_error, complete_step, die, log_step
+from mkosi.log import Style, color_error, complete_step, die, log_step
 from mkosi.manifest import Manifest
 from mkosi.mounts import dissect_and_mount, mount_overlay, scandir_recursive
 from mkosi.pager import page
@@ -701,6 +707,47 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
     if state.config.output_format == OutputFormat.cpio and state.config.bootable is None:
         return
 
+    initrds = []
+
+    if state.config.initrds:
+        initrds = state.config.initrds
+    elif any(gen_kernel_images(state)):
+        # Default values are assigned via the parser so we go via the argument parser to construct
+        # the config for the initrd.
+        with complete_step("Building initrd"):
+            args, config = MkosiConfigParser().parse([
+                "--directory", "",
+                "--distribution", str(state.config.distribution),
+                "--release", state.config.release,
+                "--architecture", state.config.architecture,
+                *(["--mirror", state.config.mirror] if state.config.mirror else []),
+                "--repository-key-check", yes_no(state.config.repository_key_check),
+                "--repositories", ",".join(state.config.repositories),
+                "--repo-dir", ",".join(str(p) for p in state.config.repo_dirs),
+                "--compress-output", str(state.config.compress_output),
+                "--with-network", yes_no(state.config.with_network),
+                "--cache-only", yes_no(state.config.cache_only),
+                *(["--output-dir", str(state.config.output_dir)] if state.config.output_dir else []),
+                *(["--workspace-dir", str(state.config.workspace_dir)] if state.config.workspace_dir else []),
+                "--cache-dir", str(state.cache.parent) if state.config.cache_dir else str(state.cache),
+                "--incremental", yes_no(state.config.incremental),
+                "--acl", yes_no(state.config.acl),
+                "--format", "cpio",
+                "--package", "systemd",
+                "--package", "udev",
+                "--package", "kmod",
+                "--output", "initrd",
+                "--make-initrd", "yes",
+                "--bootable", "no",
+                "--manifest-format", "",
+                "-f",
+                "build",
+            ])
+
+            build_stuff(state.uid, state.gid, args, config)
+
+            initrds = [config.output_compressed]
+
     for kver, kimg in gen_kernel_images(state):
         with complete_step(f"Generating unified kernel image for {kimg}"):
             image_id = state.config.image_id or f"mkosi-{state.config.distribution}"
@@ -767,16 +814,7 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                         "--pcr-banks", "sha1,sha256",
                     ]
 
-            if state.config.initrds:
-                initrds = state.config.initrds + [gen_kernel_modules_initrd(state, kver)]
-            else:
-                initrd = state.root / state.installer.initrd_path(kver)
-                if not initrd.exists():
-                    die(f"Initrd not found at {initrd}")
-
-                initrds = [initrd]
-
-            cmd += [state.root / kimg] + initrds
+            cmd += [state.root / kimg] + initrds + [gen_kernel_modules_initrd(state, kver)]
 
             run(cmd)
 
@@ -1289,49 +1327,13 @@ def configure_initrd(state: MkosiState) -> None:
         state.root.joinpath("etc/initrd-release").symlink_to("/etc/os-release")
 
 
-def run_kernel_install(state: MkosiState) -> None:
-    if state.config.initrds:
-        return
-
+def run_depmod(state: MkosiState) -> None:
     if state.config.bootable is False:
         return
 
-    if state.config.bootable is None and state.config.output_format == OutputFormat.cpio:
-        return
-
-    # CentOS Stream 8 has an old version of kernel-install that unconditionally writes initrds to
-    # /boot/<machine-id>/<kver>, so let's detect that and move them to the correct location.
-
-    if (p := state.root / "etc/machine-id").exists():
-        machine_id = p.read_text().strip()
-    else:
-        machine_id = None
-
-    # kernel-install on Debian/Ubuntu does not rebuild the dracut initrd, so we do it manually here.
-    if (state.root.joinpath("usr/bin/dracut").exists() and
-        state.config.distribution in (Distribution.ubuntu, Distribution.debian) and
-        not state.root.joinpath("usr/lib/kernel/install.d/50-dracut.install").exists() and
-        not state.root.joinpath("etc/kernel/install.d/50-dracut.install").exists()):
-        with complete_step("Running dpkg-reconfigure dracut…"):
-            run_workspace_command(state.root, ["dpkg-reconfigure", "dracut"],
-                                  env=dict(hostonly_l="no") | state.environment)
-            return
-
-    with complete_step("Running kernel-install…"):
-        for kver, kimg in gen_kernel_images(state):
-            cmd: list[PathString] = ["kernel-install", "add", kver, Path("/") / kimg]
-
-            if ARG_DEBUG.get():
-                cmd.insert(1, "--verbose")
-
-            # Make dracut think --no-host-only was passed via the CLI.
-            run_workspace_command(state.root, cmd, env=dict(hostonly_l="no") | state.environment)
-
-            if machine_id and (p := state.root / "boot" / machine_id / kver / "initrd").exists():
-                shutil.move(p, state.root / state.installer.initrd_path(kver))
-
-    if machine_id and (p := state.root / "boot" / machine_id).exists():
-        shutil.rmtree(p)
+    for kver, _ in gen_kernel_images(state):
+        with complete_step(f"Running depmod for {kver}"):
+            run(["depmod", "--basedir", state.root, kver])
 
 
 def run_sysusers(state: MkosiState) -> None:
@@ -1497,12 +1499,12 @@ def build_image(state: MkosiState, *, for_cache: bool, manifest: Optional[Manife
         run_build_script(state)
         install_build_dest(state)
         install_extra_trees(state)
-        run_kernel_install(state)
         install_boot_loader(state)
         configure_ssh(state)
         run_postinst_script(state)
         run_sysusers(state)
         run_preset_all(state)
+        run_depmod(state)
         remove_packages(state)
 
         if manifest:

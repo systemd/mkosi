@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 from collections.abc import Sequence
-from pathlib import Path
 from textwrap import dedent
 
 from mkosi.distributions import DistributionInstaller
@@ -51,10 +50,6 @@ class OpensuseInstaller(DistributionInstaller):
     @classmethod
     def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
         invoke_zypper(state, "remove", ["-y", "--clean-deps"], packages)
-
-    @staticmethod
-    def initrd_path(kver: str) -> Path:
-        return Path("boot") / f"initrd-{kver}"
 
 
 def setup_zypper(state: MkosiState, repos: Sequence[tuple[str, str]] = ()) -> None:

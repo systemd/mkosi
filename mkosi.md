@@ -1380,7 +1380,7 @@ required components and let `mkosi` call `qemu` with all the right options:
 ```console
 $ mkosi -d fedora \
     --autologin \
-    -p systemd-udev,systemd-boot,dracut,kernel-core \
+    -p systemd-udev,systemd-boot,kernel-core \
     build
 $ mkosi -d fedora qemu
 ...

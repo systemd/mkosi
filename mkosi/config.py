@@ -1885,8 +1885,10 @@ def load_kernel_command_line_extra(args: argparse.Namespace) -> list[str]:
 
 
 def load_args(args: argparse.Namespace) -> MkosiArgs:
-    ARG_DEBUG.set(args.debug)
-    ARG_DEBUG_SHELL.set(args.debug_shell)
+    if args.debug:
+        ARG_DEBUG.set(args.debug)
+    if args.debug_shell:
+        ARG_DEBUG_SHELL.set(args.debug_shell)
 
     return MkosiArgs.from_namespace(args)
 
