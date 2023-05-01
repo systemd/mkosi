@@ -17,10 +17,6 @@ class DistributionInstaller:
     def kernel_image(kver: str, architecture: str) -> Path:
         return Path("usr/lib/modules") / kver / "vmlinuz"
 
-    @staticmethod
-    def initrd_path(kver: str) -> Path:
-        return Path("boot") / f"initramfs-{kver}.img"
-
     @classmethod
     def install_packages(cls, state: "MkosiState", packages: Sequence[str]) -> None:
         raise NotImplementedError

@@ -23,9 +23,15 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Callable, ContextManager, Optional, TextIO, TypeVar, Union, cast
 
-from mkosi.config import GenericVersion, MkosiArgs, MkosiConfig, machine_name
+from mkosi.config import (
+    GenericVersion,
+    MkosiArgs,
+    MkosiConfig,
+    MkosiConfigParser,
+    machine_name,
+)
 from mkosi.install import add_dropin_config_from_resource, copy_path, flock
-from mkosi.log import ARG_DEBUG, Style, color_error, complete_step, die, log_step
+from mkosi.log import Style, color_error, complete_step, die, log_step
 from mkosi.manifest import Manifest
 from mkosi.mounts import dissect_and_mount, mount_overlay, scandir_recursive
 from mkosi.pager import page
@@ -280,18 +286,11 @@ def install_distribution(state: MkosiState) -> None:
 
 
 def install_build_packages(state: MkosiState) -> None:
-    if state.config.build_script is None:
+    if state.config.build_script is None or not state.config.build_packages:
         return
 
     with complete_step(f"Installing build packages for {str(state.config.distribution).capitalize()}"), mount_build_overlay(state):
         state.installer.install_packages(state, state.config.build_packages)
-
-        # Create a few necessary mount points inside the build overlay for later.
-        state.root.joinpath("work").mkdir(mode=0o755)
-        state.root.joinpath("work/src").mkdir(mode=0o755)
-        state.root.joinpath("work/dest").mkdir(mode=0o755)
-        state.root.joinpath("work/build-script").touch(mode=0o755)
-        state.root.joinpath("work/build").mkdir(mode=0o755)
 
 
 def remove_packages(state: MkosiState) -> None:
@@ -369,8 +368,6 @@ def configure_autologin(state: MkosiState) -> None:
         add_dropin_config_from_resource(state.root, "console-getty.service", "autologin",
                                         "mkosi.resources", "console_getty_autologin.conf")
         add_dropin_config_from_resource(state.root, "serial-getty@ttyS0.service", "autologin",
-                                        "mkosi.resources", "serial_getty_autologin.conf")
-        add_dropin_config_from_resource(state.root, "serial-getty@hvc0.service", "autologin",
                                         "mkosi.resources", "serial_getty_autologin.conf")
         add_dropin_config_from_resource(state.root, "getty@tty1.service", "autologin",
                                         "mkosi.resources", "getty_autologin.conf")
@@ -583,15 +580,17 @@ def install_build_dest(state: MkosiState) -> None:
         copy_path(install_dir(state), state.root, preserve_owner=False)
 
 
-def xz_binary() -> str:
-    return "pxz" if shutil.which("pxz") else "xz"
+def gzip_binary() -> str:
+    return "pigz" if shutil.which("pigz") else "gzip"
 
 
 def compressor_command(compression: Compression, src: Path) -> list[PathString]:
     """Returns a command suitable for compressing archives."""
 
-    if compression == Compression.xz:
-        return [xz_binary(), "--check=crc32", "--lzma2=dict=1MiB", "-T0", src]
+    if compression == Compression.gz:
+        return [gzip_binary(), "--fast", src]
+    elif compression == Compression.xz:
+        return ["xz", "--check=crc32", "--fast", "-T0", src]
     elif compression == Compression.zst:
         return ["zstd", "-q", "-T0", "--rm", src]
     else:
@@ -708,6 +707,47 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
     if state.config.output_format == OutputFormat.cpio and state.config.bootable is None:
         return
 
+    initrds = []
+
+    if state.config.initrds:
+        initrds = state.config.initrds
+    elif any(gen_kernel_images(state)):
+        # Default values are assigned via the parser so we go via the argument parser to construct
+        # the config for the initrd.
+        with complete_step("Building initrd"):
+            args, presets = MkosiConfigParser().parse([
+                "--directory", "",
+                "--distribution", str(state.config.distribution),
+                "--release", state.config.release,
+                "--architecture", state.config.architecture,
+                *(["--mirror", state.config.mirror] if state.config.mirror else []),
+                "--repository-key-check", yes_no(state.config.repository_key_check),
+                "--repositories", ",".join(state.config.repositories),
+                "--repo-dir", ",".join(str(p) for p in state.config.repo_dirs),
+                "--compress-output", str(state.config.compress_output),
+                "--with-network", yes_no(state.config.with_network),
+                "--cache-only", yes_no(state.config.cache_only),
+                *(["--output-dir", str(state.config.output_dir)] if state.config.output_dir else []),
+                *(["--workspace-dir", str(state.config.workspace_dir)] if state.config.workspace_dir else []),
+                "--cache-dir", str(state.cache.parent) if state.config.cache_dir else str(state.cache),
+                "--incremental", yes_no(state.config.incremental),
+                "--acl", yes_no(state.config.acl),
+                "--format", "cpio",
+                "--package", "systemd",
+                "--package", "udev",
+                "--package", "kmod",
+                "--output", "initrd",
+                "--make-initrd", "yes",
+                "--bootable", "no",
+                "--manifest-format", "",
+                "-f",
+                "build",
+            ])
+
+            build_stuff(state.uid, state.gid, args, presets[0])
+
+            initrds = [presets[0].output_compressed]
+
     for kver, kimg in gen_kernel_images(state):
         with complete_step(f"Generating unified kernel image for {kimg}"):
             image_id = state.config.image_id or f"mkosi-{state.config.distribution}"
@@ -774,16 +814,7 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                         "--pcr-banks", "sha1,sha256",
                     ]
 
-            if state.config.initrds:
-                initrds = state.config.initrds + [gen_kernel_modules_initrd(state, kver)]
-            else:
-                initrd = state.root / state.installer.initrd_path(kver)
-                if not initrd.exists():
-                    die(f"Initrd not found at {initrd}")
-
-                initrds = [initrd]
-
-            cmd += [state.root / kimg] + initrds
+            cmd += [state.root / kimg] + initrds + [gen_kernel_modules_initrd(state, kver)]
 
             run(cmd)
 
@@ -874,37 +905,16 @@ def calculate_signature(state: MkosiState) -> None:
         )
 
 
-def acl_toggle_remove(config: MkosiConfig, root: Path, uid: int, *, allow: bool) -> None:
-    if not config.acl:
-        return
-
-    ret = run(["setfacl",
-               "--physical",
-               "--modify" if allow else "--remove",
-               f"user:{uid}:rwx" if allow else f"user:{uid}",
-               "-"],
-              check=False,
-              text=True,
-              # Supply files via stdin so we don't clutter --debug run output too much
-              input="\n".join([str(root),
-                               *(e.path for e in cast(Iterator[os.DirEntry[str]], scandir_recursive(root)) if e.is_dir())])
-    )
-    if ret.returncode != 0:
-        logging.warning("Failed to set ACLs, you'll need root privileges to remove some generated files/directories")
-
-
 def save_cache(state: MkosiState) -> None:
     final, build = cache_tree_paths(state.config)
 
     with complete_step("Installing cache copies"):
         unlink_try_hard(final)
         shutil.move(state.cache_overlay, final)
-        acl_toggle_remove(state.config, final, state.uid, allow=True)
 
         if state.config.build_script:
             unlink_try_hard(build)
             shutil.move(state.build_overlay, build)
-            acl_toggle_remove(state.config, build, state.uid, allow=True)
 
 
 def dir_size(path: PathString) -> int:
@@ -960,16 +970,11 @@ def unlink_output(args: MkosiArgs, config: MkosiConfig) -> None:
     with complete_step("Removing output files…"):
         if config.output.parent.exists():
             for p in config.output.parent.iterdir():
-                if p.name.startswith(config.output.name) and "cache" not in p.name:
+                if p.name.startswith(config.output.name):
                     unlink_try_hard(p)
+
         unlink_try_hard(Path(f"{config.output}.manifest"))
         unlink_try_hard(Path(f"{config.output}.changelog"))
-
-        if config.checksum:
-            unlink_try_hard(config.output_checksum)
-
-        if config.sign:
-            unlink_try_hard(config.output_signature)
 
         if config.output_split_kernel.parent.exists():
             for p in config.output_split_kernel.parent.iterdir():
@@ -1002,20 +1007,21 @@ def unlink_output(args: MkosiArgs, config: MkosiConfig) -> None:
         remove_package_cache = args.force > 2
 
     if remove_build_cache:
-        with complete_step("Removing incremental cache files…"):
-            for p in cache_tree_paths(config):
-                unlink_try_hard(p)
+        for p in cache_tree_paths(config):
+            if p.exists():
+                with complete_step(f"Removing cache directory {p}…"):
+                    unlink_try_hard(p)
 
-        if config.build_dir is not None:
+        if config.build_dir is not None and config.build_dir.exists() and any(config.build_dir.iterdir()):
             with complete_step("Clearing out build directory…"):
                 empty_directory(config.build_dir)
 
-        if config.install_dir is not None:
+        if config.install_dir is not None and config.install_dir.exists() and any(config.install_dir.iterdir()):
             with complete_step("Clearing out install directory…"):
                 empty_directory(config.install_dir)
 
     if remove_package_cache:
-        if config.cache_dir is not None:
+        if config.cache_dir is not None and config.cache_dir.exists() and any(config.cache_dir.iterdir()):
             with complete_step("Clearing out package cache…"):
                 empty_directory(config.cache_dir)
 
@@ -1077,8 +1083,15 @@ def check_inputs(config: MkosiConfig) -> None:
                      config.postinst_script,
                      config.finalize_script):
             check_script_input(path)
+
+        for p in config.initrds:
+            if not p.exists():
+                die(f"Initrd {p} not found")
+            if not p.is_file():
+                die(f"Initrd {p} is not a file")
+
     except OSError as e:
-        die(f'{e.filename} {e.strerror}')
+        die(f'{e.filename}: {e.strerror}')
 
 
 def check_outputs(config: MkosiConfig) -> None:
@@ -1134,7 +1147,7 @@ def line_join_list(
         return "none"
 
     items = (str(path_or_none(cast(Path, item), checker=checker)) for item in array)
-    return "\n                            ".join(items)
+    return "\n                                ".join(items)
 
 
 def line_join_source_target_list(array: Sequence[tuple[Path, Optional[Path]]]) -> str:
@@ -1142,7 +1155,7 @@ def line_join_source_target_list(array: Sequence[tuple[Path, Optional[Path]]]) -
         return "none"
 
     items = [f"{source}:{target}" if target else f"{source}" for source, target in array]
-    return "\n                            ".join(items)
+    return "\n                                ".join(items)
 
 
 def print_summary(args: MkosiArgs, config: MkosiConfig) -> None:
@@ -1154,75 +1167,77 @@ def print_summary(args: MkosiArgs, config: MkosiConfig) -> None:
     env = [f"{k}={v}" for k, v in config.environment.items()]
 
     summary = f"""\
-{bold("COMMANDS")}:
-                      verb: {bold(args.verb)}
-                   cmdline: {bold(" ".join(args.cmdline))}
+{bold(f"PRESET: {config.preset or 'default'}")}
 
-{bold("DISTRIBUTION")}
-              Distribution: {bold(config.distribution.name)}
-                   Release: {bold(none_to_na(config.release))}
-              Architecture: {config.architecture}
-                    Mirror: {none_to_default(config.mirror)}
-      Local Mirror (build): {none_to_none(config.local_mirror)}
-  Repo Signature/Key check: {yes_no(config.repository_key_check)}
-              Repositories: {",".join(config.repositories)}
-                   Initrds: {",".join(os.fspath(p) for p in config.initrds)}
+    {bold("COMMANDS")}:
+                          verb: {bold(args.verb)}
+                       cmdline: {bold(" ".join(args.cmdline))}
 
-{bold("OUTPUT")}:
-                  Image ID: {config.image_id}
-             Image Version: {config.image_version}
-             Output Format: {config.output_format.name}
-          Manifest Formats: {maniformats}
-          Output Directory: {none_to_default(config.output_dir)}
-       Workspace Directory: {none_to_default(config.workspace_dir)}
-                    Output: {bold(config.output_compressed)}
-           Output Checksum: {none_to_na(config.output_checksum if config.checksum else None)}
-          Output Signature: {none_to_na(config.output_signature if config.sign else None)}
-    Output nspawn Settings: {none_to_na(config.output_nspawn_settings if config.nspawn_settings is not None else None)}
-               Incremental: {yes_no(config.incremental)}
-               Compression: {config.compress_output}
-                  Bootable: {config.bootable}
-       Kernel Command Line: {" ".join(config.kernel_command_line)}
-           UEFI SecureBoot: {yes_no(config.secure_boot)}
-       SecureBoot Sign Key: {none_to_none(config.secure_boot_key)}
-    SecureBoot Certificate: {none_to_none(config.secure_boot_certificate)}
+    {bold("DISTRIBUTION")}:
+                  Distribution: {bold(config.distribution.name)}
+                       Release: {bold(none_to_na(config.release))}
+                  Architecture: {config.architecture}
+                        Mirror: {none_to_default(config.mirror)}
+          Local Mirror (build): {none_to_none(config.local_mirror)}
+      Repo Signature/Key check: {yes_no(config.repository_key_check)}
+                  Repositories: {",".join(config.repositories)}
+                       Initrds: {",".join(os.fspath(p) for p in config.initrds)}
 
-{bold("CONTENT")}:
-                  Packages: {line_join_list(config.packages)}
-        With Documentation: {yes_no(config.with_docs)}
-             Package Cache: {none_to_none(config.cache_dir)}
-            Skeleton Trees: {line_join_source_target_list(config.skeleton_trees)}
-               Extra Trees: {line_join_source_target_list(config.extra_trees)}
-    Clean Package Metadata: {yes_no_auto(config.clean_package_metadata)}
-              Remove Files: {line_join_list(config.remove_files)}
-           Remove Packages: {line_join_list(config.remove_packages)}
-             Build Sources: {config.build_sources}
-           Build Directory: {none_to_none(config.build_dir)}
-         Install Directory: {none_to_none(config.install_dir)}
-            Build Packages: {line_join_list(config.build_packages)}
-              Build Script: {path_or_none(config.build_script, check_script_input)}
- Run Tests in Build Script: {yes_no(config.with_tests)}
-        Postinstall Script: {path_or_none(config.postinst_script, check_script_input)}
-            Prepare Script: {path_or_none(config.prepare_script, check_script_input)}
-           Finalize Script: {path_or_none(config.finalize_script, check_script_input)}
-        Script Environment: {line_join_list(env)}
-      Scripts with network: {yes_no(config.with_network)}
-           nspawn Settings: {none_to_none(config.nspawn_settings)}
-                  Password: {("(default)" if config.password is None else "(set)")}
-                 Autologin: {yes_no(config.autologin)}
+    {bold("OUTPUT")}:
+                      Image ID: {config.image_id}
+                 Image Version: {config.image_version}
+                 Output Format: {config.output_format.name}
+              Manifest Formats: {maniformats}
+              Output Directory: {none_to_default(config.output_dir)}
+           Workspace Directory: {none_to_default(config.workspace_dir)}
+                        Output: {bold(config.output_compressed)}
+               Output Checksum: {none_to_na(config.output_checksum if config.checksum else None)}
+              Output Signature: {none_to_na(config.output_signature if config.sign else None)}
+        Output nspawn Settings: {none_to_na(config.output_nspawn_settings if config.nspawn_settings is not None else None)}
+                   Incremental: {yes_no(config.incremental)}
+                   Compression: {config.compress_output.name}
+                      Bootable: {yes_no_auto(config.bootable)}
+           Kernel Command Line: {" ".join(config.kernel_command_line)}
+               UEFI SecureBoot: {yes_no(config.secure_boot)}
+           SecureBoot Sign Key: {none_to_none(config.secure_boot_key)}
+        SecureBoot Certificate: {none_to_none(config.secure_boot_certificate)}
 
-{bold("HOST CONFIGURATION")}:
-        Extra search paths: {line_join_list(config.extra_search_paths)}
-      QEMU Extra Arguments: {line_join_list(config.qemu_args)}
-    """
+    {bold("CONTENT")}:
+                      Packages: {line_join_list(config.packages)}
+            With Documentation: {yes_no(config.with_docs)}
+                 Package Cache: {none_to_none(config.cache_dir)}
+                Skeleton Trees: {line_join_source_target_list(config.skeleton_trees)}
+                   Extra Trees: {line_join_source_target_list(config.extra_trees)}
+        Clean Package Metadata: {yes_no_auto(config.clean_package_metadata)}
+                  Remove Files: {line_join_list(config.remove_files)}
+               Remove Packages: {line_join_list(config.remove_packages)}
+                 Build Sources: {config.build_sources}
+               Build Directory: {none_to_none(config.build_dir)}
+             Install Directory: {none_to_none(config.install_dir)}
+                Build Packages: {line_join_list(config.build_packages)}
+                  Build Script: {path_or_none(config.build_script, check_script_input)}
+     Run Tests in Build Script: {yes_no(config.with_tests)}
+            Postinstall Script: {path_or_none(config.postinst_script, check_script_input)}
+                Prepare Script: {path_or_none(config.prepare_script, check_script_input)}
+               Finalize Script: {path_or_none(config.finalize_script, check_script_input)}
+            Script Environment: {line_join_list(env)}
+          Scripts with network: {yes_no(config.with_network)}
+               nspawn Settings: {none_to_none(config.nspawn_settings)}
+                      Password: {("(default)" if config.password is None else "(set)")}
+                     Autologin: {yes_no(config.autologin)}
+
+    {bold("HOST CONFIGURATION")}:
+            Extra search paths: {line_join_list(config.extra_search_paths)}
+          QEMU Extra Arguments: {line_join_list(config.qemu_args)}
+        """
 
     if config.output_format == OutputFormat.disk:
         summary += f"""\
 
-{bold("VALIDATION")}:
-                  Checksum: {yes_no(config.checksum)}
-                      Sign: {yes_no(config.sign)}
-                   GPG Key: ({"default" if config.key is None else config.key})
+    {bold("VALIDATION")}:
+                      Checksum: {yes_no(config.checksum)}
+                          Sign: {yes_no(config.sign)}
+                       GPG Key: ({"default" if config.key is None else config.key})
         """
 
     page(summary, args.pager)
@@ -1307,63 +1322,27 @@ def configure_ssh(state: MkosiState) -> None:
 
     presetdir = state.root / "etc/systemd/system-preset"
     presetdir.mkdir(exist_ok=True, mode=0o755)
-    presetdir.joinpath("80-mkosi-ssh.preset").write_text("enable ssh.socket")
+    presetdir.joinpath("80-mkosi-ssh.preset").write_text("enable ssh.socket\n")
 
 
 def configure_initrd(state: MkosiState) -> None:
+    if not state.root.joinpath("init").exists() and state.root.joinpath("usr/lib/systemd/systemd").exists():
+        state.root.joinpath("init").symlink_to("/usr/lib/systemd/systemd")
+
     if not state.config.make_initrd:
         return
-
-    if not state.root.joinpath("init").exists():
-        state.root.joinpath("init").symlink_to("/usr/lib/systemd/systemd")
 
     if not state.root.joinpath("etc/initrd-release").exists():
         state.root.joinpath("etc/initrd-release").symlink_to("/etc/os-release")
 
 
-def run_kernel_install(state: MkosiState) -> None:
-    if state.config.initrds:
-        return
-
+def run_depmod(state: MkosiState) -> None:
     if state.config.bootable is False:
         return
 
-    if state.config.bootable is None and state.config.output_format == OutputFormat.cpio:
-        return
-
-    # CentOS Stream 8 has an old version of kernel-install that unconditionally writes initrds to
-    # /boot/<machine-id>/<kver>, so let's detect that and move them to the correct location.
-
-    if (p := state.root / "etc/machine-id").exists():
-        machine_id = p.read_text().strip()
-    else:
-        machine_id = None
-
-    # kernel-install on Debian/Ubuntu does not rebuild the dracut initrd, so we do it manually here.
-    if (state.root.joinpath("usr/bin/dracut").exists() and
-        state.config.distribution in (Distribution.ubuntu, Distribution.debian) and
-        not state.root.joinpath("usr/lib/kernel/install.d/50-dracut.install").exists() and
-        not state.root.joinpath("etc/kernel/install.d/50-dracut.install").exists()):
-        with complete_step("Running dpkg-reconfigure dracut…"):
-            run_workspace_command(state.root, ["dpkg-reconfigure", "dracut"],
-                                  env=dict(hostonly_l="no") | state.environment)
-            return
-
-    with complete_step("Running kernel-install…"):
-        for kver, kimg in gen_kernel_images(state):
-            cmd: list[PathString] = ["kernel-install", "add", kver, Path("/") / kimg]
-
-            if ARG_DEBUG.get():
-                cmd.insert(1, "--verbose")
-
-            # Make dracut think --no-host-only was passed via the CLI.
-            run_workspace_command(state.root, cmd, env=dict(hostonly_l="no") | state.environment)
-
-            if machine_id and (p := state.root / "boot" / machine_id / kver / "initrd").exists():
-                shutil.move(p, state.root / state.installer.initrd_path(kver))
-
-    if machine_id and (p := state.root / "boot" / machine_id).exists():
-        shutil.rmtree(p)
+    for kver, _ in gen_kernel_images(state):
+        with complete_step(f"Running depmod for {kver}"):
+            run(["depmod", "--basedir", state.root, kver])
 
 
 def run_sysusers(state: MkosiState) -> None:
@@ -1405,7 +1384,6 @@ def reuse_cache_tree(state: MkosiState) -> bool:
 
     with complete_step("Copying cached trees"):
         copy_path(final, state.root)
-        acl_toggle_remove(state.config, state.root, state.uid, allow=False)
         if state.config.build_script:
             state.build_overlay.rmdir()
             state.build_overlay.symlink_to(build)
@@ -1534,12 +1512,12 @@ def build_image(state: MkosiState, *, for_cache: bool, manifest: Optional[Manife
         run_build_script(state)
         install_build_dest(state)
         install_extra_trees(state)
-        run_kernel_install(state)
         install_boot_loader(state)
         configure_ssh(state)
         run_postinst_script(state)
         run_sysusers(state)
         run_preset_all(state)
+        run_depmod(state)
         remove_packages(state)
 
         if manifest:
@@ -1577,6 +1555,14 @@ def run_build_script(state: MkosiState) -> None:
     # Make sure that if mkosi.installdir/ is used, any leftover files from a previous run are removed.
     if state.config.install_dir:
         empty_directory(state.config.install_dir)
+
+    # Create a few necessary mount points inside the build overlay.
+    with mount_build_overlay(state):
+        state.root.joinpath("work").mkdir(mode=0o755, exist_ok=True)
+        state.root.joinpath("work/src").mkdir(mode=0o755, exist_ok=True)
+        state.root.joinpath("work/dest").mkdir(mode=0o755, exist_ok=True)
+        state.root.joinpath("work/build-script").touch(mode=0o755, exist_ok=True)
+        state.root.joinpath("work/build").mkdir(mode=0o755, exist_ok=True)
 
     with complete_step("Running build script…"), mount_build_overlay(state, read_only=True):
         bwrap: list[PathString] = [
@@ -1618,6 +1604,39 @@ def need_cache_tree(args: MkosiArgs, state: MkosiState) -> bool:
     return not final.exists() or (state.config.build_script is not None and not build.exists())
 
 
+def setfacl(root: Path, uid: int, allow: bool) -> None:
+    run(["setfacl",
+        "--physical",
+        "--modify" if allow else "--remove",
+        f"user:{uid}:rwx" if allow else f"user:{uid}",
+        "-"],
+        text=True,
+        # Supply files via stdin so we don't clutter --debug run output too much
+        input="\n".join([str(root),
+                        *(e.path for e in cast(Iterator[os.DirEntry[str]], scandir_recursive(root)) if e.is_dir())])
+    )
+
+
+@contextlib.contextmanager
+def acl_toggle_build(state: MkosiState) -> Iterator[None]:
+    if not state.config.acl:
+        yield
+        return
+
+    try:
+        for p in (*state.config.base_trees, state.config.cache_dir):
+            if p and p.is_dir():
+                with complete_step(f"Removing ACLs from {p}"):
+                    setfacl(p, state.uid, allow=False)
+
+        yield
+    finally:
+        for p in (*state.config.base_trees, state.config.cache_dir, *state.config.output_paths()):
+            if p and p.is_dir():
+                with complete_step(f"Adding ACLs to {p}"):
+                    setfacl(p, state.uid, allow=True)
+
+
 def build_stuff(uid: int, gid: int, args: MkosiArgs, config: MkosiConfig) -> None:
     workspace = tempfile.TemporaryDirectory(dir=config.workspace_dir or Path.cwd(), prefix=".mkosi.tmp")
     workspace_dir = Path(workspace.name)
@@ -1640,7 +1659,7 @@ def build_stuff(uid: int, gid: int, args: MkosiArgs, config: MkosiConfig) -> Non
 
     # Make sure tmpfiles' aging doesn't interfere with our workspace
     # while we are working on it.
-    with flock(workspace_dir), workspace:
+    with flock(workspace_dir), workspace, acl_toggle_build(state):
         # If caching is requested, then make sure we have cache trees around we can make use of
         if need_cache_tree(args, state):
             with complete_step("Building cache image"):
@@ -1656,16 +1675,11 @@ def build_stuff(uid: int, gid: int, args: MkosiArgs, config: MkosiConfig) -> Non
         calculate_signature(state)
         save_manifest(state, manifest)
 
-        if state.config.cache_dir:
-            acl_toggle_remove(state.config, state.config.cache_dir, uid, allow=True)
-
         for p in state.config.output_paths():
             if state.staging.joinpath(p.name).exists():
                 shutil.move(state.staging / p.name, p)
                 if p != state.config.output or state.config.output_format != OutputFormat.directory:
                     os.chown(p, uid, gid)
-                else:
-                    acl_toggle_remove(state.config, p, uid, allow=True)
                 if p == state.config.output:
                     compress_output(state.config, p, uid=uid, gid=gid)
 
@@ -1700,6 +1714,23 @@ def nspawn_knows_arg(arg: str) -> bool:
             check=False,
             text=True)
     return "unrecognized option" not in c.stderr
+
+
+@contextlib.contextmanager
+def acl_toggle_boot(config: MkosiConfig) -> Iterator[None]:
+    if not config.acl or config.output_format != OutputFormat.directory:
+        yield
+        return
+
+    uid = InvokingUser.uid()
+
+    try:
+        with complete_step(f"Removing ACLs from {config.output}"):
+            setfacl(config.output, uid, allow=False)
+        yield
+    finally:
+        with complete_step(f"Adding ACLs to {config.output}"):
+            setfacl(config.output, uid, allow=True)
 
 
 def run_shell(args: MkosiArgs, config: MkosiConfig) -> None:
@@ -1748,16 +1779,8 @@ def run_shell(args: MkosiArgs, config: MkosiConfig) -> None:
         cmdline += ["--"]
         cmdline += args.cmdline
 
-    uid = InvokingUser.uid()
-
-    if config.output_format == OutputFormat.directory:
-        acl_toggle_remove(config, config.output, uid, allow=False)
-
-    try:
+    with acl_toggle_boot(config):
         run(cmdline, stdin=sys.stdin, stdout=sys.stdout, env=os.environ, log=False)
-    finally:
-        if config.output_format == OutputFormat.directory:
-            acl_toggle_remove(config, config.output, uid, allow=True)
 
 
 def find_qemu_binary(config: MkosiConfig) -> str:
@@ -1924,14 +1947,8 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
             "-nographic",
             "-nodefaults",
             "-chardev", "stdio,mux=on,id=console,signal=off",
-            # Use virtconsole which appears as /dev/hvc0 in the guest on which a getty is automatically
-            # by spawned by systemd without needing a console= cmdline argument.
-            "-device", "virtio-serial",
-            "-device", "virtconsole,chardev=console",
-            "-mon", "console",
-            # EDK2 doesn't support virtio-serial, so add a regular serial console as well to get bootloader
-            # output.
             "-serial", "chardev:console",
+            "-mon", "console",
         ]
 
     for k, v in config.credentials.items():
@@ -2035,7 +2052,7 @@ def generate_secure_boot_key(args: MkosiArgs) -> None:
     cn = expand_specifier(args.secure_boot_common_name)
 
     for f in ("mkosi.secure-boot.key", "mkosi.secure-boot.crt"):
-        if f and not args.force:
+        if Path(f).exists() and not args.force:
             die(f"{f} already exists",
                 hint=("To generate new secure boot keys, "
                       "first remove mkosi.secure-boot.key and mkosi.secure-boot.crt"))
@@ -2092,56 +2109,89 @@ def needs_build(args: MkosiArgs, config: MkosiConfig) -> bool:
     return args.verb == Verb.build or (args.verb in MKOSI_COMMANDS_NEED_BUILD and (not config.output_compressed.exists() or args.force > 0))
 
 
-def run_verb(args: MkosiArgs, config: MkosiConfig) -> None:
-    with prepend_to_environ_path(config.extra_search_paths):
-        if args.verb == Verb.genkey:
-            return generate_secure_boot_key(args)
+def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
+    if args.verb in MKOSI_COMMANDS_SUDO:
+        check_root()
 
-        if args.verb == Verb.bump:
-            return bump_image_version()
+    if args.verb == Verb.genkey:
+        return generate_secure_boot_key(args)
 
-        if args.verb == Verb.summary:
-            return print_summary(args, config)
+    if args.verb == Verb.bump:
+        return bump_image_version()
 
-        if args.verb in MKOSI_COMMANDS_SUDO:
-            check_root()
+    if args.verb == Verb.summary:
+        for config in presets:
+            print_summary(args, config)
 
-        if args.verb == Verb.build:
-            check_inputs(config)
+        return
 
-            if not args.force:
-                check_outputs(config)
+    last = presets[-1]
 
-        if needs_build(args, config) or args.verb == Verb.clean:
-            def target() -> None:
-                become_root()
-                unlink_output(args, config)
+    if args.verb == Verb.qemu and last.output_format in (
+        OutputFormat.directory,
+        OutputFormat.subvolume,
+        OutputFormat.tar,
+    ):
+        die(f"{last.output_format} images cannot be booted in qemu.")
 
-            fork_and_wait(target)
+    if args.verb in (Verb.shell, Verb.boot):
+        opname = "acquire shell in" if args.verb == Verb.shell else "boot"
+        if last.output_format in (OutputFormat.tar, OutputFormat.cpio):
+            die(f"Sorry, can't {opname} a {last.output_format} archive.")
+        if last.compress_output:
+            die(f"Sorry, can't {opname} a compressed image.")
 
-        if needs_build(args, config):
+    # First, process all directory removals because otherwise if different presets share directories a later
+    # preset could end up output generated by an earlier preset.
+
+    for config in presets:
+        if not needs_build(args, config) and args.verb != Verb.clean:
+            continue
+
+        def target() -> None:
+            become_root()
+            unlink_output(args, config)
+
+        fork_and_wait(target)
+
+    build = False
+
+    for config in presets:
+        if not needs_build(args, config):
+            continue
+
+        check_inputs(config)
+
+        if not args.force:
+            check_outputs(config)
+
+        with prepend_to_environ_path(config.extra_search_paths):
             def target() -> None:
                 # Get the user UID/GID either on the host or in the user namespace running the build
                 uid, gid = become_root()
                 init_mount_namespace()
                 build_stuff(uid, gid, args, config)
 
-            # We only want to run the build in a user namespace but not the following steps. Since we can't
-            # rejoin the parent user namespace after unsharing from it, let's run the build in a fork so that
-            # the main process does not leave its user namespace.
-            fork_and_wait(target)
+            # We only want to run the build in a user namespace but not the following steps. Since we
+            # can't rejoin the parent user namespace after unsharing from it, let's run the build in a
+            # fork so that the main process does not leave its user namespace.
+            with complete_step(f"Building {config.preset or 'default'} image"):
+                fork_and_wait(target)
 
-            if args.auto_bump:
-                bump_image_version()
+            build = True
 
+    if build and args.auto_bump:
+        bump_image_version()
+
+    with prepend_to_environ_path(last.extra_search_paths):
         if args.verb in (Verb.shell, Verb.boot):
-            run_shell(args, config)
+            run_shell(args, last)
 
         if args.verb == Verb.qemu:
-            run_qemu(args, config)
+            run_qemu(args, last)
 
         if args.verb == Verb.ssh:
-            run_ssh(args, config)
+            run_ssh(args, last)
 
         if args.verb == Verb.serve:
-            run_serve(config)
+            run_serve(last)

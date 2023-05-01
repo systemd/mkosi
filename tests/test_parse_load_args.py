@@ -28,7 +28,7 @@ def cd_temp_dir() -> Iterator[None]:
             chdir(old_dir)
 
 
-def parse(argv: Optional[List[str]] = None) -> tuple[MkosiArgs, MkosiConfig]:
+def parse(argv: Optional[List[str]] = None) -> tuple[MkosiArgs, tuple[MkosiConfig, ...]]:
     return MkosiConfigParser().parse(argv)
 
 
@@ -52,7 +52,7 @@ def test_parse_load_verb() -> None:
 def test_os_distribution() -> None:
     with cd_temp_dir():
         for dist in Distribution:
-            assert parse(["-d", dist.name])[1].distribution == dist
+            assert parse(["-d", dist.name])[1][0].distribution == dist
 
         with pytest.raises(tuple((argparse.ArgumentError, SystemExit))):
             parse(["-d", "invalidDistro"])
@@ -62,7 +62,7 @@ def test_os_distribution() -> None:
         for dist in Distribution:
             config = Path("mkosi.conf")
             config.write_text(f"[Distribution]\nDistribution={dist}")
-            assert parse([])[1].distribution == dist
+            assert parse([])[1][0].distribution == dist
 
 
 def test_parse_config_files_filter() -> None:
@@ -73,24 +73,12 @@ def test_parse_config_files_filter() -> None:
         (confd / "10-file.conf").write_text("[Content]\nPackages=yes")
         (confd / "20-file.noconf").write_text("[Content]\nPackages=nope")
 
-        assert parse([])[1].packages == ["yes"]
-
-
-def test_shell_boot() -> None:
-    with cd_temp_dir():
-        with pytest.raises(SystemExit):
-            parse(["--format", "tar", "boot"])
-
-        with pytest.raises(SystemExit):
-            parse(["--format", "cpio", "boot"])
-
-        with pytest.raises(SystemExit):
-            parse(["--format", "disk", "--compress-output=yes", "boot"])
+        assert parse([])[1][0].packages == ["yes"]
 
 
 def test_compression() -> None:
     with cd_temp_dir():
-        assert parse(["--format", "disk", "--compress-output", "False"])[1].compress_output == Compression.none
+        assert parse(["--format", "disk", "--compress-output", "False"])[1][0].compress_output == Compression.none
 
 
 @pytest.mark.parametrize("dist1,dist2", itertools.combinations_with_replacement(Distribution, 2))
@@ -145,7 +133,7 @@ def test_match_distribution(dist1: Distribution, dist2: Distribution) -> None:
             )
         )
 
-        conf = parse([])[1]
+        conf = parse([])[1][0]
         assert "testpkg1" in conf.packages
         if dist1 == dist2:
             assert "testpkg2" in conf.packages
@@ -207,7 +195,7 @@ def test_match_release(release1: int, release2: int) -> None:
             )
         )
 
-        conf = parse([])[1]
+        conf = parse([])[1][0]
         assert "testpkg1" in conf.packages
         if release1 == release2:
             assert "testpkg2" in conf.packages
@@ -283,7 +271,7 @@ def test_match_imageid(image1: str, image2: str) -> None:
             )
         )
 
-        conf = parse([])[1]
+        conf = parse([])[1][0]
         assert "testpkg1" in conf.packages
         if image1 == image2:
             assert "testpkg2" in conf.packages
@@ -357,7 +345,7 @@ def test_match_imageversion(op: str, version: str) -> None:
             )
         )
 
-        conf = parse([])[1]
+        conf = parse([])[1][0]
         assert ("testpkg1" in conf.packages) == opfunc(123, version)
         assert ("testpkg2" in conf.packages) == opfunc(123, version)
         assert "testpkg3" not in conf.packages

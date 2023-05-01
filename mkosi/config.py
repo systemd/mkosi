@@ -1,5 +1,6 @@
 import argparse
 import configparser
+import copy
 import dataclasses
 import enum
 import fnmatch
@@ -11,6 +12,7 @@ import os.path
 import platform
 import shlex
 import shutil
+import string
 import subprocess
 import sys
 import textwrap
@@ -392,8 +394,11 @@ def config_make_path_parser(*,
     return config_parse_path
 
 
-def match_path_exists(path: Path, value: str) -> bool:
-    return path.parent.joinpath(value).exists()
+def match_path_exists(value: str) -> bool:
+    if not value:
+        return False
+
+    return Path(value).exists()
 
 
 @dataclasses.dataclass(frozen=True)
@@ -415,7 +420,7 @@ class MkosiConfigSetting:
 @dataclasses.dataclass(frozen=True)
 class MkosiMatch:
     name: str
-    match: Callable[[Path, str], bool]
+    match: Callable[[str], bool]
 
 
 class CustomHelpFormatter(argparse.HelpFormatter):
@@ -493,6 +498,7 @@ class MkosiArgs:
     secure_boot_valid_days: str
     secure_boot_common_name: str
     auto_bump: bool
+    presets: list[str]
 
     @classmethod
     def from_namespace(cls, ns: argparse.Namespace) -> "MkosiArgs":
@@ -583,6 +589,8 @@ class MkosiConfig:
     qemu_args: Sequence[str]
 
     passphrase: Optional[Path]
+
+    preset: Optional[str]
 
     @classmethod
     def from_namespace(cls, ns: argparse.Namespace) -> "MkosiConfig":
@@ -752,6 +760,7 @@ class MkosiConfigParser:
             dest="kernel_command_line",
             section="Output",
             parse=config_make_list_parser(delimiter=" "),
+            default=["console=ttyS0"],
         ),
         MkosiConfigSetting(
             dest="secure_boot",
@@ -866,7 +875,7 @@ class MkosiConfigParser:
         MkosiConfigSetting(
             dest="base_trees",
             section="Content",
-            parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
+            parse=config_make_list_parser(delimiter=",", parse=make_path_parser(required=False)),
         ),
         MkosiConfigSetting(
             dest="extra_trees",
@@ -1081,7 +1090,7 @@ class MkosiConfigParser:
                         return
 
                 elif (m := self.match_lookup.get(k)):
-                    if not m.match(path, v):
+                    if not m.match(v):
                         return
 
         parser.remove_section("Match")
@@ -1167,7 +1176,6 @@ class MkosiConfigParser:
         parser.add_argument(
             "-C", "--directory",
             help="Change to specified directory before doing anything",
-            type=Path,
             metavar="PATH",
             default=None,
         )
@@ -1209,6 +1217,13 @@ class MkosiConfigParser:
             help="Automatically bump image version after building",
             action="store_true",
             default=False,
+        )
+        parser.add_argument(
+            "--preset",
+            action="append",
+            dest="presets",
+            default=[],
+            help="Build the specified preset",
         )
 
         group = parser.add_argument_group("Distribution options")
@@ -1429,6 +1444,7 @@ class MkosiConfigParser:
             "--bootable",
             metavar="FEATURE",
             help="Generate ESP partition with systemd-boot and UKIs for installed kernels",
+            nargs="?",
             action=action,
         )
         group.add_argument("--password", help="Set the root password", action=action)
@@ -1661,7 +1677,8 @@ class MkosiConfigParser:
 
         return parser
 
-    def parse(self, argv: Optional[Sequence[str]] = None) -> tuple[MkosiArgs, MkosiConfig]:
+    def parse(self, argv: Optional[Sequence[str]] = None) -> tuple[MkosiArgs, tuple[MkosiConfig, ...]]:
+        presets = []
         namespace = argparse.Namespace()
 
         if argv is None:
@@ -1691,29 +1708,54 @@ class MkosiConfigParser:
         if args.verb == Verb.help:
             PagerHelpAction.__call__(None, argparser, namespace)  # type: ignore
 
-        if args.directory and not args.directory.is_dir():
+        if args.directory and not Path(args.directory).is_dir():
             die(f"{args.directory} is not a directory!")
 
         if args.directory:
             os.chdir(args.directory)
 
-        self.parse_config(Path("."), namespace)
+        if args.directory != "":
+            self.parse_config(Path("."), namespace)
 
-        for s in self.SETTINGS:
-            if s.dest in namespace:
-                continue
+            if Path("mkosi.presets").exists():
+                for p in sorted(Path("mkosi.presets").iterdir()):
+                    name = p.name.lstrip(string.digits + "-").removesuffix(".conf")
+                    if not name:
+                        die(f"{p} is not a valid preset name")
+                    if args.presets and name not in args.presets:
+                        continue
 
-            if s.default_factory:
-                default = s.default_factory(namespace)
-            elif s.default is None:
-                default = s.parse(s.dest, None, namespace)
-            else:
-                default = s.default
+                    cp = copy.deepcopy(namespace)
 
-            setattr(namespace, s.dest, default)
+                    with chdir(p if p.is_dir() else Path.cwd()):
+                        self.parse_config(p if p.is_file() else Path("."), cp)
 
-        return args, load_config(namespace)
+                    setattr(cp, "preset", name)
 
+                    presets += [cp]
+
+        if not presets:
+            setattr(namespace, "preset", None)
+            presets = [namespace]
+
+        if not presets:
+            die("No presets defined in mkosi.presets/")
+
+        for ns in presets:
+            for s in self.SETTINGS:
+                if s.dest in ns:
+                    continue
+
+                if s.default_factory:
+                    default = s.default_factory(ns)
+                elif s.default is None:
+                    default = s.parse(s.dest, None, ns)
+                else:
+                    default = s.default
+
+                setattr(ns, s.dest, default)
+
+        return args, tuple(load_config(ns) for ns in presets)
 
 class GenericVersion:
     def __init__(self, version: str):
@@ -1816,7 +1858,7 @@ def load_credentials(args: argparse.Namespace) -> dict[str, str]:
     creds = {}
 
     d = Path("mkosi.credentials")
-    if d.is_dir():
+    if args.directory != "" and d.is_dir():
         for e in d.iterdir():
             if os.access(e, os.X_OK):
                 creds[e.name] = run([e], text=True, stdout=subprocess.PIPE, env=os.environ).stdout
@@ -1832,8 +1874,10 @@ def load_credentials(args: argparse.Namespace) -> dict[str, str]:
             ["timedatectl", "show", "-p", "Timezone", "--value"],
             text=True,
             stdout=subprocess.PIPE,
+            check=False,
         ).stdout.strip()
-        creds["firstboot.timezone"] = tz
+        if tz:
+            creds["firstboot.timezone"] = tz
 
     if "firstboot.locale" not in creds:
         creds["firstboot.locale"] = "C.UTF-8"
@@ -1847,8 +1891,10 @@ def load_credentials(args: argparse.Namespace) -> dict[str, str]:
             text=True,
             stdout=subprocess.PIPE,
             env=os.environ,
+            check=False,
         ).stdout.strip()
-        creds["ssh.authorized_keys.root"] = key
+        if key:
+            creds["ssh.authorized_keys.root"] = key
 
     return creds
 
@@ -1857,13 +1903,10 @@ def load_kernel_command_line_extra(args: argparse.Namespace) -> list[str]:
     columns, lines = shutil.get_terminal_size()
 
     cmdline = [
-        f"systemd.tty.term.hvc0={os.getenv('TERM', 'vt220')}",
-        f"systemd.tty.columns.hvc0={columns}",
-        f"systemd.tty.rows.hvc0={lines}",
         f"systemd.tty.term.ttyS0={os.getenv('TERM', 'vt220')}",
         f"systemd.tty.columns.ttyS0={columns}",
         f"systemd.tty.rows.ttyS0={lines}",
-        "console=hvc0",
+        "console=ttyS0",
     ]
 
     if args.output_format == OutputFormat.cpio:
@@ -1879,8 +1922,10 @@ def load_kernel_command_line_extra(args: argparse.Namespace) -> list[str]:
 
 
 def load_args(args: argparse.Namespace) -> MkosiArgs:
-    ARG_DEBUG.set(args.debug)
-    ARG_DEBUG_SHELL.set(args.debug_shell)
+    if args.debug:
+        ARG_DEBUG.set(args.debug)
+    if args.debug_shell:
+        ARG_DEBUG_SHELL.set(args.debug_shell)
 
     return MkosiArgs.from_namespace(args)
 
@@ -1890,13 +1935,6 @@ def load_config(args: argparse.Namespace) -> MkosiConfig:
 
     if args.cmdline and args.verb not in MKOSI_COMMANDS_CMDLINE:
         die(f"Parameters after verb are only accepted for {' '.join(verb.name for verb in MKOSI_COMMANDS_CMDLINE)}.")
-
-    if args.verb == Verb.qemu and args.output_format in (
-        OutputFormat.directory,
-        OutputFormat.subvolume,
-        OutputFormat.tar,
-    ):
-        die("Directory, subvolume, tar, cpio, and plain squashfs images cannot be booted in qemu.")
 
     if shutil.which("bsdtar") and args.distribution == Distribution.openmandriva and args.tar_strip_selinux_context:
         die("Sorry, bsdtar on OpenMandriva is incompatible with --tar-strip-selinux-context")
@@ -1913,7 +1951,7 @@ def load_config(args: argparse.Namespace) -> MkosiConfig:
         args.compress_output = Compression.zst if args.output_format == OutputFormat.cpio else Compression.none
 
     if args.output is None:
-        iid = args.image_id if args.image_id is not None else "image"
+        iid = args.image_id or args.preset or "image"
         prefix = f"{iid}_{args.image_version}" if args.image_version is not None else iid
 
         if args.output_format == OutputFormat.disk:
@@ -1965,13 +2003,6 @@ def load_config(args: argparse.Namespace) -> MkosiConfig:
     # Resolve passwords late so we can accurately determine whether a build is needed
     find_password(args)
 
-    if args.verb in (Verb.shell, Verb.boot):
-        opname = "acquire shell" if args.verb == Verb.shell else "boot"
-        if args.output_format in (OutputFormat.tar, OutputFormat.cpio):
-            die(f"Sorry, can't {opname} with a {args.output_format} archive.")
-        if args.compress_output:
-            die(f"Sorry, can't {opname} with a compressed image.")
-
     if args.repo_dirs and not (
         is_dnf_distribution(args.distribution)
         or is_apt_distribution(args.distribution)
@@ -1990,11 +2021,6 @@ def load_config(args: argparse.Namespace) -> MkosiConfig:
 
     if args.initrds:
         args.initrds = [p.absolute() for p in args.initrds]
-        for p in args.initrds:
-            if not p.exists():
-                die(f"Initrd {p} not found")
-            if not p.is_file():
-                die(f"Initrd {p} is not a file")
 
     if args.overlay and not args.base_trees:
         die("--overlay can only be used with --base-tree")

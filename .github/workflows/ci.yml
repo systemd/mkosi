@@ -102,7 +102,7 @@ jobs:
     runs-on: ubuntu-22.04
     needs: unit-test
     concurrency:
-      group: ${{ github.workflow }}-${{ matrix.distro }}-${{ matrix.format }}-${{ matrix.prebuilt-initrd }}-${{ github.ref }}
+      group: ${{ github.workflow }}-${{ matrix.distro }}-${{ matrix.format }}-${{ github.ref }}
       cancel-in-progress: true
     defaults:
       run:
@@ -118,19 +118,14 @@ jobs:
           - fedora
           - rocky
           - alma
-          - gentoo
+          # Disabled until gentoo supports prebuilt initrds.
+          # - gentoo
           - opensuse
         format:
           - directory
           - tar
           - cpio
           - disk
-        prebuilt-initrd:
-          - no
-          - yes
-        exclude:
-          - distro: gentoo
-            prebuilt-initrd: yes
 
     steps:
     - uses: actions/checkout@v3
@@ -173,12 +168,6 @@ jobs:
     - name: Install
       run: sudo python3 -m pip install ..
 
-    - name: Build ${{ matrix.distro }} initrd
-      if: matrix.prebuilt-initrd == 'yes'
-      # Run the build in .github/workflows/ so we don't pick up any of the configuration files in .github/
-      run: python3 -m mkosi -d ${{ matrix.distro }} -t cpio -p systemd -p udev -p kmod --make-initrd -o $PWD/initrd build
-      working-directory: ./.github/workflows
-
     - name: Configure ${{ matrix.distro }}/${{ matrix.format }}
       run: |
         tee mkosi.conf.d/00-ci.conf <<- EOF
@@ -187,14 +176,6 @@ jobs:
 
         [Output]
         Format=${{ matrix.format }}
-        EOF
-
-    - name: Configure ${{ matrix.distro }}/${{ matrix.format }} initrd
-      if: matrix.prebuilt-initrd == 'yes'
-      run: |
-        tee mkosi.conf.d/00-initrd.conf <<- EOF
-        [Distribution]
-        Initrds=workflows/initrd.zst
         EOF
 
     - name: Resolve Arch geo mirror location

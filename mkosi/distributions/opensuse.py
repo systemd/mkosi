@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 from collections.abc import Sequence
-from pathlib import Path
 from textwrap import dedent
 
 from mkosi.distributions import DistributionInstaller
+from mkosi.distributions.fedora import fixup_rpmdb_location
 from mkosi.run import bwrap
 from mkosi.state import MkosiState
 from mkosi.types import PathString
@@ -50,10 +50,6 @@ class OpensuseInstaller(DistributionInstaller):
     @classmethod
     def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
         invoke_zypper(state, "remove", ["-y", "--clean-deps"], packages)
-
-    @staticmethod
-    def initrd_path(kver: str) -> Path:
-        return Path("boot") / f"initrd-{kver}"
 
 
 def setup_zypper(state: MkosiState, repos: Sequence[tuple[str, str]] = ()) -> None:
@@ -108,3 +104,4 @@ def invoke_zypper(
 
     bwrap(cmdline, apivfs=state.root if apivfs else None, env=env)
 
+    fixup_rpmdb_location(state.root)

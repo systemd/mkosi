@@ -177,6 +177,10 @@ def invoke_dnf(
     bwrap(cmdline, apivfs=state.root if apivfs else None,
           env=dict(KERNEL_INSTALL_BYPASS="1") | env | state.environment)
 
+    fixup_rpmdb_location(state.root)
+
+
+def fixup_rpmdb_location(root: Path) -> None:
     distribution, _ = detect_distribution()
     if distribution not in (Distribution.debian, Distribution.ubuntu):
         return
@@ -184,12 +188,13 @@ def invoke_dnf(
     # On Debian, rpm/dnf ship with a patch to store the rpmdb under ~/ so it needs to be copied back in the
     # right location, otherwise the rpmdb will be broken. See: https://bugs.debian.org/1004863. We also
     # replace it with a symlink so that any further rpm operations immediately use the correct location.
-    rpmdb_home = state.root / "root/.rpmdb"
+
+    rpmdb_home = root / "root/.rpmdb"
     if rpmdb_home.exists() and not rpmdb_home.is_symlink():
         # Take into account the new location in F36
-        rpmdb = state.root / "usr/lib/sysimage/rpm"
+        rpmdb = root / "usr/lib/sysimage/rpm"
         if not rpmdb.exists():
-            rpmdb = state.root / "var/lib/rpm"
+            rpmdb = root / "var/lib/rpm"
         unlink_try_hard(rpmdb)
         shutil.move(rpmdb_home, rpmdb)
         rpmdb_home.symlink_to(os.path.relpath(rpmdb, start=rpmdb_home.parent))

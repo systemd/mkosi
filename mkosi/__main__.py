@@ -41,12 +41,12 @@ def propagate_failed_return() -> Iterator[None]:
 @propagate_failed_return()
 def main() -> None:
     log_setup()
-    args, config = MkosiConfigParser().parse()
+    args, presets = MkosiConfigParser().parse()
 
     if ARG_DEBUG.get():
         logging.getLogger().setLevel(logging.DEBUG)
 
-    run_verb(args, config)
+    run_verb(args, presets)
 
 
 if __name__ == "__main__":

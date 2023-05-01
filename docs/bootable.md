@@ -10,7 +10,6 @@ distributions:
 [Content]
 Packages=linux
          systemd
-         dracut
 ```
 
 ## Fedora
@@ -21,7 +20,6 @@ Packages=kernel
          systemd
          systemd-boot
          systemd-udev
-         dracut
          util-linux
 ```
 
@@ -33,7 +31,6 @@ Packages=kernel
          systemd
          systemd-boot
          systemd-udev
-         dracut
 ```
 
 ## Debian
@@ -45,7 +42,6 @@ Packages=linux-image-generic
          systemd-boot
          systemd-sysv
          udev
-         dracut
          dbus
 ```
 
@@ -58,7 +54,6 @@ Packages=linux-image-generic
          systemd
          systemd-sysv
          udev
-         dracut
          dbus
 ```
 
@@ -67,7 +62,6 @@ Packages=linux-image-generic
 ```
 [Content]
 Packages=kernel-default
-         dracut
          systemd
          udev
 ```
