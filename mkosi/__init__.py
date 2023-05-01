@@ -1488,6 +1488,10 @@ def invoke_repart(state: MkosiState, skip: Sequence[str] = [], split: bool = Fal
     for fs, options in state.installer.filesystem_options(state).items():
         env[f"SYSTEMD_REPART_MKFS_OPTIONS_{fs.upper()}"] = " ".join(options)
 
+    for option, value in state.environment.items():
+        if option.startswith("SYSTEMD_REPART_MKFS_OPTIONS_"):
+            env[option] = value
+
     with complete_step("Generating disk image"):
         output = json.loads(run(cmdline, stdout=subprocess.PIPE, env=env).stdout)
 
