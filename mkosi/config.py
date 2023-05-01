@@ -1836,8 +1836,10 @@ def load_credentials(args: argparse.Namespace) -> dict[str, str]:
             ["timedatectl", "show", "-p", "Timezone", "--value"],
             text=True,
             stdout=subprocess.PIPE,
+            check=False,
         ).stdout.strip()
-        creds["firstboot.timezone"] = tz
+        if tz:
+            creds["firstboot.timezone"] = tz
 
     if "firstboot.locale" not in creds:
         creds["firstboot.locale"] = "C.UTF-8"
@@ -1851,8 +1853,10 @@ def load_credentials(args: argparse.Namespace) -> dict[str, str]:
             text=True,
             stdout=subprocess.PIPE,
             env=os.environ,
+            check=False,
         ).stdout.strip()
-        creds["ssh.authorized_keys.root"] = key
+        if key:
+            creds["ssh.authorized_keys.root"] = key
 
     return creds
 
