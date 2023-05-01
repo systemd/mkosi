@@ -539,6 +539,11 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   image root, so any `CopyFiles=` source paths in partition definition files will
   be relative to the image root directory.
 
+  It is recommended to have the `SplitName` parameter either end with `%t` or
+  `.raw` if the `SplitArtifacts=yes` option is set. This will make sure that
+  split artifacts are compressed and the compressed file name is included in the
+  checksum output if `Checksum=yes` is also set.
+
 `Overlay=`, `--overlay`
 
 : When used together with `BaseTrees=`, the output will consist only out of
