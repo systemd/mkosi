@@ -118,10 +118,8 @@ images, for example via \f[V]machinectl pull-raw \&...\f[R] and
 \f[V]machinectl   pull-tar \&...\f[R].
 .TP
 \f[V]bump\f[R]
-Determines the current image version string (as configured with
-\f[V]ImageVersion=\f[R]/\f[V]--image-version=\f[R]), increases its last
-dot-separated component by one and writes the resulting version string
-to \f[V]mkosi.version\f[R].
+Bumps the image version from \f[V]mkosi.version\f[R] and writes the
+resulting version string to \f[V]mkosi.version\f[R].
 This is useful for implementing a simple versioning scheme: each time
 this verb is called the version is bumped in preparation for the
 subsequent build.
@@ -259,16 +257,116 @@ either \[lq]1\[rq], \[lq]yes\[rq], or \[lq]true\[rq] to enable, or
 .TP
 \f[V]Distribution=\f[R]
 Matches against the configured distribution.
+Multiple distributions may be specified, separated by spaces.
+If multiple distributions are specified, the condition is satisfied if
+the current distribution equals any of the specified distributions.
 .TP
 \f[V]Release=\f[R]
 Matches against the configured distribution release.
 If this condition is used and no distribution has been explicitly
 configured yet, the host distribution and release are used.
+Multiple releases may be specified, separated by spaces.
+If multiple releases are specified, the condition is satisfied if the
+current release equals any of the specified releases.
 .TP
 \f[V]PathExists=\f[R]
 This condition is satisfied if the given path exists.
 Relative paths are interpreted relative to the parent directory of the
 config file that the condition is read from.
+.TP
+\f[V]ImageId=\f[R]
+Matches against the configured image ID, supporting globs.
+If this condition is used and no image ID has been explicitly configured
+yet, this condition fails.
+Multiple image IDs may be specified, separated by spaces.
+If multiple image IDs are specified, the condition is satisfied if the
+configured image ID equals any of the specified image IDs.
+.TP
+\f[V]ImageVersion=\f[R]
+Matches against the configured image version.
+Image versions can be prepended by the operators \f[V]==\f[R],
+\f[V]!=\f[R], \f[V]>=\f[R], \f[V]<=\f[R], \f[V]<\f[R], \f[V]>\f[R] for
+rich version comparisons according to the UAPI group version format
+specification.
+If no operator is prepended, the equality operator is assumed by default
+If this condition is used and no image Version has be explicitly
+configured yet, this condition fails.
+Multiple image version constraints can be specified as a space-separated
+list.
+If multiple image version constraints are specified, all must be
+satisfied for the match to succeed.
+.PP
+.TS
+tab(@);
+lw(14.2n) lw(14.2n) lw(5.8n) lw(15.0n) lw(20.8n).
+T{
+Matcher
+T}@T{
+Multiple Values
+T}@T{
+Globs
+T}@T{
+Rich Comparisons
+T}@T{
+Default
+T}
+_
+T{
+\f[V]Distribution=\f[R]
+T}@T{
+yes
+T}@T{
+no
+T}@T{
+no
+T}@T{
+match host distribution
+T}
+T{
+\f[V]Release=\f[R]
+T}@T{
+yes
+T}@T{
+no
+T}@T{
+no
+T}@T{
+match host release
+T}
+T{
+\f[V]PathExists=\f[R]
+T}@T{
+no
+T}@T{
+no
+T}@T{
+no
+T}@T{
+match fails
+T}
+T{
+\f[V]ImageId=\f[R]
+T}@T{
+yes
+T}@T{
+yes
+T}@T{
+no
+T}@T{
+match fails
+T}
+T{
+\f[V]ImageVersion=\f[R]
+T}@T{
+yes
+T}@T{
+no
+T}@T{
+yes
+T}@T{
+match fails
+T}
+.TE
 .SS [Distribution] Section
 .TP
 \f[V]Distribution=\f[R], \f[V]--distribution=\f[R], \f[V]-d\f[R]
@@ -322,8 +420,8 @@ For Arch Linux, additional repositories must be passed in the form
 \f[V]<name>::<url>\f[R] (e.g.\ \f[V]myrepo::https://myrepo.net\f[R]).
 .TP
 \f[V]RepositoryDirectories\f[R], \f[V]--repo-dir=\f[R]
-This option can (for now) only be used with RPM-based distributions and
-Arch Linux.
+This option can (for now) only be used with RPM-based distributions,
+Debian-based distributions and Arch Linux.
 It takes a comma separated list of directories containing extra
 repository definitions that will be used when installing packages.
 The files are passed directly to the corresponding package manager and
@@ -394,6 +492,42 @@ It\[cq]s safe to manually remove the contents of this directory should
 an \f[V]mkosi\f[R] invocation be aborted abnormally (for example, due to
 reboot/power failure).
 .TP
+\f[V]CacheDirectory=\f[R], \f[V]--cache-dir=\f[R]
+Takes a path to a directory to use as package cache for the distribution
+package manager used.
+If this option is not used, but a \f[V]mkosi.cache/\f[R] directory is
+found in the local directory it is automatically used for this purpose.
+The directory configured this way is mounted into both the development
+and the final image while the package manager is running.
+.TP
+\f[V]BuildDirectory=\f[R], \f[V]--build-dir=\f[R]
+Takes a path of a directory to use as build directory for build systems
+that support out-of-tree builds (such as Meson).
+The directory used this way is shared between repeated builds, and
+allows the build system to reuse artifacts (such as object files,
+executable, \&...)
+generated on previous invocations.
+This directory is mounted into the development image when the build
+script is invoked.
+The build script can find the path to this directory in the
+\f[V]$BUILDDIR\f[R] environment variable.
+If this option is not specified, but a directory
+\f[V]mkosi.builddir/\f[R] exists in the local directory it is
+automatically used for this purpose (also see the \[lq]Files\[rq]
+section below).
+.TP
+\f[V]InstallDirectory=\f[R], \f[V]--install-dir=\f[R]
+Takes a path of a directory to use as the install directory.
+The directory used this way is shared between builds and allows the
+build system to not have to reinstall files that were already installed
+by a previous build and didn\[cq]t change.
+The build script can find the path to this directory in the
+\f[V]$DESTDIR\f[R] environment variable.
+If this option is not specified, but a directory
+\f[V]mkosi.installdir\f[R] exists in the local directory, it is
+automatically used for this purpose (also see the \[lq]Files\[rq]
+section below).
+.TP
 \f[V]Force=\f[R], \f[V]--force\f[R], \f[V]-f\f[R]
 Replace the output file if it already exists, when building an image.
 By default when building an image and an output artifact already exists
@@ -452,17 +586,6 @@ kernel image, if \f[V]SecureBoot=\f[R] is used.
 Path to the X.509 file containing the certificate for the signed UEFI
 kernel image, if \f[V]SecureBoot=\f[R] is used.
 .TP
-\f[V]SecureBootCommonName=\f[R], \f[V]--secure-boot-common-name=\f[R]
-Common name to be used when generating SecureBoot keys via mkosi\[cq]s
-\f[V]genkey\f[R] command.
-Defaults to \f[V]mkosi of %u\f[R], where \f[V]%u\f[R] expands to the
-username of the user invoking mkosi.
-.TP
-\f[V]SecureBootValidDays=\f[R], \f[V]--secure-boot-valid-days=\f[R]
-Number of days that the keys should remain valid when generating
-SecureBoot keys via mkosi\[cq]s \f[V]genkey\f[R] command.
-Defaults to two years (730 days).
-.TP
 \f[V]SignExpectedPCR=\f[R], \f[V]--sign-expected-pcr\f[R]
 Measure the components of the unified kernel image (UKI) using
 \f[V]systemd-measure\f[R] and embed the PCR signature into the unified
@@ -499,13 +622,6 @@ scripts invoked (which may be useful to patch it into
 \f[V]/etc/os-release\f[R] or similar, in particular the
 \f[V]IMAGE_VERSION=\f[R] field of it).
 .TP
-\f[V]AutoBump=\f[R], \f[V]--auto-bump=\f[R], \f[V]-B\f[R]
-If specified, after each successful build the the version is bumped in a
-fashion equivalent to the \f[V]bump\f[R] verb, in preparation for the
-next build.
-This is useful for simple, linear version management: each build in a
-series will have a version number one higher then the previous one.
-.TP
 \f[V]ImageId=\f[R], \f[V]--image-id=\f[R]
 Configure the image identifier.
 This accepts a freeform string that shall be used to identify the image
@@ -519,12 +635,6 @@ The identifier is also passed via the \f[V]$IMAGE_ID\f[R] to any build
 scripts invoked (which may be useful to patch it into
 \f[V]/etc/os-release\f[R] or similar, in particular the
 \f[V]IMAGE_ID=\f[R] field of it).
-.TP
-\f[V]CacheInitrd=\f[R], \f[V]--cache-initrd\f[R]
-If specified, and incremental mode is used, mkosi will build the initrd
-in the cache image and reuse it in the final image.
-Note that this means that any changes that are only applied to the final
-image and not the cached image won\[cq]t be included in the initrd.
 .TP
 \f[V]SplitArtifacts=\f[R], \f[V]--split-artifacts\f[R]
 If specified and building a disk image, pass \f[V]--split=yes\f[R] to
@@ -546,6 +656,25 @@ directory, it will be used instead.
 Note that mkosi invokes repart with \f[V]--root=\f[R] set to the root of
 the image root, so any \f[V]CopyFiles=\f[R] source paths in partition
 definition files will be relative to the image root directory.
+.IP
+:: It is recommended to have the \f[V]SplitName\f[R] parameter either
+end with \f[V]%t\f[R] or \f[V].raw\f[R] if the
+\f[V]SplitArtifacts=yes\f[R] option is set.
+This will make sure that split artifacts are compressed and the
+compressed file name is included in the checksum output if
+\f[V]Checksum=yes\f[R] is also set.
+.TP
+\f[V]Overlay=\f[R], \f[V]--overlay\f[R]
+When used together with \f[V]BaseTrees=\f[R], the output will consist
+only out of changes to the specified base trees.
+Each base tree is attached as a lower layer in an overlayfs structure,
+and the output becomes the upper layer, initially empty.
+Thus files that are not modified compared to the base trees will not be
+present in the final output.
+This option may be used to create systemd \[lq]system extensions\[rq] or
+portable services.
+See https://uapi-group.org/specifications/specs/extension_image for more
+information.
 .TP
 \f[V]TarStripSELinuxContext=\f[R], \f[V]--tar-strip-selinux-context\f[R]
 If running on a SELinux-enabled system (Fedora Linux, CentOS, Rocky
@@ -554,12 +683,6 @@ context extended attributes (\f[V]xattrs\f[R]), which may interfere with
 host SELinux rules in building or further container import stages.
 This option strips SELinux context attributes from the resulting tar
 archive.
-.TP
-\f[V]Initrd=\f[R], \f[V]--initrd\f[R]
-Use user-provided initrd(s).
-Takes a comma separated list of paths to initrd files.
-This option may be used multiple times in which case the initrd lists
-are combined.
 .SS [Content] Section
 .TP
 \f[V]Packages=\f[R], \f[V]--package=\f[R], \f[V]-p\f[R]
@@ -612,15 +735,24 @@ integration tests that are normally run during the source build process.
 Note that this option has no effect unless the \f[V]mkosi.build\f[R]
 build script honors it.
 .TP
-\f[V]CacheDirectory=\f[R], \f[V]--cache-dir=\f[R]
-Takes a path to a directory to use as package cache for the distribution
-package manager used.
-If this option is not used, but a \f[V]mkosi.cache/\f[R] directory is
-found in the local directory it is automatically used for this purpose.
-The directory configured this way is mounted into both the development
-and the final image while the package manager is running.
+\f[V]BaseTrees=\f[R], \f[V]--base-tree=\f[R]
+Takes a colon separated pair of directories to use as base images.
+When used, these base images are each copied into the OS tree and form
+the base distribution instead of installing the distribution from
+scratch.
+Only extra packages are installed on top of the ones already installed
+in the base images.
+Note that for this to work properly, the base image still needs to
+contain the package manager metadata (see
+\f[V]CleanPackageMetadata=\f[R]).
+Instead of a directory, a tar file or a disk image may be provided.
+In this case it is unpacked into the OS tree.
+This mode of operation allows setting permissions and file ownership
+explicitly, in particular for projects stored in a version control
+system such as \f[V]git\f[R] which retain full file ownership and access
+mode metadata for committed files.
 .TP
-\f[V]SkeletonTree=\f[R], \f[V]--skeleton-tree=\f[R]
+\f[V]SkeletonTrees=\f[R], \f[V]--skeleton-tree=\f[R]
 Takes a colon separated pair of paths.
 The first path refers to a directory to copy into the OS tree before
 invoking the package manager.
@@ -633,17 +765,12 @@ If this option is not used, but the \f[V]mkosi.skeleton/\f[R] directory
 is found in the local directory it is automatically used for this
 purpose with the root directory as target (also see the \[lq]Files\[rq]
 section below).
-Instead of a directory, a tar file may be provided.
-In this case it is unpacked into the OS tree before the package manager
-is invoked.
-This mode of operation allows setting permissions and file ownership
-explicitly, in particular for projects stored in a version control
-system such as \f[V]git\f[R] which retain full file ownership and access
-mode metadata for committed files.
-If the tar file \f[V]mkosi.skeleton.tar\f[R] is found in the local
-directory it will be automatically used for this purpose.
+As with the base tree logic above, instead of a directory, a tar file
+may be provided too.
+\f[V]mkosi.skeleton.tar\f[R] will be automatically used if found in the
+local directory.
 .TP
-\f[V]ExtraTree=\f[R], \f[V]--extra-tree=\f[R]
+\f[V]ExtraTrees=\f[R], \f[V]--extra-tree=\f[R]
 Takes a colon separated pair of paths.
 The first path refers to a directory to copy from the host into the
 image.
@@ -656,9 +783,9 @@ If this option is not used, but the \f[V]mkosi.extra/\f[R] directory is
 found in the local directory it is automatically used for this purpose
 with the root directory as target.
 (also see the \[lq]Files\[rq] section below).
-As with the skeleton tree logic above, instead of a directory, a tar
-file may be provided too.
-\f[V]mkosi.skeleton.tar\f[R] will be automatically used if found in the
+As with the base tree logic above, instead of a directory, a tar file
+may be provided too.
+\f[V]mkosi.extra.tar\f[R] will be automatically used if found in the
 local directory.
 .TP
 \f[V]CleanPackageMetadata=\f[R], \f[V]--clean-package-metadata=\f[R]
@@ -697,34 +824,6 @@ earlier one.
 \f[V]BuildSources=\f[R], \f[V]--build-sources=\f[R]
 Takes a path to a source tree to mount into the development image, if
 the build script is used.
-.TP
-\f[V]BuildDirectory=\f[R], \f[V]--build-dir=\f[R]
-Takes a path of a directory to use as build directory for build systems
-that support out-of-tree builds (such as Meson).
-The directory used this way is shared between repeated builds, and
-allows the build system to reuse artifacts (such as object files,
-executable, \&...)
-generated on previous invocations.
-This directory is mounted into the development image when the build
-script is invoked.
-The build script can find the path to this directory in the
-\f[V]$BUILDDIR\f[R] environment variable.
-If this option is not specified, but a directory
-\f[V]mkosi.builddir/\f[R] exists in the local directory it is
-automatically used for this purpose (also see the \[lq]Files\[rq]
-section below).
-.TP
-\f[V]InstallDirectory=\f[R], \f[V]--install-dir=\f[R]
-Takes a path of a directory to use as the install directory.
-The directory used this way is shared between builds and allows the
-build system to not have to reinstall files that were already installed
-by a previous build and didn\[cq]t change.
-The build script can find the path to this directory in the
-\f[V]$DESTDIR\f[R] environment variable.
-If this option is not specified, but a directory
-\f[V]mkosi.installdir\f[R] exists in the local directory, it is
-automatically used for this purpose (also see the \[lq]Files\[rq]
-section below).
 .TP
 \f[V]BuildPackages=\f[R], \f[V]--build-package=\f[R]
 Similar to \f[V]Packages=\f[R], but configures packages to install only
@@ -823,18 +922,15 @@ when the image is run.
 If this setting is not used but an \f[V]mkosi.nspawn\f[R] file found in
 the local directory it is automatically used for this purpose.
 .TP
-\f[V]BaseImage=\f[R], \f[V]--base-image=\f[R]
-Use the specified directory or file system image as the base image, and
-create the output image that consists only of changes from this base.
-The base image is attached as the lower file system in an overlayfs
-structure, and the output filesystem becomes the upper layer, initially
-empty.
-Thus files that are not modified compared to the base image are not
-present in the output image.
-This option may be used to create systemd \[lq]system extensions\[rq] or
-portable services.
-See https://systemd.io/PORTABLE_SERVICES/#extension-images for more
-information.
+\f[V]Initrd=\f[R], \f[V]--initrd\f[R]
+Use user-provided initrd(s).
+Takes a comma separated list of paths to initrd files.
+This option may be used multiple times in which case the initrd lists
+are combined.
+.TP
+\f[V]MakeInitrd=\f[R], \f[V]--make-initrd\f[R]
+Add \f[V]/etc/initrd-release\f[R] and \f[V]/init\f[R] to the image so
+that it can be used as an initramfs.
 .SS [Validation] Section
 .TP
 \f[V]Checksum=\f[R], \f[V]--checksum\f[R]
@@ -967,15 +1063,34 @@ removed and then re-created.
 .TP
 \f[V]--debug=\f[R]
 Enable additional debugging output.
-Takes a comma-separated list of arguments specifying the area of
-interest.
-Pass any invalid value (e.g.\ empty) to list currently accepted values.
+.TP
+\f[V]--debug-shell=\f[R]
+When executing a command in the image fails, mkosi will start an
+interactive shell in the image allowing further debugging.
 .TP
 \f[V]--version\f[R]
 Show package version.
 .TP
 \f[V]--help\f[R], \f[V]-h\f[R]
 Show brief usage information.
+.TP
+\f[V]--secure-boot-common-name=\f[R]
+Common name to be used when generating SecureBoot keys via mkosi\[cq]s
+\f[V]genkey\f[R] command.
+Defaults to \f[V]mkosi of %u\f[R], where \f[V]%u\f[R] expands to the
+username of the user invoking mkosi.
+.TP
+\f[V]--secure-boot-valid-days=\f[R]
+Number of days that the keys should remain valid when generating
+SecureBoot keys via mkosi\[cq]s \f[V]genkey\f[R] command.
+Defaults to two years (730 days).
+.TP
+\f[V]--auto-bump=\f[R], \f[V]-B\f[R]
+If specified, after each successful build the the version is bumped in a
+fashion equivalent to the \f[V]bump\f[R] verb, in preparation for the
+next build.
+This is useful for simple, linear version management: each build in a
+series will have a version number one higher then the previous one.
 .SS Supported distributions
 .PP
 Images may be created containing installations of the following
@@ -1545,4 +1660,6 @@ The mkosi OS generation tool (https://lwn.net/Articles/726655/) story on
 LWN
 .SH SEE ALSO
 .PP
-\f[V]systemd-nspawn(1)\f[R], \f[V]dnf(8)\f[R]
+\f[V]systemd-nspawn(1)\f[R], \f[V]dnf(8)\f[R],
+.SH AUTHORS
+The mkosi Authors.

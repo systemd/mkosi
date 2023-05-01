@@ -178,6 +178,19 @@ jobs:
         Format=${{ matrix.format }}
         EOF
 
+    # Make sure systemd-repart and split artifacts generates a usable output for systemd-sysupdate
+    - name: Configure ${{ matrix.distro }}/${{ matrix.format }} repart
+      if: matrix.format == 'disk'
+      run: |
+        tee mkosi.conf.d/01-repart.conf <<- EOF
+        [Output]
+        SplitArtifacts=yes
+        CompressOutput=xz
+
+        [Validation]
+        Checksum=yes
+        EOF
+
     - name: Resolve Arch geo mirror location
       if: matrix.distro == 'arch'
       run: curl -I geo.mirror.pkgbuild.com
@@ -185,12 +198,37 @@ jobs:
     - name: Build ${{ matrix.distro }}/${{ matrix.format }}
       run: python3 -m mkosi build
 
+    - name: Confirm ${{ matrix.distro }}/${{ matrix.format }} repart output
+      if: matrix.format == 'disk'
+      run: |
+        # Check for SHA256SUMS file. It cannot have a prefix.
+        [ -f SHA256SUMS ]
+
+        # Check for a compressed raw disk image
+        grep -q image.raw.xz SHA256SUMS
+
+        # Check for a compressed root split image
+        grep -q image.root-x86-64.raw.xz SHA256SUMS
+
     # systemd-resolved is enabled by default in Arch/Debian/Ubuntu (systemd default preset) but fails to
     # start in a systemd-nspawn container with --private-users so we mask it out here to avoid CI failures.
     # FIXME: Remove when Arch/Debian/Ubuntu ship systemd v253
     - name: Mask systemd-resolved
       if: matrix.format == 'directory'
       run: sudo systemctl --root image mask systemd-resolved
+
+    # The systemd-repart test **needs** compressed artifacts to confirm proper hash output.
+    # Those compressed artifacts are useless for booting. Only decompress what we need.
+    - name: Decompress ${{ matrix.distro }}/${{ matrix.format }} artifacts
+      if: matrix.format == 'disk' || matrix.format == 'directory'
+      run: |
+        if [ -f mkosi.conf.d/01-repart.conf ] ; then rm mkosi.conf.d/01-repart.conf ; fi
+
+        if [ -f mkosi.output/image.efi.xz  ] ; then xz --decompress mkosi.output/image.efi.xz  ; fi
+        if [ -f mkosi.output/image.efi.zst ] ; then zst -d --rm     mkosi.output/image.efi.zst ; fi
+
+        if [ -f mkosi.output/image.raw.xz  ] ; then xz --decompress mkosi.output/image.raw.xz  ; fi
+        if [ -f mkosi.output/image.raw.zst ] ; then zst -d --rm     mkosi.output/image.raw.zst ; fi
 
     - name: Boot ${{ matrix.distro }}/${{ matrix.format }} systemd-nspawn
       if: matrix.format == 'disk' || matrix.format == 'directory'

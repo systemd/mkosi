@@ -616,11 +616,11 @@ class MkosiConfig:
 
     @property
     def output_checksum(self) -> Path:
-        return build_auxiliary_output_path(self, ".SHA256SUMS")
+        return self.output.parent / "SHA256SUMS"
 
     @property
     def output_signature(self) -> Path:
-        return build_auxiliary_output_path(self, ".SHA256SUMS.gpg")
+        return self.output.parent / "SHA256SUMS.gpg"
 
     @property
     def output_sshkey(self) -> Path:
@@ -1801,6 +1801,7 @@ def strip_suffixes(path: Path) -> Path:
     while path.suffix in {
         ".xz",
         ".zstd",
+        ".zst",
         ".raw",
         ".tar",
         ".cpio",
