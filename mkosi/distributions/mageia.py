@@ -2,6 +2,7 @@
 
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Optional
 
 from mkosi.distributions import DistributionInstaller
 from mkosi.distributions.fedora import Repo, invoke_dnf, setup_dnf
@@ -12,6 +13,10 @@ class MageiaInstaller(DistributionInstaller):
     @classmethod
     def filesystem(cls) -> str:
         return "ext4"
+
+    @classmethod
+    def cache_path(cls) -> Optional[Path]:
+        return Path("/var/cache/dnf")
 
     @classmethod
     def install(cls, state: MkosiState) -> None:

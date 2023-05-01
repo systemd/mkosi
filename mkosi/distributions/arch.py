@@ -1,7 +1,9 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 from collections.abc import Sequence
+from pathlib import Path
 from textwrap import dedent
+from typing import Optional
 
 from mkosi.distributions import DistributionInstaller
 from mkosi.run import bwrap
@@ -14,6 +16,10 @@ class ArchInstaller(DistributionInstaller):
     @classmethod
     def filesystem(cls) -> str:
         return "ext4"
+
+    @classmethod
+    def cache_path(cls) -> Optional[Path]:
+        return Path("/var/cache/pacman/pkg/")
 
     @classmethod
     def install(cls, state: MkosiState) -> None:

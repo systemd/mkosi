@@ -2,7 +2,7 @@
 
 from collections.abc import Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from mkosi.state import MkosiState
@@ -32,6 +32,10 @@ class DistributionInstaller:
     @classmethod
     def filesystem(cls) -> str:
         raise NotImplementedError
+
+    @classmethod
+    def cache_path(cls) -> Optional[Path]:
+        return None
 
     @classmethod
     def filesystem_options(cls, state: "MkosiState") -> dict[str, list[str]]:

@@ -23,6 +23,10 @@ class FedoraInstaller(DistributionInstaller):
         return "btrfs"
 
     @classmethod
+    def cache_path(cls) -> Optional[Path]:
+        return Path("/var/cache/dnf")
+
+    @classmethod
     def install(cls, state: MkosiState) -> None:
         cls.install_packages(state, ["filesystem"], apivfs=False)
 

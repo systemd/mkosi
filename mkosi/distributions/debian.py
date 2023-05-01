@@ -5,6 +5,7 @@ import tempfile
 from collections.abc import Sequence
 from pathlib import Path
 from textwrap import dedent
+from typing import Optional
 
 from mkosi.distributions import DistributionInstaller
 from mkosi.run import bwrap, run
@@ -16,6 +17,10 @@ class DebianInstaller(DistributionInstaller):
     @classmethod
     def filesystem(cls) -> str:
         return "ext4"
+
+    @classmethod
+    def cache_path(cls) -> Optional[Path]:
+        return Path("/var/cache/apt/")
 
     @staticmethod
     def kernel_image(name: str, architecture: str) -> Path:

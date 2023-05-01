@@ -3,6 +3,7 @@
 from collections.abc import Sequence
 from pathlib import Path
 from textwrap import dedent
+from typing import Optional
 
 from mkosi.distributions import DistributionInstaller
 from mkosi.run import bwrap
@@ -14,6 +15,10 @@ class OpensuseInstaller(DistributionInstaller):
     @classmethod
     def filesystem(cls) -> str:
         return "btrfs"
+
+    @classmethod
+    def cache_path(cls) -> Optional[Path]:
+        return Path("/var/cache/zypp")
 
     @classmethod
     def install(cls, state: MkosiState) -> None:

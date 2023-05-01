@@ -393,6 +393,9 @@ def run_prepare_script(state: MkosiState, build: bool) -> None:
         "--chdir", "/root/src",
     ]
 
+    if state.installer.cache_path():
+        bwrap.extend(["--bind", state.cache, cast(Path, state.installer.cache_path())])
+
     def clean() -> None:
         srcdir = state.root / "root/src"
         if srcdir.exists():
@@ -430,6 +433,9 @@ def run_postinst_script(state: MkosiState) -> None:
         bwrap: list[PathString] = [
             "--bind", state.config.postinst_script, "/root/postinst",
         ]
+
+    if state.installer.cache_path():
+        bwrap.extend(["--bind", state.cache, cast(Path, state.installer.cache_path())])
 
         run_workspace_command(state.root, ["/root/postinst", "final"], bwrap_params=bwrap,
                               network=state.config.with_network, env=state.environment)
@@ -1570,6 +1576,9 @@ def run_build_script(state: MkosiState) -> None:
             "--bind", install_dir(state), "/work/dest",
             "--chdir", "/work/src",
         ]
+
+        if state.installer.cache_path():
+            bwrap.extend(["--bind", state.cache, cast(Path, state.installer.cache_path())])
 
         env = dict(
             WITH_DOCS=one_zero(state.config.with_docs),
