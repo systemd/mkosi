@@ -1129,14 +1129,10 @@ local directory:
   place, without any `$SRCDIR`/`$DESTDIR` setup.
 
 * The **`mkosi.finalize`** script, if it exists, is invoked as last
-  step of preparing an image, from the host system.  It is once called
-  for the *development* image (if this is enabled, see above) with the
-  "build" command line parameter, as the last step before invoking the
-  build script, after the `mkosi.postinst` script is invoked. It is
-  called the second time with the "final" command line parameter as
-  the last step before the image is considered complete. The
-  environment variable `$BUILDROOT` points to the root directory of
-  the installation image. Additional verbs may be added in the future,
+  step of preparing an image, from the host system. The environment
+  variable `$BUILDROOT` points to the root directory of the
+  installation image and `$OUTPUTDIR` points to `--output-dir/OutputDir=`
+  Additional verbs may be added in the future;
   the script should be prepared for that. This script may be used to
   alter the images without any restrictions, after all software
   packages and built sources have been installed. This script is more
