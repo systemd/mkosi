@@ -94,9 +94,32 @@ def btrfs_subvol_create(path: Path, mode: int = 0o755) -> None:
         run(["btrfs", "subvol", "create", path])
 
 
+def btrfs_subvol_snapshot(source: Path, destination: Path, mode: int = 0o755) -> None:
+    with set_umask(~mode & 0o7777):
+        run(["btrfs", "subvol", "snapshot", source, destination])
+
+
 @contextlib.contextmanager
 def mount_image(state: MkosiState) -> Iterator[None]:
     with complete_step("Mounting image…", "Unmounting image…"), contextlib.ExitStack() as stack:
+
+        @stack.callback
+        def subvolume_create() -> None:
+            if state.output_format == OutputFormat.subvolume:
+                if state.btrfs_snapshot:
+                    logging.debug("maybe_btrfs_snapshot() will take subvolume snapshot")
+                    if not state.root.exists():
+                        logging.critical(f"Not found expected root: {state.root}")
+                    if state.config.output.exists():
+                        logging.critical(f"Found unexpected existing output: {state.config.output}")
+                    btrfs_subvol_snapshot(state.root, state.config.output)
+                else:
+                    btrfs_subvol_create(state.config.output)
+                    shutil.move(state.root, state.config.output)
+                if not state.output_format == state.config.output_format:
+                    # when different it means a read-only subvol is required
+                    run(["btrfs", "property", "set", "-t", "subvol", f"{state.config.output}", "ro", "true"])
+
 
         if state.config.base_trees and state.config.overlay:
             bases = []
@@ -123,7 +146,7 @@ def mount_image(state: MkosiState) -> Iterator[None]:
 
 
 def prepare_tree_root(state: MkosiState) -> None:
-    if state.config.output_format == OutputFormat.subvolume:
+    if state.output_format == OutputFormat.subvolume:
         with complete_step("Setting up OS tree root…"):
             btrfs_subvol_create(state.root)
 
@@ -949,7 +972,7 @@ def print_output_size(config: MkosiConfig) -> None:
     if not config.output_compressed.exists():
         return
 
-    if config.output_format in (OutputFormat.directory, OutputFormat.subvolume):
+    if config.output_format in (OutputFormat.directory, OutputFormat.subvolume, OutputFormat.subvolume_ro):
         log_step("Resulting image size is " + format_bytes(dir_size(config.output)) + ".")
     else:
         st = os.stat(config.output_compressed)
@@ -1640,6 +1663,22 @@ def acl_toggle_build(state: MkosiState) -> Iterator[None]:
 def build_stuff(uid: int, gid: int, args: MkosiArgs, config: MkosiConfig) -> None:
     workspace = tempfile.TemporaryDirectory(dir=config.workspace_dir or Path.cwd(), prefix=".mkosi.tmp")
     workspace_dir = Path(workspace.name)
+
+    btrfs_snapshot = False
+    findmnt_args= ["findmnt", "--output", "FSTYPE,SOURCE", "--noheadings", "--target"]
+    if config.output_format in [OutputFormat.subvolume, OutputFormat.subvolume_ro]:
+        wfstype,wfspath = run(findmnt_args + [f"{config.workspace_dir}"], text=True, stdout=subprocess.PIPE).stdout.strip().split()
+        ofstype,ofspath = run(findmnt_args + [f"{config.output_dir}"], text=True, stdout=subprocess.PIPE).stdout.strip().split()
+
+        if wfstype == ofstype:
+            logging.debug("Workspace and Output are BTRFS subvolumes")
+            if wfspath == ofspath:
+                logging.debug("Workspace and Output are the same BTRFS file-system path")
+                btrfs_snapshot = True
+                # cannot call prepare_tree_root() as no MkosiState exists yet
+                # but need to create this before state is created and its __post_init__() does self.root.mkdir(exist_ok=True, mode=0o755)
+                btrfs_subvol_create(workspace_dir / "root")
+
     cache = config.cache_dir or workspace_dir / "cache"
 
     state = MkosiState(
@@ -1648,7 +1687,14 @@ def build_stuff(uid: int, gid: int, args: MkosiArgs, config: MkosiConfig) -> Non
         config=config,
         workspace=workspace_dir,
         cache=cache,
+        output_format=config.output_format,
+        btrfs_snapshot=btrfs_snapshot,
     )
+
+    if state.config.output_format == OutputFormat.subvolume_ro:
+        # when these are different output BTRFS subvol should be set read-only
+        state.output_format = OutputFormat.subvolume
+        logging.debug(f"output_format={state.config.output_format} {state.output_format}")
 
     manifest = Manifest(config)
 
@@ -1736,7 +1782,7 @@ def acl_toggle_boot(config: MkosiConfig) -> Iterator[None]:
 def run_shell(args: MkosiArgs, config: MkosiConfig) -> None:
     cmdline: list[PathString] = ["systemd-nspawn", "--quiet"]
 
-    if config.output_format in (OutputFormat.directory, OutputFormat.subvolume):
+    if config.output_format in (OutputFormat.directory, OutputFormat.subvolume, OutputFormat.subvolume_ro):
         cmdline += ["--directory", config.output]
 
         owner = os.stat(config.output).st_uid
@@ -2130,6 +2176,7 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
     if args.verb == Verb.qemu and last.output_format in (
         OutputFormat.directory,
         OutputFormat.subvolume,
+        OutputFormat.subvolume_ro,
         OutputFormat.tar,
     ):
         die(f"{last.output_format} images cannot be booted in qemu.")

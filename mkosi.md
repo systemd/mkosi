@@ -331,7 +331,8 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 
 : The image format type to generate. One of `directory` (for generating OS
   images inside a local directory), `subvolume` (similar, but as a btrfs
-  subvolume), `tar` (similar, but a tarball of the image is generated), `cpio`
+  subvolume), `subvolume_ro` (btrfs read-only subvolume),
+  `tar` (similar, but a tarball of the image is generated), `cpio`
   (similar, but a cpio archive is generated), `disk` (a block device image
   with a GPT partition table).
 

@@ -177,6 +177,7 @@ def is_apt_distribution(d: Distribution) -> bool:
 class OutputFormat(str, enum.Enum):
     directory = "directory"
     subvolume = "subvolume"
+    subvolume_ro = "subvolume_ro"
     tar = "tar"
     cpio = "cpio"
     disk = "disk"
