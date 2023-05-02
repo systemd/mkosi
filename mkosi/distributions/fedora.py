@@ -8,7 +8,7 @@ import urllib.request
 from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
 from textwrap import dedent
-from typing import Any, NamedTuple, Optional
+from typing import Any, NamedTuple
 
 from mkosi.distributions import DistributionInstaller
 from mkosi.remove import unlink_try_hard
@@ -91,24 +91,18 @@ class Repo(NamedTuple):
     id: str
     url: str
     gpgpath: Path
-    gpgurl: Optional[str] = None
+    gpgurl: str
     enabled: bool = True
 
 
 def setup_dnf(state: MkosiState, repos: Sequence[Repo] = ()) -> None:
     with state.workspace.joinpath("dnf.conf").open("w") as f:
-        gpgcheck = True
-
         for repo in repos:
-            gpgkey: Optional[str] = None
 
             if repo.gpgpath.exists():
                 gpgkey = f"file://{repo.gpgpath}"
-            elif repo.gpgurl:
-                gpgkey = repo.gpgurl
             else:
-                logging.warning(f"GPG key not found at {repo.gpgpath}. Not checking GPG signatures.")
-                gpgcheck = False
+                gpgkey = repo.gpgurl
 
             f.write(
                 dedent(
@@ -116,8 +110,8 @@ def setup_dnf(state: MkosiState, repos: Sequence[Repo] = ()) -> None:
                     [{repo.id}]
                     name={repo.id}
                     {repo.url}
-                    gpgkey={gpgkey or ''}
-                    gpgcheck={int(gpgcheck)}
+                    gpgkey={gpgkey}
+                    gpgcheck=1
                     enabled={int(repo.enabled)}
                     """
                 )

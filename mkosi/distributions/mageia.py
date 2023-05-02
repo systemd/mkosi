@@ -40,10 +40,11 @@ class MageiaInstaller(DistributionInstaller):
                 updates_url = f"mirrorlist={baseurl}&repo=updates"
 
         gpgpath = Path("/etc/pki/rpm-gpg/RPM-GPG-KEY-Mageia")
+        gpgurl = f"https://mirrors.kernel.org/mageia/distrib/{release}/{state.config.architecture}/media/core/release/media_info/pubkey"
 
-        repos = [Repo(f"mageia-{release}", release_url, gpgpath)]
+        repos = [Repo(f"mageia-{release}", release_url, gpgpath, gpgurl)]
         if updates_url is not None:
-            repos += [Repo(f"mageia-{release}-updates", updates_url, gpgpath)]
+            repos += [Repo(f"mageia-{release}-updates", updates_url, gpgpath, gpgurl)]
 
         setup_dnf(state, repos)
         invoke_dnf(state, "install", packages, apivfs=apivfs)

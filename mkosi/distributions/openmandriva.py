@@ -41,10 +41,11 @@ class OpenmandrivaInstaller(DistributionInstaller):
             updates_url = f"mirrorlist={baseurl}&release=updates"
 
         gpgpath = Path("/etc/pki/rpm-gpg/RPM-GPG-KEY-OpenMandriva")
+        gpgurl = "https://raw.githubusercontent.com/OpenMandrivaAssociation/openmandriva-repos/master/RPM-GPG-KEY-OpenMandriva"
 
-        repos = [Repo("openmandriva", release_url, gpgpath)]
+        repos = [Repo("openmandriva", release_url, gpgpath, gpgurl)]
         if updates_url is not None:
-            repos += [Repo("updates", updates_url, gpgpath)]
+            repos += [Repo("updates", updates_url, gpgpath, gpgurl)]
 
         setup_dnf(state, repos)
         invoke_dnf(state, "install", packages, apivfs=apivfs)
