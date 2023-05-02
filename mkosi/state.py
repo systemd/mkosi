@@ -20,6 +20,7 @@ class MkosiState:
     cache: Path
     environment: dict[str, str] = dataclasses.field(init=False)
     installer: DistributionInstaller = dataclasses.field(init=False)
+    btrfs_snapshot: bool = False
 
     def __post_init__(self) -> None:
         self.environment = self.config.environment.copy()
