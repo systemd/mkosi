@@ -136,6 +136,7 @@ in consecutive runs with data from the cached one.
 * Run build script on image + build overlay if a build script is configured (`mkosi.build`)
 * Copy the build script outputs into the image
 * Copy the extra trees into the image (`mkosi.extra`)
+* Install package files (`mkosi.packagedir`)
 * Run `kernel-install`
 * Install systemd-boot
 * Run post-install script (`mkosi.postinst`)
@@ -584,6 +585,14 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   would remove the apache2 package. To replace the apache2 package by
   the httpd package just add -p "!apache2,httpd" to the command line
   arguments. To remove all packages use "!\*".
+
+`PackageDirectories=`, `--package-dir=`
+
+: Install package files (i.e. .rpm or .deb archives) from the specified
+  directories into the image. Place packages that cannot be fetched using the
+  package manager into this directory. This step is performed after the build
+  script is run to support installing built package files. Note that
+  `mkosi.installdir` is **not** automatically processed.
 
 : Example: when using an distro that uses `dnf`,
   `Packages=meson libfdisk-devel.i686 git-* prebuilt/rpms/systemd-249-rc1.local.rpm /usr/bin/ld @development-tools python3dist(mypy)`

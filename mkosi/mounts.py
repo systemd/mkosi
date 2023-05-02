@@ -85,6 +85,12 @@ def mount(
 
 
 @contextlib.contextmanager
+def mount_bind(what: PathString, where: Path) -> Iterator[Path]:
+    with mount(what, where, options=["bind"]):
+        yield where
+
+
+@contextlib.contextmanager
 def mount_overlay(
     lowerdirs: Sequence[Path],
     upperdir: Path,

@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
+import shutil
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -17,8 +18,8 @@ class MageiaInstaller(DistributionInstaller):
     def install(cls, state: MkosiState) -> None:
         cls.install_packages(state, ["filesystem"], apivfs=False)
 
-    @classmethod
-    def install_packages(cls, state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
+    @staticmethod
+    def repositories(state: MkosiState) -> list[Repo]:
         release = state.config.release.strip("'")
 
         if state.config.local_mirror:
@@ -45,8 +46,32 @@ class MageiaInstaller(DistributionInstaller):
         if updates_url is not None:
             repos += [Repo(f"mageia-{release}-updates", updates_url, gpgpath)]
 
+        return repos
+
+    @classmethod
+    def install_packages(cls, state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
+        repos = cls.repositories(state)
         setup_dnf(state, repos)
         invoke_dnf(state, "install", packages, apivfs=apivfs)
+
+    @classmethod
+    def install_package_files(cls, state: MkosiState, dir: Path) -> None:
+        repos = cls.repositories(state)
+        setup_dnf(state, repos)
+
+        file_paths : list[str] = [
+            str(state.root / "packages" / p.name)
+            for p in dir.iterdir()
+            if p.name.endswith('.rpm')
+        ]
+
+        if (shutil.which('dnf5') or shutil.which('dnf') or 'yum') == 'yum':
+            verb = "localinstall"
+        else:
+            verb = "install"
+
+        if file_paths:
+            invoke_dnf(state, verb, file_paths)
 
     @classmethod
     def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
