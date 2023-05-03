@@ -55,9 +55,9 @@ class FedoraInstaller(DistributionInstaller):
         # See: https://fedoraproject.org/security/
         gpgurl = "https://fedoraproject.org/fedora.gpg"
 
-        repos = [Repo("fedora", release_url, gpgurl)]
+        repos = [Repo("fedora", release_url, [gpgurl])]
         if updates_url is not None:
-            repos += [Repo("updates", updates_url, gpgurl)]
+            repos += [Repo("updates", updates_url, [gpgurl])]
 
         setup_dnf(state, repos)
         invoke_dnf(state, "install", packages, apivfs=apivfs)
@@ -89,11 +89,11 @@ def url_exists(url: str) -> bool:
 class Repo(NamedTuple):
     id: str
     url: str
-    gpgurl: str
+    gpgurls: list[str]
     enabled: bool = True
 
 
-def setup_dnf(state: MkosiState, repos: Sequence[Repo] = ()) -> None:
+def setup_dnf(state: MkosiState, repos: Sequence[Repo]) -> None:
     with state.workspace.joinpath("dnf.conf").open("w") as f:
         for repo in repos:
             f.write(
@@ -102,12 +102,15 @@ def setup_dnf(state: MkosiState, repos: Sequence[Repo] = ()) -> None:
                     [{repo.id}]
                     name={repo.id}
                     {repo.url}
-                    gpgkey={repo.gpgurl}
                     gpgcheck=1
                     enabled={int(repo.enabled)}
                     """
                 )
             )
+
+            for i, url in enumerate(repo.gpgurls):
+                f.write("gpgkey=" if i == 0 else len("gpgkey=") * " ")
+                f.write(f"{url}\n")
 
 
 def invoke_dnf(

@@ -144,8 +144,8 @@ class CentosInstaller(DistributionInstaller):
             epel_testing_url = "metalink=https://mirrors.fedoraproject.org/metalink?repo=testing-epel$releasever&arch=$basearch"
 
         return [
-            Repo("epel", epel_url, epel_gpgurl, enabled=False),
-            Repo("epel-testing", epel_testing_url, epel_gpgurl, enabled=False),
+            Repo("epel", epel_url, [epel_gpgurl], enabled=False),
+            Repo("epel-testing", epel_testing_url, [epel_gpgurl], enabled=False),
         ]
 
     @classmethod
@@ -179,15 +179,15 @@ class CentosInstaller(DistributionInstaller):
                 crb_url = None
                 powertools_url = f"mirrorlist={cls._mirror_repo_url('PowerTools')}"
 
-        repos = [Repo("appstream", appstream_url, gpgurl)]
+        repos = [Repo("appstream", appstream_url, [gpgurl])]
         if baseos_url is not None:
-            repos += [Repo("baseos", baseos_url, gpgurl)]
+            repos += [Repo("baseos", baseos_url, [gpgurl])]
         if extras_url is not None:
-            repos += [Repo("extras", extras_url, gpgurl)]
+            repos += [Repo("extras", extras_url, [gpgurl])]
         if crb_url is not None:
-            repos += [Repo("crb", crb_url, gpgurl)]
+            repos += [Repo("crb", crb_url, [gpgurl])]
         if powertools_url is not None:
-            repos += [Repo("powertools", powertools_url, gpgurl)]
+            repos += [Repo("powertools", powertools_url, [gpgurl])]
         repos += cls._epel_repos(config)
 
         return repos
@@ -213,13 +213,13 @@ class CentosInstaller(DistributionInstaller):
             extras_url = "metalink=https://mirrors.centos.org/metalink?repo=centos-extras-sig-extras-common-$stream&arch=$basearch&protocol=https,http"
             crb_url = "metalink=https://mirrors.centos.org/metalink?repo=centos-crb-$stream&arch=$basearch&protocol=https,http"
 
-        repos = [Repo("appstream", appstream_url, gpgurl)]
+        repos = [Repo("appstream", appstream_url, [gpgurl])]
         if baseos_url is not None:
-            repos += [Repo("baseos", baseos_url, gpgurl)]
+            repos += [Repo("baseos", baseos_url, [gpgurl])]
         if extras_url is not None:
-            repos += [Repo("extras", extras_url, extras_gpgurl)]
+            repos += [Repo("extras", extras_url, [extras_gpgurl])]
         if crb_url is not None:
-            repos += [Repo("crb", crb_url, gpgurl)]
+            repos += [Repo("crb", crb_url, [gpgurl])]
         repos += cls._epel_repos(config)
 
         return repos

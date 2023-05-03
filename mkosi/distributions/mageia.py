@@ -40,9 +40,9 @@ class MageiaInstaller(DistributionInstaller):
 
         gpgurl = f"https://mirrors.kernel.org/mageia/distrib/{release}/{state.config.architecture}/media/core/release/media_info/pubkey"
 
-        repos = [Repo(f"mageia-{release}", release_url, gpgurl)]
+        repos = [Repo(f"mageia-{release}", release_url, [gpgurl])]
         if updates_url is not None:
-            repos += [Repo(f"mageia-{release}-updates", updates_url, gpgurl)]
+            repos += [Repo(f"mageia-{release}-updates", updates_url, [gpgurl])]
 
         setup_dnf(state, repos)
         invoke_dnf(state, "install", packages, apivfs=apivfs)
