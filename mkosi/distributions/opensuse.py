@@ -1,13 +1,13 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
+import urllib.request
+import xml.etree.ElementTree as ElementTree
 from collections.abc import Sequence
-from textwrap import dedent
 
 from mkosi.distributions import DistributionInstaller
-from mkosi.distributions.fedora import fixup_rpmdb_location
-from mkosi.run import bwrap
+from mkosi.distributions.fedora import Repo, invoke_dnf, setup_dnf
+from mkosi.log import die
 from mkosi.state import MkosiState
-from mkosi.types import PathString
 
 
 class OpensuseInstaller(DistributionInstaller):
@@ -34,74 +34,38 @@ class OpensuseInstaller(DistributionInstaller):
             release_url = f"{state.config.mirror}/tumbleweed/repo/oss/"
             updates_url = f"{state.config.mirror}/update/tumbleweed/"
         elif release in ("current", "stable"):
-            release_url = f"{state.config.mirror}/distribution/openSUSE-stable/repo/oss/"
+            release_url = f"{state.config.mirror}/distribution/openSUSE-{release}/repo/oss/"
             updates_url = f"{state.config.mirror}/update/openSUSE-{release}/"
         else:
             release_url = f"{state.config.mirror}/distribution/leap/{release}/repo/oss/"
             updates_url = f"{state.config.mirror}/update/leap/{release}/oss/"
 
-        repos = [("repo-oss", release_url)]
+        repos = [Repo("repo-oss", f"baseurl={release_url}", fetch_gpgurls(release_url))]
         if updates_url is not None:
-            repos += [("repo-update", updates_url)]
+            repos += [Repo("repo-update", f"baseurl={updates_url}", fetch_gpgurls(updates_url))]
 
-        setup_zypper(state, repos)
-        invoke_zypper(state, "install", ["-y", "--download-in-advance", "--no-recommends"], packages, apivfs=apivfs)
+        setup_dnf(state, repos)
+        invoke_dnf(state, "install", packages, apivfs=apivfs)
 
     @classmethod
     def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
-        invoke_zypper(state, "remove", ["-y", "--clean-deps"], packages)
+        invoke_dnf(state, "remove", packages)
 
 
-def setup_zypper(state: MkosiState, repos: Sequence[tuple[str, str]] = ()) -> None:
-    with state.workspace.joinpath("zypp.conf").open("w") as f:
-        f.write(
-            dedent(
-                f"""\
-                [main]
-                rpm.install.excludedocs = {"no" if state.config.with_docs else "yes"}
-                """
-            )
-        )
+def fetch_gpgurls(repourl: str) -> list[str]:
+    gpgurls = [f"{repourl}/repodata/repomd.xml.key"]
 
-    state.workspace.joinpath("zypp.repos.d").mkdir(exist_ok=True)
+    with urllib.request.urlopen(f"{repourl}/repodata/repomd.xml") as f:
+        xml = f.read().decode()
+        root = ElementTree.fromstring(xml)
 
-    with state.workspace.joinpath("zypp.repos.d/mkosi.repo").open("w") as f:
-        for id, url in repos:
-            f.write(
-                dedent(
-                    f"""\
-                    [{id}]
-                    name={id}
-                    baseurl={url}
-                    autorefresh=0
-                    enabled=1
-                    keeppackages=1
-                    """
-                )
-            )
+        tags = root.find("{http://linux.duke.edu/metadata/repo}tags")
+        if not tags:
+            die("repomd.xml missing <tags> element")
 
+        for child in tags.iter("{http://linux.duke.edu/metadata/repo}content"):
+            if child.text and child.text.startswith("gpg-pubkey"):
+                gpgkey = child.text.partition("?")[0]
+                gpgurls += [f"{repourl}{gpgkey}"]
 
-def invoke_zypper(
-    state: MkosiState,
-    verb: str,
-    options: Sequence[str],
-    packages: Sequence[str],
-    apivfs: bool = True
-) -> None:
-    cmdline: list[PathString] = [
-        "zypper",
-        "--root", state.root,
-        f"--cache-dir={state.cache}",
-        f"--reposd-dir={state.workspace / 'zypp.repos.d'}",
-        "--gpg-auto-import-keys" if state.config.repository_key_check else "--no-gpg-checks",
-        "--non-interactive",
-        verb,
-        *options,
-        *packages,
-    ]
-
-    env = dict(ZYPP_CONF=str(state.workspace / "zypp.conf"), KERNEL_INSTALL_BYPASS="1") | state.environment
-
-    bwrap(cmdline, apivfs=state.root if apivfs else None, env=env)
-
-    fixup_rpmdb_location(state.root)
+    return gpgurls
