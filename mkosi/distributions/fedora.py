@@ -145,6 +145,11 @@ def invoke_dnf(
         "--noplugins",
     ]
 
+    # Make sure we download filelists so all dependencies can be resolved.
+    # See https://bugzilla.redhat.com/show_bug.cgi?id=2180842
+    if shutil.which("dnf5"):
+        cmdline += ["--setopt=optional_metadata_types=filelists"]
+
     if not state.config.repository_key_check:
         cmdline += ["--nogpgcheck"]
 
