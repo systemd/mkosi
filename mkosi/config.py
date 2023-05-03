@@ -173,7 +173,7 @@ def config_default_release(namespace: argparse.Namespace) -> Any:
         Distribution.centos: "9",
         Distribution.rocky: "9",
         Distribution.alma: "9",
-        Distribution.mageia: "7",
+        Distribution.mageia: "cauldron",
         Distribution.debian: "testing",
         Distribution.ubuntu: "jammy",
         Distribution.opensuse: "tumbleweed",
