@@ -1,24 +1,16 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
-from pathlib import Path
-
 from mkosi.distributions.centos import CentosInstaller
 
 
 class AlmaInstaller(CentosInstaller):
     @staticmethod
-    def _gpg_locations(release: int) -> tuple[Path, str]:
-        return (
-            Path("/etc/pki/rpm-gpg/RPM-GPG-KEY-AlmaLinux-$releasever"),
-            "https://repo.almalinux.org/almalinux/RPM-GPG-KEY-AlmaLinux-$releasever",
-        )
+    def _gpgurl(release: int) -> str:
+        return "https://repo.almalinux.org/almalinux/RPM-GPG-KEY-AlmaLinux-$releasever"
 
     @staticmethod
-    def _extras_gpg_locations(release: int) -> tuple[Path, str]:
-        return (
-            Path("/etc/pki/rpm-gpg/RPM-GPG-KEY-AlmaLinux-$releasever"),
-            "https://repo.almalinux.org/almalinux/RPM-GPG-KEY-AlmaLinux-$releasever",
-        )
+    def _extras_gpgurl(release: int) -> str:
+        return "https://repo.almalinux.org/almalinux/RPM-GPG-KEY-AlmaLinux-$releasever"
 
     @classmethod
     def _mirror_directory(cls) -> str:

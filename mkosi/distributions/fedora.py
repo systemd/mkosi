@@ -52,13 +52,12 @@ class FedoraInstaller(DistributionInstaller):
             # In other versions, the "fedora" repo is frozen at release, and "updates" provides any new packages.
             updates_url = None
 
-        gpgpath = Path(f"/etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-{releasever}-{state.config.architecture}")
         # See: https://fedoraproject.org/security/
         gpgurl = "https://fedoraproject.org/fedora.gpg"
 
-        repos = [Repo("fedora", release_url, gpgpath, gpgurl)]
+        repos = [Repo("fedora", release_url, gpgurl)]
         if updates_url is not None:
-            repos += [Repo("updates", updates_url, gpgpath, gpgurl)]
+            repos += [Repo("updates", updates_url, gpgurl)]
 
         setup_dnf(state, repos)
         invoke_dnf(state, "install", packages, apivfs=apivfs)
@@ -90,7 +89,6 @@ def url_exists(url: str) -> bool:
 class Repo(NamedTuple):
     id: str
     url: str
-    gpgpath: Path
     gpgurl: str
     enabled: bool = True
 
@@ -98,19 +96,13 @@ class Repo(NamedTuple):
 def setup_dnf(state: MkosiState, repos: Sequence[Repo] = ()) -> None:
     with state.workspace.joinpath("dnf.conf").open("w") as f:
         for repo in repos:
-
-            if repo.gpgpath.exists():
-                gpgkey = f"file://{repo.gpgpath}"
-            else:
-                gpgkey = repo.gpgurl
-
             f.write(
                 dedent(
                     f"""\
                     [{repo.id}]
                     name={repo.id}
                     {repo.url}
-                    gpgkey={gpgkey}
+                    gpgkey={repo.gpgurl}
                     gpgcheck=1
                     enabled={int(repo.enabled)}
                     """
