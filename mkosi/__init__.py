@@ -835,10 +835,6 @@ def compress_output(config: MkosiConfig, src: Path, uid: int, gid: int) -> None:
             run(["fallocate", "--dig-holes", src], user=uid, group=gid)
     else:
         with complete_step(f"Compressing output file {src}…"):
-            compressed_path = Path(f"{src}.{config.compress_output.value}")
-            if compressed_path.exists():
-                compressed_path.unlink()
-
             run(compressor_command(config.compress_output, src), user=uid, group=gid)
 
 
@@ -869,14 +865,11 @@ def calculate_sha256sum(state: MkosiState) -> None:
         return None
 
     with complete_step("Calculating SHA256SUMS…"):
-        with open(state.staging / state.config.output_checksum.name, "w") as f:
-            for p in state.config.output.parent.iterdir():
-                # Only hash files that start with the output name prefix
-                if p.name.startswith(state.config.output.with_suffix("").name):
-                    hash_file(f, p)
+        with open(state.workspace / state.config.output_checksum.name, "w") as f:
+            for p in state.staging.iterdir():
+                hash_file(f, p)
 
-        os.rename(state.staging / state.config.output_checksum.name, state.config.output_checksum)
-        os.chown(state.config.output_checksum, uid=state.uid, gid=state.gid)
+        os.rename(state.workspace / state.config.output_checksum.name, state.staging / state.config.output_checksum.name)
 
 
 def calculate_signature(state: MkosiState) -> None:
@@ -892,7 +885,7 @@ def calculate_signature(state: MkosiState) -> None:
 
         cmdline += [
             "--output", state.staging / state.config.output_signature.name,
-            state.config.output_checksum,
+            state.staging / state.config.output_checksum.name,
         ]
 
         run(
@@ -910,9 +903,6 @@ def calculate_signature(state: MkosiState) -> None:
                 )
             }
         )
-
-        os.rename(state.staging / state.config.output_signature.name, state.config.output_signature)
-        os.chown(state.config.output_signature, uid=state.uid, gid=state.gid)
 
 
 def save_cache(state: MkosiState) -> None:
@@ -984,8 +974,6 @@ def unlink_output(args: MkosiArgs, config: MkosiConfig) -> None:
                     unlink_try_hard(p)
 
         unlink_try_hard(Path(f"{config.output}.manifest"))
-        if config.compress_output:
-            unlink_try_hard(Path(f"{config.output}.manifest.{config.compress_output.value}"))
         unlink_try_hard(Path(f"{config.output}.changelog"))
 
         if config.output_split_kernel.parent.exists():
@@ -1456,7 +1444,6 @@ def invoke_repart(state: MkosiState, skip: Sequence[str] = [], split: bool = Fal
                         CopyFiles=/boot:/
                         SizeMinBytes=1024M
                         SizeMaxBytes=1024M
-                        SplitName=-
                         """
                     )
                 )
@@ -1684,6 +1671,8 @@ def build_stuff(uid: int, gid: int, args: MkosiArgs, config: MkosiConfig) -> Non
             build_image(state, manifest=manifest, for_cache=False)
 
         copy_nspawn_settings(state)
+        calculate_sha256sum(state)
+        calculate_signature(state)
         save_manifest(state, manifest)
 
         for p in state.config.output_paths():
@@ -1691,20 +1680,14 @@ def build_stuff(uid: int, gid: int, args: MkosiArgs, config: MkosiConfig) -> Non
                 shutil.move(state.staging / p.name, p)
                 if p != state.config.output or state.config.output_format != OutputFormat.directory:
                     os.chown(p, uid, gid)
-                if p == state.config.output or p.suffix in ['.efi', '.manifest', '.raw']:
+                if p == state.config.output:
                     compress_output(state.config, p, uid=uid, gid=gid)
 
         for p in state.staging.iterdir():
-            if p.suffix in ['.efi', '.manifest', '.raw']:
-                compress_output(state.config, p, uid=0, gid=0)
-
-        # Run again after files are potentally compressed and renamed
-        for p in state.staging.iterdir():
             shutil.move(p, state.config.output.parent / p.name)
             os.chown(state.config.output.parent / p.name, uid, gid)
-
-        calculate_sha256sum(state)
-        calculate_signature(state)
+            if p.name.startswith(state.config.output.name):
+                compress_output(state.config, p, uid=uid, gid=gid)
 
     print_output_size(config)
 
