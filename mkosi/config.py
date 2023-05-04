@@ -542,6 +542,7 @@ class MkosiConfig:
     tar_strip_selinux_context: bool
     incremental: bool
     packages: list[str]
+    package_dirs: list[Path]
     remove_packages: list[str]
     with_docs: bool
     with_tests: bool
@@ -836,6 +837,13 @@ class MkosiConfigParser:
             dest="packages",
             section="Content",
             parse=config_make_list_parser(delimiter=","),
+        ),
+        MkosiConfigSetting(
+            dest="package_dirs",
+            name="PackageDirectories",
+            section="Content",
+            parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
+            paths=("mkosi.packagedir",),
         ),
         MkosiConfigSetting(
             dest="remove_packages",
@@ -1419,6 +1427,13 @@ class MkosiConfigParser:
             action=action,
         )
         group.add_argument(
+            "--package-dirs",
+            metavar="PATH",
+            help="Add package files from this directory to the OS image",
+            dest="package_dirs",
+            action=action,
+        )
+        group.add_argument(
             "--remove-package",
             metavar="PACKAGE",
             help="Remove package from the image OS image after installation",
@@ -1677,6 +1692,7 @@ class MkosiConfigParser:
 
         return parser
 
+
     def parse(self, argv: Optional[Sequence[str]] = None) -> tuple[MkosiArgs, tuple[MkosiConfig, ...]]:
         presets = []
         namespace = argparse.Namespace()
@@ -1757,6 +1773,7 @@ class MkosiConfigParser:
 
         return args, tuple(load_config(ns) for ns in presets)
 
+
 class GenericVersion:
     def __init__(self, version: str):
         self._version = version
@@ -1796,6 +1813,7 @@ class GenericVersion:
             return False
         cmd = ["systemd-analyze", "compare-versions", self._version, "ge", other._version]
         return run(cmd, check=False).returncode == 0
+
 
 def strip_suffixes(path: Path) -> Path:
     while path.suffix in {
@@ -1848,7 +1866,6 @@ def find_password(args: argparse.Namespace) -> None:
 
     except FileNotFoundError:
         pass
-
 
 
 def machine_name(config: Union[MkosiConfig, argparse.Namespace]) -> str:

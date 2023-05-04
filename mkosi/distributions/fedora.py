@@ -17,6 +17,14 @@ from mkosi.state import MkosiState
 from mkosi.util import Distribution, detect_distribution, sort_packages
 
 
+class Repo(NamedTuple):
+    id: str
+    url: str
+    gpgpath: Path
+    gpgurl: Optional[str] = None
+    enabled: bool = True
+
+
 class FedoraInstaller(DistributionInstaller):
     @classmethod
     def filesystem(cls) -> str:
@@ -26,8 +34,8 @@ class FedoraInstaller(DistributionInstaller):
     def install(cls, state: MkosiState) -> None:
         cls.install_packages(state, ["filesystem"], apivfs=False)
 
-    @classmethod
-    def install_packages(cls, state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
+    @staticmethod
+    def repositories(state: MkosiState) -> list[Repo]:
         release, releasever = parse_fedora_release(state.config.release)
 
         if state.config.local_mirror:
@@ -60,8 +68,32 @@ class FedoraInstaller(DistributionInstaller):
         if updates_url is not None:
             repos += [Repo("updates", updates_url, gpgpath, gpgurl)]
 
+        return repos
+
+    @classmethod
+    def install_packages(cls, state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
+        repos = cls.repositories(state)
         setup_dnf(state, repos)
         invoke_dnf(state, "install", packages, apivfs=apivfs)
+
+    @classmethod
+    def install_package_files(cls, state: MkosiState, dir: Path) -> None:
+        repos = cls.repositories(state)
+        setup_dnf(state, repos)
+
+        file_paths : list[str] = [
+            str(state.root / "packages" / p.name)
+            for p in dir.iterdir()
+            if p.name.endswith('.rpm')
+        ]
+
+        if (shutil.which('dnf5') or shutil.which('dnf') or 'yum') == 'yum':
+            verb = "localinstall"
+        else:
+            verb = "install"
+
+        if file_paths:
+            invoke_dnf(state, verb, file_paths)
 
     @classmethod
     def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
@@ -85,14 +117,6 @@ def url_exists(url: str) -> bool:
     except Exception:
         pass
     return False
-
-
-class Repo(NamedTuple):
-    id: str
-    url: str
-    gpgpath: Path
-    gpgurl: Optional[str] = None
-    enabled: bool = True
 
 
 def setup_dnf(state: MkosiState, repos: Sequence[Repo] = ()) -> None:

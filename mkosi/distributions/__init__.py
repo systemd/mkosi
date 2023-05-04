@@ -22,6 +22,10 @@ class DistributionInstaller:
         raise NotImplementedError
 
     @classmethod
+    def install_package_files(cls, state: "MkosiState", dir: Path) -> None:
+        raise NotImplementedError
+
+    @classmethod
     def remove_packages(cls, state: "MkosiState", packages: Sequence[str]) -> None:
         raise NotImplementedError
 

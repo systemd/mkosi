@@ -127,6 +127,25 @@ class DebianInstaller(DistributionInstaller):
         policyrcd.unlink()
 
     @classmethod
+    def install_package_files(cls, state: MkosiState, dir: Path) -> None:
+
+        # See comments in install_packages() about the policy change
+        policyrcd = state.root / "usr/sbin/policy-rc.d"
+        policyrcd.write_text("#!/bin/sh\nexit 101\n")
+        policyrcd.chmod(0o755)
+
+        setup_apt(state, cls.repositories(state))
+        file_paths : list[str] = [
+            str(state.root / "packages" / p.name)
+            for p in dir.iterdir()
+            if p.name.endswith('.deb')
+        ]
+        if file_paths:
+            invoke_apt(state, "install", file_paths)
+
+        policyrcd.unlink()
+
+    @classmethod
     def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
         invoke_apt(state, "purge", packages)
 

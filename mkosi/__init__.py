@@ -33,7 +33,7 @@ from mkosi.config import (
 from mkosi.install import add_dropin_config_from_resource, copy_path, flock
 from mkosi.log import Style, color_error, complete_step, die, log_step
 from mkosi.manifest import Manifest
-from mkosi.mounts import dissect_and_mount, mount_overlay, scandir_recursive
+from mkosi.mounts import dissect_and_mount, mount_bind, mount_overlay, scandir_recursive
 from mkosi.pager import page
 from mkosi.remove import unlink_try_hard
 from mkosi.run import (
@@ -569,6 +569,18 @@ def install_extra_trees(state: MkosiState) -> None:
                 copy_path(source, t, preserve_owner=False)
             else:
                 shutil.unpack_archive(source, t)
+
+
+def install_pkgdirs(state: MkosiState) -> None:
+    '''Add packages to image from package files'''
+
+    if not state.config.package_dirs:
+        return
+
+    for dir in state.config.package_dirs:
+        with complete_step(f"Installing packages from files in {dir}…"):
+            with mount_bind(dir, state.root / "packages"):
+                state.installer.install_package_files(state, dir)
 
 
 def install_build_dest(state: MkosiState) -> None:
@@ -1525,6 +1537,7 @@ def build_image(state: MkosiState, *, for_cache: bool, manifest: Optional[Manife
         run_build_script(state)
         install_build_dest(state)
         install_extra_trees(state)
+        install_pkgdirs(state)
         install_boot_loader(state)
         configure_ssh(state)
         run_postinst_script(state)

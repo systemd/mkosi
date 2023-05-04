@@ -4,6 +4,7 @@ import os
 import shutil
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any, Mapping
 
 from mkosi.config import MkosiConfig
 from mkosi.distributions import DistributionInstaller
@@ -86,7 +87,7 @@ class CentosInstaller(DistributionInstaller):
         move_rpm_db(state.root)
 
     @classmethod
-    def install_packages(cls, state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
+    def setup_env(cls, state: MkosiState) -> Mapping[str, Any]:
         release = int(state.config.release)
 
         if release <= 7:
@@ -103,7 +104,30 @@ class CentosInstaller(DistributionInstaller):
         else:
             env = {}
 
+        return env
+
+    @classmethod
+    def install_packages(cls, state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
+        env = cls.setup_env(state)
         invoke_dnf(state, "install", packages, env, apivfs=apivfs)
+
+    @classmethod
+    def install_package_files(cls, state: MkosiState, dir: Path) -> None:
+        env = cls.setup_env(state)
+
+        file_paths : list[str] = [
+            str(state.root / "packages" / p.name)
+            for p in dir.iterdir()
+            if p.name.endswith('.rpm')
+        ]
+
+        if (shutil.which('dnf5') or shutil.which('dnf') or 'yum') == 'yum':
+            verb = "localinstall"
+        else:
+            verb = "install"
+
+        if file_paths:
+            invoke_dnf(state, verb, file_paths, env)
 
     @classmethod
     def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
