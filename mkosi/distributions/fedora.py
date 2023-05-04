@@ -8,7 +8,7 @@ import urllib.request
 from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
 from textwrap import dedent
-from typing import Any, NamedTuple, Optional
+from typing import Any, NamedTuple
 
 from mkosi.distributions import DistributionInstaller
 from mkosi.remove import unlink_try_hard
@@ -52,13 +52,12 @@ class FedoraInstaller(DistributionInstaller):
             # In other versions, the "fedora" repo is frozen at release, and "updates" provides any new packages.
             updates_url = None
 
-        gpgpath = Path(f"/etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-{releasever}-{state.config.architecture}")
         # See: https://fedoraproject.org/security/
         gpgurl = "https://fedoraproject.org/fedora.gpg"
 
-        repos = [Repo("fedora", release_url, gpgpath, gpgurl)]
+        repos = [Repo("fedora", release_url, [gpgurl])]
         if updates_url is not None:
-            repos += [Repo("updates", updates_url, gpgpath, gpgurl)]
+            repos += [Repo("updates", updates_url, [gpgurl])]
 
         setup_dnf(state, repos)
         invoke_dnf(state, "install", packages, apivfs=apivfs)
@@ -90,38 +89,28 @@ def url_exists(url: str) -> bool:
 class Repo(NamedTuple):
     id: str
     url: str
-    gpgpath: Path
-    gpgurl: Optional[str] = None
+    gpgurls: list[str]
     enabled: bool = True
 
 
-def setup_dnf(state: MkosiState, repos: Sequence[Repo] = ()) -> None:
+def setup_dnf(state: MkosiState, repos: Sequence[Repo]) -> None:
     with state.workspace.joinpath("dnf.conf").open("w") as f:
-        gpgcheck = True
-
         for repo in repos:
-            gpgkey: Optional[str] = None
-
-            if repo.gpgpath.exists():
-                gpgkey = f"file://{repo.gpgpath}"
-            elif repo.gpgurl:
-                gpgkey = repo.gpgurl
-            else:
-                logging.warning(f"GPG key not found at {repo.gpgpath}. Not checking GPG signatures.")
-                gpgcheck = False
-
             f.write(
                 dedent(
                     f"""\
                     [{repo.id}]
                     name={repo.id}
                     {repo.url}
-                    gpgkey={gpgkey or ''}
-                    gpgcheck={int(gpgcheck)}
+                    gpgcheck=1
                     enabled={int(repo.enabled)}
                     """
                 )
             )
+
+            for i, url in enumerate(repo.gpgurls):
+                f.write("gpgkey=" if i == 0 else len("gpgkey=") * " ")
+                f.write(f"{url}\n")
 
 
 def invoke_dnf(
@@ -155,6 +144,11 @@ def invoke_dnf(
         "--setopt=check_config_file_age=0",
         "--noplugins",
     ]
+
+    # Make sure we download filelists so all dependencies can be resolved.
+    # See https://bugzilla.redhat.com/show_bug.cgi?id=2180842
+    if shutil.which("dnf5"):
+        cmdline += ["--setopt=optional_metadata_types=filelists"]
 
     if not state.config.repository_key_check:
         cmdline += ["--nogpgcheck"]
