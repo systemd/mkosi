@@ -28,7 +28,7 @@ class FedoraInstaller(DistributionInstaller):
 
     @classmethod
     def install_packages(cls, state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
-        release, releasever = parse_fedora_release(state.config.release)
+        release = parse_fedora_release(state.config.release)
 
         if state.config.local_mirror:
             release_url = f"baseurl={state.config.local_mirror}"
@@ -67,13 +67,13 @@ class FedoraInstaller(DistributionInstaller):
         invoke_dnf(state, "remove", packages)
 
 
-def parse_fedora_release(release: str) -> tuple[str, str]:
+def parse_fedora_release(release: str) -> str:
+    # The release can be specified as 'rawhide-<version>'. We don't make use
+    # of the second part right now, but we allow it for compatibility.
     if release.startswith("rawhide-"):
         release, releasever = release.split("-")
         logging.info(f"Fedora rawhide — release version: {releasever}")
-        return ("rawhide", releasever)
-    else:
-        return (release, release)
+    return release
 
 
 def url_exists(url: str) -> bool:
@@ -121,7 +121,7 @@ def invoke_dnf(
     apivfs: bool = True
 ) -> None:
     if state.config.distribution == Distribution.fedora:
-        release, _ = parse_fedora_release(state.config.release)
+        release = parse_fedora_release(state.config.release)
     else:
         release = state.config.release
 
