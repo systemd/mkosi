@@ -122,12 +122,6 @@ def mount_image(state: MkosiState) -> Iterator[None]:
         yield
 
 
-def prepare_tree_root(state: MkosiState) -> None:
-    if state.config.output_format == OutputFormat.subvolume:
-        with complete_step("Setting up OS tree root…"):
-            btrfs_subvol_create(state.root)
-
-
 def clean_paths(
         root: Path,
         globs: Sequence[str],
@@ -858,7 +852,7 @@ def hash_file(of: TextIO, path: Path) -> None:
 
 
 def calculate_sha256sum(state: MkosiState) -> None:
-    if state.config.output_format in (OutputFormat.directory, OutputFormat.subvolume):
+    if state.config.output_format == OutputFormat.directory:
         return None
 
     if not state.config.checksum:
@@ -949,7 +943,7 @@ def print_output_size(config: MkosiConfig) -> None:
     if not config.output_compressed.exists():
         return
 
-    if config.output_format in (OutputFormat.directory, OutputFormat.subvolume):
+    if config.output_format == OutputFormat.directory:
         log_step("Resulting image size is " + format_bytes(dir_size(config.output)) + ".")
     else:
         st = os.stat(config.output_compressed)
@@ -1736,7 +1730,7 @@ def acl_toggle_boot(config: MkosiConfig) -> Iterator[None]:
 def run_shell(args: MkosiArgs, config: MkosiConfig) -> None:
     cmdline: list[PathString] = ["systemd-nspawn", "--quiet"]
 
-    if config.output_format in (OutputFormat.directory, OutputFormat.subvolume):
+    if config.output_format == OutputFormat.directory:
         cmdline += ["--directory", config.output]
 
         owner = os.stat(config.output).st_uid
@@ -2129,7 +2123,6 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
 
     if args.verb == Verb.qemu and last.output_format in (
         OutputFormat.directory,
-        OutputFormat.subvolume,
         OutputFormat.tar,
     ):
         die(f"{last.output_format} images cannot be booted in qemu.")
