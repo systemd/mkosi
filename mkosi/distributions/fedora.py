@@ -76,6 +76,15 @@ def parse_fedora_release(release: str) -> str:
     return release
 
 
+def fedora_release_at_least(release: str, threshold: str) -> bool:
+    if release == 'rawhide':
+        return True
+    if threshold == 'rawhide':
+        return False
+    # If neither is 'rawhide', both must be integers
+    return int(release) >= int(threshold)
+
+
 def url_exists(url: str) -> bool:
     req = urllib.request.Request(url, method="HEAD")
     try:
@@ -127,8 +136,10 @@ def invoke_dnf(
 
     state.workspace.joinpath("vars").mkdir(exist_ok=True)
 
+    dnf = shutil.which("dnf5") or shutil.which("dnf") or "yum"
+
     cmdline = [
-        shutil.which('dnf5') or shutil.which('dnf') or 'yum',
+        dnf,
         "-y",
         f"--config={state.workspace.joinpath('dnf.conf')}",
         command,
@@ -147,7 +158,9 @@ def invoke_dnf(
 
     # Make sure we download filelists so all dependencies can be resolved.
     # See https://bugzilla.redhat.com/show_bug.cgi?id=2180842
-    if shutil.which("dnf5"):
+    if (dnf.endswith("dnf5") and
+        not (state.config.distribution == Distribution.fedora
+             and fedora_release_at_least(release, '38'))):
         cmdline += ["--setopt=optional_metadata_types=filelists"]
 
     if not state.config.repository_key_check:
