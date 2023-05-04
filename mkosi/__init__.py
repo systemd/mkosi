@@ -824,12 +824,10 @@ def compress_output(config: MkosiConfig, src: Path, uid: int, gid: int) -> None:
         return
 
     if not config.compress_output:
-        # If we shan't compress, then at least make the output file sparse
-        with complete_step(f"Digging holes into output file {src}…"):
-            run(["fallocate", "--dig-holes", src], user=uid, group=gid)
-    else:
-        with complete_step(f"Compressing output file {src}…"):
-            run(compressor_command(config.compress_output, src), user=uid, group=gid)
+        return
+
+    with complete_step(f"Compressing output file {src}…"):
+        run(compressor_command(config.compress_output, src), user=uid, group=gid)
 
 
 def copy_nspawn_settings(state: MkosiState) -> None:
