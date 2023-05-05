@@ -152,6 +152,7 @@ def invoke_dnf(
         f"--setopt=cachedir={state.cache}",
         f"--setopt=reposdir={' '.join(str(p) for p in state.config.repo_dirs)}",
         f"--setopt=varsdir={state.workspace / 'vars'}",
+        f"--setopt=logdir={state.workspace}",
         "--setopt=check_config_file_age=0",
         "--noplugins",
     ]
