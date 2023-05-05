@@ -22,7 +22,13 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Callable, ContextManager, Optional, TextIO, TypeVar, Union, cast
 
-from mkosi.config import GenericVersion, MkosiArgs, MkosiConfig, MkosiConfigParser
+from mkosi.config import (
+    ConfigFeature,
+    GenericVersion,
+    MkosiArgs,
+    MkosiConfig,
+    MkosiConfigParser,
+)
 from mkosi.install import add_dropin_config_from_resource, copy_path, flock
 from mkosi.log import Style, color_error, complete_step, die, log_step
 from mkosi.manifest import Manifest
@@ -205,13 +211,12 @@ def clean_package_manager_metadata(state: MkosiState) -> None:
     package manager is present in the image.
     """
 
-    assert state.config.clean_package_metadata in (False, True, None)
-    if state.config.clean_package_metadata is False:
+    if state.config.clean_package_metadata == ConfigFeature.disabled:
         return
 
     # we try then all: metadata will only be touched if any of them are in the
     # final image
-    always = state.config.clean_package_metadata is True
+    always = state.config.clean_package_metadata == ConfigFeature.enabled
     clean_dnf_metadata(state.root, always=always)
     clean_yum_metadata(state.root, always=always)
     clean_rpm_metadata(state.root, always=always)
@@ -422,15 +427,15 @@ def run_finalize_script(state: MkosiState) -> None:
 
 
 def install_boot_loader(state: MkosiState) -> None:
-    if state.config.bootable is False:
+    if state.config.bootable == ConfigFeature.disabled:
         return
 
-    if state.config.output_format == OutputFormat.cpio and state.config.bootable is None:
+    if state.config.output_format == OutputFormat.cpio and state.config.bootable == ConfigFeature.auto:
         return
 
     directory = state.root / "usr/lib/systemd/boot/efi"
     if not directory.exists() or not any(directory.iterdir()):
-        if state.config.bootable is True:
+        if state.config.bootable == ConfigFeature.enabled:
             die("A bootable image was requested but systemd-boot was not found at "
                 f"{directory.relative_to(state.root)}")
         return
@@ -651,14 +656,14 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
     # benefit that they can be signed like normal EFI binaries, and can encode everything necessary to boot a
     # specific root device, including the root hash.
 
-    if state.config.bootable is False:
+    if state.config.bootable == ConfigFeature.disabled:
         return
 
     for kver, kimg in gen_kernel_images(state):
         copy_path(state.root / kimg, state.staging / state.config.output_split_kernel)
         break
 
-    if state.config.output_format == OutputFormat.cpio and state.config.bootable is None:
+    if state.config.output_format == OutputFormat.cpio and state.config.bootable == ConfigFeature.auto:
         return
 
     initrds = []
@@ -777,7 +782,7 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
             if not state.staging.joinpath(state.config.output_split_uki).exists():
                 copy_path(boot_binary, state.staging / state.config.output_split_uki)
 
-    if state.config.bootable is True and not state.staging.joinpath(state.config.output_split_uki).exists():
+    if state.config.bootable == ConfigFeature.enabled and not state.staging.joinpath(state.config.output_split_uki).exists():
         die("A bootable image was requested but no kernel was found")
 
 
@@ -1049,12 +1054,12 @@ def check_outputs(config: MkosiConfig) -> None:
             die(f"Output path {f} exists already. (Consider invocation with --force.)")
 
 
-def yes_no(b: Optional[bool]) -> str:
+def yes_no(b: bool) -> str:
     return "yes" if b else "no"
 
 
-def yes_no_auto(b: Optional[bool]) -> str:
-    return "auto" if b is None else yes_no(b)
+def yes_no_auto(f: ConfigFeature) -> str:
+    return "auto" if f is ConfigFeature.auto else yes_no(f == ConfigFeature.enabled)
 
 
 def none_to_na(s: Optional[T]) -> Union[T, str]:
@@ -1277,7 +1282,7 @@ def configure_initrd(state: MkosiState) -> None:
 
 
 def run_depmod(state: MkosiState) -> None:
-    if state.config.bootable is False:
+    if state.config.bootable == ConfigFeature.disabled:
         return
 
     for kver, _ in gen_kernel_images(state):
@@ -1368,8 +1373,8 @@ def invoke_repart(state: MkosiState, skip: Sequence[str] = [], split: bool = Fal
             bootdir = state.root.joinpath("boot/EFI/BOOT")
 
             # If Bootable=auto and we have at least one UKI and a bootloader, let's generate an ESP partition.
-            add = (state.config.bootable is True or
-                  (state.config.bootable is None and
+            add = (state.config.bootable == ConfigFeature.enabled or
+                  (state.config.bootable == ConfigFeature.auto and
                    bootdir.exists() and
                    any(bootdir.iterdir()) and
                    any(gen_kernel_images(state))))
