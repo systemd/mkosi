@@ -28,7 +28,8 @@ runs:
         mtools \
         python3-pefile \
         python3-pyelftools \
-        bubblewrap
+        bubblewrap \
+        pandoc
 
       sudo pacman-key --init
       sudo pacman-key --populate archlinux
