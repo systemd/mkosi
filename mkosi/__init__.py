@@ -3,7 +3,6 @@
 import base64
 import contextlib
 import crypt
-import dataclasses
 import datetime
 import errno
 import hashlib
@@ -51,7 +50,6 @@ from mkosi.util import (
     format_rlimit,
     patch_file,
     prepend_to_environ_path,
-    set_umask,
     tmp_dir,
 )
 
@@ -81,11 +79,6 @@ def format_bytes(num_bytes: int) -> str:
         return f"{num_bytes/1024 :0.1f}K"
 
     return f"{num_bytes}B"
-
-
-def btrfs_subvol_create(path: Path, mode: int = 0o755) -> None:
-    with set_umask(~mode & 0o7777):
-        run(["btrfs", "subvol", "create", path])
 
 
 @contextlib.contextmanager
@@ -163,17 +156,6 @@ def clean_yum_metadata(root: Path, always: bool) -> None:
     clean_paths(root, paths, tool='/bin/yum', always=always)
 
 
-def clean_zypper_metadata(root: Path, always: bool) -> None:
-    """Remove zypper metadata if /usr/bin/zypper is not present in the image"""
-    paths = [
-        "/var/lib/zypp",
-        "/var/log/zypp",
-        "/var/cache/zypp",
-    ]
-
-    clean_paths(root, paths, tool='/usr/bin/zypper', always=always)
-
-
 def clean_rpm_metadata(root: Path, always: bool) -> None:
     """Remove rpm metadata if /bin/rpm is not present in the image"""
     paths = [
@@ -236,8 +218,6 @@ def clean_package_manager_metadata(state: MkosiState) -> None:
     clean_apt_metadata(state.root, always=always)
     clean_dpkg_metadata(state.root, always=always)
     clean_pacman_metadata(state.root, always=always)
-    clean_zypper_metadata(state.root, always=always)
-    # FIXME: implement cleanup for other package managers: swupd
 
 
 def remove_files(state: MkosiState) -> None:
@@ -517,11 +497,6 @@ def install_base_trees(state: MkosiState) -> None:
                 run(["systemd-dissect", "--copy-from", path, "/", state.root])
             else:
                 die(f"Unsupported base tree source {path}")
-
-            if path.is_dir():
-                copy_path(path, state.root)
-            else:
-                shutil.unpack_archive(path, state.root)
 
 
 def install_skeleton_trees(state: MkosiState) -> None:
@@ -1637,7 +1612,6 @@ def build_stuff(uid: int, gid: int, args: MkosiArgs, config: MkosiConfig) -> Non
                 save_cache(state)
 
         with complete_step("Building image"):
-            state = dataclasses.replace(state, )
             build_image(state, manifest=manifest, for_cache=False)
 
         maybe_compress(state,

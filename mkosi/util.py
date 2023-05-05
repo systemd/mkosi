@@ -20,15 +20,6 @@ T = TypeVar("T")
 V = TypeVar("V")
 
 
-@contextlib.contextmanager
-def set_umask(mask: int) -> Iterator[int]:
-    old = os.umask(mask)
-    try:
-        yield old
-    finally:
-        os.umask(old)
-
-
 class PackageType(enum.Enum):
     rpm = 1
     deb = 2
