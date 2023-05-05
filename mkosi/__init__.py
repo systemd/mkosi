@@ -22,6 +22,7 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Callable, ContextManager, Optional, TextIO, TypeVar, Union, cast
 
+from mkosi.btrfs import btrfs_maybe_snapshot_subvolume
 from mkosi.config import (
     ConfigFeature,
     GenericVersion,
@@ -349,16 +350,22 @@ def configure_autologin(state: MkosiState) -> None:
 
 @contextlib.contextmanager
 def mount_cache_overlay(state: MkosiState) -> Iterator[None]:
-    if not state.config.incremental:
+    if not state.config.incremental or not any(state.root.iterdir()):
         yield
         return
 
-    with mount_overlay([state.root], state.cache_overlay, state.workdir, state.root, read_only=False):
+    d = state.workspace / "cache-overlay"
+    d.mkdir(mode=0o755, exist_ok=True)
+
+    with mount_overlay([state.root], d, state.workdir, state.root, read_only=False):
         yield
 
 
 def mount_build_overlay(state: MkosiState, read_only: bool = False) -> ContextManager[Path]:
-    return mount_overlay([state.root], state.build_overlay, state.workdir, state.root, read_only)
+    d = state.workspace / "build-overlay"
+    if not d.is_symlink():
+        d.mkdir(mode=0o755, exist_ok=True)
+    return mount_overlay([state.root], state.workspace.joinpath("build-overlay"), state.workdir, state.root, read_only)
 
 
 def run_prepare_script(state: MkosiState, build: bool) -> None:
@@ -491,11 +498,16 @@ def install_base_trees(state: MkosiState) -> None:
     if not state.config.base_trees or state.config.overlay:
         return
 
+    # We only do this step once, even if we're doing cached images. If we're doing a cached image on top of
+    # base trees, the cached image is an overlay on top of the base trees, so the unpacked base trees are
+    # guaranteed to still be pristine when we run the second time to generate the final image.
+    if any(state.root.iterdir()):
+        return
+
     with complete_step("Copying in base trees…"):
         for path in state.config.base_trees:
-
             if path.is_dir():
-                copy_path(path, state.root)
+                btrfs_maybe_snapshot_subvolume(state.config, path, state.root)
             elif path.suffix == ".tar":
                 shutil.unpack_archive(path, state.root)
             elif path.suffix == ".raw":
@@ -889,11 +901,17 @@ def save_cache(state: MkosiState) -> None:
 
     with complete_step("Installing cache copies"):
         unlink_try_hard(final)
-        shutil.move(state.cache_overlay, final)
+
+        # We only use the cache-overlay directory for caching if we have a base tree, otherwise we just
+        # cache the root directory.
+        if state.workspace.joinpath("cache-overlay").exists():
+            shutil.move(state.workspace / "cache-overlay", final)
+        else:
+            shutil.move(state.root, final)
 
         if state.config.build_script:
             unlink_try_hard(build)
-            shutil.move(state.build_overlay, build)
+            shutil.move(state.workspace / "build-overlay", build)
 
 
 def dir_size(path: Union[Path, os.DirEntry[str]]) -> int:
@@ -1328,10 +1346,9 @@ def reuse_cache_tree(state: MkosiState) -> bool:
         return False
 
     with complete_step("Copying cached trees"):
-        copy_path(final, state.root)
+        btrfs_maybe_snapshot_subvolume(state.config, final, state.root)
         if state.config.build_script:
-            state.build_overlay.rmdir()
-            state.build_overlay.symlink_to(build)
+            state.workspace.joinpath("build-overlay").symlink_to(build)
 
     return True
 

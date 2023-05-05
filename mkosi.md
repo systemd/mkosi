@@ -433,7 +433,7 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 
 `Bootable=`, `--bootable=`
 
-: Takes a boolean or `auto`. Enables or disable generating of a bootable
+: Takes a boolean or `auto`. Enables or disables generation of a bootable
   image. If enabled, mkosi will install systemd-boot, run kernel-install,
   generate unified kernel images for installed kernels and add an ESP
   partition when the disk image output is used. If systemd-boot is not
@@ -443,6 +443,16 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   won't be installed even if found inside the image, kernel-install won't be
   executed, no unified kernel images will be generated and no ESP partition
   will be added to the image if the disk output format is used.
+
+`UseSubvolumes=`, `--use-subvolumes=`
+
+: Takes a boolean or `auto`. Enables or disables use of btrfs subvolumes for
+  directory tree outputs. If enabled, mkosi will create the root directory as
+  a btrfs subvolume and use btrfs subvolume snapshots where possible to copy
+  base or cached trees which is much faster than doing a recursive copy. If
+  explicitly enabled and `btrfs` is not installed or subvolumes cannot be
+  created, an error is raised. If `auto`, missing `btrfs` or failures to
+  create subvolumes are ignored.
 
 `KernelCommandLine=`, `--kernel-command-line=`
 

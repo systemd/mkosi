@@ -605,6 +605,7 @@ class MkosiConfig:
     kernel_command_line_extra: list[str]
     acl: bool
     bootable: ConfigFeature
+    use_subvolumes: ConfigFeature
 
     # QEMU-specific options
     qemu_gui: bool
@@ -863,6 +864,11 @@ class MkosiConfigParser:
             dest="overlay",
             section="Output",
             parse=config_parse_boolean,
+        ),
+        MkosiConfigSetting(
+            dest="use_subvolumes",
+            section="Output",
+            parse=config_parse_feature,
         ),
         MkosiConfigSetting(
             dest="packages",
@@ -1438,6 +1444,13 @@ class MkosiConfigParser:
             "--overlay",
             metavar="BOOL",
             help="Only output the additions on top of the given base trees",
+            nargs="?",
+            action=action,
+        )
+        group.add_argument(
+            "--use-subvolumes",
+            metavar="FEATURE",
+            help="Use btrfs subvolumes for faster directory operations where possible",
             nargs="?",
             action=action,
         )
