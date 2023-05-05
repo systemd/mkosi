@@ -48,6 +48,15 @@ ConfigMatchCallback = Callable[[str, str, argparse.Namespace], bool]
 ConfigDefaultCallback = Callable[[argparse.Namespace], Any]
 
 
+class ConfigFeature(enum.Enum):
+    auto = "auto"
+    enabled = "enabled"
+    disabled = "disabled"
+
+    def __str__(self) -> str:
+        return str(self.value).lower()
+
+
 def parse_boolean(s: str) -> bool:
     "Parse 1/true/yes/y/t/on as true and 0/false/no/n/f/off/None as false"
     s_l = s.lower()
@@ -132,14 +141,18 @@ def config_match_boolean(dest: str, value: str, namespace: argparse.Namespace) -
     return cast(bool, getattr(namespace, dest) == parse_boolean(value))
 
 
-def config_parse_feature(dest: str, value: Optional[str], namespace: argparse.Namespace) -> Optional[bool]:
+def parse_feature(value: Optional[str]) -> ConfigFeature:
+    if not value or value == ConfigFeature.auto.value:
+        return ConfigFeature.auto
+
+    return ConfigFeature.enabled if parse_boolean(value) else ConfigFeature.disabled
+
+
+def config_parse_feature(dest: str, value: Optional[str], namespace: argparse.Namespace) -> ConfigFeature:
     if dest in namespace:
         return getattr(namespace, dest) # type: ignore
 
-    if value and value == "auto":
-        return None
-
-    return parse_boolean(value) if value else None
+    return parse_feature(value)
 
 
 def config_parse_compression(dest: str, value: Optional[str], namespace: argparse.Namespace) -> Optional[Compression]:
@@ -565,7 +578,7 @@ class MkosiConfig:
     base_trees: list[Path]
     extra_trees: list[tuple[Path, Optional[Path]]]
     skeleton_trees: list[tuple[Path, Optional[Path]]]
-    clean_package_metadata: Optional[bool]
+    clean_package_metadata: ConfigFeature
     remove_files: list[str]
     environment: dict[str, str]
     build_sources: Path
@@ -595,7 +608,8 @@ class MkosiConfig:
     make_initrd: bool
     kernel_command_line_extra: list[str]
     acl: bool
-    bootable: Optional[bool]
+    bootable: ConfigFeature
+    use_subvolumes: ConfigFeature
 
     # QEMU-specific options
     qemu_gui: bool
@@ -856,6 +870,11 @@ class MkosiConfigParser:
             parse=config_parse_boolean,
         ),
         MkosiConfigSetting(
+            dest="use_subvolumes",
+            section="Output",
+            parse=config_parse_feature,
+        ),
+        MkosiConfigSetting(
             dest="packages",
             section="Content",
             parse=config_make_list_parser(delimiter=","),
@@ -880,6 +899,7 @@ class MkosiConfigParser:
             dest="bootable",
             section="Content",
             parse=config_parse_feature,
+            match=config_make_list_matcher(delimiter=",", parse=parse_feature),
         ),
         MkosiConfigSetting(
             dest="password",
@@ -1429,6 +1449,13 @@ class MkosiConfigParser:
             "--overlay",
             metavar="BOOL",
             help="Only output the additions on top of the given base trees",
+            nargs="?",
+            action=action,
+        )
+        group.add_argument(
+            "--use-subvolumes",
+            metavar="FEATURE",
+            help="Use btrfs subvolumes for faster directory operations where possible",
             nargs="?",
             action=action,
         )
@@ -2004,11 +2031,13 @@ def load_config(args: argparse.Namespace) -> MkosiConfig:
     ):
         die("--repo-dir is only supported on DNF/Debian based distributions and Arch")
 
-    if args.qemu_kvm is True and not qemu_check_kvm_support():
+    if args.qemu_kvm == ConfigFeature.enabled and not qemu_check_kvm_support():
         die("Sorry, the host machine does not support KVM acceleration.")
 
-    if args.qemu_kvm is None:
+    if args.qemu_kvm == ConfigFeature.auto:
         args.qemu_kvm = qemu_check_kvm_support()
+    else:
+        args.qemu_kvm = args.qemu_kvm == ConfigFeature.enabled
 
     if args.repositories and not (is_dnf_distribution(args.distribution) or is_apt_distribution(args.distribution)):
         die("Sorry, the --repositories option is only supported on DNF/Debian based distributions")

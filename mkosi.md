@@ -249,6 +249,12 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   space-separated list. If multiple image version constraints are specified, all
   must be satisfied for the match to succeed.
 
+`Bootable=`
+
+: Matches against the configured value for the `Bootable=` feature. Takes a boolean value or `auto`. Multiple
+  values may be specified, separated by commas. If multiple values are specified, the condition is satisfied
+  if the current value of the `Bootable=` feature matches any of the specified values.
+
 | Matcher         | Multiple Values | Globs | Rich Comparisons | Default                 |
 |-----------------|-----------------|-------|------------------|-------------------------|
 | `Distribution=` | yes             | no    | no               | match host distribution |
@@ -256,6 +262,7 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 | `PathExists=`   | no              | no    | no               | match fails             |
 | `ImageId=`      | yes             | yes   | no               | match fails             |
 | `ImageVersion=` | yes             | no    | yes              | match fails             |
+| `Bootable=`     | yes             | no    | no               | match auto feature      |
 
 ### [Distribution] Section
 
@@ -433,7 +440,7 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 
 `Bootable=`, `--bootable=`
 
-: Takes a boolean or `auto`. Enables or disable generating of a bootable
+: Takes a boolean or `auto`. Enables or disables generation of a bootable
   image. If enabled, mkosi will install systemd-boot, run kernel-install,
   generate unified kernel images for installed kernels and add an ESP
   partition when the disk image output is used. If systemd-boot is not
@@ -443,6 +450,16 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   won't be installed even if found inside the image, kernel-install won't be
   executed, no unified kernel images will be generated and no ESP partition
   will be added to the image if the disk output format is used.
+
+`UseSubvolumes=`, `--use-subvolumes=`
+
+: Takes a boolean or `auto`. Enables or disables use of btrfs subvolumes for
+  directory tree outputs. If enabled, mkosi will create the root directory as
+  a btrfs subvolume and use btrfs subvolume snapshots where possible to copy
+  base or cached trees which is much faster than doing a recursive copy. If
+  explicitly enabled and `btrfs` is not installed or subvolumes cannot be
+  created, an error is raised. If `auto`, missing `btrfs` or failures to
+  create subvolumes are ignored.
 
 `KernelCommandLine=`, `--kernel-command-line=`
 

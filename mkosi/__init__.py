@@ -3,7 +3,6 @@
 import base64
 import contextlib
 import crypt
-import dataclasses
 import datetime
 import errno
 import hashlib
@@ -23,7 +22,14 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Callable, ContextManager, Optional, TextIO, TypeVar, Union, cast
 
-from mkosi.config import GenericVersion, MkosiArgs, MkosiConfig, MkosiConfigParser
+from mkosi.btrfs import btrfs_maybe_snapshot_subvolume
+from mkosi.config import (
+    ConfigFeature,
+    GenericVersion,
+    MkosiArgs,
+    MkosiConfig,
+    MkosiConfigParser,
+)
 from mkosi.install import add_dropin_config_from_resource, copy_path, flock
 from mkosi.log import Style, color_error, complete_step, die, log_step
 from mkosi.manifest import Manifest
@@ -51,7 +57,6 @@ from mkosi.util import (
     format_rlimit,
     patch_file,
     prepend_to_environ_path,
-    set_umask,
     tmp_dir,
 )
 
@@ -81,11 +86,6 @@ def format_bytes(num_bytes: int) -> str:
         return f"{num_bytes/1024 :0.1f}K"
 
     return f"{num_bytes}B"
-
-
-def btrfs_subvol_create(path: Path, mode: int = 0o755) -> None:
-    with set_umask(~mode & 0o7777):
-        run(["btrfs", "subvol", "create", path])
 
 
 @contextlib.contextmanager
@@ -163,17 +163,6 @@ def clean_yum_metadata(root: Path, always: bool) -> None:
     clean_paths(root, paths, tool='/bin/yum', always=always)
 
 
-def clean_zypper_metadata(root: Path, always: bool) -> None:
-    """Remove zypper metadata if /usr/bin/zypper is not present in the image"""
-    paths = [
-        "/var/lib/zypp",
-        "/var/log/zypp",
-        "/var/cache/zypp",
-    ]
-
-    clean_paths(root, paths, tool='/usr/bin/zypper', always=always)
-
-
 def clean_rpm_metadata(root: Path, always: bool) -> None:
     """Remove rpm metadata if /bin/rpm is not present in the image"""
     paths = [
@@ -223,21 +212,18 @@ def clean_package_manager_metadata(state: MkosiState) -> None:
     package manager is present in the image.
     """
 
-    assert state.config.clean_package_metadata in (False, True, None)
-    if state.config.clean_package_metadata is False:
+    if state.config.clean_package_metadata == ConfigFeature.disabled:
         return
 
     # we try then all: metadata will only be touched if any of them are in the
     # final image
-    always = state.config.clean_package_metadata is True
+    always = state.config.clean_package_metadata == ConfigFeature.enabled
     clean_dnf_metadata(state.root, always=always)
     clean_yum_metadata(state.root, always=always)
     clean_rpm_metadata(state.root, always=always)
     clean_apt_metadata(state.root, always=always)
     clean_dpkg_metadata(state.root, always=always)
     clean_pacman_metadata(state.root, always=always)
-    clean_zypper_metadata(state.root, always=always)
-    # FIXME: implement cleanup for other package managers: swupd
 
 
 def remove_files(state: MkosiState) -> None:
@@ -364,16 +350,22 @@ def configure_autologin(state: MkosiState) -> None:
 
 @contextlib.contextmanager
 def mount_cache_overlay(state: MkosiState) -> Iterator[None]:
-    if not state.config.incremental:
+    if not state.config.incremental or not any(state.root.iterdir()):
         yield
         return
 
-    with mount_overlay([state.root], state.cache_overlay, state.workdir, state.root, read_only=False):
+    d = state.workspace / "cache-overlay"
+    d.mkdir(mode=0o755, exist_ok=True)
+
+    with mount_overlay([state.root], d, state.workdir, state.root, read_only=False):
         yield
 
 
 def mount_build_overlay(state: MkosiState, read_only: bool = False) -> ContextManager[Path]:
-    return mount_overlay([state.root], state.build_overlay, state.workdir, state.root, read_only)
+    d = state.workspace / "build-overlay"
+    if not d.is_symlink():
+        d.mkdir(mode=0o755, exist_ok=True)
+    return mount_overlay([state.root], state.workspace.joinpath("build-overlay"), state.workdir, state.root, read_only)
 
 
 def run_prepare_script(state: MkosiState, build: bool) -> None:
@@ -442,15 +434,15 @@ def run_finalize_script(state: MkosiState) -> None:
 
 
 def install_boot_loader(state: MkosiState) -> None:
-    if state.config.bootable is False:
+    if state.config.bootable == ConfigFeature.disabled:
         return
 
-    if state.config.output_format == OutputFormat.cpio and state.config.bootable is None:
+    if state.config.output_format == OutputFormat.cpio and state.config.bootable == ConfigFeature.auto:
         return
 
     directory = state.root / "usr/lib/systemd/boot/efi"
     if not directory.exists() or not any(directory.iterdir()):
-        if state.config.bootable is True:
+        if state.config.bootable == ConfigFeature.enabled:
             die("A bootable image was requested but systemd-boot was not found at "
                 f"{directory.relative_to(state.root)}")
         return
@@ -506,22 +498,22 @@ def install_base_trees(state: MkosiState) -> None:
     if not state.config.base_trees or state.config.overlay:
         return
 
+    # We only do this step once, even if we're doing cached images. If we're doing a cached image on top of
+    # base trees, the cached image is an overlay on top of the base trees, so the unpacked base trees are
+    # guaranteed to still be pristine when we run the second time to generate the final image.
+    if any(state.root.iterdir()):
+        return
+
     with complete_step("Copying in base trees…"):
         for path in state.config.base_trees:
-
             if path.is_dir():
-                copy_path(path, state.root)
+                btrfs_maybe_snapshot_subvolume(state.config, path, state.root)
             elif path.suffix == ".tar":
                 shutil.unpack_archive(path, state.root)
             elif path.suffix == ".raw":
                 run(["systemd-dissect", "--copy-from", path, "/", state.root])
             else:
                 die(f"Unsupported base tree source {path}")
-
-            if path.is_dir():
-                copy_path(path, state.root)
-            else:
-                shutil.unpack_archive(path, state.root)
 
 
 def install_skeleton_trees(state: MkosiState) -> None:
@@ -676,14 +668,14 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
     # benefit that they can be signed like normal EFI binaries, and can encode everything necessary to boot a
     # specific root device, including the root hash.
 
-    if state.config.bootable is False:
+    if state.config.bootable == ConfigFeature.disabled:
         return
 
     for kver, kimg in gen_kernel_images(state):
         copy_path(state.root / kimg, state.staging / state.config.output_split_kernel)
         break
 
-    if state.config.output_format == OutputFormat.cpio and state.config.bootable is None:
+    if state.config.output_format == OutputFormat.cpio and state.config.bootable == ConfigFeature.auto:
         return
 
     initrds = []
@@ -802,7 +794,7 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
             if not state.staging.joinpath(state.config.output_split_uki).exists():
                 copy_path(boot_binary, state.staging / state.config.output_split_uki)
 
-    if state.config.bootable is True and not state.staging.joinpath(state.config.output_split_uki).exists():
+    if state.config.bootable == ConfigFeature.enabled and not state.staging.joinpath(state.config.output_split_uki).exists():
         die("A bootable image was requested but no kernel was found")
 
 
@@ -909,11 +901,17 @@ def save_cache(state: MkosiState) -> None:
 
     with complete_step("Installing cache copies"):
         unlink_try_hard(final)
-        shutil.move(state.cache_overlay, final)
+
+        # We only use the cache-overlay directory for caching if we have a base tree, otherwise we just
+        # cache the root directory.
+        if state.workspace.joinpath("cache-overlay").exists():
+            shutil.move(state.workspace / "cache-overlay", final)
+        else:
+            shutil.move(state.root, final)
 
         if state.config.build_script:
             unlink_try_hard(build)
-            shutil.move(state.build_overlay, build)
+            shutil.move(state.workspace / "build-overlay", build)
 
 
 def dir_size(path: Union[Path, os.DirEntry[str]]) -> int:
@@ -1074,12 +1072,12 @@ def check_outputs(config: MkosiConfig) -> None:
             die(f"Output path {f} exists already. (Consider invocation with --force.)")
 
 
-def yes_no(b: Optional[bool]) -> str:
+def yes_no(b: bool) -> str:
     return "yes" if b else "no"
 
 
-def yes_no_auto(b: Optional[bool]) -> str:
-    return "auto" if b is None else yes_no(b)
+def yes_no_auto(f: ConfigFeature) -> str:
+    return "auto" if f is ConfigFeature.auto else yes_no(f == ConfigFeature.enabled)
 
 
 def none_to_na(s: Optional[T]) -> Union[T, str]:
@@ -1302,7 +1300,7 @@ def configure_initrd(state: MkosiState) -> None:
 
 
 def run_depmod(state: MkosiState) -> None:
-    if state.config.bootable is False:
+    if state.config.bootable == ConfigFeature.disabled:
         return
 
     for kver, _ in gen_kernel_images(state):
@@ -1348,10 +1346,9 @@ def reuse_cache_tree(state: MkosiState) -> bool:
         return False
 
     with complete_step("Copying cached trees"):
-        copy_path(final, state.root)
+        btrfs_maybe_snapshot_subvolume(state.config, final, state.root)
         if state.config.build_script:
-            state.build_overlay.rmdir()
-            state.build_overlay.symlink_to(build)
+            state.workspace.joinpath("build-overlay").symlink_to(build)
 
     return True
 
@@ -1393,8 +1390,8 @@ def invoke_repart(state: MkosiState, skip: Sequence[str] = [], split: bool = Fal
             bootdir = state.root.joinpath("boot/EFI/BOOT")
 
             # If Bootable=auto and we have at least one UKI and a bootloader, let's generate an ESP partition.
-            add = (state.config.bootable is True or
-                  (state.config.bootable is None and
+            add = (state.config.bootable == ConfigFeature.enabled or
+                  (state.config.bootable == ConfigFeature.auto and
                    bootdir.exists() and
                    any(bootdir.iterdir()) and
                    any(gen_kernel_images(state))))
@@ -1637,7 +1634,6 @@ def build_stuff(uid: int, gid: int, args: MkosiArgs, config: MkosiConfig) -> Non
                 save_cache(state)
 
         with complete_step("Building image"):
-            state = dataclasses.replace(state, )
             build_image(state, manifest=manifest, for_cache=False)
 
         maybe_compress(state,

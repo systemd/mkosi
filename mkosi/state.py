@@ -4,6 +4,7 @@ import dataclasses
 import importlib
 from pathlib import Path
 
+from mkosi.btrfs import btrfs_maybe_make_subvolume
 from mkosi.config import MkosiConfig
 from mkosi.distributions import DistributionInstaller
 from mkosi.log import die
@@ -38,23 +39,13 @@ class MkosiState:
             die("No installer for this distribution.")
         self.installer = instance
 
-        self.root.mkdir(exist_ok=True, mode=0o755)
-        self.build_overlay.mkdir(exist_ok=True, mode=0o755)
-        self.cache_overlay.mkdir(exist_ok=True, mode=0o755)
-        self.workdir.mkdir(exist_ok=True)
-        self.staging.mkdir(exist_ok=True)
+        btrfs_maybe_make_subvolume(self.config, self.root, mode=0o755)
+        self.workdir.mkdir()
+        self.staging.mkdir()
 
     @property
     def root(self) -> Path:
         return self.workspace / "root"
-
-    @property
-    def cache_overlay(self) -> Path:
-        return self.workspace / "cache-overlay"
-
-    @property
-    def build_overlay(self) -> Path:
-        return self.workspace / "build-overlay"
 
     @property
     def workdir(self) -> Path:
