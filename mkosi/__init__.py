@@ -23,13 +23,7 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Callable, ContextManager, Optional, TextIO, TypeVar, Union, cast
 
-from mkosi.config import (
-    GenericVersion,
-    MkosiArgs,
-    MkosiConfig,
-    MkosiConfigParser,
-    machine_name,
-)
+from mkosi.config import GenericVersion, MkosiArgs, MkosiConfig, MkosiConfigParser
 from mkosi.install import add_dropin_config_from_resource, copy_path, flock
 from mkosi.log import Style, color_error, complete_step, die, log_step
 from mkosi.manifest import Manifest
@@ -120,12 +114,6 @@ def mount_image(state: MkosiState) -> Iterator[None]:
             stack.enter_context(mount_overlay(bases, state.root, state.workdir, state.root, read_only=False))
 
         yield
-
-
-def prepare_tree_root(state: MkosiState) -> None:
-    if state.config.output_format == OutputFormat.subvolume:
-        with complete_step("Setting up OS tree root…"):
-            btrfs_subvol_create(state.root)
 
 
 def clean_paths(
@@ -450,7 +438,7 @@ def run_finalize_script(state: MkosiState) -> None:
 
     with complete_step("Running finalize script…"):
         run([state.config.finalize_script],
-            env={**state.environment, "BUILDROOT": str(state.root), "OUTPUTDIR": str(state.config.output_dir or Path.cwd())})
+            env={**state.environment, "BUILDROOT": str(state.root), "OUTPUTDIR": str(state.config.output_dir)})
 
 
 def install_boot_loader(state: MkosiState) -> None:
@@ -584,19 +572,6 @@ def gzip_binary() -> str:
     return "pigz" if shutil.which("pigz") else "gzip"
 
 
-def compressor_command(compression: Compression, src: Path) -> list[PathString]:
-    """Returns a command suitable for compressing archives."""
-
-    if compression == Compression.gz:
-        return [gzip_binary(), "--fast", src]
-    elif compression == Compression.xz:
-        return ["xz", "--check=crc32", "--fast", "-T0", src]
-    elif compression == Compression.zst:
-        return ["zstd", "-q", "-T0", "--rm", src]
-    else:
-        die(f"Unknown compression {compression}")
-
-
 def tar_binary() -> str:
     # Some distros (Mandriva) install BSD tar as "tar", hence prefer
     # "gtar" if it exists, which should be GNU tar wherever it exists.
@@ -612,11 +587,15 @@ def make_tar(state: MkosiState) -> None:
     if state.config.output_format != OutputFormat.tar:
         return
 
-    cmd: list[PathString] = [tar_binary(), "-C", state.root, "-c", "--xattrs", "--xattrs-include=*"]
-    if state.config.tar_strip_selinux_context:
-        cmd += ["--xattrs-exclude=security.selinux"]
-
-    cmd += [".", "-f", state.staging / state.config.output.name]
+    cmd: list[PathString] = [
+        tar_binary(),
+        "-C", state.root,
+        "-c", "--xattrs",
+        "--xattrs-include=*",
+        "--file", state.staging / state.config.output_with_format,
+        *(["--xattrs-exclude=security.selinux"] if state.config.tar_strip_selinux_context else []),
+        ".",
+    ]
 
     with complete_step("Creating archive…"):
         run(cmd)
@@ -632,7 +611,7 @@ def make_initrd(state: MkosiState) -> None:
     if state.config.output_format != OutputFormat.cpio:
         return
 
-    make_cpio(state.root, find_files(state.root, state.root), state.staging / state.config.output.name)
+    make_cpio(state.root, find_files(state.root, state.root), state.staging / state.config.output_with_format)
 
 
 def make_cpio(root: Path, files: Iterator[Path], output: Path) -> None:
@@ -655,7 +634,7 @@ def make_directory(state: MkosiState) -> None:
     if state.config.output_format != OutputFormat.directory:
         return
 
-    os.rename(state.root, state.staging / state.config.output.name)
+    state.root.rename(state.staging / state.config.output_with_format)
 
 
 def gen_kernel_images(state: MkosiState) -> Iterator[tuple[str, Path]]:
@@ -701,7 +680,7 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
         return
 
     for kver, kimg in gen_kernel_images(state):
-        copy_path(state.root / kimg, state.staging / state.config.output_split_kernel.name)
+        copy_path(state.root / kimg, state.staging / state.config.output_split_kernel)
         break
 
     if state.config.output_format == OutputFormat.cpio and state.config.bootable is None:
@@ -744,9 +723,11 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                 "build",
             ])
 
-            build_stuff(state.uid, state.gid, args, presets[0])
+            config = presets[0]
+            unlink_output(args, config)
+            build_stuff(state.uid, state.gid, args, config)
 
-            initrds = [presets[0].output_compressed]
+            initrds = [config.output_dir / config.output]
 
     for kver, kimg in gen_kernel_images(state):
         with complete_step(f"Generating unified kernel image for {kimg}"):
@@ -818,28 +799,42 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
 
             run(cmd)
 
-            if not state.staging.joinpath(state.config.output_split_uki.name).exists():
-                copy_path(boot_binary, state.staging / state.config.output_split_uki.name)
+            if not state.staging.joinpath(state.config.output_split_uki).exists():
+                copy_path(boot_binary, state.staging / state.config.output_split_uki)
 
-    if state.config.bootable is True and not state.staging.joinpath(state.config.output_split_uki.name).exists():
+    if state.config.bootable is True and not state.staging.joinpath(state.config.output_split_uki).exists():
         die("A bootable image was requested but no kernel was found")
 
 
-def compress_output(config: MkosiConfig, src: Path, uid: int, gid: int) -> None:
-    if not src.is_file():
+def compressor_command(compression: Compression) -> list[PathString]:
+    """Returns a command suitable for compressing archives."""
+
+    if compression == Compression.gz:
+        return [gzip_binary(), "--fast", "--stdout", "-"]
+    elif compression == Compression.xz:
+        return ["xz", "--check=crc32", "--fast", "-T0", "--stdout", "-"]
+    elif compression == Compression.zst:
+        return ["zstd", "-q", "-T0", "--stdout", "-"]
+    else:
+        die(f"Unknown compression {compression}")
+
+
+def maybe_compress(state: MkosiState, src: Path, dst: Optional[Path] = None) -> None:
+    if not state.config.compress_output or src.is_dir():
+        if dst:
+            shutil.move(src, dst)
         return
 
-    if not config.compress_output:
-        # If we shan't compress, then at least make the output file sparse
-        with complete_step(f"Digging holes into output file {src}…"):
-            run(["fallocate", "--dig-holes", src], user=uid, group=gid)
-    else:
-        with complete_step(f"Compressing output file {src}…"):
-            compressed_path = Path(f"{src}.{config.compress_output.value}")
-            if compressed_path.exists():
-                compressed_path.unlink()
+    if not dst:
+        dst = src.parent / f"{src.name}.{state.config.compress_output}"
 
-            run(compressor_command(config.compress_output, src), user=uid, group=gid)
+    with complete_step(f"Compressing {src}"):
+        with src.open("rb") as i:
+            src.unlink() # if src == dst, make sure dst doesn't truncate the src file but creates a new file.
+
+            with dst.open("wb") as o:
+                run(compressor_command(state.config.compress_output),
+                    user=state.uid, group=state.gid, stdin=i, stdout=o)
 
 
 def copy_nspawn_settings(state: MkosiState) -> None:
@@ -847,7 +842,7 @@ def copy_nspawn_settings(state: MkosiState) -> None:
         return None
 
     with complete_step("Copying nspawn settings file…"):
-        copy_path(state.config.nspawn_settings, state.staging / state.config.output_nspawn_settings.name)
+        copy_path(state.config.nspawn_settings, state.staging / state.config.output_nspawn_settings)
 
 
 def hash_file(of: TextIO, path: Path) -> None:
@@ -862,21 +857,18 @@ def hash_file(of: TextIO, path: Path) -> None:
 
 
 def calculate_sha256sum(state: MkosiState) -> None:
-    if state.config.output_format in (OutputFormat.directory, OutputFormat.subvolume):
+    if state.config.output_format == OutputFormat.directory:
         return None
 
     if not state.config.checksum:
         return None
 
     with complete_step("Calculating SHA256SUMS…"):
-        with open(state.staging / state.config.output_checksum.name, "w") as f:
-            for p in state.config.output.parent.iterdir():
-                # Only hash files that start with the output name prefix
-                if p.name.startswith(state.config.output.with_suffix("").name):
-                    hash_file(f, p)
+        with open(state.workspace / state.config.output_checksum, "w") as f:
+            for p in state.staging.iterdir():
+                hash_file(f, p)
 
-        os.rename(state.staging / state.config.output_checksum.name, state.config.output_checksum)
-        os.chown(state.config.output_checksum, uid=state.uid, gid=state.gid)
+        state.workspace.joinpath(state.config.output_checksum).rename(state.staging / state.config.output_checksum)
 
 
 def calculate_signature(state: MkosiState) -> None:
@@ -891,8 +883,8 @@ def calculate_signature(state: MkosiState) -> None:
             cmdline += ["--default-key", state.config.key]
 
         cmdline += [
-            "--output", state.staging / state.config.output_signature.name,
-            state.config.output_checksum,
+            "--output", state.staging / state.config.output_signature,
+            state.staging / state.config.output_checksum,
         ]
 
         run(
@@ -911,9 +903,6 @@ def calculate_signature(state: MkosiState) -> None:
             }
         )
 
-        os.rename(state.staging / state.config.output_signature.name, state.config.output_signature)
-        os.chown(state.config.output_signature, uid=state.uid, gid=state.gid)
-
 
 def save_cache(state: MkosiState) -> None:
     final, build = cache_tree_paths(state.config)
@@ -927,7 +916,7 @@ def save_cache(state: MkosiState) -> None:
             shutil.move(state.build_overlay, build)
 
 
-def dir_size(path: PathString) -> int:
+def dir_size(path: Union[Path, os.DirEntry[str]]) -> int:
     dir_sum = 0
     for entry in os.scandir(path):
         if entry.is_symlink():
@@ -938,31 +927,31 @@ def dir_size(path: PathString) -> int:
         elif entry.is_file():
             dir_sum += entry.stat().st_blocks * 512
         elif entry.is_dir():
-            dir_sum += dir_size(entry.path)
+            dir_sum += dir_size(entry)
     return dir_sum
 
 
 def save_manifest(state: MkosiState, manifest: Manifest) -> None:
     if manifest.has_data():
         if ManifestFormat.json in state.config.manifest_format:
-            with complete_step(f"Saving manifest {state.config.output_manifest.name}"):
-                with open(state.staging / state.config.output_manifest.name, 'w') as f:
+            with complete_step(f"Saving manifest {state.config.output_manifest}"):
+                with open(state.staging / state.config.output_manifest, 'w') as f:
                     manifest.write_json(f)
 
         if ManifestFormat.changelog in state.config.manifest_format:
-            with complete_step(f"Saving report {state.config.output_changelog.name}"):
-                with open(state.staging / state.config.output_changelog.name, 'w') as f:
+            with complete_step(f"Saving report {state.config.output_changelog}"):
+                with open(state.staging / state.config.output_changelog, 'w') as f:
                     manifest.write_package_report(f)
 
 
 def print_output_size(config: MkosiConfig) -> None:
-    if not config.output_compressed.exists():
+    if not config.output_dir.joinpath(config.output).exists():
         return
 
-    if config.output_format in (OutputFormat.directory, OutputFormat.subvolume):
-        log_step("Resulting image size is " + format_bytes(dir_size(config.output)) + ".")
+    if config.output_format == OutputFormat.directory:
+        log_step("Resulting image size is " + format_bytes(dir_size(config.output_dir / config.output)) + ".")
     else:
-        st = os.stat(config.output_compressed)
+        st = config.output_dir.joinpath(config.output).stat()
         size = format_bytes(st.st_size)
         space = format_bytes(st.st_blocks * 512)
         log_step(f"Resulting image size is {size}, consumes {space}.")
@@ -977,46 +966,24 @@ def empty_directory(path: Path) -> None:
 
 
 def unlink_output(args: MkosiArgs, config: MkosiConfig) -> None:
-    with complete_step("Removing output files…"):
-        if config.output.parent.exists():
-            for p in config.output.parent.iterdir():
-                if p.name.startswith(config.output.name):
-                    unlink_try_hard(p)
-
-        unlink_try_hard(Path(f"{config.output}.manifest"))
-        if config.compress_output:
-            unlink_try_hard(Path(f"{config.output}.manifest.{config.compress_output.value}"))
-        unlink_try_hard(Path(f"{config.output}.changelog"))
-
-        if config.output_split_kernel.parent.exists():
-            for p in config.output_split_kernel.parent.iterdir():
-                if p.name.startswith(config.output_split_kernel.name):
-                    unlink_try_hard(p)
-        unlink_try_hard(config.output_split_kernel)
-
-        if config.output_split_uki.parent.exists():
-            for p in config.output_split_uki.parent.iterdir():
-                if p.name.startswith(config.output_split_uki.name):
-                    unlink_try_hard(p)
-        unlink_try_hard(config.output_split_uki)
-
-        if config.nspawn_settings is not None:
-            unlink_try_hard(config.output_nspawn_settings)
-
-    if config.ssh and config.output_sshkey is not None:
-        unlink_try_hard(config.output_sshkey)
-
-    # We remove any cached images if either the user used --force
-    # twice, or he/she called "clean" with it passed once. Let's also
-    # remove the downloaded package cache if the user specified one
-    # additional "--force".
+    # We remove any cached images if either the user used --force twice, or he/she called "clean" with it
+    # passed once. Let's also remove the downloaded package cache if the user specified one additional
+    # "--force". Let's also remove all versions if the user specified one additional "--force".
 
     if args.verb == Verb.clean:
         remove_build_cache = args.force > 0
         remove_package_cache = args.force > 1
+        prefix = config.output if args.force > 1 else config.output_with_version
     else:
         remove_build_cache = args.force > 1
         remove_package_cache = args.force > 2
+        prefix = config.output if args.force > 2 else config.output_with_version
+
+    with complete_step("Removing output files…"):
+        if config.output_dir.exists():
+            for p in config.output_dir.iterdir():
+                if p.name.startswith(prefix):
+                    unlink_try_hard(p)
 
     if remove_build_cache:
         for p in cache_tree_paths(config):
@@ -1024,33 +991,23 @@ def unlink_output(args: MkosiArgs, config: MkosiConfig) -> None:
                 with complete_step(f"Removing cache directory {p}…"):
                     unlink_try_hard(p)
 
-        if config.build_dir is not None and config.build_dir.exists() and any(config.build_dir.iterdir()):
+        if config.build_dir and config.build_dir.exists() and any(config.build_dir.iterdir()):
             with complete_step("Clearing out build directory…"):
                 empty_directory(config.build_dir)
 
-        if config.install_dir is not None and config.install_dir.exists() and any(config.install_dir.iterdir()):
+        if config.install_dir and config.install_dir.exists() and any(config.install_dir.iterdir()):
             with complete_step("Clearing out install directory…"):
                 empty_directory(config.install_dir)
 
     if remove_package_cache:
-        if config.cache_dir is not None and config.cache_dir.exists() and any(config.cache_dir.iterdir()):
+        if config.cache_dir and config.cache_dir.exists() and any(config.cache_dir.iterdir()):
             with complete_step("Clearing out package cache…"):
                 empty_directory(config.cache_dir)
 
 
 def cache_tree_paths(config: MkosiConfig) -> tuple[Path, Path]:
-
     assert config.cache_dir
-
-    # If the image ID is specified, use cache file names that are independent of the image versions, so that
-    # rebuilding and bumping versions is cheap and reuses previous versions if cached.
-    if config.image_id:
-        prefix = config.cache_dir / config.image_id
-    # Otherwise, derive the cache file names directly from the output file names.
-    else:
-        prefix = config.cache_dir / config.output.name
-
-    return (Path(f"{prefix}.cache"), Path(f"{prefix}.build.cache"))
+    return config.cache_dir / f"{config.output}.cache", config.cache_dir / f"{config.output}.build.cache"
 
 
 def check_tree_input(path: Optional[Path]) -> None:
@@ -1112,9 +1069,8 @@ def check_outputs(config: MkosiConfig) -> None:
         config.output_checksum if config.checksum else None,
         config.output_signature if config.sign else None,
         config.output_nspawn_settings if config.nspawn_settings is not None else None,
-        config.output_sshkey if config.ssh else None,
     ):
-        if f and f.exists():
+        if f and config.output_dir.joinpath(f).exists():
             die(f"Output path {f} exists already. (Consider invocation with --force.)")
 
 
@@ -1202,7 +1158,7 @@ def print_summary(args: MkosiArgs, config: MkosiConfig) -> None:
               Manifest Formats: {maniformats}
               Output Directory: {none_to_default(config.output_dir)}
            Workspace Directory: {none_to_default(config.workspace_dir)}
-                        Output: {bold(config.output_compressed)}
+                        Output: {bold(config.output_with_compression)}
                Output Checksum: {none_to_na(config.output_checksum if config.checksum else None)}
               Output Signature: {none_to_na(config.output_signature if config.sign else None)}
         Output nspawn Settings: {none_to_na(config.output_nspawn_settings if config.nspawn_settings is not None else None)}
@@ -1257,9 +1213,6 @@ def print_summary(args: MkosiArgs, config: MkosiConfig) -> None:
 
 def make_output_dir(state: MkosiState) -> None:
     """Create the output directory if set and not existing yet"""
-    if state.config.output_dir is None:
-        return
-
     run(["mkdir", "-p", state.config.output_dir], user=state.uid, group=state.gid)
 
 
@@ -1403,9 +1356,9 @@ def reuse_cache_tree(state: MkosiState) -> bool:
     return True
 
 
-def invoke_repart(state: MkosiState, skip: Sequence[str] = [], split: bool = False) -> Optional[str]:
+def invoke_repart(state: MkosiState, skip: Sequence[str] = [], split: bool = False) -> tuple[Optional[str], list[Path]]:
     if not state.config.output_format == OutputFormat.disk:
-        return None
+        return None, []
 
     cmdline: list[PathString] = [
         "systemd-repart",
@@ -1414,10 +1367,10 @@ def invoke_repart(state: MkosiState, skip: Sequence[str] = [], split: bool = Fal
         "--dry-run=no",
         "--json=pretty",
         "--root", state.root,
-        state.staging / state.config.output.name,
+        state.staging / state.config.output_with_format,
     ]
 
-    if not state.staging.joinpath(state.config.output.name).exists():
+    if not state.staging.joinpath(state.config.output_with_format).exists():
         cmdline += ["--empty=create"]
     if state.config.passphrase:
         cmdline += ["--key-file", state.config.passphrase]
@@ -1456,7 +1409,6 @@ def invoke_repart(state: MkosiState, skip: Sequence[str] = [], split: bool = Fal
                         CopyFiles=/boot:/
                         SizeMinBytes=1024M
                         SizeMaxBytes=1024M
-                        SplitName=-
                         """
                     )
                 )
@@ -1500,7 +1452,9 @@ def invoke_repart(state: MkosiState, skip: Sequence[str] = [], split: bool = Fal
         else:
             roothash = roothash or h
 
-    return f"roothash={roothash}" if roothash else f"usrhash={usrhash}" if usrhash else None
+    split_paths = [Path(p["split_path"]) for p in output if p.get("split_path", "-") != "-"]
+
+    return f"roothash={roothash}" if roothash else f"usrhash={usrhash}" if usrhash else None, split_paths
 
 
 def build_image(state: MkosiState, *, for_cache: bool, manifest: Optional[Manifest] = None) -> None:
@@ -1544,9 +1498,12 @@ def build_image(state: MkosiState, *, for_cache: bool, manifest: Optional[Manife
         run_finalize_script(state)
         run_selinux_relabel(state)
 
-    roothash = invoke_repart(state, skip=("esp", "xbootldr"))
+    roothash, _ = invoke_repart(state, skip=("esp", "xbootldr"))
     install_unified_kernel(state, roothash)
-    invoke_repart(state, split=True)
+    _, split_paths = invoke_repart(state, split=True)
+
+    for p in split_paths:
+        maybe_compress(state, p)
 
     make_tar(state)
     make_initrd(state)
@@ -1644,7 +1601,7 @@ def acl_toggle_build(state: MkosiState) -> Iterator[None]:
 
         yield
     finally:
-        for p in (*state.config.base_trees, state.config.cache_dir, *state.config.output_paths()):
+        for p in (*state.config.base_trees, state.config.cache_dir, state.config.output_dir / state.config.output):
             if p and p.is_dir():
                 with complete_step(f"Adding ACLs to {p}"):
                     setfacl(p, state.uid, allow=True)
@@ -1683,28 +1640,23 @@ def build_stuff(uid: int, gid: int, args: MkosiArgs, config: MkosiConfig) -> Non
             state = dataclasses.replace(state, )
             build_image(state, manifest=manifest, for_cache=False)
 
+        maybe_compress(state,
+                       state.staging / state.config.output_with_format,
+                       state.staging / state.config.output_with_compression)
+
         copy_nspawn_settings(state)
-        save_manifest(state, manifest)
-
-        for p in state.config.output_paths():
-            if state.staging.joinpath(p.name).exists():
-                shutil.move(state.staging / p.name, p)
-                if p != state.config.output or state.config.output_format != OutputFormat.directory:
-                    os.chown(p, uid, gid)
-                if p == state.config.output or p.suffix in ['.efi', '.manifest', '.raw']:
-                    compress_output(state.config, p, uid=uid, gid=gid)
-
-        for p in state.staging.iterdir():
-            if p.suffix in ['.efi', '.manifest', '.raw']:
-                compress_output(state.config, p, uid=0, gid=0)
-
-        # Run again after files are potentally compressed and renamed
-        for p in state.staging.iterdir():
-            shutil.move(p, state.config.output.parent / p.name)
-            os.chown(state.config.output.parent / p.name, uid, gid)
-
         calculate_sha256sum(state)
         calculate_signature(state)
+        save_manifest(state, manifest)
+
+        for f in state.staging.iterdir():
+            if not f.is_dir():
+                os.chown(f, uid, gid)
+
+            shutil.move(f, state.config.output_dir)
+
+        if not state.config.output_dir.joinpath(state.config.output).exists():
+            state.config.output_dir.joinpath(state.config.output).symlink_to(state.config.output_with_compression)
 
     print_output_size(config)
 
@@ -1715,7 +1667,7 @@ def check_root() -> None:
 
 
 def machine_cid(config: MkosiConfig) -> int:
-    cid = int.from_bytes(hashlib.sha256(machine_name(config).encode()).digest()[:4], byteorder='little')
+    cid = int.from_bytes(hashlib.sha256(config.output_with_version.encode()).digest()[:4], byteorder='little')
     # Make sure we don't return any of the well-known CIDs.
     return max(3, min(cid, 0xFFFFFFFF - 1))
 
@@ -1742,25 +1694,25 @@ def acl_toggle_boot(config: MkosiConfig) -> Iterator[None]:
     uid = InvokingUser.uid()
 
     try:
-        with complete_step(f"Removing ACLs from {config.output}"):
-            setfacl(config.output, uid, allow=False)
+        with complete_step(f"Removing ACLs from {config.output_dir / config.output}"):
+            setfacl(config.output_dir / config.output, uid, allow=False)
         yield
     finally:
-        with complete_step(f"Adding ACLs to {config.output}"):
-            setfacl(config.output, uid, allow=True)
+        with complete_step(f"Adding ACLs to {config.output_dir / config.output}"):
+            setfacl(config.output_dir / config.output, uid, allow=True)
 
 
 def run_shell(args: MkosiArgs, config: MkosiConfig) -> None:
     cmdline: list[PathString] = ["systemd-nspawn", "--quiet"]
 
-    if config.output_format in (OutputFormat.directory, OutputFormat.subvolume):
-        cmdline += ["--directory", config.output]
+    if config.output_format == OutputFormat.directory:
+        cmdline += ["--directory", config.output_dir / config.output]
 
-        owner = os.stat(config.output).st_uid
+        owner = os.stat(config.output_dir / config.output).st_uid
         if owner != 0:
             cmdline += [f"--private-users={str(owner)}"]
     else:
-        cmdline += ["--image", config.output]
+        cmdline += ["--image", config.output_dir / config.output]
 
     # If we copied in a .nspawn file, make sure it's actually honoured
     if config.nspawn_settings is not None:
@@ -1779,7 +1731,7 @@ def run_shell(args: MkosiArgs, config: MkosiConfig) -> None:
     if config.ephemeral:
         cmdline += ["--ephemeral"]
 
-    cmdline += ["--machine", machine_name(config)]
+    cmdline += ["--machine", config.output]
     cmdline += [f"--bind={config.build_sources}:/root/src", "--chdir=/root/src"]
 
     for k, v in config.credentials.items():
@@ -1985,7 +1937,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
             ]
 
         if config.ephemeral:
-            f = stack.enter_context(tempfile.NamedTemporaryFile(prefix=".mkosi-", dir=config.output.parent))
+            f = stack.enter_context(tempfile.NamedTemporaryFile(prefix=".mkosi-", dir=config.output_dir))
             fname = Path(f.name)
 
             # So on one hand we want CoW off, since this stuff will
@@ -1997,13 +1949,13 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
             # CoW but later changes do not result in CoW anymore.
 
             run(["chattr", "+C", fname], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
-            copy_path(config.output_compressed, fname)
+            copy_path(config.output_dir / config.output, fname)
         else:
-            fname = config.output_compressed
+            fname = config.output_dir / config.output
 
         # Debian images fail to boot with virtio-scsi, see: https://github.com/systemd/mkosi/issues/725
         if config.output_format == OutputFormat.cpio:
-            kernel = (config.output_dir or Path.cwd()) / config.output_split_kernel
+            kernel = config.output_dir / config.output_split_kernel
             if not kernel.exists() and "-kernel" not in args.cmdline:
                 die("No kernel found, please install a kernel in the cpio or provide a -kernel argument to mkosi qemu")
             cmdline += ["-kernel", kernel,
@@ -2123,7 +2075,10 @@ def expand_specifier(s: str) -> str:
 
 
 def needs_build(args: MkosiArgs, config: MkosiConfig) -> bool:
-    return args.verb == Verb.build or (args.verb in MKOSI_COMMANDS_NEED_BUILD and (not config.output_compressed.exists() or args.force > 0))
+    if args.verb == Verb.build:
+        return True
+
+    return args.verb in MKOSI_COMMANDS_NEED_BUILD and (args.force > 0 or not config.output_dir.joinpath(config.output).exists())
 
 
 def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
@@ -2146,7 +2101,6 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
 
     if args.verb == Verb.qemu and last.output_format in (
         OutputFormat.directory,
-        OutputFormat.subvolume,
         OutputFormat.tar,
     ):
         die(f"{last.output_format} images cannot be booted in qemu.")

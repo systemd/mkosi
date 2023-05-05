@@ -394,6 +394,22 @@ def config_make_path_parser(*,
     return config_parse_path
 
 
+def config_parse_filename(dest: str, value: Optional[str], namespace: argparse.Namespace) -> Optional[str]:
+    if dest in namespace:
+        return getattr(namespace, dest) # type: ignore
+
+    if not value:
+        return None
+
+    if value == "." or value == "..":
+        die(". and .. are not valid filenames")
+
+    if "/" in value:
+        die(f"{value} is not a valid filename")
+
+    return value
+
+
 def match_path_exists(value: str) -> bool:
     if not value:
         return False
@@ -529,8 +545,8 @@ class MkosiConfig:
     architecture: str
     output_format: OutputFormat
     manifest_format: list[ManifestFormat]
-    output: Path
-    output_dir: Optional[Path]
+    output: str
+    output_dir: Path
     kernel_command_line: list[str]
     secure_boot: bool
     secure_boot_key: Optional[Path]
@@ -603,56 +619,62 @@ class MkosiConfig:
         return self.architecture == platform.machine()
 
     @property
-    def output_split_uki(self) -> Path:
-        return build_auxiliary_output_path(self, ".efi")
+    def output_with_version(self) -> str:
+        output = self.output
+
+        if self.image_version:
+            output += f"_{self.image_version}"
+
+        return output
 
     @property
-    def output_split_kernel(self) -> Path:
-        return build_auxiliary_output_path(self, ".vmlinuz")
+    def output_with_format(self) -> str:
+        output = self.output_with_version
+
+        output += {
+            OutputFormat.disk: ".raw",
+            OutputFormat.cpio: ".cpio",
+            OutputFormat.tar: ".tar",
+        }.get(self.output_format, "")
+
+        return output
 
     @property
-    def output_nspawn_settings(self) -> Path:
-        return build_auxiliary_output_path(self, ".nspawn")
+    def output_with_compression(self) -> str:
+        output = self.output_with_format
+
+        if self.compress_output:
+            output += f".{self.compress_output}"
+
+        return output
 
     @property
-    def output_checksum(self) -> Path:
-        return self.output.parent / "SHA256SUMS"
+    def output_split_uki(self) -> str:
+        return f"{self.output_with_version}.efi"
 
     @property
-    def output_signature(self) -> Path:
-        return self.output.parent / "SHA256SUMS.gpg"
+    def output_split_kernel(self) -> str:
+        return f"{self.output_with_version}.vmlinuz"
 
     @property
-    def output_sshkey(self) -> Path:
-        return build_auxiliary_output_path(self, ".ssh")
+    def output_nspawn_settings(self) -> str:
+        return f"{self.output_with_version}.nspawn"
 
     @property
-    def output_manifest(self) -> Path:
-        return build_auxiliary_output_path(self, ".manifest")
+    def output_checksum(self) -> str:
+        return f"{self.output_with_version}.SHA256SUMS"
 
     @property
-    def output_changelog(self) -> Path:
-        return build_auxiliary_output_path(self, ".changelog")
+    def output_signature(self) -> str:
+        return f"{self.output_with_version}.SHA256SUMS.gpg"
 
     @property
-    def output_compressed(self) -> Path:
-        if not self.compress_output:
-            return self.output
+    def output_manifest(self) -> str:
+        return f"{self.output_with_version}.manifest"
 
-        return self.output.parent / f"{self.output.name}.{self.compress_output}"
-
-    def output_paths(self) -> tuple[Path, ...]:
-        return (
-            self.output,
-            self.output_split_uki,
-            self.output_split_kernel,
-            self.output_nspawn_settings,
-            self.output_checksum,
-            self.output_signature,
-            self.output_sshkey,
-            self.output_manifest,
-            self.output_changelog,
-        )
+    @property
+    def output_changelog(self) -> str:
+        return f"{self.output_with_version}.changelog"
 
 
 class MkosiConfigParser:
@@ -719,7 +741,7 @@ class MkosiConfigParser:
         MkosiConfigSetting(
             dest="output",
             section="Output",
-            parse=config_make_path_parser(required=False, absolute=False),
+            parse=config_parse_filename,
         ),
         MkosiConfigSetting(
             dest="output_dir",
@@ -727,6 +749,7 @@ class MkosiConfigParser:
             section="Output",
             parse=config_make_path_parser(required=False),
             paths=("mkosi.output",),
+            default=Path("."),
         ),
         MkosiConfigSetting(
             dest="workspace_dir",
@@ -908,7 +931,7 @@ class MkosiConfigParser:
             dest="build_sources",
             section="Content",
             parse=config_make_path_parser(),
-            default=".",
+            default=Path("."),
         ),
         MkosiConfigSetting(
             dest="build_packages",
@@ -1295,13 +1318,13 @@ class MkosiConfigParser:
         group.add_argument(
             "-o", "--output",
             metavar="PATH",
-            help="Output image path",
+            help="Output name",
             action=action,
         )
         group.add_argument(
             "-O", "--output-dir",
             metavar="DIR",
-            help="Output root directory",
+            help="Output directory",
             action=action,
         )
         group.add_argument(
@@ -1801,7 +1824,6 @@ def strip_suffixes(path: Path) -> Path:
     while path.suffix in {
         ".xz",
         ".zstd",
-        ".zst",
         ".raw",
         ".tar",
         ".cpio",
@@ -1809,11 +1831,6 @@ def strip_suffixes(path: Path) -> Path:
         path = path.with_suffix("")
 
     return path
-
-
-def build_auxiliary_output_path(args: Union[argparse.Namespace, MkosiConfig], suffix: str) -> Path:
-    output = strip_suffixes(args.output)
-    return output.with_name(f"{output.name}{suffix}")
 
 
 def find_image_version(args: argparse.Namespace) -> None:
@@ -1850,11 +1867,6 @@ def find_password(args: argparse.Namespace) -> None:
         pass
 
 
-
-def machine_name(config: Union[MkosiConfig, argparse.Namespace]) -> str:
-    return config.image_id or config.output.with_suffix("").name.partition("_")[0]
-
-
 def load_credentials(args: argparse.Namespace) -> dict[str, str]:
     creds = {}
 
@@ -1884,7 +1896,7 @@ def load_credentials(args: argparse.Namespace) -> dict[str, str]:
         creds["firstboot.locale"] = "C.UTF-8"
 
     if "firstboot.hostname" not in creds:
-        creds["firstboot.hostname"] = machine_name(args)
+        creds["firstboot.hostname"] = args.output
 
     if args.ssh and "ssh.authorized_keys.root" not in creds and "SSH_AUTH_SOCK" in os.environ:
         key = run(
@@ -1952,26 +1964,7 @@ def load_config(args: argparse.Namespace) -> MkosiConfig:
         args.compress_output = Compression.zst if args.output_format == OutputFormat.cpio else Compression.none
 
     if args.output is None:
-        iid = args.image_id or args.preset or "image"
-        prefix = f"{iid}_{args.image_version}" if args.image_version is not None else iid
-
-        if args.output_format == OutputFormat.disk:
-            output = f"{prefix}.raw"
-        elif args.output_format == OutputFormat.tar:
-            output = f"{prefix}.tar"
-        elif args.output_format == OutputFormat.cpio:
-            output = f"{prefix}.cpio"
-        else:
-            output = prefix
-        args.output = Path(output)
-
-    if args.output_dir is not None:
-        if "/" not in str(args.output):
-            args.output = args.output_dir / args.output
-        else:
-            logging.warning("Ignoring configured output directory as output file is a qualified path.")
-
-    args.output = args.output.absolute()
+        args.output = args.image_id or args.preset or "image"
 
     if args.environment:
         env = {}

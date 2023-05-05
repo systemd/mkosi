@@ -154,8 +154,6 @@ The following output formats are supported:
 
 * Plain directory, containing the OS tree (*directory*)
 
-* btrfs subvolume
-
 * Tar archive (*tar*)
 
 * CPIO archive (*cpio*) in the format appropriate for a kernel initrd
@@ -330,10 +328,9 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 `Format=`, `--format=`, `-t`
 
 : The image format type to generate. One of `directory` (for generating OS
-  images inside a local directory), `subvolume` (similar, but as a btrfs
-  subvolume), `tar` (similar, but a tarball of the image is generated), `cpio`
-  (similar, but a cpio archive is generated), `disk` (a block device image
-  with a GPT partition table).
+  images inside a local directory), `tar` (similar, but a tarball of the
+  image is generated), `cpio` (similar, but a cpio archive is generated),
+  `disk` (a block device image with a GPT partition table).
 
 `ManifestFormat=`, `--manifest-format=`
 
@@ -538,11 +535,6 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   instead. Note that mkosi invokes repart with `--root=` set to the root of the
   image root, so any `CopyFiles=` source paths in partition definition files will
   be relative to the image root directory.
-
-  It is recommended to have the `SplitName` parameter either end with `%t` or
-  `.raw` if the `SplitArtifacts=yes` option is set. This will make sure that
-  split artifacts are compressed and the compressed file name is included in the
-  checksum output if `Checksum=yes` is also set.
 
 `Overlay=`, `--overlay`
 
@@ -864,12 +856,10 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 
 `Ephemeral=`, `--ephemeral`
 
-: When used with the `shell`, `boot`, or `qemu` verbs, this option
-  runs the specified verb on a temporary snapshot of the output image
-  that is removed immediately when the container terminates. Taking
-  the temporary snapshot is more efficient on file systems that
-  support subvolume snapshots or 'reflinks' natively ("btrfs" or new
-  "xfs") than on more traditional file systems that do not ("ext4").
+: When used with the `shell`, `boot`, or `qemu` verbs, this option runs the specified verb on a temporary
+  snapshot of the output image that is removed immediately when the container terminates. Taking the
+  temporary snapshot is more efficient on file systems that support reflinks natively ("btrfs" or new "xfs")
+  than on more traditional file systems that do not ("ext4").
 
 `Ssh=`, `--ssh`
 
