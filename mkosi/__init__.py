@@ -50,6 +50,7 @@ from mkosi.util import (
     format_bytes,
     format_rlimit,
     is_apt_distribution,
+    is_portage_distribution,
     prepend_to_environ_path,
 )
 
@@ -844,7 +845,7 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                 "--acl", yes_no(state.config.acl),
                 "--format", "cpio",
                 "--package", "systemd",
-                "--package", "udev",
+                *(["--package", "udev"] if not is_portage_distribution(state.config.distribution) else []),
                 "--package", "kmod",
                 *(["--package", "dmsetup"] if is_apt_distribution(state.config.distribution) else []),
                 "--output", f"{state.config.output}-initrd",
