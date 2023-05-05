@@ -6,7 +6,6 @@ import enum
 import fnmatch
 import functools
 import inspect
-import logging
 import operator
 import os.path
 import platform
@@ -74,7 +73,8 @@ def parse_path(value: str,
                required: bool = True,
                absolute: bool = True,
                expanduser: bool = True,
-               expandvars: bool = True) -> Path:
+               expandvars: bool = True,
+               secret: bool = False) -> Path:
     if expandvars:
         value = os.path.expandvars(value)
 
@@ -90,6 +90,14 @@ def parse_path(value: str,
 
     if absolute:
         path = path.absolute()
+
+    if secret:
+        mode = path.stat().st_mode & 0o777
+        if mode & 0o007:
+            die(textwrap.dedent(f"""\
+                Permissions of '{path}' of '{mode:04o}' are too open.
+                When creating secret files use an access mode that restricts access to the owner only.
+            """))
 
     return path
 
@@ -374,13 +382,15 @@ def make_path_parser(*,
                      required: bool = True,
                      absolute: bool = True,
                      expanduser: bool = True,
-                     expandvars: bool = True) -> Callable[[str], Path]:
+                     expandvars: bool = True,
+                     secret: bool = False) -> Callable[[str], Path]:
     return functools.partial(
         parse_path,
         required=required,
         absolute=absolute,
         expanduser=expanduser,
         expandvars=expandvars,
+        secret=secret,
     )
 
 
@@ -388,7 +398,8 @@ def config_make_path_parser(*,
                             required: bool = True,
                             absolute: bool = True,
                             expanduser: bool = True,
-                            expandvars: bool = True) -> ConfigParseCallback:
+                            expandvars: bool = True,
+                            secret: bool = False) -> ConfigParseCallback:
     def config_parse_path(dest: str, value: Optional[str], namespace: argparse.Namespace) -> Optional[Path]:
         if dest in namespace:
             return getattr(namespace, dest) # type: ignore
@@ -400,6 +411,7 @@ def config_make_path_parser(*,
                 absolute=absolute,
                 expanduser=expanduser,
                 expandvars=expandvars,
+                secret=secret,
             )
 
         return None
@@ -596,8 +608,6 @@ class MkosiConfig:
     split_artifacts: bool
     sign: bool
     key: Optional[str]
-    password: Optional[str]
-    password_is_hashed: bool
     autologin: bool
     extra_search_paths: list[Path]
     ephemeral: bool
@@ -613,6 +623,15 @@ class MkosiConfig:
     acl: bool
     bootable: ConfigFeature
     use_subvolumes: ConfigFeature
+    locale: Optional[str]
+    locale_messages: Optional[str]
+    keymap: Optional[str]
+    timezone: Optional[str]
+    hostname: Optional[str]
+    root_password: Optional[str]
+    root_password_hashed: Optional[str]
+    root_password_file: Optional[Path]
+    root_shell: Optional[str]
 
     # QEMU-specific options
     qemu_gui: bool
@@ -905,15 +924,6 @@ class MkosiConfigParser:
             match=config_make_list_matcher(delimiter=",", parse=parse_feature),
         ),
         MkosiConfigSetting(
-            dest="password",
-            section="Content",
-        ),
-        MkosiConfigSetting(
-            dest="password_is_hashed",
-            section="Content",
-            parse=config_parse_boolean,
-        ),
-        MkosiConfigSetting(
             dest="autologin",
             section="Content",
             parse=config_parse_boolean,
@@ -1028,6 +1038,52 @@ class MkosiConfigParser:
             dest="kernel_modules_initrd_exclude",
             section="Content",
             parse=config_make_list_parser(delimiter=","),
+        ),
+        MkosiConfigSetting(
+            dest="locale",
+            section="Content",
+            parse=config_parse_string,
+        ),
+        MkosiConfigSetting(
+            dest="locale_messages",
+            section="Content",
+            parse=config_parse_string,
+        ),
+        MkosiConfigSetting(
+            dest="keymap",
+            section="Content",
+            parse=config_parse_string,
+        ),
+        MkosiConfigSetting(
+            dest="timezone",
+            section="Content",
+            parse=config_parse_string,
+        ),
+        MkosiConfigSetting(
+            dest="hostname",
+            section="Content",
+            parse=config_parse_string,
+        ),
+        MkosiConfigSetting(
+            dest="root_password",
+            section="Content",
+            parse=config_parse_string,
+        ),
+        MkosiConfigSetting(
+            dest="root_password_hashed",
+            section="Content",
+            parse=config_parse_string,
+        ),
+        MkosiConfigSetting(
+            dest="root_password_file",
+            section="Content",
+            parse=config_make_path_parser(secret=True),
+            paths=("mkosi.rootpw",),
+        ),
+        MkosiConfigSetting(
+            dest="root_shell",
+            section="Content",
+            parse=config_parse_string,
         ),
         MkosiConfigSetting(
             dest="checksum",
@@ -1516,14 +1572,6 @@ class MkosiConfigParser:
             nargs="?",
             action=action,
         )
-        group.add_argument("--password", help="Set the root password", action=action)
-        group.add_argument(
-            "--password-is-hashed",
-            metavar="BOOL",
-            help="Indicate that the root password has already been hashed",
-            nargs="?",
-            action=action,
-        )
         group.add_argument(
             "--autologin",
             metavar="BOOL",
@@ -1658,6 +1706,60 @@ class MkosiConfigParser:
             "--kernel-modules-initrd-exclude",
             help="When building a kernel modules initrd, exclude the specified kernel modules",
             metavar="REGEX",
+            action=action,
+        )
+        group.add_argument(
+            "--locale",
+            help="Set the system locale",
+            metavar="LOCALE",
+            action=action,
+        )
+        group.add_argument(
+            "--locale-messages",
+            help="Set the messages locale",
+            metavar="LOCALE",
+            action=action,
+        )
+        group.add_argument(
+            "--keymap",
+            help="Set the system keymap",
+            metavar="KEYMAP",
+            action=action,
+        )
+        group.add_argument(
+            "--timezone",
+            help="Set the system timezone",
+            metavar="TIMEZONE",
+            action=action,
+        )
+        group.add_argument(
+            "--hostname",
+            help="Set the system hostname",
+            metavar="HOSTNAME",
+            action=action,
+        )
+        group.add_argument(
+            "--root-password",
+            help="Set the system root password",
+            metavar="PASSWORD",
+            action=action,
+        )
+        group.add_argument(
+            "--root-password-hashed",
+            help="Set the system root password (hashed)",
+            metavar="PASSWORD-HASHED",
+            action=action,
+        )
+        group.add_argument(
+            "--root-password-file",
+            help="Set the system root password (file)",
+            metavar="PATH",
+            action=action,
+        )
+        group.add_argument(
+            "--root-shell",
+            help="Set the system root shell",
+            metavar="SHELL",
             action=action,
         )
 
@@ -1909,29 +2011,6 @@ def find_image_version(args: argparse.Namespace) -> None:
         pass
 
 
-def require_private_file(name: Path, description: str) -> None:
-    mode = os.stat(name).st_mode & 0o777
-    if mode & 0o007:
-        logging.warning(textwrap.dedent(f"""\
-            Permissions of '{name}' of '{mode:04o}' are too open.
-            When creating {description} files use an access mode that restricts access to the owner only.
-        """))
-
-
-def find_password(args: argparse.Namespace) -> None:
-    if args.password is not None:
-        return
-
-    try:
-        pwfile = Path("mkosi.rootpw")
-        require_private_file(pwfile, "root password")
-
-        args.password = pwfile.read_text().strip()
-
-    except FileNotFoundError:
-        pass
-
-
 def load_credentials(args: argparse.Namespace) -> dict[str, str]:
     creds = {}
 
@@ -2058,9 +2137,6 @@ def load_config(args: argparse.Namespace) -> MkosiConfig:
 
     if args.sign_expected_pcr is None:
         args.sign_expected_pcr = bool(shutil.which("systemd-measure"))
-
-    # Resolve passwords late so we can accurately determine whether a build is needed
-    find_password(args)
 
     if args.repo_dirs and not (
         is_dnf_distribution(args.distribution)

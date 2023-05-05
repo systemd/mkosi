@@ -727,19 +727,6 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 : Packages are appended to the list. Packages prefixed with "!" are
   removed from the list. "!\*" removes all packages from the list.
 
-`Password=`, `--password=`
-
-: Set the password of the `root` user. By default the `root` account
-  is locked. If this option is not used, but a file `mkosi.rootpw`
-  exists in the local directory, the root password is automatically
-  read from it.
-
-`PasswordIsHashed=`, `--password-is-hashed`
-
-: Indicate that the password supplied for the `root` user has already been
-  hashed, so that the string supplied with `Password=` or `mkosi.rootpw` will
-  be written to `/etc/shadow` literally.
-
 `Autologin=`, `--autologin`
 
 : Enable autologin for the `root` user on `/dev/pts/0` (nspawn),
@@ -844,6 +831,19 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 : Takes a list of regex patterns that specify modules to exclude from the kernel modules initrd. Behaves the
   same as `KernelModulesInitrdInclude=` except that all modules that match any of the specified patterns are
   excluded from the kernel modules initrd. This setting takes priority over `KernelModulesInitrdInclude=`.
+
+`Locale=`, `--locale=`,
+`LocaleMessages=`, `--locale-messages=`,
+`Keymap=`, `--keymap=`,
+`Timezone=`, `--timezone=`,
+`Hostname=`, `--hostname=`,
+`RootPassword=`, `--root-password=`,
+`RootPasswordHashed=`, `--root-password-hashed=`,
+`RootPasswordFile=`, `--root-password-file=`,
+`RootShell=`, `--root-shell=`
+
+: These settings correspond to the identically named systemd-firstboot options. See the systemd firstboot
+  [manpage](https://www.freedesktop.org/software/systemd/man/systemd-firstboot.html) for more information.
 
 ### [Validation] Section
 

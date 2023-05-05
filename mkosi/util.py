@@ -9,7 +9,6 @@ import os
 import pwd
 import re
 import resource
-import shutil
 import sys
 import tempfile
 from collections.abc import Iterable, Iterator, Sequence
@@ -188,18 +187,6 @@ def format_rlimit(rlimit: int) -> str:
 def tmp_dir() -> Path:
     path = os.environ.get("TMPDIR") or "/var/tmp"
     return Path(path)
-
-
-def patch_file(filepath: Path, line_rewriter: Callable[[str], str]) -> None:
-    temp_new_filepath = filepath.with_suffix(filepath.suffix + ".tmp.new")
-
-    with filepath.open("r") as old, temp_new_filepath.open("w") as new:
-        for line in old:
-            new.write(line_rewriter(line))
-
-    shutil.copystat(filepath, temp_new_filepath)
-    os.remove(filepath)
-    shutil.move(temp_new_filepath, filepath)
 
 
 def sort_packages(packages: Iterable[str]) -> list[str]:

@@ -286,6 +286,11 @@ def bwrap(
     ]
 
     if apivfs:
+        if not apivfs.joinpath("etc/machine-id").exists():
+            # Uninitialized means we want it to get initialized on first boot.
+            apivfs.joinpath("etc/machine-id").write_text("uninitialized\n")
+            apivfs.chmod(0o0444)
+
         cmdline += [
             "--tmpfs", apivfs / "run",
             "--tmpfs", apivfs / "tmp",
@@ -312,19 +317,30 @@ def bwrap(
 
     with tempfile.TemporaryDirectory(dir="/var/tmp", prefix="mkosi-var-tmp") as var_tmp:
         if apivfs:
-            cmdline += ["--bind", var_tmp, apivfs / "var/tmp"]
+            cmdline += [
+                "--bind", var_tmp, apivfs / "var/tmp",
+                # Make sure /etc/machine-id is not overwritten by any package manager post install scripts.
+                "--ro-bind", apivfs / "etc/machine-id", apivfs / "etc/machine-id",
+            ]
 
         cmdline += ["sh", "-c"]
         template = f"{chmod} && exec {{}} || exit $?"
 
         try:
-            return run([*cmdline, template.format(shlex.join(str(s) for s in cmd))],
-                       text=True, stdout=stdout, env=env, log=False)
+            result = run([*cmdline, template.format(shlex.join(str(s) for s in cmd))],
+                         text=True, stdout=stdout, env=env, log=False)
         except subprocess.CalledProcessError as e:
             logging.error(f'"{shlex.join(str(s) for s in cmd)}" returned non-zero exit code {e.returncode}.')
             if ARG_DEBUG_SHELL.get():
                 run([*cmdline, template.format("sh")], stdin=sys.stdin, check=False, env=env, log=False)
             raise e
+
+        # Clean up some stuff that might get written by package manager post install scripts.
+        if apivfs:
+            for f in ("var/lib/systemd/random-seed", "var/lib/systemd/credential.secret", "etc/machine-info"):
+                apivfs.joinpath(f).unlink(missing_ok=True)
+
+        return result
 
 
 def run_workspace_command(

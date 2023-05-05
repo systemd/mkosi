@@ -2,7 +2,6 @@
 
 import base64
 import contextlib
-import crypt
 import datetime
 import errno
 import hashlib
@@ -57,7 +56,6 @@ from mkosi.util import (
     flatten,
     format_rlimit,
     is_apt_distribution,
-    patch_file,
     prepend_to_environ_path,
     tmp_dir,
 )
@@ -280,60 +278,6 @@ def remove_packages(state: MkosiState) -> None:
             state.installer.remove_packages(state, state.config.remove_packages)
         except NotImplementedError:
             die(f"Removing packages is not supported for {state.config.distribution}")
-
-
-def reset_machine_id(state: MkosiState) -> None:
-    """Make /etc/machine-id an empty file.
-
-    This way, on the next boot is either initialized and committed (if /etc is
-    writable) or the image runs with a transient machine ID, that changes on
-    each boot (if the image is read-only).
-    """
-    with complete_step("Resetting machine ID"):
-        machine_id = state.root / "etc/machine-id"
-        machine_id.unlink(missing_ok=True)
-        machine_id.write_text("uninitialized\n")
-
-
-def reset_random_seed(root: Path) -> None:
-    """Remove random seed file, so that it is initialized on first boot"""
-    random_seed = root / "var/lib/systemd/random-seed"
-    if not random_seed.exists():
-        return
-
-    with complete_step("Removing random seed"):
-        random_seed.unlink()
-
-
-def configure_root_password(state: MkosiState) -> None:
-    "Set the root account password, or just delete it so it's easy to log in"
-
-    if state.config.password == "":
-        with complete_step("Deleting root password"):
-
-            def delete_root_pw(line: str) -> str:
-                if line.startswith("root:"):
-                    return ":".join(["root", ""] + line.split(":")[2:])
-                return line
-
-            patch_file(state.root / "etc/passwd", delete_root_pw)
-    elif state.config.password:
-        with complete_step("Setting root password"):
-            if state.config.password_is_hashed:
-                password = state.config.password
-            else:
-                password = crypt.crypt(state.config.password, crypt.mksalt(crypt.METHOD_SHA512))
-
-            def set_root_pw(line: str) -> str:
-                if line.startswith("root:"):
-                    return ":".join(["root", password] + line.split(":")[2:])
-                return line
-
-            shadow = state.root / "etc/shadow"
-            try:
-                patch_file(shadow, set_root_pw)
-            except FileNotFoundError:
-                shadow.write_text(f"root:{password}:0:0:99999:7:::\n")
 
 
 def configure_autologin(state: MkosiState) -> None:
@@ -1326,7 +1270,13 @@ def print_summary(args: MkosiArgs, config: MkosiConfig) -> None:
             Script Environment: {line_join_list(env)}
           Scripts with network: {yes_no(config.with_network)}
                nspawn Settings: {none_to_none(config.nspawn_settings)}
-                      Password: {("(default)" if config.password is None else "(set)")}
+                        Locale: {none_to_default(config.locale)}
+               Locale Messages: {none_to_default(config.locale_messages)}
+                        Keymap: {none_to_default(config.keymap)}
+                      Timezone: {none_to_default(config.timezone)}
+                      Hostname: {none_to_default(config.hostname)}
+                 Root Password: {("(set)" if config.root_password or config.root_password_hashed or config.root_password_file else "(default)")}
+                    Root Shell: {none_to_default(config.root_shell)}
                      Autologin: {yes_no(config.autologin)}
 
     {bold("HOST CONFIGURATION")}:
@@ -1450,9 +1400,37 @@ def run_sysusers(state: MkosiState) -> None:
         run(["systemd-sysusers", "--root", state.root])
 
 
-def run_preset_all(state: MkosiState) -> None:
+def run_preset(state: MkosiState) -> None:
     with complete_step("Applying presets…"):
         run(["systemctl", "--root", state.root, "preset-all"])
+
+
+def run_firstboot(state: MkosiState) -> None:
+    settings = (
+        ("--locale",               state.config.locale),
+        ("--locale-messages",      state.config.locale_messages),
+        ("--keymap",               state.config.keymap),
+        ("--timezone",             state.config.timezone),
+        ("--hostname",             state.config.hostname),
+        ("--root-password",        state.config.root_password),
+        ("--root-password-hashed", state.config.root_password_hashed),
+        ("--root-password-file",   state.config.root_password_file),
+        ("--root-shell",           state.config.root_shell),
+    )
+
+    options = []
+
+    for setting, value in settings:
+        if not value:
+            continue
+
+        options += [setting, value]
+
+    if not options:
+        return
+
+    with complete_step("Applying first boot settings"):
+        run(["systemd-firstboot", "--root", state.root, "--force", *options])
 
 
 def run_selinux_relabel(state: MkosiState) -> None:
@@ -1607,7 +1585,6 @@ def build_image(state: MkosiState, *, for_cache: bool, manifest: Optional[Manife
         if for_cache:
             return
 
-        configure_root_password(state)
         configure_autologin(state)
         configure_initrd(state)
         run_build_script(state)
@@ -1617,8 +1594,9 @@ def build_image(state: MkosiState, *, for_cache: bool, manifest: Optional[Manife
         configure_ssh(state)
         run_postinst_script(state)
         run_sysusers(state)
-        run_preset_all(state)
+        run_preset(state)
         run_depmod(state)
+        run_firstboot(state)
         remove_packages(state)
 
         if manifest:
@@ -1627,8 +1605,6 @@ def build_image(state: MkosiState, *, for_cache: bool, manifest: Optional[Manife
 
         clean_package_manager_metadata(state)
         remove_files(state)
-        reset_machine_id(state)
-        reset_random_seed(state.root)
         run_finalize_script(state)
         run_selinux_relabel(state)
 
