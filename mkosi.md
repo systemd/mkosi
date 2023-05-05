@@ -249,6 +249,12 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   space-separated list. If multiple image version constraints are specified, all
   must be satisfied for the match to succeed.
 
+`Bootable=`
+
+: Matches against the configured value for the `Bootable=` feature. Takes a boolean value or `auto`. Multiple
+  values may be specified, separated by commas. If multiple values are specified, the condition is satisfied
+  if the current value of the `Bootable=` feature matches any of the specified values.
+
 | Matcher         | Multiple Values | Globs | Rich Comparisons | Default                 |
 |-----------------|-----------------|-------|------------------|-------------------------|
 | `Distribution=` | yes             | no    | no               | match host distribution |
@@ -256,6 +262,7 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 | `PathExists=`   | no              | no    | no               | match fails             |
 | `ImageId=`      | yes             | yes   | no               | match fails             |
 | `ImageVersion=` | yes             | no    | yes              | match fails             |
+| `Bootable=`     | yes             | no    | no               | match auto feature      |
 
 ### [Distribution] Section
 

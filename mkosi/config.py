@@ -141,14 +141,18 @@ def config_match_boolean(dest: str, value: str, namespace: argparse.Namespace) -
     return cast(bool, getattr(namespace, dest) == parse_boolean(value))
 
 
-def config_parse_feature(dest: str, value: Optional[str], namespace: argparse.Namespace) -> ConfigFeature:
-    if dest in namespace:
-        return getattr(namespace, dest) # type: ignore
-
+def parse_feature(value: Optional[str]) -> ConfigFeature:
     if not value or value == ConfigFeature.auto.value:
         return ConfigFeature.auto
 
     return ConfigFeature.enabled if parse_boolean(value) else ConfigFeature.disabled
+
+
+def config_parse_feature(dest: str, value: Optional[str], namespace: argparse.Namespace) -> ConfigFeature:
+    if dest in namespace:
+        return getattr(namespace, dest) # type: ignore
+
+    return parse_feature(value)
 
 
 def config_parse_compression(dest: str, value: Optional[str], namespace: argparse.Namespace) -> Optional[Compression]:
@@ -895,6 +899,7 @@ class MkosiConfigParser:
             dest="bootable",
             section="Content",
             parse=config_parse_feature,
+            match=config_make_list_matcher(delimiter=",", parse=parse_feature),
         ),
         MkosiConfigSetting(
             dest="password",
