@@ -738,6 +738,7 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                 "build",
             ])
 
+            unlink_output(args, presets[0])
             build_stuff(state.uid, state.gid, args, presets[0])
 
             initrds = [presets[0].output_compressed]
