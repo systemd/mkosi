@@ -606,6 +606,9 @@ class MkosiConfig:
     workspace_dir: Optional[Path]
     initrds: list[Path]
     make_initrd: bool
+    kernel_modules_initrd: bool
+    kernel_modules_initrd_include: list[str]
+    kernel_modules_initrd_exclude: list[str]
     kernel_command_line_extra: list[str]
     acl: bool
     bootable: ConfigFeature
@@ -1009,6 +1012,22 @@ class MkosiConfigParser:
             dest="make_initrd",
             section="Content",
             parse=config_parse_boolean,
+        ),
+        MkosiConfigSetting(
+            dest="kernel_modules_initrd",
+            section="Content",
+            parse=config_parse_boolean,
+            default=True,
+        ),
+        MkosiConfigSetting(
+            dest="kernel_modules_initrd_include",
+            section="Content",
+            parse=config_make_list_parser(delimiter=","),
+        ),
+        MkosiConfigSetting(
+            dest="kernel_modules_initrd_exclude",
+            section="Content",
+            parse=config_make_list_parser(delimiter=","),
         ),
         MkosiConfigSetting(
             dest="checksum",
@@ -1620,6 +1639,25 @@ class MkosiConfigParser:
             help="Make sure the image can be used as an initramfs",
             metavar="BOOL",
             nargs="?",
+            action=action,
+        )
+        group.add_argument(
+            "--kernel-modules-initrd",
+            help="When building a bootable image, add an extra initrd containing the kernel modules",
+            metavar="BOOL",
+            nargs="?",
+            action=action,
+        )
+        group.add_argument(
+            "--kernel-modules-initrd-include",
+            help="When building a kernel modules initrd, only include the specified kernel modules",
+            metavar="REGEX",
+            action=action,
+        )
+        group.add_argument(
+            "--kernel-modules-initrd-exclude",
+            help="When building a kernel modules initrd, exclude the specified kernel modules",
+            metavar="REGEX",
             action=action,
         )
 
