@@ -822,6 +822,29 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 : Add `/etc/initrd-release` and `/init` to the image so that it can be
   used as an initramfs.
 
+`KernelModulesInitrd=`, `--kernel-modules-initrd=`
+
+: Enable/Disable generation of the kernel modules initrd when building a bootable image. Enabled by default.
+  If enabled, when building a bootable image, for each kernel that we assemble a unified kernel image for, we
+  generate an extra initrd containing only the kernel modules for that kernel version and append it to the
+  prebuilt initrd. This allows generating kernel indepedent initrds which are augmented with the necessary
+  kernel modules when the UKI is assembled. By default all kernel modules and their required firmware files
+  are included.
+
+`KernelModulesInitrdInclude=`, `--kernel-modules-initrd-include=`
+
+: Takes a list of regex patterns that specify modules to include in the kernel modules initrd. Patterns
+  should be relative to the `/usr/lib/modules/<kver>/kernel` directory. mkosi checks for a match anywhere in
+  the module path (e.g. "i915" will match against "drivers/gpu/drm/i915.ko") All modules that match any of
+  the specified patterns are included in the kernel modules initrd. All module and firmware dependencies of
+  the matched modules are included in the kernel modules initrd as well.
+
+`KernelModulesInitrdExclude=`, `--kernel-modules-initrd-exclude=`
+
+: Takes a list of regex patterns that specify modules to exclude from the kernel modules initrd. Behaves the
+  same as `KernelModulesInitrdInclude=` except that all modules that match any of the specified patterns are
+  excluded from the kernel modules initrd. This setting takes priority over `KernelModulesInitrdInclude=`.
+
 ### [Validation] Section
 
 `Checksum=`, `--checksum`
