@@ -1332,7 +1332,7 @@ def configure_ssh(state: MkosiState) -> None:
     if not state.config.ssh:
         return
 
-    state.root.joinpath("etc/systemd/system/ssh.socket").write_text(
+    state.root.joinpath("usr/lib/systemd/system/ssh.socket").write_text(
         dedent(
             """\
             [Unit]
@@ -1350,7 +1350,7 @@ def configure_ssh(state: MkosiState) -> None:
         )
     )
 
-    state.root.joinpath("etc/systemd/system/ssh@.service").write_text(
+    state.root.joinpath("usr/lib/systemd/system/ssh@.service").write_text(
         dedent(
             """\
             [Unit]
@@ -1370,8 +1370,7 @@ def configure_ssh(state: MkosiState) -> None:
         )
     )
 
-    presetdir = state.root / "etc/systemd/system-preset"
-    presetdir.mkdir(exist_ok=True, mode=0o755)
+    presetdir = state.root / "usr/lib/systemd/system-preset"
     presetdir.joinpath("80-mkosi-ssh.preset").write_text("enable ssh.socket\n")
 
 

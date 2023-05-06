@@ -31,7 +31,7 @@ def write_resource(
 def add_dropin_config_from_resource(
     root: Path, unit: str, name: str, resource: str, key: str
 ) -> None:
-    dropin = root / f"etc/systemd/system/{unit}.d/{name}.conf"
+    dropin = root / f"usr/lib/systemd/system/{unit}.d/{name}.conf"
     dropin.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
     write_resource(dropin, resource, key, mode=0o644)
 
