@@ -884,6 +884,16 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 : Path to the X.509 file containing the certificate for the signed
   UEFI kernel image, if `SecureBoot=` is used.
 
+`VerityKey=`, `--verity-key=`
+
+: Path to the PEM file containing the secret key for signing the verity signature, if a verity signature
+  partition is added with systemd-repart.
+
+`VerityCertificate=`, `--verity-certificate=`
+
+: Path to the X.509 file containing the certificate for signing the verity signature, if a verity signature
+  partition is added with systemd-repart.
+
 `SignExpectedPCR=`, `--sign-expected-pcr`
 
 : Measure the components of the unified kernel image (UKI) using

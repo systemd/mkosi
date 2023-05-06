@@ -576,6 +576,8 @@ class MkosiConfig:
     secure_boot: bool
     secure_boot_key: Optional[Path]
     secure_boot_certificate: Optional[Path]
+    verity_key: Optional[Path]
+    verity_certificate: Optional[Path]
     sign_expected_pcr: bool
     compress_output: Compression
     image_version: Optional[str]
@@ -1058,6 +1060,18 @@ class MkosiConfigParser:
         ),
         MkosiConfigSetting(
             dest="secure_boot_certificate",
+            section="Validation",
+            parse=config_make_path_parser(),
+            paths=("mkosi.crt",),
+        ),
+        MkosiConfigSetting(
+            dest="verity_key",
+            section="Validation",
+            parse=config_make_path_parser(),
+            paths=("mkosi.key",),
+        ),
+        MkosiConfigSetting(
+            dest="verity_certificate",
             section="Validation",
             parse=config_make_path_parser(),
             paths=("mkosi.crt",),
@@ -1738,6 +1752,18 @@ class MkosiConfigParser:
             "--secure-boot-certificate",
             metavar="PATH",
             help="UEFI SecureBoot certificate in X509 format",
+            action=action,
+        )
+        group.add_argument(
+            "--verity-key",
+            metavar="PATH",
+            help="Private key for signing verity signature in PEM format",
+            action=action,
+        )
+        group.add_argument(
+            "--verity-certificate",
+            metavar="PATH",
+            help="Certificate for signing verity signature in X509 format",
             action=action,
         )
         group.add_argument(

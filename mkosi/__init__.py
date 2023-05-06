@@ -1287,8 +1287,10 @@ def print_summary(args: MkosiArgs, config: MkosiConfig) -> None:
 
     {bold("VALIDATION")}:
                UEFI SecureBoot: {yes_no(config.secure_boot)}
-           SecureBoot Sign Key: {none_to_none(config.secure_boot_key)}
+        SecureBoot Signing Key: {none_to_none(config.secure_boot_key)}
         SecureBoot Certificate: {none_to_none(config.secure_boot_certificate)}
+            Verity Signing Key: {none_to_none(config.verity_key)}
+            Verity Certificate: {none_to_none(config.verity_certificate)}
                       Checksum: {yes_no(config.checksum)}
                           Sign: {yes_no(config.sign)}
                        GPG Key: ({"default" if config.key is None else config.key})
@@ -1486,10 +1488,10 @@ def invoke_repart(state: MkosiState, skip: Sequence[str] = [], split: bool = Fal
         cmdline += ["--empty=create"]
     if state.config.passphrase:
         cmdline += ["--key-file", state.config.passphrase]
-    if state.config.secure_boot_key:
-        cmdline += ["--private-key", state.config.secure_boot_key]
-    if state.config.secure_boot_certificate:
-        cmdline += ["--certificate", state.config.secure_boot_certificate]
+    if state.config.verity_key:
+        cmdline += ["--private-key", state.config.verity_key]
+    if state.config.verity_certificate:
+        cmdline += ["--certificate", state.config.verity_certificate]
     if skip:
         cmdline += ["--defer-partitions", ",".join(skip)]
     if split and state.config.split_artifacts:
