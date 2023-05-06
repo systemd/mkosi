@@ -2122,24 +2122,23 @@ def run_serve(config: MkosiConfig) -> None:
         httpd.serve_forever()
 
 
-def generate_secure_boot_key(args: MkosiArgs) -> None:
-    """Generate secure boot keys using openssl"""
+def generate_key_cert_pair(args: MkosiArgs) -> None:
+    """Generate a private key and accompanying X509 certificate using openssl"""
 
     keylength = 2048
-    expiration_date = datetime.date.today() + datetime.timedelta(int(args.secure_boot_valid_days))
-    cn = expand_specifier(args.secure_boot_common_name)
+    expiration_date = datetime.date.today() + datetime.timedelta(int(args.genkey_valid_days))
+    cn = expand_specifier(args.genkey_common_name)
 
-    for f in ("mkosi.secure-boot.key", "mkosi.secure-boot.crt"):
+    for f in ("mkosi.key", "mkosi.crt"):
         if Path(f).exists() and not args.force:
             die(f"{f} already exists",
-                hint=("To generate new secure boot keys, "
-                      "first remove mkosi.secure-boot.key and mkosi.secure-boot.crt"))
+                hint=("To generate new keys, first remove mkosi.key and mkosi.crt"))
 
-    log_step(f"Generating secure boot keys rsa:{keylength} for CN {cn!r}.")
+    log_step(f"Generating keys rsa:{keylength} for CN {cn!r}.")
     logging.info(
         dedent(
             f"""
-            The keys will expire in {args.secure_boot_valid_days} days ({expiration_date:%A %d. %B %Y}).
+            The keys will expire in {args.genkey_valid_days} days ({expiration_date:%A %d. %B %Y}).
             Remember to roll them over to new ones before then.
             """
         )
@@ -2150,9 +2149,9 @@ def generate_secure_boot_key(args: MkosiArgs) -> None:
         "-new",
         "-x509",
         "-newkey", f"rsa:{keylength}",
-        "-keyout", "mkosi.secure-boot.key",
-        "-out", "mkosi.secure-boot.crt",
-        "-days", str(args.secure_boot_valid_days),
+        "-keyout", "mkosi.key",
+        "-out", "mkosi.crt",
+        "-days", str(args.genkey_valid_days),
         "-subj", f"/CN={cn}/",
         "-nodes",
     ]
@@ -2195,7 +2194,7 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
         check_root()
 
     if args.verb == Verb.genkey:
-        return generate_secure_boot_key(args)
+        return generate_key_cert_pair(args)
 
     if args.verb == Verb.bump:
         return bump_image_version()

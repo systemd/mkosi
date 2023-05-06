@@ -536,8 +536,8 @@ class MkosiArgs:
     debug: bool
     debug_shell: bool
     pager: bool
-    secure_boot_valid_days: str
-    secure_boot_common_name: str
+    genkey_valid_days: str
+    genkey_common_name: str
     auto_bump: bool
     presets: list[str]
 
@@ -830,13 +830,13 @@ class MkosiConfigParser:
             dest="secure_boot_key",
             section="Output",
             parse=config_make_path_parser(required=False),
-            paths=("mkosi.secure-boot.key",),
+            paths=("mkosi.key",),
         ),
         MkosiConfigSetting(
             dest="secure_boot_certificate",
             section="Output",
             parse=config_make_path_parser(required=False),
-            paths=("mkosi.secure-boot.crt",),
+            paths=("mkosi.crt",),
         ),
         MkosiConfigSetting(
             dest="sign_expected_pcr",
@@ -1319,16 +1319,16 @@ class MkosiConfigParser:
             help="Enable paging for long output",
         )
         parser.add_argument(
-            "--secure-boot-valid-days",
+            "--genkey-valid-days",
             metavar="DAYS",
-            help="Number of days UEFI SecureBoot keys should be valid when generating keys",
+            help="Number of days keys should be valid when generating keys",
             action=action,
             default="730",
         )
         parser.add_argument(
-            "--secure-boot-common-name",
+            "--genkey-common-name",
             metavar="CN",
-            help="Template for the UEFI SecureBoot CN when generating keys",
+            help="Template for the CN when generating keys",
             action=action,
             default="mkosi of %u",
         )
@@ -2129,11 +2129,11 @@ def load_config(args: argparse.Namespace) -> MkosiConfig:
     if args.secure_boot and args.verb != Verb.genkey:
         if args.secure_boot_key is None:
             die("UEFI SecureBoot enabled, but couldn't find private key.",
-                hint="Consider placing it in mkosi.secure-boot.key")
+                hint="Consider placing it in mkosi.key")
 
         if args.secure_boot_certificate is None:
             die("UEFI SecureBoot enabled, but couldn't find certificate.",
-                hint="Consider placing it in mkosi.secure-boot.crt")
+                hint="Consider placing it in mkosi.crt")
 
     if args.sign_expected_pcr is True and not shutil.which("systemd-measure"):
         die("Couldn't find systemd-measure needed for the --sign-expected-pcr option.")

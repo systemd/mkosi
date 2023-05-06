@@ -990,16 +990,15 @@ Those settings cannot be configured in the configuration files.
 
 : Show brief usage information.
 
-`--secure-boot-common-name=`
+`--genkey-common-name=`
 
-: Common name to be used when generating SecureBoot keys via mkosi's `genkey`
-  command. Defaults to `mkosi of %u`, where `%u` expands to the username of the
-  user invoking mkosi.
+: Common name to be used when generating keys via mkosi's `genkey` command. Defaults to `mkosi of %u`, where
+  `%u` expands to the username of the user invoking mkosi.
 
-`--secure-boot-valid-days=`
+`--genkey-valid-days=`
 
-: Number of days that the keys should remain valid when generating SecureBoot
-  keys via mkosi's `genkey` command. Defaults to two years (730 days).
+: Number of days that the keys should remain valid when generating keys via mkosi's `genkey` command.
+  Defaults to two years (730 days).
 
 `--auto-bump=`, `-B`
 
@@ -1169,11 +1168,8 @@ local directory:
   file does not exist and encryption is requested, the user is queried
   instead.
 
-* The **`mkosi.secure-boot.crt`** and **`mkosi.secure-boot.key`**
-  files contain an X.509 certificate and PEM private key to use when
-  UEFI SecureBoot support is enabled. All EFI binaries included in the
-  image's ESP are signed with this key, as a late step in the build
-  process.
+* The **`mkosi.crt`** and **`mkosi.key`** files contain an X.509 certificate and PEM private key to use when
+  signing is required (UEFI SecureBoot, verity, ...).
 
 * The **`mkosi.output/`** directory will be used for all build
   artifacts, if the image output path is not configured (i.e. no
