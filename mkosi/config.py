@@ -1167,7 +1167,7 @@ class MkosiConfigParser:
         self.settings_lookup = {s.name: s for s in self.SETTINGS}
         self.match_lookup = {m.name: m for m in self.MATCHES}
 
-    def parse_config(self, path: Path, namespace: argparse.Namespace) -> None:
+    def parse_config(self, path: Path, namespace: argparse.Namespace) -> bool:
         extras = path.is_dir()
 
         if path.is_dir():
@@ -1205,11 +1205,11 @@ class MkosiConfigParser:
                         setattr(namespace, s.dest, default)
 
                     if not match(s.dest, v, namespace):
-                        return
+                        return False
 
                 elif (m := self.match_lookup.get(k)):
                     if not m.match(v):
-                        return
+                        return False
 
         parser.remove_section("Match")
 
@@ -1233,6 +1233,8 @@ class MkosiConfigParser:
                 for f in s.paths:
                     if Path(f).exists():
                         setattr(namespace, s.dest, s.parse(s.dest, f, namespace))
+
+        return True
 
     def create_argument_parser(self) -> argparse.ArgumentParser:
         action = config_make_action(self.SETTINGS)
@@ -1918,7 +1920,8 @@ class MkosiConfigParser:
                     cp = copy.deepcopy(namespace)
 
                     with chdir(p if p.is_dir() else Path.cwd()):
-                        self.parse_config(p if p.is_file() else Path("."), cp)
+                        if not self.parse_config(p if p.is_file() else Path("."), cp):
+                            continue
 
                     setattr(cp, "preset", name)
 
