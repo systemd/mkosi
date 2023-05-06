@@ -829,13 +829,13 @@ class MkosiConfigParser:
         MkosiConfigSetting(
             dest="secure_boot_key",
             section="Output",
-            parse=config_make_path_parser(required=False),
+            parse=config_make_path_parser(),
             paths=("mkosi.key",),
         ),
         MkosiConfigSetting(
             dest="secure_boot_certificate",
             section="Output",
-            parse=config_make_path_parser(required=False),
+            parse=config_make_path_parser(),
             paths=("mkosi.crt",),
         ),
         MkosiConfigSetting(
