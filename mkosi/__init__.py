@@ -1132,11 +1132,12 @@ def check_inputs(config: MkosiConfig) -> None:
                      config.finalize_script):
             check_script_input(path)
 
-        for p in config.initrds:
-            if not p.exists():
-                die(f"Initrd {p} not found")
-            if not p.is_file():
-                die(f"Initrd {p} is not a file")
+        if config.bootable != ConfigFeature.disabled:
+            for p in config.initrds:
+                if not p.exists():
+                    die(f"Initrd {p} not found")
+                if not p.is_file():
+                    die(f"Initrd {p} is not a file")
 
     except OSError as e:
         die(f'{e.filename}: {e.strerror}')
