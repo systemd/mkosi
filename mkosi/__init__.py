@@ -1229,7 +1229,6 @@ def print_summary(args: MkosiArgs, config: MkosiConfig) -> None:
           Local Mirror (build): {none_to_none(config.local_mirror)}
       Repo Signature/Key check: {yes_no(config.repository_key_check)}
                   Repositories: {",".join(config.repositories)}
-                       Initrds: {",".join(os.fspath(p) for p in config.initrds)}
 
     {bold("OUTPUT")}:
                       Image ID: {config.image_id}
@@ -1238,30 +1237,24 @@ def print_summary(args: MkosiArgs, config: MkosiConfig) -> None:
               Manifest Formats: {maniformats}
               Output Directory: {none_to_default(config.output_dir)}
            Workspace Directory: {none_to_default(config.workspace_dir)}
+               Cache Directory: {none_to_none(config.cache_dir)}
+               Build Directory: {none_to_none(config.build_dir)}
+             Install Directory: {none_to_none(config.install_dir)}
                         Output: {bold(config.output_with_compression)}
                Output Checksum: {none_to_na(config.output_checksum if config.checksum else None)}
               Output Signature: {none_to_na(config.output_signature if config.sign else None)}
         Output nspawn Settings: {none_to_na(config.output_nspawn_settings if config.nspawn_settings is not None else None)}
-                   Incremental: {yes_no(config.incremental)}
                    Compression: {config.compress_output.name}
-                      Bootable: {yes_no_auto(config.bootable)}
-           Kernel Command Line: {" ".join(config.kernel_command_line)}
-               UEFI SecureBoot: {yes_no(config.secure_boot)}
-           SecureBoot Sign Key: {none_to_none(config.secure_boot_key)}
-        SecureBoot Certificate: {none_to_none(config.secure_boot_certificate)}
 
     {bold("CONTENT")}:
                       Packages: {line_join_list(config.packages)}
             With Documentation: {yes_no(config.with_docs)}
-                 Package Cache: {none_to_none(config.cache_dir)}
                 Skeleton Trees: {line_join_source_target_list(config.skeleton_trees)}
                    Extra Trees: {line_join_source_target_list(config.extra_trees)}
         Clean Package Metadata: {yes_no_auto(config.clean_package_metadata)}
                   Remove Files: {line_join_list(config.remove_files)}
                Remove Packages: {line_join_list(config.remove_packages)}
                  Build Sources: {config.build_sources}
-               Build Directory: {none_to_none(config.build_dir)}
-             Install Directory: {none_to_none(config.install_dir)}
                 Build Packages: {line_join_list(config.build_packages)}
                   Build Script: {path_or_none(config.build_script, check_script_input)}
      Run Tests in Build Script: {yes_no(config.with_tests)}
@@ -1270,7 +1263,9 @@ def print_summary(args: MkosiArgs, config: MkosiConfig) -> None:
                Finalize Script: {path_or_none(config.finalize_script, check_script_input)}
             Script Environment: {line_join_list(env)}
           Scripts with network: {yes_no(config.with_network)}
-               nspawn Settings: {none_to_none(config.nspawn_settings)}
+                      Bootable: {yes_no_auto(config.bootable)}
+           Kernel Command Line: {" ".join(config.kernel_command_line)}
+                       Initrds: {",".join(os.fspath(p) for p in config.initrds)}
                         Locale: {none_to_default(config.locale)}
                Locale Messages: {none_to_default(config.locale_messages)}
                         Keymap: {none_to_default(config.keymap)}
@@ -1281,6 +1276,8 @@ def print_summary(args: MkosiArgs, config: MkosiConfig) -> None:
                      Autologin: {yes_no(config.autologin)}
 
     {bold("HOST CONFIGURATION")}:
+                   Incremental: {yes_no(config.incremental)}
+               NSpawn Settings: {none_to_none(config.nspawn_settings)}
             Extra search paths: {line_join_list(config.extra_search_paths)}
           QEMU Extra Arguments: {line_join_list(config.qemu_args)}
         """
@@ -1289,6 +1286,9 @@ def print_summary(args: MkosiArgs, config: MkosiConfig) -> None:
         summary += f"""\
 
     {bold("VALIDATION")}:
+               UEFI SecureBoot: {yes_no(config.secure_boot)}
+           SecureBoot Sign Key: {none_to_none(config.secure_boot_key)}
+        SecureBoot Certificate: {none_to_none(config.secure_boot_certificate)}
                       Checksum: {yes_no(config.checksum)}
                           Sign: {yes_no(config.sign)}
                        GPG Key: ({"default" if config.key is None else config.key})

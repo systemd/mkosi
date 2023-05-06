@@ -122,6 +122,82 @@ The following command line verbs are known:
 : This verb is equivalent to the `--help` switch documented below: it
   shows a brief usage explanation.
 
+## Commandline-only Options
+
+Those settings cannot be configured in the configuration files.
+
+`--force`, `-f`
+
+: Replace the output file if it already exists, when building an
+  image. By default when building an image and an output artifact
+  already exists `mkosi` will refuse operation. Specify this option
+  once to delete all build artifacts from a previous run before
+  re-building the image. If incremental builds are enabled,
+  specifying this option twice will ensure the intermediary
+  cache files are removed, too, before the re-build is initiated. If a
+  package cache is used (also see the "Files" section below),
+  specifying this option thrice will ensure the package cache is
+  removed too, before the re-build is initiated. For the `clean`
+  operation this option has a slightly different effect: by default
+  the verb will only remove build artifacts from a previous run, when
+  specified once the incremental cache files are deleted too, and when
+  specified twice the package cache is also removed.
+
+`--directory=`, `-C`
+
+: Takes a path to a directory. `mkosi` switches to this directory
+  before doing anything. Note that the various `mkosi.*` files are
+  searched for only after changing to this directory, hence using this
+  option is an effective way to build a project located in a specific
+  directory.
+
+`--config=`
+
+: Loads additional settings from the specified settings file. Most
+  command line options may also be configured in a settings file. See
+  the table below to see which command line options match which
+  settings file option. If this option is not used, but a file
+  `mkosi.conf` is found in the local directory it is automatically
+  used for this purpose. If a setting is configured both on the
+  command line and in the settings file, the command line generally
+  wins, except for options taking lists in which case both lists are
+  combined.
+
+`--debug=`
+
+: Enable additional debugging output.
+
+`--debug-shell=`
+
+: When executing a command in the image fails, mkosi will start an interactive
+  shell in the image allowing further debugging.
+
+`--version`
+
+: Show package version.
+
+`--help`, `-h`
+
+: Show brief usage information.
+
+`--genkey-common-name=`
+
+: Common name to be used when generating keys via mkosi's `genkey` command. Defaults to `mkosi of %u`, where
+  `%u` expands to the username of the user invoking mkosi.
+
+`--genkey-valid-days=`
+
+: Number of days that the keys should remain valid when generating keys via mkosi's `genkey` command.
+  Defaults to two years (730 days).
+
+`--auto-bump=`, `-B`
+
+: If specified, after each successful build the the version is bumped
+  in a fashion equivalent to the `bump` verb, in preparation for the
+  next build. This is useful for simple, linear version management:
+  each build in a series will have a version number one higher then
+  the previous one.
+
 ## Execution Flow
 
 Execution flow for `mkosi build`. Default values/calls are shown in parentheses.
@@ -419,38 +495,6 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   `mkosi.installdir` exists in the local directory, it is automatically
   used for this purpose (also see the "Files" section below).
 
-`Force=`, `--force`, `-f`
-
-: Replace the output file if it already exists, when building an
-  image. By default when building an image and an output artifact
-  already exists `mkosi` will refuse operation. Specify this option
-  once to delete all build artifacts from a previous run before
-  re-building the image. If incremental builds are enabled,
-  specifying this option twice will ensure the intermediary
-  cache files are removed, too, before the re-build is initiated. If a
-  package cache is used (also see the "Files" section below),
-  specifying this option thrice will ensure the package cache is
-  removed too, before the re-build is initiated. For the `clean`
-  operation this option has a slightly different effect: by default
-  the verb will only remove build artifacts from a previous run, when
-  specified once the incremental cache files are deleted too, and when
-  specified twice the package cache is also removed.
-
-  <!--  FIXME: allow `Force=<n>` -->
-
-`Bootable=`, `--bootable=`
-
-: Takes a boolean or `auto`. Enables or disables generation of a bootable
-  image. If enabled, mkosi will install systemd-boot, run kernel-install,
-  generate unified kernel images for installed kernels and add an ESP
-  partition when the disk image output is used. If systemd-boot is not
-  installed or no kernel images can be found, the build will fail. `auto`
-  behaves as if the option was enabled, but the build won't fail if either
-  no kernel images or systemd-boot can't be found. If disabled, systemd-boot
-  won't be installed even if found inside the image, kernel-install won't be
-  executed, no unified kernel images will be generated and no ESP partition
-  will be added to the image if the disk output format is used.
-
 `UseSubvolumes=`, `--use-subvolumes=`
 
 : Takes a boolean or `auto`. Enables or disables use of btrfs subvolumes for
@@ -460,43 +504,6 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   explicitly enabled and `btrfs` is not installed or subvolumes cannot be
   created, an error is raised. If `auto`, missing `btrfs` or failures to
   create subvolumes are ignored.
-
-`KernelCommandLine=`, `--kernel-command-line=`
-
-: Use the specified kernel command line when building images. By default
-  command line arguments get appended. To remove all arguments from the
-  current list pass "!\*". To remove specific arguments add a space
-  separated list of "!" prefixed arguments. For example adding
-  "!\* console=ttyS0 rw" to a `mkosi.conf` file or the command line
-  arguments passes "console=ttyS0 rw" to the kernel in any case. Just
-  adding "console=ttyS0 rw" would append these two arguments to the kernel
-  command line created by lower priority configuration files or previous
-  `KernelCommandLine=` command line arguments.
-
-`SecureBoot=`, `--secure-boot`
-
-: Sign the resulting kernel/initrd image for UEFI SecureBoot.
-
-`SecureBootKey=`, `--secure-boot-key=`
-
-: Path to the PEM file containing the secret key for signing the
-  UEFI kernel image, if `SecureBoot=` is used.
-
-`SecureBootCertificate=`, `--secure-boot-certificate=`
-
-: Path to the X.509 file containing the certificate for the signed
-  UEFI kernel image, if `SecureBoot=` is used.
-
-[//]: # (Please add external tools to the list here.)
-
-`SignExpectedPCR=`, `--sign-expected-pcr`
-
-: Measure the components of the unified kernel image (UKI) using
-  `systemd-measure` and embed the PCR signature into the unified kernel
-  image. This option takes a boolean value or the special value `auto`,
-  which is the default, which is equal to a true value if the
-  [`cryptography`](https://cryptography.io/) module is importable and
-  the `systemd-measure` binary is in `PATH`.
 
 `CompressOutput=`, `--compress-output=`
 
@@ -626,6 +633,31 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   build script to bypass any unit or integration tests that are
   normally run during the source build process. Note that this option
   has no effect unless the `mkosi.build` build script honors it.
+
+`Bootable=`, `--bootable=`
+
+: Takes a boolean or `auto`. Enables or disables generation of a bootable
+  image. If enabled, mkosi will install systemd-boot, run kernel-install,
+  generate unified kernel images for installed kernels and add an ESP
+  partition when the disk image output is used. If systemd-boot is not
+  installed or no kernel images can be found, the build will fail. `auto`
+  behaves as if the option was enabled, but the build won't fail if either
+  no kernel images or systemd-boot can't be found. If disabled, systemd-boot
+  won't be installed even if found inside the image, kernel-install won't be
+  executed, no unified kernel images will be generated and no ESP partition
+  will be added to the image if the disk output format is used.
+
+`KernelCommandLine=`, `--kernel-command-line=`
+
+: Use the specified kernel command line when building images. By default
+  command line arguments get appended. To remove all arguments from the
+  current list pass "!\*". To remove specific arguments add a space
+  separated list of "!" prefixed arguments. For example adding
+  "!\* console=ttyS0 rw" to a `mkosi.conf` file or the command line
+  arguments passes "console=ttyS0 rw" to the kernel in any case. Just
+  adding "console=ttyS0 rw" would append these two arguments to the kernel
+  command line created by lower priority configuration files or previous
+  `KernelCommandLine=` command line arguments.
 
 `BaseTrees=`, `--base-tree=`
 
@@ -789,15 +821,6 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   reproducibility, as long as the package data cache is already fully
   populated.
 
-`Settings=`, `--settings=`
-
-: Specifies a `.nspawn` settings file for `systemd-nspawn` to use in
-  the `boot` and `shell` verbs, and to place next to the generated
-  image file. This is useful to configure the `systemd-nspawn`
-  environment when the image is run. If this setting is not used but
-  an `mkosi.nspawn` file found in the local directory it is
-  automatically used for this purpose.
-
 `Initrd=`, `--initrd`
 
 : Use user-provided initrd(s). Takes a comma separated list of paths to initrd
@@ -847,6 +870,29 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 
 ### [Validation] Section
 
+`SecureBoot=`, `--secure-boot`
+
+: Sign the resulting kernel/initrd image for UEFI SecureBoot.
+
+`SecureBootKey=`, `--secure-boot-key=`
+
+: Path to the PEM file containing the secret key for signing the
+  UEFI kernel image, if `SecureBoot=` is used.
+
+`SecureBootCertificate=`, `--secure-boot-certificate=`
+
+: Path to the X.509 file containing the certificate for the signed
+  UEFI kernel image, if `SecureBoot=` is used.
+
+`SignExpectedPCR=`, `--sign-expected-pcr`
+
+: Measure the components of the unified kernel image (UKI) using
+  `systemd-measure` and embed the PCR signature into the unified kernel
+  image. This option takes a boolean value or the special value `auto`,
+  which is the default, which is equal to a true value if the
+  [`cryptography`](https://cryptography.io/) module is importable and
+  the `systemd-measure` binary is in `PATH`.
+
 `Checksum=`, `--checksum`
 
 : Generate a `SHA256SUMS` file of all generated artifacts after the
@@ -862,6 +908,32 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   be already present in the `gpg` keyring.
 
 ### [Host] Section
+
+`Incremental=`, `--incremental=`, `-i`
+
+: Enable incremental build mode. This only applies if the two-phase
+  `mkosi.build` build script logic is used. In this mode, a copy of
+  the OS image is created immediately after all OS packages are
+  unpacked but before the `mkosi.build` script is invoked in the
+  development container. Similarly, a copy of the final image is
+  created immediately before the build artifacts from the
+  `mkosi.build` script are copied in. On subsequent invocations of
+  `mkosi` with the `-i` switch these cached images may be used to skip
+  the OS package unpacking, thus drastically speeding up repetitive
+  build times. Note that when this is used and a pair of cached
+  incremental images exists they are not automatically regenerated,
+  even if options such as `Packages=` are modified. In order to force
+  rebuilding of these cached images, combine `-i` with `-ff` to ensure
+  cached images are first removed and then re-created.
+
+`NSpawnSettings=`, `--settings=`
+
+: Specifies a `.nspawn` settings file for `systemd-nspawn` to use in
+  the `boot` and `shell` verbs, and to place next to the generated
+  image file. This is useful to configure the `systemd-nspawn`
+  environment when the image is run. If this setting is not used but
+  an `mkosi.nspawn` file found in the local directory it is
+  automatically used for this purpose.
 
 `ExtraSearchPaths=`, `--extra-search-path=`
 

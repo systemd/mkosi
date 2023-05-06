@@ -797,57 +797,23 @@ class MkosiConfigParser:
         MkosiConfigSetting(
             dest="cache_dir",
             name="CacheDirectory",
-            section="Content",
+            section="Output",
             parse=config_make_path_parser(required=False),
             paths=("mkosi.cache",),
         ),
         MkosiConfigSetting(
             dest="build_dir",
             name="BuildDirectory",
-            section="Content",
+            section="Output",
             parse=config_make_path_parser(required=False),
             paths=("mkosi.builddir",),
         ),
         MkosiConfigSetting(
             dest="install_dir",
             name="InstallDirectory",
-            section="Content",
+            section="Output",
             parse=config_make_path_parser(required=False),
             paths=("mkosi.installdir",),
-        ),
-        MkosiConfigSetting(
-            dest="kernel_command_line",
-            section="Output",
-            parse=config_make_list_parser(delimiter=" "),
-            default=["console=ttyS0"],
-        ),
-        MkosiConfigSetting(
-            dest="secure_boot",
-            section="Output",
-            parse=config_parse_boolean,
-        ),
-        MkosiConfigSetting(
-            dest="secure_boot_key",
-            section="Output",
-            parse=config_make_path_parser(),
-            paths=("mkosi.key",),
-        ),
-        MkosiConfigSetting(
-            dest="secure_boot_certificate",
-            section="Output",
-            parse=config_make_path_parser(),
-            paths=("mkosi.crt",),
-        ),
-        MkosiConfigSetting(
-            dest="sign_expected_pcr",
-            section="Output",
-            parse=config_parse_feature,
-        ),
-        MkosiConfigSetting(
-            dest="passphrase",
-            section="Output",
-            parse=config_make_path_parser(required=False),
-            paths=("mkosi.passphrase",),
         ),
         MkosiConfigSetting(
             dest="compress_output",
@@ -866,11 +832,6 @@ class MkosiConfigParser:
         ),
         MkosiConfigSetting(
             dest="tar_strip_selinux_context",
-            section="Output",
-            parse=config_parse_boolean,
-        ),
-        MkosiConfigSetting(
-            dest="incremental",
             section="Output",
             parse=config_parse_boolean,
         ),
@@ -916,6 +877,12 @@ class MkosiConfigParser:
             section="Content",
             parse=config_parse_boolean,
             default=True,
+        ),
+        MkosiConfigSetting(
+            dest="kernel_command_line",
+            section="Content",
+            parse=config_make_list_parser(delimiter=" "),
+            default=["console=ttyS0"],
         ),
         MkosiConfigSetting(
             dest="bootable",
@@ -1007,13 +974,6 @@ class MkosiConfigParser:
             parse=config_parse_boolean,
         ),
         MkosiConfigSetting(
-            dest="nspawn_settings",
-            name="NSpawnSettings",
-            section="Content",
-            parse=config_make_path_parser(),
-            paths=("mkosi.nspawn",),
-        ),
-        MkosiConfigSetting(
             dest="initrds",
             section="Content",
             parse=config_make_list_parser(delimiter=",", parse=make_path_parser(required=False)),
@@ -1086,6 +1046,34 @@ class MkosiConfigParser:
             parse=config_parse_string,
         ),
         MkosiConfigSetting(
+            dest="secure_boot",
+            section="Validation",
+            parse=config_parse_boolean,
+        ),
+        MkosiConfigSetting(
+            dest="secure_boot_key",
+            section="Validation",
+            parse=config_make_path_parser(),
+            paths=("mkosi.key",),
+        ),
+        MkosiConfigSetting(
+            dest="secure_boot_certificate",
+            section="Validation",
+            parse=config_make_path_parser(),
+            paths=("mkosi.crt",),
+        ),
+        MkosiConfigSetting(
+            dest="sign_expected_pcr",
+            section="Validation",
+            parse=config_parse_feature,
+        ),
+        MkosiConfigSetting(
+            dest="passphrase",
+            section="Validation",
+            parse=config_make_path_parser(required=False),
+            paths=("mkosi.passphrase",),
+        ),
+        MkosiConfigSetting(
             dest="checksum",
             section="Validation",
             parse=config_parse_boolean,
@@ -1098,6 +1086,18 @@ class MkosiConfigParser:
         MkosiConfigSetting(
             dest="key",
             section="Validation",
+        ),
+        MkosiConfigSetting(
+            dest="incremental",
+            section="Host",
+            parse=config_parse_boolean,
+        ),
+        MkosiConfigSetting(
+            dest="nspawn_settings",
+            name="NSpawnSettings",
+            section="Host",
+            parse=config_make_path_parser(),
+            paths=("mkosi.nspawn",),
         ),
         MkosiConfigSetting(
             dest="extra_search_paths",
@@ -1449,43 +1449,6 @@ class MkosiConfigParser:
             action=action,
         )
         group.add_argument(
-            "--kernel-command-line",
-            metavar="OPTIONS",
-            help="Set the kernel command line (only bootable images)",
-            action=action,
-        )
-        group.add_argument(
-            "--secure-boot",
-            metavar="BOOL",
-            help="Sign the resulting kernel/initrd image for UEFI SecureBoot",
-            nargs="?",
-            action=action,
-        )
-        group.add_argument(
-            "--secure-boot-key",
-            metavar="PATH",
-            help="UEFI SecureBoot private key in PEM format",
-            action=action,
-        )
-        group.add_argument(
-            "--secure-boot-certificate",
-            metavar="PATH",
-            help="UEFI SecureBoot certificate in X509 format",
-            action=action,
-        )
-        group.add_argument(
-            "--sign-expected-pcr",
-            metavar="FEATURE",
-            help="Measure the components of the unified kernel image (UKI) and embed the PCR signature into the UKI",
-            action=action,
-        )
-        group.add_argument(
-            "--passphrase",
-            metavar="PATH",
-            help="Path to a file containing the passphrase to use when LUKS encryption is selected",
-            action=action,
-        )
-        group.add_argument(
             "--compress-output",
             metavar="ALG",
             help="Enable whole-output compression (with images or archives)",
@@ -1498,13 +1461,6 @@ class MkosiConfigParser:
             "--tar-strip-selinux-context",
             metavar="BOOL",
             help="Do not include SELinux file context information in tar. Not compatible with bsdtar.",
-            nargs="?",
-            action=action,
-        )
-        group.add_argument(
-            "-i", "--incremental",
-            metavar="BOOL",
-            help="Make use of and generate intermediary cache images",
             nargs="?",
             action=action,
         )
@@ -1572,6 +1528,12 @@ class MkosiConfigParser:
             metavar="FEATURE",
             help="Generate ESP partition with systemd-boot and UKIs for installed kernels",
             nargs="?",
+            action=action,
+        )
+        group.add_argument(
+            "--kernel-command-line",
+            metavar="OPTIONS",
+            help="Set the kernel command line (only bootable images)",
             action=action,
         )
         group.add_argument(
@@ -1671,13 +1633,6 @@ class MkosiConfigParser:
             action=action,
         )
         group.add_argument(
-            "--settings",
-            metavar="PATH",
-            help="Add in .nspawn settings file",
-            dest="nspawn_settings",
-            action=action,
-        )
-        group.add_argument(
             "--initrd",
             help="Add a user-provided initrd to image",
             metavar="PATH",
@@ -1767,6 +1722,37 @@ class MkosiConfigParser:
 
         group = parser.add_argument_group("Validation options")
         group.add_argument(
+            "--secure-boot",
+            metavar="BOOL",
+            help="Sign the resulting kernel/initrd image for UEFI SecureBoot",
+            nargs="?",
+            action=action,
+        )
+        group.add_argument(
+            "--secure-boot-key",
+            metavar="PATH",
+            help="UEFI SecureBoot private key in PEM format",
+            action=action,
+        )
+        group.add_argument(
+            "--secure-boot-certificate",
+            metavar="PATH",
+            help="UEFI SecureBoot certificate in X509 format",
+            action=action,
+        )
+        group.add_argument(
+            "--sign-expected-pcr",
+            metavar="FEATURE",
+            help="Measure the components of the unified kernel image (UKI) and embed the PCR signature into the UKI",
+            action=action,
+        )
+        group.add_argument(
+            "--passphrase",
+            metavar="PATH",
+            help="Path to a file containing the passphrase to use when LUKS encryption is selected",
+            action=action,
+        )
+        group.add_argument(
             "--checksum",
             metavar="BOOL",
             help="Write SHA256SUMS file",
@@ -1783,6 +1769,20 @@ class MkosiConfigParser:
         group.add_argument("--key", help="GPG key to use for signing", action=action)
 
         group = parser.add_argument_group("Host configuration options")
+        group.add_argument(
+            "-i", "--incremental",
+            metavar="BOOL",
+            help="Make use of and generate intermediary cache images",
+            nargs="?",
+            action=action,
+        )
+        group.add_argument(
+            "--settings",
+            metavar="PATH",
+            help="Add in .nspawn settings file",
+            dest="nspawn_settings",
+            action=action,
+        )
         group.add_argument(
             "--extra-search-path",
             help="List of colon-separated paths to look for programs before looking in PATH",
