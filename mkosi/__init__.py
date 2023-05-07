@@ -874,6 +874,8 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
             if not state.staging.joinpath(state.config.output_split_uki).exists():
                 copy_path(boot_binary, state.staging / state.config.output_split_uki)
 
+            print_output_size(boot_binary)
+
     if state.config.bootable == ConfigFeature.enabled and not state.staging.joinpath(state.config.output_split_uki).exists():
         die("A bootable image was requested but no kernel was found")
 
@@ -1021,17 +1023,13 @@ def save_manifest(state: MkosiState, manifest: Manifest) -> None:
                     manifest.write_package_report(f)
 
 
-def print_output_size(config: MkosiConfig) -> None:
-    if not config.output_dir.joinpath(config.output).exists():
-        return
-
-    if config.output_format == OutputFormat.directory:
-        log_step("Resulting image size is " + format_bytes(dir_size(config.output_dir / config.output)) + ".")
+def print_output_size(path: Path) -> None:
+    if path.is_dir():
+        log_step(f"{path} size is " + format_bytes(dir_size(path)) + ".")
     else:
-        st = config.output_dir.joinpath(config.output).stat()
-        size = format_bytes(st.st_size)
-        space = format_bytes(st.st_blocks * 512)
-        log_step(f"Resulting image size is {size}, consumes {space}.")
+        size = format_bytes(path.stat().st_size)
+        space = format_bytes(path.stat().st_blocks * 512)
+        log_step(f"{path} size is {size}, consumes {space}.")
 
 
 def empty_directory(path: Path) -> None:
@@ -1800,7 +1798,7 @@ def build_stuff(uid: int, gid: int, args: MkosiArgs, config: MkosiConfig) -> Non
         if not state.config.output_dir.joinpath(state.config.output).exists():
             state.config.output_dir.joinpath(state.config.output).symlink_to(state.config.output_with_compression)
 
-    print_output_size(config)
+    print_output_size(config.output_dir / config.output)
 
 
 def check_root() -> None:
