@@ -1729,23 +1729,46 @@ def setfacl(root: Path, uid: int, allow: bool) -> None:
 
 
 @contextlib.contextmanager
+def acl_maybe_toggle(config: MkosiConfig, root: Path, uid: int, *, always: bool) -> Iterator[None]:
+    if not config.acl:
+        yield
+        return
+
+    # getfacl complains about absolute paths so make sure we pass a relative one.
+    has_acl = f"user:{uid}:rwx" in run(["getfacl", "-n", root.relative_to(Path.cwd())], stdout=subprocess.PIPE, text=True).stdout
+    if not has_acl and not always:
+        yield
+        return
+
+    try:
+        if has_acl:
+            with complete_step(f"Removing ACLs from {root}"):
+                setfacl(root, uid, allow=False)
+
+        yield
+    finally:
+        setfacl(root, uid, allow=True)
+
+
+@contextlib.contextmanager
 def acl_toggle_build(state: MkosiState) -> Iterator[None]:
     if not state.config.acl:
         yield
         return
 
-    try:
-        for p in (*state.config.base_trees, state.config.cache_dir):
+    extras = [e[0] for e in state.config.extra_trees]
+    skeletons = [s[0] for s in state.config.skeleton_trees]
+
+    with contextlib.ExitStack() as stack:
+        for p in (*state.config.base_trees, *extras, *skeletons):
             if p and p.is_dir():
-                with complete_step(f"Removing ACLs from {p}"):
-                    setfacl(p, state.uid, allow=False)
+                stack.enter_context(acl_maybe_toggle(state.config, p, state.uid, always=False))
+
+        for p in (state.config.cache_dir, state.config.output_dir / state.config.output):
+            if p and p.is_dir():
+                stack.enter_context(acl_maybe_toggle(state.config, p, state.uid, always=True))
 
         yield
-    finally:
-        for p in (*state.config.base_trees, state.config.cache_dir, state.config.output_dir / state.config.output):
-            if p and p.is_dir():
-                with complete_step(f"Adding ACLs to {p}"):
-                    setfacl(p, state.uid, allow=True)
 
 
 def build_stuff(uid: int, gid: int, args: MkosiArgs, config: MkosiConfig) -> None:
@@ -1831,15 +1854,8 @@ def acl_toggle_boot(config: MkosiConfig) -> Iterator[None]:
         yield
         return
 
-    uid = InvokingUser.uid()
-
-    try:
-        with complete_step(f"Removing ACLs from {config.output_dir / config.output}"):
-            setfacl(config.output_dir / config.output, uid, allow=False)
+    with acl_maybe_toggle(config, config.output_dir / config.output, InvokingUser.uid(), always=False):
         yield
-    finally:
-        with complete_step(f"Adding ACLs to {config.output_dir / config.output}"):
-            setfacl(config.output_dir / config.output, uid, allow=True)
 
 
 def run_shell(args: MkosiArgs, config: MkosiConfig) -> None:
