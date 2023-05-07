@@ -836,15 +836,16 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 
 : Takes a list of regex patterns that specify kernel modules to include in the image. Patterns should be
   relative to the `/usr/lib/modules/<kver>/kernel` directory. mkosi checks for a match anywhere in the module
-  path (e.g. "i915" will match against "drivers/gpu/drm/i915.ko") All modules that match any of the specified
-  patterns are included in the image. All module and firmware dependencies of the matched modules are
-  included in the image as well. If not specified, all kernel modules are included in the final image.
+  path (e.g. "i915" will match against "drivers/gpu/drm/i915.ko"). All modules that match any of the
+  specified patterns are included in the image. All module and firmware dependencies of the matched modules
+  are included in the image as well. This setting takes priority over `KernelModulesExclude=` and only makes
+  sense when used in combination with it because all kernel modules are included in the image by default.
 
 `KernelModulesExclude=`, `--kernel-modules-exclude=`
 
 : Takes a list of regex patterns that specify modules to exclude from the image. Behaves the same as
   `KernelModulesInclude=` except that all modules that match any of the specified patterns are excluded from
-  the image. This setting takes priority over `KernelModulesInclude=`.
+  the image.
 
 `KernelModulesInitrd=`, `--kernel-modules-initrd=`
 

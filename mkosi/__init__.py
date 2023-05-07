@@ -595,28 +595,25 @@ def filter_kernel_modules(root: Path, kver: str, include: Sequence[str], exclude
     modulesd = Path("usr/lib/modules") / kver
     modules = set(m.relative_to(root) for m in (root / modulesd).glob("**/*.ko*"))
 
+    keep = set()
+    for pattern in include:
+        regex = re.compile(pattern)
+        for m in modules:
+            rel = os.fspath(m.relative_to(modulesd / "kernel"))
+            if regex.search(rel):
+                logging.debug(f"Including module {rel}")
+                keep.add(m)
+
     for pattern in exclude:
         regex = re.compile(pattern)
         remove = set()
         for m in modules:
             rel = os.fspath(m.relative_to(modulesd / "kernel"))
-            if regex.search(rel):
+            if rel not in keep and regex.search(rel):
                 logging.debug(f"Excluding module {rel}")
                 remove.add(m)
 
         modules -= remove
-
-    if include:
-        keep: set[Path] = set()
-        for pattern in include:
-            regex = re.compile(pattern)
-            for m in modules:
-                rel = os.fspath(m.relative_to(modulesd / "kernel"))
-                if regex.search(rel):
-                    logging.debug(f"Including module {rel}")
-                    keep.add(m)
-
-        modules = keep
 
     return sorted(modules)
 
