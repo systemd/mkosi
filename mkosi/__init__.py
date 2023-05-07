@@ -1389,11 +1389,44 @@ def configure_initrd(state: MkosiState) -> None:
         state.root.joinpath("etc/initrd-release").symlink_to("/etc/os-release")
 
 
+def process_kernel_modules(state: MkosiState, kver: str) -> None:
+    if not state.config.kernel_modules_include and not state.config.kernel_modules_exclude:
+        return
+
+    with complete_step("Applying kernel module filters"):
+        modulesd = Path("usr/lib/modules") / kver
+        modules = filter_kernel_modules(state.root, kver,
+                                        state.config.kernel_modules_include,
+                                        state.config.kernel_modules_exclude)
+
+        names = [module_path_to_name(m) for m in modules]
+        mods, firmware = resolve_module_dependencies(state.root, kver, names)
+
+        allmodules = set(m.relative_to(state.root) for m in (state.root / modulesd).glob("**/*.ko*"))
+        allfirmware = set(m.relative_to(state.root) for m in (state.root / "usr/lib/firmware").glob("**/*") if not m.is_dir())
+
+        for m in allmodules:
+            if m in mods:
+                continue
+
+            logging.debug(f"Removing module {m}")
+            (state.root / m).unlink()
+
+        for fw in allfirmware:
+            if fw in firmware:
+                continue
+
+            logging.debug(f"Removing firmware {fw}")
+            (state.root / fw).unlink()
+
+
 def run_depmod(state: MkosiState) -> None:
     if state.config.bootable == ConfigFeature.disabled:
         return
 
     for kver, _ in gen_kernel_images(state):
+        process_kernel_modules(state, kver)
+
         with complete_step(f"Running depmod for {kver}"):
             run(["depmod", "--all", "--basedir", state.root, kver])
 

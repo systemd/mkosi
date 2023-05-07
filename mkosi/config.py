@@ -618,6 +618,8 @@ class MkosiConfig:
     workspace_dir: Optional[Path]
     initrds: list[Path]
     make_initrd: bool
+    kernel_modules_include: list[str]
+    kernel_modules_exclude: list[str]
     kernel_modules_initrd: bool
     kernel_modules_initrd_include: list[str]
     kernel_modules_initrd_exclude: list[str]
@@ -984,6 +986,16 @@ class MkosiConfigParser:
             dest="make_initrd",
             section="Content",
             parse=config_parse_boolean,
+        ),
+        MkosiConfigSetting(
+            dest="kernel_modules_include",
+            section="Content",
+            parse=config_make_list_parser(delimiter=","),
+        ),
+        MkosiConfigSetting(
+            dest="kernel_modules_exclude",
+            section="Content",
+            parse=config_make_list_parser(delimiter=","),
         ),
         MkosiConfigSetting(
             dest="kernel_modules_initrd",
@@ -1658,6 +1670,18 @@ class MkosiConfigParser:
             help="Make sure the image can be used as an initramfs",
             metavar="BOOL",
             nargs="?",
+            action=action,
+        )
+        group.add_argument(
+            "--kernel-modules-include",
+            help="Only include the specified kernel modules in the image",
+            metavar="REGEX",
+            action=action,
+        )
+        group.add_argument(
+            "--kernel-modules-exclude",
+            help="Exclude the specified kernel modules from the image",
+            metavar="REGEX",
             action=action,
         )
         group.add_argument(
