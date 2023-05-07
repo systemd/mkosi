@@ -591,28 +591,60 @@ def gen_kernel_images(state: MkosiState) -> Iterator[tuple[str, Path]]:
         yield kver.name, kimg
 
 
+def filter_kernel_modules(root: Path, kver: str, include: Sequence[str], exclude: Sequence[str]) -> list[Path]:
+    modulesd = Path("usr/lib/modules") / kver
+    modules = set(m.relative_to(root) for m in (root / modulesd).glob("**/*.ko*"))
+
+    for pattern in exclude:
+        regex = re.compile(pattern)
+        remove = set()
+        for m in modules:
+            rel = os.fspath(m.relative_to(modulesd / "kernel"))
+            if regex.search(rel):
+                logging.debug(f"Excluding module {rel}")
+                remove.add(m)
+
+        modules -= remove
+
+    if include:
+        keep: set[Path] = set()
+        for pattern in include:
+            regex = re.compile(pattern)
+            for m in modules:
+                rel = os.fspath(m.relative_to(modulesd / "kernel"))
+                if regex.search(rel):
+                    logging.debug(f"Including module {rel}")
+                    keep.add(m)
+
+        modules = keep
+
+    return sorted(modules)
+
+
 def module_path_to_name(path: Path) -> str:
     return path.name.partition(".")[0]
 
 
-def resolve_module_dependencies(root: Path, kver: str, modules: Sequence[str]) -> tuple[list[Path], list[Path]]:
+def resolve_module_dependencies(root: Path, kver: str, modules: Sequence[str]) -> tuple[set[Path], set[Path]]:
     """
     Returns a tuple of lists containing the paths to the module and firmware dependencies of the given list
-    of module names (including the given module paths themselves).
+    of module names (including the given module paths themselves). The paths are returned relative to the
+    given root directory.
     """
-    allmodules = root.joinpath("usr/lib/modules").joinpath(kver).joinpath("kernel").glob("**/*.ko*")
-    nametofile = {module_path_to_name(m): m for m in allmodules}
+    modulesd = Path("usr/lib/modules") / kver
+    builtin = set(module_path_to_name(Path(m)) for m in (root / modulesd / "modules.builtin").read_text().splitlines())
+    allmodules = set((root / modulesd / "kernel").glob("**/*.ko*"))
+    nametofile = {module_path_to_name(m): m.relative_to(root) for m in allmodules}
 
     # We could run modinfo once for each module but that's slow. Luckily we can pass multiple modules to
     # modinfo and it'll process them all in a single go. We get the modinfo for all modules to build two maps
     # that map the path of the module to its module dependencies and its firmware dependencies respectively.
-    info = run(["modinfo", "--basedir", root, "--set-version", kver, "--null", *nametofile.keys()],
+    info = run(["modinfo", "--basedir", root, "--set-version", kver, "--null", *nametofile.keys(), *builtin],
                text=True, stdout=subprocess.PIPE).stdout
 
     moddep = {}
     firmwaredep = {}
 
-    name = ""
     depends = []
     firmware = []
     for line in info.split("\0"):
@@ -621,112 +653,81 @@ def resolve_module_dependencies(root: Path, kver: str, modules: Sequence[str]) -
             key, sep, value = line.partition("=")
 
         if key in ("depends", "softdep"):
-            for d in value.strip().split(","):
-                if not d:
-                    continue
+            depends += [d for d in value.strip().split(",") if d]
 
-                if d not in nametofile:
-                    logging.warning(f"{d} is a dependency of {name} but is not installed, ignoring ")
-                    continue
+        elif key == "firmware":
+            firmware += [f.relative_to(root) for f in root.joinpath("usr/lib/firmware").glob(f"{value.strip()}*")]
 
-                depends.append(d)
+        elif key == "name":
+            name = value.strip()
 
-        if key == "firmware":
-            for f in root.joinpath("usr/lib/firmware").glob(f"{value.strip()}*"):
-                firmware.append(f)
+            moddep[name] = depends
+            firmwaredep[name] = firmware
 
-        if key == "filename":
-            if name:
-                moddep[name] = depends
-                firmwaredep[name] = firmware
+            depends = []
+            firmware = []
 
-                depends = []
-                firmware = []
-
-            name = module_path_to_name(Path(value))
-
-    # Make sure we add the last module as well.
-    moddep[name] = depends
-    firmwaredep[name] = firmware
-
-    todo = [*modules]
+    todo = [*builtin, *modules]
     mods = set()
     firmware = set()
 
-    while len(todo) > 0:
+    while todo:
         m = todo.pop()
-        if not m or m in mods:
+        if m in mods:
             continue
 
+        depends = moddep.get(m, [])
+        for d in depends:
+            if d not in nametofile and d not in builtin:
+                logging.warning(f"{d} is a dependency of {m} but is not installed, ignoring ")
+
         mods.add(m)
-        todo += moddep.get(m, [])
+        todo += depends
         firmware.update(firmwaredep.get(m, []))
 
-    return [nametofile[m] for m in mods], list(firmware)
+    return set(nametofile[m] for m in mods if m in nametofile), set(firmware)
 
 
 def gen_kernel_modules_initrd(state: MkosiState, kver: str) -> Path:
-    kmods = state.workspace / f"initramfs-kernel-modules-{kver}.img"
-
     def files() -> Iterator[Path]:
-        modulesd = state.root / "usr/lib/modules" / kver
-        yield modulesd.parent.relative_to(state.root)
-        yield modulesd.relative_to(state.root)
-        yield modulesd.joinpath("kernel").relative_to(state.root)
+        modulesd = Path("usr/lib/modules") / kver
+        yield modulesd.parent
+        yield modulesd
+        yield modulesd / "kernel"
 
-        for p in modulesd.joinpath("kernel").glob("**/*"):
-            if p.is_dir():
-                yield p.relative_to(state.root)
+        for d in (modulesd, Path("usr/lib/firmware")):
+            for p in (state.root / d).glob("**/*"):
+                if p.is_dir():
+                    yield p.relative_to(state.root)
 
-        modules = set(modulesd.joinpath("kernel").glob("**/*.ko*"))
-
-        for pattern in state.config.kernel_modules_initrd_exclude:
-            regex = re.compile(pattern)
-            exclude = set()
-            for m in modules:
-                rel = m.relative_to(modulesd / "kernel")
-                if regex.search(str(rel)):
-                    logging.debug(f"Excluding module {rel}")
-                    exclude.add(m)
-
-            modules -= exclude
-
-        if state.config.kernel_modules_initrd_include:
-            include: set[Path] = set()
-            for pattern in state.config.kernel_modules_initrd_include:
-                regex = re.compile(pattern)
-                for m in modules:
-                    rel = m.relative_to(modulesd / "kernel")
-                    if regex.search(str(rel)):
-                        logging.debug(f"Including module {m}")
-                        include.add(m)
-
-            modules = include
+        modules = filter_kernel_modules(state.root, kver,
+                                        state.config.kernel_modules_initrd_include,
+                                        state.config.kernel_modules_initrd_exclude)
 
         names = [module_path_to_name(m) for m in modules]
         mods, firmware = resolve_module_dependencies(state.root, kver, names)
 
-        for m in mods:
-            rel = m.relative_to(state.root)
-            logging.debug(f"Adding module {rel}")
-            yield rel
+        for m in sorted(mods):
+            logging.debug(f"Adding module {m}")
+            yield m
 
-        for fw in firmware:
-            rel = fw.relative_to(state.root)
-            logging.debug(f"Adding firmware {rel}")
-            yield rel
+        for fw in sorted(firmware):
+            logging.debug(f"Adding firmware {fw}")
+            yield fw
 
-        for p in modulesd.iterdir():
+        for p in (state.root / modulesd).iterdir():
             if not p.name.startswith("modules"):
                 continue
 
             yield p.relative_to(state.root)
 
-        if modulesd.joinpath("vdso").exists():
-            yield modulesd.joinpath("vdso").relative_to(state.root)
+        if (state.root / modulesd / "vdso").exists():
+            yield modulesd / "vdso"
 
-            for p in modulesd.joinpath("vdso").iterdir():
+            for p in (state.root / modulesd / "vdso").iterdir():
                 yield p.relative_to(state.root)
+
+    kmods = state.workspace / f"initramfs-kernel-modules-{kver}.img"
 
     with complete_step(f"Generating kernel modules initrd for kernel {kver}"):
         make_cpio(state.root, files(), kmods)
