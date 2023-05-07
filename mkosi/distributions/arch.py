@@ -3,6 +3,7 @@
 from collections.abc import Sequence
 from textwrap import dedent
 
+from mkosi.config import ConfigFeature
 from mkosi.distributions import DistributionInstaller
 from mkosi.run import bwrap
 from mkosi.state import MkosiState
@@ -94,7 +95,9 @@ def invoke_pacman(state: MkosiState, packages: Sequence[str], apivfs: bool = Tru
         "-Sy", *sort_packages(packages),
     ]
 
-    if state.config.initrds:
+    # If we're generating a bootable image, we'll do so with a prebuilt initramfs, so no need for an
+    # initramfs generator.
+    if state.config.bootable != ConfigFeature.disabled:
         cmdline += ["--assume-installed", "initramfs"]
 
     bwrap(cmdline, apivfs=state.root if apivfs else None, env=dict(KERNEL_INSTALL_BYPASS="1") | state.environment)
