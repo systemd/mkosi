@@ -2113,6 +2113,9 @@ def load_kernel_command_line_extra(args: argparse.Namespace) -> list[str]:
     columns, lines = shutil.get_terminal_size()
 
     cmdline = [
+        f"systemd.tty.term.console={os.getenv('TERM', 'vt220')}",
+        f"systemd.tty.columns.console={columns}",
+        f"systemd.tty.rows.console={lines}",
         f"systemd.tty.term.ttyS0={os.getenv('TERM', 'vt220')}",
         f"systemd.tty.columns.ttyS0={columns}",
         f"systemd.tty.rows.ttyS0={lines}",
