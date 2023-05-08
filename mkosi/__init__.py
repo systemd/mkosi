@@ -2,7 +2,6 @@
 
 import base64
 import contextlib
-import crypt
 import datetime
 import errno
 import hashlib
@@ -57,7 +56,6 @@ from mkosi.util import (
     flatten,
     format_rlimit,
     is_apt_distribution,
-    patch_file,
     prepend_to_environ_path,
     tmp_dir,
 )
@@ -280,60 +278,6 @@ def remove_packages(state: MkosiState) -> None:
             state.installer.remove_packages(state, state.config.remove_packages)
         except NotImplementedError:
             die(f"Removing packages is not supported for {state.config.distribution}")
-
-
-def reset_machine_id(state: MkosiState) -> None:
-    """Make /etc/machine-id an empty file.
-
-    This way, on the next boot is either initialized and committed (if /etc is
-    writable) or the image runs with a transient machine ID, that changes on
-    each boot (if the image is read-only).
-    """
-    with complete_step("Resetting machine ID"):
-        machine_id = state.root / "etc/machine-id"
-        machine_id.unlink(missing_ok=True)
-        machine_id.write_text("uninitialized\n")
-
-
-def reset_random_seed(root: Path) -> None:
-    """Remove random seed file, so that it is initialized on first boot"""
-    random_seed = root / "var/lib/systemd/random-seed"
-    if not random_seed.exists():
-        return
-
-    with complete_step("Removing random seed"):
-        random_seed.unlink()
-
-
-def configure_root_password(state: MkosiState) -> None:
-    "Set the root account password, or just delete it so it's easy to log in"
-
-    if state.config.password == "":
-        with complete_step("Deleting root password"):
-
-            def delete_root_pw(line: str) -> str:
-                if line.startswith("root:"):
-                    return ":".join(["root", ""] + line.split(":")[2:])
-                return line
-
-            patch_file(state.root / "etc/passwd", delete_root_pw)
-    elif state.config.password:
-        with complete_step("Setting root password"):
-            if state.config.password_is_hashed:
-                password = state.config.password
-            else:
-                password = crypt.crypt(state.config.password, crypt.mksalt(crypt.METHOD_SHA512))
-
-            def set_root_pw(line: str) -> str:
-                if line.startswith("root:"):
-                    return ":".join(["root", password] + line.split(":")[2:])
-                return line
-
-            shadow = state.root / "etc/shadow"
-            try:
-                patch_file(shadow, set_root_pw)
-            except FileNotFoundError:
-                shadow.write_text(f"root:{password}:0:0:99999:7:::\n")
 
 
 def configure_autologin(state: MkosiState) -> None:
@@ -647,28 +591,57 @@ def gen_kernel_images(state: MkosiState) -> Iterator[tuple[str, Path]]:
         yield kver.name, kimg
 
 
+def filter_kernel_modules(root: Path, kver: str, include: Sequence[str], exclude: Sequence[str]) -> list[Path]:
+    modulesd = Path("usr/lib/modules") / kver
+    modules = set(m.relative_to(root) for m in (root / modulesd).glob("**/*.ko*"))
+
+    keep = set()
+    for pattern in include:
+        regex = re.compile(pattern)
+        for m in modules:
+            rel = os.fspath(m.relative_to(modulesd / "kernel"))
+            if regex.search(rel):
+                logging.debug(f"Including module {rel}")
+                keep.add(m)
+
+    for pattern in exclude:
+        regex = re.compile(pattern)
+        remove = set()
+        for m in modules:
+            rel = os.fspath(m.relative_to(modulesd / "kernel"))
+            if rel not in keep and regex.search(rel):
+                logging.debug(f"Excluding module {rel}")
+                remove.add(m)
+
+        modules -= remove
+
+    return sorted(modules)
+
+
 def module_path_to_name(path: Path) -> str:
     return path.name.partition(".")[0]
 
 
-def resolve_module_dependencies(root: Path, kver: str, modules: Sequence[str]) -> tuple[list[Path], list[Path]]:
+def resolve_module_dependencies(root: Path, kver: str, modules: Sequence[str]) -> tuple[set[Path], set[Path]]:
     """
     Returns a tuple of lists containing the paths to the module and firmware dependencies of the given list
-    of module names (including the given module paths themselves).
+    of module names (including the given module paths themselves). The paths are returned relative to the
+    given root directory.
     """
-    allmodules = root.joinpath("usr/lib/modules").joinpath(kver).joinpath("kernel").glob("**/*.ko*")
-    nametofile = {module_path_to_name(m): m for m in allmodules}
+    modulesd = Path("usr/lib/modules") / kver
+    builtin = set(module_path_to_name(Path(m)) for m in (root / modulesd / "modules.builtin").read_text().splitlines())
+    allmodules = set((root / modulesd / "kernel").glob("**/*.ko*"))
+    nametofile = {module_path_to_name(m): m.relative_to(root) for m in allmodules}
 
     # We could run modinfo once for each module but that's slow. Luckily we can pass multiple modules to
     # modinfo and it'll process them all in a single go. We get the modinfo for all modules to build two maps
     # that map the path of the module to its module dependencies and its firmware dependencies respectively.
-    info = run(["modinfo", "--basedir", root, "--set-version", kver, "--null", *nametofile.keys()],
+    info = run(["modinfo", "--basedir", root, "--set-version", kver, "--null", *nametofile.keys(), *builtin],
                text=True, stdout=subprocess.PIPE).stdout
 
     moddep = {}
     firmwaredep = {}
 
-    name = ""
     depends = []
     firmware = []
     for line in info.split("\0"):
@@ -677,112 +650,81 @@ def resolve_module_dependencies(root: Path, kver: str, modules: Sequence[str]) -
             key, sep, value = line.partition("=")
 
         if key in ("depends", "softdep"):
-            for d in value.strip().split(","):
-                if not d:
-                    continue
+            depends += [d for d in value.strip().split(",") if d]
 
-                if d not in nametofile:
-                    logging.warning(f"{d} is a dependency of {name} but is not installed, ignoring ")
-                    continue
+        elif key == "firmware":
+            firmware += [f.relative_to(root) for f in root.joinpath("usr/lib/firmware").glob(f"{value.strip()}*")]
 
-                depends.append(d)
+        elif key == "name":
+            name = value.strip()
 
-        if key == "firmware":
-            for f in root.joinpath("usr/lib/firmware").glob(f"{value.strip()}*"):
-                firmware.append(f)
+            moddep[name] = depends
+            firmwaredep[name] = firmware
 
-        if key == "filename":
-            if name:
-                moddep[name] = depends
-                firmwaredep[name] = firmware
+            depends = []
+            firmware = []
 
-                depends = []
-                firmware = []
-
-            name = module_path_to_name(Path(value))
-
-    # Make sure we add the last module as well.
-    moddep[name] = depends
-    firmwaredep[name] = firmware
-
-    todo = [*modules]
+    todo = [*builtin, *modules]
     mods = set()
     firmware = set()
 
-    while len(todo) > 0:
+    while todo:
         m = todo.pop()
-        if not m or m in mods:
+        if m in mods:
             continue
 
+        depends = moddep.get(m, [])
+        for d in depends:
+            if d not in nametofile and d not in builtin:
+                logging.warning(f"{d} is a dependency of {m} but is not installed, ignoring ")
+
         mods.add(m)
-        todo += moddep.get(m, [])
+        todo += depends
         firmware.update(firmwaredep.get(m, []))
 
-    return [nametofile[m] for m in mods], list(firmware)
+    return set(nametofile[m] for m in mods if m in nametofile), set(firmware)
 
 
 def gen_kernel_modules_initrd(state: MkosiState, kver: str) -> Path:
-    kmods = state.workspace / f"initramfs-kernel-modules-{kver}.img"
-
     def files() -> Iterator[Path]:
-        modulesd = state.root / "usr/lib/modules" / kver
-        yield modulesd.parent.relative_to(state.root)
-        yield modulesd.relative_to(state.root)
-        yield modulesd.joinpath("kernel").relative_to(state.root)
+        modulesd = Path("usr/lib/modules") / kver
+        yield modulesd.parent
+        yield modulesd
+        yield modulesd / "kernel"
 
-        for p in modulesd.joinpath("kernel").glob("**/*"):
-            if p.is_dir():
-                yield p.relative_to(state.root)
+        for d in (modulesd, Path("usr/lib/firmware")):
+            for p in (state.root / d).glob("**/*"):
+                if p.is_dir():
+                    yield p.relative_to(state.root)
 
-        modules = set(modulesd.joinpath("kernel").glob("**/*.ko*"))
-
-        for pattern in state.config.kernel_modules_initrd_exclude:
-            regex = re.compile(pattern)
-            exclude = set()
-            for m in modules:
-                rel = m.relative_to(modulesd / "kernel")
-                if regex.search(str(rel)):
-                    logging.debug(f"Excluding module {rel}")
-                    exclude.add(m)
-
-            modules -= exclude
-
-        if state.config.kernel_modules_initrd_include:
-            include: set[Path] = set()
-            for pattern in state.config.kernel_modules_initrd_include:
-                regex = re.compile(pattern)
-                for m in modules:
-                    rel = m.relative_to(modulesd / "kernel")
-                    if regex.search(str(rel)):
-                        logging.debug(f"Including module {m}")
-                        include.add(m)
-
-            modules = include
+        modules = filter_kernel_modules(state.root, kver,
+                                        state.config.kernel_modules_initrd_include,
+                                        state.config.kernel_modules_initrd_exclude)
 
         names = [module_path_to_name(m) for m in modules]
         mods, firmware = resolve_module_dependencies(state.root, kver, names)
 
-        for m in mods:
-            rel = m.relative_to(state.root)
-            logging.debug(f"Adding module {rel}")
-            yield rel
+        for m in sorted(mods):
+            logging.debug(f"Adding module {m}")
+            yield m
 
-        for fw in firmware:
-            rel = fw.relative_to(state.root)
-            logging.debug(f"Adding firmware {rel}")
-            yield rel
+        for fw in sorted(firmware):
+            logging.debug(f"Adding firmware {fw}")
+            yield fw
 
-        for p in modulesd.iterdir():
+        for p in (state.root / modulesd).iterdir():
             if not p.name.startswith("modules"):
                 continue
 
             yield p.relative_to(state.root)
 
-        if modulesd.joinpath("vdso").exists():
-            yield modulesd.joinpath("vdso").relative_to(state.root)
+        if (state.root / modulesd / "vdso").exists():
+            yield modulesd / "vdso"
 
-            for p in modulesd.joinpath("vdso").iterdir():
+            for p in (state.root / modulesd / "vdso").iterdir():
                 yield p.relative_to(state.root)
+
+    kmods = state.workspace / f"initramfs-kernel-modules-{kver}.img"
 
     with complete_step(f"Generating kernel modules initrd for kernel {kver}"):
         make_cpio(state.root, files(), kmods)
@@ -932,6 +874,8 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
             if not state.staging.joinpath(state.config.output_split_uki).exists():
                 copy_path(boot_binary, state.staging / state.config.output_split_uki)
 
+            print_output_size(boot_binary)
+
     if state.config.bootable == ConfigFeature.enabled and not state.staging.joinpath(state.config.output_split_uki).exists():
         die("A bootable image was requested but no kernel was found")
 
@@ -1079,17 +1023,13 @@ def save_manifest(state: MkosiState, manifest: Manifest) -> None:
                     manifest.write_package_report(f)
 
 
-def print_output_size(config: MkosiConfig) -> None:
-    if not config.output_dir.joinpath(config.output).exists():
-        return
-
-    if config.output_format == OutputFormat.directory:
-        log_step("Resulting image size is " + format_bytes(dir_size(config.output_dir / config.output)) + ".")
+def print_output_size(path: Path) -> None:
+    if path.is_dir():
+        log_step(f"{path} size is " + format_bytes(dir_size(path)) + ".")
     else:
-        st = config.output_dir.joinpath(config.output).stat()
-        size = format_bytes(st.st_size)
-        space = format_bytes(st.st_blocks * 512)
-        log_step(f"Resulting image size is {size}, consumes {space}.")
+        size = format_bytes(path.stat().st_size)
+        space = format_bytes(path.stat().st_blocks * 512)
+        log_step(f"{path} size is {size}, consumes {space}.")
 
 
 def empty_directory(path: Path) -> None:
@@ -1188,11 +1128,12 @@ def check_inputs(config: MkosiConfig) -> None:
                      config.finalize_script):
             check_script_input(path)
 
-        for p in config.initrds:
-            if not p.exists():
-                die(f"Initrd {p} not found")
-            if not p.is_file():
-                die(f"Initrd {p} is not a file")
+        if config.bootable != ConfigFeature.disabled:
+            for p in config.initrds:
+                if not p.exists():
+                    die(f"Initrd {p} not found")
+                if not p.is_file():
+                    die(f"Initrd {p} is not a file")
 
     except OSError as e:
         die(f'{e.filename}: {e.strerror}')
@@ -1284,7 +1225,6 @@ def print_summary(args: MkosiArgs, config: MkosiConfig) -> None:
           Local Mirror (build): {none_to_none(config.local_mirror)}
       Repo Signature/Key check: {yes_no(config.repository_key_check)}
                   Repositories: {",".join(config.repositories)}
-                       Initrds: {",".join(os.fspath(p) for p in config.initrds)}
 
     {bold("OUTPUT")}:
                       Image ID: {config.image_id}
@@ -1293,30 +1233,24 @@ def print_summary(args: MkosiArgs, config: MkosiConfig) -> None:
               Manifest Formats: {maniformats}
               Output Directory: {none_to_default(config.output_dir)}
            Workspace Directory: {none_to_default(config.workspace_dir)}
+               Cache Directory: {none_to_none(config.cache_dir)}
+               Build Directory: {none_to_none(config.build_dir)}
+             Install Directory: {none_to_none(config.install_dir)}
                         Output: {bold(config.output_with_compression)}
                Output Checksum: {none_to_na(config.output_checksum if config.checksum else None)}
               Output Signature: {none_to_na(config.output_signature if config.sign else None)}
         Output nspawn Settings: {none_to_na(config.output_nspawn_settings if config.nspawn_settings is not None else None)}
-                   Incremental: {yes_no(config.incremental)}
                    Compression: {config.compress_output.name}
-                      Bootable: {yes_no_auto(config.bootable)}
-           Kernel Command Line: {" ".join(config.kernel_command_line)}
-               UEFI SecureBoot: {yes_no(config.secure_boot)}
-           SecureBoot Sign Key: {none_to_none(config.secure_boot_key)}
-        SecureBoot Certificate: {none_to_none(config.secure_boot_certificate)}
 
     {bold("CONTENT")}:
                       Packages: {line_join_list(config.packages)}
             With Documentation: {yes_no(config.with_docs)}
-                 Package Cache: {none_to_none(config.cache_dir)}
                 Skeleton Trees: {line_join_source_target_list(config.skeleton_trees)}
                    Extra Trees: {line_join_source_target_list(config.extra_trees)}
         Clean Package Metadata: {yes_no_auto(config.clean_package_metadata)}
                   Remove Files: {line_join_list(config.remove_files)}
                Remove Packages: {line_join_list(config.remove_packages)}
                  Build Sources: {config.build_sources}
-               Build Directory: {none_to_none(config.build_dir)}
-             Install Directory: {none_to_none(config.install_dir)}
                 Build Packages: {line_join_list(config.build_packages)}
                   Build Script: {path_or_none(config.build_script, check_script_input)}
      Run Tests in Build Script: {yes_no(config.with_tests)}
@@ -1325,11 +1259,21 @@ def print_summary(args: MkosiArgs, config: MkosiConfig) -> None:
                Finalize Script: {path_or_none(config.finalize_script, check_script_input)}
             Script Environment: {line_join_list(env)}
           Scripts with network: {yes_no(config.with_network)}
-               nspawn Settings: {none_to_none(config.nspawn_settings)}
-                      Password: {("(default)" if config.password is None else "(set)")}
+                      Bootable: {yes_no_auto(config.bootable)}
+           Kernel Command Line: {" ".join(config.kernel_command_line)}
+                       Initrds: {",".join(os.fspath(p) for p in config.initrds)}
+                        Locale: {none_to_default(config.locale)}
+               Locale Messages: {none_to_default(config.locale_messages)}
+                        Keymap: {none_to_default(config.keymap)}
+                      Timezone: {none_to_default(config.timezone)}
+                      Hostname: {none_to_default(config.hostname)}
+                 Root Password: {("(set)" if config.root_password or config.root_password_hashed or config.root_password_file else "(default)")}
+                    Root Shell: {none_to_default(config.root_shell)}
                      Autologin: {yes_no(config.autologin)}
 
     {bold("HOST CONFIGURATION")}:
+                   Incremental: {yes_no(config.incremental)}
+               NSpawn Settings: {none_to_none(config.nspawn_settings)}
             Extra search paths: {line_join_list(config.extra_search_paths)}
           QEMU Extra Arguments: {line_join_list(config.qemu_args)}
         """
@@ -1338,6 +1282,11 @@ def print_summary(args: MkosiArgs, config: MkosiConfig) -> None:
         summary += f"""\
 
     {bold("VALIDATION")}:
+               UEFI SecureBoot: {yes_no(config.secure_boot)}
+        SecureBoot Signing Key: {none_to_none(config.secure_boot_key)}
+        SecureBoot Certificate: {none_to_none(config.secure_boot_certificate)}
+            Verity Signing Key: {none_to_none(config.verity_key)}
+            Verity Certificate: {none_to_none(config.verity_certificate)}
                       Checksum: {yes_no(config.checksum)}
                           Sign: {yes_no(config.sign)}
                        GPG Key: ({"default" if config.key is None else config.key})
@@ -1382,7 +1331,7 @@ def configure_ssh(state: MkosiState) -> None:
     if not state.config.ssh:
         return
 
-    state.root.joinpath("etc/systemd/system/ssh.socket").write_text(
+    state.root.joinpath("usr/lib/systemd/system/ssh.socket").write_text(
         dedent(
             """\
             [Unit]
@@ -1400,7 +1349,7 @@ def configure_ssh(state: MkosiState) -> None:
         )
     )
 
-    state.root.joinpath("etc/systemd/system/ssh@.service").write_text(
+    state.root.joinpath("usr/lib/systemd/system/ssh@.service").write_text(
         dedent(
             """\
             [Unit]
@@ -1420,8 +1369,7 @@ def configure_ssh(state: MkosiState) -> None:
         )
     )
 
-    presetdir = state.root / "etc/systemd/system-preset"
-    presetdir.mkdir(exist_ok=True, mode=0o755)
+    presetdir = state.root / "usr/lib/systemd/system-preset"
     presetdir.joinpath("80-mkosi-ssh.preset").write_text("enable ssh.socket\n")
 
 
@@ -1436,11 +1384,44 @@ def configure_initrd(state: MkosiState) -> None:
         state.root.joinpath("etc/initrd-release").symlink_to("/etc/os-release")
 
 
+def process_kernel_modules(state: MkosiState, kver: str) -> None:
+    if not state.config.kernel_modules_include and not state.config.kernel_modules_exclude:
+        return
+
+    with complete_step("Applying kernel module filters"):
+        modulesd = Path("usr/lib/modules") / kver
+        modules = filter_kernel_modules(state.root, kver,
+                                        state.config.kernel_modules_include,
+                                        state.config.kernel_modules_exclude)
+
+        names = [module_path_to_name(m) for m in modules]
+        mods, firmware = resolve_module_dependencies(state.root, kver, names)
+
+        allmodules = set(m.relative_to(state.root) for m in (state.root / modulesd).glob("**/*.ko*"))
+        allfirmware = set(m.relative_to(state.root) for m in (state.root / "usr/lib/firmware").glob("**/*") if not m.is_dir())
+
+        for m in allmodules:
+            if m in mods:
+                continue
+
+            logging.debug(f"Removing module {m}")
+            (state.root / m).unlink()
+
+        for fw in allfirmware:
+            if fw in firmware:
+                continue
+
+            logging.debug(f"Removing firmware {fw}")
+            (state.root / fw).unlink()
+
+
 def run_depmod(state: MkosiState) -> None:
     if state.config.bootable == ConfigFeature.disabled:
         return
 
     for kver, _ in gen_kernel_images(state):
+        process_kernel_modules(state, kver)
+
         with complete_step(f"Running depmod for {kver}"):
             run(["depmod", "--all", "--basedir", state.root, kver])
 
@@ -1450,9 +1431,37 @@ def run_sysusers(state: MkosiState) -> None:
         run(["systemd-sysusers", "--root", state.root])
 
 
-def run_preset_all(state: MkosiState) -> None:
+def run_preset(state: MkosiState) -> None:
     with complete_step("Applying presets…"):
         run(["systemctl", "--root", state.root, "preset-all"])
+
+
+def run_firstboot(state: MkosiState) -> None:
+    settings = (
+        ("--locale",               state.config.locale),
+        ("--locale-messages",      state.config.locale_messages),
+        ("--keymap",               state.config.keymap),
+        ("--timezone",             state.config.timezone),
+        ("--hostname",             state.config.hostname),
+        ("--root-password",        state.config.root_password),
+        ("--root-password-hashed", state.config.root_password_hashed),
+        ("--root-password-file",   state.config.root_password_file),
+        ("--root-shell",           state.config.root_shell),
+    )
+
+    options = []
+
+    for setting, value in settings:
+        if not value:
+            continue
+
+        options += [setting, value]
+
+    if not options:
+        return
+
+    with complete_step("Applying first boot settings"):
+        run(["systemd-firstboot", "--root", state.root, "--force", *options])
 
 
 def run_selinux_relabel(state: MkosiState) -> None:
@@ -1508,10 +1517,10 @@ def invoke_repart(state: MkosiState, skip: Sequence[str] = [], split: bool = Fal
         cmdline += ["--empty=create"]
     if state.config.passphrase:
         cmdline += ["--key-file", state.config.passphrase]
-    if state.config.secure_boot_key:
-        cmdline += ["--private-key", state.config.secure_boot_key]
-    if state.config.secure_boot_certificate:
-        cmdline += ["--certificate", state.config.secure_boot_certificate]
+    if state.config.verity_key:
+        cmdline += ["--private-key", state.config.verity_key]
+    if state.config.verity_certificate:
+        cmdline += ["--certificate", state.config.verity_certificate]
     if skip:
         cmdline += ["--defer-partitions", ",".join(skip)]
     if split and state.config.split_artifacts:
@@ -1541,8 +1550,8 @@ def invoke_repart(state: MkosiState, skip: Sequence[str] = [], split: bool = Fal
                         Type=esp
                         Format=vfat
                         CopyFiles=/boot:/
-                        SizeMinBytes=1024M
-                        SizeMaxBytes=1024M
+                        SizeMinBytes=512M
+                        SizeMaxBytes=512M
                         """
                     )
                 )
@@ -1607,7 +1616,6 @@ def build_image(state: MkosiState, *, for_cache: bool, manifest: Optional[Manife
         if for_cache:
             return
 
-        configure_root_password(state)
         configure_autologin(state)
         configure_initrd(state)
         run_build_script(state)
@@ -1617,8 +1625,9 @@ def build_image(state: MkosiState, *, for_cache: bool, manifest: Optional[Manife
         configure_ssh(state)
         run_postinst_script(state)
         run_sysusers(state)
-        run_preset_all(state)
+        run_preset(state)
         run_depmod(state)
+        run_firstboot(state)
         remove_packages(state)
 
         if manifest:
@@ -1627,8 +1636,6 @@ def build_image(state: MkosiState, *, for_cache: bool, manifest: Optional[Manife
 
         clean_package_manager_metadata(state)
         remove_files(state)
-        reset_machine_id(state)
-        reset_random_seed(state.root)
         run_finalize_script(state)
         run_selinux_relabel(state)
 
@@ -1722,23 +1729,46 @@ def setfacl(root: Path, uid: int, allow: bool) -> None:
 
 
 @contextlib.contextmanager
+def acl_maybe_toggle(config: MkosiConfig, root: Path, uid: int, *, always: bool) -> Iterator[None]:
+    if not config.acl:
+        yield
+        return
+
+    # getfacl complains about absolute paths so make sure we pass a relative one.
+    has_acl = f"user:{uid}:rwx" in run(["getfacl", "-n", root.relative_to(Path.cwd())], stdout=subprocess.PIPE, text=True).stdout
+    if not has_acl and not always:
+        yield
+        return
+
+    try:
+        if has_acl:
+            with complete_step(f"Removing ACLs from {root}"):
+                setfacl(root, uid, allow=False)
+
+        yield
+    finally:
+        setfacl(root, uid, allow=True)
+
+
+@contextlib.contextmanager
 def acl_toggle_build(state: MkosiState) -> Iterator[None]:
     if not state.config.acl:
         yield
         return
 
-    try:
-        for p in (*state.config.base_trees, state.config.cache_dir):
+    extras = [e[0] for e in state.config.extra_trees]
+    skeletons = [s[0] for s in state.config.skeleton_trees]
+
+    with contextlib.ExitStack() as stack:
+        for p in (*state.config.base_trees, *extras, *skeletons):
             if p and p.is_dir():
-                with complete_step(f"Removing ACLs from {p}"):
-                    setfacl(p, state.uid, allow=False)
+                stack.enter_context(acl_maybe_toggle(state.config, p, state.uid, always=False))
+
+        for p in (state.config.cache_dir, state.config.output_dir / state.config.output):
+            if p and p.is_dir():
+                stack.enter_context(acl_maybe_toggle(state.config, p, state.uid, always=True))
 
         yield
-    finally:
-        for p in (*state.config.base_trees, state.config.cache_dir, state.config.output_dir / state.config.output):
-            if p and p.is_dir():
-                with complete_step(f"Adding ACLs to {p}"):
-                    setfacl(p, state.uid, allow=True)
 
 
 def build_stuff(uid: int, gid: int, args: MkosiArgs, config: MkosiConfig) -> None:
@@ -1791,7 +1821,7 @@ def build_stuff(uid: int, gid: int, args: MkosiArgs, config: MkosiConfig) -> Non
         if not state.config.output_dir.joinpath(state.config.output).exists():
             state.config.output_dir.joinpath(state.config.output).symlink_to(state.config.output_with_compression)
 
-    print_output_size(config)
+    print_output_size(config.output_dir / config.output)
 
 
 def check_root() -> None:
@@ -1824,15 +1854,8 @@ def acl_toggle_boot(config: MkosiConfig) -> Iterator[None]:
         yield
         return
 
-    uid = InvokingUser.uid()
-
-    try:
-        with complete_step(f"Removing ACLs from {config.output_dir / config.output}"):
-            setfacl(config.output_dir / config.output, uid, allow=False)
+    with acl_maybe_toggle(config, config.output_dir / config.output, InvokingUser.uid(), always=False):
         yield
-    finally:
-        with complete_step(f"Adding ACLs to {config.output_dir / config.output}"):
-            setfacl(config.output_dir / config.output, uid, allow=True)
 
 
 def run_shell(args: MkosiArgs, config: MkosiConfig) -> None:
@@ -2146,24 +2169,23 @@ def run_serve(config: MkosiConfig) -> None:
         httpd.serve_forever()
 
 
-def generate_secure_boot_key(args: MkosiArgs) -> None:
-    """Generate secure boot keys using openssl"""
+def generate_key_cert_pair(args: MkosiArgs) -> None:
+    """Generate a private key and accompanying X509 certificate using openssl"""
 
     keylength = 2048
-    expiration_date = datetime.date.today() + datetime.timedelta(int(args.secure_boot_valid_days))
-    cn = expand_specifier(args.secure_boot_common_name)
+    expiration_date = datetime.date.today() + datetime.timedelta(int(args.genkey_valid_days))
+    cn = expand_specifier(args.genkey_common_name)
 
-    for f in ("mkosi.secure-boot.key", "mkosi.secure-boot.crt"):
+    for f in ("mkosi.key", "mkosi.crt"):
         if Path(f).exists() and not args.force:
             die(f"{f} already exists",
-                hint=("To generate new secure boot keys, "
-                      "first remove mkosi.secure-boot.key and mkosi.secure-boot.crt"))
+                hint=("To generate new keys, first remove mkosi.key and mkosi.crt"))
 
-    log_step(f"Generating secure boot keys rsa:{keylength} for CN {cn!r}.")
+    log_step(f"Generating keys rsa:{keylength} for CN {cn!r}.")
     logging.info(
         dedent(
             f"""
-            The keys will expire in {args.secure_boot_valid_days} days ({expiration_date:%A %d. %B %Y}).
+            The keys will expire in {args.genkey_valid_days} days ({expiration_date:%A %d. %B %Y}).
             Remember to roll them over to new ones before then.
             """
         )
@@ -2174,9 +2196,9 @@ def generate_secure_boot_key(args: MkosiArgs) -> None:
         "-new",
         "-x509",
         "-newkey", f"rsa:{keylength}",
-        "-keyout", "mkosi.secure-boot.key",
-        "-out", "mkosi.secure-boot.crt",
-        "-days", str(args.secure_boot_valid_days),
+        "-keyout", "mkosi.key",
+        "-out", "mkosi.crt",
+        "-days", str(args.genkey_valid_days),
         "-subj", f"/CN={cn}/",
         "-nodes",
     ]
@@ -2219,7 +2241,7 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
         check_root()
 
     if args.verb == Verb.genkey:
-        return generate_secure_boot_key(args)
+        return generate_key_cert_pair(args)
 
     if args.verb == Verb.bump:
         return bump_image_version()
@@ -2286,6 +2308,10 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
 
     if build and args.auto_bump:
         bump_image_version()
+
+    # Give disk images some space to play around with if we're booting one.
+    if args.verb in (Verb.shell, Verb.boot, Verb.qemu) and last.output_format == OutputFormat.disk:
+        run(["truncate", "--size", "8G", last.output_dir / last.output])
 
     with prepend_to_environ_path(last.extra_search_paths):
         if args.verb in (Verb.shell, Verb.boot):

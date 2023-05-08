@@ -16,6 +16,6 @@
 /mkosi.nspawn
 /mkosi.rootpw
 /mkosi.conf
-/mkosi.secure-boot.key
-/mkosi.secure-boot.crt
+/mkosi.key
+/mkosi.crt
 __pycache__

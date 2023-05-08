@@ -82,6 +82,8 @@
 - `--base-image` is split into `--base-tree` and `--overlay`.
 - Removed `--cache-initrd`, instead, use a prebuilt initrd with `Initrds=` to avoid rebuilding the initrd all
   the time.
+- Disk images are now resized to 8G when booted to give some disk space to play around with in the booted
+  image.
 
 ## v14
 

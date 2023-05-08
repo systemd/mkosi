@@ -6,7 +6,6 @@ import enum
 import fnmatch
 import functools
 import inspect
-import logging
 import operator
 import os.path
 import platform
@@ -74,7 +73,8 @@ def parse_path(value: str,
                required: bool = True,
                absolute: bool = True,
                expanduser: bool = True,
-               expandvars: bool = True) -> Path:
+               expandvars: bool = True,
+               secret: bool = False) -> Path:
     if expandvars:
         value = os.path.expandvars(value)
 
@@ -90,6 +90,14 @@ def parse_path(value: str,
 
     if absolute:
         path = path.absolute()
+
+    if secret:
+        mode = path.stat().st_mode & 0o777
+        if mode & 0o007:
+            die(textwrap.dedent(f"""\
+                Permissions of '{path}' of '{mode:04o}' are too open.
+                When creating secret files use an access mode that restricts access to the owner only.
+            """))
 
     return path
 
@@ -374,13 +382,15 @@ def make_path_parser(*,
                      required: bool = True,
                      absolute: bool = True,
                      expanduser: bool = True,
-                     expandvars: bool = True) -> Callable[[str], Path]:
+                     expandvars: bool = True,
+                     secret: bool = False) -> Callable[[str], Path]:
     return functools.partial(
         parse_path,
         required=required,
         absolute=absolute,
         expanduser=expanduser,
         expandvars=expandvars,
+        secret=secret,
     )
 
 
@@ -388,7 +398,8 @@ def config_make_path_parser(*,
                             required: bool = True,
                             absolute: bool = True,
                             expanduser: bool = True,
-                            expandvars: bool = True) -> ConfigParseCallback:
+                            expandvars: bool = True,
+                            secret: bool = False) -> ConfigParseCallback:
     def config_parse_path(dest: str, value: Optional[str], namespace: argparse.Namespace) -> Optional[Path]:
         if dest in namespace:
             return getattr(namespace, dest) # type: ignore
@@ -400,6 +411,7 @@ def config_make_path_parser(*,
                 absolute=absolute,
                 expanduser=expanduser,
                 expandvars=expandvars,
+                secret=secret,
             )
 
         return None
@@ -524,8 +536,8 @@ class MkosiArgs:
     debug: bool
     debug_shell: bool
     pager: bool
-    secure_boot_valid_days: str
-    secure_boot_common_name: str
+    genkey_valid_days: str
+    genkey_common_name: str
     auto_bump: bool
     presets: list[str]
 
@@ -564,6 +576,8 @@ class MkosiConfig:
     secure_boot: bool
     secure_boot_key: Optional[Path]
     secure_boot_certificate: Optional[Path]
+    verity_key: Optional[Path]
+    verity_certificate: Optional[Path]
     sign_expected_pcr: bool
     compress_output: Compression
     image_version: Optional[str]
@@ -596,8 +610,6 @@ class MkosiConfig:
     split_artifacts: bool
     sign: bool
     key: Optional[str]
-    password: Optional[str]
-    password_is_hashed: bool
     autologin: bool
     extra_search_paths: list[Path]
     ephemeral: bool
@@ -606,6 +618,8 @@ class MkosiConfig:
     workspace_dir: Optional[Path]
     initrds: list[Path]
     make_initrd: bool
+    kernel_modules_include: list[str]
+    kernel_modules_exclude: list[str]
     kernel_modules_initrd: bool
     kernel_modules_initrd_include: list[str]
     kernel_modules_initrd_exclude: list[str]
@@ -613,6 +627,15 @@ class MkosiConfig:
     acl: bool
     bootable: ConfigFeature
     use_subvolumes: ConfigFeature
+    locale: Optional[str]
+    locale_messages: Optional[str]
+    keymap: Optional[str]
+    timezone: Optional[str]
+    hostname: Optional[str]
+    root_password: Optional[str]
+    root_password_hashed: Optional[str]
+    root_password_file: Optional[Path]
+    root_shell: Optional[str]
 
     # QEMU-specific options
     qemu_gui: bool
@@ -778,57 +801,23 @@ class MkosiConfigParser:
         MkosiConfigSetting(
             dest="cache_dir",
             name="CacheDirectory",
-            section="Content",
+            section="Output",
             parse=config_make_path_parser(required=False),
             paths=("mkosi.cache",),
         ),
         MkosiConfigSetting(
             dest="build_dir",
             name="BuildDirectory",
-            section="Content",
+            section="Output",
             parse=config_make_path_parser(required=False),
             paths=("mkosi.builddir",),
         ),
         MkosiConfigSetting(
             dest="install_dir",
             name="InstallDirectory",
-            section="Content",
+            section="Output",
             parse=config_make_path_parser(required=False),
             paths=("mkosi.installdir",),
-        ),
-        MkosiConfigSetting(
-            dest="kernel_command_line",
-            section="Output",
-            parse=config_make_list_parser(delimiter=" "),
-            default=["console=ttyS0"],
-        ),
-        MkosiConfigSetting(
-            dest="secure_boot",
-            section="Output",
-            parse=config_parse_boolean,
-        ),
-        MkosiConfigSetting(
-            dest="secure_boot_key",
-            section="Output",
-            parse=config_make_path_parser(required=False),
-            paths=("mkosi.secure-boot.key",),
-        ),
-        MkosiConfigSetting(
-            dest="secure_boot_certificate",
-            section="Output",
-            parse=config_make_path_parser(required=False),
-            paths=("mkosi.secure-boot.crt",),
-        ),
-        MkosiConfigSetting(
-            dest="sign_expected_pcr",
-            section="Output",
-            parse=config_parse_feature,
-        ),
-        MkosiConfigSetting(
-            dest="passphrase",
-            section="Output",
-            parse=config_make_path_parser(required=False),
-            paths=("mkosi.passphrase",),
         ),
         MkosiConfigSetting(
             dest="compress_output",
@@ -847,11 +836,6 @@ class MkosiConfigParser:
         ),
         MkosiConfigSetting(
             dest="tar_strip_selinux_context",
-            section="Output",
-            parse=config_parse_boolean,
-        ),
-        MkosiConfigSetting(
-            dest="incremental",
             section="Output",
             parse=config_parse_boolean,
         ),
@@ -899,19 +883,16 @@ class MkosiConfigParser:
             default=True,
         ),
         MkosiConfigSetting(
+            dest="kernel_command_line",
+            section="Content",
+            parse=config_make_list_parser(delimiter=" "),
+            default=["console=ttyS0"],
+        ),
+        MkosiConfigSetting(
             dest="bootable",
             section="Content",
             parse=config_parse_feature,
             match=config_make_list_matcher(delimiter=",", parse=parse_feature),
-        ),
-        MkosiConfigSetting(
-            dest="password",
-            section="Content",
-        ),
-        MkosiConfigSetting(
-            dest="password_is_hashed",
-            section="Content",
-            parse=config_parse_boolean,
         ),
         MkosiConfigSetting(
             dest="autologin",
@@ -997,13 +978,6 @@ class MkosiConfigParser:
             parse=config_parse_boolean,
         ),
         MkosiConfigSetting(
-            dest="nspawn_settings",
-            name="NSpawnSettings",
-            section="Content",
-            parse=config_make_path_parser(),
-            paths=("mkosi.nspawn",),
-        ),
-        MkosiConfigSetting(
             dest="initrds",
             section="Content",
             parse=config_make_list_parser(delimiter=",", parse=make_path_parser(required=False)),
@@ -1012,6 +986,16 @@ class MkosiConfigParser:
             dest="make_initrd",
             section="Content",
             parse=config_parse_boolean,
+        ),
+        MkosiConfigSetting(
+            dest="kernel_modules_include",
+            section="Content",
+            parse=config_make_list_parser(delimiter=","),
+        ),
+        MkosiConfigSetting(
+            dest="kernel_modules_exclude",
+            section="Content",
+            parse=config_make_list_parser(delimiter=","),
         ),
         MkosiConfigSetting(
             dest="kernel_modules_initrd",
@@ -1030,6 +1014,92 @@ class MkosiConfigParser:
             parse=config_make_list_parser(delimiter=","),
         ),
         MkosiConfigSetting(
+            dest="locale",
+            section="Content",
+            parse=config_parse_string,
+        ),
+        MkosiConfigSetting(
+            dest="locale_messages",
+            section="Content",
+            parse=config_parse_string,
+        ),
+        MkosiConfigSetting(
+            dest="keymap",
+            section="Content",
+            parse=config_parse_string,
+        ),
+        MkosiConfigSetting(
+            dest="timezone",
+            section="Content",
+            parse=config_parse_string,
+        ),
+        MkosiConfigSetting(
+            dest="hostname",
+            section="Content",
+            parse=config_parse_string,
+        ),
+        MkosiConfigSetting(
+            dest="root_password",
+            section="Content",
+            parse=config_parse_string,
+        ),
+        MkosiConfigSetting(
+            dest="root_password_hashed",
+            section="Content",
+            parse=config_parse_string,
+        ),
+        MkosiConfigSetting(
+            dest="root_password_file",
+            section="Content",
+            parse=config_make_path_parser(secret=True),
+            paths=("mkosi.rootpw",),
+        ),
+        MkosiConfigSetting(
+            dest="root_shell",
+            section="Content",
+            parse=config_parse_string,
+        ),
+        MkosiConfigSetting(
+            dest="secure_boot",
+            section="Validation",
+            parse=config_parse_boolean,
+        ),
+        MkosiConfigSetting(
+            dest="secure_boot_key",
+            section="Validation",
+            parse=config_make_path_parser(),
+            paths=("mkosi.key",),
+        ),
+        MkosiConfigSetting(
+            dest="secure_boot_certificate",
+            section="Validation",
+            parse=config_make_path_parser(),
+            paths=("mkosi.crt",),
+        ),
+        MkosiConfigSetting(
+            dest="verity_key",
+            section="Validation",
+            parse=config_make_path_parser(),
+            paths=("mkosi.key",),
+        ),
+        MkosiConfigSetting(
+            dest="verity_certificate",
+            section="Validation",
+            parse=config_make_path_parser(),
+            paths=("mkosi.crt",),
+        ),
+        MkosiConfigSetting(
+            dest="sign_expected_pcr",
+            section="Validation",
+            parse=config_parse_feature,
+        ),
+        MkosiConfigSetting(
+            dest="passphrase",
+            section="Validation",
+            parse=config_make_path_parser(required=False),
+            paths=("mkosi.passphrase",),
+        ),
+        MkosiConfigSetting(
             dest="checksum",
             section="Validation",
             parse=config_parse_boolean,
@@ -1042,6 +1112,18 @@ class MkosiConfigParser:
         MkosiConfigSetting(
             dest="key",
             section="Validation",
+        ),
+        MkosiConfigSetting(
+            dest="incremental",
+            section="Host",
+            parse=config_parse_boolean,
+        ),
+        MkosiConfigSetting(
+            dest="nspawn_settings",
+            name="NSpawnSettings",
+            section="Host",
+            parse=config_make_path_parser(),
+            paths=("mkosi.nspawn",),
         ),
         MkosiConfigSetting(
             dest="extra_search_paths",
@@ -1111,7 +1193,7 @@ class MkosiConfigParser:
         self.settings_lookup = {s.name: s for s in self.SETTINGS}
         self.match_lookup = {m.name: m for m in self.MATCHES}
 
-    def parse_config(self, path: Path, namespace: argparse.Namespace) -> None:
+    def parse_config(self, path: Path, namespace: argparse.Namespace) -> bool:
         extras = path.is_dir()
 
         if path.is_dir():
@@ -1149,11 +1231,11 @@ class MkosiConfigParser:
                         setattr(namespace, s.dest, default)
 
                     if not match(s.dest, v, namespace):
-                        return
+                        return False
 
                 elif (m := self.match_lookup.get(k)):
                     if not m.match(v):
-                        return
+                        return False
 
         parser.remove_section("Match")
 
@@ -1177,6 +1259,8 @@ class MkosiConfigParser:
                 for f in s.paths:
                     if Path(f).exists():
                         setattr(namespace, s.dest, s.parse(s.dest, f, namespace))
+
+        return True
 
     def create_argument_parser(self) -> argparse.ArgumentParser:
         action = config_make_action(self.SETTINGS)
@@ -1261,16 +1345,16 @@ class MkosiConfigParser:
             help="Enable paging for long output",
         )
         parser.add_argument(
-            "--secure-boot-valid-days",
+            "--genkey-valid-days",
             metavar="DAYS",
-            help="Number of days UEFI SecureBoot keys should be valid when generating keys",
+            help="Number of days keys should be valid when generating keys",
             action=action,
             default="730",
         )
         parser.add_argument(
-            "--secure-boot-common-name",
+            "--genkey-common-name",
             metavar="CN",
-            help="Template for the UEFI SecureBoot CN when generating keys",
+            help="Template for the CN when generating keys",
             action=action,
             default="mkosi of %u",
         )
@@ -1391,43 +1475,6 @@ class MkosiConfigParser:
             action=action,
         )
         group.add_argument(
-            "--kernel-command-line",
-            metavar="OPTIONS",
-            help="Set the kernel command line (only bootable images)",
-            action=action,
-        )
-        group.add_argument(
-            "--secure-boot",
-            metavar="BOOL",
-            help="Sign the resulting kernel/initrd image for UEFI SecureBoot",
-            nargs="?",
-            action=action,
-        )
-        group.add_argument(
-            "--secure-boot-key",
-            metavar="PATH",
-            help="UEFI SecureBoot private key in PEM format",
-            action=action,
-        )
-        group.add_argument(
-            "--secure-boot-certificate",
-            metavar="PATH",
-            help="UEFI SecureBoot certificate in X509 format",
-            action=action,
-        )
-        group.add_argument(
-            "--sign-expected-pcr",
-            metavar="FEATURE",
-            help="Measure the components of the unified kernel image (UKI) and embed the PCR signature into the UKI",
-            action=action,
-        )
-        group.add_argument(
-            "--passphrase",
-            metavar="PATH",
-            help="Path to a file containing the passphrase to use when LUKS encryption is selected",
-            action=action,
-        )
-        group.add_argument(
             "--compress-output",
             metavar="ALG",
             help="Enable whole-output compression (with images or archives)",
@@ -1440,13 +1487,6 @@ class MkosiConfigParser:
             "--tar-strip-selinux-context",
             metavar="BOOL",
             help="Do not include SELinux file context information in tar. Not compatible with bsdtar.",
-            nargs="?",
-            action=action,
-        )
-        group.add_argument(
-            "-i", "--incremental",
-            metavar="BOOL",
-            help="Make use of and generate intermediary cache images",
             nargs="?",
             action=action,
         )
@@ -1516,12 +1556,10 @@ class MkosiConfigParser:
             nargs="?",
             action=action,
         )
-        group.add_argument("--password", help="Set the root password", action=action)
         group.add_argument(
-            "--password-is-hashed",
-            metavar="BOOL",
-            help="Indicate that the root password has already been hashed",
-            nargs="?",
+            "--kernel-command-line",
+            metavar="OPTIONS",
+            help="Set the kernel command line (only bootable images)",
             action=action,
         )
         group.add_argument(
@@ -1621,13 +1659,6 @@ class MkosiConfigParser:
             action=action,
         )
         group.add_argument(
-            "--settings",
-            metavar="PATH",
-            help="Add in .nspawn settings file",
-            dest="nspawn_settings",
-            action=action,
-        )
-        group.add_argument(
             "--initrd",
             help="Add a user-provided initrd to image",
             metavar="PATH",
@@ -1639,6 +1670,18 @@ class MkosiConfigParser:
             help="Make sure the image can be used as an initramfs",
             metavar="BOOL",
             nargs="?",
+            action=action,
+        )
+        group.add_argument(
+            "--kernel-modules-include",
+            help="Only include the specified kernel modules in the image",
+            metavar="REGEX",
+            action=action,
+        )
+        group.add_argument(
+            "--kernel-modules-exclude",
+            help="Exclude the specified kernel modules from the image",
+            metavar="REGEX",
             action=action,
         )
         group.add_argument(
@@ -1660,8 +1703,105 @@ class MkosiConfigParser:
             metavar="REGEX",
             action=action,
         )
+        group.add_argument(
+            "--locale",
+            help="Set the system locale",
+            metavar="LOCALE",
+            action=action,
+        )
+        group.add_argument(
+            "--locale-messages",
+            help="Set the messages locale",
+            metavar="LOCALE",
+            action=action,
+        )
+        group.add_argument(
+            "--keymap",
+            help="Set the system keymap",
+            metavar="KEYMAP",
+            action=action,
+        )
+        group.add_argument(
+            "--timezone",
+            help="Set the system timezone",
+            metavar="TIMEZONE",
+            action=action,
+        )
+        group.add_argument(
+            "--hostname",
+            help="Set the system hostname",
+            metavar="HOSTNAME",
+            action=action,
+        )
+        group.add_argument(
+            "--root-password",
+            help="Set the system root password",
+            metavar="PASSWORD",
+            action=action,
+        )
+        group.add_argument(
+            "--root-password-hashed",
+            help="Set the system root password (hashed)",
+            metavar="PASSWORD-HASHED",
+            action=action,
+        )
+        group.add_argument(
+            "--root-password-file",
+            help="Set the system root password (file)",
+            metavar="PATH",
+            action=action,
+        )
+        group.add_argument(
+            "--root-shell",
+            help="Set the system root shell",
+            metavar="SHELL",
+            action=action,
+        )
 
         group = parser.add_argument_group("Validation options")
+        group.add_argument(
+            "--secure-boot",
+            metavar="BOOL",
+            help="Sign the resulting kernel/initrd image for UEFI SecureBoot",
+            nargs="?",
+            action=action,
+        )
+        group.add_argument(
+            "--secure-boot-key",
+            metavar="PATH",
+            help="UEFI SecureBoot private key in PEM format",
+            action=action,
+        )
+        group.add_argument(
+            "--secure-boot-certificate",
+            metavar="PATH",
+            help="UEFI SecureBoot certificate in X509 format",
+            action=action,
+        )
+        group.add_argument(
+            "--verity-key",
+            metavar="PATH",
+            help="Private key for signing verity signature in PEM format",
+            action=action,
+        )
+        group.add_argument(
+            "--verity-certificate",
+            metavar="PATH",
+            help="Certificate for signing verity signature in X509 format",
+            action=action,
+        )
+        group.add_argument(
+            "--sign-expected-pcr",
+            metavar="FEATURE",
+            help="Measure the components of the unified kernel image (UKI) and embed the PCR signature into the UKI",
+            action=action,
+        )
+        group.add_argument(
+            "--passphrase",
+            metavar="PATH",
+            help="Path to a file containing the passphrase to use when LUKS encryption is selected",
+            action=action,
+        )
         group.add_argument(
             "--checksum",
             metavar="BOOL",
@@ -1679,6 +1819,20 @@ class MkosiConfigParser:
         group.add_argument("--key", help="GPG key to use for signing", action=action)
 
         group = parser.add_argument_group("Host configuration options")
+        group.add_argument(
+            "-i", "--incremental",
+            metavar="BOOL",
+            help="Make use of and generate intermediary cache images",
+            nargs="?",
+            action=action,
+        )
+        group.add_argument(
+            "--settings",
+            metavar="PATH",
+            help="Add in .nspawn settings file",
+            dest="nspawn_settings",
+            action=action,
+        )
         group.add_argument(
             "--extra-search-path",
             help="List of colon-separated paths to look for programs before looking in PATH",
@@ -1816,7 +1970,8 @@ class MkosiConfigParser:
                     cp = copy.deepcopy(namespace)
 
                     with chdir(p if p.is_dir() else Path.cwd()):
-                        self.parse_config(p if p.is_file() else Path("."), cp)
+                        if not self.parse_config(p if p.is_file() else Path("."), cp):
+                            continue
 
                     setattr(cp, "preset", name)
 
@@ -1909,29 +2064,6 @@ def find_image_version(args: argparse.Namespace) -> None:
         pass
 
 
-def require_private_file(name: Path, description: str) -> None:
-    mode = os.stat(name).st_mode & 0o777
-    if mode & 0o007:
-        logging.warning(textwrap.dedent(f"""\
-            Permissions of '{name}' of '{mode:04o}' are too open.
-            When creating {description} files use an access mode that restricts access to the owner only.
-        """))
-
-
-def find_password(args: argparse.Namespace) -> None:
-    if args.password is not None:
-        return
-
-    try:
-        pwfile = Path("mkosi.rootpw")
-        require_private_file(pwfile, "root password")
-
-        args.password = pwfile.read_text().strip()
-
-    except FileNotFoundError:
-        pass
-
-
 def load_credentials(args: argparse.Namespace) -> dict[str, str]:
     creds = {}
 
@@ -1981,6 +2113,9 @@ def load_kernel_command_line_extra(args: argparse.Namespace) -> list[str]:
     columns, lines = shutil.get_terminal_size()
 
     cmdline = [
+        f"systemd.tty.term.console={os.getenv('TERM', 'vt220')}",
+        f"systemd.tty.columns.console={columns}",
+        f"systemd.tty.rows.console={lines}",
         f"systemd.tty.term.ttyS0={os.getenv('TERM', 'vt220')}",
         f"systemd.tty.columns.ttyS0={columns}",
         f"systemd.tty.rows.ttyS0={lines}",
@@ -2047,20 +2182,17 @@ def load_config(args: argparse.Namespace) -> MkosiConfig:
     if args.secure_boot and args.verb != Verb.genkey:
         if args.secure_boot_key is None:
             die("UEFI SecureBoot enabled, but couldn't find private key.",
-                hint="Consider placing it in mkosi.secure-boot.key")
+                hint="Consider placing it in mkosi.key")
 
         if args.secure_boot_certificate is None:
             die("UEFI SecureBoot enabled, but couldn't find certificate.",
-                hint="Consider placing it in mkosi.secure-boot.crt")
+                hint="Consider placing it in mkosi.crt")
 
     if args.sign_expected_pcr is True and not shutil.which("systemd-measure"):
         die("Couldn't find systemd-measure needed for the --sign-expected-pcr option.")
 
     if args.sign_expected_pcr is None:
         args.sign_expected_pcr = bool(shutil.which("systemd-measure"))
-
-    # Resolve passwords late so we can accurately determine whether a build is needed
-    find_password(args)
 
     if args.repo_dirs and not (
         is_dnf_distribution(args.distribution)
