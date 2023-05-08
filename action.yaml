@@ -12,7 +12,6 @@ runs:
       sudo add-apt-repository ppa:michel-slm/kernel-utils
       sudo apt-get update
       sudo apt-get install --assume-yes --no-install-recommends \
-        zypper \
         dnf \
         pacman-package-manager \
         archlinux-keyring \
@@ -23,6 +22,7 @@ runs:
         ovmf \
         e2fsprogs \
         xfsprogs \
+        erofs-utils \
         squashfs-tools \
         btrfs-progs \
         mtools \
