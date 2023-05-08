@@ -286,10 +286,10 @@ def bwrap(
     ]
 
     if apivfs:
-        if not apivfs.joinpath("etc/machine-id").exists():
+        if not (apivfs / "etc/machine-id").exists():
             # Uninitialized means we want it to get initialized on first boot.
-            apivfs.joinpath("etc/machine-id").write_text("uninitialized\n")
-            apivfs.chmod(0o0444)
+            (apivfs / "etc/machine-id").write_text("uninitialized\n")
+            (apivfs / "etc/machine-id").chmod(0o0444)
 
         cmdline += [
             "--tmpfs", apivfs / "run",
