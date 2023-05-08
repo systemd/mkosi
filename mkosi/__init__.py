@@ -1735,10 +1735,13 @@ def acl_maybe_toggle(config: MkosiConfig, root: Path, uid: int, *, always: bool)
         return
 
     # getfacl complains about absolute paths so make sure we pass a relative one.
-    has_acl = f"user:{uid}:rwx" in run(["getfacl", "-n", root.relative_to(Path.cwd())], stdout=subprocess.PIPE, text=True).stdout
-    if not has_acl and not always:
-        yield
-        return
+    if root.exists():
+        has_acl = f"user:{uid}:rwx" in run(["getfacl", "-n", root.relative_to(Path.cwd())], stdout=subprocess.PIPE, text=True).stdout
+        if not has_acl and not always:
+            yield
+            return
+    else:
+        has_acl = False
 
     try:
         if has_acl:
@@ -1747,7 +1750,9 @@ def acl_maybe_toggle(config: MkosiConfig, root: Path, uid: int, *, always: bool)
 
         yield
     finally:
-        setfacl(root, uid, allow=True)
+        if has_acl or always:
+            with complete_step(f"Adding ACLs to {root}"):
+                setfacl(root, uid, allow=True)
 
 
 @contextlib.contextmanager
@@ -1765,7 +1770,7 @@ def acl_toggle_build(state: MkosiState) -> Iterator[None]:
                 stack.enter_context(acl_maybe_toggle(state.config, p, state.uid, always=False))
 
         for p in (state.config.cache_dir, state.config.output_dir / state.config.output):
-            if p and p.is_dir():
+            if p:
                 stack.enter_context(acl_maybe_toggle(state.config, p, state.uid, always=True))
 
         yield
