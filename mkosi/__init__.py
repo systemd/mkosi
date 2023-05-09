@@ -36,14 +36,7 @@ from mkosi.manifest import Manifest
 from mkosi.mounts import dissect_and_mount, mount_overlay, scandir_recursive
 from mkosi.pager import page
 from mkosi.remove import unlink_try_hard
-from mkosi.run import (
-    become_root,
-    fork_and_wait,
-    init_mount_namespace,
-    run,
-    run_workspace_command,
-    spawn,
-)
+from mkosi.run import become_root, fork_and_wait, run, run_workspace_command, spawn
 from mkosi.state import MkosiState
 from mkosi.types import PathString
 from mkosi.util import (
@@ -444,12 +437,6 @@ def install_base_trees(state: MkosiState) -> None:
     if not state.config.base_trees or state.config.overlay:
         return
 
-    # We only do this step once, even if we're doing cached images. If we're doing a cached image on top of
-    # base trees, the cached image is an overlay on top of the base trees, so the unpacked base trees are
-    # guaranteed to still be pristine when we run the second time to generate the final image.
-    if any(state.root.iterdir()):
-        return
-
     with complete_step("Copying in base trees…"):
         for path in state.config.base_trees:
             if path.is_dir():
@@ -784,17 +771,18 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                 "--package", "systemd",
                 "--package", "udev",
                 "--package", "kmod",
-                "--output", "initrd",
+                "--output", f"{state.config.output}-initrd",
+                *(["--image-version", state.config.image_version] if state.config.image_version else []),
                 "--make-initrd", "yes",
                 "--bootable", "no",
                 "--manifest-format", "",
-                "-f",
+                *(["-f"] * state.args.force),
                 "build",
             ])
 
             config = presets[0]
             unlink_output(args, config)
-            build_stuff(state.uid, state.gid, args, config)
+            build_image(state.uid, state.gid, args, config)
 
             initrds = [config.output_dir / config.output]
 
@@ -977,24 +965,6 @@ def calculate_signature(state: MkosiState) -> None:
         )
 
 
-def save_cache(state: MkosiState) -> None:
-    final, build = cache_tree_paths(state.config)
-
-    with complete_step("Installing cache copies"):
-        unlink_try_hard(final)
-
-        # We only use the cache-overlay directory for caching if we have a base tree, otherwise we just
-        # cache the root directory.
-        if state.workspace.joinpath("cache-overlay").exists():
-            shutil.move(state.workspace / "cache-overlay", final)
-        else:
-            shutil.move(state.root, final)
-
-        if state.config.build_script:
-            unlink_try_hard(build)
-            shutil.move(state.workspace / "build-overlay", build)
-
-
 def dir_size(path: Union[Path, os.DirEntry[str]]) -> int:
     dir_sum = 0
     for entry in os.scandir(path):
@@ -1063,7 +1033,7 @@ def unlink_output(args: MkosiArgs, config: MkosiConfig) -> None:
     if remove_build_cache:
         for p in cache_tree_paths(config):
             if p.exists():
-                with complete_step(f"Removing cache directory {p}…"):
+                with complete_step(f"Removing cache entry {p}…"):
                     unlink_try_hard(p)
 
         if config.build_dir and config.build_dir.exists() and any(config.build_dir.iterdir()):
@@ -1080,9 +1050,13 @@ def unlink_output(args: MkosiArgs, config: MkosiConfig) -> None:
                 empty_directory(config.cache_dir)
 
 
-def cache_tree_paths(config: MkosiConfig) -> tuple[Path, Path]:
+def cache_tree_paths(config: MkosiConfig) -> tuple[Path, Path, Path]:
     assert config.cache_dir
-    return config.cache_dir / f"{config.output}.cache", config.cache_dir / f"{config.output}.build.cache"
+    return (
+        config.cache_dir / f"{config.output}.cache",
+        config.cache_dir / f"{config.output}.build.cache",
+        config.cache_dir / f"{config.output}.manifest",
+    )
 
 
 def check_tree_input(path: Optional[Path]) -> None:
@@ -1483,13 +1457,41 @@ def run_selinux_relabel(state: MkosiState) -> None:
         run_workspace_command(state.root, ["sh", "-c", cmd], env=state.environment)
 
 
-def reuse_cache_tree(state: MkosiState) -> bool:
+def save_cache(state: MkosiState) -> None:
+    if not state.config.incremental:
+        return
+
+    final, build, manifest = cache_tree_paths(state.config)
+
+    with complete_step("Installing cache copies"):
+        unlink_try_hard(final)
+
+        # We only use the cache-overlay directory for caching if we have a base tree, otherwise we just
+        # cache the root directory.
+        if state.workspace.joinpath("cache-overlay").exists():
+            shutil.move(state.workspace / "cache-overlay", final)
+        else:
+            shutil.move(state.root, final)
+
+        if state.config.build_script:
+            unlink_try_hard(build)
+            shutil.move(state.workspace / "build-overlay", build)
+
+        manifest.write_text(json.dumps(state.config.cache_manifest()))
+
+
+def reuse_cache(state: MkosiState) -> bool:
     if not state.config.incremental:
         return False
 
-    final, build = cache_tree_paths(state.config)
+    final, build, manifest = cache_tree_paths(state.config)
     if not final.exists() or (state.config.build_script and not build.exists()):
         return False
+
+    if manifest.exists():
+        prev = json.loads(manifest.read_text())
+        if prev != state.config.cache_manifest():
+            return False
 
     with complete_step("Copying cached trees"):
         btrfs_maybe_snapshot_subvolume(state.config, final, state.root)
@@ -1600,55 +1602,98 @@ def invoke_repart(state: MkosiState, skip: Sequence[str] = [], split: bool = Fal
     return f"roothash={roothash}" if roothash else f"usrhash={usrhash}" if usrhash else None, split_paths
 
 
-def build_image(state: MkosiState, *, for_cache: bool, manifest: Optional[Manifest] = None) -> None:
-    with mount_image(state):
-        install_base_trees(state)
-        cached = reuse_cache_tree(state) if not for_cache else False
+def build_image(uid: int, gid: int, args: MkosiArgs, config: MkosiConfig) -> None:
+    workspace = tempfile.TemporaryDirectory(dir=config.workspace_dir or Path.cwd(), prefix=".mkosi.tmp")
+    workspace_dir = Path(workspace.name)
+    cache = config.cache_dir or workspace_dir / "cache"
 
-        if not cached:
-            with mount_cache_overlay(state):
-                install_skeleton_trees(state)
-                install_distribution(state)
-                run_prepare_script(state, build=False)
-                install_build_packages(state)
-                run_prepare_script(state, build=True)
+    state = MkosiState(
+        uid=uid,
+        gid=gid,
+        args=args,
+        config=config,
+        workspace=workspace_dir,
+        cache=cache,
+    )
 
-        if for_cache:
-            return
+    manifest = Manifest(config)
 
-        configure_autologin(state)
-        configure_initrd(state)
-        run_build_script(state)
-        install_build_dest(state)
-        install_extra_trees(state)
-        install_boot_loader(state)
-        configure_ssh(state)
-        run_postinst_script(state)
-        run_sysusers(state)
-        run_preset(state)
-        run_depmod(state)
-        run_firstboot(state)
-        remove_packages(state)
+    make_output_dir(state)
+    make_cache_dir(state)
+    make_install_dir(state)
+    make_build_dir(state)
 
-        if manifest:
-            with complete_step("Recording packages in manifest…"):
-                manifest.record_packages(state.root)
+    # Make sure tmpfiles' aging doesn't interfere with our workspace
+    # while we are working on it.
+    with flock(workspace_dir), workspace, acl_toggle_build(state):
+        with mount_image(state):
+            install_base_trees(state)
+            install_skeleton_trees(state)
+            cached = reuse_cache(state)
 
-        clean_package_manager_metadata(state)
-        remove_files(state)
-        run_finalize_script(state)
-        run_selinux_relabel(state)
+            if not cached:
+                with mount_cache_overlay(state):
+                    install_distribution(state)
+                    run_prepare_script(state, build=False)
+                    install_build_packages(state)
+                    run_prepare_script(state, build=True)
 
-    roothash, _ = invoke_repart(state, skip=("esp", "xbootldr"))
-    install_unified_kernel(state, roothash)
-    _, split_paths = invoke_repart(state, split=True)
+                save_cache(state)
+                reuse_cache(state)
 
-    for p in split_paths:
-        maybe_compress(state, state.config.compress_output, p)
+            configure_autologin(state)
+            configure_initrd(state)
+            run_build_script(state)
+            install_build_dest(state)
+            install_extra_trees(state)
+            install_boot_loader(state)
+            configure_ssh(state)
+            run_postinst_script(state)
+            run_sysusers(state)
+            run_preset(state)
+            run_depmod(state)
+            run_firstboot(state)
+            remove_packages(state)
 
-    make_tar(state)
-    make_initrd(state)
-    make_directory(state)
+            if manifest:
+                with complete_step("Recording packages in manifest…"):
+                    manifest.record_packages(state.root)
+
+            clean_package_manager_metadata(state)
+            remove_files(state)
+            run_finalize_script(state)
+            run_selinux_relabel(state)
+
+        roothash, _ = invoke_repart(state, skip=("esp", "xbootldr"))
+        install_unified_kernel(state, roothash)
+        _, split_paths = invoke_repart(state, split=True)
+
+        for p in split_paths:
+            maybe_compress(state, state.config.compress_output, p)
+
+        make_tar(state)
+        make_initrd(state)
+        make_directory(state)
+
+        maybe_compress(state, state.config.compress_output,
+                       state.staging / state.config.output_with_format,
+                       state.staging / state.config.output_with_compression)
+
+        copy_nspawn_settings(state)
+        calculate_sha256sum(state)
+        calculate_signature(state)
+        save_manifest(state, manifest)
+
+        for f in state.staging.iterdir():
+            if not f.is_dir():
+                os.chown(f, uid, gid)
+
+            shutil.move(f, state.config.output_dir)
+
+        if not state.config.output_dir.joinpath(state.config.output).exists():
+            state.config.output_dir.joinpath(state.config.output).symlink_to(state.config.output_with_compression)
+
+    print_output_size(config.output_dir / config.output)
 
 
 def one_zero(b: bool) -> str:
@@ -1701,18 +1746,6 @@ def run_build_script(state: MkosiState) -> None:
         # build-scripts. See https://github.com/systemd/mkosi/pull/566 for more information.
         run_workspace_command(state.root, cmd, network=state.config.with_network, bwrap_params=bwrap,
                               stdout=sys.stdout, env=env | state.environment)
-
-
-def need_cache_tree(args: MkosiArgs, state: MkosiState) -> bool:
-    if not state.config.incremental:
-        return False
-
-    if args.force > 1:
-        return True
-
-    final, build = cache_tree_paths(state.config)
-
-    return not final.exists() or (state.config.build_script is not None and not build.exists())
 
 
 def setfacl(root: Path, uid: int, allow: bool) -> None:
@@ -1774,59 +1807,6 @@ def acl_toggle_build(state: MkosiState) -> Iterator[None]:
                 stack.enter_context(acl_maybe_toggle(state.config, p, state.uid, always=True))
 
         yield
-
-
-def build_stuff(uid: int, gid: int, args: MkosiArgs, config: MkosiConfig) -> None:
-    workspace = tempfile.TemporaryDirectory(dir=config.workspace_dir or Path.cwd(), prefix=".mkosi.tmp")
-    workspace_dir = Path(workspace.name)
-    cache = config.cache_dir or workspace_dir / "cache"
-
-    state = MkosiState(
-        uid=uid,
-        gid=gid,
-        config=config,
-        workspace=workspace_dir,
-        cache=cache,
-    )
-
-    manifest = Manifest(config)
-
-    make_output_dir(state)
-    make_cache_dir(state)
-    make_install_dir(state)
-    make_build_dir(state)
-
-    # Make sure tmpfiles' aging doesn't interfere with our workspace
-    # while we are working on it.
-    with flock(workspace_dir), workspace, acl_toggle_build(state):
-        # If caching is requested, then make sure we have cache trees around we can make use of
-        if need_cache_tree(args, state):
-            with complete_step("Building cache image"):
-                build_image(state, for_cache=True)
-                save_cache(state)
-
-        with complete_step("Building image"):
-            build_image(state, manifest=manifest, for_cache=False)
-
-        maybe_compress(state, state.config.compress_output,
-                       state.staging / state.config.output_with_format,
-                       state.staging / state.config.output_with_compression)
-
-        copy_nspawn_settings(state)
-        calculate_sha256sum(state)
-        calculate_signature(state)
-        save_manifest(state, manifest)
-
-        for f in state.staging.iterdir():
-            if not f.is_dir():
-                os.chown(f, uid, gid)
-
-            shutil.move(f, state.config.output_dir)
-
-        if not state.config.output_dir.joinpath(state.config.output).exists():
-            state.config.output_dir.joinpath(state.config.output).symlink_to(state.config.output_with_compression)
-
-    print_output_size(config.output_dir / config.output)
 
 
 def check_root() -> None:
@@ -2300,8 +2280,7 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
             def target() -> None:
                 # Get the user UID/GID either on the host or in the user namespace running the build
                 uid, gid = become_root()
-                init_mount_namespace()
-                build_stuff(uid, gid, args, config)
+                build_image(uid, gid, args, config)
 
             # We only want to run the build in a user namespace but not the following steps. Since we
             # can't rejoin the parent user namespace after unsharing from it, let's run the build in a

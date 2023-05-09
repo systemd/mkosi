@@ -5,7 +5,7 @@ import importlib
 from pathlib import Path
 
 from mkosi.btrfs import btrfs_maybe_make_subvolume
-from mkosi.config import MkosiConfig
+from mkosi.config import MkosiArgs, MkosiConfig
 from mkosi.distributions import DistributionInstaller
 from mkosi.log import die
 
@@ -16,6 +16,7 @@ class MkosiState:
 
     uid: int
     gid: int
+    args: MkosiArgs
     config: MkosiConfig
     workspace: Path
     cache: Path

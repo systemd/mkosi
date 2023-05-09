@@ -107,7 +107,7 @@ def become_root() -> tuple[int, int]:
 
         os._exit(0)
 
-    unshare(CLONE_NEWUSER)
+    unshare(CLONE_NEWUSER|CLONE_NEWNS)
     event.set()
     os.waitpid(child, 0)
 
@@ -118,11 +118,6 @@ def become_root() -> tuple[int, int]:
     os.setgroups([0])
 
     return SUBRANGE - 100, SUBRANGE - 100
-
-
-def init_mount_namespace() -> None:
-    unshare(CLONE_NEWNS)
-    run(["mount", "--make-rslave", "/"])
 
 
 def foreground() -> None:
