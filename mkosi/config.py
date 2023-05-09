@@ -579,7 +579,7 @@ class MkosiConfig:
     secure_boot_certificate: Optional[Path]
     verity_key: Optional[Path]
     verity_certificate: Optional[Path]
-    sign_expected_pcr: bool
+    sign_expected_pcr: ConfigFeature
     compress_output: Compression
     image_version: Optional[str]
     image_id: Optional[str]
@@ -2201,12 +2201,6 @@ def load_config(args: argparse.Namespace) -> MkosiConfig:
             die("UEFI SecureBoot enabled, but couldn't find certificate.",
                 hint="Consider placing it in mkosi.crt")
 
-    if args.sign_expected_pcr is True and not shutil.which("systemd-measure"):
-        die("Couldn't find systemd-measure needed for the --sign-expected-pcr option.")
-
-    if args.sign_expected_pcr is None:
-        args.sign_expected_pcr = bool(shutil.which("systemd-measure"))
-
     if args.repo_dirs and not (
         is_dnf_distribution(args.distribution)
         or is_apt_distribution(args.distribution)
@@ -2238,6 +2232,9 @@ def load_config(args: argparse.Namespace) -> MkosiConfig:
     with prepend_to_environ_path(args.extra_search_paths):
         if (args.build_script is not None or args.base_trees) and GenericVersion(platform.release()) < GenericVersion("5.11") and os.geteuid() != 0:
             die("This unprivileged build configuration requires at least Linux v5.11")
+
+        if args.sign_expected_pcr == ConfigFeature.enabled and not shutil.which("systemd-measure"):
+            die("Couldn't find systemd-measure needed for the --sign-expected-pcr option.")
 
     return MkosiConfig.from_namespace(args)
 
