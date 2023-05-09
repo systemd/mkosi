@@ -1802,9 +1802,13 @@ def acl_toggle_build(state: MkosiState) -> Iterator[None]:
             if p and p.is_dir():
                 stack.enter_context(acl_maybe_toggle(state.config, p, state.uid, always=False))
 
-        for p in (state.config.cache_dir, state.config.output_dir / state.config.output):
-            if p:
-                stack.enter_context(acl_maybe_toggle(state.config, p, state.uid, always=True))
+        if state.config.cache_dir:
+            stack.enter_context(acl_maybe_toggle(state.config, state.config.cache_dir, state.uid, always=True))
+
+        if state.config.output_format == OutputFormat.directory:
+            stack.enter_context(acl_maybe_toggle(state.config,
+                                                 state.config.output_dir / state.config.output,
+                                                 state.uid, always=True))
 
         yield
 
