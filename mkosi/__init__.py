@@ -964,27 +964,6 @@ def calculate_signature(state: MkosiState) -> None:
         )
 
 
-def save_cache(state: MkosiState) -> None:
-    if not state.config.incremental:
-        return
-
-    final, build = cache_tree_paths(state.config)
-
-    with complete_step("Installing cache copies"):
-        unlink_try_hard(final)
-
-        # We only use the cache-overlay directory for caching if we have a base tree, otherwise we just
-        # cache the root directory.
-        if state.workspace.joinpath("cache-overlay").exists():
-            shutil.move(state.workspace / "cache-overlay", final)
-        else:
-            shutil.move(state.root, final)
-
-        if state.config.build_script:
-            unlink_try_hard(build)
-            shutil.move(state.workspace / "build-overlay", build)
-
-
 def dir_size(path: Union[Path, os.DirEntry[str]]) -> int:
     dir_sum = 0
     for entry in os.scandir(path):
@@ -1473,7 +1452,28 @@ def run_selinux_relabel(state: MkosiState) -> None:
         run_workspace_command(state.root, ["sh", "-c", cmd], env=state.environment)
 
 
-def reuse_cache_tree(state: MkosiState) -> bool:
+def save_cache(state: MkosiState) -> None:
+    if not state.config.incremental:
+        return
+
+    final, build = cache_tree_paths(state.config)
+
+    with complete_step("Installing cache copies"):
+        unlink_try_hard(final)
+
+        # We only use the cache-overlay directory for caching if we have a base tree, otherwise we just
+        # cache the root directory.
+        if state.workspace.joinpath("cache-overlay").exists():
+            shutil.move(state.workspace / "cache-overlay", final)
+        else:
+            shutil.move(state.root, final)
+
+        if state.config.build_script:
+            unlink_try_hard(build)
+            shutil.move(state.workspace / "build-overlay", build)
+
+
+def reuse_cache(state: MkosiState) -> bool:
     if not state.config.incremental:
         return False
 
@@ -1616,7 +1616,7 @@ def build_image(uid: int, gid: int, config: MkosiConfig) -> None:
         with mount_image(state):
             install_base_trees(state)
             install_skeleton_trees(state)
-            cached = reuse_cache_tree(state)
+            cached = reuse_cache(state)
 
             if not cached:
                 with mount_cache_overlay(state):
@@ -1626,7 +1626,7 @@ def build_image(uid: int, gid: int, config: MkosiConfig) -> None:
                     run_prepare_script(state, build=True)
 
                 save_cache(state)
-                reuse_cache_tree(state)
+                reuse_cache(state)
 
             configure_autologin(state)
             configure_initrd(state)
