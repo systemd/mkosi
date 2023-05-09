@@ -775,13 +775,13 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                 "--make-initrd", "yes",
                 "--bootable", "no",
                 "--manifest-format", "",
-                "-f",
+                *(["-f"] * state.args.force),
                 "build",
             ])
 
             config = presets[0]
             unlink_output(args, config)
-            build_image(state.uid, state.gid, config)
+            build_image(state.uid, state.gid, args, config)
 
             initrds = [config.output_dir / config.output]
 
@@ -1590,7 +1590,7 @@ def invoke_repart(state: MkosiState, skip: Sequence[str] = [], split: bool = Fal
     return f"roothash={roothash}" if roothash else f"usrhash={usrhash}" if usrhash else None, split_paths
 
 
-def build_image(uid: int, gid: int, config: MkosiConfig) -> None:
+def build_image(uid: int, gid: int, args: MkosiArgs, config: MkosiConfig) -> None:
     workspace = tempfile.TemporaryDirectory(dir=config.workspace_dir or Path.cwd(), prefix=".mkosi.tmp")
     workspace_dir = Path(workspace.name)
     cache = config.cache_dir or workspace_dir / "cache"
@@ -1598,6 +1598,7 @@ def build_image(uid: int, gid: int, config: MkosiConfig) -> None:
     state = MkosiState(
         uid=uid,
         gid=gid,
+        args=args,
         config=config,
         workspace=workspace_dir,
         cache=cache,
@@ -2267,7 +2268,7 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
             def target() -> None:
                 # Get the user UID/GID either on the host or in the user namespace running the build
                 uid, gid = become_root()
-                build_image(uid, gid, config)
+                build_image(uid, gid, args, config)
 
             # We only want to run the build in a user namespace but not the following steps. Since we
             # can't rejoin the parent user namespace after unsharing from it, let's run the build in a
