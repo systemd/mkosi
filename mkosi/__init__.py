@@ -1032,7 +1032,7 @@ def unlink_output(args: MkosiArgs, config: MkosiConfig) -> None:
     if remove_build_cache:
         for p in cache_tree_paths(config):
             if p.exists():
-                with complete_step(f"Removing cache directory {p}…"):
+                with complete_step(f"Removing cache entry {p}…"):
                     unlink_try_hard(p)
 
         if config.build_dir and config.build_dir.exists() and any(config.build_dir.iterdir()):
@@ -1049,9 +1049,13 @@ def unlink_output(args: MkosiArgs, config: MkosiConfig) -> None:
                 empty_directory(config.cache_dir)
 
 
-def cache_tree_paths(config: MkosiConfig) -> tuple[Path, Path]:
+def cache_tree_paths(config: MkosiConfig) -> tuple[Path, Path, Path]:
     assert config.cache_dir
-    return config.cache_dir / f"{config.output}.cache", config.cache_dir / f"{config.output}.build.cache"
+    return (
+        config.cache_dir / f"{config.output}.cache",
+        config.cache_dir / f"{config.output}.build.cache",
+        config.cache_dir / f"{config.output}.manifest",
+    )
 
 
 def check_tree_input(path: Optional[Path]) -> None:
@@ -1456,7 +1460,7 @@ def save_cache(state: MkosiState) -> None:
     if not state.config.incremental:
         return
 
-    final, build = cache_tree_paths(state.config)
+    final, build, manifest = cache_tree_paths(state.config)
 
     with complete_step("Installing cache copies"):
         unlink_try_hard(final)
@@ -1472,14 +1476,21 @@ def save_cache(state: MkosiState) -> None:
             unlink_try_hard(build)
             shutil.move(state.workspace / "build-overlay", build)
 
+        manifest.write_text(json.dumps(state.config.cache_manifest()))
+
 
 def reuse_cache(state: MkosiState) -> bool:
     if not state.config.incremental:
         return False
 
-    final, build = cache_tree_paths(state.config)
+    final, build, manifest = cache_tree_paths(state.config)
     if not final.exists() or (state.config.build_script and not build.exists()):
         return False
+
+    if manifest.exists():
+        prev = json.loads(manifest.read_text())
+        if prev != state.config.cache_manifest():
+            return False
 
     with complete_step("Copying cached trees"):
         btrfs_maybe_snapshot_subvolume(state.config, final, state.root)

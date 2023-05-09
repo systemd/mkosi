@@ -1,4 +1,5 @@
 import argparse
+import base64
 import configparser
 import copy
 import dataclasses
@@ -715,6 +716,18 @@ class MkosiConfig:
     @property
     def output_changelog(self) -> str:
         return f"{self.output_with_version}.changelog"
+
+    def cache_manifest(self) -> dict[str, Any]:
+        manifest: dict[str, Any] = {
+            "packages": self.packages,
+            "build_packages": self.build_packages,
+            "repositories": self.repositories,
+        }
+
+        if self.prepare_script:
+            manifest["prepare_script"] = base64.b64encode(self.prepare_script.read_bytes()).decode()
+
+        return manifest
 
 
 class MkosiConfigParser:
