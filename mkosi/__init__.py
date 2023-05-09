@@ -36,14 +36,7 @@ from mkosi.manifest import Manifest
 from mkosi.mounts import dissect_and_mount, mount_overlay, scandir_recursive
 from mkosi.pager import page
 from mkosi.remove import unlink_try_hard
-from mkosi.run import (
-    become_root,
-    fork_and_wait,
-    init_mount_namespace,
-    run,
-    run_workspace_command,
-    spawn,
-)
+from mkosi.run import become_root, fork_and_wait, run, run_workspace_command, spawn
 from mkosi.state import MkosiState
 from mkosi.types import PathString
 from mkosi.util import (
@@ -2278,7 +2271,6 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
             def target() -> None:
                 # Get the user UID/GID either on the host or in the user namespace running the build
                 uid, gid = become_root()
-                init_mount_namespace()
                 build_stuff(uid, gid, config)
 
             # We only want to run the build in a user namespace but not the following steps. Since we
