@@ -12,24 +12,24 @@ runs:
       sudo add-apt-repository ppa:michel-slm/kernel-utils
       sudo apt-get update
       sudo apt-get install --assume-yes --no-install-recommends \
-        dnf \
-        pacman-package-manager \
         archlinux-keyring \
-        debian-archive-keyring \
-        makepkg \
-        systemd-container \
-        qemu-system-x86 \
-        ovmf \
-        e2fsprogs \
-        xfsprogs \
-        erofs-utils \
-        squashfs-tools \
         btrfs-progs \
+        bubblewrap \
+        debian-archive-keyring \
+        dnf \
+        e2fsprogs \
+        erofs-utils \
+        makepkg \
         mtools \
+        ovmf \
+        pacman-package-manager \
+        pandoc \
         python3-pefile \
         python3-pyelftools \
-        bubblewrap \
-        pandoc
+        qemu-system-x86 \
+        squashfs-tools \
+        systemd-container \
+        xfsprogs
 
       sudo pacman-key --init
       sudo pacman-key --populate archlinux
