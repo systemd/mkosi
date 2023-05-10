@@ -1119,7 +1119,7 @@ def check_inputs(config: MkosiConfig) -> None:
 
 def check_outputs(config: MkosiConfig) -> None:
     for f in (
-        config.output,
+        config.output_with_compression,
         config.output_checksum if config.checksum else None,
         config.output_signature if config.sign else None,
         config.output_nspawn_settings if config.nspawn_settings is not None else None,
