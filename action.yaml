@@ -19,6 +19,7 @@ runs:
         dnf \
         e2fsprogs \
         erofs-utils \
+        linux-modules-extra-azure \
         makepkg \
         mtools \
         ovmf \
