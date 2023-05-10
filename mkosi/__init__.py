@@ -805,7 +805,7 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
 
             if state.root.joinpath("etc/kernel/cmdline").exists():
                 cmdline = [state.root.joinpath("etc/kernel/cmdline").read_text().strip()]
-            elif state.root.joinpath("/usr/lib/kernel/cmdline").exists():
+            elif state.root.joinpath("usr/lib/kernel/cmdline").exists():
                 cmdline = [state.root.joinpath("usr/lib/kernel/cmdline").read_text().strip()]
             else:
                 cmdline = []
