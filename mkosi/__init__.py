@@ -1477,7 +1477,7 @@ def save_cache(state: MkosiState) -> None:
         else:
             shutil.move(state.root, final)
 
-        if state.config.build_script:
+        if state.config.build_script and (state.workspace / "build-overlay").exists():
             unlink_try_hard(build)
             shutil.move(state.workspace / "build-overlay", build)
 
