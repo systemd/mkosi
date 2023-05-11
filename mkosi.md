@@ -978,6 +978,11 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 : When used with the `qemu` verb, this option specifies whether QEMU should use KVM acceleration. Takes a
   boolean value or `auto`. Defaults to `auto`.
 
+`QemuVsock=`, `--qemu-vsock=`
+
+: When used with the `qemu` verb, this option specifies whether QEMU should be configured with a vsock. Takes
+  a boolean value or `auto`. Defaults to `auto`.
+
 `QemuArgs=`
 
 : Space-delimited list of additional arguments to pass when invoking

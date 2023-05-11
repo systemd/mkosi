@@ -214,7 +214,9 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
         "-nic", "user,model=virtio-net-pci",
     ]
 
-    if qemu_check_vsock_support(log=True):
+    use_vsock = (config.qemu_vsock == ConfigFeature.enabled or
+                (config.qemu_vsock == ConfigFeature.auto and qemu_check_vsock_support(log=True)))
+    if use_vsock:
         cmdline += ["-device", f"vhost-vsock-pci,guest-cid={machine_cid(config)}"]
 
     cmdline += ["-cpu", "max"]
@@ -292,8 +294,9 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
             elif config.architecture == "aarch64":
                 cmdline += ["-device", "tpm-tis-device,tpmdev=tpm0"]
 
-        addr, notifications = stack.enter_context(vsock_notify_handler())
-        cmdline += ["-smbios", f"type=11,value=io.systemd.credential:vmm.notify_socket={addr}"]
+        if use_vsock:
+            addr, notifications = stack.enter_context(vsock_notify_handler())
+            cmdline += ["-smbios", f"type=11,value=io.systemd.credential:vmm.notify_socket={addr}"]
 
         cmdline += config.qemu_args
         cmdline += args.cmdline
