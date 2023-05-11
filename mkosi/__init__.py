@@ -2084,7 +2084,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
     ]
 
     try:
-        os.open("/dev/vhost-vsock", os.R_OK|os.W_OK)
+        os.open("/dev/vhost-vsock", os.O_RDWR|os.O_CLOEXEC)
         cmdline += ["-device", f"vhost-vsock-pci,guest-cid={machine_cid(config)}"]
     except OSError as e:
         if e.errno == errno.ENOENT:
