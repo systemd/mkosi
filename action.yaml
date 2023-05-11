@@ -5,6 +5,22 @@ runs:
   using: composite
   steps:
 
+  - name: Permit unprivileged access to kvm, vhost-vsock and vhost-net devices
+    shell: bash
+    run: |
+      sudo adduser $(id -un) kvm
+      sudo sed -i '/kvm/s/0660/0666/g'   /usr/lib/tmpfiles.d/static-nodes-permissions.conf
+      sudo sed -i '/vhost/s/0660/0666/g' /usr/lib/tmpfiles.d/static-nodes-permissions.conf
+      sudo modprobe kvm
+      sudo modprobe vhost_vsock
+      sudo modprobe vhost_net
+      [[ -e /dev/kvm ]] && sudo chmod 666 /dev/kvm
+      sudo chmod 666 /dev/vhost-vsock
+      sudo chmod 666 /dev/vhost-net
+      lsmod
+      [[ -e /dev/kvm ]] && ls -l /dev/kvm
+      ls -l /dev/vhost-*
+
   - name: Dependencies
     shell: bash
     run: |
