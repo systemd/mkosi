@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
+import asyncio
 import base64
 import contextlib
 import datetime
@@ -13,6 +14,7 @@ import os
 import re
 import resource
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -36,7 +38,14 @@ from mkosi.manifest import Manifest
 from mkosi.mounts import dissect_and_mount, mount_overlay, scandir_recursive
 from mkosi.pager import page
 from mkosi.remove import unlink_try_hard
-from mkosi.run import become_root, fork_and_wait, run, run_workspace_command, spawn
+from mkosi.run import (
+    MkosiAsyncioThread,
+    become_root,
+    fork_and_wait,
+    run,
+    run_workspace_command,
+    spawn,
+)
 from mkosi.state import MkosiState
 from mkosi.types import PathString
 from mkosi.util import (
@@ -2024,6 +2033,40 @@ def start_swtpm() -> Iterator[Optional[Path]]:
             swtpm_proc.wait()
 
 
+@contextlib.contextmanager
+def vsock_notify_handler() -> Iterator[tuple[str, dict[str, str]]]:
+    """
+    This yields a vsock address and a dict that will be filled in with the notifications from the VM. The
+    dict should only be accessed after the context manager has been finalized.
+    """
+    with socket.socket(socket.AF_VSOCK, socket.SOCK_SEQPACKET) as vsock:
+        vsock.bind((socket.VMADDR_CID_ANY, -1))
+        vsock.listen()
+        vsock.setblocking(False)
+
+        messages = {}
+
+        async def notify() -> None:
+            loop = asyncio.get_running_loop()
+
+            try:
+                while True:
+                    s, _ = await loop.sock_accept(vsock)
+
+                    for msg in (await loop.sock_recv(s, 4096)).decode().split("\n"):
+                        if not msg:
+                            continue
+
+                        k, _, v = msg.partition("=")
+                        messages[k] = v
+
+            except asyncio.CancelledError:
+                pass
+
+        with MkosiAsyncioThread(notify()):
+            yield f"vsock:{socket.VMADDR_CID_HOST}:{vsock.getsockname()[1]}", messages
+
+
 def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
     accel = "kvm" if config.qemu_kvm else "tcg"
 
@@ -2074,6 +2117,8 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
     cmdline += ["-smbios", f"type=11,value=io.systemd.stub.kernel-cmdline-extra={' '.join(config.kernel_command_line_extra)}"]
 
     cmdline += ["-drive", f"if=pflash,format=raw,readonly=on,file={firmware}"]
+
+    notifications: dict[str, str] = {}
 
     with contextlib.ExitStack() as stack:
         if fw_supports_sb:
@@ -2127,10 +2172,16 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
             elif config.architecture == "aarch64":
                 cmdline += ["-device", "tpm-tis-device,tpmdev=tpm0"]
 
+        addr, notifications = stack.enter_context(vsock_notify_handler())
+        cmdline += ["-smbios", f"type=11,value=io.systemd.credential:vmm.notify_socket={addr}"]
+
         cmdline += config.qemu_args
         cmdline += args.cmdline
 
         run(cmdline, stdin=sys.stdin, stdout=sys.stdout, env=os.environ, log=False)
+
+    if "EXIT_STATUS" in notifications:
+        raise subprocess.CalledProcessError(int(notifications["EXIT_STATUS"]), cmdline)
 
 
 def run_ssh(args: MkosiArgs, config: MkosiConfig) -> None:
