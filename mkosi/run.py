@@ -1,19 +1,23 @@
+import asyncio
+import asyncio.tasks
 import ctypes
 import ctypes.util
 import logging
 import multiprocessing
 import os
 import pwd
+import queue
 import shlex
 import shutil
 import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import traceback
 from pathlib import Path
 from types import TracebackType
-from typing import Any, Callable, Mapping, Optional, Sequence, Type, TypeVar
+from typing import Any, Awaitable, Callable, Mapping, Optional, Sequence, Type, TypeVar
 
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, die
 from mkosi.types import _FILE, CompletedProcess, PathString, Popen
@@ -402,3 +406,44 @@ def run_workspace_command(
             if tmp.is_symlink():
                 resolve.unlink(missing_ok=True)
                 shutil.move(tmp, resolve)
+
+
+class MkosiAsyncioThread(threading.Thread):
+    """
+    The default threading.Thread() is not interruptable, so we make our own version by using the concurrency
+    feature in python that is interruptable, namely asyncio.
+
+    Additionally, we store the result of the coroutine in the result variable so it can be accessed easily
+    after the thread finishes.
+    """
+
+    def __init__(self, target: Awaitable[Any], *args: Any, **kwargs: Any) -> None:
+        self.target = target
+        self.loop: queue.SimpleQueue[asyncio.AbstractEventLoop] = queue.SimpleQueue()
+        super().__init__(*args, **kwargs)
+
+    def run(self) -> None:
+        async def wrapper() -> None:
+            self.loop.put(asyncio.get_running_loop())
+            await self.target
+
+        asyncio.run(wrapper())
+
+    def cancel(self) -> None:
+        loop = self.loop.get()
+
+        for task in asyncio.tasks.all_tasks(loop):
+            loop.call_soon_threadsafe(task.cancel)
+
+    def __enter__(self) -> "MkosiAsyncioThread":
+        self.start()
+        return self
+
+    def __exit__(
+        self,
+        type: Optional[Type[BaseException]],
+        value: Optional[BaseException],
+        traceback: Optional[TracebackType],
+    ) -> None:
+        self.cancel()
+        self.join()

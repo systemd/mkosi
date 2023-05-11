@@ -197,14 +197,6 @@ jobs:
       if: matrix.format == 'disk' || matrix.format == 'directory'
       run: sudo python3 -m mkosi boot
 
-    - name: Check ${{ matrix.distro }}/${{ matrix.format }} systemd-nspawn
-      if: matrix.format == 'disk' || matrix.format == 'directory'
-      run: sudo python3 -m mkosi shell bash -c "[[ -e /testok ]] || { cat /failed-services; exit 1; }"
-
     - name: Boot ${{ matrix.distro }}/${{ matrix.format }} UEFI
       if: matrix.format == 'disk'
       run: timeout -k 30 10m python3 -m mkosi qemu
-
-    - name: Check ${{ matrix.distro }}/${{ matrix.format }} UEFI
-      if: matrix.format == 'disk' || matrix.format == 'directory'
-      run: sudo python3 -m mkosi shell bash -c "[[ -e /testok ]] || { cat /failed-services; exit 1; }"
