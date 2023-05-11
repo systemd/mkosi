@@ -975,9 +975,8 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 
 `QemuKvm=`, `--qemu-kvm=`
 
-: When used with the `qemu` verb, this option specifies whether QEMU
-  should use KVM acceleration. Defaults to yes if the host machine
-  supports KVM acceleration, no otherwise.
+: When used with the `qemu` verb, this option specifies whether QEMU should use KVM acceleration. Takes a
+  boolean value or `auto`. Defaults to `auto`.
 
 `QemuArgs=`
 

@@ -59,6 +59,7 @@ from mkosi.util import (
     format_rlimit,
     is_apt_distribution,
     prepend_to_environ_path,
+    qemu_check_kvm_support,
     tmp_dir,
 )
 
@@ -2063,7 +2064,9 @@ def vsock_notify_handler() -> Iterator[tuple[str, dict[str, str]]]:
 
 
 def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
-    accel = "kvm" if config.qemu_kvm else "tcg"
+    accel = "tcg"
+    if config.qemu_kvm == ConfigFeature.enabled or (config.qemu_kvm == ConfigFeature.auto and qemu_check_kvm_support()):
+        accel = "kvm"
 
     firmware, fw_supports_sb = find_qemu_firmware(config)
     smm = "on" if fw_supports_sb else "off"
