@@ -399,14 +399,14 @@ def install_boot_loader(state: MkosiState) -> None:
                      f])
 
     with complete_step("Installing boot loader…"):
-        run(["bootctl", "install", "--root", state.root], env={"SYSTEMD_ESP_PATH": "/boot"})
+        run(["bootctl", "install", "--root", state.root], env={"SYSTEMD_ESP_PATH": "/efi"})
 
     if state.config.secure_boot:
         assert state.config.secure_boot_key
         assert state.config.secure_boot_certificate
 
         with complete_step("Setting up secure boot auto-enrollment…"):
-            keys = state.root / "boot/loader/keys/auto"
+            keys = state.root / "efi/loader/keys/auto"
             keys.mkdir(parents=True, exist_ok=True)
 
             # sbsiglist expects a DER certificate.
@@ -796,12 +796,12 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                 boot_count = f'+{state.root.joinpath("etc/kernel/tries").read_text().strip()}'
 
             if state.config.image_version:
-                boot_binary = state.root / f"boot/EFI/Linux/{image_id}_{state.config.image_version}{boot_count}.efi"
+                boot_binary = state.root / f"efi/EFI/Linux/{image_id}_{state.config.image_version}{boot_count}.efi"
             elif roothash:
                 _, _, h = roothash.partition("=")
-                boot_binary = state.root / f"boot/EFI/Linux/{image_id}-{kver}-{h}{boot_count}.efi"
+                boot_binary = state.root / f"efi/EFI/Linux/{image_id}-{kver}-{h}{boot_count}.efi"
             else:
-                boot_binary = state.root / f"boot/EFI/Linux/{image_id}-{kver}{boot_count}.efi"
+                boot_binary = state.root / f"efi/EFI/Linux/{image_id}-{kver}{boot_count}.efi"
 
             if state.root.joinpath("etc/kernel/cmdline").exists():
                 cmdline = [state.root.joinpath("etc/kernel/cmdline").read_text().strip()]
@@ -821,7 +821,7 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
             # nul terminators in argv so let's communicate the cmdline via a file instead.
             state.workspace.joinpath("cmdline").write_text(f"{' '.join(cmdline).strip()}\x00")
 
-            stub = state.root / f"lib/systemd/boot/efi/linux{EFI_ARCHITECTURES[state.config.architecture]}.efi.stub"
+            stub = state.root / f"usr/lib/systemd/boot/efi/linux{EFI_ARCHITECTURES[state.config.architecture]}.efi.stub"
             if not stub.exists():
                 die(f"sd-stub not found at /{stub.relative_to(state.root)} in the image")
 
@@ -1539,7 +1539,7 @@ def invoke_repart(state: MkosiState, skip: Sequence[str] = [], split: bool = Fal
         definitions = state.workspace / "repart-definitions"
         if not definitions.exists():
             definitions.mkdir()
-            bootdir = state.root.joinpath("boot/EFI/BOOT")
+            bootdir = state.root.joinpath("efi/EFI/BOOT")
 
             # If Bootable=auto and we have at least one UKI and a bootloader, let's generate an ESP partition.
             add = (state.config.bootable == ConfigFeature.enabled or
@@ -1555,7 +1555,7 @@ def invoke_repart(state: MkosiState, skip: Sequence[str] = [], split: bool = Fal
                         [Partition]
                         Type=esp
                         Format=vfat
-                        CopyFiles=/boot:/
+                        CopyFiles=/efi:/
                         SizeMinBytes=512M
                         SizeMaxBytes=512M
                         """
