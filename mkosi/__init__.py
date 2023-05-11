@@ -700,13 +700,8 @@ def gen_kernel_modules_initrd(state: MkosiState, kver: str) -> Path:
         names = [module_path_to_name(m) for m in modules]
         mods, firmware = resolve_module_dependencies(state.root, kver, names)
 
-        for m in sorted(mods):
-            logging.debug(f"Adding module {m}")
-            yield m
-
-        for fw in sorted(firmware):
-            logging.debug(f"Adding firmware {fw}")
-            yield fw
+        for p in sorted(mods) + sorted(firmware):
+            yield p
 
         for p in (state.root / modulesd).iterdir():
             if not p.name.startswith("modules"):
