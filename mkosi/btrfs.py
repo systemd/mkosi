@@ -11,7 +11,7 @@ def btrfs_maybe_make_subvolume(config: MkosiConfig, path: Path, mode: int) -> No
     if config.use_subvolumes == ConfigFeature.enabled and not shutil.which("btrfs"):
         die("Subvolumes requested but the btrfs command was not found")
 
-    if config.use_subvolumes != ConfigFeature.disabled:
+    if config.use_subvolumes != ConfigFeature.disabled and shutil.which("btrfs") is not None:
         result = run(["btrfs", "subvolume", "create", path],
                      check=config.use_subvolumes == ConfigFeature.enabled).returncode
     else:
@@ -38,8 +38,11 @@ def btrfs_maybe_snapshot_subvolume(config: MkosiConfig, src: Path, dst: Path) ->
     if dst.exists():
         dst.rmdir()
 
-    result = run(["btrfs", "subvolume", "snapshot", src, dst],
-                 check=config.use_subvolumes == ConfigFeature.enabled).returncode
+    if shutil.which("btrfs"):
+        result = run(["btrfs", "subvolume", "snapshot", src, dst],
+                    check=config.use_subvolumes == ConfigFeature.enabled).returncode
+    else:
+        result = 1
 
     if result != 0:
         copy_path(src, dst)
