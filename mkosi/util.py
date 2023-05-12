@@ -3,8 +3,10 @@
 import ast
 import contextlib
 import enum
+import errno
 import functools
 import itertools
+import logging
 import os
 import pwd
 import re
@@ -281,3 +283,21 @@ def qemu_check_kvm_support() -> bool:
             return True
     except OSError:
         return False
+
+
+def qemu_check_vsock_support(log: bool) -> bool:
+    try:
+        os.open("/dev/vhost-vsock", os.O_RDWR|os.O_CLOEXEC)
+    except OSError as e:
+        if e.errno == errno.ENOENT:
+            if log:
+                logging.warning("/dev/vhost-vsock not found. Not adding a vsock device to the virtual machine.")
+            return False
+        elif e.errno in (errno.EPERM, errno.EACCES):
+            if log:
+                logging.warning("Permission denied to access /dev/vhost-vsock. Not adding a vsock device to the virtual machine.")
+            return False
+
+        raise e
+
+    return True

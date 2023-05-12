@@ -37,6 +37,7 @@ from mkosi.util import (
     is_dnf_distribution,
     prepend_to_environ_path,
     qemu_check_kvm_support,
+    qemu_check_vsock_support,
 )
 
 __version__ = "14"
@@ -642,7 +643,8 @@ class MkosiConfig:
     qemu_gui: bool
     qemu_smp: str
     qemu_mem: str
-    qemu_kvm: bool
+    qemu_kvm: ConfigFeature
+    qemu_vsock: ConfigFeature
     qemu_args: Sequence[str]
 
     passphrase: Optional[Path]
@@ -1160,6 +1162,11 @@ class MkosiConfigParser:
         ),
         MkosiConfigSetting(
             dest="qemu_kvm",
+            section="Host",
+            parse=config_parse_feature,
+        ),
+        MkosiConfigSetting(
+            dest="qemu_vsock",
             section="Host",
             parse=config_parse_feature,
         ),
@@ -1874,8 +1881,15 @@ class MkosiConfigParser:
         )
         group.add_argument(
             "--qemu-kvm",
-            metavar="BOOL",
+            metavar="FEATURE",
             help="Configure whether to use KVM or not",
+            nargs="?",
+            action=action,
+        )
+        group.add_argument(
+            "--qemu-vsock",
+            metavar="FEATURE",
+            help="Configure whether to use qemu with a vsock or not",
             nargs="?",
             action=action,
         )
@@ -2211,10 +2225,8 @@ def load_config(args: argparse.Namespace) -> MkosiConfig:
     if args.qemu_kvm == ConfigFeature.enabled and not qemu_check_kvm_support():
         die("Sorry, the host machine does not support KVM acceleration.")
 
-    if args.qemu_kvm == ConfigFeature.auto:
-        args.qemu_kvm = qemu_check_kvm_support()
-    else:
-        args.qemu_kvm = args.qemu_kvm == ConfigFeature.enabled
+    if args.qemu_vsock == ConfigFeature.enabled and not qemu_check_vsock_support(log=False):
+        die("Sorry, the host machine does not support vsock")
 
     if args.repositories and not (is_dnf_distribution(args.distribution) or is_apt_distribution(args.distribution)):
         die("Sorry, the --repositories option is only supported on DNF/Debian based distributions")
