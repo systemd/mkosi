@@ -1991,7 +1991,7 @@ def needs_build(args: MkosiArgs, config: MkosiConfig) -> bool:
     if args.verb == Verb.build:
         return True
 
-    return args.verb in MKOSI_COMMANDS_NEED_BUILD and (args.force > 0 or not config.output_dir.joinpath(config.output).exists())
+    return args.verb in MKOSI_COMMANDS_NEED_BUILD and (args.force > 0 or not config.output_dir.joinpath(config.output_with_compression).exists())
 
 
 def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
