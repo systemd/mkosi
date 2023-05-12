@@ -380,6 +380,11 @@ def install_boot_loader(state: MkosiState) -> None:
     if not any(gen_kernel_images(state)) and state.config.bootable == ConfigFeature.auto:
         return
 
+    if not shutil.which("bootctl"):
+        if state.config.bootable == ConfigFeature.enabled:
+            die("A bootable image was requested but bootctl was not found")
+        return
+
     directory = state.root / "usr/lib/systemd/boot/efi"
     if not directory.exists() or not any(directory.iterdir()):
         if state.config.bootable == ConfigFeature.enabled:
