@@ -1489,6 +1489,8 @@ def reuse_cache(state: MkosiState) -> bool:
         prev = json.loads(manifest.read_text())
         if prev != state.config.cache_manifest():
             return False
+    else:
+        return False
 
     with complete_step("Copying cached trees"):
         btrfs_maybe_snapshot_subvolume(state.config, final, state.root)
