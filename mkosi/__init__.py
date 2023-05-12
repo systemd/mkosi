@@ -377,6 +377,9 @@ def install_boot_loader(state: MkosiState) -> None:
     if state.config.output_format == OutputFormat.cpio and state.config.bootable == ConfigFeature.auto:
         return
 
+    if not any(gen_kernel_images(state)) and state.config.bootable == ConfigFeature.auto:
+        return
+
     directory = state.root / "usr/lib/systemd/boot/efi"
     if not directory.exists() or not any(directory.iterdir()):
         if state.config.bootable == ConfigFeature.enabled:
