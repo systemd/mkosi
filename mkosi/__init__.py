@@ -2023,8 +2023,6 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
             die(f"Sorry, can't {opname} a compressed image.")
 
     for config in presets:
-        check_inputs(config)
-
         if args.verb == Verb.build and not args.force:
             check_outputs(config)
 
@@ -2044,6 +2042,8 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
     build = False
 
     for config in presets:
+        check_inputs(config)
+
         if not needs_build(args, config):
             continue
 
