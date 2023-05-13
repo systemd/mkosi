@@ -38,7 +38,13 @@ def invoke_emerge(
     else:
         emerge_default_opts += ["--quiet-build", "--quiet"]
     cmd = ["emerge", *pkgs, *emerge_default_opts, *opts, *actions]
-    run_workspace_command(state.root, cmd, network=True, env=state.environment)
+    bwrap_params = [
+        "--bind", state.cache / "binpkgs", "/var/cache/binpkgs",
+        "--bind", state.cache / "distfiles", "/var/cache/distfiles",
+        "--bind", state.cache / "repos", "/var/db/repos",
+    ]
+    run_workspace_command(state.root, cmd, bwrap_params=bwrap_params,
+                          network=True, env=state.environment)
 
 
 class Gentoo:
@@ -179,6 +185,9 @@ class Gentoo:
             "USE": " ".join(self.portage_use_flags),
         }
 
+        for d in ("binpkgs", "distfiles", "repos"):
+            self.state.cache.joinpath(d).mkdir(exist_ok=True)
+
         self.fetch_fix_stage3()
         self.set_useflags()
         self.mkosi_conf()
@@ -296,7 +305,9 @@ class Gentoo:
         )
 
     def get_snapshot_of_portage_tree(self) -> None:
-        run_workspace_command(self.state.root, ["/usr/bin/emerge-webrsync"], network=True,
+        bwrap_params = ["--bind", self.state.cache / "repos", "/var/db/repos"]
+        run_workspace_command(self.state.root, ["/usr/bin/emerge-webrsync"],
+                              bwrap_params=bwrap_params, network=True,
                               env=self.state.environment)
 
     def update_stage3(self) -> None:
