@@ -38,6 +38,7 @@ from mkosi.util import (
     flatten,
     is_apt_distribution,
     is_dnf_distribution,
+    is_portage_distribution,
     prepend_to_environ_path,
     qemu_check_kvm_support,
     qemu_check_vsock_support,
@@ -1945,8 +1946,12 @@ def load_config(args: argparse.Namespace) -> MkosiConfig:
     if args.qemu_swtpm == ConfigFeature.enabled and not shutil.which("swtpm"):
         die("swtpm is requested but not found in PATH")
 
-    if args.repositories and not (is_dnf_distribution(args.distribution) or is_apt_distribution(args.distribution)):
-        die("Sorry, the --repositories option is only supported on DNF/Debian based distributions")
+    if args.repositories and not (
+        is_dnf_distribution(args.distribution) or
+        is_apt_distribution(args.distribution) or
+        is_portage_distribution(args.distribution)
+    ):
+        die("Sorry, the --repositories option is only supported on DNF, Debian, Gentoo based distributions")
 
     if args.initrds:
         args.initrds = [p.absolute() for p in args.initrds]

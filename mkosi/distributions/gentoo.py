@@ -54,6 +54,7 @@ class Gentoo:
     ebuild_sh_env_dir: Path
     emerge_vars: dict[str, str]
     portage_cfg_dir: Path
+    binrepo_cfg_file: Path
     profile_path: Path
     root: Path
     pkgs: dict[str, list[str]] = {}
@@ -134,6 +135,7 @@ class Gentoo:
                 EBUILD_SH_ENV_DIR,
                 PROFILE_PATH,
                 USER_CONFIG_PATH,
+                BINREPOS_CONF_FILE,
             )
         except ImportError as e:
             logging.warn(NEED_PORTAGE_MSG)
@@ -143,7 +145,8 @@ class Gentoo:
         return dict(profile_path=PROFILE_PATH,
                     custom_profile_path=CUSTOM_PROFILE_PATH,
                     ebuild_sh_env_dir=EBUILD_SH_ENV_DIR,
-                    portage_cfg_dir=USER_CONFIG_PATH)
+                    portage_cfg_dir=USER_CONFIG_PATH,
+                    binrepo_cfg_file=BINREPOS_CONF_FILE)
 
     @complete_step("Installing Gentoo…")
     def __init__(self, state: MkosiState) -> None:
@@ -168,6 +171,7 @@ class Gentoo:
         self.custom_profile_path = state.root / ret["custom_profile_path"]
         self.ebuild_sh_env_dir = state.root / ret["ebuild_sh_env_dir"]
         self.portage_cfg_dir = state.root / ret["portage_cfg_dir"]
+        self.binrepo_cfg_file = state.root / ret["binrepo_cfg_file"]
 
         self.portage_cfg_dir.mkdir(parents=True, exist_ok=True)
 
@@ -303,6 +307,18 @@ class Gentoo:
                 """
             )
         )
+
+        with self.binrepo_cfg_file.open(mode='a') as f:
+            for repo in self.config.repositories:
+                f.write(
+                    dedent(
+                        f"""\
+                        # MKOSI
+                        [binhost]
+                        sync-uri = {repo}
+                        """
+                    )
+                )
 
     def get_snapshot_of_portage_tree(self) -> None:
         bwrap_params = ["--bind", self.state.cache / "repos", "/var/db/repos"]
