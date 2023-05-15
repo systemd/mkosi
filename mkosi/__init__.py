@@ -1036,10 +1036,11 @@ def unlink_output(args: MkosiArgs, config: MkosiConfig) -> None:
                     unlink_try_hard(p)
 
     if remove_build_cache:
-        for p in cache_tree_paths(config):
-            if p.exists():
-                with complete_step(f"Removing cache entry {p}…"):
-                    unlink_try_hard(p)
+        if config.cache_dir:
+            for p in cache_tree_paths(config):
+                if p.exists():
+                    with complete_step(f"Removing cache entry {p}…"):
+                        unlink_try_hard(p)
 
         if config.build_dir and config.build_dir.exists() and any(config.build_dir.iterdir()):
             with complete_step("Clearing out build directory…"):
