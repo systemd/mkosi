@@ -157,7 +157,7 @@ def invoke_dnf(
         f"--setopt=logdir={state.workspace / 'log'}",
         f"--setopt=persistdir={state.workspace / 'persist'}",
         "--setopt=check_config_file_age=0",
-        "--no-plugins" if shutil.which("dnf5") else "--noplugins",
+        "--no-plugins" if dnf.endswith("dnf5") else "--noplugins",
     ]
 
     # Make sure we download filelists so all dependencies can be resolved.
@@ -171,7 +171,7 @@ def invoke_dnf(
         cmdline += ["--nogpgcheck"]
 
     if state.config.repositories:
-        opt = "--enable-repo" if shutil.which("dnf5") else "--enablerepo"
+        opt = "--enable-repo" if dnf.endswith("dnf5") else "--enablerepo"
         cmdline += [f"{opt}={repo}" for repo in state.config.repositories]
 
     # TODO: this breaks with a local, offline repository created with 'createrepo'
@@ -182,7 +182,7 @@ def invoke_dnf(
         cmdline += [f"--forcearch={state.config.architecture}"]
 
     if not state.config.with_docs:
-        cmdline += ["--no-docs" if shutil.which("dnf5") else "--nodocs"]
+        cmdline += ["--no-docs" if dnf.endswith("dnf5") else "--nodocs"]
 
     cmdline += sort_packages(packages)
 
