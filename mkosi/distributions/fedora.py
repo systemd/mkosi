@@ -135,6 +135,8 @@ def invoke_dnf(
         release = state.config.release
 
     state.workspace.joinpath("vars").mkdir(exist_ok=True)
+    state.workspace.joinpath("log").mkdir(exist_ok=True)
+    state.workspace.joinpath("persist").mkdir(exist_ok=True)
 
     dnf = shutil.which("dnf5") or shutil.which("dnf") or "yum"
 
@@ -152,9 +154,10 @@ def invoke_dnf(
         f"--setopt=cachedir={state.cache}",
         f"--setopt=reposdir={' '.join(str(p) for p in state.config.repo_dirs)}",
         f"--setopt=varsdir={state.workspace / 'vars'}",
-        f"--setopt=logdir={state.workspace}",
+        f"--setopt=logdir={state.workspace / 'log'}",
+        f"--setopt=persistdir={state.workspace / 'persist'}",
         "--setopt=check_config_file_age=0",
-        "--noplugins",
+        "--no-plugins" if shutil.which("dnf5") else "--noplugins",
     ]
 
     # Make sure we download filelists so all dependencies can be resolved.
@@ -168,7 +171,8 @@ def invoke_dnf(
         cmdline += ["--nogpgcheck"]
 
     if state.config.repositories:
-        cmdline += [f"--enablerepo={repo}" for repo in state.config.repositories]
+        opt = "--enable-repo" if shutil.which("dnf5") else "--enablerepo"
+        cmdline += [f"{opt}={repo}" for repo in state.config.repositories]
 
     # TODO: this breaks with a local, offline repository created with 'createrepo'
     if state.config.cache_only and not state.config.local_mirror:
@@ -178,7 +182,7 @@ def invoke_dnf(
         cmdline += [f"--forcearch={state.config.architecture}"]
 
     if not state.config.with_docs:
-        cmdline += ["--nodocs"]
+        cmdline += ["--no-docs" if shutil.which("dnf5") else "--nodocs"]
 
     cmdline += sort_packages(packages)
 
