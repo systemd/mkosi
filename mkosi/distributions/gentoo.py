@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
-from dataclasses import dataclass
 import logging
 import os
 import re
 import urllib.parse
 import urllib.request
 from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from textwrap import dedent
 from typing import List, Optional
@@ -18,13 +18,14 @@ from mkosi.log import ARG_DEBUG, complete_step, die, log_step
 from mkosi.remove import unlink_try_hard
 from mkosi.run import run, run_workspace_command
 from mkosi.state import MkosiState
+from mkosi.types import PathString
 
 
 def invoke_emerge(
     state: MkosiState,
     sysroot: Optional[Path] = None,
     root: Optional[Path] = None,
-    bwrap_params: list[str] = [],
+    bwrap_params: list[PathString] = [],
     pkgs: Sequence[str] = (),
     actions: Sequence[str] = (),
     opts: Sequence[str] = (),
@@ -32,9 +33,9 @@ def invoke_emerge(
 ) -> None:
     jobs = os.cpu_count() or 1
     if sysroot is not None:
-        target_root_mntp = Path("/tmp/mkosi-root")
+        target_root_mntp = "/tmp/mkosi-root"
         bwrap_params += ["--bind", state.root, target_root_mntp]
-        root = target_root_mntp
+        root = Path(target_root_mntp)
     else:
         sysroot = state.root
         root = None
@@ -173,9 +174,9 @@ class Gentoo:
         """
         try:
             from portage.const import (  # type: ignore
+                BINREPOS_CONF_FILE,
                 EBUILD_SH_ENV_DIR,
                 USER_CONFIG_PATH,
-                BINREPOS_CONF_FILE,
             )
         except ImportError as e:
             logging.warn(NEED_PORTAGE_MSG)
@@ -364,7 +365,7 @@ class Gentoo:
         copy_path(self.portage_cfg_dir, root_portage_cfg)
 
     def get_snapshot_of_portage_tree(self) -> None:
-        bwrap_params = ["--bind", self.state.cache / "repos", "/var/db/repos"]
+        bwrap_params: list[PathString] = ["--bind", self.state.cache / "repos", "/var/db/repos"]
         run_workspace_command(self.stage3_cache, ["/usr/bin/emerge-webrsync"],
                               bwrap_params=bwrap_params, network=True)
 

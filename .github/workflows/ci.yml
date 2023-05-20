@@ -119,8 +119,7 @@ jobs:
           - fedora
           - rocky
           - alma
-          # Disabled until gentoo supports prebuilt initrds.
-          # - gentoo
+          - gentoo
           - opensuse
         format:
           - directory
