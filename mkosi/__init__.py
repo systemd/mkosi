@@ -1190,7 +1190,7 @@ def line_join_source_target_list(array: Sequence[tuple[Path, Optional[Path]]]) -
     return "\n                                ".join(items)
 
 
-def print_summary(args: MkosiArgs, config: MkosiConfig) -> None:
+def summary(args: MkosiArgs, config: MkosiConfig) -> str:
     b = Style.bold
     e = Style.reset
     bold: Callable[..., str] = lambda s: f"{b}{s}{e}"
@@ -1265,7 +1265,7 @@ def print_summary(args: MkosiArgs, config: MkosiConfig) -> None:
                NSpawn Settings: {none_to_none(config.nspawn_settings)}
             Extra search paths: {line_join_list(config.extra_search_paths)}
           QEMU Extra Arguments: {line_join_list(config.qemu_args)}
-        """
+"""
 
     if config.output_format == OutputFormat.disk:
         summary += f"""\
@@ -1279,10 +1279,9 @@ def print_summary(args: MkosiArgs, config: MkosiConfig) -> None:
                       Checksum: {yes_no(config.checksum)}
                           Sign: {yes_no(config.sign)}
                        GPG Key: ({"default" if config.key is None else config.key})
-        """
+"""
 
-    page(summary, args.pager)
-
+    return summary
 
 def make_output_dir(state: MkosiState) -> None:
     """Create the output directory if set and not existing yet"""
@@ -2012,9 +2011,12 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
         return bump_image_version()
 
     if args.verb == Verb.summary:
-        for config in presets:
-            print_summary(args, config)
+        text = ""
 
+        for config in presets:
+            text += f"{summary(args, config)}\n"
+
+        page(text, args.pager)
         return
 
     last = presets[-1]
