@@ -1224,6 +1224,7 @@ def print_summary(args: MkosiArgs, config: MkosiConfig) -> None:
                Cache Directory: {none_to_none(config.cache_dir)}
                Build Directory: {none_to_none(config.build_dir)}
              Install Directory: {none_to_none(config.install_dir)}
+            Repart Directories: {line_join_list(config.repart_dirs)}
                         Output: {bold(config.output_with_compression)}
                Output Checksum: {none_to_na(config.output_checksum if config.checksum else None)}
               Output Signature: {none_to_na(config.output_signature if config.sign else None)}
