@@ -2049,6 +2049,9 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
 
         fork_and_wait(target)
 
+    if args.verb == Verb.clean:
+        return
+
     build = False
 
     for config in presets:
