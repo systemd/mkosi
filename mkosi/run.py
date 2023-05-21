@@ -124,14 +124,15 @@ def become_root() -> tuple[int, int]:
     return SUBRANGE - 100, SUBRANGE - 100
 
 
-def foreground() -> None:
+def foreground(*, new_process_group: bool = True) -> None:
     """
     If we're connected to a terminal, put the process in a new process group and make that the foreground
     process group so that only this process receives SIGINT.
     """
     STDERR_FILENO = 2
     if os.isatty(STDERR_FILENO):
-        os.setpgrp()
+        if new_process_group:
+            os.setpgrp()
         old = signal.signal(signal.SIGTTOU, signal.SIG_IGN)
         os.tcsetpgrp(STDERR_FILENO, os.getpgrp())
         signal.signal(signal.SIGTTOU, old)
@@ -184,7 +185,11 @@ def fork_and_wait(target: Callable[[], T]) -> T:
 
         os._exit(0)
 
-    os.waitpid(pid, 0)
+    try:
+        os.waitpid(pid, 0)
+    finally:
+        foreground(new_process_group=False)
+
     result = pout.recv()
     if isinstance(result, RemoteException):
         # Reraise the original exception and attach the remote exception with full traceback as the cause.
@@ -242,6 +247,8 @@ def run(
         if log:
             logging.error(f'"{shlex.join(str(s) for s in cmdline)}" returned non-zero exit code {e.returncode}.')
         raise e
+    finally:
+        foreground(new_process_group=False)
 
 
 def spawn(
