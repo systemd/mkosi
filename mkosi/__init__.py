@@ -2081,7 +2081,7 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
 
     # Give disk images some space to play around with if we're booting one.
     if args.verb in (Verb.shell, Verb.boot, Verb.qemu) and last.output_format == OutputFormat.disk:
-        run(["truncate", "--size", "8G", last.output_dir / last.output])
+        run(["systemd-repart", "--definitions", "", "--size", "8G", "--pretty", "no", last.output_dir / last.output])
 
     with prepend_to_environ_path(last.extra_search_paths):
         if args.verb in (Verb.shell, Verb.boot):
