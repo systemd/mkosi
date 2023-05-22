@@ -188,7 +188,7 @@ def config_parse_compression(dest: str, value: Optional[str], namespace: argpars
         return Compression.zst if parse_boolean(value) else Compression.none
 
 
-def config_default_release(namespace: argparse.Namespace) -> Any:
+def config_default_release(namespace: argparse.Namespace) -> str:
     # If we encounter Release in [Match] and no distribution has been set yet, configure the default
     # distribution as well since the default release depends on the selected distribution.
     if "distribution" not in namespace:
@@ -198,7 +198,7 @@ def config_default_release(namespace: argparse.Namespace) -> Any:
 
     # If the configured distribution matches the host distribution, use the same release as the host.
     hd, hr = detect_distribution()
-    if d == hd:
+    if d == hd and hr is not None:
         return hr
 
     return {
