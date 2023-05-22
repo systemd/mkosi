@@ -191,6 +191,10 @@ def vsock_notify_handler() -> Iterator[tuple[str, dict[str, str]]]:
             yield f"vsock:{socket.VMADDR_CID_HOST}:{vsock.getsockname()[1]}", messages
 
 
+def grow_image(image: Path, *, size: str) -> None:
+    run(["systemd-repart", "--definitions", "", "--size", size, "--pretty", "no", image])
+
+
 def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
     accel = "tcg"
     if config.qemu_kvm == ConfigFeature.enabled or (config.qemu_kvm == ConfigFeature.auto and qemu_check_kvm_support()):
@@ -268,6 +272,9 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
             copy_path(config.output_dir / config.output, fname)
         else:
             fname = config.output_dir / config.output
+
+        if config.output_format == OutputFormat.disk:
+            grow_image(fname, size="8G")
 
         # Debian images fail to boot with virtio-scsi, see: https://github.com/systemd/mkosi/issues/725
         if config.output_format == OutputFormat.cpio:

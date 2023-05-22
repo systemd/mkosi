@@ -34,7 +34,7 @@ from mkosi.log import Style, color_error, complete_step, die, log_step
 from mkosi.manifest import Manifest
 from mkosi.mounts import dissect_and_mount, mount_overlay, scandir_recursive
 from mkosi.pager import page
-from mkosi.qemu import machine_cid, run_qemu
+from mkosi.qemu import grow_image, machine_cid, run_qemu
 from mkosi.remove import unlink_try_hard
 from mkosi.run import become_root, fork_and_wait, run, run_workspace_command, spawn
 from mkosi.state import MkosiState
@@ -1903,6 +1903,9 @@ def run_shell(args: MkosiArgs, config: MkosiConfig) -> None:
         cmdline += ["--"]
         cmdline += args.cmdline
 
+    if config.output_format == OutputFormat.disk:
+        grow_image(config.output_dir / config.output, size="8G")
+
     with acl_toggle_boot(config):
         run(cmdline, stdin=sys.stdin, stdout=sys.stdout, env=os.environ, log=False)
 
@@ -2078,10 +2081,6 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
 
     if build and args.auto_bump:
         bump_image_version()
-
-    # Give disk images some space to play around with if we're booting one.
-    if args.verb in (Verb.shell, Verb.boot, Verb.qemu) and last.output_format == OutputFormat.disk:
-        run(["systemd-repart", "--definitions", "", "--size", "8G", "--pretty", "no", last.output_dir / last.output])
 
     with prepend_to_environ_path(last.extra_search_paths):
         if args.verb in (Verb.shell, Verb.boot):
