@@ -73,6 +73,9 @@ class Distribution(enum.Enum):
     def __str__(self) -> str:
         return self.name
 
+    def is_centos_variant(self) -> bool:
+        return self in (Distribution.centos, Distribution.alma, Distribution.rocky)
+
 
 class Compression(enum.Enum):
     none = None

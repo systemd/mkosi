@@ -2188,7 +2188,10 @@ def load_config(args: argparse.Namespace) -> MkosiConfig:
         args.checksum = True
 
     if args.compress_output is None:
-        args.compress_output = Compression.zst if args.output_format == OutputFormat.cpio else Compression.none
+        if args.output_format == OutputFormat.cpio:
+            args.compress_output = Compression.xz if args.distribution.is_centos_variant() and int(args.release) <= 8 else Compression.zst
+        else:
+            args.compress_output = Compression.none
 
     if args.output is None:
         args.output = args.image_id or args.preset or "image"
