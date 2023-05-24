@@ -70,10 +70,10 @@ class DebianInstaller(DistributionInstaller):
             "x32"         : ["lib32", "lib64", "libx32"],
         }.get(DEBIAN_ARCHITECTURES[state.config.architecture], [])
 
-        state.root.joinpath("usr").mkdir(mode=0o755)
+        state.root.joinpath("usr").mkdir(mode=0o755, exist_ok=True)
         for d in subdirs:
             state.root.joinpath(d).symlink_to(f"usr/{d}")
-            state.root.joinpath(f"usr/{d}").mkdir(mode=0o755)
+            state.root.joinpath(f"usr/{d}").mkdir(mode=0o755, exist_ok=True)
 
         # Next, we invoke apt-get install to download all the essential packages. With DPkg::Pre-Install-Pkgs,
         # we specify a shell command that will receive the list of packages that will be installed on stdin.
