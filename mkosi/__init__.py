@@ -751,6 +751,12 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
         # Default values are assigned via the parser so we go via the argument parser to construct
         # the config for the initrd.
         with complete_step("Building initrd"):
+            password, hashed = state.config.root_password or (None, False)
+            if password:
+                rootpwopt = f"hashed:{password}" if hashed else password
+            else:
+                rootpwopt = None
+
             args, presets = MkosiConfigParser().parse([
                 "--directory", "",
                 "--distribution", str(state.config.distribution),
@@ -782,9 +788,7 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                 *(["--keymap", state.config.keymap] if state.config.keymap else []),
                 *(["--timezone", state.config.timezone] if state.config.timezone else []),
                 *(["--hostname", state.config.hostname] if state.config.hostname else []),
-                *(["--root-password", state.config.root_password] if state.config.root_password else []),
-                *(["--root-password-hashed", state.config.root_password_hashed] if state.config.root_password_hashed else []),
-                *(["--root-password-file", os.fspath(state.config.root_password_file)] if state.config.root_password_file else []),
+                *(["--root-password", rootpwopt] if rootpwopt else []),
                 *(["-f"] * state.args.force),
                 "build",
             ])
@@ -1256,7 +1260,7 @@ def summary(args: MkosiArgs, config: MkosiConfig) -> str:
                         Keymap: {none_to_default(config.keymap)}
                       Timezone: {none_to_default(config.timezone)}
                       Hostname: {none_to_default(config.hostname)}
-                 Root Password: {("(set)" if config.root_password or config.root_password_hashed or config.root_password_file else "(default)")}
+                 Root Password: {("(set)" if config.root_password else "(default)")}
                     Root Shell: {none_to_default(config.root_shell)}
                      Autologin: {yes_no(config.autologin)}
 
@@ -1425,31 +1429,48 @@ def run_preset(state: MkosiState) -> None:
 
 
 def run_firstboot(state: MkosiState) -> None:
+    password, hashed = state.config.root_password or (None, False)
+    pwopt = "--root-password-hashed" if hashed else "--root-password"
+    pwcred = "passwd.hashed-password.root" if hashed else "passwd.plaintext-password.root"
+
     settings = (
-        ("--locale",               state.config.locale),
-        ("--locale-messages",      state.config.locale_messages),
-        ("--keymap",               state.config.keymap),
-        ("--timezone",             state.config.timezone),
-        ("--hostname",             state.config.hostname),
-        ("--root-password",        state.config.root_password),
-        ("--root-password-hashed", state.config.root_password_hashed),
-        ("--root-password-file",   state.config.root_password_file),
-        ("--root-shell",           state.config.root_shell),
+        ("--locale",          "firstboot.locale",          state.config.locale),
+        ("--locale-messages", "firstboot.locale-messages", state.config.locale_messages),
+        ("--keymap",          "firstboot.keymap",          state.config.keymap),
+        ("--timezone",        "firstboot.timezone",        state.config.timezone),
+        ("--hostname",        None,                        state.config.hostname),
+        (pwopt,               pwcred,                      password),
+        ("--root-shell",      "passwd.shell.root",         state.config.root_shell),
     )
 
     options = []
+    creds = []
 
-    for setting, value in settings:
+    for option, cred, value in settings:
         if not value:
             continue
 
-        options += [setting, value]
+        options += [option, value]
 
-    if not options:
+        if cred:
+            creds += [(cred, value)]
+
+    if not options and not creds:
         return
 
     with complete_step("Applying first boot settings"):
         run(["systemd-firstboot", "--root", state.root, "--force", *options])
+
+        # Initrds generally don't ship with only /usr so there's not much point in putting the credentials in
+        # /usr/lib/credstore.
+        if state.config.output_format != OutputFormat.cpio or not state.config.make_initrd:
+            (state.root / "usr/lib/credstore").mkdir(mode=0o755, exist_ok=True)
+
+            for cred, value in creds:
+                (state.root / "usr/lib/credstore" / cred).write_text(value)
+
+                if "password" in cred:
+                    (state.root / "usr/lib/credstore" / cred).chmod(0o600)
 
 
 def run_selinux_relabel(state: MkosiState) -> None:

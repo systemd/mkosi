@@ -93,7 +93,7 @@ def parse_path(value: str,
     if absolute:
         path = path.absolute()
 
-    if secret:
+    if secret and path.exists():
         mode = path.stat().st_mode & 0o777
         if mode & 0o007:
             die(textwrap.dedent(f"""\
@@ -444,6 +444,20 @@ def match_path_exists(value: str) -> bool:
     return Path(value).exists()
 
 
+def config_parse_root_password(dest: str, value: Optional[str], namespace: argparse.Namespace) -> Optional[tuple[str, bool]]:
+    if dest in namespace:
+        return getattr(namespace, dest) # type: ignore
+
+    if not value:
+        return None
+
+    value = value.strip()
+    hashed = value.startswith("hashed:")
+    value = value.removeprefix("hashed:")
+
+    return (value, hashed)
+
+
 @dataclasses.dataclass(frozen=True)
 class MkosiConfigSetting:
     dest: str
@@ -454,6 +468,8 @@ class MkosiConfigSetting:
     default: Any = None
     default_factory: Optional[ConfigDefaultCallback] = None
     paths: tuple[str, ...] = tuple()
+    path_read_text: bool = False
+    path_secret: bool = False
 
     def __post_init__(self) -> None:
         if not self.name:
@@ -634,9 +650,7 @@ class MkosiConfig:
     keymap: Optional[str]
     timezone: Optional[str]
     hostname: Optional[str]
-    root_password: Optional[str]
-    root_password_hashed: Optional[str]
-    root_password_file: Optional[Path]
+    root_password: Optional[tuple[str, bool]]
     root_shell: Optional[str]
 
     # QEMU-specific options
@@ -1056,18 +1070,10 @@ class MkosiConfigParser:
         MkosiConfigSetting(
             dest="root_password",
             section="Content",
-            parse=config_parse_string,
-        ),
-        MkosiConfigSetting(
-            dest="root_password_hashed",
-            section="Content",
-            parse=config_parse_string,
-        ),
-        MkosiConfigSetting(
-            dest="root_password_file",
-            section="Content",
-            parse=config_make_path_parser(secret=True),
+            parse=config_parse_root_password,
             paths=("mkosi.rootpw",),
+            path_read_text=True,
+            path_secret=True,
         ),
         MkosiConfigSetting(
             dest="root_shell",
@@ -1277,8 +1283,10 @@ class MkosiConfigParser:
 
             for s in self.SETTINGS:
                 for f in s.paths:
-                    if Path(f).exists():
-                        setattr(namespace, s.dest, s.parse(s.dest, f, namespace))
+                    p = parse_path(f, secret=s.path_secret, required=False, absolute=False, expanduser=False, expandvars=False)
+                    if p.exists():
+                        setattr(namespace, s.dest,
+                                s.parse(s.dest, p.read_text() if s.path_read_text else f, namespace))
 
         return True
 
@@ -1760,18 +1768,6 @@ class MkosiConfigParser:
             action=action,
         )
         group.add_argument(
-            "--root-password-hashed",
-            help="Set the system root password (hashed)",
-            metavar="PASSWORD-HASHED",
-            action=action,
-        )
-        group.add_argument(
-            "--root-password-file",
-            help="Set the system root password (file)",
-            metavar="PATH",
-            action=action,
-        )
-        group.add_argument(
             "--root-shell",
             help="Set the system root shell",
             metavar="SHELL",
@@ -2118,9 +2114,6 @@ def load_credentials(args: argparse.Namespace) -> dict[str, str]:
 
     if "firstboot.locale" not in creds:
         creds["firstboot.locale"] = "C.UTF-8"
-
-    if "firstboot.hostname" not in creds:
-        creds["firstboot.hostname"] = args.output
 
     if args.ssh and "ssh.authorized_keys.root" not in creds and "SSH_AUTH_SOCK" in os.environ:
         key = run(
