@@ -868,13 +868,19 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 `Keymap=`, `--keymap=`,
 `Timezone=`, `--timezone=`,
 `Hostname=`, `--hostname=`,
-`RootPassword=`, `--root-password=`,
-`RootPasswordHashed=`, `--root-password-hashed=`,
-`RootPasswordFile=`, `--root-password-file=`,
 `RootShell=`, `--root-shell=`
 
 : These settings correspond to the identically named systemd-firstboot options. See the systemd firstboot
   [manpage](https://www.freedesktop.org/software/systemd/man/systemd-firstboot.html) for more information.
+  Additionally, where applicable, the corresponding systemd credentials for these settings are written to
+  `/usr/lib/credstore`, so that they apply even if only `/usr` is shipped in the image.
+
+`RootPassword=`, `--root-password=`,
+
+: Set the system root password. If this option is not used, but a `mkosi.rootpw` file is found in the local
+  directory, the password is automatically read from it. If the password starts with `hashed:`, it is treated
+  as an already hashed root password. The root password is also stored in `/usr/lib/credstore` under the
+  appropriate systemd credential so that it applies even if only `/usr` is shipped in the image.
 
 ### [Validation] Section
 
@@ -1246,13 +1252,11 @@ local directory:
   script. After running the build script, the contents of this directory are installed into the final image.
   This is useful to inspect the results of the install step of the build.
 
-* The **`mkosi.rootpw`** file can be used to provide the password or
-  hashed password (if `--password-is-hashed` is set) for the root user
-  of the image.  The password may optionally be followed by a newline
-  character which is implicitly removed. The file must have an access
-  mode of 0600 or less. If this file does not exist, the
-  distribution's default root password is set (which usually means
-  access to the root user is blocked).
+* The **`mkosi.rootpw`** file can be used to provide the password for the root user of the image. If the
+  password is prefixed with `hashed:` it is treated as an already hashed root password. The password may
+  optionally be followed by a newline character which is implicitly removed. The file must have an access
+  mode of 0600 or less. If this file does not exist, the distribution's default root password is set (which
+  usually means access to the root user is blocked).
 
 * The **`mkosi.passphrase`** file provides the passphrase to use when
   LUKS encryption is selected. It should contain the passphrase
