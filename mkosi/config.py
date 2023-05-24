@@ -317,6 +317,7 @@ def config_make_list_matcher(
     *,
     unescape: bool = False,
     allow_globs: bool = False,
+    allow_negation: bool = False,
     all: bool = False,
     parse: Callable[[str], Any] = str,
 ) -> ConfigMatchCallback:
@@ -332,6 +333,13 @@ def config_make_list_matcher(
 
         for v in values:
             current_value = getattr(namespace, dest)
+
+            if allow_negation and v.startswith("!"):
+                negate = True
+                v = v[1:]
+            else:
+                negate = False
+
             comparison_value = parse(v)
             if allow_globs:
                 # check if the option has been set, since fnmatch wants strings
@@ -341,6 +349,9 @@ def config_make_list_matcher(
                     m = False
             else:
                 m = current_value == comparison_value
+
+            if negate:
+                m = not m
 
             if not all and m:
                 return True
@@ -450,7 +461,10 @@ def match_path_exists(value: str) -> bool:
     if not value:
         return False
 
-    return Path(value).exists()
+    if value.startswith("!"):
+        return not Path(value[1:]).exists()
+    else:
+        return Path(value).exists()
 
 
 def config_parse_root_password(dest: str, value: Optional[str], namespace: argparse.Namespace) -> Optional[tuple[str, bool]]:
@@ -762,14 +776,14 @@ class MkosiConfigParser:
             dest="distribution",
             section="Distribution",
             parse=config_make_enum_parser(Distribution),
-            match=config_make_list_matcher(delimiter=" ", parse=make_enum_parser(Distribution)),
+            match=config_make_list_matcher(delimiter=" ", parse=make_enum_parser(Distribution), allow_negation=True),
             default=detect_distribution()[0],
         ),
         MkosiConfigSetting(
             dest="release",
             section="Distribution",
             parse=config_parse_string,
-            match=config_make_list_matcher(delimiter=" "),
+            match=config_make_list_matcher(delimiter=" ", allow_negation=True),
             default_factory=config_default_release,
         ),
         MkosiConfigSetting(
@@ -870,7 +884,7 @@ class MkosiConfigParser:
         ),
         MkosiConfigSetting(
             dest="image_id",
-            match=config_make_list_matcher(delimiter=" ", allow_globs=True),
+            match=config_make_list_matcher(delimiter=" ", allow_globs=True, allow_negation=True),
             section="Output",
         ),
         MkosiConfigSetting(

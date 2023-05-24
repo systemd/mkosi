@@ -132,6 +132,42 @@ def test_match_distribution(dist1: Distribution, dist2: Distribution) -> None:
                 """
             )
         )
+        child4 = Path("mkosi.conf.d/child4.conf")
+        child4.write_text(
+            dedent(
+                f"""\
+                [Match]
+                Distribution=!{dist1}
+
+                [Content]
+                Packages=testpkg4
+                """
+            )
+        )
+        child5 = Path("mkosi.conf.d/child5.conf")
+        child5.write_text(
+            dedent(
+                f"""\
+                [Match]
+                Distribution=!{dist2}
+
+                [Content]
+                Packages=testpkg5
+                """
+            )
+        )
+        child6 = Path("mkosi.conf.d/child6.conf")
+        child6.write_text(
+            dedent(
+                f"""\
+                [Match]
+                Distribution=!{dist1} !{dist2}
+
+                [Content]
+                Packages=testpkg6
+                """
+            )
+        )
 
         conf = parse([])[1][0]
         assert "testpkg1" in conf.packages
@@ -140,6 +176,16 @@ def test_match_distribution(dist1: Distribution, dist2: Distribution) -> None:
         else:
             assert "testpkg2" not in conf.packages
         assert "testpkg3" in conf.packages
+        if dist1 == dist2:
+            assert "testpkg4" not in conf.packages
+            assert "testpkg5" not in conf.packages
+        else:
+            assert "testpkg4" not in conf.packages
+            assert "testpkg5" in conf.packages
+        if dist1 == dist2:
+            assert "testpkg6" not in conf.packages
+        else:
+            assert "testpkg6" in conf.packages
 
 
 @pytest.mark.parametrize(
@@ -196,6 +242,42 @@ def test_match_release(release1: int, release2: int) -> None:
                 """
             )
         )
+        child4 = Path("mkosi.conf.d/child4.conf")
+        child4.write_text(
+            dedent(
+                f"""\
+                [Match]
+                Release=!{release1}
+
+                [Content]
+                Packages=testpkg4
+                """
+            )
+        )
+        child5 = Path("mkosi.conf.d/child5.conf")
+        child5.write_text(
+            dedent(
+                f"""\
+                [Match]
+                Release=!{release2}
+
+                [Content]
+                Packages=testpkg5
+                """
+            )
+        )
+        child6 = Path("mkosi.conf.d/child6.conf")
+        child6.write_text(
+            dedent(
+                f"""\
+                [Match]
+                Release=!{release1} !{release2}
+
+                [Content]
+                Packages=testpkg6
+                """
+            )
+        )
 
         conf = parse([])[1][0]
         assert "testpkg1" in conf.packages
@@ -204,6 +286,16 @@ def test_match_release(release1: int, release2: int) -> None:
         else:
             assert "testpkg2" not in conf.packages
         assert "testpkg3" in conf.packages
+        if release1 == release2:
+            assert "testpkg4" not in conf.packages
+            assert "testpkg5" not in conf.packages
+        else:
+            assert "testpkg4" not in conf.packages
+            assert "testpkg5" in conf.packages
+        if release1 == release2:
+            assert "testpkg6" not in conf.packages
+        else:
+            assert "testpkg6" in conf.packages
 
 
 @pytest.mark.parametrize(
@@ -274,6 +366,54 @@ def test_match_imageid(image1: str, image2: str) -> None:
                 """
             )
         )
+        child5 = Path("mkosi.conf.d/child5.conf")
+        child5.write_text(
+            dedent(
+                f"""\
+                [Match]
+                ImageId=!{image1}
+
+                [Content]
+                Packages=testpkg5
+                """
+            )
+        )
+        child6 = Path("mkosi.conf.d/child6.conf")
+        child6.write_text(
+            dedent(
+                f"""\
+                [Match]
+                ImageId=!{image2}
+
+                [Content]
+                Packages=testpkg6
+                """
+            )
+        )
+        child7 = Path("mkosi.conf.d/child7.conf")
+        child7.write_text(
+            dedent(
+                """\
+                [Match]
+                ImageId=!image*
+
+                [Content]
+                Packages=testpkg7
+                """
+            )
+        )
+        child8 = Path("mkosi.conf.d/child8.conf")
+        child8.write_text(
+            dedent(
+                f"""\
+                [Match]
+                ImageId=!{image1} !{image2}
+
+                [Content]
+                Packages=testpkg8
+                """
+            )
+        )
 
         conf = parse([])[1][0]
         assert "testpkg1" in conf.packages
@@ -283,6 +423,17 @@ def test_match_imageid(image1: str, image2: str) -> None:
             assert "testpkg2" not in conf.packages
         assert "testpkg3" in conf.packages
         assert "testpkg4" in conf.packages
+        if image1 == image2:
+            assert "testpkg5" not in conf.packages
+            assert "testpkg6" not in conf.packages
+        else:
+            assert "testpkg5" not in conf.packages
+            assert "testpkg6" in conf.packages
+        assert "testpkg7" not in conf.packages
+        if image1 == image2:
+            assert "testpkg8" not in conf.packages
+        else:
+            assert "testpkg8" in conf.packages
 
 
 @pytest.mark.parametrize(
