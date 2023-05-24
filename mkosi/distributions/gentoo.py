@@ -189,7 +189,6 @@ class Gentoo:
                     portage_cfg_dir=USER_CONFIG_PATH,
                     binrepos_conf_file=BINREPOS_CONF_FILE)
 
-    @complete_step("Installing Gentoo…")
     def __init__(self, state: MkosiState) -> None:
         # TOCLEANUP: legacy namig, to be cleaned up
         self.state = state
