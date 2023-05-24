@@ -32,9 +32,10 @@ def invoke_emerge(
     env: dict[str, str] = {},
 ) -> None:
     jobs = os.cpu_count() or 1
+    bwrap: list[PathString] = []
     if sysroot is not None:
         target_root_mntp = "/tmp/mkosi-root"
-        bwrap_params += ["--bind", state.root, target_root_mntp]
+        bwrap += ["--bind", state.root, target_root_mntp]
         root = Path(target_root_mntp)
     else:
         sysroot = state.root
@@ -54,13 +55,14 @@ def invoke_emerge(
     else:
         emerge_default_opts += ["--quiet-build", "--quiet"]
     cmd = ["emerge", *pkgs, *emerge_default_opts, *opts, *actions]
-    bwrap_params += [
+    bwrap += [
         "--bind", state.cache / "binpkgs", "/var/cache/binpkgs",
         "--bind", state.cache / "distfiles", "/var/cache/distfiles",
         "--bind", state.cache / "repos", "/var/db/repos",
+        *bwrap_params
     ]
-    run_workspace_command(sysroot, cmd, bwrap_params=bwrap_params,
-                          network=True, env=env)
+    run_workspace_command(sysroot, cmd, bwrap_params=bwrap, network=True,
+                          env=env)
 
 
 @dataclass
