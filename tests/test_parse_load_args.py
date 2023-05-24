@@ -137,6 +137,8 @@ def test_match_distribution(dist1: Distribution, dist2: Distribution) -> None:
         assert "testpkg1" in conf.packages
         if dist1 == dist2:
             assert "testpkg2" in conf.packages
+        else:
+            assert "testpkg2" not in conf.packages
         assert "testpkg3" in conf.packages
 
 
@@ -199,6 +201,8 @@ def test_match_release(release1: int, release2: int) -> None:
         assert "testpkg1" in conf.packages
         if release1 == release2:
             assert "testpkg2" in conf.packages
+        else:
+            assert "testpkg2" not in conf.packages
         assert "testpkg3" in conf.packages
 
 
@@ -275,6 +279,8 @@ def test_match_imageid(image1: str, image2: str) -> None:
         assert "testpkg1" in conf.packages
         if image1 == image2:
             assert "testpkg2" in conf.packages
+        else:
+            assert "testpkg2" not in conf.packages
         assert "testpkg3" in conf.packages
         assert "testpkg4" in conf.packages
 
