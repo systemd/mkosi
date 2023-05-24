@@ -2060,6 +2060,7 @@ class MkosiConfigParser:
 
         return args, tuple(load_config(ns) for ns in presets)
 
+
 class GenericVersion:
     def __init__(self, version: str):
         self._version = version
@@ -2099,6 +2100,7 @@ class GenericVersion:
             return False
         cmd = ["systemd-analyze", "compare-versions", self._version, "ge", other._version]
         return run(cmd, check=False).returncode == 0
+
 
 def strip_suffixes(path: Path) -> Path:
     while path.suffix in {
