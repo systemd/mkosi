@@ -1724,8 +1724,9 @@ def build_image(uid: int, gid: int, args: MkosiArgs, config: MkosiConfig) -> Non
         for f in state.staging.iterdir():
             if not f.is_dir():
                 os.chown(f, uid, gid)
-
-            shutil.move(f, state.config.output_dir)
+                shutil.move(f, state.config.output_dir)
+            else:
+                btrfs_maybe_snapshot_subvolume(state.config, f, state.config.output_dir.joinpath(f.name), move = True)
 
         if not state.config.output_dir.joinpath(state.config.output).exists():
             state.config.output_dir.joinpath(state.config.output).symlink_to(state.config.output_with_compression)
