@@ -58,6 +58,15 @@ class ConfigFeature(enum.Enum):
         return str(self.value).lower()
 
 
+class SecureBootSignTool(enum.Enum):
+    auto = "auto"
+    sbsign = "sbsign"
+    pesign = "pesign"
+
+    def __str__(self) -> str:
+        return str(self.value).lower()
+
+
 def parse_boolean(s: str) -> bool:
     "Parse 1/true/yes/y/t/on as true and 0/false/no/n/f/off/None as false"
     s_l = s.lower()
@@ -594,6 +603,7 @@ class MkosiConfig:
     secure_boot: bool
     secure_boot_key: Optional[Path]
     secure_boot_certificate: Optional[Path]
+    secure_boot_sign_tool: SecureBootSignTool
     verity_key: Optional[Path]
     verity_certificate: Optional[Path]
     sign_expected_pcr: ConfigFeature
@@ -1096,6 +1106,12 @@ class MkosiConfigParser:
             section="Validation",
             parse=config_make_path_parser(),
             paths=("mkosi.crt",),
+        ),
+        MkosiConfigSetting(
+            dest="secure_boot_sign_tool",
+            section="Validation",
+            parse=config_make_enum_parser(SecureBootSignTool),
+            default=SecureBootSignTool.auto,
         ),
         MkosiConfigSetting(
             dest="verity_key",
@@ -1792,6 +1808,12 @@ class MkosiConfigParser:
             "--secure-boot-certificate",
             metavar="PATH",
             help="UEFI SecureBoot certificate in X509 format",
+            action=action,
+        )
+        group.add_argument(
+            "--secure-boot-sign-tool",
+            metavar="TOOL",
+            help="Tool to use for signing PE binaries for secure boot",
             action=action,
         )
         group.add_argument(
