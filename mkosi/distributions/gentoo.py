@@ -407,7 +407,7 @@ class Gentoo:
 class GentooInstaller(DistributionInstaller):
     @classmethod
     def filesystem(cls) -> str:
-        return "ext4"
+        return "btrfs"
 
     @staticmethod
     def kernel_image(name: str, architecture: Architecture) -> Path:
