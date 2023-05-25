@@ -16,6 +16,7 @@ import string
 import subprocess
 import sys
 import textwrap
+from collections import deque
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, Callable, Optional, Type, Union, cast
@@ -270,44 +271,63 @@ def config_make_enum_matcher(type: Type[enum.Enum]) -> ConfigMatchCallback:
 
 def config_make_list_parser(delimiter: str,
                             *,
-                            parse: Callable[[str], Any] = str,
-                            unescape: bool = False) -> ConfigParseCallback:
+                            parse: Callable[[str], Any] = str) -> ConfigParseCallback:
     ignore: set[str] = set()
 
     def config_parse_list(dest: str, value: Optional[str], namespace: argparse.Namespace) -> list[Any]:
         if dest not in namespace:
             ignore.clear()
-            l = []
-        else:
-            l = getattr(namespace, dest).copy()
+
+        l: deque[Any] = deque(getattr(namespace, dest, list()).copy())
 
         if not value:
-            return l # type: ignore
+            return list(l) # type: ignore
 
-        if unescape:
-            lex = shlex.shlex(value, posix=True)
-            lex.whitespace_split = True
-            lex.whitespace = f"\n{delimiter}"
-            lex.commenters = ""
-            values = list(lex)
-        else:
-            values = value.replace(delimiter, "\n").split("\n")
+        tokens = shlex.shlex(value, posix=True)
+        # don't split on characters from version format spec and ones needed for
+        # comparisons and globs
+        tokens.wordchars += "-.~^*<>="
+        tokens.whitespace = f"\n{delimiter}"
+        tokens.commenters = ""
 
-        for v in values:
-            if not v:
+        invert = False
+        invert_stack = []
+        paren_level = 0
+        while v := tokens.get_token():
+            # handle special tokens
+            if not v.strip():
+                continue
+            elif v == "!":
+                invert = not invert
+                invert_stack.append(paren_level)
+                continue
+            elif v == "(":
+                paren_level += 1
+                continue
+            elif v == ")":
+                paren_level -= 1
+                if invert_stack and invert_stack[-1] == paren_level:
+                    invert = not invert
+                    invert_stack.pop()
+                if paren_level < 0:
+                    die(f"Unmatched parentheses in {value}")
                 continue
 
-            if v.startswith("!"):
-                ignore.add(v[1:])
-                continue
+            # handle actual values
+            if invert:
+                ignore.add(v)
 
-            for i in ignore:
-                if fnmatch.fnmatchcase(v, i):
-                    break
-            else:
-                l.insert(0, parse(v))
+            if not any(fnmatch.fnmatchcase(v, i) for i in ignore):
+                l.appendleft(parse(v))
 
-        return l
+            if invert_stack and invert_stack[-1] == paren_level:
+                invert = not invert
+                invert_stack.pop()
+
+        if paren_level != 0:
+            die(f"Unmatched parentheses in {value}")
+
+        return list(l)
 
     return config_parse_list
 
@@ -982,7 +1002,7 @@ class MkosiConfigParser:
         MkosiConfigSetting(
             dest="environment",
             section="Content",
-            parse=config_make_list_parser(delimiter=" ", unescape=True),
+            parse=config_make_list_parser(delimiter=" "),
         ),
         MkosiConfigSetting(
             dest="build_sources",
