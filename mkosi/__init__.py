@@ -857,6 +857,7 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                 cmd += [
                     "--secureboot-private-key", state.config.secure_boot_key,
                     "--secureboot-certificate", state.config.secure_boot_certificate,
+                    "--sign-kernel",
                 ]
 
                 sign_expected_pcr = (state.config.sign_expected_pcr == ConfigFeature.enabled or
