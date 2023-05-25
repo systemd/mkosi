@@ -134,36 +134,6 @@ jobs:
     - name: Install dependencies
       run: sudo apt-get update && sudo apt-get install --no-install-recommends python3-pexpect python3-pytest
 
-    - name: Install Gentoo dependencies (portage)
-      if: matrix.distro == 'gentoo'
-      run: |
-        sudo tee /usr/lib/sysusers.d/acct-user-portage.conf > /dev/null <<- EOF
-        # /usr/lib/sysusers.d/portage.conf
-        u portage - "Portage system user" /var/lib/portage/home -
-        EOF
-        sudo systemd-sysusers --no-pager
-
-        sudo install --owner=portage --group=portage --mode=0755 --directory /var/db/repos
-        sudo install --owner=portage --group=portage --mode=0755 --directory /etc/portage/repos.conf
-        sudo install --owner=portage --group=portage --mode=0755 --directory /var/cache/binpkgs
-        sudo tee /etc/portage/repos.conf/eselect-repo.conf > /dev/null <<- EOF
-        [gentoo]
-        location = /var/db/repos/gentoo
-        sync-type = git
-        sync-uri = https://anongit.gentoo.org/git/repo/gentoo.git
-        EOF
-
-        git clone https://anongit.gentoo.org/git/proj/portage.git --depth=1
-        cd portage
-        tee setup.cfg > /dev/null <<- EOF
-        [build_ext]
-        portage-ext-modules=true
-        EOF
-
-        sudo python setup.py install
-
-        sudo ln -s --relative /var/db/repos/gentoo/profiles/default/linux/amd64/17.1/no-multilib/systemd/merged-usr /etc/portage/make.profile
-
     # Do a manual install so we have the latest changes from the pull request available.
     - name: Install
       run: sudo python3 -m pip install ..

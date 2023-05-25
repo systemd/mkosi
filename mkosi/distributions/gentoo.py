@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
-import logging
 import os
 import re
 import urllib.parse
@@ -66,6 +65,15 @@ def invoke_emerge(
 
 
 @dataclass
+class GentooConstants:
+    gentoo_mirrors: str
+    portdir: Path
+    binrepos_conf_file: Path
+    ebuild_sh_env_dir: Path
+    user_config_path: Path
+
+
+@dataclass
 class GentooAtoms:
     stage2: List[str]
     bare_minimal: List[str]
@@ -77,7 +85,7 @@ class Gentoo:
     arch_profile: Path
     arch: str
     emerge_vars: dict[str, str]
-    portage_cfg_dir: Path
+    user_config_path: Path
     root: Path
     stage3_cache: Path
     stage3_tar_path: Path
@@ -101,6 +109,13 @@ class Gentoo:
             "sys-kernel/gentoo-kernel-bin",
         ],
         system=["@system"]
+    )
+    portage_consts: GentooConstants = GentooConstants(
+        gentoo_mirrors="http://distfiles.gentoo.org",
+        portdir=Path("/var/db/repos/gentoo"),
+        binrepos_conf_file=Path("etc/portage/binrepos.conf"),
+        ebuild_sh_env_dir=Path("etc/portage/env"),
+        user_config_path=Path("etc/portage")
     )
 
     EMERGE_UPDATE_OPTS = [
@@ -136,80 +151,17 @@ class Gentoo:
         "noinfo",
     ]
 
-    @staticmethod
-    def try_import_portage() -> dict[str, str]:
-        NEED_PORTAGE_MSG = "You need portage(5) for Gentoo"
-        PORTAGE_INSTALL_INSTRUCTIONS = """\
-        # Following is known to work on most systemd-based systems:
-        sudo tee /usr/lib/sysusers.d/acct-user-portage.conf > /dev/null <<- EOF
-        # /usr/lib/sysusers.d/portage.conf
-        u portage - "Portage system user" /var/lib/portage/home -
-        EOF
-
-        sudo systemd-sysusers --no-pager
-
-        sudo install --owner=portage --group=portage --mode=0755 --directory /var/db/repos
-        sudo install --owner=portage --group=portage --mode=0755 --directory /etc/portage/repos.conf
-        sudo install --owner=portage --group=portage --mode=0755 --directory /var/cache/binpkgs
-
-        sudo tee /etc/portage/repos.conf/eselect-repo.conf > /dev/null <<- EOF
-        [gentoo]
-        location = /var/db/repos/gentoo
-        sync-type = git
-        sync-uri = https://anongit.gentoo.org/git/repo/gentoo.git
-        EOF
-
-        git clone https://anongit.gentoo.org/git/proj/portage.git --depth=1
-        cd portage
-        tee setup.cfg > /dev/null <<- EOF
-        [build_ext]
-        portage-ext-modules=true
-        EOF
-
-        python setup.py build_ext --inplace --portage-ext-modules
-
-        sudo python setup.py install
-
-        sudo ln -s --relative \
-            /var/db/repos/gentoo/profiles/default/linux/amd64/17.1/no-multilib/systemd/merged-usr \
-            /etc/portage/make.profile
-        """
-        try:
-            from portage.const import (  # type: ignore
-                BINREPOS_CONF_FILE,
-                EBUILD_SH_ENV_DIR,
-                USER_CONFIG_PATH,
-            )
-        except ImportError as e:
-            logging.warn(NEED_PORTAGE_MSG)
-            logging.info(PORTAGE_INSTALL_INSTRUCTIONS)
-            raise e
-
-        return dict(ebuild_sh_env_dir=EBUILD_SH_ENV_DIR,
-                    portage_cfg_dir=USER_CONFIG_PATH,
-                    binrepos_conf_file=BINREPOS_CONF_FILE)
-
     def __init__(self, state: MkosiState) -> None:
         # TOCLEANUP: legacy namig, to be cleaned up
         self.state = state
         self.config = self.state.config
         self.root = self.state.root
-        self.portage_consts = self.try_import_portage()
-
-        from portage.package.ebuild.config import config as portage_cfg  # type: ignore
-
-        self.portage_cfg = portage_cfg()
-
-        PORTAGE_MISCONFIGURED_MSG = "Missing defaults for portage, bailing out"
-        # we check for PORTDIR, but we could check for any other one
-        if self.portage_cfg['PORTDIR'] is None:
-            die(PORTAGE_MISCONFIGURED_MSG)
 
         self.arch, _ = state.installer.architecture(state.config.architecture)
         self.arch_profile = Path(f"default/linux/{self.arch}/{state.config.release}/no-multilib/systemd/merged-usr")
         self.get_current_stage3()
 
-        self.portage_cfg_dir = self.stage3_cache / self.portage_consts["portage_cfg_dir"]
+        self.user_config_path = self.stage3_cache / self.portage_consts.user_config_path
 
         self.emerge_vars = {
             "FEATURES": " ".join(self.portage_features),
@@ -230,7 +182,7 @@ class Gentoo:
 
         # http://distfiles.gentoo.org/releases/amd64/autobuilds/latest-stage3.txt
         stage3tsf_path_url = urllib.parse.urljoin(
-            self.portage_cfg["GENTOO_MIRRORS"].partition(" ")[0],
+            self.portage_consts.gentoo_mirrors.partition(" ")[0],
             f"releases/{self.arch}/autobuilds/latest-stage3.txt",
         )
 
@@ -255,7 +207,7 @@ class Gentoo:
 
     def fetch_fix_stage3(self) -> None:
         stage3_url_path = urllib.parse.urljoin(
-            self.portage_cfg["GENTOO_MIRRORS"],
+            self.portage_consts.gentoo_mirrors,
             f"releases/{self.arch}/autobuilds/{self.stage3_tar}",
         )
         if not self.stage3_tar_path.is_file():
@@ -288,7 +240,7 @@ class Gentoo:
                 self.mkosi_conf()
 
     def set_useflags(self) -> None:
-        package_use = self.portage_cfg_dir / "package.use"
+        package_use = self.user_config_path / "package.use"
         package_use.mkdir(exist_ok=True)
 
         package_use.joinpath("systemd").write_text(
@@ -323,9 +275,9 @@ class Gentoo:
             )
 
     def mkosi_conf(self) -> None:
-        package_env = self.portage_cfg_dir / "package.env"
+        package_env = self.user_config_path / "package.env"
         package_env.mkdir(exist_ok=True)
-        ebuild_sh_env_dir = self.stage3_cache / self.portage_consts["ebuild_sh_env_dir"]
+        ebuild_sh_env_dir = self.stage3_cache / self.portage_consts.ebuild_sh_env_dir
         ebuild_sh_env_dir.mkdir(exist_ok=True)
 
         # apply whatever we put in mkosi_conf to runs invocation of emerge
@@ -346,7 +298,7 @@ class Gentoo:
             )
         )
 
-        repos_cfg = self.stage3_cache / self.portage_consts["binrepos_conf_file"]
+        repos_cfg = self.stage3_cache / self.portage_consts.binrepos_conf_file
         with repos_cfg.open(mode='a') as f:
             for repo in self.config.repositories:
                 f.write(
@@ -361,9 +313,9 @@ class Gentoo:
 
     def sync_profiles(self) -> None:
         root_portage_cfg = self.root
-        root_portage_cfg /= self.portage_cfg_dir.relative_to(self.stage3_cache)
+        root_portage_cfg /= self.user_config_path.relative_to(self.stage3_cache)
         root_portage_cfg.mkdir(parents=True, exist_ok=True)
-        copy_path(self.portage_cfg_dir, root_portage_cfg)
+        copy_path(self.user_config_path, root_portage_cfg)
 
     def get_snapshot_of_portage_tree(self) -> None:
         bwrap_params: list[PathString] = ["--bind", self.state.cache / "repos", "/var/db/repos"]
