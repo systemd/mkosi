@@ -28,6 +28,7 @@ from mkosi.config import (
     MkosiArgs,
     MkosiConfig,
     MkosiConfigParser,
+    SecureBootSignTool,
 )
 from mkosi.install import add_dropin_config_from_resource, copy_path, flock
 from mkosi.log import Style, color_error, complete_step, die, log_step
@@ -370,6 +371,60 @@ def run_finalize_script(state: MkosiState) -> None:
             env={**state.environment, "BUILDROOT": str(state.root), "OUTPUTDIR": str(state.config.output_dir)})
 
 
+def certificate_common_name(certificate: Path) -> str:
+    output = run([
+        "openssl",
+        "x509",
+        "-noout",
+        "-subject",
+        "-nameopt", "multiline",
+        "-in", certificate,
+    ], text=True, stdout=subprocess.PIPE).stdout
+
+    for line in output.splitlines():
+        if not line.strip().startswith("commonName"):
+            continue
+
+        _, sep, value = line.partition("=")
+        if not sep:
+            die("Missing '=' delimiter in openssl output")
+
+        return cast(str, value.strip())
+
+    die(f"Certificate {certificate} is missing Common Name")
+
+
+def pesign_prepare(state: MkosiState) -> None:
+    assert state.config.secure_boot_key
+    assert state.config.secure_boot_certificate
+
+    if (state.workspace / "pesign").exists():
+        return
+
+    (state.workspace / "pesign").mkdir()
+
+    # pesign takes a certificate directory and a certificate common name as input arguments, so we have
+    # to transform our input key and cert into that format. Adapted from
+    # https://www.mankier.com/1/pesign#Examples-Signing_with_the_certificate_and_private_key_in_individual_files
+    run(["openssl",
+         "pkcs12",
+         "-export",
+         # Arcane incantation to create a pkcs12 certificate without a password.
+         "-keypbe", "NONE",
+         "-certpbe", "NONE",
+         "-nomaciter",
+         "-passout", "pass:",
+         "-out", state.workspace / "secure-boot.p12",
+         "-inkey", state.config.secure_boot_key,
+         "-in", state.config.secure_boot_certificate])
+
+    run(["pk12util",
+         "-K", "",
+         "-W", "",
+         "-i", state.workspace / "secure-boot.p12",
+         "-d", state.workspace / "pesign"])
+
+
 def install_boot_loader(state: MkosiState) -> None:
     if state.config.bootable == ConfigFeature.disabled:
         return
@@ -397,12 +452,30 @@ def install_boot_loader(state: MkosiState) -> None:
         assert state.config.secure_boot_certificate
 
         with complete_step("Signing systemd-boot binaries…"):
-            for f in itertools.chain(directory.glob('*.efi'), directory.glob('*.EFI')):
-                run(["sbsign",
-                     "--key", state.config.secure_boot_key,
-                     "--cert", state.config.secure_boot_certificate,
-                     "--output", f"{f}.signed",
-                     f])
+            for input in itertools.chain(directory.glob('*.efi'), directory.glob('*.EFI')):
+                output = directory / f"{input}.signed"
+
+                if (state.config.secure_boot_sign_tool == SecureBootSignTool.sbsign or
+                    state.config.secure_boot_sign_tool == SecureBootSignTool.auto and
+                    shutil.which("sbsign") is not None):
+                    run(["sbsign",
+                         "--key", state.config.secure_boot_key,
+                         "--cert", state.config.secure_boot_certificate,
+                         "--output", output,
+                         input])
+                elif (state.config.secure_boot_sign_tool == SecureBootSignTool.pesign or
+                      state.config.secure_boot_sign_tool == SecureBootSignTool.auto and
+                      shutil.which("pesign") is not None):
+                    pesign_prepare(state)
+                    run(["pesign",
+                         "--certdir", state.workspace / "pesign",
+                         "--certificate", certificate_common_name(state.config.secure_boot_certificate),
+                         "--sign",
+                         "--force",
+                         "--in", input,
+                         "--out", output])
+                else:
+                    die("One of sbsign or pesign is required to use SecureBoot=")
 
     with complete_step("Installing boot loader…"):
         run(["bootctl", "install", "--root", state.root], env={"SYSTEMD_ESP_PATH": "/efi"})
@@ -854,11 +927,21 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                 assert state.config.secure_boot_key
                 assert state.config.secure_boot_certificate
 
-                cmd += [
-                    "--secureboot-private-key", state.config.secure_boot_key,
-                    "--secureboot-certificate", state.config.secure_boot_certificate,
-                    "--sign-kernel",
-                ]
+                cmd += ["--sign-kernel"]
+
+                if state.config.secure_boot_sign_tool != SecureBootSignTool.pesign:
+                    cmd += [
+                        "--signtool", "sbsign",
+                        "--secureboot-private-key", state.config.secure_boot_key,
+                        "--secureboot-certificate", state.config.secure_boot_certificate,
+                    ]
+                else:
+                    pesign_prepare(state)
+                    cmd += [
+                        "--signtool", "pesign",
+                        "--secureboot-certificate-dir", state.workspace / "pesign",
+                        "--secureboot-certificate-name", certificate_common_name(state.config.secure_boot_certificate),
+                    ]
 
                 sign_expected_pcr = (state.config.sign_expected_pcr == ConfigFeature.enabled or
                                     (state.config.sign_expected_pcr == ConfigFeature.auto and
@@ -1279,6 +1362,7 @@ def summary(args: MkosiArgs, config: MkosiConfig) -> str:
                UEFI SecureBoot: {yes_no(config.secure_boot)}
         SecureBoot Signing Key: {none_to_none(config.secure_boot_key)}
         SecureBoot Certificate: {none_to_none(config.secure_boot_certificate)}
+          SecureBoot Sign Tool: {config.secure_boot_sign_tool}
             Verity Signing Key: {none_to_none(config.verity_key)}
             Verity Certificate: {none_to_none(config.verity_certificate)}
                       Checksum: {yes_no(config.checksum)}

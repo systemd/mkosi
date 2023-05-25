@@ -898,6 +898,12 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 : Path to the X.509 file containing the certificate for the signed
   UEFI kernel image, if `SecureBoot=` is used.
 
+`SecureBootSignTool=`, `--secure-boot-sign-tool`
+
+: Tool to use to sign secure boot PE binaries. Takes one of `sbsign`, `pesign` or `auto`. Defaults to `auto`.
+  If set to `auto`, either sbsign or pesign are used if available, with sbsign being preferred if both are
+  installed.
+
 `VerityKey=`, `--verity-key=`
 
 : Path to the PEM file containing the secret key for signing the verity signature, if a verity signature
