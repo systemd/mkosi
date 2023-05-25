@@ -288,35 +288,32 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 `Distribution=`
 
 : Matches against the configured distribution. Multiple distributions may be
-  specified, separated by spaces. A single distribution match can be negated by
-  preceding the value with `!`. If multiple distributions are specified, the
+  specified, separated by spaces. If multiple distributions are specified, the
   condition is satisfied if the current distribution equals any of the specified
-  distributions.
+  distributions. Matches can be negated with `!`.
 
 `Release=`
 
 : Matches against the configured distribution release. If this condition is used
   and no distribution has been explicitly configured yet, the host distribution
-  and release are used. A single release match can be negated by preceding the
-  value with `!`. Multiple releases may be specified, separated by spaces. If
-  multiple releases are specified, the condition is satisfied if the current
-  release equals any of the specified releases.
+  and release are used. Multiple releases may be specified, separated by
+  spaces. If multiple releases are specified, the condition is satisfied if the
+  current release equals any of the specified releases. Matches can be negated
+  with `!`.
 
 `PathExists=`
 
 : This condition is satisfied if the given path exists. Relative paths are
   interpreted relative to the parent directory of the config file that the
-  condition is read from. A match can be negated by preceding the path with a
-  `!`.
+  condition is read from. Matches can be negated with `!`.
 
 `ImageId=`
 
 : Matches against the configured image ID, supporting globs. If this condition
   is used and no image ID has been explicitly configured yet, this condition
-  fails.  A single image ID match can be negated by preceding the value with
-  `!`. Multiple image IDs may be specified, separated by spaces. If multiple
+  fails. Multiple image IDs may be specified, separated by spaces. If multiple
   image IDs are specified, the condition is satisfied if the configured image ID
-  equals any of the specified image IDs.
+  equals any of the specified image IDs. Matches can be negated with `!`.
 
 `ImageVersion=`
 
@@ -335,14 +332,14 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   values may be specified, separated by commas. If multiple values are specified, the condition is satisfied
   if the current value of the `Bootable=` feature matches any of the specified values.
 
-| Matcher         | Multiple Values | Globs | Negation | Rich Comparisons | Default                 |
-|-----------------|-----------------|-------|----------|------------------|-------------------------|
-| `Distribution=` | yes             | no    | yes      | no               | match host distribution |
-| `Release=`      | yes             | no    | yes      | no               | match host release      |
-| `PathExists=`   | no              | no    | yes      | no               | match fails             |
-| `ImageId=`      | yes             | yes   | yes      | no               | match fails             |
-| `ImageVersion=` | yes             | no    | no       | yes              | match fails             |
-| `Bootable=`     | yes             | no    | no       | no               | match auto feature      |
+| Matcher         | Multiple Values | Globs | Rich Comparisons | Default                 |
+|-----------------|-----------------|-------|------------------|-------------------------|
+| `Distribution=` | yes             | no    | no               | match host distribution |
+| `Release=`      | yes             | no    | no               | match host release      |
+| `PathExists=`   | no              | no    | no               | match fails             |
+| `ImageId=`      | yes             | yes   | no               | match fails             |
+| `ImageVersion=` | yes             | no    | yes              | match fails             |
+| `Bootable=`     | yes             | no    | no               | match auto feature      |
 
 ### [Distribution] Section
 

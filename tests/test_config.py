@@ -1,12 +1,15 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 import argparse
+from pathlib import Path
 
 import pytest
 
-from pathlib import Path
-
-from mkosi.config import strip_suffixes, config_make_list_parser
+from mkosi.config import (
+    config_make_list_matcher,
+    config_make_list_parser,
+    strip_suffixes,
+)
 
 
 def test_strip_suffixes() -> None:
@@ -43,3 +46,32 @@ def test_config_list_parser(delimiter: str, inp: str, result: list[str]) -> None
     args = argparse.Namespace()
     parser = config_make_list_parser(delimiter)
     assert parser("dest", inp, args) == result
+
+
+@pytest.mark.parametrize(
+    "delimiter,allow_globs,match,defined,expect",
+    [
+        (" ", False, "buster", "bookworm", False),
+        (" ", False, "buster bullseye", "bookworm", False),
+        (" ", False, "bookworm", "bookworm", True,),
+        (" ", False, "bookworm trixe", "bookworm", True),
+        (" ", False, "!buster", "bookworm", True),
+        (" ", True, "buster", "bookworm", False),
+        (" ", True, "buster bullseye", "bookworm", False),
+        (" ", True, "bookworm", "bookworm", True,),
+        (" ", True, "bookworm trixe", "bookworm", True),
+        (" ", True, "!buster", "bookworm", True),
+        (" ", True, "!bu*", "bullseye", False),
+        (" ", True, "!bu*", "bookworm", True),
+        (" ", True, "bu*", "bullseye", True),
+        (" ", True, "!(buster bullseye)", "bullseye", False),
+        (" ", True, "!(buster bullseye)", "trixie", True),
+        (" ", True, "!buster !bullseye", "bullseye", True),
+        (" ", True, "!buster !bullseye", "trixie", True),
+    ]
+)
+def test_config_list_matcher(delimiter: str, allow_globs: bool, match: str, defined: str, expect: bool) -> None:
+    args = argparse.Namespace()
+    args.test = defined
+    matcher = config_make_list_matcher(delimiter, allow_globs=allow_globs)
+    assert matcher("test", match, args) == expect

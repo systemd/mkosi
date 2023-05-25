@@ -335,50 +335,64 @@ def config_make_list_parser(delimiter: str,
 def config_make_list_matcher(
     delimiter: str,
     *,
-    unescape: bool = False,
     allow_globs: bool = False,
-    allow_negation: bool = False,
-    all: bool = False,
     parse: Callable[[str], Any] = str,
 ) -> ConfigMatchCallback:
     def config_match_list(dest: str, value: str, namespace: argparse.Namespace) -> bool:
-        if unescape:
-            lex = shlex.shlex(value, posix=True)
-            lex.whitespace_split = True
-            lex.whitespace = f"\n{delimiter}"
-            lex.commenters = ""
-            values = list(lex)
-        else:
-            values = value.replace(delimiter, "\n").split("\n")
+        if not value.strip():
+            return False
 
-        for v in values:
-            current_value = getattr(namespace, dest)
+        current_value = getattr(namespace, dest)
 
-            if allow_negation and v.startswith("!"):
-                negate = True
-                v = v[1:]
+        tokens = shlex.shlex(value, posix=True)
+        # don't split on characters from version format spec and ones needed for
+        # comparisons and globs
+        tokens.wordchars += "-.~^*<>="
+        tokens.whitespace = f"\n{delimiter}"
+        tokens.commenters = ""
+
+        invert = False
+        invert_stack = []
+        match_stack = [False]
+        while comparison_value := tokens.get_token():
+            # handle special tokens
+            if not comparison_value.strip():
+                continue
+            elif comparison_value == "!":
+                invert = not invert
+                invert_stack.append(len(match_stack) - 1)
+                continue
+            elif comparison_value == "(":
+                match_stack.append(False)
+                continue
+            elif comparison_value == ")":
+                current_match = match_stack.pop()
+                if invert_stack and invert_stack[-1] == (len(match_stack) - 1):
+                    current_match = not current_match
+                    invert = not invert
+                    invert_stack.pop()
+                if len(match_stack) < 1:
+                    die(f"Unmatched parentheses in {value}")
+                match_stack[-1] |= current_match
+                continue
+
+            # handle actual comparison
+            if allow_globs and isinstance(current_value, str):
+                current_match = fnmatch.fnmatchcase(current_value, comparison_value)
             else:
-                negate = False
+                current_match = current_value == parse(comparison_value)
 
-            comparison_value = parse(v)
-            if allow_globs:
-                # check if the option has been set, since fnmatch wants strings
-                if isinstance(current_value, str):
-                    m = fnmatch.fnmatchcase(current_value, comparison_value)
-                else:
-                    m = False
-            else:
-                m = current_value == comparison_value
+            if invert_stack and invert_stack[-1] == (len(match_stack) - 1):
+                current_match = not current_match
+                invert = not invert
+                invert_stack.pop()
 
-            if negate:
-                m = not m
+            match_stack[-1] |= current_match
 
-            if not all and m:
-                return True
-            if all and not m:
-                return False
+        if len(match_stack) != 1:
+            die(f"Unmatched parentheses in {value}")
 
-        return all
+        return match_stack.pop()
 
     return config_match_list
 
@@ -796,14 +810,14 @@ class MkosiConfigParser:
             dest="distribution",
             section="Distribution",
             parse=config_make_enum_parser(Distribution),
-            match=config_make_list_matcher(delimiter=" ", parse=make_enum_parser(Distribution), allow_negation=True),
+            match=config_make_list_matcher(delimiter=" ", parse=make_enum_parser(Distribution)),
             default=detect_distribution()[0],
         ),
         MkosiConfigSetting(
             dest="release",
             section="Distribution",
             parse=config_parse_string,
-            match=config_make_list_matcher(delimiter=" ", allow_negation=True),
+            match=config_make_list_matcher(delimiter=" "),
             default_factory=config_default_release,
         ),
         MkosiConfigSetting(
@@ -904,7 +918,7 @@ class MkosiConfigParser:
         ),
         MkosiConfigSetting(
             dest="image_id",
-            match=config_make_list_matcher(delimiter=" ", allow_globs=True, allow_negation=True),
+            match=config_make_list_matcher(delimiter=" ", allow_globs=True),
             section="Output",
         ),
         MkosiConfigSetting(

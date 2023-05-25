@@ -12,8 +12,8 @@ from typing import Iterator, List, Optional
 
 import pytest
 
+from mkosi.config import MkosiArgs, MkosiConfig, MkosiConfigParser
 from mkosi.util import Compression, Distribution, Verb
-from mkosi.config import MkosiConfigParser, MkosiConfig, MkosiArgs
 
 
 @contextmanager
@@ -161,7 +161,7 @@ def test_match_distribution(dist1: Distribution, dist2: Distribution) -> None:
             dedent(
                 f"""\
                 [Match]
-                Distribution=!{dist1} !{dist2}
+                Distribution=!({dist1} {dist2})
 
                 [Content]
                 Packages=testpkg6
@@ -176,16 +176,12 @@ def test_match_distribution(dist1: Distribution, dist2: Distribution) -> None:
         else:
             assert "testpkg2" not in conf.packages
         assert "testpkg3" in conf.packages
+        assert "testpkg4" not in conf.packages
         if dist1 == dist2:
-            assert "testpkg4" not in conf.packages
             assert "testpkg5" not in conf.packages
         else:
-            assert "testpkg4" not in conf.packages
             assert "testpkg5" in conf.packages
-        if dist1 == dist2:
-            assert "testpkg6" not in conf.packages
-        else:
-            assert "testpkg6" in conf.packages
+        assert "testpkg6" not in conf.packages
 
 
 @pytest.mark.parametrize(
@@ -271,7 +267,7 @@ def test_match_release(release1: int, release2: int) -> None:
             dedent(
                 f"""\
                 [Match]
-                Release=!{release1} !{release2}
+                Release=!({release1} {release2})
 
                 [Content]
                 Packages=testpkg6
@@ -286,16 +282,12 @@ def test_match_release(release1: int, release2: int) -> None:
         else:
             assert "testpkg2" not in conf.packages
         assert "testpkg3" in conf.packages
+        assert "testpkg4" not in conf.packages
         if release1 == release2:
-            assert "testpkg4" not in conf.packages
             assert "testpkg5" not in conf.packages
         else:
-            assert "testpkg4" not in conf.packages
             assert "testpkg5" in conf.packages
-        if release1 == release2:
-            assert "testpkg6" not in conf.packages
-        else:
-            assert "testpkg6" in conf.packages
+        assert "testpkg6" not in conf.packages
 
 
 @pytest.mark.parametrize(
@@ -407,7 +399,7 @@ def test_match_imageid(image1: str, image2: str) -> None:
             dedent(
                 f"""\
                 [Match]
-                ImageId=!{image1} !{image2}
+                ImageId=!({image1} {image2})
 
                 [Content]
                 Packages=testpkg8
@@ -423,17 +415,13 @@ def test_match_imageid(image1: str, image2: str) -> None:
             assert "testpkg2" not in conf.packages
         assert "testpkg3" in conf.packages
         assert "testpkg4" in conf.packages
+        assert "testpkg5" not in conf.packages
         if image1 == image2:
-            assert "testpkg5" not in conf.packages
             assert "testpkg6" not in conf.packages
         else:
-            assert "testpkg5" not in conf.packages
             assert "testpkg6" in conf.packages
         assert "testpkg7" not in conf.packages
-        if image1 == image2:
-            assert "testpkg8" not in conf.packages
-        else:
-            assert "testpkg8" in conf.packages
+        assert "testpkg8" not in conf.packages
 
 
 @pytest.mark.parametrize(
