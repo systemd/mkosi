@@ -1763,8 +1763,11 @@ def build_image(args: MkosiArgs, config: MkosiConfig, uid: int, gid: int) -> Non
 
             shutil.move(f, state.config.output_dir)
 
-        if not state.config.output_dir.joinpath(state.config.output).exists():
-            state.config.output_dir.joinpath(state.config.output).symlink_to(state.config.output_with_compression)
+        output_base = state.config.output_dir.joinpath(state.config.output)
+        if not output_base.exists() or output_base.is_symlink():
+            output_base.unlink(missing_ok=True)
+            output_base.symlink_to(state.config.output_with_compression)
+            os.chown(output_base, uid, gid, follow_symlinks=False)
 
     print_output_size(config.output_dir / config.output)
 
