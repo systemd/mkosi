@@ -222,7 +222,7 @@ class Gentoo:
             self.portage_cfg["GENTOO_MIRRORS"],
             f"releases/{self.arch}/autobuilds/{stage3_tar}",
         )
-        stage3_tar_path = self.state.cache / stage3_tar
+        stage3_tar_path = self.state.cache_dir / stage3_tar
         stage3_tmp_extract = stage3_tar_path.with_name(stage3_tar.name + ".tmp")
         if not stage3_tar_path.is_file():
             log_step(f"Fetching {stage3_url_path}")

@@ -177,7 +177,7 @@ def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
             APT::Get::Allow-Change-Held-Packages "true";
             APT::Get::Allow-Remove-Essential "true";
             APT::Sandbox::User "root";
-            Dir::Cache "{state.cache}";
+            Dir::Cache "{state.cache_dir}";
             Dir::State "{state.workspace / "apt"}";
             Dir::State::status "{state.root / "var/lib/dpkg/status"}";
             Dir::Etc "{state.workspace / "apt"}";

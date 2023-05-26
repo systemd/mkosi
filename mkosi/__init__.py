@@ -495,8 +495,7 @@ def install_build_dest(state: MkosiState) -> None:
         return
 
     with complete_step("Copying in build tree…"):
-        # The build is executed as a regular user, so we don't want to copy ownership in this scenario.
-        copy_path(install_dir(state), state.root, preserve_owner=False)
+        copy_path(state.install_dir, state.root)
 
 
 def gzip_binary() -> str:
@@ -771,7 +770,7 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                 "--cache-only", yes_no(state.config.cache_only),
                 *(["--output-dir", str(state.config.output_dir)] if state.config.output_dir else []),
                 *(["--workspace-dir", str(state.config.workspace_dir)] if state.config.workspace_dir else []),
-                "--cache-dir", str(state.cache.parent) if state.config.cache_dir else str(state.cache),
+                "--cache-dir", str(state.cache_dir.parent),
                 "--incremental", yes_no(state.config.incremental),
                 "--acl", yes_no(state.config.acl),
                 "--format", "cpio",
@@ -795,7 +794,7 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
 
             config = presets[0]
             unlink_output(args, config)
-            build_image(state.uid, state.gid, args, config)
+            build_image(args, config, state.uid, state.gid)
 
             initrds = [config.output_dir / config.output]
 
@@ -1288,37 +1287,6 @@ def summary(args: MkosiArgs, config: MkosiConfig) -> str:
 
     return summary
 
-def make_output_dir(state: MkosiState) -> None:
-    """Create the output directory if set and not existing yet"""
-    run(["mkdir", "-p", state.config.output_dir], user=state.uid, group=state.gid)
-
-
-def make_build_dir(state: MkosiState) -> None:
-    """Create the build directory if set and not existing yet"""
-    if state.config.build_dir is None:
-        return
-
-    run(["mkdir", "-p", state.config.build_dir], user=state.uid, group=state.gid)
-
-
-def make_cache_dir(state: MkosiState) -> None:
-    # If no cache directory is configured, it'll be located in the workspace which is owned by root in the
-    # userns so we have to run as the same user.
-    run(["mkdir", "-p", state.cache],
-        user=state.uid if state.config.cache_dir else 0,
-        group=state.gid if state.config.cache_dir else 0)
-
-
-def make_install_dir(state: MkosiState) -> None:
-    # If no install directory is configured, it'll be located in the workspace which is owned by root in the
-    # userns so we have to run as the same user.
-    run(["mkdir", "-p", install_dir(state)],
-        user=state.uid if state.config.install_dir else 0,
-        group=state.gid if state.config.install_dir else 0)
-    # Make sure the install dir is always owned by the user running mkosi since the build will be running as
-    # the same user and needs to be able to write files here.
-    os.chown(install_dir(state), state.uid, state.gid)
-
 
 def configure_ssh(state: MkosiState) -> None:
     if not state.config.ssh:
@@ -1640,30 +1608,13 @@ def invoke_repart(state: MkosiState, skip: Sequence[str] = [], split: bool = Fal
     return f"roothash={roothash}" if roothash else f"usrhash={usrhash}" if usrhash else None, split_paths
 
 
-def build_image(uid: int, gid: int, args: MkosiArgs, config: MkosiConfig) -> None:
-    workspace = tempfile.TemporaryDirectory(dir=config.workspace_dir or Path.cwd(), prefix=".mkosi.tmp")
-    workspace_dir = Path(workspace.name)
-    cache = config.cache_dir or workspace_dir / "cache"
-
-    state = MkosiState(
-        uid=uid,
-        gid=gid,
-        args=args,
-        config=config,
-        workspace=workspace_dir,
-        cache=cache,
-    )
-
+def build_image(args: MkosiArgs, config: MkosiConfig, uid: int, gid: int) -> None:
+    state = MkosiState(args, config, uid, gid)
     manifest = Manifest(config)
-
-    make_output_dir(state)
-    make_cache_dir(state)
-    make_install_dir(state)
-    make_build_dir(state)
 
     # Make sure tmpfiles' aging doesn't interfere with our workspace
     # while we are working on it.
-    with flock(workspace_dir), workspace, acl_toggle_build(state):
+    with flock(state.workspace), acl_toggle_build(state):
         with mount_image(state):
             install_base_trees(state)
             install_skeleton_trees(state)
@@ -1738,10 +1689,6 @@ def one_zero(b: bool) -> str:
     return "1" if b else "0"
 
 
-def install_dir(state: MkosiState) -> Path:
-    return state.config.install_dir or state.workspace / "dest"
-
-
 def run_build_script(state: MkosiState) -> None:
     if state.config.build_script is None:
         return
@@ -1762,7 +1709,7 @@ def run_build_script(state: MkosiState) -> None:
         bwrap: list[PathString] = [
             "--bind", state.config.build_sources, "/work/src",
             "--bind", state.config.build_script, "/work/build-script",
-            "--bind", install_dir(state), "/work/dest",
+            "--bind", state.install_dir, "/work/dest",
             "--chdir", "/work/src",
         ]
 
@@ -1778,12 +1725,10 @@ def run_build_script(state: MkosiState) -> None:
             bwrap += ["--bind", state.config.build_dir, "/work/build"]
             env |= dict(BUILDDIR="/work/build")
 
-        cmd = ["setpriv", f"--reuid={state.uid}", f"--regid={state.gid}", "--clear-groups", "/work/build-script"]
-
         # build-script output goes to stdout so we can run language servers from within mkosi
         # build-scripts. See https://github.com/systemd/mkosi/pull/566 for more information.
-        run_workspace_command(state.root, cmd, network=state.config.with_network, bwrap_params=bwrap,
-                              stdout=sys.stdout, env=env | state.environment)
+        run_workspace_command(state.root, ["/work/build-script"], network=state.config.with_network,
+                              bwrap_params=bwrap, stdout=sys.stdout, env=env | state.environment)
 
 
 def setfacl(root: Path, uid: int, allow: bool) -> None:
@@ -1840,8 +1785,9 @@ def acl_toggle_build(state: MkosiState) -> Iterator[None]:
             if p and p.is_dir():
                 stack.enter_context(acl_maybe_toggle(state.config, p, state.uid, always=False))
 
-        if state.config.cache_dir:
-            stack.enter_context(acl_maybe_toggle(state.config, state.config.cache_dir, state.uid, always=True))
+        for p in (state.config.cache_dir, state.config.install_dir, state.config.build_dir):
+            if p:
+                stack.enter_context(acl_maybe_toggle(state.config, p, state.uid, always=True))
 
         if state.config.output_format == OutputFormat.directory:
             stack.enter_context(acl_maybe_toggle(state.config,
@@ -2089,9 +2035,20 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
 
         with prepend_to_environ_path(config.extra_search_paths):
             def target() -> None:
+                # Create these before changing user to make sure they're owned by the user running mkosi.
+                for d in (
+                    config.output_dir,
+                    config.install_dir,
+                    config.cache_dir,
+                    config.build_dir,
+                    config.workspace_dir,
+                ):
+                    if d:
+                        d.mkdir(parents=True, exist_ok=True)
+
                 # Get the user UID/GID either on the host or in the user namespace running the build
                 uid, gid = become_root()
-                build_image(uid, gid, args, config)
+                build_image(args, config, uid, gid)
 
             # We only want to run the build in a user namespace but not the following steps. Since we
             # can't rejoin the parent user namespace after unsharing from it, let's run the build in a

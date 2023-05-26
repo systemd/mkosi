@@ -50,7 +50,7 @@ class ArchInstaller(DistributionInstaller):
                     [options]
                     RootDir = {state.root}
                     LogFile = /dev/null
-                    CacheDir = {state.cache}
+                    CacheDir = {state.cache_dir}
                     GPGDir = /etc/pacman.d/gnupg/
                     HookDir = {state.root}/etc/pacman.d/hooks/
                     HoldPkg = pacman glibc
