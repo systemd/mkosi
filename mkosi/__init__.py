@@ -9,6 +9,7 @@ import itertools
 import json
 import logging
 import os
+import platform
 import re
 import resource
 import shutil
@@ -1648,11 +1649,19 @@ def invoke_repart(state: MkosiState, skip: Sequence[str] = [], split: bool = Fal
                     )
                 )
 
+            # The x86_64 -> x86-64 alias was added only recently, so avoid doing
+            # this when it is not needed (i.e.: 'root' will automatically
+            # resolve to the native architecture, no need to specify it).
+            if state.config.architecture != platform.machine():
+                root_architecture = f"-{state.config.architecture}"
+            else:
+                root_architecture = ""
+
             definitions.joinpath("10-root.conf").write_text(
                 dedent(
                     f"""\
                     [Partition]
-                    Type=root
+                    Type=root{root_architecture}
                     Format={state.installer.filesystem()}
                     CopyFiles=/
                     Minimize=guess
