@@ -184,7 +184,7 @@ jobs:
       run: curl -I geo.mirror.pkgbuild.com
 
     - name: Build ${{ matrix.distro }}/${{ matrix.format }}
-      run: python3 -m mkosi build
+      run: python3 -m mkosi --debug build
 
     # systemd-resolved is enabled by default in Arch/Debian/Ubuntu (systemd default preset) but fails to
     # start in a systemd-nspawn container with --private-users so we mask it out here to avoid CI failures.
@@ -195,8 +195,8 @@ jobs:
 
     - name: Boot ${{ matrix.distro }}/${{ matrix.format }} systemd-nspawn
       if: matrix.format == 'disk' || matrix.format == 'directory'
-      run: sudo python3 -m mkosi boot
+      run: sudo python3 -m mkosi --debug boot
 
     - name: Boot ${{ matrix.distro }}/${{ matrix.format }} UEFI
       if: matrix.format == 'disk'
-      run: timeout -k 30 10m python3 -m mkosi qemu
+      run: timeout -k 30 10m python3 -m mkosi --debug qemu
