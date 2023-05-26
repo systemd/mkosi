@@ -1730,6 +1730,7 @@ def build_image(uid: int, gid: int, args: MkosiArgs, config: MkosiConfig) -> Non
 
         if not state.config.output_dir.joinpath(state.config.output).exists():
             state.config.output_dir.joinpath(state.config.output).symlink_to(state.config.output_with_compression)
+            os.chown(state.config.output_dir.joinpath(state.config.output), uid, gid, follow_symlinks=False)
 
     print_output_size(config.output_dir / config.output)
 
