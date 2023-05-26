@@ -391,6 +391,13 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
   Linux, additional repositories must be passed in the form `<name>::<url>`
   (e.g. `myrepo::https://myrepo.net`).
 
+`PinDirectories`, `--pin-dir=`
+
+: This option can only be used with Debian-based distributions.
+  It takes a comma separated list of
+  directories containing apt pin files. The files are passed directly to apt
+  using `/etc/apt/preferences.d`.
+
 `RepositoryDirectories`, `--repo-dir=`
 
 : This option can (for now) only be used with RPM-based distributions,

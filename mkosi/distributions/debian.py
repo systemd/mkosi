@@ -200,6 +200,11 @@ def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
         for repo in repos:
             f.write(f"{repo}\n")
 
+    for pin_dir in state.config.pin_dirs:
+        for pin in pin_dir.iterdir():
+            if pin.is_file() and not pin.suffix:
+                shutil.copyfile(pin, state.workspace.joinpath("apt/preferences.d", pin.name))
+
     for repo_dir in state.config.repo_dirs:
         for src in repo_dir.iterdir():
             if not src.is_file():

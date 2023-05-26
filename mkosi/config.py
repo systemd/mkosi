@@ -582,6 +582,7 @@ class MkosiConfig:
     local_mirror: Optional[str]
     repository_key_check: bool
     repositories: list[str]
+    pin_dirs: list[Path]
     repo_dirs: list[Path]
     repart_dirs: list[Path]
     overlay: bool
@@ -786,6 +787,13 @@ class MkosiConfigParser:
             dest="repositories",
             section="Distribution",
             parse=config_make_list_parser(delimiter=","),
+        ),
+        MkosiConfigSetting(
+            dest="pin_dirs",
+            name="PinDirectories",
+            section="Distribution",
+            parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
+            paths=("mkosi.pinsdir",),
         ),
         MkosiConfigSetting(
             dest="repo_dirs",
@@ -1441,6 +1449,13 @@ class MkosiConfigParser:
             "--repositories",
             metavar="REPOS",
             help="Repositories to use",
+            action=action,
+        )
+        group.add_argument(
+            "--pin-dir",
+            metavar="PATH",
+            help="Specify a directory containing apt preferences.d files",
+            dest="pin_dirs",
             action=action,
         )
         group.add_argument(
@@ -2210,6 +2225,9 @@ def load_config(args: argparse.Namespace) -> MkosiConfig:
         if args.secure_boot_certificate is None:
             die("UEFI SecureBoot enabled, but couldn't find certificate.",
                 hint="Consider placing it in mkosi.crt")
+
+    if args.pin_dirs and not is_apt_distribution(args.distribution):
+        die("--pin-dir is only supported on Debian based distributions")
 
     if args.repo_dirs and not (
         is_dnf_distribution(args.distribution)
