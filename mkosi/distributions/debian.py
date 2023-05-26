@@ -170,6 +170,7 @@ def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
         dedent(
             f"""\
             APT::Architecture "{debarch}";
+            APT::Architectures "{debarch}";
             APT::Immediate-Configure "off";
             APT::Install-Recommends "false";
             APT::Get::Assume-Yes "true";
@@ -189,6 +190,8 @@ def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
             DPkg::Options:: "--root={state.root}";
             DPkg::Options:: "--log={state.workspace / "apt/dpkg.log"}";
             DPkg::Options:: "--force-unsafe-io";
+            DPkg::Options:: "--force-architecture";
+            DPkg::Options:: "--force-depends";
             Dpkg::Use-Pty "false";
             DPkg::Install::Recursive::Minimum "1000";
             pkgCacheGen::ForceEssential ",";
