@@ -173,19 +173,15 @@ def vsock_notify_handler() -> Iterator[tuple[str, dict[str, str]]]:
         async def notify() -> None:
             loop = asyncio.get_running_loop()
 
-            try:
-                while True:
-                    s, _ = await loop.sock_accept(vsock)
+            while True:
+                s, _ = await loop.sock_accept(vsock)
 
-                    for msg in (await loop.sock_recv(s, 4096)).decode().split("\n"):
-                        if not msg:
-                            continue
+                for msg in (await loop.sock_recv(s, 4096)).decode().split("\n"):
+                    if not msg:
+                        continue
 
-                        k, _, v = msg.partition("=")
-                        messages[k] = v
-
-            except asyncio.CancelledError:
-                pass
+                    k, _, v = msg.partition("=")
+                    messages[k] = v
 
         with MkosiAsyncioThread(notify()):
             yield f"vsock:{socket.VMADDR_CID_HOST}:{vsock.getsockname()[1]}", messages
