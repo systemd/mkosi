@@ -55,9 +55,9 @@ def invoke_emerge(
         emerge_default_opts += ["--quiet-build", "--quiet"]
     cmd = ["emerge", *pkgs, *emerge_default_opts, *opts, *actions]
     bwrap += [
-        "--bind", state.cache / "binpkgs", "/var/cache/binpkgs",
-        "--bind", state.cache / "distfiles", "/var/cache/distfiles",
-        "--bind", state.cache / "repos", "/var/db/repos",
+        "--bind", state.cache_dir / "binpkgs", "/var/cache/binpkgs",
+        "--bind", state.cache_dir / "distfiles", "/var/cache/distfiles",
+        "--bind", state.cache_dir / "repos", "/var/db/repos",
         *bwrap_params
     ]
     run_workspace_command(sysroot, cmd, bwrap_params=bwrap, network=True,
@@ -93,19 +93,12 @@ class Gentoo:
         stage2=[
             "sys-apps/baselayout",
             "sys-apps/util-linux",
-            "app-crypt/libb2",
         ],
         bare_minimal=[
-            "app-alternatives/sh",
-            "sys-apps/shadow",
-            "app-admin/eselect",
-            "net-misc/iputils",
-            "sys-apps/coreutils",
-            "sys-apps/portage",
+            "app-shells/bash",
+            "sys-apps/systemd",
         ],
         boot=[
-            "sys-apps/systemd",
-            "sys-kernel/dracut",
             "sys-kernel/gentoo-kernel-bin",
         ],
         system=["@system"]
@@ -169,7 +162,7 @@ class Gentoo:
         }
 
         for d in ("binpkgs", "distfiles", "repos"):
-            self.state.cache.joinpath(d).mkdir(exist_ok=True)
+            self.state.cache_dir.joinpath(d).mkdir(exist_ok=True)
 
         self.fetch_fix_stage3()
         self.sync_profiles()
@@ -318,7 +311,9 @@ class Gentoo:
         copy_path(self.user_config_path, root_portage_cfg)
 
     def get_snapshot_of_portage_tree(self) -> None:
-        bwrap_params: list[PathString] = ["--bind", self.state.cache / "repos", "/var/db/repos"]
+        bwrap_params: list[PathString] = [
+            "--bind", self.state.cache_dir / "repos", "/var/db/repos"
+        ]
         run_workspace_command(self.stage3_cache, ["/usr/bin/emerge-webrsync"],
                               bwrap_params=bwrap_params, network=True)
 
@@ -343,20 +338,18 @@ class Gentoo:
                           opts=opts+["--exclude", "sys-devel/*"],
                           pkgs=self.pkgs.bare_minimal, env=self.emerge_vars)
         with complete_step("Merging atoms required for boot"):
-            invoke_emerge(self.state, sysroot=self.stage3_cache,
-                          opts=opts+["--exclude", "sys-devel/*"],
+            invoke_emerge(self.state, sysroot=self.stage3_cache, opts=opts,
                           pkgs=self.pkgs.boot)
-        invoke_emerge(self.state, actions=["--config"],
-                      pkgs=["sys-kernel/gentoo-kernel-bin"])
         if self.state.config.make_initrd:
             return
 
-        invoke_emerge(self.state, sysroot=self.stage3_cache,
-                      opts=opts+["--exclude", "sys-devel/*"],
+        invoke_emerge(self.state, sysroot=self.stage3_cache, opts=opts,
                       pkgs=self.pkgs.system)
 
 
 class GentooInstaller(DistributionInstaller):
+    gentoo: Gentoo
+
     @classmethod
     def filesystem(cls) -> str:
         return "btrfs"
@@ -373,11 +366,12 @@ class GentooInstaller(DistributionInstaller):
 
     @classmethod
     def install(cls, state: MkosiState) -> None:
-        Gentoo(state)
+        cls.gentoo = Gentoo(state)
 
     @classmethod
     def install_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
-        invoke_emerge(state, opts=["--noreplace"], pkgs=packages)
+        invoke_emerge(state, opts=["--noreplace"],
+                      sysroot=cls.gentoo.stage3_cache, pkgs=packages)
 
     @staticmethod
     def architecture(arch: Architecture) -> str:
