@@ -30,7 +30,7 @@ def invoke_emerge(
     opts: Sequence[str] = (),
     env: dict[str, str] = {},
 ) -> None:
-    jobs = os.cpu_count() or 1
+    thread_counts = (os.cpu_count() or 1) * 2  # * 2 for hyperthreading
     bwrap: list[PathString] = []
     if sysroot is not None:
         target_root_mntp = "/tmp/mkosi-root"
@@ -44,8 +44,8 @@ def invoke_emerge(
         "--buildpkg=y",
         "--usepkg=y",
         "--keep-going=y",
-        f"--jobs={jobs}",
-        f"--load-average={jobs+1}",
+        f"--jobs={thread_counts}",
+        f"--load-average={thread_counts+1}",
         "--nospinner",
         *([f"--root={root}"] if root else []),
     ]
