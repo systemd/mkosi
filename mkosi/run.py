@@ -420,13 +420,14 @@ class MkosiAsyncioThread(threading.Thread):
     The default threading.Thread() is not interruptable, so we make our own version by using the concurrency
     feature in python that is interruptable, namely asyncio.
 
-    Additionally, we store the result of the coroutine in the result variable so it can be accessed easily
-    after the thread finishes.
+    Additionally, we store any exception that the coroutine raises and re-raise it in join() if no other
+    exception was raised before.
     """
 
     def __init__(self, target: Awaitable[Any], *args: Any, **kwargs: Any) -> None:
         self.target = target
         self.loop: queue.SimpleQueue[asyncio.AbstractEventLoop] = queue.SimpleQueue()
+        self.exc: queue.SimpleQueue[BaseException] = queue.SimpleQueue()
         super().__init__(*args, **kwargs)
 
     def run(self) -> None:
@@ -434,7 +435,12 @@ class MkosiAsyncioThread(threading.Thread):
             self.loop.put(asyncio.get_running_loop())
             await self.target
 
-        asyncio.run(wrapper())
+        try:
+            asyncio.run(wrapper())
+        except asyncio.CancelledError:
+            pass
+        except BaseException as e:
+            self.exc.put(e)
 
     def cancel(self) -> None:
         loop = self.loop.get()
@@ -454,3 +460,9 @@ class MkosiAsyncioThread(threading.Thread):
     ) -> None:
         self.cancel()
         self.join()
+
+        if type is None:
+            try:
+                raise self.exc.get_nowait()
+            except queue.Empty:
+                pass
