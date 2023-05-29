@@ -6,7 +6,9 @@ from collections.abc import Sequence
 from pathlib import Path
 from textwrap import dedent
 
+from mkosi.architecture import Architecture
 from mkosi.distributions import DistributionInstaller
+from mkosi.log import die
 from mkosi.run import bwrap, run
 from mkosi.state import MkosiState
 from mkosi.types import CompletedProcess, PathString
@@ -18,7 +20,7 @@ class DebianInstaller(DistributionInstaller):
         return "ext4"
 
     @staticmethod
-    def kernel_image(name: str, architecture: str) -> Path:
+    def kernel_image(name: str, architecture: Architecture) -> Path:
         return Path(f"boot/vmlinuz-{name}")
 
     @staticmethod
@@ -68,7 +70,7 @@ class DebianInstaller(DistributionInstaller):
             "sparc"       : ["lib64"],
             "sparc64"     : ["lib32", "lib64"],
             "x32"         : ["lib32", "lib64", "libx32"],
-        }.get(DEBIAN_ARCHITECTURES[state.config.architecture], [])
+        }.get(state.installer.architecture(state.config.architecture), [])
 
         state.root.joinpath("usr").mkdir(mode=0o755, exist_ok=True)
         for d in subdirs:
@@ -130,24 +132,30 @@ class DebianInstaller(DistributionInstaller):
     def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
         invoke_apt(state, "purge", packages)
 
+    @staticmethod
+    def architecture(arch: Architecture) -> str:
+        a = {
+            Architecture.arm64       : "arm64",
+            Architecture.arm         : "armhf",
+            Architecture.alpha       : "alpha",
+            Architecture.x86_64      : "amd64",
+            Architecture.x86         : "i386",
+            Architecture.ia64        : "ia64",
+            Architecture.loongarch64 : "loongarch64",
+            Architecture.mips64_le   : "mips64el",
+            Architecture.mips_le     : "mipsel",
+            Architecture.parisc      : "hppa",
+            Architecture.ppc64_le    : "ppc64el",
+            Architecture.ppc64       : "ppc64",
+            Architecture.riscv64     : "riscv64",
+            Architecture.s390x       : "s390x",
+            Architecture.s390        : "s390",
+        }.get(arch)
 
-# Debian calls their architectures differently, so when calling apt we will have to map to their names.
-# uname -m -> dpkg --print-architecture
-DEBIAN_ARCHITECTURES = {
-    "aarch64": "arm64",
-    "armhfp": "armhf",
-    "armv7l": "armhf",
-    "ia64": "ia64",
-    "mips64": "mipsel",
-    "m68k": "m68k",
-    "parisc64": "hppa",
-    "ppc64": "ppc64",
-    "ppc64le": "ppc64el",
-    "riscv64:": "riscv64",
-    "s390x": "s390x",
-    "x86": "i386",
-    "x86_64": "amd64",
-}
+        if not a:
+            die(f"Architecture {arch} is not supported by Debian")
+
+        return a
 
 
 def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
@@ -164,7 +172,7 @@ def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
     state.root.joinpath("var/lib/dpkg/status").touch()
 
     config = state.workspace / "apt/apt.conf"
-    debarch = DEBIAN_ARCHITECTURES[state.config.architecture]
+    debarch = state.installer.architecture(state.config.architecture)
 
     config.write_text(
         dedent(

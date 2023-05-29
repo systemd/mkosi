@@ -4,6 +4,7 @@ import urllib.request
 import xml.etree.ElementTree as ElementTree
 from collections.abc import Sequence
 
+from mkosi.architecture import Architecture
 from mkosi.distributions import DistributionInstaller
 from mkosi.distributions.fedora import Repo, invoke_dnf, setup_dnf
 from mkosi.log import die
@@ -50,6 +51,17 @@ class OpensuseInstaller(DistributionInstaller):
     @classmethod
     def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
         invoke_dnf(state, "remove", packages)
+
+    @staticmethod
+    def architecture(arch: Architecture) -> str:
+        a = {
+            Architecture.x86_64 : "x86_64",
+        }.get(arch)
+
+        if not a:
+            die(f"Architecture {a} is not supported by OpenSUSE")
+
+        return a
 
 
 def fetch_gpgurls(repourl: str) -> list[str]:

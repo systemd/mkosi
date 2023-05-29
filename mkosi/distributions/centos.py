@@ -5,6 +5,7 @@ import shutil
 from collections.abc import Sequence
 from pathlib import Path
 
+from mkosi.architecture import Architecture
 from mkosi.config import MkosiConfig
 from mkosi.distributions import DistributionInstaller
 from mkosi.distributions.fedora import Repo, invoke_dnf, setup_dnf
@@ -108,6 +109,20 @@ class CentosInstaller(DistributionInstaller):
     @classmethod
     def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
         invoke_dnf(state, "remove", packages)
+
+    @staticmethod
+    def architecture(arch: Architecture) -> str:
+        a = {
+            Architecture.x86_64   : "x86_64",
+            Architecture.ppc64_le : "ppc64le",
+            Architecture.s390x    : "s390x",
+            Architecture.arm64    : "aarch64",
+        }.get(arch)
+
+        if not a:
+            die(f"Architecture {a} is not supported by CentOS")
+
+        return a
 
     @staticmethod
     def _gpgurl(release: int) -> str:

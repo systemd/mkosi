@@ -10,7 +10,9 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Any, NamedTuple
 
+from mkosi.architecture import Architecture
 from mkosi.distributions import DistributionInstaller
+from mkosi.log import die
 from mkosi.remove import unlink_try_hard
 from mkosi.run import bwrap
 from mkosi.state import MkosiState
@@ -35,7 +37,7 @@ class FedoraInstaller(DistributionInstaller):
             updates_url = None
         elif state.config.mirror:
             baseurl = urllib.parse.urljoin(state.config.mirror, f"releases/{release}/Everything/$basearch/os/")
-            media = urllib.parse.urljoin(baseurl.replace("$basearch", state.config.architecture), "media.repo")
+            media = urllib.parse.urljoin(baseurl.replace("$basearch", state.installer.architecture(state.config.architecture)), "media.repo")
             if not url_exists(media):
                 baseurl = urllib.parse.urljoin(state.config.mirror, f"development/{release}/Everything/$basearch/os/")
 
@@ -65,6 +67,25 @@ class FedoraInstaller(DistributionInstaller):
     @classmethod
     def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
         invoke_dnf(state, "remove", packages)
+
+    @staticmethod
+    def architecture(arch: Architecture) -> str:
+        a = {
+            Architecture.arm64     : "aarch64",
+            Architecture.ia64      : "ia64",
+            Architecture.mips64_le : "mips64el",
+            Architecture.mips_le   : "mipsel",
+            Architecture.parisc    : "parisc64",
+            Architecture.ppc64_le  : "ppc64le",
+            Architecture.riscv64   : "riscv64",
+            Architecture.s390x     : "s390x",
+            Architecture.x86_64    : "x86_64",
+        }.get(arch)
+
+        if not a:
+            die(f"Architecture {a} is not supported by Fedora")
+
+        return a
 
 
 def parse_fedora_release(release: str) -> str:
@@ -178,8 +199,8 @@ def invoke_dnf(
     if state.config.cache_only and not state.config.local_mirror:
         cmdline += ["-C"]
 
-    if not state.config.architecture_is_native():
-        cmdline += [f"--forcearch={state.config.architecture}"]
+    if not state.config.architecture.is_native():
+        cmdline += [f"--forcearch={state.installer.architecture(state.config.architecture)}"]
 
     if not state.config.with_docs:
         cmdline += ["--no-docs" if dnf.endswith("dnf5") else "--nodocs"]

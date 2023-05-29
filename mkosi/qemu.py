@@ -14,6 +14,7 @@ import tempfile
 from pathlib import Path
 from typing import Iterator, Optional
 
+from mkosi.architecture import Architecture
 from mkosi.config import ConfigFeature, MkosiArgs, MkosiConfig
 from mkosi.install import copy_path
 from mkosi.log import die
@@ -35,7 +36,7 @@ def machine_cid(config: MkosiConfig) -> int:
 
 
 def find_qemu_binary(config: MkosiConfig) -> str:
-    binaries = ["qemu", "qemu-kvm", f"qemu-system-{config.architecture}"]
+    binaries = ["qemu", "qemu-kvm", f"qemu-system-{config.architecture.to_qemu()}"]
     for binary in binaries:
         if shutil.which(binary) is not None:
             return binary
@@ -45,8 +46,8 @@ def find_qemu_binary(config: MkosiConfig) -> str:
 
 def find_qemu_firmware(config: MkosiConfig) -> tuple[Path, bool]:
     FIRMWARE_LOCATIONS = {
-        "x86_64": ["/usr/share/ovmf/x64/OVMF_CODE.secboot.fd"],
-        "i386": [
+        Architecture.x86_64: ["/usr/share/ovmf/x64/OVMF_CODE.secboot.fd"],
+        Architecture.x86: [
             "/usr/share/edk2/ovmf-ia32/OVMF_CODE.secboot.fd",
             "/usr/share/OVMF/OVMF32_CODE_4M.secboot.fd"
         ],
@@ -57,14 +58,14 @@ def find_qemu_firmware(config: MkosiConfig) -> tuple[Path, bool]:
             return Path(firmware), True
 
     FIRMWARE_LOCATIONS = {
-        "x86_64": [
+        Architecture.x86_64: [
             "/usr/share/ovmf/ovmf_code_x64.bin",
             "/usr/share/ovmf/x64/OVMF_CODE.fd",
             "/usr/share/qemu/ovmf-x86_64.bin",
         ],
-        "i386": ["/usr/share/ovmf/ovmf_code_ia32.bin", "/usr/share/edk2/ovmf-ia32/OVMF_CODE.fd"],
-        "aarch64": ["/usr/share/AAVMF/AAVMF_CODE.fd"],
-        "armhfp": ["/usr/share/AAVMF/AAVMF32_CODE.fd"],
+        Architecture.x86: ["/usr/share/ovmf/ovmf_code_ia32.bin", "/usr/share/edk2/ovmf-ia32/OVMF_CODE.fd"],
+        Architecture.arm64: ["/usr/share/AAVMF/AAVMF_CODE.fd"],
+        Architecture.arm: ["/usr/share/AAVMF/AAVMF32_CODE.fd"],
     }.get(config.architecture, [])
 
     for firmware in FIRMWARE_LOCATIONS:
@@ -107,16 +108,16 @@ def find_qemu_firmware(config: MkosiConfig) -> tuple[Path, bool]:
 def find_ovmf_vars(config: MkosiConfig) -> Path:
     OVMF_VARS_LOCATIONS = []
 
-    if config.architecture == "x86_64":
+    if config.architecture == Architecture.x86_64:
         OVMF_VARS_LOCATIONS += ["/usr/share/ovmf/x64/OVMF_VARS.fd"]
-    elif config.architecture == "i386":
+    elif config.architecture == Architecture.x86:
         OVMF_VARS_LOCATIONS += [
             "/usr/share/edk2/ovmf-ia32/OVMF_VARS.fd",
             "/usr/share/OVMF/OVMF32_VARS_4M.fd",
         ]
-    elif config.architecture == "armhfp":
+    elif config.architecture == Architecture.arm:
         OVMF_VARS_LOCATIONS += ["/usr/share/AAVMF/AAVMF32_VARS.fd"]
-    elif config.architecture == "aarch64":
+    elif config.architecture == Architecture.arm64:
         OVMF_VARS_LOCATIONS += ["/usr/share/AAVMF/AAVMF_VARS.fd"]
 
     OVMF_VARS_LOCATIONS += ["/usr/share/edk2/ovmf/OVMF_VARS.fd",
@@ -199,7 +200,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
     firmware, fw_supports_sb = find_qemu_firmware(config)
     smm = "on" if fw_supports_sb else "off"
 
-    if config.architecture == "aarch64":
+    if config.architecture == Architecture.arm64:
         machine = f"type=virt,accel={accel}"
     else:
         machine = f"type=q35,accel={accel},smm={smm}"
@@ -292,9 +293,9 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
             cmdline += ["-chardev", f"socket,id=chrtpm,path={swtpm_socket}",
                         "-tpmdev", "emulator,id=tpm0,chardev=chrtpm"]
 
-            if config.architecture == "x86_64":
+            if config.architecture == Architecture.x86_64:
                 cmdline += ["-device", "tpm-tis,tpmdev=tpm0"]
-            elif config.architecture == "aarch64":
+            elif config.architecture == Architecture.arm64:
                 cmdline += ["-device", "tpm-tis-device,tpmdev=tpm0"]
 
         if use_vsock:
