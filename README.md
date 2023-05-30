@@ -25,11 +25,10 @@ python3 -m pip install --user git+https://github.com/systemd/mkosi.git
 If you want to hack on mkosi do
 ```shell
 # clone either this repository or your fork of it
-git clone https://github.com/systemd/mkosi/
-cd mkosi
-python3 -m pip install --user --no-use-pep517 --editable .
+git clone https://github.com/systemd/mkosi/ <PROJECT_PATH>
+[sudo|pkexec] <PROJECT_PATH>/bin/mkosi
 ```
-This will install mkosi in editable mode to `~/.local/bin/mkosi`, allowing you
+This will run mkosi as present in the module source, allowing you
 to use your own changes right away.
 
 For development you also need [mypy](https://github.com/python/mypy), for type
