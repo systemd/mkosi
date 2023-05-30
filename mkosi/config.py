@@ -20,6 +20,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, Callable, Optional, Type, Union, cast
 
+from mkosi.architecture import Architecture
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, Style, die
 from mkosi.pager import page
 from mkosi.run import run
@@ -218,7 +219,7 @@ def config_default_mirror(namespace: argparse.Namespace) -> Optional[str]:
     if "distribution" not in namespace:
         setattr(namespace, "distribution", detect_distribution()[0])
     if "architecture" not in namespace:
-        setattr(namespace, "architecture", platform.machine())
+        setattr(namespace, "architecture", Architecture.native())
 
     d = getattr(namespace, "distribution")
     a = getattr(namespace, "architecture")
@@ -226,12 +227,12 @@ def config_default_mirror(namespace: argparse.Namespace) -> Optional[str]:
     if d == Distribution.debian:
         return "http://deb.debian.org/debian"
     elif d == Distribution.ubuntu:
-        if a == "x86" or a == "x86_64":
+        if a == Architecture.x86 or a == Architecture.x86_64:
             return "http://archive.ubuntu.com/ubuntu"
         else:
             return "http://ports.ubuntu.com"
     elif d == Distribution.arch:
-        if a == "aarch64":
+        if a == Architecture.arm64:
             return "http://mirror.archlinuxarm.org"
         else:
             return "https://geo.mirror.pkgbuild.com"
@@ -244,9 +245,9 @@ def config_default_mirror(namespace: argparse.Namespace) -> Optional[str]:
 def make_enum_parser(type: Type[enum.Enum]) -> Callable[[str], enum.Enum]:
     def parse_enum(value: str) -> enum.Enum:
         try:
-            return type[value]
-        except KeyError:
-            die(f"Invalid {type.__name__} value \"{value}\"")
+            return type(value)
+        except ValueError:
+            die(f"'{value}' is not a valid {type.__name__}")
 
     return parse_enum
 
@@ -594,7 +595,7 @@ class MkosiConfig:
     repo_dirs: list[Path]
     repart_dirs: list[Path]
     overlay: bool
-    architecture: str
+    architecture: Architecture
     output_format: OutputFormat
     manifest_format: list[ManifestFormat]
     output: str
@@ -681,9 +682,6 @@ class MkosiConfig:
             k: v for k, v in vars(ns).items()
             if k in inspect.signature(cls).parameters
         })
-
-    def architecture_is_native(self) -> bool:
-        return self.architecture == platform.machine()
 
     @property
     def output_with_version(self) -> str:
@@ -775,7 +773,8 @@ class MkosiConfigParser:
         MkosiConfigSetting(
             dest="architecture",
             section="Distribution",
-            default=platform.machine(),
+            parse=config_make_enum_parser(Architecture),
+            default=Architecture.native(),
         ),
         MkosiConfigSetting(
             dest="mirror",

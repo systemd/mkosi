@@ -9,20 +9,13 @@ from collections.abc import Sequence
 from pathlib import Path
 from textwrap import dedent
 
+from mkosi.architecture import Architecture
 from mkosi.distributions import DistributionInstaller
 from mkosi.install import copy_path, flock
 from mkosi.log import ARG_DEBUG, complete_step, die, log_step
 from mkosi.remove import unlink_try_hard
 from mkosi.run import run, run_workspace_command
 from mkosi.state import MkosiState
-
-ARCHITECTURES = {
-    "x86_64": ("amd64", "arch/x86/boot/bzImage"),
-    # TODO:
-    "aarch64": ("arm64", "arch/arm64/boot/Image.gz"),
-    # TODO:
-    "armv7l": ("arm", "arch/arm/boot/zImage"),
-}
 
 
 def invoke_emerge(
@@ -172,7 +165,7 @@ class Gentoo:
 
         self.portage_cfg_dir.mkdir(parents=True, exist_ok=True)
 
-        self.arch, _ = ARCHITECTURES[state.config.architecture or "x86_64"]
+        self.arch, _ = state.installer.architecture(state.config.architecture)
         self.arch_profile = Path(f"default/linux/{self.arch}/{state.config.release}/no-multilib/systemd/merged-usr")
         self.pkgs['sys'] = ["@world"]
 
@@ -321,8 +314,13 @@ class GentooInstaller(DistributionInstaller):
         return "ext4"
 
     @staticmethod
-    def kernel_image(name: str, architecture: str) -> Path:
-        _, kimg_path = ARCHITECTURES[architecture]
+    def kernel_image(name: str, architecture: Architecture) -> Path:
+        kimg_path = {
+            Architecture.x86_64: "arch/x86/boot/bzImage",
+            Architecture.arm64: "arch/arm64/boot/Image.gz",
+            Architecture.arm: "arch/arm/boot/zImage",
+        }[architecture]
+
         return Path(f"usr/src/linux-{name}") / kimg_path
 
     @classmethod
@@ -332,3 +330,16 @@ class GentooInstaller(DistributionInstaller):
     @classmethod
     def install_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
         invoke_emerge(state, packages)
+
+    @staticmethod
+    def architecture(arch: Architecture) -> str:
+        a = {
+            Architecture.x86_64 : "amd64",
+            Architecture.arm64  : "arm64",
+            Architecture.arm    : "arm",
+        }.get(arch)
+
+        if not a:
+            die(f"Architecture {a} is not supported by Gentoo")
+
+        return a

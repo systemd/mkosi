@@ -59,16 +59,6 @@ MKOSI_COMMANDS_SUDO = (Verb.shell, Verb.boot)
 T = TypeVar("T")
 
 
-# EFI has its own conventions too
-EFI_ARCHITECTURES = {
-    "x86_64": "x64",
-    "x86": "ia32",
-    "aarch64": "aa64",
-    "armhfp": "arm",
-    "riscv64:": "riscv64",
-}
-
-
 def format_bytes(num_bytes: int) -> str:
     if num_bytes >= 1024 * 1024 * 1024:
         return f"{num_bytes/1024**3 :0.1f}G"
@@ -833,7 +823,7 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                 "--directory", "",
                 "--distribution", str(state.config.distribution),
                 "--release", state.config.release,
-                "--architecture", state.config.architecture,
+                "--architecture", str(state.config.architecture),
                 *(["--mirror", state.config.mirror] if state.config.mirror else []),
                 "--repository-key-check", yes_no(state.config.repository_key_check),
                 "--repositories", ",".join(state.config.repositories),
@@ -906,7 +896,7 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
             # nul terminators in argv so let's communicate the cmdline via a file instead.
             state.workspace.joinpath("cmdline").write_text(f"{' '.join(cmdline).strip()}\x00")
 
-            stub = state.root / f"usr/lib/systemd/boot/efi/linux{EFI_ARCHITECTURES[state.config.architecture]}.efi.stub"
+            stub = state.root / f"usr/lib/systemd/boot/efi/linux{state.config.architecture.to_efi()}.efi.stub"
             if not stub.exists():
                 die(f"sd-stub not found at /{stub.relative_to(state.root)} in the image")
 
@@ -916,7 +906,7 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                 "--os-release", f"@{state.root / 'usr/lib/os-release'}",
                 "--stub", stub,
                 "--output", boot_binary,
-                "--efi-arch", EFI_ARCHITECTURES[state.config.architecture],
+                "--efi-arch", state.config.architecture.to_efi(),
             ]
 
             for p in state.config.extra_search_paths:
@@ -1652,7 +1642,7 @@ def invoke_repart(state: MkosiState, skip: Sequence[str] = [], split: bool = Fal
                 dedent(
                     f"""\
                     [Partition]
-                    Type=root
+                    Type=root-{state.config.architecture}
                     Format={state.installer.filesystem()}
                     CopyFiles=/
                     Minimize=guess

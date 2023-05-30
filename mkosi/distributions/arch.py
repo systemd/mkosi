@@ -3,8 +3,10 @@
 from collections.abc import Sequence
 from textwrap import dedent
 
+from mkosi.architecture import Architecture
 from mkosi.config import ConfigFeature
 from mkosi.distributions import DistributionInstaller
+from mkosi.log import die
 from mkosi.run import bwrap
 from mkosi.state import MkosiState
 from mkosi.types import PathString
@@ -27,7 +29,7 @@ class ArchInstaller(DistributionInstaller):
         if state.config.local_mirror:
             server = f"Server = {state.config.local_mirror}"
         else:
-            if state.config.architecture == "aarch64":
+            if state.config.architecture == Architecture.arm64:
                 server = f"Server = {state.config.mirror}/$arch/$repo"
             else:
                 server = f"Server = {state.config.mirror}/$repo/os/$arch"
@@ -54,7 +56,7 @@ class ArchInstaller(DistributionInstaller):
                     GPGDir = /etc/pacman.d/gnupg/
                     HookDir = {state.root}/etc/pacman.d/hooks/
                     HoldPkg = pacman glibc
-                    Architecture = {state.config.architecture}
+                    Architecture = {state.installer.architecture(state.config.architecture)}
                     Color
                     CheckSpace
                     SigLevel = {sig_level}
@@ -84,6 +86,18 @@ class ArchInstaller(DistributionInstaller):
                 f.write(f"Include = {d}/*\n")
 
         return invoke_pacman(state, packages, apivfs=apivfs)
+
+    @staticmethod
+    def architecture(arch: Architecture) -> str:
+        a = {
+            Architecture.x86_64 : "x86_64",
+            Architecture.arm64  : "aarch64",
+        }.get(arch)
+
+        if not a:
+            die(f"Architecture {a} is not supported by Arch Linux")
+
+        return a
 
 
 def invoke_pacman(state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:

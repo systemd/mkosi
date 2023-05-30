@@ -255,8 +255,8 @@ class Manifest:
     def as_dict(self) -> dict[str, Any]:
         config = {
             "name": self.config.image_id or "image",
-            "distribution": self.config.distribution.name,
-            "architecture": self.config.architecture,
+            "distribution": str(self.config.distribution),
+            "architecture": str(self.config.architecture),
         }
         if self.config.image_version is not None:
             config["version"] = self.config.image_version
