@@ -33,6 +33,7 @@ def invoke_emerge(
     thread_counts = (os.cpu_count() or 1) * 2  # * 2 for hyperthreading
     bwrap: list[PathString] = []
     if sysroot is not None:
+        # This is the mount-point inside our sysroot where we mount root
         target_root_mntp = "/tmp/mkosi-root"
         bwrap += ["--bind", state.root, target_root_mntp]
         root = Path(target_root_mntp)
