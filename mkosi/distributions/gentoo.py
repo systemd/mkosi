@@ -8,7 +8,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from textwrap import dedent
-from typing import List, Optional
+from typing import Optional
 
 from mkosi.architecture import Architecture
 from mkosi.distributions import DistributionInstaller
@@ -76,10 +76,10 @@ class GentooConstants:
 
 @dataclass
 class GentooAtoms:
-    stage2: List[str]
-    bare_minimal: List[str]
-    boot: List[str]
-    system: List[str]
+    stage2: list[str]
+    bare_minimal: list[str]
+    boot: list[str]
+    system: list[str]
 
 
 class Gentoo:
