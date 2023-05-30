@@ -159,7 +159,9 @@ def invoke_dnf(
     state.workspace.joinpath("log").mkdir(exist_ok=True)
     state.workspace.joinpath("persist").mkdir(exist_ok=True)
 
-    dnf = shutil.which("dnf5") or shutil.which("dnf") or "yum"
+    # dnf5 does not support building for foreign architectures yet (missing --forcearch)
+    dnf = shutil.which("dnf5") if state.config.architecture.is_native() else None
+    dnf = dnf or shutil.which("dnf") or "yum"
 
     cmdline = [
         dnf,
