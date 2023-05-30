@@ -1595,6 +1595,8 @@ def invoke_repart(state: MkosiState, skip: Sequence[str] = [], split: bool = Fal
         state.staging / state.config.output_with_format,
     ]
 
+    if not state.config.architecture.is_native():
+        cmdline += ["--architecture", str(state.config.architecture)]
     if not state.staging.joinpath(state.config.output_with_format).exists():
         cmdline += ["--empty=create"]
     if state.config.passphrase:
@@ -1642,7 +1644,7 @@ def invoke_repart(state: MkosiState, skip: Sequence[str] = [], split: bool = Fal
                 dedent(
                     f"""\
                     [Partition]
-                    Type=root-{state.config.architecture}
+                    Type=root
                     Format={state.installer.filesystem()}
                     CopyFiles=/
                     Minimize=guess
