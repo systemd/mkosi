@@ -150,7 +150,7 @@ class Gentoo:
         self.config = self.state.config
         self.root = self.state.root
 
-        self.arch, _ = state.installer.architecture(state.config.architecture)
+        self.arch = state.installer.architecture(state.config.architecture)
         self.arch_profile = Path(f"default/linux/{self.arch}/{state.config.release}/no-multilib/systemd/merged-usr")
         self.get_current_stage3()
 
