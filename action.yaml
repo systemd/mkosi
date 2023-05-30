@@ -57,10 +57,18 @@ runs:
       echo "deb-src http://archive.ubuntu.com/ubuntu/ $(lsb_release -cs) main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
       sudo apt-get update
       sudo apt-get build-dep systemd
-      sudo apt-get install libfdisk-dev
+      sudo apt-get install --assume-yes --no-install-recommends libfdisk-dev libtss2-dev
 
       git clone https://github.com/systemd/systemd --depth=1
-      meson setup systemd/build systemd -Drepart=true -Defi=true -Dbootloader=true -Dukify=true -Dfirstboot=true
+      meson setup systemd/build systemd \
+        -D repart=true \
+        -D efi=true \
+        -D bootloader=true \
+        -D ukify=true \
+        -D firstboot=true \
+        -D blkid=true \
+        -D openssl=true \
+        -D tpm2=true
 
       BINARIES=(
         bootctl
@@ -68,6 +76,7 @@ runs:
         systemd-analyze
         systemd-dissect
         systemd-firstboot
+        systemd-measure
         systemd-nspawn
         systemd-repart
         ukify
