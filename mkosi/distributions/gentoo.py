@@ -174,6 +174,8 @@ class Gentoo:
     def get_current_stage3(self) -> None:
         """usrmerge tracker bug: https://bugs.gentoo.org/690294"""
 
+        if self.config.mirror:
+            self.portage_consts.gentoo_mirrors = self.config.mirror
         # http://distfiles.gentoo.org/releases/amd64/autobuilds/latest-stage3.txt
         stage3tsf_path_url = urllib.parse.urljoin(
             self.portage_consts.gentoo_mirrors.partition(" ")[0],
