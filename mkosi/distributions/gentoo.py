@@ -68,10 +68,9 @@ def invoke_emerge(
 @dataclass
 class GentooConstants:
     gentoo_mirrors: str
-    portdir: Path
-    binrepos_conf_file: Path
-    ebuild_sh_env_dir: Path
-    user_config_path: Path
+    BINREPOS_CONF_FILE: Path
+    EBUILD_SH_ENV_DIR: Path
+    USER_CONFIG_PATH: Path
 
 
 @dataclass
@@ -106,10 +105,9 @@ class Gentoo:
     )
     portage_consts: GentooConstants = GentooConstants(
         gentoo_mirrors="http://distfiles.gentoo.org",
-        portdir=Path("/var/db/repos/gentoo"),
-        binrepos_conf_file=Path("etc/portage/binrepos.conf"),
-        ebuild_sh_env_dir=Path("etc/portage/env"),
-        user_config_path=Path("etc/portage")
+        BINREPOS_CONF_FILE=Path("etc/portage/binrepos.conf"),
+        EBUILD_SH_ENV_DIR=Path("etc/portage/env"),
+        USER_CONFIG_PATH=Path("etc/portage")
     )
 
     EMERGE_UPDATE_OPTS = [
@@ -155,7 +153,7 @@ class Gentoo:
         self.arch_profile = Path(f"default/linux/{self.arch}/{state.config.release}/no-multilib/systemd/merged-usr")
         self.get_current_stage3()
 
-        self.user_config_path = self.stage3_cache / self.portage_consts.user_config_path
+        self.user_config_path = self.stage3_cache / self.portage_consts.USER_CONFIG_PATH
 
         self.emerge_vars = {
             "FEATURES": " ".join(self.portage_features),
@@ -273,7 +271,7 @@ class Gentoo:
     def mkosi_conf(self) -> None:
         package_env = self.user_config_path / "package.env"
         package_env.mkdir(exist_ok=True)
-        ebuild_sh_env_dir = self.stage3_cache / self.portage_consts.ebuild_sh_env_dir
+        ebuild_sh_env_dir = self.stage3_cache / self.portage_consts.EBUILD_SH_ENV_DIR
         ebuild_sh_env_dir.mkdir(exist_ok=True)
 
         # apply whatever we put in mkosi_conf to runs invocation of emerge
@@ -294,7 +292,7 @@ class Gentoo:
             )
         )
 
-        repos_cfg = self.stage3_cache / self.portage_consts.binrepos_conf_file
+        repos_cfg = self.stage3_cache / self.portage_consts.BINREPOS_CONF_FILE
         with repos_cfg.open(mode='a') as f:
             for repo in self.config.repositories:
                 f.write(
