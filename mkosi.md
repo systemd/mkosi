@@ -1018,6 +1018,12 @@ a boolean argument: either "1", "yes", or "true" to enable, or "0",
 : When used with the `qemu` verb, this option specifies whether QEMU should be configured with a vsock. Takes
   a boolean value or `auto`. Defaults to `auto`.
 
+`QemuSwtpm=`, `--qemu-swtpm=`
+
+: When used with the `qemu` verb, this option specified whether to start an instance of swtpm to be used as a
+  TPM with qemu. This requires swtpm to be installed on the host. Takes a boolean value or `auto`. Defaults
+  to `auto`.
+
 `QemuArgs=`
 
 : Space-delimited list of additional arguments to pass when invoking
