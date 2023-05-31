@@ -165,7 +165,7 @@ def vsock_notify_handler() -> Iterator[tuple[str, dict[str, str]]]:
     dict should only be accessed after the context manager has been finalized.
     """
     with socket.socket(socket.AF_VSOCK, socket.SOCK_SEQPACKET) as vsock:
-        vsock.bind((socket.VMADDR_CID_ANY, -1))
+        vsock.bind((socket.VMADDR_CID_ANY, socket.VMADDR_PORT_ANY))
         vsock.listen()
         vsock.setblocking(False)
 
