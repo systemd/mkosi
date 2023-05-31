@@ -222,6 +222,7 @@ def config_default_mirror(namespace: argparse.Namespace) -> Optional[str]:
         setattr(namespace, "architecture", Architecture.native())
 
     d = getattr(namespace, "distribution")
+    r = getattr(namespace, "release", None)
     a = getattr(namespace, "architecture")
 
     if d == Distribution.debian:
@@ -238,6 +239,8 @@ def config_default_mirror(namespace: argparse.Namespace) -> Optional[str]:
             return "https://geo.mirror.pkgbuild.com"
     elif d == Distribution.opensuse:
         return "https://download.opensuse.org"
+    elif d == Distribution.fedora and r == "eln":
+        return "https://odcs.fedoraproject.org/composes/production/latest-Fedora-ELN/compose"
 
     return None
 
