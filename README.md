@@ -13,31 +13,50 @@ For a longer description and available features and options, see the
 
 # Installation
 
-Installing mkosi is easy, as it has no runtime Python dependencies (you will
-need all the tools to format filesystems and bootstrap the distribution
-appropriate for your image, though).
+You can install mkosi from your distribution with its package manager or the
+development version from git. The distribution packages are the preferred way to
+install mkosi.
 
-If you just want the main branch you can run
+The development version of mkosi might require tools from the systemd main
+branch, see the [`action.yaml`](action.yaml) for what we currently use in CI.
+
+## Alternative Installation methods
+
+If you just want to give the development version of mkosi a quick spin you can run
 ```shell
-python3 -m pip install --user git+https://github.com/systemd/mkosi.git
+pipx install git+https://github.com/systemd/mkosi.git
+```
+which will transparently install mkosi into a Python virtual environment and a mkosi
+binary to `~/.local/bin`. This is, up to the path of the virtual environment and
+the mkosi binary, equivalent to
+```shell
+python -m venv mkosivenv
+mkosivenv/bin/pip install git+https://github.com/systemd/mkosi.git
+# the mkosi binary is installed to mkosivenv/bin/mkosi
 ```
 
-If you want to hack on mkosi do
+If you want to help develop mkosi you can run it from your clone of this
+repository by calling the module
 ```shell
-# clone either this repository or your fork of it
-git clone https://github.com/systemd/mkosi/
-cd mkosi
-python3 -m pip install --user --no-use-pep517 --editable .
+python3 -m mkosi
 ```
-This will install mkosi in editable mode to `~/.local/bin/mkosi`, allowing you
-to use your own changes right away.
+when you are in the repository top level.
 
-For development you also need [mypy](https://github.com/python/mypy), for type
-checking, and [pytest](https://github.com/pytest-dev/pytest), to run tests.
+To use your local mkosi checkout without being in the top level of the
+repository you can either call the shim `bin/mkosi` or make an editable install
+into a virtual environment.
+
+The shim can be symlinked somewhere into your `PATH`. To make an editable
+install add `--editable` to either of the above examples using pip or pipx and
+exchange the URL of the repository for the path to your local checkout, e.g
+```shell
+pipx install --editable path/to/yout/local/checkout
+```
+
+For development you will also need [mypy](https://github.com/python/mypy), for
+type checking, and [pytest](https://github.com/pytest-dev/pytest), to run tests.
 We check tests and typing in CI (see `.github/workflows`), but you can run the
 tests locally as well.
-
-## zipapp
 
 You can also package mkosi as a
 [zipapp](https://docs.python.org/3/library/zipapp.html) that you can deploy
