@@ -135,27 +135,15 @@ def find_ovmf_vars(config: MkosiConfig) -> Path:
 
 @contextlib.contextmanager
 def start_swtpm() -> Iterator[Optional[Path]]:
-
-    if not shutil.which("swtpm"):
-        yield None
-        return
-
-    with tempfile.TemporaryDirectory() as swtpm_state:
-        swtpm_sock = Path(swtpm_state) / Path("sock")
-
-        cmd = ["swtpm",
-               "socket",
-               "--tpm2",
-               "--tpmstate", f"dir={swtpm_state}",
-               "--ctrl", f"type=unixio,path={swtpm_sock}",
-         ]
-
-        swtpm_proc = spawn(cmd)
+    with tempfile.TemporaryDirectory() as state:
+        sock = Path(state) / Path("sock")
+        proc = spawn(["swtpm", "socket", "--tpm2", "--tpmstate", f"dir={state}", "--ctrl", f"type=unixio,path={sock}"])
 
         try:
-            yield swtpm_sock
+            yield sock
         finally:
-            swtpm_proc.wait()
+            proc.terminate()
+            proc.wait()
 
 
 @contextlib.contextmanager
@@ -288,9 +276,9 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
                         "-device", "virtio-scsi-pci,id=scsi",
                         "-device", "scsi-hd,drive=hd,bootindex=1"]
 
-        swtpm_socket = stack.enter_context(start_swtpm())
-        if swtpm_socket is not None:
-            cmdline += ["-chardev", f"socket,id=chrtpm,path={swtpm_socket}",
+        if config.qemu_swtpm != ConfigFeature.disabled and shutil.which("swtpm") is not None:
+            sock = stack.enter_context(start_swtpm())
+            cmdline += ["-chardev", f"socket,id=chrtpm,path={sock}",
                         "-tpmdev", "emulator,id=tpm0,chardev=chrtpm"]
 
             if config.architecture == Architecture.x86_64:

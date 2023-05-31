@@ -670,6 +670,7 @@ class MkosiConfig:
     qemu_mem: str
     qemu_kvm: ConfigFeature
     qemu_vsock: ConfigFeature
+    qemu_swtpm: ConfigFeature
     qemu_args: Sequence[str]
 
     passphrase: Optional[Path]
@@ -1188,6 +1189,11 @@ class MkosiConfigParser:
         ),
         MkosiConfigSetting(
             dest="qemu_vsock",
+            section="Host",
+            parse=config_parse_feature,
+        ),
+        MkosiConfigSetting(
+            dest="qemu_swtpm",
             section="Host",
             parse=config_parse_feature,
         ),
@@ -1911,6 +1917,13 @@ class MkosiConfigParser:
             action=action,
         )
         group.add_argument(
+            "--qemu-swtpm",
+            metavar="FEATURE",
+            help="Configure whether to use qemu with swtpm or not",
+            nargs="?",
+            action=action,
+        )
+        group.add_argument(
             "--qemu-args",
             metavar="ARGS",
             # Suppress the command line option because it's already possible to pass qemu args as normal
@@ -2244,6 +2257,9 @@ def load_config(args: argparse.Namespace) -> MkosiConfig:
 
     if args.qemu_vsock == ConfigFeature.enabled and not qemu_check_vsock_support(log=False):
         die("Sorry, the host machine does not support vsock")
+
+    if args.qemu_swtpm == ConfigFeature.enabled and not shutil.which("swtpm"):
+        die("swtpm is requested but not found in PATH")
 
     if args.repositories and not (is_dnf_distribution(args.distribution) or is_apt_distribution(args.distribution)):
         die("Sorry, the --repositories option is only supported on DNF/Debian based distributions")
