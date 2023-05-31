@@ -36,20 +36,17 @@ class FedoraInstaller(DistributionInstaller):
             release_url = f"baseurl={state.config.local_mirror}"
             updates_url = None
         elif state.config.mirror:
-            baseurl = urllib.parse.urljoin(state.config.mirror, f"releases/{release}/Everything/$basearch/os/")
-            media = urllib.parse.urljoin(baseurl.replace("$basearch", state.installer.architecture(state.config.architecture)), "media.repo")
-            if not url_exists(media):
-                baseurl = urllib.parse.urljoin(state.config.mirror, f"development/{release}/Everything/$basearch/os/")
-
-            release_url = f"baseurl={baseurl}"
-            updates_url = f"baseurl={state.config.mirror}/updates/{release}/Everything/$basearch/"
+            directory = "development" if release == "rawhide" else "releases"
+            release_url = f"baseurl={state.config.mirror}/{directory}/$releasever/Everything/$basearch/os/"
+            updates_url = f"baseurl={state.config.mirror}/updates/$releasever/Everything/$basearch/"
         else:
             release_url = f"metalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-{release}&arch=$basearch"
             updates_url = (
                 "metalink=https://mirrors.fedoraproject.org/metalink?"
                 f"repo=updates-released-f{release}&arch=$basearch"
             )
-        if release == 'rawhide':
+
+        if release == "rawhide":
             # On rawhide, the "updates" repo is the same as the "fedora" repo.
             # In other versions, the "fedora" repo is frozen at release, and "updates" provides any new packages.
             updates_url = None
