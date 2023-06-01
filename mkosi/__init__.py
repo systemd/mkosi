@@ -47,6 +47,7 @@ from mkosi.util import (
     OutputFormat,
     Verb,
     flatten,
+    format_bytes,
     format_rlimit,
     is_apt_distribution,
     prepend_to_environ_path,
@@ -57,17 +58,6 @@ MKOSI_COMMANDS_SUDO = (Verb.shell, Verb.boot)
 
 
 T = TypeVar("T")
-
-
-def format_bytes(num_bytes: int) -> str:
-    if num_bytes >= 1024 * 1024 * 1024:
-        return f"{num_bytes/1024**3 :0.1f}G"
-    if num_bytes >= 1024 * 1024:
-        return f"{num_bytes/1024**2 :0.1f}M"
-    if num_bytes >= 1024:
-        return f"{num_bytes/1024 :0.1f}K"
-
-    return f"{num_bytes}B"
 
 
 @contextlib.contextmanager
