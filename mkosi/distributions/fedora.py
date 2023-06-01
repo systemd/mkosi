@@ -31,25 +31,28 @@ class FedoraInstaller(DistributionInstaller):
     @classmethod
     def install_packages(cls, state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
         release = parse_fedora_release(state.config.release)
+        release_url = updates_url = appstream_url = baseos_url = extras_url = crb_url = None
 
         if state.config.local_mirror:
             release_url = f"baseurl={state.config.local_mirror}"
-            updates_url = None
+        elif release == "eln":
+            assert state.config.mirror
+            appstream_url = f"baseurl={state.config.mirror}/AppStream/$basearch/os"
+            baseos_url = f"baseurl={state.config.mirror}/BaseOS/$basearch/os"
+            extras_url = f"baseurl={state.config.mirror}/Extras/$basearch/os"
+            crb_url = f"baseurl={state.config.mirror}/CRB/$basearch/os"
         elif state.config.mirror:
-            baseurl = urllib.parse.urljoin(state.config.mirror, f"releases/{release}/Everything/$basearch/os/")
-            media = urllib.parse.urljoin(baseurl.replace("$basearch", state.installer.architecture(state.config.architecture)), "media.repo")
-            if not url_exists(media):
-                baseurl = urllib.parse.urljoin(state.config.mirror, f"development/{release}/Everything/$basearch/os/")
-
-            release_url = f"baseurl={baseurl}"
-            updates_url = f"baseurl={state.config.mirror}/updates/{release}/Everything/$basearch/"
+            directory = "development" if release == "rawhide" else "releases"
+            release_url = f"baseurl={state.config.mirror}/{directory}/$releasever/Everything/$basearch/os/"
+            updates_url = f"baseurl={state.config.mirror}/updates/$releasever/Everything/$basearch/"
         else:
             release_url = f"metalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-{release}&arch=$basearch"
             updates_url = (
                 "metalink=https://mirrors.fedoraproject.org/metalink?"
                 f"repo=updates-released-f{release}&arch=$basearch"
             )
-        if release == 'rawhide':
+
+        if release == "rawhide":
             # On rawhide, the "updates" repo is the same as the "fedora" repo.
             # In other versions, the "fedora" repo is frozen at release, and "updates" provides any new packages.
             updates_url = None
@@ -57,9 +60,15 @@ class FedoraInstaller(DistributionInstaller):
         # See: https://fedoraproject.org/security/
         gpgurl = "https://fedoraproject.org/fedora.gpg"
 
-        repos = [Repo("fedora", release_url, [gpgurl])]
-        if updates_url is not None:
-            repos += [Repo("updates", updates_url, [gpgurl])]
+        repos = []
+        for name, url in (("fedora",    release_url),
+                          ("updates",   updates_url),
+                          ("appstream", appstream_url),
+                          ("baseos",    baseos_url),
+                          ("extras",    extras_url),
+                          ("crb",       crb_url)):
+            if url:
+                repos += [Repo(name, url, [gpgurl])]
 
         setup_dnf(state, repos)
         invoke_dnf(state, "install", packages, apivfs=apivfs)
@@ -98,9 +107,9 @@ def parse_fedora_release(release: str) -> str:
 
 
 def fedora_release_at_least(release: str, threshold: str) -> bool:
-    if release == 'rawhide':
+    if release in ("rawhide", "eln"):
         return True
-    if threshold == 'rawhide':
+    if threshold in ("rawhide", "eln"):
         return False
     # If neither is 'rawhide', both must be integers
     return int(release) >= int(threshold)
