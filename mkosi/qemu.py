@@ -244,7 +244,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
     with contextlib.ExitStack() as stack:
         if fw_supports_sb:
             ovmf_vars = stack.enter_context(tempfile.NamedTemporaryFile(prefix=".mkosi-", dir=tmp_dir()))
-            copy_path(find_ovmf_vars(config), Path(ovmf_vars.name))
+            copy_path(find_ovmf_vars(config), Path(ovmf_vars.name), dereference=True)
             cmdline += [
                 "-global", "ICH9-LPC.disable_s3=1",
                 "-global", "driver=cfi.pflash01,property=secure,value=on",
@@ -264,7 +264,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
             # CoW but later changes do not result in CoW anymore.
 
             run(["chattr", "+C", fname], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
-            copy_path(config.output_dir / config.output, fname)
+            copy_path(config.output_dir / config.output, fname, dereference=True)
         else:
             fname = config.output_dir / config.output
 
