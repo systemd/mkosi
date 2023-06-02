@@ -32,10 +32,6 @@ def color_error(text: Any) -> str:
     return f"{Style.red}{text}{Style.reset}"
 
 
-def color_warning(text: Any) -> str:
-    return f"{Style.yellow}{text}{Style.reset}"
-
-
 def log_step(text: str) -> None:
     prefix = " " * LEVEL
 

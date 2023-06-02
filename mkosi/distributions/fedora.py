@@ -3,8 +3,6 @@
 import logging
 import os
 import shutil
-import urllib.parse
-import urllib.request
 from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
 from textwrap import dedent
@@ -113,16 +111,6 @@ def fedora_release_at_least(release: str, threshold: str) -> bool:
         return False
     # If neither is 'rawhide', both must be integers
     return int(release) >= int(threshold)
-
-
-def url_exists(url: str) -> bool:
-    req = urllib.request.Request(url, method="HEAD")
-    try:
-        if urllib.request.urlopen(req):
-            return True
-    except Exception:
-        pass
-    return False
 
 
 class Repo(NamedTuple):
