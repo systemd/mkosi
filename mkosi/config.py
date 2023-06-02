@@ -2102,19 +2102,6 @@ class GenericVersion:
         return run(cmd, check=False).returncode == 0
 
 
-def strip_suffixes(path: Path) -> Path:
-    while path.suffix in {
-        ".xz",
-        ".zstd",
-        ".raw",
-        ".tar",
-        ".cpio",
-    }:
-        path = path.with_suffix("")
-
-    return path
-
-
 def find_image_version(args: argparse.Namespace) -> None:
     if args.image_version is not None:
         return
