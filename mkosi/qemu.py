@@ -23,6 +23,7 @@ from mkosi.types import PathString
 from mkosi.util import (
     Distribution,
     OutputFormat,
+    format_bytes,
     qemu_check_kvm_support,
     qemu_check_vsock_support,
     tmp_dir,
@@ -157,23 +158,32 @@ def vsock_notify_handler() -> Iterator[tuple[str, dict[str, str]]]:
         vsock.listen()
         vsock.setblocking(False)
 
+        num_messages = 0
+        num_bytes = 0
         messages = {}
 
         async def notify() -> None:
+            nonlocal num_messages
+            nonlocal num_bytes
             loop = asyncio.get_running_loop()
 
             while True:
                 s, _ = await loop.sock_accept(vsock)
 
+                num_messages += 1
+
                 for msg in (await loop.sock_recv(s, 4096)).decode().split("\n"):
                     if not msg:
                         continue
 
+                    num_bytes += len(msg)
                     k, _, v = msg.partition("=")
                     messages[k] = v
 
         with MkosiAsyncioThread(notify()):
             yield f"vsock:{socket.VMADDR_CID_HOST}:{vsock.getsockname()[1]}", messages
+
+        logging.debug(f"Received {num_messages} notify messages totalling {format_bytes(num_bytes)} bytes")
 
 
 def grow_image(image: Path, *, size: str) -> None:

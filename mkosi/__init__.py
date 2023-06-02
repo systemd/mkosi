@@ -19,7 +19,7 @@ import uuid
 from collections.abc import Iterator, Sequence
 from pathlib import Path
 from textwrap import dedent
-from typing import Callable, ContextManager, Optional, TextIO, TypeVar, Union, cast
+from typing import Callable, ContextManager, Optional, TextIO, Union, cast
 
 from mkosi.btrfs import btrfs_maybe_snapshot_subvolume
 from mkosi.config import (
@@ -47,6 +47,7 @@ from mkosi.util import (
     OutputFormat,
     Verb,
     flatten,
+    format_bytes,
     format_rlimit,
     is_apt_distribution,
     prepend_to_environ_path,
@@ -54,20 +55,6 @@ from mkosi.util import (
 
 MKOSI_COMMANDS_NEED_BUILD = (Verb.build, Verb.shell, Verb.boot, Verb.qemu, Verb.serve)
 MKOSI_COMMANDS_SUDO = (Verb.shell, Verb.boot)
-
-
-T = TypeVar("T")
-
-
-def format_bytes(num_bytes: int) -> str:
-    if num_bytes >= 1024 * 1024 * 1024:
-        return f"{num_bytes/1024**3 :0.1f}G"
-    if num_bytes >= 1024 * 1024:
-        return f"{num_bytes/1024**2 :0.1f}M"
-    if num_bytes >= 1024:
-        return f"{num_bytes/1024 :0.1f}K"
-
-    return f"{num_bytes}B"
 
 
 @contextlib.contextmanager
@@ -1223,16 +1210,16 @@ def yes_no_auto(f: ConfigFeature) -> str:
     return "auto" if f is ConfigFeature.auto else yes_no(f == ConfigFeature.enabled)
 
 
-def none_to_na(s: Optional[T]) -> Union[T, str]:
-    return "n/a" if s is None else s
+def none_to_na(s: Optional[object]) -> str:
+    return "n/a" if s is None else str(s)
 
 
-def none_to_none(s: Optional[T]) -> Union[T, str]:
-    return "none" if s is None else s
+def none_to_none(s: Optional[object]) -> str:
+    return "none" if s is None else str(s)
 
 
-def none_to_default(s: Optional[T]) -> Union[T, str]:
-    return "default" if s is None else s
+def none_to_default(s: Optional[object]) -> str:
+    return "default" if s is None else str(s)
 
 
 def path_or_none(
