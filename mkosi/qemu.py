@@ -305,5 +305,5 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
 
         run(cmdline, stdin=sys.stdin, stdout=sys.stdout, env=os.environ, log=False)
 
-    if "EXIT_STATUS" in notifications:
-        raise subprocess.CalledProcessError(int(notifications["EXIT_STATUS"]), cmdline)
+    if "EXIT_STATUS" in notifications and (status := int(notifications["EXIT_STATUS"])) != 0:
+        raise subprocess.CalledProcessError(status, cmdline)
