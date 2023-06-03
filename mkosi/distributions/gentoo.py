@@ -5,7 +5,6 @@ import re
 import urllib.parse
 import urllib.request
 from collections.abc import Sequence
-from dataclasses import dataclass
 from pathlib import Path
 from textwrap import dedent
 from typing import Optional
@@ -65,119 +64,39 @@ def invoke_emerge(
                           env=env)
 
 
-@dataclass
-class GentooConstants:
-    gentoo_mirrors: str
-    BINREPOS_CONF_FILE: Path
-    EBUILD_SH_ENV_DIR: Path
-    USER_CONFIG_PATH: Path
-
-
-@dataclass
-class GentooAtoms:
-    stage2: list[str]
-    bare_minimal: list[str]
-    boot: list[str]
-    system: list[str]
-
-
-class Gentoo:
-    arch_profile: Path
-    arch: str
-    emerge_vars: dict[str, str]
-    user_config_path: Path
-    root: Path
+class GentooInstaller(DistributionInstaller):
     stage3_cache: Path
-    stage3_tar_path: Path
-    pkgs: GentooAtoms = GentooAtoms(
-        stage2=[
-            "sys-apps/baselayout",
-            "sys-apps/util-linux",
-        ],
-        bare_minimal=[
-            "app-shells/bash",
-            "sys-apps/systemd",
-        ],
-        boot=[
-            "sys-kernel/gentoo-kernel-bin",
-        ],
-        system=["@system"]
-    )
-    portage_consts: GentooConstants = GentooConstants(
-        gentoo_mirrors="http://distfiles.gentoo.org",
-        BINREPOS_CONF_FILE=Path("etc/portage/binrepos.conf"),
-        EBUILD_SH_ENV_DIR=Path("etc/portage/env"),
-        USER_CONFIG_PATH=Path("etc/portage")
-    )
 
-    EMERGE_UPDATE_OPTS = [
-        "--update",
-        "--changed-use",
-        "--newuse",
-        "--deep",
-        "--with-bdeps=y",
-        "--complete-graph-if-new-use=y",
-        "--verbose-conflicts",
-    ]
+    @classmethod
+    def filesystem(cls) -> str:
+        return "btrfs"
 
-    portage_use_flags = [
-        "initramfs",
-        "symlink",  # for kernel
-    ]
+    @staticmethod
+    def kernel_image(name: str, architecture: Architecture) -> Path:
+        kimg_path = {
+            Architecture.x86_64: "arch/x86/boot/bzImage",
+            Architecture.arm64: "arch/arm64/boot/Image.gz",
+            Architecture.arm: "arch/arm/boot/zImage",
+        }[architecture]
 
-    # TODO: portage_features.add("ccache"), this shall expedite the builds
-    portage_features = [
-        # -user* are required for access to USER_CONFIG_PATH
-        "-userfetch",
-        "-userpriv",
-        "-usersync",
-        "-usersandbox",
-        "-sandbox",
-        "-pid-sandbox",  # for cross-compile scenarios
-        "-network-sandbox",
-        "parallel-install",
-        "getbinpkg",
-        "-candy",
-        "noman",
-        "nodoc",
-        "noinfo",
-    ]
+        return Path(f"usr/src/linux-{name}") / kimg_path
 
-    def __init__(self, state: MkosiState) -> None:
-        # TOCLEANUP: legacy namig, to be cleaned up
-        self.state = state
-        self.config = self.state.config
-        self.root = self.state.root
+    @classmethod
+    def install(cls, state: MkosiState) -> None:
+        arch = state.installer.architecture(state.config.architecture)
+        BINREPOS_CONF_FILE = Path("etc/portage/binrepos.conf")
+        EBUILD_SH_ENV_DIR = Path("etc/portage/env")
+        USER_CONFIG_PATH = Path("etc/portage")
 
-        self.arch = state.installer.architecture(state.config.architecture)
-        self.arch_profile = Path(f"default/linux/{self.arch}/{state.config.release}/no-multilib/systemd/merged-usr")
-        self.get_current_stage3()
-
-        self.user_config_path = self.stage3_cache / self.portage_consts.USER_CONFIG_PATH
-
-        self.emerge_vars = {
-            "FEATURES": " ".join(self.portage_features),
-            "USE": " ".join(self.portage_use_flags),
-        }
-
-        for d in ("binpkgs", "distfiles", "repos"):
-            self.state.cache_dir.joinpath(d).mkdir(exist_ok=True)
-
-        self.fetch_fix_stage3()
-        self.sync_profiles()
-        self.get_snapshot_of_portage_tree()
-
-        self.merge_system()
-
-    def get_current_stage3(self) -> None:
         """usrmerge tracker bug: https://bugs.gentoo.org/690294"""
 
-        if self.config.mirror:
-            self.portage_consts.gentoo_mirrors = self.config.mirror
+        gentoo_mirrors = "http://distfiles.gentoo.org"
+        if state.config.mirror:
+            gentoo_mirrors = state.config.mirror
         # http://distfiles.gentoo.org/releases/amd64/autobuilds/latest-stage3.txt
         stage3tsf_path_url = urllib.parse.urljoin(
-            self.portage_consts.gentoo_mirrors.partition(" ")[0],
-            f"releases/{self.arch}/autobuilds/latest-stage3.txt",
+            gentoo_mirrors.partition(" ")[0],
+            f"releases/{arch}/autobuilds/latest-stage3.txt",
         )
 
         ###########################################################
@@ -187,54 +106,73 @@ class Gentoo:
         ###########################################################
         with urllib.request.urlopen(stage3tsf_path_url) as r:
             # e.g.: 20230108T161708Z/stage3-amd64-nomultilib-systemd-mergedusr-20230108T161708Z.tar.xz
-            regexp = rf"^[0-9]+T[0-9]+Z/stage3-{self.arch}-nomultilib-systemd-mergedusr-[0-9]+T[0-9]+Z\.tar\.xz"
+            regexp = rf"^[0-9]+T[0-9]+Z/stage3-{arch}-nomultilib-systemd-mergedusr-[0-9]+T[0-9]+Z\.tar\.xz"
             all_lines = r.readlines()
             for line in all_lines:
                 if (m := re.match(regexp, line.decode("utf-8"))):
-                    self.stage3_tar = Path(m.group(0))
+                    stage3_tar = Path(m.group(0))
                     break
             else:
                 die("profile names changed upstream?")
 
-        self.stage3_tar_path = self.state.cache_dir / self.stage3_tar
-        self.stage3_cache = self.stage3_tar_path.with_name(self.stage3_tar.name).with_suffix(".tmp")
+        stage3_tar_path = state.cache_dir / stage3_tar
+        cls.stage3_cache = stage3_tar_path.with_name(stage3_tar.name).with_suffix(".tmp")
 
-    def fetch_fix_stage3(self) -> None:
+        user_config_path = cls.stage3_cache / USER_CONFIG_PATH
+
+        emerge_vars = {
+            "FEATURES": " ".join([
+                    # -user* are required for access to USER_CONFIG_PATH
+                    "-userfetch",
+                    "-userpriv",
+                    "-usersync",
+                    "-usersandbox",
+                    "-sandbox",
+                    "-pid-sandbox",  # for cross-compile scenarios
+                    "-network-sandbox",
+                    "parallel-install",
+                    "getbinpkg",
+                    "-candy",
+                    "noman",
+                    "nodoc",
+                    "noinfo",
+            ]),
+            "USE": "initramfs symlink"
+        }
+
+        for d in ("binpkgs", "distfiles", "repos"):
+            state.cache_dir.joinpath(d).mkdir(exist_ok=True)
+
         stage3_url_path = urllib.parse.urljoin(
-            self.portage_consts.gentoo_mirrors,
-            f"releases/{self.arch}/autobuilds/{self.stage3_tar}",
+            gentoo_mirrors, f"releases/{arch}/autobuilds/{stage3_tar}",
         )
-        if not self.stage3_tar_path.is_file():
+        if not stage3_tar_path.is_file():
             log_step(f"Fetching {stage3_url_path}")
-            self.stage3_tar_path.parent.mkdir(parents=True, exist_ok=True)
-            urllib.request.urlretrieve(stage3_url_path, self.stage3_tar_path)
+            stage3_tar_path.parent.mkdir(parents=True, exist_ok=True)
+            urllib.request.urlretrieve(stage3_url_path, stage3_tar_path)
 
-        self.stage3_cache.mkdir(parents=True, exist_ok=True)
+        cls.stage3_cache.mkdir(parents=True, exist_ok=True)
 
-        with flock(self.stage3_cache):
-            if not self.stage3_cache.joinpath(".cache_isclean").exists():
-                log_step(f"Extracting {self.stage3_tar.name} to {self.stage3_cache}")
+        with flock(cls.stage3_cache):
+            if not cls.stage3_cache.joinpath(".cache_isclean").exists():
+                log_step(f"Extracting {stage3_tar.name} to {cls.stage3_cache}")
 
                 run([
                     "tar",
                     "--numeric-owner",
-                    "-C", self.stage3_cache,
+                    "-C", cls.stage3_cache,
                     "--extract",
-                    "--file", self.stage3_tar_path,
+                    "--file", stage3_tar_path,
                     "--exclude", "./dev",
                 ])
 
-                unlink_try_hard(self.stage3_cache.joinpath("dev"))
-                unlink_try_hard(self.stage3_cache.joinpath("proc"))
-                unlink_try_hard(self.stage3_cache.joinpath("sys"))
+                unlink_try_hard(cls.stage3_cache.joinpath("dev"))
+                unlink_try_hard(cls.stage3_cache.joinpath("proc"))
+                unlink_try_hard(cls.stage3_cache.joinpath("sys"))
 
-                self.stage3_cache.joinpath(".cache_isclean").touch()
+                cls.stage3_cache.joinpath(".cache_isclean").touch()
 
-                self.set_useflags()
-                self.mkosi_conf()
-
-    def set_useflags(self) -> None:
-        package_use = self.user_config_path / "package.use"
+        package_use = user_config_path / "package.use"
         package_use.mkdir(exist_ok=True)
 
         package_use.joinpath("systemd").write_text(
@@ -258,7 +196,7 @@ class Gentoo:
                 """
             )
         )
-        if self.state.config.make_initrd:
+        if state.config.make_initrd:
             package_use.joinpath("minimal").write_text(
                 dedent(
                     """\
@@ -268,10 +206,9 @@ class Gentoo:
                 )
             )
 
-    def mkosi_conf(self) -> None:
-        package_env = self.user_config_path / "package.env"
+        package_env = user_config_path / "package.env"
         package_env.mkdir(exist_ok=True)
-        ebuild_sh_env_dir = self.stage3_cache / self.portage_consts.EBUILD_SH_ENV_DIR
+        ebuild_sh_env_dir = cls.stage3_cache / EBUILD_SH_ENV_DIR
         ebuild_sh_env_dir.mkdir(exist_ok=True)
 
         # apply whatever we put in mkosi_conf to runs invocation of emerge
@@ -280,7 +217,7 @@ class Gentoo:
         # we use this so we don't need to touch upstream files.
         # we also use this for documenting build environment.
         emerge_vars_str = ""
-        emerge_vars_str += "\n".join(f'{k}="${{{k}}} {v}"' for k, v in self.emerge_vars.items())
+        emerge_vars_str += "\n".join(f'{k}="${{{k}}} {v}"' for k, v in emerge_vars.items())
 
         ebuild_sh_env_dir.joinpath("mkosi.conf").write_text(
             dedent(
@@ -292,9 +229,9 @@ class Gentoo:
             )
         )
 
-        repos_cfg = self.stage3_cache / self.portage_consts.BINREPOS_CONF_FILE
+        repos_cfg = cls.stage3_cache / BINREPOS_CONF_FILE
         with repos_cfg.open(mode='a') as f:
-            for repo in self.config.repositories:
+            for repo in state.config.repositories:
                 f.write(
                     dedent(
                         f"""\
@@ -305,20 +242,17 @@ class Gentoo:
                     )
                 )
 
-    def sync_profiles(self) -> None:
-        root_portage_cfg = self.root
-        root_portage_cfg /= self.user_config_path.relative_to(self.stage3_cache)
+        root_portage_cfg = state.root
+        root_portage_cfg /= user_config_path.relative_to(cls.stage3_cache)
         root_portage_cfg.mkdir(parents=True, exist_ok=True)
-        copy_path(self.user_config_path, root_portage_cfg)
+        copy_path(user_config_path, root_portage_cfg)
 
-    def get_snapshot_of_portage_tree(self) -> None:
         bwrap_params: list[PathString] = [
-            "--bind", self.state.cache_dir / "repos", "/var/db/repos"
+            "--bind", state.cache_dir / "repos", "/var/db/repos"
         ]
-        run_workspace_command(self.stage3_cache, ["/usr/bin/emerge-webrsync"],
+        run_workspace_command(cls.stage3_cache, ["/usr/bin/emerge-webrsync"],
                               bwrap_params=bwrap_params, network=True)
 
-    def merge_system(self) -> None:
         opts = [
             "--with-bdeps=n",
             "--complete-graph-if-new-use=y",
@@ -327,52 +261,28 @@ class Gentoo:
             "--newuse",
         ]
         env = {}
-        env.update(self.emerge_vars)
-        env.update({"USE": f"{self.emerge_vars['USE']} build"})
+        env.update(emerge_vars)
+        env.update({"USE": f"{emerge_vars['USE']} build"})
         with complete_step("merging stage2"):
-            invoke_emerge(self.state, sysroot=self.stage3_cache,
-                          opts=opts+["--emptytree", "--nodeps"],
-                          pkgs=self.pkgs.stage2, env=env)
+            invoke_emerge(state, sysroot=cls.stage3_cache, opts=opts+["--emptytree", "--nodeps"],
+                          pkgs=["sys-apps/baselayout", "sys-apps/util-linux"], env=env)
         opts += ["--noreplace", "--root-deps=rdeps"]
         with complete_step("Merging bare minimal atoms"):
-            invoke_emerge(self.state, sysroot=self.stage3_cache,
-                          opts=opts+["--exclude", "sys-devel/*"],
-                          pkgs=self.pkgs.bare_minimal, env=self.emerge_vars)
+            invoke_emerge(state, sysroot=cls.stage3_cache, opts=opts+["--exclude", "sys-devel/*"],
+                          pkgs=["app-shells/bash", "sys-apps/systemd"], env=emerge_vars)
         with complete_step("Merging atoms required for boot"):
-            invoke_emerge(self.state, sysroot=self.stage3_cache, opts=opts,
-                          pkgs=self.pkgs.boot)
-        if self.state.config.make_initrd:
+            invoke_emerge(state, sysroot=cls.stage3_cache, opts=opts,
+                          pkgs=["sys-kernel/gentoo-kernel-bin"])
+        if state.config.make_initrd:
             return
 
-        invoke_emerge(self.state, sysroot=self.stage3_cache, opts=opts,
-                      pkgs=self.pkgs.system)
-
-
-class GentooInstaller(DistributionInstaller):
-    gentoo: Gentoo
-
-    @classmethod
-    def filesystem(cls) -> str:
-        return "btrfs"
-
-    @staticmethod
-    def kernel_image(name: str, architecture: Architecture) -> Path:
-        kimg_path = {
-            Architecture.x86_64: "arch/x86/boot/bzImage",
-            Architecture.arm64: "arch/arm64/boot/Image.gz",
-            Architecture.arm: "arch/arm/boot/zImage",
-        }[architecture]
-
-        return Path(f"usr/src/linux-{name}") / kimg_path
-
-    @classmethod
-    def install(cls, state: MkosiState) -> None:
-        cls.gentoo = Gentoo(state)
+        invoke_emerge(state, sysroot=cls.stage3_cache, opts=opts,
+                      pkgs=["@system"])
 
     @classmethod
     def install_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
-        invoke_emerge(state, opts=["--noreplace"],
-                      sysroot=cls.gentoo.stage3_cache, pkgs=packages)
+        invoke_emerge(state, opts=["--noreplace"], sysroot=cls.stage3_cache,
+                      pkgs=packages)
 
     @staticmethod
     def architecture(arch: Architecture) -> str:
