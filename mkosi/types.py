@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1+
+
 import subprocess
 from pathlib import Path
 from typing import IO, TYPE_CHECKING, Any, Union

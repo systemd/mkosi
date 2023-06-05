@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1+
+
 import shutil
 from pathlib import Path
 

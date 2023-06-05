@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-2.1+
+
 import asyncio
 import asyncio.tasks
 import ctypes
@@ -228,7 +230,7 @@ def run(
         env["SYSTEMD_LOG_LEVEL"] = "debug"
 
     if "input" in kwargs:
-        assert stdin is None  # stdin and input can be specified together
+        assert stdin is None  # stdin and input cannot be specified together
     elif stdin is None:
         stdin = subprocess.DEVNULL
 
