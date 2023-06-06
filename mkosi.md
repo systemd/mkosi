@@ -272,73 +272,57 @@ prefixed with `!`, if any later assignment of that setting tries to add
 the same value, that value is ignored. Values prefixed with `!` can be
 globs to ignore more than one value.
 
-To conditionally include configuration files, the `[Match]` section can
-be used. A configuration file is only included if all the conditions in the
-`[Match]` block are satisfied. If a condition in `[Match]` depends on a
-setting and the setting has not been explicitly configured when the condition
-is evaluated, the setting is assigned its default value.
+To conditionally include configuration files, the `[Match]` section can be used. Matches can use a pipe
+symbol ("|") after the equals sign ("…=|…"), which causes the match to become a triggering match. The config
+file will be included if the logical AND of all non-triggering matches and the logical OR of all triggering
+matches is satisfied. To negate the result of a match, prefix the argument with an exclamation mark. If an
+argument is prefixed with the pipe symbol and an exclamation mark, the pipe symbol must be passed first, and
+the exclamation second.
 
-Command line options that take no argument are shown without "=" in
-their long version. In the config files, they should be specified with
-a boolean argument: either "1", "yes", or "true" to enable, or "0",
-"no", "false" to disable.
+Command line options that take no argument are shown without "=" in their long version. In the config files,
+they should be specified with a boolean argument: either "1", "yes", or "true" to enable, or "0", "no",
+"false" to disable.
 
 ### [Match] Section.
 
 `Distribution=`
 
-: Matches against the configured distribution. Multiple distributions may
-  be specified, separated by spaces. If multiple distributions are specified,
-  the condition is satisfied if the current distribution equals any of the
-  specified distributions.
+: Matches against the configured distribution.
 
 `Release=`
 
-: Matches against the configured distribution release. If this condition
-  is used and no distribution has been explicitly configured yet, the
-  host distribution and release are used. Multiple releases may be specified,
-  separated by spaces. If multiple releases are specified, the condition is
-  satisfied if the current release equals any of the specified releases.
+: Matches against the configured distribution release. If this condition is used and no distribution has been
+  explicitly configured yet, the host distribution and release are used.
 
 `PathExists=`
 
-: This condition is satisfied if the given path exists. Relative paths are
-  interpreted relative to the parent directory of the config file that the
-  condition is read from.
+: This condition is satisfied if the given path exists. Relative paths are interpreted relative to the parent
+  directory of the config file that the condition is read from.
 
 `ImageId=`
 
-: Matches against the configured image ID, supporting globs. If this condition
-  is used and no image ID has been explicitly configured yet, this condition
-  fails. Multiple image IDs may be specified, separated by spaces. If multiple
-  image IDs are specified, the condition is satisfied if the configured image ID
-  equals any of the specified image IDs.
+: Matches against the configured image ID, supporting globs. If this condition is used and no image ID has
+  been explicitly configured yet, this condition fails.
 
 `ImageVersion=`
 
-: Matches against the configured image version. Image versions can be prepended
-  by the operators `==`, `!=`, `>=`, `<=`, `<`, `>` for rich version comparisons
-  according to the UAPI group version format specification. If no operator is
-  prepended, the equality operator is assumed by default If this condition is
-  used and no image Version has be explicitly configured yet, this condition
-  fails. Multiple image version constraints can be specified as a
-  space-separated list. If multiple image version constraints are specified, all
-  must be satisfied for the match to succeed.
+: Matches against the configured image version. Image versions can be prepended by the operators `==`, `!=`,
+  `>=`, `<=`, `<`, `>` for rich version comparisons according to the UAPI group version format specification.
+  If no operator is prepended, the equality operator is assumed by default If this condition is used and no
+  image version has been explicitly configured yet, this condition fails.
 
 `Bootable=`
 
-: Matches against the configured value for the `Bootable=` feature. Takes a boolean value or `auto`. Multiple
-  values may be specified, separated by commas. If multiple values are specified, the condition is satisfied
-  if the current value of the `Bootable=` feature matches any of the specified values.
+: Matches against the configured value for the `Bootable=` feature. Takes a boolean value or `auto`.
 
-| Matcher         | Multiple Values | Globs | Rich Comparisons | Default                 |
-|-----------------|-----------------|-------|------------------|-------------------------|
-| `Distribution=` | yes             | no    | no               | match host distribution |
-| `Release=`      | yes             | no    | no               | match host release      |
-| `PathExists=`   | no              | no    | no               | match fails             |
-| `ImageId=`      | yes             | yes   | no               | match fails             |
-| `ImageVersion=` | yes             | no    | yes              | match fails             |
-| `Bootable=`     | yes             | no    | no               | match auto feature      |
+| Matcher         | Globs | Rich Comparisons | Default                 |
+|-----------------|-------|------------------|-------------------------|
+| `Distribution=` | no    | no               | match host distribution |
+| `Release=`      | no    | no               | match host release      |
+| `PathExists=`   | no    | no               | match fails             |
+| `ImageId=`      | yes   | no               | match fails             |
+| `ImageVersion=` | no    | yes              | match fails             |
+| `Bootable=`     | no    | no               | match auto feature      |
 
 ### [Distribution] Section
 

@@ -133,8 +133,17 @@ def config_parse_string(dest: str, value: Optional[str], namespace: argparse.Nam
     return value if value else None
 
 
-def config_match_string(dest: str, value: str, namespace: argparse.Namespace) -> bool:
-    return cast(bool, value == getattr(namespace, dest))
+def config_make_string_matcher(allow_globs: bool = False) -> ConfigMatchCallback:
+    def config_match_string(dest: str, value: str, namespace: argparse.Namespace) -> bool:
+        if getattr(namespace, dest, None) is None:
+            return False
+
+        if allow_globs:
+            return fnmatch.fnmatchcase(getattr(namespace, dest), value)
+        else:
+            return cast(bool, value == getattr(namespace, dest))
+
+    return config_match_string
 
 
 def config_parse_script(dest: str, value: Optional[str], namespace: argparse.Namespace) -> Optional[Path]:
@@ -173,6 +182,10 @@ def config_parse_feature(dest: str, value: Optional[str], namespace: argparse.Na
         return getattr(namespace, dest) # type: ignore
 
     return parse_feature(value)
+
+
+def config_match_feature(dest: str, value: Optional[str], namespace: argparse.Namespace) -> bool:
+    return cast(bool, getattr(namespace, dest) == parse_feature(value))
 
 
 def config_parse_compression(dest: str, value: Optional[str], namespace: argparse.Namespace) -> Optional[Compression]:
@@ -316,81 +329,35 @@ def config_make_list_parser(delimiter: str,
     return config_parse_list
 
 
-def config_make_list_matcher(
-    delimiter: str,
-    *,
-    unescape: bool = False,
-    allow_globs: bool = False,
-    all: bool = False,
-    parse: Callable[[str], Any] = str,
-) -> ConfigMatchCallback:
-    def config_match_list(dest: str, value: str, namespace: argparse.Namespace) -> bool:
-        if unescape:
-            lex = shlex.shlex(value, posix=True)
-            lex.whitespace_split = True
-            lex.whitespace = f"\n{delimiter}"
-            lex.commenters = ""
-            values = list(lex)
-        else:
-            values = value.replace(delimiter, "\n").split("\n")
+def config_match_image_version(dest: str, value: str, namespace: argparse.Namespace) -> bool:
+    image_version = getattr(namespace, dest)
+    # If the version is not set it cannot positively compare to anything
+    if image_version is None:
+        return False
+    image_version = GenericVersion(image_version)
 
-        for v in values:
-            current_value = getattr(namespace, dest)
-            comparison_value = parse(v)
-            if allow_globs:
-                # check if the option has been set, since fnmatch wants strings
-                if isinstance(current_value, str):
-                    m = fnmatch.fnmatchcase(current_value, comparison_value)
-                else:
-                    m = False
-            else:
-                m = current_value == comparison_value
+    for sigil, opfunc in {
+        "==": operator.eq,
+        "!=": operator.ne,
+        "<=": operator.le,
+        ">=": operator.ge,
+        ">": operator.gt,
+        "<": operator.lt,
+    }.items():
+        if value.startswith(sigil):
+            op = opfunc
+            comp_version = GenericVersion(value[len(sigil):])
+            break
+    else:
+        # default to equality if no operation is specified
+        op = operator.eq
+        comp_version = GenericVersion(value)
 
-            if not all and m:
-                return True
-            if all and not m:
-                return False
+    # all constraints must be fulfilled
+    if not op(image_version, comp_version):
+        return False
 
-        return all
-
-    return config_match_list
-
-
-def config_make_image_version_list_matcher(delimiter: str) -> ConfigMatchCallback:
-    def config_match_image_version_list(dest: str, value: str, namespace: argparse.Namespace) -> bool:
-        version_specs = value.replace(delimiter, "\n").splitlines()
-
-        image_version = getattr(namespace, dest)
-        # If the version is not set it cannot positively compare to anything
-        if image_version is None:
-            return False
-        image_version = GenericVersion(image_version)
-
-        for v in version_specs:
-            for sigil, opfunc in {
-                "==": operator.eq,
-                "!=": operator.ne,
-                "<=": operator.le,
-                ">=": operator.ge,
-                ">": operator.gt,
-                "<": operator.lt,
-            }.items():
-                if v.startswith(sigil):
-                    op = opfunc
-                    comp_version = GenericVersion(v[len(sigil):])
-                    break
-            else:
-                # default to equality if no operation is specified
-                op = operator.eq
-                comp_version = GenericVersion(v)
-
-            # all constraints must be fulfilled
-            if not op(image_version, comp_version):
-                return False
-
-        return True
-
-    return config_match_image_version_list
+    return True
 
 
 def make_path_parser(*,
@@ -469,6 +436,14 @@ def config_parse_root_password(dest: str, value: Optional[str], namespace: argpa
     value = value.removeprefix("hashed:")
 
     return (value, hashed)
+
+
+class ConfigParserMultipleValues(dict[str, Any]):
+    def __setitem__(self, key: str, value: Any) -> None:
+        if key in self and isinstance(value, list):
+            self[key].extend(value)
+        else:
+            super().__setitem__(key, value)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -764,14 +739,14 @@ class MkosiConfigParser:
             dest="distribution",
             section="Distribution",
             parse=config_make_enum_parser(Distribution),
-            match=config_make_list_matcher(delimiter=" ", parse=make_enum_parser(Distribution)),
+            match=config_make_enum_matcher(Distribution),
             default=detect_distribution()[0],
         ),
         MkosiConfigSetting(
             dest="release",
             section="Distribution",
             parse=config_parse_string,
-            match=config_make_list_matcher(delimiter=" "),
+            match=config_make_string_matcher(),
             default_factory=config_default_release,
         ),
         MkosiConfigSetting(
@@ -868,12 +843,12 @@ class MkosiConfigParser:
         ),
         MkosiConfigSetting(
             dest="image_version",
-            match=config_make_image_version_list_matcher(delimiter=" "),
+            match=config_match_image_version,
             section="Output",
         ),
         MkosiConfigSetting(
             dest="image_id",
-            match=config_make_list_matcher(delimiter=" ", allow_globs=True),
+            match=config_make_string_matcher(allow_globs=True),
             section="Output",
         ),
         MkosiConfigSetting(
@@ -934,7 +909,7 @@ class MkosiConfigParser:
             dest="bootable",
             section="Content",
             parse=config_parse_feature,
-            match=config_make_list_matcher(delimiter=",", parse=parse_feature),
+            match=config_match_feature,
         ),
         MkosiConfigSetting(
             dest="autologin",
@@ -1255,6 +1230,8 @@ class MkosiConfigParser:
             inline_comment_prefixes="#",
             empty_lines_in_values=True,
             interpolation=None,
+            strict=False,
+            dict_type=ConfigParserMultipleValues,
         )
 
         parser.optionxform = lambda optionstr: optionstr # type: ignore
@@ -1263,29 +1240,53 @@ class MkosiConfigParser:
             parser.read(path)
 
         if "Match" in parser.sections():
-            for k, v in parser.items("Match"):
-                if (s := self.settings_lookup.get(k)):
-                    if not (match := s.match):
+            triggered = None
+
+            for k, values in parser.items("Match"):
+                # If a match is specified multiple times, the values are returned concatenated by newlines
+                # for some reason.
+                for v in values.split("\n"):
+                    trigger = v.startswith("|")
+                    v = v.removeprefix("|")
+                    negate = v.startswith("!")
+                    v = v.removeprefix("!")
+
+                    if not v:
+                        die("Match value cannot be empty")
+
+                    if (s := self.settings_lookup.get(k)):
+                        if not (match := s.match):
+                            die(f"{k} cannot be used in [Match]")
+
+                        # If we encounter a setting in [Match] that has not been explicitly configured yet,
+                        # we assign the default value first so that we can [Match] on default values for
+                        # settings.
+                        if s.dest not in namespace:
+                            if s.default_factory:
+                                default = s.default_factory(namespace)
+                            elif s.default is None:
+                                default = s.parse(s.dest, None, namespace)
+                            else:
+                                default = s.default
+
+                            setattr(namespace, s.dest, default)
+
+                        result = match(s.dest, v, namespace)
+
+                    elif (m := self.match_lookup.get(k)):
+                        result = m.match(v)
+                    else:
                         die(f"{k} cannot be used in [Match]")
 
-                    # If we encounter a setting in [Match] that has not been explicitly configured yet, we assign
-                    # the default value first so that we can [Match] on default values for settings.
-                    if s.dest not in namespace:
-                        if s.default_factory:
-                            default = s.default_factory(namespace)
-                        elif s.default is None:
-                            default = s.parse(s.dest, None, namespace)
-                        else:
-                            default = s.default
-
-                        setattr(namespace, s.dest, default)
-
-                    if not match(s.dest, v, namespace):
+                    if negate:
+                        result = not result
+                    if not trigger and not result:
                         return False
+                    if trigger:
+                        triggered = bool(triggered) or result
 
-                elif (m := self.match_lookup.get(k)):
-                    if not m.match(v):
-                        return False
+                if triggered is False:
+                    return False
 
         parser.remove_section("Match")
 
