@@ -121,7 +121,8 @@ class Repo(NamedTuple):
 
 
 def setup_dnf(state: MkosiState, repos: Sequence[Repo]) -> None:
-    with state.workspace.joinpath("dnf.conf").open("w") as f:
+    state.pkgmngr.joinpath("etc/dnf").mkdir(exist_ok=True, parents=True)
+    with state.pkgmngr.joinpath("etc/dnf/dnf.conf").open("w") as f:
         for repo in repos:
             f.write(
                 dedent(
@@ -152,9 +153,10 @@ def invoke_dnf(
     else:
         release = state.config.release
 
-    state.workspace.joinpath("vars").mkdir(exist_ok=True)
-    state.workspace.joinpath("log").mkdir(exist_ok=True)
-    state.workspace.joinpath("persist").mkdir(exist_ok=True)
+    state.pkgmngr.joinpath("etc/dnf/vars").mkdir(exist_ok=True, parents=True)
+    state.pkgmngr.joinpath("etc/yum.repos.d").mkdir(exist_ok=True, parents=True)
+    state.pkgmngr.joinpath("var/log").mkdir(exist_ok=True, parents=True)
+    state.pkgmngr.joinpath("var/lib/dnf").mkdir(exist_ok=True, parents=True)
 
     # dnf5 does not support building for foreign architectures yet (missing --forcearch)
     dnf = shutil.which("dnf5") if state.config.architecture.is_native() else None
@@ -163,7 +165,7 @@ def invoke_dnf(
     cmdline = [
         dnf,
         "-y",
-        f"--config={state.workspace.joinpath('dnf.conf')}",
+        f"--config={state.pkgmngr / 'etc/dnf/dnf.conf'}",
         command,
         "--best",
         "--allowerasing",
@@ -173,9 +175,9 @@ def invoke_dnf(
         "--setopt=install_weak_deps=0",
         f"--setopt=cachedir={state.cache_dir}",
         f"--setopt=reposdir={' '.join(str(p) for p in state.config.repo_dirs)}",
-        f"--setopt=varsdir={state.workspace / 'vars'}",
-        f"--setopt=logdir={state.workspace / 'log'}",
-        f"--setopt=persistdir={state.workspace / 'persist'}",
+        f"--setopt=varsdir={state.pkgmngr / 'etc/dnf/vars'}",
+        f"--setopt=logdir={state.pkgmngr / 'var/log'}",
+        f"--setopt=persistdir={state.pkgmngr / 'var/lib/dnf'}",
         "--setopt=check_config_file_age=0",
         "--no-plugins" if dnf.endswith("dnf5") else "--noplugins",
     ]
