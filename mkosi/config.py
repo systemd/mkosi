@@ -601,6 +601,7 @@ class MkosiConfig:
     base_trees: list[Path]
     extra_trees: list[tuple[Path, Optional[Path]]]
     skeleton_trees: list[tuple[Path, Optional[Path]]]
+    package_manager_trees: list[tuple[Path, Optional[Path]]]
     clean_package_metadata: ConfigFeature
     remove_files: list[str]
     environment: dict[str, str]
@@ -656,6 +657,12 @@ class MkosiConfig:
     passphrase: Optional[Path]
 
     preset: Optional[str]
+
+    def __post_init__(self) -> None:
+        if not self.package_manager_trees:
+            # this ugly construction is necessary to circumvent the freeze, we only care about
+            # being frozen after post init
+            object.__setattr__(self, "package_manager_trees", self.skeleton_trees)
 
     @classmethod
     def from_namespace(cls, ns: argparse.Namespace) -> "MkosiConfig":
@@ -934,6 +941,11 @@ class MkosiConfigParser:
             section="Content",
             parse=config_make_list_parser(delimiter=",", parse=parse_source_target_paths),
             paths=("mkosi.skeleton", "mkosi.skeleton.tar"),
+        ),
+        MkosiConfigSetting(
+            dest="package_manager_trees",
+            section="Content",
+            parse=config_make_list_parser(delimiter=",", parse=parse_source_target_paths),
         ),
         MkosiConfigSetting(
             dest="clean_package_metadata",
@@ -1643,6 +1655,13 @@ class MkosiConfigParser:
             metavar="PATH",
             help="Use a skeleton tree to bootstrap the image before installing anything",
             dest="skeleton_trees",
+            action=action,
+        )
+        group.add_argument(
+            "--package-manager-tree",
+            metavar="PATH",
+            help="Use a package manager tree to configure the package manager",
+            dest="package_manager_trees",
             action=action,
         )
         group.add_argument(

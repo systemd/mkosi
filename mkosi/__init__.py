@@ -523,6 +523,24 @@ def install_skeleton_trees(state: MkosiState) -> None:
                 shutil.unpack_archive(source, t)
 
 
+def install_package_manager_trees(state: MkosiState) -> None:
+    if not state.config.package_manager_trees:
+        return
+
+    with complete_step("Copying in package maneger file trees…"):
+        for source, target in state.config.package_manager_trees:
+            t = state.workspace / "pkgmngr"
+            if target:
+                t = state.workspace / "pkgmngr" / target.relative_to("/")
+
+            t.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
+
+            if source.is_dir() or target:
+                copy_path(source, t, preserve_owner=False)
+            else:
+                shutil.unpack_archive(source, t)
+
+
 def install_extra_trees(state: MkosiState) -> None:
     if not state.config.extra_trees:
         return
