@@ -48,6 +48,8 @@ class ArchInstaller(DistributionInstaller):
             sig_level = "Never"
 
         with pacman_conf.open("w") as f:
+            gpgdir = state.pkgmngr / "etc/pacman.d/gnupg/"
+            gpgdir = gpgdir if gpgdir.exists() else "/etc/pacman.d/gnupg/"
             f.write(
                 dedent(
                     f"""\
@@ -55,7 +57,7 @@ class ArchInstaller(DistributionInstaller):
                     RootDir = {state.root}
                     LogFile = /dev/null
                     CacheDir = {state.cache_dir}
-                    GPGDir = /etc/pacman.d/gnupg/
+                    GPGDir = {gpgdir}
                     HookDir = {state.root}/etc/pacman.d/hooks/
                     HoldPkg = pacman glibc
                     Architecture = {state.installer.architecture(state.config.architecture)}
