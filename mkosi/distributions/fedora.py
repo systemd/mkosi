@@ -154,6 +154,7 @@ def invoke_dnf(
         release = state.config.release
 
     state.workspace.joinpath("pkgmngr/etc/dnf/vars").mkdir(exist_ok=True, parents=True)
+    state.workspace.joinpath("pkgmngr/etc/yum.repos.d").mkdir(exist_ok=True, parents=True)
     state.workspace.joinpath("pkgmngr/var/log").mkdir(exist_ok=True, parents=True)
     state.workspace.joinpath("pkgmngr/var/lib/dnf").mkdir(exist_ok=True, parents=True)
 
@@ -173,7 +174,7 @@ def invoke_dnf(
         "--setopt=keepcache=1",
         "--setopt=install_weak_deps=0",
         f"--setopt=cachedir={state.cache_dir}",
-        f"--setopt=reposdir={' '.join(str(p) for p in state.config.repo_dirs)}",
+        f"--setopt=reposdir={state.workspace / 'pkgmngr/etc/yum.repos.d'}",
         f"--setopt=varsdir={state.workspace / 'pkgmngr/etc/dnf/vars'}",
         f"--setopt=logdir={state.workspace / 'pkgmngr/var/log'}",
         f"--setopt=persistdir={state.workspace / 'pkgmngr/var/lib/dnf'}",

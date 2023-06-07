@@ -39,6 +39,7 @@ class ArchInstaller(DistributionInstaller):
 
         pacman_conf = state.workspace / "pkgmngr/etc/pacman.conf"
         pacman_conf.parent.mkdir(mode=0o755, exist_ok=True, parents=True)
+
         if state.config.repository_key_check:
             sig_level = "Required DatabaseOptional"
         else:
@@ -83,8 +84,15 @@ class ArchInstaller(DistributionInstaller):
                     )
                 )
 
-            for d in state.config.repo_dirs:
-                f.write(f"Include = {d}/*\n")
+            if state.workspace.joinpath("pkgmngr/etc/pacman.d/conf/").glob("*"):
+                f.write(
+                    dedent(
+                        f"""\
+
+                        Include = {state.workspace}/pkgmngr/etc/pacman.d/conf/*
+                        """
+                    )
+                )
 
         return invoke_pacman(state, packages, apivfs=apivfs)
 

@@ -833,7 +833,7 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                 *(["--mirror", state.config.mirror] if state.config.mirror else []),
                 "--repository-key-check", yes_no(state.config.repository_key_check),
                 "--repositories", ",".join(state.config.repositories),
-                "--repo-dir", ",".join(str(p) for p in state.config.repo_dirs),
+                *(["--package-manager-tree", str(state.config.package_manager_trees)] if state.config.package_manager_trees else []),
                 *(["--compress-output", str(state.config.compress_output)] if state.config.compress_output else []),
                 "--with-network", yes_no(state.config.with_network),
                 "--cache-only", yes_no(state.config.cache_only),

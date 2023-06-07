@@ -572,7 +572,6 @@ class MkosiConfig:
     local_mirror: Optional[str]
     repository_key_check: bool
     repositories: list[str]
-    repo_dirs: list[Path]
     repart_dirs: list[Path]
     overlay: bool
     architecture: Architecture
@@ -783,13 +782,6 @@ class MkosiConfigParser:
             dest="repositories",
             section="Distribution",
             parse=config_make_list_parser(delimiter=","),
-        ),
-        MkosiConfigSetting(
-            dest="repo_dirs",
-            name="RepositoryDirectories",
-            section="Distribution",
-            parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
-            paths=("mkosi.reposdir",),
         ),
         MkosiConfigSetting(
             dest="output_format",
@@ -1480,13 +1472,6 @@ class MkosiConfigParser:
             "--repositories",
             metavar="REPOS",
             help="Repositories to use",
-            action=action,
-        )
-        group.add_argument(
-            "--repo-dir",
-            metavar="PATH",
-            help="Specify a directory containing extra distribution specific repository files",
-            dest="repo_dirs",
             action=action,
         )
 
@@ -2258,13 +2243,6 @@ def load_config(args: argparse.Namespace) -> MkosiConfig:
         if args.secure_boot_certificate is None:
             die("UEFI SecureBoot enabled, but couldn't find certificate.",
                 hint="Consider placing it in mkosi.crt")
-
-    if args.repo_dirs and not (
-        is_dnf_distribution(args.distribution)
-        or is_apt_distribution(args.distribution)
-        or args.distribution == Distribution.arch
-    ):
-        die("--repo-dir is only supported on DNF/Debian based distributions and Arch")
 
     if args.qemu_kvm == ConfigFeature.enabled and not qemu_check_kvm_support():
         die("Sorry, the host machine does not support KVM acceleration.")
