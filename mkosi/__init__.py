@@ -515,8 +515,9 @@ def install_skeleton_trees(state: MkosiState) -> None:
             if target:
                 t = state.root / target.relative_to("/")
 
-            t.mkdir(mode=0o755, parents=True, exist_ok=True)
-            if source.is_dir():
+            t.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
+
+            if source.is_dir() or target:
                 copy_path(source, t, preserve_owner=False)
             else:
                 shutil.unpack_archive(source, t)
@@ -532,9 +533,9 @@ def install_extra_trees(state: MkosiState) -> None:
             if target:
                 t = state.root / target.relative_to("/")
 
-            t.mkdir(mode=0o755, parents=True, exist_ok=True)
+            t.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
 
-            if source.is_dir():
+            if source.is_dir() or target:
                 copy_path(source, t, preserve_owner=False)
             else:
                 shutil.unpack_archive(source, t)
