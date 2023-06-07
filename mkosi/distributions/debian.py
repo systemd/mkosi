@@ -175,6 +175,11 @@ def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
     config = state.pkgmngr / "etc/apt/apt.conf"
     debarch = state.installer.architecture(state.config.architecture)
 
+    trustedkeys = state.pkgmngr / "etc/apt/trusted.gpg"
+    trustedkeys = trustedkeys if trustedkeys.exists() else f"/usr/share/keyrings/{state.config.release}-archive-keyring"
+    trustedkeys_dir = state.pkgmngr / "etc/apt/trusted.gpg.d"
+    trustedkeys_dir = trustedkeys_dir if trustedkeys_dir.exists() else "/usr/share/keyrings"
+
     config.write_text(
         dedent(
             f"""\
@@ -191,8 +196,8 @@ def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
             Dir::State "{state.pkgmngr / "var/lib/apt"}";
             Dir::State::status "{state.root / "var/lib/dpkg/status"}";
             Dir::Etc "{state.pkgmngr / "etc/apt"}";
-            Dir::Etc::trusted "/usr/share/keyrings/{state.config.release}-archive-keyring";
-            Dir::Etc::trustedparts "/usr/share/keyrings";
+            Dir::Etc::trusted "{trustedkeys}";
+            Dir::Etc::trustedparts "{trustedkeys_dir}";
             Dir::Log "{state.pkgmngr / "var/log/apt"}";
             Dir::Bin::dpkg "{shutil.which("dpkg")}";
             Debug::NoLocking "true";
