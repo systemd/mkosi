@@ -125,7 +125,8 @@ def test_match_distribution(dist1: Distribution, dist2: Distribution) -> None:
             dedent(
                 f"""\
                 [Match]
-                Distribution={dist1} {dist2}
+                Distribution=|{dist1}
+                Distribution=|{dist2}
 
                 [Content]
                 Packages=testpkg3
@@ -189,7 +190,8 @@ def test_match_release(release1: int, release2: int) -> None:
             dedent(
                 f"""\
                 [Match]
-                Release={release1} {release2}
+                Release=|{release1}
+                Release=|{release2}
 
                 [Content]
                 Packages=testpkg3
@@ -255,7 +257,8 @@ def test_match_imageid(image1: str, image2: str) -> None:
             dedent(
                 f"""\
                 [Match]
-                ImageId={image1} {image2}
+                ImageId=|{image1}
+                ImageId=|{image2}
 
                 [Content]
                 Packages=testpkg3
@@ -331,7 +334,8 @@ def test_match_imageversion(op: str, version: str) -> None:
             dedent(
                 f"""\
                 [Match]
-                ImageVersion=<200 {op}{version}
+                ImageVersion=<200
+                ImageVersion={op}{version}
 
                 [Content]
                 Packages=testpkg2
@@ -343,7 +347,8 @@ def test_match_imageversion(op: str, version: str) -> None:
             dedent(
                 f"""\
                 [Match]
-                ImageVersion=>9000 {op}{version}
+                ImageVersion=>9000
+                ImageVersion={op}{version}
 
                 [Content]
                 Packages=testpkg3
