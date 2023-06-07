@@ -208,9 +208,11 @@ def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
         )
     )
 
-    with state.workspace.joinpath("pkgmngr/etc/apt/sources.list").open("w") as f:
-        for repo in repos:
-            f.write(f"{repo}\n")
+    sources = state.workspace.joinpath("pkgmngr/etc/apt/sources.list")
+    if not sources.exists():
+        with sources.open("w") as f:
+            for repo in repos:
+                f.write(f"{repo}\n")
 
 
 def invoke_apt(
