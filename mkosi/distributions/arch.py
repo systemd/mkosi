@@ -37,7 +37,9 @@ class ArchInstaller(DistributionInstaller):
         # Create base layout for pacman and pacman-key
         state.root.joinpath("var/lib/pacman").mkdir(mode=0o755, exist_ok=True, parents=True)
 
-        pacman_conf = state.workspace / "pacman.conf"
+        pacman_conf = state.pkgmngr / "etc/pacman.conf"
+        pacman_conf.parent.mkdir(mode=0o755, exist_ok=True, parents=True)
+
         if state.config.repository_key_check:
             sig_level = "Required DatabaseOptional"
         else:
@@ -103,7 +105,7 @@ class ArchInstaller(DistributionInstaller):
 def invoke_pacman(state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
     cmdline: list[PathString] = [
         "pacman",
-        "--config", state.workspace / "pacman.conf",
+        "--config", state.pkgmngr / "etc/pacman.conf",
         "--noconfirm",
         "--needed",
         "-Sy", *sort_packages(packages),
