@@ -41,6 +41,7 @@ class MkosiState:
         btrfs_maybe_make_subvolume(self.config, self.root, mode=0o755)
         self.workdir.mkdir()
         self.staging.mkdir()
+        self.pkgmngr.mkdir()
 
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.install_dir.mkdir(parents=True, exist_ok=True)
@@ -60,6 +61,10 @@ class MkosiState:
     @property
     def staging(self) -> Path:
         return self.workspace / "staging"
+
+    @property
+    def pkgmngr(self) -> Path:
+        return self.workspace / "pkgmngr"
 
     @property
     def cache_dir(self) -> Path:
