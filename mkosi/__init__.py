@@ -1703,6 +1703,8 @@ def build_image(args: MkosiArgs, config: MkosiConfig, uid: int, gid: int) -> Non
     # Make sure tmpfiles' aging doesn't interfere with our workspace
     # while we are working on it.
     with flock(state.workspace), acl_toggle_build(state):
+        install_package_manager_trees(state)
+
         with mount_image(state):
             install_base_trees(state)
             install_skeleton_trees(state)
