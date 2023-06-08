@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 from collections.abc import Sequence
+from pathlib import Path
 from textwrap import dedent
 
 from mkosi.architecture import Architecture
@@ -65,20 +66,11 @@ def setup_pacman(state: MkosiState) -> None:
     config.parent.mkdir(mode=0o755, exist_ok=True, parents=True)
 
     with config.open("w") as f:
-        gpgdir = state.pkgmngr / "etc/pacman.d/gnupg/"
-        gpgdir = gpgdir if gpgdir.exists() else "/etc/pacman.d/gnupg/"
         f.write(
             dedent(
                 f"""\
                 [options]
-                RootDir = {state.root}
-                LogFile = /dev/null
-                CacheDir = {state.cache_dir}
-                GPGDir = {gpgdir}
-                HookDir = {state.root}/etc/pacman.d/hooks/
                 HoldPkg = pacman glibc
-                Architecture = {state.installer.architecture(state.config.architecture)}
-                Color
                 CheckSpace
                 SigLevel = {sig_level}
                 ParallelDownloads = 5
@@ -115,9 +107,19 @@ def setup_pacman(state: MkosiState) -> None:
 
 
 def invoke_pacman(state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
+    gpgdir = state.pkgmngr / "etc/pacman.d/gnupg/"
+    gpgdir = gpgdir if gpgdir.exists() else Path("/etc/pacman.d/gnupg/")
+
     cmdline: list[PathString] = [
         "pacman",
         "--config", state.pkgmngr / "etc/pacman.conf",
+        "--root", state.root,
+        "--logfile", "/dev/null",
+        "--cachedir", state.cache_dir,
+        "--gpgdir", gpgdir,
+        "--hookdir", state.root / "etc/pacman.d/hooks",
+        "--arch",  state.installer.architecture(state.config.architecture),
+        "--color", "auto",
         "--noconfirm",
         "--needed",
         "-Sy", *sort_packages(packages),

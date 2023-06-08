@@ -173,42 +173,12 @@ def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
     state.root.joinpath("var/lib/dpkg/status").touch()
 
     config = state.pkgmngr / "etc/apt/apt.conf"
-    debarch = state.installer.architecture(state.config.architecture)
 
-    trustedkeys = state.pkgmngr / "etc/apt/trusted.gpg"
-    trustedkeys = trustedkeys if trustedkeys.exists() else f"/usr/share/keyrings/{state.config.release}-archive-keyring"
-    trustedkeys_dir = state.pkgmngr / "etc/apt/trusted.gpg.d"
-    trustedkeys_dir = trustedkeys_dir if trustedkeys_dir.exists() else "/usr/share/keyrings"
-
+    # Anything that users can override with dropins is written into the config file.
     config.write_text(
         dedent(
-            f"""\
-            APT::Architecture "{debarch}";
-            APT::Architectures "{debarch}";
-            APT::Immediate-Configure "off";
+            """\
             APT::Install-Recommends "false";
-            APT::Get::Assume-Yes "true";
-            APT::Get::AutomaticRemove "true";
-            APT::Get::Allow-Change-Held-Packages "true";
-            APT::Get::Allow-Remove-Essential "true";
-            APT::Sandbox::User "root";
-            Dir::Cache "{state.cache_dir}";
-            Dir::State "{state.pkgmngr / "var/lib/apt"}";
-            Dir::State::status "{state.root / "var/lib/dpkg/status"}";
-            Dir::Etc "{state.pkgmngr / "etc/apt"}";
-            Dir::Etc::trusted "{trustedkeys}";
-            Dir::Etc::trustedparts "{trustedkeys_dir}";
-            Dir::Log "{state.pkgmngr / "var/log/apt"}";
-            Dir::Bin::dpkg "{shutil.which("dpkg")}";
-            Debug::NoLocking "true";
-            DPkg::Options:: "--root={state.root}";
-            DPkg::Options:: "--log={state.pkgmngr / "var/log/apt/dpkg.log"}";
-            DPkg::Options:: "--force-unsafe-io";
-            DPkg::Options:: "--force-architecture";
-            DPkg::Options:: "--force-depends";
-            Dpkg::Use-Pty "false";
-            DPkg::Install::Recursive::Minimum "1000";
-            pkgCacheGen::ForceEssential ",";
             """
         )
     )
@@ -234,7 +204,43 @@ def invoke_apt(
         INITRD="No",
     )
 
-    return bwrap(["apt-get", operation, *extra], apivfs=state.root if apivfs else None, env=env | state.environment)
+    debarch = state.installer.architecture(state.config.architecture)
+
+    trustedkeys = state.pkgmngr / "etc/apt/trusted.gpg"
+    trustedkeys = trustedkeys if trustedkeys.exists() else f"/usr/share/keyrings/{state.config.release}-archive-keyring"
+    trustedkeys_dir = state.pkgmngr / "etc/apt/trusted.gpg.d"
+    trustedkeys_dir = trustedkeys_dir if trustedkeys_dir.exists() else "/usr/share/keyrings"
+
+    options = [
+        "-o", f"APT::Architecture={debarch}",
+        "-o", f"APT::Architectures={debarch}",
+        "-o", "APT::Immediate-Configure=off",
+        "-o", "APT::Get::Assume-Yes=true",
+        "-o", "APT::Get::AutomaticRemove=true",
+        "-o", "APT::Get::Allow-Change-Held-Packages=true",
+        "-o", "APT::Get::Allow-Remove-Essential=true",
+        "-o", "APT::Sandbox::User=root",
+        "-o", f"Dir::Cache={state.cache_dir}",
+        "-o", f"Dir::State={state.pkgmngr / 'var/lib/apt'}",
+        "-o", f"Dir::State::status={state.root / 'var/lib/dpkg/status'}",
+        "-o", f"Dir::Etc={state.pkgmngr / 'etc/apt'}",
+        "-o", f"Dir::Etc::trusted={trustedkeys}",
+        "-o", f"Dir::Etc::trustedparts={trustedkeys_dir}",
+        "-o", f"Dir::Log={state.pkgmngr / 'var/log/apt'}",
+        "-o", f"Dir::Bin::dpkg={shutil.which('dpkg')}",
+        "-o", "Debug::NoLocking=true",
+        "-o", f"DPkg::Options::=--root={state.root}",
+        "-o", f"DPkg::Options::=--log={state.pkgmngr / 'var/log/apt/dpkg.log'}",
+        "-o", "DPkg::Options::=--force-unsafe-io",
+        "-o", "DPkg::Options::=--force-architecture",
+        "-o", "DPkg::Options::=--force-depends",
+        "-o", "Dpkg::Use-Pty=false",
+        "-o", "DPkg::Install::Recursive::Minimum=1000",
+        "-o", "pkgCacheGen::ForceEssential=,",
+    ]
+
+    return bwrap(["apt-get", *options, operation, *extra],
+                 apivfs=state.root if apivfs else None, env=env | state.environment)
 
 
 def install_apt_sources(state: MkosiState, repos: Sequence[str]) -> None:
