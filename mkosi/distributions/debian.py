@@ -159,11 +159,12 @@ class DebianInstaller(DistributionInstaller):
 
 
 def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
-    state.workspace.joinpath("apt").mkdir(exist_ok=True)
-    state.workspace.joinpath("apt/apt.conf.d").mkdir(exist_ok=True)
-    state.workspace.joinpath("apt/preferences.d").mkdir(exist_ok=True)
-    state.workspace.joinpath("apt/sources.list.d").mkdir(exist_ok=True)
-    state.workspace.joinpath("apt/log").mkdir(exist_ok=True)
+    state.pkgmngr.joinpath("etc/apt").mkdir(exist_ok=True, parents=True)
+    state.pkgmngr.joinpath("etc/apt/apt.conf.d").mkdir(exist_ok=True, parents=True)
+    state.pkgmngr.joinpath("etc/apt/preferences.d").mkdir(exist_ok=True, parents=True)
+    state.pkgmngr.joinpath("etc/apt/sources.list.d").mkdir(exist_ok=True, parents=True)
+    state.pkgmngr.joinpath("var/log/apt").mkdir(exist_ok=True, parents=True)
+    state.pkgmngr.joinpath("var/lib/apt").mkdir(exist_ok=True, parents=True)
 
     # TODO: Drop once apt 2.5.4 is widely available.
     state.root.joinpath("var").mkdir(mode=0o755, exist_ok=True)
@@ -171,8 +172,13 @@ def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
     state.root.joinpath("var/lib/dpkg").mkdir(mode=0o755, exist_ok=True)
     state.root.joinpath("var/lib/dpkg/status").touch()
 
-    config = state.workspace / "apt/apt.conf"
+    config = state.pkgmngr / "etc/apt/apt.conf"
     debarch = state.installer.architecture(state.config.architecture)
+
+    trustedkeys = state.pkgmngr / "etc/apt/trusted.gpg"
+    trustedkeys = trustedkeys if trustedkeys.exists() else f"/usr/share/keyrings/{state.config.release}-archive-keyring"
+    trustedkeys_dir = state.pkgmngr / "etc/apt/trusted.gpg.d"
+    trustedkeys_dir = trustedkeys_dir if trustedkeys_dir.exists() else "/usr/share/keyrings"
 
     config.write_text(
         dedent(
@@ -187,16 +193,16 @@ def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
             APT::Get::Allow-Remove-Essential "true";
             APT::Sandbox::User "root";
             Dir::Cache "{state.cache_dir}";
-            Dir::State "{state.workspace / "apt"}";
+            Dir::State "{state.pkgmngr / "var/lib/apt"}";
             Dir::State::status "{state.root / "var/lib/dpkg/status"}";
-            Dir::Etc "{state.workspace / "apt"}";
-            Dir::Etc::trusted "/usr/share/keyrings/{state.config.release}-archive-keyring";
-            Dir::Etc::trustedparts "/usr/share/keyrings";
-            Dir::Log "{state.workspace / "apt/log"}";
+            Dir::Etc "{state.pkgmngr / "etc/apt"}";
+            Dir::Etc::trusted "{trustedkeys}";
+            Dir::Etc::trustedparts "{trustedkeys_dir}";
+            Dir::Log "{state.pkgmngr / "var/log/apt"}";
             Dir::Bin::dpkg "{shutil.which("dpkg")}";
             Debug::NoLocking "true";
             DPkg::Options:: "--root={state.root}";
-            DPkg::Options:: "--log={state.workspace / "apt/dpkg.log"}";
+            DPkg::Options:: "--log={state.pkgmngr / "var/log/apt/dpkg.log"}";
             DPkg::Options:: "--force-unsafe-io";
             DPkg::Options:: "--force-architecture";
             DPkg::Options:: "--force-depends";
@@ -207,16 +213,11 @@ def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
         )
     )
 
-    with state.workspace.joinpath("apt/sources.list").open("w") as f:
-        for repo in repos:
-            f.write(f"{repo}\n")
-
-    for repo_dir in state.config.repo_dirs:
-        for src in repo_dir.iterdir():
-            if not src.is_file():
-                continue
-            if src.suffix in (".list", ".sources"):
-                shutil.copyfile(src, state.workspace.joinpath("apt/sources.list.d", src.name))
+    sources = state.pkgmngr.joinpath("etc/apt/sources.list")
+    if not sources.exists():
+        with sources.open("w") as f:
+            for repo in repos:
+                f.write(f"{repo}\n")
 
 
 def invoke_apt(
@@ -226,7 +227,7 @@ def invoke_apt(
     apivfs: bool = True,
 ) -> CompletedProcess:
     env: dict[str, PathString] = dict(
-        APT_CONFIG=state.workspace / "apt/apt.conf",
+        APT_CONFIG=state.pkgmngr / "etc/apt/apt.conf",
         DEBIAN_FRONTEND="noninteractive",
         DEBCONF_INTERACTIVE_SEEN="true",
         KERNEL_INSTALL_BYPASS="1",
@@ -245,10 +246,3 @@ def install_apt_sources(state: MkosiState, repos: Sequence[str]) -> None:
         with sources.open("w") as f:
             for repo in repos:
                 f.write(f"{repo}\n")
-
-    # Already contains a merged tree of repo_dirs after setup_apt
-    for src in state.workspace.joinpath("apt/sources.list.d").iterdir():
-        dst = state.root.joinpath("etc/apt/sources.list.d", src.name)
-        if dst.exists():
-            continue
-        shutil.copyfile(src, dst)

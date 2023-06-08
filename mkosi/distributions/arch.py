@@ -37,7 +37,9 @@ class ArchInstaller(DistributionInstaller):
         # Create base layout for pacman and pacman-key
         state.root.joinpath("var/lib/pacman").mkdir(mode=0o755, exist_ok=True, parents=True)
 
-        pacman_conf = state.workspace / "pacman.conf"
+        pacman_conf = state.pkgmngr / "etc/pacman.conf"
+        pacman_conf.parent.mkdir(mode=0o755, exist_ok=True, parents=True)
+
         if state.config.repository_key_check:
             sig_level = "Required DatabaseOptional"
         else:
@@ -46,6 +48,8 @@ class ArchInstaller(DistributionInstaller):
             sig_level = "Never"
 
         with pacman_conf.open("w") as f:
+            gpgdir = state.pkgmngr / "etc/pacman.d/gnupg/"
+            gpgdir = gpgdir if gpgdir.exists() else "/etc/pacman.d/gnupg/"
             f.write(
                 dedent(
                     f"""\
@@ -53,7 +57,7 @@ class ArchInstaller(DistributionInstaller):
                     RootDir = {state.root}
                     LogFile = /dev/null
                     CacheDir = {state.cache_dir}
-                    GPGDir = /etc/pacman.d/gnupg/
+                    GPGDir = {gpgdir}
                     HookDir = {state.root}/etc/pacman.d/hooks/
                     HoldPkg = pacman glibc
                     Architecture = {state.installer.architecture(state.config.architecture)}
@@ -82,8 +86,15 @@ class ArchInstaller(DistributionInstaller):
                     )
                 )
 
-            for d in state.config.repo_dirs:
-                f.write(f"Include = {d}/*\n")
+            if any(state.pkgmngr.joinpath("etc/pacman.d/").glob("*.conf")):
+                f.write(
+                    dedent(
+                        f"""\
+
+                        Include = {state.pkgmngr}/etc/pacman.d/*.conf
+                        """
+                    )
+                )
 
         return invoke_pacman(state, packages, apivfs=apivfs)
 
@@ -103,7 +114,7 @@ class ArchInstaller(DistributionInstaller):
 def invoke_pacman(state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
     cmdline: list[PathString] = [
         "pacman",
-        "--config", state.workspace / "pacman.conf",
+        "--config", state.pkgmngr / "etc/pacman.conf",
         "--noconfirm",
         "--needed",
         "-Sy", *sort_packages(packages),

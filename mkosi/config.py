@@ -260,6 +260,10 @@ def config_default_mirror(namespace: argparse.Namespace) -> Optional[str]:
     return None
 
 
+def config_default_package_manager_tree(namespace: argparse.Namespace) -> list[tuple[Path, Optional[Path]]]:
+    return getattr(namespace, "skeleton_trees", [])
+
+
 def make_enum_parser(type: Type[enum.Enum]) -> Callable[[str], enum.Enum]:
     def parse_enum(value: str) -> enum.Enum:
         try:
@@ -572,7 +576,6 @@ class MkosiConfig:
     local_mirror: Optional[str]
     repository_key_check: bool
     repositories: list[str]
-    repo_dirs: list[Path]
     repart_dirs: list[Path]
     overlay: bool
     architecture: Architecture
@@ -601,6 +604,7 @@ class MkosiConfig:
     base_trees: list[Path]
     extra_trees: list[tuple[Path, Optional[Path]]]
     skeleton_trees: list[tuple[Path, Optional[Path]]]
+    package_manager_trees: list[tuple[Path, Optional[Path]]]
     clean_package_metadata: ConfigFeature
     remove_files: list[str]
     environment: dict[str, str]
@@ -778,13 +782,6 @@ class MkosiConfigParser:
             parse=config_make_list_parser(delimiter=","),
         ),
         MkosiConfigSetting(
-            dest="repo_dirs",
-            name="RepositoryDirectories",
-            section="Distribution",
-            parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
-            paths=("mkosi.reposdir",),
-        ),
-        MkosiConfigSetting(
             dest="output_format",
             name="Format",
             section="Output",
@@ -934,6 +931,12 @@ class MkosiConfigParser:
             section="Content",
             parse=config_make_list_parser(delimiter=",", parse=parse_source_target_paths),
             paths=("mkosi.skeleton", "mkosi.skeleton.tar"),
+        ),
+        MkosiConfigSetting(
+            dest="package_manager_trees",
+            section="Content",
+            parse=config_make_list_parser(delimiter=",", parse=parse_source_target_paths),
+            default_factory=config_default_package_manager_tree,
         ),
         MkosiConfigSetting(
             dest="clean_package_metadata",
@@ -1470,13 +1473,6 @@ class MkosiConfigParser:
             help="Repositories to use",
             action=action,
         )
-        group.add_argument(
-            "--repo-dir",
-            metavar="PATH",
-            help="Specify a directory containing extra distribution specific repository files",
-            dest="repo_dirs",
-            action=action,
-        )
 
         group = parser.add_argument_group("Output options")
         group.add_argument(
@@ -1643,6 +1639,13 @@ class MkosiConfigParser:
             metavar="PATH",
             help="Use a skeleton tree to bootstrap the image before installing anything",
             dest="skeleton_trees",
+            action=action,
+        )
+        group.add_argument(
+            "--package-manager-tree",
+            metavar="PATH",
+            help="Use a package manager tree to configure the package manager",
+            dest="package_manager_trees",
             action=action,
         )
         group.add_argument(
@@ -2239,13 +2242,6 @@ def load_config(args: argparse.Namespace) -> MkosiConfig:
         if args.secure_boot_certificate is None:
             die("UEFI SecureBoot enabled, but couldn't find certificate.",
                 hint="Consider placing it in mkosi.crt")
-
-    if args.repo_dirs and not (
-        is_dnf_distribution(args.distribution)
-        or is_apt_distribution(args.distribution)
-        or args.distribution == Distribution.arch
-    ):
-        die("--repo-dir is only supported on DNF/Debian based distributions and Arch")
 
     if args.qemu_kvm == ConfigFeature.enabled and not qemu_check_kvm_support():
         die("Sorry, the host machine does not support KVM acceleration.")
