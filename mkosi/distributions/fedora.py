@@ -174,6 +174,7 @@ def invoke_dnf(
         "--setopt=keepcache=1",
         "--setopt=install_weak_deps=0",
         f"--setopt=cachedir={state.cache_dir}",
+        f"--setopt=reposdir={state.pkgmngr / 'etc/yum.repos.d'}",
         f"--setopt=varsdir={state.pkgmngr / 'etc/dnf/vars'}",
         f"--setopt=logdir={state.pkgmngr / 'var/log'}",
         f"--setopt=persistdir={state.pkgmngr / 'var/lib/dnf'}",

@@ -84,6 +84,15 @@ class ArchInstaller(DistributionInstaller):
                     )
                 )
 
+            if any(state.pkgmngr.joinpath("etc/pacman.d/").glob("*.conf")):
+                f.write(
+                    dedent(
+                        f"""\
+
+                        Include = {state.pkgmngr}/etc/pacman.d/*.conf
+                        """
+                    )
+                )
 
         return invoke_pacman(state, packages, apivfs=apivfs)
 

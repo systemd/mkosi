@@ -523,6 +523,24 @@ def install_skeleton_trees(state: MkosiState) -> None:
                 shutil.unpack_archive(source, t)
 
 
+def install_package_manager_trees(state: MkosiState) -> None:
+    if not state.config.package_manager_trees:
+        return
+
+    with complete_step("Copying in package maneger file trees…"):
+        for source, target in state.config.package_manager_trees:
+            t = state.workspace / "pkgmngr"
+            if target:
+                t = state.workspace / "pkgmngr" / target.relative_to("/")
+
+            t.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
+
+            if source.is_dir() or target:
+                copy_path(source, t, preserve_owner=False)
+            else:
+                shutil.unpack_archive(source, t)
+
+
 def install_extra_trees(state: MkosiState) -> None:
     if not state.config.extra_trees:
         return
@@ -815,6 +833,7 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                 *(["--mirror", state.config.mirror] if state.config.mirror else []),
                 "--repository-key-check", yes_no(state.config.repository_key_check),
                 "--repositories", ",".join(state.config.repositories),
+                "--package-manager-tree", ",".join(format_source_target(s, t) for s, t in state.config.package_manager_trees),
                 *(["--compress-output", str(state.config.compress_output)] if state.config.compress_output else []),
                 "--with-network", yes_no(state.config.with_network),
                 "--cache-only", yes_no(state.config.cache_only),
@@ -1246,11 +1265,15 @@ def line_join_list(
     return "\n                                ".join(items)
 
 
+def format_source_target(source: Path, target: Optional[Path]) -> str:
+    return f"{source}:{target}" if target else f"{source}"
+
+
 def line_join_source_target_list(array: Sequence[tuple[Path, Optional[Path]]]) -> str:
     if not array:
         return "none"
 
-    items = [f"{source}:{target}" if target else f"{source}" for source, target in array]
+    items = [format_source_target(source, target) for source, target in array]
     return "\n                                ".join(items)
 
 
@@ -1299,6 +1322,7 @@ def summary(args: MkosiArgs, config: MkosiConfig) -> str:
                       Packages: {line_join_list(config.packages)}
             With Documentation: {yes_no(config.with_docs)}
                 Skeleton Trees: {line_join_source_target_list(config.skeleton_trees)}
+         Package Manager Trees: {line_join_source_target_list(config.package_manager_trees)}
                    Extra Trees: {line_join_source_target_list(config.extra_trees)}
         Clean Package Metadata: {yes_no_auto(config.clean_package_metadata)}
                   Remove Files: {line_join_list(config.remove_files)}

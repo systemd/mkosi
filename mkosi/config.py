@@ -260,6 +260,10 @@ def config_default_mirror(namespace: argparse.Namespace) -> Optional[str]:
     return None
 
 
+def config_default_package_manager_tree(namespace: argparse.Namespace) -> list[tuple[Path, Optional[Path]]]:
+    return getattr(namespace, "skeleton_trees", [])
+
+
 def make_enum_parser(type: Type[enum.Enum]) -> Callable[[str], enum.Enum]:
     def parse_enum(value: str) -> enum.Enum:
         try:
@@ -600,6 +604,7 @@ class MkosiConfig:
     base_trees: list[Path]
     extra_trees: list[tuple[Path, Optional[Path]]]
     skeleton_trees: list[tuple[Path, Optional[Path]]]
+    package_manager_trees: list[tuple[Path, Optional[Path]]]
     clean_package_metadata: ConfigFeature
     remove_files: list[str]
     environment: dict[str, str]
@@ -926,6 +931,12 @@ class MkosiConfigParser:
             section="Content",
             parse=config_make_list_parser(delimiter=",", parse=parse_source_target_paths),
             paths=("mkosi.skeleton", "mkosi.skeleton.tar"),
+        ),
+        MkosiConfigSetting(
+            dest="package_manager_trees",
+            section="Content",
+            parse=config_make_list_parser(delimiter=",", parse=parse_source_target_paths),
+            default_factory=config_default_package_manager_tree,
         ),
         MkosiConfigSetting(
             dest="clean_package_metadata",
@@ -1628,6 +1639,13 @@ class MkosiConfigParser:
             metavar="PATH",
             help="Use a skeleton tree to bootstrap the image before installing anything",
             dest="skeleton_trees",
+            action=action,
+        )
+        group.add_argument(
+            "--package-manager-tree",
+            metavar="PATH",
+            help="Use a package manager tree to configure the package manager",
+            dest="package_manager_trees",
             action=action,
         )
         group.add_argument(

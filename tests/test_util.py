@@ -1,10 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
-from mkosi.util import (
-    Compression,
-    Distribution,
-    PackageType,
-)
+from mkosi.util import Compression, Distribution, PackageType
+
 
 def test_distribution() -> None:
     assert Distribution.fedora.package_type == PackageType.rpm

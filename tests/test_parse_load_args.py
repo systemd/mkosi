@@ -12,8 +12,8 @@ from typing import Iterator, List, Optional
 
 import pytest
 
+from mkosi.config import MkosiArgs, MkosiConfig, MkosiConfigParser
 from mkosi.util import Compression, Distribution, Verb
-from mkosi.config import MkosiConfigParser, MkosiConfig, MkosiArgs
 
 
 @contextmanager
@@ -360,3 +360,28 @@ def test_match_imageversion(op: str, version: str) -> None:
         assert ("testpkg1" in conf.packages) == opfunc(123, version)
         assert ("testpkg2" in conf.packages) == opfunc(123, version)
         assert "testpkg3" not in conf.packages
+
+
+@pytest.mark.parametrize(
+    "skel,pkgmngr", itertools.product(
+        [None, Path("/foo"), Path("/bar")],
+        [None, Path("/foo"), Path("/bar")],
+    )
+)
+def test_package_manager_tree(skel: Optional[Path], pkgmngr: Optional[Path]) -> None:
+    with cd_temp_dir():
+        config = Path("mkosi.conf")
+        with config.open("w") as f:
+            f.write("[Content]\n")
+            if skel is not None:
+                f.write(f"SkeletonTrees={skel}\n")
+            if pkgmngr is not None:
+                f.write(f"PackageManagerTrees={pkgmngr}\n")
+
+        conf = parse([])[1][0]
+
+        skel_expected = [(skel, None)] if skel is not None else []
+        pkgmngr_expected = [(pkgmngr, None)] if pkgmngr is not None else skel_expected
+
+        assert conf.skeleton_trees == skel_expected
+        assert conf.package_manager_trees == pkgmngr_expected
