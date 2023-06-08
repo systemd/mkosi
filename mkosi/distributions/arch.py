@@ -84,8 +84,6 @@ class ArchInstaller(DistributionInstaller):
                     )
                 )
 
-            for d in state.config.repo_dirs:
-                f.write(f"Include = {d}/*\n")
 
         return invoke_pacman(state, packages, apivfs=apivfs)
 

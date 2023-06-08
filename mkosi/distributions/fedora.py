@@ -174,7 +174,6 @@ def invoke_dnf(
         "--setopt=keepcache=1",
         "--setopt=install_weak_deps=0",
         f"--setopt=cachedir={state.cache_dir}",
-        f"--setopt=reposdir={' '.join(str(p) for p in state.config.repo_dirs)}",
         f"--setopt=varsdir={state.pkgmngr / 'etc/dnf/vars'}",
         f"--setopt=logdir={state.pkgmngr / 'var/log'}",
         f"--setopt=persistdir={state.pkgmngr / 'var/lib/dnf'}",

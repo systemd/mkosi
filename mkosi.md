@@ -375,15 +375,6 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
   Linux, additional repositories must be passed in the form `<name>::<url>`
   (e.g. `myrepo::https://myrepo.net`).
 
-`RepositoryDirectories`, `--repo-dir=`
-
-: This option can (for now) only be used with RPM-based distributions,
-  Debian-based distributions and Arch Linux. It takes a comma separated list of
-  directories containing extra repository definitions that will be used when
-  installing packages. The files are passed directly to the corresponding
-  package manager and should be written in the format expected by the package
-  manager of the image's distro.
-
 `Architecture=`, `--architecture=`
 
 : The architecture to build the image for. A number of architectures can be specified, but which ones are
@@ -1300,10 +1291,6 @@ local directory:
   shall be built from the same working directory, as otherwise the
   build result of a preceding run might be copied into a build image
   as part of the source tree (see above).
-
-* The **`mkosi.reposdir/`** directory, if it exists, is automatically
-  used as the repository directory for extra repository files. See
-  the `RepositoryDirectories` option for more information.
 
 * The **`mkosi.credentials/`** directory is used as a
   source of extra credentials similar to the `Credentials=` option. For

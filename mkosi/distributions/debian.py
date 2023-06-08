@@ -212,13 +212,6 @@ def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
         for repo in repos:
             f.write(f"{repo}\n")
 
-    for repo_dir in state.config.repo_dirs:
-        for src in repo_dir.iterdir():
-            if not src.is_file():
-                continue
-            if src.suffix in (".list", ".sources"):
-                shutil.copyfile(src, state.workspace.joinpath("pkgmngr/etc/apt/sources.list.d", src.name))
-
 
 def invoke_apt(
     state: MkosiState,
@@ -246,10 +239,3 @@ def install_apt_sources(state: MkosiState, repos: Sequence[str]) -> None:
         with sources.open("w") as f:
             for repo in repos:
                 f.write(f"{repo}\n")
-
-    # Already contains a merged tree of repo_dirs after setup_apt
-    for src in state.workspace.joinpath("pkgmngr/etc/apt/sources.list.d").iterdir():
-        dst = state.root.joinpath("etc/apt/sources.list.d", src.name)
-        if dst.exists():
-            continue
-        shutil.copyfile(src, dst)
