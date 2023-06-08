@@ -172,7 +172,12 @@ def vsock_notify_handler() -> Iterator[tuple[str, dict[str, str]]]:
 
                 num_messages += 1
 
-                for msg in (await loop.sock_recv(s, 4096)).decode().split("\n"):
+                with s:
+                    data = []
+                    while (buf := await loop.sock_recv(s, 4096)):
+                        data.append(buf)
+
+                for msg in b"".join(data).decode().split("\n"):
                     if not msg:
                         continue
 
