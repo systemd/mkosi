@@ -24,79 +24,8 @@ class ArchInstaller(DistributionInstaller):
 
     @classmethod
     def install_packages(cls, state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
-        assert state.config.mirror
-
-        if state.config.local_mirror:
-            server = f"Server = {state.config.local_mirror}"
-        else:
-            if state.config.architecture == Architecture.arm64:
-                server = f"Server = {state.config.mirror}/$arch/$repo"
-            else:
-                server = f"Server = {state.config.mirror}/$repo/os/$arch"
-
-        # Create base layout for pacman and pacman-key
-        state.root.joinpath("var/lib/pacman").mkdir(mode=0o755, exist_ok=True, parents=True)
-
-        pacman_conf = state.pkgmngr / "etc/pacman.conf"
-        pacman_conf.parent.mkdir(mode=0o755, exist_ok=True, parents=True)
-
-        if state.config.repository_key_check:
-            sig_level = "Required DatabaseOptional"
-        else:
-            # If we are using a single local mirror built on the fly there
-            # will be no signatures
-            sig_level = "Never"
-
-        with pacman_conf.open("w") as f:
-            gpgdir = state.pkgmngr / "etc/pacman.d/gnupg/"
-            gpgdir = gpgdir if gpgdir.exists() else "/etc/pacman.d/gnupg/"
-            f.write(
-                dedent(
-                    f"""\
-                    [options]
-                    RootDir = {state.root}
-                    LogFile = /dev/null
-                    CacheDir = {state.cache_dir}
-                    GPGDir = {gpgdir}
-                    HookDir = {state.root}/etc/pacman.d/hooks/
-                    HoldPkg = pacman glibc
-                    Architecture = {state.installer.architecture(state.config.architecture)}
-                    Color
-                    CheckSpace
-                    SigLevel = {sig_level}
-                    ParallelDownloads = 5
-
-                    [core]
-                    {server}
-                    """
-                )
-            )
-
-            if not state.config.local_mirror:
-                f.write(
-                    dedent(
-                        f"""\
-
-                        [extra]
-                        {server}
-
-                        [community]
-                        {server}
-                        """
-                    )
-                )
-
-            if any(state.pkgmngr.joinpath("etc/pacman.d/").glob("*.conf")):
-                f.write(
-                    dedent(
-                        f"""\
-
-                        Include = {state.pkgmngr}/etc/pacman.d/*.conf
-                        """
-                    )
-                )
-
-        return invoke_pacman(state, packages, apivfs=apivfs)
+        setup_pacman(state)
+        invoke_pacman(state, packages, apivfs=apivfs)
 
     @staticmethod
     def architecture(arch: Architecture) -> str:
@@ -109,6 +38,80 @@ class ArchInstaller(DistributionInstaller):
             die(f"Architecture {a} is not supported by Arch Linux")
 
         return a
+
+
+def setup_pacman(state: MkosiState) -> None:
+    assert state.config.mirror
+
+    if state.config.local_mirror:
+        server = f"Server = {state.config.local_mirror}"
+    else:
+        if state.config.architecture == Architecture.arm64:
+            server = f"Server = {state.config.mirror}/$arch/$repo"
+        else:
+            server = f"Server = {state.config.mirror}/$repo/os/$arch"
+
+    if state.config.repository_key_check:
+        sig_level = "Required DatabaseOptional"
+    else:
+        # If we are using a single local mirror built on the fly there
+        # will be no signatures
+        sig_level = "Never"
+
+    # Create base layout for pacman and pacman-key
+    state.root.joinpath("var/lib/pacman").mkdir(mode=0o755, exist_ok=True, parents=True)
+
+    config = state.pkgmngr / "etc/pacman.conf"
+    config.parent.mkdir(mode=0o755, exist_ok=True, parents=True)
+
+    with config.open("w") as f:
+        gpgdir = state.pkgmngr / "etc/pacman.d/gnupg/"
+        gpgdir = gpgdir if gpgdir.exists() else "/etc/pacman.d/gnupg/"
+        f.write(
+            dedent(
+                f"""\
+                [options]
+                RootDir = {state.root}
+                LogFile = /dev/null
+                CacheDir = {state.cache_dir}
+                GPGDir = {gpgdir}
+                HookDir = {state.root}/etc/pacman.d/hooks/
+                HoldPkg = pacman glibc
+                Architecture = {state.installer.architecture(state.config.architecture)}
+                Color
+                CheckSpace
+                SigLevel = {sig_level}
+                ParallelDownloads = 5
+
+                [core]
+                {server}
+                """
+            )
+        )
+
+        if not state.config.local_mirror:
+            f.write(
+                dedent(
+                    f"""\
+
+                    [extra]
+                    {server}
+
+                    [community]
+                    {server}
+                    """
+                )
+            )
+
+        if any(state.pkgmngr.joinpath("etc/pacman.d/").glob("*.conf")):
+            f.write(
+                dedent(
+                    f"""\
+
+                    Include = {state.pkgmngr}/etc/pacman.d/*.conf
+                    """
+                )
+            )
 
 
 def invoke_pacman(state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
