@@ -207,7 +207,7 @@ def invoke_apt(
     debarch = state.installer.architecture(state.config.architecture)
 
     trustedkeys = state.pkgmngr / "etc/apt/trusted.gpg"
-    trustedkeys = trustedkeys if trustedkeys.exists() else f"/usr/share/keyrings/{state.config.release}-archive-keyring"
+    trustedkeys = trustedkeys if trustedkeys.exists() else f"/usr/share/keyrings/{state.config.distribution}-archive-keyring.gpg"
     trustedkeys_dir = state.pkgmngr / "etc/apt/trusted.gpg.d"
     trustedkeys_dir = trustedkeys_dir if trustedkeys_dir.exists() else "/usr/share/keyrings"
 
