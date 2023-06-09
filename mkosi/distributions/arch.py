@@ -44,13 +44,10 @@ class ArchInstaller(DistributionInstaller):
 def setup_pacman(state: MkosiState) -> None:
     assert state.config.mirror
 
-    if state.config.local_mirror:
-        server = f"Server = {state.config.local_mirror}"
+    if state.config.architecture == Architecture.arm64:
+        server = f"Server = {state.config.mirror}/$arch/$repo"
     else:
-        if state.config.architecture == Architecture.arm64:
-            server = f"Server = {state.config.mirror}/$arch/$repo"
-        else:
-            server = f"Server = {state.config.mirror}/$repo/os/$arch"
+        server = f"Server = {state.config.mirror}/$repo/os/$arch"
 
     if state.config.repository_key_check:
         sig_level = "Required DatabaseOptional"
@@ -78,20 +75,12 @@ def setup_pacman(state: MkosiState) -> None:
 
                 [core]
                 {server}
+
+                [extra]
+                {server}
                 """
             )
         )
-
-        if not state.config.local_mirror:
-            f.write(
-                dedent(
-                    f"""\
-
-                    [extra]
-                    {server}
-                    """
-                )
-            )
 
         if any(state.pkgmngr.joinpath("etc/pacman.d/").glob("*.conf")):
             f.write(

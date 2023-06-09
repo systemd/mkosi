@@ -30,10 +30,7 @@ class OpenmandrivaInstaller(DistributionInstaller):
         else:
             release_model = release
 
-        if state.config.local_mirror:
-            release_url = f"baseurl={state.config.local_mirror}"
-            updates_url = None
-        elif state.config.mirror:
+        if state.config.mirror:
             baseurl = f"{state.config.mirror}/{release_model}/repository/{arch}/main"
             release_url = f"baseurl={baseurl}/release/"
             updates_url = f"baseurl={baseurl}/updates/"

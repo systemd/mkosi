@@ -24,11 +24,8 @@ class DebianInstaller(DistributionInstaller):
         return Path(f"boot/vmlinuz-{name}")
 
     @staticmethod
-    def repositories(state: MkosiState, local: bool = True) -> list[str]:
+    def repositories(state: MkosiState) -> list[str]:
         repos = ' '.join(("main", *state.config.repositories))
-
-        if state.config.local_mirror and local:
-            return [f"deb [trusted=yes] {state.config.local_mirror} {state.config.release} {repos}"]
 
         main = f"deb {state.config.mirror} {state.config.release} {repos}"
 
@@ -124,7 +121,7 @@ class DebianInstaller(DistributionInstaller):
         setup_apt(state, cls.repositories(state))
         invoke_apt(state, "update", apivfs=False)
         invoke_apt(state, "install", packages, apivfs=apivfs)
-        install_apt_sources(state, cls.repositories(state, local=False))
+        install_apt_sources(state, cls.repositories(state))
 
         policyrcd.unlink()
 

@@ -144,9 +144,6 @@ class CentosInstaller(DistributionInstaller):
     def _epel_repos(cls, config: MkosiConfig) -> list[Repo]:
         epel_gpgurl = "https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-$releasever"
 
-        if config.local_mirror:
-            return []
-
         if config.mirror:
             epel_url = f"baseurl={config.mirror}/epel/$releasever/Everything/$basearch"
             epel_next_url = f"baseurl={config.mirror}/epel/next/$releasever/Everything/$basearch"
@@ -169,10 +166,7 @@ class CentosInstaller(DistributionInstaller):
         directory = cls._mirror_directory()
         gpgurl = cls._gpgurl(release)
 
-        if config.local_mirror:
-            appstream_url = f"baseurl={config.local_mirror}"
-            baseos_url = extras_url = powertools_url = crb_url = None
-        elif config.mirror:
+        if config.mirror:
             appstream_url = f"baseurl={config.mirror}/{directory}/$stream/AppStream/$basearch/os"
             baseos_url = f"baseurl={config.mirror}/{directory}/$stream/BaseOS/$basearch/os"
             extras_url = f"baseurl={config.mirror}/{directory}/$stream/extras/$basearch/os"
@@ -211,10 +205,7 @@ class CentosInstaller(DistributionInstaller):
         gpgurl = cls._gpgurl(release)
         extras_gpgurl = cls._extras_gpgurl(release)
 
-        if config.local_mirror:
-            appstream_url = f"baseurl={config.local_mirror}"
-            baseos_url = extras_url = crb_url = None
-        elif config.mirror:
+        if config.mirror:
             appstream_url = f"baseurl={config.mirror}/centos-stream/$stream/AppStream/$basearch/os"
             baseos_url = f"baseurl={config.mirror}/centos-stream/$stream/BaseOS/$basearch/os"
             extras_url = f"baseurl={config.mirror}/centos-stream/SIGS/$stream/extras/$basearch/extras-common"

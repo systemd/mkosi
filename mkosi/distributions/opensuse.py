@@ -28,9 +28,6 @@ class OpensuseInstaller(DistributionInstaller):
 
         # If the release looks like a timestamp, it's Tumbleweed. 13.x is legacy
         # (14.x won't ever appear). For anything else, let's default to Leap.
-        if state.config.local_mirror:
-            release_url = f"{state.config.local_mirror}"
-            updates_url = None
         if release.isdigit() or release == "tumbleweed":
             release_url = f"{state.config.mirror}/tumbleweed/repo/oss/"
             updates_url = f"{state.config.mirror}/update/tumbleweed/"

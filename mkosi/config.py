@@ -585,7 +585,6 @@ class MkosiConfig:
     distribution: Distribution
     release: str
     mirror: Optional[str]
-    local_mirror: Optional[str]
     repository_key_check: bool
     repositories: list[str]
     repart_dirs: list[Path]
@@ -784,11 +783,6 @@ class MkosiConfigParser:
             section="Distribution",
             default_factory=config_default_mirror,
             help="Distribution mirror to use",
-        ),
-        MkosiConfigSetting(
-            dest="local_mirror",
-            section="Distribution",
-            help="Use a single local, flat and plain mirror to build the image",
         ),
         MkosiConfigSetting(
             dest="repository_key_check",

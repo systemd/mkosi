@@ -23,10 +23,7 @@ class MageiaInstaller(DistributionInstaller):
         release = state.config.release.strip("'")
         arch = state.installer.architecture(state.config.architecture)
 
-        if state.config.local_mirror:
-            release_url = f"baseurl={state.config.local_mirror}"
-            updates_url = None
-        elif state.config.mirror:
+        if state.config.mirror:
             baseurl = f"{state.config.mirror}/distrib/{release}/{arch}/media/core/"
             release_url = f"baseurl={baseurl}/release/"
             if release == "cauldron":

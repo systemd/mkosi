@@ -1299,7 +1299,6 @@ def summary(args: MkosiArgs, config: MkosiConfig) -> str:
                        Release: {bold(none_to_na(config.release))}
                   Architecture: {config.architecture}
                         Mirror: {none_to_default(config.mirror)}
-          Local Mirror (build): {none_to_none(config.local_mirror)}
       Repo Signature/Key check: {yes_no(config.repository_key_check)}
                   Repositories: {",".join(config.repositories)}
 

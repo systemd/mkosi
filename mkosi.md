@@ -337,16 +337,6 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
 : The mirror to use for downloading the distribution packages. Expects
   a mirror URL as argument.
 
-`LocalMirror=`, `--local-mirror=`
-
-: The mirror will be used as a local, plain and direct mirror instead
-  of using it as a prefix for the full set of repositories normally supported
-  by distributions. Useful for fully offline builds with a single repository.
-  Supported on deb/rpm/arch based distributions. Overrides `--mirror=` but only
-  for the local mkosi build, it will not be configured inside the final image,
-  `--mirror=` (or the default repository) will be configured inside the final
-  image instead.
-
 `RepositoryKeyCheck=`, `--repository-key-check=`
 
 : Controls signature/key checks when using repositories, enabled by default.

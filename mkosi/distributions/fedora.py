@@ -31,9 +31,7 @@ class FedoraInstaller(DistributionInstaller):
         release = parse_fedora_release(state.config.release)
         release_url = updates_url = appstream_url = baseos_url = extras_url = crb_url = None
 
-        if state.config.local_mirror:
-            release_url = f"baseurl={state.config.local_mirror}"
-        elif release == "eln":
+        if release == "eln":
             assert state.config.mirror
             appstream_url = f"baseurl={state.config.mirror}/AppStream/$basearch/os"
             baseos_url = f"baseurl={state.config.mirror}/BaseOS/$basearch/os"
@@ -214,7 +212,7 @@ def invoke_dnf(
         cmdline += [f"{opt}={repo}" for repo in state.config.repositories]
 
     # TODO: this breaks with a local, offline repository created with 'createrepo'
-    if state.config.cache_only and not state.config.local_mirror:
+    if state.config.cache_only:
         cmdline += ["--cacheonly"]
 
     if not state.config.architecture.is_native():

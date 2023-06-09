@@ -7,11 +7,8 @@ from mkosi.state import MkosiState
 
 class UbuntuInstaller(DebianInstaller):
     @staticmethod
-    def repositories(state: MkosiState, local: bool = True) -> list[str]:
+    def repositories(state: MkosiState) -> list[str]:
         repos = ' '.join(("main", *state.config.repositories))
-
-        if state.config.local_mirror and local:
-            return [f"deb [trusted=yes] {state.config.local_mirror} {state.config.release} {repos}"]
 
         main = f"deb {state.config.mirror} {state.config.release} {repos}"
         updates = f"deb {state.config.mirror} {state.config.release}-updates {repos}"
