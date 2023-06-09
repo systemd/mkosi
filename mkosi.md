@@ -205,6 +205,7 @@ When building with `--incremental` mkosi creates a cache of the distribution
 installation if not already existing and replaces the distribution installation
 in consecutive runs with data from the cached one.
 
+- Copy package manager trees into the workspace
 * Copy skeleton trees (`mkosi.skeleton`) into image
 * Install distribution and packages into image or use cache tree if available
 * Install build packages in overlay if a build script is configured
