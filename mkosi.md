@@ -151,18 +151,6 @@ Those settings cannot be configured in the configuration files.
   option is an effective way to build a project located in a specific
   directory.
 
-`--config=`
-
-: Loads additional settings from the specified settings file. Most
-  command line options may also be configured in a settings file. See
-  the table below to see which command line options match which
-  settings file option. If this option is not used, but a file
-  `mkosi.conf` is found in the local directory it is automatically
-  used for this purpose. If a setting is configured both on the
-  command line and in the settings file, the command line generally
-  wins, except for options taking lists in which case both lists are
-  combined.
-
 `--debug=`
 
 : Enable additional debugging output.
@@ -205,6 +193,7 @@ When building with `--incremental` mkosi creates a cache of the distribution
 installation if not already existing and replaces the distribution installation
 in consecutive runs with data from the cached one.
 
+- Copy package manager trees into the workspace
 * Copy skeleton trees (`mkosi.skeleton`) into image
 * Install distribution and packages into image or use cache tree if available
 * Install build packages in overlay if a build script is configured
@@ -212,7 +201,6 @@ in consecutive runs with data from the cached one.
 * Run build script on image + build overlay if a build script is configured (`mkosi.build`)
 * Copy the build script outputs into the image
 * Copy the extra trees into the image (`mkosi.extra`)
-* Run `kernel-install`
 * Install systemd-boot
 * Run post-install script (`mkosi.postinst`)
 * Run `systemctl preset-all`
@@ -635,15 +623,13 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
 `Bootable=`, `--bootable=`
 
 : Takes a boolean or `auto`. Enables or disables generation of a bootable
-  image. If enabled, mkosi will install systemd-boot, run kernel-install,
-  generate unified kernel images for installed kernels and add an ESP
-  partition when the disk image output is used. If systemd-boot is not
-  installed or no kernel images can be found, the build will fail. `auto`
-  behaves as if the option was enabled, but the build won't fail if either
-  no kernel images or systemd-boot can't be found. If disabled, systemd-boot
-  won't be installed even if found inside the image, kernel-install won't be
-  executed, no unified kernel images will be generated and no ESP partition
-  will be added to the image if the disk output format is used.
+  image. If enabled, mkosi will install systemd-boot, and add an ESP partition
+  when the disk image output is used. If systemd-boot is not installed or no
+  kernel images can be found, the build will fail. `auto` behaves as if the
+  option was enabled, but the build won't fail if either no kernel images or
+  systemd-boot can't be found. If disabled, systemd-boot won't be installed even
+  if found inside the image, no unified kernel images will be generated and no
+  ESP partition will be added to the image if the disk output format is used.
 
 `KernelCommandLine=`, `--kernel-command-line=`
 
@@ -1066,18 +1052,6 @@ Those settings cannot be configured in the configuration files.
   searched for only after changing to this directory, hence using this
   option is an effective way to build a project located in a specific
   directory.
-
-`--config=`
-
-: Loads additional settings from the specified settings file. Most
-  command line options may also be configured in a settings file. See
-  the table below to see which command line options match which
-  settings file option. If this option is not used, but a file
-  `mkosi.conf` is found in the local directory it is automatically
-  used for this purpose. If a setting is configured both on the
-  command line and in the settings file, the command line generally
-  wins, except for options taking lists in which case both lists are
-  combined.
 
 `--incremental`, `-i`
 
