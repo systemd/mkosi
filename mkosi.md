@@ -212,7 +212,6 @@ in consecutive runs with data from the cached one.
 * Run build script on image + build overlay if a build script is configured (`mkosi.build`)
 * Copy the build script outputs into the image
 * Copy the extra trees into the image (`mkosi.extra`)
-* Run `kernel-install`
 * Install systemd-boot
 * Run post-install script (`mkosi.postinst`)
 * Run `systemctl preset-all`
@@ -635,15 +634,13 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
 `Bootable=`, `--bootable=`
 
 : Takes a boolean or `auto`. Enables or disables generation of a bootable
-  image. If enabled, mkosi will install systemd-boot, run kernel-install,
-  generate unified kernel images for installed kernels and add an ESP
-  partition when the disk image output is used. If systemd-boot is not
-  installed or no kernel images can be found, the build will fail. `auto`
-  behaves as if the option was enabled, but the build won't fail if either
-  no kernel images or systemd-boot can't be found. If disabled, systemd-boot
-  won't be installed even if found inside the image, kernel-install won't be
-  executed, no unified kernel images will be generated and no ESP partition
-  will be added to the image if the disk output format is used.
+  image. If enabled, mkosi will install systemd-boot, and add an ESP partition
+  when the disk image output is used. If systemd-boot is not installed or no
+  kernel images can be found, the build will fail. `auto` behaves as if the
+  option was enabled, but the build won't fail if either no kernel images or
+  systemd-boot can't be found. If disabled, systemd-boot won't be installed even
+  if found inside the image, no unified kernel images will be generated and no
+  ESP partition will be added to the image if the disk output format is used.
 
 `KernelCommandLine=`, `--kernel-command-line=`
 
