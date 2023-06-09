@@ -151,18 +151,6 @@ Those settings cannot be configured in the configuration files.
   option is an effective way to build a project located in a specific
   directory.
 
-`--config=`
-
-: Loads additional settings from the specified settings file. Most
-  command line options may also be configured in a settings file. See
-  the table below to see which command line options match which
-  settings file option. If this option is not used, but a file
-  `mkosi.conf` is found in the local directory it is automatically
-  used for this purpose. If a setting is configured both on the
-  command line and in the settings file, the command line generally
-  wins, except for options taking lists in which case both lists are
-  combined.
-
 `--debug=`
 
 : Enable additional debugging output.
@@ -1064,18 +1052,6 @@ Those settings cannot be configured in the configuration files.
   searched for only after changing to this directory, hence using this
   option is an effective way to build a project located in a specific
   directory.
-
-`--config=`
-
-: Loads additional settings from the specified settings file. Most
-  command line options may also be configured in a settings file. See
-  the table below to see which command line options match which
-  settings file option. If this option is not used, but a file
-  `mkosi.conf` is found in the local directory it is automatically
-  used for this purpose. If a setting is configured both on the
-  command line and in the settings file, the command line generally
-  wins, except for options taking lists in which case both lists are
-  combined.
 
 `--incremental`, `-i`
 
