@@ -70,8 +70,6 @@ def setup_pacman(state: MkosiState) -> None:
             dedent(
                 f"""\
                 [options]
-                HoldPkg = pacman glibc
-                CheckSpace
                 SigLevel = {sig_level}
                 ParallelDownloads = 5
 
