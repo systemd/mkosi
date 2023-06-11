@@ -177,8 +177,9 @@ def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
     # Anything that users can override with dropins is written into the config file.
     config.write_text(
         dedent(
-            """\
+            f"""\
             APT::Install-Recommends "false";
+            Dir::Etc "{state.pkgmngr / "etc/apt"}";
             """
         )
     )
@@ -223,7 +224,6 @@ def invoke_apt(
         "-o", f"Dir::Cache={state.cache_dir}",
         "-o", f"Dir::State={state.pkgmngr / 'var/lib/apt'}",
         "-o", f"Dir::State::status={state.root / 'var/lib/dpkg/status'}",
-        "-o", f"Dir::Etc={state.pkgmngr / 'etc/apt'}",
         "-o", f"Dir::Etc::trusted={trustedkeys}",
         "-o", f"Dir::Etc::trustedparts={trustedkeys_dir}",
         "-o", f"Dir::Log={state.pkgmngr / 'var/log/apt'}",
