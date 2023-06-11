@@ -22,7 +22,6 @@ from mkosi.types import PathString
 def invoke_emerge(
     state: MkosiState,
     sysroot: Optional[Path] = None,
-    root: Optional[Path] = None,
     bwrap_params: list[PathString] = [],
     pkgs: Sequence[str] = (),
     actions: Sequence[str] = (),
@@ -31,6 +30,7 @@ def invoke_emerge(
 ) -> None:
     thread_counts = (os.cpu_count() or 1) * 2  # * 2 for hyperthreading
     bwrap: list[PathString] = []
+    root: Optional[Path] = None
     if sysroot is not None:
         # This is the mount-point inside our sysroot where we mount root
         target_root_mntp = "/tmp/mkosi-root"
@@ -38,7 +38,6 @@ def invoke_emerge(
         root = Path(target_root_mntp)
     else:
         sysroot = state.root
-        root = None
 
     emerge_default_opts = [
         "--buildpkg=y",
