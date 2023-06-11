@@ -172,7 +172,7 @@ def invoke_dnf(
 
     cmdline = [
         dnf,
-        "-y",
+        "--assumeyes",
         f"--config={state.pkgmngr / 'etc/dnf/dnf.conf'}",
         command,
         "--best",
@@ -206,7 +206,7 @@ def invoke_dnf(
 
     # TODO: this breaks with a local, offline repository created with 'createrepo'
     if state.config.cache_only and not state.config.local_mirror:
-        cmdline += ["-C"]
+        cmdline += ["--cacheonly"]
 
     if not state.config.architecture.is_native():
         cmdline += [f"--forcearch={state.installer.architecture(state.config.architecture)}"]
