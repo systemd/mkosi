@@ -88,9 +88,6 @@ def setup_pacman(state: MkosiState) -> None:
 
                     [extra]
                     {server}
-
-                    [community]
-                    {server}
                     """
                 )
             )
