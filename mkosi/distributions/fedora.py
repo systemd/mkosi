@@ -125,7 +125,14 @@ def setup_dnf(state: MkosiState, repos: Sequence[Repo]) -> None:
 
     if not config.exists():
         config.parent.mkdir(exist_ok=True, parents=True)
-        config.touch()
+        config.write_text(
+            dedent(
+                """\
+                [main]
+                install_weak_deps=0
+                """
+            )
+        )
 
     repofile = state.pkgmngr / f"etc/yum.repos.d/{state.config.distribution}.repo"
     if not repofile.exists():
@@ -180,7 +187,6 @@ def invoke_dnf(
         f"--releasever={release}",
         f"--installroot={state.root}",
         "--setopt=keepcache=1",
-        "--setopt=install_weak_deps=0",
         f"--setopt=cachedir={state.cache_dir}",
         f"--setopt=reposdir={state.pkgmngr / 'etc/yum.repos.d'}",
         f"--setopt=varsdir={state.pkgmngr / 'etc/dnf/vars'}",
