@@ -173,17 +173,17 @@ def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
     state.root.joinpath("var/lib/dpkg/status").touch()
 
     config = state.pkgmngr / "etc/apt/apt.conf"
-
-    # Anything that users can override with dropins is written into the config file.
-    config.write_text(
-        dedent(
-            """\
-            APT::Install-Recommends "false";
-            """
+    if not config.exists():
+        # Anything that users can override with dropins is written into the config file.
+        config.write_text(
+            dedent(
+                """\
+                APT::Install-Recommends "false";
+                """
+            )
         )
-    )
 
-    sources = state.pkgmngr.joinpath("etc/apt/sources.list")
+    sources = state.pkgmngr / "etc/apt/sources.list"
     if not sources.exists():
         with sources.open("w") as f:
             for repo in repos:

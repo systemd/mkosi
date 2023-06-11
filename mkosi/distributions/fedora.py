@@ -121,8 +121,14 @@ class Repo(NamedTuple):
 
 
 def setup_dnf(state: MkosiState, repos: Sequence[Repo]) -> None:
-    state.pkgmngr.joinpath("etc/dnf").mkdir(exist_ok=True, parents=True)
-    with state.pkgmngr.joinpath("etc/dnf/dnf.conf").open("w") as f:
+    config = state.pkgmngr / "etc/dnf/dnf.conf"
+
+    if config.exists():
+        return
+
+    config.parent.mkdir(exist_ok=True, parents=True)
+
+    with config.open("w") as f:
         for repo in repos:
             f.write(
                 dedent(

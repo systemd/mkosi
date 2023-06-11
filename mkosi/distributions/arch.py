@@ -63,6 +63,9 @@ def setup_pacman(state: MkosiState) -> None:
     state.root.joinpath("var/lib/pacman").mkdir(mode=0o755, exist_ok=True, parents=True)
 
     config = state.pkgmngr / "etc/pacman.conf"
+    if config.exists():
+        return
+
     config.parent.mkdir(mode=0o755, exist_ok=True, parents=True)
 
     with config.open("w") as f:
