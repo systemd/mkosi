@@ -11,7 +11,7 @@ from typing import Optional
 
 from mkosi.architecture import Architecture
 from mkosi.distributions import DistributionInstaller
-from mkosi.install import copy_path, flock
+from mkosi.install import copy_path
 from mkosi.log import ARG_DEBUG, complete_step, die, log_step
 from mkosi.remove import unlink_try_hard
 from mkosi.run import run, run_workspace_command
@@ -153,24 +153,18 @@ class GentooInstaller(DistributionInstaller):
 
         cls.stage3_cache.mkdir(parents=True, exist_ok=True)
 
-        with flock(cls.stage3_cache):
-            if not cls.stage3_cache.joinpath(".cache_isclean").exists():
-                log_step(f"Extracting {stage3_tar.name} to {cls.stage3_cache}")
-
-                run([
-                    "tar",
-                    "--numeric-owner",
-                    "-C", cls.stage3_cache,
-                    "--extract",
-                    "--file", stage3_tar_path,
-                    "--exclude", "./dev",
-                ])
-
-                unlink_try_hard(cls.stage3_cache.joinpath("dev"))
-                unlink_try_hard(cls.stage3_cache.joinpath("proc"))
-                unlink_try_hard(cls.stage3_cache.joinpath("sys"))
-
-                cls.stage3_cache.joinpath(".cache_isclean").touch()
+        log_step(f"Extracting {stage3_tar.name} to {cls.stage3_cache}")
+        run([
+            "tar",
+            "--numeric-owner",
+            "-C", cls.stage3_cache,
+            "--extract",
+            "--file", stage3_tar_path,
+            "--exclude", "./dev",
+        ])
+        unlink_try_hard(cls.stage3_cache.joinpath("dev"))
+        unlink_try_hard(cls.stage3_cache.joinpath("proc"))
+        unlink_try_hard(cls.stage3_cache.joinpath("sys"))
 
         package_use = user_config_path / "package.use"
         package_use.mkdir(exist_ok=True)
