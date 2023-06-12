@@ -172,18 +172,32 @@ def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
     state.root.joinpath("var/lib/dpkg").mkdir(mode=0o755, exist_ok=True)
     state.root.joinpath("var/lib/dpkg/status").touch()
 
-    config = state.pkgmngr / "etc/apt/apt.conf"
-
-    # Anything that users can override with dropins is written into the config file.
-    config.write_text(
-        dedent(
-            """\
-            APT::Install-Recommends "false";
-            """
+    # We have a special apt.conf outside of pkgmngr dir that only configures "Dir" that we pass to
+    # APT_CONFIG to tell apt it should read config files in pkgmngr instead of in its usual locations. This
+    # is required because apt parses CLI configuration options after parsing its configuration files and as
+    # such we can't use CLI options to tell apt where to look for configuration files.
+    config = state.workspace / "apt.conf"
+    if not config.exists():
+        config.write_text(
+            dedent(
+                f"""\
+                Dir "{state.pkgmngr}";
+                """
+            )
         )
-    )
 
-    sources = state.pkgmngr.joinpath("etc/apt/sources.list")
+    config = state.pkgmngr / "etc/apt/apt.conf"
+    if not config.exists():
+        # Anything that users can override with dropins is written into the config file.
+        config.write_text(
+            dedent(
+                """\
+                APT::Install-Recommends "false";
+                """
+            )
+        )
+
+    sources = state.pkgmngr / "etc/apt/sources.list"
     if not sources.exists():
         with sources.open("w") as f:
             for repo in repos:
@@ -197,7 +211,7 @@ def invoke_apt(
     apivfs: bool = True,
 ) -> CompletedProcess:
     env: dict[str, PathString] = dict(
-        APT_CONFIG=state.pkgmngr / "etc/apt/apt.conf",
+        APT_CONFIG=state.workspace / "apt.conf",
         DEBIAN_FRONTEND="noninteractive",
         DEBCONF_INTERACTIVE_SEEN="true",
         KERNEL_INSTALL_BYPASS="1",
@@ -223,7 +237,6 @@ def invoke_apt(
         "-o", f"Dir::Cache={state.cache_dir}",
         "-o", f"Dir::State={state.pkgmngr / 'var/lib/apt'}",
         "-o", f"Dir::State::status={state.root / 'var/lib/dpkg/status'}",
-        "-o", f"Dir::Etc={state.pkgmngr / 'etc/apt'}",
         "-o", f"Dir::Etc::trusted={trustedkeys}",
         "-o", f"Dir::Etc::trustedparts={trustedkeys_dir}",
         "-o", f"Dir::Log={state.pkgmngr / 'var/log/apt'}",

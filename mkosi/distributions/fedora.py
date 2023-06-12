@@ -121,24 +121,39 @@ class Repo(NamedTuple):
 
 
 def setup_dnf(state: MkosiState, repos: Sequence[Repo]) -> None:
-    state.pkgmngr.joinpath("etc/dnf").mkdir(exist_ok=True, parents=True)
-    with state.pkgmngr.joinpath("etc/dnf/dnf.conf").open("w") as f:
-        for repo in repos:
-            f.write(
-                dedent(
-                    f"""\
-                    [{repo.id}]
-                    name={repo.id}
-                    {repo.url}
-                    gpgcheck=1
-                    enabled={int(repo.enabled)}
-                    """
-                )
-            )
+    config = state.pkgmngr / "etc/dnf/dnf.conf"
 
-            for i, url in enumerate(repo.gpgurls):
-                f.write("gpgkey=" if i == 0 else len("gpgkey=") * " ")
-                f.write(f"{url}\n")
+    if not config.exists():
+        config.parent.mkdir(exist_ok=True, parents=True)
+        config.write_text(
+            dedent(
+                """\
+                [main]
+                install_weak_deps=0
+                """
+            )
+        )
+
+    repofile = state.pkgmngr / f"etc/yum.repos.d/{state.config.distribution}.repo"
+    if not repofile.exists():
+        repofile.parent.mkdir(exist_ok=True, parents=True)
+        with repofile.open("w") as f:
+            for repo in repos:
+                f.write(
+                    dedent(
+                        f"""\
+                        [{repo.id}]
+                        name={repo.id}
+                        {repo.url}
+                        gpgcheck=1
+                        enabled={int(repo.enabled)}
+                        """
+                    )
+                )
+
+                for i, url in enumerate(repo.gpgurls):
+                    f.write("gpgkey=" if i == 0 else len("gpgkey=") * " ")
+                    f.write(f"{url}\n")
 
 
 def invoke_dnf(
@@ -164,7 +179,7 @@ def invoke_dnf(
 
     cmdline = [
         dnf,
-        "-y",
+        "--assumeyes",
         f"--config={state.pkgmngr / 'etc/dnf/dnf.conf'}",
         command,
         "--best",
@@ -172,7 +187,6 @@ def invoke_dnf(
         f"--releasever={release}",
         f"--installroot={state.root}",
         "--setopt=keepcache=1",
-        "--setopt=install_weak_deps=0",
         f"--setopt=cachedir={state.cache_dir}",
         f"--setopt=reposdir={state.pkgmngr / 'etc/yum.repos.d'}",
         f"--setopt=varsdir={state.pkgmngr / 'etc/dnf/vars'}",
@@ -198,7 +212,7 @@ def invoke_dnf(
 
     # TODO: this breaks with a local, offline repository created with 'createrepo'
     if state.config.cache_only and not state.config.local_mirror:
-        cmdline += ["-C"]
+        cmdline += ["--cacheonly"]
 
     if not state.config.architecture.is_native():
         cmdline += [f"--forcearch={state.installer.architecture(state.config.architecture)}"]
