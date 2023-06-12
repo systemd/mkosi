@@ -19,7 +19,17 @@ import threading
 import traceback
 from pathlib import Path
 from types import TracebackType
-from typing import Any, Awaitable, Callable, Mapping, Optional, Sequence, Type, TypeVar
+from typing import (
+    Any,
+    Awaitable,
+    Callable,
+    Mapping,
+    Optional,
+    Sequence,
+    Tuple,
+    Type,
+    TypeVar,
+)
 
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, die
 from mkosi.types import _FILE, CompletedProcess, PathString, Popen
@@ -152,6 +162,14 @@ class RemoteException(Exception):
 
     def __str__(self) -> str:
         return f"Traceback (most recent call last):\n{''.join(self.tb.format()).strip()}\n{type(self.exception).__name__}: {self.exception}"
+
+
+def ensure_exc_info() -> Tuple[Type[BaseException], BaseException, TracebackType]:
+    exctype, exc, tb = sys.exc_info()
+    assert exctype
+    assert exc
+    assert tb
+    return (exctype, exc, tb)
 
 
 def excepthook(exctype: Type[BaseException], exc: BaseException, tb: Optional[TracebackType]) -> None:

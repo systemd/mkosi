@@ -10,7 +10,7 @@ from collections.abc import Iterator
 from mkosi import run_verb
 from mkosi.config import MkosiConfigParser
 from mkosi.log import ARG_DEBUG, log_setup
-from mkosi.run import excepthook
+from mkosi.run import ensure_exc_info, excepthook
 
 
 @contextlib.contextmanager
@@ -21,18 +21,19 @@ def propagate_failed_return() -> Iterator[None]:
         yield
     except SystemExit as e:
         if ARG_DEBUG.get():
-            raise e
+            sys.excepthook(*ensure_exc_info())
 
         sys.exit(e.code)
-    except KeyboardInterrupt as e:
+    except KeyboardInterrupt:
         if ARG_DEBUG.get():
-            raise e
+            sys.excepthook(*ensure_exc_info())
+        else:
+            logging.error("Interrupted")
 
-        logging.error("Interrupted")
         sys.exit(1)
     except subprocess.CalledProcessError as e:
         if ARG_DEBUG.get():
-            raise e
+            sys.excepthook(*ensure_exc_info())
 
         # We always log when subprocess.CalledProcessError is raised, so we don't log again here.
         sys.exit(e.returncode)
