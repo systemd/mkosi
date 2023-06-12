@@ -129,10 +129,6 @@ class CentosInstaller(DistributionInstaller):
         return "https://www.centos.org/keys/RPM-GPG-KEY-CentOS-Official"
 
     @staticmethod
-    def _epel_gpgurl() -> str:
-        return "https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-$releasever"
-
-    @staticmethod
     def _extras_gpgurl(release: int) -> str:
         return "https://www.centos.org/keys/RPM-GPG-KEY-CentOS-SIG-Extras"
 
@@ -146,20 +142,23 @@ class CentosInstaller(DistributionInstaller):
 
     @classmethod
     def _epel_repos(cls, config: MkosiConfig) -> list[Repo]:
-        epel_gpgurl = cls._epel_gpgurl()
+        epel_gpgurl = "https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-$releasever"
 
         if config.local_mirror:
             return []
 
         if config.mirror:
             epel_url = f"baseurl={config.mirror}/epel/$releasever/Everything/$basearch"
+            epel_next_url = f"baseurl={config.mirror}/epel/next/$releasever/Everything/$basearch"
             epel_testing_url = f"baseurl={config.mirror}/epel/testing/$releasever/Everything/$basearch"
         else:
             epel_url = "metalink=https://mirrors.fedoraproject.org/metalink?repo=epel-$releasever&arch=$basearch"
+            epel_next_url = "metalink=https://mirrors.fedoraproject.org/metalink?repo=epel-next-$releasever&arch=$basearch"
             epel_testing_url = "metalink=https://mirrors.fedoraproject.org/metalink?repo=testing-epel$releasever&arch=$basearch"
 
         return [
             Repo("epel", epel_url, [epel_gpgurl], enabled=False),
+            Repo("epel-next", epel_next_url, [epel_next_url], enabled=False),
             Repo("epel-testing", epel_testing_url, [epel_gpgurl], enabled=False),
         ]
 
@@ -194,18 +193,16 @@ class CentosInstaller(DistributionInstaller):
                 crb_url = None
                 powertools_url = f"mirrorlist={cls._mirror_repo_url('PowerTools')}"
 
-        repos = [Repo("appstream", appstream_url, [gpgurl])]
-        if baseos_url is not None:
-            repos += [Repo("baseos", baseos_url, [gpgurl])]
-        if extras_url is not None:
-            repos += [Repo("extras", extras_url, [gpgurl])]
-        if crb_url is not None:
-            repos += [Repo("crb", crb_url, [gpgurl])]
-        if powertools_url is not None:
-            repos += [Repo("powertools", powertools_url, [gpgurl])]
-        repos += cls._epel_repos(config)
+        repos = []
+        for name, url in (("appstream",  appstream_url),
+                          ("baseos",     baseos_url),
+                          ("extras",     extras_url),
+                          ("crb",        crb_url),
+                          ("powertools", powertools_url)):
+            if url:
+                repos += [Repo(name, url, [gpgurl])]
 
-        return repos
+        return repos + cls._epel_repos(config)
 
     @classmethod
     def _stream_repos(cls, config: MkosiConfig, release: int) -> list[Repo]:
@@ -228,13 +225,12 @@ class CentosInstaller(DistributionInstaller):
             extras_url = "metalink=https://mirrors.centos.org/metalink?repo=centos-extras-sig-extras-common-$stream&arch=$basearch&protocol=https,http"
             crb_url = "metalink=https://mirrors.centos.org/metalink?repo=centos-crb-$stream&arch=$basearch&protocol=https,http"
 
-        repos = [Repo("appstream", appstream_url, [gpgurl])]
-        if baseos_url is not None:
-            repos += [Repo("baseos", baseos_url, [gpgurl])]
-        if extras_url is not None:
-            repos += [Repo("extras", extras_url, [extras_gpgurl])]
-        if crb_url is not None:
-            repos += [Repo("crb", crb_url, [gpgurl])]
-        repos += cls._epel_repos(config)
+        repos = []
+        for name, url, gpgurl in (("appstream", appstream_url, gpgurl),
+                                  ("baseos",    baseos_url,    gpgurl),
+                                  ("extras",    extras_url,    extras_gpgurl),
+                                  ("crb",       crb_url,       gpgurl)):
+            if url:
+                repos += [Repo(name, url, [gpgurl])]
 
-        return repos
+        return repos + cls._epel_repos(config)
