@@ -153,13 +153,16 @@ class CentosInstaller(DistributionInstaller):
 
         if config.mirror:
             epel_url = f"baseurl={config.mirror}/epel/$releasever/Everything/$basearch"
+            epel_next_url = f"baseurl={config.mirror}/epel/next/$releasever/Everything/$basearch"
             epel_testing_url = f"baseurl={config.mirror}/epel/testing/$releasever/Everything/$basearch"
         else:
             epel_url = "metalink=https://mirrors.fedoraproject.org/metalink?repo=epel-$releasever&arch=$basearch"
+            epel_next_url = "metalink=https://mirrors.fedoraproject.org/metalink?repo=epel-next-$releasever&arch=$basearch"
             epel_testing_url = "metalink=https://mirrors.fedoraproject.org/metalink?repo=testing-epel$releasever&arch=$basearch"
 
         return [
             Repo("epel", epel_url, [epel_gpgurl], enabled=False),
+            Repo("epel-next", epel_next_url, [epel_next_url], enabled=False),
             Repo("epel-testing", epel_testing_url, [epel_gpgurl], enabled=False),
         ]
 
