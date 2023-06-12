@@ -38,10 +38,7 @@ class DebianInstaller(DistributionInstaller):
         updates = f"deb {state.config.mirror} {state.config.release}-updates {repos}"
 
         # Security updates repos are never mirrored
-        if state.config.release in ("stretch", "buster"):
-            security = f"deb http://security.debian.org/debian-security {state.config.release}/updates {repos}"
-        else:
-            security = f"deb http://security.debian.org/debian-security {state.config.release}-security {repos}"
+        security = f"deb http://security.debian.org/debian-security {state.config.release}-security {repos}"
 
         return [main, updates, security]
 
@@ -98,12 +95,6 @@ class DebianInstaller(DistributionInstaller):
             with tempfile.NamedTemporaryFile(dir=state.workspace) as f:
                 run(["dpkg-deb", "--fsys-tarfile", deb], stdout=f)
                 run(["tar", "-C", state.root, "--keep-directory-symlink", "--extract", "--file", f.name])
-
-        # There is a bug in Debian stretch where libuuid1 (which is essential) unecessarily depends on passwd,
-        # which breaks the installation as passwd is then configured before base-passwd
-
-        if state.config.release == "stretch":
-            cls.install_packages(state, ["base-passwd"])
 
         # Finally, run apt to properly install packages in the chroot without having to worry that maintainer
         # scripts won't find basic tools that they depend on.
