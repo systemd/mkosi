@@ -204,9 +204,6 @@ def invoke_dnf(
              and fedora_release_at_least(release, '38'))):
         cmdline += ["--setopt=optional_metadata_types=filelists"]
 
-    if not state.config.repository_key_check:
-        cmdline += ["--nogpgcheck"]
-
     if state.config.repositories:
         opt = "--enable-repo" if dnf.endswith("dnf5") else "--enablerepo"
         cmdline += [f"{opt}={repo}" for repo in state.config.repositories]

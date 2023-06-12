@@ -49,13 +49,6 @@ def setup_pacman(state: MkosiState) -> None:
     else:
         server = f"Server = {state.config.mirror}/$repo/os/$arch"
 
-    if state.config.repository_key_check:
-        sig_level = "Required DatabaseOptional"
-    else:
-        # If we are using a single local mirror built on the fly there
-        # will be no signatures
-        sig_level = "Never"
-
     # Create base layout for pacman and pacman-key
     state.root.joinpath("var/lib/pacman").mkdir(mode=0o755, exist_ok=True, parents=True)
 
@@ -70,7 +63,7 @@ def setup_pacman(state: MkosiState) -> None:
             dedent(
                 f"""\
                 [options]
-                SigLevel = {sig_level}
+                SigLevel = Required DatabaseOptional
                 ParallelDownloads = 5
 
                 [core]

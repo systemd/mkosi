@@ -832,7 +832,6 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                 "--release", state.config.release,
                 "--architecture", str(state.config.architecture),
                 *(["--mirror", state.config.mirror] if state.config.mirror else []),
-                "--repository-key-check", yes_no(state.config.repository_key_check),
                 "--repositories", ",".join(state.config.repositories),
                 "--package-manager-tree", ",".join(format_source_target(s, t) for s, t in state.config.package_manager_trees),
                 *(["--compress-output", str(state.config.compress_output)] if state.config.compress_output else []),
@@ -1299,7 +1298,6 @@ def summary(args: MkosiArgs, config: MkosiConfig) -> str:
                        Release: {bold(none_to_na(config.release))}
                   Architecture: {config.architecture}
                         Mirror: {none_to_default(config.mirror)}
-      Repo Signature/Key check: {yes_no(config.repository_key_check)}
                   Repositories: {",".join(config.repositories)}
 
     {bold("OUTPUT")}:

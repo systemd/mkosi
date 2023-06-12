@@ -337,12 +337,6 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
 : The mirror to use for downloading the distribution packages. Expects
   a mirror URL as argument.
 
-`RepositoryKeyCheck=`, `--repository-key-check=`
-
-: Controls signature/key checks when using repositories, enabled by default.
-  Useful to disable checks when combined with `--local-mirror=` and using only
-  a repository from a local filesystem. Not used for DNF-based distros yet.
-
 `Repositories=`, `--repositories=`
 
 : Additional package repositories to use during installation. Expects

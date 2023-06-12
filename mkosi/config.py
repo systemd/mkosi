@@ -585,7 +585,6 @@ class MkosiConfig:
     distribution: Distribution
     release: str
     mirror: Optional[str]
-    repository_key_check: bool
     repositories: list[str]
     repart_dirs: list[Path]
     overlay: bool
@@ -783,15 +782,6 @@ class MkosiConfigParser:
             section="Distribution",
             default_factory=config_default_mirror,
             help="Distribution mirror to use",
-        ),
-        MkosiConfigSetting(
-            dest="repository_key_check",
-            metavar="BOOL",
-            nargs="?",
-            section="Distribution",
-            default=True,
-            parse=config_parse_boolean,
-            help="Controls signature and key checks on repositories",
         ),
         MkosiConfigSetting(
             dest="repositories",
