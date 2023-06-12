@@ -193,18 +193,16 @@ class CentosInstaller(DistributionInstaller):
                 crb_url = None
                 powertools_url = f"mirrorlist={cls._mirror_repo_url('PowerTools')}"
 
-        repos = [Repo("appstream", appstream_url, [gpgurl])]
-        if baseos_url is not None:
-            repos += [Repo("baseos", baseos_url, [gpgurl])]
-        if extras_url is not None:
-            repos += [Repo("extras", extras_url, [gpgurl])]
-        if crb_url is not None:
-            repos += [Repo("crb", crb_url, [gpgurl])]
-        if powertools_url is not None:
-            repos += [Repo("powertools", powertools_url, [gpgurl])]
-        repos += cls._epel_repos(config)
+        repos = []
+        for name, url in (("appstream",  appstream_url),
+                          ("baseos",     baseos_url),
+                          ("extras",     extras_url),
+                          ("crb",        crb_url),
+                          ("powertools", powertools_url)):
+            if url:
+                repos += [Repo(name, url, [gpgurl])]
 
-        return repos
+        return repos + cls._epel_repos(config)
 
     @classmethod
     def _stream_repos(cls, config: MkosiConfig, release: int) -> list[Repo]:
@@ -227,13 +225,12 @@ class CentosInstaller(DistributionInstaller):
             extras_url = "metalink=https://mirrors.centos.org/metalink?repo=centos-extras-sig-extras-common-$stream&arch=$basearch&protocol=https,http"
             crb_url = "metalink=https://mirrors.centos.org/metalink?repo=centos-crb-$stream&arch=$basearch&protocol=https,http"
 
-        repos = [Repo("appstream", appstream_url, [gpgurl])]
-        if baseos_url is not None:
-            repos += [Repo("baseos", baseos_url, [gpgurl])]
-        if extras_url is not None:
-            repos += [Repo("extras", extras_url, [extras_gpgurl])]
-        if crb_url is not None:
-            repos += [Repo("crb", crb_url, [gpgurl])]
-        repos += cls._epel_repos(config)
+        repos = []
+        for name, url, gpgurl in (("appstream", appstream_url, gpgurl),
+                                  ("baseos",    baseos_url,    gpgurl),
+                                  ("extras",    extras_url,    extras_gpgurl),
+                                  ("crb",       crb_url,       gpgurl)):
+            if url:
+                repos += [Repo(name, url, [gpgurl])]
 
-        return repos
+        return repos + cls._epel_repos(config)
