@@ -129,10 +129,6 @@ class CentosInstaller(DistributionInstaller):
         return "https://www.centos.org/keys/RPM-GPG-KEY-CentOS-Official"
 
     @staticmethod
-    def _epel_gpgurl() -> str:
-        return "https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-$releasever"
-
-    @staticmethod
     def _extras_gpgurl(release: int) -> str:
         return "https://www.centos.org/keys/RPM-GPG-KEY-CentOS-SIG-Extras"
 
@@ -146,7 +142,7 @@ class CentosInstaller(DistributionInstaller):
 
     @classmethod
     def _epel_repos(cls, config: MkosiConfig) -> list[Repo]:
-        epel_gpgurl = cls._epel_gpgurl()
+        epel_gpgurl = "https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-$releasever"
 
         if config.local_mirror:
             return []
