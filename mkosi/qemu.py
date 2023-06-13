@@ -153,7 +153,7 @@ def vsock_notify_handler() -> Iterator[tuple[str, dict[str, str]]]:
     This yields a vsock address and a dict that will be filled in with the notifications from the VM. The
     dict should only be accessed after the context manager has been finalized.
     """
-    with socket.socket(socket.AF_VSOCK, socket.SOCK_SEQPACKET) as vsock:
+    with socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM) as vsock:
         vsock.bind((socket.VMADDR_CID_ANY, socket.VMADDR_PORT_ANY))
         vsock.listen()
         vsock.setblocking(False)
@@ -186,7 +186,7 @@ def vsock_notify_handler() -> Iterator[tuple[str, dict[str, str]]]:
                     messages[k] = v
 
         with MkosiAsyncioThread(notify()):
-            yield f"vsock:{socket.VMADDR_CID_HOST}:{vsock.getsockname()[1]}", messages
+            yield f"vsock-stream:{socket.VMADDR_CID_HOST}:{vsock.getsockname()[1]}", messages
 
         logging.debug(f"Received {num_messages} notify messages totalling {format_bytes(num_bytes)} bytes")
 
