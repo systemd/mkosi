@@ -192,7 +192,7 @@ def vsock_notify_handler() -> Iterator[tuple[str, dict[str, str]]]:
 
 
 def grow_image(image: Path, *, size: str) -> None:
-    run(["systemd-repart", "--definitions", "", "--size", size, "--pretty", "no", image])
+    run(["systemd-repart", "--definitions", "", "--no-pager", "--size", size, "--pretty", "no", image])
 
 
 def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:

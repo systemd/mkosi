@@ -1603,6 +1603,7 @@ def invoke_repart(state: MkosiState, skip: Sequence[str] = [], split: bool = Fal
         "--size=auto",
         "--dry-run=no",
         "--json=pretty",
+        "--no-pager",
         "--root", state.root,
         state.staging / state.config.output_with_format,
     ]
