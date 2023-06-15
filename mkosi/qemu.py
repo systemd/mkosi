@@ -11,13 +11,16 @@ import socket
 import subprocess
 import sys
 import tempfile
+import uuid
 from pathlib import Path
 from typing import Iterator, Optional
 
 from mkosi.architecture import Architecture
+from mkosi.btrfs import btrfs_maybe_snapshot_subvolume
 from mkosi.config import ConfigFeature, MkosiArgs, MkosiConfig
 from mkosi.install import copy_path
 from mkosi.log import die
+from mkosi.remove import unlink_try_hard
 from mkosi.run import MkosiAsyncioThread, run, spawn
 from mkosi.types import PathString
 from mkosi.util import (
@@ -191,8 +194,22 @@ def vsock_notify_handler() -> Iterator[tuple[str, dict[str, str]]]:
         logging.debug(f"Received {num_messages} notify messages totalling {format_bytes(num_bytes)} bytes")
 
 
+@contextlib.contextmanager
+def copy_ephemeral(config: MkosiConfig, src: Path) -> Iterator[Path]:
+    src = src.resolve()
+    # tempfile doesn't provide an API to get a random filename in an arbitrary directory so we do this
+    # instead.
+    tmp = src.parent / f"{src.name}-{uuid.uuid4().hex}"
+
+    try:
+        btrfs_maybe_snapshot_subvolume(config, src, tmp)
+        yield tmp
+    finally:
+        unlink_try_hard(tmp)
+
+
 def grow_image(image: Path, *, size: str) -> None:
-    run(["systemd-repart", "--definitions", "", "--size", size, "--pretty", "no", image])
+    run(["systemd-repart", "--definitions", "", "--no-pager", "--size", size, "--pretty", "no", image])
 
 
 def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
@@ -257,19 +274,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
             ]
 
         if config.ephemeral:
-            f = stack.enter_context(tempfile.NamedTemporaryFile(prefix=".mkosi-", dir=config.output_dir))
-            fname = Path(f.name)
-
-            # So on one hand we want CoW off, since this stuff will
-            # have a lot of random write accesses. On the other we
-            # want the copy to be snappy, hence we do want CoW. Let's
-            # ask for both, and let the kernel figure things out:
-            # let's turn off CoW on the file, but start with a CoW
-            # copy. On btrfs that works: the initial copy is made as
-            # CoW but later changes do not result in CoW anymore.
-
-            run(["chattr", "+C", fname], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
-            copy_path(config.output_dir / config.output, fname, dereference=True)
+            fname = stack.enter_context(copy_ephemeral(config, config.output_dir / config.output))
         else:
             fname = config.output_dir / config.output
 

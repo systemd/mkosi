@@ -35,7 +35,7 @@ from mkosi.log import Style, color_error, complete_step, die, log_step
 from mkosi.manifest import Manifest
 from mkosi.mounts import dissect_and_mount, mount_overlay, scandir_recursive
 from mkosi.pager import page
-from mkosi.qemu import grow_image, machine_cid, run_qemu
+from mkosi.qemu import copy_ephemeral, machine_cid, run_qemu
 from mkosi.remove import unlink_try_hard
 from mkosi.run import become_root, fork_and_wait, run, run_workspace_command, spawn
 from mkosi.state import MkosiState
@@ -1593,7 +1593,7 @@ def reuse_cache(state: MkosiState) -> bool:
     return True
 
 
-def invoke_repart(state: MkosiState, skip: Sequence[str] = [], split: bool = False) -> tuple[Optional[str], list[Path]]:
+def make_image(state: MkosiState, skip: Sequence[str] = [], split: bool = False) -> tuple[Optional[str], list[Path]]:
     if not state.config.output_format == OutputFormat.disk:
         return None, []
 
@@ -1603,6 +1603,7 @@ def invoke_repart(state: MkosiState, skip: Sequence[str] = [], split: bool = Fal
         "--size=auto",
         "--dry-run=no",
         "--json=pretty",
+        "--no-pager",
         "--root", state.root,
         state.staging / state.config.output_with_format,
     ]
@@ -1743,9 +1744,9 @@ def build_image(args: MkosiArgs, config: MkosiConfig, uid: int, gid: int) -> Non
             run_finalize_script(state)
             run_selinux_relabel(state)
 
-        roothash, _ = invoke_repart(state, skip=("esp", "xbootldr"))
+        roothash, _ = make_image(state, skip=("esp", "xbootldr"))
         install_unified_kernel(state, roothash)
-        _, split_paths = invoke_repart(state, split=True)
+        _, split_paths = make_image(state, split=True)
 
         for p in split_paths:
             maybe_compress(state, state.config.compress_output, p)
@@ -1908,6 +1909,10 @@ def nspawn_knows_arg(arg: str) -> bool:
     return "unrecognized option" not in c.stderr
 
 
+def finalize_image(image: Path, *, size: str) -> None:
+    run(["systemd-repart", "--image", image, "--size", size, "--no-pager", "--dry-run=no", image])
+
+
 @contextlib.contextmanager
 def acl_toggle_boot(config: MkosiConfig) -> Iterator[None]:
     if not config.acl or config.output_format != OutputFormat.directory:
@@ -1920,15 +1925,6 @@ def acl_toggle_boot(config: MkosiConfig) -> Iterator[None]:
 
 def run_shell(args: MkosiArgs, config: MkosiConfig) -> None:
     cmdline: list[PathString] = ["systemd-nspawn", "--quiet"]
-
-    if config.output_format == OutputFormat.directory:
-        cmdline += ["--directory", config.output_dir / config.output]
-
-        owner = os.stat(config.output_dir / config.output).st_uid
-        if owner != 0:
-            cmdline += [f"--private-users={str(owner)}"]
-    else:
-        cmdline += ["--image", config.output_dir / config.output]
 
     # If we copied in a .nspawn file, make sure it's actually honoured
     if config.nspawn_settings is not None:
@@ -1944,30 +1940,43 @@ def run_shell(args: MkosiArgs, config: MkosiConfig) -> None:
         if nspawn_knows_arg(console_arg):
             cmdline += [console_arg]
 
-    if config.ephemeral:
-        cmdline += ["--ephemeral"]
-
     cmdline += ["--machine", config.output]
     cmdline += [f"--bind={config.build_sources}:/root/src", "--chdir=/root/src"]
 
     for k, v in config.credentials.items():
         cmdline += [f"--set-credential={k}:{v}"]
 
-    if args.verb == Verb.boot:
-        # Add nspawn options first since systemd-nspawn ignores all options after the first argument.
-        cmdline += args.cmdline
-        # kernel cmdline config of the form systemd.xxx= get interpreted by systemd when running in nspawn as
-        # well.
-        cmdline += config.kernel_command_line
-        cmdline += config.kernel_command_line_extra
-    elif args.cmdline:
-        cmdline += ["--"]
-        cmdline += args.cmdline
+    with contextlib.ExitStack() as stack:
+        if config.ephemeral:
+            fname = stack.enter_context(copy_ephemeral(config, config.output_dir / config.output))
+        else:
+            fname = config.output_dir / config.output
 
-    if config.output_format == OutputFormat.disk:
-        grow_image(config.output_dir / config.output, size="8G")
+        if config.output_format == OutputFormat.disk and args.verb == Verb.boot:
+            finalize_image(fname, size="8G")
 
-    with acl_toggle_boot(config):
+        if config.output_format == OutputFormat.directory:
+            cmdline += ["--directory", fname]
+
+            owner = os.stat(fname).st_uid
+            if owner != 0:
+                cmdline += [f"--private-users={str(owner)}"]
+        else:
+            cmdline += ["--image", fname]
+
+        if args.verb == Verb.boot:
+            # Add nspawn options first since systemd-nspawn ignores all options after the first argument.
+            cmdline += args.cmdline
+            # kernel cmdline config of the form systemd.xxx= get interpreted by systemd when running in nspawn as
+            # well.
+            cmdline += config.kernel_command_line
+            cmdline += config.kernel_command_line_extra
+        elif args.cmdline:
+            cmdline += ["--"]
+            cmdline += args.cmdline
+
+        stack.enter_context(acl_toggle_boot(config))
+
         run(cmdline, stdin=sys.stdin, stdout=sys.stdout, env=os.environ, log=False)
 
 
