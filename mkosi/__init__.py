@@ -919,6 +919,10 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
             for p in state.config.extra_search_paths:
                 cmd += ["--tools", p]
 
+            uki_config = state.pkgmngr / "etc/kernel/uki.conf"
+            if uki_config.exists():
+                cmd += ["--config", uki_config]
+
             if state.config.secure_boot:
                 assert state.config.secure_boot_key
                 assert state.config.secure_boot_certificate
