@@ -372,7 +372,7 @@ def bwrap(
 def run_workspace_command(
     root: Path,
     cmd: Sequence[PathString],
-    bwrap_params: Sequence[PathString] = tuple(),
+    bwrap_params: Sequence[PathString] = (),
     network: bool = False,
     stdout: _FILE = None,
     env: Mapping[str, PathString] = {},

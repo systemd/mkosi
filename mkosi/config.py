@@ -461,7 +461,7 @@ class MkosiConfigSetting:
     name: str = ""
     default: Any = None
     default_factory: Optional[ConfigDefaultCallback] = None
-    paths: tuple[str, ...] = tuple()
+    paths: tuple[str, ...] = ()
     path_read_text: bool = False
     path_secret: bool = False
 
