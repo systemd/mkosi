@@ -878,7 +878,7 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                 boot_count = f'+{state.root.joinpath("etc/kernel/tries").read_text().strip()}'
 
             if state.config.image_version:
-                boot_binary = state.root / f"efi/EFI/Linux/{image_id}_{state.config.image_version}{boot_count}.efi"
+                boot_binary = state.root / f"efi/EFI/Linux/{image_id}_{state.config.image_version}-{kver}{boot_count}.efi"
             elif roothash:
                 _, _, h = roothash.partition("=")
                 boot_binary = state.root / f"efi/EFI/Linux/{image_id}-{kver}-{h}{boot_count}.efi"
