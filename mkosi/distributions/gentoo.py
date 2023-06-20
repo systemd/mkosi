@@ -74,10 +74,24 @@ class GentooInstaller(DistributionInstaller):
 
     @classmethod
     def install(cls, state: MkosiState) -> None:
+        emerge_vars = {
+            "FEATURES": " ".join([
+                    # -user* are required for access to USER_CONFIG_PATH
+                    "-userfetch",
+                    "-userpriv",
+                    "-usersync",
+                    "-usersandbox",
+                    "-sandbox",
+                    "-pid-sandbox",  # for cross-compile scenarios
+                    "-network-sandbox",
+                    "parallel-install",
+                    "getbinpkg",
+                    "-candy",
+                    *(["noman", "nodoc", "noinfo"] if state.config.with_docs else []),
+            ]),
+            "USE": "initramfs minimal symlink"
+        }
         arch = state.installer.architecture(state.config.architecture)
-        BINREPOS_CONF_FILE = Path("etc/portage/binrepos.conf")
-        EBUILD_SH_ENV_DIR = Path("etc/portage/env")
-        USER_CONFIG_PATH = Path("etc/portage")
 
         """usrmerge tracker bug: https://bugs.gentoo.org/690294"""
 
@@ -105,39 +119,41 @@ class GentooInstaller(DistributionInstaller):
                 die("profile names changed upstream?")
 
         stage3_tar_path = state.cache_dir / stage3_tar
-        cls.stage3_cache = stage3_tar_path.with_name(stage3_tar.name).with_suffix(".tmp")
 
         stage3_url_path = urllib.parse.urljoin(
             state.config.mirror, f"releases/{arch}/autobuilds/{stage3_tar}",
         )
+
+        cls.stage3_cache = state.cache_dir.joinpath("stage3")
         if not stage3_tar_path.is_file():
-            log_step(f"Fetching {stage3_url_path}")
-            stage3_tar_path.parent.mkdir(parents=True, exist_ok=True)
-            urllib.request.urlretrieve(stage3_url_path, stage3_tar_path)
-
+            if cls.stage3_cache.exists():
+                log_step("New stage3 is available, removing the old one")
+                unlink_try_hard(cls.stage3_cache)
+            with complete_step(f"Fetching {stage3_url_path}"):
+                stage3_tar_path.parent.mkdir(parents=True, exist_ok=True)
+                urllib.request.urlretrieve(stage3_url_path, stage3_tar_path)
         cls.stage3_cache.mkdir(parents=True, exist_ok=True)
+        if not cls.stage3_cache.joinpath(".cache_isclean").exists():
+            with complete_step(f"Extracting {stage3_tar.name} to {cls.stage3_cache}"):
+                run([
+                    "tar",
+                    "--numeric-owner",
+                    "-C", cls.stage3_cache,
+                    "--extract",
+                    "--file", stage3_tar_path,
+                    "--exclude", "./dev",
+                    "--exclude", "./proc",
+                ])
 
-        with complete_step(f"Extracting {stage3_tar.name} to {cls.stage3_cache}"):
-            run([
-                "tar",
-                "--numeric-owner",
-                "-C", cls.stage3_cache,
-                "--extract",
-                "--file", stage3_tar_path,
-                "--exclude", "./dev",
-            ])
-
-            unlink_try_hard(cls.stage3_cache.joinpath("dev"))
-            unlink_try_hard(cls.stage3_cache.joinpath("proc"))
-            unlink_try_hard(cls.stage3_cache.joinpath("sys"))
+            cls.stage3_cache.joinpath(".cache_isclean").touch()
 
         for d in ("binpkgs", "distfiles", "repos"):
             state.cache_dir.joinpath(d).mkdir(exist_ok=True)
 
-        config = state.pkgmngr / USER_CONFIG_PATH
+        config = state.pkgmngr / "etc/portage"
+
         package_use = config / "package.use"
         package_use.mkdir(parents=True, exist_ok=True)
-
         package_use.joinpath("systemd").write_text(
             # repart for usronly
             dedent(
@@ -159,45 +175,18 @@ class GentooInstaller(DistributionInstaller):
                 """
             )
         )
-        package_use.joinpath("minimal").write_text(
-            dedent(
-                """\
-                # MKOSI
-                */* minimal
-                """
-            )
-        )
 
         package_env = config / "package.env"
         package_env.mkdir(parents=True, exist_ok=True)
-        ebuild_sh_env_dir = cls.stage3_cache / EBUILD_SH_ENV_DIR
-        ebuild_sh_env_dir.mkdir(parents=True, exist_ok=True)
-
         # apply whatever we put in mkosi_conf to runs invocation of emerge
-        package_env.joinpath("mkosi.conf").write_text("*/*    mkosi.conf\n")
+        package_env.joinpath("mkosi.conf").write_text("*/* mkosi.conf\n")
 
         # we use this so we don't need to touch upstream files.
         # we also use this for documenting build environment.
-        emerge_vars = {
-            "FEATURES": " ".join([
-                    # -user* are required for access to USER_CONFIG_PATH
-                    "-userfetch",
-                    "-userpriv",
-                    "-usersync",
-                    "-usersandbox",
-                    "-sandbox",
-                    "-pid-sandbox",  # for cross-compile scenarios
-                    "-network-sandbox",
-                    "parallel-install",
-                    "getbinpkg",
-                    "-candy",
-                    *(["noman", "nodoc", "noinfo"] if state.config.with_docs else []),
-            ]),
-            "USE": "initramfs symlink"
-        }
+        ebuild_sh_env_dir = config / "env"
+        ebuild_sh_env_dir.mkdir(parents=True, exist_ok=True)
         emerge_vars_str = ""
         emerge_vars_str += "\n".join(f'{k}="${{{k}}} {v}"' for k, v in emerge_vars.items())
-
         ebuild_sh_env_dir.joinpath("mkosi.conf").write_text(
             dedent(
                 f"""\
@@ -208,7 +197,9 @@ class GentooInstaller(DistributionInstaller):
             )
         )
 
-        with (cls.stage3_cache / BINREPOS_CONF_FILE).open(mode='a') as f:
+        if not (config / "binrepos.conf").exists():
+            (config / "binrepos.conf").touch()
+        with (config / "binrepos.conf").open(mode='a') as f:
             for repo in state.config.repositories:
                 f.write(
                     dedent(
@@ -220,10 +211,10 @@ class GentooInstaller(DistributionInstaller):
                     )
                 )
 
-        root_portage_cfg = state.root / USER_CONFIG_PATH
+        root_portage_cfg = state.root / "etc/portage"
         root_portage_cfg.mkdir(parents=True, exist_ok=True)
         copy_path(config, root_portage_cfg)
-        copy_path(config, cls.stage3_cache / USER_CONFIG_PATH)
+        copy_path(config, cls.stage3_cache / "etc/portage")
 
         bwrap_params: list[PathString] = [
             "--bind", state.cache_dir / "repos", "/var/db/repos"
