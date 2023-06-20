@@ -345,7 +345,7 @@ def run_finalize_script(state: MkosiState) -> None:
 
     with complete_step("Running finalize script…"):
         run([state.config.finalize_script],
-            env={**state.environment, "BUILDROOT": str(state.root), "OUTPUTDIR": str(state.config.output_dir)})
+            env={**state.environment, "BUILDROOT": str(state.root), "OUTPUTDIR": str(state.staging)})
 
 
 def certificate_common_name(certificate: Path) -> str:
