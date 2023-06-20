@@ -83,6 +83,10 @@
   the time.
 - Disk images are now resized to 8G when booted to give some disk space to play around with in the booted
   image.
+- Removed `--install-directory=` option. This was originally added for caching the installation results, but
+  this doesn't work properly as it might result in leftover files in the install directory from a previous
+  installation, so we have to empty the directory before reusing it, invalidating the caching, so the option
+  was removed.
 
 ## v14
 

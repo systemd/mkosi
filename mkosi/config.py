@@ -610,7 +610,6 @@ class MkosiConfig:
     environment: dict[str, str]
     build_sources: Path
     build_dir: Optional[Path]
-    install_dir: Optional[Path]
     build_packages: list[str]
     build_script: Optional[Path]
     prepare_script: Optional[Path]
@@ -827,13 +826,6 @@ class MkosiConfigParser:
             section="Output",
             parse=config_make_path_parser(required=False),
             paths=("mkosi.builddir",),
-        ),
-        MkosiConfigSetting(
-            dest="install_dir",
-            name="InstallDirectory",
-            section="Output",
-            parse=config_make_path_parser(required=False),
-            paths=("mkosi.installdir",),
         ),
         MkosiConfigSetting(
             dest="compress_output",
@@ -1517,12 +1509,6 @@ class MkosiConfigParser:
             "--build-dir",
             metavar="PATH",
             help="Path to use as persistent build directory",
-            action=action,
-        )
-        group.add_argument(
-            "--install-dir",
-            metavar="PATH",
-            help="Path to use as persistent install directory",
             action=action,
         )
         group.add_argument(
