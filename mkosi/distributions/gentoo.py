@@ -107,11 +107,6 @@ class GentooInstaller(DistributionInstaller):
         stage3_tar_path = state.cache_dir / stage3_tar
         cls.stage3_cache = stage3_tar_path.with_name(stage3_tar.name).with_suffix(".tmp")
 
-        user_config_path = cls.stage3_cache / USER_CONFIG_PATH
-
-        for d in ("binpkgs", "distfiles", "repos"):
-            state.cache_dir.joinpath(d).mkdir(exist_ok=True)
-
         stage3_url_path = urllib.parse.urljoin(
             state.config.mirror, f"releases/{arch}/autobuilds/{stage3_tar}",
         )
@@ -136,8 +131,12 @@ class GentooInstaller(DistributionInstaller):
             unlink_try_hard(cls.stage3_cache.joinpath("proc"))
             unlink_try_hard(cls.stage3_cache.joinpath("sys"))
 
-        package_use = user_config_path / "package.use"
-        package_use.mkdir(exist_ok=True)
+        for d in ("binpkgs", "distfiles", "repos"):
+            state.cache_dir.joinpath(d).mkdir(exist_ok=True)
+
+        config = state.pkgmngr / USER_CONFIG_PATH
+        package_use = config / "package.use"
+        package_use.mkdir(parents=True, exist_ok=True)
 
         package_use.joinpath("systemd").write_text(
             # repart for usronly
@@ -169,10 +168,10 @@ class GentooInstaller(DistributionInstaller):
             )
         )
 
-        package_env = user_config_path / "package.env"
-        package_env.mkdir(exist_ok=True)
+        package_env = config / "package.env"
+        package_env.mkdir(parents=True, exist_ok=True)
         ebuild_sh_env_dir = cls.stage3_cache / EBUILD_SH_ENV_DIR
-        ebuild_sh_env_dir.mkdir(exist_ok=True)
+        ebuild_sh_env_dir.mkdir(parents=True, exist_ok=True)
 
         # apply whatever we put in mkosi_conf to runs invocation of emerge
         package_env.joinpath("mkosi.conf").write_text("*/*    mkosi.conf\n")
@@ -221,10 +220,10 @@ class GentooInstaller(DistributionInstaller):
                     )
                 )
 
-        root_portage_cfg = state.root
-        root_portage_cfg /= user_config_path.relative_to(cls.stage3_cache)
+        root_portage_cfg = state.root / USER_CONFIG_PATH
         root_portage_cfg.mkdir(parents=True, exist_ok=True)
-        copy_path(user_config_path, root_portage_cfg)
+        copy_path(config, root_portage_cfg)
+        copy_path(config, cls.stage3_cache / USER_CONFIG_PATH)
 
         bwrap_params: list[PathString] = [
             "--bind", state.cache_dir / "repos", "/var/db/repos"
