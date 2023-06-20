@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
-import os
 import re
 import urllib.parse
 import urllib.request
@@ -26,7 +25,6 @@ def invoke_emerge(
     opts: Sequence[str] = (),
     env: dict[str, str] = {},
 ) -> None:
-    thread_counts = (os.cpu_count() or 1) * 2  # * 2 for hyperthreading
     # This is the mount-point inside our sysroot where we mount root
     target_root_mntp = "/tmp/mkosi-root"
     bwrap: list[PathString] = ["--bind", state.root, target_root_mntp]
@@ -38,8 +36,8 @@ def invoke_emerge(
         "--buildpkg=y",
         "--usepkg=y",
         "--keep-going=y",
-        f"--jobs={thread_counts}",
-        f"--load-average={thread_counts+1}",
+        "--jobs",
+        "--load-average",
         "--nospinner",
         *([f"--root={root}"] if root else []),
     ]
