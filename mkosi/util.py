@@ -174,6 +174,7 @@ class OutputFormat(str, enum.Enum):
     tar = "tar"
     cpio = "cpio"
     disk = "disk"
+    none = "none"
 
 
 class ManifestFormat(str, enum.Enum):

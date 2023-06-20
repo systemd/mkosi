@@ -345,7 +345,7 @@ def run_finalize_script(state: MkosiState) -> None:
 
     with complete_step("Running finalize script…"):
         run([state.config.finalize_script],
-            env={**state.environment, "BUILDROOT": str(state.root), "OUTPUTDIR": str(state.config.output_dir)})
+            env={**state.environment, "BUILDROOT": str(state.root), "OUTPUTDIR": str(state.staging)})
 
 
 def certificate_common_name(certificate: Path) -> str:
@@ -1692,6 +1692,14 @@ def make_image(state: MkosiState, skip: Sequence[str] = [], split: bool = False)
     return f"roothash={roothash}" if roothash else f"usrhash={usrhash}" if usrhash else None, split_paths
 
 
+def finalize_staging(state: MkosiState) -> None:
+    for f in state.staging.iterdir():
+        if not f.is_dir():
+            os.chown(f, state.uid, state.gid)
+
+        shutil.move(f, state.config.output_dir)
+
+
 def build_image(args: MkosiArgs, config: MkosiConfig, uid: int, gid: int) -> None:
     state = MkosiState(args, config, uid, gid)
     manifest = Manifest(config)
@@ -1719,6 +1727,11 @@ def build_image(args: MkosiArgs, config: MkosiConfig, uid: int, gid: int) -> Non
             configure_autologin(state)
             configure_initrd(state)
             run_build_script(state)
+
+            if state.config.output_format == OutputFormat.none:
+                finalize_staging(state)
+                return
+
             install_build_dest(state)
             install_extra_trees(state)
             install_boot_loader(state)
@@ -1759,11 +1772,7 @@ def build_image(args: MkosiArgs, config: MkosiConfig, uid: int, gid: int) -> Non
         calculate_signature(state)
         save_manifest(state, manifest)
 
-        for f in state.staging.iterdir():
-            if not f.is_dir():
-                os.chown(f, uid, gid)
-
-            shutil.move(f, state.config.output_dir)
+        finalize_staging(state)
 
         output_base = state.config.output_dir.joinpath(state.config.output)
         if not output_base.exists() or output_base.is_symlink():
@@ -1795,6 +1804,7 @@ def run_build_script(state: MkosiState) -> None:
             "--bind", state.config.build_sources, "/work/src",
             "--bind", state.config.build_script, "/work/build-script",
             "--bind", state.install_dir, "/work/dest",
+            "--bind", state.staging, "/work/out",
             "--chdir", "/work/src",
         ]
 
@@ -1804,6 +1814,7 @@ def run_build_script(state: MkosiState) -> None:
             WITH_NETWORK=one_zero(state.config.with_network),
             SRCDIR="/work/src",
             DESTDIR="/work/dest",
+            OUTPUTDIR="/work/out",
         )
 
         if state.config.build_dir is not None:

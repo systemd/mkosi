@@ -399,7 +399,9 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
 : The image format type to generate. One of `directory` (for generating OS
   images inside a local directory), `tar` (similar, but a tarball of the
   image is generated), `cpio` (similar, but a cpio archive is generated),
-  `disk` (a block device image with a GPT partition table).
+  `disk` (a block device image with a GPT partition table) or `none`
+  (the image is solely intended as a build image to produce another
+  artifact).
 
 `ManifestFormat=`, `--manifest-format=`
 
