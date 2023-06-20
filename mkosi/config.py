@@ -1657,7 +1657,7 @@ class MkosiConfigParser:
             long = s.long if s.long else f"--{s.dest.replace('_', '-')}"
             opts = [s.short, long] if s.short else [long]
 
-            group.add_argument(
+            group.add_argument(    # type: ignore
                 *opts,
                 dest=s.dest,
                 choices=s.choices,
