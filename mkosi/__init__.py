@@ -1795,6 +1795,7 @@ def run_build_script(state: MkosiState) -> None:
             "--bind", state.config.build_sources, "/work/src",
             "--bind", state.config.build_script, "/work/build-script",
             "--bind", state.install_dir, "/work/dest",
+            "--bind", state.staging, "/work/out",
             "--chdir", "/work/src",
         ]
 
@@ -1804,6 +1805,7 @@ def run_build_script(state: MkosiState) -> None:
             WITH_NETWORK=one_zero(state.config.with_network),
             SRCDIR="/work/src",
             DESTDIR="/work/dest",
+            OUTPUTDIR="/work/out",
         )
 
         if state.config.build_dir is not None:
