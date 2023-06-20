@@ -470,17 +470,6 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
   is automatically used for this purpose (also see the "Files" section
   below).
 
-`InstallDirectory=`, `--install-dir=`
-
-: Takes a path of a directory to use as the install directory. The
-  directory used this way is shared between builds and allows the
-  build system to not have to reinstall files that were already
-  installed by a previous build and didn't change. The build script
-  can find the path to this directory in the `$DESTDIR` environment
-  variable. If this option is not specified, but a directory
-  `mkosi.installdir` exists in the local directory, it is automatically
-  used for this purpose (also see the "Files" section below).
-
 `UseSubvolumes=`, `--use-subvolumes=`
 
 : Takes a boolean or `auto`. Enables or disables use of btrfs subvolumes for

@@ -1138,10 +1138,6 @@ def unlink_output(args: MkosiArgs, config: MkosiConfig) -> None:
             with complete_step("Clearing out build directory…"):
                 empty_directory(config.build_dir)
 
-        if config.install_dir and config.install_dir.exists() and any(config.install_dir.iterdir()):
-            with complete_step("Clearing out install directory…"):
-                empty_directory(config.install_dir)
-
     if remove_package_cache:
         if config.cache_dir and config.cache_dir.exists() and any(config.cache_dir.iterdir()):
             with complete_step("Clearing out package cache…"):
@@ -1311,7 +1307,6 @@ def summary(args: MkosiArgs, config: MkosiConfig) -> str:
            Workspace Directory: {none_to_default(config.workspace_dir)}
                Cache Directory: {none_to_none(config.cache_dir)}
                Build Directory: {none_to_none(config.build_dir)}
-             Install Directory: {none_to_none(config.install_dir)}
             Repart Directories: {line_join_list(config.repart_dirs)}
                         Output: {bold(config.output_with_compression)}
                Output Checksum: {none_to_na(config.output_checksum if config.checksum else None)}
@@ -1787,10 +1782,6 @@ def run_build_script(state: MkosiState) -> None:
     if state.config.build_script is None:
         return
 
-    # Make sure that if mkosi.installdir/ is used, any leftover files from a previous run are removed.
-    if state.config.install_dir:
-        empty_directory(state.config.install_dir)
-
     # Create a few necessary mount points inside the build overlay.
     with mount_build_overlay(state):
         state.root.joinpath("work").mkdir(mode=0o755, exist_ok=True)
@@ -1879,7 +1870,7 @@ def acl_toggle_build(state: MkosiState) -> Iterator[None]:
             if p and p.is_dir():
                 stack.enter_context(acl_maybe_toggle(state.config, p, state.uid, always=False))
 
-        for p in (state.config.cache_dir, state.config.install_dir, state.config.build_dir):
+        for p in (state.config.cache_dir, state.config.build_dir):
             if p:
                 stack.enter_context(acl_maybe_toggle(state.config, p, state.uid, always=True))
 
@@ -2140,7 +2131,6 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
                 # Create these before changing user to make sure they're owned by the user running mkosi.
                 for d in (
                     config.output_dir,
-                    config.install_dir,
                     config.cache_dir,
                     config.build_dir,
                     config.workspace_dir,

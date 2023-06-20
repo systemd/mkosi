@@ -42,9 +42,9 @@ class MkosiState:
         self.workdir.mkdir()
         self.staging.mkdir()
         self.pkgmngr.mkdir()
+        self.install_dir.mkdir(exist_ok=True)
 
         self.cache_dir.mkdir(parents=True, exist_ok=True)
-        self.install_dir.mkdir(parents=True, exist_ok=True)
 
     @property
     def workspace(self) -> Path:
@@ -72,4 +72,4 @@ class MkosiState:
 
     @property
     def install_dir(self) -> Path:
-        return self.config.install_dir or self.workspace / "dest"
+        return self.workspace / "dest"
