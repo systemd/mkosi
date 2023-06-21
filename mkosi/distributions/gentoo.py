@@ -92,8 +92,6 @@ class GentooInstaller(DistributionInstaller):
         }
         arch = state.installer.architecture(state.config.architecture)
 
-        """usrmerge tracker bug: https://bugs.gentoo.org/690294"""
-
         assert state.config.mirror
         # http://distfiles.gentoo.org/releases/amd64/autobuilds/latest-stage3.txt
         stage3tsf_path_url = urllib.parse.urljoin(
@@ -179,22 +177,6 @@ class GentooInstaller(DistributionInstaller):
         package_env.mkdir(parents=True, exist_ok=True)
         # apply whatever we put in mkosi_conf to runs invocation of emerge
         package_env.joinpath("mkosi.conf").write_text("*/* mkosi.conf\n")
-
-        # we use this so we don't need to touch upstream files.
-        # we also use this for documenting build environment.
-        ebuild_sh_env_dir = config / "env"
-        ebuild_sh_env_dir.mkdir(parents=True, exist_ok=True)
-        emerge_vars_str = ""
-        emerge_vars_str += "\n".join(f'{k}="${{{k}}} {v}"' for k, v in emerge_vars.items())
-        ebuild_sh_env_dir.joinpath("mkosi.conf").write_text(
-            dedent(
-                f"""\
-                # MKOSI: these were used during image creation...
-                # and some more! see under package.*/
-                {emerge_vars_str}
-                """
-            )
-        )
 
         if not (config / "binrepos.conf").exists():
             (config / "binrepos.conf").touch()
