@@ -1796,6 +1796,7 @@ def run_build_script(state: MkosiState) -> None:
         state.root.joinpath("work").mkdir(mode=0o755, exist_ok=True)
         state.root.joinpath("work/src").mkdir(mode=0o755, exist_ok=True)
         state.root.joinpath("work/dest").mkdir(mode=0o755, exist_ok=True)
+        state.root.joinpath("work/out").mkdir(mode=0o755, exist_ok=True)
         state.root.joinpath("work/build-script").touch(mode=0o755, exist_ok=True)
         state.root.joinpath("work/build").mkdir(mode=0o755, exist_ok=True)
 
