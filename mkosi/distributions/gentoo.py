@@ -21,39 +21,37 @@ from mkosi.types import PathString
 def invoke_emerge(
     state: MkosiState,
     sysroot: Path,
-    pkgs: Sequence[str] = (),
+    packages: Sequence[str] = (),
     actions: Sequence[str] = (),
-    opts: Sequence[str] = (),
+    options: Sequence[str] = (),
     env: dict[str, str] = {},
 ) -> None:
     # This is the mount-point inside our sysroot where we mount root
-    target_root_mntp = "/tmp/mkosi-root"
-    bwrap: list[PathString] = ["--bind", state.root, target_root_mntp]
-    root = Path(target_root_mntp)
-
-    cmd = [
-        "emerge",
-        *pkgs,
-        "--buildpkg=y",
-        "--usepkg=y",
-        "--keep-going=y",
-        "--jobs",
-        "--load-average",
-        "--nospinner",
-        *([f"--root={root}"] if root else []),
-    ]
-    if ARG_DEBUG.get():
-        cmd += ["--verbose", "--quiet=n", "--quiet-fail=n"]
-    else:
-        cmd += ["--quiet-build", "--quiet"]
-    cmd += [*opts, *actions]
-    bwrap += [
-        "--bind", state.cache_dir / "binpkgs", "/var/cache/binpkgs",
-        "--bind", state.cache_dir / "distfiles", "/var/cache/distfiles",
-        "--bind", state.cache_dir / "repos", "/var/db/repos",
-    ]
-    run_workspace_command(sysroot, cmd, bwrap_params=bwrap, network=True,
-                          env=env)
+    run_workspace_command(
+        sysroot,
+        cmd=[
+            "emerge",
+            *packages,
+            "--buildpkg=y",
+            "--usepkg=y",
+            "--keep-going=y",
+            "--jobs",
+            "--load-average",
+            "--nospinner",
+            f"--root={Path('/tmp/mkosi-root')}",
+            *(["--verbose", "--quiet=n", "--quiet-fail=n"] if ARG_DEBUG.get() else ["--quiet-build", "--quiet"]),
+            *options,
+            *actions,
+        ],
+        bwrap_params=[
+            "--bind", state.root, "/tmp/mkosi-root",
+            "--bind", state.cache_dir / "binpkgs", "/var/cache/binpkgs",
+            "--bind", state.cache_dir / "distfiles", "/var/cache/distfiles",
+            "--bind", state.cache_dir / "repos", "/var/db/repos",
+        ],
+        network=True,
+        env=env
+    )
 
 
 class GentooInstaller(DistributionInstaller):
@@ -233,28 +231,29 @@ class GentooInstaller(DistributionInstaller):
         ]
         with complete_step("Merging stage2"):
             invoke_emerge(state, sysroot=cls.stage3_cache,
-                          opts=opts+["--emptytree", "--nodeps"],
-                          pkgs=["sys-apps/baselayout"],
+                          options=opts+["--emptytree", "--nodeps"],
+                          packages=["sys-apps/baselayout"],
                           env={**emerge_vars, 'USE': 'build'})
 
         opts += ["--noreplace"]
 
         with complete_step("Merging bare minimal atoms"):
             invoke_emerge(state, sysroot=cls.stage3_cache,
-                          opts=opts+["--exclude", "sys-devel/*"],
-                          pkgs=["sys-apps/systemd"],
-                          env=emerge_vars)
+                          options=opts+["--exclude", "sys-devel/*"],
+                          packages=["sys-apps/systemd"], env=emerge_vars)
 
         if state.config.make_initrd:
             return
 
-        if state.config.bootable == ConfigFeature.enabled and not state.staging.joinpath(state.config.output_split_uki).exists():
-            invoke_emerge(state, sysroot=cls.stage3_cache, opts=opts, pkgs=["sys-kernel/gentoo-kernel-bin"])
+        if (state.config.bootable == ConfigFeature.enabled and not
+                state.staging.joinpath(state.config.output_split_uki).exists()):
+            invoke_emerge(state, sysroot=cls.stage3_cache, options=opts,
+                          packages=["sys-kernel/gentoo-kernel-bin"])
 
     @classmethod
     def install_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
-        invoke_emerge(state, opts=["--noreplace"], sysroot=cls.stage3_cache,
-                      pkgs=packages)
+        invoke_emerge(state, options=["--noreplace"], sysroot=cls.stage3_cache,
+                      packages=packages)
 
     @staticmethod
     def architecture(arch: Architecture) -> str:
