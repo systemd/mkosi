@@ -1210,14 +1210,14 @@ class MkosiConfigParser:
             paths=("mkosi.rootpw",),
             path_read_text=True,
             path_secret=True,
-            help="Set the system root password",
+            help="Set the password for root",
         ),
         MkosiConfigSetting(
             dest="root_shell",
             metavar="SHELL",
             section="Content",
             parse=config_parse_string,
-            help="Set the system root shell",
+            help="Set the shell for root",
         ),
 
         MkosiConfigSetting(
