@@ -1478,6 +1478,11 @@ def run_preset(state: MkosiState) -> None:
         run(["systemctl", "--root", state.root, "preset-all"])
 
 
+def run_hwdb(state: MkosiState) -> None:
+    with complete_step("Generating hardware database"):
+        run(["systemd-hwdb", "--root", state.root, "--usr", "--strict", "update"])
+
+
 def run_firstboot(state: MkosiState) -> None:
     password, hashed = state.config.root_password or (None, False)
     pwopt = "--root-password-hashed" if hashed else "--root-password"
@@ -1741,6 +1746,7 @@ def build_image(args: MkosiArgs, config: MkosiConfig, uid: int, gid: int) -> Non
             run_preset(state)
             run_depmod(state)
             run_firstboot(state)
+            run_hwdb(state)
             remove_packages(state)
 
             if manifest:
