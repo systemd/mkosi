@@ -223,12 +223,12 @@ class GentooInstaller(DistributionInstaller):
                               bwrap_params=bwrap_params, network=True)
 
         opts = [
-            "--with-bdeps=n",
             "--complete-graph-if-new-use=y",
             "--verbose-conflicts",
             "--changed-use",
             "--newuse",
             "--root-deps=rdeps",
+            "--with-bdeps=n",
         ]
         with complete_step("Merging stage2"):
             invoke_emerge(state, sysroot=cls.stage3_cache,
@@ -241,7 +241,7 @@ class GentooInstaller(DistributionInstaller):
         with complete_step("Merging bare minimal atoms"):
             invoke_emerge(state, sysroot=cls.stage3_cache,
                           opts=opts+["--exclude", "sys-devel/*"],
-                          pkgs=["app-shells/bash", "sys-apps/systemd"],
+                          pkgs=["sys-apps/systemd"],
                           env=emerge_vars)
 
         if state.config.make_initrd:
@@ -249,8 +249,6 @@ class GentooInstaller(DistributionInstaller):
 
         invoke_emerge(state, sysroot=cls.stage3_cache, opts=opts,
                       pkgs=["sys-kernel/gentoo-kernel-bin"])
-        invoke_emerge(state, sysroot=cls.stage3_cache, opts=opts,
-                      pkgs=["@system"])
 
     @classmethod
     def install_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
