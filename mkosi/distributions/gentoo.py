@@ -8,6 +8,7 @@ from pathlib import Path
 from textwrap import dedent
 
 from mkosi.architecture import Architecture
+from mkosi.config import ConfigFeature
 from mkosi.distributions import DistributionInstaller
 from mkosi.install import copy_path
 from mkosi.log import ARG_DEBUG, complete_step, die, log_step
@@ -247,8 +248,8 @@ class GentooInstaller(DistributionInstaller):
         if state.config.make_initrd:
             return
 
-        invoke_emerge(state, sysroot=cls.stage3_cache, opts=opts,
-                      pkgs=["sys-kernel/gentoo-kernel-bin"])
+        if state.config.bootable == ConfigFeature.enabled and not state.staging.joinpath(state.config.output_split_uki).exists():
+            invoke_emerge(state, sysroot=cls.stage3_cache, opts=opts, pkgs=["sys-kernel/gentoo-kernel-bin"])
 
     @classmethod
     def install_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
