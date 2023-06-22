@@ -6,6 +6,7 @@ import urllib.request
 from collections.abc import Sequence
 from pathlib import Path
 from textwrap import dedent
+from typing import Mapping
 
 from mkosi.architecture import Architecture
 from mkosi.distributions import DistributionInstaller
@@ -22,7 +23,7 @@ def invoke_emerge(
     packages: Sequence[str] = (),
     actions: Sequence[str] = (),
     options: Sequence[str] = (),
-    env: dict[str, str] = {},
+    env: Mapping[str, str] = {},
 ) -> None:
     # This is the mount-point inside our sysroot where we mount root
     run_workspace_command(
