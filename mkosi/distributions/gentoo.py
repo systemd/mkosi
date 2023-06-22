@@ -8,7 +8,6 @@ from pathlib import Path
 from textwrap import dedent
 
 from mkosi.architecture import Architecture
-from mkosi.config import ConfigFeature
 from mkosi.distributions import DistributionInstaller
 from mkosi.install import copy_path
 from mkosi.log import ARG_DEBUG, complete_step, die, log_step
@@ -211,26 +210,11 @@ class GentooInstaller(DistributionInstaller):
             "--root-deps=rdeps",
             "--with-bdeps=n",
         ]
-        with complete_step("Merging stage2"):
+        with complete_step("Layingout basic filesystem"):
             invoke_emerge(state, sysroot=cls.stage3_cache,
-                          options=opts+["--emptytree", "--nodeps"],
+                          options=opts+["--emptytree"],
                           packages=["sys-apps/baselayout"],
                           env={**emerge_vars, 'USE': 'build'})
-
-        opts += ["--noreplace"]
-
-        with complete_step("Merging bare minimal atoms"):
-            invoke_emerge(state, sysroot=cls.stage3_cache,
-                          options=opts+["--exclude", "sys-devel/*"],
-                          packages=["sys-apps/systemd"], env=emerge_vars)
-
-        if state.config.make_initrd:
-            return
-
-        if (state.config.bootable == ConfigFeature.enabled and not
-                state.staging.joinpath(state.config.output_split_uki).exists()):
-            invoke_emerge(state, sysroot=cls.stage3_cache, options=opts,
-                          packages=["sys-kernel/gentoo-kernel-bin"])
 
     @classmethod
     def install_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
