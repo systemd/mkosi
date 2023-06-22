@@ -207,7 +207,7 @@ def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
 def invoke_apt(
     state: MkosiState,
     operation: str,
-    extra: Sequence[str] = tuple(),
+    extra: Sequence[str] = (),
     apivfs: bool = True,
 ) -> CompletedProcess:
     env: dict[str, PathString] = dict(

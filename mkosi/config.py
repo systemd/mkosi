@@ -461,9 +461,18 @@ class MkosiConfigSetting:
     name: str = ""
     default: Any = None
     default_factory: Optional[ConfigDefaultCallback] = None
-    paths: tuple[str, ...] = tuple()
+    paths: tuple[str, ...] = ()
     path_read_text: bool = False
     path_secret: bool = False
+
+    # settings for argparse
+    short: Optional[str] = None
+    long: Optional[str] = None
+    choices: Optional[Any] = None
+    metavar: Optional[str] = None
+    nargs: Optional[str] = None
+    const: Optional[Any] = None
+    help: Optional[str] = None
 
     def __post_init__(self) -> None:
         if not self.name:
@@ -742,465 +751,681 @@ class MkosiConfigParser:
     SETTINGS = (
         MkosiConfigSetting(
             dest="distribution",
+            short="-d",
             section="Distribution",
             parse=config_make_enum_parser(Distribution),
             match=config_make_enum_matcher(Distribution),
             default=detect_distribution()[0],
+            choices=Distribution.__members__,
+            help="Distribution to install",
         ),
         MkosiConfigSetting(
             dest="release",
+            short="-r",
             section="Distribution",
             parse=config_parse_string,
             match=config_make_string_matcher(),
             default_factory=config_default_release,
+            help="Distribution release to install",
         ),
         MkosiConfigSetting(
             dest="architecture",
             section="Distribution",
             parse=config_make_enum_parser(Architecture),
             default=Architecture.native(),
+            help="Override the architecture of installation",
         ),
         MkosiConfigSetting(
             dest="mirror",
+            short="-m",
             section="Distribution",
             default_factory=config_default_mirror,
+            help="Distribution mirror to use",
         ),
         MkosiConfigSetting(
             dest="local_mirror",
             section="Distribution",
+            help="Use a single local, flat and plain mirror to build the image",
         ),
         MkosiConfigSetting(
             dest="repository_key_check",
+            metavar="BOOL",
+            nargs="?",
             section="Distribution",
             default=True,
             parse=config_parse_boolean,
+            help="Controls signature and key checks on repositories",
         ),
         MkosiConfigSetting(
             dest="repositories",
+            metavar="REPOS",
             section="Distribution",
             parse=config_make_list_parser(delimiter=","),
+            help="Repositories to use",
         ),
+
         MkosiConfigSetting(
             dest="output_format",
+            short="-t",
+            long="--format",
+            metavar="FORMAT",
             name="Format",
             section="Output",
             parse=config_make_enum_parser(OutputFormat),
             default=OutputFormat.disk,
+            choices=OutputFormat.__members__,
+            help="Output Format",
         ),
         MkosiConfigSetting(
             dest="manifest_format",
+            metavar="FORMAT",
             section="Output",
             parse=config_make_list_parser(delimiter=",", parse=make_enum_parser(ManifestFormat)),
             default=[ManifestFormat.json],
+            help="Manifest Format",
         ),
         MkosiConfigSetting(
             dest="output",
+            short="-o",
+            metavar="PATH",
             section="Output",
             parse=config_parse_filename,
+            help="Output name",
         ),
         MkosiConfigSetting(
             dest="output_dir",
+            short="-O",
+            metavar="DIR",
             name="OutputDirectory",
             section="Output",
             parse=config_make_path_parser(required=False),
             paths=("mkosi.output",),
             default=Path("."),
+            help="Output directory",
         ),
         MkosiConfigSetting(
             dest="workspace_dir",
+            metavar="DIR",
             name="WorkspaceDirectory",
             section="Output",
             parse=config_make_path_parser(required=False),
             paths=("mkosi.workspace",),
+            help="Workspace directory",
         ),
         MkosiConfigSetting(
             dest="cache_dir",
+            metavar="PATH",
             name="CacheDirectory",
             section="Output",
             parse=config_make_path_parser(required=False),
             paths=("mkosi.cache",),
+            help="Package cache path",
         ),
         MkosiConfigSetting(
             dest="build_dir",
+            metavar="PATH",
             name="BuildDirectory",
             section="Output",
             parse=config_make_path_parser(required=False),
             paths=("mkosi.builddir",),
+            help="Path to use as persistent build directory",
         ),
         MkosiConfigSetting(
             dest="compress_output",
+            metavar="ALG",
+            nargs="?",
             section="Output",
             parse=config_parse_compression,
+            help="Enable whole-output compression (with images or archives)",
         ),
         MkosiConfigSetting(
             dest="image_version",
             match=config_match_image_version,
             section="Output",
+            help="Set version for image",
         ),
         MkosiConfigSetting(
             dest="image_id",
             match=config_make_string_matcher(allow_globs=True),
             section="Output",
+            help="Set ID for image",
         ),
         MkosiConfigSetting(
             dest="tar_strip_selinux_context",
+            metavar="BOOL",
+            nargs="?",
             section="Output",
             parse=config_parse_boolean,
+            help="Do not include SELinux file context information in tar. Not compatible with bsdtar.",
         ),
         MkosiConfigSetting(
             dest="split_artifacts",
+            metavar="BOOL",
+            nargs="?",
             section="Output",
             parse=config_parse_boolean,
+            help="Generate split partitions",
         ),
         MkosiConfigSetting(
             dest="repart_dirs",
+            long="--repart-dir",
+            metavar="PATH",
             name="RepartDirectories",
             section="Output",
             parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
             paths=("mkosi.repart",),
+            help="Directory containing systemd-repart partition definitions",
         ),
         MkosiConfigSetting(
             dest="overlay",
+            metavar="BOOL",
+            nargs="?",
             section="Output",
             parse=config_parse_boolean,
+            help="Only output the additions on top of the given base trees",
         ),
         MkosiConfigSetting(
             dest="use_subvolumes",
+            metavar="FEATURE",
+            nargs="?",
             section="Output",
             parse=config_parse_feature,
+            help="Use btrfs subvolumes for faster directory operations where possible",
         ),
+
         MkosiConfigSetting(
             dest="packages",
+            short="-p",
+            long="--package",
+            metavar="PACKAGE",
             section="Content",
             parse=config_make_list_parser(delimiter=","),
+            help="Add an additional package to the OS image",
         ),
         MkosiConfigSetting(
             dest="remove_packages",
+            long="--remove-package",
+            metavar="PACKAGE",
             section="Content",
             parse=config_make_list_parser(delimiter=","),
+            help="Remove package from the image OS image after installation",
         ),
         MkosiConfigSetting(
             dest="with_docs",
+            metavar="BOOL",
+            nargs="?",
             section="Content",
             parse=config_parse_boolean,
+            help="Install documentation",
         ),
         MkosiConfigSetting(
             dest="with_tests",
+            short="-T",
+            long="--without-tests",
+            nargs="?",
+            const="no",
             section="Content",
             parse=config_parse_boolean,
             default=True,
+            help="Do not run tests as part of build script, if supported",
         ),
         MkosiConfigSetting(
             dest="kernel_command_line",
+            metavar="OPTIONS",
             section="Content",
             parse=config_make_list_parser(delimiter=" "),
             default=["console=ttyS0"],
+            help="Set the kernel command line (only bootable images)",
         ),
         MkosiConfigSetting(
             dest="bootable",
+            metavar="FEATURE",
+            nargs="?",
             section="Content",
             parse=config_parse_feature,
             match=config_match_feature,
+            help="Generate ESP partition with systemd-boot and UKIs for installed kernels",
         ),
         MkosiConfigSetting(
             dest="autologin",
+            metavar="BOOL",
+            nargs="?",
             section="Content",
             parse=config_parse_boolean,
+            help="Enable root autologin",
         ),
         MkosiConfigSetting(
             dest="base_trees",
+            long='--base-tree',
+            metavar='PATH',
             section="Content",
             parse=config_make_list_parser(delimiter=",", parse=make_path_parser(required=False)),
+            help='Use the given tree as base tree (e.g. lower sysext layer)',
         ),
         MkosiConfigSetting(
             dest="extra_trees",
+            long="--extra-tree",
+            metavar="PATH",
             section="Content",
             parse=config_make_list_parser(delimiter=",", parse=parse_source_target_paths),
             paths=("mkosi.extra", "mkosi.extra.tar"),
+            help="Copy an extra tree on top of image",
         ),
         MkosiConfigSetting(
             dest="skeleton_trees",
+            long="--skeleton-tree",
+            metavar="PATH",
             section="Content",
             parse=config_make_list_parser(delimiter=",", parse=parse_source_target_paths),
             paths=("mkosi.skeleton", "mkosi.skeleton.tar"),
+            help="Use a skeleton tree to bootstrap the image before installing anything",
         ),
         MkosiConfigSetting(
             dest="package_manager_trees",
+            long="--package-manager-tree",
+            metavar="PATH",
             section="Content",
             parse=config_make_list_parser(delimiter=",", parse=parse_source_target_paths),
             default_factory=config_default_package_manager_tree,
+            help="Use a package manager tree to configure the package manager",
         ),
         MkosiConfigSetting(
             dest="clean_package_metadata",
+            metavar="FEATURE",
             section="Content",
             parse=config_parse_feature,
+            help="Remove package manager database and other files",
         ),
         MkosiConfigSetting(
             dest="remove_files",
+            metavar="GLOB",
             section="Content",
             parse=config_make_list_parser(delimiter=","),
+            help="Remove files from built image",
         ),
         MkosiConfigSetting(
             dest="environment",
+            short="-E",
+            metavar="NAME[=VALUE]",
             section="Content",
             parse=config_make_list_parser(delimiter=" ", unescape=True),
+            help="Set an environment variable when running scripts",
         ),
         MkosiConfigSetting(
             dest="build_sources",
+            metavar="PATH",
             section="Content",
             parse=config_make_path_parser(),
             default=Path("."),
+            help="Path for sources to build",
         ),
         MkosiConfigSetting(
             dest="build_packages",
+            long="--build-package",
+            metavar="PACKAGE",
             section="Content",
             parse=config_make_list_parser(delimiter=","),
+            help="Additional packages needed for build script",
         ),
         MkosiConfigSetting(
             dest="build_script",
+            metavar="PATH",
             section="Content",
             parse=config_parse_script,
             paths=("mkosi.build",),
+            help="Build script to run inside image",
         ),
         MkosiConfigSetting(
             dest="prepare_script",
+            metavar="PATH",
             section="Content",
             parse=config_parse_script,
             paths=("mkosi.prepare",),
+            help="Prepare script to run inside the image before it is cached",
         ),
         MkosiConfigSetting(
             dest="postinst_script",
+            metavar="PATH",
             name="PostInstallationScript",
             section="Content",
             parse=config_parse_script,
             paths=("mkosi.postinst",),
+            help="Postinstall script to run inside image",
         ),
         MkosiConfigSetting(
             dest="finalize_script",
+            metavar="PATH",
             section="Content",
             parse=config_parse_script,
             paths=("mkosi.finalize",),
+            help="Postinstall script to run outside image",
         ),
         MkosiConfigSetting(
             dest="with_network",
+            metavar="BOOL",
+            nargs="?",
             section="Content",
             parse=config_parse_boolean,
+            help="Run build and postinst scripts with network access (instead of private network)",
         ),
         MkosiConfigSetting(
             dest="cache_only",
+            metavar="BOOL",
             section="Content",
             parse=config_parse_boolean,
+            help="Only use the package cache when installing packages",
         ),
         MkosiConfigSetting(
             dest="initrds",
+            long="--initrd",
+            metavar="PATH",
             section="Content",
             parse=config_make_list_parser(delimiter=",", parse=make_path_parser(required=False)),
+            help="Add a user-provided initrd to image",
         ),
         MkosiConfigSetting(
             dest="make_initrd",
+            metavar="BOOL",
+            nargs="?",
             section="Content",
             parse=config_parse_boolean,
+            help="Make sure the image can be used as an initramfs",
         ),
         MkosiConfigSetting(
             dest="kernel_modules_include",
+            metavar="REGEX",
             section="Content",
             parse=config_make_list_parser(delimiter=","),
+            help="Only include the specified kernel modules in the image",
         ),
         MkosiConfigSetting(
             dest="kernel_modules_exclude",
+            metavar="REGEX",
             section="Content",
             parse=config_make_list_parser(delimiter=","),
+            help="Exclude the specified kernel modules from the image",
         ),
         MkosiConfigSetting(
             dest="kernel_modules_initrd",
+            metavar="BOOL",
+            nargs="?",
             section="Content",
             parse=config_parse_boolean,
             default=True,
+            help="When building a bootable image, add an extra initrd containing the kernel modules",
         ),
         MkosiConfigSetting(
             dest="kernel_modules_initrd_include",
+            metavar="REGEX",
             section="Content",
             parse=config_make_list_parser(delimiter=","),
+            help="When building a kernel modules initrd, only include the specified kernel modules",
         ),
         MkosiConfigSetting(
             dest="kernel_modules_initrd_exclude",
+            metavar="REGEX",
             section="Content",
             parse=config_make_list_parser(delimiter=","),
+            help="When building a kernel modules initrd, exclude the specified kernel modules",
         ),
         MkosiConfigSetting(
             dest="locale",
             section="Content",
             parse=config_parse_string,
+            help="Set the system locale",
         ),
         MkosiConfigSetting(
             dest="locale_messages",
+            metavar="LOCALE",
             section="Content",
             parse=config_parse_string,
+            help="Set the messages locale",
         ),
         MkosiConfigSetting(
             dest="keymap",
+            metavar="KEYMAP",
             section="Content",
             parse=config_parse_string,
+            help="Set the system keymap",
         ),
         MkosiConfigSetting(
             dest="timezone",
+            metavar="TIMEZONE",
             section="Content",
             parse=config_parse_string,
+            help="Set the system timezone",
         ),
         MkosiConfigSetting(
             dest="hostname",
+            metavar="HOSTNAME",
             section="Content",
             parse=config_parse_string,
+            help="Set the system hostname",
         ),
         MkosiConfigSetting(
             dest="root_password",
+            metavar="PASSWORD",
             section="Content",
             parse=config_parse_root_password,
             paths=("mkosi.rootpw",),
             path_read_text=True,
             path_secret=True,
+            help="Set the password for root",
         ),
         MkosiConfigSetting(
             dest="root_shell",
+            metavar="SHELL",
             section="Content",
             parse=config_parse_string,
+            help="Set the shell for root",
         ),
+
         MkosiConfigSetting(
             dest="secure_boot",
+            metavar="BOOL",
+            nargs="?",
             section="Validation",
             parse=config_parse_boolean,
+            help="Sign the resulting kernel/initrd image for UEFI SecureBoot",
         ),
         MkosiConfigSetting(
             dest="secure_boot_key",
+            metavar="PATH",
             section="Validation",
             parse=config_make_path_parser(),
             paths=("mkosi.key",),
+            help="UEFI SecureBoot private key in PEM format",
         ),
         MkosiConfigSetting(
             dest="secure_boot_certificate",
+            metavar="PATH",
             section="Validation",
             parse=config_make_path_parser(),
             paths=("mkosi.crt",),
+            help="UEFI SecureBoot certificate in X509 format",
         ),
         MkosiConfigSetting(
             dest="secure_boot_sign_tool",
+            metavar="TOOL",
             section="Validation",
             parse=config_make_enum_parser(SecureBootSignTool),
             default=SecureBootSignTool.auto,
+            help="Tool to use for signing PE binaries for secure boot",
         ),
         MkosiConfigSetting(
             dest="verity_key",
+            metavar="PATH",
             section="Validation",
             parse=config_make_path_parser(),
             paths=("mkosi.key",),
+            help="Private key for signing verity signature in PEM format",
         ),
         MkosiConfigSetting(
             dest="verity_certificate",
+            metavar="PATH",
             section="Validation",
             parse=config_make_path_parser(),
             paths=("mkosi.crt",),
+            help="Certificate for signing verity signature in X509 format",
         ),
         MkosiConfigSetting(
             dest="sign_expected_pcr",
+            metavar="FEATURE",
             section="Validation",
             parse=config_parse_feature,
+            help="Measure the components of the unified kernel image (UKI) and embed the PCR signature into the UKI",
         ),
         MkosiConfigSetting(
             dest="passphrase",
+            metavar="PATH",
             section="Validation",
             parse=config_make_path_parser(required=False),
             paths=("mkosi.passphrase",),
+            help="Path to a file containing the passphrase to use when LUKS encryption is selected",
         ),
         MkosiConfigSetting(
             dest="checksum",
+            metavar="BOOL",
+            nargs="?",
             section="Validation",
             parse=config_parse_boolean,
+            help="Write SHA256SUMS file",
         ),
         MkosiConfigSetting(
             dest="sign",
+            metavar="BOOL",
+            nargs="?",
             section="Validation",
             parse=config_parse_boolean,
+            help="Write and sign SHA256SUMS file",
         ),
         MkosiConfigSetting(
             dest="key",
             section="Validation",
+            help="GPG key to use for signing",
         ),
+
         MkosiConfigSetting(
             dest="incremental",
+            short="-i",
+            metavar="BOOL",
+            nargs="?",
             section="Host",
             parse=config_parse_boolean,
+            help="Make use of and generate intermediary cache images",
         ),
         MkosiConfigSetting(
             dest="nspawn_settings",
             name="NSpawnSettings",
+            long="--settings",
+            metavar="PATH",
             section="Host",
             parse=config_make_path_parser(),
             paths=("mkosi.nspawn",),
+            help="Add in .nspawn settings file",
         ),
         MkosiConfigSetting(
             dest="extra_search_paths",
+            long="--extra-search-path",
+            metavar="PATH",
             section="Host",
             parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
+            help="List of colon-separated paths to look for programs before looking in PATH",
         ),
         MkosiConfigSetting(
             dest="qemu_gui",
+            metavar="BOOL",
+            nargs="?",
             section="Host",
             parse=config_parse_boolean,
+            help="Start QEMU in graphical mode",
         ),
         MkosiConfigSetting(
             dest="qemu_smp",
+            metavar="SMP",
             section="Host",
             default="1",
+            help="Configure guest's SMP settings",
         ),
         MkosiConfigSetting(
             dest="qemu_mem",
+            metavar="MEM",
             section="Host",
             default="2G",
+            help="Configure guest's RAM size",
         ),
         MkosiConfigSetting(
             dest="qemu_kvm",
+            metavar="FEATURE",
+            nargs="?",
             section="Host",
             parse=config_parse_feature,
+            help="Configure whether to use KVM or not",
         ),
         MkosiConfigSetting(
             dest="qemu_vsock",
+            metavar="FEATURE",
+            nargs="?",
             section="Host",
             parse=config_parse_feature,
+            help="Configure whether to use qemu with a vsock or not",
         ),
         MkosiConfigSetting(
             dest="qemu_swtpm",
+            metavar="FEATURE",
+            nargs="?",
             section="Host",
             parse=config_parse_feature,
+            help="Configure whether to use qemu with swtpm or not",
         ),
         MkosiConfigSetting(
             dest="qemu_args",
+            metavar="ARGS",
             section="Host",
             parse=config_make_list_parser(delimiter=" "),
+            # Suppress the command line option because it's already possible to pass qemu args as normal
+            # arguments.
+            help=argparse.SUPPRESS,
         ),
         MkosiConfigSetting(
             dest="ephemeral",
+            metavar="BOOL",
             section="Host",
             parse=config_parse_boolean,
+            help=('If specified, the container/VM is run with a temporary snapshot of the output '
+                  'image that is removed immediately when the container/VM terminates'),
+            nargs="?",
         ),
         MkosiConfigSetting(
             dest="ssh",
+            metavar="BOOL",
+            nargs="?",
             section="Host",
             parse=config_parse_boolean,
+            help="Set up SSH access from the host to the final image via 'mkosi ssh'",
         ),
         MkosiConfigSetting(
             dest="credentials",
+            long="--credential",
+            metavar="NAME=VALUE",
             section="Host",
             parse=config_make_list_parser(delimiter=" "),
+            help="Pass a systemd credential to systemd-nspawn or qemu",
         ),
         MkosiConfigSetting(
             dest="kernel_command_line_extra",
+            metavar="OPTIONS",
             section="Host",
             parse=config_make_list_parser(delimiter=" "),
+            help="Append extra entries to the kernel command line when booting the image",
         ),
         MkosiConfigSetting(
             dest="acl",
+            metavar="BOOL",
+            nargs="?",
             section="Host",
             parse=config_parse_boolean,
+            help="Set ACLs on generated directories to permit the user running mkosi to remove them",
         ),
     )
 
@@ -1422,545 +1647,27 @@ class MkosiConfigParser:
             help="Build the specified preset",
         )
 
-        group = parser.add_argument_group("Distribution options")
-        group.add_argument(
-            "-d", "--distribution",
-            choices=Distribution.__members__,
-            help="Distribution to install",
-            action=action,
-        )
-        group.add_argument(
-            "-r", "--release",
-            metavar="RELEASE",
-            help="Distribution release to install",
-            action=action,
-        )
-        group.add_argument(
-            "--architecture",
-            metavar="ARCHITECTURE",
-            help="Override the architecture of installation",
-            action=action,
-        )
-        group.add_argument(
-            "-m", "--mirror",
-            metavar="MIRROR",
-            help="Distribution mirror to use",
-            action=action,
-        )
-        group.add_argument(
-            "--local-mirror",
-            help="Use a single local, flat and plain mirror to build the image",
-            action=action,
-        )
-        group.add_argument(
-            "--repository-key-check",
-            metavar="BOOL",
-            help="Controls signature and key checks on repositories",
-            nargs="?",
-            action=action,
-        )
-        group.add_argument(
-            "--repositories",
-            metavar="REPOS",
-            help="Repositories to use",
-            action=action,
-        )
+        last_section = None
 
-        group = parser.add_argument_group("Output options")
-        group.add_argument(
-            "-t", "--format",
-            metavar="FORMAT",
-            choices=OutputFormat.__members__,
-            dest="output_format",
-            help="Output Format",
-            action=action,
-        )
-        group.add_argument(
-            "--manifest-format",
-            metavar="FORMAT",
-            help="Manifest Format",
-            action=action,
-        )
-        group.add_argument(
-            "-o", "--output",
-            metavar="PATH",
-            help="Output name",
-            action=action,
-        )
-        group.add_argument(
-            "-O", "--output-dir",
-            metavar="DIR",
-            help="Output directory",
-            action=action,
-        )
-        group.add_argument(
-            "--workspace-dir",
-            metavar="DIR",
-            help="Workspace directory",
-            action=action,
-        )
-        group.add_argument(
-            "--cache-dir",
-            metavar="PATH",
-            help="Package cache path",
-            action=action,
-        )
-        group.add_argument(
-            "--build-dir",
-            metavar="PATH",
-            help="Path to use as persistent build directory",
-            action=action,
-        )
-        group.add_argument(
-            "--compress-output",
-            metavar="ALG",
-            help="Enable whole-output compression (with images or archives)",
-            nargs="?",
-            action=action,
-        )
-        group.add_argument("--image-version", help="Set version for image", action=action)
-        group.add_argument("--image-id", help="Set ID for image", action=action)
-        group.add_argument(
-            "--tar-strip-selinux-context",
-            metavar="BOOL",
-            help="Do not include SELinux file context information in tar. Not compatible with bsdtar.",
-            nargs="?",
-            action=action,
-        )
-        group.add_argument(
-            "--split-artifacts",
-            metavar="BOOL",
-            help="Generate split partitions",
-            nargs="?",
-            action=action,
-        )
-        group.add_argument(
-            "--repart-dir",
-            metavar="PATH",
-            help="Directory containing systemd-repart partition definitions",
-            dest="repart_dirs",
-            action=action,
-        )
-        group.add_argument(
-            "--overlay",
-            metavar="BOOL",
-            help="Only output the additions on top of the given base trees",
-            nargs="?",
-            action=action,
-        )
-        group.add_argument(
-            "--use-subvolumes",
-            metavar="FEATURE",
-            help="Use btrfs subvolumes for faster directory operations where possible",
-            nargs="?",
-            action=action,
-        )
+        for s in self.SETTINGS:
+            if s.section != last_section:
+                group = parser.add_argument_group(f"{s.section} configuration options")
+                last_section = s.section
 
-        group = parser.add_argument_group("Content options")
-        group.add_argument(
-            "-p", "--package",
-            metavar="PACKAGE",
-            help="Add an additional package to the OS image",
-            dest="packages",
-            action=action,
-        )
-        group.add_argument(
-            "--remove-package",
-            metavar="PACKAGE",
-            help="Remove package from the image OS image after installation",
-            dest="remove_packages",
-            action=action,
-        )
-        group.add_argument(
-            "--with-docs",
-            metavar="BOOL",
-            help="Install documentation",
-            nargs="?",
-            action=action,
-        )
-        group.add_argument(
-            "-T", "--without-tests",
-            help="Do not run tests as part of build script, if supported",
-            nargs="?",
-            const="no",
-            dest="with_tests",
-            action=action,
-        )
-        group.add_argument(
-            "--bootable",
-            metavar="FEATURE",
-            help="Generate ESP partition with systemd-boot and UKIs for installed kernels",
-            nargs="?",
-            action=action,
-        )
-        group.add_argument(
-            "--kernel-command-line",
-            metavar="OPTIONS",
-            help="Set the kernel command line (only bootable images)",
-            action=action,
-        )
-        group.add_argument(
-            "--autologin",
-            metavar="BOOL",
-            help="Enable root autologin",
-            nargs="?",
-            action=action,
-        )
-        group.add_argument(
-            '--base-tree',
-            metavar='PATH',
-            help='Use the given tree as base tree (e.g. lower sysext layer)',
-            dest="base_trees",
-            action=action,
-        )
-        group.add_argument(
-            "--extra-tree",
-            metavar="PATH",
-            help="Copy an extra tree on top of image",
-            dest="extra_trees",
-            action=action,
-        )
-        group.add_argument(
-            "--skeleton-tree",
-            metavar="PATH",
-            help="Use a skeleton tree to bootstrap the image before installing anything",
-            dest="skeleton_trees",
-            action=action,
-        )
-        group.add_argument(
-            "--package-manager-tree",
-            metavar="PATH",
-            help="Use a package manager tree to configure the package manager",
-            dest="package_manager_trees",
-            action=action,
-        )
-        group.add_argument(
-            "--clean-package-metadata",
-            metavar="FEATURE",
-            help="Remove package manager database and other files",
-            action=action,
-        )
-        group.add_argument(
-            "--remove-files",
-            metavar="GLOB",
-            help="Remove files from built image",
-            action=action,
-        )
-        group.add_argument(
-            "-E", "--environment",
-            metavar="NAME[=VALUE]",
-            help="Set an environment variable when running scripts",
-            action=action,
-        )
-        group.add_argument(
-            "--build-sources",
-            metavar="PATH",
-            help="Path for sources to build",
-            action=action,
-        )
-        group.add_argument(
-            "--build-package",
-            metavar="PACKAGE",
-            help="Additional packages needed for build script",
-            dest="build_packages",
-            action=action,
-        )
-        group.add_argument(
-            "--build-script",
-            metavar="PATH",
-            help="Build script to run inside image",
-            action=action,
-        )
-        group.add_argument(
-            "--prepare-script",
-            metavar="PATH",
-            help="Prepare script to run inside the image before it is cached",
-            action=action,
-        )
-        group.add_argument(
-            "--postinst-script",
-            metavar="PATH",
-            help="Postinstall script to run inside image",
-            action=action,
-        )
-        group.add_argument(
-            "--finalize-script",
-            metavar="PATH",
-            help="Postinstall script to run outside image",
-            action=action,
-        )
-        group.add_argument(
-            "--with-network",
-            metavar="BOOL",
-            help="Run build and postinst scripts with network access (instead of private network)",
-            nargs="?",
-            action=action,
-        )
-        group.add_argument(
-            "--cache-only",
-            metavar="BOOL",
-            help="Only use the package cache when installing packages",
-            action=action,
-        )
-        group.add_argument(
-            "--initrd",
-            help="Add a user-provided initrd to image",
-            metavar="PATH",
-            dest="initrds",
-            action=action,
-        )
-        group.add_argument(
-            "--make-initrd",
-            help="Make sure the image can be used as an initramfs",
-            metavar="BOOL",
-            nargs="?",
-            action=action,
-        )
-        group.add_argument(
-            "--kernel-modules-include",
-            help="Only include the specified kernel modules in the image",
-            metavar="REGEX",
-            action=action,
-        )
-        group.add_argument(
-            "--kernel-modules-exclude",
-            help="Exclude the specified kernel modules from the image",
-            metavar="REGEX",
-            action=action,
-        )
-        group.add_argument(
-            "--kernel-modules-initrd",
-            help="When building a bootable image, add an extra initrd containing the kernel modules",
-            metavar="BOOL",
-            nargs="?",
-            action=action,
-        )
-        group.add_argument(
-            "--kernel-modules-initrd-include",
-            help="When building a kernel modules initrd, only include the specified kernel modules",
-            metavar="REGEX",
-            action=action,
-        )
-        group.add_argument(
-            "--kernel-modules-initrd-exclude",
-            help="When building a kernel modules initrd, exclude the specified kernel modules",
-            metavar="REGEX",
-            action=action,
-        )
-        group.add_argument(
-            "--locale",
-            help="Set the system locale",
-            metavar="LOCALE",
-            action=action,
-        )
-        group.add_argument(
-            "--locale-messages",
-            help="Set the messages locale",
-            metavar="LOCALE",
-            action=action,
-        )
-        group.add_argument(
-            "--keymap",
-            help="Set the system keymap",
-            metavar="KEYMAP",
-            action=action,
-        )
-        group.add_argument(
-            "--timezone",
-            help="Set the system timezone",
-            metavar="TIMEZONE",
-            action=action,
-        )
-        group.add_argument(
-            "--hostname",
-            help="Set the system hostname",
-            metavar="HOSTNAME",
-            action=action,
-        )
-        group.add_argument(
-            "--root-password",
-            help="Set the system root password",
-            metavar="PASSWORD",
-            action=action,
-        )
-        group.add_argument(
-            "--root-shell",
-            help="Set the system root shell",
-            metavar="SHELL",
-            action=action,
-        )
+            long = s.long if s.long else f"--{s.dest.replace('_', '-')}"
+            opts = [s.short, long] if s.short else [long]
 
-        group = parser.add_argument_group("Validation options")
-        group.add_argument(
-            "--secure-boot",
-            metavar="BOOL",
-            help="Sign the resulting kernel/initrd image for UEFI SecureBoot",
-            nargs="?",
-            action=action,
-        )
-        group.add_argument(
-            "--secure-boot-key",
-            metavar="PATH",
-            help="UEFI SecureBoot private key in PEM format",
-            action=action,
-        )
-        group.add_argument(
-            "--secure-boot-certificate",
-            metavar="PATH",
-            help="UEFI SecureBoot certificate in X509 format",
-            action=action,
-        )
-        group.add_argument(
-            "--secure-boot-sign-tool",
-            metavar="TOOL",
-            help="Tool to use for signing PE binaries for secure boot",
-            action=action,
-        )
-        group.add_argument(
-            "--verity-key",
-            metavar="PATH",
-            help="Private key for signing verity signature in PEM format",
-            action=action,
-        )
-        group.add_argument(
-            "--verity-certificate",
-            metavar="PATH",
-            help="Certificate for signing verity signature in X509 format",
-            action=action,
-        )
-        group.add_argument(
-            "--sign-expected-pcr",
-            metavar="FEATURE",
-            help="Measure the components of the unified kernel image (UKI) and embed the PCR signature into the UKI",
-            action=action,
-        )
-        group.add_argument(
-            "--passphrase",
-            metavar="PATH",
-            help="Path to a file containing the passphrase to use when LUKS encryption is selected",
-            action=action,
-        )
-        group.add_argument(
-            "--checksum",
-            metavar="BOOL",
-            help="Write SHA256SUMS file",
-            nargs="?",
-            action=action,
-        )
-        group.add_argument(
-            "--sign",
-            help="Write and sign SHA256SUMS file",
-            metavar="BOOL",
-            nargs="?",
-            action=action,
-        )
-        group.add_argument("--key", help="GPG key to use for signing", action=action)
+            group.add_argument(    # type: ignore
+                *opts,
+                dest=s.dest,
+                choices=s.choices,
+                metavar=s.metavar,
+                nargs=s.nargs,     # type: ignore
+                const=s.const,
+                help=s.help,
+                action=action,
+            )
 
-        group = parser.add_argument_group("Host configuration options")
-        group.add_argument(
-            "-i", "--incremental",
-            metavar="BOOL",
-            help="Make use of and generate intermediary cache images",
-            nargs="?",
-            action=action,
-        )
-        group.add_argument(
-            "--settings",
-            metavar="PATH",
-            help="Add in .nspawn settings file",
-            dest="nspawn_settings",
-            action=action,
-        )
-        group.add_argument(
-            "--extra-search-path",
-            help="List of colon-separated paths to look for programs before looking in PATH",
-            metavar="PATH",
-            dest="extra_search_paths",
-            action=action,
-        )
-        group.add_argument(
-            "--qemu-gui",
-            help="Start QEMU in graphical mode",
-            metavar="BOOL",
-            nargs="?",
-            action=action,
-        )
-        group.add_argument(
-            "--qemu-smp",
-            metavar="SMP",
-            help="Configure guest's SMP settings",
-            action=action,
-        )
-        group.add_argument(
-            "--qemu-mem",
-            metavar="MEM",
-            help="Configure guest's RAM size",
-            action=action,
-        )
-        group.add_argument(
-            "--qemu-kvm",
-            metavar="FEATURE",
-            help="Configure whether to use KVM or not",
-            nargs="?",
-            action=action,
-        )
-        group.add_argument(
-            "--qemu-vsock",
-            metavar="FEATURE",
-            help="Configure whether to use qemu with a vsock or not",
-            nargs="?",
-            action=action,
-        )
-        group.add_argument(
-            "--qemu-swtpm",
-            metavar="FEATURE",
-            help="Configure whether to use qemu with swtpm or not",
-            nargs="?",
-            action=action,
-        )
-        group.add_argument(
-            "--qemu-args",
-            metavar="ARGS",
-            # Suppress the command line option because it's already possible to pass qemu args as normal
-            # arguments.
-            help=argparse.SUPPRESS,
-            action=action,
-        )
-        group.add_argument(
-            "--ephemeral",
-            metavar="BOOL",
-            help=('If specified, the container/VM is run with a temporary snapshot of the output '
-                'image that is removed immediately when the container/VM terminates'),
-            nargs="?",
-            action=action,
-        )
-        group.add_argument(
-            "--ssh",
-            metavar="BOOL",
-            help="Set up SSH access from the host to the final image via 'mkosi ssh'",
-            nargs="?",
-            action=action,
-        )
-        group.add_argument(
-            "--credential",
-            metavar="NAME=VALUE",
-            help="Pass a systemd credential to systemd-nspawn or qemu",
-            dest="credentials",
-            action=action,
-        )
-        group.add_argument(
-            "--kernel-command-line-extra",
-            metavar="OPTIONS",
-            help="Append extra entries to the kernel command line when booting the image",
-            action=action,
-        )
-        group.add_argument(
-            "--acl",
-            metavar="BOOL",
-            help="Set ACLs on generated directories to permit the user running mkosi to remove them",
-            nargs="?",
-            action=action,
-        )
 
         try:
             import argcomplete
