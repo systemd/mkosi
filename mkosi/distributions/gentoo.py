@@ -19,7 +19,6 @@ from mkosi.types import PathString
 
 def invoke_emerge(
     state: MkosiState,
-    sysroot: Path,
     packages: Sequence[str] = (),
     actions: Sequence[str] = (),
     options: Sequence[str] = (),
@@ -27,7 +26,7 @@ def invoke_emerge(
 ) -> None:
     # This is the mount-point inside our sysroot where we mount root
     run_workspace_command(
-        sysroot,
+        state.cache_dir.joinpath("stage3"),
         cmd=[
             "emerge",
             *packages,
@@ -54,8 +53,6 @@ def invoke_emerge(
 
 
 class GentooInstaller(DistributionInstaller):
-    stage3_cache: Path
-
     @classmethod
     def filesystem(cls) -> str:
         return "btrfs"
@@ -120,57 +117,35 @@ class GentooInstaller(DistributionInstaller):
             state.config.mirror, f"releases/{arch}/autobuilds/{stage3_tar}",
         )
 
-        cls.stage3_cache = state.cache_dir.joinpath("stage3")
-        if not stage3_tar_path.is_file():
-            if cls.stage3_cache.exists():
-                log_step("New stage3 is available, removing the old one")
-                unlink_try_hard(cls.stage3_cache)
+        stage3_cache = state.cache_dir.joinpath("stage3")
+        if not stage3_tar_path.exists():
+            if stage3_cache.exists():
+                log_step('New stage3 is available , removing cache')
+                unlink_try_hard(state.cache_dir.joinpath(stage3_tar).parent)
+                unlink_try_hard(stage3_cache)
             with complete_step(f"Fetching {stage3_url_path}"):
                 stage3_tar_path.parent.mkdir(parents=True, exist_ok=True)
                 urllib.request.urlretrieve(stage3_url_path, stage3_tar_path)
-        cls.stage3_cache.mkdir(parents=True, exist_ok=True)
-        if not cls.stage3_cache.joinpath(".cache_isclean").exists():
-            with complete_step(f"Extracting {stage3_tar.name} to {cls.stage3_cache}"):
+        stage3_cache.mkdir(parents=True, exist_ok=True)
+
+        if not stage3_cache.joinpath(".cache_isclean").exists():
+            with complete_step(f"Extracting {stage3_tar.name} to {stage3_cache}"):
                 run([
                     "tar",
                     "--numeric-owner",
-                    "-C", cls.stage3_cache,
+                    "-C", stage3_cache,
                     "--extract",
                     "--file", stage3_tar_path,
                     "--exclude", "./dev",
                     "--exclude", "./proc",
                 ])
 
-            cls.stage3_cache.joinpath(".cache_isclean").touch()
+            stage3_cache.joinpath(".cache_isclean").touch()
 
         for d in ("binpkgs", "distfiles", "repos"):
             state.cache_dir.joinpath(d).mkdir(exist_ok=True)
 
         config = state.pkgmngr / "etc/portage"
-
-        package_use = config / "package.use"
-        package_use.mkdir(parents=True, exist_ok=True)
-        package_use.joinpath("systemd").write_text(
-            # repart for usronly
-            dedent(
-                """\
-                # MKOSI: used during the image creation
-                # "/usr/lib/systemd/boot/efi": No such file or directory
-                sys-apps/systemd gnuefi
-                sys-apps/systemd -cgroup-hybrid
-                sys-apps/systemd elfutils # for coredump
-
-                sys-apps/systemd homed cryptsetup -pkcs11
-                # See: https://bugs.gentoo.org/832167
-                sys-auth/pambase homed
-
-                # MKOSI: usronly
-                sys-apps/systemd repart
-                # MKOSI: make sure we're init (no openrc)
-                sys-apps/systemd sysv-utils
-                """
-            )
-        )
 
         package_env = config / "package.env"
         package_env.mkdir(parents=True, exist_ok=True)
@@ -194,12 +169,12 @@ class GentooInstaller(DistributionInstaller):
         root_portage_cfg = state.root / "etc/portage"
         root_portage_cfg.mkdir(parents=True, exist_ok=True)
         copy_path(config, root_portage_cfg)
-        copy_path(config, cls.stage3_cache / "etc/portage")
+        copy_path(config, stage3_cache / "etc/portage")
 
         bwrap_params: list[PathString] = [
             "--bind", state.cache_dir / "repos", "/var/db/repos"
         ]
-        run_workspace_command(cls.stage3_cache, ["/usr/bin/emerge-webrsync"],
+        run_workspace_command(stage3_cache, ["/usr/bin/emerge-webrsync"],
                               bwrap_params=bwrap_params, network=True)
 
         opts = [
@@ -211,15 +186,13 @@ class GentooInstaller(DistributionInstaller):
             "--with-bdeps=n",
         ]
         with complete_step("Layingout basic filesystem"):
-            invoke_emerge(state, sysroot=cls.stage3_cache,
-                          options=opts+["--emptytree"],
+            invoke_emerge(state, options=opts+["--emptytree"],
                           packages=["sys-apps/baselayout"],
                           env={**emerge_vars, 'USE': 'build'})
 
     @classmethod
     def install_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
-        invoke_emerge(state, options=["--noreplace"], sysroot=cls.stage3_cache,
-                      packages=packages)
+        invoke_emerge(state, options=["--noreplace"], packages=packages)
 
     @staticmethod
     def architecture(arch: Architecture) -> str:
