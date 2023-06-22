@@ -5,7 +5,6 @@ import urllib.parse
 import urllib.request
 from collections.abc import Sequence
 from pathlib import Path
-from textwrap import dedent
 from typing import Mapping
 
 from mkosi.architecture import Architecture
@@ -25,7 +24,6 @@ def invoke_emerge(
     options: Sequence[str] = (),
     env: Mapping[str, str] = {},
 ) -> None:
-    # This is the mount-point inside our sysroot where we mount root
     run_workspace_command(
         state.cache_dir.joinpath("stage3"),
         cmd=[
@@ -49,7 +47,18 @@ def invoke_emerge(
             "--bind", state.cache_dir / "repos", "/var/db/repos",
         ],
         network=True,
-        env=env
+        env={
+            'PORTAGE_BINHOST': ' '.join(state.config.repositories),
+            'FEATURES': ' '.join([
+                    'parallel-install',
+                    *(['noman', 'nodoc', 'noinfo'] if state.config.with_docs else []),
+            ]),
+            # gnuefi: for systemd
+            # minimal: because we like minimals
+            # initramfs, symlink for kernel
+            'USE': 'gnuefi initramfs minimal symlink',
+            **env,
+        },
     )
 
 
@@ -70,23 +79,6 @@ class GentooInstaller(DistributionInstaller):
 
     @classmethod
     def install(cls, state: MkosiState) -> None:
-        emerge_vars = {
-            "FEATURES": " ".join([
-                    # -user* are required for access to USER_CONFIG_PATH
-                    "-userfetch",
-                    "-userpriv",
-                    "-usersync",
-                    "-usersandbox",
-                    "-sandbox",
-                    "-pid-sandbox",  # for cross-compile scenarios
-                    "-network-sandbox",
-                    "parallel-install",
-                    "getbinpkg",
-                    "-candy",
-                    *(["noman", "nodoc", "noinfo"] if state.config.with_docs else []),
-            ]),
-            "USE": "initramfs minimal symlink"
-        }
         arch = state.installer.architecture(state.config.architecture)
 
         assert state.config.mirror
@@ -146,31 +138,12 @@ class GentooInstaller(DistributionInstaller):
         for d in ("binpkgs", "distfiles", "repos"):
             state.cache_dir.joinpath(d).mkdir(exist_ok=True)
 
-        config = state.pkgmngr / "etc/portage"
-
-        package_env = config / "package.env"
-        package_env.mkdir(parents=True, exist_ok=True)
-        # apply whatever we put in mkosi_conf to runs invocation of emerge
-        package_env.joinpath("mkosi.conf").write_text("*/* mkosi.conf\n")
-
-        if not (config / "binrepos.conf").exists():
-            (config / "binrepos.conf").touch()
-        with (config / "binrepos.conf").open(mode='a') as f:
-            for repo in state.config.repositories:
-                f.write(
-                    dedent(
-                        f"""\
-                        # MKOSI
-                        [binhost]
-                        sync-uri = {repo}
-                        """
-                    )
-                )
+        config = stage3_cache / "etc/portage"
+        copy_path(state.pkgmngr, config)
 
         root_portage_cfg = state.root / "etc/portage"
         root_portage_cfg.mkdir(parents=True, exist_ok=True)
         copy_path(config, root_portage_cfg)
-        copy_path(config, stage3_cache / "etc/portage")
 
         bwrap_params: list[PathString] = [
             "--bind", state.cache_dir / "repos", "/var/db/repos"
@@ -189,7 +162,7 @@ class GentooInstaller(DistributionInstaller):
         with complete_step("Layingout basic filesystem"):
             invoke_emerge(state, options=opts+["--emptytree"],
                           packages=["sys-apps/baselayout"],
-                          env={**emerge_vars, 'USE': 'build'})
+                          env={'USE': 'build'})
 
     @classmethod
     def install_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
