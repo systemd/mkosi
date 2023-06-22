@@ -88,11 +88,6 @@ class GentooInstaller(DistributionInstaller):
             f"releases/{arch}/autobuilds/latest-stage3.txt",
         )
 
-        ###########################################################
-        # GENTOO_UPSTREAM: wait for fix upstream:
-        # https://bugs.gentoo.org/690294
-        # and more... so we can gladly escape all this hideousness!
-        ###########################################################
         with urllib.request.urlopen(stage3tsf_path_url) as r:
             # e.g.: 20230108T161708Z/stage3-amd64-nomultilib-systemd-mergedusr-20230108T161708Z.tar.xz
             regexp = rf"^[0-9]+T[0-9]+Z/stage3-{arch}-nomultilib-systemd-mergedusr-[0-9]+T[0-9]+Z\.tar\.xz"
@@ -121,7 +116,7 @@ class GentooInstaller(DistributionInstaller):
                 urllib.request.urlretrieve(stage3_url_path, stage3_tar_path)
         stage3_cache.mkdir(parents=True, exist_ok=True)
 
-        if not stage3_cache.joinpath(".cache_isclean").exists():
+        if next(stage3_cache.iterdir(), None) is None:
             with complete_step(f"Extracting {stage3_tar.name} to {stage3_cache}"):
                 run([
                     "tar",
@@ -132,8 +127,6 @@ class GentooInstaller(DistributionInstaller):
                     "--exclude", "./dev",
                     "--exclude", "./proc",
                 ])
-
-            stage3_cache.joinpath(".cache_isclean").touch()
 
         for d in ("binpkgs", "distfiles", "repos"):
             state.cache_dir.joinpath(d).mkdir(exist_ok=True)
