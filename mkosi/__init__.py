@@ -535,7 +535,7 @@ def install_package_manager_trees(state: MkosiState) -> None:
     if not state.config.package_manager_trees:
         return
 
-    with complete_step("Copying in package maneger file trees…"):
+    with complete_step("Copying in package manager file trees…"):
         for source, target in state.config.package_manager_trees:
             t = state.workspace / "pkgmngr"
             if target:

@@ -151,6 +151,12 @@ Those settings cannot be configured in the configuration files.
   option is an effective way to build a project located in a specific
   directory.
 
+`--preset=`
+
+: Run only the specified preset from the `mkosi.presets` directory.
+  Can be specified multiple times to process all specified presets.
+  Regardless, presets are always processed alphabetically.
+ 
 `--debug=`
 
 : Enable additional debugging output.
@@ -1329,6 +1335,70 @@ turn-around times for complete image builds are minimal, as only
 changed source files need to be recompiled: an OS image rebuilt will
 be almost as quick to build the source tree only.
 
+# PRESETS
+
+A preset is just like a regular configuration, except that mkosi can
+build multiple presets sequentially. Presets can be used to separate builds into stages,
+to build InitRds, or to build tools used at a later point.
+
+Presets are located as subdirectories in **`mkosi.presets/`**.
+If this path exists, for each preset mkosi will read the global configuration, followed by
+the individual preset configuration. 
+
+mkosi reads and builds each of the presets in alpha-numerical order. Ordering can be enforced with a
+numeric prefix
+Alternatively, the presets to build can be specified as command line arguments with `--preset`.
+
+Later presets can use outputs of earlier presets.
+Output files are named based on the preset name, although without any numeric prefix.
+Paths in the `mkosi.conf` are relative to itself.
+For example, a base preset with `Output=directory` produces a `base` directory in
+the output directory. This can be used in a later preset with `BaseTrees=base`, where
+the `base` output is copied in at the start.
+In conjunction with the `Overlay=` option, a system extension image can be generated.
+Presets are also useful to build custom initrds.
+They can be generated with `Output=cpio` and used for UKI generation in a later
+preset with the `Initrds=` option.
+
+## Examples
+
+This example build a base filesystem that is used in a InitRd and the root filesystem.
+The base filesystem could e.g. contain systemd components that are used in both the InitRd and the root filesystem.
+
+Each preset directory can additionally contain scripts that builds the respective preset.
+A more in-depth example can be found in the main systemd repository: https://github.com/systemd/systemd/tree/main/mkosi.presets
+
+
+```
+# mkosi.presets/00-base/mkosi.conf
+[Output]
+Format=directory
+
+[Content]
+Packages=build-essential
+```
+
+```
+# mkosi.presets/10-initrd/mkosi.conf
+[Output]
+Format=cpio
+
+[Content]
+BaseTrees=../../mkosi.output/base
+MakeInitrd=yes
+```
+
+```
+# mkosi.presets/20-final/mkosi.conf
+[Output]
+Format=disk
+Bootable=yes
+
+[Content]
+Initrds=../../mkosi.output/initrd
+BaseTrees=../../mkosi.output/base
+```
+
 # ENVIRONMENT VARIABLES
 
 The build script `mkosi.build` receives the following environment
@@ -1343,6 +1413,10 @@ variables:
   build directory to use. This is useful for all build systems that
   support out-of-tree builds to reuse already built artifacts from
   previous runs.
+
+* `$OUTPUTDIR` is set to mkosi's output directory. This can be used
+  to produce custom artifacts, for example in conjunction
+  with `Output=none`.
 
 * `$WITH_DOCS` is either `0` or `1` depending on whether a build
   without or with installed documentation was requested
