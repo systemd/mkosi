@@ -183,7 +183,6 @@ def invoke_dnf(
         f"--config={state.pkgmngr / 'etc/dnf/dnf.conf'}",
         command,
         "--best",
-        "--allowerasing",
         f"--releasever={release}",
         f"--installroot={state.root}",
         "--setopt=keepcache=1",
@@ -195,6 +194,10 @@ def invoke_dnf(
         "--setopt=check_config_file_age=0",
         "--no-plugins" if dnf.endswith("dnf5") else "--noplugins",
     ]
+
+    # dnf5 doesn't support --allowerasing for remove. Add it for other commands.
+    if command != "remove":
+        cmdline += ["--allowerasing"]
 
     # Make sure we download filelists so all dependencies can be resolved.
     # See https://bugzilla.redhat.com/show_bug.cgi?id=2180842
