@@ -24,6 +24,7 @@ def invoke_emerge(
     options: Sequence[str] = (),
     env: Mapping[str, str] = {},
 ) -> None:
+    print(f"{' '.join(state.config.repositories)}")
     run_workspace_command(
         state.cache_dir.joinpath("stage3"),
         cmd=[
@@ -35,6 +36,8 @@ def invoke_emerge(
             "--jobs",
             "--load-average",
             "--nospinner",
+            "--root-deps=rdeps",
+            "--with-bdeps=n",
             f"--root={Path('/tmp/mkosi-root')}",
             *(["--verbose", "--quiet=n", "--quiet-fail=n"] if ARG_DEBUG.get() else ["--quiet-build", "--quiet"]),
             *options,
@@ -50,8 +53,10 @@ def invoke_emerge(
         env={
             'PORTAGE_BINHOST': ' '.join(state.config.repositories),
             'FEATURES': ' '.join([
-                    'parallel-install',
-                    *(['noman', 'nodoc', 'noinfo'] if state.config.with_docs else []),
+                "getbinpkg",
+                "-candy",
+                'parallel-install',
+                *(['noman', 'nodoc', 'noinfo'] if state.config.with_docs else []),
             ]),
             # gnuefi: for systemd
             # minimal: because we like minimals
@@ -106,11 +111,21 @@ class GentooInstaller(DistributionInstaller):
         )
 
         stage3_cache = state.cache_dir.joinpath("stage3")
+
+        config = stage3_cache / "etc/portage"
+        vanilla_config = state.cache_dir / "vanilla-portage-config"
+        vanilla_config.mkdir(exist_ok=True)
+        pkgmngr_config = state.pkgmngr / "etc/portage"
+        root_portage_cfg = state.root / "etc/portage"
+        root_portage_cfg.mkdir(parents=True, exist_ok=True)
+
         if not stage3_tar_path.exists():
             if stage3_cache.exists():
                 log_step('New stage3 is available , removing cache')
                 unlink_try_hard(state.cache_dir.joinpath(stage3_tar).parent)
                 unlink_try_hard(stage3_cache)
+            if vanilla_config.exists():
+                unlink_try_hard(vanilla_config)
             with complete_step(f"Fetching {stage3_url_path}"):
                 stage3_tar_path.parent.mkdir(parents=True, exist_ok=True)
                 urllib.request.urlretrieve(stage3_url_path, stage3_tar_path)
@@ -127,16 +142,24 @@ class GentooInstaller(DistributionInstaller):
                     "--exclude", "./dev",
                     "--exclude", "./proc",
                 ])
+            copy_path(config, vanilla_config)
+
+        # why can't we use --config-root or PORTAGE_CONFIGROOT via
+        # invoke_emerge()?
+        #
+        # from emerge(1)
+        # PORTAGE_CONFIGROOT is now superseded by the SYSROOT variable and
+        # can only be given if its value matches SYSROOT or if ROOT=/.
+        # Defaults to / .
+        unlink_try_hard(config)
+        if pkgmngr_config.exists():
+            copy_path(pkgmngr_config, config)
+        else:
+            copy_path(vanilla_config, config)
+        copy_path(config, root_portage_cfg)
 
         for d in ("binpkgs", "distfiles", "repos"):
             state.cache_dir.joinpath(d).mkdir(exist_ok=True)
-
-        config = stage3_cache / "etc/portage"
-        copy_path(state.pkgmngr, config)
-
-        root_portage_cfg = state.root / "etc/portage"
-        root_portage_cfg.mkdir(parents=True, exist_ok=True)
-        copy_path(config, root_portage_cfg)
 
         bwrap_params: list[PathString] = [
             "--bind", state.cache_dir / "repos", "/var/db/repos"
@@ -149,8 +172,6 @@ class GentooInstaller(DistributionInstaller):
             "--verbose-conflicts",
             "--changed-use",
             "--newuse",
-            "--root-deps=rdeps",
-            "--with-bdeps=n",
         ]
         with complete_step("Layingout basic filesystem"):
             invoke_emerge(state, options=opts+["--emptytree"],
