@@ -30,6 +30,7 @@ def invoke_emerge(
         cmd=[
             "emerge",
             *packages,
+            "--update",
             "--buildpkg=y",
             "--usepkg=y",
             "--keep-going=y",
@@ -38,6 +39,10 @@ def invoke_emerge(
             "--nospinner",
             "--root-deps=rdeps",
             "--with-bdeps=n",
+            "--complete-graph-if-new-use=y",
+            "--verbose-conflicts",
+            "--changed-use",
+            "--newuse",
             f"--root={Path('/tmp/mkosi-root')}",
             *(["--verbose", "--quiet=n", "--quiet-fail=n"] if ARG_DEBUG.get() else ["--quiet-build", "--quiet"]),
             *options,
@@ -167,14 +172,8 @@ class GentooInstaller(DistributionInstaller):
         run_workspace_command(stage3_cache, ["/usr/bin/emerge-webrsync"],
                               bwrap_params=bwrap_params, network=True)
 
-        opts = [
-            "--complete-graph-if-new-use=y",
-            "--verbose-conflicts",
-            "--changed-use",
-            "--newuse",
-        ]
         with complete_step("Layingout basic filesystem"):
-            invoke_emerge(state, options=opts+["--emptytree"],
+            invoke_emerge(state, options=["--emptytree"],
                           packages=["sys-apps/baselayout"],
                           env={'USE': 'build'})
 
