@@ -10,7 +10,7 @@ from typing import Mapping
 from mkosi.architecture import Architecture
 from mkosi.distributions import DistributionInstaller
 from mkosi.install import copy_path
-from mkosi.log import ARG_DEBUG, complete_step, die, log_step
+from mkosi.log import ARG_DEBUG, complete_step, die
 from mkosi.remove import unlink_try_hard
 from mkosi.run import run, run_workspace_command
 from mkosi.state import MkosiState
@@ -20,17 +20,16 @@ from mkosi.types import PathString
 def invoke_emerge(
     state: MkosiState,
     packages: Sequence[str] = (),
-    actions: Sequence[str] = (),
     options: Sequence[str] = (),
     env: Mapping[str, str] = {},
 ) -> None:
-    print(f"{' '.join(state.config.repositories)}")
     run_workspace_command(
-        state.cache_dir.joinpath("stage3"),
+        state.cache_dir / "stage3",
         cmd=[
             "emerge",
             *packages,
             "--update",
+            "--deep",
             "--buildpkg=y",
             "--usepkg=y",
             "--keep-going=y",
@@ -43,10 +42,10 @@ def invoke_emerge(
             "--verbose-conflicts",
             "--changed-use",
             "--newuse",
-            f"--root={Path('/tmp/mkosi-root')}",
+            "--root=/tmp/mkosi-root",
+            "--binpkg-respect-use",
             *(["--verbose", "--quiet=n", "--quiet-fail=n"] if ARG_DEBUG.get() else ["--quiet-build", "--quiet"]),
             *options,
-            *actions,
         ],
         bwrap_params=[
             "--bind", state.root, "/tmp/mkosi-root",
@@ -55,20 +54,18 @@ def invoke_emerge(
             "--bind", state.cache_dir / "repos", "/var/db/repos",
         ],
         network=True,
-        env={
-            'PORTAGE_BINHOST': ' '.join(state.config.repositories),
-            'FEATURES': ' '.join([
+        env=dict(
+            FEATURES=" ".join([
                 "getbinpkg",
                 "-candy",
-                'parallel-install',
-                *(['noman', 'nodoc', 'noinfo'] if state.config.with_docs else []),
+                "parallel-install",
+                *(["noman", "nodoc", "noinfo"] if state.config.with_docs else []),
             ]),
-            # gnuefi: for systemd
+            # boot: for systemd
             # minimal: because we like minimals
             # initramfs, symlink for kernel
-            'USE': 'gnuefi initramfs minimal symlink',
-            **env,
-        },
+            USE="boot initramfs minimal symlink",
+        ) | env | state.environment,
     )
 
 
@@ -104,78 +101,55 @@ class GentooInstaller(DistributionInstaller):
             all_lines = r.readlines()
             for line in all_lines:
                 if (m := re.match(regexp, line.decode("utf-8"))):
-                    stage3_tar = Path(m.group(0))
+                    stage3_latest = Path(m.group(0))
                     break
             else:
                 die("profile names changed upstream?")
 
-        stage3_tar_path = state.cache_dir / stage3_tar
+        stage3_url = urllib.parse.urljoin(state.config.mirror, f"releases/{arch}/autobuilds/{stage3_latest}")
+        stage3_tar = state.cache_dir / "stage3.tar"
+        stage3 = state.cache_dir / "stage3"
 
-        stage3_url_path = urllib.parse.urljoin(
-            state.config.mirror, f"releases/{arch}/autobuilds/{stage3_tar}",
-        )
+        with complete_step("Fetching latest stage3 snapshot"):
+            old = stage3_tar.stat().st_mtime if stage3_tar.exists() else 0
 
-        stage3_cache = state.cache_dir.joinpath("stage3")
+            cmd: list[PathString] = ["curl", "-L", "--progress-bar", "-o", stage3_tar, stage3_url]
+            if stage3_tar.exists():
+                cmd += ["--time-cond", stage3_tar]
 
-        config = stage3_cache / "etc/portage"
-        vanilla_config = state.cache_dir / "vanilla-portage-config"
-        vanilla_config.mkdir(exist_ok=True)
-        pkgmngr_config = state.pkgmngr / "etc/portage"
-        root_portage_cfg = state.root / "etc/portage"
-        root_portage_cfg.mkdir(parents=True, exist_ok=True)
+            run(cmd)
 
-        if not stage3_tar_path.exists():
-            if stage3_cache.exists():
-                log_step('New stage3 is available , removing cache')
-                unlink_try_hard(state.cache_dir.joinpath(stage3_tar).parent)
-                unlink_try_hard(stage3_cache)
-            if vanilla_config.exists():
-                unlink_try_hard(vanilla_config)
-            with complete_step(f"Fetching {stage3_url_path}"):
-                stage3_tar_path.parent.mkdir(parents=True, exist_ok=True)
-                urllib.request.urlretrieve(stage3_url_path, stage3_tar_path)
-        stage3_cache.mkdir(parents=True, exist_ok=True)
+            if stage3_tar.stat().st_mtime > old:
+                unlink_try_hard(stage3)
 
-        if next(stage3_cache.iterdir(), None) is None:
-            with complete_step(f"Extracting {stage3_tar.name} to {stage3_cache}"):
+        stage3.mkdir(exist_ok=True)
+
+        if not any(stage3.iterdir()):
+            with complete_step(f"Extracting {stage3_tar.name} to {stage3}"):
                 run([
                     "tar",
                     "--numeric-owner",
-                    "-C", stage3_cache,
+                    "-C", stage3,
                     "--extract",
-                    "--file", stage3_tar_path,
-                    "--exclude", "./dev",
-                    "--exclude", "./proc",
+                    "--file", stage3_tar,
+                    "--exclude", "./dev/*",
+                    "--exclude", "./proc/*",
+                    "--exclude", "./sys/*",
                 ])
-            copy_path(config, vanilla_config)
 
-        # why can't we use --config-root or PORTAGE_CONFIGROOT via
-        # invoke_emerge()?
-        #
-        # from emerge(1)
-        # PORTAGE_CONFIGROOT is now superseded by the SYSROOT variable and
-        # can only be given if its value matches SYSROOT or if ROOT=/.
-        # Defaults to / .
-        unlink_try_hard(config)
-        if pkgmngr_config.exists():
-            copy_path(pkgmngr_config, config)
-        else:
-            copy_path(vanilla_config, config)
-        copy_path(config, root_portage_cfg)
+        for d in ("binpkgs", "distfiles", "repos/gentoo"):
+            (state.cache_dir / d).mkdir(parents=True, exist_ok=True)
 
-        for d in ("binpkgs", "distfiles", "repos"):
-            state.cache_dir.joinpath(d).mkdir(exist_ok=True)
+        copy_path(state.pkgmngr, stage3, preserve_owner=False)
 
-        bwrap_params: list[PathString] = [
-            "--bind", state.cache_dir / "repos", "/var/db/repos"
-        ]
-        run_workspace_command(stage3_cache, ["/usr/bin/emerge-webrsync"],
-                              bwrap_params=bwrap_params, network=True)
+        run_workspace_command(
+            stage3,
+            cmd=["emerge-webrsync"],
+            bwrap_params=["--bind", state.cache_dir / "repos", "/var/db/repos"],
+            network=True,
+        )
 
-        with complete_step("Layingout basic filesystem"):
-            invoke_emerge(state, options=["--emptytree"],
-                          packages=["sys-apps/baselayout"],
-                          env={'USE': 'build'})
+        invoke_emerge(state, packages=["sys-apps/baselayout"], env={"USE": "build"})
 
     @classmethod
     def install_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
