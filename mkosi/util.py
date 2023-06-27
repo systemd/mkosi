@@ -169,6 +169,10 @@ def is_apt_distribution(d: Distribution) -> bool:
     return d in (Distribution.debian, Distribution.ubuntu)
 
 
+def is_portage_distribution(d: Distribution) -> bool:
+    return d in (Distribution.gentoo,)
+
+
 class OutputFormat(str, enum.Enum):
     directory = "directory"
     tar = "tar"
