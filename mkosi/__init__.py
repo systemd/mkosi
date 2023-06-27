@@ -81,7 +81,7 @@ def mount_image(state: MkosiState) -> Iterator[None]:
                 else:
                     die(f"Unsupported base tree source {path}")
 
-            stack.enter_context(mount_overlay(bases, state.root, state.workdir, state.root, read_only=False))
+            stack.enter_context(mount_overlay(bases, state.root, state.root, read_only=False))
 
         yield
 
@@ -273,7 +273,7 @@ def mount_cache_overlay(state: MkosiState) -> Iterator[None]:
     d = state.workspace / "cache-overlay"
     d.mkdir(mode=0o755, exist_ok=True)
 
-    with mount_overlay([state.root], d, state.workdir, state.root, read_only=False):
+    with mount_overlay([state.root], d, state.root, read_only=False):
         yield
 
 
@@ -281,7 +281,7 @@ def mount_build_overlay(state: MkosiState, read_only: bool = False) -> ContextMa
     d = state.workspace / "build-overlay"
     if not d.is_symlink():
         d.mkdir(mode=0o755, exist_ok=True)
-    return mount_overlay([state.root], state.workspace.joinpath("build-overlay"), state.workdir, state.root, read_only)
+    return mount_overlay([state.root], state.workspace.joinpath("build-overlay"), state.root, read_only)
 
 
 def run_prepare_script(state: MkosiState, build: bool) -> None:
