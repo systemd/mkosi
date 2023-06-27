@@ -1609,6 +1609,7 @@ def make_image(state: MkosiState, skip: Sequence[str] = [], split: bool = False)
         "--dry-run=no",
         "--json=pretty",
         "--no-pager",
+        "--offline=yes",
         "--root", state.root,
         state.staging / state.config.output_with_format,
     ]
@@ -1924,7 +1925,7 @@ def nspawn_knows_arg(arg: str) -> bool:
 
 
 def finalize_image(image: Path, *, size: str) -> None:
-    run(["systemd-repart", "--image", image, "--size", size, "--no-pager", "--dry-run=no", image])
+    run(["systemd-repart", "--image", image, "--size", size, "--no-pager", "--dry-run=no", "--offline=no", image])
 
 
 @contextlib.contextmanager
