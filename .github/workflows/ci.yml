@@ -21,6 +21,7 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install pandoc
+        python3 -m pip install --upgrade setuptools wheel pip
         python3 -m pip install pytest mypy types-cryptography isort pyflakes
         npm install -g pyright
 
@@ -48,33 +49,21 @@ jobs:
     - name: Test execution from current working directory (sudo call)
       run: sudo python3 -m mkosi -h
 
-    - name: Test user installation
-      run: |
-        python3 -m pip install --user .
-        $HOME/.local/bin/mkosi -h
-        python3 -m pip uninstall --yes mkosi
-
-    - name: Test editable user installation
-      run: |
-        python3 -m pip install --user --no-use-pep517 --editable .
-        $HOME/.local/bin/mkosi -h
-        python3 -m pip uninstall --yes mkosi
-
     - name: Test venv installation
       run: |
         python3 -m venv testvenv
+        testvenv/bin/python3 -m pip install --upgrade setuptools wheel pip
         testvenv/bin/python3 -m pip install .
         testvenv/bin/mkosi -h
+        rm -rf testenv
 
-    - name: Test venv installation (sudo call)
+    - name: Test editable venv installation
       run: |
-        sudo testvenv/bin/mkosi -h
-
-    - name: Test system installation
-      run: |
-        sudo python3 -m pip install .
-        sudo mkosi -h
-        sudo python3 -m pip uninstall --yes mkosi
+        python3 -m venv testvenv
+        testvenv/bin/python3 -m pip install --upgrade setuptools wheel pip
+        testvenv/bin/python3 -m pip install --editable .
+        testvenv/bin/mkosi -h
+        rm -rf testenv
 
     - name: Test zipapp creation
       run: |
@@ -118,12 +107,10 @@ jobs:
     - uses: actions/checkout@v3
     - uses: ./
 
-    - name: Install dependencies
-      run: sudo apt-get update && sudo apt-get install --no-install-recommends python3-pexpect python3-pytest
-
-    # Do a manual install so we have the latest changes from the pull request available.
+    # Make sure the latest changes from the pull request are used.
     - name: Install
-      run: sudo python3 -m pip install ..
+      run: sudo ln -svf $PWD/bin/mkosi /usr/bin/mkosi
+      working-directory: ./
 
     - name: Configure ${{ matrix.distro }}/${{ matrix.format }}
       run: |
@@ -135,12 +122,8 @@ jobs:
         Format=${{ matrix.format }}
         EOF
 
-    - name: Resolve Arch geo mirror location
-      if: matrix.distro == 'arch'
-      run: curl -I geo.mirror.pkgbuild.com
-
     - name: Build ${{ matrix.distro }}/${{ matrix.format }}
-      run: python3 -m mkosi --debug build
+      run: mkosi --debug build
 
     # systemd-resolved is enabled by default in Arch/Debian/Ubuntu (systemd default preset) but fails to
     # start in a systemd-nspawn container with --private-users so we mask it out here to avoid CI failures.
@@ -151,8 +134,8 @@ jobs:
 
     - name: Boot ${{ matrix.distro }}/${{ matrix.format }} systemd-nspawn
       if: matrix.format == 'disk' || matrix.format == 'directory'
-      run: sudo python3 -m mkosi --debug boot
+      run: sudo mkosi --debug boot
 
     - name: Boot ${{ matrix.distro }}/${{ matrix.format }} UEFI
       if: matrix.format == 'disk'
-      run: timeout -k 30 10m python3 -m mkosi --debug qemu
+      run: timeout -k 30 10m mkosi --debug qemu
