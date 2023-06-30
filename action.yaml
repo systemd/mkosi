@@ -92,4 +92,4 @@ runs:
 
   - name: Install
     shell: bash
-    run: sudo python3 -m pip install ${{ github.action_path }}
+    run: sudo ln -svf ${{ github.action_path }}/bin/mkosi /usr/bin/mkosi
