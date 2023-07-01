@@ -1,11 +1,14 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
+import shutil
+import urllib.request
+import xml.etree.ElementTree as ElementTree
 from collections.abc import Sequence
 from textwrap import dedent
 
 from mkosi.architecture import Architecture
 from mkosi.distributions import DistributionInstaller
-from mkosi.distributions.fedora import fixup_rpmdb_location
+from mkosi.distributions.fedora import Repo, fixup_rpmdb_location, invoke_dnf, setup_dnf
 from mkosi.log import die
 from mkosi.run import bwrap
 from mkosi.state import MkosiState
@@ -42,16 +45,27 @@ class OpensuseInstaller(DistributionInstaller):
             release_url = f"{state.config.mirror}/distribution/leap/{release}/repo/oss/"
             updates_url = f"{state.config.mirror}/update/leap/{release}/oss/"
 
-        repos = [("repo-oss", release_url)]
-        if updates_url is not None:
-            repos += [("repo-update", updates_url)]
+        if shutil.which("zypper") is not None:
+            repo_list = [("repo-oss", release_url)]
+            if updates_url is not None:
+                repo_list += [("repo-update", updates_url)]
 
-        setup_zypper(state, repos)
-        invoke_zypper(state, "install", ["-y", "--download-in-advance", "--no-recommends"], packages, apivfs=apivfs)
+            setup_zypper(state, repo_list)
+            invoke_zypper(state, "install", ["-y", "--download-in-advance", "--no-recommends"], packages, apivfs=apivfs)
+        else:
+            repos = [Repo("repo-oss", f"baseurl={release_url}", fetch_gpgurls(release_url))]
+            if updates_url is not None:
+                repos += [Repo("repo-update", f"baseurl={updates_url}", fetch_gpgurls(updates_url))]
+
+            setup_dnf(state, repos)
+            invoke_dnf(state, "install", packages, apivfs=apivfs)
 
     @classmethod
     def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
-        invoke_zypper(state, "remove", ["-y", "--clean-deps"], packages)
+        if shutil.which("zypper") is not None:
+            invoke_zypper(state, "remove", ["-y", "--clean-deps"], packages)
+        else:
+            invoke_dnf(state, "remove", packages)
 
     @staticmethod
     def architecture(arch: Architecture) -> str:
@@ -63,6 +77,25 @@ class OpensuseInstaller(DistributionInstaller):
             die(f"Architecture {a} is not supported by OpenSUSE")
 
         return a
+
+
+def fetch_gpgurls(repourl: str) -> list[str]:
+    gpgurls = [f"{repourl}/repodata/repomd.xml.key"]
+
+    with urllib.request.urlopen(f"{repourl}/repodata/repomd.xml") as f:
+        xml = f.read().decode()
+        root = ElementTree.fromstring(xml)
+
+        tags = root.find("{http://linux.duke.edu/metadata/repo}tags")
+        if not tags:
+            die("repomd.xml missing <tags> element")
+
+        for child in tags.iter("{http://linux.duke.edu/metadata/repo}content"):
+            if child.text and child.text.startswith("gpg-pubkey"):
+                gpgkey = child.text.partition("?")[0]
+                gpgurls += [f"{repourl}{gpgkey}"]
+
+    return gpgurls
 
 
 def setup_zypper(state: MkosiState, repos: Sequence[tuple[str, str]] = ()) -> None:
