@@ -46,7 +46,8 @@ runs:
         squashfs-tools \
         swtpm \
         systemd-container \
-        xfsprogs
+        xfsprogs \
+        zypper
 
       sudo pacman-key --init
       sudo pacman-key --populate archlinux
