@@ -1912,19 +1912,6 @@ def check_root() -> None:
         die("Must be invoked as root.")
 
 
-def nspawn_knows_arg(arg: str) -> bool:
-    # Specify some extra incompatible options so nspawn doesn't try to boot a container in the current
-    # directory if it has a compatible layout.
-    c = run(["systemd-nspawn", arg,
-             "--directory", "/dev/null",
-             "--image", "/dev/null"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE,
-            check=False,
-            text=True)
-    return "unrecognized option" not in c.stderr
-
-
 def finalize_image(image: Path, *, size: str) -> None:
     run(["systemd-repart", "--image", image, "--size", size, "--no-pager", "--dry-run=no", "--offline=no", image])
 
@@ -1949,12 +1936,10 @@ def run_shell(args: MkosiArgs, config: MkosiConfig) -> None:
     if args.verb == Verb.boot:
         cmdline += ["--boot"]
     else:
-        cmdline += [f"--rlimit=RLIMIT_CORE={format_rlimit(resource.RLIMIT_CORE)}"]
-
-        # Redirecting output correctly when not running directly from the terminal.
-        console_arg = f"--console={'interactive' if sys.stdout.isatty() else 'pipe'}"
-        if nspawn_knows_arg(console_arg):
-            cmdline += [console_arg]
+        cmdline += [
+            f"--rlimit=RLIMIT_CORE={format_rlimit(resource.RLIMIT_CORE)}",
+            "--console=autopipe",
+        ]
 
     cmdline += ["--machine", config.output]
     cmdline += [f"--bind={config.build_sources}:/root/src", "--chdir=/root/src"]
