@@ -208,10 +208,6 @@ def copy_ephemeral(config: MkosiConfig, src: Path) -> Iterator[Path]:
         unlink_try_hard(tmp)
 
 
-def grow_image(image: Path, *, size: str) -> None:
-    run(["systemd-repart", "--definitions", "", "--no-pager", "--size", size, "--pretty", "no", image])
-
-
 def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
     accel = "tcg"
     if config.qemu_kvm == ConfigFeature.enabled or (config.qemu_kvm == ConfigFeature.auto and qemu_check_kvm_support()):
@@ -279,7 +275,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
             fname = config.output_dir / config.output
 
         if config.output_format == OutputFormat.disk:
-            grow_image(fname, size="8G")
+            run(["systemd-repart", "--definitions", "", "--no-pager", "--size", "8G", "--pretty", "no", fname])
 
         # Debian images fail to boot with virtio-scsi, see: https://github.com/systemd/mkosi/issues/725
         if config.output_format == OutputFormat.cpio:

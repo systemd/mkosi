@@ -1912,10 +1912,6 @@ def check_root() -> None:
         die("Must be invoked as root.")
 
 
-def finalize_image(image: Path, *, size: str) -> None:
-    run(["systemd-repart", "--image", image, "--size", size, "--no-pager", "--dry-run=no", "--offline=no", image])
-
-
 @contextlib.contextmanager
 def acl_toggle_boot(config: MkosiConfig) -> Iterator[None]:
     if not config.acl or config.output_format != OutputFormat.directory:
@@ -1954,7 +1950,13 @@ def run_shell(args: MkosiArgs, config: MkosiConfig) -> None:
             fname = config.output_dir / config.output
 
         if config.output_format == OutputFormat.disk and args.verb == Verb.boot:
-            finalize_image(fname, size="8G")
+            run(["systemd-repart",
+                 "--image", fname,
+                 "--size", "8G",
+                 "--no-pager",
+                 "--dry-run=no",
+                 "--offline=no",
+                 fname])
 
         if config.output_format == OutputFormat.directory:
             cmdline += ["--directory", fname]
