@@ -73,10 +73,10 @@ class SecureBootSignTool(enum.Enum):
 def parse_boolean(s: str) -> bool:
     "Parse 1/true/yes/y/t/on as true and 0/false/no/n/f/off/None as false"
     s_l = s.lower()
-    if s_l in {"1", "true", "yes", "y", "t", "on"}:
+    if s_l in {"1", "true", "yes", "y", "t", "on", "always"}:
         return True
 
-    if s_l in {"0", "false", "no", "n", "f", "off"}:
+    if s_l in {"0", "false", "no", "n", "f", "off", "never"}:
         return False
 
     die(f"Invalid boolean literal: {s!r}")
