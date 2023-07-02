@@ -9,7 +9,7 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Optional
 
-from mkosi.run import run
+from mkosi.run import bwrap
 
 
 def make_executable(path: Path) -> None:
@@ -53,8 +53,9 @@ def copy_path(
     *,
     dereference: bool = False,
     preserve_owner: bool = True,
+    root: Optional[Path] = None,
 ) -> None:
-    run([
+    bwrap([
         "cp",
         "--recursive",
         f"--{'' if dereference else 'no-'}dereference",
@@ -62,4 +63,4 @@ def copy_path(
         "--no-target-directory",
         "--reflink=auto",
         src, dst,
-    ])
+    ], root=root)

@@ -78,6 +78,9 @@ def mount(
     if options:
         cmd += ["--options", ",".join(options)]
 
+    # Ideally we'd run these with bwrap() but bubblewrap disables all mount propagation to the root so any
+    # mounts we do within bubblewrap aren't propagated to the overarching mount namespace.
+
     try:
         run(cmd)
         yield where

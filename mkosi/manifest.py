@@ -9,7 +9,7 @@ from textwrap import dedent
 from typing import IO, Any, Optional
 
 from mkosi.config import MkosiConfig
-from mkosi.run import run
+from mkosi.run import bwrap
 from mkosi.util import Distribution, ManifestFormat, PackageType
 
 
@@ -105,13 +105,13 @@ class Manifest:
         if not (root / dbpath).exists():
             dbpath = "/var/lib/rpm"
 
-        c = run(["rpm",
-                 f"--root={root}",
-                 f"--dbpath={dbpath}",
-                 "-qa",
-                 "--qf", r"%{NEVRA}\t%{SOURCERPM}\t%{NAME}\t%{ARCH}\t%{LONGSIZE}\t%{INSTALLTIME}\n"],
-                stdout=PIPE,
-                text=True)
+        c = bwrap(["rpm",
+                   f"--root={root}",
+                   f"--dbpath={dbpath}",
+                   "-qa",
+                   "--qf", r"%{NEVRA}\t%{SOURCERPM}\t%{NAME}\t%{ARCH}\t%{LONGSIZE}\t%{INSTALLTIME}\n"],
+                  stdout=PIPE,
+                  root=self.config.tools_tree)
 
         packages = sorted(c.stdout.splitlines())
 
@@ -146,15 +146,15 @@ class Manifest:
 
             source = self.source_packages.get(srpm)
             if source is None:
-                c = run(["rpm",
-                         f"--root={root}",
-                         f"--dbpath={dbpath}",
-                         "-q",
-                         "--changelog",
-                         nevra],
-                        stdout=PIPE,
-                        stderr=DEVNULL,
-                        text=True)
+                c = bwrap(["rpm",
+                           f"--root={root}",
+                           f"--dbpath={dbpath}",
+                           "-q",
+                           "--changelog",
+                           nevra],
+                          stdout=PIPE,
+                          stderr=DEVNULL,
+                          root=self.config.tools_tree)
                 changelog = c.stdout.strip()
                 source = SourcePackageManifest(srpm, changelog)
                 self.source_packages[srpm] = source
@@ -162,14 +162,13 @@ class Manifest:
             source.add(package)
 
     def record_deb_packages(self, root: Path) -> None:
-        c = run(["dpkg-query",
-                 f"--admindir={root}/var/lib/dpkg",
-                 "--show",
-                 "--showformat",
-                     r'${Package}\t${source:Package}\t${Version}\t${Architecture}\t${Installed-Size}\t${db-fsys:Last-Modified}\n'],
-            stdout=PIPE,
-            text=True,
-        )
+        c = bwrap(["dpkg-query",
+                   f"--admindir={root}/var/lib/dpkg",
+                   "--show",
+                   "--showformat",
+                       r'${Package}\t${source:Package}\t${Version}\t${Architecture}\t${Installed-Size}\t${db-fsys:Last-Modified}\n'],
+                  stdout=PIPE,
+                  root=self.config.tools_tree)
 
         packages = sorted(c.stdout.splitlines())
 
@@ -228,7 +227,7 @@ class Manifest:
                 # We have to run from the root, because if we use the RootDir option to make
                 # apt from the host look at the repositories in the image, it will also pick
                 # the 'methods' executables from there, but the ABI might not be compatible.
-                result = run(cmd, text=True, stdout=PIPE)
+                result = bwrap(cmd, stdout=PIPE, root=self.config.tools_tree)
                 source_package = SourcePackageManifest(source, result.stdout.strip())
                 self.source_packages[source] = source_package
 

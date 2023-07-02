@@ -658,6 +658,7 @@ class MkosiConfig:
     hostname: Optional[str]
     root_password: Optional[tuple[str, bool]]
     root_shell: Optional[str]
+    tools_tree: Optional[Path]
 
     # QEMU-specific options
     qemu_gui: bool
@@ -1333,7 +1334,7 @@ class MkosiConfigParser:
             metavar="PATH",
             section="Host",
             parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
-            help="List of colon-separated paths to look for programs before looking in PATH",
+            help="List of comma-separated paths to look for programs before looking in PATH",
         ),
         MkosiConfigSetting(
             dest="qemu_gui",
@@ -1429,6 +1430,15 @@ class MkosiConfigParser:
             section="Host",
             parse=config_parse_boolean,
             help="Set ACLs on generated directories to permit the user running mkosi to remove them",
+        ),
+        MkosiConfigSetting(
+            dest="tools_tree",
+            long="--tools-tree",
+            metavar="PATH",
+            section="Host",
+            parse=config_make_path_parser(required=False, absolute=False),
+            paths=("mkosi.tools",),
+            help="Look up programs to execute inside the given tree",
         ),
     )
 

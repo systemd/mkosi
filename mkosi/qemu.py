@@ -18,10 +18,9 @@ from typing import Iterator, Optional
 from mkosi.architecture import Architecture
 from mkosi.btrfs import btrfs_maybe_snapshot_subvolume
 from mkosi.config import ConfigFeature, MkosiArgs, MkosiConfig
-from mkosi.install import copy_path
 from mkosi.log import die
 from mkosi.remove import unlink_try_hard
-from mkosi.run import MkosiAsyncioThread, run, spawn
+from mkosi.run import MkosiAsyncioThread, bwrap, bwrap_cmd, spawn
 from mkosi.types import PathString
 from mkosi.util import (
     Distribution,
@@ -138,10 +137,10 @@ def find_ovmf_vars(config: MkosiConfig) -> Path:
 
 
 @contextlib.contextmanager
-def start_swtpm() -> Iterator[Optional[Path]]:
-    with tempfile.TemporaryDirectory() as state:
+def start_swtpm(config: MkosiConfig) -> Iterator[Optional[Path]]:
+    with tempfile.TemporaryDirectory() as state, bwrap_cmd(root=config.tools_tree) as bwrap:
         sock = Path(state) / Path("sock")
-        proc = spawn(["swtpm", "socket", "--tpm2", "--tpmstate", f"dir={state}", "--ctrl", f"type=unixio,path={sock}"])
+        proc = spawn([*bwrap, "swtpm", "socket", "--tpm2", "--tpmstate", f"dir={state}", "--ctrl", f"type=unixio,path={sock}"])
 
         try:
             yield sock
@@ -262,7 +261,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
     with contextlib.ExitStack() as stack:
         if fw_supports_sb:
             ovmf_vars = stack.enter_context(tempfile.NamedTemporaryFile(prefix=".mkosi-", dir=tmp_dir()))
-            copy_path(find_ovmf_vars(config), Path(ovmf_vars.name), dereference=True)
+            shutil.copy(find_ovmf_vars(config), Path(ovmf_vars.name))
             cmdline += [
                 "-global", "ICH9-LPC.disable_s3=1",
                 "-global", "driver=cfi.pflash01,property=secure,value=on",
@@ -275,7 +274,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
             fname = config.output_dir / config.output
 
         if config.output_format == OutputFormat.disk:
-            run(["systemd-repart", "--definitions", "", "--no-pager", "--size", "8G", "--pretty", "no", fname])
+            bwrap(["systemd-repart", "--definitions", "", "--no-pager", "--size", "8G", "--pretty", "no", fname])
 
         # Debian images fail to boot with virtio-scsi, see: https://github.com/systemd/mkosi/issues/725
         if config.output_format == OutputFormat.cpio:
@@ -293,7 +292,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
                         "-device", "scsi-hd,drive=hd,bootindex=1"]
 
         if config.qemu_swtpm != ConfigFeature.disabled and shutil.which("swtpm") is not None:
-            sock = stack.enter_context(start_swtpm())
+            sock = stack.enter_context(start_swtpm(config))
             cmdline += ["-chardev", f"socket,id=chrtpm,path={sock}",
                         "-tpmdev", "emulator,id=tpm0,chardev=chrtpm"]
 
@@ -309,7 +308,12 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
         cmdline += config.qemu_args
         cmdline += args.cmdline
 
-        run(cmdline, stdin=sys.stdin, stdout=sys.stdout, env=os.environ, log=False)
+        bwrap(cmdline,
+              stdin=sys.stdin,
+              stdout=sys.stdout,
+              env=os.environ,
+              log=False,
+              root=config.tools_tree)
 
     if status := int(notifications.get("EXIT_STATUS", 0)):
         raise subprocess.CalledProcessError(status, cmdline)

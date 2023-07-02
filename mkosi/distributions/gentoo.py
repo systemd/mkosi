@@ -12,7 +12,7 @@ from mkosi.distributions import DistributionInstaller
 from mkosi.install import copy_path
 from mkosi.log import ARG_DEBUG, complete_step, die
 from mkosi.remove import unlink_try_hard
-from mkosi.run import run, run_workspace_command
+from mkosi.run import bwrap, run_workspace_command
 from mkosi.state import MkosiState
 from mkosi.types import PathString
 
@@ -117,7 +117,7 @@ class GentooInstaller(DistributionInstaller):
             if stage3_tar.exists():
                 cmd += ["--time-cond", stage3_tar]
 
-            run(cmd)
+            bwrap(cmd, root=state.config.tools_tree)
 
             if stage3_tar.stat().st_mtime > old:
                 unlink_try_hard(stage3)
@@ -126,21 +126,20 @@ class GentooInstaller(DistributionInstaller):
 
         if not any(stage3.iterdir()):
             with complete_step(f"Extracting {stage3_tar.name} to {stage3}"):
-                run([
-                    "tar",
-                    "--numeric-owner",
-                    "-C", stage3,
-                    "--extract",
-                    "--file", stage3_tar,
-                    "--exclude", "./dev/*",
-                    "--exclude", "./proc/*",
-                    "--exclude", "./sys/*",
-                ])
+                bwrap(["tar",
+                       "--numeric-owner",
+                       "-C", stage3,
+                       "--extract",
+                       "--file", stage3_tar,
+                       "--exclude", "./dev/*",
+                       "--exclude", "./proc/*",
+                       "--exclude", "./sys/*"],
+                      root=state.config.tools_tree)
 
         for d in ("binpkgs", "distfiles", "repos/gentoo"):
             (state.cache_dir / d).mkdir(parents=True, exist_ok=True)
 
-        copy_path(state.pkgmngr, stage3, preserve_owner=False)
+        copy_path(state.pkgmngr, stage3, preserve_owner=False, root=state.config.tools_tree)
 
         run_workspace_command(
             stage3,

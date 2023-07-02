@@ -9,7 +9,7 @@ from textwrap import dedent
 from mkosi.architecture import Architecture
 from mkosi.distributions import DistributionInstaller
 from mkosi.log import die
-from mkosi.run import bwrap, run
+from mkosi.run import bwrap
 from mkosi.state import MkosiState
 from mkosi.types import CompletedProcess, PathString
 
@@ -93,8 +93,9 @@ class DebianInstaller(DistributionInstaller):
 
         for deb in essential:
             with tempfile.NamedTemporaryFile(dir=state.workspace) as f:
-                run(["dpkg-deb", "--fsys-tarfile", deb], stdout=f)
-                run(["tar", "-C", state.root, "--keep-directory-symlink", "--extract", "--file", f.name])
+                bwrap(["dpkg-deb", "--fsys-tarfile", deb], stdout=f, root=state.config.tools_tree)
+                bwrap(["tar", "-C", state.root, "--keep-directory-symlink", "--extract", "--file", f.name],
+                      root=state.config.tools_tree)
 
         # Finally, run apt to properly install packages in the chroot without having to worry that maintainer
         # scripts won't find basic tools that they depend on.
@@ -244,7 +245,9 @@ def invoke_apt(
     ]
 
     return bwrap(["apt-get", *options, operation, *extra],
-                 apivfs=state.root if apivfs else None, env=env | state.environment)
+                 apivfs=state.root if apivfs else None,
+                 env=env | state.environment,
+                 root=state.config.tools_tree)
 
 
 def install_apt_sources(state: MkosiState, repos: Sequence[str]) -> None:

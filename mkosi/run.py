@@ -2,6 +2,7 @@
 
 import asyncio
 import asyncio.tasks
+import contextlib
 import ctypes
 import ctypes.util
 import logging
@@ -22,6 +23,7 @@ from typing import (
     Any,
     Awaitable,
     Callable,
+    Iterator,
     Mapping,
     Optional,
     Sequence,
@@ -293,22 +295,21 @@ def spawn(
         logging.error(f"\"{' '.join(str(s) for s in cmdline)}\" returned non-zero exit code {e.returncode}.")
         raise e
 
-
-def bwrap(
-    cmd: Sequence[PathString],
+@contextlib.contextmanager
+def bwrap_cmd(
     *,
+    root: Optional[Path] = None,
     apivfs: Optional[Path] = None,
-    stdout: _FILE = None,
-    env: Mapping[str, PathString] = {},
-) -> CompletedProcess:
+) -> Iterator[list[PathString]]:
     cmdline: list[PathString] = [
         "bwrap",
-        # Required to make chroot detection via /proc/1/root work properly.
-        "--unshare-pid",
         "--dev-bind", "/", "/",
         "--chdir", Path.cwd(),
         "--die-with-parent",
     ]
+
+    if root:
+        cmdline += ["--bind", root / "usr", "/usr"]
 
     if apivfs:
         if not (apivfs / "etc/machine-id").exists():
@@ -347,17 +348,32 @@ def bwrap(
             ]
 
         try:
-            result = run([*cmdline, *cmd], text=True, stdout=stdout, env=env, log=False)
-        except subprocess.CalledProcessError as e:
-            logging.error(f"\"{' '.join(str(s) for s in cmd)}\" returned non-zero exit code {e.returncode}.")
-            if ARG_DEBUG_SHELL.get():
-                run([*cmdline, "sh"], stdin=sys.stdin, check=False, env=env, log=False)
-            raise e
+            yield cmdline
+        finally:
+            # Clean up some stuff that might get written by package manager post install scripts.
+            if apivfs:
+                for f in ("var/lib/systemd/random-seed", "var/lib/systemd/credential.secret", "etc/machine-info"):
+                    apivfs.joinpath(f).unlink(missing_ok=True)
 
-        # Clean up some stuff that might get written by package manager post install scripts.
-        if apivfs:
-            for f in ("var/lib/systemd/random-seed", "var/lib/systemd/credential.secret", "etc/machine-info"):
-                apivfs.joinpath(f).unlink(missing_ok=True)
+
+def bwrap(
+    cmd: Sequence[PathString],
+    *,
+    root: Optional[Path] = None,
+    apivfs: Optional[Path] = None,
+    env: Mapping[str, PathString] = {},
+    log: bool = True,
+    **kwargs: Any,
+) -> CompletedProcess:
+    with bwrap_cmd(root=root, apivfs=apivfs) as bwrap:
+        try:
+            result = run([*bwrap, *cmd], text=True, env=env, log=False, **kwargs)
+        except subprocess.CalledProcessError as e:
+            if log:
+                logging.error(f"\"{' '.join(str(s) for s in cmd)}\" returned non-zero exit code {e.returncode}.")
+            if ARG_DEBUG_SHELL.get():
+                run([*bwrap, "sh"], stdin=sys.stdin, check=False, env=env, log=False)
+            raise e
 
         return result
 
