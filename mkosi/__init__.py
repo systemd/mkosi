@@ -33,7 +33,7 @@ from mkosi.config import (
 from mkosi.install import add_dropin_config_from_resource, copy_path, flock
 from mkosi.log import Style, color_error, complete_step, die, log_step
 from mkosi.manifest import Manifest
-from mkosi.mounts import dissect_and_mount, mount_overlay, scandir_recursive
+from mkosi.mounts import mount_overlay, scandir_recursive
 from mkosi.pager import page
 from mkosi.qemu import copy_ephemeral, machine_cid, run_qemu
 from mkosi.remove import unlink_try_hard
@@ -76,7 +76,8 @@ def mount_image(state: MkosiState) -> Iterator[None]:
                     shutil.unpack_archive(path, d)
                     bases += [d]
                 elif path.suffix == ".raw":
-                    stack.enter_context(dissect_and_mount(path, d))
+                    run(["systemd-dissect", "-M", path, d])
+                    stack.callback(lambda: run(["systemd-dissect", "-U", d]))
                     bases += [d]
                 else:
                     die(f"Unsupported base tree source {path}")

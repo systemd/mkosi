@@ -107,10 +107,3 @@ def mount_overlay(
                 delete_whiteout_files(upperdir)
 
 
-@contextlib.contextmanager
-def dissect_and_mount(image: Path, where: Path) -> Iterator[Path]:
-    run(["systemd-dissect", "-M", image, where])
-    try:
-        yield where
-    finally:
-        run(["systemd-dissect", "-U", where])
