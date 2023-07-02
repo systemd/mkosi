@@ -1,13 +1,16 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
+import shutil
+import textwrap
 import urllib.request
 import xml.etree.ElementTree as ElementTree
 from collections.abc import Sequence
 
 from mkosi.architecture import Architecture
 from mkosi.distributions import DistributionInstaller
-from mkosi.distributions.fedora import Repo, invoke_dnf, setup_dnf
+from mkosi.distributions.fedora import Repo, fixup_rpmdb_location, invoke_dnf, setup_dnf
 from mkosi.log import die
+from mkosi.run import bwrap
 from mkosi.state import MkosiState
 
 
@@ -41,16 +44,25 @@ class OpensuseInstaller(DistributionInstaller):
             release_url = f"{state.config.mirror}/distribution/leap/{release}/repo/oss/"
             updates_url = f"{state.config.mirror}/update/leap/{release}/oss/"
 
-        repos = [Repo("repo-oss", f"baseurl={release_url}", fetch_gpgurls(release_url))]
-        if updates_url is not None:
-            repos += [Repo("repo-update", f"baseurl={updates_url}", fetch_gpgurls(updates_url))]
+        zypper = shutil.which("zypper")
 
-        setup_dnf(state, repos)
-        invoke_dnf(state, "install", packages, apivfs=apivfs)
+        repos = [Repo("repo-oss", f"baseurl={release_url}", fetch_gpgurls(release_url) if not zypper else [])]
+        if updates_url is not None:
+            repos += [Repo("repo-update", f"baseurl={updates_url}", fetch_gpgurls(updates_url) if not zypper else [])]
+
+        if zypper:
+            setup_zypper(state, repos)
+            invoke_zypper(state, "install", packages, apivfs=apivfs)
+        else:
+            setup_dnf(state, repos)
+            invoke_dnf(state, "install", packages, apivfs=apivfs)
 
     @classmethod
     def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
-        invoke_dnf(state, "remove", packages)
+        if shutil.which("zypper"):
+            invoke_zypper(state, "remove", packages, ["--clean-deps"])
+        else:
+            invoke_dnf(state, "remove", packages)
 
     @staticmethod
     def architecture(arch: Architecture) -> str:
@@ -62,6 +74,71 @@ class OpensuseInstaller(DistributionInstaller):
             die(f"Architecture {a} is not supported by OpenSUSE")
 
         return a
+
+
+def setup_zypper(state: MkosiState, repos: Sequence[Repo]) -> None:
+    config = state.pkgmngr / "etc/zypp/zypp.conf"
+    if not config.exists():
+        config.parent.mkdir(exist_ok=True, parents=True)
+        with config.open("w") as f:
+            f.write(
+                textwrap.dedent(
+                    f"""\
+                    [main]
+                    rpm.install.excludedocs = {"no" if state.config.with_docs else "yes"}
+                    solver.onlyRequires = yes
+                    """
+                )
+            )
+
+    repofile = state.pkgmngr / f"etc/zypp/repos.d/{state.config.distribution}.repo"
+    if not repofile.exists():
+        repofile.parent.mkdir(exist_ok=True, parents=True)
+        with repofile.open("w") as f:
+            for repo in repos:
+                f.write(
+                    textwrap.dedent(
+                        f"""\
+                        [{repo.id}]
+                        name={repo.id}
+                        {repo.url}
+                        gpgcheck=1
+                        enabled={int(repo.enabled)}
+                        autorefresh=0
+                        keeppackages=1
+                        """
+                    )
+                )
+
+                for i, url in enumerate(repo.gpgurls):
+                    f.write("gpgkey=" if i == 0 else len("gpgkey=") * " ")
+                    f.write(f"{url}\n")
+
+
+def invoke_zypper(
+    state: MkosiState,
+    verb: str,
+    packages: Sequence[str],
+    options: Sequence[str] = (),
+    apivfs: bool = True,
+) -> None:
+    cmdline = [
+        "zypper",
+        f"--root={state.root}",
+        f"--cache-dir={state.cache_dir}",
+        f"--reposd-dir={state.pkgmngr / 'etc/zypp/repos.d'}",
+        "--gpg-auto-import-keys" if state.config.repository_key_check else "--no-gpg-checks",
+        "--non-interactive",
+        verb,
+        *options,
+        *packages,
+    ]
+
+    env = dict(ZYPP_CONF=str(state.pkgmngr / "etc/zypp/zypp.conf"), KERNEL_INSTALL_BYPASS="1") | state.environment
+
+    bwrap(cmdline, apivfs=state.root if apivfs else None, env=env)
+
+    fixup_rpmdb_location(state.root)
 
 
 def fetch_gpgurls(repourl: str) -> list[str]:
