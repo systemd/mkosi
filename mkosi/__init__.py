@@ -841,6 +841,7 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                 *(["--output-dir", str(state.config.output_dir)] if state.config.output_dir else []),
                 *(["--workspace-dir", str(state.config.workspace_dir)] if state.config.workspace_dir else []),
                 "--cache-dir", str(state.cache_dir.parent),
+                *(["--local-mirror", str(state.config.local_mirror)] if state.config.local_mirror else []),
                 "--incremental", yes_no(state.config.incremental),
                 "--acl", yes_no(state.config.acl),
                 "--format", "cpio",
