@@ -134,7 +134,7 @@ def setup_dnf(state: MkosiState, repos: Sequence[Repo]) -> None:
             )
         )
 
-    repofile = state.pkgmngr / f"etc/yum.repos.d/{state.config.distribution}.repo"
+    repofile = state.pkgmngr / "etc/yum.repos.d/mkosi.repo"
     if not repofile.exists():
         repofile.parent.mkdir(exist_ok=True, parents=True)
         with repofile.open("w") as f:
