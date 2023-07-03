@@ -87,6 +87,8 @@
   this doesn't work properly as it might result in leftover files in the install directory from a previous
   installation, so we have to empty the directory before reusing it, invalidating the caching, so the option
   was removed.
+- Support for Rocky Linux, Alma Linux, Mageia and Openmandriva was dropped. Note that these images for these
+  distros can still be built using the newly added --package-manager-tree option.
 
 ## v14
 

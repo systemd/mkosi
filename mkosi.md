@@ -316,12 +316,10 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
 
 `Distribution=`, `--distribution=`, `-d`
 
-: The distribution to install in the image. Takes one of the following
-  arguments: `fedora`, `debian`, `ubuntu`, `arch`, `opensuse`, `mageia`,
-  `centos`, `openmandriva`, `rocky`, and `alma`. If not specified,
-  defaults to the distribution of the host. Whenever a distribution is
-  assigned, the release is reset to the default release configured
-  for that distribution.
+: The distribution to install in the image. Takes one of the following arguments: `fedora`, `debian`,
+  `ubuntu`, `arch`, `opensuse`, `centos` or `gentoo`. If not specified, defaults to the distribution of the
+  host. Whenever a distribution is assigned, the release is reset to the default release configured for that
+  distribution.
 
 `Release=`, `--release=`, `-r`
 
@@ -552,12 +550,10 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
 
 `TarStripSELinuxContext=`, `--tar-strip-selinux-context`
 
-: If running on a SELinux-enabled system (Fedora Linux, CentOS, Rocky Linux,
-  Alma Linux), files
-  inside the container are tagged with SELinux context extended
-  attributes (`xattrs`), which may interfere with host SELinux rules
-  in building or further container import stages.  This option strips
-  SELinux context attributes from the resulting tar archive.
+: If running on a SELinux-enabled system (Fedora Linux, CentOS), files inside the container are tagged with
+  SELinux context extended attributes (`xattrs`), which may interfere with host SELinux rules in building or
+  further container import stages.  This option strips SELinux context attributes from the resulting tar
+  archive.
 
 ### [Content] Section
 
@@ -1111,27 +1107,16 @@ following operating systems:
 
 * *openSUSE*
 
-* *Mageia*
-
 * *CentOS*
-
-* *OpenMandriva*
-
-* *Rocky Linux*
-
-* *Alma Linux*
 
 * *Gentoo*
 
-In theory, any distribution may be used on the host for building
-images containing any other distribution, as long as the necessary
-tools are available. Specifically, any distribution that packages
-`apt` may be used to build *Debian* or *Ubuntu* images. Any distribution that
-packages `dnf` may be used to build *CentOS*, *Alma Linux*, *Rocky Linux*,
-*Fedora Linux*, *Mageia* or *OpenMandriva* images. Any distro that packages
-`pacman` may be used to build *Arch Linux* images. Any distribution that
-packages `zypper` may be used to build *openSUSE* images. Any distribution
-that packages `emerge` may be used to build *Gentoo* images.
+In theory, any distribution may be used on the host for building images containing any other distribution, as
+long as the necessary tools are available. Specifically, any distribution that packages `apt` may be used to
+build *Debian* or *Ubuntu* images. Any distribution that packages `dnf` may be used to build *CentOS* or
+*Fedora Linux*, images. Any distro that packages `pacman` may be used to build *Arch Linux* images. Any
+distribution that packages `zypper` may be used to build *openSUSE* images. Any distribution that packages
+`emerge` may be used to build *Gentoo* images.
 
 Currently, *Fedora Linux* packages all relevant tools as of Fedora 28.
 
@@ -1144,11 +1129,11 @@ tree. Specifically, the following files are used if they exist in the
 local directory:
 
 * The **`mkosi.conf`** file provides the default configuration for the image building process. For example,
-  it may specify the distribution to use (`fedora`, `ubuntu`, `debian`, `arch`, `opensuse`, `mageia`,
-  `openmandriva`, `gentoo`) for the image, or additional distribution packages to install. Note that all
-  options encoded in this configuration file may also be set on the command line, and this file is hence
-  little more than a way to make sure invoking `mkosi` without further parameters in your *source* tree is
-  enough to get the right image of your choice set up.
+  it may specify the distribution to use (`fedora`, `centos`, `ubuntu`, `debian`, `arch`, `opensuse`,
+  `gentoo`) for the image, or additional distribution packages to install. Note that all options encoded in
+  this configuration file may also be set on the command line, and this file is hence little more than a way
+  to make sure invoking `mkosi` without further parameters in your *source* tree is enough to get the right
+  image of your choice set up.
 
   Additionally, if a `mkosi.conf.d/` directory exists, each file in it is loaded in the same manner extending
   the values specified in `mkosi.conf`. Each directory in `mkosi.conf.d/` containing a `mkosi.conf` file is
@@ -1471,10 +1456,6 @@ $ mkosi qemu -kernel /usr/lib/systemd/boot/efi/systemd-bootx64.efi
 In this scenario, the kernel is loaded from the ESP in the image by `systemd-boot`.
 
 # REQUIREMENTS
-
-mkosi is packaged for various distributions: Debian, Ubuntu, Arch
-Linux, Fedora Linux, OpenMandriva, Gentoo. It is usually easiest to use the
-distribution package.
 
 The latest code from git requires systemd 253.
 

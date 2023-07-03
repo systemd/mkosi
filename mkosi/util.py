@@ -54,11 +54,7 @@ class Distribution(enum.Enum):
     ubuntu       = "ubuntu", PackageType.deb
     arch         = "arch", PackageType.pkg
     opensuse     = "opensuse", PackageType.rpm
-    mageia       = "mageia", PackageType.rpm
     centos       = "centos", PackageType.rpm
-    openmandriva = "openmandriva", PackageType.rpm
-    rocky        = "rocky", PackageType.rpm
-    alma         = "alma", PackageType.rpm
     gentoo       = "gentoo", PackageType.ebuild
 
     def __new__(cls, name: str, package_type: PackageType) -> "Distribution":
@@ -72,9 +68,6 @@ class Distribution(enum.Enum):
 
     def __str__(self) -> str:
         return self.name
-
-    def is_centos_variant(self) -> bool:
-        return self in (Distribution.centos, Distribution.alma, Distribution.rocky)
 
 
 class Compression(enum.Enum):
@@ -155,14 +148,7 @@ def detect_distribution() -> tuple[Optional[Distribution], Optional[str]]:
 
 
 def is_dnf_distribution(d: Distribution) -> bool:
-    return d in (
-        Distribution.fedora,
-        Distribution.mageia,
-        Distribution.centos,
-        Distribution.openmandriva,
-        Distribution.rocky,
-        Distribution.alma,
-    )
+    return d in (Distribution.fedora, Distribution.centos)
 
 
 def is_apt_distribution(d: Distribution) -> bool:

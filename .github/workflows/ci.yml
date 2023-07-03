@@ -117,8 +117,6 @@ jobs:
           - debian
           - ubuntu
           - fedora
-          - rocky
-          - alma
           - gentoo
           - opensuse
         format:

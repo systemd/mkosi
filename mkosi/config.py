@@ -220,13 +220,9 @@ def config_default_release(namespace: argparse.Namespace) -> str:
     return {
         Distribution.fedora: "38",
         Distribution.centos: "9",
-        Distribution.rocky: "9",
-        Distribution.alma: "9",
-        Distribution.mageia: "cauldron",
         Distribution.debian: "testing",
         Distribution.ubuntu: "jammy",
         Distribution.opensuse: "tumbleweed",
-        Distribution.openmandriva: "cooker",
         Distribution.gentoo: "17.1",
     }.get(d, "rolling")
 
@@ -1897,9 +1893,6 @@ def load_config(args: argparse.Namespace) -> MkosiConfig:
     if args.cmdline and args.verb not in MKOSI_COMMANDS_CMDLINE:
         die(f"Parameters after verb are only accepted for {' '.join(verb.name for verb in MKOSI_COMMANDS_CMDLINE)}.")
 
-    if shutil.which("bsdtar") and args.distribution == Distribution.openmandriva and args.tar_strip_selinux_context:
-        die("Sorry, bsdtar on OpenMandriva is incompatible with --tar-strip-selinux-context")
-
     if args.cache_dir:
         args.cache_dir = args.cache_dir / f"{args.distribution}~{args.release}"
     if args.build_dir:
@@ -1910,7 +1903,7 @@ def load_config(args: argparse.Namespace) -> MkosiConfig:
 
     if args.compress_output is None:
         if args.output_format == OutputFormat.cpio:
-            args.compress_output = Compression.xz if args.distribution.is_centos_variant() and int(args.release) <= 8 else Compression.zst
+            args.compress_output = Compression.xz if args.distribution == Distribution.centos and int(args.release) <= 8 else Compression.zst
         else:
             args.compress_output = Compression.none
 
