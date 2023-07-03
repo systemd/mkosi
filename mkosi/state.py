@@ -39,7 +39,6 @@ class MkosiState:
         self.installer = instance
 
         btrfs_maybe_make_subvolume(self.config, self.root, mode=0o755)
-        self.workdir.mkdir()
         self.staging.mkdir()
         self.pkgmngr.mkdir()
         self.install_dir.mkdir(exist_ok=True)
@@ -53,10 +52,6 @@ class MkosiState:
     @property
     def root(self) -> Path:
         return self.workspace / "root"
-
-    @property
-    def workdir(self) -> Path:
-        return self.workspace / "workdir"
 
     @property
     def staging(self) -> Path:

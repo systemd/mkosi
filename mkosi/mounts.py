@@ -5,6 +5,7 @@ import contextlib
 import os
 import platform
 import stat
+import tempfile
 from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import Callable, Deque, Optional, TypeVar, Union, cast
@@ -88,22 +89,22 @@ def mount(
 def mount_overlay(
     lowerdirs: Sequence[Path],
     upperdir: Path,
-    workdir: Path,
     where: Path,
     read_only: bool = True,
 ) -> Iterator[Path]:
-    options = [f"lowerdir={lower}" for lower in lowerdirs] + [f"upperdir={upperdir}", f"workdir={workdir}"]
+    with tempfile.TemporaryDirectory(dir=upperdir.parent, prefix=f"{upperdir.name}-workdir") as workdir:
+        options = [f"lowerdir={lower}" for lower in lowerdirs] + [f"upperdir={upperdir}", f"workdir={workdir}"]
 
-    # userxattr is only supported on overlayfs since kernel 5.11
-    if GenericVersion(platform.release()) >= GenericVersion("5.11"):
-        options.append("userxattr")
+        # userxattr is only supported on overlayfs since kernel 5.11
+        if GenericVersion(platform.release()) >= GenericVersion("5.11"):
+            options.append("userxattr")
 
-    try:
-        with mount("overlay", where, options=options, type="overlay", read_only=read_only):
-            yield where
-    finally:
-        with complete_step("Cleaning up overlayfs"):
-            delete_whiteout_files(upperdir)
+        try:
+            with mount("overlay", where, options=options, type="overlay", read_only=read_only):
+                yield where
+        finally:
+            with complete_step("Cleaning up overlayfs"):
+                delete_whiteout_files(upperdir)
 
 
 @contextlib.contextmanager
