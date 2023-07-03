@@ -355,13 +355,8 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
 
 `Repositories=`, `--repositories=`
 
-: Additional package repositories to use during installation. Expects
-  one or more URLs as argument, separated by commas. This option may
-  be used multiple times, in which case the list of repositories to
-  use is combined. Use "!\*" to remove all repositories from to the list
-  or use e.g. "!repo-url" to remove just one specific repository. For Arch
-  Linux, additional repositories must be passed in the form `<name>::<url>`
-  (e.g. `myrepo::https://myrepo.net`).
+: Enable package repositories that are disabled by default. This can be used to enable the EPEL repos for
+  CentOS or different components of the Debian/Ubuntu repositories.
 
 `Architecture=`, `--architecture=`
 
