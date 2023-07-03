@@ -1,7 +1,9 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 import shutil
+import subprocess
 from pathlib import Path
+from typing import cast
 
 from mkosi.config import ConfigFeature, MkosiConfig
 from mkosi.install import copy_path
@@ -9,9 +11,20 @@ from mkosi.log import die
 from mkosi.run import run
 
 
+def statfs(path: Path) -> str:
+    return cast(str, run(["stat", "--file-system", "--format", "%T", path.parent], text=True, stdout=subprocess.PIPE).stdout.strip())
+
+
 def btrfs_maybe_make_subvolume(config: MkosiConfig, path: Path, mode: int) -> None:
     if config.use_subvolumes == ConfigFeature.enabled and not shutil.which("btrfs"):
         die("Subvolumes requested but the btrfs command was not found")
+
+    if statfs(path.parent) != "btrfs":
+        if config.use_subvolumes == ConfigFeature.enabled:
+            die(f"Subvolumes requested but {path} is not located on a btrfs filesystem")
+
+        path.mkdir(mode)
+        return
 
     if config.use_subvolumes != ConfigFeature.disabled and shutil.which("btrfs") is not None:
         result = run(["btrfs", "subvolume", "create", path],
@@ -33,7 +46,7 @@ def btrfs_maybe_snapshot_subvolume(config: MkosiConfig, src: Path, dst: Path) ->
         die("Subvolumes requested but the btrfs command was not found")
 
     # Subvolumes always have inode 256 so we can use that to check if a directory is a subvolume.
-    if not subvolume or src.stat().st_ino != 256 or (dst.exists() and any(dst.iterdir())):
+    if not subvolume or statfs(src) != "btrfs" or src.stat().st_ino != 256 or (dst.exists() and any(dst.iterdir())):
         return copy_path(src, dst)
 
     # btrfs can't snapshot to an existing directory so make sure the destination does not exist.
