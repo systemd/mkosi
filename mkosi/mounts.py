@@ -78,6 +78,9 @@ def mount(
     if options:
         cmd += ["--options", ",".join(options)]
 
+    # Ideally we'd run these with bwrap() but bubblewrap disables all mount propagation to the root so any
+    # mounts we do within bubblewrap aren't propagated to the overarching mount namespace.
+
     try:
         run(cmd)
         yield where
@@ -107,10 +110,3 @@ def mount_overlay(
                 delete_whiteout_files(upperdir)
 
 
-@contextlib.contextmanager
-def dissect_and_mount(image: Path, where: Path) -> Iterator[Path]:
-    run(["systemd-dissect", "-M", image, where])
-    try:
-        yield where
-    finally:
-        run(["systemd-dissect", "-U", where])

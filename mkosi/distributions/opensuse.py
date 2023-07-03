@@ -139,9 +139,10 @@ def invoke_zypper(
         *packages,
     ]
 
-    env = dict(ZYPP_CONF=str(state.pkgmngr / "etc/zypp/zypp.conf"), KERNEL_INSTALL_BYPASS="1") | state.environment
-
-    bwrap(cmdline, apivfs=state.root if apivfs else None, env=env)
+    bwrap(cmdline,
+          apivfs=state.root if apivfs else None,
+          env=dict(ZYPP_CONF=str(state.pkgmngr / "etc/zypp/zypp.conf"), KERNEL_INSTALL_BYPASS="1") | state.environment,
+          root=state.config.tools_tree)
 
     fixup_rpmdb_location(state.root)
 

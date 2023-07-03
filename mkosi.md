@@ -1027,6 +1027,14 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
 : If specified, ACLs will be set on any generated root filesystem directories that
   allow the user running mkosi to remove them without needing privileges.
 
+`ToolsTree=`, `--tools-tree=`
+
+: If specified, programs executed by mkosi are looked up inside the given tree instead of in the host system
+  (aside from a few exceptions). Use this option to make image builds more reproducible by always using the
+  same versions of programs to build the final image instead of whatever version is installed on the host
+  system. If this option is not used, but the `mkosi.tools/` directory is found in the local directory it is
+  automatically used for this purpose with the root directory as target.
+
 ### Commandline-only Options
 
 Those settings cannot be configured in the configuration files.
