@@ -1033,7 +1033,9 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
   (aside from a few exceptions). Use this option to make image builds more reproducible by always using the
   same versions of programs to build the final image instead of whatever version is installed on the host
   system. If this option is not used, but the `mkosi.tools/` directory is found in the local directory it is
-  automatically used for this purpose with the root directory as target.
+  automatically used for this purpose with the root directory as target. Note that when looking up binaries
+  in `--tools-tree=`, only `/usr/bin` and `/usr/sbin` are considered. Specifically, paths specified by
+  `--extra-search-path=` are ignored when looking up binaries in the given tools tree.
 
 ### Commandline-only Options
 

@@ -366,6 +366,13 @@ def bwrap(
     **kwargs: Any,
 ) -> CompletedProcess:
     with bwrap_cmd(root=root, apivfs=apivfs) as bwrap:
+        if root:
+            # If a root is specified, we should ignore any local modifications made to PATH as any of those
+            # tools might not work anymore when /usr is replaced wholesale. We also make sure that both
+            # /usr/bin and /usr/sbin/ are searched so that e.g. if the host is Arch and the root is Debian we
+            # don't ignore the binaries from /usr/sbin in the Debian root.
+            env = dict(PATH="/usr/bin:/usr/sbin") | env
+
         try:
             result = run([*bwrap, *cmd], text=True, env=env, log=False, **kwargs)
         except subprocess.CalledProcessError as e:
