@@ -100,7 +100,7 @@ class DebianInstaller(DistributionInstaller):
         # Finally, run apt to properly install packages in the chroot without having to worry that maintainer
         # scripts won't find basic tools that they depend on.
 
-        cls.install_packages(state, [Path(deb).name.partition("_")[0] for deb in essential])
+        cls.install_packages(state, [Path(deb).name.partition("_")[0].removesuffix(".deb") for deb in essential])
 
     @classmethod
     def install_packages(cls, state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
