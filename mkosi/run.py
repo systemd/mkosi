@@ -306,10 +306,12 @@ def bwrap_cmd(
         "--dev-bind", "/", "/",
         "--chdir", Path.cwd(),
         "--die-with-parent",
+        "--ro-bind", (root or Path("/")) / "usr", "/usr",
     ]
 
-    if root:
-        cmdline += ["--bind", root / "usr", "/usr"]
+    for d in ("/etc", "/opt", "/srv", "/boot", "/efi"):
+        if Path(d).exists():
+            cmdline += ["--ro-bind", d, d]
 
     if apivfs:
         if not (apivfs / "etc/machine-id").exists():
