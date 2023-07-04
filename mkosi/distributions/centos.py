@@ -141,6 +141,38 @@ class CentosInstaller(DistributionInstaller):
         return f"http://mirrorlist.centos.org/?release=$stream&arch=$basearch&repo={repo}"
 
     @classmethod
+    def _sig_repos(cls, config: MkosiConfig, release: int) -> list[Repo]:
+        if config.local_mirror or config.distribution != Distribution.centos:
+            return []
+
+        sigs = (
+            (
+                "hyperscale",
+                (f"packages-{c}" for c in ("main", "experimental", "facebook", "hotfixes", "spin", "intel")),
+                "https://www.centos.org/keys/RPM-GPG-KEY-CentOS-SIG-HyperScale",
+            ),
+        )
+
+        repos = []
+
+        for sig, components, gpgurl in sigs:
+            for c in components:
+                if config.mirror:
+                    if release <= 8:
+                        url = f"baseurl={config.mirror}/centos/$stream/{sig}/$basearch/{c}"
+                    else:
+                        url = f"baseurl={config.mirror}/SIGs/$stream/{sig}/$basearch/{c}"
+                else:
+                    if release <= 8:
+                        url = f"mirrorlist=http://mirrorlist.centos.org/?release=$stream&arch=$basearch&repo={sig}-{c}"
+                    else:
+                        url = f"metalink=https://mirrors.centos.org/metalink?repo=centos-{sig}-sig-{c}-$stream&arch=$basearch"
+
+                repos += [Repo(f"{sig}-{c}", url, [gpgurl], enabled=False)]
+
+        return repos
+
+    @classmethod
     def _epel_repos(cls, config: MkosiConfig) -> list[Repo]:
         epel_gpgurl = "https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-$releasever"
 
@@ -202,7 +234,7 @@ class CentosInstaller(DistributionInstaller):
             if url:
                 repos += [Repo(name, url, [gpgurl])]
 
-        return repos + cls._epel_repos(config)
+        return repos + cls._epel_repos(config) + cls._sig_repos(config, release)
 
     @classmethod
     def _stream_repos(cls, config: MkosiConfig, release: int) -> list[Repo]:
@@ -233,4 +265,4 @@ class CentosInstaller(DistributionInstaller):
             if url:
                 repos += [Repo(name, url, [gpgurl])]
 
-        return repos + cls._epel_repos(config)
+        return repos + cls._epel_repos(config) + cls._sig_repos(config, release)
