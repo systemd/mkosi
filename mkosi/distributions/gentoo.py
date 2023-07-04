@@ -132,9 +132,9 @@ class GentooInstaller(DistributionInstaller):
                        "--extract",
                        "--file", stage3_tar,
                        "--exclude", "./dev/*",
-                       "--exclude", "./proc/*",
-                       "--exclude", "./sys/*"],
+                       "--exclude", "./proc/*",],
                       root=state.config.tools_tree)
+                unlink_try_hard((stage3 / "sys"))
 
         for d in ("binpkgs", "distfiles", "repos/gentoo"):
             (state.cache_dir / d).mkdir(parents=True, exist_ok=True)
