@@ -97,7 +97,7 @@ class GentooInstaller(DistributionInstaller):
 
         with urllib.request.urlopen(stage3tsf_path_url) as r:
             # e.g.: 20230108T161708Z/stage3-amd64-nomultilib-systemd-mergedusr-20230108T161708Z.tar.xz
-            regexp = rf"^[0-9]+T[0-9]+Z/stage3-{arch}-nomultilib-systemd-mergedusr-[0-9]+T[0-9]+Z\.tar\.xz"
+            regexp = rf"^[0-9]+T[0-9]+Z/stage3-{arch}-llvm-systemd-mergedusr-[0-9]+T[0-9]+Z\.tar\.xz"
             all_lines = r.readlines()
             for line in all_lines:
                 if (m := re.match(regexp, line.decode("utf-8"))):
@@ -118,7 +118,6 @@ class GentooInstaller(DistributionInstaller):
                 cmd += ["--time-cond", stage3_tar]
 
             bwrap(cmd, root=state.config.tools_tree)
-
             if stage3_tar.stat().st_mtime > old:
                 unlink_try_hard(stage3)
 
@@ -135,6 +134,13 @@ class GentooInstaller(DistributionInstaller):
                        "--exclude", "./proc/*",],
                       root=state.config.tools_tree)
                 unlink_try_hard((stage3 / "sys"))
+
+        # boot, (formaly gnuefi) on clang will trigger https://bugs.gentoo.org/887047
+        # REMOVE when https://github.com/systemd/systemd/pull/26641 is out _and_ adapted by gentoo
+        if not (stage3 / "etc/portage/package.accept_keywords/9999").exists():
+            with complete_step("Whitelisting systemd-9999"):
+                with (stage3 / "etc/portage/package.accept_keywords/9999").open("w") as f:
+                    f.write("=sys-apps/systemd-9999 **\n")
 
         for d in ("binpkgs", "distfiles", "repos/gentoo"):
             (state.cache_dir / d).mkdir(parents=True, exist_ok=True)
