@@ -73,10 +73,10 @@ class SecureBootSignTool(enum.Enum):
 def parse_boolean(s: str) -> bool:
     "Parse 1/true/yes/y/t/on as true and 0/false/no/n/f/off/None as false"
     s_l = s.lower()
-    if s_l in {"1", "true", "yes", "y", "t", "on"}:
+    if s_l in {"1", "true", "yes", "y", "t", "on", "always"}:
         return True
 
-    if s_l in {"0", "false", "no", "n", "f", "off"}:
+    if s_l in {"0", "false", "no", "n", "f", "off", "never"}:
         return False
 
     die(f"Invalid boolean literal: {s!r}")
@@ -1658,6 +1658,20 @@ class MkosiConfigParser:
             default=[],
             help="Build the specified preset",
         )
+        parser.add_argument(
+            "--nspawn-keep-unit",
+            action="store_true",
+            help=argparse.SUPPRESS,
+        )
+        parser.add_argument(
+            "--default",
+            help=argparse.SUPPRESS,
+        )
+        parser.add_argument(
+            "--cache",
+            metavar="PATH",
+            help=argparse.SUPPRESS,
+        )
 
         last_section = None
 
@@ -1689,6 +1703,21 @@ class MkosiConfigParser:
             pass
 
         return parser
+
+    def backward_compat_stubs(self, namespace: argparse.Namespace) -> None:
+        # These can be removed once mkosi v15 is available in LTS distros and compatibility with <= v14
+        # is no longer needed in build infrastructure (e.g.: OBS).
+        if getattr(namespace, "nspawn_keep_unit", None):
+            delattr(namespace, "nspawn_keep_unit")
+            print("Warning: --nspawn-keep-unit is no longer supported")
+
+        if getattr(namespace, "default", None):
+            delattr(namespace, "default")
+            print("Warning: --default is no longer supported")
+
+        if getattr(namespace, "cache", None):
+            delattr(namespace, "cache")
+            print("Warning: --cache is no longer supported")
 
     def parse(self, argv: Optional[Sequence[str]] = None) -> tuple[MkosiArgs, tuple[MkosiConfig, ...]]:
         presets = []
@@ -1768,6 +1797,10 @@ class MkosiConfigParser:
                     default = s.default
 
                 setattr(ns, s.dest, default)
+
+        # Manipulate some old settings to make them work with the new settings, for those typically used in
+        # infrastructure scripts rather than image-specific configuration.
+        self.backward_compat_stubs(namespace)
 
         return args, tuple(load_config(ns) for ns in presets)
 
