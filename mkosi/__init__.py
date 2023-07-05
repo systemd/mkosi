@@ -301,38 +301,31 @@ def run_prepare_script(state: MkosiState, build: bool) -> None:
         return
 
     bwrap: list[PathString] = [
-        "--bind", state.config.build_sources, "/root/src",
-        "--bind", state.config.prepare_script, "/root/prepare",
-        "--chdir", "/root/src",
+        "--bind", state.config.build_sources, "/work/src",
+        "--bind", state.config.prepare_script, "/work/prepare",
+        "--chdir", "/work/src",
     ]
-
-    def clean() -> None:
-        srcdir = state.root / "root/src"
-        if srcdir.exists():
-            srcdir.rmdir()
-
-        state.root.joinpath("root/prepare").unlink()
 
     if build:
         with complete_step("Running prepare script in build overlay…"), mount_build_overlay(state):
             run_workspace_command(
                 state.root,
-                ["/root/prepare", "build"],
+                ["/work/prepare", "build"],
                 network=True,
                 bwrap_params=bwrap,
-                env=dict(SRCDIR="/root/src") | state.environment,
+                env=dict(SRCDIR="/work/src") | state.environment,
             )
-            clean()
+            shutil.rmtree(state.root / "work")
     else:
         with complete_step("Running prepare script…"):
             run_workspace_command(
                 state.root,
-                ["/root/prepare", "final"],
+                ["/work/prepare", "final"],
                 network=True,
                 bwrap_params=bwrap,
-                env=dict(SRCDIR="/root/src") | state.environment,
+                env=dict(SRCDIR="/work/src") | state.environment,
             )
-            clean()
+            shutil.rmtree(state.root / "work")
 
 
 def run_postinst_script(state: MkosiState) -> None:
@@ -341,13 +334,13 @@ def run_postinst_script(state: MkosiState) -> None:
 
     with complete_step("Running postinstall script…"):
         bwrap: list[PathString] = [
-            "--bind", state.config.postinst_script, "/root/postinst",
+            "--bind", state.config.postinst_script, "/work/postinst",
         ]
 
-        run_workspace_command(state.root, ["/root/postinst", "final"], bwrap_params=bwrap,
+        run_workspace_command(state.root, ["/work/postinst", "final"], bwrap_params=bwrap,
                               network=state.config.with_network, env=state.environment)
 
-        state.root.joinpath("root/postinst").unlink()
+        shutil.rmtree(state.root / "work")
 
 
 def run_finalize_script(state: MkosiState) -> None:
