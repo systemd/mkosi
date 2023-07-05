@@ -1977,7 +1977,6 @@ def run_shell(args: MkosiArgs, config: MkosiConfig) -> None:
         ]
 
     cmdline += ["--machine", config.output]
-    cmdline += [f"--bind={config.build_sources}:/root/src", "--chdir=/root/src"]
 
     for k, v in config.credentials.items():
         cmdline += [f"--set-credential={k}:{v}"]
