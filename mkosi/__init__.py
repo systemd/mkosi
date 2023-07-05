@@ -240,7 +240,7 @@ def install_distribution(state: MkosiState) -> None:
 
 
 def install_build_packages(state: MkosiState) -> None:
-    if state.config.build_script is None or not state.config.build_packages:
+    if not need_build_packages(state.config):
         return
 
     with complete_step(f"Installing build packages for {str(state.config.distribution).capitalize()}"), mount_build_overlay(state):
@@ -1589,6 +1589,10 @@ def run_selinux_relabel(state: MkosiState) -> None:
         run_workspace_command(state.root, ["sh", "-c", cmd], env=state.environment)
 
 
+def need_build_packages(config: MkosiConfig) -> bool:
+    return config.build_script is not None and len(config.build_packages) > 0
+
+
 def save_cache(state: MkosiState) -> None:
     if not state.config.incremental:
         return
@@ -1605,7 +1609,7 @@ def save_cache(state: MkosiState) -> None:
         else:
             shutil.move(state.root, final)
 
-        if state.config.build_script and (state.workspace / "build-overlay").exists():
+        if need_build_packages(state.config) and (state.workspace / "build-overlay").exists():
             unlink_try_hard(build)
             shutil.move(state.workspace / "build-overlay", build)
 
@@ -1617,7 +1621,7 @@ def reuse_cache(state: MkosiState) -> bool:
         return False
 
     final, build, manifest = cache_tree_paths(state.config)
-    if not final.exists() or (state.config.build_script and not build.exists()):
+    if not final.exists() or (need_build_packages(state.config) and not build.exists()):
         return False
 
     if manifest.exists():
@@ -1629,7 +1633,7 @@ def reuse_cache(state: MkosiState) -> bool:
 
     with complete_step("Copying cached trees"):
         btrfs_maybe_snapshot_subvolume(state.config, final, state.root)
-        if state.config.build_script:
+        if need_build_packages(state.config):
             state.workspace.joinpath("build-overlay").symlink_to(build)
 
     return True
