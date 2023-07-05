@@ -116,16 +116,19 @@ def parse_path(value: str,
     return path
 
 
-def parse_source_target_paths(value: str) -> tuple[Path, Optional[Path]]:
-    src, sep, target = value.partition(':')
-    src_path = parse_path(src, required=False)
-    if sep:
-        target_path = parse_path(target, required=False, absolute=False, expanduser=False)
-        if not target_path.is_absolute():
-            die("Target path must be absolute")
-    else:
-        target_path = None
-    return src_path, target_path
+def make_source_target_paths_parser(absolute: bool = True) -> Callable[[str], tuple[Path, Optional[Path]]]:
+    def parse_source_target_paths(value: str) -> tuple[Path, Optional[Path]]:
+        src, sep, target = value.partition(':')
+        src_path = parse_path(src, required=False)
+        if sep:
+            target_path = parse_path(target, required=False, absolute=False, expanduser=False)
+            if absolute and not target_path.is_absolute():
+                die("Target path must be absolute")
+        else:
+            target_path = None
+        return src_path, target_path
+
+    return parse_source_target_paths
 
 
 def config_parse_string(dest: str, value: Optional[str], namespace: argparse.Namespace) -> Optional[str]:
@@ -619,7 +622,7 @@ class MkosiConfig:
     clean_package_metadata: ConfigFeature
     remove_files: list[str]
     environment: dict[str, str]
-    build_sources: Path
+    build_sources: list[tuple[Path, Optional[Path]]]
     build_dir: Optional[Path]
     build_packages: list[str]
     build_script: Optional[Path]
@@ -1010,7 +1013,7 @@ class MkosiConfigParser:
             long="--extra-tree",
             metavar="PATH",
             section="Content",
-            parse=config_make_list_parser(delimiter=",", parse=parse_source_target_paths),
+            parse=config_make_list_parser(delimiter=",", parse=make_source_target_paths_parser()),
             paths=("mkosi.extra", "mkosi.extra.tar"),
             help="Copy an extra tree on top of image",
         ),
@@ -1019,7 +1022,7 @@ class MkosiConfigParser:
             long="--skeleton-tree",
             metavar="PATH",
             section="Content",
-            parse=config_make_list_parser(delimiter=",", parse=parse_source_target_paths),
+            parse=config_make_list_parser(delimiter=",", parse=make_source_target_paths_parser()),
             paths=("mkosi.skeleton", "mkosi.skeleton.tar"),
             help="Use a skeleton tree to bootstrap the image before installing anything",
         ),
@@ -1028,7 +1031,7 @@ class MkosiConfigParser:
             long="--package-manager-tree",
             metavar="PATH",
             section="Content",
-            parse=config_make_list_parser(delimiter=",", parse=parse_source_target_paths),
+            parse=config_make_list_parser(delimiter=",", parse=make_source_target_paths_parser()),
             default_factory=config_default_package_manager_tree,
             help="Use a package manager tree to configure the package manager",
         ),
@@ -1058,8 +1061,8 @@ class MkosiConfigParser:
             dest="build_sources",
             metavar="PATH",
             section="Content",
-            parse=config_make_path_parser(),
-            default=Path("."),
+            parse=config_make_list_parser(delimiter=",", parse=make_source_target_paths_parser(absolute=False)),
+            default=[(Path("."), None)],
             help="Path for sources to build",
         ),
         MkosiConfigSetting(

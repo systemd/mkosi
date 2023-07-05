@@ -294,6 +294,16 @@ def mount_build_overlay(state: MkosiState, read_only: bool = False) -> ContextMa
     return mount_overlay([state.root], state.workspace / "build-overlay", state.root, read_only)
 
 
+def finalize_sources(config: MkosiConfig) -> list[tuple[Path, Path]]:
+    sources = [
+        (src, Path("work/src") / (str(target).lstrip("/") if target else "."))
+        for src, target
+        in config.build_sources
+    ]
+
+    return sorted(sources, key=lambda s: s[1])
+
+
 def run_prepare_script(state: MkosiState, build: bool) -> None:
     if state.config.prepare_script is None:
         return
@@ -301,10 +311,12 @@ def run_prepare_script(state: MkosiState, build: bool) -> None:
         return
 
     bwrap: list[PathString] = [
-        "--bind", state.config.build_sources, "/work/src",
         "--bind", state.config.prepare_script, "/work/prepare",
         "--chdir", "/work/src",
     ]
+
+    for src, target in finalize_sources(state.config):
+        bwrap += ["--bind", src, Path("/") / target]
 
     if build:
         with complete_step("Running prepare script in build overlay…"), mount_build_overlay(state):
@@ -1355,7 +1367,7 @@ def summary(args: MkosiArgs, config: MkosiConfig) -> str:
         Clean Package Metadata: {yes_no_auto(config.clean_package_metadata)}
                   Remove Files: {line_join_list(config.remove_files)}
                Remove Packages: {line_join_list(config.remove_packages)}
-                 Build Sources: {config.build_sources}
+                 Build Sources: {line_join_source_target_list(config.build_sources)}
                 Build Packages: {line_join_list(config.build_packages)}
                   Build Script: {path_or_none(config.build_script, check_script_input)}
      Run Tests in Build Script: {yes_no(config.with_tests)}
@@ -1849,12 +1861,14 @@ def run_build_script(state: MkosiState) -> None:
 
     with complete_step("Running build script…"), mount_build_overlay(state, read_only=True):
         bwrap: list[PathString] = [
-            "--bind", state.config.build_sources, "/work/src",
             "--bind", state.config.build_script, "/work/build-script",
             "--bind", state.install_dir, "/work/dest",
             "--bind", state.staging, "/work/out",
             "--chdir", "/work/src",
         ]
+
+        for src, target in finalize_sources(state.config):
+            bwrap += ["--bind", src, Path("/") / target]
 
         env = dict(
             WITH_DOCS=one_zero(state.config.with_docs),
