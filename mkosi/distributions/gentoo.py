@@ -32,7 +32,6 @@ def invoke_emerge(
             "--deep",
             "--buildpkg=y",
             "--usepkg=y",
-            "--keep-going=y",
             "--jobs",
             "--load-average",
             "--nospinner",
