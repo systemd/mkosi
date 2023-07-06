@@ -5,7 +5,6 @@ import urllib.parse
 import urllib.request
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Mapping
 
 from mkosi.architecture import Architecture
 from mkosi.distributions import DistributionInstaller
@@ -17,15 +16,10 @@ from mkosi.state import MkosiState
 from mkosi.types import PathString
 
 
-def invoke_emerge(
-    state: MkosiState,
-    packages: Sequence[str] = (),
-    options: Sequence[str] = (),
-    env: Mapping[str, str] = {},
-) -> None:
+def invoke_emerge(state: MkosiState, packages: Sequence[str] = (), apivfs: bool = True) -> None:
     bwrap(
         cmd=[
-            "chroot",
+            "sh", "-c", "chmod 1777 /dev/shm && exec $0 \"$@\" || exit $?",
             "emerge",
             *packages,
             "--update",
@@ -41,32 +35,39 @@ def invoke_emerge(
             "--verbose-conflicts",
             "--changed-use",
             "--newuse",
-            "--root=/tmp/mkosi-root",
+            "--noreplace",
+            f"--root={state.root}",
             "--binpkg-respect-use",
             *(["--verbose", "--quiet=n", "--quiet-fail=n"] if ARG_DEBUG.get() else ["--quiet-build", "--quiet"]),
-            *options,
         ],
-        apivfs=state.cache_dir / "stage3",
-        scripts=dict(
-            chroot=chroot_cmd(
-                root=state.cache_dir / "stage3",
-                options=[
-                    "--bind", state.root, "/tmp/mkosi-root",
-                    "--bind", state.cache_dir / "binpkgs", "/var/cache/binpkgs",
-                    "--bind", state.cache_dir / "distfiles", "/var/cache/distfiles",
-                    "--bind", state.cache_dir / "repos", "/var/db/repos",
-                ],
-                network=True,
-            ),
-        ),
+        apivfs=state.root if apivfs else None,
+        options=[
+            # TODO: Get rid of as many of these as possible.
+            "--bind", state.cache_dir / "stage3/usr", "/usr",
+            "--bind", state.cache_dir / "stage3/etc", "/etc",
+            "--bind", state.cache_dir / "stage3/var", "/var",
+            "--ro-bind", "/etc/resolv.conf", "/etc/resolv.conf",
+            "--bind", state.cache_dir / "repos", "/var/db/repos",
+            # https://bugs.gentoo.org/910587
+            "--dev", "/dev",
+        ],
         env=dict(
+            PKGDIR=str(state.cache_dir / "binpkgs"),
+            DISTDIR=str(state.cache_dir / "distfiles"),
             FEATURES=" ".join([
                 "getbinpkg",
                 "-candy",
+                # Disable sandboxing in emerge because we already do it in mkosi.
+                "-sandbox",
+                "-userfetch",
+                "-userpriv",
+                "-usersandbox",
+                "-usersync",
+                "-ebuild-locks",
                 "parallel-install",
                 *(["noman", "nodoc", "noinfo"] if state.config.with_docs else []),
             ]),
-        ) | env | state.config.environment,
+        ) | {"USE": "build"} if not apivfs else {} | state.config.environment,
     )
 
 
@@ -153,11 +154,11 @@ class GentooInstaller(DistributionInstaller):
             ),
         )
 
-        invoke_emerge(state, packages=["sys-apps/baselayout"], env={"USE": "build"})
+        invoke_emerge(state, packages=["sys-apps/baselayout"], apivfs=False)
 
     @classmethod
-    def install_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
-        invoke_emerge(state, options=["--noreplace"], packages=packages)
+    def install_packages(cls, state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
+        invoke_emerge(state, packages=packages, apivfs=apivfs)
 
     @staticmethod
     def architecture(arch: Architecture) -> str:
