@@ -240,7 +240,7 @@ def install_distribution(state: MkosiState) -> None:
 
 
 def install_build_packages(state: MkosiState) -> None:
-    if state.config.build_script is None or not state.config.build_packages:
+    if not need_build_packages(state.config):
         return
 
     with complete_step(f"Installing build packages for {str(state.config.distribution).capitalize()}"), mount_build_overlay(state):
@@ -294,6 +294,16 @@ def mount_build_overlay(state: MkosiState, read_only: bool = False) -> ContextMa
     return mount_overlay([state.root], state.workspace / "build-overlay", state.root, read_only)
 
 
+def finalize_sources(config: MkosiConfig) -> list[tuple[Path, Path]]:
+    sources = [
+        (src, Path("work/src") / (str(target).lstrip("/") if target else "."))
+        for src, target
+        in config.build_sources
+    ]
+
+    return sorted(sources, key=lambda s: s[1])
+
+
 def run_prepare_script(state: MkosiState, build: bool) -> None:
     if state.config.prepare_script is None:
         return
@@ -301,38 +311,33 @@ def run_prepare_script(state: MkosiState, build: bool) -> None:
         return
 
     bwrap: list[PathString] = [
-        "--bind", state.config.build_sources, "/root/src",
-        "--bind", state.config.prepare_script, "/root/prepare",
-        "--chdir", "/root/src",
+        "--bind", state.config.prepare_script, "/work/prepare",
+        "--chdir", "/work/src",
     ]
 
-    def clean() -> None:
-        srcdir = state.root / "root/src"
-        if srcdir.exists():
-            srcdir.rmdir()
-
-        state.root.joinpath("root/prepare").unlink()
+    for src, target in finalize_sources(state.config):
+        bwrap += ["--bind", src, Path("/") / target]
 
     if build:
         with complete_step("Running prepare script in build overlay…"), mount_build_overlay(state):
             run_workspace_command(
                 state.root,
-                ["/root/prepare", "build"],
+                ["/work/prepare", "build"],
                 network=True,
                 bwrap_params=bwrap,
-                env=dict(SRCDIR="/root/src") | state.environment,
+                env=dict(SRCDIR="/work/src") | state.environment,
             )
-            clean()
+            shutil.rmtree(state.root / "work")
     else:
         with complete_step("Running prepare script…"):
             run_workspace_command(
                 state.root,
-                ["/root/prepare", "final"],
+                ["/work/prepare", "final"],
                 network=True,
                 bwrap_params=bwrap,
-                env=dict(SRCDIR="/root/src") | state.environment,
+                env=dict(SRCDIR="/work/src") | state.environment,
             )
-            clean()
+            shutil.rmtree(state.root / "work")
 
 
 def run_postinst_script(state: MkosiState) -> None:
@@ -341,13 +346,13 @@ def run_postinst_script(state: MkosiState) -> None:
 
     with complete_step("Running postinstall script…"):
         bwrap: list[PathString] = [
-            "--bind", state.config.postinst_script, "/root/postinst",
+            "--bind", state.config.postinst_script, "/work/postinst",
         ]
 
-        run_workspace_command(state.root, ["/root/postinst", "final"], bwrap_params=bwrap,
+        run_workspace_command(state.root, ["/work/postinst", "final"], bwrap_params=bwrap,
                               network=state.config.with_network, env=state.environment)
 
-        state.root.joinpath("root/postinst").unlink()
+        shutil.rmtree(state.root / "work")
 
 
 def run_finalize_script(state: MkosiState) -> None:
@@ -1362,7 +1367,7 @@ def summary(args: MkosiArgs, config: MkosiConfig) -> str:
         Clean Package Metadata: {yes_no_auto(config.clean_package_metadata)}
                   Remove Files: {line_join_list(config.remove_files)}
                Remove Packages: {line_join_list(config.remove_packages)}
-                 Build Sources: {config.build_sources}
+                 Build Sources: {line_join_source_target_list(config.build_sources)}
                 Build Packages: {line_join_list(config.build_packages)}
                   Build Script: {path_or_none(config.build_script, check_script_input)}
      Run Tests in Build Script: {yes_no(config.with_tests)}
@@ -1589,6 +1594,10 @@ def run_selinux_relabel(state: MkosiState) -> None:
         run_workspace_command(state.root, ["sh", "-c", cmd], env=state.environment)
 
 
+def need_build_packages(config: MkosiConfig) -> bool:
+    return config.build_script is not None and len(config.build_packages) > 0
+
+
 def save_cache(state: MkosiState) -> None:
     if not state.config.incremental:
         return
@@ -1605,7 +1614,7 @@ def save_cache(state: MkosiState) -> None:
         else:
             shutil.move(state.root, final)
 
-        if state.config.build_script and (state.workspace / "build-overlay").exists():
+        if need_build_packages(state.config) and (state.workspace / "build-overlay").exists():
             unlink_try_hard(build)
             shutil.move(state.workspace / "build-overlay", build)
 
@@ -1617,7 +1626,7 @@ def reuse_cache(state: MkosiState) -> bool:
         return False
 
     final, build, manifest = cache_tree_paths(state.config)
-    if not final.exists() or (state.config.build_script and not build.exists()):
+    if not final.exists() or (need_build_packages(state.config) and not build.exists()):
         return False
 
     if manifest.exists():
@@ -1629,7 +1638,7 @@ def reuse_cache(state: MkosiState) -> bool:
 
     with complete_step("Copying cached trees"):
         btrfs_maybe_snapshot_subvolume(state.config, final, state.root)
-        if state.config.build_script:
+        if need_build_packages(state.config):
             state.workspace.joinpath("build-overlay").symlink_to(build)
 
     return True
@@ -1852,12 +1861,14 @@ def run_build_script(state: MkosiState) -> None:
 
     with complete_step("Running build script…"), mount_build_overlay(state, read_only=True):
         bwrap: list[PathString] = [
-            "--bind", state.config.build_sources, "/work/src",
             "--bind", state.config.build_script, "/work/build-script",
             "--bind", state.install_dir, "/work/dest",
             "--bind", state.staging, "/work/out",
             "--chdir", "/work/src",
         ]
+
+        for src, target in finalize_sources(state.config):
+            bwrap += ["--bind", src, Path("/") / target]
 
         env = dict(
             WITH_DOCS=one_zero(state.config.with_docs),
@@ -1980,7 +1991,6 @@ def run_shell(args: MkosiArgs, config: MkosiConfig) -> None:
         ]
 
     cmdline += ["--machine", config.output]
-    cmdline += [f"--bind={config.build_sources}:/root/src", "--chdir=/root/src"]
 
     for k, v in config.credentials.items():
         cmdline += [f"--set-credential={k}:{v}"]

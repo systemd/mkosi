@@ -725,8 +725,10 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
 
 `BuildSources=`, `--build-sources=`
 
-: Takes a path to a source tree to mount into the development image, if
-  the build script is used.
+: Takes a list of colon-separated pairs of paths to source trees and where to mount them in the development
+  image, if the build script is used. Every target path is prefixed with `/work/src` and all build sources
+  are sorted lexicographically by mount target before mounting so that top level paths are mounted first. By
+  default, the current working directory is mounted to `/work/src`.
 
 `BuildPackages=`, `--build-package=`
 
