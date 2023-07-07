@@ -1859,6 +1859,9 @@ def run_build_script(state: MkosiState) -> None:
         state.root.joinpath("work/build-script").touch(mode=0o755, exist_ok=True)
         state.root.joinpath("work/build").mkdir(mode=0o755, exist_ok=True)
 
+        for _, target in finalize_sources(state.config):
+            state.root.joinpath(target).mkdir(mode=0o755, exist_ok=True, parents=True)
+
     with complete_step("Running build script…"), mount_build_overlay(state, read_only=True):
         bwrap: list[PathString] = [
             "--bind", state.config.build_script, "/work/build-script",
