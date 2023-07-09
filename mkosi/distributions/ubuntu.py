@@ -8,7 +8,13 @@ from mkosi.state import MkosiState
 class UbuntuInstaller(DebianInstaller):
     @staticmethod
     def repositories(state: MkosiState, local: bool = True) -> list[str]:
-        repos = ' '.join(("main", *state.config.repositories))
+        repos = ["main"]
+        if state.config.release not in ("focal", "jammy"):
+            # From kinetic onwards, the usr-is-merged package is available in universe and is required by
+            # mkosi to set up a proper usr-merged system so we add the universe repository unconditionally.
+            repos += ["universe"]
+
+        repos = ' '.join((*repos, *state.config.repositories))
 
         if state.config.local_mirror and local:
             return [f"deb [trusted=yes] {state.config.local_mirror} {state.config.release} {repos}"]
