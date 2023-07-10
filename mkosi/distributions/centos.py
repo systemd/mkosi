@@ -168,7 +168,20 @@ class CentosInstaller(DistributionInstaller):
                     else:
                         url = f"metalink=https://mirrors.centos.org/metalink?repo=centos-{sig}-sig-{c}-$stream&arch=$basearch"
 
-                repos += [Repo(f"{sig}-{c}", url, [gpgurl], enabled=False)]
+                repos += [
+                    Repo(
+                        id=f"{sig}-{c}",
+                        url=url,
+                        gpgurls=[gpgurl],
+                        enabled=False
+                    ),
+                    Repo(
+                        id=f"{sig}-{c}-testing",
+                        url=f"baseurl=https://buildlogs.centos.org/centos/$stream/{sig}/$basearch/{c}",
+                        gpgurls=[gpgurl],
+                        enabled=False,
+                    ),
+                ]
 
         return repos
 
