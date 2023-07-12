@@ -321,11 +321,9 @@ def bwrap_cmd(
 
         cmdline += [
             "--tmpfs", apivfs / "run",
-            "--perms", "1777",
             "--tmpfs", apivfs / "tmp",
             "--proc", apivfs / "proc",
             "--dev", apivfs / "dev",
-            "--chmod", "1777", apivfs / "dev/shm",
             "--ro-bind", "/sys", apivfs / "sys",
         ]
 
@@ -340,14 +338,20 @@ def bwrap_cmd(
             else:
                 cmdline += ["--bind", "/dev/null", f"/etc/{f}"]
 
+    if apivfs:
+        chmod = f"chmod 1777 {apivfs / 'tmp'} {apivfs / 'var/tmp'} {apivfs / 'dev/shm'}"
+    else:
+        chmod = ":"
+
     with tempfile.TemporaryDirectory(dir="/var/tmp", prefix="mkosi-var-tmp") as var_tmp:
         if apivfs:
             cmdline += [
                 "--bind", var_tmp, apivfs / "var/tmp",
-                "--chmod", "1777", apivfs / "var/tmp",
                 # Make sure /etc/machine-id is not overwritten by any package manager post install scripts.
                 "--ro-bind", apivfs / "etc/machine-id", apivfs / "etc/machine-id",
             ]
+
+        cmdline += ["sh", "-c", f"{chmod} && exec $0 \"$@\" || exit $?"]
 
         try:
             yield cmdline
@@ -402,10 +406,8 @@ def run_workspace_command(
         "--unshare-cgroup",
         "--bind", root, "/",
         "--tmpfs", "/run",
-        "--perms", "1777",
         "--tmpfs", "/tmp",
         "--dev", "/dev",
-        "--chmod", "1777", "/dev/shm",
         "--proc", "/proc",
         "--ro-bind", "/sys", "/sys",
         "--die-with-parent",
@@ -436,7 +438,10 @@ def run_workspace_command(
     ) | env
 
     with tempfile.TemporaryDirectory(dir="/var/tmp", prefix="mkosi-var-tmp") as var_tmp:
-        cmdline += ["--bind", var_tmp, "/var/tmp", "--chmod", "1777", "/var/tmp"]
+        cmdline += [
+            "--bind", var_tmp, "/var/tmp",
+            "sh", "-c", "chmod 1777 /tmp /var/tmp /dev/shm && exec $0 \"$@\" || exit $?"
+        ]
 
         try:
             return run([*cmdline, *cmd], text=True, stdout=stdout, env=env, log=False)
