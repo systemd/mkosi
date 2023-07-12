@@ -75,7 +75,6 @@ runs:
       BINARIES=(
         bootctl
         systemctl
-        systemd-analyze
         systemd-dissect
         systemd-firstboot
         systemd-measure
