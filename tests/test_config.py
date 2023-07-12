@@ -15,9 +15,9 @@ def test_generic_version_systemd() -> None:
     assert not (GenericVersion("1") > GenericVersion("2"))
     assert not (GenericVersion("1") == GenericVersion("2"))
     assert not (GenericVersion("1") >= GenericVersion("2"))
-    assert GenericVersion.compare_versions("1", "2") == 12
+    assert GenericVersion.compare_versions("1", "2") == -1
     assert GenericVersion.compare_versions("2", "2") == 0
-    assert GenericVersion.compare_versions("2", "1") == 11
+    assert GenericVersion.compare_versions("2", "1") == 1
 
 
 def test_generic_version_spec() -> None:

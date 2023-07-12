@@ -1814,8 +1814,8 @@ class GenericVersion:
     # by systemd-analyze compare-versions when called with only two arguments (without a comparison
     # operator), recreated in the compare_versions method.
     _EQUAL = 0
-    _RIGHT_SMALLER = 11
-    _LEFT_SMALLER = 12
+    _RIGHT_SMALLER = 1
+    _LEFT_SMALLER = -1
 
     def __init__(self, version: str):
         self._version = version
