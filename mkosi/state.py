@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 import importlib
+import os
 import tempfile
 from pathlib import Path
 
@@ -23,9 +24,13 @@ class MkosiState:
 
         self.environment = self.config.environment.copy()
         if self.config.image_id is not None:
-            self.environment['IMAGE_ID'] = self.config.image_id
+            self.environment["IMAGE_ID"] = self.config.image_id
         if self.config.image_version is not None:
-            self.environment['IMAGE_VERSION'] = self.config.image_version
+            self.environment["IMAGE_VERSION"] = self.config.image_version
+        if (proxy := os.environ.get("http_proxy")):
+            self.environment["http_proxy"] = proxy
+        if (proxy := os.environ.get("https_proxy")):
+            self.environment["https_proxy"] = proxy
 
         try:
             distro = str(self.config.distribution)

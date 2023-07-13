@@ -68,6 +68,14 @@ def setup_pacman(state: MkosiState) -> None:
 
     config.parent.mkdir(mode=0o755, exist_ok=True, parents=True)
 
+    repos = ["core"]
+    if not state.config.local_mirror:
+        repos += ["extra"]
+
+        for repo in ("core-testing", "extra-testing"):
+            if repo in state.config.repositories:
+                repos += [repo]
+
     with config.open("w") as f:
         f.write(
             dedent(
@@ -75,19 +83,16 @@ def setup_pacman(state: MkosiState) -> None:
                 [options]
                 SigLevel = {sig_level}
                 ParallelDownloads = 5
-
-                [core]
-                {server}
                 """
             )
         )
 
-        if not state.config.local_mirror:
+        for repo in repos:
             f.write(
                 dedent(
                     f"""\
 
-                    [extra]
+                    [{repo}]
                     {server}
                     """
                 )
