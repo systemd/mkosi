@@ -1393,6 +1393,7 @@ def summary(args: MkosiArgs, config: MkosiConfig) -> str:
                NSpawn Settings: {none_to_none(config.nspawn_settings)}
             Extra search paths: {line_join_list(config.extra_search_paths)}
           QEMU Extra Arguments: {line_join_list(config.qemu_args)}
+     Extra Kernel Command Line: {line_join_list(config.kernel_command_line_extra)}
 """
 
     if config.output_format == OutputFormat.disk:

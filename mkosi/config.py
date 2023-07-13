@@ -227,7 +227,7 @@ def config_default_release(namespace: argparse.Namespace) -> str:
         Distribution.alma: "9",
         Distribution.mageia: "cauldron",
         Distribution.debian: "testing",
-        Distribution.ubuntu: "jammy",
+        Distribution.ubuntu: "lunar",
         Distribution.opensuse: "tumbleweed",
         Distribution.openmandriva: "cooker",
         Distribution.gentoo: "17.1",
@@ -2021,10 +2021,20 @@ def load_kernel_command_line_extra(args: argparse.Namespace) -> list[str]:
         f"systemd.tty.columns.ttyS0={columns}",
         f"systemd.tty.rows.ttyS0={lines}",
         "console=ttyS0",
+        # Make sure we set up networking in the VM/container.
+        "systemd.wants=network-online.target",
+        # Make sure we don't load vmw_vmci which messes with virtio vsock.
+        "module_blacklist=vmw_vmci",
     ]
 
-    if args.output_format == OutputFormat.cpio:
-        cmdline += ["rd.systemd.unit=default.target"]
+    if not any(s.startswith("ip=") for s in args.kernel_command_line_extra):
+        cmdline += ["ip=enp0s1:any", "ip=host0:any"]
+
+    if not any(s.startswith("loglevel=") for s in args.kernel_command_line_extra):
+        cmdline += ["loglevel=4"]
+
+    if not any(s.startswith("SYSTEMD_SULOGIN_FORCE=") for s in args.kernel_command_line_extra):
+        cmdline += ["SYSTEMD_SULOGIN_FORCE=1"]
 
     for s in args.kernel_command_line_extra:
         key, sep, value = s.partition("=")
