@@ -227,7 +227,7 @@ def config_default_release(namespace: argparse.Namespace) -> str:
         Distribution.alma: "9",
         Distribution.mageia: "cauldron",
         Distribution.debian: "testing",
-        Distribution.ubuntu: "jammy",
+        Distribution.ubuntu: "lunar",
         Distribution.opensuse: "tumbleweed",
         Distribution.openmandriva: "cooker",
         Distribution.gentoo: "17.1",
