@@ -1995,9 +1995,10 @@ def load_config(args: argparse.Namespace) -> MkosiConfig:
 
     if args.repositories and not (
         is_dnf_distribution(args.distribution) or
-        is_apt_distribution(args.distribution)
+        is_apt_distribution(args.distribution) or
+        args.distribution == Distribution.arch
     ):
-        die("Sorry, the --repositories option is only supported on dnf and apt based distributions")
+        die("Sorry, the --repositories option is only supported on pacman, dnf and apt based distributions")
 
     if args.initrds:
         args.initrds = [p.absolute() for p in args.initrds]
