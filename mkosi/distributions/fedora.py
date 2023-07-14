@@ -170,7 +170,6 @@ def invoke_dnf(
 
     state.pkgmngr.joinpath("etc/dnf/vars").mkdir(exist_ok=True, parents=True)
     state.pkgmngr.joinpath("etc/yum.repos.d").mkdir(exist_ok=True, parents=True)
-    state.pkgmngr.joinpath("var/log").mkdir(exist_ok=True, parents=True)
     state.pkgmngr.joinpath("var/lib/dnf").mkdir(exist_ok=True, parents=True)
 
     # dnf5 does not support building for foreign architectures yet (missing --forcearch)
@@ -189,7 +188,6 @@ def invoke_dnf(
         f"--setopt=cachedir={state.cache_dir}",
         f"--setopt=reposdir={state.pkgmngr / 'etc/yum.repos.d'}",
         f"--setopt=varsdir={state.pkgmngr / 'etc/dnf/vars'}",
-        f"--setopt=logdir={state.pkgmngr / 'var/log'}",
         f"--setopt=persistdir={state.pkgmngr / 'var/lib/dnf'}",
         "--setopt=check_config_file_age=0",
         "--no-plugins" if dnf.endswith("dnf5") else "--noplugins",
@@ -231,6 +229,12 @@ def invoke_dnf(
           root=state.config.tools_tree)
 
     fixup_rpmdb_location(state.root)
+
+    # The log directory is always interpreted relative to the install root so there's nothing we can do but
+    # to remove the log files from the install root afterwards.
+    for p in (state.root / "var/log").iterdir():
+        if p.name.startswith("dnf"):
+            p.unlink()
 
 
 def fixup_rpmdb_location(root: Path) -> None:
