@@ -25,6 +25,7 @@ def invoke_emerge(
 ) -> None:
     bwrap(
         cmd=[
+            "chroot",
             "emerge",
             *packages,
             "--update",
@@ -48,15 +49,17 @@ def invoke_emerge(
         ],
         tools=state.config.tools_tree,
         apivfs=state.cache_dir / "stage3",
-        extra=chroot_cmd(
-            root=state.cache_dir / "stage3",
-            options=[
-                "--bind", state.root, "/tmp/mkosi-root",
-                "--bind", state.cache_dir / "binpkgs", "/var/cache/binpkgs",
-                "--bind", state.cache_dir / "distfiles", "/var/cache/distfiles",
-                "--bind", state.cache_dir / "repos", "/var/db/repos",
-            ],
-            network=True,
+        scripts=dict(
+            chroot=chroot_cmd(
+                root=state.cache_dir / "stage3",
+                options=[
+                    "--bind", state.root, "/tmp/mkosi-root",
+                    "--bind", state.cache_dir / "binpkgs", "/var/cache/binpkgs",
+                    "--bind", state.cache_dir / "distfiles", "/var/cache/distfiles",
+                    "--bind", state.cache_dir / "repos", "/var/db/repos",
+                ],
+                network=True,
+            ),
         ),
         env=dict(
             FEATURES=" ".join([
@@ -146,13 +149,15 @@ class GentooInstaller(DistributionInstaller):
         copy_path(state.pkgmngr, stage3, preserve_owner=False, tools=state.config.tools_tree)
 
         bwrap(
-            cmd=["emerge-webrsync"],
+            cmd=["chroot", "emerge-webrsync"],
             tools=state.config.tools_tree,
             apivfs=stage3,
-            extra=chroot_cmd(
-                stage3,
-                options=["--bind", state.cache_dir / "repos", "/var/db/repos"],
-                network=True,
+            scripts=dict(
+                chroot=chroot_cmd(
+                    stage3,
+                    options=["--bind", state.cache_dir / "repos", "/var/db/repos"],
+                    network=True,
+                ),
             ),
         )
 

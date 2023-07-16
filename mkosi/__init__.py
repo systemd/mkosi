@@ -321,20 +321,20 @@ def run_prepare_script(state: MkosiState, build: bool) -> None:
     if build:
         with complete_step("Running prepare script in build overlay…"), mount_build_overlay(state):
             bwrap(
-                ["/work/prepare", "build"],
+                ["chroot", "/work/prepare", "build"],
                 tools=state.config.tools_tree,
                 apivfs=state.root,
-                extra=chroot_cmd(state.root, options=options, network=True),
+                scripts=dict(chroot=chroot_cmd(state.root, options=options, network=True)),
                 env=dict(SRCDIR="/work/src") | state.environment,
             )
             shutil.rmtree(state.root / "work")
     else:
         with complete_step("Running prepare script…"):
             bwrap(
-                ["/work/prepare", "final"],
+                ["chroot", "/work/prepare", "final"],
                 tools=state.config.tools_tree,
                 apivfs=state.root,
-                extra=chroot_cmd(state.root, options=options, network=True),
+                scripts=dict(chroot=chroot_cmd(state.root, options=options, network=True)),
                 env=dict(SRCDIR="/work/src") | state.environment,
             )
             shutil.rmtree(state.root / "work")
@@ -346,13 +346,15 @@ def run_postinst_script(state: MkosiState) -> None:
 
     with complete_step("Running postinstall script…"):
         bwrap(
-            ["/work/postinst", "final"],
+            ["chroot", "/work/postinst", "final"],
             tools=state.config.tools_tree,
             apivfs=state.root,
-            extra=chroot_cmd(
-                state.root,
-                options=["--bind", state.config.postinst_script, "/work/postinst"],
-                network=state.config.with_network,
+            scripts=dict(
+                chroot=chroot_cmd(
+                    state.root,
+                    options=["--bind", state.config.postinst_script, "/work/postinst"],
+                    network=state.config.with_network,
+                ),
             ),
             env=state.environment,
         )
@@ -1598,10 +1600,10 @@ def run_selinux_relabel(state: MkosiState) -> None:
 
     with complete_step(f"Relabeling files using {policy} policy"):
         bwrap(
-            cmd=["sh", "-c", cmd],
+            cmd=["chroot", "sh", "-c", cmd],
             tools=state.config.tools_tree,
             apivfs=state.root,
-            extra=chroot_cmd(state.root),
+            scripts=dict(chroot=chroot_cmd(state.root)),
             env=state.environment,
         )
 
@@ -1901,10 +1903,10 @@ def run_build_script(state: MkosiState) -> None:
         # build-script output goes to stdout so we can run language servers from within mkosi
         # build-scripts. See https://github.com/systemd/mkosi/pull/566 for more information.
         bwrap(
-            ["/work/build-script"],
+            ["chroot", "/work/build-script"],
             tools=state.config.tools_tree,
             apivfs=state.root,
-            extra=chroot_cmd(state.root, options=options, network=state.config.with_network),
+            scripts=dict(chroot=chroot_cmd(state.root, options=options, network=state.config.with_network)),
             env=env | state.environment,
             stdout=sys.stdout,
         )

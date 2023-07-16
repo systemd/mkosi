@@ -10,10 +10,12 @@ import multiprocessing
 import os
 import pwd
 import queue
+import shlex
 import signal
 import subprocess
 import sys
 import tempfile
+import textwrap
 import threading
 import traceback
 from pathlib import Path
@@ -33,7 +35,7 @@ from typing import (
 
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, die
 from mkosi.types import _FILE, CompletedProcess, PathString, Popen
-from mkosi.util import InvokingUser
+from mkosi.util import InvokingUser, make_executable
 
 CLONE_NEWNS = 0x00020000
 CLONE_NEWUSER = 0x10000000
@@ -312,6 +314,7 @@ def bwrap_cmd(
     *,
     tools: Optional[Path] = None,
     apivfs: Optional[Path] = None,
+    scripts: Mapping[str, Sequence[PathString]] = {},
 ) -> Iterator[list[PathString]]:
     cmdline: list[PathString] = [
         "bwrap",
@@ -355,7 +358,36 @@ def bwrap_cmd(
     else:
         chmod = ":"
 
-    with tempfile.TemporaryDirectory(dir="/var/tmp", prefix="mkosi-var-tmp") as var_tmp:
+    with tempfile.TemporaryDirectory(dir="/var/tmp", prefix="mkosi-var-tmp") as var_tmp,\
+         tempfile.TemporaryDirectory(dir="/tmp", prefix="mkosi-scripts") as d:
+
+        for name, cmd in scripts.items():
+            # Make sure we don't end up in a recursive loop when we name a script after the binary it execs
+            # by removing the scripts directory from the PATH when we execute a script.
+            (Path(d) / name).write_text(
+                textwrap.dedent(
+                    f"""\
+                    #!/bin/sh
+                    PATH="$(echo $PATH | tr ':' '\n' | grep -v {Path(d)} | tr '\n' ':')"
+                    export PATH
+                    exec {shlex.join(str(s) for s in cmd)} "$@"
+                    """
+                )
+            )
+
+            make_executable(Path(d) / name)
+
+        # We modify the PATH via --setenv so that bwrap itself is looked up in PATH before we change it.
+        if tools:
+            # If a tools tree is specified, we should ignore any local modifications made to PATH as any of
+            # those binaries might not work anymore when /usr is replaced wholesale. We also make sure that
+            # both /usr/bin and /usr/sbin/ are searched so that e.g. if the host is Arch and the root is
+            # Debian we don't ignore the binaries from /usr/sbin in the Debian root. We also keep the scripts
+            # directory in PATH as all of them are interpreted and can't be messed up by replacing /usr.
+            cmdline += ["--setenv", "PATH", f"{d}:/usr/bin:/usr/sbin"]
+        else:
+            cmdline += ["--setenv", "PATH", f"{d}:{os.environ['PATH']}"]
+
         if apivfs:
             cmdline += [
                 "--bind", var_tmp, apivfs / "var/tmp",
@@ -383,7 +415,7 @@ def bwrap(
     tools: Optional[Path] = None,
     apivfs: Optional[Path] = None,
     log: bool = True,
-    extra: Sequence[PathString] = (),
+    scripts: Mapping[str, Sequence[PathString]] = {},
     # The following arguments are passed directly to run().
     stdin: _FILE = None,
     stdout: _FILE = None,
@@ -392,17 +424,10 @@ def bwrap(
     check: bool = True,
     env: Mapping[str, PathString] = {},
 ) -> CompletedProcess:
-    with bwrap_cmd(tools=tools, apivfs=apivfs) as bwrap:
-        if tools:
-            # If a tools tree is specified, we should ignore any local modifications made to PATH as any of
-            # those binaries might not work anymore when /usr is replaced wholesale. We also make sure that
-            # both /usr/bin and /usr/sbin/ are searched so that e.g. if the host is Arch and the root is
-            # Debian we don't ignore the binaries from /usr/sbin in the Debian root.
-            env = dict(PATH="/usr/bin:/usr/sbin") | env
-
+    with bwrap_cmd(tools=tools, apivfs=apivfs, scripts=scripts) as bwrap:
         try:
             result = run(
-                [*bwrap, *extra, *cmd],
+                [*bwrap, *cmd],
                 text=True,
                 env=env,
                 log=False,
@@ -417,7 +442,7 @@ def bwrap(
                 logging.error(f"\"{' '.join(str(s) for s in cmd)}\" returned non-zero exit code {e.returncode}.")
             if ARG_DEBUG_SHELL.get():
                 run(
-                    [*bwrap, *extra, "sh"],
+                    [*bwrap, "sh"],
                     stdin=sys.stdin,
                     check=False,
                     env=env,

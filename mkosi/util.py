@@ -11,6 +11,7 @@ import os
 import pwd
 import re
 import resource
+import stat
 import sys
 import tempfile
 from collections.abc import Iterable, Iterator, Sequence
@@ -320,3 +321,8 @@ def format_bytes(num_bytes: int) -> str:
         return f"{num_bytes/1024 :0.1f}K"
 
     return f"{num_bytes}B"
+
+
+def make_executable(path: Path) -> None:
+    st = path.stat()
+    os.chmod(path, st.st_mode | stat.S_IEXEC)
