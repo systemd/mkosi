@@ -193,10 +193,6 @@ def invoke_dnf(
         "--no-plugins" if dnf.endswith("dnf5") else "--noplugins",
     ]
 
-    # dnf5 doesn't support --allowerasing for remove. Add it for other commands.
-    if command != "remove":
-        cmdline += ["--allowerasing"]
-
     # Make sure we download filelists so all dependencies can be resolved.
     # See https://bugzilla.redhat.com/show_bug.cgi?id=2180842
     if (dnf.endswith("dnf5") and
