@@ -39,7 +39,6 @@ from mkosi.util import (
     flatten,
     is_apt_distribution,
     is_dnf_distribution,
-    prepend_to_environ_path,
     qemu_check_kvm_support,
     qemu_check_vsock_support,
 )
@@ -2128,12 +2127,11 @@ def load_config(args: argparse.Namespace) -> MkosiConfig:
         die("A cache directory must be configured in order to use --incremental")
 
     # For unprivileged builds we need the userxattr OverlayFS mount option, which is only available in Linux v5.11 and later.
-    with prepend_to_environ_path(args.extra_search_paths):
-        if (args.build_script is not None or args.base_trees) and GenericVersion(platform.release()) < GenericVersion("5.11") and os.geteuid() != 0:
-            die("This unprivileged build configuration requires at least Linux v5.11")
+    if (args.build_script is not None or args.base_trees) and GenericVersion(platform.release()) < GenericVersion("5.11") and os.geteuid() != 0:
+        die("This unprivileged build configuration requires at least Linux v5.11")
 
-        if args.sign_expected_pcr == ConfigFeature.enabled and not shutil.which("systemd-measure"):
-            die("Couldn't find systemd-measure needed for the --sign-expected-pcr option.")
+    if args.sign_expected_pcr == ConfigFeature.enabled and not shutil.which("systemd-measure"):
+        die("Couldn't find systemd-measure needed for the --sign-expected-pcr option.")
 
     return MkosiConfig.from_namespace(args)
 
