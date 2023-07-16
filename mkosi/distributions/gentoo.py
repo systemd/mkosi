@@ -12,7 +12,7 @@ from mkosi.distributions import DistributionInstaller
 from mkosi.install import copy_path
 from mkosi.log import ARG_DEBUG, complete_step, die
 from mkosi.remove import unlink_try_hard
-from mkosi.run import bwrap, run_workspace_command
+from mkosi.run import bwrap, chroot_cmd
 from mkosi.state import MkosiState
 from mkosi.types import PathString
 
@@ -23,8 +23,7 @@ def invoke_emerge(
     options: Sequence[str] = (),
     env: Mapping[str, str] = {},
 ) -> None:
-    run_workspace_command(
-        state.cache_dir / "stage3",
+    bwrap(
         cmd=[
             "emerge",
             *packages,
@@ -47,13 +46,18 @@ def invoke_emerge(
             *(["--verbose", "--quiet=n", "--quiet-fail=n"] if ARG_DEBUG.get() else ["--quiet-build", "--quiet"]),
             *options,
         ],
-        bwrap_params=[
-            "--bind", state.root, "/tmp/mkosi-root",
-            "--bind", state.cache_dir / "binpkgs", "/var/cache/binpkgs",
-            "--bind", state.cache_dir / "distfiles", "/var/cache/distfiles",
-            "--bind", state.cache_dir / "repos", "/var/db/repos",
-        ],
-        network=True,
+        tools=state.config.tools_tree,
+        apivfs=state.cache_dir / "stage3",
+        extra=chroot_cmd(
+            root=state.cache_dir / "stage3",
+            options=[
+                "--bind", state.root, "/tmp/mkosi-root",
+                "--bind", state.cache_dir / "binpkgs", "/var/cache/binpkgs",
+                "--bind", state.cache_dir / "distfiles", "/var/cache/distfiles",
+                "--bind", state.cache_dir / "repos", "/var/db/repos",
+            ],
+            network=True,
+        ),
         env=dict(
             FEATURES=" ".join([
                 "getbinpkg",
@@ -141,11 +145,15 @@ class GentooInstaller(DistributionInstaller):
 
         copy_path(state.pkgmngr, stage3, preserve_owner=False, tools=state.config.tools_tree)
 
-        run_workspace_command(
-            stage3,
+        bwrap(
             cmd=["emerge-webrsync"],
-            bwrap_params=["--bind", state.cache_dir / "repos", "/var/db/repos"],
-            network=True,
+            tools=state.config.tools_tree,
+            apivfs=stage3,
+            extra=chroot_cmd(
+                stage3,
+                options=["--bind", state.cache_dir / "repos", "/var/db/repos"],
+                network=True,
+            ),
         )
 
         invoke_emerge(state, packages=["sys-apps/baselayout"], env={"USE": "build"})

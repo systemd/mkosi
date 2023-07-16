@@ -10,7 +10,6 @@ import multiprocessing
 import os
 import pwd
 import queue
-import shutil
 import signal
 import subprocess
 import sys
@@ -224,6 +223,7 @@ def run(
     stdin: _FILE = None,
     stdout: _FILE = None,
     stderr: _FILE = None,
+    input: Optional[str] = None,
     env: Mapping[str, PathString] = {},
     log: bool = True,
     **kwargs: Any,
@@ -248,7 +248,7 @@ def run(
     if ARG_DEBUG.get():
         env["SYSTEMD_LOG_LEVEL"] = "debug"
 
-    if "input" in kwargs:
+    if input is not None:
         assert stdin is None  # stdin and input cannot be specified together
     elif stdin is None:
         stdin = subprocess.DEVNULL
@@ -259,6 +259,7 @@ def run(
                               stdin=stdin,
                               stdout=stdout,
                               stderr=stderr,
+                              input=input,
                               env=env,
                               **kwargs,
                               preexec_fn=foreground)
@@ -294,6 +295,7 @@ def spawn(
     except subprocess.CalledProcessError as e:
         logging.error(f"\"{' '.join(str(s) for s in cmdline)}\" returned non-zero exit code {e.returncode}.")
         raise e
+
 
 @contextlib.contextmanager
 def bwrap_cmd(
@@ -359,7 +361,10 @@ def bwrap_cmd(
             # Clean up some stuff that might get written by package manager post install scripts.
             if apivfs:
                 for f in ("var/lib/systemd/random-seed", "var/lib/systemd/credential.secret", "etc/machine-info"):
-                    apivfs.joinpath(f).unlink(missing_ok=True)
+                    # Using missing_ok=True still causes an OSError if the mount is read-only even if the
+                    # file doesn't exist so do an explicit exists() check first.
+                    if (apivfs / f).exists():
+                        (apivfs / f).unlink()
 
 
 def bwrap(
@@ -368,6 +373,7 @@ def bwrap(
     tools: Optional[Path] = None,
     apivfs: Optional[Path] = None,
     log: bool = True,
+    extra: Sequence[PathString] = (),
     # The following arguments are passed directly to run().
     stdin: _FILE = None,
     stdout: _FILE = None,
@@ -386,7 +392,7 @@ def bwrap(
 
         try:
             result = run(
-                [*bwrap, *cmd],
+                [*bwrap, *extra, *cmd],
                 text=True,
                 env=env,
                 log=False,
@@ -401,7 +407,7 @@ def bwrap(
                 logging.error(f"\"{' '.join(str(s) for s in cmd)}\" returned non-zero exit code {e.returncode}.")
             if ARG_DEBUG_SHELL.get():
                 run(
-                    [*bwrap, "sh"],
+                    [*bwrap, *extra, "sh"],
                     stdin=sys.stdin,
                     check=False,
                     env=env,
@@ -412,69 +418,37 @@ def bwrap(
         return result
 
 
-def run_workspace_command(
-    root: Path,
-    cmd: Sequence[PathString],
-    bwrap_params: Sequence[PathString] = (),
-    network: bool = False,
-    stdout: _FILE = None,
-    env: Mapping[str, PathString] = {},
-) -> CompletedProcess:
+def chroot_cmd(root: Path, *, options: Sequence[PathString] = (), network: bool = False) -> Sequence[PathString]:
     cmdline: list[PathString] = [
         "bwrap",
         "--unshare-ipc",
         "--unshare-pid",
         "--unshare-cgroup",
-        "--bind", root, "/",
-        "--tmpfs", "/run",
-        "--tmpfs", "/tmp",
-        "--dev", "/dev",
-        "--proc", "/proc",
-        "--ro-bind", "/sys", "/sys",
+        "--dev-bind", root, "/",
         "--die-with-parent",
-        *bwrap_params,
+        "--setenv", "container", "mkosi",
+        "--setenv", "SYSTEMD_OFFLINE", str(int(network)),
+        "--setenv", "HOME", "/",
+        "--setenv", "PATH", "/usr/bin:/usr/sbin",
+        *options,
     ]
 
-    resolve = root.joinpath("etc/resolv.conf")
-
-    tmp = Path(tempfile.NamedTemporaryFile(delete=False).name)
-    tmp.unlink()
-
     if network:
-        # Bubblewrap does not mount over symlinks and /etc/resolv.conf might be a symlink. Deal with this by
-        # temporarily moving the file somewhere else.
-        if resolve.is_symlink():
-            shutil.move(resolve, tmp)
+        resolve = Path("etc/resolv.conf")
+        if (root / resolve).is_symlink():
+            # For each component in the target path, bubblewrap will try to create it if it doesn't exist
+            # yet. If a component in the path is a dangling symlink, bubblewrap will end up calling
+            # mkdir(symlink) which obviously fails if multiple components of the dangling symlink path don't
+            # exist yet. As a workaround, we resolve the symlink ourselves so that bubblewrap will correctly
+            # create all missing components in the target path.
+            resolve = (root / resolve).readlink()
 
-        # If we're using the host network namespace, use the same resolver
-        cmdline += ["--ro-bind", "/etc/resolv.conf", "/etc/resolv.conf"]
+        # If we're using the host network namespace, use the same resolver.
+        cmdline += ["--ro-bind", "/etc/resolv.conf", Path("/") / resolve]
     else:
         cmdline += ["--unshare-net"]
 
-    env = dict(
-        container="mkosi",
-        SYSTEMD_OFFLINE=str(int(network)),
-        HOME="/",
-        PATH="/usr/bin:/usr/sbin",
-    ) | env
-
-    with tempfile.TemporaryDirectory(dir="/var/tmp", prefix="mkosi-var-tmp") as var_tmp:
-        cmdline += [
-            "--bind", var_tmp, "/var/tmp",
-            "sh", "-c", "chmod 1777 /tmp /var/tmp /dev/shm && exec $0 \"$@\" || exit $?"
-        ]
-
-        try:
-            return run([*cmdline, *cmd], text=True, stdout=stdout, env=env, log=False)
-        except subprocess.CalledProcessError as e:
-            logging.error(f"\"{' '.join(str(s) for s in cmd)}\" returned non-zero exit code {e.returncode}.")
-            if ARG_DEBUG_SHELL.get():
-                run([*cmdline, "sh"], stdin=sys.stdin, check=False, env=env, log=False)
-            raise e
-        finally:
-            if tmp.is_symlink():
-                resolve.unlink(missing_ok=True)
-                shutil.move(tmp, resolve)
+    return cmdline
 
 
 class MkosiAsyncioThread(threading.Thread):

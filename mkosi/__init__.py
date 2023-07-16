@@ -41,9 +41,9 @@ from mkosi.run import (
     become_root,
     bwrap,
     bwrap_cmd,
+    chroot_cmd,
     fork_and_wait,
     run,
-    run_workspace_command,
     spawn,
 )
 from mkosi.state import MkosiState
@@ -310,31 +310,31 @@ def run_prepare_script(state: MkosiState, build: bool) -> None:
     if build and state.config.build_script is None:
         return
 
-    bwrap: list[PathString] = [
+    options: list[PathString] = [
         "--bind", state.config.prepare_script, "/work/prepare",
         "--chdir", "/work/src",
     ]
 
     for src, target in finalize_sources(state.config):
-        bwrap += ["--bind", src, Path("/") / target]
+        options += ["--bind", src, Path("/") / target]
 
     if build:
         with complete_step("Running prepare script in build overlay…"), mount_build_overlay(state):
-            run_workspace_command(
-                state.root,
+            bwrap(
                 ["/work/prepare", "build"],
-                network=True,
-                bwrap_params=bwrap,
+                tools=state.config.tools_tree,
+                apivfs=state.root,
+                extra=chroot_cmd(state.root, options=options, network=True),
                 env=dict(SRCDIR="/work/src") | state.environment,
             )
             shutil.rmtree(state.root / "work")
     else:
         with complete_step("Running prepare script…"):
-            run_workspace_command(
-                state.root,
+            bwrap(
                 ["/work/prepare", "final"],
-                network=True,
-                bwrap_params=bwrap,
+                tools=state.config.tools_tree,
+                apivfs=state.root,
+                extra=chroot_cmd(state.root, options=options, network=True),
                 env=dict(SRCDIR="/work/src") | state.environment,
             )
             shutil.rmtree(state.root / "work")
@@ -345,12 +345,17 @@ def run_postinst_script(state: MkosiState) -> None:
         return
 
     with complete_step("Running postinstall script…"):
-        bwrap: list[PathString] = [
-            "--bind", state.config.postinst_script, "/work/postinst",
-        ]
-
-        run_workspace_command(state.root, ["/work/postinst", "final"], bwrap_params=bwrap,
-                              network=state.config.with_network, env=state.environment)
+        bwrap(
+            ["/work/postinst", "final"],
+            tools=state.config.tools_tree,
+            apivfs=state.root,
+            extra=chroot_cmd(
+                state.root,
+                options=["--bind", state.config.postinst_script, "/work/postinst"],
+                network=state.config.with_network,
+            ),
+            env=state.environment,
+        )
 
         shutil.rmtree(state.root / "work")
 
@@ -1592,7 +1597,13 @@ def run_selinux_relabel(state: MkosiState) -> None:
     cmd = f"mkdir /tmp/relabel && mount --bind / /tmp/relabel && exec setfiles -m -r /tmp/relabel -F {fc} /tmp/relabel || exit $?"
 
     with complete_step(f"Relabeling files using {policy} policy"):
-        run_workspace_command(state.root, ["sh", "-c", cmd], env=state.environment)
+        bwrap(
+            cmd=["sh", "-c", cmd],
+            tools=state.config.tools_tree,
+            apivfs=state.root,
+            extra=chroot_cmd(state.root),
+            env=state.environment,
+        )
 
 
 def need_build_packages(config: MkosiConfig) -> bool:
@@ -1864,7 +1875,7 @@ def run_build_script(state: MkosiState) -> None:
             state.root.joinpath(target).mkdir(mode=0o755, exist_ok=True, parents=True)
 
     with complete_step("Running build script…"), mount_build_overlay(state, read_only=True):
-        bwrap: list[PathString] = [
+        options: list[PathString] = [
             "--bind", state.config.build_script, "/work/build-script",
             "--bind", state.install_dir, "/work/dest",
             "--bind", state.staging, "/work/out",
@@ -1872,7 +1883,7 @@ def run_build_script(state: MkosiState) -> None:
         ]
 
         for src, target in finalize_sources(state.config):
-            bwrap += ["--bind", src, Path("/") / target]
+            options += ["--bind", src, Path("/") / target]
 
         env = dict(
             WITH_DOCS=one_zero(state.config.with_docs),
@@ -1884,13 +1895,19 @@ def run_build_script(state: MkosiState) -> None:
         )
 
         if state.config.build_dir is not None:
-            bwrap += ["--bind", state.config.build_dir, "/work/build"]
+            options += ["--bind", state.config.build_dir, "/work/build"]
             env |= dict(BUILDDIR="/work/build")
 
         # build-script output goes to stdout so we can run language servers from within mkosi
         # build-scripts. See https://github.com/systemd/mkosi/pull/566 for more information.
-        run_workspace_command(state.root, ["/work/build-script"], network=state.config.with_network,
-                              bwrap_params=bwrap, stdout=sys.stdout, env=env | state.environment)
+        bwrap(
+            ["/work/build-script"],
+            tools=state.config.tools_tree,
+            apivfs=state.root,
+            extra=chroot_cmd(state.root, options=options, network=state.config.with_network),
+            env=env | state.environment,
+            stdout=sys.stdout,
+        )
 
 
 def setfacl(config: MkosiConfig, root: Path, uid: int, allow: bool) -> None:
