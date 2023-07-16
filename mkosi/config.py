@@ -2107,9 +2107,6 @@ def load_config(args: argparse.Namespace) -> MkosiConfig:
     if args.qemu_vsock == ConfigFeature.enabled and not qemu_check_vsock_support(log=False):
         die("Sorry, the host machine does not support vsock")
 
-    if args.qemu_swtpm == ConfigFeature.enabled and not shutil.which("swtpm"):
-        die("swtpm is requested but not found in PATH")
-
     if args.repositories and not (
         is_dnf_distribution(args.distribution) or
         is_apt_distribution(args.distribution) or
@@ -2129,9 +2126,6 @@ def load_config(args: argparse.Namespace) -> MkosiConfig:
     # For unprivileged builds we need the userxattr OverlayFS mount option, which is only available in Linux v5.11 and later.
     if (args.build_script is not None or args.base_trees) and GenericVersion(platform.release()) < GenericVersion("5.11") and os.geteuid() != 0:
         die("This unprivileged build configuration requires at least Linux v5.11")
-
-    if args.sign_expected_pcr == ConfigFeature.enabled and not shutil.which("systemd-measure"):
-        die("Couldn't find systemd-measure needed for the --sign-expected-pcr option.")
 
     return MkosiConfig.from_namespace(args)
 
