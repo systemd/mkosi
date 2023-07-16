@@ -224,9 +224,9 @@ def run(
     stdout: _FILE = None,
     stderr: _FILE = None,
     input: Optional[str] = None,
+    text: bool = True,
     env: Mapping[str, PathString] = {},
     log: bool = True,
-    **kwargs: Any,
 ) -> CompletedProcess:
     if ARG_DEBUG.get():
         logging.info(f"+ {' '.join(str(s) for s in cmdline)}")
@@ -254,15 +254,17 @@ def run(
         stdin = subprocess.DEVNULL
 
     try:
-        return subprocess.run(cmdline,
-                              check=check,
-                              stdin=stdin,
-                              stdout=stdout,
-                              stderr=stderr,
-                              input=input,
-                              env=env,
-                              **kwargs,
-                              preexec_fn=foreground)
+        return subprocess.run(
+            cmdline,
+            check=check,
+            stdin=stdin,
+            stdout=stdout,
+            stderr=stderr,
+            input=input,
+            text=True,
+            env=env,
+            preexec_fn=foreground,
+        )
     except FileNotFoundError:
         die(f"{cmdline[0]} not found in PATH.")
     except subprocess.CalledProcessError as e:
@@ -275,9 +277,10 @@ def run(
 
 def spawn(
     cmdline: Sequence[PathString],
+    stdin: _FILE = None,
     stdout: _FILE = None,
     stderr: _FILE = None,
-    **kwargs: Any,
+    text: bool = True,
 ) -> Popen:
     if ARG_DEBUG.get():
         logging.info(f"+ {' '.join(str(s) for s in cmdline)}")
@@ -289,7 +292,14 @@ def spawn(
         stdout = sys.stderr
 
     try:
-        return subprocess.Popen(cmdline, stdout=stdout, stderr=stderr, **kwargs, preexec_fn=foreground)
+        return subprocess.Popen(
+            cmdline,
+            stdin=stdin,
+            stdout=stdout,
+            stderr=stderr,
+            text=text,
+            preexec_fn=foreground,
+        )
     except FileNotFoundError:
         die(f"{cmdline[0]} not found in PATH.")
     except subprocess.CalledProcessError as e:
