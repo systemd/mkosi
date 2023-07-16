@@ -53,7 +53,7 @@ def copy_path(
     *,
     dereference: bool = False,
     preserve_owner: bool = True,
-    root: Optional[Path] = None,
+    tools: Optional[Path] = None,
 ) -> None:
     bwrap([
         "cp",
@@ -63,4 +63,4 @@ def copy_path(
         "--no-target-directory",
         "--reflink=auto",
         src, dst,
-    ], root=root)
+    ], tools=tools)

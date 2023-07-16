@@ -298,7 +298,7 @@ def spawn(
 @contextlib.contextmanager
 def bwrap_cmd(
     *,
-    root: Optional[Path] = None,
+    tools: Optional[Path] = None,
     apivfs: Optional[Path] = None,
 ) -> Iterator[list[PathString]]:
     cmdline: list[PathString] = [
@@ -306,7 +306,7 @@ def bwrap_cmd(
         "--dev-bind", "/", "/",
         "--chdir", Path.cwd(),
         "--die-with-parent",
-        "--ro-bind", (root or Path("/")) / "usr", "/usr",
+        "--ro-bind", (tools or Path("/")) / "usr", "/usr",
     ]
 
     for d in ("/etc", "/opt", "/srv", "/boot", "/efi"):
@@ -365,18 +365,18 @@ def bwrap_cmd(
 def bwrap(
     cmd: Sequence[PathString],
     *,
-    root: Optional[Path] = None,
+    tools: Optional[Path] = None,
     apivfs: Optional[Path] = None,
     env: Mapping[str, PathString] = {},
     log: bool = True,
     **kwargs: Any,
 ) -> CompletedProcess:
-    with bwrap_cmd(root=root, apivfs=apivfs) as bwrap:
-        if root:
-            # If a root is specified, we should ignore any local modifications made to PATH as any of those
-            # tools might not work anymore when /usr is replaced wholesale. We also make sure that both
-            # /usr/bin and /usr/sbin/ are searched so that e.g. if the host is Arch and the root is Debian we
-            # don't ignore the binaries from /usr/sbin in the Debian root.
+    with bwrap_cmd(tools=tools, apivfs=apivfs) as bwrap:
+        if tools:
+            # If a tools tree is specified, we should ignore any local modifications made to PATH as any of
+            # those binaries might not work anymore when /usr is replaced wholesale. We also make sure that
+            # both /usr/bin and /usr/sbin/ are searched so that e.g. if the host is Arch and the root is
+            # Debian we don't ignore the binaries from /usr/sbin in the Debian root.
             env = dict(PATH="/usr/bin:/usr/sbin") | env
 
         try:

@@ -117,7 +117,7 @@ class GentooInstaller(DistributionInstaller):
             if stage3_tar.exists():
                 cmd += ["--time-cond", stage3_tar]
 
-            bwrap(cmd, root=state.config.tools_tree)
+            bwrap(cmd, tools=state.config.tools_tree)
 
             if stage3_tar.stat().st_mtime > old:
                 unlink_try_hard(stage3)
@@ -134,12 +134,12 @@ class GentooInstaller(DistributionInstaller):
                        "--exclude", "./dev/*",
                        "--exclude", "./proc/*",
                        "--exclude", "./sys/*"],
-                      root=state.config.tools_tree)
+                      tools=state.config.tools_tree)
 
         for d in ("binpkgs", "distfiles", "repos/gentoo"):
             (state.cache_dir / d).mkdir(parents=True, exist_ok=True)
 
-        copy_path(state.pkgmngr, stage3, preserve_owner=False, root=state.config.tools_tree)
+        copy_path(state.pkgmngr, stage3, preserve_owner=False, tools=state.config.tools_tree)
 
         run_workspace_command(
             stage3,

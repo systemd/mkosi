@@ -221,7 +221,7 @@ def invoke_dnf(
     bwrap(cmdline,
           apivfs=state.root if apivfs else None,
           env=dict(KERNEL_INSTALL_BYPASS="1") | env | state.environment,
-          root=state.config.tools_tree)
+          tools=state.config.tools_tree)
 
     fixup_rpmdb_location(state.root)
 

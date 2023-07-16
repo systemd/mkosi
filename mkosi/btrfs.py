@@ -13,7 +13,7 @@ from mkosi.run import bwrap
 
 def statfs(config: MkosiConfig, path: Path) -> str:
     return cast(str, bwrap(["stat", "--file-system", "--format", "%T", path.parent],
-                           root=config.tools_tree, stdout=subprocess.PIPE).stdout.strip())
+                           tools=config.tools_tree, stdout=subprocess.PIPE).stdout.strip())
 
 
 def btrfs_maybe_make_subvolume(config: MkosiConfig, path: Path, mode: int) -> None:
@@ -30,7 +30,7 @@ def btrfs_maybe_make_subvolume(config: MkosiConfig, path: Path, mode: int) -> No
     if config.use_subvolumes != ConfigFeature.disabled and shutil.which("btrfs") is not None:
         result = bwrap(["btrfs", "subvolume", "create", path],
                        check=config.use_subvolumes == ConfigFeature.enabled,
-                       root=config.tools_tree).returncode
+                       tools=config.tools_tree).returncode
     else:
         result = 1
 
@@ -49,7 +49,7 @@ def btrfs_maybe_snapshot_subvolume(config: MkosiConfig, src: Path, dst: Path) ->
 
     # Subvolumes always have inode 256 so we can use that to check if a directory is a subvolume.
     if not subvolume or statfs(config, src) != "btrfs" or src.stat().st_ino != 256 or (dst.exists() and any(dst.iterdir())):
-        return copy_path(src, dst, root=config.tools_tree)
+        return copy_path(src, dst, tools=config.tools_tree)
 
     # btrfs can't snapshot to an existing directory so make sure the destination does not exist.
     if dst.exists():
@@ -58,9 +58,9 @@ def btrfs_maybe_snapshot_subvolume(config: MkosiConfig, src: Path, dst: Path) ->
     if shutil.which("btrfs"):
         result = bwrap(["btrfs", "subvolume", "snapshot", src, dst],
                        check=config.use_subvolumes == ConfigFeature.enabled,
-                       root=config.tools_tree).returncode
+                       tools=config.tools_tree).returncode
     else:
         result = 1
 
     if result != 0:
-        copy_path(src, dst, root=config.tools_tree)
+        copy_path(src, dst, tools=config.tools_tree)
