@@ -367,9 +367,14 @@ def bwrap(
     *,
     tools: Optional[Path] = None,
     apivfs: Optional[Path] = None,
-    env: Mapping[str, PathString] = {},
     log: bool = True,
-    **kwargs: Any,
+    # The following arguments are passed directly to run().
+    stdin: _FILE = None,
+    stdout: _FILE = None,
+    stderr: _FILE = None,
+    input: Optional[str] = None,
+    check: bool = True,
+    env: Mapping[str, PathString] = {},
 ) -> CompletedProcess:
     with bwrap_cmd(tools=tools, apivfs=apivfs) as bwrap:
         if tools:
@@ -380,12 +385,28 @@ def bwrap(
             env = dict(PATH="/usr/bin:/usr/sbin") | env
 
         try:
-            result = run([*bwrap, *cmd], text=True, env=env, log=False, **kwargs)
+            result = run(
+                [*bwrap, *cmd],
+                text=True,
+                env=env,
+                log=False,
+                stdin=stdin,
+                stdout=stdout,
+                stderr=stderr,
+                input=input,
+                check=check,
+            )
         except subprocess.CalledProcessError as e:
             if log:
                 logging.error(f"\"{' '.join(str(s) for s in cmd)}\" returned non-zero exit code {e.returncode}.")
             if ARG_DEBUG_SHELL.get():
-                run([*bwrap, "sh"], stdin=sys.stdin, check=False, env=env, log=False)
+                run(
+                    [*bwrap, "sh"],
+                    stdin=sys.stdin,
+                    check=False,
+                    env=env,
+                    log=False,
+                )
             raise e
 
         return result

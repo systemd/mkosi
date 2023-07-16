@@ -1032,8 +1032,8 @@ def maybe_compress(state: MkosiState, compression: Compression, src: Path, dst: 
             src.unlink() # if src == dst, make sure dst doesn't truncate the src file but creates a new file.
 
             with dst.open("wb") as o:
-                bwrap(compressor_command(compression), user=state.uid, group=state.gid, stdin=i, stdout=o,
-                      tools=state.config.tools_tree)
+                bwrap(compressor_command(compression), stdin=i, stdout=o, tools=state.config.tools_tree)
+                os.chown(dst, uid=state.uid, gid=state.gid)
 
 
 def copy_nspawn_settings(state: MkosiState) -> None:
