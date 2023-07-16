@@ -199,7 +199,7 @@ def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
 def invoke_apt(
     state: MkosiState,
     operation: str,
-    extra: Sequence[str] = (),
+    packages: Sequence[str] = (),
     apivfs: bool = True,
 ) -> CompletedProcess:
     env: dict[str, PathString] = dict(
@@ -244,7 +244,7 @@ def invoke_apt(
         "-o", "pkgCacheGen::ForceEssential=,",
     ]
 
-    return bwrap(["apt-get", *options, operation, *extra],
+    return bwrap(["apt-get", *options, operation, *packages],
                  apivfs=state.root if apivfs else None,
                  env=env | state.environment,
                  tools=state.config.tools_tree)
