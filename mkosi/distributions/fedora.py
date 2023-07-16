@@ -180,7 +180,6 @@ def invoke_dnf(
         dnf,
         "--assumeyes",
         f"--config={state.pkgmngr / 'etc/dnf/dnf.conf'}",
-        command,
         "--best",
         f"--releasever={release}",
         f"--installroot={state.root}",
@@ -217,7 +216,7 @@ def invoke_dnf(
     if not state.config.with_docs:
         cmdline += ["--no-docs" if dnf.endswith("dnf5") else "--nodocs"]
 
-    cmdline += sort_packages(packages)
+    cmdline += [command, *sort_packages(packages)]
 
     bwrap(cmdline,
           apivfs=state.root if apivfs else None,
