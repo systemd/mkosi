@@ -101,13 +101,13 @@ class Manifest:
         # On Debian, rpm/dnf ship with a patch to store the rpmdb under ~/ so rpm
         # has to be told to use the location the rpmdb was moved to.
         # Otherwise the rpmdb will appear empty. See: https://bugs.debian.org/1004863
-        dbpath = "/usr/lib/sysimage/rpm"
+        dbpath = "usr/lib/sysimage/rpm"
         if not (root / dbpath).exists():
-            dbpath = "/var/lib/rpm"
+            dbpath = "var/lib/rpm"
 
         c = bwrap(["rpm",
                    f"--root={root}",
-                   f"--dbpath={dbpath}",
+                   f"--dbpath={Path('/') / dbpath}",
                    "-qa",
                    "--qf", r"%{NEVRA}\t%{SOURCERPM}\t%{NAME}\t%{ARCH}\t%{LONGSIZE}\t%{INSTALLTIME}\n"],
                   stdout=PIPE,
@@ -148,7 +148,7 @@ class Manifest:
             if source is None:
                 c = bwrap(["rpm",
                            f"--root={root}",
-                           f"--dbpath={dbpath}",
+                           f"--dbpath={Path('/') / dbpath}",
                            "-q",
                            "--changelog",
                            nevra],
