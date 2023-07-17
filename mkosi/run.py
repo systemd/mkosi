@@ -2,7 +2,6 @@
 
 import asyncio
 import asyncio.tasks
-import contextlib
 import ctypes
 import ctypes.util
 import logging
@@ -17,21 +16,9 @@ import sys
 import tempfile
 import textwrap
 import threading
-import traceback
 from pathlib import Path
 from types import TracebackType
-from typing import (
-    Any,
-    Awaitable,
-    Callable,
-    Iterator,
-    Mapping,
-    Optional,
-    Sequence,
-    Tuple,
-    Type,
-    TypeVar,
-)
+from typing import Any, Awaitable, Mapping, Optional, Sequence, Tuple, Type, TypeVar
 
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, die
 from mkosi.types import _FILE, CompletedProcess, PathString, Popen
@@ -125,7 +112,7 @@ def become_root() -> tuple[int, int]:
 
         os._exit(0)
 
-    unshare(CLONE_NEWUSER|CLONE_NEWNS)
+    unshare(CLONE_NEWUSER)
     event.set()
     os.waitpid(child, 0)
 
@@ -136,6 +123,11 @@ def become_root() -> tuple[int, int]:
     os.setgroups([0])
 
     return SUBRANGE - 100, SUBRANGE - 100
+
+
+def init_mount_namespace() -> None:
+    unshare(CLONE_NEWNS)
+    run(["mount", "--make-rslave", "/"])
 
 
 def foreground(*, new_process_group: bool = True) -> None:
@@ -152,20 +144,6 @@ def foreground(*, new_process_group: bool = True) -> None:
         signal.signal(signal.SIGTTOU, old)
 
 
-class RemoteException(Exception):
-    """
-    Stores the exception from a subprocess along with its traceback. We have to do this explicitly because
-    the original traceback object cannot be pickled. When stringified, produces the subprocess stacktrace
-    plus the exception message.
-    """
-    def __init__(self, e: BaseException, tb: traceback.StackSummary):
-        self.exception = e
-        self.tb = tb
-
-    def __str__(self) -> str:
-        return f"Traceback (most recent call last):\n{''.join(self.tb.format()).strip()}\n{type(self.exception).__name__}: {self.exception}"
-
-
 def ensure_exc_info() -> Tuple[Type[BaseException], BaseException, TracebackType]:
     exctype, exc, tb = sys.exc_info()
     assert exctype
@@ -174,51 +152,6 @@ def ensure_exc_info() -> Tuple[Type[BaseException], BaseException, TracebackType
     return (exctype, exc, tb)
 
 
-def excepthook(exctype: Type[BaseException], exc: BaseException, tb: Optional[TracebackType]) -> None:
-    """Attach to sys.excepthook to automatically format exceptions with a RemoteException attached correctly."""
-    if isinstance(exc.__cause__, RemoteException):
-        print(exc.__cause__, file=sys.stderr)
-    else:
-        sys.__excepthook__(exctype, exc, tb)
-
-
-def fork_and_wait(target: Callable[[], T]) -> T:
-    """Run the target function in the foreground in a child process and collect its backtrace if there is one."""
-    pout, pin = multiprocessing.Pipe(duplex=False)
-
-    pid = os.fork()
-    if pid == 0:
-        foreground()
-
-        try:
-            result = target()
-        except BaseException as e:
-            # Just getting the stacktrace from the traceback doesn't get us the parent frames for some reason
-            # so we have to attach those manually.
-            tb = traceback.StackSummary.from_list(traceback.extract_stack()[:-1] + traceback.extract_tb(e.__traceback__))
-            pin.send(RemoteException(e, tb))
-        else:
-            pin.send(result)
-        finally:
-            pin.close()
-
-        sys.stdout.flush()
-        sys.stderr.flush()
-
-        os._exit(0)
-
-    try:
-        os.waitpid(pid, 0)
-    finally:
-        foreground(new_process_group=False)
-
-    result = pout.recv()
-    if isinstance(result, RemoteException):
-        # Reraise the original exception and attach the remote exception with full traceback as the cause.
-        raise result.exception from result
-
-    return result
-
 def run(
     cmdline: Sequence[PathString],
     check: bool = True,
@@ -226,7 +159,8 @@ def run(
     stdout: _FILE = None,
     stderr: _FILE = None,
     input: Optional[str] = None,
-    text: bool = True,
+    user: Optional[int] = None,
+    group: Optional[int] = None,
     env: Mapping[str, PathString] = {},
     log: bool = True,
 ) -> CompletedProcess:
@@ -264,6 +198,8 @@ def run(
             stderr=stderr,
             input=input,
             text=True,
+            user=user,
+            group=group,
             env=env,
             preexec_fn=foreground,
         )
@@ -283,6 +219,8 @@ def spawn(
     stdout: _FILE = None,
     stderr: _FILE = None,
     text: bool = True,
+    user: Optional[int] = None,
+    group: Optional[int] = None,
 ) -> Popen:
     if ARG_DEBUG.get():
         logging.info(f"+ {' '.join(str(s) for s in cmdline)}")
@@ -300,6 +238,8 @@ def spawn(
             stdout=stdout,
             stderr=stderr,
             text=text,
+            user=user,
+            group=group,
             preexec_fn=foreground,
         )
     except FileNotFoundError:
@@ -309,24 +249,20 @@ def spawn(
         raise e
 
 
-@contextlib.contextmanager
-def bwrap_cmd(
+def bwrap(
+    cmd: Sequence[PathString],
     *,
-    root: Optional[Path] = None,
     apivfs: Optional[Path] = None,
+    log: bool = True,
     scripts: Mapping[str, Sequence[PathString]] = {},
-) -> Iterator[list[PathString]]:
+    env: Mapping[str, PathString] = {},
+) -> CompletedProcess:
     cmdline: list[PathString] = [
         "bwrap",
         "--dev-bind", "/", "/",
         "--chdir", Path.cwd(),
         "--die-with-parent",
-        "--ro-bind", (root or Path("/")) / "usr", "/usr",
     ]
-
-    for d in ("/etc", "/opt", "/srv", "/boot", "/efi"):
-        if Path(d).exists():
-            cmdline += ["--ro-bind", d, d]
 
     if apivfs:
         if not (apivfs / "etc/machine-id").exists():
@@ -361,7 +297,7 @@ def bwrap_cmd(
     with tempfile.TemporaryDirectory(dir="/var/tmp", prefix="mkosi-var-tmp") as var_tmp,\
          tempfile.TemporaryDirectory(dir="/tmp", prefix="mkosi-scripts") as d:
 
-        for name, cmd in scripts.items():
+        for name, script in scripts.items():
             # Make sure we don't end up in a recursive loop when we name a script after the binary it execs
             # by removing the scripts directory from the PATH when we execute a script.
             (Path(d) / name).write_text(
@@ -370,23 +306,14 @@ def bwrap_cmd(
                     #!/bin/sh
                     PATH="$(echo $PATH | tr ':' '\n' | grep -v {Path(d)} | tr '\n' ':')"
                     export PATH
-                    exec {shlex.join(str(s) for s in cmd)} "$@"
+                    exec {shlex.join(str(s) for s in script)} "$@"
                     """
                 )
             )
 
             make_executable(Path(d) / name)
 
-        # We modify the PATH via --setenv so that bwrap itself is looked up in PATH before we change it.
-        if root:
-            # If a tools tree is specified, we should ignore any local modifications made to PATH as any of
-            # those binaries might not work anymore when /usr is replaced wholesale. We also make sure that
-            # both /usr/bin and /usr/sbin/ are searched so that e.g. if the host is Arch and the root is
-            # Debian we don't ignore the binaries from /usr/sbin in the Debian root. We also keep the scripts
-            # directory in PATH as all of them are interpreted and can't be messed up by replacing /usr.
-            cmdline += ["--setenv", "PATH", f"{d}:/usr/bin:/usr/sbin"]
-        else:
-            cmdline += ["--setenv", "PATH", f"{d}:{os.environ['PATH']}"]
+        cmdline += ["--setenv", "PATH", f"{d}:{os.environ['PATH']}"]
 
         if apivfs:
             cmdline += [
@@ -398,7 +325,13 @@ def bwrap_cmd(
         cmdline += ["sh", "-c", f"{chmod} && exec $0 \"$@\" || exit $?"]
 
         try:
-            yield cmdline
+            result = run([*cmdline, *cmd], env=env, log=False)
+        except subprocess.CalledProcessError as e:
+            if log:
+                logging.error(f"\"{' '.join(str(s) for s in cmd)}\" returned non-zero exit code {e.returncode}.")
+            if ARG_DEBUG_SHELL.get():
+                run([*cmdline, "sh"], stdin=sys.stdin, check=False, env=env, log=False)
+            raise e
         finally:
             # Clean up some stuff that might get written by package manager post install scripts.
             if apivfs:
@@ -407,48 +340,6 @@ def bwrap_cmd(
                     # file doesn't exist so do an explicit exists() check first.
                     if (apivfs / f).exists():
                         (apivfs / f).unlink()
-
-
-def bwrap(
-    cmd: Sequence[PathString],
-    *,
-    root: Optional[Path] = None,
-    apivfs: Optional[Path] = None,
-    log: bool = True,
-    scripts: Mapping[str, Sequence[PathString]] = {},
-    # The following arguments are passed directly to run().
-    stdin: _FILE = None,
-    stdout: _FILE = None,
-    stderr: _FILE = None,
-    input: Optional[str] = None,
-    check: bool = True,
-    env: Mapping[str, PathString] = {},
-) -> CompletedProcess:
-    with bwrap_cmd(root=root, apivfs=apivfs, scripts=scripts) as bwrap:
-        try:
-            result = run(
-                [*bwrap, *cmd],
-                text=True,
-                env=env,
-                log=False,
-                stdin=stdin,
-                stdout=stdout,
-                stderr=stderr,
-                input=input,
-                check=check,
-            )
-        except subprocess.CalledProcessError as e:
-            if log:
-                logging.error(f"\"{' '.join(str(s) for s in cmd)}\" returned non-zero exit code {e.returncode}.")
-            if ARG_DEBUG_SHELL.get():
-                run(
-                    [*bwrap, "sh"],
-                    stdin=sys.stdin,
-                    check=False,
-                    env=env,
-                    log=False,
-                )
-            raise e
 
         return result
 

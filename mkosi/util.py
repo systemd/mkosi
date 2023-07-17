@@ -5,6 +5,7 @@ import contextlib
 import enum
 import errno
 import functools
+import importlib
 import itertools
 import logging
 import os
@@ -13,8 +14,7 @@ import re
 import resource
 import stat
 import sys
-import tempfile
-from collections.abc import Iterable, Iterator, Sequence
+from collections.abc import Iterable, Iterator
 from pathlib import Path
 from typing import Any, Callable, Optional, TypeVar
 
@@ -258,30 +258,6 @@ def chdir(directory: Path) -> Iterator[None]:
         os.chdir(old)
 
 
-@contextlib.contextmanager
-def prepend_to_environ_path(paths: Sequence[Path]) -> Iterator[None]:
-    if not paths:
-        yield
-        return
-
-    with tempfile.TemporaryDirectory(prefix="mkosi.path", dir=tmp_dir()) as d:
-
-        for path in paths:
-            if not path.is_dir():
-                Path(d).joinpath(path.name).symlink_to(path.absolute())
-
-        paths = [Path(d), *paths]
-
-        news = [os.fspath(path) for path in paths if path.is_dir()]
-        olds = os.getenv("PATH", "").split(":")
-        os.environ["PATH"] = ":".join(news + olds)
-
-        try:
-            yield
-        finally:
-            os.environ["PATH"] = ":".join(olds)
-
-
 def qemu_check_kvm_support() -> bool:
     kvm = Path("/dev/kvm")
     if not kvm.is_char_device():
@@ -326,3 +302,10 @@ def format_bytes(num_bytes: int) -> str:
 def make_executable(path: Path) -> None:
     st = path.stat()
     os.chmod(path, st.st_mode | stat.S_IEXEC)
+
+
+def try_import(module: str) -> None:
+    try:
+        importlib.import_module(module)
+    except ModuleNotFoundError:
+        pass

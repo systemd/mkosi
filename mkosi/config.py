@@ -1974,7 +1974,7 @@ def load_credentials(args: argparse.Namespace) -> dict[str, str]:
     if args.directory != "" and d.is_dir():
         for e in d.iterdir():
             if os.access(e, os.X_OK):
-                creds[e.name] = run([e], text=True, stdout=subprocess.PIPE, env=os.environ).stdout
+                creds[e.name] = run([e], stdout=subprocess.PIPE, env=os.environ).stdout
             else:
                 creds[e.name] = e.read_text()
 
@@ -1985,7 +1985,6 @@ def load_credentials(args: argparse.Namespace) -> dict[str, str]:
     if "firstboot.timezone" not in creds:
         tz = run(
             ["timedatectl", "show", "-p", "Timezone", "--value"],
-            text=True,
             stdout=subprocess.PIPE,
             check=False,
         ).stdout.strip()
@@ -1998,7 +1997,6 @@ def load_credentials(args: argparse.Namespace) -> dict[str, str]:
     if args.ssh and "ssh.authorized_keys.root" not in creds and "SSH_AUTH_SOCK" in os.environ:
         key = run(
             ["ssh-add", "-L"],
-            text=True,
             stdout=subprocess.PIPE,
             env=os.environ,
             check=False,
