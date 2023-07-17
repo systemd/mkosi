@@ -28,6 +28,8 @@ mkosi — Build Bespoke OS Images
 
 `mkosi [options…] genkey`
 
+`mkosi [options…] documentation`
+
 `mkosi [options…] help`
 
 # DESCRIPTION
@@ -119,6 +121,10 @@ The following command line verbs are known:
 : Generate a pair of SecureBoot keys for usage with the
   `SecureBootKey=`/`--secure-boot-key=` and
   `SecureBootCertificate=`/`--secure-boot-certificate=` options.
+
+`documentation`
+
+: Show mkosi's documentation.
 
 `help`
 

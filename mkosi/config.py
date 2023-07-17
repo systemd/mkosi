@@ -46,17 +46,18 @@ ConfigDefaultCallback = Callable[[argparse.Namespace], Any]
 
 
 class Verb(StrEnum):
-    build   = enum.auto()
-    clean   = enum.auto()
-    summary = enum.auto()
-    shell   = enum.auto()
-    boot    = enum.auto()
-    qemu    = enum.auto()
-    ssh     = enum.auto()
-    serve   = enum.auto()
-    bump    = enum.auto()
-    help    = enum.auto()
-    genkey  = enum.auto()
+    build         = enum.auto()
+    clean         = enum.auto()
+    summary       = enum.auto()
+    shell         = enum.auto()
+    boot          = enum.auto()
+    qemu          = enum.auto()
+    ssh           = enum.auto()
+    serve         = enum.auto()
+    bump          = enum.auto()
+    help          = enum.auto()
+    genkey        = enum.auto()
+    documentation = enum.auto()
 
     def supports_cmdline(self) -> bool:
         return self in (Verb.shell, Verb.boot, Verb.qemu, Verb.ssh)
@@ -1622,6 +1623,7 @@ class MkosiConfigParser:
                     mkosi [options...] {b}serve{e}
                     mkosi [options...] {b}bump{e}
                     mkosi [options...] {b}genkey{e}
+                    mkosi [options...] {b}documentation{e}
                     mkosi [options...] {b}help{e}
                     mkosi -h | --help
                     mkosi --version

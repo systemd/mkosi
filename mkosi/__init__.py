@@ -5,6 +5,7 @@ import datetime
 import hashlib
 import http.server
 import itertools
+import importlib.resources
 import json
 import logging
 import os
@@ -1650,6 +1651,16 @@ def bump_image_version(uid: int = -1, gid: int = -1) -> None:
     os.chown("mkosi.version", uid, gid)
 
 
+def show_docs(args: MkosiArgs) -> None:
+    with importlib.resources.path("mkosi.resources", "mkosi.1") as man:
+        if man.exists():
+            run(["man", man])
+            return
+
+    md = importlib.resources.read_text("mkosi.resources", "mkosi.md")
+    page(md, args.pager)
+
+
 def expand_specifier(s: str) -> str:
     return s.replace("%u", InvokingUser.name())
 
@@ -1683,6 +1694,9 @@ def prepend_to_environ_path(config: MkosiConfig) -> Iterator[None]:
 def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
     if args.verb.needs_root() and os.getuid() != 0:
         die(f"Must be root to run the {args.verb} command")
+
+    if args.verb == Verb.documentation:
+        return show_docs(args)
 
     if args.verb == Verb.genkey:
         return generate_key_cert_pair(args)
