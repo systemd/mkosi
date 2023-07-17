@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
+import shutil
 import tempfile
 from collections.abc import Sequence
 from pathlib import Path
@@ -8,7 +9,7 @@ from textwrap import dedent
 from mkosi.architecture import Architecture
 from mkosi.distributions import DistributionInstaller
 from mkosi.log import die
-from mkosi.run import bwrap, which
+from mkosi.run import bwrap
 from mkosi.state import MkosiState
 from mkosi.types import CompletedProcess, PathString
 
@@ -231,7 +232,7 @@ def invoke_apt(
         "-o", f"Dir::Etc::trusted={trustedkeys}",
         "-o", f"Dir::Etc::trustedparts={trustedkeys_dir}",
         "-o", f"Dir::Log={state.pkgmngr / 'var/log/apt'}",
-        "-o", f"Dir::Bin::dpkg={which('dpkg', tools=state.config.tools_tree)}",
+        "-o", f"Dir::Bin::dpkg={shutil.which('dpkg')}",
         "-o", "Debug::NoLocking=true",
         "-o", f"DPkg::Options::=--root={state.root}",
         "-o", f"DPkg::Options::=--log={state.pkgmngr / 'var/log/apt/dpkg.log'}",

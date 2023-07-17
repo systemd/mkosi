@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
+import shutil
 import textwrap
 import urllib.request
 import xml.etree.ElementTree as ElementTree
@@ -9,7 +10,7 @@ from mkosi.architecture import Architecture
 from mkosi.distributions import DistributionInstaller
 from mkosi.distributions.fedora import Repo, fixup_rpmdb_location, invoke_dnf, setup_dnf
 from mkosi.log import die
-from mkosi.run import bwrap, which
+from mkosi.run import bwrap
 from mkosi.state import MkosiState
 
 
@@ -43,7 +44,7 @@ class OpensuseInstaller(DistributionInstaller):
             release_url = f"{state.config.mirror}/distribution/leap/{release}/repo/oss/"
             updates_url = f"{state.config.mirror}/update/leap/{release}/oss/"
 
-        zypper = which("zypper", tools=state.config.tools_tree)
+        zypper = shutil.which("zypper")
 
         # If we need to use a local mirror, create a temporary repository definition
         # that doesn't get in the image, as it is valid only at image build time.
@@ -63,7 +64,7 @@ class OpensuseInstaller(DistributionInstaller):
 
     @classmethod
     def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
-        if which("zypper", tools=state.config.tools_tree):
+        if shutil.which("zypper"):
             invoke_zypper(state, "remove", packages, ["--clean-deps"])
         else:
             invoke_dnf(state, "remove", packages)

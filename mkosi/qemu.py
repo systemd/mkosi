@@ -20,7 +20,7 @@ from mkosi.btrfs import btrfs_maybe_snapshot_subvolume
 from mkosi.config import ConfigFeature, MkosiArgs, MkosiConfig
 from mkosi.log import die
 from mkosi.remove import unlink_try_hard
-from mkosi.run import MkosiAsyncioThread, bwrap, bwrap_cmd, spawn, which
+from mkosi.run import MkosiAsyncioThread, bwrap, bwrap_cmd, spawn
 from mkosi.types import PathString
 from mkosi.util import (
     Distribution,
@@ -41,7 +41,7 @@ def machine_cid(config: MkosiConfig) -> int:
 def find_qemu_binary(config: MkosiConfig) -> str:
     binaries = ["qemu", "qemu-kvm", f"qemu-system-{config.architecture.to_qemu()}"]
     for binary in binaries:
-        if which(binary, tools=config.tools_tree) is not None:
+        if shutil.which(binary) is not None:
             return binary
 
     die("Couldn't find QEMU/KVM binary")
@@ -294,7 +294,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
                         "-device", "virtio-scsi-pci,id=scsi",
                         "-device", "scsi-hd,drive=hd,bootindex=1"]
 
-        if config.qemu_swtpm != ConfigFeature.disabled and which("swtpm", tools=config.tools_tree) is not None:
+        if config.qemu_swtpm != ConfigFeature.disabled and shutil.which("swtpm") is not None:
             sock = stack.enter_context(start_swtpm(config))
             cmdline += ["-chardev", f"socket,id=chrtpm,path={sock}",
                         "-tpmdev", "emulator,id=tpm0,chardev=chrtpm"]
