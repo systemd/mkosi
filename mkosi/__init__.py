@@ -45,6 +45,7 @@ from mkosi.run import (
     fork_and_wait,
     run,
     spawn,
+    which,
 )
 from mkosi.state import MkosiState
 from mkosi.types import PathString
@@ -438,7 +439,7 @@ def install_boot_loader(state: MkosiState) -> None:
     if not any(gen_kernel_images(state)) and state.config.bootable == ConfigFeature.auto:
         return
 
-    if not shutil.which("bootctl"):
+    if not which("bootctl", tools=state.config.tools_tree):
         if state.config.bootable == ConfigFeature.enabled:
             die("A bootable image was requested but bootctl was not found")
         return
@@ -460,7 +461,7 @@ def install_boot_loader(state: MkosiState) -> None:
 
                 if (state.config.secure_boot_sign_tool == SecureBootSignTool.sbsign or
                     state.config.secure_boot_sign_tool == SecureBootSignTool.auto and
-                    shutil.which("sbsign") is not None):
+                    which("sbsign", state.config.tools_tree) is not None):
                     bwrap(["sbsign",
                            "--key", state.config.secure_boot_key,
                            "--cert", state.config.secure_boot_certificate,
@@ -469,7 +470,7 @@ def install_boot_loader(state: MkosiState) -> None:
                           tools=state.config.tools_tree)
                 elif (state.config.secure_boot_sign_tool == SecureBootSignTool.pesign or
                       state.config.secure_boot_sign_tool == SecureBootSignTool.auto and
-                      shutil.which("pesign") is not None):
+                      which("pesign", tools=state.config.tools_tree) is not None):
                     pesign_prepare(state)
                     bwrap(["pesign",
                            "--certdir", state.workspace / "pesign",
@@ -600,11 +601,11 @@ def install_build_dest(state: MkosiState) -> None:
         copy_path(state.install_dir, state.root, tools=state.config.tools_tree)
 
 
-def gzip_binary() -> str:
-    return "pigz" if shutil.which("pigz") else "gzip"
+def gzip_binary(config: MkosiConfig) -> str:
+    return "pigz" if which("pigz", tools=config.tools_tree) else "gzip"
 
 
-def tar_binary() -> str:
+def tar_binary(config: MkosiConfig) -> str:
     # Some distros (Mandriva) install BSD tar as "tar", hence prefer
     # "gtar" if it exists, which should be GNU tar wherever it exists.
     # We are interested in exposing same behaviour everywhere hence
@@ -612,7 +613,7 @@ def tar_binary() -> str:
     # everywhere. In particular given the limited/different SELinux
     # support in BSD tar and the different command line syntax
     # compared to GNU tar.
-    return "gtar" if shutil.which("gtar") else "tar"
+    return "gtar" if which("gtar", tools=config.tools_tree) else "tar"
 
 
 def make_tar(state: MkosiState) -> None:
@@ -620,7 +621,7 @@ def make_tar(state: MkosiState) -> None:
         return
 
     cmd: list[PathString] = [
-        tar_binary(),
+        tar_binary(state.config),
         "-C", state.root,
         "-c", "--xattrs",
         "--xattrs-include=*",
@@ -951,7 +952,7 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                 die(f"sd-stub not found at /{stub.relative_to(state.root)} in the image")
 
             cmd: list[PathString] = [
-                shutil.which("ukify") or "/usr/lib/systemd/ukify",
+                which("ukify", tools=state.config.tools_tree) or "/usr/lib/systemd/ukify",
                 "--cmdline", f"@{state.workspace / 'cmdline'}",
                 "--os-release", f"@{state.root / 'usr/lib/os-release'}",
                 "--stub", stub,
@@ -988,7 +989,7 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
 
                 sign_expected_pcr = (state.config.sign_expected_pcr == ConfigFeature.enabled or
                                     (state.config.sign_expected_pcr == ConfigFeature.auto and
-                                     shutil.which("systemd-measure") is not None))
+                                     which("systemd-measure", tools=state.config.tools_tree) is not None))
 
                 if sign_expected_pcr:
                     cmd += [
@@ -1012,11 +1013,11 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
         die("A bootable image was requested but no kernel was found")
 
 
-def compressor_command(compression: Compression) -> list[PathString]:
+def compressor_command(config: MkosiConfig, compression: Compression) -> list[PathString]:
     """Returns a command suitable for compressing archives."""
 
     if compression == Compression.gz:
-        return [gzip_binary(), "--fast", "--stdout", "-"]
+        return [gzip_binary(config), "--fast", "--stdout", "-"]
     elif compression == Compression.xz:
         return ["xz", "--check=crc32", "--fast", "-T0", "--stdout", "-"]
     elif compression == Compression.zst:
@@ -1039,7 +1040,7 @@ def maybe_compress(state: MkosiState, compression: Compression, src: Path, dst: 
             src.unlink() # if src == dst, make sure dst doesn't truncate the src file but creates a new file.
 
             with dst.open("wb") as o:
-                bwrap(compressor_command(compression), stdin=i, stdout=o, tools=state.config.tools_tree)
+                bwrap(compressor_command(state.config, compression), stdin=i, stdout=o, tools=state.config.tools_tree)
                 os.chown(dst, uid=state.uid, gid=state.gid)
 
 

@@ -11,6 +11,7 @@ import os
 import pwd
 import queue
 import shlex
+import shutil
 import signal
 import subprocess
 import sys
@@ -484,6 +485,10 @@ def chroot_cmd(root: Path, *, options: Sequence[PathString] = (), network: bool 
         cmdline += ["--unshare-net"]
 
     return cmdline
+
+
+def which(program: str, tools: Optional[Path]) -> Optional[str]:
+    return shutil.which(program, path=f"{tools}/usr/bin:{tools}/usr/sbin" if tools else None)
 
 
 class MkosiAsyncioThread(threading.Thread):
