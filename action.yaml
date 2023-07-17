@@ -39,7 +39,6 @@ runs:
         mtools \
         ovmf \
         pacman-package-manager \
-        pandoc \
         python3-pefile \
         python3-pyelftools \
         qemu-system-x86 \
