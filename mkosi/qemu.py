@@ -274,7 +274,10 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
             fname = config.output_dir / config.output
 
         if config.output_format == OutputFormat.disk:
-            bwrap(["systemd-repart", "--definitions", "", "--no-pager", "--size", "8G", "--pretty", "no", fname])
+            bwrap(
+                ["systemd-repart", "--definitions", "", "--no-pager", "--size", "8G", "--pretty", "no", fname],
+                tools=config.tools_tree,
+            )
 
         # Debian images fail to boot with virtio-scsi, see: https://github.com/systemd/mkosi/issues/725
         if config.output_format == OutputFormat.cpio:
