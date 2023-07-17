@@ -4,17 +4,12 @@ import contextlib
 import fcntl
 import importlib.resources
 import os
-import stat
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Optional
 
 from mkosi.run import bwrap
-
-
-def make_executable(path: Path) -> None:
-    st = path.stat()
-    os.chmod(path, st.st_mode | stat.S_IEXEC)
+from mkosi.util import make_executable
 
 
 def write_resource(
@@ -53,7 +48,7 @@ def copy_path(
     *,
     dereference: bool = False,
     preserve_owner: bool = True,
-    root: Optional[Path] = None,
+    tools: Optional[Path] = None,
 ) -> None:
     bwrap([
         "cp",
@@ -63,4 +58,4 @@ def copy_path(
         "--no-target-directory",
         "--reflink=auto",
         src, dst,
-    ], root=root)
+    ], tools=tools)

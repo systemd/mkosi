@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
-import shutil
 import tempfile
 from collections.abc import Sequence
 from pathlib import Path
@@ -9,7 +8,7 @@ from textwrap import dedent
 from mkosi.architecture import Architecture
 from mkosi.distributions import DistributionInstaller
 from mkosi.log import die
-from mkosi.run import bwrap
+from mkosi.run import bwrap, which
 from mkosi.state import MkosiState
 from mkosi.types import CompletedProcess, PathString
 
@@ -93,9 +92,9 @@ class DebianInstaller(DistributionInstaller):
 
         for deb in essential:
             with tempfile.NamedTemporaryFile(dir=state.workspace) as f:
-                bwrap(["dpkg-deb", "--fsys-tarfile", deb], stdout=f, root=state.config.tools_tree)
+                bwrap(["dpkg-deb", "--fsys-tarfile", deb], stdout=f, tools=state.config.tools_tree)
                 bwrap(["tar", "-C", state.root, "--keep-directory-symlink", "--extract", "--file", f.name],
-                      root=state.config.tools_tree)
+                      tools=state.config.tools_tree)
 
         # Finally, run apt to properly install packages in the chroot without having to worry that maintainer
         # scripts won't find basic tools that they depend on.
@@ -199,7 +198,7 @@ def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
 def invoke_apt(
     state: MkosiState,
     operation: str,
-    extra: Sequence[str] = (),
+    packages: Sequence[str] = (),
     apivfs: bool = True,
 ) -> CompletedProcess:
     env: dict[str, PathString] = dict(
@@ -232,7 +231,7 @@ def invoke_apt(
         "-o", f"Dir::Etc::trusted={trustedkeys}",
         "-o", f"Dir::Etc::trustedparts={trustedkeys_dir}",
         "-o", f"Dir::Log={state.pkgmngr / 'var/log/apt'}",
-        "-o", f"Dir::Bin::dpkg={shutil.which('dpkg')}",
+        "-o", f"Dir::Bin::dpkg={which('dpkg', tools=state.config.tools_tree)}",
         "-o", "Debug::NoLocking=true",
         "-o", f"DPkg::Options::=--root={state.root}",
         "-o", f"DPkg::Options::=--log={state.pkgmngr / 'var/log/apt/dpkg.log'}",
@@ -244,10 +243,10 @@ def invoke_apt(
         "-o", "pkgCacheGen::ForceEssential=,",
     ]
 
-    return bwrap(["apt-get", *options, operation, *extra],
+    return bwrap(["apt-get", *options, operation, *packages],
                  apivfs=state.root if apivfs else None,
                  env=env | state.environment,
-                 root=state.config.tools_tree)
+                 tools=state.config.tools_tree)
 
 
 def install_apt_sources(state: MkosiState, repos: Sequence[str]) -> None:

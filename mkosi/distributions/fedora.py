@@ -12,7 +12,7 @@ from mkosi.architecture import Architecture
 from mkosi.distributions import DistributionInstaller
 from mkosi.log import die
 from mkosi.remove import unlink_try_hard
-from mkosi.run import bwrap
+from mkosi.run import bwrap, which
 from mkosi.state import MkosiState
 from mkosi.util import Distribution, detect_distribution, sort_packages
 
@@ -173,14 +173,13 @@ def invoke_dnf(
     state.pkgmngr.joinpath("var/lib/dnf").mkdir(exist_ok=True, parents=True)
 
     # dnf5 does not support building for foreign architectures yet (missing --forcearch)
-    dnf = shutil.which("dnf5") if state.config.architecture.is_native() else None
-    dnf = dnf or shutil.which("dnf") or "yum"
+    dnf = which("dnf5", tools=state.config.tools_tree) if state.config.architecture.is_native() else None
+    dnf = dnf or which("dnf", tools=state.config.tools_tree) or "yum"
 
     cmdline = [
         dnf,
         "--assumeyes",
         f"--config={state.pkgmngr / 'etc/dnf/dnf.conf'}",
-        command,
         "--best",
         f"--releasever={release}",
         f"--installroot={state.root}",
@@ -192,10 +191,6 @@ def invoke_dnf(
         "--setopt=check_config_file_age=0",
         "--no-plugins" if dnf.endswith("dnf5") else "--noplugins",
     ]
-
-    # dnf5 doesn't support --allowerasing for remove. Add it for other commands.
-    if command != "remove":
-        cmdline += ["--allowerasing"]
 
     # Make sure we download filelists so all dependencies can be resolved.
     # See https://bugzilla.redhat.com/show_bug.cgi?id=2180842
@@ -221,12 +216,12 @@ def invoke_dnf(
     if not state.config.with_docs:
         cmdline += ["--no-docs" if dnf.endswith("dnf5") else "--nodocs"]
 
-    cmdline += sort_packages(packages)
+    cmdline += [command, *sort_packages(packages)]
 
     bwrap(cmdline,
           apivfs=state.root if apivfs else None,
           env=dict(KERNEL_INSTALL_BYPASS="1") | env | state.environment,
-          root=state.config.tools_tree)
+          tools=state.config.tools_tree)
 
     fixup_rpmdb_location(state.root)
 

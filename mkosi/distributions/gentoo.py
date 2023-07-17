@@ -12,7 +12,7 @@ from mkosi.distributions import DistributionInstaller
 from mkosi.install import copy_path
 from mkosi.log import ARG_DEBUG, complete_step, die
 from mkosi.remove import unlink_try_hard
-from mkosi.run import bwrap, run_workspace_command
+from mkosi.run import bwrap, chroot_cmd
 from mkosi.state import MkosiState
 from mkosi.types import PathString
 
@@ -23,9 +23,9 @@ def invoke_emerge(
     options: Sequence[str] = (),
     env: Mapping[str, str] = {},
 ) -> None:
-    run_workspace_command(
-        state.cache_dir / "stage3",
+    bwrap(
         cmd=[
+            "chroot",
             "emerge",
             *packages,
             "--update",
@@ -47,13 +47,20 @@ def invoke_emerge(
             *(["--verbose", "--quiet=n", "--quiet-fail=n"] if ARG_DEBUG.get() else ["--quiet-build", "--quiet"]),
             *options,
         ],
-        bwrap_params=[
-            "--bind", state.root, "/tmp/mkosi-root",
-            "--bind", state.cache_dir / "binpkgs", "/var/cache/binpkgs",
-            "--bind", state.cache_dir / "distfiles", "/var/cache/distfiles",
-            "--bind", state.cache_dir / "repos", "/var/db/repos",
-        ],
-        network=True,
+        tools=state.config.tools_tree,
+        apivfs=state.cache_dir / "stage3",
+        scripts=dict(
+            chroot=chroot_cmd(
+                root=state.cache_dir / "stage3",
+                options=[
+                    "--bind", state.root, "/tmp/mkosi-root",
+                    "--bind", state.cache_dir / "binpkgs", "/var/cache/binpkgs",
+                    "--bind", state.cache_dir / "distfiles", "/var/cache/distfiles",
+                    "--bind", state.cache_dir / "repos", "/var/db/repos",
+                ],
+                network=True,
+            ),
+        ),
         env=dict(
             FEATURES=" ".join([
                 "getbinpkg",
@@ -117,7 +124,7 @@ class GentooInstaller(DistributionInstaller):
             if stage3_tar.exists():
                 cmd += ["--time-cond", stage3_tar]
 
-            bwrap(cmd, root=state.config.tools_tree)
+            bwrap(cmd, tools=state.config.tools_tree)
 
             if stage3_tar.stat().st_mtime > old:
                 unlink_try_hard(stage3)
@@ -134,18 +141,24 @@ class GentooInstaller(DistributionInstaller):
                        "--exclude", "./dev/*",
                        "--exclude", "./proc/*",
                        "--exclude", "./sys/*"],
-                      root=state.config.tools_tree)
+                      tools=state.config.tools_tree)
 
         for d in ("binpkgs", "distfiles", "repos/gentoo"):
             (state.cache_dir / d).mkdir(parents=True, exist_ok=True)
 
-        copy_path(state.pkgmngr, stage3, preserve_owner=False, root=state.config.tools_tree)
+        copy_path(state.pkgmngr, stage3, preserve_owner=False, tools=state.config.tools_tree)
 
-        run_workspace_command(
-            stage3,
-            cmd=["emerge-webrsync"],
-            bwrap_params=["--bind", state.cache_dir / "repos", "/var/db/repos"],
-            network=True,
+        bwrap(
+            cmd=["chroot", "emerge-webrsync"],
+            tools=state.config.tools_tree,
+            apivfs=stage3,
+            scripts=dict(
+                chroot=chroot_cmd(
+                    stage3,
+                    options=["--bind", state.cache_dir / "repos", "/var/db/repos"],
+                    network=True,
+                ),
+            ),
         )
 
         invoke_emerge(state, packages=["sys-apps/baselayout"], env={"USE": "build"})

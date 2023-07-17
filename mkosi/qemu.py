@@ -20,7 +20,7 @@ from mkosi.btrfs import btrfs_maybe_snapshot_subvolume
 from mkosi.config import ConfigFeature, MkosiArgs, MkosiConfig
 from mkosi.log import die
 from mkosi.remove import unlink_try_hard
-from mkosi.run import MkosiAsyncioThread, bwrap, bwrap_cmd, spawn
+from mkosi.run import MkosiAsyncioThread, bwrap, bwrap_cmd, spawn, which
 from mkosi.types import PathString
 from mkosi.util import (
     Distribution,
@@ -41,7 +41,7 @@ def machine_cid(config: MkosiConfig) -> int:
 def find_qemu_binary(config: MkosiConfig) -> str:
     binaries = ["qemu", "qemu-kvm", f"qemu-system-{config.architecture.to_qemu()}"]
     for binary in binaries:
-        if shutil.which(binary) is not None:
+        if which(binary, tools=config.tools_tree) is not None:
             return binary
 
     die("Couldn't find QEMU/KVM binary")
@@ -138,7 +138,7 @@ def find_ovmf_vars(config: MkosiConfig) -> Path:
 
 @contextlib.contextmanager
 def start_swtpm(config: MkosiConfig) -> Iterator[Optional[Path]]:
-    with tempfile.TemporaryDirectory() as state, bwrap_cmd(root=config.tools_tree) as bwrap:
+    with tempfile.TemporaryDirectory() as state, bwrap_cmd(tools=config.tools_tree) as bwrap:
         sock = Path(state) / Path("sock")
         proc = spawn([*bwrap, "swtpm", "socket", "--tpm2", "--tpmstate", f"dir={state}", "--ctrl", f"type=unixio,path={sock}"])
 
@@ -291,7 +291,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
                         "-device", "virtio-scsi-pci,id=scsi",
                         "-device", "scsi-hd,drive=hd,bootindex=1"]
 
-        if config.qemu_swtpm != ConfigFeature.disabled and shutil.which("swtpm") is not None:
+        if config.qemu_swtpm != ConfigFeature.disabled and which("swtpm", tools=config.tools_tree) is not None:
             sock = stack.enter_context(start_swtpm(config))
             cmdline += ["-chardev", f"socket,id=chrtpm,path={sock}",
                         "-tpmdev", "emulator,id=tpm0,chardev=chrtpm"]
@@ -313,7 +313,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
               stdout=sys.stdout,
               env=os.environ,
               log=False,
-              root=config.tools_tree)
+              tools=config.tools_tree)
 
     if status := int(notifications.get("EXIT_STATUS", 0)):
         raise subprocess.CalledProcessError(status, cmdline)

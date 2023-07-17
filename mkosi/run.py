@@ -10,11 +10,13 @@ import multiprocessing
 import os
 import pwd
 import queue
+import shlex
 import shutil
 import signal
 import subprocess
 import sys
 import tempfile
+import textwrap
 import threading
 import traceback
 from pathlib import Path
@@ -34,7 +36,7 @@ from typing import (
 
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, die
 from mkosi.types import _FILE, CompletedProcess, PathString, Popen
-from mkosi.util import InvokingUser
+from mkosi.util import InvokingUser, make_executable
 
 CLONE_NEWNS = 0x00020000
 CLONE_NEWUSER = 0x10000000
@@ -224,9 +226,10 @@ def run(
     stdin: _FILE = None,
     stdout: _FILE = None,
     stderr: _FILE = None,
+    input: Optional[str] = None,
+    text: bool = True,
     env: Mapping[str, PathString] = {},
     log: bool = True,
-    **kwargs: Any,
 ) -> CompletedProcess:
     if ARG_DEBUG.get():
         logging.info(f"+ {' '.join(str(s) for s in cmdline)}")
@@ -248,20 +251,23 @@ def run(
     if ARG_DEBUG.get():
         env["SYSTEMD_LOG_LEVEL"] = "debug"
 
-    if "input" in kwargs:
+    if input is not None:
         assert stdin is None  # stdin and input cannot be specified together
     elif stdin is None:
         stdin = subprocess.DEVNULL
 
     try:
-        return subprocess.run(cmdline,
-                              check=check,
-                              stdin=stdin,
-                              stdout=stdout,
-                              stderr=stderr,
-                              env=env,
-                              **kwargs,
-                              preexec_fn=foreground)
+        return subprocess.run(
+            cmdline,
+            check=check,
+            stdin=stdin,
+            stdout=stdout,
+            stderr=stderr,
+            input=input,
+            text=True,
+            env=env,
+            preexec_fn=foreground,
+        )
     except FileNotFoundError:
         die(f"{cmdline[0]} not found in PATH.")
     except subprocess.CalledProcessError as e:
@@ -274,9 +280,10 @@ def run(
 
 def spawn(
     cmdline: Sequence[PathString],
+    stdin: _FILE = None,
     stdout: _FILE = None,
     stderr: _FILE = None,
-    **kwargs: Any,
+    text: bool = True,
 ) -> Popen:
     if ARG_DEBUG.get():
         logging.info(f"+ {' '.join(str(s) for s in cmdline)}")
@@ -288,25 +295,34 @@ def spawn(
         stdout = sys.stderr
 
     try:
-        return subprocess.Popen(cmdline, stdout=stdout, stderr=stderr, **kwargs, preexec_fn=foreground)
+        return subprocess.Popen(
+            cmdline,
+            stdin=stdin,
+            stdout=stdout,
+            stderr=stderr,
+            text=text,
+            preexec_fn=foreground,
+        )
     except FileNotFoundError:
         die(f"{cmdline[0]} not found in PATH.")
     except subprocess.CalledProcessError as e:
         logging.error(f"\"{' '.join(str(s) for s in cmdline)}\" returned non-zero exit code {e.returncode}.")
         raise e
 
+
 @contextlib.contextmanager
 def bwrap_cmd(
     *,
-    root: Optional[Path] = None,
+    tools: Optional[Path] = None,
     apivfs: Optional[Path] = None,
+    scripts: Mapping[str, Sequence[PathString]] = {},
 ) -> Iterator[list[PathString]]:
     cmdline: list[PathString] = [
         "bwrap",
         "--dev-bind", "/", "/",
         "--chdir", Path.cwd(),
         "--die-with-parent",
-        "--ro-bind", (root or Path("/")) / "usr", "/usr",
+        "--ro-bind", (tools or Path("/")) / "usr", "/usr",
     ]
 
     for d in ("/etc", "/opt", "/srv", "/boot", "/efi"):
@@ -343,7 +359,36 @@ def bwrap_cmd(
     else:
         chmod = ":"
 
-    with tempfile.TemporaryDirectory(dir="/var/tmp", prefix="mkosi-var-tmp") as var_tmp:
+    with tempfile.TemporaryDirectory(dir="/var/tmp", prefix="mkosi-var-tmp") as var_tmp,\
+         tempfile.TemporaryDirectory(dir="/tmp", prefix="mkosi-scripts") as d:
+
+        for name, cmd in scripts.items():
+            # Make sure we don't end up in a recursive loop when we name a script after the binary it execs
+            # by removing the scripts directory from the PATH when we execute a script.
+            (Path(d) / name).write_text(
+                textwrap.dedent(
+                    f"""\
+                    #!/bin/sh
+                    PATH="$(echo $PATH | tr ':' '\n' | grep -v {Path(d)} | tr '\n' ':')"
+                    export PATH
+                    exec {shlex.join(str(s) for s in cmd)} "$@"
+                    """
+                )
+            )
+
+            make_executable(Path(d) / name)
+
+        # We modify the PATH via --setenv so that bwrap itself is looked up in PATH before we change it.
+        if tools:
+            # If a tools tree is specified, we should ignore any local modifications made to PATH as any of
+            # those binaries might not work anymore when /usr is replaced wholesale. We also make sure that
+            # both /usr/bin and /usr/sbin/ are searched so that e.g. if the host is Arch and the root is
+            # Debian we don't ignore the binaries from /usr/sbin in the Debian root. We also keep the scripts
+            # directory in PATH as all of them are interpreted and can't be messed up by replacing /usr.
+            cmdline += ["--setenv", "PATH", f"{d}:/usr/bin:/usr/sbin"]
+        else:
+            cmdline += ["--setenv", "PATH", f"{d}:{os.environ['PATH']}"]
+
         if apivfs:
             cmdline += [
                 "--bind", var_tmp, apivfs / "var/tmp",
@@ -359,101 +404,91 @@ def bwrap_cmd(
             # Clean up some stuff that might get written by package manager post install scripts.
             if apivfs:
                 for f in ("var/lib/systemd/random-seed", "var/lib/systemd/credential.secret", "etc/machine-info"):
-                    apivfs.joinpath(f).unlink(missing_ok=True)
+                    # Using missing_ok=True still causes an OSError if the mount is read-only even if the
+                    # file doesn't exist so do an explicit exists() check first.
+                    if (apivfs / f).exists():
+                        (apivfs / f).unlink()
 
 
 def bwrap(
     cmd: Sequence[PathString],
     *,
-    root: Optional[Path] = None,
+    tools: Optional[Path] = None,
     apivfs: Optional[Path] = None,
-    env: Mapping[str, PathString] = {},
     log: bool = True,
-    **kwargs: Any,
+    scripts: Mapping[str, Sequence[PathString]] = {},
+    # The following arguments are passed directly to run().
+    stdin: _FILE = None,
+    stdout: _FILE = None,
+    stderr: _FILE = None,
+    input: Optional[str] = None,
+    check: bool = True,
+    env: Mapping[str, PathString] = {},
 ) -> CompletedProcess:
-    with bwrap_cmd(root=root, apivfs=apivfs) as bwrap:
-        if root:
-            # If a root is specified, we should ignore any local modifications made to PATH as any of those
-            # tools might not work anymore when /usr is replaced wholesale. We also make sure that both
-            # /usr/bin and /usr/sbin/ are searched so that e.g. if the host is Arch and the root is Debian we
-            # don't ignore the binaries from /usr/sbin in the Debian root.
-            env = dict(PATH="/usr/bin:/usr/sbin") | env
-
+    with bwrap_cmd(tools=tools, apivfs=apivfs, scripts=scripts) as bwrap:
         try:
-            result = run([*bwrap, *cmd], text=True, env=env, log=False, **kwargs)
+            result = run(
+                [*bwrap, *cmd],
+                text=True,
+                env=env,
+                log=False,
+                stdin=stdin,
+                stdout=stdout,
+                stderr=stderr,
+                input=input,
+                check=check,
+            )
         except subprocess.CalledProcessError as e:
             if log:
                 logging.error(f"\"{' '.join(str(s) for s in cmd)}\" returned non-zero exit code {e.returncode}.")
             if ARG_DEBUG_SHELL.get():
-                run([*bwrap, "sh"], stdin=sys.stdin, check=False, env=env, log=False)
+                run(
+                    [*bwrap, "sh"],
+                    stdin=sys.stdin,
+                    check=False,
+                    env=env,
+                    log=False,
+                )
             raise e
 
         return result
 
 
-def run_workspace_command(
-    root: Path,
-    cmd: Sequence[PathString],
-    bwrap_params: Sequence[PathString] = (),
-    network: bool = False,
-    stdout: _FILE = None,
-    env: Mapping[str, PathString] = {},
-) -> CompletedProcess:
+def chroot_cmd(root: Path, *, options: Sequence[PathString] = (), network: bool = False) -> Sequence[PathString]:
     cmdline: list[PathString] = [
         "bwrap",
         "--unshare-ipc",
         "--unshare-pid",
         "--unshare-cgroup",
-        "--bind", root, "/",
-        "--tmpfs", "/run",
-        "--tmpfs", "/tmp",
-        "--dev", "/dev",
-        "--proc", "/proc",
-        "--ro-bind", "/sys", "/sys",
+        "--dev-bind", root, "/",
         "--die-with-parent",
-        *bwrap_params,
+        "--setenv", "container", "mkosi",
+        "--setenv", "SYSTEMD_OFFLINE", str(int(network)),
+        "--setenv", "HOME", "/",
+        "--setenv", "PATH", "/usr/bin:/usr/sbin",
+        *options,
     ]
 
-    resolve = root.joinpath("etc/resolv.conf")
-
-    tmp = Path(tempfile.NamedTemporaryFile(delete=False).name)
-    tmp.unlink()
-
     if network:
-        # Bubblewrap does not mount over symlinks and /etc/resolv.conf might be a symlink. Deal with this by
-        # temporarily moving the file somewhere else.
-        if resolve.is_symlink():
-            shutil.move(resolve, tmp)
+        resolve = Path("etc/resolv.conf")
+        if (root / resolve).is_symlink():
+            # For each component in the target path, bubblewrap will try to create it if it doesn't exist
+            # yet. If a component in the path is a dangling symlink, bubblewrap will end up calling
+            # mkdir(symlink) which obviously fails if multiple components of the dangling symlink path don't
+            # exist yet. As a workaround, we resolve the symlink ourselves so that bubblewrap will correctly
+            # create all missing components in the target path.
+            resolve = (root / resolve).readlink()
 
-        # If we're using the host network namespace, use the same resolver
-        cmdline += ["--ro-bind", "/etc/resolv.conf", "/etc/resolv.conf"]
+        # If we're using the host network namespace, use the same resolver.
+        cmdline += ["--ro-bind", "/etc/resolv.conf", Path("/") / resolve]
     else:
         cmdline += ["--unshare-net"]
 
-    env = dict(
-        container="mkosi",
-        SYSTEMD_OFFLINE=str(int(network)),
-        HOME="/",
-        PATH="/usr/bin:/usr/sbin",
-    ) | env
+    return cmdline
 
-    with tempfile.TemporaryDirectory(dir="/var/tmp", prefix="mkosi-var-tmp") as var_tmp:
-        cmdline += [
-            "--bind", var_tmp, "/var/tmp",
-            "sh", "-c", "chmod 1777 /tmp /var/tmp /dev/shm && exec $0 \"$@\" || exit $?"
-        ]
 
-        try:
-            return run([*cmdline, *cmd], text=True, stdout=stdout, env=env, log=False)
-        except subprocess.CalledProcessError as e:
-            logging.error(f"\"{' '.join(str(s) for s in cmd)}\" returned non-zero exit code {e.returncode}.")
-            if ARG_DEBUG_SHELL.get():
-                run([*cmdline, "sh"], stdin=sys.stdin, check=False, env=env, log=False)
-            raise e
-        finally:
-            if tmp.is_symlink():
-                resolve.unlink(missing_ok=True)
-                shutil.move(tmp, resolve)
+def which(program: str, tools: Optional[Path]) -> Optional[str]:
+    return shutil.which(program, path=f"{tools}/usr/bin:{tools}/usr/sbin" if tools else None)
 
 
 class MkosiAsyncioThread(threading.Thread):
