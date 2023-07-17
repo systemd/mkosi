@@ -413,7 +413,7 @@ def bwrap_cmd(
 def bwrap(
     cmd: Sequence[PathString],
     *,
-    tools: Optional[Path] = None,
+    tools: Optional[Path],
     apivfs: Optional[Path] = None,
     log: bool = True,
     scripts: Mapping[str, Sequence[PathString]] = {},
