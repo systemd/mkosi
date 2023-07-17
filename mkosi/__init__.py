@@ -953,7 +953,7 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                 die(f"sd-stub not found at /{stub.relative_to(state.root)} in the image")
 
             cmd: list[PathString] = [
-                which("ukify", tools=state.config.tools_tree) or "/usr/lib/systemd/ukify",
+                which("ukify", tools=state.config.tools_tree) or (state.config.tools_tree or Path("/")) / "usr/lib/systemd/ukify",
                 "--cmdline", f"@{state.workspace / 'cmdline'}",
                 "--os-release", f"@{state.root / 'usr/lib/os-release'}",
                 "--stub", stub,
