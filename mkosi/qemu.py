@@ -49,61 +49,65 @@ def find_qemu_binary(config: MkosiConfig) -> str:
 
 def find_qemu_firmware(config: MkosiConfig) -> tuple[Path, bool]:
     FIRMWARE_LOCATIONS = {
-        Architecture.x86_64: ["/usr/share/ovmf/x64/OVMF_CODE.secboot.fd"],
+        Architecture.x86_64: ["usr/share/ovmf/x64/OVMF_CODE.secboot.fd"],
         Architecture.x86: [
-            "/usr/share/edk2/ovmf-ia32/OVMF_CODE.secboot.fd",
-            "/usr/share/OVMF/OVMF32_CODE_4M.secboot.fd"
+            "usr/share/edk2/ovmf-ia32/OVMF_CODE.secboot.fd",
+            "usr/share/OVMF/OVMF32_CODE_4M.secboot.fd"
         ],
     }.get(config.architecture, [])
 
     for firmware in FIRMWARE_LOCATIONS:
-        if os.path.exists(firmware):
-            return Path(firmware), True
+        path = (config.tools_tree or Path("/")) / firmware
+        if path.exists():
+            return Path("/") / firmware, True
 
     FIRMWARE_LOCATIONS = {
         Architecture.x86_64: [
-            "/usr/share/ovmf/ovmf_code_x64.bin",
-            "/usr/share/ovmf/x64/OVMF_CODE.fd",
-            "/usr/share/qemu/ovmf-x86_64.bin",
+            "usr/share/ovmf/ovmf_code_x64.bin",
+            "usr/share/ovmf/x64/OVMF_CODE.fd",
+            "usr/share/qemu/ovmf-x86_64.bin",
         ],
-        Architecture.x86: ["/usr/share/ovmf/ovmf_code_ia32.bin", "/usr/share/edk2/ovmf-ia32/OVMF_CODE.fd"],
-        Architecture.arm64: ["/usr/share/AAVMF/AAVMF_CODE.fd"],
-        Architecture.arm: ["/usr/share/AAVMF/AAVMF32_CODE.fd"],
+        Architecture.x86: ["usr/share/ovmf/ovmf_code_ia32.bin", "usr/share/edk2/ovmf-ia32/OVMF_CODE.fd"],
+        Architecture.arm64: ["usr/share/AAVMF/AAVMF_CODE.fd"],
+        Architecture.arm: ["usr/share/AAVMF/AAVMF32_CODE.fd"],
     }.get(config.architecture, [])
 
     for firmware in FIRMWARE_LOCATIONS:
-        if os.path.exists(firmware):
+        path = (config.tools_tree or Path("/")) / firmware
+        if path.exists():
             logging.warning("Couldn't find OVMF firmware blob with secure boot support, "
                             "falling back to OVMF firmware blobs without secure boot support.")
-            return Path(firmware), False
+            return Path("/") / firmware, False
 
     # If we can't find an architecture specific path, fall back to some generic paths that might also work.
 
     FIRMWARE_LOCATIONS = [
-        "/usr/share/edk2/ovmf/OVMF_CODE.secboot.fd",
-        "/usr/share/edk2-ovmf/OVMF_CODE.secboot.fd",  # GENTOO:
-        "/usr/share/qemu/OVMF_CODE.secboot.fd",
-        "/usr/share/ovmf/OVMF.secboot.fd",
-        "/usr/share/OVMF/OVMF_CODE.secboot.fd",
+        "usr/share/edk2/ovmf/OVMF_CODE.secboot.fd",
+        "usr/share/edk2-ovmf/OVMF_CODE.secboot.fd",  # GENTOO:
+        "usr/share/qemu/OVMF_CODE.secboot.fd",
+        "usr/share/ovmf/OVMF.secboot.fd",
+        "usr/share/OVMF/OVMF_CODE.secboot.fd",
     ]
 
     for firmware in FIRMWARE_LOCATIONS:
-        if os.path.exists(firmware):
-            return Path(firmware), True
+        path = (config.tools_tree or Path("/")) / firmware
+        if path.exists():
+            return Path("/") / firmware, True
 
     FIRMWARE_LOCATIONS = [
-        "/usr/share/edk2/ovmf/OVMF_CODE.fd",
-        "/usr/share/edk2-ovmf/OVMF_CODE.fd",  # GENTOO:
-        "/usr/share/qemu/OVMF_CODE.fd",
-        "/usr/share/ovmf/OVMF.fd",
-        "/usr/share/OVMF/OVMF_CODE.fd",
+        "usr/share/edk2/ovmf/OVMF_CODE.fd",
+        "usr/share/edk2-ovmf/OVMF_CODE.fd",  # GENTOO:
+        "usr/share/qemu/OVMF_CODE.fd",
+        "usr/share/ovmf/OVMF.fd",
+        "usr/share/OVMF/OVMF_CODE.fd",
     ]
 
     for firmware in FIRMWARE_LOCATIONS:
-        if os.path.exists(firmware):
+        path = (config.tools_tree or Path("/")) / firmware
+        if path.exists():
             logging.warn("Couldn't find OVMF firmware blob with secure boot support, "
                          "falling back to OVMF firmware blobs without secure boot support.")
-            return Path(firmware), False
+            return Path("/") / firmware, False
 
     die("Couldn't find OVMF UEFI firmware blob.")
 
@@ -112,26 +116,29 @@ def find_ovmf_vars(config: MkosiConfig) -> Path:
     OVMF_VARS_LOCATIONS = []
 
     if config.architecture == Architecture.x86_64:
-        OVMF_VARS_LOCATIONS += ["/usr/share/ovmf/x64/OVMF_VARS.fd"]
+        OVMF_VARS_LOCATIONS += ["usr/share/ovmf/x64/OVMF_VARS.fd"]
     elif config.architecture == Architecture.x86:
         OVMF_VARS_LOCATIONS += [
-            "/usr/share/edk2/ovmf-ia32/OVMF_VARS.fd",
-            "/usr/share/OVMF/OVMF32_VARS_4M.fd",
+            "usr/share/edk2/ovmf-ia32/OVMF_VARS.fd",
+            "usr/share/OVMF/OVMF32_VARS_4M.fd",
         ]
     elif config.architecture == Architecture.arm:
-        OVMF_VARS_LOCATIONS += ["/usr/share/AAVMF/AAVMF32_VARS.fd"]
+        OVMF_VARS_LOCATIONS += ["usr/share/AAVMF/AAVMF32_VARS.fd"]
     elif config.architecture == Architecture.arm64:
-        OVMF_VARS_LOCATIONS += ["/usr/share/AAVMF/AAVMF_VARS.fd"]
+        OVMF_VARS_LOCATIONS += ["usr/share/AAVMF/AAVMF_VARS.fd"]
 
-    OVMF_VARS_LOCATIONS += ["/usr/share/edk2/ovmf/OVMF_VARS.fd",
-                            "/usr/share/edk2-ovmf/OVMF_VARS.fd",  # GENTOO:
-                            "/usr/share/qemu/OVMF_VARS.fd",
-                            "/usr/share/ovmf/OVMF_VARS.fd",
-                            "/usr/share/OVMF/OVMF_VARS.fd"]
+    OVMF_VARS_LOCATIONS += ["usr/share/edk2/ovmf/OVMF_VARS.fd",
+                            "usr/share/edk2-ovmf/OVMF_VARS.fd",  # GENTOO:
+                            "usr/share/qemu/OVMF_VARS.fd",
+                            "usr/share/ovmf/OVMF_VARS.fd",
+                            "usr/share/OVMF/OVMF_VARS.fd"]
 
     for location in OVMF_VARS_LOCATIONS:
-        if os.path.exists(location):
-            return Path(location)
+        path = (config.tools_tree or Path("/")) / location
+        if path.exists():
+            # We return the path in the tools tree here because it's copied to a location outside of /usr so
+            # we don't need to keep the path relative to the tools tree.
+            return path
 
     die("Couldn't find OVMF UEFI variables file.")
 
