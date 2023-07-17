@@ -138,7 +138,7 @@ def find_ovmf_vars(config: MkosiConfig) -> Path:
 
 @contextlib.contextmanager
 def start_swtpm(config: MkosiConfig) -> Iterator[Optional[Path]]:
-    with tempfile.TemporaryDirectory() as state, bwrap_cmd(tools=config.tools_tree) as bwrap:
+    with tempfile.TemporaryDirectory() as state, bwrap_cmd(root=config.tools_tree) as bwrap:
         sock = Path(state) / Path("sock")
         proc = spawn([*bwrap, "swtpm", "socket", "--tpm2", "--tpmstate", f"dir={state}", "--ctrl", f"type=unixio,path={sock}"])
 
@@ -313,7 +313,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
               stdout=sys.stdout,
               env=os.environ,
               log=False,
-              tools=config.tools_tree)
+              root=config.tools_tree)
 
     if status := int(notifications.get("EXIT_STATUS", 0)):
         raise subprocess.CalledProcessError(status, cmdline)

@@ -368,7 +368,7 @@ def run_finalize_script(state: MkosiState) -> None:
 
     with complete_step("Running finalize script…"):
         bwrap([state.config.finalize_script],
-              tools=state.config.tools_tree,
+              root=state.config.tools_tree,
               env={**state.environment, "BUILDROOT": str(state.root), "OUTPUTDIR": str(state.staging)})
 
 
@@ -380,7 +380,7 @@ def certificate_common_name(state: MkosiState, certificate: Path) -> str:
         "-subject",
         "-nameopt", "multiline",
         "-in", certificate,
-    ], tools=state.config.tools_tree, stdout=subprocess.PIPE).stdout
+    ], root=state.config.tools_tree, stdout=subprocess.PIPE).stdout
 
     for line in output.splitlines():
         if not line.strip().startswith("commonName"):
@@ -418,14 +418,14 @@ def pesign_prepare(state: MkosiState) -> None:
            "-out", state.workspace / "secure-boot.p12",
            "-inkey", state.config.secure_boot_key,
            "-in", state.config.secure_boot_certificate],
-          tools=state.config.tools_tree)
+          root=state.config.tools_tree)
 
     bwrap(["pk12util",
            "-K", "",
            "-W", "",
            "-i", state.workspace / "secure-boot.p12",
            "-d", state.workspace / "pesign"],
-          tools=state.config.tools_tree)
+          root=state.config.tools_tree)
 
 
 def install_boot_loader(state: MkosiState) -> None:
@@ -466,7 +466,7 @@ def install_boot_loader(state: MkosiState) -> None:
                            "--cert", state.config.secure_boot_certificate,
                            "--output", output,
                            input],
-                          tools=state.config.tools_tree)
+                          root=state.config.tools_tree)
                 elif (state.config.secure_boot_sign_tool == SecureBootSignTool.pesign or
                       state.config.secure_boot_sign_tool == SecureBootSignTool.auto and
                       shutil.which("pesign") is not None):
@@ -478,13 +478,13 @@ def install_boot_loader(state: MkosiState) -> None:
                            "--force",
                            "--in", input,
                            "--out", output],
-                          tools=state.config.tools_tree)
+                          root=state.config.tools_tree)
                 else:
                     die("One of sbsign or pesign is required to use SecureBoot=")
 
     with complete_step("Installing boot loader…"):
         bwrap(["bootctl", "install", "--root", state.root, "--all-architectures"],
-              env={"SYSTEMD_ESP_PATH": "/efi"}, tools=state.config.tools_tree)
+              env={"SYSTEMD_ESP_PATH": "/efi"}, root=state.config.tools_tree)
 
     if state.config.secure_boot:
         assert state.config.secure_boot_key
@@ -500,13 +500,13 @@ def install_boot_loader(state: MkosiState) -> None:
                    "-outform", "DER",
                    "-in", state.config.secure_boot_certificate,
                    "-out", state.workspace / "mkosi.der"],
-                  tools=state.config.tools_tree)
+                  root=state.config.tools_tree)
             bwrap(["sbsiglist",
                    "--owner", str(uuid.uuid4()),
                    "--type", "x509",
                    "--output", state.workspace / "mkosi.esl",
                    state.workspace / "mkosi.der"],
-                  tools=state.config.tools_tree)
+                  root=state.config.tools_tree)
 
             # We reuse the key for all secure boot databases to keep things simple.
             for db in ["PK", "KEK", "db"]:
@@ -518,7 +518,7 @@ def install_boot_loader(state: MkosiState) -> None:
                        "--output", keys / f"{db}.auth",
                        db,
                        state.workspace / "mkosi.esl"],
-                      tools=state.config.tools_tree)
+                      root=state.config.tools_tree)
 
 
 def install_base_trees(state: MkosiState) -> None:
@@ -533,7 +533,7 @@ def install_base_trees(state: MkosiState) -> None:
                 shutil.unpack_archive(path, state.root)
             elif path.suffix == ".raw":
                 bwrap(["systemd-dissect", "--copy-from", path, "/", state.root],
-                      tools=state.config.tools_tree)
+                      root=state.config.tools_tree)
             else:
                 die(f"Unsupported base tree source {path}")
 
@@ -551,7 +551,7 @@ def install_skeleton_trees(state: MkosiState) -> None:
             t.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
 
             if source.is_dir() or target:
-                copy_path(source, t, preserve_owner=False, tools=state.config.tools_tree)
+                copy_path(source, t, preserve_owner=False, root=state.config.tools_tree)
             else:
                 shutil.unpack_archive(source, t)
 
@@ -569,7 +569,7 @@ def install_package_manager_trees(state: MkosiState) -> None:
             t.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
 
             if source.is_dir() or target:
-                copy_path(source, t, preserve_owner=False, tools=state.config.tools_tree)
+                copy_path(source, t, preserve_owner=False, root=state.config.tools_tree)
             else:
                 shutil.unpack_archive(source, t)
 
@@ -587,7 +587,7 @@ def install_extra_trees(state: MkosiState) -> None:
             t.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
 
             if source.is_dir() or target:
-                copy_path(source, t, preserve_owner=False, tools=state.config.tools_tree)
+                copy_path(source, t, preserve_owner=False, root=state.config.tools_tree)
             else:
                 shutil.unpack_archive(source, t)
 
@@ -597,7 +597,7 @@ def install_build_dest(state: MkosiState) -> None:
         return
 
     with complete_step("Copying in build tree…"):
-        copy_path(state.install_dir, state.root, tools=state.config.tools_tree)
+        copy_path(state.install_dir, state.root, root=state.config.tools_tree)
 
 
 def gzip_binary() -> str:
@@ -630,7 +630,7 @@ def make_tar(state: MkosiState) -> None:
     ]
 
     with complete_step("Creating archive…"):
-        bwrap(cmd, tools=state.config.tools_tree)
+        bwrap(cmd, root=state.config.tools_tree)
 
 
 def find_files(dir: Path, root: Path) -> Iterator[Path]:
@@ -647,7 +647,7 @@ def make_initrd(state: MkosiState) -> None:
 
 
 def make_cpio(state: MkosiState, files: Iterator[Path], output: Path) -> None:
-    with complete_step(f"Creating cpio {output}…"), bwrap_cmd(tools=state.config.tools_tree) as bwrap:
+    with complete_step(f"Creating cpio {output}…"), bwrap_cmd(root=state.config.tools_tree) as bwrap:
         cmd: list[PathString] = [
             *bwrap,
             "cpio",
@@ -739,7 +739,7 @@ def resolve_module_dependencies(state: MkosiState, kver: str, modules: Sequence[
     # modinfo and it'll process them all in a single go. We get the modinfo for all modules to build two maps
     # that map the path of the module to its module dependencies and its firmware dependencies respectively.
     info = bwrap(["modinfo", "--basedir", state.root, "--set-version", kver, "--null", *nametofile.keys(), *builtin],
-                 stdout=subprocess.PIPE, tools=state.config.tools_tree).stdout
+                 stdout=subprocess.PIPE, root=state.config.tools_tree).stdout
 
     moddep = {}
     firmwaredep = {}
@@ -1002,7 +1002,7 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
             if state.config.kernel_modules_initrd:
                 cmd += [gen_kernel_modules_initrd(state, kver)]
 
-            bwrap(cmd, tools=state.config.tools_tree)
+            bwrap(cmd, root=state.config.tools_tree)
 
             if not state.staging.joinpath(state.config.output_split_uki).exists():
                 shutil.copy(boot_binary, state.staging / state.config.output_split_uki)
@@ -1040,7 +1040,7 @@ def maybe_compress(state: MkosiState, compression: Compression, src: Path, dst: 
             src.unlink() # if src == dst, make sure dst doesn't truncate the src file but creates a new file.
 
             with dst.open("wb") as o:
-                bwrap(compressor_command(compression), stdin=i, stdout=o, tools=state.config.tools_tree)
+                bwrap(compressor_command(compression), stdin=i, stdout=o, root=state.config.tools_tree)
                 os.chown(dst, uid=state.uid, gid=state.gid)
 
 
@@ -1108,7 +1108,7 @@ def calculate_signature(state: MkosiState) -> None:
                     Path(os.environ['HOME']).joinpath('.gnupg')
                 )
             },
-            tools=state.config.tools_tree,
+            root=state.config.tools_tree,
         )
 
 
@@ -1518,23 +1518,23 @@ def run_depmod(state: MkosiState) -> None:
         process_kernel_modules(state, kver)
 
         with complete_step(f"Running depmod for {kver}"):
-            bwrap(["depmod", "--all", "--basedir", state.root, kver], tools=state.config.tools_tree)
+            bwrap(["depmod", "--all", "--basedir", state.root, kver], root=state.config.tools_tree)
 
 
 def run_sysusers(state: MkosiState) -> None:
     with complete_step("Generating system users"):
-        bwrap(["systemd-sysusers", "--root", state.root], tools=state.config.tools_tree)
+        bwrap(["systemd-sysusers", "--root", state.root], root=state.config.tools_tree)
 
 
 def run_preset(state: MkosiState) -> None:
     with complete_step("Applying presets…"):
-        bwrap(["systemctl", "--root", state.root, "preset-all"], tools=state.config.tools_tree)
+        bwrap(["systemctl", "--root", state.root, "preset-all"], root=state.config.tools_tree)
 
 
 def run_hwdb(state: MkosiState) -> None:
     with complete_step("Generating hardware database"):
         bwrap(["systemd-hwdb", "--root", state.root, "--usr", "--strict", "update"],
-              tools=state.config.tools_tree)
+              root=state.config.tools_tree)
 
 
 def run_firstboot(state: MkosiState) -> None:
@@ -1569,7 +1569,7 @@ def run_firstboot(state: MkosiState) -> None:
 
     with complete_step("Applying first boot settings"):
         bwrap(["systemd-firstboot", "--root", state.root, "--force", *options],
-              tools=state.config.tools_tree)
+              root=state.config.tools_tree)
 
         # Initrds generally don't ship with only /usr so there's not much point in putting the credentials in
         # /usr/lib/credstore.
@@ -1589,7 +1589,7 @@ def run_selinux_relabel(state: MkosiState) -> None:
         return
 
     policy = bwrap(["sh", "-c", f". {selinux} && echo $SELINUXTYPE"],
-                   stdout=subprocess.PIPE, tools=state.config.tools_tree).stdout.strip()
+                   stdout=subprocess.PIPE, root=state.config.tools_tree).stdout.strip()
     if not policy:
         return
 
@@ -1744,7 +1744,7 @@ def make_image(state: MkosiState, skip: Sequence[str] = [], split: bool = False)
 
     with complete_step("Generating disk image"):
         output = json.loads(bwrap(cmdline, stdout=subprocess.PIPE, env=env,
-                                  tools=state.config.tools_tree).stdout)
+                                  root=state.config.tools_tree).stdout)
 
     roothash = usrhash = None
     for p in output:
@@ -1919,7 +1919,7 @@ def setfacl(config: MkosiConfig, root: Path, uid: int, allow: bool) -> None:
            "--modify" if allow else "--remove",
            f"user:{uid}:rwx" if allow else f"user:{uid}",
            "-"],
-           tools=config.tools_tree,
+           root=config.tools_tree,
            # Supply files via stdin so we don't clutter --debug run output too much
            input="\n".join([str(root),
                            *(e.path for e in cast(Iterator[os.DirEntry[str]], scandir_recursive(root)) if e.is_dir())])
@@ -1937,7 +1937,7 @@ def acl_maybe_toggle(config: MkosiConfig, root: Path, uid: int, *, always: bool)
         has_acl = f"user:{uid}:rwx" in bwrap([
             "getfacl", "-n", root.relative_to(Path.cwd())],
             stdout=subprocess.PIPE,
-            tools=config.tools_tree,
+            root=config.tools_tree,
         ).stdout
 
         if not has_acl and not always:
@@ -2033,7 +2033,7 @@ def run_shell(args: MkosiArgs, config: MkosiConfig) -> None:
                    "--dry-run=no",
                    "--offline=no",
                    fname],
-                  tools=config.tools_tree)
+                  root=config.tools_tree)
 
         if config.output_format == OutputFormat.directory:
             cmdline += ["--directory", fname]
@@ -2062,7 +2062,7 @@ def run_shell(args: MkosiArgs, config: MkosiConfig) -> None:
               stdout=sys.stdout,
               env=os.environ,
               log=False,
-              tools=config.tools_tree)
+              root=config.tools_tree)
 
 
 def run_ssh(args: MkosiArgs, config: MkosiConfig) -> None:
@@ -2078,7 +2078,7 @@ def run_ssh(args: MkosiArgs, config: MkosiConfig) -> None:
 
     cmd += args.cmdline
 
-    bwrap(cmd, stdin=sys.stdin, stdout=sys.stdout, env=os.environ, log=False, tools=config.tools_tree)
+    bwrap(cmd, stdin=sys.stdin, stdout=sys.stdout, env=os.environ, log=False, root=config.tools_tree)
 
 
 def run_serve(config: MkosiConfig) -> None:

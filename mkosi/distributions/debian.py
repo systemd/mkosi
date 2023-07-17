@@ -93,9 +93,9 @@ class DebianInstaller(DistributionInstaller):
 
         for deb in essential:
             with tempfile.NamedTemporaryFile(dir=state.workspace) as f:
-                bwrap(["dpkg-deb", "--fsys-tarfile", deb], stdout=f, tools=state.config.tools_tree)
+                bwrap(["dpkg-deb", "--fsys-tarfile", deb], stdout=f, root=state.config.tools_tree)
                 bwrap(["tar", "-C", state.root, "--keep-directory-symlink", "--extract", "--file", f.name],
-                      tools=state.config.tools_tree)
+                      root=state.config.tools_tree)
 
         # Finally, run apt to properly install packages in the chroot without having to worry that maintainer
         # scripts won't find basic tools that they depend on.
@@ -247,7 +247,7 @@ def invoke_apt(
     return bwrap(["apt-get", *options, operation, *packages],
                  apivfs=state.root if apivfs else None,
                  env=env | state.environment,
-                 tools=state.config.tools_tree)
+                 root=state.config.tools_tree)
 
 
 def install_apt_sources(state: MkosiState, repos: Sequence[str]) -> None:

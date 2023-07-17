@@ -111,7 +111,7 @@ class Manifest:
                    "-qa",
                    "--qf", r"%{NEVRA}\t%{SOURCERPM}\t%{NAME}\t%{ARCH}\t%{LONGSIZE}\t%{INSTALLTIME}\n"],
                   stdout=PIPE,
-                  tools=self.config.tools_tree)
+                  root=self.config.tools_tree)
 
         packages = sorted(c.stdout.splitlines())
 
@@ -154,7 +154,7 @@ class Manifest:
                            nevra],
                           stdout=PIPE,
                           stderr=DEVNULL,
-                          tools=self.config.tools_tree)
+                          root=self.config.tools_tree)
                 changelog = c.stdout.strip()
                 source = SourcePackageManifest(srpm, changelog)
                 self.source_packages[srpm] = source
@@ -168,7 +168,7 @@ class Manifest:
                    "--showformat",
                        r'${Package}\t${source:Package}\t${Version}\t${Architecture}\t${Installed-Size}\t${db-fsys:Last-Modified}\n'],
                   stdout=PIPE,
-                  tools=self.config.tools_tree)
+                  root=self.config.tools_tree)
 
         packages = sorted(c.stdout.splitlines())
 
@@ -227,7 +227,7 @@ class Manifest:
                 # We have to run from the root, because if we use the RootDir option to make
                 # apt from the host look at the repositories in the image, it will also pick
                 # the 'methods' executables from there, but the ABI might not be compatible.
-                result = bwrap(cmd, stdout=PIPE, tools=self.config.tools_tree)
+                result = bwrap(cmd, stdout=PIPE, root=self.config.tools_tree)
                 source_package = SourcePackageManifest(source, result.stdout.strip())
                 self.source_packages[source] = source_package
 
