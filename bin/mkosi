@@ -3,4 +3,4 @@
 set -e
 PYTHONPATH="$(dirname "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")")"
 export PYTHONPATH
-exec python3 -B -m mkosi "$@"
+exec ${MKOSI_INTERPRETER:-python3} -B -m mkosi "$@"
