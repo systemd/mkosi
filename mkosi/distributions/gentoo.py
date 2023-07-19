@@ -99,7 +99,7 @@ class GentooInstaller(DistributionInstaller):
 
         with urllib.request.urlopen(stage3tsf_path_url) as r:
             # e.g.: 20230108T161708Z/stage3-amd64-nomultilib-systemd-mergedusr-20230108T161708Z.tar.xz
-            regexp = rf"^[0-9]+T[0-9]+Z/stage3-{arch}-nomultilib-systemd-mergedusr-[0-9]+T[0-9]+Z\.tar\.xz"
+            regexp = rf"^[0-9]+T[0-9]+Z/stage3-{arch}-llvm-systemd-mergedusr-[0-9]+T[0-9]+Z\.tar\.xz"
             all_lines = r.readlines()
             for line in all_lines:
                 if (m := re.match(regexp, line.decode("utf-8"))):
