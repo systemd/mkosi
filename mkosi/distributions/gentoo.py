@@ -71,7 +71,8 @@ def invoke_emerge(
             # boot: for systemd
             # minimal: because we like minimals
             # initramfs, symlink for kernel
-            USE="boot initramfs minimal symlink",
+            # gnu-efi: https://wiki.gentoo.org/wiki/Systemd/systemd-boot#Installation
+            USE="boot initramfs minimal symlink gnu-efi",
         ) | env | state.environment,
     )
 
