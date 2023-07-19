@@ -68,10 +68,6 @@ def invoke_emerge(
                 "parallel-install",
                 *(["noman", "nodoc", "noinfo"] if state.config.with_docs else []),
             ]),
-            # boot: for systemd
-            # minimal: because we like minimals
-            # initramfs, symlink for kernel
-            USE="boot initramfs minimal symlink",
         ) | env | state.environment,
     )
 
