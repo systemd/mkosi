@@ -44,7 +44,9 @@ when you are in the repository top level.
 
 To use your local mkosi checkout without being in the top level of the
 repository you can either call the shim `bin/mkosi` or make an editable install
-into a virtual environment.
+into a virtual environment. The `MKOSI_INTERPRETER` environment variable can be
+set when using the `bin/mkosi` shim to configure the python interpreter used to
+execute mkosi.
 
 The shim can be symlinked somewhere into your `PATH`. To make an editable
 install add `--editable` to either of the above examples using pip or pipx and

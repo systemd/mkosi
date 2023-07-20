@@ -14,11 +14,9 @@ from mkosi.log import die
 class MkosiState:
     """State related properties."""
 
-    def __init__(self, args: MkosiArgs, config: MkosiConfig, uid: int, gid: int) -> None:
+    def __init__(self, args: MkosiArgs, config: MkosiConfig) -> None:
         self.args = args
         self.config = config
-        self.uid = uid
-        self.gid = gid
 
         self._workspace = tempfile.TemporaryDirectory(dir=config.workspace_dir or Path.cwd(), prefix=".mkosi.tmp")
 

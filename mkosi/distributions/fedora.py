@@ -12,7 +12,7 @@ from mkosi.architecture import Architecture
 from mkosi.distributions import DistributionInstaller
 from mkosi.log import die
 from mkosi.remove import unlink_try_hard
-from mkosi.run import bwrap, which
+from mkosi.run import bwrap
 from mkosi.state import MkosiState
 from mkosi.util import Distribution, detect_distribution, sort_packages
 
@@ -173,8 +173,8 @@ def invoke_dnf(
     state.pkgmngr.joinpath("var/lib/dnf").mkdir(exist_ok=True, parents=True)
 
     # dnf5 does not support building for foreign architectures yet (missing --forcearch)
-    dnf = which("dnf5", tools=state.config.tools_tree) if state.config.architecture.is_native() else None
-    dnf = dnf or which("dnf", tools=state.config.tools_tree) or "yum"
+    dnf = shutil.which("dnf5") if state.config.architecture.is_native() else None
+    dnf = dnf or shutil.which("dnf") or "yum"
 
     cmdline = [
         dnf,
@@ -220,8 +220,7 @@ def invoke_dnf(
 
     bwrap(cmdline,
           apivfs=state.root if apivfs else None,
-          env=dict(KERNEL_INSTALL_BYPASS="1") | env | state.environment,
-          tools=state.config.tools_tree)
+          env=dict(KERNEL_INSTALL_BYPASS="1") | env | state.environment)
 
     fixup_rpmdb_location(state.root)
 

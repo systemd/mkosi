@@ -10,7 +10,7 @@ from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import Callable, Deque, Optional, TypeVar, Union, cast
 
-from mkosi.config import GenericVersion
+from mkosi.config import GenericVersion, MkosiConfig
 from mkosi.log import complete_step
 from mkosi.run import run
 from mkosi.types import PathString
@@ -59,8 +59,10 @@ def mount(
     options: Sequence[str] = (),
     type: Optional[str] = None,
     read_only: bool = False,
+    umount: bool = True,
 ) -> Iterator[Path]:
-    os.makedirs(where, 0o755, True)
+    if not where.exists():
+        where.mkdir(mode=0o755, parents=True)
 
     if read_only:
         options = ["ro", *options]
@@ -78,14 +80,15 @@ def mount(
     if options:
         cmd += ["--options", ",".join(options)]
 
-    # Ideally we'd run these with bwrap() but bubblewrap disables all mount propagation to the root so any
-    # mounts we do within bubblewrap aren't propagated to the overarching mount namespace.
-
     try:
         run(cmd)
         yield where
     finally:
-        run(["umount", "--no-mtab", "--recursive", where])
+        if umount:
+            # If we mounted over /usr, trying to use umount will fail with "target is busy", because umount
+            # is being called from /usr, which we're trying to unmount. To work around this issue, we do a
+            # lazy unmount.
+            run(["umount", "--no-mtab", "--lazy", where])
 
 
 @contextlib.contextmanager
@@ -110,3 +113,37 @@ def mount_overlay(
                 delete_whiteout_files(upperdir)
 
 
+@contextlib.contextmanager
+def mount_tools(config: MkosiConfig, umount: bool = True) -> Iterator[None]:
+    if not config.tools_tree:
+        yield
+        return
+
+    # If a tools tree is specified, we should ignore any local modifications made to PATH as any of those
+    # binaries might not work anymore when /usr is replaced wholesale. We also make sure that both /usr/bin
+    # and /usr/sbin/ are searched so that e.g. if the host is Arch and the root is Debian we don't ignore the
+    # binaries from /usr/sbin in the Debian root.
+    old = os.environ["PATH"]
+    os.environ["PATH"] = "/usr/bin:/usr/sbin"
+
+    try:
+        with mount(what=config.tools_tree / "usr", where=Path("/usr"), operation="--bind", read_only=True, umount=umount):
+            yield
+    finally:
+        os.environ["PATH"] = old
+
+
+@contextlib.contextmanager
+def mount_passwd(name: str, uid: int, gid: int, umount: bool = True) -> Iterator[None]:
+    """
+    ssh looks up the running user in /etc/passwd and fails if it can't find the running user. To trick it, we
+    mount over /etc/passwd with our own file containing our user in the user namespace.
+    """
+    with tempfile.NamedTemporaryFile(mode="w") as passwd:
+        passwd.write(f"{name}:x:{uid}:{gid}:{name}:/bin/sh\n")
+        passwd.flush()
+
+        os.chown(passwd.name, uid, gid)
+
+        with mount(passwd.name, Path("/etc/passwd"), operation="--bind", umount=umount):
+            yield

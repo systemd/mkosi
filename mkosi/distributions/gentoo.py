@@ -12,7 +12,7 @@ from mkosi.distributions import DistributionInstaller
 from mkosi.install import copy_path
 from mkosi.log import ARG_DEBUG, complete_step, die
 from mkosi.remove import unlink_try_hard
-from mkosi.run import bwrap, chroot_cmd
+from mkosi.run import bwrap, chroot_cmd, run
 from mkosi.state import MkosiState
 from mkosi.types import PathString
 
@@ -47,7 +47,6 @@ def invoke_emerge(
             *(["--verbose", "--quiet=n", "--quiet-fail=n"] if ARG_DEBUG.get() else ["--quiet-build", "--quiet"]),
             *options,
         ],
-        tools=state.config.tools_tree,
         apivfs=state.cache_dir / "stage3",
         scripts=dict(
             chroot=chroot_cmd(
@@ -120,7 +119,7 @@ class GentooInstaller(DistributionInstaller):
             if stage3_tar.exists():
                 cmd += ["--time-cond", stage3_tar]
 
-            bwrap(cmd, tools=state.config.tools_tree)
+            run(cmd)
 
             if stage3_tar.stat().st_mtime > old:
                 unlink_try_hard(stage3)
@@ -129,24 +128,22 @@ class GentooInstaller(DistributionInstaller):
 
         if not any(stage3.iterdir()):
             with complete_step(f"Extracting {stage3_tar.name} to {stage3}"):
-                bwrap(["tar",
-                       "--numeric-owner",
-                       "-C", stage3,
-                       "--extract",
-                       "--file", stage3_tar,
-                       "--exclude", "./dev/*",
-                       "--exclude", "./proc/*",
-                       "--exclude", "./sys/*"],
-                      tools=state.config.tools_tree)
+                run(["tar",
+                     "--numeric-owner",
+                     "-C", stage3,
+                     "--extract",
+                     "--file", stage3_tar,
+                     "--exclude", "./dev/*",
+                     "--exclude", "./proc/*",
+                     "--exclude", "./sys/*"])
 
         for d in ("binpkgs", "distfiles", "repos/gentoo"):
             (state.cache_dir / d).mkdir(parents=True, exist_ok=True)
 
-        copy_path(state.pkgmngr, stage3, preserve_owner=False, tools=state.config.tools_tree)
+        copy_path(state.pkgmngr, stage3, preserve_owner=False)
 
         bwrap(
             cmd=["chroot", "emerge-webrsync"],
-            tools=state.config.tools_tree,
             apivfs=stage3,
             scripts=dict(
                 chroot=chroot_cmd(

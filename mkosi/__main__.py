@@ -10,13 +10,11 @@ from collections.abc import Iterator
 from mkosi import run_verb
 from mkosi.config import MkosiConfigParser
 from mkosi.log import ARG_DEBUG, log_setup
-from mkosi.run import ensure_exc_info, excepthook
+from mkosi.run import ensure_exc_info
 
 
 @contextlib.contextmanager
 def propagate_failed_return() -> Iterator[None]:
-    sys.excepthook = excepthook
-
     try:
         yield
     except SystemExit as e:
