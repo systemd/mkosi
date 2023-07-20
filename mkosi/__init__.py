@@ -316,7 +316,7 @@ def run_prepare_script(state: MkosiState, build: bool) -> None:
                 ["chroot", "/work/prepare", "build"],
                 apivfs=state.root,
                 scripts=dict(chroot=chroot_cmd(state.root, options=options, network=True)),
-                env=dict(SRCDIR="/work/src") | state.environment,
+                env=dict(SRCDIR="/work/src") | state.config.environment,
             )
             shutil.rmtree(state.root / "work")
     else:
@@ -325,7 +325,7 @@ def run_prepare_script(state: MkosiState, build: bool) -> None:
                 ["chroot", "/work/prepare", "final"],
                 apivfs=state.root,
                 scripts=dict(chroot=chroot_cmd(state.root, options=options, network=True)),
-                env=dict(SRCDIR="/work/src") | state.environment,
+                env=dict(SRCDIR="/work/src") | state.config.environment,
             )
             shutil.rmtree(state.root / "work")
 
@@ -345,7 +345,7 @@ def run_postinst_script(state: MkosiState) -> None:
                     network=state.config.with_network,
                 ),
             ),
-            env=state.environment,
+            env=state.config.environment,
         )
 
         shutil.rmtree(state.root / "work")
@@ -357,7 +357,7 @@ def run_finalize_script(state: MkosiState) -> None:
 
     with complete_step("Running finalize script…"):
         run([state.config.finalize_script],
-            env={**state.environment, "BUILDROOT": str(state.root), "OUTPUTDIR": str(state.staging)})
+            env={**state.config.environment, "BUILDROOT": str(state.root), "OUTPUTDIR": str(state.staging)})
 
 
 def certificate_common_name(state: MkosiState, certificate: Path) -> str:
@@ -1578,7 +1578,7 @@ def run_selinux_relabel(state: MkosiState) -> None:
             cmd=["chroot", "sh", "-c", cmd],
             apivfs=state.root,
             scripts=dict(chroot=chroot_cmd(state.root)),
-            env=state.environment,
+            env=state.config.environment,
         )
 
 
@@ -1711,7 +1711,7 @@ def make_image(state: MkosiState, skip: Sequence[str] = [], split: bool = False)
     for fs, options in state.installer.filesystem_options(state).items():
         env[f"SYSTEMD_REPART_MKFS_OPTIONS_{fs.upper()}"] = " ".join(options)
 
-    for option, value in state.environment.items():
+    for option, value in state.config.environment.items():
         if option.startswith("SYSTEMD_REPART_MKFS_OPTIONS_"):
             env[option] = value
 
@@ -1873,7 +1873,7 @@ def run_build_script(state: MkosiState) -> None:
             ["chroot", "/work/build-script"],
             apivfs=state.root,
             scripts=dict(chroot=chroot_cmd(state.root, options=options, network=state.config.with_network)),
-            env=env | state.environment,
+            env=env | state.config.environment,
         )
 
 

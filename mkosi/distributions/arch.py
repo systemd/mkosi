@@ -135,4 +135,4 @@ def invoke_pacman(state: MkosiState, packages: Sequence[str], apivfs: bool = Tru
 
     bwrap(cmdline,
           apivfs=state.root if apivfs else None,
-          env=dict(KERNEL_INSTALL_BYPASS="1") | state.environment)
+          env=dict(KERNEL_INSTALL_BYPASS="1") | state.config.environment)

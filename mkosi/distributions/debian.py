@@ -245,7 +245,7 @@ def invoke_apt(
 
     bwrap(["apt-get", *options, operation, *packages],
           apivfs=state.root if apivfs else None,
-          env=env | state.environment)
+          env=env | state.config.environment)
 
 
 def install_apt_sources(state: MkosiState, repos: Sequence[str]) -> None:
