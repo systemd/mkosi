@@ -714,11 +714,15 @@ def resolve_module_dependencies(state: MkosiState, kver: str, modules: Sequence[
     allmodules = set((state.root / modulesd / "kernel").glob("**/*.ko*"))
     nametofile = {module_path_to_name(m): m.relative_to(state.root) for m in allmodules}
 
+    log_step("Running modinfo to fetch kernel module dependencies")
+
     # We could run modinfo once for each module but that's slow. Luckily we can pass multiple modules to
     # modinfo and it'll process them all in a single go. We get the modinfo for all modules to build two maps
     # that map the path of the module to its module dependencies and its firmware dependencies respectively.
     info = run(["modinfo", "--basedir", state.root, "--set-version", kver, "--null", *nametofile.keys(), *builtin],
                stdout=subprocess.PIPE).stdout
+
+    log_step("Calculating required kernel modules and firmware")
 
     moddep = {}
     firmwaredep = {}
@@ -767,17 +771,10 @@ def resolve_module_dependencies(state: MkosiState, kver: str, modules: Sequence[
 
 
 def gen_kernel_modules_initrd(state: MkosiState, kver: str) -> Path:
-    def files() -> Iterator[Path]:
+    kmods = state.workspace / f"initramfs-kernel-modules-{kver}.img"
+
+    with complete_step(f"Generating kernel modules initrd for kernel {kver}"):
         modulesd = Path("usr/lib/modules") / kver
-        yield modulesd.parent
-        yield modulesd
-        yield modulesd / "kernel"
-
-        for d in (modulesd, Path("usr/lib/firmware")):
-            for p in (state.root / d).glob("**/*"):
-                if p.is_dir():
-                    yield p.relative_to(state.root)
-
         modules = filter_kernel_modules(state.root, kver,
                                         state.config.kernel_modules_initrd_include,
                                         state.config.kernel_modules_initrd_exclude)
@@ -785,24 +782,31 @@ def gen_kernel_modules_initrd(state: MkosiState, kver: str) -> Path:
         names = [module_path_to_name(m) for m in modules]
         mods, firmware = resolve_module_dependencies(state, kver, names)
 
-        for p in sorted(mods) + sorted(firmware):
-            yield p
+        def files() -> Iterator[Path]:
+            yield modulesd.parent
+            yield modulesd
+            yield modulesd / "kernel"
 
-        for p in (state.root / modulesd).iterdir():
-            if not p.name.startswith("modules"):
-                continue
+            for d in (modulesd, Path("usr/lib/firmware")):
+                for p in (state.root / d).glob("**/*"):
+                    if p.is_dir():
+                        yield p.relative_to(state.root)
 
-            yield p.relative_to(state.root)
+            for p in sorted(mods) + sorted(firmware):
+                yield p
 
-        if (state.root / modulesd / "vdso").exists():
-            yield modulesd / "vdso"
+            for p in (state.root / modulesd).iterdir():
+                if not p.name.startswith("modules"):
+                    continue
 
-            for p in (state.root / modulesd / "vdso").iterdir():
                 yield p.relative_to(state.root)
 
-    kmods = state.workspace / f"initramfs-kernel-modules-{kver}.img"
+            if (state.root / modulesd / "vdso").exists():
+                yield modulesd / "vdso"
 
-    with complete_step(f"Generating kernel modules initrd for kernel {kver}"):
+                for p in (state.root / modulesd / "vdso").iterdir():
+                    yield p.relative_to(state.root)
+
         make_cpio(state, files(), kmods)
 
         # Debian/Ubuntu do not compress their kernel modules, so we compress the initramfs instead. Note that
