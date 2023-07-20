@@ -316,7 +316,7 @@ def run_prepare_script(state: MkosiState, build: bool) -> None:
                 ["chroot", "/work/prepare", "build"],
                 apivfs=state.root,
                 scripts=dict(chroot=chroot_cmd(state.root, options=options, network=True)),
-                env=dict(SRCDIR="/work/src") | state.environment,
+                env=dict(SRCDIR="/work/src") | state.config.environment,
             )
             shutil.rmtree(state.root / "work")
     else:
@@ -325,7 +325,7 @@ def run_prepare_script(state: MkosiState, build: bool) -> None:
                 ["chroot", "/work/prepare", "final"],
                 apivfs=state.root,
                 scripts=dict(chroot=chroot_cmd(state.root, options=options, network=True)),
-                env=dict(SRCDIR="/work/src") | state.environment,
+                env=dict(SRCDIR="/work/src") | state.config.environment,
             )
             shutil.rmtree(state.root / "work")
 
@@ -345,7 +345,7 @@ def run_postinst_script(state: MkosiState) -> None:
                     network=state.config.with_network,
                 ),
             ),
-            env=state.environment,
+            env=state.config.environment,
         )
 
         shutil.rmtree(state.root / "work")
@@ -357,7 +357,7 @@ def run_finalize_script(state: MkosiState) -> None:
 
     with complete_step("Running finalize script…"):
         run([state.config.finalize_script],
-            env={**state.environment, "BUILDROOT": str(state.root), "OUTPUTDIR": str(state.staging)})
+            env={**state.config.environment, "BUILDROOT": str(state.root), "OUTPUTDIR": str(state.staging)})
 
 
 def certificate_common_name(state: MkosiState, certificate: Path) -> str:
@@ -1499,16 +1499,28 @@ def run_depmod(state: MkosiState) -> None:
 
 
 def run_sysusers(state: MkosiState) -> None:
+    if not shutil.which("systemd-sysusers"):
+        logging.info("systemd-sysusers is not installed, not generating system users")
+        return
+
     with complete_step("Generating system users"):
         run(["systemd-sysusers", "--root", state.root])
 
 
 def run_preset(state: MkosiState) -> None:
+    if not shutil.which("systemctl"):
+        logging.info("systemctl is not installed, not applying presets")
+        return
+
     with complete_step("Applying presets…"):
         run(["systemctl", "--root", state.root, "preset-all"])
 
 
 def run_hwdb(state: MkosiState) -> None:
+    if not shutil.which("systemd-hwdb"):
+        logging.info("systemd-hwdb is not installed, not generating hwdb")
+        return
+
     with complete_step("Generating hardware database"):
         run(["systemd-hwdb", "--root", state.root, "--usr", "--strict", "update"])
 
@@ -1567,19 +1579,22 @@ def run_selinux_relabel(state: MkosiState) -> None:
     if not policy:
         return
 
-    fc = Path('/etc/selinux') / policy / 'contexts/files/file_contexts'
+    if not shutil.which("setfiles"):
+        logging.info("setfiles is not installed, not relabeling files")
+        return
 
-    # We want to be able to relabel the underlying APIVFS mountpoints, so mount root non-recursive to a
-    # temporary location so that the underlying mountpoints become visible.
-    cmd = f"mkdir /tmp/relabel && mount --bind / /tmp/relabel && exec setfiles -m -r /tmp/relabel -F {fc} /tmp/relabel || exit $?"
+    fc = state.root / "etc/selinux" / policy / "contexts/files/file_contexts"
+    binpolicydir = state.root / "etc/selinux" / policy / "policy"
+
+    try:
+        # The policy file is named policy.XX where XX is the policy version that indicates what features are
+        # available. It's not expected for there to be more than one file in this directory.
+        binpolicy = next(binpolicydir.iterdir())
+    except StopIteration:
+        die(f"SELinux binary policy not found in {binpolicydir}")
 
     with complete_step(f"Relabeling files using {policy} policy"):
-        bwrap(
-            cmd=["chroot", "sh", "-c", cmd],
-            apivfs=state.root,
-            scripts=dict(chroot=chroot_cmd(state.root)),
-            env=state.environment,
-        )
+        run(["setfiles", "-mFr", state.root, "-c", binpolicy, fc, state.root], env=state.config.environment)
 
 
 def need_build_packages(config: MkosiConfig) -> bool:
@@ -1711,7 +1726,7 @@ def make_image(state: MkosiState, skip: Sequence[str] = [], split: bool = False)
     for fs, options in state.installer.filesystem_options(state).items():
         env[f"SYSTEMD_REPART_MKFS_OPTIONS_{fs.upper()}"] = " ".join(options)
 
-    for option, value in state.environment.items():
+    for option, value in state.config.environment.items():
         if option.startswith("SYSTEMD_REPART_MKFS_OPTIONS_"):
             env[option] = value
 
@@ -1873,7 +1888,7 @@ def run_build_script(state: MkosiState) -> None:
             ["chroot", "/work/build-script"],
             apivfs=state.root,
             scripts=dict(chroot=chroot_cmd(state.root, options=options, network=state.config.with_network)),
-            env=env | state.environment,
+            env=env | state.config.environment,
         )
 
 

@@ -67,7 +67,7 @@ def invoke_emerge(
                 "parallel-install",
                 *(["noman", "nodoc", "noinfo"] if state.config.with_docs else []),
             ]),
-        ) | env | state.environment,
+        ) | env | state.config.environment,
     )
 
 

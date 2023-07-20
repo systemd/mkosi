@@ -2042,6 +2042,24 @@ def load_kernel_command_line_extra(args: argparse.Namespace) -> list[str]:
     return cmdline
 
 
+def load_environment(args: argparse.Namespace) -> dict[str, str]:
+    env = {
+        "SYSTEMD_TMPFILES_FORCE_SUBVOL": "0",
+    }
+
+    if args.image_id is not None:
+        env["IMAGE_ID"] = args.image_id
+    if args.image_version is not None:
+        env["IMAGE_VERSION"] = args.image_version
+    if (proxy := os.environ.get("http_proxy")):
+        env["http_proxy"] = proxy
+    if (proxy := os.environ.get("https_proxy")):
+        env["https_proxy"] = proxy
+
+    # Mypy doesn't like | here.
+    return {**env, **args.environment}
+
+
 def load_args(args: argparse.Namespace) -> MkosiArgs:
     if args.debug:
         ARG_DEBUG.set(args.debug)
@@ -2089,6 +2107,7 @@ def load_config(args: argparse.Namespace) -> MkosiConfig:
 
     args.credentials = load_credentials(args)
     args.kernel_command_line_extra = load_kernel_command_line_extra(args)
+    args.environment = load_environment(args)
 
     if args.secure_boot and args.verb != Verb.genkey:
         if args.secure_boot_key is None:
