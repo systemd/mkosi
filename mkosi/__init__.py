@@ -1499,16 +1499,28 @@ def run_depmod(state: MkosiState) -> None:
 
 
 def run_sysusers(state: MkosiState) -> None:
+    if not shutil.which("systemd-sysusers"):
+        logging.info("systemd-sysusers is not installed, not generating system users")
+        return
+
     with complete_step("Generating system users"):
         run(["systemd-sysusers", "--root", state.root])
 
 
 def run_preset(state: MkosiState) -> None:
+    if not shutil.which("systemctl"):
+        logging.info("systemctl is not installed, not applying presets")
+        return
+
     with complete_step("Applying presets…"):
         run(["systemctl", "--root", state.root, "preset-all"])
 
 
 def run_hwdb(state: MkosiState) -> None:
+    if not shutil.which("systemd-hwdb"):
+        logging.info("systemd-hwdb is not installed, not generating hwdb")
+        return
+
     with complete_step("Generating hardware database"):
         run(["systemd-hwdb", "--root", state.root, "--usr", "--strict", "update"])
 
