@@ -1579,19 +1579,22 @@ def run_selinux_relabel(state: MkosiState) -> None:
     if not policy:
         return
 
-    fc = Path('/etc/selinux') / policy / 'contexts/files/file_contexts'
+    if not shutil.which("setfiles"):
+        logging.info("setfiles is not installed, not relabeling files")
+        return
 
-    # We want to be able to relabel the underlying APIVFS mountpoints, so mount root non-recursive to a
-    # temporary location so that the underlying mountpoints become visible.
-    cmd = f"mkdir /tmp/relabel && mount --bind / /tmp/relabel && exec setfiles -m -r /tmp/relabel -F {fc} /tmp/relabel || exit $?"
+    fc = state.root / "etc/selinux" / policy / "contexts/files/file_contexts"
+    binpolicydir = state.root / "etc/selinux" / policy / "policy"
+
+    try:
+        # The policy file is named policy.XX where XX is the policy version that indicates what features are
+        # available. It's not expected for there to be more than one file in this directory.
+        binpolicy = next(binpolicydir.iterdir())
+    except StopIteration:
+        die(f"SELinux binary policy not found in {binpolicydir}")
 
     with complete_step(f"Relabeling files using {policy} policy"):
-        bwrap(
-            cmd=["chroot", "sh", "-c", cmd],
-            apivfs=state.root,
-            scripts=dict(chroot=chroot_cmd(state.root)),
-            env=state.config.environment,
-        )
+        run(["setfiles", "-mFr", state.root, "-c", binpolicy, fc, state.root], env=state.config.environment)
 
 
 def need_build_packages(config: MkosiConfig) -> bool:
