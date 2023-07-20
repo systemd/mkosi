@@ -4,8 +4,8 @@ import asyncio
 import asyncio.tasks
 import ctypes
 import ctypes.util
+import fcntl
 import logging
-import multiprocessing
 import os
 import pwd
 import queue
@@ -22,7 +22,7 @@ from typing import Any, Awaitable, Mapping, Optional, Sequence, Tuple, Type, Typ
 
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, die
 from mkosi.types import _FILE, CompletedProcess, PathString, Popen
-from mkosi.util import InvokingUser, make_executable
+from mkosi.util import InvokingUser, flock, make_executable
 
 CLONE_NEWNS = 0x00020000
 CLONE_NEWUSER = 0x10000000
@@ -79,42 +79,41 @@ def become_root() -> tuple[int, int]:
     subuid = read_subrange(Path("/etc/subuid"))
     subgid = read_subrange(Path("/etc/subgid"))
 
-    event = multiprocessing.Event()
     pid = os.getpid()
 
-    child = os.fork()
-    if child == 0:
-        event.wait()
+    # We map the private UID range configured in /etc/subuid and /etc/subgid into the container using
+    # newuidmap and newgidmap. On top of that, we also make sure to map in the user running mkosi so that
+    # we can run still chown stuff to that user or run stuff as that user which will make sure any
+    # generated files are owned by that user. We don't map to the last user in the range as the last user
+    # is sometimes used in tests as a default value and mapping to that user might break those tests.
+    newuidmap = [
+        "flock", "--exclusive", "--no-fork", "/etc/subuid", "newuidmap", pid,
+        0, subuid, SUBRANGE - 100,
+        SUBRANGE - 100, os.getuid(), 1,
+        SUBRANGE - 100 + 1, subuid + SUBRANGE - 100 + 1, 99
+    ]
 
-        # We map the private UID range configured in /etc/subuid and /etc/subgid into the container using
-        # newuidmap and newgidmap. On top of that, we also make sure to map in the user running mkosi so that
-        # we can run still chown stuff to that user or run stuff as that user which will make sure any
-        # generated files are owned by that user. We don't map to the last user in the range as the last user
-        # is sometimes used in tests as a default value and mapping to that user might break those tests.
-        newuidmap = [
-            "newuidmap", pid,
-            0, subuid, SUBRANGE - 100,
-            SUBRANGE - 100, os.getuid(), 1,
-            SUBRANGE - 100 + 1, subuid + SUBRANGE - 100 + 1, 99
-        ]
-        run([str(x) for x in newuidmap])
+    newgidmap = [
+        "flock", "--exclusive", "--no-fork", "/etc/subuid", "newgidmap", pid,
+        0, subgid, SUBRANGE - 100,
+        SUBRANGE - 100, os.getgid(), 1,
+        SUBRANGE - 100 + 1, subgid + SUBRANGE - 100 + 1, 99
+    ]
 
-        newgidmap = [
-            "newgidmap", pid,
-            0, subgid, SUBRANGE - 100,
-            SUBRANGE - 100, os.getgid(), 1,
-            SUBRANGE - 100 + 1, subgid + SUBRANGE - 100 + 1, 99
-        ]
-        run([str(x) for x in newgidmap])
+    newuidmap = [str(x) for x in newuidmap]
+    newgidmap = [str(x) for x in newgidmap]
 
-        sys.stdout.flush()
-        sys.stderr.flush()
-
-        os._exit(0)
-
-    unshare(CLONE_NEWUSER)
-    event.set()
-    os.waitpid(child, 0)
+    # newuidmap and newgidmap have to run from outside the user namespace to be able to assign a uid mapping
+    # to the process in the user namespace. The mapping can only be assigned after the user namespace has
+    # been unshared. To make this work, we first lock /etc/subuid, then spawn the newuidmap and newgidmap
+    # processes, which we execute using flock so they don't execute before they can get a lock on /etc/subuid,
+    # then we unshare the user namespace and finally we unlock /etc/subuid, which allows the newuidmap and
+    # newgidmap processes to execute. we then wait for the processes to finish before continuing.
+    with flock(Path("/etc/subuid")) as fd, spawn(newuidmap) as uidmap, spawn(newgidmap) as gidmap:
+        unshare(CLONE_NEWUSER)
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        uidmap.wait()
+        gidmap.wait()
 
     # By default, we're root in the user namespace because if we were our current user by default, we
     # wouldn't be able to chown stuff to be owned by root while the reverse is possible.

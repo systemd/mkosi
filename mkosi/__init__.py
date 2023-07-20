@@ -30,7 +30,7 @@ from mkosi.config import (
     MkosiConfigParser,
     SecureBootSignTool,
 )
-from mkosi.install import add_dropin_config_from_resource, copy_path, flock
+from mkosi.install import add_dropin_config_from_resource, copy_path
 from mkosi.log import Style, color_error, complete_step, die, log_step
 from mkosi.manifest import Manifest
 from mkosi.mounts import mount_overlay, mount_passwd, mount_tools, scandir_recursive
@@ -47,6 +47,7 @@ from mkosi.util import (
     OutputFormat,
     Verb,
     flatten,
+    flock,
     format_bytes,
     format_rlimit,
     is_apt_distribution,

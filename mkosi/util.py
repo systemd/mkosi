@@ -4,6 +4,7 @@ import ast
 import contextlib
 import enum
 import errno
+import fcntl
 import functools
 import importlib
 import itertools
@@ -309,3 +310,14 @@ def try_import(module: str) -> None:
         importlib.import_module(module)
     except ModuleNotFoundError:
         pass
+
+
+@contextlib.contextmanager
+def flock(path: Path) -> Iterator[int]:
+    fd = os.open(path, os.O_CLOEXEC|os.O_RDONLY)
+    try:
+        fcntl.fcntl(fd, fcntl.FD_CLOEXEC)
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield fd
+    finally:
+        os.close(fd)

@@ -1,10 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
-import contextlib
-import fcntl
 import importlib.resources
-import os
-from collections.abc import Iterator
 from pathlib import Path
 from typing import Optional
 
@@ -29,17 +25,6 @@ def add_dropin_config_from_resource(
     dropin = root / f"usr/lib/systemd/system/{unit}.d/{name}.conf"
     dropin.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
     write_resource(dropin, resource, key, mode=0o644)
-
-
-@contextlib.contextmanager
-def flock(path: Path) -> Iterator[Path]:
-    fd = os.open(path, os.O_CLOEXEC|os.O_DIRECTORY|os.O_RDONLY)
-    try:
-        fcntl.fcntl(fd, fcntl.FD_CLOEXEC)
-        fcntl.flock(fd, fcntl.LOCK_EX)
-        yield Path(path)
-    finally:
-        os.close(fd)
 
 
 def copy_path(
