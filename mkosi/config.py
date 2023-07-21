@@ -28,16 +28,11 @@ from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, Style, die
 from mkosi.pager import page
 from mkosi.run import run
 from mkosi.util import (
-    Compression,
     Distribution,
     InvokingUser,
-    ManifestFormat,
-    OutputFormat,
     chdir,
     detect_distribution,
     flatten,
-    is_apt_distribution,
-    is_dnf_distribution,
     qemu_check_kvm_support,
     qemu_check_vsock_support,
 )
@@ -92,6 +87,35 @@ class SecureBootSignTool(enum.Enum):
 
     def __str__(self) -> str:
         return str(self.value).lower()
+
+
+class OutputFormat(str, enum.Enum):
+    directory = "directory"
+    tar = "tar"
+    cpio = "cpio"
+    disk = "disk"
+    none = "none"
+
+
+class ManifestFormat(str, enum.Enum):
+    json      = "json"       # the standard manifest in json format
+    changelog = "changelog"  # human-readable text file with package changelogs
+
+
+class Compression(enum.Enum):
+    none = None
+    zst = "zst"
+    xz = "xz"
+    bz2 = "bz2"
+    gz = "gz"
+    lz4 = "lz4"
+    lzma = "lzma"
+
+    def __str__(self) -> str:
+        return str(self.value).lower()
+
+    def __bool__(self) -> bool:
+        return bool(self.value)
 
 
 def parse_boolean(s: str) -> bool:
@@ -2149,8 +2173,8 @@ def load_config(args: argparse.Namespace) -> MkosiConfig:
         die("Sorry, the host machine does not support vsock")
 
     if args.repositories and not (
-        is_dnf_distribution(args.distribution) or
-        is_apt_distribution(args.distribution) or
+        args.distribution.is_dnf_distribution() or
+        args.distribution.is_apt_distribution() or
         args.distribution == Distribution.arch
     ):
         die("Sorry, the --repositories option is only supported on pacman, dnf and apt based distributions")

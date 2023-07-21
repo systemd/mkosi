@@ -17,14 +17,13 @@ from typing import Iterator, Optional
 
 from mkosi.architecture import Architecture
 from mkosi.btrfs import btrfs_maybe_snapshot_subvolume
-from mkosi.config import ConfigFeature, MkosiArgs, MkosiConfig
+from mkosi.config import ConfigFeature, MkosiArgs, MkosiConfig, OutputFormat
 from mkosi.log import die
 from mkosi.remove import unlink_try_hard
 from mkosi.run import MkosiAsyncioThread, run, spawn
 from mkosi.types import PathString
 from mkosi.util import (
     Distribution,
-    OutputFormat,
     format_bytes,
     qemu_check_kvm_support,
     qemu_check_vsock_support,

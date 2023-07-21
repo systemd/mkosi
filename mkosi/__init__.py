@@ -23,11 +23,14 @@ from typing import Callable, ContextManager, Optional, TextIO, Union, cast
 
 from mkosi.btrfs import btrfs_maybe_snapshot_subvolume
 from mkosi.config import (
+    Compression,
     ConfigFeature,
     GenericVersion,
+    ManifestFormat,
     MkosiArgs,
     MkosiConfig,
     MkosiConfigParser,
+    OutputFormat,
     SecureBootSignTool,
     Verb,
 )
@@ -42,16 +45,11 @@ from mkosi.run import become_root, bwrap, chroot_cmd, init_mount_namespace, run,
 from mkosi.state import MkosiState
 from mkosi.types import PathString
 from mkosi.util import (
-    Compression,
     InvokingUser,
-    ManifestFormat,
-    OutputFormat,
     flatten,
     flock,
     format_bytes,
     format_rlimit,
-    is_apt_distribution,
-    is_portage_distribution,
     scopedenv,
     try_import,
 )
@@ -806,7 +804,7 @@ def gen_kernel_modules_initrd(state: MkosiState, kver: str) -> Path:
         # Debian/Ubuntu do not compress their kernel modules, so we compress the initramfs instead. Note that
         # this is not ideal since the compressed kernel modules will all be decompressed on boot which
         # requires significant memory.
-        if is_apt_distribution(state.config.distribution):
+        if state.config.distribution.is_apt_distribution():
             maybe_compress(state, Compression.zst, kmods, kmods)
 
     return kmods
@@ -865,9 +863,9 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                 "--format", "cpio",
                 "--package", "systemd",
                 "--package", "util-linux",
-                *(["--package", "udev"] if not is_portage_distribution(state.config.distribution) else []),
+                *(["--package", "udev"] if not state.config.distribution.is_portage_distribution() else []),
                 "--package", "kmod",
-                *(["--package", "dmsetup"] if is_apt_distribution(state.config.distribution) else []),
+                *(["--package", "dmsetup"] if state.config.distribution.is_apt_distribution() else []),
                 "--output", f"{state.config.output}-initrd",
                 *(["--image-version", state.config.image_version] if state.config.image_version else []),
                 "--make-initrd", "yes",

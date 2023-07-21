@@ -12,8 +12,8 @@ from typing import Iterator, List, Optional
 
 import pytest
 
-from mkosi.config import MkosiArgs, MkosiConfig, MkosiConfigParser, Verb
-from mkosi.util import Compression, Distribution
+from mkosi.config import Compression, MkosiArgs, MkosiConfig, MkosiConfigParser, Verb
+from mkosi.util import Distribution
 
 
 @contextmanager

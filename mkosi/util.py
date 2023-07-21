@@ -61,21 +61,22 @@ class Distribution(enum.Enum):
     def is_centos_variant(self) -> bool:
         return self in (Distribution.centos, Distribution.alma, Distribution.rocky)
 
+    def is_dnf_distribution(self) -> bool:
+        return self in (
+            Distribution.fedora,
+            Distribution.mageia,
+            Distribution.centos,
+            Distribution.openmandriva,
+            Distribution.rocky,
+            Distribution.alma,
+        )
 
-class Compression(enum.Enum):
-    none = None
-    zst = "zst"
-    xz = "xz"
-    bz2 = "bz2"
-    gz = "gz"
-    lz4 = "lz4"
-    lzma = "lzma"
+    def is_apt_distribution(self) -> bool:
+        return self in (Distribution.debian, Distribution.ubuntu)
 
-    def __str__(self) -> str:
-        return str(self.value).lower()
 
-    def __bool__(self) -> bool:
-        return bool(self.value)
+    def is_portage_distribution(self) -> bool:
+        return self in (Distribution.gentoo,)
 
 
 def dictify(f: Callable[..., Iterator[tuple[T, V]]]) -> Callable[..., dict[T, V]]:
@@ -137,39 +138,6 @@ def detect_distribution() -> tuple[Optional[Distribution], Optional[str]]:
         version_id = version_codename or extracted_codename
 
     return d, version_id
-
-
-def is_dnf_distribution(d: Distribution) -> bool:
-    return d in (
-        Distribution.fedora,
-        Distribution.mageia,
-        Distribution.centos,
-        Distribution.openmandriva,
-        Distribution.rocky,
-        Distribution.alma,
-    )
-
-
-def is_apt_distribution(d: Distribution) -> bool:
-    return d in (Distribution.debian, Distribution.ubuntu)
-
-
-def is_portage_distribution(d: Distribution) -> bool:
-    return d in (Distribution.gentoo,)
-
-
-class OutputFormat(str, enum.Enum):
-    directory = "directory"
-    tar = "tar"
-    cpio = "cpio"
-    disk = "disk"
-    none = "none"
-
-
-class ManifestFormat(str, enum.Enum):
-    json      = "json"       # the standard manifest in json format
-    changelog = "changelog"  # human-readable text file with package changelogs
-
 
 
 def format_rlimit(rlimit: int) -> str:
