@@ -646,6 +646,7 @@ class MkosiConfig:
     hostname: Optional[str]
     root_password: Optional[tuple[str, bool]]
     root_shell: Optional[str]
+    zero_mtime: bool
 
     # QEMU-specific options
     qemu_gui: bool
@@ -868,6 +869,11 @@ class MkosiConfigParser:
             dest="use_subvolumes",
             section="Output",
             parse=config_parse_feature,
+        ),
+        MkosiConfigSetting(
+            dest="zero-mtime",
+            section="Output",
+            parse=config_parse_boolean,
         ),
         MkosiConfigSetting(
             dest="packages",
@@ -1552,6 +1558,13 @@ class MkosiConfigParser:
             "--use-subvolumes",
             metavar="FEATURE",
             help="Use btrfs subvolumes for faster directory operations where possible",
+            nargs="?",
+            action=action,
+        )
+        group.add_argument(
+            "--zero-mtime",
+            metavar="BOOL",
+            help="Zero mtime of the image",
             nargs="?",
             action=action,
         )

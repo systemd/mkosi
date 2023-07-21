@@ -842,6 +842,7 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                 "--cache-dir", str(state.cache_dir.parent),
                 "--incremental", yes_no(state.config.incremental),
                 "--acl", yes_no(state.config.acl),
+                "--zero-mtime", yes_no(state.config.zero_mtime),
                 "--format", "cpio",
                 "--package", "systemd",
                 "--package", "udev",
@@ -1542,6 +1543,13 @@ def run_selinux_relabel(state: MkosiState) -> None:
         run_workspace_command(state.root, ["sh", "-c", cmd], env=state.environment)
 
 
+def run_zero_mtime(state: MkosiState) -> None:
+    for p in state.root.glob('**/*'):
+        if p.is_symlink():
+            continue
+        os.utime(p.resolve(), (0, 0))
+
+
 def save_cache(state: MkosiState) -> None:
     if not state.config.incremental:
         return
@@ -1751,6 +1759,9 @@ def build_image(args: MkosiArgs, config: MkosiConfig, uid: int, gid: int) -> Non
             remove_files(state)
             run_finalize_script(state)
             run_selinux_relabel(state)
+
+        if state.config.zero_mtime:
+            run_zero_mtime(state)
 
         roothash, _ = make_image(state, skip=("esp", "xbootldr"))
         install_unified_kernel(state, roothash)
