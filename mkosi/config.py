@@ -33,7 +33,6 @@ from mkosi.util import (
     InvokingUser,
     ManifestFormat,
     OutputFormat,
-    Verb,
     chdir,
     detect_distribution,
     flatten,
@@ -45,11 +44,36 @@ from mkosi.util import (
 
 __version__ = "14"
 
-MKOSI_COMMANDS_CMDLINE = (Verb.build, Verb.shell, Verb.boot, Verb.qemu, Verb.ssh)
-
 ConfigParseCallback = Callable[[str, Optional[str], argparse.Namespace], Any]
 ConfigMatchCallback = Callable[[str, str, argparse.Namespace], bool]
 ConfigDefaultCallback = Callable[[argparse.Namespace], Any]
+
+
+class Verb(enum.Enum):
+    build   = "build"
+    clean   = "clean"
+    summary = "summary"
+    shell   = "shell"
+    boot    = "boot"
+    qemu    = "qemu"
+    ssh     = "ssh"
+    serve   = "serve"
+    bump    = "bump"
+    help    = "help"
+    genkey  = "genkey"
+
+    # Defining __str__ is required to get "print_help()" output to include the human readable (values) of Verb.
+    def __str__(self) -> str:
+        return self.value
+
+    def supports_cmdline(self) -> bool:
+        return self in (Verb.build, Verb.shell, Verb.boot, Verb.qemu, Verb.ssh)
+
+    def needs_build(self) -> bool:
+        return self in (Verb.build, Verb.shell, Verb.boot, Verb.qemu, Verb.serve)
+
+    def needs_sudo(self) -> bool:
+        return self in (Verb.shell, Verb.boot)
 
 
 class ConfigFeature(enum.Enum):
@@ -2072,8 +2096,8 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
 def load_config(args: argparse.Namespace) -> MkosiConfig:
     find_image_version(args)
 
-    if args.cmdline and args.verb not in MKOSI_COMMANDS_CMDLINE:
-        die(f"Parameters after verb are only accepted for {' '.join(verb.name for verb in MKOSI_COMMANDS_CMDLINE)}.")
+    if args.cmdline and not args.verb.supports_cmdline():
+        die(f"Arguments after verb are not supported for {args.verb}.")
 
     if shutil.which("bsdtar") and args.distribution == Distribution.openmandriva and args.tar_strip_selinux_context:
         die("Sorry, bsdtar on OpenMandriva is incompatible with --tar-strip-selinux-context")

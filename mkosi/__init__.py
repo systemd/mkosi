@@ -29,6 +29,7 @@ from mkosi.config import (
     MkosiConfig,
     MkosiConfigParser,
     SecureBootSignTool,
+    Verb,
 )
 from mkosi.install import add_dropin_config_from_resource, copy_path
 from mkosi.log import Style, color_error, complete_step, die, log_step
@@ -45,7 +46,6 @@ from mkosi.util import (
     InvokingUser,
     ManifestFormat,
     OutputFormat,
-    Verb,
     flatten,
     flock,
     format_bytes,
@@ -55,9 +55,6 @@ from mkosi.util import (
     tmp_dir,
     try_import,
 )
-
-MKOSI_COMMANDS_NEED_BUILD = (Verb.build, Verb.shell, Verb.boot, Verb.qemu, Verb.serve)
-MKOSI_COMMANDS_SUDO = (Verb.shell, Verb.boot)
 
 
 @contextlib.contextmanager
@@ -2128,7 +2125,7 @@ def expand_specifier(s: str) -> str:
 
 
 def needs_build(args: MkosiArgs, config: MkosiConfig) -> bool:
-    return args.verb in MKOSI_COMMANDS_NEED_BUILD and (args.force > 0 or not config.output_dir.joinpath(config.output_with_compression).exists())
+    return args.verb.needs_build() and (args.force > 0 or not config.output_dir.joinpath(config.output_with_compression).exists())
 
 
 @contextlib.contextmanager
@@ -2154,7 +2151,7 @@ def prepend_to_environ_path(config: MkosiConfig) -> Iterator[None]:
 
 
 def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
-    if args.verb in MKOSI_COMMANDS_SUDO:
+    if args.verb.needs_sudo():
         check_root()
 
     if args.verb == Verb.genkey:
