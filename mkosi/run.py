@@ -161,6 +161,7 @@ def run(
     user: Optional[int] = None,
     group: Optional[int] = None,
     env: Mapping[str, PathString] = {},
+    cwd: Optional[Path] = None,
     log: bool = True,
 ) -> CompletedProcess:
     if ARG_DEBUG.get():
@@ -200,6 +201,7 @@ def run(
             user=user,
             group=group,
             env=env,
+            cwd=cwd,
             preexec_fn=foreground,
         )
     except FileNotFoundError:

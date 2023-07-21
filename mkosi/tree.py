@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
+import errno
 import shutil
 import subprocess
 from pathlib import Path
@@ -12,7 +13,7 @@ from mkosi.types import PathString
 
 
 def statfs(path: Path) -> str:
-    return cast(str, run(["stat", "--file-system", "--format", "%T", path.parent],
+    return cast(str, run(["stat", "--file-system", "--format", "%T", path],
                          stdout=subprocess.PIPE).stdout.strip())
 
 
@@ -76,3 +77,20 @@ def copy_tree(config: MkosiConfig, src: Path, dst: Path, *, preserve_owner: bool
 
     if result != 0:
         run(copy)
+
+
+def move_tree(config: MkosiConfig, src: Path, dst: Path) -> None:
+    if src == dst:
+        return
+
+    if dst.is_dir():
+        dst = dst / src.name
+
+    try:
+        src.rename(dst)
+    except OSError as e:
+        if e.errno != errno.EXDEV:
+            raise e
+
+        copy_tree(config, src, dst)
+        run(["rm", "-rf", src])

@@ -42,7 +42,7 @@ from mkosi.qemu import copy_ephemeral, machine_cid, run_qemu
 from mkosi.remove import unlink_try_hard
 from mkosi.run import become_root, bwrap, chroot_cmd, init_mount_namespace, run, spawn
 from mkosi.state import MkosiState
-from mkosi.tree import copy_tree
+from mkosi.tree import copy_tree, move_tree
 from mkosi.types import PathString
 from mkosi.util import (
     InvokingUser,
@@ -804,7 +804,7 @@ def gen_kernel_modules_initrd(state: MkosiState, kver: str) -> Path:
         # this is not ideal since the compressed kernel modules will all be decompressed on boot which
         # requires significant memory.
         if state.config.distribution.is_apt_distribution():
-            maybe_compress(state, Compression.zst, kmods, kmods)
+            maybe_compress(state.config, Compression.zst, kmods, kmods)
 
     return kmods
 
@@ -998,10 +998,10 @@ def compressor_command(compression: Compression) -> list[PathString]:
         die(f"Unknown compression {compression}")
 
 
-def maybe_compress(state: MkosiState, compression: Compression, src: Path, dst: Optional[Path] = None) -> None:
+def maybe_compress(config: MkosiConfig, compression: Compression, src: Path, dst: Optional[Path] = None) -> None:
     if not compression or src.is_dir():
         if dst:
-            shutil.move(src, dst)
+            move_tree(config, src, dst)
         return
 
     if not dst:
@@ -1606,13 +1606,13 @@ def save_cache(state: MkosiState) -> None:
         # We only use the cache-overlay directory for caching if we have a base tree, otherwise we just
         # cache the root directory.
         if state.workspace.joinpath("cache-overlay").exists():
-            shutil.move(state.workspace / "cache-overlay", final)
+            move_tree(state.config, state.workspace / "cache-overlay", final)
         else:
-            shutil.move(state.root, final)
+            move_tree(state.config, state.root, final)
 
         if need_build_packages(state.config) and (state.workspace / "build-overlay").exists():
             unlink_try_hard(build)
-            shutil.move(state.workspace / "build-overlay", build)
+            move_tree(state.config, state.workspace / "build-overlay", build)
 
         manifest.write_text(json.dumps(state.config.cache_manifest()))
 
@@ -1744,7 +1744,7 @@ def make_image(state: MkosiState, skip: Sequence[str] = [], split: bool = False)
 
 def finalize_staging(state: MkosiState) -> None:
     for f in state.staging.iterdir():
-        shutil.move(f, state.config.output_dir)
+        move_tree(state.config, f, state.config.output_dir)
 
 
 def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
@@ -1804,13 +1804,13 @@ def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
         _, split_paths = make_image(state, split=True)
 
         for p in split_paths:
-            maybe_compress(state, state.config.compress_output, p)
+            maybe_compress(state.config, state.config.compress_output, p)
 
         make_tar(state)
         make_initrd(state)
         make_directory(state)
 
-        maybe_compress(state, state.config.compress_output,
+        maybe_compress(state.config, state.config.compress_output,
                        state.staging / state.config.output_with_format,
                        state.staging / state.config.output_with_compression)
 
