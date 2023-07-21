@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
+import os
 import re
 import urllib.parse
 import urllib.request
@@ -76,16 +77,6 @@ class GentooInstaller(DistributionInstaller):
     def filesystem(cls) -> str:
         return "btrfs"
 
-    @staticmethod
-    def kernel_image(name: str, architecture: Architecture) -> Path:
-        kimg_path = {
-            Architecture.x86_64: "arch/x86/boot/bzImage",
-            Architecture.arm64: "arch/arm64/boot/Image.gz",
-            Architecture.arm: "arch/arm/boot/zImage",
-        }[architecture]
-
-        return Path(f"usr/src/linux-{name}") / kimg_path
-
     @classmethod
     def install(cls, state: MkosiState) -> None:
         arch = state.installer.architecture(state.config.architecture)
@@ -159,6 +150,17 @@ class GentooInstaller(DistributionInstaller):
     @classmethod
     def install_packages(cls, state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
         invoke_emerge(state, packages=packages, apivfs=apivfs)
+
+        for d in state.root.glob("usr/src/linux-*"):
+            kver = d.name.removeprefix("linux-")
+            kimg = d / {
+                Architecture.x86_64: "arch/x86/boot/bzImage",
+                Architecture.arm64: "arch/arm64/boot/Image.gz",
+                Architecture.arm: "arch/arm/boot/zImage",
+            }[state.config.architecture]
+            vmlinuz = state.root / "usr/lib/modules" / kver / "vmlinuz"
+            if not vmlinuz.exists() and not vmlinuz.is_symlink():
+                vmlinuz.symlink_to(os.path.relpath(kimg, start=vmlinuz.parent))
 
     @staticmethod
     def architecture(arch: Architecture) -> str:

@@ -20,10 +20,6 @@ class DebianInstaller(DistributionInstaller):
         return "ext4"
 
     @staticmethod
-    def kernel_image(name: str, architecture: Architecture) -> Path:
-        return Path(f"boot/vmlinuz-{name}")
-
-    @staticmethod
     def repositories(state: MkosiState, local: bool = True) -> list[str]:
         repos = ' '.join(("main", *state.config.repositories))
 
@@ -118,6 +114,13 @@ class DebianInstaller(DistributionInstaller):
         install_apt_sources(state, cls.repositories(state, local=False))
 
         policyrcd.unlink()
+
+        for d in state.root.glob("boot/vmlinuz-*"):
+            kver = d.name.removeprefix("vmlinuz-")
+            vmlinuz = state.root / "usr/lib/modules" / kver / "vmlinuz"
+            if not vmlinuz.exists():
+                shutil.copy2(d, vmlinuz)
+
 
     @classmethod
     def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:

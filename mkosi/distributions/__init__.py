@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 from collections.abc import Sequence
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from mkosi.architecture import Architecture
@@ -14,10 +13,6 @@ class DistributionInstaller:
     @classmethod
     def install(cls, state: "MkosiState") -> None:
         raise NotImplementedError()
-
-    @staticmethod
-    def kernel_image(kver: str, architecture: Architecture) -> Path:
-        return Path("usr/lib/modules") / kver / "vmlinuz"
 
     @classmethod
     def install_packages(cls, state: "MkosiState", packages: Sequence[str]) -> None:
