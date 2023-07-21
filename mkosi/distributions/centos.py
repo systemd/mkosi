@@ -12,7 +12,6 @@ from mkosi.distributions.fedora import Repo, invoke_dnf, setup_dnf
 from mkosi.log import complete_step, die
 from mkosi.remove import unlink_try_hard
 from mkosi.state import MkosiState
-from mkosi.util import Distribution
 
 
 def move_rpm_db(root: Path) -> None:
@@ -92,19 +91,10 @@ class CentosInstaller(DistributionInstaller):
 
         if release <= 7:
             die("CentOS 7 or earlier variants are not supported")
-        elif release == 8 or state.config.distribution != Distribution.centos:
-            repos = cls._variant_repos(state.config, release)
-        else:
-            repos = cls._stream_repos(state.config, release)
 
-        setup_dnf(state, repos)
-
-        if state.config.distribution == Distribution.centos:
-            env = dict(DNF_VAR_stream=f"{state.config.release}-stream")
-        else:
-            env = {}
-
-        invoke_dnf(state, "install", packages, env, apivfs=apivfs)
+        setup_dnf(state, cls.repositories(state.config, release))
+        invoke_dnf(state, "install", packages, apivfs=apivfs,
+                   env=dict(DNF_VAR_stream=f"{state.config.release}-stream"))
 
     @classmethod
     def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
@@ -125,68 +115,60 @@ class CentosInstaller(DistributionInstaller):
         return a
 
     @staticmethod
-    def _gpgurl(release: int) -> str:
-        return "https://www.centos.org/keys/RPM-GPG-KEY-CentOS-Official"
-
-    @staticmethod
-    def _extras_gpgurl(release: int) -> str:
-        return "https://www.centos.org/keys/RPM-GPG-KEY-CentOS-SIG-Extras"
-
-    @classmethod
-    def _mirror_directory(cls) -> str:
-        return "centos"
-
-    @classmethod
-    def _mirror_repo_url(cls, repo: str) -> str:
-        return f"http://mirrorlist.centos.org/?release=$stream&arch=$basearch&repo={repo}"
-
-    @classmethod
-    def _sig_repos(cls, config: MkosiConfig, release: int) -> list[Repo]:
-        if config.local_mirror or config.distribution != Distribution.centos:
-            return []
-
-        sigs = (
-            (
-                "hyperscale",
-                (f"packages-{c}" for c in ("main", "experimental", "facebook", "hotfixes", "spin", "intel")),
-                "https://www.centos.org/keys/RPM-GPG-KEY-CentOS-SIG-HyperScale",
-            ),
+    def gpgurls() -> tuple[str, ...]:
+        return (
+            "https://www.centos.org/keys/RPM-GPG-KEY-CentOS-Official",
+            "https://www.centos.org/keys/RPM-GPG-KEY-CentOS-SIG-Extras",
         )
 
-        repos = []
+    @classmethod
+    def repository_url(cls, config: MkosiConfig, repo: str) -> str:
+        if config.mirror:
+            if int(config.release) <= 8:
+                return f"baseurl={config.mirror}/centos/$stream/{repo}/$basearch/os"
+            else:
+                if repo == "extras":
+                    return f"baseurl={config.mirror}/SIGS/$stream/{repo}/$basearch/os"
 
-        for sig, components, gpgurl in sigs:
-            for c in components:
-                if config.mirror:
-                    if release <= 8:
-                        url = f"baseurl={config.mirror}/centos/$stream/{sig}/$basearch/{c}"
-                    else:
-                        url = f"baseurl={config.mirror}/SIGs/$stream/{sig}/$basearch/{c}"
-                else:
-                    if release <= 8:
-                        url = f"mirrorlist=http://mirrorlist.centos.org/?release=$stream&arch=$basearch&repo={sig}-{c}"
-                    else:
-                        url = f"metalink=https://mirrors.centos.org/metalink?repo=centos-{sig}-sig-{c}-$stream&arch=$basearch"
+                return f"baseurl={config.mirror}/$stream/{repo}/$basearch/os"
+        else:
+            if int(config.release) <= 8:
+                return f"mirrorlist=http://mirrorlist.centos.org/?release=$stream&arch=$basearch&repo={repo}"
+            else:
+                if repo == "extras":
+                    repo = "extras-sig-extras-common"
 
-                repos += [
-                    Repo(
-                        id=f"{sig}-{c}",
-                        url=url,
-                        gpgurls=[gpgurl],
-                        enabled=False
-                    ),
-                    Repo(
-                        id=f"{sig}-{c}-testing",
-                        url=f"baseurl=https://buildlogs.centos.org/centos/$stream/{sig}/$basearch/{c}",
-                        gpgurls=[gpgurl],
-                        enabled=False,
-                    ),
-                ]
-
-        return repos
+                return f"metalink=https://mirrors.centos.org/metalink?arch=$basearch&repo=centos-{repo.lower()}-$stream"
 
     @classmethod
-    def _epel_repos(cls, config: MkosiConfig) -> list[Repo]:
+    def repositories(cls, config: MkosiConfig, release: int) -> list[Repo]:
+        if config.local_mirror:
+            appstream_url = f"baseurl={config.local_mirror}"
+            baseos_url = extras_url = powertools_url = crb_url = None
+        else:
+            appstream_url = cls.repository_url(config, "AppStream")
+            baseos_url = cls.repository_url(config, "BaseOS")
+            extras_url = cls.repository_url(config, "extras")
+            if release >= 9:
+                crb_url = cls.repository_url(config, "CRB")
+                powertools_url = None
+            else:
+                crb_url = None
+                powertools_url = cls.repository_url(config, "PowerTools")
+
+        repos = []
+        for name, url in (("appstream",  appstream_url),
+                               ("baseos",     baseos_url),
+                               ("extras",     extras_url),
+                               ("crb",        crb_url),
+                               ("powertools", powertools_url)):
+            if url:
+                repos += [Repo(name, url, cls.gpgurls())]
+
+        return repos + cls.epel_repositories(config) + cls.sig_repositories(config)
+
+    @classmethod
+    def epel_repositories(cls, config: MkosiConfig) -> list[Repo]:
         epel_gpgurl = "https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-$releasever"
 
         if config.local_mirror:
@@ -202,80 +184,50 @@ class CentosInstaller(DistributionInstaller):
             epel_testing_url = "metalink=https://mirrors.fedoraproject.org/metalink?repo=testing-epel$releasever&arch=$basearch"
 
         return [
-            Repo("epel", epel_url, [epel_gpgurl], enabled=False),
-            Repo("epel-next", epel_next_url, [epel_next_url], enabled=False),
-            Repo("epel-testing", epel_testing_url, [epel_gpgurl], enabled=False),
+            Repo("epel", epel_url, (epel_gpgurl,), enabled=False),
+            Repo("epel-next", epel_next_url, (epel_next_url,), enabled=False),
+            Repo("epel-testing", epel_testing_url, (epel_gpgurl,), enabled=False),
         ]
 
     @classmethod
-    def _variant_repos(cls, config: MkosiConfig, release: int) -> list[Repo]:
-        # Repos for CentOS Linux 8, CentOS Stream 8 and CentOS variants
-
-        directory = cls._mirror_directory()
-        gpgurl = cls._gpgurl(release)
-
+    def sig_repositories(cls, config: MkosiConfig) -> list[Repo]:
         if config.local_mirror:
-            appstream_url = f"baseurl={config.local_mirror}"
-            baseos_url = extras_url = powertools_url = crb_url = None
-        elif config.mirror:
-            appstream_url = f"baseurl={config.mirror}/{directory}/$stream/AppStream/$basearch/os"
-            baseos_url = f"baseurl={config.mirror}/{directory}/$stream/BaseOS/$basearch/os"
-            extras_url = f"baseurl={config.mirror}/{directory}/$stream/extras/$basearch/os"
-            if release >= 9:
-                crb_url = f"baseurl={config.mirror}/{directory}/$stream/CRB/$basearch/os"
-                powertools_url = None
-            else:
-                crb_url = None
-                powertools_url = f"baseurl={config.mirror}/{directory}/$stream/PowerTools/$basearch/os"
-        else:
-            appstream_url = f"mirrorlist={cls._mirror_repo_url('AppStream')}"
-            baseos_url = f"mirrorlist={cls._mirror_repo_url('BaseOS')}"
-            extras_url = f"mirrorlist={cls._mirror_repo_url('extras')}"
-            if release >= 9:
-                crb_url = f"mirrorlist={cls._mirror_repo_url('CRB')}"
-                powertools_url = None
-            else:
-                crb_url = None
-                powertools_url = f"mirrorlist={cls._mirror_repo_url('PowerTools')}"
+            return []
+
+        sigs = (
+            (
+                "hyperscale",
+                (f"packages-{c}" for c in ("main", "experimental", "facebook", "hotfixes", "spin", "intel")),
+                "https://www.centos.org/keys/RPM-GPG-KEY-CentOS-SIG-HyperScale",
+            ),
+        )
 
         repos = []
-        for name, url in (("appstream",  appstream_url),
-                          ("baseos",     baseos_url),
-                          ("extras",     extras_url),
-                          ("crb",        crb_url),
-                          ("powertools", powertools_url)):
-            if url:
-                repos += [Repo(name, url, [gpgurl])]
 
-        return repos + cls._epel_repos(config) + cls._sig_repos(config, release)
+        for sig, components, gpgurl in sigs:
+            for c in components:
+                if config.mirror:
+                    if int(config.release) <= 8:
+                        url = f"baseurl={config.mirror}/centos/$stream/{sig}/$basearch/{c}"
+                    else:
+                        url = f"baseurl={config.mirror}/SIGs/$stream/{sig}/$basearch/{c}"
+                else:
+                    repo = f"{sig}-{c}" if int(config.release) <= 8 else f"{sig}-sig-{c}"
+                    url = cls.repository_url(config, repo)
 
-    @classmethod
-    def _stream_repos(cls, config: MkosiConfig, release: int) -> list[Repo]:
-        # Repos for CentOS Stream 9 and later
+                repos += [
+                    Repo(
+                        id=f"{sig}-{c}",
+                        url=url,
+                        gpgurls=(gpgurl,),
+                        enabled=False
+                    ),
+                    Repo(
+                        id=f"{sig}-{c}-testing",
+                        url=f"baseurl=https://buildlogs.centos.org/centos/$stream/{sig}/$basearch/{c}",
+                        gpgurls=(gpgurl,),
+                        enabled=False,
+                    ),
+                ]
 
-        gpgurl = cls._gpgurl(release)
-        extras_gpgurl = cls._extras_gpgurl(release)
-
-        if config.local_mirror:
-            appstream_url = f"baseurl={config.local_mirror}"
-            baseos_url = extras_url = crb_url = None
-        elif config.mirror:
-            appstream_url = f"baseurl={config.mirror}/centos-stream/$stream/AppStream/$basearch/os"
-            baseos_url = f"baseurl={config.mirror}/centos-stream/$stream/BaseOS/$basearch/os"
-            extras_url = f"baseurl={config.mirror}/centos-stream/SIGS/$stream/extras/$basearch/extras-common"
-            crb_url = f"baseurl={config.mirror}/centos-stream/$stream/CRB/$basearch/os"
-        else:
-            appstream_url = "metalink=https://mirrors.centos.org/metalink?repo=centos-appstream-$stream&arch=$basearch&protocol=https,http"
-            baseos_url = "metalink=https://mirrors.centos.org/metalink?repo=centos-baseos-$stream&arch=$basearch&protocol=https,http"
-            extras_url = "metalink=https://mirrors.centos.org/metalink?repo=centos-extras-sig-extras-common-$stream&arch=$basearch&protocol=https,http"
-            crb_url = "metalink=https://mirrors.centos.org/metalink?repo=centos-crb-$stream&arch=$basearch&protocol=https,http"
-
-        repos = []
-        for name, url, gpgurl in (("appstream", appstream_url, gpgurl),
-                                  ("baseos",    baseos_url,    gpgurl),
-                                  ("extras",    extras_url,    extras_gpgurl),
-                                  ("crb",       crb_url,       gpgurl)):
-            if url:
-                repos += [Repo(name, url, [gpgurl])]
-
-        return repos + cls._epel_repos(config) + cls._sig_repos(config, release)
+        return repos

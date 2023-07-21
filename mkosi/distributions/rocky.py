@@ -1,23 +1,22 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
+from mkosi.config import MkosiConfig
 from mkosi.distributions.centos import CentosInstaller
+from mkosi.distributions.fedora import Repo
 
 
 class RockyInstaller(CentosInstaller):
     @staticmethod
-    def _gpgurl(release: int) -> str:
-        keyname = "Rocky-$releasever" if release >= 9 else "rockyofficial"
-        return f"https://download.rockylinux.org/pub/rocky/RPM-GPG-KEY-{keyname}"
-
-    @staticmethod
-    def _extras_gpgurl(release: int) -> str:
-        keyname = "Rocky-$releasever" if release >= 9 else "rockyofficial"
-        return f"https://download.rockylinux.org/pub/rocky/RPM-GPG-KEY-{keyname}"
+    def gpgurls() -> tuple[str, ...]:
+        return ("https://download.rockylinux.org/pub/rocky/RPM-GPG-KEY-Rocky-$releasever",)
 
     @classmethod
-    def _mirror_directory(cls) -> str:
-        return "rocky"
+    def repository_url(cls, config: MkosiConfig, repo: str) -> str:
+        if config.mirror:
+            return f"baseurl={config.mirror}/rocky/$releasever/{repo}/$basearch/os"
+        else:
+            return f"mirrorlist=https://mirrors.rockylinux.org/mirrorlist?arch=$basearch&repo={repo}-$releasever"
 
     @classmethod
-    def _mirror_repo_url(cls, repo: str) -> str:
-        return f"https://mirrors.rockylinux.org/mirrorlist?arch=$basearch&repo={repo}-$releasever"
+    def sig_repositories(cls, config: MkosiConfig) -> list[Repo]:
+        return []
