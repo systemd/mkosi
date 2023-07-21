@@ -64,18 +64,6 @@ class CentosInstaller(DistributionInstaller):
             },
         }.get(state.config.release, {})
 
-    @staticmethod
-    def kernel_command_line(state: MkosiState) -> list[str]:
-        kcl = []
-
-        # systemd-gpt-auto-generator only started applying the GPT partition read-only flag to gpt-auto
-        # mounts from v240 onwards, while CentOS Stream 8 ships systemd v239, so we have to nudge gpt-auto to
-        # mount the root partition rw by default.
-        if int(state.config.release) <= 8:
-            kcl += ["rw"]
-
-        return kcl + DistributionInstaller.kernel_command_line(state)
-
     @classmethod
     def install(cls, state: MkosiState) -> None:
         # Make sure glibc-minimal-langpack is installed instead of glibc-all-langpacks.

@@ -36,9 +36,5 @@ class DistributionInstaller:
         return {}
 
     @staticmethod
-    def kernel_command_line(state: "MkosiState") -> list[str]:
-        return []
-
-    @staticmethod
     def architecture(arch: Architecture) -> str:
         raise NotImplementedError()
