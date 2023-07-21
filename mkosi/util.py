@@ -2,6 +2,7 @@
 
 import ast
 import contextlib
+import copy
 import enum
 import errno
 import fcntl
@@ -15,7 +16,7 @@ import re
 import resource
 import stat
 import sys
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Mapping
 from pathlib import Path
 from typing import Any, Callable, Optional, TypeVar
 
@@ -178,11 +179,6 @@ def format_rlimit(rlimit: int) -> str:
     return f"{soft}:{hard}"
 
 
-def tmp_dir() -> Path:
-    path = os.environ.get("TMPDIR") or "/var/tmp"
-    return Path(path)
-
-
 def sort_packages(packages: Iterable[str]) -> list[str]:
     """Sorts packages: normal first, paths second, conditional third"""
 
@@ -303,3 +299,14 @@ def flock(path: Path) -> Iterator[int]:
         yield fd
     finally:
         os.close(fd)
+
+
+@contextlib.contextmanager
+def scopedenv(env: Mapping[str, Any]) -> Iterator[None]:
+    old = copy.copy(os.environ)
+    os.environ |= env
+
+    try:
+        yield
+    finally:
+        os.environ = old

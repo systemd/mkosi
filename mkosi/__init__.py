@@ -52,7 +52,7 @@ from mkosi.util import (
     format_rlimit,
     is_apt_distribution,
     is_portage_distribution,
-    tmp_dir,
+    scopedenv,
     try_import,
 )
 
@@ -1718,7 +1718,7 @@ def make_image(state: MkosiState, skip: Sequence[str] = [], split: bool = False)
 
         cmdline += ["--definitions", definitions]
 
-    env = dict(TMPDIR=str(state.workspace))
+    env = dict()
     for option, value in state.config.environment.items():
         if option.startswith("SYSTEMD_REPART_MKFS_OPTIONS_"):
             env[option] = value
@@ -1756,7 +1756,7 @@ def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
 
     # Make sure tmpfiles' aging doesn't interfere with our workspace
     # while we are working on it.
-    with flock(state.workspace):
+    with flock(state.workspace), scopedenv({"TMPDIR" : str(state.workspace)}):
         install_package_manager_trees(state)
 
         with mount_image(state):
@@ -2125,7 +2125,7 @@ def prepend_to_environ_path(config: MkosiConfig) -> Iterator[None]:
         yield
         return
 
-    with tempfile.TemporaryDirectory(prefix="mkosi.path", dir=tmp_dir()) as d:
+    with tempfile.TemporaryDirectory(prefix="mkosi.path") as d:
 
         for path in config.extra_search_paths:
             if not path.is_dir():

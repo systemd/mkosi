@@ -28,7 +28,6 @@ from mkosi.util import (
     format_bytes,
     qemu_check_kvm_support,
     qemu_check_vsock_support,
-    tmp_dir,
 )
 
 
@@ -266,7 +265,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
 
     with contextlib.ExitStack() as stack:
         if fw_supports_sb:
-            ovmf_vars = stack.enter_context(tempfile.NamedTemporaryFile(prefix=".mkosi-", dir=tmp_dir()))
+            ovmf_vars = stack.enter_context(tempfile.NamedTemporaryFile(prefix=".mkosi-"))
             shutil.copy(find_ovmf_vars(config), Path(ovmf_vars.name))
             cmdline += [
                 "-global", "ICH9-LPC.disable_s3=1",
