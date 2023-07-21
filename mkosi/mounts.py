@@ -139,11 +139,10 @@ def mount_passwd(name: str, uid: int, gid: int, umount: bool = True) -> Iterator
     ssh looks up the running user in /etc/passwd and fails if it can't find the running user. To trick it, we
     mount over /etc/passwd with our own file containing our user in the user namespace.
     """
-    with tempfile.NamedTemporaryFile(mode="w") as passwd:
+    with tempfile.NamedTemporaryFile(prefix="mkosi.passwd", mode="w") as passwd:
         passwd.write(f"{name}:x:{uid}:{gid}:{name}:/bin/sh\n")
-        passwd.flush()
-
-        os.chown(passwd.name, uid, gid)
+        os.fchown(passwd.file.fileno(), uid, gid)
 
         with mount(passwd.name, Path("/etc/passwd"), operation="--bind", umount=umount):
+            passwd.close() # Don't need the file anymore after it's mounted.
             yield

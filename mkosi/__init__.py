@@ -2084,7 +2084,7 @@ def generate_key_cert_pair(args: MkosiArgs) -> None:
     run(cmd)
 
 
-def bump_image_version(uid: Optional[int] = None, gid: Optional[int] = None) -> None:
+def bump_image_version(uid: int = -1, gid: int = -1) -> None:
     """Write current image version plus one to mkosi.version"""
     assert bool(uid) == bool(gid)
 
@@ -2103,8 +2103,7 @@ def bump_image_version(uid: Optional[int] = None, gid: Optional[int] = None) -> 
         logging.info(f"Increasing last component of version by one, bumping '{version}' → '{new_version}'.")
 
     Path("mkosi.version").write_text(f"{new_version}\n")
-    if uid and gid:
-        os.chown("mkosi.version", uid, gid)
+    os.chown("mkosi.version", uid, gid)
 
 
 def expand_specifier(s: str) -> str:
@@ -2238,6 +2237,12 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
 
             build = True
 
+    if build and args.auto_bump:
+        bump_image_version(uid, gid)
+
+    if args.verb == Verb.build:
+        return
+
     # We want to drop privileges after mounting the last tools tree, but to unmount it we still need
     # privileges. To avoid a permission error, let's not unmount the final tools tree, since we'll exit
     # right after (and we're in a mount namespace so the /usr mount disappears when we exit)
@@ -2248,9 +2253,6 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
         if args.verb not in (Verb.shell, Verb.boot):
             os.setresgid(gid, gid, gid)
             os.setresuid(uid, uid, uid)
-
-        if build and args.auto_bump:
-            bump_image_version(uid, gid)
 
         with prepend_to_environ_path(last):
             if args.verb in (Verb.shell, Verb.boot):
