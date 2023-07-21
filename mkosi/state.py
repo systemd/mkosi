@@ -3,6 +3,8 @@
 import importlib
 import tempfile
 from pathlib import Path
+from types import TracebackType
+from typing import Optional, Type
 
 from mkosi.btrfs import btrfs_maybe_make_subvolume
 from mkosi.config import MkosiArgs, MkosiConfig
@@ -17,8 +19,6 @@ class MkosiState:
         self.args = args
         self.config = config
 
-        self._workspace = tempfile.TemporaryDirectory(dir=config.workspace_dir or Path.cwd(), prefix=".mkosi.tmp")
-
         try:
             distro = str(self.config.distribution)
             mod = importlib.import_module(f"mkosi.distributions.{distro}")
@@ -30,12 +30,22 @@ class MkosiState:
             die("No installer for this distribution.")
         self.installer = instance
 
+    def __enter__(self) -> "MkosiState":
+        self._workspace = tempfile.TemporaryDirectory(dir=self.config.workspace_dir or Path.cwd(), prefix=".mkosi.tmp")
         btrfs_maybe_make_subvolume(self.config, self.root, mode=0o755)
         self.staging.mkdir()
         self.pkgmngr.mkdir()
         self.install_dir.mkdir(exist_ok=True)
-
         self.cache_dir.mkdir(parents=True, exist_ok=True)
+        return self
+
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc: Optional[BaseException],
+        traceback: Optional[TracebackType]
+    ) -> None:
+        self._workspace.cleanup()
 
     @property
     def workspace(self) -> Path:

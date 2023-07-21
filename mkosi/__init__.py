@@ -47,7 +47,6 @@ from mkosi.types import PathString
 from mkosi.util import (
     InvokingUser,
     flatten,
-    flock,
     format_bytes,
     format_rlimit,
     scopedenv,
@@ -1749,12 +1748,11 @@ def finalize_staging(state: MkosiState) -> None:
 
 
 def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
-    state = MkosiState(args, config)
     manifest = Manifest(config)
 
     # Make sure tmpfiles' aging doesn't interfere with our workspace
     # while we are working on it.
-    with flock(state.workspace), scopedenv({"TMPDIR" : str(state.workspace)}):
+    with MkosiState(args, config) as state, scopedenv({"TMPDIR" : str(state.workspace)}):
         install_package_manager_trees(state)
 
         with mount_image(state):
