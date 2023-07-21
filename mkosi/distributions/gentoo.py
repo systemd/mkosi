@@ -9,11 +9,11 @@ from pathlib import Path
 
 from mkosi.architecture import Architecture
 from mkosi.distributions import DistributionInstaller
-from mkosi.install import copy_path
 from mkosi.log import ARG_DEBUG, complete_step, die
 from mkosi.remove import unlink_try_hard
 from mkosi.run import bwrap, chroot_cmd, run
 from mkosi.state import MkosiState
+from mkosi.tree import copy_tree
 from mkosi.types import PathString
 
 
@@ -131,7 +131,7 @@ class GentooInstaller(DistributionInstaller):
         for d in ("binpkgs", "distfiles", "repos/gentoo"):
             (state.cache_dir / d).mkdir(parents=True, exist_ok=True)
 
-        copy_path(state.pkgmngr, stage3, preserve_owner=False)
+        copy_tree(state.config, state.pkgmngr, stage3, preserve_owner=False)
 
         bwrap(
             cmd=["chroot", "emerge-webrsync"],

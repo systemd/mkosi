@@ -6,10 +6,10 @@ from pathlib import Path
 from types import TracebackType
 from typing import Optional, Type
 
-from mkosi.btrfs import btrfs_maybe_make_subvolume
 from mkosi.config import MkosiArgs, MkosiConfig
 from mkosi.distributions import DistributionInstaller
 from mkosi.log import die
+from mkosi.tree import make_tree
 
 
 class MkosiState:
@@ -32,7 +32,7 @@ class MkosiState:
 
     def __enter__(self) -> "MkosiState":
         self._workspace = tempfile.TemporaryDirectory(dir=self.config.workspace_dir or Path.cwd(), prefix=".mkosi.tmp")
-        btrfs_maybe_make_subvolume(self.config, self.root, mode=0o755)
+        make_tree(self.config, self.root, mode=0o755)
         self.staging.mkdir()
         self.pkgmngr.mkdir()
         self.install_dir.mkdir(exist_ok=True)

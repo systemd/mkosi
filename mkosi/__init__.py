@@ -21,7 +21,6 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Callable, ContextManager, Optional, TextIO, Union, cast
 
-from mkosi.btrfs import btrfs_maybe_snapshot_subvolume
 from mkosi.config import (
     Compression,
     ConfigFeature,
@@ -34,7 +33,7 @@ from mkosi.config import (
     SecureBootSignTool,
     Verb,
 )
-from mkosi.install import add_dropin_config_from_resource, copy_path
+from mkosi.install import add_dropin_config_from_resource
 from mkosi.log import Style, color_error, complete_step, die, log_step
 from mkosi.manifest import Manifest
 from mkosi.mounts import mount_overlay, mount_passwd, mount_tools, scandir_recursive
@@ -43,6 +42,7 @@ from mkosi.qemu import copy_ephemeral, machine_cid, run_qemu
 from mkosi.remove import unlink_try_hard
 from mkosi.run import become_root, bwrap, chroot_cmd, init_mount_namespace, run, spawn
 from mkosi.state import MkosiState
+from mkosi.tree import copy_tree
 from mkosi.types import PathString
 from mkosi.util import (
     InvokingUser,
@@ -504,7 +504,7 @@ def install_base_trees(state: MkosiState) -> None:
     with complete_step("Copying in base trees…"):
         for path in state.config.base_trees:
             if path.is_dir():
-                btrfs_maybe_snapshot_subvolume(state.config, path, state.root)
+                copy_tree(state.config, path, state.root)
             elif path.suffix == ".tar":
                 shutil.unpack_archive(path, state.root)
             elif path.suffix == ".raw":
@@ -526,7 +526,7 @@ def install_skeleton_trees(state: MkosiState) -> None:
             t.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
 
             if source.is_dir() or target:
-                copy_path(source, t, preserve_owner=False)
+                copy_tree(state.config, source, t, preserve_owner=False)
             else:
                 shutil.unpack_archive(source, t)
 
@@ -544,7 +544,7 @@ def install_package_manager_trees(state: MkosiState) -> None:
             t.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
 
             if source.is_dir() or target:
-                copy_path(source, t, preserve_owner=False)
+                copy_tree(state.config, source, t, preserve_owner=False)
             else:
                 shutil.unpack_archive(source, t)
 
@@ -562,7 +562,7 @@ def install_extra_trees(state: MkosiState) -> None:
             t.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
 
             if source.is_dir() or target:
-                copy_path(source, t, preserve_owner=False)
+                copy_tree(state.config, source, t, preserve_owner=False)
             else:
                 shutil.unpack_archive(source, t)
 
@@ -572,7 +572,7 @@ def install_build_dest(state: MkosiState) -> None:
         return
 
     with complete_step("Copying in build tree…"):
-        copy_path(state.install_dir, state.root)
+        copy_tree(state.config, state.install_dir, state.root)
 
 
 def gzip_binary() -> str:
@@ -1633,7 +1633,7 @@ def reuse_cache(state: MkosiState) -> bool:
         return False
 
     with complete_step("Copying cached trees"):
-        btrfs_maybe_snapshot_subvolume(state.config, final, state.root)
+        copy_tree(state.config, final, state.root)
         if need_build_packages(state.config):
             state.workspace.joinpath("build-overlay").symlink_to(build)
 
