@@ -623,7 +623,7 @@ def make_cpio(root: Path, files: Iterator[Path], output: Path) -> None:
             #  https://github.com/python/mypy/issues/10583
             assert cpio.stdin is not None
 
-            for file in files:
+            for file in sorted(files):
                 cpio.stdin.write(os.fspath(file))
                 cpio.stdin.write("\0")
             cpio.stdin.close()
