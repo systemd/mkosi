@@ -1719,9 +1719,6 @@ def make_image(state: MkosiState, skip: Sequence[str] = [], split: bool = False)
         cmdline += ["--definitions", definitions]
 
     env = dict(TMPDIR=str(state.workspace))
-    for fs, options in state.installer.filesystem_options(state).items():
-        env[f"SYSTEMD_REPART_MKFS_OPTIONS_{fs.upper()}"] = " ".join(options)
-
     for option, value in state.config.environment.items():
         if option.startswith("SYSTEMD_REPART_MKFS_OPTIONS_"):
             env[option] = value

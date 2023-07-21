@@ -31,38 +31,7 @@ class CentosInstaller(DistributionInstaller):
 
     @classmethod
     def filesystem(cls) -> str:
-        # This should really be "xfs" but unprivileged population of XFS filesystems with files containing
-        # spaces in their path is broken and needs fixing in xfsprogs, see
-        # https://marc.info/?l=linux-xfs&m=167450838316386&w=2.
-        return "ext4"
-
-    @classmethod
-    def filesystem_options(cls, state: MkosiState) -> dict[str, list[str]]:
-        # Hard code the features from /etc/mke2fs.conf from CentOS 8 Stream to ensure that filesystems
-        # created on distros with newer versions of e2fsprogs are compatible with e2fsprogs from CentOS
-        # Stream 8.
-
-        return {
-            "8": {
-                "ext4": ["-O", ",".join([
-                    "none",
-                    "sparse_super",
-                    "large_file",
-                    "filetype",
-                    "resize_inode",
-                    "dir_index",
-                    "ext_attr",
-                    "has_journal",
-                    "extent",
-                    "huge_file",
-                    "flex_bg",
-                    "metadata_csum",
-                    "64bit",
-                    "dir_nlink",
-                    "extra_isize"
-                ])],
-            },
-        }.get(state.config.release, {})
+        return "xfs"
 
     @classmethod
     def install(cls, state: MkosiState) -> None:
