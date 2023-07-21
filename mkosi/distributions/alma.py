@@ -1,21 +1,22 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
+from mkosi.config import MkosiConfig
 from mkosi.distributions.centos import CentosInstaller
+from mkosi.distributions.fedora import Repo
 
 
 class AlmaInstaller(CentosInstaller):
     @staticmethod
-    def _gpgurl(release: int) -> str:
-        return "https://repo.almalinux.org/almalinux/RPM-GPG-KEY-AlmaLinux-$releasever"
-
-    @staticmethod
-    def _extras_gpgurl(release: int) -> str:
-        return "https://repo.almalinux.org/almalinux/RPM-GPG-KEY-AlmaLinux-$releasever"
+    def gpgurls() -> tuple[str, ...]:
+        return ("https://repo.almalinux.org/almalinux/RPM-GPG-KEY-AlmaLinux-$releasever",)
 
     @classmethod
-    def _mirror_directory(cls) -> str:
-        return "almalinux"
+    def repository_url(cls, config: MkosiConfig, repo: str) -> str:
+        if config.mirror:
+            return f"baseurl={config.mirror}/almalinux/$releasever/{repo}/$basearch/os"
+        else:
+            return f"mirrorlist=https://mirrors.almalinux.org/mirrorlist/$releasever/{repo.lower()}"
 
     @classmethod
-    def _mirror_repo_url(cls, repo: str) -> str:
-        return f"https://mirrors.almalinux.org/mirrorlist/$releasever/{repo.lower()}"
+    def sig_repositories(cls, config: MkosiConfig) -> list[Repo]:
+        return []

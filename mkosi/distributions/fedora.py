@@ -64,7 +64,7 @@ class FedoraInstaller(DistributionInstaller):
                           ("extras",    extras_url),
                           ("crb",       crb_url)):
             if url:
-                repos += [Repo(name, url, [gpgurl])]
+                repos += [Repo(name, url, (gpgurl,))]
 
         setup_dnf(state, repos)
         invoke_dnf(state, "install", packages, apivfs=apivfs,
@@ -106,7 +106,7 @@ def fedora_release_at_least(release: str, threshold: str) -> bool:
 class Repo(NamedTuple):
     id: str
     url: str
-    gpgurls: list[str]
+    gpgurls: tuple[str, ...]
     enabled: bool = True
 
 
