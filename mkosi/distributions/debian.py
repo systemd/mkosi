@@ -20,10 +20,6 @@ class DebianInstaller(DistributionInstaller):
         return "ext4"
 
     @staticmethod
-    def kernel_image(name: str, architecture: Architecture) -> Path:
-        return Path(f"boot/vmlinuz-{name}")
-
-    @staticmethod
     def repositories(state: MkosiState, local: bool = True) -> list[str]:
         repos = ' '.join(("main", *state.config.repositories))
 
@@ -79,7 +75,7 @@ class DebianInstaller(DistributionInstaller):
         # By configuring Debug::pkgDpkgPm=1, apt-get install will not actually execute any dpkg commands, so
         # all it does is download the essential debs and tell us their full in the apt cache without actually
         # installing them.
-        with tempfile.NamedTemporaryFile(dir=state.workspace, mode="r") as f:
+        with tempfile.NamedTemporaryFile(mode="r") as f:
             cls.install_packages(state, [
                 "-oDebug::pkgDPkgPm=1",
                 f"-oDPkg::Pre-Install-Pkgs::=cat >{f.name}",
@@ -92,7 +88,7 @@ class DebianInstaller(DistributionInstaller):
         # then extracting the tar file into the chroot.
 
         for deb in essential:
-            with tempfile.NamedTemporaryFile(dir=state.workspace) as f:
+            with tempfile.NamedTemporaryFile() as f:
                 run(["dpkg-deb", "--fsys-tarfile", deb], stdout=f)
                 run(["tar", "-C", state.root, "--keep-directory-symlink", "--extract", "--file", f.name])
 
@@ -118,6 +114,13 @@ class DebianInstaller(DistributionInstaller):
         install_apt_sources(state, cls.repositories(state, local=False))
 
         policyrcd.unlink()
+
+        for d in state.root.glob("boot/vmlinuz-*"):
+            kver = d.name.removeprefix("vmlinuz-")
+            vmlinuz = state.root / "usr/lib/modules" / kver / "vmlinuz"
+            if not vmlinuz.exists():
+                shutil.copy2(d, vmlinuz)
+
 
     @classmethod
     def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:

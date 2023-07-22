@@ -161,6 +161,7 @@ def run(
     user: Optional[int] = None,
     group: Optional[int] = None,
     env: Mapping[str, PathString] = {},
+    cwd: Optional[Path] = None,
     log: bool = True,
 ) -> CompletedProcess:
     if ARG_DEBUG.get():
@@ -200,6 +201,7 @@ def run(
             user=user,
             group=group,
             env=env,
+            cwd=cwd,
             preexec_fn=foreground,
         )
     except FileNotFoundError:
@@ -295,8 +297,8 @@ def bwrap(
     else:
         chmod = ":"
 
-    with tempfile.TemporaryDirectory(dir="/var/tmp", prefix="mkosi-var-tmp") as var_tmp,\
-         tempfile.TemporaryDirectory(dir="/tmp", prefix="mkosi-scripts") as d:
+    with tempfile.TemporaryDirectory(prefix="mkosi-var-tmp") as var_tmp,\
+         tempfile.TemporaryDirectory(prefix="mkosi-scripts") as d:
 
         for name, script in scripts.items():
             # Make sure we don't end up in a recursive loop when we name a script after the binary it execs

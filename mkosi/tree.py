@@ -1,22 +1,27 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
+import errno
 import shutil
 import subprocess
 from pathlib import Path
-from typing import cast
+from typing import Sequence, cast
 
 from mkosi.config import ConfigFeature, MkosiConfig
-from mkosi.install import copy_path
 from mkosi.log import die
 from mkosi.run import run
+from mkosi.types import PathString
 
 
 def statfs(path: Path) -> str:
-    return cast(str, run(["stat", "--file-system", "--format", "%T", path.parent],
+    return cast(str, run(["stat", "--file-system", "--format", "%T", path],
                          stdout=subprocess.PIPE).stdout.strip())
 
 
-def btrfs_maybe_make_subvolume(config: MkosiConfig, path: Path, mode: int) -> None:
+def is_subvolume(path: Path) -> bool:
+    return path.is_dir() and statfs(path) == "btrfs" and path.stat().st_ino == 256
+
+
+def make_tree(config: MkosiConfig, path: Path, mode: int) -> None:
     if config.use_subvolumes == ConfigFeature.enabled and not shutil.which("btrfs"):
         die("Subvolumes requested but the btrfs command was not found")
 
@@ -29,7 +34,7 @@ def btrfs_maybe_make_subvolume(config: MkosiConfig, path: Path, mode: int) -> No
 
     if config.use_subvolumes != ConfigFeature.disabled and shutil.which("btrfs") is not None:
         result = run(["btrfs", "subvolume", "create", path],
-                       check=config.use_subvolumes == ConfigFeature.enabled).returncode
+                     check=config.use_subvolumes == ConfigFeature.enabled).returncode
     else:
         result = 1
 
@@ -39,16 +44,26 @@ def btrfs_maybe_make_subvolume(config: MkosiConfig, path: Path, mode: int) -> No
         path.mkdir(mode)
 
 
-def btrfs_maybe_snapshot_subvolume(config: MkosiConfig, src: Path, dst: Path) -> None:
+def copy_tree(config: MkosiConfig, src: Path, dst: Path, *, preserve_owner: bool = True) -> None:
     subvolume = (config.use_subvolumes == ConfigFeature.enabled or
                  config.use_subvolumes == ConfigFeature.auto and shutil.which("btrfs") is not None)
 
     if config.use_subvolumes == ConfigFeature.enabled and not shutil.which("btrfs"):
         die("Subvolumes requested but the btrfs command was not found")
 
+    copy: Sequence[PathString] = [
+        "cp",
+        "--recursive",
+        f"--preserve=mode,timestamps,links,xattr{',ownership' if preserve_owner else ''}",
+        "--no-target-directory",
+        "--reflink=auto",
+        src, dst,
+    ]
+
     # Subvolumes always have inode 256 so we can use that to check if a directory is a subvolume.
-    if not subvolume or statfs(src) != "btrfs" or src.stat().st_ino != 256 or (dst.exists() and any(dst.iterdir())):
-        return copy_path(src, dst)
+    if not subvolume or not preserve_owner or not is_subvolume(src) or (dst.exists() and any(dst.iterdir())):
+        run(copy)
+        return
 
     # btrfs can't snapshot to an existing directory so make sure the destination does not exist.
     if dst.exists():
@@ -61,4 +76,21 @@ def btrfs_maybe_snapshot_subvolume(config: MkosiConfig, src: Path, dst: Path) ->
         result = 1
 
     if result != 0:
-        copy_path(src, dst)
+        run(copy)
+
+
+def move_tree(config: MkosiConfig, src: Path, dst: Path) -> None:
+    if src == dst:
+        return
+
+    if dst.is_dir():
+        dst = dst / src.name
+
+    try:
+        src.rename(dst)
+    except OSError as e:
+        if e.errno != errno.EXDEV:
+            raise e
+
+        copy_tree(config, src, dst)
+        run(["rm", "-rf", src])

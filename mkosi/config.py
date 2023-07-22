@@ -28,28 +28,47 @@ from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, Style, die
 from mkosi.pager import page
 from mkosi.run import run
 from mkosi.util import (
-    Compression,
     Distribution,
     InvokingUser,
-    ManifestFormat,
-    OutputFormat,
-    Verb,
     chdir,
     detect_distribution,
     flatten,
-    is_apt_distribution,
-    is_dnf_distribution,
     qemu_check_kvm_support,
     qemu_check_vsock_support,
 )
 
 __version__ = "14"
 
-MKOSI_COMMANDS_CMDLINE = (Verb.build, Verb.shell, Verb.boot, Verb.qemu, Verb.ssh)
-
 ConfigParseCallback = Callable[[str, Optional[str], argparse.Namespace], Any]
 ConfigMatchCallback = Callable[[str, str, argparse.Namespace], bool]
 ConfigDefaultCallback = Callable[[argparse.Namespace], Any]
+
+
+class Verb(enum.Enum):
+    build   = "build"
+    clean   = "clean"
+    summary = "summary"
+    shell   = "shell"
+    boot    = "boot"
+    qemu    = "qemu"
+    ssh     = "ssh"
+    serve   = "serve"
+    bump    = "bump"
+    help    = "help"
+    genkey  = "genkey"
+
+    # Defining __str__ is required to get "print_help()" output to include the human readable (values) of Verb.
+    def __str__(self) -> str:
+        return self.value
+
+    def supports_cmdline(self) -> bool:
+        return self in (Verb.build, Verb.shell, Verb.boot, Verb.qemu, Verb.ssh)
+
+    def needs_build(self) -> bool:
+        return self in (Verb.build, Verb.shell, Verb.boot, Verb.qemu, Verb.serve)
+
+    def needs_sudo(self) -> bool:
+        return self in (Verb.shell, Verb.boot)
 
 
 class ConfigFeature(enum.Enum):
@@ -68,6 +87,35 @@ class SecureBootSignTool(enum.Enum):
 
     def __str__(self) -> str:
         return str(self.value).lower()
+
+
+class OutputFormat(str, enum.Enum):
+    directory = "directory"
+    tar = "tar"
+    cpio = "cpio"
+    disk = "disk"
+    none = "none"
+
+
+class ManifestFormat(str, enum.Enum):
+    json      = "json"       # the standard manifest in json format
+    changelog = "changelog"  # human-readable text file with package changelogs
+
+
+class Compression(enum.Enum):
+    none = None
+    zst = "zst"
+    xz = "xz"
+    bz2 = "bz2"
+    gz = "gz"
+    lz4 = "lz4"
+    lzma = "lzma"
+
+    def __str__(self) -> str:
+        return str(self.value).lower()
+
+    def __bool__(self) -> bool:
+        return bool(self.value)
 
 
 def parse_boolean(s: str) -> bool:
@@ -2072,8 +2120,8 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
 def load_config(args: argparse.Namespace) -> MkosiConfig:
     find_image_version(args)
 
-    if args.cmdline and args.verb not in MKOSI_COMMANDS_CMDLINE:
-        die(f"Parameters after verb are only accepted for {' '.join(verb.name for verb in MKOSI_COMMANDS_CMDLINE)}.")
+    if args.cmdline and not args.verb.supports_cmdline():
+        die(f"Arguments after verb are not supported for {args.verb}.")
 
     if shutil.which("bsdtar") and args.distribution == Distribution.openmandriva and args.tar_strip_selinux_context:
         die("Sorry, bsdtar on OpenMandriva is incompatible with --tar-strip-selinux-context")
@@ -2125,8 +2173,8 @@ def load_config(args: argparse.Namespace) -> MkosiConfig:
         die("Sorry, the host machine does not support vsock")
 
     if args.repositories and not (
-        is_dnf_distribution(args.distribution) or
-        is_apt_distribution(args.distribution) or
+        args.distribution.is_dnf_distribution() or
+        args.distribution.is_apt_distribution() or
         args.distribution == Distribution.arch
     ):
         die("Sorry, the --repositories option is only supported on pacman, dnf and apt based distributions")

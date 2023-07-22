@@ -8,9 +8,9 @@ from subprocess import DEVNULL, PIPE
 from textwrap import dedent
 from typing import IO, Any, Optional
 
-from mkosi.config import MkosiConfig
+from mkosi.config import ManifestFormat, MkosiConfig
 from mkosi.run import run
-from mkosi.util import Distribution, ManifestFormat, PackageType
+from mkosi.util import Distribution, PackageType
 
 
 @dataclasses.dataclass

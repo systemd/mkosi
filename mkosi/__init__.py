@@ -21,16 +21,19 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Callable, ContextManager, Optional, TextIO, Union, cast
 
-from mkosi.btrfs import btrfs_maybe_snapshot_subvolume
 from mkosi.config import (
+    Compression,
     ConfigFeature,
     GenericVersion,
+    ManifestFormat,
     MkosiArgs,
     MkosiConfig,
     MkosiConfigParser,
+    OutputFormat,
     SecureBootSignTool,
+    Verb,
 )
-from mkosi.install import add_dropin_config_from_resource, copy_path
+from mkosi.install import add_dropin_config_from_resource
 from mkosi.log import Style, color_error, complete_step, die, log_step
 from mkosi.manifest import Manifest
 from mkosi.mounts import mount_overlay, mount_passwd, mount_tools, scandir_recursive
@@ -39,25 +42,16 @@ from mkosi.qemu import copy_ephemeral, machine_cid, run_qemu
 from mkosi.remove import unlink_try_hard
 from mkosi.run import become_root, bwrap, chroot_cmd, init_mount_namespace, run, spawn
 from mkosi.state import MkosiState
+from mkosi.tree import copy_tree, move_tree
 from mkosi.types import PathString
 from mkosi.util import (
-    Compression,
     InvokingUser,
-    ManifestFormat,
-    OutputFormat,
-    Verb,
     flatten,
-    flock,
     format_bytes,
     format_rlimit,
-    is_apt_distribution,
-    is_portage_distribution,
-    tmp_dir,
+    scopedenv,
     try_import,
 )
-
-MKOSI_COMMANDS_NEED_BUILD = (Verb.build, Verb.shell, Verb.boot, Verb.qemu, Verb.serve)
-MKOSI_COMMANDS_SUDO = (Verb.shell, Verb.boot)
 
 
 @contextlib.contextmanager
@@ -510,7 +504,7 @@ def install_base_trees(state: MkosiState) -> None:
     with complete_step("Copying in base trees…"):
         for path in state.config.base_trees:
             if path.is_dir():
-                btrfs_maybe_snapshot_subvolume(state.config, path, state.root)
+                copy_tree(state.config, path, state.root)
             elif path.suffix == ".tar":
                 shutil.unpack_archive(path, state.root)
             elif path.suffix == ".raw":
@@ -532,7 +526,7 @@ def install_skeleton_trees(state: MkosiState) -> None:
             t.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
 
             if source.is_dir() or target:
-                copy_path(source, t, preserve_owner=False)
+                copy_tree(state.config, source, t, preserve_owner=False)
             else:
                 shutil.unpack_archive(source, t)
 
@@ -550,7 +544,7 @@ def install_package_manager_trees(state: MkosiState) -> None:
             t.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
 
             if source.is_dir() or target:
-                copy_path(source, t, preserve_owner=False)
+                copy_tree(state.config, source, t, preserve_owner=False)
             else:
                 shutil.unpack_archive(source, t)
 
@@ -568,7 +562,7 @@ def install_extra_trees(state: MkosiState) -> None:
             t.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
 
             if source.is_dir() or target:
-                copy_path(source, t, preserve_owner=False)
+                copy_tree(state.config, source, t, preserve_owner=False)
             else:
                 shutil.unpack_archive(source, t)
 
@@ -578,7 +572,7 @@ def install_build_dest(state: MkosiState) -> None:
         return
 
     with complete_step("Copying in build tree…"):
-        copy_path(state.install_dir, state.root)
+        copy_tree(state.config, state.install_dir, state.root)
 
 
 def gzip_binary() -> str:
@@ -666,11 +660,7 @@ def gen_kernel_images(state: MkosiState) -> Iterator[tuple[str, Path]]:
         key=lambda k: GenericVersion(k.name),
         reverse=True
     ):
-        kimg = Path("usr/lib/modules") / kver.name / "vmlinuz"
-        if not kimg.exists():
-            kimg = state.installer.kernel_image(kver.name, state.config.architecture)
-
-        yield kver.name, kimg
+        yield kver.name, Path("usr/lib/modules") / kver.name / "vmlinuz"
 
 
 def filter_kernel_modules(root: Path, kver: str, include: Sequence[str], exclude: Sequence[str]) -> list[Path]:
@@ -813,8 +803,8 @@ def gen_kernel_modules_initrd(state: MkosiState, kver: str) -> Path:
         # Debian/Ubuntu do not compress their kernel modules, so we compress the initramfs instead. Note that
         # this is not ideal since the compressed kernel modules will all be decompressed on boot which
         # requires significant memory.
-        if is_apt_distribution(state.config.distribution):
-            maybe_compress(state, Compression.zst, kmods, kmods)
+        if state.config.distribution.is_apt_distribution():
+            maybe_compress(state.config, Compression.zst, kmods, kmods)
 
     return kmods
 
@@ -872,9 +862,9 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                 "--format", "cpio",
                 "--package", "systemd",
                 "--package", "util-linux",
-                *(["--package", "udev"] if not is_portage_distribution(state.config.distribution) else []),
+                *(["--package", "udev"] if not state.config.distribution.is_portage_distribution() else []),
                 "--package", "kmod",
-                *(["--package", "dmsetup"] if is_apt_distribution(state.config.distribution) else []),
+                *(["--package", "dmsetup"] if state.config.distribution.is_apt_distribution() else []),
                 "--output", f"{state.config.output}-initrd",
                 *(["--image-version", state.config.image_version] if state.config.image_version else []),
                 "--make-initrd", "yes",
@@ -919,8 +909,6 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                 cmdline = [state.root.joinpath("usr/lib/kernel/cmdline").read_text().strip()]
             else:
                 cmdline = []
-
-            cmdline += state.installer.kernel_command_line(state)
 
             if roothash:
                 cmdline += [roothash]
@@ -1010,10 +998,10 @@ def compressor_command(compression: Compression) -> list[PathString]:
         die(f"Unknown compression {compression}")
 
 
-def maybe_compress(state: MkosiState, compression: Compression, src: Path, dst: Optional[Path] = None) -> None:
+def maybe_compress(config: MkosiConfig, compression: Compression, src: Path, dst: Optional[Path] = None) -> None:
     if not compression or src.is_dir():
         if dst:
-            shutil.move(src, dst)
+            move_tree(config, src, dst)
         return
 
     if not dst:
@@ -1618,13 +1606,13 @@ def save_cache(state: MkosiState) -> None:
         # We only use the cache-overlay directory for caching if we have a base tree, otherwise we just
         # cache the root directory.
         if state.workspace.joinpath("cache-overlay").exists():
-            shutil.move(state.workspace / "cache-overlay", final)
+            move_tree(state.config, state.workspace / "cache-overlay", final)
         else:
-            shutil.move(state.root, final)
+            move_tree(state.config, state.root, final)
 
         if need_build_packages(state.config) and (state.workspace / "build-overlay").exists():
             unlink_try_hard(build)
-            shutil.move(state.workspace / "build-overlay", build)
+            move_tree(state.config, state.workspace / "build-overlay", build)
 
         manifest.write_text(json.dumps(state.config.cache_manifest()))
 
@@ -1645,7 +1633,7 @@ def reuse_cache(state: MkosiState) -> bool:
         return False
 
     with complete_step("Copying cached trees"):
-        btrfs_maybe_snapshot_subvolume(state.config, final, state.root)
+        copy_tree(state.config, final, state.root)
         if need_build_packages(state.config):
             state.workspace.joinpath("build-overlay").symlink_to(build)
 
@@ -1727,10 +1715,7 @@ def make_image(state: MkosiState, skip: Sequence[str] = [], split: bool = False)
 
         cmdline += ["--definitions", definitions]
 
-    env = dict(TMPDIR=str(state.workspace))
-    for fs, options in state.installer.filesystem_options(state).items():
-        env[f"SYSTEMD_REPART_MKFS_OPTIONS_{fs.upper()}"] = " ".join(options)
-
+    env = dict()
     for option, value in state.config.environment.items():
         if option.startswith("SYSTEMD_REPART_MKFS_OPTIONS_"):
             env[option] = value
@@ -1759,16 +1744,15 @@ def make_image(state: MkosiState, skip: Sequence[str] = [], split: bool = False)
 
 def finalize_staging(state: MkosiState) -> None:
     for f in state.staging.iterdir():
-        shutil.move(f, state.config.output_dir)
+        move_tree(state.config, f, state.config.output_dir)
 
 
 def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
-    state = MkosiState(args, config)
     manifest = Manifest(config)
 
     # Make sure tmpfiles' aging doesn't interfere with our workspace
     # while we are working on it.
-    with flock(state.workspace):
+    with MkosiState(args, config) as state, scopedenv({"TMPDIR" : str(state.workspace)}):
         install_package_manager_trees(state)
 
         with mount_image(state):
@@ -1820,13 +1804,13 @@ def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
         _, split_paths = make_image(state, split=True)
 
         for p in split_paths:
-            maybe_compress(state, state.config.compress_output, p)
+            maybe_compress(state.config, state.config.compress_output, p)
 
         make_tar(state)
         make_initrd(state)
         make_directory(state)
 
-        maybe_compress(state, state.config.compress_output,
+        maybe_compress(state.config, state.config.compress_output,
                        state.staging / state.config.output_with_format,
                        state.staging / state.config.output_with_compression)
 
@@ -2100,7 +2084,7 @@ def generate_key_cert_pair(args: MkosiArgs) -> None:
     run(cmd)
 
 
-def bump_image_version(uid: Optional[int] = None, gid: Optional[int] = None) -> None:
+def bump_image_version(uid: int = -1, gid: int = -1) -> None:
     """Write current image version plus one to mkosi.version"""
     assert bool(uid) == bool(gid)
 
@@ -2119,8 +2103,7 @@ def bump_image_version(uid: Optional[int] = None, gid: Optional[int] = None) -> 
         logging.info(f"Increasing last component of version by one, bumping '{version}' → '{new_version}'.")
 
     Path("mkosi.version").write_text(f"{new_version}\n")
-    if uid and gid:
-        os.chown("mkosi.version", uid, gid)
+    os.chown("mkosi.version", uid, gid)
 
 
 def expand_specifier(s: str) -> str:
@@ -2128,7 +2111,7 @@ def expand_specifier(s: str) -> str:
 
 
 def needs_build(args: MkosiArgs, config: MkosiConfig) -> bool:
-    return args.verb in MKOSI_COMMANDS_NEED_BUILD and (args.force > 0 or not config.output_dir.joinpath(config.output_with_compression).exists())
+    return args.verb.needs_build() and (args.force > 0 or not config.output_dir.joinpath(config.output_with_compression).exists())
 
 
 @contextlib.contextmanager
@@ -2137,7 +2120,7 @@ def prepend_to_environ_path(config: MkosiConfig) -> Iterator[None]:
         yield
         return
 
-    with tempfile.TemporaryDirectory(prefix="mkosi.path", dir=tmp_dir()) as d:
+    with tempfile.TemporaryDirectory(prefix="mkosi.path") as d:
 
         for path in config.extra_search_paths:
             if not path.is_dir():
@@ -2154,7 +2137,7 @@ def prepend_to_environ_path(config: MkosiConfig) -> Iterator[None]:
 
 
 def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
-    if args.verb in MKOSI_COMMANDS_SUDO:
+    if args.verb.needs_sudo():
         check_root()
 
     if args.verb == Verb.genkey:
@@ -2254,6 +2237,12 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
 
             build = True
 
+    if build and args.auto_bump:
+        bump_image_version(uid, gid)
+
+    if args.verb == Verb.build:
+        return
+
     # We want to drop privileges after mounting the last tools tree, but to unmount it we still need
     # privileges. To avoid a permission error, let's not unmount the final tools tree, since we'll exit
     # right after (and we're in a mount namespace so the /usr mount disappears when we exit)
@@ -2264,9 +2253,6 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
         if args.verb not in (Verb.shell, Verb.boot):
             os.setresgid(gid, gid, gid)
             os.setresuid(uid, uid, uid)
-
-        if build and args.auto_bump:
-            bump_image_version(uid, gid)
 
         with prepend_to_environ_path(last):
             if args.verb in (Verb.shell, Verb.boot):

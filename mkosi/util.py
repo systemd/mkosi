@@ -2,6 +2,7 @@
 
 import ast
 import contextlib
+import copy
 import enum
 import errno
 import fcntl
@@ -15,7 +16,7 @@ import re
 import resource
 import stat
 import sys
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Mapping
 from pathlib import Path
 from typing import Any, Callable, Optional, TypeVar
 
@@ -28,24 +29,6 @@ class PackageType(enum.Enum):
     deb = 2
     pkg = 3
     ebuild = 5
-
-
-class Verb(enum.Enum):
-    build   = "build"
-    clean   = "clean"
-    summary = "summary"
-    shell   = "shell"
-    boot    = "boot"
-    qemu    = "qemu"
-    ssh     = "ssh"
-    serve   = "serve"
-    bump    = "bump"
-    help    = "help"
-    genkey  = "genkey"
-
-    # Defining __str__ is required to get "print_help()" output to include the human readable (values) of Verb.
-    def __str__(self) -> str:
-        return self.value
 
 
 class Distribution(enum.Enum):
@@ -78,21 +61,22 @@ class Distribution(enum.Enum):
     def is_centos_variant(self) -> bool:
         return self in (Distribution.centos, Distribution.alma, Distribution.rocky)
 
+    def is_dnf_distribution(self) -> bool:
+        return self in (
+            Distribution.fedora,
+            Distribution.mageia,
+            Distribution.centos,
+            Distribution.openmandriva,
+            Distribution.rocky,
+            Distribution.alma,
+        )
 
-class Compression(enum.Enum):
-    none = None
-    zst = "zst"
-    xz = "xz"
-    bz2 = "bz2"
-    gz = "gz"
-    lz4 = "lz4"
-    lzma = "lzma"
+    def is_apt_distribution(self) -> bool:
+        return self in (Distribution.debian, Distribution.ubuntu)
 
-    def __str__(self) -> str:
-        return str(self.value).lower()
 
-    def __bool__(self) -> bool:
-        return bool(self.value)
+    def is_portage_distribution(self) -> bool:
+        return self in (Distribution.gentoo,)
 
 
 def dictify(f: Callable[..., Iterator[tuple[T, V]]]) -> Callable[..., dict[T, V]]:
@@ -156,49 +140,11 @@ def detect_distribution() -> tuple[Optional[Distribution], Optional[str]]:
     return d, version_id
 
 
-def is_dnf_distribution(d: Distribution) -> bool:
-    return d in (
-        Distribution.fedora,
-        Distribution.mageia,
-        Distribution.centos,
-        Distribution.openmandriva,
-        Distribution.rocky,
-        Distribution.alma,
-    )
-
-
-def is_apt_distribution(d: Distribution) -> bool:
-    return d in (Distribution.debian, Distribution.ubuntu)
-
-
-def is_portage_distribution(d: Distribution) -> bool:
-    return d in (Distribution.gentoo,)
-
-
-class OutputFormat(str, enum.Enum):
-    directory = "directory"
-    tar = "tar"
-    cpio = "cpio"
-    disk = "disk"
-    none = "none"
-
-
-class ManifestFormat(str, enum.Enum):
-    json      = "json"       # the standard manifest in json format
-    changelog = "changelog"  # human-readable text file with package changelogs
-
-
-
 def format_rlimit(rlimit: int) -> str:
     limits = resource.getrlimit(rlimit)
     soft = "infinity" if limits[0] == resource.RLIM_INFINITY else str(limits[0])
     hard = "infinity" if limits[1] == resource.RLIM_INFINITY else str(limits[1])
     return f"{soft}:{hard}"
-
-
-def tmp_dir() -> Path:
-    path = os.environ.get("TMPDIR") or "/var/tmp"
-    return Path(path)
 
 
 def sort_packages(packages: Iterable[str]) -> list[str]:
@@ -321,3 +267,14 @@ def flock(path: Path) -> Iterator[int]:
         yield fd
     finally:
         os.close(fd)
+
+
+@contextlib.contextmanager
+def scopedenv(env: Mapping[str, Any]) -> Iterator[None]:
+    old = copy.copy(os.environ)
+    os.environ |= env
+
+    try:
+        yield
+    finally:
+        os.environ = old
