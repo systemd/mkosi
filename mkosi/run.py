@@ -252,6 +252,7 @@ def bwrap(
     cmd: Sequence[PathString],
     *,
     apivfs: Optional[Path] = None,
+    options: Sequence[PathString] = (),
     log: bool = True,
     scripts: Mapping[str, Sequence[PathString]] = {},
     env: Mapping[str, PathString] = {},
@@ -261,6 +262,7 @@ def bwrap(
         "--dev-bind", "/", "/",
         "--chdir", Path.cwd(),
         "--die-with-parent",
+        *options,
     ]
 
     if apivfs:
