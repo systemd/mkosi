@@ -19,7 +19,6 @@ from mkosi.types import PathString
 def invoke_emerge(state: MkosiState, packages: Sequence[str] = (), apivfs: bool = True) -> None:
     bwrap(
         cmd=[
-            "sh", "-c", "chmod 1777 /dev/shm && exec $0 \"$@\" || exit $?",
             "emerge",
             *packages,
             "--update",
@@ -48,26 +47,11 @@ def invoke_emerge(state: MkosiState, packages: Sequence[str] = (), apivfs: bool 
             "--bind", state.cache_dir / "stage3/var", "/var",
             "--ro-bind", "/etc/resolv.conf", "/etc/resolv.conf",
             "--bind", state.cache_dir / "repos", "/var/db/repos",
-            # https://bugs.gentoo.org/910587
-            "--dev", "/dev",
         ],
         env=dict(
             PKGDIR=str(state.cache_dir / "binpkgs"),
             DISTDIR=str(state.cache_dir / "distfiles"),
-            FEATURES=" ".join([
-                "getbinpkg",
-                "-candy",
-                # Disable sandboxing in emerge because we already do it in mkosi.
-                "-sandbox",
-                "-userfetch",
-                "-userpriv",
-                "-usersandbox",
-                "-usersync",
-                "-ebuild-locks",
-                "parallel-install",
-                *(["noman", "nodoc", "noinfo"] if state.config.with_docs else []),
-            ]),
-        ) | {"USE": "build"} if not apivfs else {} | state.config.environment,
+        ) | ({"USE": "build"} if not apivfs else {}) | state.config.environment,
     )
 
 
@@ -141,6 +125,25 @@ class GentooInstaller(DistributionInstaller):
             (state.cache_dir / d).mkdir(parents=True, exist_ok=True)
 
         copy_path(state.pkgmngr, stage3, preserve_owner=False)
+
+        features = " ".join([
+            "getbinpkg",
+            "-candy",
+            # Disable sandboxing in emerge because we already do it in mkosi.
+            "-sandbox",
+            "-userfetch",
+            "-userpriv",
+            "-usersandbox",
+            "-usersync",
+            "-ebuild-locks",
+            "parallel-install",
+            *(["noman", "nodoc", "noinfo"] if state.config.with_docs else []),
+        ])
+
+        # Setting FEATURES via the environment variable does not seem to apply to ebuilds in portage, so we
+        # append to /etc/portage/make.conf instead.
+        with (stage3 / "etc/portage/make.conf").open("a") as f:
+            f.write(f"\nFEATURES=\"${{FEATURES}} {features}\"\n")
 
         bwrap(
             cmd=["chroot", "emerge-webrsync"],
