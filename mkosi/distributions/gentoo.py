@@ -2,7 +2,7 @@
 
 import os
 import re
-import urllib.parse
+import textwrap
 import urllib.request
 from collections.abc import Sequence
 from pathlib import Path
@@ -11,27 +11,56 @@ from mkosi.architecture import Architecture
 from mkosi.distributions import DistributionInstaller
 from mkosi.log import ARG_DEBUG, complete_step, die
 from mkosi.remove import unlink_try_hard
-from mkosi.run import bwrap, chroot_cmd, run
+from mkosi.run import bwrap, run
 from mkosi.state import MkosiState
-from mkosi.tree import copy_tree
 from mkosi.types import PathString
+
+
+def setup_emerge(state: MkosiState) -> None:
+    # Set up a basic profile to trick emerge into proceeding (we don't care about the profile since we're
+    # only installing binary packages). See https://bugs.gentoo.org/470006.
+    make_profile = state.pkgmngr / "etc/portage/make.profile"
+    make_profile.mkdir(parents=True, exist_ok=True)
+    (make_profile / "make.defaults").write_text(
+        textwrap.dedent(
+            f"""\
+            ARCH="{state.installer.architecture(state.config.architecture)}"
+            ACCEPT_KEYWORDS="**"
+            PORTAGE_USERNAME="root"
+            PORTAGE_GRPNAME="root"
+            PORTDIR="{state.cache_dir}"
+            PKGDIR="{state.cache_dir / "binpkgs"}"
+            """
+        )
+    )
+    (make_profile / "parent").write_text("/var/empty")
+
+    if state.config.mirror:
+        (state.pkgmngr / "etc/portage/binrepos.conf").write_text(
+            textwrap.dedent(
+                f"""\
+                [binhost]
+                sync-uri = {state.config.mirror}
+                priority = 10
+                """
+            )
+        )
 
 
 def invoke_emerge(state: MkosiState, packages: Sequence[str] = (), apivfs: bool = True) -> None:
     bwrap(
         cmd=[
             "emerge",
-            "--buildpkg=y",
-            "--usepkg=y",
+            "--tree",
+            "--usepkgonly=y",
             "--getbinpkg=y",
-            "--binpkg-respect-use=y",
             "--jobs",
             "--load-average",
             "--root-deps=rdeps",
             "--with-bdeps=n",
             "--verbose-conflicts",
             "--noreplace",
-            *(["--verbose", "--quiet=n", "--quiet-fail=n"] if ARG_DEBUG.get() else ["--quiet-build", "--quiet"]),
+            *(["--verbose"] if ARG_DEBUG.get() else []),
             f"--root={state.root}",
             *packages,
         ],
@@ -39,15 +68,13 @@ def invoke_emerge(state: MkosiState, packages: Sequence[str] = (), apivfs: bool 
         options=[
             # TODO: Get rid of as many of these as possible.
             "--bind", state.cache_dir / "stage3/usr", "/usr",
+            # Bind /etc from the snapshot to get the /etc/portage mountpoint.
             "--bind", state.cache_dir / "stage3/etc", "/etc",
             "--bind", state.cache_dir / "stage3/var", "/var",
             "--ro-bind", "/etc/resolv.conf", "/etc/resolv.conf",
-            "--bind", state.cache_dir / "repos", "/var/db/repos",
+            "--bind", state.pkgmngr / "etc/portage", "/etc/portage",
         ],
-        env=dict(
-            PKGDIR=str(state.cache_dir / "binpkgs"),
-            DISTDIR=str(state.cache_dir / "distfiles"),
-        ) | ({"USE": "build"} if not apivfs else {}) | state.config.environment,
+        env=dict(PORTAGE_REPOSITORIES="") | state.config.environment,
     )
 
 
@@ -62,10 +89,7 @@ class GentooInstaller(DistributionInstaller):
 
         assert state.config.mirror
         # http://distfiles.gentoo.org/releases/amd64/autobuilds/latest-stage3.txt
-        stage3tsf_path_url = urllib.parse.urljoin(
-            state.config.mirror.partition(" ")[0],
-            f"releases/{arch}/autobuilds/latest-stage3.txt",
-        )
+        stage3tsf_path_url = f"https://distfiles.gentoo.org/releases/{arch}/autobuilds/latest-stage3.txt"
 
         with urllib.request.urlopen(stage3tsf_path_url) as r:
             # e.g.: 20230108T161708Z/stage3-amd64-nomultilib-systemd-mergedusr-20230108T161708Z.tar.xz
@@ -78,7 +102,7 @@ class GentooInstaller(DistributionInstaller):
             else:
                 die("profile names changed upstream?")
 
-        stage3_url = urllib.parse.urljoin(state.config.mirror, f"releases/{arch}/autobuilds/{stage3_latest}")
+        stage3_url = f"https://distfiles.gentoo.org/releases/{arch}/autobuilds/{stage3_latest}"
         stage3_tar = state.cache_dir / "stage3.tar"
         stage3 = state.cache_dir / "stage3"
 
@@ -107,44 +131,9 @@ class GentooInstaller(DistributionInstaller):
                      "--exclude", "./proc/*",
                      "--exclude", "./sys/*"])
 
-        for d in ("binpkgs", "distfiles", "repos/gentoo"):
-            (state.cache_dir / d).mkdir(parents=True, exist_ok=True)
+        setup_emerge(state)
 
-        copy_tree(state.config, state.pkgmngr, stage3, preserve_owner=False)
-
-        features = " ".join([
-            # Disable sandboxing in emerge because we already do it in mkosi.
-            "-sandbox",
-            "-pid-sandbox",
-            "-ipc-sandbox",
-            "-network-sandbox",
-            "-userfetch",
-            "-userpriv",
-            "-usersandbox",
-            "-usersync",
-            "-ebuild-locks",
-            "parallel-install",
-            *(["noman", "nodoc", "noinfo"] if state.config.with_docs else []),
-        ])
-
-        # Setting FEATURES via the environment variable does not seem to apply to ebuilds in portage, so we
-        # append to /etc/portage/make.conf instead.
-        with (stage3 / "etc/portage/make.conf").open("a") as f:
-            f.write(f"\nFEATURES=\"${{FEATURES}} {features}\"\n")
-
-        bwrap(
-            cmd=["chroot", "emerge-webrsync"],
-            apivfs=stage3,
-            scripts=dict(
-                chroot=chroot_cmd(
-                    stage3,
-                    options=["--bind", state.cache_dir / "repos", "/var/db/repos"],
-                    network=True,
-                ),
-            ),
-        )
-
-        invoke_emerge(state, packages=["sys-apps/baselayout"], apivfs=False)
+        cls.install_packages(state, packages=["sys-apps/baselayout"], apivfs=False)
 
     @classmethod
     def install_packages(cls, state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:

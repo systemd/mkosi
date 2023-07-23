@@ -307,8 +307,6 @@ def config_default_mirror(namespace: argparse.Namespace) -> Optional[str]:
         return "http://download.opensuse.org"
     elif d == Distribution.fedora and r == "eln":
         return "https://odcs.fedoraproject.org/composes/production/latest-Fedora-ELN/compose"
-    elif d == Distribution.gentoo:
-        return "https://distfiles.gentoo.org"
 
     return None
 
