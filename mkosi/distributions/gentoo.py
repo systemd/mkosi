@@ -21,24 +21,19 @@ def invoke_emerge(state: MkosiState, packages: Sequence[str] = (), apivfs: bool 
     bwrap(
         cmd=[
             "emerge",
-            *packages,
-            "--update",
-            "--deep",
             "--buildpkg=y",
             "--usepkg=y",
+            "--getbinpkg=y",
+            "--binpkg-respect-use=y",
             "--jobs",
             "--load-average",
-            "--nospinner",
             "--root-deps=rdeps",
             "--with-bdeps=n",
-            "--complete-graph-if-new-use=y",
             "--verbose-conflicts",
-            "--changed-use",
-            "--newuse",
             "--noreplace",
-            f"--root={state.root}",
-            "--binpkg-respect-use",
             *(["--verbose", "--quiet=n", "--quiet-fail=n"] if ARG_DEBUG.get() else ["--quiet-build", "--quiet"]),
+            f"--root={state.root}",
+            *packages,
         ],
         apivfs=state.root if apivfs else None,
         options=[
@@ -118,10 +113,11 @@ class GentooInstaller(DistributionInstaller):
         copy_tree(state.config, state.pkgmngr, stage3, preserve_owner=False)
 
         features = " ".join([
-            "getbinpkg",
-            "-candy",
             # Disable sandboxing in emerge because we already do it in mkosi.
             "-sandbox",
+            "-pid-sandbox",
+            "-ipc-sandbox",
+            "-network-sandbox",
             "-userfetch",
             "-userpriv",
             "-usersandbox",
