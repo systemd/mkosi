@@ -4,7 +4,7 @@ from collections.abc import Sequence
 
 from mkosi.architecture import Architecture
 from mkosi.distributions import DistributionInstaller
-from mkosi.distributions.fedora import Repo, invoke_dnf, setup_dnf
+from mkosi.installer.dnf import Repo, invoke_dnf, setup_dnf
 from mkosi.log import die
 from mkosi.state import MkosiState
 

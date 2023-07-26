@@ -8,7 +8,7 @@ from pathlib import Path
 from mkosi.architecture import Architecture
 from mkosi.config import MkosiConfig
 from mkosi.distributions import DistributionInstaller
-from mkosi.distributions.fedora import Repo, invoke_dnf, setup_dnf
+from mkosi.installer.dnf import Repo, invoke_dnf, setup_dnf
 from mkosi.log import complete_step, die
 from mkosi.state import MkosiState
 from mkosi.tree import rmtree
