@@ -68,6 +68,6 @@ def invoke_zypper(
 ) -> None:
     bwrap(zypper_cmd(state) + [verb, *packages, *options],
           apivfs=state.root if apivfs else None,
-          env=dict(KERNEL_INSTALL_BYPASS="1") | state.config.environment)
+          env=state.config.environment)
 
     fixup_rpmdb_location(state.root)

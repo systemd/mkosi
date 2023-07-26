@@ -103,4 +103,4 @@ def invoke_apt(
 ) -> None:
     bwrap(apt_cmd(state) + [operation, *packages],
           apivfs=state.root if apivfs else None,
-          env=dict(KERNEL_INSTALL_BYPASS="1") | state.config.environment)
+          env=state.config.environment)
