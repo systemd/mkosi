@@ -2093,6 +2093,7 @@ def load_kernel_command_line_extra(args: argparse.Namespace) -> list[str]:
 def load_environment(args: argparse.Namespace) -> dict[str, str]:
     env = {
         "SYSTEMD_TMPFILES_FORCE_SUBVOL": "0",
+        "KERNEL_INSTALL_BYPASS": "1",
     }
 
     if args.image_id is not None:

@@ -111,4 +111,4 @@ def pacman_cmd(state: MkosiState) -> list[str]:
 def invoke_pacman(state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
     bwrap(pacman_cmd(state) + ["-Sy"] + sort_packages(packages),
           apivfs=state.root if apivfs else None,
-          env=dict(KERNEL_INSTALL_BYPASS="1") | state.config.environment)
+          env=state.config.environment)

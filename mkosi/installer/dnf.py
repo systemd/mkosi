@@ -114,7 +114,7 @@ def dnf_cmd(state: MkosiState) -> list[str]:
 def invoke_dnf(state: MkosiState, command: str, packages: Iterable[str], apivfs: bool = True) -> None:
     bwrap(dnf_cmd(state) + [command] + sort_packages(packages),
           apivfs=state.root if apivfs else None,
-          env=dict(KERNEL_INSTALL_BYPASS="1") | state.config.environment)
+          env=state.config.environment)
 
     fixup_rpmdb_location(state.root)
 
