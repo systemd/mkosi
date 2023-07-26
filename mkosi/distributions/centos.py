@@ -10,8 +10,8 @@ from mkosi.config import MkosiConfig
 from mkosi.distributions import DistributionInstaller
 from mkosi.distributions.fedora import Repo, invoke_dnf, setup_dnf
 from mkosi.log import complete_step, die
-from mkosi.remove import unlink_try_hard
 from mkosi.state import MkosiState
+from mkosi.tree import rmtree
 
 
 def move_rpm_db(root: Path) -> None:
@@ -21,7 +21,7 @@ def move_rpm_db(root: Path) -> None:
 
     if newdb.exists() and not newdb.is_symlink():
         with complete_step("Moving rpm database /usr/lib/sysimage/rpm → /var/lib/rpm"):
-            unlink_try_hard(olddb)
+            rmtree(olddb)
             shutil.move(newdb, olddb)
 
             newdb.symlink_to(os.path.relpath(olddb, start=newdb.parent))

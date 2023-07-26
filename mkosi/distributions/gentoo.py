@@ -10,10 +10,9 @@ from pathlib import Path
 from mkosi.architecture import Architecture
 from mkosi.distributions import DistributionInstaller
 from mkosi.log import ARG_DEBUG, complete_step, die
-from mkosi.remove import unlink_try_hard
 from mkosi.run import bwrap, chroot_cmd, run
 from mkosi.state import MkosiState
-from mkosi.tree import copy_tree
+from mkosi.tree import copy_tree, rmtree
 from mkosi.types import PathString
 
 
@@ -92,7 +91,7 @@ class GentooInstaller(DistributionInstaller):
             run(cmd)
 
             if stage3_tar.stat().st_mtime > old:
-                unlink_try_hard(stage3)
+                rmtree(stage3)
 
         stage3.mkdir(exist_ok=True)
 

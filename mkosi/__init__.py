@@ -39,10 +39,9 @@ from mkosi.manifest import Manifest
 from mkosi.mounts import mount_overlay, mount_passwd, mount_tools, scandir_recursive
 from mkosi.pager import page
 from mkosi.qemu import copy_ephemeral, machine_cid, run_qemu
-from mkosi.remove import unlink_try_hard
 from mkosi.run import become_root, bwrap, chroot_cmd, init_mount_namespace, run
 from mkosi.state import MkosiState
-from mkosi.tree import copy_tree, move_tree
+from mkosi.tree import copy_tree, move_tree, rmtree
 from mkosi.types import PathString
 from mkosi.util import (
     InvokingUser,
@@ -100,7 +99,7 @@ def clean_paths(
 
     with complete_step(f"Cleaning {toolp.name} metadata…"):
         for path in paths:
-            unlink_try_hard(path)
+            rmtree(path)
 
 
 def clean_dnf_metadata(root: Path, always: bool) -> None:
@@ -202,7 +201,7 @@ def remove_files(state: MkosiState) -> None:
     with complete_step("Removing files…"):
         for pattern in state.config.remove_files:
             for p in state.root.glob(pattern.lstrip("/")):
-                unlink_try_hard(p)
+                rmtree(p)
 
 
 def install_distribution(state: MkosiState) -> None:
@@ -1114,7 +1113,7 @@ def print_output_size(path: Path) -> None:
 def empty_directory(path: Path) -> None:
     try:
         for f in os.listdir(path):
-            unlink_try_hard(path / f)
+            rmtree(path / f)
     except FileNotFoundError:
         pass
 
@@ -1137,14 +1136,14 @@ def unlink_output(args: MkosiArgs, config: MkosiConfig) -> None:
         if config.output_dir.exists():
             for p in config.output_dir.iterdir():
                 if p.name.startswith(prefix):
-                    unlink_try_hard(p)
+                    rmtree(p)
 
     if remove_build_cache:
         if config.cache_dir:
             for p in cache_tree_paths(config):
                 if p.exists():
                     with complete_step(f"Removing cache entry {p}…"):
-                        unlink_try_hard(p)
+                        rmtree(p)
 
         if config.build_dir and config.build_dir.exists() and any(config.build_dir.iterdir()):
             with complete_step("Clearing out build directory…"):
@@ -1593,7 +1592,7 @@ def save_cache(state: MkosiState) -> None:
     final, build, manifest = cache_tree_paths(state.config)
 
     with complete_step("Installing cache copies"):
-        unlink_try_hard(final)
+        rmtree(final)
 
         # We only use the cache-overlay directory for caching if we have a base tree, otherwise we just
         # cache the root directory.
@@ -1603,7 +1602,7 @@ def save_cache(state: MkosiState) -> None:
             move_tree(state.config, state.root, final)
 
         if need_build_packages(state.config) and (state.workspace / "build-overlay").exists():
-            unlink_try_hard(build)
+            rmtree(build)
             move_tree(state.config, state.workspace / "build-overlay", build)
 
         manifest.write_text(json.dumps(state.config.cache_manifest()))

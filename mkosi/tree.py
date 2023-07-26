@@ -79,6 +79,10 @@ def copy_tree(config: MkosiConfig, src: Path, dst: Path, *, preserve_owner: bool
         run(copy)
 
 
+def rmtree(path: Path) -> None:
+    run(["rm", "-rf", "--", path])
+
+
 def move_tree(config: MkosiConfig, src: Path, dst: Path) -> None:
     if src == dst:
         return
@@ -93,4 +97,4 @@ def move_tree(config: MkosiConfig, src: Path, dst: Path) -> None:
             raise e
 
         copy_tree(config, src, dst)
-        run(["rm", "-rf", src])
+        rmtree(src)
