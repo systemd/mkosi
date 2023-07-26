@@ -59,7 +59,8 @@ class FedoraInstaller(DistributionInstaller):
             if url:
                 repos += [Repo(name, url, (gpgurl,))]
 
-        setup_dnf(state, repos, filelists=fedora_release_at_least(state.config.release, "38"))
+        # TODO: Use `filelists=True` when F37 goes EOL.
+        setup_dnf(state, repos, filelists=fedora_release_at_most(state.config.release, "37"))
         invoke_dnf(state, "install", packages, apivfs=apivfs)
 
     @classmethod
@@ -86,10 +87,10 @@ class FedoraInstaller(DistributionInstaller):
         return a
 
 
-def fedora_release_at_least(release: str, threshold: str) -> bool:
+def fedora_release_at_most(release: str, threshold: str) -> bool:
     if release in ("rawhide", "eln"):
-        return True
-    if threshold in ("rawhide", "eln"):
         return False
+    if threshold in ("rawhide", "eln"):
+        return True
     # If neither is 'rawhide', both must be integers
-    return int(release) >= int(threshold)
+    return int(release) <= int(threshold)
