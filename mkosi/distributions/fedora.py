@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
+import urllib.parse
 from collections.abc import Sequence
 
 from mkosi.architecture import Architecture
@@ -20,44 +21,51 @@ class FedoraInstaller(DistributionInstaller):
 
     @classmethod
     def install_packages(cls, state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
-        release_url = updates_url = appstream_url = baseos_url = extras_url = crb_url = None
+        # See: https://fedoraproject.org/security/
+        gpgurls = ("https://fedoraproject.org/fedora.gpg",)
+        repos = []
 
         if state.config.local_mirror:
-            release_url = f"baseurl={state.config.local_mirror}"
+            repos += [Repo("fedora", f"baseurl={state.config.mirror}", gpgurls)]
         elif state.config.release == "eln":
             assert state.config.mirror
-            appstream_url = f"baseurl={state.config.mirror}/AppStream/$basearch/os"
-            baseos_url = f"baseurl={state.config.mirror}/BaseOS/$basearch/os"
-            extras_url = f"baseurl={state.config.mirror}/Extras/$basearch/os"
-            crb_url = f"baseurl={state.config.mirror}/CRB/$basearch/os"
+            for repo in ("Appstream", "BaseOS", "Extras", "CRB"):
+                url = f"baseurl={urllib.parse.urljoin(state.config.mirror, repo)}"
+                repos += [
+                    Repo(repo.lower(), f"{url}/$basearch/os", gpgurls),
+                    Repo(repo.lower(), f"{url}/$basearch/debug/tree", gpgurls, enabled=False),
+                    Repo(repo.lower(), f"{url}/source/tree", gpgurls, enabled=False),
+                ]
         elif state.config.mirror:
             directory = "development" if state.config.release == "rawhide" else "releases"
-            release_url = f"baseurl={state.config.mirror}/{directory}/$releasever/Everything/$basearch/os/"
-            updates_url = f"baseurl={state.config.mirror}/updates/$releasever/Everything/$basearch/"
+            url = f"baseurl={urllib.parse.urljoin(state.config.mirror, f'{directory}/$releasever/Everything')}"
+            repos += [
+                Repo("fedora", f"{url}/$basearch/os", gpgurls),
+                Repo("fedora-debuginfo", f"{url}/$basearch/debug/tree", gpgurls, enabled=False),
+                Repo("fedora-source", f"{url}/source/tree", gpgurls, enabled=False),
+            ]
+
+            if state.config.release != "rawhide":
+                url = f"baseurl={urllib.parse.urljoin(state.config.mirror, 'updates/$releasever/Everything')}"
+                repos += [
+                    Repo("updates", f"{url}/$basearch", gpgurls),
+                    Repo("updates-debuginfo", f"{url}/$basearch/debug", gpgurls, enabled=False),
+                    Repo("updates-source", f"{url}/SRPMS", gpgurls, enabled=False),
+                ]
         else:
-            release_url = f"metalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-{state.config.release}&arch=$basearch"
-            updates_url = (
-                "metalink=https://mirrors.fedoraproject.org/metalink?"
-                f"repo=updates-released-f{state.config.release}&arch=$basearch"
-            )
+            url = "metalink=https://mirrors.fedoraproject.org/metalink?arch=$basearch"
+            repos += [
+                Repo("fedora", f"{url}&repo=fedora-$releasever", gpgurls),
+                Repo("fedora-debuginfo", f"{url}&repo=fedora-debug-$releasever", gpgurls, enabled=False),
+                Repo("fedora-source", f"{url}&repo=fedora-source-$releasever", gpgurls, enabled=False),
+            ]
 
-        if state.config.release == "rawhide":
-            # On rawhide, the "updates" repo is the same as the "fedora" repo.
-            # In other versions, the "fedora" repo is frozen at release, and "updates" provides any new packages.
-            updates_url = None
-
-        # See: https://fedoraproject.org/security/
-        gpgurl = "https://fedoraproject.org/fedora.gpg"
-
-        repos = []
-        for name, url in (("fedora",    release_url),
-                          ("updates",   updates_url),
-                          ("appstream", appstream_url),
-                          ("baseos",    baseos_url),
-                          ("extras",    extras_url),
-                          ("crb",       crb_url)):
-            if url:
-                repos += [Repo(name, url, (gpgurl,))]
+            if state.config.release != "rawhide":
+                repos += [
+                    Repo("updates", f"{url}&repo=updates-released-f$releasever", gpgurls),
+                    Repo("updates-debuginfo", f"{url}&repo=updates-released-debug-f$releasever", gpgurls, enabled=False),
+                    Repo("updates-source", f"{url}&repo=updates-released-source-f$releasever", gpgurls, enabled=False),
+                ]
 
         # TODO: Use `filelists=True` when F37 goes EOL.
         setup_dnf(state, repos, filelists=fedora_release_at_most(state.config.release, "37"))
