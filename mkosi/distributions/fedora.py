@@ -10,9 +10,9 @@ from typing import Any, NamedTuple
 from mkosi.architecture import Architecture
 from mkosi.distributions import DistributionInstaller
 from mkosi.log import die
-from mkosi.remove import unlink_try_hard
 from mkosi.run import bwrap
 from mkosi.state import MkosiState
+from mkosi.tree import rmtree
 from mkosi.util import sort_packages
 
 
@@ -227,6 +227,6 @@ def fixup_rpmdb_location(root: Path) -> None:
     rpmdb = root / "usr/lib/sysimage/rpm"
     if not rpmdb.exists():
         rpmdb = root / "var/lib/rpm"
-    unlink_try_hard(rpmdb)
+    rmtree(rpmdb)
     shutil.move(rpmdb_home, rpmdb)
     rpmdb_home.symlink_to(os.path.relpath(rpmdb, start=rpmdb_home.parent))
