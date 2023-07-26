@@ -1098,7 +1098,6 @@ class MkosiConfigParser:
             metavar="PATH",
             section="Content",
             parse=config_make_list_parser(delimiter=",", parse=make_source_target_paths_parser(absolute=False)),
-            default=[(Path("."), None)],
             help="Path for sources to build",
         ),
         MkosiConfigSetting(

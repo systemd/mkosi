@@ -10,7 +10,7 @@ from pathlib import Path
 from mkosi.architecture import Architecture
 from mkosi.distributions import DistributionInstaller, PackageType
 from mkosi.log import ARG_DEBUG, complete_step, die
-from mkosi.run import bwrap, chroot_cmd, run
+from mkosi.run import apivfs_cmd, bwrap, chroot_cmd, run
 from mkosi.state import MkosiState
 from mkosi.tree import copy_tree, rmtree
 from mkosi.types import PathString
@@ -19,7 +19,13 @@ from mkosi.util import sort_packages
 
 def invoke_emerge(state: MkosiState, packages: Sequence[str] = (), apivfs: bool = True) -> None:
     bwrap(
-        cmd=[
+        cmd=apivfs_cmd(state.root) + [
+            # We can't mount the stage 3 /usr using `options`, because bwrap isn't available in the stage 3
+            # tarball which is required by apivfs_cmd(), so we have to mount /usr from the tarball later
+            # using another bwrap exec.
+            "bwrap",
+            "--dev-bind", "/", "/",
+            "--bind", state.cache_dir / "stage3/usr", "/usr",
             "emerge",
             "--buildpkg=y",
             "--usepkg=y",
@@ -35,10 +41,8 @@ def invoke_emerge(state: MkosiState, packages: Sequence[str] = (), apivfs: bool 
             f"--root={state.root}",
             *sort_packages(packages),
         ],
-        apivfs=state.root if apivfs else None,
         options=[
             # TODO: Get rid of as many of these as possible.
-            "--bind", state.cache_dir / "stage3/usr", "/usr",
             "--bind", state.cache_dir / "stage3/etc", "/etc",
             "--bind", state.cache_dir / "stage3/var", "/var",
             "--ro-bind", "/etc/resolv.conf", "/etc/resolv.conf",
@@ -136,17 +140,13 @@ class GentooInstaller(DistributionInstaller):
         with (stage3 / "etc/portage/make.conf").open("a") as f:
             f.write(f"\nFEATURES=\"${{FEATURES}} {features}\"\n")
 
-        bwrap(
-            cmd=["chroot", "emerge-webrsync"],
-            apivfs=stage3,
-            scripts=dict(
-                chroot=chroot_cmd(
-                    stage3,
-                    options=["--bind", state.cache_dir / "repos", "/var/db/repos"],
-                    network=True,
-                ),
-            ),
+        chroot = chroot_cmd(
+            stage3,
+            options=["--bind", state.cache_dir / "repos", "/var/db/repos"],
+            network=True,
         )
+
+        bwrap(cmd=chroot + ["emerge-webrsync"])
 
         invoke_emerge(state, packages=["sys-apps/baselayout"], apivfs=False)
 

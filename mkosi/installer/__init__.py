@@ -3,8 +3,14 @@
 import os
 
 from mkosi.config import ConfigFeature
+from mkosi.installer.apt import apt_cmd
+from mkosi.installer.dnf import dnf_cmd
+from mkosi.installer.pacman import pacman_cmd
+from mkosi.installer.zypper import zypper_cmd
+from mkosi.run import apivfs_cmd
 from mkosi.state import MkosiState
 from mkosi.tree import rmtree
+from mkosi.types import PathString
 
 
 def clean_package_manager_metadata(state: MkosiState) -> None:
@@ -29,3 +35,23 @@ def clean_package_manager_metadata(state: MkosiState) -> None:
         else:
             for p in paths:
                 rmtree(state.root / p)
+
+
+def package_manager_scripts(state: MkosiState) -> dict[str, list[PathString]]:
+    return {
+        "pacman": apivfs_cmd(state.root) + pacman_cmd(state),
+        "zypper": apivfs_cmd(state.root) + zypper_cmd(state),
+        "dnf"   : apivfs_cmd(state.root) + dnf_cmd(state),
+    } | {
+        command: apivfs_cmd(state.root) + apt_cmd(state, command) for command in (
+            "apt",
+            "apt-cache",
+            "apt-cdrom",
+            "apt-config",
+            "apt-extracttemplates",
+            "apt-get",
+            "apt-key",
+            "apt-mark",
+            "apt-sortpkgs",
+        )
+    }
