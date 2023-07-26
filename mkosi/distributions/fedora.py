@@ -211,7 +211,7 @@ def invoke_dnf(
     # The log directory is always interpreted relative to the install root so there's nothing we can do but
     # to remove the log files from the install root afterwards.
     for p in (state.root / "var/log").iterdir():
-        if p.name.startswith("dnf"):
+        if any(p.name.startswith(prefix) for prefix in ("dnf", "hawkey", "yum")):
             p.unlink()
 
 

@@ -40,7 +40,7 @@ from mkosi.mounts import mount_overlay, mount_passwd, mount_tools, scandir_recur
 from mkosi.pager import page
 from mkosi.qemu import copy_ephemeral, machine_cid, run_qemu
 from mkosi.remove import unlink_try_hard
-from mkosi.run import become_root, bwrap, chroot_cmd, init_mount_namespace, run, spawn
+from mkosi.run import become_root, bwrap, chroot_cmd, init_mount_namespace, run
 from mkosi.state import MkosiState
 from mkosi.tree import copy_tree, move_tree
 from mkosi.types import PathString
@@ -623,7 +623,7 @@ def make_initrd(state: MkosiState) -> None:
 
 def make_cpio(state: MkosiState, files: Iterator[Path], output: Path) -> None:
     with complete_step(f"Creating cpio {output}…"):
-        cmd: list[PathString] = [
+        run([
             "cpio",
             "-o",
             "--reproducible",
@@ -631,17 +631,8 @@ def make_cpio(state: MkosiState, files: Iterator[Path], output: Path) -> None:
             "-H", "newc",
             "--quiet",
             "-D", state.root,
-            "-O", output
-        ]
-
-        with spawn(cmd, stdin=subprocess.PIPE, text=True) as cpio:
-            #  https://github.com/python/mypy/issues/10583
-            assert cpio.stdin is not None
-
-            for file in files:
-                cpio.stdin.write(os.fspath(file))
-                cpio.stdin.write("\0")
-            cpio.stdin.close()
+            "-O", output,
+        ], input="\0".join(os.fspath(file) for file in files))
 
 
 def make_directory(state: MkosiState) -> None:
@@ -862,9 +853,10 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                 "--format", "cpio",
                 "--package", "systemd",
                 "--package", "util-linux",
-                *(["--package", "udev"] if not state.config.distribution.is_portage_distribution() else []),
                 "--package", "kmod",
+                "--package", "bash",
                 *(["--package", "dmsetup"] if state.config.distribution.is_apt_distribution() else []),
+                *(["--package", "udev"] if not state.config.distribution.is_portage_distribution() else []),
                 "--output", f"{state.config.output}-initrd",
                 *(["--image-version", state.config.image_version] if state.config.image_version else []),
                 "--make-initrd", "yes",

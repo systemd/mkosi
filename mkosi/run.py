@@ -219,7 +219,6 @@ def spawn(
     stdin: _FILE = None,
     stdout: _FILE = None,
     stderr: _FILE = None,
-    text: bool = True,
     user: Optional[int] = None,
     group: Optional[int] = None,
 ) -> Popen:
@@ -238,7 +237,7 @@ def spawn(
             stdin=stdin,
             stdout=stdout,
             stderr=stderr,
-            text=text,
+            text=True,
             user=user,
             group=group,
             preexec_fn=foreground,
