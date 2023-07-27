@@ -11,11 +11,13 @@ class AlmaInstaller(CentosInstaller):
         return ("https://repo.almalinux.org/almalinux/RPM-GPG-KEY-AlmaLinux-$releasever",)
 
     @classmethod
-    def repository_url(cls, config: MkosiConfig, repo: str) -> str:
+    def repository_variants(cls, config: MkosiConfig, repo: str) -> list[Repo]:
         if config.mirror:
-            return f"baseurl={config.mirror}/almalinux/$releasever/{repo}/$basearch/os"
+            url = f"baseurl={config.mirror}/almalinux/$releasever/{repo}/$basearch/os"
         else:
-            return f"mirrorlist=https://mirrors.almalinux.org/mirrorlist/$releasever/{repo.lower()}"
+            url = f"mirrorlist=https://mirrors.almalinux.org/mirrorlist/$releasever/{repo.lower()}"
+
+        return [Repo(repo, url, cls.gpgurls())]
 
     @classmethod
     def sig_repositories(cls, config: MkosiConfig) -> list[Repo]:
