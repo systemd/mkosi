@@ -8,24 +8,35 @@ from mkosi.state import MkosiState
 class UbuntuInstaller(DebianInstaller):
     @staticmethod
     def repositories(state: MkosiState, local: bool = True) -> list[str]:
-        repos = ["main"]
-        if state.config.release not in ("focal", "jammy"):
-            # From kinetic onwards, the usr-is-merged package is available in universe and is required by
-            # mkosi to set up a proper usr-merged system so we add the universe repository unconditionally.
-            repos += ["universe"]
-
-        repos = ' '.join((*repos, *state.config.repositories))
-
         if state.config.local_mirror and local:
-            return [f"deb [trusted=yes] {state.config.local_mirror} {state.config.release} {repos}"]
+            return [f"deb [trusted=yes] {state.config.local_mirror} {state.config.release} main"]
 
-        main = f"deb {state.config.mirror} {state.config.release} {repos}"
-        updates = f"deb {state.config.mirror} {state.config.release}-updates {repos}"
+        archives = ("deb", "deb-src")
+
+        # From kinetic onwards, the usr-is-merged package is available in universe and is required by
+        # mkosi to set up a proper usr-merged system so we add the universe repository unconditionally.
+        components = ["main"] + (["universe"] if state.config.release not in ("focal", "jammy") else [])
+        components = ' '.join((*components, *state.config.repositories))
+
+        repos = [
+            f"{archive} {state.config.mirror} {state.config.release} {components}"
+            for archive in archives
+        ]
+
+        repos += [
+            f"{archive} {state.config.mirror} {state.config.release}-updates {components}"
+            for archive in archives
+        ]
 
         # Security updates repos are never mirrored. But !x86 are on the ports server.
         if state.config.architecture in [Architecture.x86, Architecture.x86_64]:
-            security = f"deb http://security.ubuntu.com/ubuntu/ {state.config.release}-security {repos}"
+            url = "http://security.ubuntu.com/ubuntu/"
         else:
-            security = f"deb http://ports.ubuntu.com/ {state.config.release}-security {repos}"
+            url = "http://ports.ubuntu.com/"
 
-        return [main, updates, security]
+        repos += [
+            f"{archive} {url} {state.config.release}-security {components}"
+            for archive in archives
+        ]
+
+        return repos
