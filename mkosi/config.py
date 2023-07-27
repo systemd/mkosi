@@ -62,7 +62,7 @@ class Verb(enum.Enum):
         return self.value
 
     def supports_cmdline(self) -> bool:
-        return self in (Verb.build, Verb.shell, Verb.boot, Verb.qemu, Verb.ssh)
+        return self in (Verb.shell, Verb.boot, Verb.qemu, Verb.ssh)
 
     def needs_build(self) -> bool:
         return self in (Verb.build, Verb.shell, Verb.boot, Verb.qemu, Verb.serve)
