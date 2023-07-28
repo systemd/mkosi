@@ -108,8 +108,8 @@ class DebianInstaller(DistributionInstaller):
         policyrcd.chmod(0o755)
 
         setup_apt(state, cls.repositories(state))
-        invoke_apt(state, "update", apivfs=False)
-        invoke_apt(state, "install", packages, apivfs=apivfs)
+        invoke_apt(state, "apt-get", "update", apivfs=False)
+        invoke_apt(state, "apt-get", "install", packages, apivfs=apivfs)
         install_apt_sources(state, cls.repositories(state, local=False))
 
         policyrcd.unlink()
@@ -123,7 +123,7 @@ class DebianInstaller(DistributionInstaller):
 
     @classmethod
     def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
-        invoke_apt(state, "purge", packages)
+        invoke_apt(state, "apt-get", "purge", packages)
 
     @staticmethod
     def architecture(arch: Architecture) -> str:
