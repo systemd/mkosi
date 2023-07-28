@@ -53,7 +53,7 @@ def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
                 f.write(f"{repo}\n")
 
 
-def apt_cmd(state: MkosiState) -> list[str]:
+def apt_cmd(state: MkosiState, command: str) -> list[str]:
     debarch = state.installer.architecture(state.config.architecture)
 
     trustedkeys = state.pkgmngr / "etc/apt/trusted.gpg"
@@ -67,7 +67,7 @@ def apt_cmd(state: MkosiState) -> list[str]:
         "DEBIAN_FRONTEND=noninteractive",
         "DEBCONF_INTERACTIVE_SEEN=true",
         "INITRD=No",
-        "apt-get",
+        command,
         "-o", f"APT::Architecture={debarch}",
         "-o", f"APT::Architectures={debarch}",
         "-o", "APT::Immediate-Configure=off",
@@ -97,10 +97,11 @@ def apt_cmd(state: MkosiState) -> list[str]:
 
 def invoke_apt(
     state: MkosiState,
+    command: str,
     operation: str,
     packages: Sequence[str] = (),
     apivfs: bool = True,
 ) -> None:
-    bwrap(apt_cmd(state) + [operation, *packages],
+    bwrap(apt_cmd(state, command) + [operation, *packages],
           apivfs=state.root if apivfs else None,
           env=state.config.environment)
