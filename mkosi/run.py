@@ -160,7 +160,7 @@ def run(
     input: Optional[str] = None,
     user: Optional[int] = None,
     group: Optional[int] = None,
-    env: Mapping[str, PathString] = {},
+    env: Mapping[str, str] = {},
     cwd: Optional[Path] = None,
     log: bool = True,
 ) -> CompletedProcess:
@@ -256,7 +256,7 @@ def bwrap(
     options: Sequence[PathString] = (),
     log: bool = True,
     scripts: Mapping[str, Sequence[PathString]] = {},
-    env: Mapping[str, PathString] = {},
+    env: Mapping[str, str] = {},
 ) -> CompletedProcess:
     cmdline: list[PathString] = [
         "bwrap",

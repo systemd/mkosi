@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
+import os
 import shutil
 import tempfile
 from collections.abc import Sequence
@@ -11,7 +12,6 @@ from mkosi.distributions import DistributionInstaller
 from mkosi.log import die
 from mkosi.run import bwrap, run
 from mkosi.state import MkosiState
-from mkosi.types import PathString
 
 
 class DebianInstaller(DistributionInstaller):
@@ -204,8 +204,8 @@ def invoke_apt(
     packages: Sequence[str] = (),
     apivfs: bool = True,
 ) -> None:
-    env: dict[str, PathString] = dict(
-        APT_CONFIG=state.workspace / "apt.conf",
+    env = dict(
+        APT_CONFIG=os.fspath(state.workspace / "apt.conf"),
         DEBIAN_FRONTEND="noninteractive",
         DEBCONF_INTERACTIVE_SEEN="true",
         KERNEL_INSTALL_BYPASS="1",

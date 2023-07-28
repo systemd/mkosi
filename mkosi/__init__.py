@@ -1068,7 +1068,7 @@ def calculate_signature(state: MkosiState) -> None:
                 # for a non-root build.
                 'GNUPGHOME': os.environ.get(
                     'GNUPGHOME',
-                    Path(os.environ['HOME']).joinpath('.gnupg')
+                    os.fspath((Path(os.environ['HOME']).joinpath('.gnupg'))),
                 )
             },
         )
