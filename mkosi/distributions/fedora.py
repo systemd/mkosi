@@ -4,7 +4,7 @@ import urllib.parse
 from collections.abc import Sequence
 
 from mkosi.architecture import Architecture
-from mkosi.distributions import DistributionInstaller
+from mkosi.distributions import DistributionInstaller, PackageType
 from mkosi.installer.dnf import Repo, invoke_dnf, setup_dnf
 from mkosi.log import die
 from mkosi.state import MkosiState
@@ -14,6 +14,10 @@ class FedoraInstaller(DistributionInstaller):
     @classmethod
     def filesystem(cls) -> str:
         return "btrfs"
+
+    @classmethod
+    def package_type(cls) -> PackageType:
+        return PackageType.rpm
 
     @classmethod
     def install(cls, state: MkosiState) -> None:

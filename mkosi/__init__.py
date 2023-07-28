@@ -210,10 +210,10 @@ def install_distribution(state: MkosiState) -> None:
             return
 
         with complete_step(f"Installing extra packages for {str(state.config.distribution).capitalize()}"):
-            state.installer.install_packages(state, state.config.packages)
+            state.config.distribution.install_packages(state, state.config.packages)
     else:
         with complete_step(f"Installing {str(state.config.distribution).capitalize()}"):
-            state.installer.install(state)
+            state.config.distribution.install(state)
 
             # Ensure /efi exists so that the ESP is mounted there, as recommended by
             # https://0pointer.net/blog/linux-boot-partitions.html. Use the most restrictive access mode we
@@ -222,7 +222,7 @@ def install_distribution(state: MkosiState) -> None:
             state.root.joinpath("efi").mkdir(mode=0o500, exist_ok=True)
 
             if state.config.packages:
-                state.installer.install_packages(state, state.config.packages)
+                state.config.distribution.install_packages(state, state.config.packages)
 
 
 def install_build_packages(state: MkosiState) -> None:
@@ -230,7 +230,7 @@ def install_build_packages(state: MkosiState) -> None:
         return
 
     with complete_step(f"Installing build packages for {str(state.config.distribution).capitalize()}"), mount_build_overlay(state):
-        state.installer.install_packages(state, state.config.build_packages)
+        state.config.distribution.install_packages(state, state.config.build_packages)
 
 
 def remove_packages(state: MkosiState) -> None:
@@ -241,7 +241,7 @@ def remove_packages(state: MkosiState) -> None:
 
     with complete_step(f"Removing {len(state.config.packages)} packages…"):
         try:
-            state.installer.remove_packages(state, state.config.remove_packages)
+            state.config.distribution.remove_packages(state, state.config.remove_packages)
         except NotImplementedError:
             die(f"Removing packages is not supported for {state.config.distribution}")
 
@@ -1697,7 +1697,7 @@ def make_image(state: MkosiState, skip: Sequence[str] = [], split: bool = False)
                     f"""\
                     [Partition]
                     Type=root
-                    Format={state.installer.filesystem()}
+                    Format={state.config.distribution.filesystem()}
                     CopyFiles=/
                     Minimize=guess
                     """

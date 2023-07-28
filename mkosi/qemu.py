@@ -21,12 +21,7 @@ from mkosi.log import die
 from mkosi.run import MkosiAsyncioThread, run, spawn
 from mkosi.tree import copy_tree, rmtree
 from mkosi.types import PathString
-from mkosi.util import (
-    Distribution,
-    format_bytes,
-    qemu_check_kvm_support,
-    qemu_check_vsock_support,
-)
+from mkosi.util import format_bytes, qemu_check_kvm_support, qemu_check_vsock_support
 
 
 def machine_cid(config: MkosiConfig) -> int:

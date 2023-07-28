@@ -13,7 +13,7 @@ from typing import Iterator, List, Optional
 import pytest
 
 from mkosi.config import Compression, MkosiArgs, MkosiConfig, MkosiConfigParser, Verb
-from mkosi.util import Distribution
+from mkosi.distributions import Distribution
 
 
 @contextmanager

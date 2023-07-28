@@ -104,7 +104,7 @@ def dnf_cmd(state: MkosiState) -> list[str]:
         cmdline += ["--cacheonly"]
 
     if not state.config.architecture.is_native():
-        cmdline += [f"--forcearch={state.installer.architecture(state.config.architecture)}"]
+        cmdline += [f"--forcearch={state.config.distribution.architecture(state.config.architecture)}"]
 
     if not state.config.with_docs:
         cmdline += ["--no-docs" if dnf.endswith("dnf5") else "--nodocs"]

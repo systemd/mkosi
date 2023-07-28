@@ -1,14 +1,11 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
-import importlib
 import tempfile
 from pathlib import Path
 from types import TracebackType
 from typing import Optional, Type
 
 from mkosi.config import MkosiArgs, MkosiConfig
-from mkosi.distributions import DistributionInstaller
-from mkosi.log import die
 from mkosi.tree import make_tree
 
 
@@ -18,17 +15,6 @@ class MkosiState:
     def __init__(self, args: MkosiArgs, config: MkosiConfig) -> None:
         self.args = args
         self.config = config
-
-        try:
-            distro = str(self.config.distribution)
-            mod = importlib.import_module(f"mkosi.distributions.{distro}")
-            installer = getattr(mod, f"{distro.title().replace('_','')}Installer")
-            instance = installer() if issubclass(installer, DistributionInstaller) else None
-        except (ImportError, AttributeError):
-            instance = None
-        if instance is None:
-            die("No installer for this distribution.")
-        self.installer = instance
 
     def __enter__(self) -> "MkosiState":
         self._workspace = tempfile.TemporaryDirectory(dir=self.config.workspace_dir or Path.cwd(), prefix=".mkosi.tmp")
