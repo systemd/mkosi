@@ -68,13 +68,17 @@ def setup_pacman(state: MkosiState) -> None:
 
     config.parent.mkdir(mode=0o755, exist_ok=True, parents=True)
 
-    repos = ["core"]
-    if not state.config.local_mirror:
-        repos += ["extra"]
+    repos = []
 
+    # Testing repositories have to go before regular ones to to take precedence.
+    if not state.config.local_mirror:
         for repo in ("core-testing", "extra-testing"):
             if repo in state.config.repositories:
                 repos += [repo]
+
+    repos += ["core"]
+    if not state.config.local_mirror:
+        repos += ["extra"]
 
     with config.open("w") as f:
         f.write(
