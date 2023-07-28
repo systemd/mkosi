@@ -263,7 +263,12 @@ def bwrap(
         "--dev-bind", "/", "/",
         "--chdir", Path.cwd(),
         "--unshare-pid",
+        "--unshare-ipc",
+        "--unshare-cgroup",
         "--die-with-parent",
+        "--proc", "/proc",
+        "--dev", "/dev",
+        "--ro-bind", "/sys", "/sys",
         *options,
     ]
 
@@ -294,8 +299,11 @@ def bwrap(
 
     if apivfs:
         chmod = f"chmod 1777 {apivfs / 'tmp'} {apivfs / 'var/tmp'} {apivfs / 'dev/shm'}"
+        # Make sure anything running in the apivfs directory thinks it's in a container. $container can't
+        # always be accessed so we write /run/host/container-manager as well which is always accessible.
+        container = f"mkdir {apivfs}/run/host && echo mkosi > {apivfs}/run/host/container-manager"
     else:
-        chmod = ":"
+        chmod = container = ":"
 
     with tempfile.TemporaryDirectory(prefix="mkosi-var-tmp") as var_tmp,\
          tempfile.TemporaryDirectory(prefix="mkosi-scripts") as d:
@@ -325,7 +333,7 @@ def bwrap(
                 "--ro-bind", apivfs / "etc/machine-id", apivfs / "etc/machine-id",
             ]
 
-        cmdline += ["sh", "-c", f"{chmod} && exec $0 \"$@\" || exit $?"]
+        cmdline += ["sh", "-c", f"{chmod} && {container} && exec $0 \"$@\" || exit $?"]
 
         try:
             result = run([*cmdline, *cmd], env=env, log=False)
@@ -350,11 +358,7 @@ def bwrap(
 def chroot_cmd(root: Path, *, options: Sequence[PathString] = (), network: bool = False) -> Sequence[PathString]:
     cmdline: list[PathString] = [
         "bwrap",
-        "--unshare-ipc",
-        "--unshare-pid",
-        "--unshare-cgroup",
         "--dev-bind", root, "/",
-        "--die-with-parent",
         "--setenv", "container", "mkosi",
         "--setenv", "SYSTEMD_OFFLINE", str(int(network)),
         "--setenv", "HOME", "/",
