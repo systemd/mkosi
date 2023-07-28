@@ -262,6 +262,7 @@ def bwrap(
         "bwrap",
         "--dev-bind", "/", "/",
         "--chdir", Path.cwd(),
+        "--unshare-pid",
         "--die-with-parent",
         *options,
     ]
