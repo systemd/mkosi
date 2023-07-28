@@ -369,7 +369,7 @@ def chroot_cmd(root: Path, *, options: Sequence[PathString] = (), network: bool 
             # mkdir(symlink) which obviously fails if multiple components of the dangling symlink path don't
             # exist yet. As a workaround, we resolve the symlink ourselves so that bubblewrap will correctly
             # create all missing components in the target path.
-            resolve = (root / resolve).readlink()
+            resolve = resolve.parent / (root / resolve).readlink()
 
         # If we're using the host network namespace, use the same resolver.
         cmdline += ["--ro-bind", "/etc/resolv.conf", Path("/") / resolve]
