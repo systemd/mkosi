@@ -1,16 +1,15 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 import shutil
-import textwrap
 import urllib.request
 import xml.etree.ElementTree as ElementTree
 from collections.abc import Sequence
 
 from mkosi.architecture import Architecture
 from mkosi.distributions import DistributionInstaller
-from mkosi.installer.dnf import Repo, fixup_rpmdb_location, invoke_dnf, setup_dnf
+from mkosi.installer.dnf import Repo, invoke_dnf, setup_dnf
+from mkosi.installer.zypper import invoke_zypper, setup_zypper
 from mkosi.log import die
-from mkosi.run import bwrap
 from mkosi.state import MkosiState
 
 
@@ -79,71 +78,6 @@ class OpensuseInstaller(DistributionInstaller):
             die(f"Architecture {a} is not supported by OpenSUSE")
 
         return a
-
-
-def setup_zypper(state: MkosiState, repos: Sequence[Repo]) -> None:
-    config = state.pkgmngr / "etc/zypp/zypp.conf"
-    if not config.exists():
-        config.parent.mkdir(exist_ok=True, parents=True)
-        with config.open("w") as f:
-            f.write(
-                textwrap.dedent(
-                    f"""\
-                    [main]
-                    rpm.install.excludedocs = {"no" if state.config.with_docs else "yes"}
-                    solver.onlyRequires = yes
-                    """
-                )
-            )
-
-    repofile = state.pkgmngr / "etc/zypp/repos.d/mkosi.repo"
-    if not repofile.exists():
-        repofile.parent.mkdir(exist_ok=True, parents=True)
-        with repofile.open("w") as f:
-            for repo in repos:
-                f.write(
-                    textwrap.dedent(
-                        f"""\
-                        [{repo.id}]
-                        name={repo.id}
-                        {repo.url}
-                        gpgcheck=1
-                        enabled={int(repo.enabled)}
-                        autorefresh=0
-                        keeppackages=1
-                        """
-                    )
-                )
-
-                for i, url in enumerate(repo.gpgurls):
-                    f.write("gpgkey=" if i == 0 else len("gpgkey=") * " ")
-                    f.write(f"{url}\n")
-
-
-def invoke_zypper(
-    state: MkosiState,
-    verb: str,
-    packages: Sequence[str],
-    options: Sequence[str] = (),
-    apivfs: bool = True,
-) -> None:
-    cmdline = [
-        "zypper",
-        f"--root={state.root}",
-        f"--cache-dir={state.cache_dir}",
-        f"--reposd-dir={state.pkgmngr / 'etc/zypp/repos.d'}",
-        "--gpg-auto-import-keys" if state.config.repository_key_check else "--no-gpg-checks",
-        "--non-interactive",
-        verb,
-        *options,
-        *packages,
-    ]
-
-    bwrap(cmdline,
-          apivfs=state.root if apivfs else None,
-          env=dict(ZYPP_CONF=str(state.pkgmngr / "etc/zypp/zypp.conf"), KERNEL_INSTALL_BYPASS="1") | state.config.environment)
-
-    fixup_rpmdb_location(state.root)
 
 
 def fetch_gpgurls(repourl: str) -> tuple[str, ...]:
