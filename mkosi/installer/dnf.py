@@ -2,9 +2,9 @@
 import os
 import shutil
 import textwrap
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import NamedTuple
 
 from mkosi.run import bwrap
 from mkosi.state import MkosiState
@@ -19,19 +19,36 @@ class Repo(NamedTuple):
     enabled: bool = True
 
 
-def setup_dnf(state: MkosiState, repos: Sequence[Repo]) -> None:
+def dnf_executable(state: MkosiState) -> str:
+    # dnf5 does not support building for foreign architectures yet (missing --forcearch)
+    dnf = shutil.which("dnf5") if state.config.architecture.is_native() else None
+    dnf = dnf or shutil.which("dnf") or "yum"
+    return dnf
+
+
+def setup_dnf(state: MkosiState, repos: Sequence[Repo], filelists: bool = True) -> None:
+    state.pkgmngr.joinpath("etc/dnf/vars").mkdir(exist_ok=True, parents=True)
+    state.pkgmngr.joinpath("etc/yum.repos.d").mkdir(exist_ok=True, parents=True)
+    state.pkgmngr.joinpath("var/lib/dnf").mkdir(exist_ok=True, parents=True)
+
     config = state.pkgmngr / "etc/dnf/dnf.conf"
 
     if not config.exists():
         config.parent.mkdir(exist_ok=True, parents=True)
-        config.write_text(
-            textwrap.dedent(
-                """\
-                [main]
-                install_weak_deps=0
-                """
+        with config.open("w") as f:
+            f.write(
+                textwrap.dedent(
+                    """\
+                    [main]
+                    install_weak_deps=0
+                    """
+                )
             )
-        )
+
+            # Make sure we download filelists so all dependencies can be resolved.
+            # See https://bugzilla.redhat.com/show_bug.cgi?id=2180842
+            if dnf_executable(state).endswith("dnf5") and filelists:
+                f.write("optional_metadata_types=filelists\n")
 
     repofile = state.pkgmngr / "etc/yum.repos.d/mkosi.repo"
     if not repofile.exists():
@@ -55,21 +72,8 @@ def setup_dnf(state: MkosiState, repos: Sequence[Repo]) -> None:
                     f.write(f"{url}\n")
 
 
-def invoke_dnf(
-    state: MkosiState,
-    command: str,
-    packages: Iterable[str],
-    env: Mapping[str, Any] = {},
-    filelists: bool = True,
-    apivfs: bool = True
-) -> None:
-    state.pkgmngr.joinpath("etc/dnf/vars").mkdir(exist_ok=True, parents=True)
-    state.pkgmngr.joinpath("etc/yum.repos.d").mkdir(exist_ok=True, parents=True)
-    state.pkgmngr.joinpath("var/lib/dnf").mkdir(exist_ok=True, parents=True)
-
-    # dnf5 does not support building for foreign architectures yet (missing --forcearch)
-    dnf = shutil.which("dnf5") if state.config.architecture.is_native() else None
-    dnf = dnf or shutil.which("dnf") or "yum"
+def dnf_cmd(state: MkosiState) -> list[str]:
+    dnf = dnf_executable(state)
 
     cmdline = [
         dnf,
@@ -86,11 +90,6 @@ def invoke_dnf(
         "--setopt=check_config_file_age=0",
         "--no-plugins" if dnf.endswith("dnf5") else "--noplugins",
     ]
-
-    # Make sure we download filelists so all dependencies can be resolved.
-    # See https://bugzilla.redhat.com/show_bug.cgi?id=2180842
-    if dnf.endswith("dnf5") and filelists:
-        cmdline += ["--setopt=optional_metadata_types=filelists"]
 
     if not state.config.repository_key_check:
         cmdline += ["--nogpgcheck"]
@@ -109,11 +108,13 @@ def invoke_dnf(
     if not state.config.with_docs:
         cmdline += ["--no-docs" if dnf.endswith("dnf5") else "--nodocs"]
 
-    cmdline += [command, *sort_packages(packages)]
+    return cmdline
 
-    bwrap(cmdline,
+
+def invoke_dnf(state: MkosiState, command: str, packages: Iterable[str], apivfs: bool = True) -> None:
+    bwrap(dnf_cmd(state) + [command] + sort_packages(packages),
           apivfs=state.root if apivfs else None,
-          env=dict(KERNEL_INSTALL_BYPASS="1") | env | state.config.environment)
+          env=dict(KERNEL_INSTALL_BYPASS="1") | state.config.environment)
 
     fixup_rpmdb_location(state.root)
 

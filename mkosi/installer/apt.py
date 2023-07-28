@@ -1,5 +1,4 @@
 # SPDX-License-Identifier: LGPL-2.1+
-import os
 import shutil
 import textwrap
 from collections.abc import Sequence
@@ -54,20 +53,7 @@ def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
                 f.write(f"{repo}\n")
 
 
-def invoke_apt(
-    state: MkosiState,
-    operation: str,
-    packages: Sequence[str] = (),
-    apivfs: bool = True,
-) -> None:
-    env = dict(
-        APT_CONFIG=os.fspath(state.workspace / "apt.conf"),
-        DEBIAN_FRONTEND="noninteractive",
-        DEBCONF_INTERACTIVE_SEEN="true",
-        KERNEL_INSTALL_BYPASS="1",
-        INITRD="No",
-    )
-
+def apt_cmd(state: MkosiState) -> list[str]:
     debarch = state.installer.architecture(state.config.architecture)
 
     trustedkeys = state.pkgmngr / "etc/apt/trusted.gpg"
@@ -75,7 +61,13 @@ def invoke_apt(
     trustedkeys_dir = state.pkgmngr / "etc/apt/trusted.gpg.d"
     trustedkeys_dir = trustedkeys_dir if trustedkeys_dir.exists() else "/usr/share/keyrings"
 
-    options = [
+    return [
+        "env",
+        f"APT_CONFIG={state.workspace / 'apt.conf'}",
+        "DEBIAN_FRONTEND=noninteractive",
+        "DEBCONF_INTERACTIVE_SEEN=true",
+        "INITRD=No",
+        "apt-get",
         "-o", f"APT::Architecture={debarch}",
         "-o", f"APT::Architectures={debarch}",
         "-o", "APT::Immediate-Configure=off",
@@ -102,6 +94,13 @@ def invoke_apt(
         "-o", "pkgCacheGen::ForceEssential=,",
     ]
 
-    bwrap(["apt-get", *options, operation, *packages],
+
+def invoke_apt(
+    state: MkosiState,
+    operation: str,
+    packages: Sequence[str] = (),
+    apivfs: bool = True,
+) -> None:
+    bwrap(apt_cmd(state) + [operation, *packages],
           apivfs=state.root if apivfs else None,
-          env=env | state.config.environment)
+          env=dict(KERNEL_INSTALL_BYPASS="1") | state.config.environment)

@@ -59,9 +59,8 @@ class FedoraInstaller(DistributionInstaller):
             if url:
                 repos += [Repo(name, url, (gpgurl,))]
 
-        setup_dnf(state, repos)
-        invoke_dnf(state, "install", packages, apivfs=apivfs,
-                   filelists=fedora_release_at_least(state.config.release, "38"))
+        setup_dnf(state, repos, filelists=fedora_release_at_least(state.config.release, "38"))
+        invoke_dnf(state, "install", packages, apivfs=apivfs)
 
     @classmethod
     def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:

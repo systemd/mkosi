@@ -82,7 +82,7 @@ def setup_pacman(state: MkosiState) -> None:
             )
 
 
-def invoke_pacman(state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
+def pacman_cmd(state: MkosiState) -> list[str]:
     gpgdir = state.pkgmngr / "etc/pacman.d/gnupg/"
     gpgdir = gpgdir if gpgdir.exists() else Path("/etc/pacman.d/gnupg/")
 
@@ -98,7 +98,6 @@ def invoke_pacman(state: MkosiState, packages: Sequence[str], apivfs: bool = Tru
         "--color", "auto",
         "--noconfirm",
         "--needed",
-        "-Sy", *sort_packages(packages),
     ]
 
     # If we're generating a bootable image, we'll do so with a prebuilt initramfs, so no need for an
@@ -106,6 +105,10 @@ def invoke_pacman(state: MkosiState, packages: Sequence[str], apivfs: bool = Tru
     if state.config.bootable != ConfigFeature.disabled:
         cmdline += ["--assume-installed", "initramfs"]
 
-    bwrap(cmdline,
+    return cmdline
+
+
+def invoke_pacman(state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
+    bwrap(pacman_cmd(state) + ["-Sy"] + sort_packages(packages),
           apivfs=state.root if apivfs else None,
           env=dict(KERNEL_INSTALL_BYPASS="1") | state.config.environment)

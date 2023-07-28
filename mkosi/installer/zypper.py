@@ -46,6 +46,19 @@ def setup_zypper(state: MkosiState, repos: Sequence[Repo]) -> None:
                     f.write(f"{url}\n")
 
 
+def zypper_cmd(state: MkosiState) -> list[str]:
+    return [
+        "env",
+        f"ZYPP_CONF={state.pkgmngr / 'etc/zypp/zypp.conf'}",
+        "zypper",
+        f"--root={state.root}",
+        f"--cache-dir={state.cache_dir}",
+        f"--reposd-dir={state.pkgmngr / 'etc/zypp/repos.d'}",
+        "--gpg-auto-import-keys" if state.config.repository_key_check else "--no-gpg-checks",
+        "--non-interactive",
+    ]
+
+
 def invoke_zypper(
     state: MkosiState,
     verb: str,
@@ -53,20 +66,8 @@ def invoke_zypper(
     options: Sequence[str] = (),
     apivfs: bool = True,
 ) -> None:
-    cmdline = [
-        "zypper",
-        f"--root={state.root}",
-        f"--cache-dir={state.cache_dir}",
-        f"--reposd-dir={state.pkgmngr / 'etc/zypp/repos.d'}",
-        "--gpg-auto-import-keys" if state.config.repository_key_check else "--no-gpg-checks",
-        "--non-interactive",
-        verb,
-        *options,
-        *packages,
-    ]
-
-    bwrap(cmdline,
+    bwrap(zypper_cmd(state) + [verb, *packages, *options],
           apivfs=state.root if apivfs else None,
-          env=dict(ZYPP_CONF=str(state.pkgmngr / "etc/zypp/zypp.conf"), KERNEL_INSTALL_BYPASS="1") | state.config.environment)
+          env=dict(KERNEL_INSTALL_BYPASS="1") | state.config.environment)
 
     fixup_rpmdb_location(state.root)

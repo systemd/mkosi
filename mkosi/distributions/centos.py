@@ -50,8 +50,8 @@ class CentosInstaller(DistributionInstaller):
             die("CentOS 7 or earlier variants are not supported")
 
         setup_dnf(state, cls.repositories(state.config, release))
-        invoke_dnf(state, "install", packages, apivfs=apivfs,
-                   env=dict(DNF_VAR_stream=f"{state.config.release}-stream"))
+        (state.pkgmngr / "etc/dnf/vars/stream").write_text(f"{state.config.release}-stream\n")
+        invoke_dnf(state, "install", packages, apivfs=apivfs)
 
     @classmethod
     def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
