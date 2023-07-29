@@ -1126,9 +1126,9 @@ local directory:
   script so that you know which `mkosi.conf` (if any) was passed in.
 
 * The **`mkosi.prepare`** script is invoked directly after the software packages are installed, from within
-  the image context, if it exists. It is first called for the image with the `final`` command line argument,
+  the image context, if it exists. It is first called for the image with the `final` command line argument,
   right after the software packages are installed. It is called a second time for the build overlay (if
-  this is enabled, see above) with the `build`` command line parameter, right after the build packages are
+  this is enabled, see above) with the `build` command line parameter, right after the build packages are
   installed and before the build script is executed. This script has network access and may be used to
   install packages from other sources than the distro's package manager (e.g. `pip`, `npm`, ...), after all
   software packages are installed but before the image is cached (if incremental mode is enabled). This
