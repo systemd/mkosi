@@ -9,6 +9,7 @@ from typing import NamedTuple
 from mkosi.run import bwrap
 from mkosi.state import MkosiState
 from mkosi.tree import rmtree
+from mkosi.types import PathString
 from mkosi.util import sort_packages
 
 
@@ -72,10 +73,10 @@ def setup_dnf(state: MkosiState, repos: Sequence[Repo], filelists: bool = True) 
                     f.write(f"{url}\n")
 
 
-def dnf_cmd(state: MkosiState) -> list[str]:
+def dnf_cmd(state: MkosiState) -> list[PathString]:
     dnf = dnf_executable(state)
 
-    cmdline = [
+    cmdline: list[PathString] = [
         dnf,
         "--assumeyes",
         f"--config={state.pkgmngr / 'etc/dnf/dnf.conf'}",
@@ -113,7 +114,7 @@ def dnf_cmd(state: MkosiState) -> list[str]:
 
 
 def invoke_dnf(state: MkosiState, command: str, packages: Iterable[str], apivfs: bool = True) -> None:
-    bwrap(dnf_cmd(state) + [command] + sort_packages(packages),
+    bwrap(dnf_cmd(state) + [command, *sort_packages(packages)],
           apivfs=state.root if apivfs else None,
           env=state.config.environment)
 

@@ -7,6 +7,7 @@ from mkosi.architecture import Architecture
 from mkosi.config import ConfigFeature
 from mkosi.run import bwrap
 from mkosi.state import MkosiState
+from mkosi.types import PathString
 from mkosi.util import sort_packages
 
 
@@ -82,19 +83,19 @@ def setup_pacman(state: MkosiState) -> None:
             )
 
 
-def pacman_cmd(state: MkosiState) -> list[str]:
+def pacman_cmd(state: MkosiState) -> list[PathString]:
     gpgdir = state.pkgmngr / "etc/pacman.d/gnupg/"
     gpgdir = gpgdir if gpgdir.exists() else Path("/etc/pacman.d/gnupg/")
 
-    cmdline = [
+    cmdline: list[PathString] = [
         "pacman",
-        f"--config={state.pkgmngr / 'etc/pacman.conf'}",
-        f"--root={state.root}",
+        "--config", state.pkgmngr / "etc/pacman.conf",
+        "--root", state.root,
         "--logfile=/dev/null",
-        f"--cachedir={state.cache_dir}",
-        f"--gpgdir={gpgdir}",
-        f"--hookdir={state.root / 'etc/pacman.d/hooks'}",
-        f"--arch={state.config.distribution.architecture(state.config.architecture)}",
+        "--cachedir", state.cache_dir,
+        "--gpgdir", gpgdir,
+        "--hookdir", state.root / "etc/pacman.d/hooks",
+        "--arch", state.config.distribution.architecture(state.config.architecture),
         "--color", "auto",
         "--noconfirm",
         "--needed",
@@ -109,6 +110,6 @@ def pacman_cmd(state: MkosiState) -> list[str]:
 
 
 def invoke_pacman(state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
-    bwrap(pacman_cmd(state) + ["-Sy"] + sort_packages(packages),
+    bwrap(pacman_cmd(state) + ["-Sy", *sort_packages(packages)],
           apivfs=state.root if apivfs else None,
           env=state.config.environment)
