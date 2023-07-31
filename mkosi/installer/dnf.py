@@ -88,7 +88,8 @@ def dnf_cmd(state: MkosiState) -> list[str]:
         f"--setopt=varsdir={state.pkgmngr / 'etc/dnf/vars'}",
         f"--setopt=persistdir={state.pkgmngr / 'var/lib/dnf'}",
         "--setopt=check_config_file_age=0",
-        "--no-plugins" if dnf.endswith("dnf5") else "--noplugins",
+        "--disableplugin=*",
+        "--enableplugin=builddep",
     ]
 
     if not state.config.repository_key_check:

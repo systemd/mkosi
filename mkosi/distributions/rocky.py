@@ -11,11 +11,13 @@ class RockyInstaller(CentosInstaller):
         return ("https://download.rockylinux.org/pub/rocky/RPM-GPG-KEY-Rocky-$releasever",)
 
     @classmethod
-    def repository_url(cls, config: MkosiConfig, repo: str) -> str:
+    def repository_variants(cls, config: MkosiConfig, repo: str) -> list[Repo]:
         if config.mirror:
-            return f"baseurl={config.mirror}/rocky/$releasever/{repo}/$basearch/os"
+            url = f"baseurl={config.mirror}/rocky/$releasever/{repo}/$basearch/os"
         else:
-            return f"mirrorlist=https://mirrors.rockylinux.org/mirrorlist?arch=$basearch&repo={repo}-$releasever"
+            url = f"mirrorlist=https://mirrors.rockylinux.org/mirrorlist?arch=$basearch&repo={repo}-$releasever"
+
+        return [Repo(repo, url, cls.gpgurls())]
 
     @classmethod
     def sig_repositories(cls, config: MkosiConfig) -> list[Repo]:

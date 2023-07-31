@@ -20,22 +20,37 @@ class DebianInstaller(DistributionInstaller):
 
     @staticmethod
     def repositories(state: MkosiState, local: bool = True) -> list[str]:
-        repos = ' '.join(("main", *state.config.repositories))
+        assert state.config.mirror
+
+        archives = ("deb", "deb-src")
+        components = ' '.join(("main", *state.config.repositories))
 
         if state.config.local_mirror and local:
-            return [f"deb [trusted=yes] {state.config.local_mirror} {state.config.release} {repos}"]
+            return [f"deb [trusted=yes] {state.config.local_mirror} {state.config.release} {components}"]
 
-        main = f"deb {state.config.mirror} {state.config.release} {repos}"
+        repos = [
+            f"{archive} {state.config.mirror} {state.config.release} {components}"
+            for archive in archives
+        ]
+
+        # Debug repos are typically not mirrored.
+        repos += [f"deb http://deb.debian.org/debian-debug {state.config.release}-debug {components}"]
 
         if state.config.release in ("unstable", "sid"):
-            return [main]
+            return repos
 
-        updates = f"deb {state.config.mirror} {state.config.release}-updates {repos}"
+        repos += [
+            f"{archive} {state.config.mirror} {state.config.release}-updates {components}"
+            for archive in archives
+        ]
 
         # Security updates repos are never mirrored
-        security = f"deb http://security.debian.org/debian-security {state.config.release}-security {repos}"
+        repos += [
+            f"{archive} http://security.debian.org/debian-security {state.config.release}-security {components}"
+            for archive in archives
+        ]
 
-        return [main, updates, security]
+        return repos
 
     @classmethod
     def install(cls, state: MkosiState) -> None:
