@@ -9,8 +9,8 @@ from textwrap import dedent
 from typing import IO, Any, Optional
 
 from mkosi.config import ManifestFormat, MkosiConfig
+from mkosi.distributions import Distribution, PackageType
 from mkosi.run import run
-from mkosi.util import Distribution, PackageType
 
 
 @dataclasses.dataclass
@@ -89,11 +89,11 @@ class Manifest:
         return ManifestFormat.changelog in self.config.manifest_format
 
     def record_packages(self, root: Path) -> None:
-        if self.config.distribution.package_type == PackageType.rpm:
+        if self.config.distribution.package_type() == PackageType.rpm:
             self.record_rpm_packages(root)
-        if self.config.distribution.package_type == PackageType.deb:
+        if self.config.distribution.package_type() == PackageType.deb:
             self.record_deb_packages(root)
-        if self.config.distribution.package_type == PackageType.pkg:
+        if self.config.distribution.package_type() == PackageType.pkg:
             self.record_pkg_packages(root)
         # TODO: add implementations for other package managers
 

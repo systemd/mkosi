@@ -7,28 +7,28 @@ from mkosi.log import die
 
 
 class Architecture(enum.Enum):
-    alpha       = "alpha"
-    arc         = "arc"
-    arm         = "arm"
-    arm64       = "arm64"
-    ia64        = "ia64"
-    loongarch64 = "loongarch64"
-    mips_le     = "mips-le"
-    mips64_le   = "mips64-le"
-    parisc      = "parisc"
-    ppc         = "ppc"
-    ppc64       = "ppc64"
-    ppc64_le    = "ppc64-le"
-    riscv32     = "riscv32"
-    riscv64     = "riscv64"
-    s390        = "s390"
-    s390x       = "s390x"
-    tilegx      = "tilegx"
-    x86         = "x86"
-    x86_64      = "x86-64"
+    alpha       = enum.auto()
+    arc         = enum.auto()
+    arm         = enum.auto()
+    arm64       = enum.auto()
+    ia64        = enum.auto()
+    loongarch64 = enum.auto()
+    mips_le     = enum.auto()
+    mips64_le   = enum.auto()
+    parisc      = enum.auto()
+    ppc         = enum.auto()
+    ppc64       = enum.auto()
+    ppc64_le    = enum.auto()
+    riscv32     = enum.auto()
+    riscv64     = enum.auto()
+    s390        = enum.auto()
+    s390x       = enum.auto()
+    tilegx      = enum.auto()
+    x86         = enum.auto()
+    x86_64      = enum.auto()
 
     def __str__(self) -> str:
-        return self.value
+        return self.name.replace("_", "-")
 
     @staticmethod
     def from_uname(s: str) -> "Architecture":

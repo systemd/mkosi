@@ -24,14 +24,13 @@ from pathlib import Path
 from typing import Any, Callable, Optional, Type, Union, cast
 
 from mkosi.architecture import Architecture
+from mkosi.distributions import Distribution, detect_distribution
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, Style, die
 from mkosi.pager import page
 from mkosi.run import run
 from mkosi.util import (
-    Distribution,
     InvokingUser,
     chdir,
-    detect_distribution,
     flatten,
     qemu_check_kvm_support,
     qemu_check_vsock_support,
@@ -320,8 +319,8 @@ def config_default_package_manager_tree(namespace: argparse.Namespace) -> list[t
 def make_enum_parser(type: Type[enum.Enum]) -> Callable[[str], enum.Enum]:
     def parse_enum(value: str) -> enum.Enum:
         try:
-            return type(value)
-        except ValueError:
+            return type[value.replace("-", "_")]
+        except KeyError:
             die(f"'{value}' is not a valid {type.__name__}")
 
     return parse_enum

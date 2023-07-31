@@ -34,6 +34,7 @@ from mkosi.config import (
     Verb,
 )
 from mkosi.install import add_dropin_config_from_resource
+from mkosi.installer import clean_package_manager_metadata
 from mkosi.log import Style, color_error, complete_step, die, log_step
 from mkosi.manifest import Manifest
 from mkosi.mounts import mount_overlay, mount_passwd, mount_tools, scandir_recursive
@@ -43,14 +44,7 @@ from mkosi.run import become_root, bwrap, chroot_cmd, init_mount_namespace, run
 from mkosi.state import MkosiState
 from mkosi.tree import copy_tree, move_tree, rmtree
 from mkosi.types import PathString
-from mkosi.util import (
-    InvokingUser,
-    flatten,
-    format_bytes,
-    format_rlimit,
-    scopedenv,
-    try_import,
-)
+from mkosi.util import InvokingUser, format_bytes, format_rlimit, scopedenv, try_import
 
 
 @contextlib.contextmanager
@@ -82,116 +76,6 @@ def mount_image(state: MkosiState) -> Iterator[None]:
         yield
 
 
-def clean_paths(
-        root: Path,
-        globs: Sequence[str],
-        tool: str,
-        always: bool) -> None:
-    """Remove globs under root if always or if tool is not found under root."""
-
-    toolp = root / tool.lstrip('/')
-    cond = always or not os.access(toolp, os.F_OK, follow_symlinks=False)
-
-    paths = flatten(root.glob(glob.lstrip('/')) for glob in globs)
-
-    if not cond or not paths:
-        return
-
-    with complete_step(f"Cleaning {toolp.name} metadata…"):
-        for path in paths:
-            rmtree(path)
-
-
-def clean_dnf_metadata(root: Path, always: bool) -> None:
-    """Remove dnf metadata if /bin/dnf is not present in the image
-
-    If dnf is not installed, there doesn't seem to be much use in keeping the
-    dnf metadata, since it's not usable from within the image anyway.
-    """
-    paths = [
-        "/var/lib/dnf",
-        "/var/log/dnf.*",
-        "/var/log/hawkey.*",
-        "/var/cache/dnf",
-    ]
-
-    clean_paths(root, paths, tool='/bin/dnf', always=always)
-
-
-def clean_yum_metadata(root: Path, always: bool) -> None:
-    """Remove yum metadata if /bin/yum is not present in the image"""
-    paths = [
-        "/var/lib/yum",
-        "/var/log/yum.*",
-        "/var/cache/yum",
-    ]
-
-    clean_paths(root, paths, tool='/bin/yum', always=always)
-
-
-def clean_rpm_metadata(root: Path, always: bool) -> None:
-    """Remove rpm metadata if /bin/rpm is not present in the image"""
-    paths = [
-        "/var/lib/rpm",
-        "/usr/lib/sysimage/rpm",
-    ]
-
-    clean_paths(root, paths, tool='/bin/rpm', always=always)
-
-
-def clean_apt_metadata(root: Path, always: bool) -> None:
-    """Remove apt metadata if /usr/bin/apt is not present in the image"""
-    paths = [
-        "/var/lib/apt",
-        "/var/log/apt",
-        "/var/cache/apt",
-    ]
-
-    clean_paths(root, paths, tool='/usr/bin/apt', always=always)
-
-
-def clean_dpkg_metadata(root: Path, always: bool) -> None:
-    """Remove dpkg metadata if /usr/bin/dpkg is not present in the image"""
-    paths = [
-        "/var/lib/dpkg",
-        "/var/log/dpkg.log",
-    ]
-
-    clean_paths(root, paths, tool='/usr/bin/dpkg', always=always)
-
-
-def clean_pacman_metadata(root: Path, always: bool) -> None:
-    """Remove pacman metadata if /usr/bin/pacman is not present in the image"""
-    paths = [
-        "/var/lib/pacman",
-        "/var/cache/pacman",
-        "/var/log/pacman.log"
-    ]
-
-    clean_paths(root, paths, tool='/usr/bin/pacman', always=always)
-
-
-def clean_package_manager_metadata(state: MkosiState) -> None:
-    """Remove package manager metadata
-
-    Try them all regardless of the distro: metadata is only removed if the
-    package manager is present in the image.
-    """
-
-    if state.config.clean_package_metadata == ConfigFeature.disabled:
-        return
-
-    # we try then all: metadata will only be touched if any of them are in the
-    # final image
-    always = state.config.clean_package_metadata == ConfigFeature.enabled
-    clean_dnf_metadata(state.root, always=always)
-    clean_yum_metadata(state.root, always=always)
-    clean_rpm_metadata(state.root, always=always)
-    clean_apt_metadata(state.root, always=always)
-    clean_dpkg_metadata(state.root, always=always)
-    clean_pacman_metadata(state.root, always=always)
-
-
 def remove_files(state: MkosiState) -> None:
     """Remove files based on user-specified patterns"""
 
@@ -210,10 +94,10 @@ def install_distribution(state: MkosiState) -> None:
             return
 
         with complete_step(f"Installing extra packages for {str(state.config.distribution).capitalize()}"):
-            state.installer.install_packages(state, state.config.packages)
+            state.config.distribution.install_packages(state, state.config.packages)
     else:
         with complete_step(f"Installing {str(state.config.distribution).capitalize()}"):
-            state.installer.install(state)
+            state.config.distribution.install(state)
 
             # Ensure /efi exists so that the ESP is mounted there, as recommended by
             # https://0pointer.net/blog/linux-boot-partitions.html. Use the most restrictive access mode we
@@ -222,7 +106,7 @@ def install_distribution(state: MkosiState) -> None:
             state.root.joinpath("efi").mkdir(mode=0o500, exist_ok=True)
 
             if state.config.packages:
-                state.installer.install_packages(state, state.config.packages)
+                state.config.distribution.install_packages(state, state.config.packages)
 
 
 def install_build_packages(state: MkosiState) -> None:
@@ -230,7 +114,7 @@ def install_build_packages(state: MkosiState) -> None:
         return
 
     with complete_step(f"Installing build packages for {str(state.config.distribution).capitalize()}"), mount_build_overlay(state):
-        state.installer.install_packages(state, state.config.build_packages)
+        state.config.distribution.install_packages(state, state.config.build_packages)
 
 
 def remove_packages(state: MkosiState) -> None:
@@ -241,7 +125,7 @@ def remove_packages(state: MkosiState) -> None:
 
     with complete_step(f"Removing {len(state.config.packages)} packages…"):
         try:
-            state.installer.remove_packages(state, state.config.remove_packages)
+            state.config.distribution.remove_packages(state, state.config.remove_packages)
         except NotImplementedError:
             die(f"Removing packages is not supported for {state.config.distribution}")
 
@@ -1697,7 +1581,7 @@ def make_image(state: MkosiState, skip: Sequence[str] = [], split: bool = False)
                     f"""\
                     [Partition]
                     Type=root
-                    Format={state.installer.filesystem()}
+                    Format={state.config.distribution.filesystem()}
                     CopyFiles=/
                     Minimize=guess
                     """

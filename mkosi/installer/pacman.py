@@ -94,7 +94,7 @@ def pacman_cmd(state: MkosiState) -> list[str]:
         f"--cachedir={state.cache_dir}",
         f"--gpgdir={gpgdir}",
         f"--hookdir={state.root / 'etc/pacman.d/hooks'}",
-        f"--arch={state.installer.architecture(state.config.architecture)}",
+        f"--arch={state.config.distribution.architecture(state.config.architecture)}",
         "--color", "auto",
         "--noconfirm",
         "--needed",

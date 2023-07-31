@@ -8,7 +8,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from mkosi.architecture import Architecture
-from mkosi.distributions import DistributionInstaller
+from mkosi.distributions import DistributionInstaller, PackageType
 from mkosi.log import ARG_DEBUG, complete_step, die
 from mkosi.run import bwrap, chroot_cmd, run
 from mkosi.state import MkosiState
@@ -56,8 +56,12 @@ class GentooInstaller(DistributionInstaller):
         return "btrfs"
 
     @classmethod
+    def package_type(cls) -> PackageType:
+        return PackageType.ebuild
+
+    @classmethod
     def install(cls, state: MkosiState) -> None:
-        arch = state.installer.architecture(state.config.architecture)
+        arch = state.config.distribution.architecture(state.config.architecture)
 
         assert state.config.mirror
         # http://distfiles.gentoo.org/releases/amd64/autobuilds/latest-stage3.txt

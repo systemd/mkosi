@@ -3,7 +3,6 @@
 import ast
 import contextlib
 import copy
-import enum
 import errno
 import fcntl
 import functools
@@ -22,61 +21,6 @@ from typing import Any, Callable, Optional, TypeVar
 
 T = TypeVar("T")
 V = TypeVar("V")
-
-
-class PackageType(enum.Enum):
-    rpm = 1
-    deb = 2
-    pkg = 3
-    ebuild = 5
-
-
-class Distribution(enum.Enum):
-    package_type: PackageType
-
-    fedora       = "fedora", PackageType.rpm
-    debian       = "debian", PackageType.deb
-    ubuntu       = "ubuntu", PackageType.deb
-    arch         = "arch", PackageType.pkg
-    opensuse     = "opensuse", PackageType.rpm
-    mageia       = "mageia", PackageType.rpm
-    centos       = "centos", PackageType.rpm
-    openmandriva = "openmandriva", PackageType.rpm
-    rocky        = "rocky", PackageType.rpm
-    alma         = "alma", PackageType.rpm
-    gentoo       = "gentoo", PackageType.ebuild
-
-    def __new__(cls, name: str, package_type: PackageType) -> "Distribution":
-        # This turns the list above into enum entries with .package_type attributes.
-        # See https://docs.python.org/3.9/library/enum.html#when-to-use-new-vs-init
-        # for an explanation.
-        entry = object.__new__(cls)
-        entry._value_ = name
-        entry.package_type = package_type
-        return entry
-
-    def __str__(self) -> str:
-        return self.name
-
-    def is_centos_variant(self) -> bool:
-        return self in (Distribution.centos, Distribution.alma, Distribution.rocky)
-
-    def is_dnf_distribution(self) -> bool:
-        return self in (
-            Distribution.fedora,
-            Distribution.mageia,
-            Distribution.centos,
-            Distribution.openmandriva,
-            Distribution.rocky,
-            Distribution.alma,
-        )
-
-    def is_apt_distribution(self) -> bool:
-        return self in (Distribution.debian, Distribution.ubuntu)
-
-
-    def is_portage_distribution(self) -> bool:
-        return self in (Distribution.gentoo,)
 
 
 def dictify(f: Callable[..., Iterator[tuple[T, V]]]) -> Callable[..., dict[T, V]]:
@@ -107,37 +51,6 @@ def read_os_release() -> Iterator[tuple[str, str]]:
                 yield name, val
             else:
                 print(f"{filename}:{line_number}: bad line {line!r}", file=sys.stderr)
-
-
-def detect_distribution() -> tuple[Optional[Distribution], Optional[str]]:
-    try:
-        os_release = read_os_release()
-    except FileNotFoundError:
-        return None, None
-
-    dist_id = os_release.get("ID", "linux")
-    dist_id_like = os_release.get("ID_LIKE", "").split()
-    version = os_release.get("VERSION", None)
-    version_id = os_release.get("VERSION_ID", None)
-    version_codename = os_release.get("VERSION_CODENAME", None)
-    extracted_codename = None
-
-    if version:
-        # extract Debian release codename
-        m = re.search(r"\((.*?)\)", version)
-        if m:
-            extracted_codename = m.group(1)
-
-    d: Optional[Distribution] = None
-    for the_id in [dist_id, *dist_id_like]:
-        d = Distribution.__members__.get(the_id, None)
-        if d is not None:
-            break
-
-    if d in {Distribution.debian, Distribution.ubuntu} and (version_codename or extracted_codename):
-        version_id = version_codename or extracted_codename
-
-    return d, version_id
 
 
 def format_rlimit(rlimit: int) -> str:

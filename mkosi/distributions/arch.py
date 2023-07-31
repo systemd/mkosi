@@ -3,7 +3,7 @@
 from collections.abc import Sequence
 
 from mkosi.architecture import Architecture
-from mkosi.distributions import DistributionInstaller
+from mkosi.distributions import DistributionInstaller, PackageType
 from mkosi.installer.pacman import invoke_pacman, setup_pacman
 from mkosi.log import die
 from mkosi.state import MkosiState
@@ -13,6 +13,10 @@ class ArchInstaller(DistributionInstaller):
     @classmethod
     def filesystem(cls) -> str:
         return "ext4"
+
+    @classmethod
+    def package_type(cls) -> PackageType:
+        return PackageType.pkg
 
     @classmethod
     def install(cls, state: MkosiState) -> None:

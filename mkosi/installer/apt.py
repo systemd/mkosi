@@ -54,7 +54,7 @@ def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
 
 
 def apt_cmd(state: MkosiState, command: str) -> list[str]:
-    debarch = state.installer.architecture(state.config.architecture)
+    debarch = state.config.distribution.architecture(state.config.architecture)
 
     trustedkeys = state.pkgmngr / "etc/apt/trusted.gpg"
     trustedkeys = trustedkeys if trustedkeys.exists() else f"/usr/share/keyrings/{state.config.distribution}-archive-keyring.gpg"

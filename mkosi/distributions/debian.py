@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from mkosi.architecture import Architecture
-from mkosi.distributions import DistributionInstaller
+from mkosi.distributions import DistributionInstaller, PackageType
 from mkosi.installer.apt import invoke_apt, setup_apt
 from mkosi.log import die
 from mkosi.run import run
@@ -17,6 +17,10 @@ class DebianInstaller(DistributionInstaller):
     @classmethod
     def filesystem(cls) -> str:
         return "ext4"
+
+    @classmethod
+    def package_type(cls) -> PackageType:
+        return PackageType.deb
 
     @staticmethod
     def repositories(state: MkosiState, local: bool = True) -> list[str]:
@@ -77,7 +81,7 @@ class DebianInstaller(DistributionInstaller):
             "sparc"       : ["lib64"],
             "sparc64"     : ["lib32", "lib64"],
             "x32"         : ["lib32", "lib64", "libx32"],
-        }.get(state.installer.architecture(state.config.architecture), [])
+        }.get(state.config.distribution.architecture(state.config.architecture), [])
 
         state.root.joinpath("usr").mkdir(mode=0o755, exist_ok=True)
         for d in subdirs:

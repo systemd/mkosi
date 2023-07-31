@@ -3,7 +3,7 @@
 from collections.abc import Sequence
 
 from mkosi.architecture import Architecture
-from mkosi.distributions import DistributionInstaller
+from mkosi.distributions import DistributionInstaller, PackageType
 from mkosi.installer.dnf import Repo, invoke_dnf, setup_dnf
 from mkosi.log import die
 from mkosi.state import MkosiState
@@ -15,13 +15,17 @@ class MageiaInstaller(DistributionInstaller):
         return "ext4"
 
     @classmethod
+    def package_type(cls) -> PackageType:
+        return PackageType.rpm
+
+    @classmethod
     def install(cls, state: MkosiState) -> None:
         cls.install_packages(state, ["filesystem"], apivfs=False)
 
     @classmethod
     def install_packages(cls, state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
         release = state.config.release.strip("'")
-        arch = state.installer.architecture(state.config.architecture)
+        arch = state.config.distribution.architecture(state.config.architecture)
 
         if state.config.local_mirror:
             release_url = f"baseurl={state.config.local_mirror}"
