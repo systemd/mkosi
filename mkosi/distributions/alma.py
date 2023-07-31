@@ -2,7 +2,7 @@
 
 from mkosi.config import MkosiConfig
 from mkosi.distributions.centos import CentosInstaller
-from mkosi.distributions.fedora import Repo
+from mkosi.installer.dnf import Repo
 
 
 class AlmaInstaller(CentosInstaller):
