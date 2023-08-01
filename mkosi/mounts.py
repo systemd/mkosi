@@ -60,6 +60,7 @@ def mount(
     type: Optional[str] = None,
     read_only: bool = False,
     umount: bool = True,
+    lazy: bool = False,
 ) -> Iterator[Path]:
     if not where.exists():
         where.mkdir(mode=0o755, parents=True)
@@ -85,10 +86,7 @@ def mount(
         yield where
     finally:
         if umount:
-            # If we mounted over /usr, trying to use umount will fail with "target is busy", because umount
-            # is being called from /usr, which we're trying to unmount. To work around this issue, we do a
-            # lazy unmount.
-            run(["umount", "--no-mtab", "--lazy", where])
+            run(["umount", "--no-mtab", *(["--lazy"] if lazy else []), where])
 
 
 @contextlib.contextmanager
@@ -127,7 +125,10 @@ def mount_tools(config: MkosiConfig, umount: bool = True) -> Iterator[None]:
     os.environ["PATH"] = "/usr/bin:/usr/sbin"
 
     try:
-        with mount(what=config.tools_tree / "usr", where=Path("/usr"), operation="--bind", read_only=True, umount=umount):
+        # If we mounted over /usr, trying to use umount will fail with "target is busy", because umount is
+        # being called from /usr, which we're trying to unmount. To work around this issue, we do a lazy
+        # unmount.
+        with mount(what=config.tools_tree / "usr", where=Path("/usr"), operation="--bind", read_only=True, umount=umount, lazy=True):
             yield
     finally:
         os.environ["PATH"] = old
