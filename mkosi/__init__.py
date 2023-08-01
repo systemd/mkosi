@@ -1628,10 +1628,6 @@ def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
     # Make sure tmpfiles' aging doesn't interfere with our workspace
     # while we are working on it.
     with MkosiState(args, config) as state, scopedenv({"TMPDIR" : str(state.workspace)}):
-        # python caches the default temporary directory so when we modify TMPDIR we have to make sure it gets
-        # recalculated (see https://docs.python.org/3/library/tempfile.html#tempfile.tempdir).
-        tempfile.tempdir = None
-
         install_package_manager_trees(state)
 
         with mount_image(state):

@@ -15,6 +15,7 @@ import re
 import resource
 import stat
 import sys
+import tempfile
 from collections.abc import Iterable, Iterator, Mapping
 from pathlib import Path
 from typing import Any, Callable, Optional, TypeVar
@@ -187,7 +188,12 @@ def scopedenv(env: Mapping[str, Any]) -> Iterator[None]:
     old = copy.copy(os.environ)
     os.environ |= env
 
+    # python caches the default temporary directory so when we might modify TMPDIR we have to make sure it
+    # gets recalculated (see https://docs.python.org/3/library/tempfile.html#tempfile.tempdir).
+    tempfile.tempdir = None
+
     try:
         yield
     finally:
         os.environ = old
+        tempfile.tempdir = None
