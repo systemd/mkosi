@@ -1869,6 +1869,7 @@ def run_shell(args: MkosiArgs, config: MkosiConfig) -> None:
         if config.output_format == OutputFormat.disk and args.verb == Verb.boot:
             run(["systemd-repart",
                  "--image", fname,
+                 "--definitions", "",
                  "--size", "8G",
                  "--no-pager",
                  "--dry-run=no",
