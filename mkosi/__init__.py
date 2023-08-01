@@ -1549,6 +1549,10 @@ def make_image(state: MkosiState, skip: Sequence[str] = [], split: bool = False)
     if state.config.repart_dirs:
         for d in state.config.repart_dirs:
             cmdline += ["--definitions", d]
+    elif any((state.root / "usr/lib/repart.d").glob("*.conf")) or any((state.root / "etc/repart.d").glob("*.conf")):
+        # If the root directory contains repart definition files, we use those and specify --oem to only
+        # consider OEM partitions (and ignore non-OEM partitions such as swap).
+        cmdline += ["--oem=yes"]
     else:
         definitions = state.workspace / "repart-definitions"
         if not definitions.exists():
