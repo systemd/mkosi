@@ -195,6 +195,7 @@ def run_prepare_script(state: MkosiState, build: bool) -> None:
                 apivfs=state.root,
                 scripts=dict(chroot=chroot_cmd(state.root, options=options, network=True)),
                 env=dict(SRCDIR="/work/src") | state.config.environment,
+                stdin=sys.stdin,
             )
             shutil.rmtree(state.root / "work")
     else:
@@ -204,6 +205,7 @@ def run_prepare_script(state: MkosiState, build: bool) -> None:
                 apivfs=state.root,
                 scripts=dict(chroot=chroot_cmd(state.root, options=options, network=True)),
                 env=dict(SRCDIR="/work/src") | state.config.environment,
+                stdin=sys.stdin,
             )
             shutil.rmtree(state.root / "work")
 
@@ -253,6 +255,7 @@ def run_build_script(state: MkosiState) -> None:
             apivfs=state.root,
             scripts=dict(chroot=chroot_cmd(state.root, options=options, network=state.config.with_network)),
             env=env | state.config.environment,
+            stdin=sys.stdin,
         )
 
 
@@ -272,6 +275,7 @@ def run_postinst_script(state: MkosiState) -> None:
                 ),
             ),
             env=state.config.environment,
+            stdin=sys.stdin,
         )
 
         shutil.rmtree(state.root / "work")

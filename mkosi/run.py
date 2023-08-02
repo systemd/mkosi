@@ -257,6 +257,7 @@ def bwrap(
     log: bool = True,
     scripts: Mapping[str, Sequence[PathString]] = {},
     env: Mapping[str, str] = {},
+    stdin: _FILE = None,
 ) -> CompletedProcess:
     cmdline: list[PathString] = [
         "bwrap",
@@ -336,7 +337,7 @@ def bwrap(
         cmdline += ["sh", "-c", f"{chmod} && {container} && exec $0 \"$@\" || exit $?"]
 
         try:
-            result = run([*cmdline, *cmd], env=env, log=False)
+            result = run([*cmdline, *cmd], env=env, log=False, stdin=stdin)
         except subprocess.CalledProcessError as e:
             if log:
                 logging.error(f"\"{' '.join(str(s) for s in cmd)}\" returned non-zero exit code {e.returncode}.")
