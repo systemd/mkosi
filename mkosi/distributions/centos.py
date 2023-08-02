@@ -121,7 +121,7 @@ class CentosInstaller(DistributionInstaller):
                 if repo == "extras":
                     return [
                         Repo(repo.lower(), f"{url}?arch=$basearch&repo=centos-extras-sig-extras-common-$stream", cls.gpgurls()),
-                        Repo(repo.lower(), f"{url}?arch=source&repo=centos-extras-sig-extras-common-source-$stream", cls.gpgurls(), enabled=False),
+                        Repo(f"{repo.lower()}-source", f"{url}?arch=source&repo=centos-extras-sig-extras-common-source-$stream", cls.gpgurls(), enabled=False),
                     ]
 
                 return [
