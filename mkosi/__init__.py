@@ -208,6 +208,54 @@ def run_prepare_script(state: MkosiState, build: bool) -> None:
             shutil.rmtree(state.root / "work")
 
 
+def run_build_script(state: MkosiState) -> None:
+    if state.config.build_script is None:
+        return
+
+    # Create a few necessary mount points inside the build overlay.
+    with mount_build_overlay(state):
+        state.root.joinpath("work").mkdir(mode=0o755, exist_ok=True)
+        state.root.joinpath("work/src").mkdir(mode=0o755, exist_ok=True)
+        state.root.joinpath("work/dest").mkdir(mode=0o755, exist_ok=True)
+        state.root.joinpath("work/out").mkdir(mode=0o755, exist_ok=True)
+        state.root.joinpath("work/build-script").touch(mode=0o755, exist_ok=True)
+        state.root.joinpath("work/build").mkdir(mode=0o755, exist_ok=True)
+
+        for _, target in finalize_sources(state.config):
+            state.root.joinpath(target).mkdir(mode=0o755, exist_ok=True, parents=True)
+
+    with complete_step("Running build script…"), mount_build_overlay(state, read_only=True):
+        options: list[PathString] = [
+            "--bind", state.config.build_script, "/work/build-script",
+            "--bind", state.install_dir, "/work/dest",
+            "--bind", state.staging, "/work/out",
+            "--chdir", "/work/src",
+        ]
+
+        for src, target in finalize_sources(state.config):
+            options += ["--bind", src, Path("/") / target]
+
+        env = dict(
+            WITH_DOCS=one_zero(state.config.with_docs),
+            WITH_TESTS=one_zero(state.config.with_tests),
+            WITH_NETWORK=one_zero(state.config.with_network),
+            SRCDIR="/work/src",
+            DESTDIR="/work/dest",
+            OUTPUTDIR="/work/out",
+        )
+
+        if state.config.build_dir is not None:
+            options += ["--bind", state.config.build_dir, "/work/build"]
+            env |= dict(BUILDDIR="/work/build")
+
+        bwrap(
+            ["chroot", "/work/build-script"],
+            apivfs=state.root,
+            scripts=dict(chroot=chroot_cmd(state.root, options=options, network=state.config.with_network)),
+            env=env | state.config.environment,
+        )
+
+
 def run_postinst_script(state: MkosiState) -> None:
     if state.config.postinst_script is None:
         return
@@ -1709,54 +1757,6 @@ def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
 
 def one_zero(b: bool) -> str:
     return "1" if b else "0"
-
-
-def run_build_script(state: MkosiState) -> None:
-    if state.config.build_script is None:
-        return
-
-    # Create a few necessary mount points inside the build overlay.
-    with mount_build_overlay(state):
-        state.root.joinpath("work").mkdir(mode=0o755, exist_ok=True)
-        state.root.joinpath("work/src").mkdir(mode=0o755, exist_ok=True)
-        state.root.joinpath("work/dest").mkdir(mode=0o755, exist_ok=True)
-        state.root.joinpath("work/out").mkdir(mode=0o755, exist_ok=True)
-        state.root.joinpath("work/build-script").touch(mode=0o755, exist_ok=True)
-        state.root.joinpath("work/build").mkdir(mode=0o755, exist_ok=True)
-
-        for _, target in finalize_sources(state.config):
-            state.root.joinpath(target).mkdir(mode=0o755, exist_ok=True, parents=True)
-
-    with complete_step("Running build script…"), mount_build_overlay(state, read_only=True):
-        options: list[PathString] = [
-            "--bind", state.config.build_script, "/work/build-script",
-            "--bind", state.install_dir, "/work/dest",
-            "--bind", state.staging, "/work/out",
-            "--chdir", "/work/src",
-        ]
-
-        for src, target in finalize_sources(state.config):
-            options += ["--bind", src, Path("/") / target]
-
-        env = dict(
-            WITH_DOCS=one_zero(state.config.with_docs),
-            WITH_TESTS=one_zero(state.config.with_tests),
-            WITH_NETWORK=one_zero(state.config.with_network),
-            SRCDIR="/work/src",
-            DESTDIR="/work/dest",
-            OUTPUTDIR="/work/out",
-        )
-
-        if state.config.build_dir is not None:
-            options += ["--bind", state.config.build_dir, "/work/build"]
-            env |= dict(BUILDDIR="/work/build")
-
-        bwrap(
-            ["chroot", "/work/build-script"],
-            apivfs=state.root,
-            scripts=dict(chroot=chroot_cmd(state.root, options=options, network=state.config.with_network)),
-            env=env | state.config.environment,
-        )
 
 
 def setfacl(root: Path, uid: int, allow: bool) -> None:
