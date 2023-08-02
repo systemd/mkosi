@@ -844,10 +844,13 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                         "--pcr-banks", "sha1,sha256",
                     ]
 
-            cmd += [state.root / kimg] + initrds
+            cmd += ["build", "--linux", state.root / kimg]
+
+            for initrd in initrds:
+                cmd += ["--initrd", initrd]
 
             if state.config.kernel_modules_initrd:
-                cmd += [gen_kernel_modules_initrd(state, kver)]
+                cmd += ["--initrd", gen_kernel_modules_initrd(state, kver)]
 
             run(cmd)
 
