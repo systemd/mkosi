@@ -8,20 +8,17 @@ from typing import TYPE_CHECKING, Optional, Type, cast
 
 from mkosi.architecture import Architecture
 from mkosi.log import die
-from mkosi.util import read_os_release
+from mkosi.util import StrEnum, read_os_release
 
 if TYPE_CHECKING:
     from mkosi.state import MkosiState
 
 
-class PackageType(enum.Enum):
+class PackageType(StrEnum):
     rpm    = enum.auto()
     deb    = enum.auto()
     pkg    = enum.auto()
     ebuild = enum.auto()
-
-    def __str__(self) -> str:
-        return self.name
 
 
 class DistributionInstaller:
@@ -50,7 +47,7 @@ class DistributionInstaller:
         raise NotImplementedError()
 
 
-class Distribution(enum.Enum):
+class Distribution(StrEnum):
     fedora       = enum.auto()
     debian       = enum.auto()
     ubuntu       = enum.auto()
@@ -62,9 +59,6 @@ class Distribution(enum.Enum):
     rocky        = enum.auto()
     alma         = enum.auto()
     gentoo       = enum.auto()
-
-    def __str__(self) -> str:
-        return self.name
 
     def is_centos_variant(self) -> bool:
         return self in (Distribution.centos, Distribution.alma, Distribution.rocky)

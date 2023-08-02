@@ -30,6 +30,7 @@ from mkosi.pager import page
 from mkosi.run import run
 from mkosi.util import (
     InvokingUser,
+    StrEnum,
     chdir,
     flatten,
     qemu_check_kvm_support,
@@ -43,22 +44,18 @@ ConfigMatchCallback = Callable[[str, str, argparse.Namespace], bool]
 ConfigDefaultCallback = Callable[[argparse.Namespace], Any]
 
 
-class Verb(enum.Enum):
-    build   = "build"
-    clean   = "clean"
-    summary = "summary"
-    shell   = "shell"
-    boot    = "boot"
-    qemu    = "qemu"
-    ssh     = "ssh"
-    serve   = "serve"
-    bump    = "bump"
-    help    = "help"
-    genkey  = "genkey"
-
-    # Defining __str__ is required to get "print_help()" output to include the human readable (values) of Verb.
-    def __str__(self) -> str:
-        return self.value
+class Verb(StrEnum):
+    build   = enum.auto()
+    clean   = enum.auto()
+    summary = enum.auto()
+    shell   = enum.auto()
+    boot    = enum.auto()
+    qemu    = enum.auto()
+    ssh     = enum.auto()
+    serve   = enum.auto()
+    bump    = enum.auto()
+    help    = enum.auto()
+    genkey  = enum.auto()
 
     def supports_cmdline(self) -> bool:
         return self in (Verb.shell, Verb.boot, Verb.qemu, Verb.ssh)
@@ -70,51 +67,42 @@ class Verb(enum.Enum):
         return self in (Verb.shell, Verb.boot)
 
 
-class ConfigFeature(enum.Enum):
-    auto = "auto"
-    enabled = "enabled"
-    disabled = "disabled"
-
-    def __str__(self) -> str:
-        return str(self.value).lower()
+class ConfigFeature(StrEnum):
+    auto     = enum.auto()
+    enabled  = enum.auto()
+    disabled = enum.auto()
 
 
-class SecureBootSignTool(enum.Enum):
-    auto = "auto"
-    sbsign = "sbsign"
-    pesign = "pesign"
-
-    def __str__(self) -> str:
-        return str(self.value).lower()
+class SecureBootSignTool(StrEnum):
+    auto   = enum.auto()
+    sbsign = enum.auto()
+    pesign = enum.auto()
 
 
-class OutputFormat(str, enum.Enum):
-    directory = "directory"
-    tar = "tar"
-    cpio = "cpio"
-    disk = "disk"
-    none = "none"
+class OutputFormat(StrEnum):
+    directory = enum.auto()
+    tar       = enum.auto()
+    cpio      = enum.auto()
+    disk      = enum.auto()
+    none      = enum.auto()
 
 
-class ManifestFormat(str, enum.Enum):
-    json      = "json"       # the standard manifest in json format
-    changelog = "changelog"  # human-readable text file with package changelogs
+class ManifestFormat(StrEnum):
+    json      = enum.auto()  # the standard manifest in json format
+    changelog = enum.auto()  # human-readable text file with package changelogs
 
 
-class Compression(enum.Enum):
-    none = None
-    zst = "zst"
-    xz = "xz"
-    bz2 = "bz2"
-    gz = "gz"
-    lz4 = "lz4"
-    lzma = "lzma"
-
-    def __str__(self) -> str:
-        return str(self.value).lower()
+class Compression(StrEnum):
+    none = enum.auto()
+    zst  = enum.auto()
+    xz   = enum.auto()
+    bz2  = enum.auto()
+    gz   = enum.auto()
+    lz4  = enum.auto()
+    lzma = enum.auto()
 
     def __bool__(self) -> bool:
-        return bool(self.value)
+        return self != Compression.none
 
 
 def parse_boolean(s: str) -> bool:
@@ -223,7 +211,7 @@ def config_match_boolean(dest: str, value: str, namespace: argparse.Namespace) -
 
 
 def parse_feature(value: Optional[str]) -> ConfigFeature:
-    if not value or value == ConfigFeature.auto.value:
+    if not value or value == ConfigFeature.auto.name:
         return ConfigFeature.auto
 
     return ConfigFeature.enabled if parse_boolean(value) else ConfigFeature.disabled
@@ -319,8 +307,8 @@ def config_default_package_manager_tree(namespace: argparse.Namespace) -> list[t
 def make_enum_parser(type: Type[enum.Enum]) -> Callable[[str], enum.Enum]:
     def parse_enum(value: str) -> enum.Enum:
         try:
-            return type[value.replace("-", "_")]
-        except KeyError:
+            return type(value)
+        except ValueError:
             die(f"'{value}' is not a valid {type.__name__}")
 
     return parse_enum
@@ -809,7 +797,7 @@ class MkosiConfigParser:
             parse=config_make_enum_parser(Distribution),
             match=config_make_enum_matcher(Distribution),
             default=detect_distribution()[0],
-            choices=Distribution.__members__,
+            choices=Distribution.values(),
             help="Distribution to install",
         ),
         MkosiConfigSetting(
@@ -826,6 +814,7 @@ class MkosiConfigParser:
             section="Distribution",
             parse=config_make_enum_parser(Architecture),
             default=Architecture.native(),
+            choices=Architecture.values(),
             help="Override the architecture of installation",
         ),
         MkosiConfigSetting(
@@ -866,7 +855,7 @@ class MkosiConfigParser:
             section="Output",
             parse=config_make_enum_parser(OutputFormat),
             default=OutputFormat.disk,
-            choices=OutputFormat.__members__,
+            choices=OutputFormat.values(),
             help="Output Format",
         ),
         MkosiConfigSetting(
@@ -1303,6 +1292,7 @@ class MkosiConfigParser:
             section="Validation",
             parse=config_make_enum_parser(SecureBootSignTool),
             default=SecureBootSignTool.auto,
+            choices=SecureBootSignTool.values(),
             help="Tool to use for signing PE binaries for secure boot",
         ),
         MkosiConfigSetting(
