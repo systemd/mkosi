@@ -1669,6 +1669,15 @@ def make_image(state: MkosiState, skip: Sequence[str] = [], split: bool = False)
 
 
 def finalize_staging(state: MkosiState) -> None:
+    # Our output unlinking logic removes everything prefixed with the name of the image, so let's make
+    # sure that everything we put into the output directory is prefixed with the name of the output.
+    for f in state.staging.iterdir():
+        name = f.name
+        if not name.startswith(state.config.output_with_version):
+            name = f"{state.config.output_with_version}-{name}"
+        if name != f.name:
+            f.rename(name)
+
     for f in state.staging.iterdir():
         move_tree(state.config, f, state.config.output_dir)
 
