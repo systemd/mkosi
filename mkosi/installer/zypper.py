@@ -5,6 +5,7 @@ from collections.abc import Sequence
 from mkosi.installer.dnf import Repo, fixup_rpmdb_location
 from mkosi.run import bwrap
 from mkosi.state import MkosiState
+from mkosi.types import PathString
 
 
 def setup_zypper(state: MkosiState, repos: Sequence[Repo]) -> None:
@@ -46,7 +47,7 @@ def setup_zypper(state: MkosiState, repos: Sequence[Repo]) -> None:
                     f.write(f"{url}\n")
 
 
-def zypper_cmd(state: MkosiState) -> list[str]:
+def zypper_cmd(state: MkosiState) -> list[PathString]:
     return [
         "env",
         f"ZYPP_CONF={state.pkgmngr / 'etc/zypp/zypp.conf'}",

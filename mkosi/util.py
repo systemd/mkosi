@@ -3,6 +3,7 @@
 import ast
 import contextlib
 import copy
+import enum
 import errno
 import fcntl
 import functools
@@ -16,7 +17,7 @@ import resource
 import stat
 import sys
 import tempfile
-from collections.abc import Iterable, Iterator, Mapping
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from pathlib import Path
 from typing import Any, Callable, Optional, TypeVar
 
@@ -197,3 +198,18 @@ def scopedenv(env: Mapping[str, Any]) -> Iterator[None]:
     finally:
         os.environ = old
         tempfile.tempdir = None
+
+
+class StrEnum(enum.Enum):
+    def __str__(self) -> str:
+        assert isinstance(self.value, str)
+        return self.value
+
+    # Used by enum.auto() to get the next value.
+    @staticmethod
+    def _generate_next_value_(name: str, start: int, count: int, last_values: Sequence[str]) -> str:
+        return name.replace("_", "-")
+
+    @classmethod
+    def values(cls) -> list[str]:
+        return list(map(str, cls))

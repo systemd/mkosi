@@ -5,6 +5,7 @@ from collections.abc import Sequence
 
 from mkosi.run import bwrap
 from mkosi.state import MkosiState
+from mkosi.types import PathString
 
 
 def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
@@ -53,7 +54,7 @@ def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
                 f.write(f"{repo}\n")
 
 
-def apt_cmd(state: MkosiState, command: str) -> list[str]:
+def apt_cmd(state: MkosiState, command: str) -> list[PathString]:
     debarch = state.config.distribution.architecture(state.config.architecture)
 
     trustedkeys = state.pkgmngr / "etc/apt/trusted.gpg"

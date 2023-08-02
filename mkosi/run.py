@@ -315,7 +315,7 @@ def bwrap(
                 textwrap.dedent(
                     f"""\
                     #!/bin/sh
-                    PATH="$(echo $PATH | tr ':' '\n' | grep -v {Path(d)} | tr '\n' ':')"
+                    PATH="$(echo $PATH | tr ':' '\\n' | grep -v {Path(d)} | tr '\\n' ':')"
                     export PATH
                     exec {shlex.join(str(s) for s in script)} "$@"
                     """

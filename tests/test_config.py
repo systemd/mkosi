@@ -8,7 +8,7 @@ from mkosi.config import Compression, GenericVersion
 
 
 def test_compression_enum_creation() -> None:
-    assert Compression(None) == Compression.none
+    assert Compression("none") == Compression.none
     assert Compression("zst") == Compression.zst
     assert Compression("xz") == Compression.xz
     assert Compression("bz2") == Compression.bz2

@@ -4,9 +4,10 @@ import enum
 import platform
 
 from mkosi.log import die
+from mkosi.util import StrEnum
 
 
-class Architecture(enum.Enum):
+class Architecture(StrEnum):
     alpha       = enum.auto()
     arc         = enum.auto()
     arm         = enum.auto()
@@ -26,9 +27,6 @@ class Architecture(enum.Enum):
     tilegx      = enum.auto()
     x86         = enum.auto()
     x86_64      = enum.auto()
-
-    def __str__(self) -> str:
-        return self.name.replace("_", "-")
 
     @staticmethod
     def from_uname(s: str) -> "Architecture":
