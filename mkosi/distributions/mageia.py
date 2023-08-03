@@ -19,11 +19,7 @@ class MageiaInstaller(DistributionInstaller):
         return PackageType.rpm
 
     @classmethod
-    def install(cls, state: MkosiState) -> None:
-        cls.install_packages(state, ["filesystem"], apivfs=False)
-
-    @classmethod
-    def install_packages(cls, state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
+    def setup(cls, state: MkosiState) -> None:
         release = state.config.release.strip("'")
         arch = state.config.distribution.architecture(state.config.architecture)
 
@@ -52,6 +48,13 @@ class MageiaInstaller(DistributionInstaller):
             repos += [Repo(f"mageia-{release}-updates", updates_url, (gpgurl,))]
 
         setup_dnf(state, repos)
+
+    @classmethod
+    def install(cls, state: MkosiState) -> None:
+        cls.install_packages(state, ["filesystem"], apivfs=False)
+
+    @classmethod
+    def install_packages(cls, state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
         invoke_dnf(state, "install", packages, apivfs=apivfs)
 
     @classmethod

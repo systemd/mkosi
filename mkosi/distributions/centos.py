@@ -39,6 +39,16 @@ class CentosInstaller(DistributionInstaller):
         return PackageType.rpm
 
     @classmethod
+    def setup(cls, state: MkosiState) -> None:
+        release = int(state.config.release)
+
+        if release <= 7:
+            die("CentOS 7 or earlier variants are not supported")
+
+        setup_dnf(state, cls.repositories(state.config, release))
+        (state.pkgmngr / "etc/dnf/vars/stream").write_text(f"{state.config.release}-stream\n")
+
+    @classmethod
     def install(cls, state: MkosiState) -> None:
         # Make sure glibc-minimal-langpack is installed instead of glibc-all-langpacks.
         cls.install_packages(state, ["filesystem", "glibc-minimal-langpack"], apivfs=False)
@@ -49,13 +59,6 @@ class CentosInstaller(DistributionInstaller):
 
     @classmethod
     def install_packages(cls, state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
-        release = int(state.config.release)
-
-        if release <= 7:
-            die("CentOS 7 or earlier variants are not supported")
-
-        setup_dnf(state, cls.repositories(state.config, release))
-        (state.pkgmngr / "etc/dnf/vars/stream").write_text(f"{state.config.release}-stream\n")
         invoke_dnf(state, "install", packages, apivfs=apivfs)
 
     @classmethod
