@@ -1179,7 +1179,7 @@ available via `$PATH` to simplify common usecases.
 
   ```sh
   if [ "$container" != "mkosi" ]; then
-    exec mkosi-chroot $SCRIPT "$@"
+      exec mkosi-chroot "$SCRIPT" "$@"
   fi
   ```
 
@@ -1365,7 +1365,7 @@ $ cat >mkosi.build <<EOF
 #!/bin/sh
 
 if [ "$container" != "mkosi" ]; then
-  exec mkosi-chroot $SCRIPT "$@"
+    exec mkosi-chroot "$SCRIPT" "$@"
 fi
 
 cd $SRCDIR
