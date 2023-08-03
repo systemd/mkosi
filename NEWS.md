@@ -99,7 +99,7 @@
   putting the following snippet at the top of the script:
 
   ```sh
-  if [ "$container" != "mkosi" ]; then
+  if [ "${container:-}" != "mkosi" ]; then
       exec mkosi-chroot "$SCRIPT" "$@"
   fi
   ```
