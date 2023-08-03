@@ -100,7 +100,7 @@
 
   ```sh
   if [ "$container" != "mkosi" ]; then
-    exec mkosi-chroot $SCRIPT "$@"
+      exec mkosi-chroot "$SCRIPT" "$@"
   fi
   ```
 
