@@ -6,6 +6,7 @@ from mkosi.installer.dnf import Repo, fixup_rpmdb_location
 from mkosi.run import bwrap
 from mkosi.state import MkosiState
 from mkosi.types import PathString
+from mkosi.util import sort_packages
 
 
 def setup_zypper(state: MkosiState, repos: Sequence[Repo]) -> None:
@@ -67,7 +68,7 @@ def invoke_zypper(
     options: Sequence[str] = (),
     apivfs: bool = True,
 ) -> None:
-    bwrap(zypper_cmd(state) + [verb, *packages, *options],
+    bwrap(zypper_cmd(state) + [verb, *sort_packages(packages), *options],
           apivfs=state.root if apivfs else None,
           env=state.config.environment)
 

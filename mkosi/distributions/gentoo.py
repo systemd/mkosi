@@ -14,6 +14,7 @@ from mkosi.run import bwrap, chroot_cmd, run
 from mkosi.state import MkosiState
 from mkosi.tree import copy_tree, rmtree
 from mkosi.types import PathString
+from mkosi.util import sort_packages
 
 
 def invoke_emerge(state: MkosiState, packages: Sequence[str] = (), apivfs: bool = True) -> None:
@@ -32,7 +33,7 @@ def invoke_emerge(state: MkosiState, packages: Sequence[str] = (), apivfs: bool 
             "--noreplace",
             *(["--verbose", "--quiet=n", "--quiet-fail=n"] if ARG_DEBUG.get() else ["--quiet-build", "--quiet"]),
             f"--root={state.root}",
-            *packages,
+            *sort_packages(packages),
         ],
         apivfs=state.root if apivfs else None,
         options=[
