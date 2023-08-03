@@ -20,11 +20,7 @@ class FedoraInstaller(DistributionInstaller):
         return PackageType.rpm
 
     @classmethod
-    def install(cls, state: MkosiState) -> None:
-        cls.install_packages(state, ["filesystem"], apivfs=False)
-
-    @classmethod
-    def install_packages(cls, state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
+    def setup(cls, state: MkosiState) -> None:
         # See: https://fedoraproject.org/security/
         gpgurls = ("https://fedoraproject.org/fedora.gpg",)
         repos = []
@@ -73,6 +69,13 @@ class FedoraInstaller(DistributionInstaller):
 
         # TODO: Use `filelists=True` when F37 goes EOL.
         setup_dnf(state, repos, filelists=fedora_release_at_most(state.config.release, "37"))
+
+    @classmethod
+    def install(cls, state: MkosiState) -> None:
+        cls.install_packages(state, ["filesystem"], apivfs=False)
+
+    @classmethod
+    def install_packages(cls, state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
         invoke_dnf(state, "install", packages, apivfs=apivfs)
 
     @classmethod

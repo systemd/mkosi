@@ -57,6 +57,10 @@ class DebianInstaller(DistributionInstaller):
         return repos
 
     @classmethod
+    def setup(cls, state: MkosiState) -> None:
+        setup_apt(state, cls.repositories(state))
+
+    @classmethod
     def install(cls, state: MkosiState) -> None:
         # Instead of using debootstrap, we replicate its core functionality here. Because dpkg does not have
         # an option to delay running pre-install maintainer scripts when it installs a package, it's
@@ -126,7 +130,6 @@ class DebianInstaller(DistributionInstaller):
         policyrcd.write_text("#!/bin/sh\nexit 101\n")
         policyrcd.chmod(0o755)
 
-        setup_apt(state, cls.repositories(state))
         invoke_apt(state, "apt-get", "update", apivfs=False)
         invoke_apt(state, "apt-get", "install", packages, apivfs=apivfs)
         install_apt_sources(state, cls.repositories(state, local=False))

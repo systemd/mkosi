@@ -65,6 +65,10 @@ class GentooInstaller(DistributionInstaller):
         return PackageType.ebuild
 
     @classmethod
+    def setup(cls, state: MkosiState) -> None:
+        pass
+
+    @classmethod
     def install(cls, state: MkosiState) -> None:
         arch = state.config.distribution.architecture(state.config.architecture)
 

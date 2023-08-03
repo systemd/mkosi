@@ -23,11 +23,7 @@ class OpensuseInstaller(DistributionInstaller):
         return PackageType.rpm
 
     @classmethod
-    def install(cls, state: MkosiState) -> None:
-        cls.install_packages(state, ["filesystem"], apivfs=False)
-
-    @classmethod
-    def install_packages(cls, state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
+    def setup(cls, state: MkosiState) -> None:
         release = state.config.release
         if release == "leap":
             release = "stable"
@@ -60,9 +56,18 @@ class OpensuseInstaller(DistributionInstaller):
 
         if zypper:
             setup_zypper(state, repos)
-            invoke_zypper(state, "install", packages, apivfs=apivfs)
         else:
             setup_dnf(state, repos)
+
+    @classmethod
+    def install(cls, state: MkosiState) -> None:
+        cls.install_packages(state, ["filesystem"], apivfs=False)
+
+    @classmethod
+    def install_packages(cls, state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
+        if shutil.which("zypper"):
+            invoke_zypper(state, "install", packages, apivfs=apivfs)
+        else:
             invoke_dnf(state, "install", packages, apivfs=apivfs)
 
     @classmethod

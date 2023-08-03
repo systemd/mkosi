@@ -23,6 +23,10 @@ class PackageType(StrEnum):
 
 class DistributionInstaller:
     @classmethod
+    def setup(cls, state: "MkosiState") -> None:
+        raise NotImplementedError()
+
+    @classmethod
     def install(cls, state: "MkosiState") -> None:
         raise NotImplementedError()
 
@@ -78,6 +82,9 @@ class Distribution(StrEnum):
 
     def is_portage_distribution(self) -> bool:
         return self in (Distribution.gentoo,)
+
+    def setup(self, state: "MkosiState") -> None:
+        return self.installer().setup(state)
 
     def install(self, state: "MkosiState") -> None:
         return self.installer().install(state)

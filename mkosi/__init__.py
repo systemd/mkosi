@@ -1770,6 +1770,8 @@ def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
             install_skeleton_trees(state)
             cached = reuse_cache(state)
 
+            state.config.distribution.setup(state)
+
             if not cached:
                 with mount_cache_overlay(state):
                     install_distribution(state)

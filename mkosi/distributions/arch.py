@@ -19,12 +19,15 @@ class ArchInstaller(DistributionInstaller):
         return PackageType.pkg
 
     @classmethod
+    def setup(cls, state: MkosiState) -> None:
+        setup_pacman(state)
+
+    @classmethod
     def install(cls, state: MkosiState) -> None:
         cls.install_packages(state, ["filesystem"], apivfs=False)
 
     @classmethod
     def install_packages(cls, state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
-        setup_pacman(state)
         invoke_pacman(state, packages, apivfs=apivfs)
 
     @staticmethod
