@@ -1680,7 +1680,7 @@ def finalize_staging(state: MkosiState) -> None:
         if not name.startswith(state.config.output_with_version):
             name = f"{state.config.output_with_version}-{name}"
         if name != f.name:
-            f.rename(name)
+            f.rename(state.staging / name)
 
     for f in state.staging.iterdir():
         move_tree(state.config, f, state.config.output_dir)
