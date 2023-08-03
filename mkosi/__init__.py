@@ -34,7 +34,7 @@ from mkosi.config import (
     Verb,
 )
 from mkosi.install import add_dropin_config_from_resource
-from mkosi.installer import clean_package_manager_metadata
+from mkosi.installer import clean_package_manager_metadata, package_manager_scripts
 from mkosi.log import Style, color_error, complete_step, die, log_step
 from mkosi.manifest import Manifest
 from mkosi.mounts import mount_overlay, mount_passwd, mount_tools, scandir_recursive
@@ -44,7 +44,14 @@ from mkosi.run import become_root, bwrap, chroot_cmd, init_mount_namespace, run
 from mkosi.state import MkosiState
 from mkosi.tree import copy_tree, move_tree, rmtree
 from mkosi.types import PathString
-from mkosi.util import InvokingUser, format_bytes, format_rlimit, scopedenv, try_import
+from mkosi.util import (
+    InvokingUser,
+    flatten,
+    format_bytes,
+    format_rlimit,
+    scopedenv,
+    try_import,
+)
 
 
 @contextlib.contextmanager
@@ -99,6 +106,11 @@ def install_distribution(state: MkosiState) -> None:
         with complete_step(f"Installing {str(state.config.distribution).capitalize()}"):
             state.config.distribution.install(state)
 
+            if not (state.root / "etc/machine-id").exists():
+                # Uninitialized means we want it to get initialized on first boot.
+                (state.root / "etc/machine-id").write_text("uninitialized\n")
+                (state.root / "etc/machine-id").chmod(0o0444)
+
             # Ensure /efi exists so that the ESP is mounted there, as recommended by
             # https://0pointer.net/blog/linux-boot-partitions.html. Use the most restrictive access mode we
             # can without tripping up mkfs tools since this directory is only meant to be overmounted and
@@ -107,6 +119,12 @@ def install_distribution(state: MkosiState) -> None:
 
             if state.config.packages:
                 state.config.distribution.install_packages(state, state.config.packages)
+
+    for f in ("var/lib/systemd/random-seed", "var/lib/systemd/credential.secret", "etc/machine-info"):
+        # Using missing_ok=True still causes an OSError if the mount is read-only even if the
+        # file doesn't exist so do an explicit exists() check first.
+        if (state.root / f).exists():
+            (state.root / f).unlink()
 
 
 def install_build_packages(state: MkosiState) -> None:
@@ -164,14 +182,22 @@ def mount_build_overlay(state: MkosiState, read_only: bool = False) -> ContextMa
     return mount_overlay([state.root], state.workspace / "build-overlay", state.root, read_only)
 
 
-def finalize_sources(config: MkosiConfig) -> list[tuple[Path, Path]]:
+def finalize_source_mounts(config: MkosiConfig) -> list[PathString]:
     sources = [
-        (src, Path("work/src") / (str(target).lstrip("/") if target else "."))
+        (src, Path.cwd() / (str(target).lstrip("/") if target else "."))
         for src, target
-        in config.build_sources
+        in ((Path.cwd(), None), *config.build_sources)
     ]
 
-    return sorted(sources, key=lambda s: s[1])
+    return flatten(["--bind", src, target] for src, target in sorted(sources, key=lambda s: s[1]))
+
+
+def finalize_writable_mounts(config: MkosiConfig) -> list[PathString]:
+    """
+    bwrap() mounts /home and /var read-only during execution. This functions finalizes the bind mount options
+    for the directories that could be in /home or /var that we do need to be writable.
+    """
+    return flatten(["--bind", d, d] for d in (config.workspace_dir, config.cache_dir, config.output_dir, config.build_dir) if d)
 
 
 def run_prepare_script(state: MkosiState, build: bool) -> None:
@@ -180,80 +206,86 @@ def run_prepare_script(state: MkosiState, build: bool) -> None:
     if build and state.config.build_script is None:
         return
 
-    options: list[PathString] = [
-        "--bind", state.config.prepare_script, "/work/prepare",
-        "--chdir", "/work/src",
-    ]
+    env = dict(
+        SCRIPT="/work/prepare",
+        SRCDIR=str(Path.cwd()),
+        BUILDROOT=str(state.root),
+    )
 
-    for src, target in finalize_sources(state.config):
-        options += ["--bind", src, Path("/") / target]
+    chroot: list[PathString] = chroot_cmd(
+        state.root,
+        options=[
+            "--bind", state.config.prepare_script, "/work/prepare",
+            "--bind", Path.cwd(), "/work/src",
+            "--chdir", "/work/src",
+            "--setenv", "SRCDIR", "/work/src",
+            "--setenv", "BUILDROOT", "/",
+        ],
+        network=True,
+    )
 
     if build:
         with complete_step("Running prepare script in build overlay…"), mount_build_overlay(state):
             bwrap(
-                ["chroot", "/work/prepare", "build"],
-                apivfs=state.root,
-                scripts=dict(chroot=chroot_cmd(state.root, options=options, network=True)),
-                env=dict(SRCDIR="/work/src") | state.config.environment,
+                [state.config.prepare_script, "build"],
+                options=finalize_source_mounts(state.config) + finalize_writable_mounts(state.config),
+                scripts={"mkosi-chroot": chroot} | package_manager_scripts(state),
+                env=env | state.config.environment,
                 stdin=sys.stdin,
             )
-            shutil.rmtree(state.root / "work")
     else:
         with complete_step("Running prepare script…"):
             bwrap(
-                ["chroot", "/work/prepare", "final"],
-                apivfs=state.root,
-                scripts=dict(chroot=chroot_cmd(state.root, options=options, network=True)),
-                env=dict(SRCDIR="/work/src") | state.config.environment,
+                [state.config.prepare_script, "final"],
+                options=finalize_source_mounts(state.config) + finalize_writable_mounts(state.config),
+                scripts={"mkosi-chroot": chroot} | package_manager_scripts(state),
+                env=env | state.config.environment,
                 stdin=sys.stdin,
             )
-            shutil.rmtree(state.root / "work")
 
 
 def run_build_script(state: MkosiState) -> None:
     if state.config.build_script is None:
         return
 
-    # Create a few necessary mount points inside the build overlay.
-    with mount_build_overlay(state):
-        state.root.joinpath("work").mkdir(mode=0o755, exist_ok=True)
-        state.root.joinpath("work/src").mkdir(mode=0o755, exist_ok=True)
-        state.root.joinpath("work/dest").mkdir(mode=0o755, exist_ok=True)
-        state.root.joinpath("work/out").mkdir(mode=0o755, exist_ok=True)
-        state.root.joinpath("work/build-script").touch(mode=0o755, exist_ok=True)
-        state.root.joinpath("work/build").mkdir(mode=0o755, exist_ok=True)
+    env = dict(
+        WITH_DOCS=one_zero(state.config.with_docs),
+        WITH_TESTS=one_zero(state.config.with_tests),
+        WITH_NETWORK=one_zero(state.config.with_network),
+        SCRIPT="/work/build-script",
+        SRCDIR=str(Path.cwd()),
+        DESTDIR=str(state.install_dir),
+        OUTPUTDIR=str(state.staging),
+        BUILDROOT=str(state.root),
+    )
 
-        for _, target in finalize_sources(state.config):
-            state.root.joinpath(target).mkdir(mode=0o755, exist_ok=True, parents=True)
+    if state.config.build_dir is not None:
+        env |= dict(BUILDDIR=str(state.config.build_dir))
 
-    with complete_step("Running build script…"), mount_build_overlay(state, read_only=True):
-        options: list[PathString] = [
+    chroot = chroot_cmd(
+        state.root,
+        options=[
             "--bind", state.config.build_script, "/work/build-script",
             "--bind", state.install_dir, "/work/dest",
             "--bind", state.staging, "/work/out",
+            "--bind", Path.cwd(), "/work/src",
+            *(["--bind", str(state.config.build_dir), "/work/build"] if state.config.build_dir else []),
             "--chdir", "/work/src",
-        ]
+            "--setenv", "SRCDIR", "/work/src",
+            "--setenv", "DESTDIR", "/work/dest",
+            "--setenv", "OUTPUTDIR", "/work/out",
+            "--setenv", "BUILDROOT", "/",
+            *(["--setenv", "BUILDDIR", "/work/build"] if state.config.build_dir else []),
+            "--remount-ro", "/",
+        ],
+        network=state.config.with_network,
+    )
 
-        for src, target in finalize_sources(state.config):
-            options += ["--bind", src, Path("/") / target]
-
-        env = dict(
-            WITH_DOCS=one_zero(state.config.with_docs),
-            WITH_TESTS=one_zero(state.config.with_tests),
-            WITH_NETWORK=one_zero(state.config.with_network),
-            SRCDIR="/work/src",
-            DESTDIR="/work/dest",
-            OUTPUTDIR="/work/out",
-        )
-
-        if state.config.build_dir is not None:
-            options += ["--bind", state.config.build_dir, "/work/build"]
-            env |= dict(BUILDDIR="/work/build")
-
+    with complete_step("Running build script…"), mount_build_overlay(state):
         bwrap(
-            ["chroot", "/work/build-script"],
-            apivfs=state.root,
-            scripts=dict(chroot=chroot_cmd(state.root, options=options, network=state.config.with_network)),
+            [state.config.build_script],
+            options=finalize_source_mounts(state.config) + finalize_writable_mounts(state.config),
+            scripts={"mkosi-chroot": chroot} | package_manager_scripts(state),
             env=env | state.config.environment,
             stdin=sys.stdin,
         )
@@ -263,31 +295,70 @@ def run_postinst_script(state: MkosiState) -> None:
     if state.config.postinst_script is None:
         return
 
+    env = dict(
+        SCRIPT="/work/postinst",
+        SRCDIR=str(Path.cwd()),
+        OUTPUTDIR=str(state.staging),
+        BUILDROOT=str(state.root),
+    )
+
+    chroot = chroot_cmd(
+        state.root,
+        options=[
+            "--bind", state.config.postinst_script, "/work/postinst",
+            "--bind", state.staging, "/work/out",
+            "--bind", Path.cwd(), "/work/src",
+            "--chdir", "/work/src",
+            "--setenv", "SRCDIR", "/work/src",
+            "--setenv", "OUTPUTDIR", "/work/out",
+            "--setenv", "BUILDROOT", "/",
+        ],
+        network=state.config.with_network,
+    )
+
     with complete_step("Running postinstall script…"):
         bwrap(
-            ["chroot", "/work/postinst", "final"],
-            apivfs=state.root,
-            scripts=dict(
-                chroot=chroot_cmd(
-                    state.root,
-                    options=["--bind", state.config.postinst_script, "/work/postinst"],
-                    network=state.config.with_network,
-                ),
-            ),
-            env=state.config.environment,
+            [state.config.postinst_script, "final"],
+            options=finalize_source_mounts(state.config) + finalize_writable_mounts(state.config),
+            scripts={"mkosi-chroot": chroot} | package_manager_scripts(state),
+            env=env | state.config.environment,
             stdin=sys.stdin,
         )
-
-        shutil.rmtree(state.root / "work")
 
 
 def run_finalize_script(state: MkosiState) -> None:
     if state.config.finalize_script is None:
         return
 
+    env = dict(
+        SCRIPT="/work/finalize",
+        SRCDIR=str(Path.cwd()),
+        OUTPUTDIR=str(state.staging),
+        BUILDROOT=str(state.root),
+    )
+
+    chroot = chroot_cmd(
+        state.root,
+        options=[
+            "--bind", state.config.finalize_script, "/work/finalize",
+            "--bind", state.staging, "/work/out",
+            "--bind", Path.cwd(), "/work/src",
+            "--chdir", "/work/src",
+            "--setenv", "SRCDIR", "/work/src",
+            "--setenv", "OUTPUTDIR", "/work/out",
+            "--setenv", "BUILDROOT", "/",
+        ],
+        network=state.config.with_network,
+    )
+
     with complete_step("Running finalize script…"):
-        run([state.config.finalize_script],
-            env={**state.config.environment, "BUILDROOT": str(state.root), "OUTPUTDIR": str(state.staging)})
+        bwrap(
+            [state.config.finalize_script],
+            options=finalize_source_mounts(state.config) + finalize_writable_mounts(state.config),
+            scripts={"mkosi-chroot": chroot} | package_manager_scripts(state),
+            env=env | state.config.environment,
+            stdin=sys.stdin,
+        )
 
 
 def certificate_common_name(state: MkosiState, certificate: Path) -> str:
@@ -1680,7 +1751,7 @@ def finalize_staging(state: MkosiState) -> None:
         if not name.startswith(state.config.output_with_version):
             name = f"{state.config.output_with_version}-{name}"
         if name != f.name:
-            f.rename(name)
+            f.rename(state.staging / name)
 
     for f in state.staging.iterdir():
         move_tree(state.config, f, state.config.output_dir)
@@ -2080,7 +2151,7 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
     init_mount_namespace()
 
     # For extra safety when running as root, remount a bunch of stuff read-only.
-    for d in ("/usr", "/etc", "/opt", "/srv", "/boot", "/efi"):
+    for d in ("/usr", "/etc", "/opt", "/srv", "/boot", "/efi", "/media", "/mnt"):
         if Path(d).exists():
             run(["mount", "--rbind", d, d, "--options", "ro"])
 

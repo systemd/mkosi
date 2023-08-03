@@ -5,7 +5,7 @@ from pathlib import Path
 
 from mkosi.architecture import Architecture
 from mkosi.config import ConfigFeature
-from mkosi.run import bwrap
+from mkosi.run import apivfs_cmd, bwrap
 from mkosi.state import MkosiState
 from mkosi.types import PathString
 from mkosi.util import sort_packages
@@ -110,6 +110,5 @@ def pacman_cmd(state: MkosiState) -> list[PathString]:
 
 
 def invoke_pacman(state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
-    bwrap(pacman_cmd(state) + ["-Sy", *sort_packages(packages)],
-          apivfs=state.root if apivfs else None,
-          env=state.config.environment)
+    cmd = apivfs_cmd(state.root) if apivfs else []
+    bwrap(cmd + pacman_cmd(state) + ["-Sy", *sort_packages(packages)], env=state.config.environment)

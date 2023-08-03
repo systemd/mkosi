@@ -87,6 +87,22 @@
   this doesn't work properly as it might result in leftover files in the install directory from a previous
   installation, so we have to empty the directory before reusing it, invalidating the caching, so the option
   was removed.
+- Build scripts are now executed on the host. See the `SCRIPTS` section
+  in the manual for more information. Existing build scripts will need
+  to be updated to make sure they keep working. Specifically, most paths
+  in scripts will need to be prefixed with $BUILDROOT to have them
+  operate on the image instead of on the host system. To ensure the host
+  system cannot be modified when running a script, most host directories
+  are mounted read-only when running a script to ensure a script cannot
+  modify the host in any way. Alternatively to making the script run on
+  the host, the script can also still be executed in the image itself by
+  putting the following snippet at the top of the script:
+
+  ```sh
+  if [ "$container" != "mkosi" ]; then
+    exec mkosi-chroot $SCRIPT "$@"
+  fi
+  ```
 
 ## v14
 

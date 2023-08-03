@@ -252,7 +252,6 @@ def spawn(
 def bwrap(
     cmd: Sequence[PathString],
     *,
-    apivfs: Optional[Path] = None,
     options: Sequence[PathString] = (),
     log: bool = True,
     scripts: Mapping[str, Sequence[PathString]] = {},
@@ -262,6 +261,13 @@ def bwrap(
     cmdline: list[PathString] = [
         "bwrap",
         "--dev-bind", "/", "/",
+        "--remount-ro", "/",
+        "--ro-bind", "/root", "/root",
+        "--ro-bind", "/home", "/home",
+        "--ro-bind", "/var", "/var",
+        "--ro-bind", "/run", "/run",
+        "--bind", "/var/tmp", "/var/tmp",
+        "--bind", Path.cwd(), Path.cwd(),
         "--chdir", Path.cwd(),
         "--unshare-pid",
         "--unshare-ipc",
@@ -270,44 +276,11 @@ def bwrap(
         "--proc", "/proc",
         "--dev", "/dev",
         "--ro-bind", "/sys", "/sys",
+        "--tmpfs", "/tmp",
         *options,
     ]
 
-    if apivfs:
-        if not (apivfs / "etc/machine-id").exists():
-            # Uninitialized means we want it to get initialized on first boot.
-            (apivfs / "etc/machine-id").write_text("uninitialized\n")
-            (apivfs / "etc/machine-id").chmod(0o0444)
-
-        cmdline += [
-            "--tmpfs", apivfs / "run",
-            "--tmpfs", apivfs / "tmp",
-            "--proc", apivfs / "proc",
-            "--dev", apivfs / "dev",
-            "--ro-bind", "/sys", apivfs / "sys",
-        ]
-
-        # If passwd or a related file exists in the apivfs directory, bind mount it over the host files while
-        # we run the command, to make sure that the command we run uses user/group information from the
-        # apivfs directory instead of from the host. If the file doesn't exist yet, mount over /dev/null
-        # instead.
-        for f in ("passwd", "group", "shadow", "gshadow"):
-            p = apivfs / "etc" / f
-            if p.exists():
-                cmdline += ["--bind", p, f"/etc/{f}"]
-            else:
-                cmdline += ["--bind", "/dev/null", f"/etc/{f}"]
-
-    if apivfs:
-        chmod = f"chmod 1777 {apivfs / 'tmp'} {apivfs / 'var/tmp'} {apivfs / 'dev/shm'}"
-        # Make sure anything running in the apivfs directory thinks it's in a container. $container can't
-        # always be accessed so we write /run/host/container-manager as well which is always accessible.
-        container = f"mkdir {apivfs}/run/host && echo mkosi > {apivfs}/run/host/container-manager"
-    else:
-        chmod = container = ":"
-
-    with tempfile.TemporaryDirectory(prefix="mkosi-var-tmp") as var_tmp,\
-         tempfile.TemporaryDirectory(prefix="mkosi-scripts") as d:
+    with tempfile.TemporaryDirectory(prefix="mkosi-scripts") as d:
 
         for name, script in scripts.items():
             # Make sure we don't end up in a recursive loop when we name a script after the binary it execs
@@ -326,15 +299,7 @@ def bwrap(
             make_executable(Path(d) / name)
 
         cmdline += ["--setenv", "PATH", f"{d}:{os.environ['PATH']}"]
-
-        if apivfs:
-            cmdline += [
-                "--bind", var_tmp, apivfs / "var/tmp",
-                # Make sure /etc/machine-id is not overwritten by any package manager post install scripts.
-                "--ro-bind", apivfs / "etc/machine-id", apivfs / "etc/machine-id",
-            ]
-
-        cmdline += ["sh", "-c", f"{chmod} && {container} && exec $0 \"$@\" || exit $?"]
+        cmdline += ["sh", "-c", "chmod 1777 /tmp /dev/shm && exec $0 \"$@\""]
 
         try:
             result = run([*cmdline, *cmd], env=env, log=False, stdin=stdin)
@@ -344,19 +309,49 @@ def bwrap(
             if ARG_DEBUG_SHELL.get():
                 run([*cmdline, "sh"], stdin=sys.stdin, check=False, env=env, log=False)
             raise e
-        finally:
-            # Clean up some stuff that might get written by package manager post install scripts.
-            if apivfs:
-                for f in ("var/lib/systemd/random-seed", "var/lib/systemd/credential.secret", "etc/machine-info"):
-                    # Using missing_ok=True still causes an OSError if the mount is read-only even if the
-                    # file doesn't exist so do an explicit exists() check first.
-                    if (apivfs / f).exists():
-                        (apivfs / f).unlink()
 
         return result
 
 
-def chroot_cmd(root: Path, *, options: Sequence[PathString] = (), network: bool = False) -> Sequence[PathString]:
+def apivfs_cmd(root: Path) -> list[PathString]:
+    cmdline: list[PathString] = [
+        "bwrap",
+        "--dev-bind", "/", "/",
+        "--chdir", Path.cwd(),
+        "--tmpfs", root / "run",
+        "--tmpfs", root / "tmp",
+        "--bind", os.getenv("TMPDIR", "/var/tmp"), root / "var/tmp",
+        "--proc", root / "proc",
+        "--dev", root / "dev",
+        "--ro-bind", "/sys", root / "sys",
+    ]
+
+    if (root / "etc/machine-id").exists():
+        # Make sure /etc/machine-id is not overwritten by any package manager post install scripts.
+        cmdline += ["--ro-bind", root / "etc/machine-id", root / "etc/machine-id"]
+
+    # If passwd or a related file exists in the apivfs directory, bind mount it over the host files while
+    # we run the command, to make sure that the command we run uses user/group information from the
+    # apivfs directory instead of from the host. If the file doesn't exist yet, mount over /dev/null
+    # instead.
+    for f in ("passwd", "group", "shadow", "gshadow"):
+        p = root / "etc" / f
+        if p.exists():
+            cmdline += ["--bind", p, f"/etc/{f}"]
+        else:
+            cmdline += ["--bind", "/dev/null", f"/etc/{f}"]
+
+    chmod = f"chmod 1777 {root / 'tmp'} {root / 'var/tmp'} {root / 'dev/shm'}"
+    # Make sure anything running in the root directory thinks it's in a container. $container can't always be
+    # accessed so we write /run/host/container-manager as well which is always accessible.
+    container = f"mkdir {root}/run/host && echo mkosi >{root}/run/host/container-manager"
+
+    cmdline += ["sh", "-c", f"{chmod} && {container} && exec $0 \"$@\""]
+
+    return cmdline
+
+
+def chroot_cmd(root: Path, *, options: Sequence[PathString] = (), network: bool = False) -> list[PathString]:
     cmdline: list[PathString] = [
         "bwrap",
         "--dev-bind", root, "/",
@@ -382,7 +377,10 @@ def chroot_cmd(root: Path, *, options: Sequence[PathString] = (), network: bool 
     else:
         cmdline += ["--unshare-net"]
 
-    return cmdline
+    # No exec here because we need to clean up the /work directory afterwards.
+    cmdline += ["sh", "-c", f"$0 \"$@\" && rm -rf {root / 'work'}"]
+
+    return apivfs_cmd(root) + cmdline
 
 
 class MkosiAsyncioThread(threading.Thread):
