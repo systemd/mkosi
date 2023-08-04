@@ -1126,19 +1126,24 @@ Scripts executed by mkosi receive the following environment variables:
   `mkosi-chroot` below for more information.
 
 * `$SRCDIR` contains the path to the directory mkosi was invoked from,
-  with any configured build sources mounted on top.
+  with any configured build sources mounted on top. `$CHROOT_SRCDIR`
+  contains the value that `$SRCDIR` will have after invoking
+  `mkosi-chroot`.
 
 * `$BUILDDIR` is only defined if `mkosi.builddir` exists and points to
   the build directory to use. This is useful for all build systems that
   support out-of-tree builds to reuse already built artifacts from
-  previous runs.
+  previous runs. `$CHROOT_BUILDDIR` contains the value that `$BUILDDIR`
+  will have after invoking `mkosi-chroot`.
 
 * `$DESTDIR` is a directory into which any installed software generated
   by the build script may be placed. This variable is only set when
-  executing the build script.
+  executing the build script. `$CHROOT_DESTDIR` contains the value that
+  `$DESTDIR` will have after invoking `mkosi-chroot`.
 
 * `$OUTPUTDIR` points to the staging directory used to store build
-  artifacts generated during the build.
+  artifacts generated during the build. `$CHROOT_OUTPUTDIR` contains the
+  value that `$OUTPUTDIR` will have after invoking `mkosi-chroot`.
 
 * `$BUILDROOT` is the root directory of the image being built,
   optionally with the build overlay mounted on top depending on the

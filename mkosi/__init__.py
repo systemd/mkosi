@@ -209,6 +209,7 @@ def run_prepare_script(state: MkosiState, build: bool) -> None:
     env = dict(
         SCRIPT="/work/prepare",
         SRCDIR=str(Path.cwd()),
+        CHROOT_SRCDIR="/work/src",
         BUILDROOT=str(state.root),
     )
 
@@ -254,13 +255,19 @@ def run_build_script(state: MkosiState) -> None:
         WITH_NETWORK=one_zero(state.config.with_network),
         SCRIPT="/work/build-script",
         SRCDIR=str(Path.cwd()),
+        CHROOT_SRCDIR="/work/src",
         DESTDIR=str(state.install_dir),
+        CHROOT_DESTDIR="/work/dest",
         OUTPUTDIR=str(state.staging),
+        CHROOT_OUTPUTDIR="/work/out",
         BUILDROOT=str(state.root),
     )
 
     if state.config.build_dir is not None:
-        env |= dict(BUILDDIR=str(state.config.build_dir))
+        env |= dict(
+            BUILDDIR=str(state.config.build_dir),
+            CHROOT_BUILDDIR="/work/build",
+        )
 
     chroot = chroot_cmd(
         state.root,
@@ -298,7 +305,9 @@ def run_postinst_script(state: MkosiState) -> None:
     env = dict(
         SCRIPT="/work/postinst",
         SRCDIR=str(Path.cwd()),
+        CHROOT_SRCDIR="/work/src",
         OUTPUTDIR=str(state.staging),
+        CHROOT_OUTPUTDIR="/work/out",
         BUILDROOT=str(state.root),
     )
 
@@ -333,7 +342,9 @@ def run_finalize_script(state: MkosiState) -> None:
     env = dict(
         SCRIPT="/work/finalize",
         SRCDIR=str(Path.cwd()),
+        CHROOT_SRCDIR="/work/src",
         OUTPUTDIR=str(state.staging),
+        CHROOT_OUTPUTDIR="/work/out",
         BUILDROOT=str(state.root),
     )
 
