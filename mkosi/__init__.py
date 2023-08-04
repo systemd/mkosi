@@ -1796,8 +1796,6 @@ def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
                 save_cache(state)
                 reuse_cache(state)
 
-            configure_autologin(state)
-            configure_initrd(state)
             run_build_script(state)
 
             if state.config.output_format == OutputFormat.none:
@@ -1806,8 +1804,12 @@ def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
 
             install_build_dest(state)
             install_extra_trees(state)
-            configure_ssh(state)
             run_postinst_script(state)
+
+            configure_autologin(state)
+            configure_initrd(state)
+            configure_ssh(state)
+
             install_boot_loader(state)
             run_sysusers(state)
             run_preset(state)

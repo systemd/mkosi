@@ -1061,6 +1061,7 @@ Then, for each preset, we execute the following steps:
 * Copy the build script outputs into the image
 * Copy the extra trees into the image (`mkosi.extra`)
 * Run post-install script (`mkosi.postinst`)
+* Write config files required for `Ssh=`, `Autologin=` and `MakeInitrd=`
 * Install systemd-boot and configure secure boot if configured (`--secure-boot`)
 * Run `systemd-sysusers`
 * Run `systemctl preset-all`
