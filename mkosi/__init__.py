@@ -986,6 +986,9 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
             if state.config.kernel_modules_initrd:
                 cmd += ["--initrd", gen_kernel_modules_initrd(state, kver)]
 
+            # Make sure the parent directory where we'll be writing the UKI exists.
+            boot_binary.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+
             run(cmd)
 
             if not state.staging.joinpath(state.config.output_split_uki).exists():
