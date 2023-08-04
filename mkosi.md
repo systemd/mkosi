@@ -1060,8 +1060,8 @@ Then, for each preset, we execute the following steps:
 * Finalize the build if the output format `none` is configured
 * Copy the build script outputs into the image
 * Copy the extra trees into the image (`mkosi.extra`)
-* Install systemd-boot and configure secure boot if configured (`--secure-boot`)
 * Run post-install script (`mkosi.postinst`)
+* Install systemd-boot and configure secure boot if configured (`--secure-boot`)
 * Run `systemd-sysusers`
 * Run `systemctl preset-all`
 * Run `depmod`

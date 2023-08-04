@@ -1806,9 +1806,9 @@ def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
 
             install_build_dest(state)
             install_extra_trees(state)
-            install_boot_loader(state)
             configure_ssh(state)
             run_postinst_script(state)
+            install_boot_loader(state)
             run_sysusers(state)
             run_preset(state)
             run_depmod(state)
