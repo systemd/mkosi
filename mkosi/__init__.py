@@ -209,6 +209,7 @@ def run_prepare_script(state: MkosiState, build: bool) -> None:
     env = dict(
         SCRIPT="/work/prepare",
         SRCDIR=str(Path.cwd()),
+        CHROOT_SRCDIR="/work/src",
         BUILDROOT=str(state.root),
     )
 
@@ -254,13 +255,19 @@ def run_build_script(state: MkosiState) -> None:
         WITH_NETWORK=one_zero(state.config.with_network),
         SCRIPT="/work/build-script",
         SRCDIR=str(Path.cwd()),
+        CHROOT_SRCDIR="/work/src",
         DESTDIR=str(state.install_dir),
+        CHROOT_DESTDIR="/work/dest",
         OUTPUTDIR=str(state.staging),
+        CHROOT_OUTPUTDIR="/work/out",
         BUILDROOT=str(state.root),
     )
 
     if state.config.build_dir is not None:
-        env |= dict(BUILDDIR=str(state.config.build_dir))
+        env |= dict(
+            BUILDDIR=str(state.config.build_dir),
+            CHROOT_BUILDDIR="/work/build",
+        )
 
     chroot = chroot_cmd(
         state.root,
@@ -298,7 +305,9 @@ def run_postinst_script(state: MkosiState) -> None:
     env = dict(
         SCRIPT="/work/postinst",
         SRCDIR=str(Path.cwd()),
+        CHROOT_SRCDIR="/work/src",
         OUTPUTDIR=str(state.staging),
+        CHROOT_OUTPUTDIR="/work/out",
         BUILDROOT=str(state.root),
     )
 
@@ -333,7 +342,9 @@ def run_finalize_script(state: MkosiState) -> None:
     env = dict(
         SCRIPT="/work/finalize",
         SRCDIR=str(Path.cwd()),
+        CHROOT_SRCDIR="/work/src",
         OUTPUTDIR=str(state.staging),
+        CHROOT_OUTPUTDIR="/work/out",
         BUILDROOT=str(state.root),
     )
 
@@ -541,7 +552,7 @@ def install_package_manager_trees(state: MkosiState) -> None:
     if not state.config.package_manager_trees:
         return
 
-    with complete_step("Copying in package maneger file trees…"):
+    with complete_step("Copying in package manager file trees…"):
         for source, target in state.config.package_manager_trees:
             t = state.workspace / "pkgmngr"
             if target:
@@ -974,6 +985,9 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
 
             if state.config.kernel_modules_initrd:
                 cmd += ["--initrd", gen_kernel_modules_initrd(state, kver)]
+
+            # Make sure the parent directory where we'll be writing the UKI exists.
+            boot_binary.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
 
             run(cmd)
 
@@ -1782,8 +1796,6 @@ def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
                 save_cache(state)
                 reuse_cache(state)
 
-            configure_autologin(state)
-            configure_initrd(state)
             run_build_script(state)
 
             if state.config.output_format == OutputFormat.none:
@@ -1792,9 +1804,13 @@ def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
 
             install_build_dest(state)
             install_extra_trees(state)
-            install_boot_loader(state)
-            configure_ssh(state)
             run_postinst_script(state)
+
+            configure_autologin(state)
+            configure_initrd(state)
+            configure_ssh(state)
+
+            install_boot_loader(state)
             run_sysusers(state)
             run_preset(state)
             run_depmod(state)
