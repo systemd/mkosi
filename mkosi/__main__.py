@@ -30,7 +30,8 @@ def propagate_failed_return() -> Iterator[None]:
 
         sys.exit(1)
     except subprocess.CalledProcessError as e:
-        if ARG_DEBUG.get():
+        # Failures from qemu, ssh and systemd-nspawn are expected and we won't log stacktraces for those.
+        if ARG_DEBUG.get() and e.cmd and e.cmd[0] not in ("qemu", "ssh", "systemd-nspawn"):
             sys.excepthook(*ensure_exc_info())
 
         # We always log when subprocess.CalledProcessError is raised, so we don't log again here.
