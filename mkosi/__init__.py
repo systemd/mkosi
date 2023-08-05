@@ -50,6 +50,7 @@ from mkosi.util import (
     flatten,
     format_bytes,
     format_rlimit,
+    one_zero,
     scopedenv,
     try_import,
 )
@@ -373,7 +374,7 @@ def run_finalize_script(state: MkosiState) -> None:
         )
 
 
-def certificate_common_name(state: MkosiState, certificate: Path) -> str:
+def certificate_common_name(certificate: Path) -> str:
     output = run([
         "openssl",
         "x509",
@@ -471,7 +472,7 @@ def install_boot_loader(state: MkosiState) -> None:
                     pesign_prepare(state)
                     run(["pesign",
                          "--certdir", state.workspace / "pesign",
-                         "--certificate", certificate_common_name(state, state.config.secure_boot_certificate),
+                         "--certificate", certificate_common_name(state.config.secure_boot_certificate),
                          "--sign",
                          "--force",
                          "--in", input,
@@ -945,7 +946,7 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                     cmd += [
                         "--signtool", "pesign",
                         "--secureboot-certificate-dir", state.workspace / "pesign",
-                        "--secureboot-certificate-name", certificate_common_name(state, state.config.secure_boot_certificate),
+                        "--secureboot-certificate-name", certificate_common_name(state.config.secure_boot_certificate),
                     ]
 
                 sign_expected_pcr = (state.config.sign_expected_pcr == ConfigFeature.enabled or
@@ -1667,10 +1668,6 @@ def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
     print_output_size(config.output_dir / config.output)
 
 
-def one_zero(b: bool) -> str:
-    return "1" if b else "0"
-
-
 def setfacl(root: Path, uid: int, allow: bool) -> None:
     run(["setfacl",
          "--physical",
@@ -1734,11 +1731,6 @@ def acl_toggle_build(config: MkosiConfig, uid: int) -> Iterator[None]:
             stack.enter_context(acl_maybe_toggle(config, config.output_dir / config.output, uid, always=True))
 
         yield
-
-
-def check_root() -> None:
-    if os.getuid() != 0:
-        die("Must be invoked as root.")
 
 
 @contextlib.contextmanager
@@ -1928,8 +1920,8 @@ def prepend_to_environ_path(config: MkosiConfig) -> Iterator[None]:
 
 
 def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
-    if args.verb.needs_sudo():
-        check_root()
+    if args.verb.needs_root() and os.getuid() != 0:
+        die(f"Must be root to run the {args.verb} command")
 
     if args.verb == Verb.genkey:
         return generate_key_cert_pair(args)

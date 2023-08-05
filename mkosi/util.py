@@ -225,3 +225,7 @@ def tar_binary() -> str:
     # support in BSD tar and the different command line syntax
     # compared to GNU tar.
     return "gtar" if shutil.which("gtar") else "tar"
+
+
+def one_zero(b: bool) -> str:
+    return "1" if b else "0"

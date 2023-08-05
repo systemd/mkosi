@@ -64,7 +64,7 @@ class Verb(StrEnum):
     def needs_build(self) -> bool:
         return self in (Verb.build, Verb.shell, Verb.boot, Verb.qemu, Verb.serve)
 
-    def needs_sudo(self) -> bool:
+    def needs_root(self) -> bool:
         return self in (Verb.shell, Verb.boot)
 
 
