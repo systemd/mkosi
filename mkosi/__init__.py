@@ -374,7 +374,7 @@ def run_finalize_script(state: MkosiState) -> None:
         )
 
 
-def certificate_common_name(state: MkosiState, certificate: Path) -> str:
+def certificate_common_name(certificate: Path) -> str:
     output = run([
         "openssl",
         "x509",
@@ -472,7 +472,7 @@ def install_boot_loader(state: MkosiState) -> None:
                     pesign_prepare(state)
                     run(["pesign",
                          "--certdir", state.workspace / "pesign",
-                         "--certificate", certificate_common_name(state, state.config.secure_boot_certificate),
+                         "--certificate", certificate_common_name(state.config.secure_boot_certificate),
                          "--sign",
                          "--force",
                          "--in", input,
@@ -946,7 +946,7 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                     cmd += [
                         "--signtool", "pesign",
                         "--secureboot-certificate-dir", state.workspace / "pesign",
-                        "--secureboot-certificate-name", certificate_common_name(state, state.config.secure_boot_certificate),
+                        "--secureboot-certificate-name", certificate_common_name(state.config.secure_boot_certificate),
                     ]
 
                 sign_expected_pcr = (state.config.sign_expected_pcr == ConfigFeature.enabled or
