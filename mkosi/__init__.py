@@ -50,6 +50,7 @@ from mkosi.util import (
     flatten,
     format_bytes,
     format_rlimit,
+    one_zero,
     scopedenv,
     try_import,
 )
@@ -1665,10 +1666,6 @@ def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
             output_base.symlink_to(state.config.output_with_compression)
 
     print_output_size(config.output_dir / config.output)
-
-
-def one_zero(b: bool) -> str:
-    return "1" if b else "0"
 
 
 def setfacl(root: Path, uid: int, allow: bool) -> None:
