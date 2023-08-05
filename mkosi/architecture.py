@@ -98,21 +98,21 @@ class Architecture(StrEnum):
 
     def to_qemu(self) -> str:
         a = {
-            Architecture.alpha: "alpha",
-            Architecture.arm: "arm",
-            Architecture.arm64: "aarch64",
-            Architecture.loongarch64: "loongarch64",
-            Architecture.mips64_le: "mips",
-            Architecture.mips_le: "mips",
-            Architecture.parisc: "hppa",
-            Architecture.ppc: "ppc",
-            Architecture.ppc64: "ppc",
-            Architecture.ppc64_le: "ppc",
-            Architecture.riscv32: "riscv32",
-            Architecture.riscv64: "riscv64",
-            Architecture.s390x: "s390x",
-            Architecture.x86: "i386",
-            Architecture.x86_64: "x86_64",
+            Architecture.alpha       : "alpha",
+            Architecture.arm         : "arm",
+            Architecture.arm64       : "aarch64",
+            Architecture.loongarch64 : "loongarch64",
+            Architecture.mips64_le   : "mips",
+            Architecture.mips_le     : "mips",
+            Architecture.parisc      : "hppa",
+            Architecture.ppc         : "ppc",
+            Architecture.ppc64       : "ppc",
+            Architecture.ppc64_le    : "ppc",
+            Architecture.riscv32     : "riscv32",
+            Architecture.riscv64     : "riscv64",
+            Architecture.s390x       : "s390x",
+            Architecture.x86         : "i386",
+            Architecture.x86_64      : "x86_64",
         }.get(self)
 
         if not a:
