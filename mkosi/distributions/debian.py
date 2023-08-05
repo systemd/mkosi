@@ -11,6 +11,7 @@ from mkosi.installer.apt import invoke_apt, setup_apt
 from mkosi.log import die
 from mkosi.run import run
 from mkosi.state import MkosiState
+from mkosi.tree import extract_tree
 
 
 class DebianInstaller(DistributionInstaller):
@@ -112,7 +113,7 @@ class DebianInstaller(DistributionInstaller):
         for deb in essential:
             with tempfile.NamedTemporaryFile() as f:
                 run(["dpkg-deb", "--fsys-tarfile", deb], stdout=f)
-                run(["tar", "-C", state.root, "--keep-directory-symlink", "--extract", "--file", f.name])
+                extract_tree(Path(f.name), state.root)
 
         # Finally, run apt to properly install packages in the chroot without having to worry that maintainer
         # scripts won't find basic tools that they depend on.

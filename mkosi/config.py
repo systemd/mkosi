@@ -644,7 +644,6 @@ class MkosiConfig:
     compress_output: Compression
     image_version: Optional[str]
     image_id: Optional[str]
-    tar_strip_selinux_context: bool
     incremental: bool
     packages: list[str]
     remove_packages: list[str]
@@ -932,14 +931,6 @@ class MkosiConfigParser:
             match=config_make_string_matcher(allow_globs=True),
             section="Output",
             help="Set ID for image",
-        ),
-        MkosiConfigSetting(
-            dest="tar_strip_selinux_context",
-            metavar="BOOL",
-            nargs="?",
-            section="Output",
-            parse=config_parse_boolean,
-            help="Do not include SELinux file context information in tar. Not compatible with bsdtar.",
         ),
         MkosiConfigSetting(
             dest="split_artifacts",
@@ -2112,9 +2103,6 @@ def load_config(args: argparse.Namespace) -> MkosiConfig:
 
     if args.cmdline and not args.verb.supports_cmdline():
         die(f"Arguments after verb are not supported for {args.verb}.")
-
-    if shutil.which("bsdtar") and args.distribution == Distribution.openmandriva and args.tar_strip_selinux_context:
-        die("Sorry, bsdtar on OpenMandriva is incompatible with --tar-strip-selinux-context")
 
     if args.cache_dir:
         args.cache_dir = args.cache_dir / f"{args.distribution}~{args.release}"
