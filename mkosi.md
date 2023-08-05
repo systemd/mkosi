@@ -517,15 +517,6 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
   https://uapi-group.org/specifications/specs/extension_image for more
   information.
 
-`TarStripSELinuxContext=`, `--tar-strip-selinux-context`
-
-: If running on a SELinux-enabled system (Fedora Linux, CentOS, Rocky Linux,
-  Alma Linux), files
-  inside the container are tagged with SELinux context extended
-  attributes (`xattrs`), which may interfere with host SELinux rules
-  in building or further container import stages.  This option strips
-  SELinux context attributes from the resulting tar archive.
-
 ### [Content] Section
 
 `Packages=`, `--package=`, `-p`

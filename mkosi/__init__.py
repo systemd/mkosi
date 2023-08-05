@@ -618,7 +618,6 @@ def make_tar(state: MkosiState) -> None:
         "-c", "--xattrs",
         "--xattrs-include=*",
         "--file", state.staging / state.config.output_with_format,
-        *(["--xattrs-exclude=security.selinux"] if state.config.tar_strip_selinux_context else []),
         ".",
     ]
 

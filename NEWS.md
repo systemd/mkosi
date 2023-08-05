@@ -103,6 +103,9 @@
       exec mkosi-chroot "$SCRIPT" "$@"
   fi
   ```
+- Removed `--tar-strip-selinux-context=` option. We now label all files
+  properly if selinux is enabled and if users don't want the labels,
+  they can simply exclude them when extracting the archive.
 
 ## v14
 
