@@ -1766,7 +1766,8 @@ def run_shell(args: MkosiArgs, config: MkosiConfig) -> None:
             "--console=autopipe",
         ]
 
-    cmdline += ["--machine", config.output]
+    # Underscores are not allowed in machine names so replace them with hyphens.
+    cmdline += ["--machine", (config.image_id or config.preset or config.output).replace("_", "-")]
 
     for k, v in config.credentials.items():
         cmdline += [f"--set-credential={k}:{v}"]
