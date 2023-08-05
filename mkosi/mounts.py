@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
-import collections
 import contextlib
 import os
 import platform
@@ -8,7 +7,7 @@ import stat
 import tempfile
 from collections.abc import Iterator, Sequence
 from pathlib import Path
-from typing import Callable, Deque, Optional, TypeVar, Union, cast
+from typing import Optional, TypeVar
 
 from mkosi.config import GenericVersion, MkosiConfig
 from mkosi.log import complete_step
@@ -16,22 +15,6 @@ from mkosi.run import run
 from mkosi.types import PathString
 
 T = TypeVar("T")
-
-
-def scandir_recursive(
-    root: Path,
-    filter: Optional[Callable[[os.DirEntry[str]], T]] = None,
-) -> Iterator[T]:
-    """Recursively walk the tree starting at @root, optionally apply filter, yield non-none values"""
-    queue: Deque[Union[str, Path]] = collections.deque([root])
-
-    while queue:
-        for entry in os.scandir(queue.pop()):
-            pred = filter(entry) if filter is not None else entry
-            if pred is not None:
-                yield cast(T, pred)
-            if entry.is_dir(follow_symlinks=False):
-                queue.append(entry.path)
 
 
 def stat_is_whiteout(st: os.stat_result) -> bool:
@@ -46,9 +29,10 @@ def delete_whiteout_files(path: Path) -> None:
     """
 
     with complete_step("Removing overlay whiteout files…"):
-        for entry in cast(Iterator[os.DirEntry[str]], scandir_recursive(path)):
-            if stat_is_whiteout(entry.stat(follow_symlinks=False)):
-                os.unlink(entry.path)
+        for entry in path.rglob("*"):
+            # TODO: Use Path.stat() once we depend on Python 3.10+.
+            if stat_is_whiteout(os.stat(entry, follow_symlinks=False)):
+                entry.unlink()
 
 
 @contextlib.contextmanager
