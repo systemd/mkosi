@@ -43,7 +43,7 @@ from mkosi.pager import page
 from mkosi.qemu import copy_ephemeral, machine_cid, run_qemu
 from mkosi.run import become_root, bwrap, chroot_cmd, init_mount_namespace, run
 from mkosi.state import MkosiState
-from mkosi.tree import copy_tree, move_tree, rmtree
+from mkosi.tree import archive_tree, copy_tree, extract_tree, move_tree, rmtree
 from mkosi.types import PathString
 from mkosi.util import (
     InvokingUser,
@@ -70,7 +70,7 @@ def mount_image(state: MkosiState) -> Iterator[None]:
                 if path.is_dir():
                     bases += [path]
                 elif path.suffix == ".tar":
-                    shutil.unpack_archive(path, d)
+                    extract_tree(path, d)
                     bases += [d]
                 elif path.suffix == ".raw":
                     run(["systemd-dissect", "-M", path, d])
@@ -524,7 +524,7 @@ def install_base_trees(state: MkosiState) -> None:
             if path.is_dir():
                 copy_tree(state.config, path, state.root)
             elif path.suffix == ".tar":
-                shutil.unpack_archive(path, state.root)
+                extract_tree(path, state.root)
             elif path.suffix == ".raw":
                 run(["systemd-dissect", "--copy-from", path, "/", state.root])
             else:
@@ -546,7 +546,7 @@ def install_skeleton_trees(state: MkosiState) -> None:
             if source.is_dir() or target:
                 copy_tree(state.config, source, t, preserve_owner=False)
             else:
-                shutil.unpack_archive(source, t)
+                extract_tree(source, t)
 
 
 def install_package_manager_trees(state: MkosiState) -> None:
@@ -564,7 +564,7 @@ def install_package_manager_trees(state: MkosiState) -> None:
             if source.is_dir() or target:
                 copy_tree(state.config, source, t, preserve_owner=False)
             else:
-                shutil.unpack_archive(source, t)
+                extract_tree(source, t)
 
 
 def install_extra_trees(state: MkosiState) -> None:
@@ -582,7 +582,7 @@ def install_extra_trees(state: MkosiState) -> None:
             if source.is_dir() or target:
                 copy_tree(state.config, source, t, preserve_owner=False)
             else:
-                shutil.unpack_archive(source, t)
+                extract_tree(source, t)
 
 
 def install_build_dest(state: MkosiState) -> None:
@@ -597,32 +597,12 @@ def gzip_binary() -> str:
     return "pigz" if shutil.which("pigz") else "gzip"
 
 
-def tar_binary() -> str:
-    # Some distros (Mandriva) install BSD tar as "tar", hence prefer
-    # "gtar" if it exists, which should be GNU tar wherever it exists.
-    # We are interested in exposing same behaviour everywhere hence
-    # it's preferable to use the same implementation of tar
-    # everywhere. In particular given the limited/different SELinux
-    # support in BSD tar and the different command line syntax
-    # compared to GNU tar.
-    return "gtar" if shutil.which("gtar") else "tar"
-
-
 def make_tar(state: MkosiState) -> None:
     if state.config.output_format != OutputFormat.tar:
         return
 
-    cmd: list[PathString] = [
-        tar_binary(),
-        "-C", state.root,
-        "-c", "--xattrs",
-        "--xattrs-include=*",
-        "--file", state.staging / state.config.output_with_format,
-        ".",
-    ]
-
     with complete_step("Creating archive…"):
-        run(cmd)
+        archive_tree(state.root, state.staging / state.config.output_with_format)
 
 
 def find_files(dir: Path, root: Path) -> Iterator[Path]:

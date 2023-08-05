@@ -8,8 +8,9 @@ from typing import Sequence, cast
 
 from mkosi.config import ConfigFeature, MkosiConfig
 from mkosi.log import die
-from mkosi.run import run
+from mkosi.run import bwrap, finalize_passwd_mounts, run
 from mkosi.types import PathString
+from mkosi.util import tar_binary
 
 
 def statfs(path: Path) -> str:
@@ -98,3 +99,57 @@ def move_tree(config: MkosiConfig, src: Path, dst: Path) -> None:
 
         copy_tree(config, src, dst)
         rmtree(src)
+
+
+def tar_exclude_apivfs_tmp() -> list[str]:
+    return [
+        "--exclude", "./dev/*",
+        "--exclude", "./proc/*",
+        "--exclude", "./sys/*",
+        "--exclude", "./tmp/*",
+        "--exclude", "./run/*",
+        "--exclude", "./var/tmp/*",
+    ]
+
+
+def archive_tree(src: Path, dst: Path) -> None:
+    bwrap(
+        [
+            tar_binary(),
+            "--create",
+            "--file", dst,
+            "--directory", src,
+            "--acls",
+            "--selinux",
+            "--xattrs",
+            "--sparse",
+            "--force-local",
+            *tar_exclude_apivfs_tmp(),
+            ".",
+        ],
+        # Make sure tar uses user/group information from the root directory instead of the host.
+        options=finalize_passwd_mounts(src) if (src / "etc/passwd").exists() else [],
+    )
+
+
+def extract_tree(src: Path, dst: Path) -> None:
+    bwrap(
+        [
+            tar_binary(),
+            "--extract",
+            "--file", src,
+            "--directory", dst,
+            "--keep-directory-symlink",
+            "--no-overwrite-dir",
+            "--same-permissions",
+            "--same-owner" if (dst / "etc/passwd").exists() else "--numeric-owner",
+            "--same-order",
+            "--acls",
+            "--selinux",
+            "--xattrs",
+            "--force-local",
+            *tar_exclude_apivfs_tmp(),
+        ],
+        # Make sure tar uses user/group information from the root directory instead of the host.
+        options=finalize_passwd_mounts(dst) if (dst / "etc/passwd").exists() else [],
+    )

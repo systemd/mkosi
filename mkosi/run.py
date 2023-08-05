@@ -313,6 +313,24 @@ def bwrap(
         return result
 
 
+def finalize_passwd_mounts(root: Path) -> list[PathString]:
+    """
+    If passwd or a related file exists in the apivfs directory, bind mount it over the host files while we
+    run the command, to make sure that the command we run uses user/group information from the apivfs
+    directory instead of from the host. If the file doesn't exist yet, mount over /dev/null instead.
+    """
+    options: list[PathString] = []
+
+    for f in ("passwd", "group", "shadow", "gshadow"):
+        p = root / "etc" / f
+        if p.exists():
+            options += ["--bind", p, f"/etc/{f}"]
+        else:
+            options += ["--bind", "/dev/null", f"/etc/{f}"]
+
+    return options
+
+
 def apivfs_cmd(root: Path) -> list[PathString]:
     cmdline: list[PathString] = [
         "bwrap",
@@ -330,16 +348,7 @@ def apivfs_cmd(root: Path) -> list[PathString]:
         # Make sure /etc/machine-id is not overwritten by any package manager post install scripts.
         cmdline += ["--ro-bind", root / "etc/machine-id", root / "etc/machine-id"]
 
-    # If passwd or a related file exists in the apivfs directory, bind mount it over the host files while
-    # we run the command, to make sure that the command we run uses user/group information from the
-    # apivfs directory instead of from the host. If the file doesn't exist yet, mount over /dev/null
-    # instead.
-    for f in ("passwd", "group", "shadow", "gshadow"):
-        p = root / "etc" / f
-        if p.exists():
-            cmdline += ["--bind", p, f"/etc/{f}"]
-        else:
-            cmdline += ["--bind", "/dev/null", f"/etc/{f}"]
+    cmdline += finalize_passwd_mounts(root)
 
     chmod = f"chmod 1777 {root / 'tmp'} {root / 'var/tmp'} {root / 'dev/shm'}"
     # Make sure anything running in the root directory thinks it's in a container. $container can't always be
