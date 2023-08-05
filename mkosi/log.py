@@ -30,10 +30,6 @@ def die(message: str,
     sys.exit(1)
 
 
-def color_error(text: Any) -> str:
-    return f"{Style.red}{text}{Style.reset}"
-
-
 def log_step(text: str) -> None:
     prefix = " " * LEVEL
 

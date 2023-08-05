@@ -28,6 +28,7 @@ from mkosi.distributions import Distribution, detect_distribution
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, Style, die
 from mkosi.pager import page
 from mkosi.run import run
+from mkosi.types import PathString
 from mkosi.util import (
     InvokingUser,
     StrEnum,
@@ -2183,3 +2184,138 @@ def load_config(args: argparse.Namespace) -> MkosiConfig:
 
     return MkosiConfig.from_namespace(args)
 
+
+def yes_no(b: bool) -> str:
+    return "yes" if b else "no"
+
+
+def yes_no_auto(f: ConfigFeature) -> str:
+    return "auto" if f is ConfigFeature.auto else yes_no(f == ConfigFeature.enabled)
+
+
+def none_to_na(s: Optional[object]) -> str:
+    return "n/a" if s is None else str(s)
+
+
+def none_to_none(s: Optional[object]) -> str:
+    return "none" if s is None else str(s)
+
+
+def none_to_default(s: Optional[object]) -> str:
+    return "default" if s is None else str(s)
+
+
+def line_join_list(array: Sequence[PathString]) -> str:
+    if not array:
+        return "none"
+
+    items = (str(none_to_none(cast(Path, item))) for item in array)
+    return "\n                                ".join(items)
+
+
+def format_source_target(source: Path, target: Optional[Path]) -> str:
+    return f"{source}:{target}" if target else f"{source}"
+
+
+def line_join_source_target_list(array: Sequence[tuple[Path, Optional[Path]]]) -> str:
+    if not array:
+        return "none"
+
+    items = [format_source_target(source, target) for source, target in array]
+    return "\n                                ".join(items)
+
+
+def summary(args: MkosiArgs, config: MkosiConfig) -> str:
+    b = Style.bold
+    e = Style.reset
+    bold: Callable[..., str] = lambda s: f"{b}{s}{e}"
+
+    maniformats = (" ".join(i.name for i in config.manifest_format)) or "(none)"
+    env = [f"{k}={v}" for k, v in config.environment.items()]
+
+    summary = f"""\
+{bold(f"PRESET: {config.preset or 'default'}")}
+
+    {bold("COMMANDS")}:
+                          verb: {bold(args.verb)}
+                       cmdline: {bold(" ".join(args.cmdline))}
+
+    {bold("DISTRIBUTION")}:
+                  Distribution: {bold(config.distribution.name)}
+                       Release: {bold(none_to_na(config.release))}
+                  Architecture: {config.architecture}
+                        Mirror: {none_to_default(config.mirror)}
+          Local Mirror (build): {none_to_none(config.local_mirror)}
+      Repo Signature/Key check: {yes_no(config.repository_key_check)}
+                  Repositories: {",".join(config.repositories)}
+
+    {bold("OUTPUT")}:
+                      Image ID: {config.image_id}
+                 Image Version: {config.image_version}
+                 Output Format: {config.output_format.name}
+              Manifest Formats: {maniformats}
+              Output Directory: {none_to_default(config.output_dir)}
+           Workspace Directory: {none_to_default(config.workspace_dir)}
+               Cache Directory: {none_to_none(config.cache_dir)}
+               Build Directory: {none_to_none(config.build_dir)}
+            Repart Directories: {line_join_list(config.repart_dirs)}
+                        Output: {bold(config.output_with_compression)}
+               Output Checksum: {none_to_na(config.output_checksum if config.checksum else None)}
+              Output Signature: {none_to_na(config.output_signature if config.sign else None)}
+        Output nspawn Settings: {none_to_na(config.output_nspawn_settings if config.nspawn_settings is not None else None)}
+                   Compression: {config.compress_output.name}
+
+    {bold("CONTENT")}:
+                      Packages: {line_join_list(config.packages)}
+            With Documentation: {yes_no(config.with_docs)}
+                Skeleton Trees: {line_join_source_target_list(config.skeleton_trees)}
+         Package Manager Trees: {line_join_source_target_list(config.package_manager_trees)}
+                   Extra Trees: {line_join_source_target_list(config.extra_trees)}
+        Clean Package Metadata: {yes_no_auto(config.clean_package_metadata)}
+                  Remove Files: {line_join_list(config.remove_files)}
+               Remove Packages: {line_join_list(config.remove_packages)}
+                 Build Sources: {line_join_source_target_list(config.build_sources)}
+                Build Packages: {line_join_list(config.build_packages)}
+                  Build Script: {none_to_none(config.build_script)}
+     Run Tests in Build Script: {yes_no(config.with_tests)}
+            Postinstall Script: {none_to_none(config.postinst_script)}
+                Prepare Script: {none_to_none(config.prepare_script)}
+               Finalize Script: {none_to_none(config.finalize_script)}
+            Script Environment: {line_join_list(env)}
+          Scripts with network: {yes_no(config.with_network)}
+                      Bootable: {yes_no_auto(config.bootable)}
+           Kernel Command Line: {" ".join(config.kernel_command_line)}
+                       Initrds: {",".join(os.fspath(p) for p in config.initrds)}
+                        Locale: {none_to_default(config.locale)}
+               Locale Messages: {none_to_default(config.locale_messages)}
+                        Keymap: {none_to_default(config.keymap)}
+                      Timezone: {none_to_default(config.timezone)}
+                      Hostname: {none_to_default(config.hostname)}
+                 Root Password: {("(set)" if config.root_password else "(default)")}
+                    Root Shell: {none_to_default(config.root_shell)}
+                     Autologin: {yes_no(config.autologin)}
+
+    {bold("HOST CONFIGURATION")}:
+                   Incremental: {yes_no(config.incremental)}
+               NSpawn Settings: {none_to_none(config.nspawn_settings)}
+            Extra search paths: {line_join_list(config.extra_search_paths)}
+          QEMU Extra Arguments: {line_join_list(config.qemu_args)}
+     Extra Kernel Command Line: {line_join_list(config.kernel_command_line_extra)}
+"""
+
+    if config.output_format == OutputFormat.disk:
+        summary += f"""\
+
+    {bold("VALIDATION")}:
+               UEFI SecureBoot: {yes_no(config.secure_boot)}
+        SecureBoot Signing Key: {none_to_none(config.secure_boot_key)}
+        SecureBoot Certificate: {none_to_none(config.secure_boot_certificate)}
+          SecureBoot Sign Tool: {config.secure_boot_sign_tool}
+            Verity Signing Key: {none_to_none(config.verity_key)}
+            Verity Certificate: {none_to_none(config.verity_certificate)}
+                      Checksum: {yes_no(config.checksum)}
+                          Sign: {yes_no(config.sign)}
+                       GPG Key: ({"default" if config.key is None else config.key})
+"""
+
+    return summary

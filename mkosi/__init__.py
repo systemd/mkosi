@@ -2,7 +2,6 @@
 
 import contextlib
 import datetime
-import errno
 import hashlib
 import http.server
 import itertools
@@ -19,7 +18,7 @@ import uuid
 from collections.abc import Iterator, Sequence
 from pathlib import Path
 from textwrap import dedent
-from typing import Callable, ContextManager, Optional, TextIO, Union, cast
+from typing import ContextManager, Optional, TextIO, Union, cast
 
 from mkosi.config import (
     Compression,
@@ -32,10 +31,12 @@ from mkosi.config import (
     OutputFormat,
     SecureBootSignTool,
     Verb,
+    format_source_target,
+    summary,
 )
 from mkosi.install import add_dropin_config_from_resource
 from mkosi.installer import clean_package_manager_metadata, package_manager_scripts
-from mkosi.log import Style, color_error, complete_step, die, log_step
+from mkosi.log import complete_step, die, log_step
 from mkosi.manifest import Manifest
 from mkosi.mounts import mount_overlay, mount_passwd, mount_tools, scandir_recursive
 from mkosi.pager import page
@@ -854,19 +855,19 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                 "--release", state.config.release,
                 "--architecture", str(state.config.architecture),
                 *(["--mirror", state.config.mirror] if state.config.mirror else []),
-                "--repository-key-check", yes_no(state.config.repository_key_check),
+                "--repository-key-check", str(state.config.repository_key_check),
                 "--repositories", ",".join(state.config.repositories),
                 "--package-manager-tree", ",".join(format_source_target(s, t) for s, t in state.config.package_manager_trees),
                 *(["--tools-tree", str(state.config.tools_tree)] if state.config.tools_tree else []),
                 *(["--compress-output", str(state.config.compress_output)] if state.config.compress_output else []),
-                "--with-network", yes_no(state.config.with_network),
-                "--cache-only", yes_no(state.config.cache_only),
+                "--with-network", str(state.config.with_network),
+                "--cache-only", str(state.config.cache_only),
                 *(["--output-dir", str(state.config.output_dir)] if state.config.output_dir else []),
                 *(["--workspace-dir", str(state.config.workspace_dir)] if state.config.workspace_dir else []),
                 "--cache-dir", str(state.cache_dir.parent),
                 *(["--local-mirror", str(state.config.local_mirror)] if state.config.local_mirror else []),
-                "--incremental", yes_no(state.config.incremental),
-                "--acl", yes_no(state.config.acl),
+                "--incremental", str(state.config.incremental),
+                "--acl", str(state.config.acl),
                 "--format", "cpio",
                 "--package", "systemd",
                 "--package", "util-linux",
@@ -1203,18 +1204,6 @@ def check_source_target_input(tree: tuple[Path, Optional[Path]]) -> None:
     os.open(source, os.R_OK)
 
 
-def check_script_input(path: Optional[Path]) -> None:
-    if not path:
-        return
-
-    os.open(path, os.R_OK)
-    if not path.is_file():
-        raise OSError(errno.ENOENT, 'Not a normal file')
-    if not os.access(path, os.X_OK):
-        raise OSError(errno.ENOENT, 'Not executable')
-    return None
-
-
 def check_inputs(config: MkosiConfig) -> None:
     try:
         for base in config.base_trees:
@@ -1226,12 +1215,6 @@ def check_inputs(config: MkosiConfig) -> None:
                      config.extra_trees):
             for item in tree:
                 check_source_target_input(item)
-
-        for path in (config.build_script,
-                     config.prepare_script,
-                     config.postinst_script,
-                     config.finalize_script):
-            check_script_input(path)
 
         if config.bootable != ConfigFeature.disabled:
             for p in config.initrds:
@@ -1253,158 +1236,6 @@ def check_outputs(config: MkosiConfig) -> None:
     ):
         if f and config.output_dir.joinpath(f).exists():
             die(f"Output path {f} exists already. (Consider invocation with --force.)")
-
-
-def yes_no(b: bool) -> str:
-    return "yes" if b else "no"
-
-
-def yes_no_auto(f: ConfigFeature) -> str:
-    return "auto" if f is ConfigFeature.auto else yes_no(f == ConfigFeature.enabled)
-
-
-def none_to_na(s: Optional[object]) -> str:
-    return "n/a" if s is None else str(s)
-
-
-def none_to_none(s: Optional[object]) -> str:
-    return "none" if s is None else str(s)
-
-
-def none_to_default(s: Optional[object]) -> str:
-    return "default" if s is None else str(s)
-
-
-def path_or_none(
-        path: Optional[Path],
-        checker: Optional[Callable[[Optional[Path]], None]] = None,
-) -> Union[Optional[Path], str]:
-    try:
-        if checker:
-            checker(path)
-    except OSError as e:
-        return f'{color_error(path)} ({e.strerror})'
-    else:
-        return path
-
-
-def line_join_list(
-        array: Sequence[PathString],
-        checker: Optional[Callable[[Optional[Path]], None]] = None,
-) -> str:
-    if not array:
-        return "none"
-
-    items = (str(path_or_none(cast(Path, item), checker=checker)) for item in array)
-    return "\n                                ".join(items)
-
-
-def format_source_target(source: Path, target: Optional[Path]) -> str:
-    return f"{source}:{target}" if target else f"{source}"
-
-
-def line_join_source_target_list(array: Sequence[tuple[Path, Optional[Path]]]) -> str:
-    if not array:
-        return "none"
-
-    items = [format_source_target(source, target) for source, target in array]
-    return "\n                                ".join(items)
-
-
-def summary(args: MkosiArgs, config: MkosiConfig) -> str:
-    b = Style.bold
-    e = Style.reset
-    bold: Callable[..., str] = lambda s: f"{b}{s}{e}"
-
-    maniformats = (" ".join(i.name for i in config.manifest_format)) or "(none)"
-    env = [f"{k}={v}" for k, v in config.environment.items()]
-
-    summary = f"""\
-{bold(f"PRESET: {config.preset or 'default'}")}
-
-    {bold("COMMANDS")}:
-                          verb: {bold(args.verb)}
-                       cmdline: {bold(" ".join(args.cmdline))}
-
-    {bold("DISTRIBUTION")}:
-                  Distribution: {bold(config.distribution.name)}
-                       Release: {bold(none_to_na(config.release))}
-                  Architecture: {config.architecture}
-                        Mirror: {none_to_default(config.mirror)}
-          Local Mirror (build): {none_to_none(config.local_mirror)}
-      Repo Signature/Key check: {yes_no(config.repository_key_check)}
-                  Repositories: {",".join(config.repositories)}
-
-    {bold("OUTPUT")}:
-                      Image ID: {config.image_id}
-                 Image Version: {config.image_version}
-                 Output Format: {config.output_format.name}
-              Manifest Formats: {maniformats}
-              Output Directory: {none_to_default(config.output_dir)}
-           Workspace Directory: {none_to_default(config.workspace_dir)}
-               Cache Directory: {none_to_none(config.cache_dir)}
-               Build Directory: {none_to_none(config.build_dir)}
-            Repart Directories: {line_join_list(config.repart_dirs)}
-                        Output: {bold(config.output_with_compression)}
-               Output Checksum: {none_to_na(config.output_checksum if config.checksum else None)}
-              Output Signature: {none_to_na(config.output_signature if config.sign else None)}
-        Output nspawn Settings: {none_to_na(config.output_nspawn_settings if config.nspawn_settings is not None else None)}
-                   Compression: {config.compress_output.name}
-
-    {bold("CONTENT")}:
-                      Packages: {line_join_list(config.packages)}
-            With Documentation: {yes_no(config.with_docs)}
-                Skeleton Trees: {line_join_source_target_list(config.skeleton_trees)}
-         Package Manager Trees: {line_join_source_target_list(config.package_manager_trees)}
-                   Extra Trees: {line_join_source_target_list(config.extra_trees)}
-        Clean Package Metadata: {yes_no_auto(config.clean_package_metadata)}
-                  Remove Files: {line_join_list(config.remove_files)}
-               Remove Packages: {line_join_list(config.remove_packages)}
-                 Build Sources: {line_join_source_target_list(config.build_sources)}
-                Build Packages: {line_join_list(config.build_packages)}
-                  Build Script: {path_or_none(config.build_script, check_script_input)}
-     Run Tests in Build Script: {yes_no(config.with_tests)}
-            Postinstall Script: {path_or_none(config.postinst_script, check_script_input)}
-                Prepare Script: {path_or_none(config.prepare_script, check_script_input)}
-               Finalize Script: {path_or_none(config.finalize_script, check_script_input)}
-            Script Environment: {line_join_list(env)}
-          Scripts with network: {yes_no(config.with_network)}
-                      Bootable: {yes_no_auto(config.bootable)}
-           Kernel Command Line: {" ".join(config.kernel_command_line)}
-                       Initrds: {",".join(os.fspath(p) for p in config.initrds)}
-                        Locale: {none_to_default(config.locale)}
-               Locale Messages: {none_to_default(config.locale_messages)}
-                        Keymap: {none_to_default(config.keymap)}
-                      Timezone: {none_to_default(config.timezone)}
-                      Hostname: {none_to_default(config.hostname)}
-                 Root Password: {("(set)" if config.root_password else "(default)")}
-                    Root Shell: {none_to_default(config.root_shell)}
-                     Autologin: {yes_no(config.autologin)}
-
-    {bold("HOST CONFIGURATION")}:
-                   Incremental: {yes_no(config.incremental)}
-               NSpawn Settings: {none_to_none(config.nspawn_settings)}
-            Extra search paths: {line_join_list(config.extra_search_paths)}
-          QEMU Extra Arguments: {line_join_list(config.qemu_args)}
-     Extra Kernel Command Line: {line_join_list(config.kernel_command_line_extra)}
-"""
-
-    if config.output_format == OutputFormat.disk:
-        summary += f"""\
-
-    {bold("VALIDATION")}:
-               UEFI SecureBoot: {yes_no(config.secure_boot)}
-        SecureBoot Signing Key: {none_to_none(config.secure_boot_key)}
-        SecureBoot Certificate: {none_to_none(config.secure_boot_certificate)}
-          SecureBoot Sign Tool: {config.secure_boot_sign_tool}
-            Verity Signing Key: {none_to_none(config.verity_key)}
-            Verity Certificate: {none_to_none(config.verity_certificate)}
-                      Checksum: {yes_no(config.checksum)}
-                          Sign: {yes_no(config.sign)}
-                       GPG Key: ({"default" if config.key is None else config.key})
-"""
-
-    return summary
 
 
 def configure_ssh(state: MkosiState) -> None:
