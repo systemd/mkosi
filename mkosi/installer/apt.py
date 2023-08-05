@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from mkosi.run import apivfs_cmd, bwrap
 from mkosi.state import MkosiState
 from mkosi.types import PathString
-from mkosi.util import flatten, sort_packages
+from mkosi.util import flatten, sort_packages, umask
 
 
 def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
@@ -18,10 +18,9 @@ def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
     state.pkgmngr.joinpath("var/lib/apt").mkdir(exist_ok=True, parents=True)
 
     # TODO: Drop once apt 2.5.4 is widely available.
-    state.root.joinpath("var").mkdir(mode=0o755, exist_ok=True)
-    state.root.joinpath("var/lib").mkdir(mode=0o755, exist_ok=True)
-    state.root.joinpath("var/lib/dpkg").mkdir(mode=0o755, exist_ok=True)
-    state.root.joinpath("var/lib/dpkg/status").touch()
+    with umask(~0o755):
+        (state.root / "var/lib/dpkg").mkdir(parents=True, exist_ok=True)
+        (state.root / "var/lib/dpkg/status").touch()
 
     # We have a special apt.conf outside of pkgmngr dir that only configures "Dir" that we pass to
     # APT_CONFIG to tell apt it should read config files in pkgmngr instead of in its usual locations. This

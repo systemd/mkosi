@@ -229,3 +229,12 @@ def tar_binary() -> str:
 
 def one_zero(b: bool) -> str:
     return "1" if b else "0"
+
+
+@contextlib.contextmanager
+def umask(mask: int) -> Iterator[None]:
+    old = os.umask(mask)
+    try:
+        yield
+    finally:
+        os.umask(old)

@@ -13,6 +13,7 @@ from mkosi.config import GenericVersion, MkosiConfig
 from mkosi.log import complete_step
 from mkosi.run import run
 from mkosi.types import PathString
+from mkosi.util import umask
 
 T = TypeVar("T")
 
@@ -47,7 +48,8 @@ def mount(
     lazy: bool = False,
 ) -> Iterator[Path]:
     if not where.exists():
-        where.mkdir(mode=0o755, parents=True)
+        with umask(~0o755):
+            where.mkdir(parents=True)
 
     if read_only:
         options = ["ro", *options]

@@ -12,6 +12,7 @@ from mkosi.log import die
 from mkosi.run import run
 from mkosi.state import MkosiState
 from mkosi.tree import extract_tree
+from mkosi.util import umask
 
 
 class DebianInstaller(DistributionInstaller):
@@ -88,10 +89,10 @@ class DebianInstaller(DistributionInstaller):
             "x32"         : ["lib32", "lib64", "libx32"],
         }.get(state.config.distribution.architecture(state.config.architecture), [])
 
-        state.root.joinpath("usr").mkdir(mode=0o755, exist_ok=True)
-        for d in subdirs:
-            state.root.joinpath(d).symlink_to(f"usr/{d}")
-            state.root.joinpath(f"usr/{d}").mkdir(mode=0o755, exist_ok=True)
+        with umask(~0o755):
+            for d in subdirs:
+                (state.root / d).symlink_to(f"usr/{d}")
+                (state.root / f"usr/{d}").mkdir(parents=True, exist_ok=True)
 
         # Next, we invoke apt-get install to download all the essential packages. With DPkg::Pre-Install-Pkgs,
         # we specify a shell command that will receive the list of packages that will be installed on stdin.
@@ -128,8 +129,8 @@ class DebianInstaller(DistributionInstaller):
         # Note: despite writing in /usr/sbin, this file is not shipped by the OS and instead should be managed by
         # the admin.
         policyrcd = state.root / "usr/sbin/policy-rc.d"
-        policyrcd.write_text("#!/bin/sh\nexit 101\n")
-        policyrcd.chmod(0o755)
+        with umask(~0o644):
+            policyrcd.write_text("#!/bin/sh\nexit 101\n")
 
         invoke_apt(state, "apt-get", "update", apivfs=False)
         invoke_apt(state, "apt-get", "install", packages, apivfs=apivfs)
