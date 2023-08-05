@@ -14,7 +14,7 @@ from mkosi.run import apivfs_cmd, bwrap, chroot_cmd, run
 from mkosi.state import MkosiState
 from mkosi.tree import copy_tree, rmtree
 from mkosi.types import PathString
-from mkosi.util import sort_packages
+from mkosi.util import flatten, sort_packages
 
 
 def invoke_emerge(state: MkosiState, packages: Sequence[str] = (), apivfs: bool = True) -> None:
@@ -47,6 +47,7 @@ def invoke_emerge(state: MkosiState, packages: Sequence[str] = (), apivfs: bool 
             "--bind", state.cache_dir / "stage3/var", "/var",
             "--ro-bind", "/etc/resolv.conf", "/etc/resolv.conf",
             "--bind", state.cache_dir / "repos", "/var/db/repos",
+            *flatten(["--bind", str(d), str(d)] for d in (state.config.workspace_dir, state.config.cache_dir) if d),
         ],
         env=dict(
             PKGDIR=str(state.cache_dir / "binpkgs"),
@@ -150,7 +151,8 @@ class GentooInstaller(DistributionInstaller):
             network=True,
         )
 
-        bwrap(cmd=chroot + ["emerge-webrsync"])
+        bwrap(cmd=chroot + ["emerge-webrsync"],
+              options=flatten(["--bind", d, d] for d in (state.config.workspace_dir, state.config.cache_dir) if d))
 
         invoke_emerge(state, packages=["sys-apps/baselayout"], apivfs=False)
 

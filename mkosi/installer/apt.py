@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from mkosi.run import apivfs_cmd, bwrap
 from mkosi.state import MkosiState
 from mkosi.types import PathString
-from mkosi.util import sort_packages
+from mkosi.util import flatten, sort_packages
 
 
 def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
@@ -105,4 +105,6 @@ def invoke_apt(
     apivfs: bool = True,
 ) -> None:
     cmd = apivfs_cmd(state.root) if apivfs else []
-    bwrap(cmd + apt_cmd(state, command) + [operation, *sort_packages(packages)], env=state.config.environment)
+    bwrap(cmd + apt_cmd(state, command) + [operation, *sort_packages(packages)],
+          options=flatten(["--bind", d, d] for d in (state.config.workspace_dir, state.config.cache_dir) if d),
+          env=state.config.environment)
