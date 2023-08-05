@@ -4,7 +4,7 @@ import errno
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Sequence, cast
+from typing import Optional, Sequence, cast
 
 from mkosi.config import ConfigFeature, MkosiConfig
 from mkosi.log import die
@@ -153,3 +153,20 @@ def extract_tree(src: Path, dst: Path) -> None:
         # Make sure tar uses user/group information from the root directory instead of the host.
         options=finalize_passwd_mounts(dst) if (dst / "etc/passwd").exists() else [],
     )
+
+
+def install_tree(config: MkosiConfig, src: Path, dst: Path, target: Optional[Path] = None) -> None:
+    t = dst
+    if target:
+        t = dst / target.relative_to("/")
+
+    t.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
+
+    if src.is_dir():
+        copy_tree(config, src, t, preserve_owner=False)
+    elif src.suffix == ".tar":
+        extract_tree(src, t)
+    elif src.suffix == ".raw":
+        run(["systemd-dissect", "--copy-from", src, "/", t])
+    else:
+        die(f"Source tree {src} has unsupported source tree type \"{src.suffix}\"")

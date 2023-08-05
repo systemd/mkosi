@@ -43,7 +43,14 @@ from mkosi.pager import page
 from mkosi.qemu import copy_ephemeral, machine_cid, run_qemu
 from mkosi.run import become_root, bwrap, chroot_cmd, init_mount_namespace, run
 from mkosi.state import MkosiState
-from mkosi.tree import archive_tree, copy_tree, extract_tree, move_tree, rmtree
+from mkosi.tree import (
+    archive_tree,
+    copy_tree,
+    extract_tree,
+    install_tree,
+    move_tree,
+    rmtree,
+)
 from mkosi.types import PathString
 from mkosi.util import (
     InvokingUser,
@@ -522,14 +529,7 @@ def install_base_trees(state: MkosiState) -> None:
 
     with complete_step("Copying in base trees…"):
         for path in state.config.base_trees:
-            if path.is_dir():
-                copy_tree(state.config, path, state.root)
-            elif path.suffix == ".tar":
-                extract_tree(path, state.root)
-            elif path.suffix == ".raw":
-                run(["systemd-dissect", "--copy-from", path, "/", state.root])
-            else:
-                die(f"Unsupported base tree source {path}")
+            install_tree(state.config, path, state.root)
 
 
 def install_skeleton_trees(state: MkosiState) -> None:
@@ -538,16 +538,7 @@ def install_skeleton_trees(state: MkosiState) -> None:
 
     with complete_step("Copying in skeleton file trees…"):
         for source, target in state.config.skeleton_trees:
-            t = state.root
-            if target:
-                t = state.root / target.relative_to("/")
-
-            t.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
-
-            if source.is_dir() or target:
-                copy_tree(state.config, source, t, preserve_owner=False)
-            else:
-                extract_tree(source, t)
+            install_tree(state.config, source, state.root, target)
 
 
 def install_package_manager_trees(state: MkosiState) -> None:
@@ -556,16 +547,7 @@ def install_package_manager_trees(state: MkosiState) -> None:
 
     with complete_step("Copying in package manager file trees…"):
         for source, target in state.config.package_manager_trees:
-            t = state.workspace / "pkgmngr"
-            if target:
-                t = state.workspace / "pkgmngr" / target.relative_to("/")
-
-            t.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
-
-            if source.is_dir() or target:
-                copy_tree(state.config, source, t, preserve_owner=False)
-            else:
-                extract_tree(source, t)
+            install_tree(state.config, source, state.workspace / "pkgmngr", target)
 
 
 def install_extra_trees(state: MkosiState) -> None:
@@ -574,16 +556,7 @@ def install_extra_trees(state: MkosiState) -> None:
 
     with complete_step("Copying in extra file trees…"):
         for source, target in state.config.extra_trees:
-            t = state.root
-            if target:
-                t = state.root / target.relative_to("/")
-
-            t.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
-
-            if source.is_dir() or target:
-                copy_tree(state.config, source, t, preserve_owner=False)
-            else:
-                extract_tree(source, t)
+            install_tree(state.config, source, state.root, target)
 
 
 def install_build_dest(state: MkosiState) -> None:
