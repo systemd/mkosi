@@ -1736,11 +1736,6 @@ def acl_toggle_build(config: MkosiConfig, uid: int) -> Iterator[None]:
         yield
 
 
-def check_root() -> None:
-    if os.getuid() != 0:
-        die("Must be invoked as root.")
-
-
 @contextlib.contextmanager
 def acl_toggle_boot(config: MkosiConfig, uid: int) -> Iterator[None]:
     if not config.acl or config.output_format != OutputFormat.directory:
@@ -1927,8 +1922,8 @@ def prepend_to_environ_path(config: MkosiConfig) -> Iterator[None]:
 
 
 def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
-    if args.verb.needs_sudo():
-        check_root()
+    if args.verb.needs_root() and os.getuid() != 0:
+        die(f"Must be root to run the {args.verb} command")
 
     if args.verb == Verb.genkey:
         return generate_key_cert_pair(args)
