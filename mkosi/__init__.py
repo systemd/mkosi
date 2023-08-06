@@ -1188,7 +1188,7 @@ def run_selinux_relabel(state: MkosiState) -> None:
         die(f"SELinux binary policy not found in {binpolicydir}")
 
     with complete_step(f"Relabeling files using {policy} policy"):
-        run(["setfiles", "-mFr", state.root, "-c", binpolicy, fc, state.root], env=state.config.environment)
+        run(["setfiles", "-mFr", state.root, "-c", binpolicy, fc, state.root])
 
 
 def need_build_packages(config: MkosiConfig) -> bool:
