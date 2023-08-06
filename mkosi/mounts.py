@@ -9,11 +9,11 @@ from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import Optional, TypeVar
 
-from mkosi.config import GenericVersion
 from mkosi.log import complete_step
 from mkosi.run import run
 from mkosi.types import PathString
 from mkosi.util import umask
+from mkosi.versioncomp import GenericVersion
 
 T = TypeVar("T")
 

@@ -23,7 +23,6 @@ from mkosi.archive import extract_tar, make_cpio, make_tar
 from mkosi.config import (
     Compression,
     ConfigFeature,
-    GenericVersion,
     ManifestFormat,
     MkosiArgs,
     MkosiConfig,
@@ -56,6 +55,7 @@ from mkosi.util import (
     try_import,
     umask,
 )
+from mkosi.versioncomp import GenericVersion
 
 
 @contextlib.contextmanager
