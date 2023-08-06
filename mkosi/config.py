@@ -18,7 +18,7 @@ import string
 import subprocess
 import sys
 import textwrap
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from itertools import takewhile
 from pathlib import Path
 from typing import Any, Callable, Optional, Type, Union, cast
@@ -845,6 +845,13 @@ class MkosiConfigParser:
             parse=config_make_list_parser(delimiter=","),
             help="Repositories to use",
         ),
+        MkosiConfigSetting(
+            dest="cache_only",
+            metavar="BOOL",
+            section="Distribution",
+            parse=config_parse_boolean,
+            help="Only use the package cache when installing packages",
+        ),
 
         MkosiConfigSetting(
             dest="output_format",
@@ -873,6 +880,14 @@ class MkosiConfigParser:
             section="Output",
             parse=config_parse_filename,
             help="Output name",
+        ),
+        MkosiConfigSetting(
+            dest="compress_output",
+            metavar="ALG",
+            nargs="?",
+            section="Output",
+            parse=config_parse_compression,
+            help="Enable whole-output compression (with images or archives)",
         ),
         MkosiConfigSetting(
             dest="output_dir",
@@ -911,14 +926,6 @@ class MkosiConfigParser:
             parse=config_make_path_parser(required=False),
             paths=("mkosi.builddir",),
             help="Path to use as persistent build directory",
-        ),
-        MkosiConfigSetting(
-            dest="compress_output",
-            metavar="ALG",
-            nargs="?",
-            section="Output",
-            parse=config_parse_compression,
-            help="Enable whole-output compression (with images or archives)",
         ),
         MkosiConfigSetting(
             dest="image_version",
@@ -977,12 +984,12 @@ class MkosiConfigParser:
             help="Add an additional package to the OS image",
         ),
         MkosiConfigSetting(
-            dest="remove_packages",
-            long="--remove-package",
+            dest="build_packages",
+            long="--build-package",
             metavar="PACKAGE",
             section="Content",
             parse=config_make_list_parser(delimiter=","),
-            help="Remove package from the image OS image after installation",
+            help="Additional packages needed for build script",
         ),
         MkosiConfigSetting(
             dest="with_docs",
@@ -993,57 +1000,12 @@ class MkosiConfigParser:
             help="Install documentation",
         ),
         MkosiConfigSetting(
-            dest="with_tests",
-            short="-T",
-            long="--without-tests",
-            nargs="?",
-            const="no",
-            section="Content",
-            parse=config_parse_boolean,
-            default=True,
-            help="Do not run tests as part of build script, if supported",
-        ),
-        MkosiConfigSetting(
-            dest="kernel_command_line",
-            metavar="OPTIONS",
-            section="Content",
-            parse=config_make_list_parser(delimiter=" "),
-            default=["console=ttyS0"],
-            help="Set the kernel command line (only bootable images)",
-        ),
-        MkosiConfigSetting(
-            dest="bootable",
-            metavar="FEATURE",
-            nargs="?",
-            section="Content",
-            parse=config_parse_feature,
-            match=config_match_feature,
-            help="Generate ESP partition with systemd-boot and UKIs for installed kernels",
-        ),
-        MkosiConfigSetting(
-            dest="autologin",
-            metavar="BOOL",
-            nargs="?",
-            section="Content",
-            parse=config_parse_boolean,
-            help="Enable root autologin",
-        ),
-        MkosiConfigSetting(
             dest="base_trees",
             long='--base-tree',
             metavar='PATH',
             section="Content",
             parse=config_make_list_parser(delimiter=",", parse=make_path_parser(required=False)),
             help='Use the given tree as base tree (e.g. lower sysext layer)',
-        ),
-        MkosiConfigSetting(
-            dest="extra_trees",
-            long="--extra-tree",
-            metavar="PATH",
-            section="Content",
-            parse=config_make_list_parser(delimiter=",", parse=make_source_target_paths_parser()),
-            paths=("mkosi.extra", "mkosi.extra.tar"),
-            help="Copy an extra tree on top of image",
         ),
         MkosiConfigSetting(
             dest="skeleton_trees",
@@ -1064,11 +1026,21 @@ class MkosiConfigParser:
             help="Use a package manager tree to configure the package manager",
         ),
         MkosiConfigSetting(
-            dest="clean_package_metadata",
-            metavar="FEATURE",
+            dest="extra_trees",
+            long="--extra-tree",
+            metavar="PATH",
             section="Content",
-            parse=config_parse_feature,
-            help="Remove package manager database and other files",
+            parse=config_make_list_parser(delimiter=",", parse=make_source_target_paths_parser()),
+            paths=("mkosi.extra", "mkosi.extra.tar"),
+            help="Copy an extra tree on top of image",
+        ),
+        MkosiConfigSetting(
+            dest="remove_packages",
+            long="--remove-package",
+            metavar="PACKAGE",
+            section="Content",
+            parse=config_make_list_parser(delimiter=","),
+            help="Remove package from the image OS image after installation",
         ),
         MkosiConfigSetting(
             dest="remove_files",
@@ -1078,35 +1050,11 @@ class MkosiConfigParser:
             help="Remove files from built image",
         ),
         MkosiConfigSetting(
-            dest="environment",
-            short="-E",
-            metavar="NAME[=VALUE]",
+            dest="clean_package_metadata",
+            metavar="FEATURE",
             section="Content",
-            parse=config_make_list_parser(delimiter=" ", unescape=True),
-            help="Set an environment variable when running scripts",
-        ),
-        MkosiConfigSetting(
-            dest="build_sources",
-            metavar="PATH",
-            section="Content",
-            parse=config_make_list_parser(delimiter=",", parse=make_source_target_paths_parser(absolute=False)),
-            help="Path for sources to build",
-        ),
-        MkosiConfigSetting(
-            dest="build_packages",
-            long="--build-package",
-            metavar="PACKAGE",
-            section="Content",
-            parse=config_make_list_parser(delimiter=","),
-            help="Additional packages needed for build script",
-        ),
-        MkosiConfigSetting(
-            dest="build_script",
-            metavar="PATH",
-            section="Content",
-            parse=config_parse_script,
-            paths=("mkosi.build",),
-            help="Build script to run inside image",
+            parse=config_parse_feature,
+            help="Remove package manager database and other files",
         ),
         MkosiConfigSetting(
             dest="prepare_script",
@@ -1115,6 +1063,14 @@ class MkosiConfigParser:
             parse=config_parse_script,
             paths=("mkosi.prepare",),
             help="Prepare script to run inside the image before it is cached",
+        ),
+        MkosiConfigSetting(
+            dest="build_script",
+            metavar="PATH",
+            section="Content",
+            parse=config_parse_script,
+            paths=("mkosi.build",),
+            help="Build script to run inside image",
         ),
         MkosiConfigSetting(
             dest="postinst_script",
@@ -1134,6 +1090,32 @@ class MkosiConfigParser:
             help="Postinstall script to run outside image",
         ),
         MkosiConfigSetting(
+            dest="build_sources",
+            metavar="PATH",
+            section="Content",
+            parse=config_make_list_parser(delimiter=",", parse=make_source_target_paths_parser(absolute=False)),
+            help="Path for sources to build",
+        ),
+        MkosiConfigSetting(
+            dest="environment",
+            short="-E",
+            metavar="NAME[=VALUE]",
+            section="Content",
+            parse=config_make_list_parser(delimiter=" ", unescape=True),
+            help="Set an environment variable when running scripts",
+        ),
+        MkosiConfigSetting(
+            dest="with_tests",
+            short="-T",
+            long="--without-tests",
+            nargs="?",
+            const="no",
+            section="Content",
+            parse=config_parse_boolean,
+            default=True,
+            help="Do not run tests as part of build script, if supported",
+        ),
+        MkosiConfigSetting(
             dest="with_network",
             metavar="BOOL",
             nargs="?",
@@ -1142,11 +1124,13 @@ class MkosiConfigParser:
             help="Run build and postinst scripts with network access (instead of private network)",
         ),
         MkosiConfigSetting(
-            dest="cache_only",
-            metavar="BOOL",
+            dest="bootable",
+            metavar="FEATURE",
+            nargs="?",
             section="Content",
-            parse=config_parse_boolean,
-            help="Only use the package cache when installing packages",
+            parse=config_parse_feature,
+            match=config_match_feature,
+            help="Generate ESP partition with systemd-boot and UKIs for installed kernels",
         ),
         MkosiConfigSetting(
             dest="initrds",
@@ -1157,12 +1141,12 @@ class MkosiConfigParser:
             help="Add a user-provided initrd to image",
         ),
         MkosiConfigSetting(
-            dest="make_initrd",
-            metavar="BOOL",
-            nargs="?",
+            dest="kernel_command_line",
+            metavar="OPTIONS",
             section="Content",
-            parse=config_parse_boolean,
-            help="Make sure the image can be used as an initramfs",
+            parse=config_make_list_parser(delimiter=" "),
+            default=["console=ttyS0"],
+            help="Set the kernel command line (only bootable images)",
         ),
         MkosiConfigSetting(
             dest="kernel_modules_include",
@@ -1251,6 +1235,30 @@ class MkosiConfigParser:
             section="Content",
             parse=config_parse_string,
             help="Set the shell for root",
+        ),
+        MkosiConfigSetting(
+            dest="autologin",
+            metavar="BOOL",
+            nargs="?",
+            section="Content",
+            parse=config_parse_boolean,
+            help="Enable root autologin",
+        ),
+        MkosiConfigSetting(
+            dest="make_initrd",
+            metavar="BOOL",
+            nargs="?",
+            section="Content",
+            parse=config_parse_boolean,
+            help="Make sure the image can be used as an initramfs",
+        ),
+        MkosiConfigSetting(
+            dest="ssh",
+            metavar="BOOL",
+            nargs="?",
+            section="Content",
+            parse=config_parse_boolean,
+            help="Set up SSH access from the host to the final image via 'mkosi ssh'",
         ),
 
         MkosiConfigSetting(
@@ -1429,14 +1437,6 @@ class MkosiConfigParser:
             help=('If specified, the container/VM is run with a temporary snapshot of the output '
                   'image that is removed immediately when the container/VM terminates'),
             nargs="?",
-        ),
-        MkosiConfigSetting(
-            dest="ssh",
-            metavar="BOOL",
-            nargs="?",
-            section="Host",
-            parse=config_parse_boolean,
-            help="Set up SSH access from the host to the final image via 'mkosi ssh'",
         ),
         MkosiConfigSetting(
             dest="credentials",
@@ -2197,7 +2197,7 @@ def none_to_default(s: Optional[object]) -> str:
     return "default" if s is None else str(s)
 
 
-def line_join_list(array: Sequence[PathString]) -> str:
+def line_join_list(array: Iterable[PathString]) -> str:
     if not array:
         return "none"
 
@@ -2229,55 +2229,68 @@ def summary(args: MkosiArgs, config: MkosiConfig) -> str:
 {bold(f"PRESET: {config.preset or 'default'}")}
 
     {bold("COMMANDS")}:
-                          verb: {bold(args.verb)}
-                       cmdline: {bold(" ".join(args.cmdline))}
+                          Verb: {bold(args.verb)}
+                       Cmdline: {bold(" ".join(args.cmdline))}
 
     {bold("DISTRIBUTION")}:
-                  Distribution: {bold(config.distribution.name)}
+                  Distribution: {bold(config.distribution)}
                        Release: {bold(none_to_na(config.release))}
                   Architecture: {config.architecture}
                         Mirror: {none_to_default(config.mirror)}
           Local Mirror (build): {none_to_none(config.local_mirror)}
       Repo Signature/Key check: {yes_no(config.repository_key_check)}
-                  Repositories: {",".join(config.repositories)}
+                  Repositories: {line_join_list(config.repositories)}
+        Use Only Package Cache: {yes_no(config.cache_only)}
 
     {bold("OUTPUT")}:
-                      Image ID: {config.image_id}
-                 Image Version: {config.image_version}
-                 Output Format: {config.output_format.name}
+                 Output Format: {config.output_format}
               Manifest Formats: {maniformats}
+                        Output: {bold(config.output_with_compression)}
+                   Compression: {config.compress_output}
               Output Directory: {none_to_default(config.output_dir)}
            Workspace Directory: {none_to_default(config.workspace_dir)}
                Cache Directory: {none_to_none(config.cache_dir)}
                Build Directory: {none_to_none(config.build_dir)}
+                      Image ID: {config.image_id}
+                 Image Version: {config.image_version}
+               Split Artifacts: {yes_no(config.split_artifacts)}
             Repart Directories: {line_join_list(config.repart_dirs)}
-                        Output: {bold(config.output_with_compression)}
-               Output Checksum: {none_to_na(config.output_checksum if config.checksum else None)}
-              Output Signature: {none_to_na(config.output_signature if config.sign else None)}
-        Output nspawn Settings: {none_to_na(config.output_nspawn_settings if config.nspawn_settings is not None else None)}
-                   Compression: {config.compress_output.name}
+                       Overlay: {yes_no(config.overlay)}
+                Use Subvolumes: {yes_no_auto(config.use_subvolumes)}
 
     {bold("CONTENT")}:
                       Packages: {line_join_list(config.packages)}
+                Build Packages: {line_join_list(config.build_packages)}
             With Documentation: {yes_no(config.with_docs)}
+
+                    Base Trees: {line_join_list(config.base_trees)}
                 Skeleton Trees: {line_join_source_target_list(config.skeleton_trees)}
          Package Manager Trees: {line_join_source_target_list(config.package_manager_trees)}
                    Extra Trees: {line_join_source_target_list(config.extra_trees)}
-        Clean Package Metadata: {yes_no_auto(config.clean_package_metadata)}
-                  Remove Files: {line_join_list(config.remove_files)}
+
                Remove Packages: {line_join_list(config.remove_packages)}
-                 Build Sources: {line_join_source_target_list(config.build_sources)}
-                Build Packages: {line_join_list(config.build_packages)}
-                  Build Script: {none_to_none(config.build_script)}
-     Run Tests in Build Script: {yes_no(config.with_tests)}
-            Postinstall Script: {none_to_none(config.postinst_script)}
+                  Remove Files: {line_join_list(config.remove_files)}
+Clean Package Manager Metadata: {yes_no_auto(config.clean_package_metadata)}
+
                 Prepare Script: {none_to_none(config.prepare_script)}
+                  Build Script: {none_to_none(config.build_script)}
+            Postinstall Script: {none_to_none(config.postinst_script)}
                Finalize Script: {none_to_none(config.finalize_script)}
+                 Build Sources: {line_join_source_target_list(config.build_sources)}
             Script Environment: {line_join_list(env)}
-          Scripts with network: {yes_no(config.with_network)}
+     Run Tests in Build Script: {yes_no(config.with_tests)}
+          Scripts With Network: {yes_no(config.with_network)}
+
                       Bootable: {yes_no_auto(config.bootable)}
-           Kernel Command Line: {" ".join(config.kernel_command_line)}
-                       Initrds: {",".join(os.fspath(p) for p in config.initrds)}
+                       Initrds: {line_join_list(config.initrds)}
+           Kernel Command Line: {line_join_list(config.kernel_command_line)}
+        Kernel Modules Include: {line_join_list(config.kernel_modules_include)}
+        Kernel Modules Exclude: {line_join_list(config.kernel_modules_exclude)}
+
+         Kernel Modules Initrd: {yes_no(config.kernel_modules_initrd)}
+ Kernel Modules Initrd Include: {line_join_list(config.kernel_modules_initrd_include)}
+ Kernel Modules Initrd Exclude: {line_join_list(config.kernel_modules_initrd_include)}
+
                         Locale: {none_to_default(config.locale)}
                Locale Messages: {none_to_default(config.locale_messages)}
                         Keymap: {none_to_default(config.keymap)}
@@ -2285,14 +2298,10 @@ def summary(args: MkosiArgs, config: MkosiConfig) -> str:
                       Hostname: {none_to_default(config.hostname)}
                  Root Password: {("(set)" if config.root_password else "(default)")}
                     Root Shell: {none_to_default(config.root_shell)}
-                     Autologin: {yes_no(config.autologin)}
 
-    {bold("HOST CONFIGURATION")}:
-                   Incremental: {yes_no(config.incremental)}
-               NSpawn Settings: {none_to_none(config.nspawn_settings)}
-            Extra search paths: {line_join_list(config.extra_search_paths)}
-          QEMU Extra Arguments: {line_join_list(config.qemu_args)}
-     Extra Kernel Command Line: {line_join_list(config.kernel_command_line_extra)}
+                     Autologin: {yes_no(config.autologin)}
+                   Make Initrd: {yes_no(config.make_initrd)}
+                           SSH: {yes_no(config.ssh)}
 """
 
     if config.output_format == OutputFormat.disk:
@@ -2305,9 +2314,31 @@ def summary(args: MkosiArgs, config: MkosiConfig) -> str:
           SecureBoot Sign Tool: {config.secure_boot_sign_tool}
             Verity Signing Key: {none_to_none(config.verity_key)}
             Verity Certificate: {none_to_none(config.verity_certificate)}
+            Sign Expected PCRs: {yes_no_auto(config.sign_expected_pcr)}
+                    Passphrase: {none_to_none(config.passphrase)}
                       Checksum: {yes_no(config.checksum)}
                           Sign: {yes_no(config.sign)}
                        GPG Key: ({"default" if config.key is None else config.key})
+"""
+
+    summary += f"""\
+
+    {bold("HOST CONFIGURATION")}:
+                   Incremental: {yes_no(config.incremental)}
+               NSpawn Settings: {none_to_none(config.nspawn_settings)}
+            Extra search paths: {line_join_list(config.extra_search_paths)}
+                      QEMU GUI: {yes_no(config.qemu_gui)}
+                QEMU CPU Cores: {config.qemu_smp}
+                   QEMU Memory: {config.qemu_mem}
+                  QEMU Use KVM: {config.qemu_kvm}
+                QEMU Use VSock: {config.qemu_vsock}
+                QEMU Use Swtpm: {config.qemu_swtpm}
+          QEMU Extra Arguments: {line_join_list(config.qemu_args)}
+                     Ephemeral: {config.ephemeral}
+                   Credentials: {line_join_list(config.credentials.keys())}
+     Extra Kernel Command Line: {line_join_list(config.kernel_command_line_extra)}
+                      Use ACLs: {config.acl}
+                    Tools Tree: {config.tools_tree}
 """
 
     return summary
