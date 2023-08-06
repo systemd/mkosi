@@ -1348,10 +1348,12 @@ def finalize_staging(state: MkosiState) -> None:
 
 def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
     manifest = Manifest(config)
+    workspace = tempfile.TemporaryDirectory(dir=config.workspace_dir or Path.cwd(), prefix=".mkosi-tmp")
 
     # Make sure tmpfiles' aging doesn't interfere with our workspace
     # while we are working on it.
-    with MkosiState(args, config) as state, scopedenv({"TMPDIR" : str(state.workspace)}):
+    with workspace, scopedenv({"TMPDIR" : workspace.name}):
+        state = MkosiState(args, config, Path(workspace.name))
         install_package_manager_trees(state)
 
         with mount_image(state):
