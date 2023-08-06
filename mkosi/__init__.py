@@ -41,7 +41,7 @@ from mkosi.log import complete_step, die, log_step
 from mkosi.manifest import Manifest
 from mkosi.mounts import mount_overlay, mount_passwd, mount_tools
 from mkosi.pager import page
-from mkosi.qemu import copy_ephemeral, machine_cid, run_qemu
+from mkosi.qemu import copy_ephemeral, run_qemu, run_ssh
 from mkosi.run import become_root, bwrap, chroot_cmd, init_mount_namespace, run
 from mkosi.state import MkosiState
 from mkosi.tree import copy_tree, install_tree, move_tree, rmtree
@@ -1577,22 +1577,6 @@ def run_shell(args: MkosiArgs, config: MkosiConfig) -> None:
             cmdline += args.cmdline
 
         run(cmdline, stdin=sys.stdin, stdout=sys.stdout, env=os.environ, log=False)
-
-
-def run_ssh(args: MkosiArgs, config: MkosiConfig) -> None:
-    cmd = [
-        "ssh",
-        # Silence known hosts file errors/warnings.
-        "-o", "UserKnownHostsFile=/dev/null",
-        "-o", "StrictHostKeyChecking=no",
-        "-o", "LogLevel=ERROR",
-        "-o", f"ProxyCommand=socat - VSOCK-CONNECT:{machine_cid(config)}:%p",
-        "root@mkosi",
-    ]
-
-    cmd += args.cmdline
-
-    run(cmd, stdin=sys.stdin, stdout=sys.stdout, env=os.environ, log=False)
 
 
 def run_serve(config: MkosiConfig) -> None:
