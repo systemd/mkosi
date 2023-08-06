@@ -2157,9 +2157,6 @@ def load_config(args: argparse.Namespace) -> MkosiConfig:
     ):
         die("Sorry, the --repositories option is only supported on pacman, dnf and apt based distributions")
 
-    if args.initrds:
-        args.initrds = [p.absolute() for p in args.initrds]
-
     if args.overlay and not args.base_trees:
         die("--overlay can only be used with --base-tree")
 
