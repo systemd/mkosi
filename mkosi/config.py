@@ -682,7 +682,7 @@ class MkosiConfig:
     ephemeral: bool
     ssh: bool
     credentials: dict[str, str]
-    workspace_dir: Optional[Path]
+    workspace_dir: Path
     initrds: list[Path]
     make_initrd: bool
     kernel_modules_include: list[str]
@@ -903,7 +903,7 @@ class MkosiConfigParser:
             section="Output",
             parse=config_make_path_parser(required=False),
             paths=("mkosi.output",),
-            default=Path("."),
+            default=Path.cwd(),
             help="Output directory",
         ),
         MkosiConfigSetting(
@@ -913,6 +913,7 @@ class MkosiConfigParser:
             section="Output",
             parse=config_make_path_parser(required=False),
             paths=("mkosi.workspace",),
+            default=Path.cwd(),
             help="Workspace directory",
         ),
         MkosiConfigSetting(

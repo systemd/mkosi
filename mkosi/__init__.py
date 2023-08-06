@@ -626,8 +626,8 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                 *(["--compress-output", str(state.config.compress_output)] if state.config.compress_output else []),
                 "--with-network", str(state.config.with_network),
                 "--cache-only", str(state.config.cache_only),
-                *(["--output-dir", str(state.config.output_dir)] if state.config.output_dir else []),
-                *(["--workspace-dir", str(state.config.workspace_dir)] if state.config.workspace_dir else []),
+                "--output-dir", str(state.config.output_dir),
+                "--workspace-dir", str(state.config.workspace_dir),
                 "--cache-dir", str(state.cache_dir.parent),
                 *(["--local-mirror", str(state.config.local_mirror)] if state.config.local_mirror else []),
                 "--incremental", str(state.config.incremental),
@@ -1348,7 +1348,7 @@ def finalize_staging(state: MkosiState) -> None:
 
 def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
     manifest = Manifest(config)
-    workspace = tempfile.TemporaryDirectory(dir=config.workspace_dir or Path.cwd(), prefix=".mkosi-tmp")
+    workspace = tempfile.TemporaryDirectory(dir=config.workspace_dir, prefix=".mkosi-tmp")
 
     # Make sure tmpfiles' aging doesn't interfere with our workspace
     # while we are working on it.
