@@ -1565,8 +1565,8 @@ class MkosiConfigParser:
         if extras:
             # Dropin configuration has priority over any default paths.
 
-            if path.parent.joinpath("mkosi.conf.d").exists():
-                for p in sorted(path.parent.joinpath("mkosi.conf.d").iterdir()):
+            if (path.parent / "mkosi.conf.d").exists():
+                for p in sorted((path.parent / "mkosi.conf.d").iterdir()):
                     if p.is_dir() or p.suffix == ".conf":
                         with chdir(p if p.is_dir() else Path.cwd()):
                             self.parse_config(p if p.is_file() else Path("."), namespace)

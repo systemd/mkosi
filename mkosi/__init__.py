@@ -70,7 +70,7 @@ def mount_image(state: MkosiState) -> Iterator[None]:
 
         if state.config.base_trees and state.config.overlay:
             bases = []
-            state.workspace.joinpath("bases").mkdir(exist_ok=True)
+            (state.workspace / "bases").mkdir(exist_ok=True)
 
             for path in state.config.base_trees:
                 d = Path(stack.enter_context(tempfile.TemporaryDirectory(dir=state.workspace / "bases", prefix=path.name)))
@@ -613,11 +613,11 @@ def make_directory(state: MkosiState) -> None:
 
 
 def gen_kernel_images(state: MkosiState) -> Iterator[tuple[str, Path]]:
-    if not state.root.joinpath("usr/lib/modules").exists():
+    if not (state.root / "usr/lib/modules").exists():
         return
 
     for kver in sorted(
-        (k for k in state.root.joinpath("usr/lib/modules").iterdir() if k.is_dir()),
+        (k for k in (state.root / "usr/lib/modules").iterdir() if k.is_dir()),
         key=lambda k: GenericVersion(k.name),
         reverse=True
     ):
@@ -854,8 +854,8 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
 
             # See https://systemd.io/AUTOMATIC_BOOT_ASSESSMENT/#boot-counting
             boot_count = ""
-            if state.root.joinpath("etc/kernel/tries").exists():
-                boot_count = f'+{state.root.joinpath("etc/kernel/tries").read_text().strip()}'
+            if (state.root / "etc/kernel/tries").exists():
+                boot_count = f'+{(state.root / "etc/kernel/tries").read_text().strip()}'
 
             if state.config.image_version:
                 boot_binary = state.root / f"efi/EFI/Linux/{image_id}_{state.config.image_version}-{kver}{boot_count}.efi"
@@ -865,10 +865,10 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
             else:
                 boot_binary = state.root / f"efi/EFI/Linux/{image_id}-{kver}{boot_count}.efi"
 
-            if state.root.joinpath("etc/kernel/cmdline").exists():
-                cmdline = [state.root.joinpath("etc/kernel/cmdline").read_text().strip()]
-            elif state.root.joinpath("usr/lib/kernel/cmdline").exists():
-                cmdline = [state.root.joinpath("usr/lib/kernel/cmdline").read_text().strip()]
+            if (state.root / "etc/kernel/cmdline").exists():
+                cmdline = [(state.root / "etc/kernel/cmdline").read_text().strip()]
+            elif (state.root / "usr/lib/kernel/cmdline").exists():
+                cmdline = [(state.root / "usr/lib/kernel/cmdline").read_text().strip()]
             else:
                 cmdline = []
 
@@ -879,7 +879,7 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
 
             # Older versions of systemd-stub expect the cmdline section to be null terminated. We can't embed
             # nul terminators in argv so let's communicate the cmdline via a file instead.
-            state.workspace.joinpath("cmdline").write_text(f"{' '.join(cmdline).strip()}\x00")
+            (state.workspace / "cmdline").write_text(f"{' '.join(cmdline).strip()}\x00")
 
             stub = state.root / f"usr/lib/systemd/boot/efi/linux{state.config.architecture.to_efi()}.efi.stub"
             if not stub.exists():
@@ -945,12 +945,12 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
 
             run(cmd)
 
-            if not state.staging.joinpath(state.config.output_split_uki).exists():
+            if not (state.staging / state.config.output_split_uki).exists():
                 shutil.copy(boot_binary, state.staging / state.config.output_split_uki)
 
             print_output_size(boot_binary)
 
-    if state.config.bootable == ConfigFeature.enabled and not state.staging.joinpath(state.config.output_split_uki).exists():
+    if state.config.bootable == ConfigFeature.enabled and not (state.staging / state.config.output_split_uki).exists():
         die("A bootable image was requested but no kernel was found")
 
 
@@ -1015,7 +1015,7 @@ def calculate_sha256sum(state: MkosiState) -> None:
             for p in state.staging.iterdir():
                 hash_file(f, p)
 
-        state.workspace.joinpath(state.config.output_checksum).rename(state.staging / state.config.output_checksum)
+        (state.workspace / state.config.output_checksum).rename(state.staging / state.config.output_checksum)
 
 
 def calculate_signature(state: MkosiState) -> None:
@@ -1043,9 +1043,9 @@ def calculate_signature(state: MkosiState) -> None:
                 # if possible and fallback to the default path. Without this the
                 # keyring for the root user will instead be used which will fail
                 # for a non-root build.
-                'GNUPGHOME': os.environ.get(
-                    'GNUPGHOME',
-                    os.fspath((Path(os.environ['HOME']).joinpath('.gnupg'))),
+                "GNUPGHOME": os.environ.get(
+                    "GNUPGHOME",
+                    os.fspath(((Path(os.environ["HOME"]) / ".gnupg"))),
                 )
             },
         )
@@ -1187,7 +1187,7 @@ def check_outputs(config: MkosiConfig) -> None:
         config.output_signature if config.sign else None,
         config.output_nspawn_settings if config.nspawn_settings is not None else None,
     ):
-        if f and config.output_dir.joinpath(f).exists():
+        if f and (config.output_dir / f).exists():
             die(f"Output path {f} exists already. (Consider invocation with --force.)")
 
 
@@ -1239,14 +1239,14 @@ def configure_ssh(state: MkosiState) -> None:
 
 
 def configure_initrd(state: MkosiState) -> None:
-    if not state.root.joinpath("init").exists() and state.root.joinpath("usr/lib/systemd/systemd").exists():
-        state.root.joinpath("init").symlink_to("/usr/lib/systemd/systemd")
+    if not (state.root / "init").exists() and (state.root / "usr/lib/systemd/systemd").exists():
+        (state.root / "init").symlink_to("/usr/lib/systemd/systemd")
 
     if not state.config.make_initrd:
         return
 
-    if not state.root.joinpath("etc/initrd-release").exists():
-        state.root.joinpath("etc/initrd-release").symlink_to("/etc/os-release")
+    if not (state.root / "etc/initrd-release").exists():
+        (state.root / "etc/initrd-release").symlink_to("/etc/os-release")
 
 
 def process_kernel_modules(state: MkosiState, kver: str) -> None:
@@ -1404,7 +1404,7 @@ def save_cache(state: MkosiState) -> None:
 
         # We only use the cache-overlay directory for caching if we have a base tree, otherwise we just
         # cache the root directory.
-        if state.workspace.joinpath("cache-overlay").exists():
+        if (state.workspace / "cache-overlay").exists():
             move_tree(state.config, state.workspace / "cache-overlay", final)
         else:
             move_tree(state.config, state.root, final)
@@ -1434,7 +1434,7 @@ def reuse_cache(state: MkosiState) -> bool:
     with complete_step("Copying cached trees"):
         copy_tree(state.config, final, state.root)
         if need_build_packages(state.config):
-            state.workspace.joinpath("build-overlay").symlink_to(build)
+            (state.workspace / "build-overlay").symlink_to(build)
 
     return True
 
@@ -1457,7 +1457,7 @@ def make_image(state: MkosiState, skip: Sequence[str] = [], split: bool = False)
 
     if not state.config.architecture.is_native():
         cmdline += ["--architecture", str(state.config.architecture)]
-    if not state.staging.joinpath(state.config.output_with_format).exists():
+    if not (state.staging / state.config.output_with_format).exists():
         cmdline += ["--empty=create"]
     if state.config.passphrase:
         cmdline += ["--key-file", state.config.passphrase]
@@ -1477,7 +1477,7 @@ def make_image(state: MkosiState, skip: Sequence[str] = [], split: bool = False)
         definitions = state.workspace / "repart-definitions"
         if not definitions.exists():
             definitions.mkdir()
-            bootdir = state.root.joinpath("efi/EFI/BOOT")
+            bootdir = state.root / "efi/EFI/BOOT"
 
             # If Bootable=auto and we have at least one UKI and a bootloader, let's generate an ESP partition.
             add = (state.config.bootable == ConfigFeature.enabled or
@@ -1487,7 +1487,7 @@ def make_image(state: MkosiState, skip: Sequence[str] = [], split: bool = False)
                    any(gen_kernel_images(state))))
 
             if add:
-                definitions.joinpath("00-esp.conf").write_text(
+                (definitions / "00-esp.conf").write_text(
                     dedent(
                         """\
                         [Partition]
@@ -1500,7 +1500,7 @@ def make_image(state: MkosiState, skip: Sequence[str] = [], split: bool = False)
                     )
                 )
 
-            definitions.joinpath("10-root.conf").write_text(
+            (definitions / "10-root.conf").write_text(
                 dedent(
                     f"""\
                     [Partition]
@@ -1633,7 +1633,7 @@ def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
 
         finalize_staging(state)
 
-        output_base = state.config.output_dir.joinpath(state.config.output)
+        output_base = state.config.output_dir / state.config.output
         if not output_base.exists() or output_base.is_symlink():
             output_base.unlink(missing_ok=True)
             output_base.symlink_to(state.config.output_with_compression)
@@ -1866,7 +1866,7 @@ def expand_specifier(s: str) -> str:
 
 
 def needs_build(args: MkosiArgs, config: MkosiConfig) -> bool:
-    return args.verb.needs_build() and (args.force > 0 or not config.output_dir.joinpath(config.output_with_compression).exists())
+    return args.verb.needs_build() and (args.force > 0 or not (config.output_dir / config.output_with_compression).exists())
 
 
 @contextlib.contextmanager
@@ -1879,7 +1879,7 @@ def prepend_to_environ_path(config: MkosiConfig) -> Iterator[None]:
 
         for path in config.extra_search_paths:
             if not path.is_dir():
-                Path(d).joinpath(path.name).symlink_to(path.absolute())
+                (Path(d) / path.name).symlink_to(path.absolute())
 
         news = [os.fspath(path) for path in [Path(d), *config.extra_search_paths] if path.is_dir()]
         olds = os.getenv("PATH", "").split(":")

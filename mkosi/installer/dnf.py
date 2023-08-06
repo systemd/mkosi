@@ -28,9 +28,9 @@ def dnf_executable(state: MkosiState) -> str:
 
 
 def setup_dnf(state: MkosiState, repos: Sequence[Repo], filelists: bool = True) -> None:
-    state.pkgmngr.joinpath("etc/dnf/vars").mkdir(exist_ok=True, parents=True)
-    state.pkgmngr.joinpath("etc/yum.repos.d").mkdir(exist_ok=True, parents=True)
-    state.pkgmngr.joinpath("var/lib/dnf").mkdir(exist_ok=True, parents=True)
+    (state.pkgmngr / "etc/dnf/vars").mkdir(exist_ok=True, parents=True)
+    (state.pkgmngr / "etc/yum.repos.d").mkdir(exist_ok=True, parents=True)
+    (state.pkgmngr / "var/lib/dnf").mkdir(exist_ok=True, parents=True)
 
     config = state.pkgmngr / "etc/dnf/dnf.conf"
 
