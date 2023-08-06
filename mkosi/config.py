@@ -161,7 +161,7 @@ def make_source_target_paths_parser(absolute: bool = True) -> Callable[[str], tu
         src, sep, target = value.partition(':')
         src_path = parse_path(src, required=False)
         if sep:
-            target_path = parse_path(target, required=False, absolute=False, expanduser=False)
+            target_path = parse_path(target, required=False, absolute=False, resolve=False, expanduser=False)
             if absolute and not target_path.is_absolute():
                 die("Target path must be absolute")
         else:
@@ -1579,7 +1579,15 @@ class MkosiConfigParser:
 
             for s in self.SETTINGS:
                 for f in s.paths:
-                    p = parse_path(f, secret=s.path_secret, required=False, absolute=False, expanduser=False, expandvars=False)
+                    p = parse_path(
+                        f,
+                        secret=s.path_secret,
+                        required=False,
+                        absolute=False,
+                        resolve=False,
+                        expanduser=False,
+                        expandvars=False,
+                    )
                     if p.exists():
                         setattr(namespace, s.dest,
                                 s.parse(s.dest, p.read_text() if s.path_read_text else f, namespace))
