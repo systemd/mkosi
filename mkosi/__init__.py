@@ -20,6 +20,7 @@ from pathlib import Path
 from textwrap import dedent
 from typing import ContextManager, Optional, TextIO, Union, cast
 
+from mkosi.archive import extract_tar, make_cpio, make_tar
 from mkosi.config import (
     Compression,
     ConfigFeature,
@@ -43,14 +44,7 @@ from mkosi.pager import page
 from mkosi.qemu import copy_ephemeral, machine_cid, run_qemu
 from mkosi.run import become_root, bwrap, chroot_cmd, init_mount_namespace, run
 from mkosi.state import MkosiState
-from mkosi.tree import (
-    archive_tree,
-    copy_tree,
-    extract_tree,
-    install_tree,
-    move_tree,
-    rmtree,
-)
+from mkosi.tree import copy_tree, install_tree, move_tree, rmtree
 from mkosi.types import PathString
 from mkosi.util import (
     InvokingUser,
@@ -79,7 +73,7 @@ def mount_image(state: MkosiState) -> Iterator[None]:
                 if path.is_dir():
                     bases += [path]
                 elif path.suffix == ".tar":
-                    extract_tree(path, d)
+                    extract_tar(path, d)
                     bases += [d]
                 elif path.suffix == ".raw":
                     run(["systemd-dissect", "-M", path, d])
@@ -576,42 +570,6 @@ def gzip_binary() -> str:
     return "pigz" if shutil.which("pigz") else "gzip"
 
 
-def make_tar(state: MkosiState) -> None:
-    if state.config.output_format != OutputFormat.tar:
-        return
-
-    with complete_step("Creating archive…"):
-        archive_tree(state.root, state.staging / state.config.output_with_format)
-
-
-def make_initrd(state: MkosiState) -> None:
-    if state.config.output_format != OutputFormat.cpio:
-        return
-
-    make_cpio(state.root, state.root.rglob("*"), state.staging / state.config.output_with_format)
-
-
-def make_cpio(root: Path, files: Iterator[Path], output: Path) -> None:
-    with complete_step(f"Creating cpio {output}…"):
-        run([
-            "cpio",
-            "-o",
-            "--reproducible",
-            "--null",
-            "-H", "newc",
-            "--quiet",
-            "-D", root,
-            "-O", output,
-        ], input="\0".join(os.fspath(f.relative_to(root)) for f in files))
-
-
-def make_directory(state: MkosiState) -> None:
-    if state.config.output_format != OutputFormat.directory:
-        return
-
-    state.root.rename(state.staging / state.config.output_with_format)
-
-
 def gen_kernel_images(state: MkosiState) -> Iterator[tuple[str, Path]]:
     if not (state.root / "usr/lib/modules").exists():
         return
@@ -759,7 +717,7 @@ def gen_kernel_modules_initrd(state: MkosiState, kver: str) -> Path:
                 for p in (state.root / modulesd / "vdso").iterdir():
                     yield p
 
-        make_cpio(state.root, files(), kmods)
+        make_cpio(state.root, kmods, files())
 
         # Debian/Ubuntu do not compress their kernel modules, so we compress the initramfs instead. Note that
         # this is not ideal since the compressed kernel modules will all be decompressed on boot which
@@ -1618,9 +1576,12 @@ def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
         for p in split_paths:
             maybe_compress(state.config, state.config.compress_output, p)
 
-        make_tar(state)
-        make_initrd(state)
-        make_directory(state)
+        if state.config.output_format == OutputFormat.tar:
+            make_tar(state.root, state.staging / state.config.output_with_format)
+        elif state.config.output_format == OutputFormat.cpio:
+            make_cpio(state.root, state.staging / state.config.output_with_format)
+        elif state.config.output_format == OutputFormat.directory:
+            state.root.rename(state.staging / state.config.output_with_format)
 
         maybe_compress(state.config, state.config.compress_output,
                        state.staging / state.config.output_with_format,
