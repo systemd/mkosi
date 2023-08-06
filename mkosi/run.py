@@ -18,7 +18,7 @@ import textwrap
 import threading
 from pathlib import Path
 from types import TracebackType
-from typing import Any, Awaitable, Mapping, Optional, Sequence, Tuple, Type, TypeVar
+from typing import Any, Awaitable, Mapping, Optional, Sequence, Tuple, Type
 
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, die
 from mkosi.types import _FILE, CompletedProcess, PathString, Popen
@@ -28,8 +28,6 @@ CLONE_NEWNS = 0x00020000
 CLONE_NEWUSER = 0x10000000
 
 SUBRANGE = 65536
-
-T = TypeVar("T")
 
 
 def unshare(flags: int) -> None:

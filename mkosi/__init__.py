@@ -17,13 +17,12 @@ import uuid
 from collections.abc import Iterator, Sequence
 from pathlib import Path
 from textwrap import dedent
-from typing import ContextManager, Optional, TextIO, Union, cast
+from typing import ContextManager, Optional, TextIO, Union
 
 from mkosi.archive import extract_tar, make_cpio, make_tar
 from mkosi.config import (
     Compression,
     ConfigFeature,
-    GenericVersion,
     ManifestFormat,
     MkosiArgs,
     MkosiConfig,
@@ -39,7 +38,7 @@ from mkosi.installer import clean_package_manager_metadata, package_manager_scri
 from mkosi.kmod import gen_required_kernel_modules, process_kernel_modules
 from mkosi.log import complete_step, die, log_step
 from mkosi.manifest import Manifest
-from mkosi.mounts import mount_overlay, mount_passwd, mount_tools
+from mkosi.mounts import mount_overlay, mount_passwd, mount_usr
 from mkosi.pager import page
 from mkosi.qemu import copy_ephemeral, run_qemu, run_ssh
 from mkosi.run import become_root, bwrap, chroot_cmd, init_mount_namespace, run
@@ -56,6 +55,7 @@ from mkosi.util import (
     try_import,
     umask,
 )
+from mkosi.versioncomp import GenericVersion
 
 
 @contextlib.contextmanager
@@ -397,7 +397,7 @@ def certificate_common_name(certificate: Path) -> str:
         if not sep:
             die("Missing '=' delimiter in openssl output")
 
-        return cast(str, value.strip())
+        return value.strip()
 
     die(f"Certificate {certificate} is missing Common Name")
 
@@ -559,7 +559,7 @@ def install_extra_trees(state: MkosiState) -> None:
 
 
 def install_build_dest(state: MkosiState) -> None:
-    if state.config.build_script is None:
+    if not any(state.install_dir.iterdir()):
         return
 
     with complete_step("Copying in build tree…"):
@@ -1758,7 +1758,7 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
             continue
 
         with complete_step(f"Building {config.preset or 'default'} image"),\
-            mount_tools(config),\
+            mount_usr(config.tools_tree),\
             prepend_to_environ_path(config):
 
             # Create these as the invoking user to make sure they're owned by the user running mkosi.
@@ -1790,7 +1790,7 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
     # We want to drop privileges after mounting the last tools tree, but to unmount it we still need
     # privileges. To avoid a permission error, let's not unmount the final tools tree, since we'll exit
     # right after (and we're in a mount namespace so the /usr mount disappears when we exit)
-    with mount_tools(last, umount=False), mount_passwd(name, uid, gid, umount=False):
+    with mount_usr(last.tools_tree, umount=False), mount_passwd(name, uid, gid, umount=False):
 
         # After mounting the last tools tree, if we're not going to execute systemd-nspawn, we don't need to
         # be (fake) root anymore, so switch user to the invoking user.

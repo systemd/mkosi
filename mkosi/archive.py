@@ -42,8 +42,9 @@ def make_tar(src: Path, dst: Path) -> None:
     )
 
 
-def extract_tar(src: Path, dst: Path) -> None:
-    log_step(f"Extracting tar archive {src}…")
+def extract_tar(src: Path, dst: Path, log: bool = True) -> None:
+    if log:
+        log_step(f"Extracting tar archive {src}…")
     bwrap(
         [
             tar_binary(),

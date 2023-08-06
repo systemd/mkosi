@@ -4,7 +4,7 @@ import errno
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Optional, Sequence, cast
+from typing import Optional
 
 from mkosi.archive import extract_tar
 from mkosi.config import ConfigFeature, MkosiConfig
@@ -15,8 +15,7 @@ from mkosi.util import umask
 
 
 def statfs(path: Path) -> str:
-    return cast(str, run(["stat", "--file-system", "--format", "%T", path],
-                         stdout=subprocess.PIPE).stdout.strip())
+    return run(["stat", "--file-system", "--format", "%T", path], stdout=subprocess.PIPE).stdout.strip()
 
 
 def is_subvolume(path: Path) -> bool:
@@ -51,14 +50,19 @@ def copy_tree(config: MkosiConfig, src: Path, dst: Path, *, preserve_owner: bool
     if config.use_subvolumes == ConfigFeature.enabled and not shutil.which("btrfs"):
         die("Subvolumes requested but the btrfs command was not found")
 
-    copy: Sequence[PathString] = [
+    copy: list[PathString] = [
         "cp",
         "--recursive",
         f"--preserve=mode,timestamps,links,xattr{',ownership' if preserve_owner else ''}",
-        "--no-target-directory",
         "--reflink=auto",
         src, dst,
     ]
+
+    # If the source and destination are both directories, we want to merge the source directory with the
+    # destination directory. If the source if a file and the destination is a directory, we want to copy
+    # the source inside the directory.
+    if src.is_dir():
+        copy += ["--no-target-directory"]
 
     # Subvolumes always have inode 256 so we can use that to check if a directory is a subvolume.
     if not subvolume or not preserve_owner or not is_subvolume(src) or (dst.exists() and any(dst.iterdir())):
@@ -108,7 +112,7 @@ def install_tree(config: MkosiConfig, src: Path, dst: Path, target: Optional[Pat
     with umask(~0o755):
         t.parent.mkdir(parents=True, exist_ok=True)
 
-    if src.is_dir():
+    if src.is_dir() or (src.is_file() and target):
         copy_tree(config, src, t, preserve_owner=False)
     elif src.suffix == ".tar":
         extract_tar(src, t)

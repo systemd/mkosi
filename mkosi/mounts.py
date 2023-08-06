@@ -7,15 +7,13 @@ import stat
 import tempfile
 from collections.abc import Iterator, Sequence
 from pathlib import Path
-from typing import Optional, TypeVar
+from typing import Optional
 
-from mkosi.config import GenericVersion, MkosiConfig
 from mkosi.log import complete_step
 from mkosi.run import run
 from mkosi.types import PathString
 from mkosi.util import umask
-
-T = TypeVar("T")
+from mkosi.versioncomp import GenericVersion
 
 
 def stat_is_whiteout(st: os.stat_result) -> bool:
@@ -98,14 +96,14 @@ def mount_overlay(
 
 
 @contextlib.contextmanager
-def mount_tools(config: MkosiConfig, umount: bool = True) -> Iterator[None]:
-    if not config.tools_tree:
+def mount_usr(tree: Optional[Path], umount: bool = True) -> Iterator[None]:
+    if not tree:
         yield
         return
 
-    # If a tools tree is specified, we should ignore any local modifications made to PATH as any of those
-    # binaries might not work anymore when /usr is replaced wholesale. We also make sure that both /usr/bin
-    # and /usr/sbin/ are searched so that e.g. if the host is Arch and the root is Debian we don't ignore the
+    # If we replace /usr, we should ignore any local modifications made to PATH as any of those binaries
+    # might not work anymore when /usr is replaced wholesale. We also make sure that both /usr/bin and
+    # /usr/sbin/ are searched so that e.g. if the host is Arch and the root is Debian we don't ignore the
     # binaries from /usr/sbin in the Debian root.
     old = os.environ["PATH"]
     os.environ["PATH"] = "/usr/bin:/usr/sbin"
@@ -114,7 +112,7 @@ def mount_tools(config: MkosiConfig, umount: bool = True) -> Iterator[None]:
         # If we mounted over /usr, trying to use umount will fail with "target is busy", because umount is
         # being called from /usr, which we're trying to unmount. To work around this issue, we do a lazy
         # unmount.
-        with mount(what=config.tools_tree / "usr", where=Path("/usr"), operation="--bind", read_only=True, umount=umount, lazy=True):
+        with mount(what=tree / "usr", where=Path("/usr"), operation="--bind", read_only=True, umount=umount, lazy=True):
             yield
     finally:
         os.environ["PATH"] = old

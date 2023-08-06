@@ -137,8 +137,8 @@ class Manifest:
             if self.config.base_trees and installtime < self._init_timestamp:
                 continue
 
-            package = PackageManifest("rpm", name, evr, arch, size)
-            self.packages.append(package)
+            manifest = PackageManifest("rpm", name, evr, arch, size)
+            self.packages.append(manifest)
 
             if not self.need_source_info():
                 continue
@@ -157,7 +157,7 @@ class Manifest:
                 source = SourcePackageManifest(srpm, changelog)
                 self.source_packages[srpm] = source
 
-            source.add(package)
+            source.add(manifest)
 
     def record_deb_packages(self, root: Path) -> None:
         c = run(["dpkg-query",
@@ -185,8 +185,8 @@ class Manifest:
             if self.config.base_trees and installtime < self._init_timestamp:
                 continue
 
-            package = PackageManifest("deb", name, version, arch, size)
-            self.packages.append(package)
+            manifest = PackageManifest("deb", name, version, arch, size)
+            self.packages.append(manifest)
 
             if not self.need_source_info():
                 continue
@@ -228,7 +228,7 @@ class Manifest:
                 source_package = SourcePackageManifest(source, result.stdout.strip())
                 self.source_packages[source] = source_package
 
-            source_package.add(package)
+            source_package.add(manifest)
 
     def record_pkg_packages(self, root: Path) -> None:
         packages = sorted((root / "var/lib/pacman/local").glob("*/desc"))
