@@ -4,13 +4,13 @@ import errno
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Sequence, cast
+from typing import Optional, Sequence, cast
 
 from mkosi.config import ConfigFeature, MkosiConfig
 from mkosi.log import die
 from mkosi.run import bwrap, finalize_passwd_mounts, run
 from mkosi.types import PathString
-from mkosi.util import tar_binary
+from mkosi.util import tar_binary, umask
 
 
 def statfs(path: Path) -> str:
@@ -22,7 +22,7 @@ def is_subvolume(path: Path) -> bool:
     return path.is_dir() and statfs(path) == "btrfs" and path.stat().st_ino == 256
 
 
-def make_tree(config: MkosiConfig, path: Path, mode: int) -> None:
+def make_tree(config: MkosiConfig, path: Path) -> None:
     if config.use_subvolumes == ConfigFeature.enabled and not shutil.which("btrfs"):
         die("Subvolumes requested but the btrfs command was not found")
 
@@ -30,7 +30,7 @@ def make_tree(config: MkosiConfig, path: Path, mode: int) -> None:
         if config.use_subvolumes == ConfigFeature.enabled:
             die(f"Subvolumes requested but {path} is not located on a btrfs filesystem")
 
-        path.mkdir(mode)
+        path.mkdir()
         return
 
     if config.use_subvolumes != ConfigFeature.disabled and shutil.which("btrfs") is not None:
@@ -39,10 +39,8 @@ def make_tree(config: MkosiConfig, path: Path, mode: int) -> None:
     else:
         result = 1
 
-    if result == 0:
-        path.chmod(mode)
-    else:
-        path.mkdir(mode)
+    if result != 0:
+        path.mkdir()
 
 
 def copy_tree(config: MkosiConfig, src: Path, dst: Path, *, preserve_owner: bool = True) -> None:
@@ -153,3 +151,21 @@ def extract_tree(src: Path, dst: Path) -> None:
         # Make sure tar uses user/group information from the root directory instead of the host.
         options=finalize_passwd_mounts(dst) if (dst / "etc/passwd").exists() else [],
     )
+
+
+def install_tree(config: MkosiConfig, src: Path, dst: Path, target: Optional[Path] = None) -> None:
+    t = dst
+    if target:
+        t = dst / target.relative_to("/")
+
+    with umask(~0o755):
+        t.parent.mkdir(parents=True, exist_ok=True)
+
+    if src.is_dir():
+        copy_tree(config, src, t, preserve_owner=False)
+    elif src.suffix == ".tar":
+        extract_tree(src, t)
+    elif src.suffix == ".raw":
+        run(["systemd-dissect", "--copy-from", src, "/", t])
+    else:
+        die(f"Source tree {src} has unsupported source tree type \"{src.suffix}\"")

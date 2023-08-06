@@ -8,7 +8,7 @@ from mkosi.config import ConfigFeature
 from mkosi.run import apivfs_cmd, bwrap
 from mkosi.state import MkosiState
 from mkosi.types import PathString
-from mkosi.util import flatten, sort_packages
+from mkosi.util import flatten, sort_packages, umask
 
 
 def setup_pacman(state: MkosiState) -> None:
@@ -30,13 +30,14 @@ def setup_pacman(state: MkosiState) -> None:
         sig_level = "Never"
 
     # Create base layout for pacman and pacman-key
-    state.root.joinpath("var/lib/pacman").mkdir(mode=0o755, exist_ok=True, parents=True)
+    with umask(~0o755):
+        state.root.joinpath("var/lib/pacman").mkdir(exist_ok=True, parents=True)
 
     config = state.pkgmngr / "etc/pacman.conf"
     if config.exists():
         return
 
-    config.parent.mkdir(mode=0o755, exist_ok=True, parents=True)
+    config.parent.mkdir(exist_ok=True, parents=True)
 
     repos = []
 

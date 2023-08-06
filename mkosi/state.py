@@ -7,6 +7,7 @@ from typing import Optional, Type
 
 from mkosi.config import MkosiArgs, MkosiConfig
 from mkosi.tree import make_tree
+from mkosi.util import umask
 
 
 class MkosiState:
@@ -18,7 +19,8 @@ class MkosiState:
 
     def __enter__(self) -> "MkosiState":
         self._workspace = tempfile.TemporaryDirectory(dir=self.config.workspace_dir or Path.cwd(), prefix=".mkosi-tmp")
-        make_tree(self.config, self.root, mode=0o755)
+        with umask(~0o755):
+            make_tree(self.config, self.root)
         self.staging.mkdir()
         self.pkgmngr.mkdir()
         self.install_dir.mkdir(exist_ok=True)

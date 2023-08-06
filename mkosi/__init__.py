@@ -43,7 +43,14 @@ from mkosi.pager import page
 from mkosi.qemu import copy_ephemeral, machine_cid, run_qemu
 from mkosi.run import become_root, bwrap, chroot_cmd, init_mount_namespace, run
 from mkosi.state import MkosiState
-from mkosi.tree import archive_tree, copy_tree, extract_tree, move_tree, rmtree
+from mkosi.tree import (
+    archive_tree,
+    copy_tree,
+    extract_tree,
+    install_tree,
+    move_tree,
+    rmtree,
+)
 from mkosi.types import PathString
 from mkosi.util import (
     InvokingUser,
@@ -53,6 +60,7 @@ from mkosi.util import (
     one_zero,
     scopedenv,
     try_import,
+    umask,
 )
 
 
@@ -110,14 +118,15 @@ def install_distribution(state: MkosiState) -> None:
 
             if not (state.root / "etc/machine-id").exists():
                 # Uninitialized means we want it to get initialized on first boot.
-                (state.root / "etc/machine-id").write_text("uninitialized\n")
-                (state.root / "etc/machine-id").chmod(0o0444)
+                with umask(~0o444):
+                    (state.root / "etc/machine-id").write_text("uninitialized\n")
 
             # Ensure /efi exists so that the ESP is mounted there, as recommended by
             # https://0pointer.net/blog/linux-boot-partitions.html. Use the most restrictive access mode we
             # can without tripping up mkfs tools since this directory is only meant to be overmounted and
             # should not be read from or written to.
-            state.root.joinpath("efi").mkdir(mode=0o500, exist_ok=True)
+            with umask(~0o500):
+                (state.root / "efi").mkdir(exist_ok=True)
 
             if state.config.packages:
                 state.config.distribution.install_packages(state, state.config.packages)
@@ -171,7 +180,8 @@ def mount_cache_overlay(state: MkosiState) -> Iterator[None]:
         return
 
     d = state.workspace / "cache-overlay"
-    d.mkdir(mode=0o755, exist_ok=True)
+    with umask(~0o755):
+        d.mkdir(exist_ok=True)
 
     with mount_overlay([state.root], d, state.root, read_only=False):
         yield
@@ -180,7 +190,8 @@ def mount_cache_overlay(state: MkosiState) -> Iterator[None]:
 def mount_build_overlay(state: MkosiState, read_only: bool = False) -> ContextManager[Path]:
     d = state.workspace / "build-overlay"
     if not d.is_symlink():
-        d.mkdir(mode=0o755, exist_ok=True)
+        with umask(~0o755):
+            d.mkdir(exist_ok=True)
     return mount_overlay([state.root], state.workspace / "build-overlay", state.root, read_only)
 
 
@@ -490,7 +501,8 @@ def install_boot_loader(state: MkosiState) -> None:
 
         with complete_step("Setting up secure boot auto-enrollment…"):
             keys = state.root / "efi/loader/keys/auto"
-            keys.mkdir(parents=True, exist_ok=True)
+            with umask(~0o700):
+                keys.mkdir(parents=True, exist_ok=True)
 
             # sbsiglist expects a DER certificate.
             run(["openssl",
@@ -522,14 +534,7 @@ def install_base_trees(state: MkosiState) -> None:
 
     with complete_step("Copying in base trees…"):
         for path in state.config.base_trees:
-            if path.is_dir():
-                copy_tree(state.config, path, state.root)
-            elif path.suffix == ".tar":
-                extract_tree(path, state.root)
-            elif path.suffix == ".raw":
-                run(["systemd-dissect", "--copy-from", path, "/", state.root])
-            else:
-                die(f"Unsupported base tree source {path}")
+            install_tree(state.config, path, state.root)
 
 
 def install_skeleton_trees(state: MkosiState) -> None:
@@ -538,16 +543,7 @@ def install_skeleton_trees(state: MkosiState) -> None:
 
     with complete_step("Copying in skeleton file trees…"):
         for source, target in state.config.skeleton_trees:
-            t = state.root
-            if target:
-                t = state.root / target.relative_to("/")
-
-            t.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
-
-            if source.is_dir() or target:
-                copy_tree(state.config, source, t, preserve_owner=False)
-            else:
-                extract_tree(source, t)
+            install_tree(state.config, source, state.root, target)
 
 
 def install_package_manager_trees(state: MkosiState) -> None:
@@ -556,16 +552,7 @@ def install_package_manager_trees(state: MkosiState) -> None:
 
     with complete_step("Copying in package manager file trees…"):
         for source, target in state.config.package_manager_trees:
-            t = state.workspace / "pkgmngr"
-            if target:
-                t = state.workspace / "pkgmngr" / target.relative_to("/")
-
-            t.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
-
-            if source.is_dir() or target:
-                copy_tree(state.config, source, t, preserve_owner=False)
-            else:
-                extract_tree(source, t)
+            install_tree(state.config, source, state.workspace / "pkgmngr", target)
 
 
 def install_extra_trees(state: MkosiState) -> None:
@@ -574,16 +561,7 @@ def install_extra_trees(state: MkosiState) -> None:
 
     with complete_step("Copying in extra file trees…"):
         for source, target in state.config.extra_trees:
-            t = state.root
-            if target:
-                t = state.root / target.relative_to("/")
-
-            t.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
-
-            if source.is_dir() or target:
-                copy_tree(state.config, source, t, preserve_owner=False)
-            else:
-                extract_tree(source, t)
+            install_tree(state.config, source, state.root, target)
 
 
 def install_build_dest(state: MkosiState) -> None:
@@ -962,7 +940,8 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                 cmd += ["--initrd", gen_kernel_modules_initrd(state, kver)]
 
             # Make sure the parent directory where we'll be writing the UKI exists.
-            boot_binary.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+            with umask(~0o700):
+                boot_binary.parent.mkdir(parents=True, exist_ok=True)
 
             run(cmd)
 
@@ -1010,7 +989,7 @@ def copy_nspawn_settings(state: MkosiState) -> None:
         return None
 
     with complete_step("Copying nspawn settings file…"):
-        shutil.copy(state.config.nspawn_settings, state.staging / state.config.output_nspawn_settings)
+        shutil.copy2(state.config.nspawn_settings, state.staging / state.config.output_nspawn_settings)
 
 
 def hash_file(of: TextIO, path: Path) -> None:
@@ -1216,46 +1195,47 @@ def configure_ssh(state: MkosiState) -> None:
     if not state.config.ssh:
         return
 
-    state.root.joinpath("usr/lib/systemd/system/ssh.socket").write_text(
-        dedent(
-            """\
-            [Unit]
-            Description=Mkosi SSH Server VSock Socket
-            ConditionVirtualization=!container
-            Wants=sshd-keygen.target
+    with umask(~0o644):
+        (state.root / "usr/lib/systemd/system/ssh.socket").write_text(
+            dedent(
+                """\
+                [Unit]
+                Description=Mkosi SSH Server VSock Socket
+                ConditionVirtualization=!container
+                Wants=sshd-keygen.target
 
-            [Socket]
-            ListenStream=vsock::22
-            Accept=yes
+                [Socket]
+                ListenStream=vsock::22
+                Accept=yes
 
-            [Install]
-            WantedBy=sockets.target
-            """
+                [Install]
+                WantedBy=sockets.target
+                """
+            )
         )
-    )
 
-    state.root.joinpath("usr/lib/systemd/system/ssh@.service").write_text(
-        dedent(
-            """\
-            [Unit]
-            Description=Mkosi SSH Server
-            After=sshd-keygen.target
+        (state.root / "usr/lib/systemd/system/ssh@.service").write_text(
+            dedent(
+                """\
+                [Unit]
+                Description=Mkosi SSH Server
+                After=sshd-keygen.target
 
-            [Service]
-            # We disable PAM because of an openssh-server bug where it sets PAM_RHOST=UNKNOWN when -i is used
-            # causing a very slow reverse DNS lookup by pam.
-            ExecStart=sshd -i -o UsePAM=no
-            StandardInput=socket
-            RuntimeDirectoryPreserve=yes
-            # ssh always exits with 255 even on normal disconnect, so let's mark that as success so we don't
-            # get noisy logs about SSH service failures.
-            SuccessExitStatus=255
-            """
+                [Service]
+                # We disable PAM because of an openssh-server bug where it sets PAM_RHOST=UNKNOWN when -i is
+                # used causing a very slow reverse DNS lookup by pam.
+                ExecStart=sshd -i -o UsePAM=no
+                StandardInput=socket
+                RuntimeDirectoryPreserve=yes
+                # ssh always exits with 255 even on normal disconnect, so let's mark that as success so we
+                # don't get noisy logs about SSH service failures.
+                SuccessExitStatus=255
+                """
+            )
         )
-    )
 
-    presetdir = state.root / "usr/lib/systemd/system-preset"
-    presetdir.joinpath("80-mkosi-ssh.preset").write_text("enable ssh.socket\n")
+        presetdir = state.root / "usr/lib/systemd/system-preset"
+        (presetdir / "80-mkosi-ssh.preset").write_text("enable ssh.socket\n")
 
 
 def configure_initrd(state: MkosiState) -> None:
@@ -1374,13 +1354,12 @@ def run_firstboot(state: MkosiState) -> None:
         # Initrds generally don't ship with only /usr so there's not much point in putting the credentials in
         # /usr/lib/credstore.
         if state.config.output_format != OutputFormat.cpio or not state.config.make_initrd:
-            (state.root / "usr/lib/credstore").mkdir(mode=0o755, exist_ok=True)
+            with umask(~0o755):
+                (state.root / "usr/lib/credstore").mkdir(exist_ok=True)
 
             for cred, value in creds:
-                (state.root / "usr/lib/credstore" / cred).write_text(value)
-
-                if "password" in cred:
-                    (state.root / "usr/lib/credstore" / cred).chmod(0o600)
+                with umask(~0o600 if "password" in cred else ~0o644):
+                    (state.root / "usr/lib/credstore" / cred).write_text(value)
 
 
 def run_selinux_relabel(state: MkosiState) -> None:

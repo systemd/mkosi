@@ -259,7 +259,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
     with contextlib.ExitStack() as stack:
         if fw_supports_sb:
             ovmf_vars = stack.enter_context(tempfile.NamedTemporaryFile(prefix=".mkosi-"))
-            shutil.copy(find_ovmf_vars(config), Path(ovmf_vars.name))
+            shutil.copy2(find_ovmf_vars(config), Path(ovmf_vars.name))
             cmdline += [
                 "-global", "ICH9-LPC.disable_s3=1",
                 "-global", "driver=cfi.pflash01,property=secure,value=on",

@@ -68,7 +68,7 @@ def test_os_distribution() -> None:
 def test_parse_config_files_filter() -> None:
     with cd_temp_dir():
         confd = Path("mkosi.conf.d")
-        confd.mkdir(0o755)
+        confd.mkdir()
 
         (confd / "10-file.conf").write_text("[Content]\nPackages=yes")
         (confd / "20-file.noconf").write_text("[Content]\nPackages=nope")
