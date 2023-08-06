@@ -313,6 +313,36 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
   distribution, or the version of the distribution running on the host
   if it matches the configured distribution.
 
+`Architecture=`, `--architecture=`
+
+: The architecture to build the image for. A number of architectures can
+  be specified, but which ones are actually supported depends on the
+  distribution used and whether a bootable image is requested or not.
+  When building for a foreign architecture, you'll also need to install
+  and register a user mode emulator for that architecture.
+
+  The following architectures can be specified:
+
+  - alpha
+  - arc
+  - arm
+  - arm64
+  - ia64
+  - loongarch64
+  - mips64-le
+  - mips-le
+  - parisc
+  - ppc
+  - ppc64
+  - ppc64-le
+  - riscv32
+  - riscv64
+  - s390
+  - s390x
+  - tilegx
+  - x86
+  - x86-64
+
 `Mirror=`, `--mirror=`, `-m`
 
 : The mirror to use for downloading the distribution packages. Expects
@@ -339,34 +369,12 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
 : Enable package repositories that are disabled by default. This can be used to enable the EPEL repos for
   CentOS or different components of the Debian/Ubuntu repositories.
 
-`Architecture=`, `--architecture=`
+`CacheOnly=`, `--cache-only=`
 
-: The architecture to build the image for. A number of architectures can be specified, but which ones are
-  actually supported depends on the distribution used and whether a bootable image is requested or not. When
-  building for a foreign architecture, you'll also need to install and register a user mode emulator for that
-  architecture.
-
-  The following architectures can be specified:
-
-  - alpha
-  - arc
-  - arm
-  - arm64
-  - ia64
-  - loongarch64
-  - mips64-le
-  - mips-le
-  - parisc
-  - ppc
-  - ppc64
-  - ppc64-le
-  - riscv32
-  - riscv64
-  - s390
-  - s390x
-  - tilegx
-  - x86
-  - x86-64
+: If specified, the package manager is instructed not to contact the
+  network for updating package data. This provides a minimal level of
+  reproducibility, as long as the package cache is already fully
+  populated.
 
 ### [Output] Section
 
@@ -397,6 +405,16 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
   If an image version is specified via `ImageVersion=`, it is included
   in the default name, e.g. a specified image version of `7.8` might
   result in an image file name of `image_7.8.raw.xz`.
+
+`CompressOutput=`, `--compress-output=`
+
+: Configure compression for the resulting image or archive. The
+  argument can be either a boolean or a compression algorithm (`xz`,
+  `zstd`). `xz` compression is used by default. Note that when applied
+  to block device image types this means the image cannot be started
+  directly but needs to be decompressed first. This also means that
+  the `shell`, `boot`, `qemu` verbs are not available when this option
+  is used. Implied for `tar` and `cpio`.
 
 `OutputDirectory=`, `--output-dir=`, `-O`
 
@@ -438,26 +456,6 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
   but a directory `mkosi.builddir/` exists in the local directory it
   is automatically used for this purpose (also see the "Files" section
   below).
-
-`UseSubvolumes=`, `--use-subvolumes=`
-
-: Takes a boolean or `auto`. Enables or disables use of btrfs subvolumes for
-  directory tree outputs. If enabled, mkosi will create the root directory as
-  a btrfs subvolume and use btrfs subvolume snapshots where possible to copy
-  base or cached trees which is much faster than doing a recursive copy. If
-  explicitly enabled and `btrfs` is not installed or subvolumes cannot be
-  created, an error is raised. If `auto`, missing `btrfs` or failures to
-  create subvolumes are ignored.
-
-`CompressOutput=`, `--compress-output=`
-
-: Configure compression for the resulting image or archive. The
-  argument can be either a boolean or a compression algorithm (`xz`,
-  `zstd`). `xz` compression is used by default. Note that when applied
-  to block device image types this means the image cannot be started
-  directly but needs to be decompressed first. This also means that
-  the `shell`, `boot`, `qemu` verbs are not available when this option
-  is used. Implied for `tar` and `cpio`.
 
 `ImageVersion=`, `--image-version=`
 
@@ -517,6 +515,16 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
   https://uapi-group.org/specifications/specs/extension_image for more
   information.
 
+`UseSubvolumes=`, `--use-subvolumes=`
+
+: Takes a boolean or `auto`. Enables or disables use of btrfs subvolumes for
+  directory tree outputs. If enabled, mkosi will create the root directory as
+  a btrfs subvolume and use btrfs subvolume snapshots where possible to copy
+  base or cached trees which is much faster than doing a recursive copy. If
+  explicitly enabled and `btrfs` is not installed or subvolumes cannot be
+  created, an error is raised. If `auto`, missing `btrfs` or failures to
+  create subvolumes are ignored.
+
 ### [Content] Section
 
 `Packages=`, `--package=`, `-p`
@@ -555,6 +563,16 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
   in the "Development Tools" group, and the package that contains the
   `mypy` python module.
 
+`BuildPackages=`, `--build-package=`
+
+: Similar to `Packages=`, but configures packages to install only in an
+  overlay that is made available on top of the image to the prepare
+  script when executed with the `build` argument and the build script.
+  This option should be used to list packages containing header files,
+  compilers, build systems, linkers and other build tools the
+  `mkosi.build` script requires to operate. Note that packages listed
+  here will be absent in the final image.
+
 `WithDocs=`, `--with-docs`
 
 : Include documentation in the image built. By default if the
@@ -562,30 +580,6 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
   not included in the image built. The `$WITH_DOCS` environment
   variable passed to the `mkosi.build` script indicates whether this
   option was used or not.
-
-`WithTests=`, `--without-tests`, `-T`
-
-: If set to false (or when the command-line option is used), the
-  `$WITH_TESTS` environment variable is set to `0` when the
-  `mkosi.build` script is invoked. This is supposed to be used by the
-  build script to bypass any unit or integration tests that are
-  normally run during the source build process. Note that this option
-  has no effect unless the `mkosi.build` build script honors it.
-
-`Bootable=`, `--bootable=`
-
-: Takes a boolean or `auto`. Enables or disables generation of a bootable
-  image. If enabled, mkosi will install systemd-boot, and add an ESP partition
-  when the disk image output is used. If systemd-boot is not installed or no
-  kernel images can be found, the build will fail. `auto` behaves as if the
-  option was enabled, but the build won't fail if either no kernel images or
-  systemd-boot can't be found. If disabled, systemd-boot won't be installed even
-  if found inside the image, no unified kernel images will be generated and no
-  ESP partition will be added to the image if the disk output format is used.
-
-`KernelCommandLine=`, `--kernel-command-line=`
-
-: Use the specified kernel command line when building images.
 
 `BaseTrees=`, `--base-tree=`
 
@@ -649,6 +643,18 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
   file may be provided too. `mkosi.extra.tar` will be automatically
   used if found in the local directory.
 
+`RemovePackages=`, `--remove-package=`
+
+: Takes a comma-separated list of package specifications for removal, in
+  the same format as `Packages=`. The removal will be performed as one
+  of the last steps. This step is skipped if `CleanPackageMetadata=no`
+  is used.
+
+`RemoveFiles=`, `--remove-files=`
+
+: Takes a comma-separated list of globs. Files in the image matching
+  the globs will be purged at the end.
+
 `CleanPackageMetadata=`, `--clean-package-metadata=`
 
 : Enable/disable removal of package manager databases at the end of
@@ -657,18 +663,34 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
   package manager executable is *not* present at the end of the
   installation.
 
-`RemoveFiles=`, `--remove-files=`
+`PrepareScript=`, `--prepare-script=`
 
-: Takes a comma-separated list of globs. Files in the image matching
-  the globs will be purged at the end.
+: Takes a path to an executable that is used as the prepare script for
+  this image. See the `SCRIPTS` section for more information.
 
-`RemovePackages=`, `--remove-package=`
+`BuildScript=`, `--build-script=`
 
-: Takes a comma-separated list of package specifications for removal, in the
-  same format as `Packages=`. The removal will be performed as one of the last
-  steps. This step is skipped if `CleanPackageMetadata=no` is used.
+: Takes a path to an executable that is used as build script for this
+  image. See the `SCRIPTS` section for more information.
 
-: This option is currently only implemented for distributions using `dnf`.
+`PostInstallationScript=`, `--postinst-script=`
+
+: Takes a path to an executable that is used as the post-installation
+  script for this image. See the `SCRIPTS` section for more information.
+
+`FinalizeScript=`, `--finalize-script=`
+
+: Takes a path to an executable that is used as the finalize script for
+  this image. See the `SCRIPTS` section for more information.
+
+`BuildSources=`, `--build-sources=`
+
+: Takes a list of colon-separated pairs of paths to source trees and
+  where to mount them in the development image, if the build script is
+  used. Every target path is prefixed with `/work/src` and all build
+  sources are sorted lexicographically by mount target before mounting
+  so that top level paths are mounted first. By default, the current
+  working directory is mounted to `/work/src`.
 
 `Environment=`, `--environment=`
 
@@ -681,47 +703,14 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
   listed variables will be set. If the same variable is set twice, the
   later setting overrides the earlier one.
 
-`BuildSources=`, `--build-sources=`
+`WithTests=`, `--without-tests`, `-T`
 
-: Takes a list of colon-separated pairs of paths to source trees and where to mount them in the development
-  image, if the build script is used. Every target path is prefixed with `/work/src` and all build sources
-  are sorted lexicographically by mount target before mounting so that top level paths are mounted first. By
-  default, the current working directory is mounted to `/work/src`.
-
-`BuildPackages=`, `--build-package=`
-
-: Similar to `Packages=`, but configures packages to install only in an
-  overlay that is made available on top of the image to the prepare
-  script when executed with the `build` argument and the build script.
-  This option should be used to list packages containing header files,
-  compilers, build systems, linkers and other build tools the
-  `mkosi.build` script requires to operate. Note that packages listed
-  here will be absent in the final image.
-
-`Autologin=`, `--autologin`
-
-: Enable autologin for the `root` user on `/dev/pts/0` (nspawn),
-  `/dev/tty1` and `/dev/ttyS0`.
-
-`BuildScript=`, `--build-script=`
-
-: Takes a path to an executable that is used as build script for this
-  image. See the `SCRIPTS` section for more information.
-
-`PrepareScript=`, `--prepare-script=`
-
-: Takes a path to an executable that is used as the prepare script for
-  this image. See the `SCRIPTS` section for more information.
-
-`PostInstallationScript=`, `--postinst-script=`
-
-: Takes a path to an executable that is used as the post-installation
-  script for this image. See the `SCRIPTS` section for more information.
-
-`FinalizeScript=`, `--finalize-script=`
-
-: Takes a path to an executable that is used as the finalize script for
-  this image. See the `SCRIPTS` section for more information.
+: If set to false (or when the command-line option is used), the
+  `$WITH_TESTS` environment variable is set to `0` when the
+  `mkosi.build` script is invoked. This is supposed to be used by the
+  build script to bypass any unit or integration tests that are
+  normally run during the source build process. Note that this option
+  has no effect unless the `mkosi.build` build script honors it.
 
 `WithNetwork=`, `--with-network=`
 
@@ -731,23 +720,27 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
   passed to the `mkosi.build` build script indicating whether the
   build is done with or without network.
 
-`CacheOnly=`, `--cache-only=`
+`Bootable=`, `--bootable=`
 
-: If specified, the package manager is instructed not to contact the
-  network for updating package data. This provides a minimal level of
-  reproducibility, as long as the package cache is already fully
-  populated.
+: Takes a boolean or `auto`. Enables or disables generation of a
+  bootable image. If enabled, mkosi will install systemd-boot, and add
+  an ESP partition when the disk image output is used. If systemd-boot
+  is not installed or no kernel images can be found, the build will
+  fail. `auto` behaves as if the option was enabled, but the build won't
+  fail if either no kernel images or systemd-boot can't be found. If
+  disabled, systemd-boot won't be installed even if found inside the
+  image, no unified kernel images will be generated and no ESP partition
+  will be added to the image if the disk output format is used.
 
-`Initrd=`, `--initrd`
+`Initrds=`, `--initrd`
 
-: Use user-provided initrd(s). Takes a comma separated list of paths to initrd
-  files. This option may be used multiple times in which case the initrd lists
-  are combined.
+: Use user-provided initrd(s). Takes a comma separated list of paths to
+  initrd files. This option may be used multiple times in which case the
+  initrd lists are combined.
 
-`MakeInitrd=`, `--make-initrd`
+`KernelCommandLine=`, `--kernel-command-line=`
 
-: Add `/etc/initrd-release` and `/init` to the image so that it can be
-  used as an initramfs.
+: Use the specified kernel command line when building images.
 
 `KernelModulesInclude=`, `--kernel-modules-include=`
 
@@ -799,6 +792,29 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
   as an already hashed root password. The root password is also stored in `/usr/lib/credstore` under the
   appropriate systemd credential so that it applies even if only `/usr` is shipped in the image.
 
+`Autologin=`, `--autologin`
+
+: Enable autologin for the `root` user on `/dev/pts/0` (nspawn),
+  `/dev/tty1` and `/dev/ttyS0`.
+
+`MakeInitrd=`, `--make-initrd`
+
+: Add `/etc/initrd-release` and `/init` to the image so that it can be
+  used as an initramfs.
+
+`Ssh=`, `--ssh`
+
+: If specified, an sshd socket unit and matching service are installed
+  in the final image that expose SSH over VSock. When building with this
+  option and running the image using `mkosi qemu`, the `mkosi ssh`
+  command can be used to connect to the container/VM via SSH. Note that
+  you still have to make sure openssh is installed in the image to make
+  this option behave correctly. mkosi will automatically provision the
+  user's public SSH key into the image using the
+  `ssh.authorized_keys.root` credential if it can be retrieved from a
+  running SSH agent. To access images booted using `mkosi boot`, use
+  `machinectl`.
+
 ### [Validation] Section
 
 `SecureBoot=`, `--secure-boot`
@@ -840,6 +856,14 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
   image. This option takes a boolean value or the special value `auto`,
   which is the default, which is equal to a true value if the
   `systemd-measure` binary is in `PATH`.
+
+`Passphrase=`, `--passphrase`
+
+: Specify the path to a file containing the passphrase to use for LUKS
+  encryption. It should contain the passphrase literally, and not end in
+  a newline character (i.e. in the same format as cryptsetup and
+  `/etc/crypttab` expect the passphrase files). The file must have an
+  access mode of 0600 or less.
 
 `Checksum=`, `--checksum`
 
@@ -926,19 +950,6 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
   snapshot of the output image that is removed immediately when the container terminates. Taking the
   temporary snapshot is more efficient on file systems that support reflinks natively ("btrfs" or new "xfs")
   than on more traditional file systems that do not ("ext4").
-
-`Ssh=`, `--ssh`
-
-: If specified, an sshd socket unit and matching service are installed
-  in the final image that expose SSH over VSock. When building with this
-  option and running the image using `mkosi qemu`, the `mkosi ssh`
-  command can be used to connect to the container/VM via SSH. Note that
-  you still have to make sure openssh is installed in the image to make
-  this option behave correctly. mkosi will automatically provision the
-  user's public SSH key into the image using the
-  `ssh.authorized_keys.root` credential if it can be retrieved from a
-  running SSH agent. To access images booted using `mkosi boot`, use
-  `machinectl`.
 
 `Credentials=`, `--credential=`
 
