@@ -971,42 +971,31 @@ def cache_tree_paths(config: MkosiConfig) -> tuple[Path, Path, Path]:
     )
 
 
-def check_tree_input(path: Optional[Path]) -> None:
-    # Each path may be a directory or a tarball.
-    # Open the file or directory to simulate an access check.
-    # If that fails, an exception will be thrown.
-    if not path:
-        return
-
-    os.open(path, os.R_OK)
-
-
-def check_source_target_input(tree: tuple[Path, Optional[Path]]) -> None:
-    source, _ = tree
-    os.open(source, os.R_OK)
-
-
 def check_inputs(config: MkosiConfig) -> None:
-    try:
-        for base in config.base_trees:
-            check_tree_input(base)
+    """
+    Make sure all the inputs that aren't checked during config parsing because they might be created by an
+    earlier preset exist.
+    """
+    for base in config.base_trees:
+        if not base.exists():
+            die(f"Base tree {base} not found")
 
-        check_tree_input(config.tools_tree)
+    if config.tools_tree and not config.tools_tree.exists():
+        die(f"Tools tree {config.tools_tree} not found")
 
-        for tree in (config.skeleton_trees,
-                     config.extra_trees):
-            for item in tree:
-                check_source_target_input(item)
+    for name, trees in (("Skeleton", config.skeleton_trees),
+                        ("Package manager", config.package_manager_trees),
+                        ("Extra", config.extra_trees)):
+        for src, _ in trees:
+            if not src.exists():
+                die(f"{name} tree {src} not found")
 
-        if config.bootable != ConfigFeature.disabled:
-            for p in config.initrds:
-                if not p.exists():
-                    die(f"Initrd {p} not found")
-                if not p.is_file():
-                    die(f"Initrd {p} is not a file")
-
-    except OSError as e:
-        die(f'{e.filename}: {e.strerror}')
+    if config.bootable != ConfigFeature.disabled:
+        for p in config.initrds:
+            if not p.exists():
+                die(f"Initrd {p} not found")
+            if not p.is_file():
+                die(f"Initrd {p} is not a file")
 
 
 def check_outputs(config: MkosiConfig) -> None:
