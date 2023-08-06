@@ -122,6 +122,7 @@ def parse_path(value: str,
                *,
                required: bool = True,
                absolute: bool = True,
+               resolve: bool = True,
                expanduser: bool = True,
                expandvars: bool = True,
                secret: bool = False) -> Path:
@@ -140,6 +141,9 @@ def parse_path(value: str,
 
     if absolute:
         path = path.absolute()
+
+    if resolve:
+        path = path.resolve()
 
     if secret and path.exists():
         mode = path.stat().st_mode & 0o777
@@ -426,6 +430,7 @@ def make_path_parser(*,
 def config_make_path_parser(*,
                             required: bool = True,
                             absolute: bool = True,
+                            resolve: bool = True,
                             expanduser: bool = True,
                             expandvars: bool = True,
                             secret: bool = False) -> ConfigParseCallback:
@@ -438,6 +443,7 @@ def config_make_path_parser(*,
                 value,
                 required=required,
                 absolute=absolute,
+                resolve=resolve,
                 expanduser=expanduser,
                 expandvars=expandvars,
                 secret=secret,
