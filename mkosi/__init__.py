@@ -559,7 +559,7 @@ def install_extra_trees(state: MkosiState) -> None:
 
 
 def install_build_dest(state: MkosiState) -> None:
-    if state.config.build_script is None:
+    if not any(state.install_dir.iterdir()):
         return
 
     with complete_step("Copying in build tree…"):
