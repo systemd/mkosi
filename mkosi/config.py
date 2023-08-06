@@ -1864,15 +1864,16 @@ class GenericVersion:
             return "".join(takewhile(lambda c: c in string.ascii_letters, s))
 
         while True:
-            #breakpoint()
             # Any characters which are outside of the set of listed above (a-z, A-Z, 0-9, -, ., ~,
             # ^) are skipped in both strings. In particular, this means that non-ASCII characters
             # that are Unicode digits or letters are skipped too.
             v1 = rstrip_invalid_version_chars(v1)
             v2 = rstrip_invalid_version_chars(v2)
+
             # If the remaining part of one of strings starts with "~": if other remaining part does
             # not start with ~, the string with ~ compares lower. Otherwise, both tilde characters
             # are skipped.
+
             if v1.startswith("~") and v2.startswith("~"):
                 v1 = v1.removeprefix("~")
                 v2 = v2.removeprefix("~")
@@ -1880,17 +1881,21 @@ class GenericVersion:
                 return cls._LEFT_SMALLER
             elif v2.startswith("~"):
                 return cls._RIGHT_SMALLER
+
             # If one of the strings has ended: if the other string hasn’t, the string that has
             # remaining characters compares higher. Otherwise, the strings compare equal.
+
             if not v1 and not v2:
                 return cls._EQUAL
             elif not v1 and v2:
                 return cls._LEFT_SMALLER
             elif v1 and not v2:
                 return cls._RIGHT_SMALLER
+
             # If the remaining part of one of strings starts with "-": if the other remaining part
             # does not start with -, the string with - compares lower. Otherwise, both minus
             # characters are skipped.
+
             if v1.startswith("-") and v2.startswith("-"):
                 v1 = v1.removeprefix("-")
                 v2 = v2.removeprefix("-")
@@ -1898,9 +1903,11 @@ class GenericVersion:
                 return cls._LEFT_SMALLER
             elif v2.startswith("-"):
                 return cls._RIGHT_SMALLER
+
             # If the remaining part of one of strings starts with "^": if the other remaining part
             # does not start with ^, the string with ^ compares higher. Otherwise, both caret
             # characters are skipped.
+
             if v1.startswith("^") and v2.startswith("^"):
                 v1 = v1.removeprefix("^")
                 v2 = v2.removeprefix("^")
@@ -1909,9 +1916,11 @@ class GenericVersion:
                 return cls._LEFT_SMALLER  #cls._RIGHT_SMALLER
             elif v2.startswith("^"):
                 return cls._RIGHT_SMALLER #cls._LEFT_SMALLER
+
             # If the remaining part of one of strings starts with ".": if the other remaining part
             # does not start with ., the string with . compares lower. Otherwise, both dot
             # characters are skipped.
+
             if v1.startswith(".") and v2.startswith("."):
                 v1 = v1.removeprefix(".")
                 v2 = v2.removeprefix(".")
@@ -1919,17 +1928,21 @@ class GenericVersion:
                 return cls._LEFT_SMALLER
             elif v2.startswith("."):
                 return cls._RIGHT_SMALLER
+
             # If either of the remaining parts starts with a digit: numerical prefixes are compared
             # numerically. Any leading zeroes are skipped. The numerical prefixes (until the first
             # non-digit character) are evaluated as numbers. If one of the prefixes is empty, it
             # evaluates as 0. If the numbers are different, the string with the bigger number
             # compares higher. Otherwise, the comparison continues at the following characters at
             # point 1.
+
             v1_digit_prefix = digit_prefix(v1)
             v2_digit_prefix = digit_prefix(v2)
+
             if v1_digit_prefix or v2_digit_prefix:
                 v1_digits = int(v1_digit_prefix) if v1_digit_prefix else 0
                 v2_digits = int(v2_digit_prefix) if v2_digit_prefix else 0
+
                 if v1_digits < v2_digits:
                     return cls._LEFT_SMALLER
                 elif v1_digits > v2_digits:
@@ -1938,18 +1951,22 @@ class GenericVersion:
                 v1 = v1.removeprefix(v1_digit_prefix)
                 v2 = v2.removeprefix(v2_digit_prefix)
                 continue
+
             # Leading alphabetical prefixes are compared alphabetically. The substrings are
             # compared letter-by-letter. If both letters are the same, the comparison continues
             # with the next letter. Capital letters compare lower than lower-case letters (A <
             # a). When the end of one substring has been reached (a non-letter character or the end
             # of the whole string), if the other substring has remaining letters, it compares
             # higher. Otherwise, the comparison continues at the following characters at point 1.
+
             v1_letter_prefix = letter_prefix(v1)
             v2_letter_prefix = letter_prefix(v2)
+
             if v1_letter_prefix < v2_letter_prefix:
                 return cls._LEFT_SMALLER
             elif v1_letter_prefix > v2_letter_prefix:
                 return cls._RIGHT_SMALLER
+
             v1 = v1.removeprefix(v1_letter_prefix)
             v2 = v2.removeprefix(v2_letter_prefix)
 
