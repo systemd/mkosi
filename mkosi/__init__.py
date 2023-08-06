@@ -8,7 +8,6 @@ import itertools
 import json
 import logging
 import os
-import re
 import resource
 import shutil
 import subprocess
@@ -37,6 +36,7 @@ from mkosi.config import (
 )
 from mkosi.install import add_dropin_config_from_resource
 from mkosi.installer import clean_package_manager_metadata, package_manager_scripts
+from mkosi.kmod import gen_required_kernel_modules, process_kernel_modules
 from mkosi.log import complete_step, die, log_step
 from mkosi.manifest import Manifest
 from mkosi.mounts import mount_overlay, mount_passwd, mount_tools
@@ -582,152 +582,6 @@ def gen_kernel_images(state: MkosiState) -> Iterator[tuple[str, Path]]:
         yield kver.name, Path("usr/lib/modules") / kver.name / "vmlinuz"
 
 
-def filter_kernel_modules(root: Path, kver: str, include: Sequence[str], exclude: Sequence[str]) -> list[Path]:
-    modulesd = root / "usr/lib/modules" / kver
-    modules = set(m for m in (root / modulesd).rglob("*.ko*"))
-
-    keep = set()
-    for pattern in include:
-        regex = re.compile(pattern)
-        for m in modules:
-            rel = os.fspath(m.relative_to(modulesd / "kernel"))
-            if regex.search(rel):
-                logging.debug(f"Including module {rel}")
-                keep.add(m)
-
-    for pattern in exclude:
-        regex = re.compile(pattern)
-        remove = set()
-        for m in modules:
-            rel = os.fspath(m.relative_to(modulesd / "kernel"))
-            if rel not in keep and regex.search(rel):
-                logging.debug(f"Excluding module {rel}")
-                remove.add(m)
-
-        modules -= remove
-
-    return sorted(modules)
-
-
-def module_path_to_name(path: Path) -> str:
-    return path.name.partition(".")[0]
-
-
-def resolve_module_dependencies(state: MkosiState, kver: str, modules: Sequence[str]) -> tuple[set[Path], set[Path]]:
-    """
-    Returns a tuple of lists containing the paths to the module and firmware dependencies of the given list
-    of module names (including the given module paths themselves). The paths are returned relative to the
-    root directory.
-    """
-    modulesd = Path("usr/lib/modules") / kver
-    builtin = set(module_path_to_name(Path(m)) for m in (state.root / modulesd / "modules.builtin").read_text().splitlines())
-    allmodules = set((state.root / modulesd / "kernel").glob("**/*.ko*"))
-    nametofile = {module_path_to_name(m): m for m in allmodules}
-
-    log_step("Running modinfo to fetch kernel module dependencies")
-
-    # We could run modinfo once for each module but that's slow. Luckily we can pass multiple modules to
-    # modinfo and it'll process them all in a single go. We get the modinfo for all modules to build two maps
-    # that map the path of the module to its module dependencies and its firmware dependencies respectively.
-    info = run(["modinfo", "--basedir", state.root, "--set-version", kver, "--null", *nametofile.keys(), *builtin],
-               stdout=subprocess.PIPE).stdout
-
-    log_step("Calculating required kernel modules and firmware")
-
-    moddep = {}
-    firmwaredep = {}
-
-    depends = []
-    firmware = []
-    for line in info.split("\0"):
-        key, sep, value = line.partition(":")
-        if not sep:
-            key, sep, value = line.partition("=")
-
-        if key in ("depends", "softdep"):
-            depends += [d for d in value.strip().split(",") if d]
-
-        elif key == "firmware":
-            firmware += [f for f in (state.root / "usr/lib/firmware").glob(f"{value.strip()}*")]
-
-        elif key == "name":
-            name = value.strip()
-
-            moddep[name] = depends
-            firmwaredep[name] = firmware
-
-            depends = []
-            firmware = []
-
-    todo = [*builtin, *modules]
-    mods = set()
-    firmware = set()
-
-    while todo:
-        m = todo.pop()
-        if m in mods:
-            continue
-
-        depends = moddep.get(m, [])
-        for d in depends:
-            if d not in nametofile and d not in builtin:
-                logging.warning(f"{d} is a dependency of {m} but is not installed, ignoring ")
-
-        mods.add(m)
-        todo += depends
-        firmware.update(firmwaredep.get(m, []))
-
-    return set(nametofile[m] for m in mods if m in nametofile), set(firmware)
-
-
-def gen_kernel_modules_initrd(state: MkosiState, kver: str) -> Path:
-    kmods = state.workspace / f"initramfs-kernel-modules-{kver}.img"
-
-    with complete_step(f"Generating kernel modules initrd for kernel {kver}"):
-        modulesd = state.root / "usr/lib/modules" / kver
-        modules = filter_kernel_modules(state.root, kver,
-                                        state.config.kernel_modules_initrd_include,
-                                        state.config.kernel_modules_initrd_exclude)
-
-        names = [module_path_to_name(m) for m in modules]
-        mods, firmware = resolve_module_dependencies(state, kver, names)
-
-        def files() -> Iterator[Path]:
-            yield modulesd.parent
-            yield modulesd
-            yield modulesd / "kernel"
-
-            for d in (modulesd, state.root / "usr/lib/firmware"):
-                for p in (state.root / d).rglob("*"):
-                    if p.is_dir():
-                        yield p
-
-            for p in sorted(mods) + sorted(firmware):
-                yield p
-
-            for p in (state.root / modulesd).iterdir():
-                if not p.name.startswith("modules"):
-                    continue
-
-                yield p
-
-            if (state.root / modulesd / "vdso").exists():
-                yield modulesd / "vdso"
-
-                for p in (state.root / modulesd / "vdso").iterdir():
-                    yield p
-
-        make_cpio(state.root, kmods, files())
-
-        # Debian/Ubuntu do not compress their kernel modules, so we compress the initramfs instead. Note that
-        # this is not ideal since the compressed kernel modules will all be decompressed on boot which
-        # requires significant memory.
-        if state.config.distribution.is_apt_distribution():
-            maybe_compress(state.config, Compression.zst, kmods, kmods)
-
-    return kmods
-
-
 def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
     # Iterates through all kernel versions included in the image and generates a combined
     # kernel+initrd+cmdline+osrelease EFI file from it and places it in the /EFI/Linux directory of the ESP.
@@ -895,7 +749,24 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                 cmd += ["--initrd", initrd]
 
             if state.config.kernel_modules_initrd:
-                cmd += ["--initrd", gen_kernel_modules_initrd(state, kver)]
+                kmods = state.workspace / f"initramfs-kernel-modules-{kver}.img"
+
+                make_cpio(
+                    state.root, kmods,
+                    gen_required_kernel_modules(
+                        state.root, kver,
+                        state.config.kernel_modules_initrd_include,
+                        state.config.kernel_modules_initrd_exclude,
+                    )
+                )
+
+                # Debian/Ubuntu do not compress their kernel modules, so we compress the initramfs instead. Note that
+                # this is not ideal since the compressed kernel modules will all be decompressed on boot which
+                # requires significant memory.
+                if state.config.distribution.is_apt_distribution():
+                    maybe_compress(state.config, Compression.zst, kmods, kmods)
+
+                cmd += ["--initrd", kmods]
 
             # Make sure the parent directory where we'll be writing the UKI exists.
             with umask(~0o700):
@@ -1207,43 +1078,16 @@ def configure_initrd(state: MkosiState) -> None:
         (state.root / "etc/initrd-release").symlink_to("/etc/os-release")
 
 
-def process_kernel_modules(state: MkosiState, kver: str) -> None:
-    if not state.config.kernel_modules_include and not state.config.kernel_modules_exclude:
-        return
-
-    with complete_step("Applying kernel module filters"):
-        modulesd = Path("usr/lib/modules") / kver
-        modules = filter_kernel_modules(state.root, kver,
-                                        state.config.kernel_modules_include,
-                                        state.config.kernel_modules_exclude)
-
-        names = [module_path_to_name(m) for m in modules]
-        mods, firmware = resolve_module_dependencies(state, kver, names)
-
-        allmodules = set(m for m in (state.root / modulesd).rglob("*.ko*"))
-        allfirmware = set(m for m in (state.root / "usr/lib/firmware").rglob("*") if not m.is_dir())
-
-        for m in allmodules:
-            if m in mods:
-                continue
-
-            logging.debug(f"Removing module {m}")
-            (state.root / m).unlink()
-
-        for fw in allfirmware:
-            if fw in firmware:
-                continue
-
-            logging.debug(f"Removing firmware {fw}")
-            (state.root / fw).unlink()
-
-
 def run_depmod(state: MkosiState) -> None:
     if state.config.bootable == ConfigFeature.disabled:
         return
 
     for kver, _ in gen_kernel_images(state):
-        process_kernel_modules(state, kver)
+        process_kernel_modules(
+            state.root, kver,
+            state.config.kernel_modules_include,
+            state.config.kernel_modules_exclude,
+        )
 
         with complete_step(f"Running depmod for {kver}"):
             run(["depmod", "--all", "--basedir", state.root, kver])
