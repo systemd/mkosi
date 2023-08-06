@@ -1376,6 +1376,8 @@ def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
             run_build_script(state)
 
             if state.config.output_format == OutputFormat.none:
+                # Touch an empty file to indicate the image was built.
+                (state.staging / state.config.output).touch()
                 finalize_staging(state)
                 return
 
