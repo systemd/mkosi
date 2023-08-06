@@ -17,7 +17,7 @@ import uuid
 from collections.abc import Iterator, Sequence
 from pathlib import Path
 from textwrap import dedent
-from typing import ContextManager, Optional, TextIO, Union, cast
+from typing import ContextManager, Optional, TextIO, Union
 
 from mkosi.archive import extract_tar, make_cpio, make_tar
 from mkosi.config import (
@@ -397,7 +397,7 @@ def certificate_common_name(certificate: Path) -> str:
         if not sep:
             die("Missing '=' delimiter in openssl output")
 
-        return cast(str, value.strip())
+        return value.strip()
 
     die(f"Certificate {certificate} is missing Common Name")
 

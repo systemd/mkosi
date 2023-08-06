@@ -4,7 +4,7 @@ import errno
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Optional, Sequence, cast
+from typing import Optional, Sequence
 
 from mkosi.archive import extract_tar
 from mkosi.config import ConfigFeature, MkosiConfig
@@ -15,8 +15,7 @@ from mkosi.util import umask
 
 
 def statfs(path: Path) -> str:
-    return cast(str, run(["stat", "--file-system", "--format", "%T", path],
-                         stdout=subprocess.PIPE).stdout.strip())
+    return run(["stat", "--file-system", "--format", "%T", path], stdout=subprocess.PIPE).stdout.strip()
 
 
 def is_subvolume(path: Path) -> bool:

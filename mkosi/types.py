@@ -8,8 +8,8 @@ from typing import IO, TYPE_CHECKING, Any, Union
 # to a TypeError during compilation.
 # Let's be as strict as we can with the description for the usage we have.
 if TYPE_CHECKING:
-    CompletedProcess = subprocess.CompletedProcess[Any]
-    Popen = subprocess.Popen[Any]
+    CompletedProcess = subprocess.CompletedProcess[str]
+    Popen = subprocess.Popen[str]
 else:
     CompletedProcess = subprocess.CompletedProcess
     Popen = subprocess.Popen
