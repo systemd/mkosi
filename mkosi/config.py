@@ -1984,17 +1984,6 @@ class GenericVersion:
         return self.compare_versions(self._version, other._version) in (self._EQUAL, self._RIGHT_SMALLER)
 
 
-def find_image_version(args: argparse.Namespace) -> None:
-    if args.image_version is not None:
-        return
-
-    try:
-        with open("mkosi.version") as f:
-            args.image_version = f.read().strip()
-    except FileNotFoundError:
-        pass
-
-
 def load_credentials(args: argparse.Namespace) -> dict[str, str]:
     creds = {}
 
@@ -2099,8 +2088,6 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
 
 
 def load_config(args: argparse.Namespace) -> MkosiConfig:
-    find_image_version(args)
-
     if args.cmdline and not args.verb.supports_cmdline():
         die(f"Arguments after verb are not supported for {args.verb}.")
 
@@ -2120,6 +2107,9 @@ def load_config(args: argparse.Namespace) -> MkosiConfig:
 
     if args.output is None:
         args.output = args.image_id or args.preset or "image"
+
+    if args.image_version is None and Path("mkosi.version").exists():
+        args.image_version = Path("mkosi.version").read_text().strip()
 
     if args.environment:
         env = {}
