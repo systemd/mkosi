@@ -176,7 +176,7 @@ class DebianInstaller(DistributionInstaller):
 
 
 def install_apt_sources(state: MkosiState, repos: Sequence[str]) -> None:
-    if not state.root.joinpath("usr/bin/apt").exists():
+    if not (state.root / "usr/bin/apt").exists():
         return
 
     sources = state.root / "etc/apt/sources.list"

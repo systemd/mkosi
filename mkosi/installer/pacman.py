@@ -31,7 +31,7 @@ def setup_pacman(state: MkosiState) -> None:
 
     # Create base layout for pacman and pacman-key
     with umask(~0o755):
-        state.root.joinpath("var/lib/pacman").mkdir(exist_ok=True, parents=True)
+        (state.root / "var/lib/pacman").mkdir(exist_ok=True, parents=True)
 
     config = state.pkgmngr / "etc/pacman.conf"
     if config.exists():
@@ -73,7 +73,7 @@ def setup_pacman(state: MkosiState) -> None:
                 )
             )
 
-        if any(state.pkgmngr.joinpath("etc/pacman.d/").glob("*.conf")):
+        if any((state.pkgmngr / "etc/pacman.d/").glob("*.conf")):
             f.write(
                 textwrap.dedent(
                     f"""\

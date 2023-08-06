@@ -10,12 +10,12 @@ from mkosi.util import flatten, sort_packages, umask
 
 
 def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
-    state.pkgmngr.joinpath("etc/apt").mkdir(exist_ok=True, parents=True)
-    state.pkgmngr.joinpath("etc/apt/apt.conf.d").mkdir(exist_ok=True, parents=True)
-    state.pkgmngr.joinpath("etc/apt/preferences.d").mkdir(exist_ok=True, parents=True)
-    state.pkgmngr.joinpath("etc/apt/sources.list.d").mkdir(exist_ok=True, parents=True)
-    state.pkgmngr.joinpath("var/log/apt").mkdir(exist_ok=True, parents=True)
-    state.pkgmngr.joinpath("var/lib/apt").mkdir(exist_ok=True, parents=True)
+    (state.pkgmngr / "etc/apt").mkdir(exist_ok=True, parents=True)
+    (state.pkgmngr / "etc/apt/apt.conf.d").mkdir(exist_ok=True, parents=True)
+    (state.pkgmngr / "etc/apt/preferences.d").mkdir(exist_ok=True, parents=True)
+    (state.pkgmngr / "etc/apt/sources.list.d").mkdir(exist_ok=True, parents=True)
+    (state.pkgmngr / "var/log/apt").mkdir(exist_ok=True, parents=True)
+    (state.pkgmngr / "var/lib/apt").mkdir(exist_ok=True, parents=True)
 
     # TODO: Drop once apt 2.5.4 is widely available.
     with umask(~0o755):

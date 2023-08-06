@@ -231,7 +231,7 @@ class Manifest:
             source_package.add(package)
 
     def record_pkg_packages(self, root: Path) -> None:
-        packages = sorted(root.joinpath("var/lib/pacman/local").glob("*/desc"))
+        packages = sorted((root / "var/lib/pacman/local").glob("*/desc"))
 
         for desc in packages:
             name, version, source, arch = parse_pkg_desc(desc)
