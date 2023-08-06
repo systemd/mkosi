@@ -8,7 +8,6 @@ import itertools
 import json
 import logging
 import os
-import re
 import resource
 import shutil
 import subprocess
@@ -20,6 +19,7 @@ from pathlib import Path
 from textwrap import dedent
 from typing import ContextManager, Optional, TextIO, Union, cast
 
+from mkosi.archive import extract_tar, make_cpio, make_tar
 from mkosi.config import (
     Compression,
     ConfigFeature,
@@ -36,21 +36,15 @@ from mkosi.config import (
 )
 from mkosi.install import add_dropin_config_from_resource
 from mkosi.installer import clean_package_manager_metadata, package_manager_scripts
+from mkosi.kmod import gen_required_kernel_modules, process_kernel_modules
 from mkosi.log import complete_step, die, log_step
 from mkosi.manifest import Manifest
 from mkosi.mounts import mount_overlay, mount_passwd, mount_tools
 from mkosi.pager import page
-from mkosi.qemu import copy_ephemeral, machine_cid, run_qemu
+from mkosi.qemu import copy_ephemeral, run_qemu, run_ssh
 from mkosi.run import become_root, bwrap, chroot_cmd, init_mount_namespace, run
 from mkosi.state import MkosiState
-from mkosi.tree import (
-    archive_tree,
-    copy_tree,
-    extract_tree,
-    install_tree,
-    move_tree,
-    rmtree,
-)
+from mkosi.tree import copy_tree, install_tree, move_tree, rmtree
 from mkosi.types import PathString
 from mkosi.util import (
     InvokingUser,
@@ -79,7 +73,7 @@ def mount_image(state: MkosiState) -> Iterator[None]:
                 if path.is_dir():
                     bases += [path]
                 elif path.suffix == ".tar":
-                    extract_tree(path, d)
+                    extract_tar(path, d)
                     bases += [d]
                 elif path.suffix == ".raw":
                     run(["systemd-dissect", "-M", path, d])
@@ -576,42 +570,6 @@ def gzip_binary() -> str:
     return "pigz" if shutil.which("pigz") else "gzip"
 
 
-def make_tar(state: MkosiState) -> None:
-    if state.config.output_format != OutputFormat.tar:
-        return
-
-    with complete_step("Creating archive…"):
-        archive_tree(state.root, state.staging / state.config.output_with_format)
-
-
-def make_initrd(state: MkosiState) -> None:
-    if state.config.output_format != OutputFormat.cpio:
-        return
-
-    make_cpio(state.root, state.root.rglob("*"), state.staging / state.config.output_with_format)
-
-
-def make_cpio(root: Path, files: Iterator[Path], output: Path) -> None:
-    with complete_step(f"Creating cpio {output}…"):
-        run([
-            "cpio",
-            "-o",
-            "--reproducible",
-            "--null",
-            "-H", "newc",
-            "--quiet",
-            "-D", root,
-            "-O", output,
-        ], input="\0".join(os.fspath(f.relative_to(root)) for f in files))
-
-
-def make_directory(state: MkosiState) -> None:
-    if state.config.output_format != OutputFormat.directory:
-        return
-
-    state.root.rename(state.staging / state.config.output_with_format)
-
-
 def gen_kernel_images(state: MkosiState) -> Iterator[tuple[str, Path]]:
     if not (state.root / "usr/lib/modules").exists():
         return
@@ -622,152 +580,6 @@ def gen_kernel_images(state: MkosiState) -> Iterator[tuple[str, Path]]:
         reverse=True
     ):
         yield kver.name, Path("usr/lib/modules") / kver.name / "vmlinuz"
-
-
-def filter_kernel_modules(root: Path, kver: str, include: Sequence[str], exclude: Sequence[str]) -> list[Path]:
-    modulesd = root / "usr/lib/modules" / kver
-    modules = set(m for m in (root / modulesd).rglob("*.ko*"))
-
-    keep = set()
-    for pattern in include:
-        regex = re.compile(pattern)
-        for m in modules:
-            rel = os.fspath(m.relative_to(modulesd / "kernel"))
-            if regex.search(rel):
-                logging.debug(f"Including module {rel}")
-                keep.add(m)
-
-    for pattern in exclude:
-        regex = re.compile(pattern)
-        remove = set()
-        for m in modules:
-            rel = os.fspath(m.relative_to(modulesd / "kernel"))
-            if rel not in keep and regex.search(rel):
-                logging.debug(f"Excluding module {rel}")
-                remove.add(m)
-
-        modules -= remove
-
-    return sorted(modules)
-
-
-def module_path_to_name(path: Path) -> str:
-    return path.name.partition(".")[0]
-
-
-def resolve_module_dependencies(state: MkosiState, kver: str, modules: Sequence[str]) -> tuple[set[Path], set[Path]]:
-    """
-    Returns a tuple of lists containing the paths to the module and firmware dependencies of the given list
-    of module names (including the given module paths themselves). The paths are returned relative to the
-    root directory.
-    """
-    modulesd = Path("usr/lib/modules") / kver
-    builtin = set(module_path_to_name(Path(m)) for m in (state.root / modulesd / "modules.builtin").read_text().splitlines())
-    allmodules = set((state.root / modulesd / "kernel").glob("**/*.ko*"))
-    nametofile = {module_path_to_name(m): m for m in allmodules}
-
-    log_step("Running modinfo to fetch kernel module dependencies")
-
-    # We could run modinfo once for each module but that's slow. Luckily we can pass multiple modules to
-    # modinfo and it'll process them all in a single go. We get the modinfo for all modules to build two maps
-    # that map the path of the module to its module dependencies and its firmware dependencies respectively.
-    info = run(["modinfo", "--basedir", state.root, "--set-version", kver, "--null", *nametofile.keys(), *builtin],
-               stdout=subprocess.PIPE).stdout
-
-    log_step("Calculating required kernel modules and firmware")
-
-    moddep = {}
-    firmwaredep = {}
-
-    depends = []
-    firmware = []
-    for line in info.split("\0"):
-        key, sep, value = line.partition(":")
-        if not sep:
-            key, sep, value = line.partition("=")
-
-        if key in ("depends", "softdep"):
-            depends += [d for d in value.strip().split(",") if d]
-
-        elif key == "firmware":
-            firmware += [f for f in (state.root / "usr/lib/firmware").glob(f"{value.strip()}*")]
-
-        elif key == "name":
-            name = value.strip()
-
-            moddep[name] = depends
-            firmwaredep[name] = firmware
-
-            depends = []
-            firmware = []
-
-    todo = [*builtin, *modules]
-    mods = set()
-    firmware = set()
-
-    while todo:
-        m = todo.pop()
-        if m in mods:
-            continue
-
-        depends = moddep.get(m, [])
-        for d in depends:
-            if d not in nametofile and d not in builtin:
-                logging.warning(f"{d} is a dependency of {m} but is not installed, ignoring ")
-
-        mods.add(m)
-        todo += depends
-        firmware.update(firmwaredep.get(m, []))
-
-    return set(nametofile[m] for m in mods if m in nametofile), set(firmware)
-
-
-def gen_kernel_modules_initrd(state: MkosiState, kver: str) -> Path:
-    kmods = state.workspace / f"initramfs-kernel-modules-{kver}.img"
-
-    with complete_step(f"Generating kernel modules initrd for kernel {kver}"):
-        modulesd = state.root / "usr/lib/modules" / kver
-        modules = filter_kernel_modules(state.root, kver,
-                                        state.config.kernel_modules_initrd_include,
-                                        state.config.kernel_modules_initrd_exclude)
-
-        names = [module_path_to_name(m) for m in modules]
-        mods, firmware = resolve_module_dependencies(state, kver, names)
-
-        def files() -> Iterator[Path]:
-            yield modulesd.parent
-            yield modulesd
-            yield modulesd / "kernel"
-
-            for d in (modulesd, state.root / "usr/lib/firmware"):
-                for p in (state.root / d).rglob("*"):
-                    if p.is_dir():
-                        yield p
-
-            for p in sorted(mods) + sorted(firmware):
-                yield p
-
-            for p in (state.root / modulesd).iterdir():
-                if not p.name.startswith("modules"):
-                    continue
-
-                yield p
-
-            if (state.root / modulesd / "vdso").exists():
-                yield modulesd / "vdso"
-
-                for p in (state.root / modulesd / "vdso").iterdir():
-                    yield p
-
-        make_cpio(state.root, files(), kmods)
-
-        # Debian/Ubuntu do not compress their kernel modules, so we compress the initramfs instead. Note that
-        # this is not ideal since the compressed kernel modules will all be decompressed on boot which
-        # requires significant memory.
-        if state.config.distribution.is_apt_distribution():
-            maybe_compress(state.config, Compression.zst, kmods, kmods)
-
-    return kmods
 
 
 def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
@@ -937,7 +749,24 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                 cmd += ["--initrd", initrd]
 
             if state.config.kernel_modules_initrd:
-                cmd += ["--initrd", gen_kernel_modules_initrd(state, kver)]
+                kmods = state.workspace / f"initramfs-kernel-modules-{kver}.img"
+
+                make_cpio(
+                    state.root, kmods,
+                    gen_required_kernel_modules(
+                        state.root, kver,
+                        state.config.kernel_modules_initrd_include,
+                        state.config.kernel_modules_initrd_exclude,
+                    )
+                )
+
+                # Debian/Ubuntu do not compress their kernel modules, so we compress the initramfs instead. Note that
+                # this is not ideal since the compressed kernel modules will all be decompressed on boot which
+                # requires significant memory.
+                if state.config.distribution.is_apt_distribution():
+                    maybe_compress(state.config, Compression.zst, kmods, kmods)
+
+                cmd += ["--initrd", kmods]
 
             # Make sure the parent directory where we'll be writing the UKI exists.
             with umask(~0o700):
@@ -1249,43 +1078,16 @@ def configure_initrd(state: MkosiState) -> None:
         (state.root / "etc/initrd-release").symlink_to("/etc/os-release")
 
 
-def process_kernel_modules(state: MkosiState, kver: str) -> None:
-    if not state.config.kernel_modules_include and not state.config.kernel_modules_exclude:
-        return
-
-    with complete_step("Applying kernel module filters"):
-        modulesd = Path("usr/lib/modules") / kver
-        modules = filter_kernel_modules(state.root, kver,
-                                        state.config.kernel_modules_include,
-                                        state.config.kernel_modules_exclude)
-
-        names = [module_path_to_name(m) for m in modules]
-        mods, firmware = resolve_module_dependencies(state, kver, names)
-
-        allmodules = set(m for m in (state.root / modulesd).rglob("*.ko*"))
-        allfirmware = set(m for m in (state.root / "usr/lib/firmware").rglob("*") if not m.is_dir())
-
-        for m in allmodules:
-            if m in mods:
-                continue
-
-            logging.debug(f"Removing module {m}")
-            (state.root / m).unlink()
-
-        for fw in allfirmware:
-            if fw in firmware:
-                continue
-
-            logging.debug(f"Removing firmware {fw}")
-            (state.root / fw).unlink()
-
-
 def run_depmod(state: MkosiState) -> None:
     if state.config.bootable == ConfigFeature.disabled:
         return
 
     for kver, _ in gen_kernel_images(state):
-        process_kernel_modules(state, kver)
+        process_kernel_modules(
+            state.root, kver,
+            state.config.kernel_modules_include,
+            state.config.kernel_modules_exclude,
+        )
 
         with complete_step(f"Running depmod for {kver}"):
             run(["depmod", "--all", "--basedir", state.root, kver])
@@ -1386,7 +1188,7 @@ def run_selinux_relabel(state: MkosiState) -> None:
         die(f"SELinux binary policy not found in {binpolicydir}")
 
     with complete_step(f"Relabeling files using {policy} policy"):
-        run(["setfiles", "-mFr", state.root, "-c", binpolicy, fc, state.root], env=state.config.environment)
+        run(["setfiles", "-mFr", state.root, "-c", binpolicy, fc, state.root])
 
 
 def need_build_packages(config: MkosiConfig) -> bool:
@@ -1618,9 +1420,12 @@ def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
         for p in split_paths:
             maybe_compress(state.config, state.config.compress_output, p)
 
-        make_tar(state)
-        make_initrd(state)
-        make_directory(state)
+        if state.config.output_format == OutputFormat.tar:
+            make_tar(state.root, state.staging / state.config.output_with_format)
+        elif state.config.output_format == OutputFormat.cpio:
+            make_cpio(state.root, state.staging / state.config.output_with_format)
+        elif state.config.output_format == OutputFormat.directory:
+            state.root.rename(state.staging / state.config.output_with_format)
 
         maybe_compress(state.config, state.config.compress_output,
                        state.staging / state.config.output_with_format,
@@ -1772,22 +1577,6 @@ def run_shell(args: MkosiArgs, config: MkosiConfig) -> None:
             cmdline += args.cmdline
 
         run(cmdline, stdin=sys.stdin, stdout=sys.stdout, env=os.environ, log=False)
-
-
-def run_ssh(args: MkosiArgs, config: MkosiConfig) -> None:
-    cmd = [
-        "ssh",
-        # Silence known hosts file errors/warnings.
-        "-o", "UserKnownHostsFile=/dev/null",
-        "-o", "StrictHostKeyChecking=no",
-        "-o", "LogLevel=ERROR",
-        "-o", f"ProxyCommand=socat - VSOCK-CONNECT:{machine_cid(config)}:%p",
-        "root@mkosi",
-    ]
-
-    cmd += args.cmdline
-
-    run(cmd, stdin=sys.stdin, stdout=sys.stdout, env=os.environ, log=False)
 
 
 def run_serve(config: MkosiConfig) -> None:

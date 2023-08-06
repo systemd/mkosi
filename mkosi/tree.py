@@ -6,11 +6,12 @@ import subprocess
 from pathlib import Path
 from typing import Optional, Sequence, cast
 
+from mkosi.archive import extract_tar
 from mkosi.config import ConfigFeature, MkosiConfig
 from mkosi.log import die
-from mkosi.run import bwrap, finalize_passwd_mounts, run
+from mkosi.run import run
 from mkosi.types import PathString
-from mkosi.util import tar_binary, umask
+from mkosi.util import umask
 
 
 def statfs(path: Path) -> str:
@@ -99,60 +100,6 @@ def move_tree(config: MkosiConfig, src: Path, dst: Path) -> None:
         rmtree(src)
 
 
-def tar_exclude_apivfs_tmp() -> list[str]:
-    return [
-        "--exclude", "./dev/*",
-        "--exclude", "./proc/*",
-        "--exclude", "./sys/*",
-        "--exclude", "./tmp/*",
-        "--exclude", "./run/*",
-        "--exclude", "./var/tmp/*",
-    ]
-
-
-def archive_tree(src: Path, dst: Path) -> None:
-    bwrap(
-        [
-            tar_binary(),
-            "--create",
-            "--file", dst,
-            "--directory", src,
-            "--acls",
-            "--selinux",
-            "--xattrs",
-            "--sparse",
-            "--force-local",
-            *tar_exclude_apivfs_tmp(),
-            ".",
-        ],
-        # Make sure tar uses user/group information from the root directory instead of the host.
-        options=finalize_passwd_mounts(src) if (src / "etc/passwd").exists() else [],
-    )
-
-
-def extract_tree(src: Path, dst: Path) -> None:
-    bwrap(
-        [
-            tar_binary(),
-            "--extract",
-            "--file", src,
-            "--directory", dst,
-            "--keep-directory-symlink",
-            "--no-overwrite-dir",
-            "--same-permissions",
-            "--same-owner" if (dst / "etc/passwd").exists() else "--numeric-owner",
-            "--same-order",
-            "--acls",
-            "--selinux",
-            "--xattrs",
-            "--force-local",
-            *tar_exclude_apivfs_tmp(),
-        ],
-        # Make sure tar uses user/group information from the root directory instead of the host.
-        options=finalize_passwd_mounts(dst) if (dst / "etc/passwd").exists() else [],
-    )
-
-
 def install_tree(config: MkosiConfig, src: Path, dst: Path, target: Optional[Path] = None) -> None:
     t = dst
     if target:
@@ -164,7 +111,7 @@ def install_tree(config: MkosiConfig, src: Path, dst: Path, target: Optional[Pat
     if src.is_dir():
         copy_tree(config, src, t, preserve_owner=False)
     elif src.suffix == ".tar":
-        extract_tree(src, t)
+        extract_tar(src, t)
     elif src.suffix == ".raw":
         run(["systemd-dissect", "--copy-from", src, "/", t])
     else:

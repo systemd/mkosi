@@ -316,3 +316,19 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
 
     if status := int(notifications.get("EXIT_STATUS", 0)):
         raise subprocess.CalledProcessError(status, cmdline)
+
+
+def run_ssh(args: MkosiArgs, config: MkosiConfig) -> None:
+    cmd = [
+        "ssh",
+        # Silence known hosts file errors/warnings.
+        "-o", "UserKnownHostsFile=/dev/null",
+        "-o", "StrictHostKeyChecking=no",
+        "-o", "LogLevel=ERROR",
+        "-o", f"ProxyCommand=socat - VSOCK-CONNECT:{machine_cid(config)}:%p",
+        "root@mkosi",
+    ]
+
+    cmd += args.cmdline
+
+    run(cmd, stdin=sys.stdin, stdout=sys.stdout, env=os.environ, log=False)

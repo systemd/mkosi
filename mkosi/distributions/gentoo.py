@@ -8,11 +8,12 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from mkosi.architecture import Architecture
+from mkosi.archive import extract_tar
 from mkosi.distributions import DistributionInstaller, PackageType
 from mkosi.log import ARG_DEBUG, complete_step, die
 from mkosi.run import apivfs_cmd, bwrap, chroot_cmd, run
 from mkosi.state import MkosiState
-from mkosi.tree import copy_tree, extract_tree, rmtree
+from mkosi.tree import copy_tree, rmtree
 from mkosi.types import PathString
 from mkosi.util import flatten, sort_packages
 
@@ -111,7 +112,7 @@ class GentooInstaller(DistributionInstaller):
 
         if not any(stage3.iterdir()):
             with complete_step(f"Extracting {stage3_tar.name} to {stage3}"):
-                extract_tree(stage3_tar, stage3)
+                extract_tar(stage3_tar, stage3)
 
         for d in ("binpkgs", "distfiles", "repos/gentoo"):
             (state.cache_dir / d).mkdir(parents=True, exist_ok=True)
