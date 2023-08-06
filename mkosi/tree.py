@@ -107,7 +107,7 @@ def install_tree(config: MkosiConfig, src: Path, dst: Path, target: Optional[Pat
     with umask(~0o755):
         t.parent.mkdir(parents=True, exist_ok=True)
 
-    if src.is_dir():
+    if src.is_dir() or (src.is_file() and target):
         copy_tree(config, src, t, preserve_owner=False)
     elif src.suffix == ".tar":
         extract_tar(src, t)
