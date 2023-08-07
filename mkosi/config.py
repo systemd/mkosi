@@ -2001,7 +2001,7 @@ def load_config(args: argparse.Namespace) -> MkosiConfig:
             die("UEFI SecureBoot enabled, but couldn't find certificate.",
                 hint="Consider placing it in mkosi.crt")
 
-    if args.qemu_kvm == ConfigFeature.enabled and not qemu_check_kvm_support():
+    if args.qemu_kvm == ConfigFeature.enabled and not qemu_check_kvm_support(log=False):
         die("Sorry, the host machine does not support KVM acceleration.")
 
     if args.qemu_vsock == ConfigFeature.enabled and not qemu_check_vsock_support(log=False):

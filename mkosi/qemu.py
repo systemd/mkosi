@@ -207,7 +207,8 @@ def copy_ephemeral(config: MkosiConfig, src: Path) -> Iterator[Path]:
 
 def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
     accel = "tcg"
-    if config.qemu_kvm == ConfigFeature.enabled or (config.qemu_kvm == ConfigFeature.auto and config.architecture.is_native() and qemu_check_kvm_support()):
+    auto = config.qemu_kvm == ConfigFeature.auto and config.architecture.is_native() and qemu_check_kvm_support(log=True)
+    if config.qemu_kvm == ConfigFeature.enabled or auto:
         accel = "kvm"
 
     firmware, fw_supports_sb = find_qemu_firmware(config)
