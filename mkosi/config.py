@@ -1909,7 +1909,7 @@ def load_kernel_command_line_extra(args: argparse.Namespace) -> list[str]:
     ]
 
     if not any(s.startswith("ip=") for s in args.kernel_command_line_extra):
-        cmdline += ["ip=enp0s1:any", "ip=host0:any"]
+        cmdline += ["ip=enp0s1:any", "ip=enp0s2:any", "ip=host0:any"]
 
     if not any(s.startswith("loglevel=") for s in args.kernel_command_line_extra):
         cmdline += ["loglevel=4"]
