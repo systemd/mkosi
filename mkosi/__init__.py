@@ -1350,8 +1350,6 @@ def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
     manifest = Manifest(config)
     workspace = tempfile.TemporaryDirectory(dir=config.workspace_dir, prefix=".mkosi-tmp")
 
-    # Make sure tmpfiles' aging doesn't interfere with our workspace
-    # while we are working on it.
     with workspace, scopedenv({"TMPDIR" : workspace.name}):
         state = MkosiState(args, config, Path(workspace.name))
         install_package_manager_trees(state)
@@ -1719,6 +1717,7 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
     for config in presets:
         try_import(f"mkosi.distributions.{config.distribution}")
 
+    invoked_as_root = os.getuid() == 0
     name = InvokingUser.name()
 
     # Get the user UID/GID either on the host or in the user namespace running the build
@@ -1786,8 +1785,10 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
     with mount_usr(last.tools_tree, umount=False), mount_passwd(name, uid, gid, umount=False):
 
         # After mounting the last tools tree, if we're not going to execute systemd-nspawn, we don't need to
-        # be (fake) root anymore, so switch user to the invoking user.
-        if args.verb not in (Verb.shell, Verb.boot):
+        # be (fake) root anymore, so switch user to the invoking user. If we're going to invoke qemu and
+        # mkosi was executed as root, we also don't drop privileges as depending on the environment and
+        # options passed, running qemu might need root privileges as well.
+        if not args.verb.needs_root() and (args.verb != Verb.qemu or not invoked_as_root):
             os.setresgid(gid, gid, gid)
             os.setresuid(uid, uid, uid)
 

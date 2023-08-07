@@ -121,21 +121,28 @@ def chdir(directory: Path) -> Iterator[None]:
         os.chdir(old)
 
 
-def qemu_check_kvm_support() -> bool:
-    kvm = Path("/dev/kvm")
-    if not kvm.is_char_device():
-        return False
+def qemu_check_kvm_support(log: bool) -> bool:
     # some CI runners may present a non-working KVM device
     try:
-        with kvm.open("r+b"):
-            return True
-    except OSError:
-        return False
+        os.close(os.open("/dev/kvm", os.O_RDWR|os.O_CLOEXEC))
+    except OSError as e:
+        if e.errno == errno.ENOENT:
+            if log:
+                logging.warning("/dev/kvm not found. Not using KVM acceleration.")
+            return False
+        elif e.errno in (errno.EPERM, errno.EACCES):
+            if log:
+                logging.warning("Permission denied to access /dev/kvm. Not using KVM acceleration")
+            return False
+
+        raise e
+
+    return True
 
 
 def qemu_check_vsock_support(log: bool) -> bool:
     try:
-        os.open("/dev/vhost-vsock", os.O_RDWR|os.O_CLOEXEC)
+        os.close(os.open("/dev/vhost-vsock", os.O_RDWR|os.O_CLOEXEC))
     except OSError as e:
         if e.errno == errno.ENOENT:
             if log:
