@@ -626,8 +626,8 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                 *(["--compress-output", str(state.config.compress_output)] if state.config.compress_output else []),
                 "--with-network", str(state.config.with_network),
                 "--cache-only", str(state.config.cache_only),
-                *(["--output-dir", str(state.config.output_dir)] if state.config.output_dir else []),
-                *(["--workspace-dir", str(state.config.workspace_dir)] if state.config.workspace_dir else []),
+                "--output-dir", str(state.config.output_dir),
+                "--workspace-dir", str(state.config.workspace_dir),
                 "--cache-dir", str(state.cache_dir.parent),
                 *(["--local-mirror", str(state.config.local_mirror)] if state.config.local_mirror else []),
                 "--incremental", str(state.config.incremental),
@@ -971,42 +971,31 @@ def cache_tree_paths(config: MkosiConfig) -> tuple[Path, Path, Path]:
     )
 
 
-def check_tree_input(path: Optional[Path]) -> None:
-    # Each path may be a directory or a tarball.
-    # Open the file or directory to simulate an access check.
-    # If that fails, an exception will be thrown.
-    if not path:
-        return
-
-    os.open(path, os.R_OK)
-
-
-def check_source_target_input(tree: tuple[Path, Optional[Path]]) -> None:
-    source, _ = tree
-    os.open(source, os.R_OK)
-
-
 def check_inputs(config: MkosiConfig) -> None:
-    try:
-        for base in config.base_trees:
-            check_tree_input(base)
+    """
+    Make sure all the inputs that aren't checked during config parsing because they might be created by an
+    earlier preset exist.
+    """
+    for base in config.base_trees:
+        if not base.exists():
+            die(f"Base tree {base} not found")
 
-        check_tree_input(config.tools_tree)
+    if config.tools_tree and not config.tools_tree.exists():
+        die(f"Tools tree {config.tools_tree} not found")
 
-        for tree in (config.skeleton_trees,
-                     config.extra_trees):
-            for item in tree:
-                check_source_target_input(item)
+    for name, trees in (("Skeleton", config.skeleton_trees),
+                        ("Package manager", config.package_manager_trees),
+                        ("Extra", config.extra_trees)):
+        for src, _ in trees:
+            if not src.exists():
+                die(f"{name} tree {src} not found")
 
-        if config.bootable != ConfigFeature.disabled:
-            for p in config.initrds:
-                if not p.exists():
-                    die(f"Initrd {p} not found")
-                if not p.is_file():
-                    die(f"Initrd {p} is not a file")
-
-    except OSError as e:
-        die(f'{e.filename}: {e.strerror}')
+    if config.bootable != ConfigFeature.disabled:
+        for p in config.initrds:
+            if not p.exists():
+                die(f"Initrd {p} not found")
+            if not p.is_file():
+                die(f"Initrd {p} is not a file")
 
 
 def check_outputs(config: MkosiConfig) -> None:
@@ -1359,10 +1348,12 @@ def finalize_staging(state: MkosiState) -> None:
 
 def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
     manifest = Manifest(config)
+    workspace = tempfile.TemporaryDirectory(dir=config.workspace_dir, prefix=".mkosi-tmp")
 
     # Make sure tmpfiles' aging doesn't interfere with our workspace
     # while we are working on it.
-    with MkosiState(args, config) as state, scopedenv({"TMPDIR" : str(state.workspace)}):
+    with workspace, scopedenv({"TMPDIR" : workspace.name}):
+        state = MkosiState(args, config, Path(workspace.name))
         install_package_manager_trees(state)
 
         with mount_image(state):
@@ -1385,6 +1376,8 @@ def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
             run_build_script(state)
 
             if state.config.output_format == OutputFormat.none:
+                # Touch an empty file to indicate the image was built.
+                (state.staging / state.config.output).touch()
                 finalize_staging(state)
                 return
 
