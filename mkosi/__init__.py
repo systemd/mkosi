@@ -189,22 +189,18 @@ def mount_build_overlay(state: MkosiState, read_only: bool = False) -> ContextMa
     return mount_overlay([state.root], state.workspace / "build-overlay", state.root, read_only)
 
 
-def finalize_source_mounts(config: MkosiConfig) -> list[PathString]:
+def finalize_mounts(config: MkosiConfig) -> list[PathString]:
     sources = [
         (src, Path.cwd() / (str(target).lstrip("/") if target else "."))
         for src, target
         in ((Path.cwd(), None), *config.build_sources)
     ]
 
-    return flatten(["--bind", src, target] for src, target in sorted(sources, key=lambda s: s[1]))
+    # bwrap() mounts /home and /var read-only during execution. So let's add the bind mount options for the
+    # directories that could be in /home or /var that we do need to be writable.
+    sources += [(d, d) for d in (config.workspace_dir, config.cache_dir, config.output_dir, config.build_dir) if d]
 
-
-def finalize_writable_mounts(config: MkosiConfig) -> list[PathString]:
-    """
-    bwrap() mounts /home and /var read-only during execution. This functions finalizes the bind mount options
-    for the directories that could be in /home or /var that we do need to be writable.
-    """
-    return flatten(["--bind", d, d] for d in (config.workspace_dir, config.cache_dir, config.output_dir, config.build_dir) if d)
+    return flatten(["--bind", src, target] for src, target in sorted(set(sources), key=lambda s: s[1]))
 
 
 def run_prepare_script(state: MkosiState, build: bool) -> None:
@@ -236,7 +232,7 @@ def run_prepare_script(state: MkosiState, build: bool) -> None:
         with complete_step("Running prepare script in build overlay…"), mount_build_overlay(state):
             bwrap(
                 [state.config.prepare_script, "build"],
-                options=finalize_source_mounts(state.config) + finalize_writable_mounts(state.config),
+                options=finalize_mounts(state.config),
                 scripts={"mkosi-chroot": chroot} | package_manager_scripts(state),
                 env=env | state.config.environment,
                 stdin=sys.stdin,
@@ -245,7 +241,7 @@ def run_prepare_script(state: MkosiState, build: bool) -> None:
         with complete_step("Running prepare script…"):
             bwrap(
                 [state.config.prepare_script, "final"],
-                options=finalize_source_mounts(state.config) + finalize_writable_mounts(state.config),
+                options=finalize_mounts(state.config),
                 scripts={"mkosi-chroot": chroot} | package_manager_scripts(state),
                 env=env | state.config.environment,
                 stdin=sys.stdin,
@@ -298,7 +294,7 @@ def run_build_script(state: MkosiState) -> None:
     with complete_step("Running build script…"), mount_build_overlay(state):
         bwrap(
             [state.config.build_script],
-            options=finalize_source_mounts(state.config) + finalize_writable_mounts(state.config),
+            options=finalize_mounts(state.config),
             scripts={"mkosi-chroot": chroot} | package_manager_scripts(state),
             env=env | state.config.environment,
             stdin=sys.stdin,
@@ -335,7 +331,7 @@ def run_postinst_script(state: MkosiState) -> None:
     with complete_step("Running postinstall script…"):
         bwrap(
             [state.config.postinst_script, "final"],
-            options=finalize_source_mounts(state.config) + finalize_writable_mounts(state.config),
+            options=finalize_mounts(state.config),
             scripts={"mkosi-chroot": chroot} | package_manager_scripts(state),
             env=env | state.config.environment,
             stdin=sys.stdin,
@@ -372,7 +368,7 @@ def run_finalize_script(state: MkosiState) -> None:
     with complete_step("Running finalize script…"):
         bwrap(
             [state.config.finalize_script],
-            options=finalize_source_mounts(state.config) + finalize_writable_mounts(state.config),
+            options=finalize_mounts(state.config),
             scripts={"mkosi-chroot": chroot} | package_manager_scripts(state),
             env=env | state.config.environment,
             stdin=sys.stdin,
