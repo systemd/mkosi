@@ -279,7 +279,6 @@ def bwrap(
         "--ro-bind", "/sys", "/sys",
         "--tmpfs", "/tmp",
         "--setenv", "SYSTEMD_OFFLINE", one_zero(network),
-        *options,
     ]
 
     with tempfile.TemporaryDirectory(prefix="mkosi-scripts") as d:
@@ -300,8 +299,11 @@ def bwrap(
 
             make_executable(Path(d) / name)
 
-        cmdline += ["--setenv", "PATH", f"{d}:{os.environ['PATH']}"]
-        cmdline += ["sh", "-c", "chmod 1777 /tmp /dev/shm && exec $0 \"$@\""]
+        cmdline += [
+            "--setenv", "PATH", f"{d}:{os.environ['PATH']}",
+            *options,
+            "sh", "-c", "chmod 1777 /tmp /dev/shm && exec $0 \"$@\"",
+        ]
 
         try:
             result = run([*cmdline, *cmd], env=env, log=False, stdin=stdin, input=input)
@@ -369,7 +371,6 @@ def chroot_cmd(root: Path, *, options: Sequence[PathString] = ()) -> list[PathSt
         "--setenv", "container", "mkosi",
         "--setenv", "HOME", "/",
         "--setenv", "PATH", "/usr/bin:/usr/sbin",
-        *options,
     ]
 
     resolve = Path("etc/resolv.conf")
@@ -381,10 +382,12 @@ def chroot_cmd(root: Path, *, options: Sequence[PathString] = ()) -> list[PathSt
         # create all missing components in the target path.
         resolve = resolve.parent / (root / resolve).readlink()
 
-    cmdline += ["--ro-bind", "/etc/resolv.conf", Path("/") / resolve]
-
-    # No exec here because we need to clean up the /work directory afterwards.
-    cmdline += ["sh", "-c", f"$0 \"$@\" && rm -rf {root / 'work'}"]
+    cmdline += [
+        "--ro-bind", "/etc/resolv.conf", Path("/") / resolve,
+        *options,
+        # No exec here because we need to clean up the /work directory afterwards.
+        "sh", "-c", f"$0 \"$@\" && rm -rf {root / 'work'}",
+    ]
 
     return apivfs_cmd(root) + cmdline
 
