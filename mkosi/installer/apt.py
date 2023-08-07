@@ -106,4 +106,4 @@ def invoke_apt(
     cmd = apivfs_cmd(state.root) if apivfs else []
     bwrap(cmd + apt_cmd(state, command) + [operation, *sort_packages(packages)],
           options=flatten(["--bind", d, d] for d in (state.config.workspace_dir, state.config.cache_dir) if d),
-          env=state.config.environment)
+          network=True, env=state.config.environment)

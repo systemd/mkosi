@@ -42,6 +42,7 @@ def invoke_emerge(state: MkosiState, packages: Sequence[str] = (), apivfs: bool 
             f"--root={state.root}",
             *sort_packages(packages),
         ],
+        network=True,
         options=[
             # TODO: Get rid of as many of these as possible.
             "--bind", state.cache_dir / "stage3/etc", "/etc",
@@ -142,10 +143,9 @@ class GentooInstaller(DistributionInstaller):
         chroot = chroot_cmd(
             stage3,
             options=["--bind", state.cache_dir / "repos", "/var/db/repos"],
-            network=True,
         )
 
-        bwrap(cmd=chroot + ["emerge-webrsync"],
+        bwrap(cmd=chroot + ["emerge-webrsync"], network=True,
               options=flatten(["--bind", d, d] for d in (state.config.workspace_dir, state.config.cache_dir) if d))
 
         invoke_emerge(state, packages=["sys-apps/baselayout"], apivfs=False)

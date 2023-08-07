@@ -22,7 +22,7 @@ from typing import Any, Awaitable, Mapping, Optional, Sequence, Tuple, Type
 
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, die
 from mkosi.types import _FILE, CompletedProcess, PathString, Popen
-from mkosi.util import InvokingUser, flock, make_executable
+from mkosi.util import InvokingUser, flock, make_executable, one_zero
 
 CLONE_NEWNS = 0x00020000
 CLONE_NEWUSER = 0x10000000
@@ -250,6 +250,7 @@ def spawn(
 def bwrap(
     cmd: Sequence[PathString],
     *,
+    network: bool = False,
     options: Sequence[PathString] = (),
     log: bool = True,
     scripts: Mapping[str, Sequence[PathString]] = {},
@@ -271,11 +272,13 @@ def bwrap(
         "--unshare-pid",
         "--unshare-ipc",
         "--unshare-cgroup",
+        *(["--unshare-net"] if not network else []),
         "--die-with-parent",
         "--proc", "/proc",
         "--dev", "/dev",
         "--ro-bind", "/sys", "/sys",
         "--tmpfs", "/tmp",
+        "--setenv", "SYSTEMD_OFFLINE", one_zero(network),
         *options,
     ]
 
@@ -359,31 +362,26 @@ def apivfs_cmd(root: Path) -> list[PathString]:
     return cmdline
 
 
-def chroot_cmd(root: Path, *, options: Sequence[PathString] = (), network: bool = False) -> list[PathString]:
+def chroot_cmd(root: Path, *, options: Sequence[PathString] = ()) -> list[PathString]:
     cmdline: list[PathString] = [
         "bwrap",
         "--dev-bind", root, "/",
         "--setenv", "container", "mkosi",
-        "--setenv", "SYSTEMD_OFFLINE", str(int(network)),
         "--setenv", "HOME", "/",
         "--setenv", "PATH", "/usr/bin:/usr/sbin",
         *options,
     ]
 
-    if network:
-        resolve = Path("etc/resolv.conf")
-        if (root / resolve).is_symlink():
-            # For each component in the target path, bubblewrap will try to create it if it doesn't exist
-            # yet. If a component in the path is a dangling symlink, bubblewrap will end up calling
-            # mkdir(symlink) which obviously fails if multiple components of the dangling symlink path don't
-            # exist yet. As a workaround, we resolve the symlink ourselves so that bubblewrap will correctly
-            # create all missing components in the target path.
-            resolve = resolve.parent / (root / resolve).readlink()
+    resolve = Path("etc/resolv.conf")
+    if (root / resolve).is_symlink():
+        # For each component in the target path, bubblewrap will try to create it if it doesn't exist
+        # yet. If a component in the path is a dangling symlink, bubblewrap will end up calling
+        # mkdir(symlink) which obviously fails if multiple components of the dangling symlink path don't
+        # exist yet. As a workaround, we resolve the symlink ourselves so that bubblewrap will correctly
+        # create all missing components in the target path.
+        resolve = resolve.parent / (root / resolve).readlink()
 
-        # If we're using the host network namespace, use the same resolver.
-        cmdline += ["--ro-bind", "/etc/resolv.conf", Path("/") / resolve]
-    else:
-        cmdline += ["--unshare-net"]
+    cmdline += ["--ro-bind", "/etc/resolv.conf", Path("/") / resolve]
 
     # No exec here because we need to clean up the /work directory afterwards.
     cmdline += ["sh", "-c", f"$0 \"$@\" && rm -rf {root / 'work'}"]

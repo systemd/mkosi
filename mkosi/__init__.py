@@ -225,13 +225,13 @@ def run_prepare_script(state: MkosiState, build: bool) -> None:
             "--setenv", "SRCDIR", "/work/src",
             "--setenv", "BUILDROOT", "/",
         ],
-        network=True,
     )
 
     if build:
         with complete_step("Running prepare script in build overlay…"), mount_build_overlay(state):
             bwrap(
                 [state.config.prepare_script, "build"],
+                network=True,
                 options=finalize_mounts(state.config),
                 scripts={"mkosi-chroot": chroot} | package_manager_scripts(state),
                 env=env | state.config.environment,
@@ -241,6 +241,7 @@ def run_prepare_script(state: MkosiState, build: bool) -> None:
         with complete_step("Running prepare script…"):
             bwrap(
                 [state.config.prepare_script, "final"],
+                network=True,
                 options=finalize_mounts(state.config),
                 scripts={"mkosi-chroot": chroot} | package_manager_scripts(state),
                 env=env | state.config.environment,
@@ -288,12 +289,12 @@ def run_build_script(state: MkosiState) -> None:
             *(["--setenv", "BUILDDIR", "/work/build"] if state.config.build_dir else []),
             "--remount-ro", "/",
         ],
-        network=state.config.with_network,
     )
 
     with complete_step("Running build script…"), mount_build_overlay(state):
         bwrap(
             [state.config.build_script],
+            network=state.config.with_network,
             options=finalize_mounts(state.config),
             scripts={"mkosi-chroot": chroot} | package_manager_scripts(state),
             env=env | state.config.environment,
@@ -325,12 +326,12 @@ def run_postinst_script(state: MkosiState) -> None:
             "--setenv", "OUTPUTDIR", "/work/out",
             "--setenv", "BUILDROOT", "/",
         ],
-        network=state.config.with_network,
     )
 
     with complete_step("Running postinstall script…"):
         bwrap(
             [state.config.postinst_script, "final"],
+            network=state.config.with_network,
             options=finalize_mounts(state.config),
             scripts={"mkosi-chroot": chroot} | package_manager_scripts(state),
             env=env | state.config.environment,
@@ -362,12 +363,12 @@ def run_finalize_script(state: MkosiState) -> None:
             "--setenv", "OUTPUTDIR", "/work/out",
             "--setenv", "BUILDROOT", "/",
         ],
-        network=state.config.with_network,
     )
 
     with complete_step("Running finalize script…"):
         bwrap(
             [state.config.finalize_script],
+            network=state.config.with_network,
             options=finalize_mounts(state.config),
             scripts={"mkosi-chroot": chroot} | package_manager_scripts(state),
             env=env | state.config.environment,

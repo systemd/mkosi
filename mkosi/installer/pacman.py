@@ -114,4 +114,4 @@ def invoke_pacman(state: MkosiState, packages: Sequence[str], apivfs: bool = Tru
     cmd = apivfs_cmd(state.root) if apivfs else []
     bwrap(cmd + pacman_cmd(state) + ["-Sy", *sort_packages(packages)],
           options=flatten(["--bind", d, d] for d in (state.config.workspace_dir, state.config.cache_dir) if d),
-          env=state.config.environment)
+          network=True, env=state.config.environment)
