@@ -71,6 +71,6 @@ def invoke_zypper(
     cmd = apivfs_cmd(state.root) if apivfs else []
     bwrap(cmd + zypper_cmd(state) + [verb, *sort_packages(packages), *options],
           options=flatten(["--bind", d, d] for d in (state.config.workspace_dir, state.config.cache_dir) if d),
-          env=state.config.environment)
+          network=True, env=state.config.environment)
 
     fixup_rpmdb_location(state.root)
