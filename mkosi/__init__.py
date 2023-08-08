@@ -631,6 +631,7 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                 "--acl", str(state.config.acl),
                 "--format", "cpio",
                 "--package", "systemd",
+                "--package", "udev",
                 "--package", "util-linux",
                 "--package", "kmod",
                 *(["--package", "dmsetup"] if state.config.distribution.is_apt_distribution() else []),
