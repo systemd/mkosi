@@ -190,9 +190,10 @@ Those settings cannot be configured in the configuration files.
 
 `--preset=`
 
-: If specified, only build the given preset. Can be specified multiple
-  times to build multiple presets. If not specified, all presets are
-  built. See the `Presets` section for more information.
+: If specified, only build the given presets. Can be specified multiple
+  times to build multiple presets. All the given presets and their
+  dependencies are built. If not specified, all presets are built. See
+  the `Presets` section for more information.
 
 ## Supported output formats
 
@@ -299,6 +300,15 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
 | `ImageId=`      | yes   | no               | match fails             |
 | `ImageVersion=` | no    | yes              | match fails             |
 | `Bootable=`     | no    | no               | match auto feature      |
+
+### [Preset] Section
+
+`Dependencies=`, `--dependency=`
+
+: The presets that this preset depends on specified as a comma-separated
+  list. All presets configured in this option will be built before this
+  preset and will be pulled in as dependencies of this preset when
+  `--preset` is used.
 
 ### [Distribution] Section
 
@@ -1337,22 +1347,18 @@ directories containing mkosi configuration files or regular files with
 the `.conf` extension.
 
 When presets are found in `mkosi.presets/`, mkosi will build the
-configured presets (or all of them if none were explicitly configured
-using `--preset=`) in alphanumerical order. To enforce a certain build
-order, preset names can be numerically prefixed (e.g. `00-initrd.conf`).
-The numerical prefix will be removed from the preset name during parsing,
-along with the `.conf` suffix (`00-initrd.conf` becomes `initrd`). The
-preset name is used for display purposes and also as the default output
-name if none is explicitly configured.
+configured preset and its dependencies (or all of them if no presets
+were explicitly configured using `--preset=`). To add dependencies
+between presets, the `Dependencies=` setting can be used.
 
 When presets are defined, mkosi will first read the global configuration
 (configuration outside of the `mkosi.presets/` directory), followed by
 the preset specific configuration. This means that global configuration
 takes precedence over preset specific configuration.
 
-Later presets can refer to outputs of earlier presets. Specifically, for
-the following options, mkosi will only check whether the inputs exist
-just before building the preset:
+Presets can refer to outputs of presets they depend on. Specifically,
+for the following options, mkosi will only check whether the inputs
+exist just before building the preset:
 
 - `BaseTrees=`
 - `PackageManagerTrees=`
@@ -1361,9 +1367,9 @@ just before building the preset:
 - `ToolsTree=`
 - `Initrds=`
 
-To refer to outputs of earlier presets, simply configure any of these
-options with a relative path to the location of the output to use in the
-earlier preset's output directory.
+To refer to outputs of a preset's dependencies, simply configure any of
+these options with a relative path to the output to use in the output
+directory of the dependency.
 
 A good example on how to use presets can be found in the systemd
 repository: https://github.com/systemd/systemd/tree/main/mkosi.presets.
