@@ -1081,8 +1081,8 @@ Then, for each preset, we execute the following steps:
 * Run `systemd-firstboot`
 * Run `systemd-hwdb`
 * Remove packages and files (`RemovePackages=`, `RemoveFiles=`)
-* Run finalize script (`mkosi.finalize`)
 * Run SELinux relabel is a SELinux policy is installed
+* Run finalize script (`mkosi.finalize`)
 * Generate unified kernel image if configured to do so
 * Generate final output format
 

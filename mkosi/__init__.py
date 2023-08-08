@@ -1397,8 +1397,8 @@ def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
 
             clean_package_manager_metadata(state)
             remove_files(state)
-            run_finalize_script(state)
             run_selinux_relabel(state)
+            run_finalize_script(state)
 
         roothash, _ = make_image(state, skip=("esp", "xbootldr"))
         install_unified_kernel(state, roothash)
