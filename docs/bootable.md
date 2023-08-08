@@ -19,7 +19,7 @@ Packages=linux
 Packages=kernel
          systemd
          systemd-boot
-         systemd-udev
+         udev
          util-linux
 ```
 
@@ -30,7 +30,7 @@ Packages=kernel
 Packages=kernel
          systemd
          systemd-boot
-         systemd-udev
+         udev
 ```
 
 ## Debian
