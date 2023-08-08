@@ -451,17 +451,17 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
 
 `BuildDirectory=`, `--build-dir=`
 
-: Takes a path to a directory to use as build directory for build
-  systems that support out-of-tree builds (such as Meson). The
-  directory used this way is shared between repeated builds, and
-  allows the build system to reuse artifacts (such as object files,
-  executable, …) generated on previous invocations. This directory is
-  mounted into the development image when the build script is
-  invoked. The build script can find the path to this directory in the
-  `$BUILDDIR` environment variable. If this option is not specified,
-  but a directory `mkosi.builddir/` exists in the local directory it
-  is automatically used for this purpose (also see the "Files" section
-  below).
+: Takes a path to a directory to use as the build directory for build
+  systems that support out-of-tree builds (such as Meson). The directory
+  used this way is shared between repeated builds, and allows the build
+  system to reuse artifacts (such as object files, executable, …)
+  generated on previous invocations. The build script can find the path
+  to this directory in the `$BUILDDIR` environment variable. This
+  directory is mounted into the image's root directory when
+  `mkosi-chroot` is invoked during execution of the build script. If
+  this option is not specified, but a directory `mkosi.builddir/` exists
+  in the local directory it is automatically used for this purpose (also
+  see the "Files" section below).
 
 `ImageVersion=`, `--image-version=`
 
@@ -692,11 +692,13 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
 `BuildSources=`, `--build-sources=`
 
 : Takes a list of colon-separated pairs of paths to source trees and
-  where to mount them in the development image, if the build script is
-  used. Every target path is prefixed with `/work/src` and all build
-  sources are sorted lexicographically by mount target before mounting
-  so that top level paths are mounted first. By default, the current
-  working directory is mounted to `/work/src`.
+  where to mount them when running scripts. Every target path is
+  prefixed with the current working directory and all build sources are
+  sorted lexicographically by mount target before mounting so that top
+  level paths are mounted first. When using the `mkosi-chroot` script (
+  see the `SCRIPTS` section), the current working directory with all
+  build sources mounted in it is mounted to `/work/src` inside the
+  image's root directory.
 
 `Environment=`, `--environment=`
 
