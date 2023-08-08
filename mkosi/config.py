@@ -8,13 +8,13 @@ import dataclasses
 import enum
 import fnmatch
 import functools
+import graphlib
 import inspect
 import operator
 import os.path
 import platform
 import shlex
 import shutil
-import string
 import subprocess
 import sys
 import textwrap
@@ -628,6 +628,7 @@ class MkosiConfig:
     access the value from state.
     """
 
+    dependencies: tuple[str]
     distribution: Distribution
     release: str
     mirror: Optional[str]
@@ -798,6 +799,13 @@ class MkosiConfig:
 
 class MkosiConfigParser:
     SETTINGS = (
+        MkosiConfigSetting(
+            dest="dependencies",
+            long="--dependency",
+            section="Preset",
+            parse=config_make_list_parser(delimiter=","),
+            help="Specify other presets that this preset depends on",
+        ),
         MkosiConfigSetting(
             dest="distribution",
             short="-d",
@@ -1703,8 +1711,9 @@ class MkosiConfigParser:
             "--preset",
             action="append",
             dest="presets",
+            metavar="PRESET",
             default=[],
-            help="Build the specified preset",
+            help="Build the specified presets and their dependencies",
         )
         parser.add_argument(
             "--nspawn-keep-unit",
@@ -1767,6 +1776,32 @@ class MkosiConfigParser:
             delattr(namespace, "cache")
             print("Warning: --cache is no longer supported")
 
+    def resolve_deps(self, args: MkosiArgs, presets: Sequence[MkosiConfig]) -> list[MkosiConfig]:
+        graph = {p.preset: p.dependencies for p in presets}
+
+        if args.presets:
+            if any((missing := p) not in graph for p in args.presets):
+                die(f"No preset found with name {missing}")
+
+            deps = set()
+            queue = [*args.presets]
+
+            while queue:
+                if (preset := queue.pop(0)) not in deps:
+                    deps.add(preset)
+                    queue.extend(graph[preset])
+
+            presets = [p for p in presets if p.preset in deps]
+
+        graph = {p.preset: p.dependencies for p in presets}
+
+        try:
+            order = list(graphlib.TopologicalSorter(graph).static_order())
+        except graphlib.CycleError as e:
+            die(f"Preset dependency cycle detected: {' => '.join(e.args[1])}")
+
+        return sorted(presets, key=lambda p: order.index(p.preset))
+
     def parse(self, argv: Optional[Sequence[str]] = None) -> tuple[MkosiArgs, tuple[MkosiConfig, ...]]:
         presets = []
         namespace = argparse.Namespace()
@@ -1808,15 +1843,13 @@ class MkosiConfigParser:
             self.parse_config(Path("."), namespace)
 
             if Path("mkosi.presets").exists():
-                for p in sorted(Path("mkosi.presets").iterdir()):
+                for p in Path("mkosi.presets").iterdir():
                     if not p.is_dir() and not p.suffix == ".conf":
                         continue
 
-                    name = p.name.lstrip(string.digits + "-").removesuffix(".conf")
+                    name = p.name.removesuffix(".conf")
                     if not name:
                         die(f"{p} is not a valid preset name")
-                    if args.presets and name not in args.presets:
-                        continue
 
                     cp = copy.deepcopy(namespace)
 
@@ -1853,7 +1886,10 @@ class MkosiConfigParser:
         # infrastructure scripts rather than image-specific configuration.
         self.backward_compat_stubs(namespace)
 
-        return args, tuple(load_config(ns) for ns in presets)
+        presets = [load_config(ns) for ns in presets]
+        presets = self.resolve_deps(args, presets)
+
+        return args, tuple(presets)
 
 
 def load_credentials(args: argparse.Namespace) -> dict[str, str]:
@@ -2089,6 +2125,9 @@ def summary(args: MkosiArgs, config: MkosiConfig) -> str:
     {bold("COMMANDS")}:
                           Verb: {bold(args.verb)}
                        Cmdline: {bold(" ".join(args.cmdline))}
+
+    {bold("PRESET")}:
+                  Dependencies: {line_join_list(config.dependencies)}
 
     {bold("DISTRIBUTION")}:
                   Distribution: {bold(config.distribution)}
