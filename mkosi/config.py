@@ -1807,6 +1807,9 @@ class MkosiConfigParser:
 
             if Path("mkosi.presets").exists():
                 for p in sorted(Path("mkosi.presets").iterdir()):
+                    if not p.is_dir() and not p.suffix == ".conf":
+                        continue
+
                     name = p.name.lstrip(string.digits + "-").removesuffix(".conf")
                     if not name:
                         die(f"{p} is not a valid preset name")

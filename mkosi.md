@@ -188,6 +188,12 @@ Those settings cannot be configured in the configuration files.
   each build in a series will have a version number one higher then
   the previous one.
 
+`--preset=`
+
+: If specified, only build the given preset. Can be specified multiple
+  times to build multiple presets. If not specified, all presets are
+  built. See the `Presets` section for more information.
+
 ## Supported output formats
 
 The following output formats are supported:
@@ -445,17 +451,17 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
 
 `BuildDirectory=`, `--build-dir=`
 
-: Takes a path to a directory to use as build directory for build
-  systems that support out-of-tree builds (such as Meson). The
-  directory used this way is shared between repeated builds, and
-  allows the build system to reuse artifacts (such as object files,
-  executable, …) generated on previous invocations. This directory is
-  mounted into the development image when the build script is
-  invoked. The build script can find the path to this directory in the
-  `$BUILDDIR` environment variable. If this option is not specified,
-  but a directory `mkosi.builddir/` exists in the local directory it
-  is automatically used for this purpose (also see the "Files" section
-  below).
+: Takes a path to a directory to use as the build directory for build
+  systems that support out-of-tree builds (such as Meson). The directory
+  used this way is shared between repeated builds, and allows the build
+  system to reuse artifacts (such as object files, executable, …)
+  generated on previous invocations. The build script can find the path
+  to this directory in the `$BUILDDIR` environment variable. This
+  directory is mounted into the image's root directory when
+  `mkosi-chroot` is invoked during execution of the build script. If
+  this option is not specified, but a directory `mkosi.builddir/` exists
+  in the local directory it is automatically used for this purpose (also
+  see the "Files" section below).
 
 `ImageVersion=`, `--image-version=`
 
@@ -686,11 +692,13 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
 `BuildSources=`, `--build-sources=`
 
 : Takes a list of colon-separated pairs of paths to source trees and
-  where to mount them in the development image, if the build script is
-  used. Every target path is prefixed with `/work/src` and all build
-  sources are sorted lexicographically by mount target before mounting
-  so that top level paths are mounted first. By default, the current
-  working directory is mounted to `/work/src`.
+  where to mount them when running scripts. Every target path is
+  prefixed with the current working directory and all build sources are
+  sorted lexicographically by mount target before mounting so that top
+  level paths are mounted first. When using the `mkosi-chroot` script (
+  see the `SCRIPTS` section), the current working directory with all
+  build sources mounted in it is mounted to `/work/src` inside the
+  image's root directory.
 
 `Environment=`, `--environment=`
 
@@ -1318,6 +1326,45 @@ final cache only apply to uses of `mkosi` with a source tree and build
 script. When all three are enabled together turn-around times for
 complete image builds are minimal, as only changed source files need to
 be recompiled.
+
+# PRESETS
+
+Presets allow building more than one image with mkosi. Presets are
+loaded from the `mkosi.presets/` directory. Presets can be either
+directories containing mkosi configuration files or regular files with
+the `.conf` extension.
+
+When presets are found in `mkosi.presets/`, mkosi will build the
+configured presets (or all of them if none were explicitly configured
+using `--preset=`) in alphanumerical order. To enforce a certain build
+order, preset names can be numerically prefixed (e.g. `00-initrd.conf`).
+The numerical prefix will be removed from the preset name during parsing,
+along with the `.conf` suffix (`00-initrd.conf` becomes `initrd`). The
+preset name is used for display purposes and also as the default output
+name if none is explicitly configured.
+
+When presets are defined, mkosi will first read the global configuration
+(configuration outside of the `mkosi.presets/` directory), followed by
+the preset specific configuration. This means that global configuration
+takes precedence over preset specific configuration.
+
+Later presets can refer to outputs of earlier presets. Specifically, for
+the following options, mkosi will only check whether the inputs exist
+just before building the preset:
+
+- `BaseTrees=`
+- `PackageManagerTrees=`
+- `SkeletonTrees=`
+- `ExtraTrees=`
+- `ToolsTree=`
+- `Initrds=`
+
+To refer to outputs of earlier presets, simply configure any of these
+options with a relative path to the location of the output to use in the
+earlier preset's output directory.
+
+A good example on how to use presets can be found in the systemd
+repository: https://github.com/systemd/systemd/tree/main/mkosi.presets.
 
 # ENVIRONMENT VARIABLES
 
