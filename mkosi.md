@@ -188,6 +188,12 @@ Those settings cannot be configured in the configuration files.
   each build in a series will have a version number one higher then
   the previous one.
 
+`--preset=`
+
+: If specified, only build the given preset. Can be specified multiple
+  times to build multiple presets. If not specified, all presets are
+  built. See the `Presets` section for more information.
+
 ## Supported output formats
 
 The following output formats are supported:
@@ -1318,6 +1324,45 @@ final cache only apply to uses of `mkosi` with a source tree and build
 script. When all three are enabled together turn-around times for
 complete image builds are minimal, as only changed source files need to
 be recompiled.
+
+# PRESETS
+
+Presets allow building more than one image with mkosi. Presets are
+loaded from the `mkosi.presets/` directory. Presets can be either
+directories containing mkosi configuration files or regular files with
+the `.conf` extension.
+
+When presets are found in `mkosi.presets/`, mkosi will build the
+configured presets (or all of them if none were explicitly configured
+using `--preset=`) in alphanumerical order. To enforce a certain build
+order, preset names can be numerically prefixed (e.g. `00-initrd.conf`).
+The numerical prefix will be removed from the preset name during parsing,
+along with the `.conf` suffix (`00-initrd.conf` becomes `initrd`). The
+preset name is used for display purposes and also as the default output
+name if none is explicitly configured.
+
+When presets are defined, mkosi will first read the global configuration
+(configuration outside of the `mkosi.presets/` directory), followed by
+the preset specific configuration. This means that global configuration
+takes precedence over preset specific configuration.
+
+Later presets can refer to outputs of earlier presets. Specifically, for
+the following options, mkosi will only check whether the inputs exist
+just before building the preset:
+
+- `BaseTrees=`
+- `PackageManagerTrees=`
+- `SkeletonTrees=`
+- `ExtraTrees=`
+- `ToolsTree=`
+- `Initrds=`
+
+To refer to outputs of earlier presets, simply configure any of these
+options with a relative path to the location of the output to use in the
+earlier preset's output directory.
+
+A good example on how to use presets can be found in the systemd
+repository: https://github.com/systemd/systemd/tree/main/mkosi.presets.
 
 # ENVIRONMENT VARIABLES
 
