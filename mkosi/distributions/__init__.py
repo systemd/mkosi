@@ -80,9 +80,6 @@ class Distribution(StrEnum):
     def is_apt_distribution(self) -> bool:
         return self in (Distribution.debian, Distribution.ubuntu)
 
-    def is_portage_distribution(self) -> bool:
-        return self in (Distribution.gentoo,)
-
     def setup(self, state: "MkosiState") -> None:
         return self.installer().setup(state)
 

@@ -106,6 +106,11 @@
 - Removed `--tar-strip-selinux-context=` option. We now label all files
   properly if selinux is enabled and if users don't want the labels,
   they can simply exclude them when extracting the archive.
+- Gentoo is now marked as experimental and unsupported and there's no
+  guarantee at all that it will work. Issues related to gentoo will
+  generally not receive attention from core maintainers. All gentoo
+  specific hacks outside of the gentoo implementation module have been
+  removed.
 
 ## v14
 

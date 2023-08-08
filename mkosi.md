@@ -306,7 +306,7 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
 
 : The distribution to install in the image. Takes one of the following
   arguments: `fedora`, `debian`, `ubuntu`, `arch`, `opensuse`, `mageia`,
-  `centos`, `openmandriva`, `rocky`, `alma` or `gentoo`. If not
+  `centos`, `openmandriva`, `rocky`, `alma`. If not
   specified, defaults to the distribution of the host.
 
 `Release=`, `--release=`, `-r`
@@ -1018,7 +1018,9 @@ distributions:
 
 * *Alma Linux*
 
-* *Gentoo*
+* *Gentoo* (**Gentoo is experimental and unsupported. We make no
+  guarantee that it will work at all and the core maintainers will
+  generally not fix gentoo specific issues**)
 
 In theory, any distribution may be used on the host for building images
 containing any other distribution, as long as the necessary tools are

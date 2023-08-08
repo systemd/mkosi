@@ -95,7 +95,6 @@ jobs:
           - fedora
           - rocky
           - alma
-          - gentoo
           - opensuse
         format:
           - directory
