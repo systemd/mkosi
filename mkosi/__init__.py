@@ -634,8 +634,6 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                 "--package", "util-linux",
                 "--package", "kmod",
                 *(["--package", "dmsetup"] if state.config.distribution.is_apt_distribution() else []),
-                *(["--package", "udev"] if not state.config.distribution.is_portage_distribution() else []),
-                *(["--package", "bash"] if state.config.distribution.is_portage_distribution() else []),
                 "--output", f"{state.config.output}-initrd",
                 *(["--image-version", state.config.image_version] if state.config.image_version else []),
                 "--make-initrd", "yes",

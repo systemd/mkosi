@@ -73,7 +73,7 @@ def find_qemu_firmware(config: MkosiConfig) -> tuple[Path, bool]:
 
     FIRMWARE_LOCATIONS = [
         "/usr/share/edk2/ovmf/OVMF_CODE.secboot.fd",
-        "/usr/share/edk2-ovmf/OVMF_CODE.secboot.fd",  # GENTOO:
+        "/usr/share/edk2-ovmf/OVMF_CODE.secboot.fd",
         "/usr/share/qemu/OVMF_CODE.secboot.fd",
         "/usr/share/ovmf/OVMF.secboot.fd",
         "/usr/share/OVMF/OVMF_CODE.secboot.fd",
@@ -85,7 +85,7 @@ def find_qemu_firmware(config: MkosiConfig) -> tuple[Path, bool]:
 
     FIRMWARE_LOCATIONS = [
         "/usr/share/edk2/ovmf/OVMF_CODE.fd",
-        "/usr/share/edk2-ovmf/OVMF_CODE.fd",  # GENTOO:
+        "/usr/share/edk2-ovmf/OVMF_CODE.fd",
         "/usr/share/qemu/OVMF_CODE.fd",
         "/usr/share/ovmf/OVMF.fd",
         "/usr/share/OVMF/OVMF_CODE.fd",
@@ -116,7 +116,7 @@ def find_ovmf_vars(config: MkosiConfig) -> Path:
         OVMF_VARS_LOCATIONS += ["/usr/share/AAVMF/AAVMF_VARS.fd"]
 
     OVMF_VARS_LOCATIONS += ["/usr/share/edk2/ovmf/OVMF_VARS.fd",
-                            "/usr/share/edk2-ovmf/OVMF_VARS.fd",  # GENTOO:
+                            "/usr/share/edk2-ovmf/OVMF_VARS.fd",
                             "/usr/share/qemu/OVMF_VARS.fd",
                             "/usr/share/ovmf/OVMF_VARS.fd",
                             "/usr/share/OVMF/OVMF_VARS.fd"]
