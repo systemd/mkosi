@@ -1063,6 +1063,11 @@ def configure_initrd(state: MkosiState) -> None:
         (state.root / "etc/initrd-release").symlink_to("/etc/os-release")
 
 
+def configure_clock(state: MkosiState) -> None:
+    with umask(~0o644):
+        (state.root / "usr/lib/clock-epoch").touch()
+
+
 def run_depmod(state: MkosiState) -> None:
     if state.config.bootable == ConfigFeature.disabled:
         return
@@ -1382,6 +1387,7 @@ def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
             configure_autologin(state)
             configure_initrd(state)
             configure_ssh(state)
+            configure_clock(state)
 
             install_boot_loader(state)
             run_sysusers(state)
