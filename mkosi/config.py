@@ -361,6 +361,8 @@ def config_make_list_parser(delimiter: str,
         else:
             values = value.replace(delimiter, "\n").split("\n")
 
+        new = []
+
         for v in values:
             if not v:
                 continue
@@ -373,9 +375,9 @@ def config_make_list_parser(delimiter: str,
                 if fnmatch.fnmatchcase(v, i):
                     break
             else:
-                l.insert(0, parse(v))
+                new.append(parse(v))
 
-        return l
+        return new + l
 
     return config_parse_list
 
