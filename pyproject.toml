@@ -13,6 +13,11 @@ readme = "README.md"
 requires-python = ">=3.9"
 license = {file = "LICENSE"}
 
+[project.optional-dependencies]
+bootable = [
+  "pefile >= 2021.9.3",
+]
+
 [project.scripts]
 mkosi = "mkosi.__main__:main"
 
