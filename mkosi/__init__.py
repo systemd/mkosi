@@ -779,13 +779,8 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                 import pefile  # type: ignore
                 pe = pefile.PE(boot_binary, fast_load=True)
                 linux = {s.Name.decode().strip("\0"): s for s in pe.sections}[".linux"]
-                run(["dd",
-                     f"if={boot_binary}",
-                     f"of={state.staging / state.config.output_split_kernel}",
-                     f"skip={linux.PointerToRawData}",
-                     # Get the actual size using Misc_VirtualSize instead of the aligned size from SizeOfRawData.
-                     f"count={linux.Misc_VirtualSize}",
-                     "iflag=skip_bytes,count_bytes"])
+                # TODO: Use ignore_padding=True instead of length once we can depend on a newer pefile.
+                (state.root / state.config.output_split_kernel).write_bytes(linux.get_data(length=linux.Misc_VirtualSize))
 
             print_output_size(boot_binary)
 
