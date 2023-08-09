@@ -859,20 +859,18 @@ def calculate_signature(state: MkosiState) -> None:
             state.staging / state.config.output_checksum,
         ]
 
+        # Set the path of the keyring to use based on the environment if possible and fallback to the default
+        # path. Without this the keyring for the root user will instead be used which will fail for a
+        # non-root build.
+        env = dict(GNUPGHOME=os.environ.get("GNUPGHOME", os.fspath(((Path(os.environ["HOME"]) / ".gnupg")))))
+        if sys.stderr.isatty():
+            env |= dict(GPGTTY=os.ttyname(sys.stderr.fileno()))
+
         run(
             cmdline,
             # Do not output warnings about keyring permissions
             stderr=subprocess.DEVNULL,
-            env={
-                # Set the path of the keyring to use based on the environment
-                # if possible and fallback to the default path. Without this the
-                # keyring for the root user will instead be used which will fail
-                # for a non-root build.
-                "GNUPGHOME": os.environ.get(
-                    "GNUPGHOME",
-                    os.fspath(((Path(os.environ["HOME"]) / ".gnupg"))),
-                )
-            },
+            env=env,
         )
 
 
