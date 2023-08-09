@@ -4,6 +4,7 @@ import contextlib
 import datetime
 import hashlib
 import http.server
+import importlib.resources
 import itertools
 import json
 import logging
@@ -23,6 +24,7 @@ from mkosi.archive import extract_tar, make_cpio, make_tar
 from mkosi.config import (
     Compression,
     ConfigFeature,
+    DocFormat,
     ManifestFormat,
     MkosiArgs,
     MkosiConfig,
@@ -1650,6 +1652,42 @@ def bump_image_version(uid: int = -1, gid: int = -1) -> None:
     os.chown("mkosi.version", uid, gid)
 
 
+def show_docs(args: MkosiArgs) -> None:
+    if args.doc_format == DocFormat.auto:
+        formats = [DocFormat.man, DocFormat.pandoc, DocFormat.markdown, DocFormat.system]
+    else:
+        formats = [args.doc_format]
+
+    while formats:
+        form = formats.pop(0)
+        try:
+            if form == DocFormat.man:
+                with importlib.resources.path("mkosi.resources", "mkosi.1") as man:
+                    if not man.exists():
+                        raise FileNotFoundError()
+                    run(["man", "--local-file", man])
+                    return
+            elif form == DocFormat.pandoc:
+                if not shutil.which("pandoc"):
+                    logging.debug("pandoc is not available")
+                with importlib.resources.path("mkosi.resources", "mkosi.md") as mdr:
+                    pandoc = run(["pandoc", "-t", "man", "-s", mdr], stdout=subprocess.PIPE)
+                    run(["man", "--local-file", "-"], input=pandoc.stdout)
+                    return
+            elif form == DocFormat.markdown:
+                md = importlib.resources.read_text("mkosi.resources", "mkosi.md")
+                page(md, args.pager)
+                return
+            elif form == DocFormat.system:
+                run(["man", "mkosi"])
+                return
+        except (FileNotFoundError, subprocess.CalledProcessError) as e:
+            if not formats:
+                if isinstance(e, FileNotFoundError):
+                    die("The mkosi package does not contain the man page.")
+                raise e
+
+
 def expand_specifier(s: str) -> str:
     return s.replace("%u", InvokingUser.name())
 
@@ -1683,6 +1721,9 @@ def prepend_to_environ_path(config: MkosiConfig) -> Iterator[None]:
 def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
     if args.verb.needs_root() and os.getuid() != 0:
         die(f"Must be root to run the {args.verb} command")
+
+    if args.verb == Verb.documentation:
+        return show_docs(args)
 
     if args.verb == Verb.genkey:
         return generate_key_cert_pair(args)

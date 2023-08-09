@@ -46,17 +46,18 @@ ConfigDefaultCallback = Callable[[argparse.Namespace], Any]
 
 
 class Verb(StrEnum):
-    build   = enum.auto()
-    clean   = enum.auto()
-    summary = enum.auto()
-    shell   = enum.auto()
-    boot    = enum.auto()
-    qemu    = enum.auto()
-    ssh     = enum.auto()
-    serve   = enum.auto()
-    bump    = enum.auto()
-    help    = enum.auto()
-    genkey  = enum.auto()
+    build         = enum.auto()
+    clean         = enum.auto()
+    summary       = enum.auto()
+    shell         = enum.auto()
+    boot          = enum.auto()
+    qemu          = enum.auto()
+    ssh           = enum.auto()
+    serve         = enum.auto()
+    bump          = enum.auto()
+    help          = enum.auto()
+    genkey        = enum.auto()
+    documentation = enum.auto()
 
     def supports_cmdline(self) -> bool:
         return self in (Verb.shell, Verb.boot, Verb.qemu, Verb.ssh)
@@ -104,6 +105,14 @@ class Compression(StrEnum):
 
     def __bool__(self) -> bool:
         return self != Compression.none
+
+
+class DocFormat(StrEnum):
+    auto     = enum.auto()
+    markdown = enum.auto()
+    man      = enum.auto()
+    pandoc   = enum.auto()
+    system   = enum.auto()
 
 
 def parse_boolean(s: str) -> bool:
@@ -610,6 +619,7 @@ class MkosiArgs:
     genkey_common_name: str
     auto_bump: bool
     presets: list[str]
+    doc_format: DocFormat
 
     @classmethod
     def from_namespace(cls, ns: argparse.Namespace) -> "MkosiArgs":
@@ -1622,6 +1632,7 @@ class MkosiConfigParser:
                     mkosi [options...] {b}serve{e}
                     mkosi [options...] {b}bump{e}
                     mkosi [options...] {b}genkey{e}
+                    mkosi [options...] {b}documentation{e}
                     mkosi [options...] {b}help{e}
                     mkosi -h | --help
                     mkosi --version
@@ -1714,6 +1725,12 @@ class MkosiConfigParser:
             metavar="PRESET",
             default=[],
             help="Build the specified presets and their dependencies",
+        )
+        parser.add_argument(
+            "--doc-format",
+            help="The format to show documentation in",
+            default=DocFormat.auto,
+            type=DocFormat,
         )
         parser.add_argument(
             "--nspawn-keep-unit",

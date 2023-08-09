@@ -111,6 +111,15 @@
   generally not receive attention from core maintainers. All gentoo
   specific hacks outside of the gentoo implementation module have been
   removed.
+- A verb `documentation` has been added. Calling mkosi with this verb will show
+  the documentation. This is useful when running mkosi during development to
+  always have the documentation in the correct version available. By default it
+  will try several ways to output the documentation, but a specific option can
+  be chosen with the `--doc-format` option. Distro packagers are encouraged to
+  add a file `mkosi.1` into the `mkosi/resources` directory of the Python
+  package, if it is missing, as well es install it in the appropriate search
+  path for man pages. The man page can be generated from the markdown file
+  `mkosi/resources/mkosi.md` e.g via `pandoc -t man -s -o mkosi.1 mkosi.md`.
 
 ## v14
 
