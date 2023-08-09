@@ -124,7 +124,14 @@ The following command line verbs are known:
 
 `documentation`
 
-: Show mkosi's documentation.
+: Show mkosi's documentation. By default this verb will try several ways
+  to output the documentation, but a specific option can be chosen with
+  the `--doc-format` option. Distro packagers are encouraged to add a
+  file `mkosi.1` into the `mkosi/resources` directory of the Python
+  package, if it is missing, as well as to install it in the appropriate
+  search path for man pages. The man page can be generated from the
+  markdown file `mkosi/resources/mkosi.md` e.g via
+  `pandoc -t man -s -o mkosi.1 mkosi.md`.
 
 `help`
 
@@ -200,6 +207,18 @@ Those settings cannot be configured in the configuration files.
   times to build multiple presets. All the given presets and their
   dependencies are built. If not specified, all presets are built. See
   the `Presets` section for more information.
+
+`--doc-format`
+
+: The format to show the documentation in. Supports the values `markdown`,
+  `man`, `pandoc`, `system` and `auto`. In the case of `markdown` the
+  documentation is shown in the original Markdown format. `man` shows the
+  documentation in man page format, if it is available. `pandoc` will generate
+  the man page format on the fly, if `pandoc` is available. `system` will show
+  the system-wide man page for mkosi, which may or may not correspond to the
+  version you are using, depending on how you installed mkosi. `auto`, which is
+  the default, will try all methods in the order `man`, `pandoc`, `markdown`,
+  `system`.
 
 ## Supported output formats
 

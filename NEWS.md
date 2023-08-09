@@ -113,14 +113,13 @@
   removed.
 - A verb `documentation` has been added. Calling mkosi with this verb will show
   the documentation. This is useful when running mkosi during development to
-  always have the documentation in the correct version available. If available,
-  the man page will be shown, but it will fall back to the markdown file from
-  which it can be generated, e.g. via `pandoc -t man -s -o mkosi.1
-  mkosi.md`. The markdown file can be found in `mkosi/resources` in the Python
-  package or by redirecting the output of `python -m mkosi documentation` into a
-  file. Distro packagers are encouraged to add a file `mkosi.1` into the
-  `mkosi/resources` directory of the Python package as well es install it in
-  the appropriate search path for man pages.
+  always have the documentation in the correct version available. By default it
+  will try several ways to output the documentation, but a specific option can
+  be chosen with the `--doc-format` option. Distro packagers are encouraged to
+  add a file `mkosi.1` into the `mkosi/resources` directory of the Python
+  package, if it is missing, as well es install it in the appropriate search
+  path for man pages. The man page can be generated from the markdown file
+  `mkosi/resources/mkosi.md` e.g via `pandoc -t man -s -o mkosi.1 mkosi.md`.
 
 ## v14
 

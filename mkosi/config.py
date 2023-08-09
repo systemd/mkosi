@@ -107,6 +107,14 @@ class Compression(StrEnum):
         return self != Compression.none
 
 
+class DocFormat(StrEnum):
+    auto     = enum.auto()
+    markdown = enum.auto()
+    man      = enum.auto()
+    pandoc   = enum.auto()
+    system   = enum.auto()
+
+
 def parse_boolean(s: str) -> bool:
     "Parse 1/true/yes/y/t/on as true and 0/false/no/n/f/off/None as false"
     s_l = s.lower()
@@ -611,6 +619,7 @@ class MkosiArgs:
     genkey_common_name: str
     auto_bump: bool
     presets: list[str]
+    doc_format: DocFormat
 
     @classmethod
     def from_namespace(cls, ns: argparse.Namespace) -> "MkosiArgs":
@@ -1716,6 +1725,12 @@ class MkosiConfigParser:
             metavar="PRESET",
             default=[],
             help="Build the specified presets and their dependencies",
+        )
+        parser.add_argument(
+            "--doc-format",
+            help="The format to show documentation in",
+            default=DocFormat.auto,
+            type=DocFormat,
         )
         parser.add_argument(
             "--nspawn-keep-unit",
