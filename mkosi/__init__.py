@@ -773,6 +773,20 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
             if not (state.staging / state.config.output_split_uki).exists():
                 shutil.copy(boot_binary, state.staging / state.config.output_split_uki)
 
+                # ukify will have signed the kernel image as well. Let's make sure we put the signed kernel
+                # image in the output directory instead of the unsigned one by reading it from the UKI.
+
+                import pefile  # type: ignore
+                pe = pefile.PE(boot_binary, fast_load=True)
+                linux = {s.Name.decode().strip("\0"): s for s in pe.sections}[".linux"]
+                run(["dd",
+                     f"if={boot_binary}",
+                     f"of={state.staging / state.config.output_split_kernel}",
+                     f"skip={linux.PointerToRawData}",
+                     # Get the actual size using Misc_VirtualSize instead of the aligned size from SizeOfRawData.
+                     f"count={linux.Misc_VirtualSize}",
+                     "iflag=skip_bytes,count_bytes"])
+
             print_output_size(boot_binary)
 
     if state.config.bootable == ConfigFeature.enabled and not (state.staging / state.config.output_split_uki).exists():
