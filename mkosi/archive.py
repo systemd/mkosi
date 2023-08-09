@@ -1,13 +1,28 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 import os
+import shutil
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Optional
 
 from mkosi.log import log_step
 from mkosi.run import bwrap, finalize_passwd_mounts
-from mkosi.util import tar_binary
+
+
+def tar_binary() -> str:
+    # Some distros (Mandriva) install BSD tar as "tar", hence prefer
+    # "gtar" if it exists, which should be GNU tar wherever it exists.
+    # We are interested in exposing same behaviour everywhere hence
+    # it's preferable to use the same implementation of tar
+    # everywhere. In particular given the limited/different SELinux
+    # support in BSD tar and the different command line syntax
+    # compared to GNU tar.
+    return "gtar" if shutil.which("gtar") else "tar"
+
+
+def cpio_binary() -> str:
+    return "gcpio" if shutil.which("gcpio") else "cpio"
 
 
 def tar_exclude_apivfs_tmp() -> list[str]:
@@ -74,7 +89,7 @@ def make_cpio(src: Path, dst: Path, files: Optional[Iterable[Path]] = None) -> N
     log_step(f"Creating cpio archive {dst}…")
     bwrap(
         [
-            "cpio",
+            cpio_binary(),
             "--create",
             "--reproducible",
             "--null",

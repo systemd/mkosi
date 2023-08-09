@@ -14,7 +14,6 @@ import os
 import pwd
 import re
 import resource
-import shutil
 import stat
 import sys
 import tempfile
@@ -221,17 +220,6 @@ class StrEnum(enum.Enum):
     @classmethod
     def values(cls) -> list[str]:
         return list(map(str, cls))
-
-
-def tar_binary() -> str:
-    # Some distros (Mandriva) install BSD tar as "tar", hence prefer
-    # "gtar" if it exists, which should be GNU tar wherever it exists.
-    # We are interested in exposing same behaviour everywhere hence
-    # it's preferable to use the same implementation of tar
-    # everywhere. In particular given the limited/different SELinux
-    # support in BSD tar and the different command line syntax
-    # compared to GNU tar.
-    return "gtar" if shutil.which("gtar") else "tar"
 
 
 def one_zero(b: bool) -> str:
