@@ -75,6 +75,9 @@ jobs:
         sudo apt-get update && sudo apt-get install --no-install-recommends shellcheck
         bash -c 'shopt -s globstar; shellcheck bin/mkosi tools/*.sh'
 
+    - name: Test man page generation
+      run: pandoc -s mkosi.md -o mkosi.1
+
   integration-test:
     runs-on: ubuntu-22.04
     needs: unit-test
