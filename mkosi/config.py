@@ -1857,7 +1857,10 @@ class MkosiConfigParser:
 
 
 def load_credentials(args: argparse.Namespace) -> dict[str, str]:
-    creds = {}
+    creds = {
+        "agetty.autologin": "root",
+        "login.noauth": "yes",
+    }
 
     d = Path("mkosi.credentials")
     if args.directory != "" and d.is_dir():
