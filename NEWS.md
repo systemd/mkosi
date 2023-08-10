@@ -4,6 +4,12 @@
 
 - The man page can be generated from the markdown file via
   `tools/make-man-page.sh`.
+- Fixed issue where not all packages and data files where included in
+  the generated python package.
+- mkosi doesn't try to unshare the network namespace anymore when it
+  doesn't have `CAP_NET_ADMIN`.
+- Fixed issue when the workspace was located in `/tmp`.
+- Don't try to run `timedatectl` or `ssh-add` when they're not installed.
 
 ## v15
 
