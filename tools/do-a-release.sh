@@ -11,10 +11,10 @@ if ! git diff-index --quiet HEAD; then
     exit 1
 fi
 
-sed -i 's/version=".*",/version="'"$1"'",/' setup.py
-sed -i "s/__version__ = \".*\"/__version__ = \"$1\"/" mkosi/config.py
+sed -r -i "s/^version = \".*\"$/version = \"$1\"/" pyproject.toml
+sed -r -i "s/^__version__ = \".*\"$/__version__ = \"$1\"/" mkosi/config.py
 
-git add -p setup.py mkosi action.yaml
+git add -p pyproject.toml mkosi
 
 git commit -m "Bump version numbers for v$1"
 
