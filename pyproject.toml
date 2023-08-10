@@ -22,10 +22,15 @@ bootable = [
 mkosi = "mkosi.__main__:main"
 
 [tool.setuptools]
-packages = ["mkosi"]
+packages = [
+    "mkosi",
+    "mkosi.distributions",
+    "mkosi.installer",
+    "mkosi.resources",
+]
 
 [tool.setuptools.package-data]
-"*" = ["*.sh", "*.hook", "*.conf", "*.install"]
+"*" = ["*.conf", "mkosi.md", "mkosi.1"]
 
 [tool.isort]
 profile = "black"

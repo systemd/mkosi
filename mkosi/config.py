@@ -1938,7 +1938,7 @@ def load_credentials(args: argparse.Namespace) -> dict[str, str]:
         key, _, value = s.partition("=")
         creds[key] = value
 
-    if "firstboot.timezone" not in creds:
+    if "firstboot.timezone" not in creds and shutil.which("timedatectl"):
         tz = run(
             ["timedatectl", "show", "-p", "Timezone", "--value"],
             stdout=subprocess.PIPE,
@@ -1950,7 +1950,7 @@ def load_credentials(args: argparse.Namespace) -> dict[str, str]:
     if "firstboot.locale" not in creds:
         creds["firstboot.locale"] = "C.UTF-8"
 
-    if args.ssh and "ssh.authorized_keys.root" not in creds and "SSH_AUTH_SOCK" in os.environ:
+    if args.ssh and "ssh.authorized_keys.root" not in creds and "SSH_AUTH_SOCK" in os.environ and shutil.which("ssh-add"):
         key = run(
             ["ssh-add", "-L"],
             stdout=subprocess.PIPE,
