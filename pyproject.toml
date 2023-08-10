@@ -22,7 +22,12 @@ bootable = [
 mkosi = "mkosi.__main__:main"
 
 [tool.setuptools]
-packages = ["mkosi"]
+packages = [
+    "mkosi",
+    "mkosi.distributions",
+    "mkosi.installer",
+    "mkosi.resources",
+]
 
 [tool.setuptools.package-data]
 "*" = ["*.sh", "*.hook", "*.conf", "*.install"]
