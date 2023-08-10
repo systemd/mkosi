@@ -1,6 +1,7 @@
 *.cache-pre-dev
 *.cache-pre-inst
 .cache
+.mkosi.1
 .mypy_cache/
 .project
 .pydevproject

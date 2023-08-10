@@ -16,6 +16,6 @@ sed -r -i "s/^__version__ = \".*\"$/__version__ = \"$1\"/" mkosi/config.py
 
 git add -p pyproject.toml mkosi
 
-git commit -m "Bump version numbers for v$1"
+git commit -m "Release $1"
 
 git tag -s "v$1" -m "mkosi $1"

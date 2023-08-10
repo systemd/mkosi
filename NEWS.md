@@ -1,5 +1,10 @@
 # mkosi Changelog
 
+## v15.1
+
+- The man page can be generated from the markdown file via
+  `tools/make-man-page.sh`.
+
 ## v15
 
 - Migrated to systemd-repart. Many options are dropped in favor of specifying them directly
