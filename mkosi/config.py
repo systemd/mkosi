@@ -38,7 +38,7 @@ from mkosi.util import (
 )
 from mkosi.versioncomp import GenericVersion
 
-__version__ = "14"
+__version__ = "15"
 
 ConfigParseCallback = Callable[[str, Optional[str], argparse.Namespace], Any]
 ConfigMatchCallback = Callable[[str, str, argparse.Namespace], bool]
