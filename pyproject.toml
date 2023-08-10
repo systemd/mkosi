@@ -30,7 +30,7 @@ packages = [
 ]
 
 [tool.setuptools.package-data]
-"*" = ["*.sh", "*.hook", "*.conf", "*.install"]
+"*" = ["*.sh", "*.hook", "*.conf", "*.install", "mkosi.md"]
 
 [tool.isort]
 profile = "black"
