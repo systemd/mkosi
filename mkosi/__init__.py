@@ -778,11 +778,26 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                 # ukify will have signed the kernel image as well. Let's make sure we put the signed kernel
                 # image in the output directory instead of the unsigned one by reading it from the UKI.
 
-                import pefile  # type: ignore
-                pe = pefile.PE(boot_binary, fast_load=True)
-                linux = {s.Name.decode().strip("\0"): s for s in pe.sections}[".linux"]
+                # When using a tools tree, we want to use the pefile module from the tools tree instead of
+                # requiring that python-pefile is installed on the host. So we execute python as a subprocess
+                # to make sure we load pefile from the tools tree if one is used.
+
                 # TODO: Use ignore_padding=True instead of length once we can depend on a newer pefile.
-                (state.root / state.config.output_split_kernel).write_bytes(linux.get_data(length=linux.Misc_VirtualSize))
+                pefile = dedent(
+                    f"""\
+                    import pefile
+                    from pathlib import Path
+                    pe = pefile.PE("{boot_binary}", fast_load=True)
+                    linux = {{s.Name.decode().strip("\\0"): s for s in pe.sections}}[".linux"]
+                    (Path("{state.root}") / "{state.config.output_split_kernel}").write_bytes(linux.get_data(length=linux.Misc_VirtualSize))
+                    """
+                )
+
+                # If there's no tools tree, prefer the interpreter from MKOSI_INTERPRETER. If there is a
+                # tools tree, just use the default python3 interpreter.
+                python = "python3" if state.config.tools_tree else os.getenv("MKOSI_INTERPRETER", "python3")
+
+                run([python], input=pefile)
 
             print_output_size(boot_binary)
 
@@ -1764,7 +1779,6 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
     # execution are forcibly loaded early here.
     try_import("importlib.readers")
     try_import("importlib.resources.readers")
-    try_import("pefile")
     for config in presets:
         try_import(f"mkosi.distributions.{config.distribution}")
 
