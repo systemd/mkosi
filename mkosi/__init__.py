@@ -1764,6 +1764,7 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
     # execution are forcibly loaded early here.
     try_import("importlib.readers")
     try_import("importlib.resources.readers")
+    try_import("pefile")
     for config in presets:
         try_import(f"mkosi.distributions.{config.distribution}")
 
