@@ -4,6 +4,7 @@ import asyncio
 import asyncio.tasks
 import ctypes
 import ctypes.util
+import enum
 import fcntl
 import logging
 import os
@@ -247,7 +248,12 @@ def spawn(
         raise e
 
 
-def have_effective_cap(capability: str) -> bool:
+# https://github.com/torvalds/linux/blob/master/include/uapi/linux/capability.h
+class Capability(enum.Enum):
+    CAP_NET_ADMIN = 12
+
+
+def have_effective_cap(capability: Capability) -> bool:
     for line in Path("/proc/self/status").read_text().splitlines():
         if line.startswith("CapEff:"):
             hexcap = line.removeprefix("CapEff:").strip()
@@ -256,7 +262,7 @@ def have_effective_cap(capability: str) -> bool:
         logging.warning(f"\"CapEff:\" not found in /proc/self/status, assuming we don't have {capability}")
         return False
 
-    return capability.lower() in run(["capsh", f"--decode=0x{hexcap}"], stdout=subprocess.PIPE).stdout
+    return (int(hexcap, 16) & (1 << capability.value)) != 0
 
 
 def bwrap(
@@ -285,7 +291,7 @@ def bwrap(
         "--unshare-pid",
         "--unshare-ipc",
         "--unshare-cgroup",
-        *(["--unshare-net"] if not network and have_effective_cap("CAP_NET_ADMIN") else []),
+        *(["--unshare-net"] if not network and have_effective_cap(Capability.CAP_NET_ADMIN) else []),
         "--die-with-parent",
         "--proc", "/proc",
         "--dev", "/dev",
