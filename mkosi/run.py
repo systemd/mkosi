@@ -267,6 +267,7 @@ def bwrap(
         "--ro-bind", "/var", "/var",
         "--ro-bind", "/run", "/run",
         "--bind", "/var/tmp", "/var/tmp",
+        "--tmpfs", "/tmp",
         "--bind", Path.cwd(), Path.cwd(),
         "--chdir", Path.cwd(),
         "--unshare-pid",
@@ -277,7 +278,6 @@ def bwrap(
         "--proc", "/proc",
         "--dev", "/dev",
         "--ro-bind", "/sys", "/sys",
-        "--tmpfs", "/tmp",
         "--setenv", "SYSTEMD_OFFLINE", one_zero(network),
     ]
 
