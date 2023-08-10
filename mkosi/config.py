@@ -639,74 +639,63 @@ class MkosiConfig:
     """
 
     dependencies: tuple[str]
+
     distribution: Distribution
     release: str
+    architecture: Architecture
     mirror: Optional[str]
     local_mirror: Optional[str]
     repository_key_check: bool
     repositories: list[str]
-    repart_dirs: list[Path]
-    overlay: bool
-    architecture: Architecture
+    cache_only: bool
+
     output_format: OutputFormat
     manifest_format: list[ManifestFormat]
     output: str
-    output_dir: Path
-    kernel_command_line: list[str]
-    secure_boot: bool
-    secure_boot_key: Optional[Path]
-    secure_boot_certificate: Optional[Path]
-    secure_boot_sign_tool: SecureBootSignTool
-    verity_key: Optional[Path]
-    verity_certificate: Optional[Path]
-    sign_expected_pcr: ConfigFeature
     compress_output: Compression
-    image_version: Optional[str]
-    image_id: Optional[str]
-    incremental: bool
-    packages: list[str]
-    remove_packages: list[str]
-    with_docs: bool
-    with_tests: bool
+    output_dir: Path
+    workspace_dir: Path
     cache_dir: Optional[Path]
+    build_dir: Optional[Path]
+    image_id: Optional[str]
+    image_version: Optional[str]
+    split_artifacts: bool
+    repart_dirs: list[Path]
+    overlay: bool
+    use_subvolumes: ConfigFeature
+
+    packages: list[str]
+    build_packages: list[str]
+    with_docs: bool
+
     base_trees: list[Path]
-    extra_trees: list[tuple[Path, Optional[Path]]]
     skeleton_trees: list[tuple[Path, Optional[Path]]]
     package_manager_trees: list[tuple[Path, Optional[Path]]]
-    clean_package_metadata: ConfigFeature
+    extra_trees: list[tuple[Path, Optional[Path]]]
+
+    remove_packages: list[str]
     remove_files: list[str]
-    environment: dict[str, str]
-    build_sources: list[tuple[Path, Optional[Path]]]
-    build_dir: Optional[Path]
-    build_packages: list[str]
-    build_script: Optional[Path]
+    clean_package_metadata: ConfigFeature
+
     prepare_script: Optional[Path]
+    build_script: Optional[Path]
     postinst_script: Optional[Path]
     finalize_script: Optional[Path]
+    build_sources: list[tuple[Path, Optional[Path]]]
+    environment: dict[str, str]
+    with_tests: bool
     with_network: bool
-    cache_only: bool
-    nspawn_settings: Optional[Path]
-    checksum: bool
-    split_artifacts: bool
-    sign: bool
-    key: Optional[str]
-    autologin: bool
-    extra_search_paths: list[Path]
-    ephemeral: bool
-    ssh: bool
-    credentials: dict[str, str]
-    workspace_dir: Path
+
+    bootable: ConfigFeature
     initrds: list[Path]
-    make_initrd: bool
+    kernel_command_line: list[str]
     kernel_modules_include: list[str]
     kernel_modules_exclude: list[str]
+
     kernel_modules_initrd: bool
     kernel_modules_initrd_include: list[str]
     kernel_modules_initrd_exclude: list[str]
-    kernel_command_line_extra: list[str]
-    acl: bool
-    bootable: ConfigFeature
-    use_subvolumes: ConfigFeature
+
     locale: Optional[str]
     locale_messages: Optional[str]
     keymap: Optional[str]
@@ -714,6 +703,30 @@ class MkosiConfig:
     hostname: Optional[str]
     root_password: Optional[tuple[str, bool]]
     root_shell: Optional[str]
+
+    autologin: bool
+    make_initrd: bool
+    ssh: bool
+
+    secure_boot: bool
+    secure_boot_key: Optional[Path]
+    secure_boot_certificate: Optional[Path]
+    secure_boot_sign_tool: SecureBootSignTool
+    verity_key: Optional[Path]
+    verity_certificate: Optional[Path]
+    sign_expected_pcr: ConfigFeature
+    passphrase: Optional[Path]
+    checksum: bool
+    sign: bool
+    key: Optional[str]
+
+    incremental: bool
+    nspawn_settings: Optional[Path]
+    extra_search_paths: list[Path]
+    ephemeral: bool
+    credentials: dict[str, str]
+    kernel_command_line_extra: list[str]
+    acl: bool
     tools_tree: Optional[Path]
 
     # QEMU-specific options
@@ -724,8 +737,6 @@ class MkosiConfig:
     qemu_vsock: ConfigFeature
     qemu_swtpm: ConfigFeature
     qemu_args: Sequence[str]
-
-    passphrase: Optional[Path]
 
     preset: Optional[str]
 
@@ -2240,7 +2251,13 @@ Clean Package Manager Metadata: {yes_no_auto(config.clean_package_metadata)}
     {bold("HOST CONFIGURATION")}:
                    Incremental: {yes_no(config.incremental)}
                NSpawn Settings: {none_to_none(config.nspawn_settings)}
-            Extra search paths: {line_join_list(config.extra_search_paths)}
+            Extra Search Paths: {line_join_list(config.extra_search_paths)}
+                     Ephemeral: {config.ephemeral}
+                   Credentials: {line_join_list(config.credentials.keys())}
+     Extra Kernel Command Line: {line_join_list(config.kernel_command_line_extra)}
+                      Use ACLs: {config.acl}
+                    Tools Tree: {config.tools_tree}
+
                       QEMU GUI: {yes_no(config.qemu_gui)}
                 QEMU CPU Cores: {config.qemu_smp}
                    QEMU Memory: {config.qemu_mem}
@@ -2248,11 +2265,6 @@ Clean Package Manager Metadata: {yes_no_auto(config.clean_package_metadata)}
                 QEMU Use VSock: {config.qemu_vsock}
                 QEMU Use Swtpm: {config.qemu_swtpm}
           QEMU Extra Arguments: {line_join_list(config.qemu_args)}
-                     Ephemeral: {config.ephemeral}
-                   Credentials: {line_join_list(config.credentials.keys())}
-     Extra Kernel Command Line: {line_join_list(config.kernel_command_line_extra)}
-                      Use ACLs: {config.acl}
-                    Tools Tree: {config.tools_tree}
 """
 
     return summary
