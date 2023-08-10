@@ -247,6 +247,18 @@ def spawn(
         raise e
 
 
+def have_effective_cap(capability: str) -> bool:
+    for line in Path("/proc/self/status").read_text().splitlines():
+        if line.startswith("CapEff:"):
+            hexcap = line.removeprefix("CapEff:").strip()
+            break
+    else:
+        logging.warning(f"\"CapEff:\" not found in /proc/self/status, assuming we don't have {capability}")
+        return False
+
+    return capability.lower() in run(["capsh", f"--decode=0x{hexcap}"], stdout=subprocess.PIPE).stdout
+
+
 def bwrap(
     cmd: Sequence[PathString],
     *,
@@ -267,17 +279,17 @@ def bwrap(
         "--ro-bind", "/var", "/var",
         "--ro-bind", "/run", "/run",
         "--bind", "/var/tmp", "/var/tmp",
+        "--tmpfs", "/tmp",
         "--bind", Path.cwd(), Path.cwd(),
         "--chdir", Path.cwd(),
         "--unshare-pid",
         "--unshare-ipc",
         "--unshare-cgroup",
-        *(["--unshare-net"] if not network else []),
+        *(["--unshare-net"] if not network and have_effective_cap("CAP_NET_ADMIN") else []),
         "--die-with-parent",
         "--proc", "/proc",
         "--dev", "/dev",
         "--ro-bind", "/sys", "/sys",
-        "--tmpfs", "/tmp",
         "--setenv", "SYSTEMD_OFFLINE", one_zero(network),
     ]
 
