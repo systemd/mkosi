@@ -1571,7 +1571,8 @@ def run_shell(args: MkosiArgs, config: MkosiConfig) -> None:
                  "--no-pager",
                  "--dry-run=no",
                  "--offline=no",
-                 fname])
+                 fname],
+                 stdin=sys.stdin)
 
         if config.output_format == OutputFormat.directory:
             cmdline += ["--directory", fname]
