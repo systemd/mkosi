@@ -736,6 +736,7 @@ class MkosiConfig:
     qemu_kvm: ConfigFeature
     qemu_vsock: ConfigFeature
     qemu_swtpm: ConfigFeature
+    qemu_cdrom: bool
     qemu_args: Sequence[str]
 
     preset: Optional[str]
@@ -1459,6 +1460,14 @@ class MkosiConfigParser:
             help="Configure whether to use qemu with swtpm or not",
         ),
         MkosiConfigSetting(
+            dest="qemu_cdrom",
+            metavar="BOOLEAN",
+            nargs="?",
+            section="Host",
+            parse=config_parse_boolean,
+            help="Attach the image as a CD-ROM to the virtual machine",
+        ),
+        MkosiConfigSetting(
             dest="qemu_args",
             metavar="ARGS",
             section="Host",
@@ -1989,6 +1998,10 @@ def load_kernel_command_line_extra(args: argparse.Namespace) -> list[str]:
     if not any(s.startswith("SYSTEMD_SULOGIN_FORCE=") for s in args.kernel_command_line_extra):
         cmdline += ["SYSTEMD_SULOGIN_FORCE=1"]
 
+    if args.qemu_cdrom:
+        # CD-ROMs are read-only so tell systemd to boot in volatile mode.
+        cmdline += ["systemd.volatile=yes"]
+
     for s in args.kernel_command_line_extra:
         key, sep, value = s.partition("=")
         if " " in value:
@@ -2264,6 +2277,7 @@ Clean Package Manager Metadata: {yes_no_auto(config.clean_package_metadata)}
                   QEMU Use KVM: {config.qemu_kvm}
                 QEMU Use VSock: {config.qemu_vsock}
                 QEMU Use Swtpm: {config.qemu_swtpm}
+               QEMU Use CD-ROM: {yes_no(config.qemu_cdrom)}
           QEMU Extra Arguments: {line_join_list(config.qemu_args)}
 """
 

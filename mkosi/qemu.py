@@ -267,21 +267,33 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
                 "-drive", f"file={ovmf_vars.name},if=pflash,format=raw",
             ]
 
-        if config.ephemeral:
+        if config.qemu_cdrom and config.output_format == OutputFormat.disk:
+            # CD-ROM devices have sector size 2048 so we transform the disk image into one with sector size 2048.
+            src = (config.output_dir / config.output).resolve()
+            fname = src.parent / f"{src.name}-{uuid.uuid4().hex}"
+            run(["systemd-repart",
+                 "--definitions", "",
+                 "--no-pager",
+                 "--pretty=no",
+                 "--offline=yes",
+                 "--empty=create",
+                 "--size=auto",
+                 "--sector-size=2048",
+                 "--copy-from", src,
+                 fname])
+        elif config.ephemeral:
             fname = stack.enter_context(copy_ephemeral(config, config.output_dir / config.output))
         else:
             fname = config.output_dir / config.output
 
-        if config.output_format == OutputFormat.disk:
-            run([
-                "systemd-repart",
-                "--definitions", "",
-                "--no-pager",
-                "--size", "8G",
-                "--pretty", "no",
-                "--offline", "yes",
-                fname,
-            ])
+        if config.output_format == OutputFormat.disk and not config.qemu_cdrom:
+            run(["systemd-repart",
+                 "--definitions", "",
+                 "--no-pager",
+                 "--size=8G",
+                 "--pretty=no",
+                 "--offline=yes",
+                 fname])
 
         # Debian images fail to boot with virtio-scsi, see: https://github.com/systemd/mkosi/issues/725
         if config.output_format == OutputFormat.cpio:
@@ -292,9 +304,9 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
                         "-initrd", fname,
                         "-append", " ".join(config.kernel_command_line + config.kernel_command_line_extra)]
 
-        cmdline += ["-drive", f"if=none,id=hd,file={fname},format=raw",
+        cmdline += ["-drive", f"if=none,id=mkosi,file={fname},format=raw",
                     "-device", "virtio-scsi-pci,id=scsi",
-                    "-device", "scsi-hd,drive=hd,bootindex=1"]
+                    "-device", f"scsi-{'cd' if config.qemu_cdrom else 'hd'},drive=mkosi,bootindex=1"]
 
         if config.qemu_swtpm != ConfigFeature.disabled and shutil.which("swtpm") is not None:
             sock = stack.enter_context(start_swtpm())
