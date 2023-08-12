@@ -22,16 +22,18 @@ def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
         (state.root / "var/lib/dpkg").mkdir(parents=True, exist_ok=True)
         (state.root / "var/lib/dpkg/status").touch()
 
-    # We have a special apt.conf outside of pkgmngr dir that only configures "Dir" that we pass to
-    # APT_CONFIG to tell apt it should read config files in pkgmngr instead of in its usual locations. This
-    # is required because apt parses CLI configuration options after parsing its configuration files and as
-    # such we can't use CLI options to tell apt where to look for configuration files.
+    # We have a special apt.conf outside of pkgmngr dir that only configures "Dir" and "Dir::Etc"
+    # that we pass to APT_CONFIG to tell apt it should read config files in pkgmngr instead of
+    # in its usual locations. This is required because apt parses CLI configuration options after
+    # parsing its configuration files and as such we can't use CLI options to tell apt where to
+    # look for configuration files.
     config = state.workspace / "apt.conf"
     if not config.exists():
         config.write_text(
             textwrap.dedent(
                 f"""\
                 Dir "{state.pkgmngr}";
+                Dir::Etc "etc/apt";
                 """
             )
         )
