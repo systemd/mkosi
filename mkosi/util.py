@@ -193,7 +193,7 @@ def flock(path: Path) -> Iterator[int]:
 
 @contextlib.contextmanager
 def scopedenv(env: Mapping[str, Any]) -> Iterator[None]:
-    old = copy.copy(os.environ)
+    old = copy.deepcopy(os.environ)
     os.environ |= env
 
     # python caches the default temporary directory so when we might modify TMPDIR we have to make sure it
