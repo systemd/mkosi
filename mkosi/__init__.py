@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 import contextlib
+import dataclasses
 import datetime
 import hashlib
 import http.server
@@ -18,7 +19,7 @@ import uuid
 from collections.abc import Iterator, Sequence
 from pathlib import Path
 from textwrap import dedent
-from typing import ContextManager, Optional, TextIO, Union
+from typing import Any, ContextManager, Mapping, Optional, TextIO, Union
 
 from mkosi.archive import extract_tar, make_cpio, make_tar
 from mkosi.config import (
@@ -58,6 +59,23 @@ from mkosi.util import (
     umask,
 )
 from mkosi.versioncomp import GenericVersion
+
+
+@dataclasses.dataclass(frozen=True)
+class Partition:
+    type: str
+    uuid: str
+    split_path: Optional[Path] = None
+    roothash: Optional[str] = None
+
+    @classmethod
+    def from_dict(cls, dict: Mapping[str, Any]) -> "Partition":
+        return cls(
+            type=dict["type"],
+            uuid=dict["uuid"],
+            split_path=Path(p) if ((p := dict.get("split_path")) and p != "-") else None,
+            roothash=dict.get("roothash"),
+        )
 
 
 @contextlib.contextmanager
@@ -582,8 +600,9 @@ def gen_kernel_images(state: MkosiState) -> Iterator[tuple[str, Path]]:
 
 
 def build_initrd(state: MkosiState) -> Path:
-    if (state.workspace / "initrd").exists():
-        return (state.workspace / "initrd").resolve()
+    symlink = state.workspace / "initrd"
+    if symlink.exists():
+        return symlink.resolve()
 
     # Default values are assigned via the parser so we go via the argument parser to construct
     # the config for the initrd.
@@ -640,13 +659,15 @@ def build_initrd(state: MkosiState) -> Path:
         unlink_output(args, config)
         build_image(args, config)
 
-    (config.output_dir / config.output).symlink_to(state.workspace / "initrd.img")
+    symlink.symlink_to(config.output_dir / config.output)
 
-    return config.output_dir / config.output
+    return symlink
 
 
 def build_kernel_modules_initrd(state: MkosiState, kver: str) -> Path:
     kmods = state.workspace / f"initrd-kernel-modules-{kver}.img"
+    if kmods.exists():
+        return kmods
 
     make_cpio(
         state.root, kmods,
@@ -666,7 +687,26 @@ def build_kernel_modules_initrd(state: MkosiState, kver: str) -> Path:
     return kmods
 
 
-def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
+def finalize_roothash(partitions: Sequence[Partition]) -> Optional[str]:
+    roothash = usrhash = None
+
+    for p in partitions:
+        if (h := p.roothash) is None:
+            continue
+
+        if not (p.type.startswith("usr") or p.type.startswith("root")):
+            die(f"Found roothash property on unexpected partition type {p.type}")
+
+        # When there's multiple verity enabled root or usr partitions, the first one wins.
+        if p.type.startswith("usr"):
+            usrhash = usrhash or h
+        else:
+            roothash = roothash or h
+
+    return f"roothash={roothash}" if roothash else f"usrhash={usrhash}" if usrhash else None
+
+
+def install_unified_kernel(state: MkosiState, partitions: Sequence[Partition]) -> None:
     # Iterates through all kernel versions included in the image and generates a combined
     # kernel+initrd+cmdline+osrelease EFI file from it and places it in the /EFI/Linux directory of the ESP.
     # sd-boot iterates through them and shows them in the menu. These "unified" single-file images have the
@@ -683,6 +723,7 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
     if state.config.output_format == OutputFormat.cpio and state.config.bootable == ConfigFeature.auto:
         return
 
+    roothash = finalize_roothash(partitions)
     initrds = []
 
     if state.config.initrds:
@@ -1270,9 +1311,9 @@ def reuse_cache(state: MkosiState) -> bool:
     return True
 
 
-def make_image(state: MkosiState, skip: Sequence[str] = [], split: bool = False) -> tuple[Optional[str], list[Path]]:
+def make_image(state: MkosiState, skip: Sequence[str] = [], split: bool = False) -> list[Partition]:
     if not state.config.output_format == OutputFormat.disk:
-        return None, []
+        return []
 
     cmdline: list[PathString] = [
         "systemd-repart",
@@ -1355,23 +1396,14 @@ def make_image(state: MkosiState, skip: Sequence[str] = [], split: bool = False)
 
     logging.debug(json.dumps(output, indent=4))
 
-    roothash = usrhash = None
-    for p in output:
-        if (h := p.get("roothash")) is None:
-            continue
+    partitions = [Partition.from_dict(d) for d in output]
 
-        if not (p["type"].startswith("usr") or p["type"].startswith("root")):
-            die(f"Found roothash property on unexpected partition type {p['type']}")
+    if split:
+        for p in partitions:
+            if p.split_path:
+                maybe_compress(state.config, state.config.compress_output, p.split_path)
 
-        # When there's multiple verity enabled root or usr partitions, the first one wins.
-        if p["type"].startswith("usr"):
-            usrhash = usrhash or h
-        else:
-            roothash = roothash or h
-
-    split_paths = [Path(p["split_path"]) for p in output if p.get("split_path", "-") != "-"]
-
-    return f"roothash={roothash}" if roothash else f"usrhash={usrhash}" if usrhash else None, split_paths
+    return partitions
 
 
 def finalize_staging(state: MkosiState) -> None:
@@ -1447,12 +1479,9 @@ def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
             run_selinux_relabel(state)
             run_finalize_script(state)
 
-        roothash, _ = make_image(state, skip=("esp", "xbootldr"))
-        install_unified_kernel(state, roothash)
-        _, split_paths = make_image(state, split=True)
-
-        for p in split_paths:
-            maybe_compress(state.config, state.config.compress_output, p)
+        partitions = make_image(state, skip=("esp", "xbootldr"))
+        install_unified_kernel(state, partitions)
+        make_image(state, split=True)
 
         if state.config.output_format == OutputFormat.tar:
             make_tar(state.root, state.staging / state.config.output_with_format)
