@@ -281,6 +281,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
                  "--sector-size=2048",
                  "--copy-from", src,
                  fname])
+            stack.callback(lambda: fname.unlink())
         elif config.ephemeral:
             fname = stack.enter_context(copy_ephemeral(config, config.output_dir / config.output))
         else:
