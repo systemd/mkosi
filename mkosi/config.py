@@ -745,6 +745,7 @@ class MkosiConfig:
     qemu_vsock: ConfigFeature
     qemu_swtpm: ConfigFeature
     qemu_cdrom: bool
+    qemu_bios: bool
     qemu_args: Sequence[str]
 
     preset: Optional[str]
@@ -1491,6 +1492,14 @@ class MkosiConfigParser:
             section="Host",
             parse=config_parse_boolean,
             help="Attach the image as a CD-ROM to the virtual machine",
+        ),
+        MkosiConfigSetting(
+            dest="qemu_bios",
+            metavar="BOOLEAN",
+            nargs="?",
+            section="Host",
+            parse=config_parse_boolean,
+            help="Boot QEMU with SeaBIOS instead of EDK2",
         ),
         MkosiConfigSetting(
             dest="qemu_args",
@@ -2302,6 +2311,7 @@ Clean Package Manager Metadata: {yes_no_auto(config.clean_package_metadata)}
                 QEMU Use VSock: {config.qemu_vsock}
                 QEMU Use Swtpm: {config.qemu_swtpm}
                QEMU Use CD-ROM: {yes_no(config.qemu_cdrom)}
+                     QEMU BIOS: {yes_no(config.qemu_bios)}
           QEMU Extra Arguments: {line_join_list(config.qemu_args)}
 """
 

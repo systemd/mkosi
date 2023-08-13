@@ -1004,6 +1004,12 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
   attach the image to the virtual machine as a CD-ROM device. Takes a
   boolean. Defaults to `no`.
 
+`QemuBios=`, `--qemu-bios=`
+
+: When used with the `qemu` verb, this option specifies whether to use
+  the BIOS firmware instead of the UEFI firmware. Takes a boolean.
+  Defaults to `no`.
+
 `QemuArgs=`
 
 : Space-delimited list of additional arguments to pass when invoking
