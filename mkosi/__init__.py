@@ -581,6 +581,91 @@ def gen_kernel_images(state: MkosiState) -> Iterator[tuple[str, Path]]:
         yield kver.name, Path("usr/lib/modules") / kver.name / "vmlinuz"
 
 
+def build_initrd(state: MkosiState) -> Path:
+    if (state.workspace / "initrd").exists():
+        return (state.workspace / "initrd").resolve()
+
+    # Default values are assigned via the parser so we go via the argument parser to construct
+    # the config for the initrd.
+
+    password, hashed = state.config.root_password or (None, False)
+    if password:
+        rootpwopt = f"hashed:{password}" if hashed else password
+    else:
+        rootpwopt = None
+
+    cmdline = [
+        "--directory", "",
+        "--distribution", str(state.config.distribution),
+        "--release", state.config.release,
+        "--architecture", str(state.config.architecture),
+        *(["--mirror", state.config.mirror] if state.config.mirror else []),
+        "--repository-key-check", str(state.config.repository_key_check),
+        "--repositories", ",".join(state.config.repositories),
+        "--package-manager-tree", ",".join(format_source_target(s, t) for s, t in state.config.package_manager_trees),
+        *(["--tools-tree", str(state.config.tools_tree)] if state.config.tools_tree else []),
+        *(["--compress-output", str(state.config.compress_output)] if state.config.compress_output else []),
+        "--with-network", str(state.config.with_network),
+        "--cache-only", str(state.config.cache_only),
+        "--output-dir", str(state.config.output_dir),
+        "--workspace-dir", str(state.config.workspace_dir),
+        "--cache-dir", str(state.cache_dir.parent),
+        *(["--local-mirror", str(state.config.local_mirror)] if state.config.local_mirror else []),
+        "--incremental", str(state.config.incremental),
+        "--acl", str(state.config.acl),
+        "--format", "cpio",
+        "--package", "systemd",
+        "--package", "udev",
+        "--package", "util-linux",
+        "--package", "kmod",
+        *(["--package", "dmsetup"] if state.config.distribution.is_apt_distribution() else []),
+        "--output", f"{state.config.output}-initrd",
+        *(["--image-version", state.config.image_version] if state.config.image_version else []),
+        "--make-initrd", "yes",
+        "--bootable", "no",
+        "--manifest-format", "",
+        *(["--locale", state.config.locale] if state.config.locale else []),
+        *(["--locale-messages", state.config.locale_messages] if state.config.locale_messages else []),
+        *(["--keymap", state.config.keymap] if state.config.keymap else []),
+        *(["--timezone", state.config.timezone] if state.config.timezone else []),
+        *(["--hostname", state.config.hostname] if state.config.hostname else []),
+        *(["--root-password", rootpwopt] if rootpwopt else []),
+        *(["-f"] * state.args.force),
+        "build",
+    ]
+
+    with complete_step("Building initrd"):
+        args, presets = MkosiConfigParser().parse(cmdline)
+        config = presets[0]
+        unlink_output(args, config)
+        build_image(args, config)
+
+    (config.output_dir / config.output).symlink_to(state.workspace / "initrd.img")
+
+    return config.output_dir / config.output
+
+
+def build_kernel_modules_initrd(state: MkosiState, kver: str) -> Path:
+    kmods = state.workspace / f"initrd-kernel-modules-{kver}.img"
+
+    make_cpio(
+        state.root, kmods,
+        gen_required_kernel_modules(
+            state.root, kver,
+            state.config.kernel_modules_initrd_include,
+            state.config.kernel_modules_initrd_exclude,
+        )
+    )
+
+    # Debian/Ubuntu do not compress their kernel modules, so we compress the initramfs instead. Note that
+    # this is not ideal since the compressed kernel modules will all be decompressed on boot which
+    # requires significant memory.
+    if state.config.distribution.is_apt_distribution():
+        maybe_compress(state.config, Compression.zst, kmods, kmods)
+
+    return kmods
+
+
 def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
     # Iterates through all kernel versions included in the image and generates a combined
     # kernel+initrd+cmdline+osrelease EFI file from it and places it in the /EFI/Linux directory of the ESP.
@@ -603,60 +688,7 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
     if state.config.initrds:
         initrds = state.config.initrds
     elif any(gen_kernel_images(state)):
-        # Default values are assigned via the parser so we go via the argument parser to construct
-        # the config for the initrd.
-        with complete_step("Building initrd"):
-            password, hashed = state.config.root_password or (None, False)
-            if password:
-                rootpwopt = f"hashed:{password}" if hashed else password
-            else:
-                rootpwopt = None
-
-            args, presets = MkosiConfigParser().parse([
-                "--directory", "",
-                "--distribution", str(state.config.distribution),
-                "--release", state.config.release,
-                "--architecture", str(state.config.architecture),
-                *(["--mirror", state.config.mirror] if state.config.mirror else []),
-                "--repository-key-check", str(state.config.repository_key_check),
-                "--repositories", ",".join(state.config.repositories),
-                "--package-manager-tree", ",".join(format_source_target(s, t) for s, t in state.config.package_manager_trees),
-                *(["--tools-tree", str(state.config.tools_tree)] if state.config.tools_tree else []),
-                *(["--compress-output", str(state.config.compress_output)] if state.config.compress_output else []),
-                "--with-network", str(state.config.with_network),
-                "--cache-only", str(state.config.cache_only),
-                "--output-dir", str(state.config.output_dir),
-                "--workspace-dir", str(state.config.workspace_dir),
-                "--cache-dir", str(state.cache_dir.parent),
-                *(["--local-mirror", str(state.config.local_mirror)] if state.config.local_mirror else []),
-                "--incremental", str(state.config.incremental),
-                "--acl", str(state.config.acl),
-                "--format", "cpio",
-                "--package", "systemd",
-                "--package", "udev",
-                "--package", "util-linux",
-                "--package", "kmod",
-                *(["--package", "dmsetup"] if state.config.distribution.is_apt_distribution() else []),
-                "--output", f"{state.config.output}-initrd",
-                *(["--image-version", state.config.image_version] if state.config.image_version else []),
-                "--make-initrd", "yes",
-                "--bootable", "no",
-                "--manifest-format", "",
-                *(["--locale", state.config.locale] if state.config.locale else []),
-                *(["--locale-messages", state.config.locale_messages] if state.config.locale_messages else []),
-                *(["--keymap", state.config.keymap] if state.config.keymap else []),
-                *(["--timezone", state.config.timezone] if state.config.timezone else []),
-                *(["--hostname", state.config.hostname] if state.config.hostname else []),
-                *(["--root-password", rootpwopt] if rootpwopt else []),
-                *(["-f"] * state.args.force),
-                "build",
-            ])
-
-            config = presets[0]
-            unlink_output(args, config)
-            build_image(args, config)
-
-            initrds = [config.output_dir / config.output]
+        initrds = [build_initrd(state)]
 
     for kver, kimg in gen_kernel_images(state):
         with complete_step(f"Generating unified kernel image for {kimg}"):
@@ -747,24 +779,7 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                 cmd += ["--initrd", initrd]
 
             if state.config.kernel_modules_initrd:
-                kmods = state.workspace / f"initramfs-kernel-modules-{kver}.img"
-
-                make_cpio(
-                    state.root, kmods,
-                    gen_required_kernel_modules(
-                        state.root, kver,
-                        state.config.kernel_modules_initrd_include,
-                        state.config.kernel_modules_initrd_exclude,
-                    )
-                )
-
-                # Debian/Ubuntu do not compress their kernel modules, so we compress the initramfs instead. Note that
-                # this is not ideal since the compressed kernel modules will all be decompressed on boot which
-                # requires significant memory.
-                if state.config.distribution.is_apt_distribution():
-                    maybe_compress(state.config, Compression.zst, kmods, kmods)
-
-                cmd += ["--initrd", kmods]
+                cmd += ["--initrd", build_kernel_modules_initrd(state, kver)]
 
             # Make sure the parent directory where we'll be writing the UKI exists.
             with umask(~0o700):
