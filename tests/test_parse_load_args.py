@@ -4,10 +4,10 @@ import argparse
 import itertools
 import operator
 import tempfile
-from contextlib import contextmanager
-from os import chdir, getcwd
+import contextlib
+import os
 from pathlib import Path
-from textwrap import dedent
+import textwrap
 from typing import Iterator, List, Optional
 
 import pytest
@@ -16,16 +16,16 @@ from mkosi.config import Compression, MkosiArgs, MkosiConfig, MkosiConfigParser,
 from mkosi.distributions import Distribution
 
 
-@contextmanager
+@contextlib.contextmanager
 def cd_temp_dir() -> Iterator[None]:
-    old_dir = getcwd()
+    old_dir = os.getcwd()
 
     with tempfile.TemporaryDirectory() as tmp_dir:
-        chdir(tmp_dir)
+        os.chdir(tmp_dir)
         try:
             yield
         finally:
-            chdir(old_dir)
+            os.chdir(old_dir)
 
 
 def parse(argv: Optional[List[str]] = None) -> tuple[MkosiArgs, tuple[MkosiConfig, ...]]:
@@ -86,7 +86,7 @@ def test_match_distribution(dist1: Distribution, dist2: Distribution) -> None:
     with cd_temp_dir():
         parent = Path("mkosi.conf")
         parent.write_text(
-            dedent(
+            textwrap.dedent(
                 f"""\
                 [Distribution]
                 Distribution={dist1}
@@ -98,7 +98,7 @@ def test_match_distribution(dist1: Distribution, dist2: Distribution) -> None:
 
         child1 = Path("mkosi.conf.d/child1.conf")
         child1.write_text(
-            dedent(
+            textwrap.dedent(
                 f"""\
                 [Match]
                 Distribution={dist1}
@@ -110,7 +110,7 @@ def test_match_distribution(dist1: Distribution, dist2: Distribution) -> None:
         )
         child2 = Path("mkosi.conf.d/child2.conf")
         child2.write_text(
-            dedent(
+            textwrap.dedent(
                 f"""\
                 [Match]
                 Distribution={dist2}
@@ -122,7 +122,7 @@ def test_match_distribution(dist1: Distribution, dist2: Distribution) -> None:
         )
         child3 = Path("mkosi.conf.d/child3.conf")
         child3.write_text(
-            dedent(
+            textwrap.dedent(
                 f"""\
                 [Match]
                 Distribution=|{dist1}
@@ -150,7 +150,7 @@ def test_match_release(release1: int, release2: int) -> None:
     with cd_temp_dir():
         parent = Path("mkosi.conf")
         parent.write_text(
-            dedent(
+            textwrap.dedent(
                 f"""\
                 [Distribution]
                 Distribution=fedora
@@ -163,7 +163,7 @@ def test_match_release(release1: int, release2: int) -> None:
 
         child1 = Path("mkosi.conf.d/child1.conf")
         child1.write_text(
-            dedent(
+            textwrap.dedent(
                 f"""\
                 [Match]
                 Release={release1}
@@ -175,7 +175,7 @@ def test_match_release(release1: int, release2: int) -> None:
         )
         child2 = Path("mkosi.conf.d/child2.conf")
         child2.write_text(
-            dedent(
+            textwrap.dedent(
                 f"""\
                 [Match]
                 Release={release2}
@@ -187,7 +187,7 @@ def test_match_release(release1: int, release2: int) -> None:
         )
         child3 = Path("mkosi.conf.d/child3.conf")
         child3.write_text(
-            dedent(
+            textwrap.dedent(
                 f"""\
                 [Match]
                 Release=|{release1}
@@ -217,7 +217,7 @@ def test_match_imageid(image1: str, image2: str) -> None:
     with cd_temp_dir():
         parent = Path("mkosi.conf")
         parent.write_text(
-            dedent(
+            textwrap.dedent(
                 f"""\
                 [Distribution]
                 Distribution=fedora
@@ -230,7 +230,7 @@ def test_match_imageid(image1: str, image2: str) -> None:
 
         child1 = Path("mkosi.conf.d/child1.conf")
         child1.write_text(
-            dedent(
+            textwrap.dedent(
                 f"""\
                 [Match]
                 ImageId={image1}
@@ -242,7 +242,7 @@ def test_match_imageid(image1: str, image2: str) -> None:
         )
         child2 = Path("mkosi.conf.d/child2.conf")
         child2.write_text(
-            dedent(
+            textwrap.dedent(
                 f"""\
                 [Match]
                 ImageId={image2}
@@ -254,7 +254,7 @@ def test_match_imageid(image1: str, image2: str) -> None:
         )
         child3 = Path("mkosi.conf.d/child3.conf")
         child3.write_text(
-            dedent(
+            textwrap.dedent(
                 f"""\
                 [Match]
                 ImageId=|{image1}
@@ -267,7 +267,7 @@ def test_match_imageid(image1: str, image2: str) -> None:
         )
         child4 = Path("mkosi.conf.d/child4.conf")
         child4.write_text(
-            dedent(
+            textwrap.dedent(
                 """\
                 [Match]
                 ImageId=image*
@@ -307,7 +307,7 @@ def test_match_imageversion(op: str, version: str) -> None:
     with cd_temp_dir():
         parent = Path("mkosi.conf")
         parent.write_text(
-            dedent(
+            textwrap.dedent(
                 """\
                 [Distribution]
                 ImageId=testimage
@@ -319,7 +319,7 @@ def test_match_imageversion(op: str, version: str) -> None:
         Path("mkosi.conf.d").mkdir()
         child1 = Path("mkosi.conf.d/child1.conf")
         child1.write_text(
-            dedent(
+            textwrap.dedent(
                 f"""\
                 [Match]
                 ImageVersion={op}{version}
@@ -331,7 +331,7 @@ def test_match_imageversion(op: str, version: str) -> None:
         )
         child2 = Path("mkosi.conf.d/child2.conf")
         child2.write_text(
-            dedent(
+            textwrap.dedent(
                 f"""\
                 [Match]
                 ImageVersion=<200
@@ -344,7 +344,7 @@ def test_match_imageversion(op: str, version: str) -> None:
         )
         child3 = Path("mkosi.conf.d/child3.conf")
         child3.write_text(
-            dedent(
+            textwrap.dedent(
                 f"""\
                 [Match]
                 ImageVersion=>9000

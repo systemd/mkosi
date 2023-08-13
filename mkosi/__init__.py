@@ -15,10 +15,10 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import textwrap
 import uuid
 from collections.abc import Iterator, Sequence
 from pathlib import Path
-from textwrap import dedent
 from typing import Any, ContextManager, Mapping, Optional, TextIO, Union
 
 from mkosi.archive import extract_tar, make_cpio, make_tar
@@ -839,7 +839,7 @@ def install_unified_kernel(state: MkosiState, partitions: Sequence[Partition]) -
                 # to make sure we load pefile from the tools tree if one is used.
 
                 # TODO: Use ignore_padding=True instead of length once we can depend on a newer pefile.
-                pefile = dedent(
+                pefile = textwrap.dedent(
                     f"""\
                     import pefile
                     from pathlib import Path
@@ -1091,7 +1091,7 @@ def configure_ssh(state: MkosiState) -> None:
 
     with umask(~0o644):
         (state.root / "usr/lib/systemd/system/ssh.socket").write_text(
-            dedent(
+            textwrap.dedent(
                 """\
                 [Unit]
                 Description=Mkosi SSH Server VSock Socket
@@ -1109,7 +1109,7 @@ def configure_ssh(state: MkosiState) -> None:
         )
 
         (state.root / "usr/lib/systemd/system/ssh@.service").write_text(
-            dedent(
+            textwrap.dedent(
                 """\
                 [Unit]
                 Description=Mkosi SSH Server
@@ -1360,7 +1360,7 @@ def make_image(state: MkosiState, skip: Sequence[str] = [], split: bool = False)
 
             if add:
                 (definitions / "00-esp.conf").write_text(
-                    dedent(
+                    textwrap.dedent(
                         """\
                         [Partition]
                         Type=esp
@@ -1373,7 +1373,7 @@ def make_image(state: MkosiState, skip: Sequence[str] = [], split: bool = False)
                 )
 
             (definitions / "10-root.conf").write_text(
-                dedent(
+                textwrap.dedent(
                     f"""\
                     [Partition]
                     Type=root
@@ -1670,7 +1670,7 @@ def generate_key_cert_pair(args: MkosiArgs) -> None:
 
     log_step(f"Generating keys rsa:{keylength} for CN {cn!r}.")
     logging.info(
-        dedent(
+        textwrap.dedent(
             f"""
             The keys will expire in {args.genkey_valid_days} days ({expiration_date:%A %d. %B %Y}).
             Remember to roll them over to new ones before then.

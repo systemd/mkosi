@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 import dataclasses
+import datetime
 import json
-from datetime import datetime
+import subprocess
+import textwrap
 from pathlib import Path
-from subprocess import DEVNULL, PIPE
-from textwrap import dedent
 from typing import IO, Any, Optional
 
 from mkosi.config import ManifestFormat, MkosiConfig
@@ -48,7 +48,7 @@ class SourcePackageManifest:
     def report(self) -> str:
         size = sum(p.size for p in self.packages)
 
-        t = dedent(
+        t = textwrap.dedent(
             f"""\
             SourcePackage: {self.name}
             Packages:      {" ".join(p.name for p in self.packages)}
@@ -83,7 +83,7 @@ class Manifest:
     packages: list[PackageManifest] = dataclasses.field(default_factory=list)
     source_packages: dict[str, SourcePackageManifest] = dataclasses.field(default_factory=dict)
 
-    _init_timestamp: datetime = dataclasses.field(init=False, default_factory=datetime.now)
+    _init_timestamp: datetime.datetime = dataclasses.field(init=False, default_factory=datetime.datetime.now)
 
     def need_source_info(self) -> bool:
         return ManifestFormat.changelog in self.config.manifest_format
@@ -110,7 +110,7 @@ class Manifest:
                  f"--dbpath={dbpath}",
                  "-qa",
                  "--qf", r"%{NEVRA}\t%{SOURCERPM}\t%{NAME}\t%{ARCH}\t%{LONGSIZE}\t%{INSTALLTIME}\n"],
-                stdout=PIPE)
+                stdout=subprocess.PIPE)
 
         packages = sorted(c.stdout.splitlines())
 
@@ -129,7 +129,7 @@ class Manifest:
                 arch = ""
 
             size = int(size)
-            installtime = datetime.fromtimestamp(int(installtime))
+            installtime = datetime.datetime.fromtimestamp(int(installtime))
 
             # If we are creating a layer based on a BaseImage=, e.g. a sysext, filter by
             # packages that were installed in this execution of mkosi. We assume that the
@@ -151,8 +151,8 @@ class Manifest:
                          "-q",
                          "--changelog",
                          nevra],
-                        stdout=PIPE,
-                        stderr=DEVNULL)
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.DEVNULL)
                 changelog = c.stdout.strip()
                 source = SourcePackageManifest(srpm, changelog)
                 self.source_packages[srpm] = source
@@ -165,7 +165,7 @@ class Manifest:
                  "--show",
                  "--showformat",
                      r'${Package}\t${source:Package}\t${Version}\t${Architecture}\t${Installed-Size}\t${db-fsys:Last-Modified}\n'],
-                 stdout=PIPE)
+                 stdout=subprocess.PIPE)
 
         packages = sorted(c.stdout.splitlines())
 
@@ -177,7 +177,7 @@ class Manifest:
             # the manifest for sysext when building on very old distributions by setting the
             # timestamp to epoch. This only affects Ubuntu Bionic which is nearing EOL.
             size = int(size) * 1024 if size else 0
-            installtime = datetime.fromtimestamp(int(installtime) if installtime else 0)
+            installtime = datetime.datetime.fromtimestamp(int(installtime) if installtime else 0)
 
             # If we are creating a layer based on a BaseImage=, e.g. a sysext, filter by
             # packages that were installed in this execution of mkosi. We assume that the
@@ -224,7 +224,7 @@ class Manifest:
                 # We have to run from the root, because if we use the RootDir option to make
                 # apt from the host look at the repositories in the image, it will also pick
                 # the 'methods' executables from there, but the ABI might not be compatible.
-                result = run(cmd, stdout=PIPE)
+                result = run(cmd, stdout=subprocess.PIPE)
                 source_package = SourcePackageManifest(source, result.stdout.strip())
                 self.source_packages[source] = source_package
 
