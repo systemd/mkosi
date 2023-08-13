@@ -1338,6 +1338,8 @@ def make_image(state: MkosiState, skip: Sequence[str] = [], split: bool = False)
     with complete_step("Generating disk image"):
         output = json.loads(run(cmdline, stdout=subprocess.PIPE, env=env).stdout)
 
+    logging.debug(json.dumps(output, indent=4))
+
     roothash = usrhash = None
     for p in output:
         if (h := p.get("roothash")) is None:
