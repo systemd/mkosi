@@ -15,7 +15,7 @@ LEVEL = 0
 
 class Style:
     bold = "\033[0;1;39m" if sys.stderr.isatty() else ""
-    gray = "\x1b[38;20m" if sys.stderr.isatty() else ""
+    gray = "\033[0;38;5;245m" if sys.stderr.isatty() else ""
     red = "\033[31;1m" if sys.stderr.isatty() else ""
     yellow = "\033[33;1m" if sys.stderr.isatty() else ""
     reset = "\033[0m" if sys.stderr.isatty() else ""
