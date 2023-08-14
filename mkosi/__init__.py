@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 import contextlib
+import dataclasses
 import datetime
 import hashlib
 import http.server
@@ -14,11 +15,11 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import textwrap
 import uuid
 from collections.abc import Iterator, Sequence
 from pathlib import Path
-from textwrap import dedent
-from typing import ContextManager, Optional, TextIO, Union
+from typing import Any, ContextManager, Mapping, Optional, TextIO, Union
 
 from mkosi.archive import extract_tar, make_cpio, make_tar
 from mkosi.config import (
@@ -58,6 +59,23 @@ from mkosi.util import (
     umask,
 )
 from mkosi.versioncomp import GenericVersion
+
+
+@dataclasses.dataclass(frozen=True)
+class Partition:
+    type: str
+    uuid: str
+    split_path: Optional[Path] = None
+    roothash: Optional[str] = None
+
+    @classmethod
+    def from_dict(cls, dict: Mapping[str, Any]) -> "Partition":
+        return cls(
+            type=dict["type"],
+            uuid=dict["uuid"],
+            split_path=Path(p) if ((p := dict.get("split_path")) and p != "-") else None,
+            roothash=dict.get("roothash"),
+        )
 
 
 @contextlib.contextmanager
@@ -581,7 +599,114 @@ def gen_kernel_images(state: MkosiState) -> Iterator[tuple[str, Path]]:
         yield kver.name, Path("usr/lib/modules") / kver.name / "vmlinuz"
 
 
-def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
+def build_initrd(state: MkosiState) -> Path:
+    symlink = state.workspace / "initrd"
+    if symlink.exists():
+        return symlink.resolve()
+
+    # Default values are assigned via the parser so we go via the argument parser to construct
+    # the config for the initrd.
+
+    password, hashed = state.config.root_password or (None, False)
+    if password:
+        rootpwopt = f"hashed:{password}" if hashed else password
+    else:
+        rootpwopt = None
+
+    cmdline = [
+        "--directory", "",
+        "--distribution", str(state.config.distribution),
+        "--release", state.config.release,
+        "--architecture", str(state.config.architecture),
+        *(["--mirror", state.config.mirror] if state.config.mirror else []),
+        "--repository-key-check", str(state.config.repository_key_check),
+        "--repositories", ",".join(state.config.repositories),
+        "--package-manager-tree", ",".join(format_source_target(s, t) for s, t in state.config.package_manager_trees),
+        *(["--tools-tree", str(state.config.tools_tree)] if state.config.tools_tree else []),
+        *(["--compress-output", str(state.config.compress_output)] if state.config.compress_output else []),
+        "--with-network", str(state.config.with_network),
+        "--cache-only", str(state.config.cache_only),
+        "--output-dir", str(state.config.output_dir),
+        "--workspace-dir", str(state.config.workspace_dir),
+        "--cache-dir", str(state.cache_dir.parent),
+        *(["--local-mirror", str(state.config.local_mirror)] if state.config.local_mirror else []),
+        "--incremental", str(state.config.incremental),
+        "--acl", str(state.config.acl),
+        "--format", "cpio",
+        "--package", "systemd",
+        "--package", "udev",
+        "--package", "util-linux",
+        "--package", "kmod",
+        *(["--package", "dmsetup"] if state.config.distribution.is_apt_distribution() else []),
+        "--output", f"{state.config.output}-initrd",
+        *(["--image-version", state.config.image_version] if state.config.image_version else []),
+        "--make-initrd", "yes",
+        "--bootable", "no",
+        "--manifest-format", "",
+        *(["--locale", state.config.locale] if state.config.locale else []),
+        *(["--locale-messages", state.config.locale_messages] if state.config.locale_messages else []),
+        *(["--keymap", state.config.keymap] if state.config.keymap else []),
+        *(["--timezone", state.config.timezone] if state.config.timezone else []),
+        *(["--hostname", state.config.hostname] if state.config.hostname else []),
+        *(["--root-password", rootpwopt] if rootpwopt else []),
+        *(["-f"] * state.args.force),
+        "build",
+    ]
+
+    with complete_step("Building initrd"):
+        args, presets = MkosiConfigParser().parse(cmdline)
+        config = presets[0]
+        unlink_output(args, config)
+        build_image(args, config)
+
+    symlink.symlink_to(config.output_dir / config.output)
+
+    return symlink
+
+
+def build_kernel_modules_initrd(state: MkosiState, kver: str) -> Path:
+    kmods = state.workspace / f"initrd-kernel-modules-{kver}.img"
+    if kmods.exists():
+        return kmods
+
+    make_cpio(
+        state.root, kmods,
+        gen_required_kernel_modules(
+            state.root, kver,
+            state.config.kernel_modules_initrd_include,
+            state.config.kernel_modules_initrd_exclude,
+        )
+    )
+
+    # Debian/Ubuntu do not compress their kernel modules, so we compress the initramfs instead. Note that
+    # this is not ideal since the compressed kernel modules will all be decompressed on boot which
+    # requires significant memory.
+    if state.config.distribution.is_apt_distribution():
+        maybe_compress(state.config, Compression.zst, kmods, kmods)
+
+    return kmods
+
+
+def finalize_roothash(partitions: Sequence[Partition]) -> Optional[str]:
+    roothash = usrhash = None
+
+    for p in partitions:
+        if (h := p.roothash) is None:
+            continue
+
+        if not (p.type.startswith("usr") or p.type.startswith("root")):
+            die(f"Found roothash property on unexpected partition type {p.type}")
+
+        # When there's multiple verity enabled root or usr partitions, the first one wins.
+        if p.type.startswith("usr"):
+            usrhash = usrhash or h
+        else:
+            roothash = roothash or h
+
+    return f"roothash={roothash}" if roothash else f"usrhash={usrhash}" if usrhash else None
+
+
+def install_unified_kernel(state: MkosiState, partitions: Sequence[Partition]) -> None:
     # Iterates through all kernel versions included in the image and generates a combined
     # kernel+initrd+cmdline+osrelease EFI file from it and places it in the /EFI/Linux directory of the ESP.
     # sd-boot iterates through them and shows them in the menu. These "unified" single-file images have the
@@ -598,65 +723,13 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
     if state.config.output_format == OutputFormat.cpio and state.config.bootable == ConfigFeature.auto:
         return
 
+    roothash = finalize_roothash(partitions)
     initrds = []
 
     if state.config.initrds:
         initrds = state.config.initrds
     elif any(gen_kernel_images(state)):
-        # Default values are assigned via the parser so we go via the argument parser to construct
-        # the config for the initrd.
-        with complete_step("Building initrd"):
-            password, hashed = state.config.root_password or (None, False)
-            if password:
-                rootpwopt = f"hashed:{password}" if hashed else password
-            else:
-                rootpwopt = None
-
-            args, presets = MkosiConfigParser().parse([
-                "--directory", "",
-                "--distribution", str(state.config.distribution),
-                "--release", state.config.release,
-                "--architecture", str(state.config.architecture),
-                *(["--mirror", state.config.mirror] if state.config.mirror else []),
-                "--repository-key-check", str(state.config.repository_key_check),
-                "--repositories", ",".join(state.config.repositories),
-                "--package-manager-tree", ",".join(format_source_target(s, t) for s, t in state.config.package_manager_trees),
-                *(["--tools-tree", str(state.config.tools_tree)] if state.config.tools_tree else []),
-                *(["--compress-output", str(state.config.compress_output)] if state.config.compress_output else []),
-                "--with-network", str(state.config.with_network),
-                "--cache-only", str(state.config.cache_only),
-                "--output-dir", str(state.config.output_dir),
-                "--workspace-dir", str(state.config.workspace_dir),
-                "--cache-dir", str(state.cache_dir.parent),
-                *(["--local-mirror", str(state.config.local_mirror)] if state.config.local_mirror else []),
-                "--incremental", str(state.config.incremental),
-                "--acl", str(state.config.acl),
-                "--format", "cpio",
-                "--package", "systemd",
-                "--package", "udev",
-                "--package", "util-linux",
-                "--package", "kmod",
-                *(["--package", "dmsetup"] if state.config.distribution.is_apt_distribution() else []),
-                "--output", f"{state.config.output}-initrd",
-                *(["--image-version", state.config.image_version] if state.config.image_version else []),
-                "--make-initrd", "yes",
-                "--bootable", "no",
-                "--manifest-format", "",
-                *(["--locale", state.config.locale] if state.config.locale else []),
-                *(["--locale-messages", state.config.locale_messages] if state.config.locale_messages else []),
-                *(["--keymap", state.config.keymap] if state.config.keymap else []),
-                *(["--timezone", state.config.timezone] if state.config.timezone else []),
-                *(["--hostname", state.config.hostname] if state.config.hostname else []),
-                *(["--root-password", rootpwopt] if rootpwopt else []),
-                *(["-f"] * state.args.force),
-                "build",
-            ])
-
-            config = presets[0]
-            unlink_output(args, config)
-            build_image(args, config)
-
-            initrds = [config.output_dir / config.output]
+        initrds = [build_initrd(state)]
 
     for kver, kimg in gen_kernel_images(state):
         with complete_step(f"Generating unified kernel image for {kimg}"):
@@ -747,24 +820,7 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                 cmd += ["--initrd", initrd]
 
             if state.config.kernel_modules_initrd:
-                kmods = state.workspace / f"initramfs-kernel-modules-{kver}.img"
-
-                make_cpio(
-                    state.root, kmods,
-                    gen_required_kernel_modules(
-                        state.root, kver,
-                        state.config.kernel_modules_initrd_include,
-                        state.config.kernel_modules_initrd_exclude,
-                    )
-                )
-
-                # Debian/Ubuntu do not compress their kernel modules, so we compress the initramfs instead. Note that
-                # this is not ideal since the compressed kernel modules will all be decompressed on boot which
-                # requires significant memory.
-                if state.config.distribution.is_apt_distribution():
-                    maybe_compress(state.config, Compression.zst, kmods, kmods)
-
-                cmd += ["--initrd", kmods]
+                cmd += ["--initrd", build_kernel_modules_initrd(state, kver)]
 
             # Make sure the parent directory where we'll be writing the UKI exists.
             with umask(~0o700):
@@ -783,7 +839,7 @@ def install_unified_kernel(state: MkosiState, roothash: Optional[str]) -> None:
                 # to make sure we load pefile from the tools tree if one is used.
 
                 # TODO: Use ignore_padding=True instead of length once we can depend on a newer pefile.
-                pefile = dedent(
+                pefile = textwrap.dedent(
                     f"""\
                     import pefile
                     from pathlib import Path
@@ -1035,7 +1091,7 @@ def configure_ssh(state: MkosiState) -> None:
 
     with umask(~0o644):
         (state.root / "usr/lib/systemd/system/ssh.socket").write_text(
-            dedent(
+            textwrap.dedent(
                 """\
                 [Unit]
                 Description=Mkosi SSH Server VSock Socket
@@ -1053,7 +1109,7 @@ def configure_ssh(state: MkosiState) -> None:
         )
 
         (state.root / "usr/lib/systemd/system/ssh@.service").write_text(
-            dedent(
+            textwrap.dedent(
                 """\
                 [Unit]
                 Description=Mkosi SSH Server
@@ -1255,9 +1311,9 @@ def reuse_cache(state: MkosiState) -> bool:
     return True
 
 
-def make_image(state: MkosiState, skip: Sequence[str] = [], split: bool = False) -> tuple[Optional[str], list[Path]]:
+def make_image(state: MkosiState, skip: Sequence[str] = [], split: bool = False) -> list[Partition]:
     if not state.config.output_format == OutputFormat.disk:
-        return None, []
+        return []
 
     cmdline: list[PathString] = [
         "systemd-repart",
@@ -1304,7 +1360,7 @@ def make_image(state: MkosiState, skip: Sequence[str] = [], split: bool = False)
 
             if add:
                 (definitions / "00-esp.conf").write_text(
-                    dedent(
+                    textwrap.dedent(
                         """\
                         [Partition]
                         Type=esp
@@ -1317,7 +1373,7 @@ def make_image(state: MkosiState, skip: Sequence[str] = [], split: bool = False)
                 )
 
             (definitions / "10-root.conf").write_text(
-                dedent(
+                textwrap.dedent(
                     f"""\
                     [Partition]
                     Type=root
@@ -1338,23 +1394,16 @@ def make_image(state: MkosiState, skip: Sequence[str] = [], split: bool = False)
     with complete_step("Generating disk image"):
         output = json.loads(run(cmdline, stdout=subprocess.PIPE, env=env).stdout)
 
-    roothash = usrhash = None
-    for p in output:
-        if (h := p.get("roothash")) is None:
-            continue
+    logging.debug(json.dumps(output, indent=4))
 
-        if not (p["type"].startswith("usr") or p["type"].startswith("root")):
-            die(f"Found roothash property on unexpected partition type {p['type']}")
+    partitions = [Partition.from_dict(d) for d in output]
 
-        # When there's multiple verity enabled root or usr partitions, the first one wins.
-        if p["type"].startswith("usr"):
-            usrhash = usrhash or h
-        else:
-            roothash = roothash or h
+    if split:
+        for p in partitions:
+            if p.split_path:
+                maybe_compress(state.config, state.config.compress_output, p.split_path)
 
-    split_paths = [Path(p["split_path"]) for p in output if p.get("split_path", "-") != "-"]
-
-    return f"roothash={roothash}" if roothash else f"usrhash={usrhash}" if usrhash else None, split_paths
+    return partitions
 
 
 def finalize_staging(state: MkosiState) -> None:
@@ -1430,12 +1479,9 @@ def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
             run_selinux_relabel(state)
             run_finalize_script(state)
 
-        roothash, _ = make_image(state, skip=("esp", "xbootldr"))
-        install_unified_kernel(state, roothash)
-        _, split_paths = make_image(state, split=True)
-
-        for p in split_paths:
-            maybe_compress(state.config, state.config.compress_output, p)
+        partitions = make_image(state, skip=("esp", "xbootldr"))
+        install_unified_kernel(state, partitions)
+        make_image(state, split=True)
 
         if state.config.output_format == OutputFormat.tar:
             make_tar(state.root, state.staging / state.config.output_with_format)
@@ -1624,7 +1670,7 @@ def generate_key_cert_pair(args: MkosiArgs) -> None:
 
     log_step(f"Generating keys rsa:{keylength} for CN {cn!r}.")
     logging.info(
-        dedent(
+        textwrap.dedent(
             f"""
             The keys will expire in {args.genkey_valid_days} days ({expiration_date:%A %d. %B %Y}).
             Remember to roll them over to new ones before then.

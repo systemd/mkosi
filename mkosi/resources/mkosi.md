@@ -978,9 +978,15 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
 
 `QemuSwtpm=`, `--qemu-swtpm=`
 
-: When used with the `qemu` verb, this option specified whether to start an instance of swtpm to be used as a
+: When used with the `qemu` verb, this option specifies whether to start an instance of swtpm to be used as a
   TPM with qemu. This requires swtpm to be installed on the host. Takes a boolean value or `auto`. Defaults
   to `auto`.
+
+`QemuCdrom=`, `--qemu-cdrom=`
+
+: When used with the `qemu` verb, this option specifies whether to
+  attach the image to the virtual machine as a CD-ROM device. Takes a
+  boolean. Defaults to `no`.
 
 `QemuArgs=`
 
