@@ -180,6 +180,9 @@ def run(
         LANG="C.UTF-8",
     ) | env
 
+    if "TMPDIR" in os.environ:
+        env["TMPDIR"] = os.environ["TMPDIR"]
+
     if ARG_DEBUG.get():
         env["SYSTEMD_LOG_LEVEL"] = "debug"
 
@@ -391,6 +394,7 @@ def chroot_cmd(root: Path, *, options: Sequence[PathString] = ()) -> list[PathSt
         "--setenv", "container", "mkosi",
         "--setenv", "HOME", "/",
         "--setenv", "PATH", "/usr/bin:/usr/sbin",
+        "--unsetenv", "TMPDIR",
     ]
 
     resolve = Path("etc/resolv.conf")
