@@ -791,6 +791,25 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
   be generated for the latest installed kernel (the one with the highest
   version) which is installed to `EFI/BOOT/BOOTX64.EFI` in the ESP.
 
+`BiosBootloader=`, `--bios-bootloader=`
+
+: Takes one of `none` or `grub`. Defaults to `none`. If set to `none`,
+  no BIOS bootloader will be installed. If set to `grub`, grub is
+  installed as the BIOS boot loader if a bootable image is requested
+  with the `Bootable=` option. If no repart partition definition files
+  are configured, mkosi will add a grub BIOS boot partition and an EFI
+  system partition to the default partition definition files.
+
+: Note that this option is not mutually exclusive with `Bootloader=`. It
+  is possible to have an image that is both bootable on UEFI and BIOS by
+  configuring both `Bootloader=` and `BiosBootloader=`.
+
+: The grub BIOS boot partition should have UUID
+  `21686148-6449-6e6f-744e-656564454649` and should be at least 1MB.
+
+: Even if no EFI bootloader is installed, we still need an ESP for BIOS
+  boot as that's where we store the kernel, initrd and grub modules.
+
 `Initrds=`, `--initrd`
 
 : Use user-provided initrd(s). Takes a comma separated list of paths to

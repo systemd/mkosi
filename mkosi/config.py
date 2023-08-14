@@ -121,6 +121,11 @@ class Bootloader(StrEnum):
     systemd_boot = enum.auto()
 
 
+class BiosBootloader(StrEnum):
+    none = enum.auto()
+    grub = enum.auto()
+
+
 def parse_boolean(s: str) -> bool:
     "Parse 1/true/yes/y/t/on as true and 0/false/no/n/f/off/None as false"
     s_l = s.lower()
@@ -695,6 +700,7 @@ class MkosiConfig:
 
     bootable: ConfigFeature
     bootloader: Bootloader
+    bios_bootloader: BiosBootloader
     initrds: list[Path]
     kernel_command_line: list[str]
     kernel_modules_include: list[str]
@@ -1195,7 +1201,16 @@ class MkosiConfigParser:
             parse=config_make_enum_parser(Bootloader),
             choices=Bootloader.values(),
             default=Bootloader.systemd_boot,
-            help="Specify which bootloader to use",
+            help="Specify which UEFI bootloader to use",
+        ),
+        MkosiConfigSetting(
+            dest="bios_bootloader",
+            metavar="BOOTLOADER",
+            section="Content",
+            parse=config_make_enum_parser(BiosBootloader),
+            choices=BiosBootloader.values(),
+            default=BiosBootloader.none,
+            help="Specify which BIOS bootloader to use",
         ),
         MkosiConfigSetting(
             dest="initrds",
@@ -2253,6 +2268,7 @@ Clean Package Manager Metadata: {yes_no_auto(config.clean_package_metadata)}
 
                       Bootable: {yes_no_auto(config.bootable)}
                     Bootloader: {config.bootloader}
+               BIOS Bootloader: {config.bios_bootloader}
                        Initrds: {line_join_list(config.initrds)}
            Kernel Command Line: {line_join_list(config.kernel_command_line)}
         Kernel Modules Include: {line_join_list(config.kernel_modules_include)}

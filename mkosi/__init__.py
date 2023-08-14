@@ -23,6 +23,7 @@ from typing import Any, ContextManager, Mapping, Optional, TextIO, Union
 
 from mkosi.archive import extract_tar, make_cpio, make_tar
 from mkosi.config import (
+    BiosBootloader,
     Bootloader,
     Compression,
     ConfigFeature,
@@ -40,7 +41,7 @@ from mkosi.config import (
 from mkosi.install import add_dropin_config_from_resource
 from mkosi.installer import clean_package_manager_metadata, package_manager_scripts
 from mkosi.kmod import gen_required_kernel_modules, process_kernel_modules
-from mkosi.log import complete_step, die, log_step
+from mkosi.log import ARG_DEBUG, complete_step, die, log_step
 from mkosi.manifest import Manifest
 from mkosi.mounts import mount_overlay, mount_passwd, mount_usr
 from mkosi.pager import page
@@ -66,17 +67,21 @@ from mkosi.versioncomp import GenericVersion
 class Partition:
     type: str
     uuid: str
-    split_path: Optional[Path] = None
-    roothash: Optional[str] = None
+    partno: Optional[int]
+    split_path: Optional[Path]
+    roothash: Optional[str]
 
     @classmethod
     def from_dict(cls, dict: Mapping[str, Any]) -> "Partition":
         return cls(
             type=dict["type"],
             uuid=dict["uuid"],
+            partno=int(partno) if (partno := dict.get("partno")) else None,
             split_path=Path(p) if ((p := dict.get("split_path")) and p != "-") else None,
             roothash=dict.get("roothash"),
         )
+
+    GRUB_BOOT_PARTITION_UUID = "21686148-6449-6e6f-744e-656564454649"
 
 
 @contextlib.contextmanager
@@ -546,6 +551,225 @@ def install_systemd_boot(state: MkosiState) -> None:
                      "--output", keys / f"{db}.auth",
                      db,
                      state.workspace / "mkosi.esl"])
+
+
+def find_grub_bios_directory(state: MkosiState) -> Optional[Path]:
+    for d in ("usr/lib/grub/i386-pc", "usr/share/grub2/i386-pc"):
+        if (p := state.root / d).exists() and any(p.iterdir()):
+            return p
+
+    return None
+
+
+def find_grub_binary(state: MkosiState, binary: str) -> Optional[Path]:
+    path = ":".join(os.fspath(p) for p in [state.root / "usr/bin", state.root / "usr/sbin"])
+
+    assert "grub" in binary and not "grub2" in binary
+
+    path = shutil.which(binary, path=path) or shutil.which(binary.replace("grub", "grub2"), path=path)
+    if not path:
+        return None
+
+    return Path("/") / Path(path).relative_to(state.root)
+
+
+def find_grub_prefix(state: MkosiState) -> Optional[str]:
+    path = find_grub_binary(state, "grub-mkimage")
+    if path is None:
+        return None
+
+    return "grub2" if "grub2" in os.fspath(path) else "grub"
+
+
+def want_grub_bios(state: MkosiState, partitions: Sequence[Partition] = ()) -> bool:
+    if state.config.bootable == ConfigFeature.disabled:
+        return False
+
+    if state.config.output_format != OutputFormat.disk:
+        return False
+
+    if state.config.bios_bootloader != BiosBootloader.grub:
+        return False
+
+    have = find_grub_bios_directory(state) is not None
+    if not have and state.config.bootable == ConfigFeature.enabled:
+        die("A BIOS bootable image with grub was requested but grub for BIOS is not installed")
+
+    bios = any(p.type == Partition.GRUB_BOOT_PARTITION_UUID for p in partitions)
+    if partitions and not bios and state.config.bootable == ConfigFeature.enabled:
+        die("A BIOS bootable image with grub was requested but no BIOS Boot Partition was configured")
+
+    esp = any(p.type == "esp" for p in partitions)
+    if partitions and not esp and state.config.bootable == ConfigFeature.enabled:
+        die("A BIOS bootable image with grub was requested but no ESP partition was configured")
+
+    root = any(p.type.startswith("root") or p.type.startswith("usr") for p in partitions)
+    if partitions and not root and state.config.bootable == ConfigFeature.enabled:
+        die("A BIOS bootable image with grub was requested but no root or usr partition was configured")
+
+    installed = True
+
+    for binary in ("grub-mkimage", "grub-bios-setup"):
+        path = find_grub_binary(state, binary)
+        if path is not None:
+            continue
+
+        if state.config.bootable == ConfigFeature.enabled:
+            die(f"A BIOS bootable image with grub was requested but {binary} was not found")
+
+        installed = False
+
+    return (have and bios and esp and root and installed) if partitions else have
+
+
+def prepare_grub_config(state: MkosiState) -> Optional[Path]:
+    prefix = find_grub_prefix(state)
+    if not prefix:
+        return None
+
+    config = state.root / "efi" / prefix / "grub.cfg"
+    with umask(~0o700):
+        config.parent.mkdir(exist_ok=True)
+
+    # For some unknown reason, if we don't set the timeout to zero, grub never leaves its menu, so we default
+    # to a zero timeout, but only if the config file hasn't been provided by the user.
+    if not config.exists():
+        with umask(~0o600), config.open("w") as f:
+            f.write("set timeout=0\n")
+
+    return config
+
+
+def prepare_grub_bios(state: MkosiState, partitions: Sequence[Partition]) -> None:
+    if not want_grub_bios(state, partitions):
+        return
+
+    config = prepare_grub_config(state)
+    assert config
+
+    root = finalize_roothash(partitions)
+    if not root:
+        root = next((f"root=PARTUUID={p.uuid}" for p in partitions if p.type.startswith("root")), None)
+    if not root:
+        root = next((f"mount.usr=PARTUUID={p.uuid}" for p in partitions if p.type.startswith("usr")), None)
+
+    assert root
+
+    initrd = build_initrd(state)
+
+    dst = state.root / "efi" / state.config.distribution.name
+    with umask(~0o700):
+        dst.mkdir(exist_ok=True)
+
+    initrd = Path(shutil.copy2(initrd, dst / "initrd"))
+
+    with config.open("a") as f:
+        f.write('if [ "${grub_platform}" == "pc" ]; then\n')
+
+        for kver, kimg in gen_kernel_images(state):
+            kdst = dst / kver
+            with umask(~0o700):
+                kdst.mkdir(exist_ok=True)
+
+            kmods = build_kernel_modules_initrd(state, kver)
+
+            with umask(~0o600):
+                kimg = Path(shutil.copy2(state.root / kimg, kdst / "vmlinuz"))
+                kmods = Path(shutil.copy2(kmods, kdst / "kmods"))
+
+                f.write(
+                    textwrap.dedent(
+                        f"""\
+                        menuentry "{state.config.distribution}-{kver}" {{
+                            linux /{kimg.relative_to(state.root / "efi")} {root} {" ".join(state.config.kernel_command_line)}
+                            initrd /{initrd.relative_to(state.root / "efi")} /{kmods.relative_to(state.root / "efi")}
+                        }}
+                        """
+                    )
+                )
+
+        f.write('fi\n')
+
+    # grub-install insists on opening the root partition device to probe it's filesystem which requires root
+    # so we're forced to reimplement its functionality. Luckily that's pretty simple, run grub-mkimage to
+    # generate the required core.img and copy the relevant files to the ESP.
+
+    mkimage = find_grub_binary(state, "grub-mkimage")
+    assert mkimage
+
+    directory = find_grub_bios_directory(state)
+    assert directory
+
+    prefix = find_grub_prefix(state)
+    assert prefix
+
+    esp = next(p for p in partitions if p.type == "esp")
+
+    dst = state.root / "efi" / prefix / "i386-pc"
+    dst.mkdir(parents=True, exist_ok=True)
+
+    bwrap([mkimage,
+           "--directory", directory,
+           # What we really want to do is use grub's search utility in an embedded config file to search for
+           # the ESP by its type UUID. Unfortunately, grub's search command only supports searching by
+           # filesystem UUID and filesystem label, which don't work for us. So for now, we hardcode the
+           # partition number of the ESP, but only very recent systemd-repart will output that information,
+           # so if we're using older systemd-repart, we assume the ESP is the first partition.
+           "--prefix", f"(hd0,gpt{esp.partno + 1 if esp.partno is not None else 1})/{prefix}",
+           "--output", dst / "core.img",
+           "--format", "i386-pc",
+           *(["--verbose"] if ARG_DEBUG.get() else []),
+           # Modules required to find and read from the ESP which has all the other modules.
+           "fat",
+           "part_gpt",
+           "biosdisk"],
+          options=["--bind", state.root / "usr", "/usr"])
+
+    for p in directory.glob("*.mod"):
+        shutil.copy2(p, dst)
+
+    for p in directory.glob("*.lst"):
+        shutil.copy2(p, dst)
+
+    shutil.copy2(directory / "modinfo.sh", dst)
+    shutil.copy2(directory / "boot.img", dst)
+
+    dst = state.root / "efi" / prefix / "fonts"
+    dst.mkdir()
+
+    for prefix in ("grub", "grub2"):
+        unicode = state.root / "usr/share" / prefix / "unicode.pf2"
+        if unicode.exists():
+            shutil.copy2(unicode, dst)
+
+
+def install_grub_bios(state: MkosiState, partitions: Sequence[Partition]) -> None:
+    if not want_grub_bios(state, partitions):
+        return
+
+    setup = find_grub_binary(state, "grub-bios-setup")
+    assert setup
+
+    prefix = find_grub_prefix(state)
+    assert prefix
+
+    # grub-bios-setup insists on being able to open the root device that --directory is located on, which
+    # needs root privileges. However, it only uses the root device when it is unable to embed itself in the
+    # bios boot partition. To make installation work unprivileged, we trick grub to think that the root
+    # device is our image by mounting over its /proc/self/mountinfo file (where it gets its information from)
+    # with our own file correlating the root directory to our image file.
+    mountinfo = state.workspace / "mountinfo"
+    mountinfo.write_text(f"1 0 1:1 / / - fat {state.staging / state.config.output_with_format}\n")
+
+    with complete_step("Installing grub boot loader…"):
+        # We don't setup the mountinfo bind mount with bwrap because we need to know the child process pid to
+        # be able to do the mount and we don't know the pid beforehand.
+        bwrap(["sh", "-c", f"mount --bind {mountinfo} /proc/$$/mountinfo && exec $0 \"$@\"",
+               setup,
+               "--directory", state.root / "efi" / prefix / "i386-pc",
+               *(["--verbose"] if ARG_DEBUG.get() else []),
+               state.staging / state.config.output_with_format],
+              options=["--bind", state.root / "usr", "/usr"])
 
 
 def install_base_trees(state: MkosiState) -> None:
@@ -1376,19 +1600,37 @@ def make_image(state: MkosiState, skip: Sequence[str] = [], split: bool = False)
             definitions.mkdir()
             bootloader = state.root / f"efi/EFI/BOOT/BOOT{state.config.architecture.to_efi()}.EFI"
 
-            add = (state.config.bootable == ConfigFeature.enabled or
+            # If grub for BIOS is installed, let's add a BIOS boot partition onto which we can install grub.
+            bios = (state.config.bootable != ConfigFeature.disabled and want_grub_bios(state))
+
+            if bios:
+                (definitions / "05-bios.conf").write_text(
+                    textwrap.dedent(
+                        f"""\
+                        [Partition]
+                        Type={Partition.GRUB_BOOT_PARTITION_UUID}
+                        SizeMinBytes=1M
+                        SizeMaxBytes=1M
+                        """
+                    )
+                )
+
+            esp = (state.config.bootable == ConfigFeature.enabled or
                   (state.config.bootable == ConfigFeature.auto and bootloader.exists()))
 
-            if add:
+            if esp or bios:
+                # Even if we're doing BIOS, let's still use the ESP to store the kernels, initrds and grub
+                # modules. We cant use UKIs so we have to put each kernel and initrd on the ESP twice, so
+                # let's make the ESP twice as big in that case.
                 (definitions / "00-esp.conf").write_text(
                     textwrap.dedent(
-                        """\
+                        f"""\
                         [Partition]
                         Type=esp
                         Format=vfat
                         CopyFiles=/efi:/
-                        SizeMinBytes=512M
-                        SizeMaxBytes=512M
+                        SizeMinBytes={"1G" if bios else "512M"}
+                        SizeMaxBytes={"1G" if bios else "512M"}
                         """
                     )
                 )
@@ -1502,6 +1744,9 @@ def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
 
         partitions = make_image(state, skip=("esp", "xbootldr"))
         install_unified_kernel(state, partitions)
+        prepare_grub_bios(state, partitions)
+        partitions = make_image(state)
+        install_grub_bios(state, partitions)
         make_image(state, split=True)
 
         if state.config.output_format == OutputFormat.tar:
