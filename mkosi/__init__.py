@@ -1345,6 +1345,12 @@ def make_image(state: MkosiState, skip: Sequence[str] = [], split: bool = False)
     if state.config.repart_dirs:
         for d in state.config.repart_dirs:
             cmdline += ["--definitions", d]
+
+        # Subvolumes= only works with --offline=no.
+        grep = run(["grep", "--recursive", "--include=*.conf", "Subvolumes=", *state.config.repart_dirs],
+                   stdout=subprocess.DEVNULL, check=False)
+        if grep.returncode == 0:
+            cmdline += ["--offline=no"]
     else:
         definitions = state.workspace / "repart-definitions"
         if not definitions.exists():
