@@ -1537,7 +1537,7 @@ since the last release and the packages shipped by distributions are
 very out of date. We currently recommend running mkosi from git until a
 new release happens.
 
-The latest code from git requires systemd 254.
+mkosi currently requires systemd 254 to build bootable disk images.
 
 When not using distribution packages make sure to install the
 necessary dependencies. For example, on *Fedora Linux* you need:
