@@ -780,6 +780,16 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
   image, no unified kernel images will be generated and no ESP partition
   will be added to the image if the disk output format is used.
 
+`Bootloader=`, `--bootloader=`
+
+: Takes one of `systemd-boot` or `uki`. Defaults to `systemd-boot`. If
+  set to `systemd-boot`, systemd-boot will be installed and for each
+  installed kernel, a UKI will be generated and stored in `EFI/Linux` in
+  the ESP partition. If set to `uki`, systemd-boot will not be installed
+  and a single UKI will be generated for the latest installed kernel
+  (the one with the highest version) and stored in
+  `EFI/BOOT/BOOTX64.EFI`.
+
 `Initrds=`, `--initrd`
 
 : Use user-provided initrd(s). Takes a comma separated list of paths to

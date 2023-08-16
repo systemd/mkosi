@@ -115,6 +115,11 @@ class DocFormat(StrEnum):
     system   = enum.auto()
 
 
+class Bootloader(StrEnum):
+    uki          = enum.auto()
+    systemd_boot = enum.auto()
+
+
 def parse_boolean(s: str) -> bool:
     "Parse 1/true/yes/y/t/on as true and 0/false/no/n/f/off/None as false"
     s_l = s.lower()
@@ -688,6 +693,7 @@ class MkosiConfig:
     with_network: bool
 
     bootable: ConfigFeature
+    bootloader: Bootloader
     initrds: list[Path]
     kernel_command_line: list[str]
     kernel_modules_include: list[str]
@@ -1179,6 +1185,15 @@ class MkosiConfigParser:
             parse=config_parse_feature,
             match=config_match_feature,
             help="Generate ESP partition with systemd-boot and UKIs for installed kernels",
+        ),
+        MkosiConfigSetting(
+            dest="bootloader",
+            metavar="BOOTLOADER",
+            section="Content",
+            parse=config_make_enum_parser(Bootloader),
+            choices=Bootloader.values(),
+            default=Bootloader.systemd_boot,
+            help="Specify which bootloader to use",
         ),
         MkosiConfigSetting(
             dest="initrds",
@@ -2227,6 +2242,7 @@ Clean Package Manager Metadata: {yes_no_auto(config.clean_package_metadata)}
           Scripts With Network: {yes_no(config.with_network)}
 
                       Bootable: {yes_no_auto(config.bootable)}
+                    Bootloader: {config.bootloader}
                        Initrds: {line_join_list(config.initrds)}
            Kernel Command Line: {line_join_list(config.kernel_command_line)}
         Kernel Modules Include: {line_join_list(config.kernel_modules_include)}
