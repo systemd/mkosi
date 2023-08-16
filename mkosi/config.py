@@ -1602,6 +1602,10 @@ class MkosiConfigParser:
 
         parser.remove_section("Match")
 
+        # Set image version from file first if it exists then override from configuration
+        if Path("mkosi.version").exists():
+            setattr(namespace, "image_version", Path("mkosi.version").read_text().strip())
+
         for section in parser.sections():
             for k, v in parser.items(section):
                 if not (s := self.settings_lookup.get(k)):
@@ -2059,9 +2063,6 @@ def load_config(args: argparse.Namespace) -> MkosiConfig:
 
     if args.output is None:
         args.output = args.image_id or args.preset or "image"
-
-    if args.image_version is None and Path("mkosi.version").exists():
-        args.image_version = Path("mkosi.version").read_text().strip()
 
     if args.environment:
         env = {}
