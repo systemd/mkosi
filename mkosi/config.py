@@ -661,6 +661,7 @@ class MkosiConfig:
     image_version: Optional[str]
     split_artifacts: bool
     repart_dirs: list[Path]
+    sector_size: Optional[str]
     overlay: bool
     use_subvolumes: ConfigFeature
 
@@ -997,6 +998,12 @@ class MkosiConfigParser:
             parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
             paths=("mkosi.repart",),
             help="Directory containing systemd-repart partition definitions",
+        ),
+        MkosiConfigSetting(
+            dest="sector_size",
+            section="Output",
+            parse=config_parse_string,
+            help="Set the disk image sector size",
         ),
         MkosiConfigSetting(
             dest="overlay",
@@ -2192,6 +2199,7 @@ def summary(args: MkosiArgs, config: MkosiConfig) -> str:
                  Image Version: {config.image_version}
                Split Artifacts: {yes_no(config.split_artifacts)}
             Repart Directories: {line_join_list(config.repart_dirs)}
+                   Sector Size: {none_to_default(config.sector_size)}
                        Overlay: {yes_no(config.overlay)}
                 Use Subvolumes: {yes_no_auto(config.use_subvolumes)}
 

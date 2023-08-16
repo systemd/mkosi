@@ -543,6 +543,11 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
   image root, so any `CopyFiles=` source paths in partition definition files will
   be relative to the image root directory.
 
+`SectorSize=`, `--sector-size=`
+
+: Override the default sector size that systemd-repart uses when building a disk
+  image.
+
 `Overlay=`, `--overlay`
 
 : When used together with `BaseTrees=`, the output will consist only out of
