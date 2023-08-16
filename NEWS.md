@@ -1,5 +1,10 @@
 # mkosi Changelog
 
+## v16
+
+- `mkosi.version` is now picked up from preset and dropin directories as
+  well following the usual config precedence logic
+
 ## v15.1
 
 - The man page can be generated from the markdown file via
