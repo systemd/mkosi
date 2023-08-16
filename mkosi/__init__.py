@@ -1341,6 +1341,8 @@ def make_image(state: MkosiState, skip: Sequence[str] = [], split: bool = False)
         cmdline += ["--defer-partitions", ",".join(skip)]
     if split and state.config.split_artifacts:
         cmdline += ["--split=yes"]
+    if state.config.sector_size:
+        cmdline += ["--sector-size", state.config.sector_size]
 
     if state.config.repart_dirs:
         for d in state.config.repart_dirs:
