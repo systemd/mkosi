@@ -971,6 +971,8 @@ class MkosiConfigParser:
             match=config_match_image_version,
             section="Output",
             help="Set version for image",
+            paths=("mkosi.version",),
+            path_read_text=True,
         ),
         MkosiConfigSetting(
             dest="image_id",
@@ -2059,9 +2061,6 @@ def load_config(args: argparse.Namespace) -> MkosiConfig:
 
     if args.output is None:
         args.output = args.image_id or args.preset or "image"
-
-    if args.image_version is None and Path("mkosi.version").exists():
-        args.image_version = Path("mkosi.version").read_text().strip()
 
     if args.environment:
         env = {}
