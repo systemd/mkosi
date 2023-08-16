@@ -23,6 +23,7 @@ from typing import Any, ContextManager, Mapping, Optional, TextIO, Union
 
 from mkosi.archive import extract_tar, make_cpio, make_tar
 from mkosi.config import (
+    Bootloader,
     Compression,
     ConfigFeature,
     DocFormat,
@@ -454,6 +455,9 @@ def install_boot_loader(state: MkosiState) -> None:
     if state.config.bootable == ConfigFeature.disabled:
         return
 
+    if state.config.bootloader != Bootloader.systemd_boot:
+        return
+
     if state.config.output_format == OutputFormat.cpio and state.config.bootable == ConfigFeature.auto:
         return
 
@@ -716,6 +720,9 @@ def install_unified_kernel(state: MkosiState, partitions: Sequence[Partition]) -
     if state.config.bootable == ConfigFeature.disabled:
         return
 
+    if state.config.bootloader not in (Bootloader.systemd_boot, Bootloader.uki):
+        return
+
     for kver, kimg in gen_kernel_images(state):
         shutil.copy(state.root / kimg, state.staging / state.config.output_split_kernel)
         break
@@ -740,7 +747,9 @@ def install_unified_kernel(state: MkosiState, partitions: Sequence[Partition]) -
             if (state.root / "etc/kernel/tries").exists():
                 boot_count = f'+{(state.root / "etc/kernel/tries").read_text().strip()}'
 
-            if state.config.image_version:
+            if state.config.bootloader == Bootloader.uki:
+                boot_binary = state.root / "efi/EFI/BOOT/BOOTX64.EFI"
+            elif state.config.image_version:
                 boot_binary = state.root / f"efi/EFI/Linux/{image_id}_{state.config.image_version}-{kver}{boot_count}.efi"
             elif roothash:
                 _, _, h = roothash.partition("=")
@@ -856,6 +865,9 @@ def install_unified_kernel(state: MkosiState, partitions: Sequence[Partition]) -
                 run([python], input=pefile)
 
             print_output_size(boot_binary)
+
+            if state.config.bootloader == Bootloader.uki:
+                break
 
     if state.config.bootable == ConfigFeature.enabled and not (state.staging / state.config.output_split_uki).exists():
         die("A bootable image was requested but no kernel was found")
@@ -1357,7 +1369,7 @@ def make_image(state: MkosiState, skip: Sequence[str] = [], split: bool = False)
         definitions = state.workspace / "repart-definitions"
         if not definitions.exists():
             definitions.mkdir()
-            bootdir = state.root / "efi/EFI/BOOT"
+            bootdir = state.root / "usr/lib/systemd/boot/efi"
 
             # If Bootable=auto and we have at least one UKI and a bootloader, let's generate an ESP partition.
             add = (state.config.bootable == ConfigFeature.enabled or
