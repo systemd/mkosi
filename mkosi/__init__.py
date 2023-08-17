@@ -451,7 +451,7 @@ def pesign_prepare(state: MkosiState) -> None:
          "-d", state.workspace / "pesign"])
 
 
-def install_boot_loader(state: MkosiState) -> None:
+def install_systemd_boot(state: MkosiState) -> None:
     if state.config.bootable == ConfigFeature.disabled:
         return
 
@@ -1482,7 +1482,7 @@ def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
             configure_ssh(state)
             configure_clock(state)
 
-            install_boot_loader(state)
+            install_systemd_boot(state)
             run_sysusers(state)
             run_preset(state)
             run_depmod(state)
