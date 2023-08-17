@@ -143,6 +143,11 @@ def install_distribution(state: MkosiState) -> None:
             with umask(~0o500):
                 (state.root / "efi").mkdir(exist_ok=True)
 
+            # Some distributions install EFI binaries directly to /boot/efi. Let's redirect them to /efi
+            # instead.
+            rmtree(state.root / "boot/efi")
+            (state.root / "boot/efi").symlink_to("../efi")
+
             if state.config.packages:
                 state.config.distribution.install_packages(state, state.config.packages)
 
