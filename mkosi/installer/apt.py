@@ -107,6 +107,5 @@ def invoke_apt(
 ) -> None:
     cmd = apivfs_cmd(state.root) if apivfs else []
     bwrap(cmd + apt_cmd(state, command) + [operation, *sort_packages(packages)],
-          # dpkg doesn't seem to unset TMPDIR when chrooting so we unset it for dpkg.
-          options=["--unsetenv", "TMPDIR"] + flatten(["--bind", d, d] for d in (state.config.workspace_dir, state.config.cache_dir) if d),
+          options=flatten(["--bind", d, d] for d in (state.config.workspace_dir, state.config.cache_dir) if d),
           network=True, env=state.config.environment)

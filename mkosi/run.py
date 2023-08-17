@@ -369,6 +369,8 @@ def apivfs_cmd(root: Path) -> list[PathString]:
         "--proc", root / "proc",
         "--dev", root / "dev",
         "--ro-bind", "/sys", root / "sys",
+        # APIVFS generally means chrooting is going to happen so unset TMPDIR just to be safe.
+        "--unsetenv", "TMPDIR",
     ]
 
     if (root / "etc/machine-id").exists():
@@ -394,7 +396,6 @@ def chroot_cmd(root: Path, *, options: Sequence[PathString] = ()) -> list[PathSt
         "--setenv", "container", "mkosi",
         "--setenv", "HOME", "/",
         "--setenv", "PATH", "/usr/bin:/usr/sbin",
-        "--unsetenv", "TMPDIR",
     ]
 
     resolve = Path("etc/resolv.conf")
