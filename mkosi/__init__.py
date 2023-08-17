@@ -507,7 +507,7 @@ def install_systemd_boot(state: MkosiState) -> None:
                     die("One of sbsign or pesign is required to use SecureBoot=")
 
     with complete_step("Installing boot loader…"):
-        run(["bootctl", "install", "--root", state.root, "--all-architectures"],
+        run(["bootctl", "install", "--root", state.root, "--all-architectures", "--no-variables"],
             env={"SYSTEMD_ESP_PATH": "/efi"})
 
     if state.config.secure_boot:
