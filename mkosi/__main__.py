@@ -3,6 +3,7 @@
 
 import contextlib
 import logging
+import shutil
 import subprocess
 import sys
 from collections.abc import Iterator
@@ -10,7 +11,7 @@ from collections.abc import Iterator
 from mkosi import run_verb
 from mkosi.config import MkosiConfigParser
 from mkosi.log import ARG_DEBUG, log_setup
-from mkosi.run import ensure_exc_info
+from mkosi.run import ensure_exc_info, run
 
 
 @contextlib.contextmanager
@@ -46,7 +47,11 @@ def main() -> None:
     if ARG_DEBUG.get():
         logging.getLogger().setLevel(logging.DEBUG)
 
-    run_verb(args, presets)
+    try:
+        run_verb(args, presets)
+    finally:
+        if sys.stderr.isatty() and shutil.which("tput"):
+            run(["tput", "cnorm"])
 
 
 if __name__ == "__main__":
