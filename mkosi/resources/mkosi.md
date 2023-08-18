@@ -771,24 +771,25 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
 `Bootable=`, `--bootable=`
 
 : Takes a boolean or `auto`. Enables or disables generation of a
-  bootable image. If enabled, mkosi will install systemd-boot, and add
-  an ESP partition when the disk image output is used. If systemd-boot
-  is not installed or no kernel images can be found, the build will
-  fail. `auto` behaves as if the option was enabled, but the build won't
-  fail if either no kernel images or systemd-boot can't be found. If
-  disabled, systemd-boot won't be installed even if found inside the
-  image, no unified kernel images will be generated and no ESP partition
-  will be added to the image if the disk output format is used.
+  bootable image. If enabled, mkosi will install an EFI bootloader, and
+  add an ESP partition when the disk image output is used. If the
+  selected EFI bootloader (See `Bootloader=`) is not installed or no
+  kernel images can be found, the build will fail. `auto` behaves as if
+  the option was enabled, but the build won't fail if either no kernel
+  images or the selected EFI bootloader can't be found. If disabled, no
+  bootloader will be installed even if found inside the image, no
+  unified kernel images will be generated and no ESP partition will be
+  added to the image if the disk output format is used.
 
 `Bootloader=`, `--bootloader=`
 
-: Takes one of `systemd-boot` or `uki`. Defaults to `systemd-boot`. If
-  set to `systemd-boot`, systemd-boot will be installed and for each
-  installed kernel, a UKI will be generated and stored in `EFI/Linux` in
-  the ESP partition. If set to `uki`, systemd-boot will not be installed
-  and a single UKI will be generated for the latest installed kernel
-  (the one with the highest version) and stored in
-  `EFI/BOOT/BOOTX64.EFI`.
+: Takes one of `none`, `systemd-boot` or `uki`. Defaults to
+  `systemd-boot`. If set to `none`, no EFI bootloader will be installed
+  into the image. If set to `systemd-boot`, systemd-boot will be
+  installed and for each installed kernel, a UKI will be generated and
+  stored in `EFI/Linux` in the ESP. If set to `uki`, a single UKI will
+  be generated for the latest installed kernel (the one with the highest
+  version) which is installed to `EFI/BOOT/BOOTX64.EFI` in the ESP.
 
 `Initrds=`, `--initrd`
 

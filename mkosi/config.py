@@ -116,6 +116,7 @@ class DocFormat(StrEnum):
 
 
 class Bootloader(StrEnum):
+    none         = enum.auto()
     uki          = enum.auto()
     systemd_boot = enum.auto()
 

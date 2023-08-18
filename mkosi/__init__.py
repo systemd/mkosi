@@ -471,13 +471,13 @@ def install_systemd_boot(state: MkosiState) -> None:
 
     if not shutil.which("bootctl"):
         if state.config.bootable == ConfigFeature.enabled:
-            die("A bootable image was requested but bootctl was not found")
+            die("An EFI bootable image with systemd-boot was requested but bootctl was not found")
         return
 
     directory = state.root / "usr/lib/systemd/boot/efi"
     if not directory.exists() or not any(directory.iterdir()):
         if state.config.bootable == ConfigFeature.enabled:
-            die("A bootable image was requested but systemd-boot was not found at "
+            die("A EFI bootable image with systemd-boot was requested but systemd-boot was not found at "
                 f"{directory.relative_to(state.root)}")
         return
 
@@ -725,7 +725,7 @@ def install_unified_kernel(state: MkosiState, partitions: Sequence[Partition]) -
     if state.config.bootable == ConfigFeature.disabled:
         return
 
-    if state.config.bootloader not in (Bootloader.systemd_boot, Bootloader.uki):
+    if state.config.bootloader == Bootloader.none:
         return
 
     for kver, kimg in gen_kernel_images(state):
