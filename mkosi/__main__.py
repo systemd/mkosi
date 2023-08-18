@@ -52,6 +52,7 @@ def main() -> None:
     finally:
         if sys.stderr.isatty() and shutil.which("tput"):
             run(["tput", "cnorm"])
+            run(["tput", "smam"])
 
 
 if __name__ == "__main__":
