@@ -119,6 +119,7 @@ class Bootloader(StrEnum):
     none         = enum.auto()
     uki          = enum.auto()
     systemd_boot = enum.auto()
+    grub         = enum.auto()
 
 
 class BiosBootloader(StrEnum):

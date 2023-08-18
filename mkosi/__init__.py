@@ -581,6 +581,22 @@ def find_grub_prefix(state: MkosiState) -> Optional[str]:
     return "grub2" if "grub2" in os.fspath(path) else "grub"
 
 
+def want_grub_efi(state: MkosiState) -> bool:
+    if state.config.bootable == ConfigFeature.disabled:
+        return False
+
+    if state.config.bootloader != Bootloader.grub:
+        return False
+
+    if not any((state.root / "efi").rglob("grub*.efi")):
+        if state.config.bootable == ConfigFeature.enabled:
+            die("A bootable EFI image with grub was requested but grub for EFI is not installed in /efi")
+
+        return False
+
+    return True
+
+
 def want_grub_bios(state: MkosiState, partitions: Sequence[Partition] = ()) -> bool:
     if state.config.bootable == ConfigFeature.disabled:
         return False
@@ -637,7 +653,40 @@ def prepare_grub_config(state: MkosiState) -> Optional[Path]:
         with umask(~0o600), config.open("w") as f:
             f.write("set timeout=0\n")
 
+    # Signed EFI grub shipped by distributions reads its configuration from /EFI/<distribution>/grub.cfg in
+    # the ESP so let's put a shim there to redirect to the actual configuration file.
+    efi = state.root / "efi/EFI" / state.config.distribution.name / "grub.cfg"
+    with umask(~0o700):
+        efi.parent.mkdir(parents=True, exist_ok=True)
+
+    # Read the actual config file from the root of the ESP.
+    efi.write_text(f"configfile /{prefix}/grub.cfg\n")
+
     return config
+
+
+def prepare_grub_efi(state: MkosiState) -> None:
+    if not want_grub_efi(state):
+        return
+
+    config = prepare_grub_config(state)
+    assert config
+
+    with config.open("a") as f:
+        f.write('if [ "${grub_platform}" == "efi" ]; then\n')
+
+        for uki in (state.root / "efi/EFI/Linux").glob("*.efi"):
+            f.write(
+                textwrap.dedent(
+                    f"""\
+                    menuentry "{uki.stem}" {{
+                        chainloader /{uki.relative_to(state.root / "efi")}
+                    }}
+                    """
+                )
+            )
+
+        f.write("fi\n")
 
 
 def prepare_grub_bios(state: MkosiState, partitions: Sequence[Partition]) -> None:
@@ -1744,6 +1793,7 @@ def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
 
         partitions = make_image(state, skip=("esp", "xbootldr"))
         install_unified_kernel(state, partitions)
+        prepare_grub_efi(state)
         prepare_grub_bios(state, partitions)
         partitions = make_image(state)
         install_grub_bios(state, partitions)

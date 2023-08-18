@@ -783,13 +783,29 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
 
 `Bootloader=`, `--bootloader=`
 
-: Takes one of `none`, `systemd-boot` or `uki`. Defaults to
+: Takes one of `none`, `systemd-boot`, `uki` or `grub`. Defaults to
   `systemd-boot`. If set to `none`, no EFI bootloader will be installed
   into the image. If set to `systemd-boot`, systemd-boot will be
   installed and for each installed kernel, a UKI will be generated and
   stored in `EFI/Linux` in the ESP. If set to `uki`, a single UKI will
   be generated for the latest installed kernel (the one with the highest
-  version) which is installed to `EFI/BOOT/BOOTX64.EFI` in the ESP.
+  version) which is installed to `EFI/BOOT/BOOTX64.EFI` in the ESP. If
+  set to `grub`, for each installed kernel, a UKI will be generated and
+  stored in `EFI/Linux` in the ESP. For each generated UKI, a menu entry
+  is appended to the grub configuration in `grub/grub.cfg` in the ESP
+  which chainloads into the UKI. A shim grub.cfg is also written to
+  `EFI/<distribution>/grub.cfg` in the ESP which loads `grub/grub.cfg`
+  in the ESP for compatibility with signed versions of grub which load
+  the grub configuration from this location.
+
+: Note that we do not yet install grub to the ESP when `Bootloader=` is
+  set to `grub`. This has to be done manually in a postinst or finalize
+  script. The grub EFI binary should be installed to
+  `/efi/EFI/BOOT/BOOTX64.EFI` (or similar depending on the architecture)
+  and should be configured to load its configuration from
+  `EFI/<distribution>/grub.cfg` in the ESP. Signed versions of grub
+  shipped by distributions will load their configuration from this
+  location by default.
 
 `BiosBootloader=`, `--bios-bootloader=`
 
