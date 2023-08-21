@@ -771,24 +771,60 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
 `Bootable=`, `--bootable=`
 
 : Takes a boolean or `auto`. Enables or disables generation of a
-  bootable image. If enabled, mkosi will install systemd-boot, and add
-  an ESP partition when the disk image output is used. If systemd-boot
-  is not installed or no kernel images can be found, the build will
-  fail. `auto` behaves as if the option was enabled, but the build won't
-  fail if either no kernel images or systemd-boot can't be found. If
-  disabled, systemd-boot won't be installed even if found inside the
-  image, no unified kernel images will be generated and no ESP partition
-  will be added to the image if the disk output format is used.
+  bootable image. If enabled, mkosi will install an EFI bootloader, and
+  add an ESP partition when the disk image output is used. If the
+  selected EFI bootloader (See `Bootloader=`) is not installed or no
+  kernel images can be found, the build will fail. `auto` behaves as if
+  the option was enabled, but the build won't fail if either no kernel
+  images or the selected EFI bootloader can't be found. If disabled, no
+  bootloader will be installed even if found inside the image, no
+  unified kernel images will be generated and no ESP partition will be
+  added to the image if the disk output format is used.
 
 `Bootloader=`, `--bootloader=`
 
-: Takes one of `systemd-boot` or `uki`. Defaults to `systemd-boot`. If
-  set to `systemd-boot`, systemd-boot will be installed and for each
-  installed kernel, a UKI will be generated and stored in `EFI/Linux` in
-  the ESP partition. If set to `uki`, systemd-boot will not be installed
-  and a single UKI will be generated for the latest installed kernel
-  (the one with the highest version) and stored in
-  `EFI/BOOT/BOOTX64.EFI`.
+: Takes one of `none`, `systemd-boot`, `uki` or `grub`. Defaults to
+  `systemd-boot`. If set to `none`, no EFI bootloader will be installed
+  into the image. If set to `systemd-boot`, systemd-boot will be
+  installed and for each installed kernel, a UKI will be generated and
+  stored in `EFI/Linux` in the ESP. If set to `uki`, a single UKI will
+  be generated for the latest installed kernel (the one with the highest
+  version) which is installed to `EFI/BOOT/BOOTX64.EFI` in the ESP. If
+  set to `grub`, for each installed kernel, a UKI will be generated and
+  stored in `EFI/Linux` in the ESP. For each generated UKI, a menu entry
+  is appended to the grub configuration in `grub/grub.cfg` in the ESP
+  which chainloads into the UKI. A shim grub.cfg is also written to
+  `EFI/<distribution>/grub.cfg` in the ESP which loads `grub/grub.cfg`
+  in the ESP for compatibility with signed versions of grub which load
+  the grub configuration from this location.
+
+: Note that we do not yet install grub to the ESP when `Bootloader=` is
+  set to `grub`. This has to be done manually in a postinst or finalize
+  script. The grub EFI binary should be installed to
+  `/efi/EFI/BOOT/BOOTX64.EFI` (or similar depending on the architecture)
+  and should be configured to load its configuration from
+  `EFI/<distribution>/grub.cfg` in the ESP. Signed versions of grub
+  shipped by distributions will load their configuration from this
+  location by default.
+
+`BiosBootloader=`, `--bios-bootloader=`
+
+: Takes one of `none` or `grub`. Defaults to `none`. If set to `none`,
+  no BIOS bootloader will be installed. If set to `grub`, grub is
+  installed as the BIOS boot loader if a bootable image is requested
+  with the `Bootable=` option. If no repart partition definition files
+  are configured, mkosi will add a grub BIOS boot partition and an EFI
+  system partition to the default partition definition files.
+
+: Note that this option is not mutually exclusive with `Bootloader=`. It
+  is possible to have an image that is both bootable on UEFI and BIOS by
+  configuring both `Bootloader=` and `BiosBootloader=`.
+
+: The grub BIOS boot partition should have UUID
+  `21686148-6449-6e6f-744e-656564454649` and should be at least 1MB.
+
+: Even if no EFI bootloader is installed, we still need an ESP for BIOS
+  boot as that's where we store the kernel, initrd and grub modules.
 
 `Initrds=`, `--initrd`
 
@@ -1002,6 +1038,12 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
 : When used with the `qemu` verb, this option specifies whether to
   attach the image to the virtual machine as a CD-ROM device. Takes a
   boolean. Defaults to `no`.
+
+`QemuBios=`, `--qemu-bios=`
+
+: When used with the `qemu` verb, this option specifies whether to use
+  the BIOS firmware instead of the UEFI firmware. Takes a boolean.
+  Defaults to `no`.
 
 `QemuArgs=`
 

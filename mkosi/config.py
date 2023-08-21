@@ -116,8 +116,15 @@ class DocFormat(StrEnum):
 
 
 class Bootloader(StrEnum):
+    none         = enum.auto()
     uki          = enum.auto()
     systemd_boot = enum.auto()
+    grub         = enum.auto()
+
+
+class BiosBootloader(StrEnum):
+    none = enum.auto()
+    grub = enum.auto()
 
 
 def parse_boolean(s: str) -> bool:
@@ -694,6 +701,7 @@ class MkosiConfig:
 
     bootable: ConfigFeature
     bootloader: Bootloader
+    bios_bootloader: BiosBootloader
     initrds: list[Path]
     kernel_command_line: list[str]
     kernel_modules_include: list[str]
@@ -744,6 +752,7 @@ class MkosiConfig:
     qemu_vsock: ConfigFeature
     qemu_swtpm: ConfigFeature
     qemu_cdrom: bool
+    qemu_bios: bool
     qemu_args: Sequence[str]
 
     preset: Optional[str]
@@ -1193,7 +1202,16 @@ class MkosiConfigParser:
             parse=config_make_enum_parser(Bootloader),
             choices=Bootloader.values(),
             default=Bootloader.systemd_boot,
-            help="Specify which bootloader to use",
+            help="Specify which UEFI bootloader to use",
+        ),
+        MkosiConfigSetting(
+            dest="bios_bootloader",
+            metavar="BOOTLOADER",
+            section="Content",
+            parse=config_make_enum_parser(BiosBootloader),
+            choices=BiosBootloader.values(),
+            default=BiosBootloader.none,
+            help="Specify which BIOS bootloader to use",
         ),
         MkosiConfigSetting(
             dest="initrds",
@@ -1490,6 +1508,14 @@ class MkosiConfigParser:
             section="Host",
             parse=config_parse_boolean,
             help="Attach the image as a CD-ROM to the virtual machine",
+        ),
+        MkosiConfigSetting(
+            dest="qemu_bios",
+            metavar="BOOLEAN",
+            nargs="?",
+            section="Host",
+            parse=config_parse_boolean,
+            help="Boot QEMU with SeaBIOS instead of EDK2",
         ),
         MkosiConfigSetting(
             dest="qemu_args",
@@ -2243,6 +2269,7 @@ Clean Package Manager Metadata: {yes_no_auto(config.clean_package_metadata)}
 
                       Bootable: {yes_no_auto(config.bootable)}
                     Bootloader: {config.bootloader}
+               BIOS Bootloader: {config.bios_bootloader}
                        Initrds: {line_join_list(config.initrds)}
            Kernel Command Line: {line_join_list(config.kernel_command_line)}
         Kernel Modules Include: {line_join_list(config.kernel_modules_include)}
@@ -2301,6 +2328,7 @@ Clean Package Manager Metadata: {yes_no_auto(config.clean_package_metadata)}
                 QEMU Use VSock: {config.qemu_vsock}
                 QEMU Use Swtpm: {config.qemu_swtpm}
                QEMU Use CD-ROM: {yes_no(config.qemu_cdrom)}
+                     QEMU BIOS: {yes_no(config.qemu_bios)}
           QEMU Extra Arguments: {line_join_list(config.qemu_args)}
 """
 
