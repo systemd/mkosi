@@ -136,6 +136,9 @@
   package, if it is missing, as well es install it in the appropriate search
   path for man pages. The man page can be generated from the markdown file
   `mkosi/resources/mkosi.md` e.g via `pandoc -t man -s -o mkosi.1 mkosi.md`.
+- BuildSources= now takes source:target pairs which specify the source
+  directory and where to mount it relative to the top level source
+  directory when running scripts. (e.g. BuildSources=../my-project:my-project)
 
 ## v14
 
