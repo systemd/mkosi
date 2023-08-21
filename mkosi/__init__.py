@@ -1374,14 +1374,10 @@ def make_image(state: MkosiState, skip: Sequence[str] = [], split: bool = False)
         definitions = state.workspace / "repart-definitions"
         if not definitions.exists():
             definitions.mkdir()
-            bootdir = state.root / "usr/lib/systemd/boot/efi"
+            bootloader = state.root / f"efi/EFI/BOOT/BOOT{state.config.architecture.to_efi()}.EFI"
 
-            # If Bootable=auto and we have at least one UKI and a bootloader, let's generate an ESP partition.
             add = (state.config.bootable == ConfigFeature.enabled or
-                  (state.config.bootable == ConfigFeature.auto and
-                   bootdir.exists() and
-                   any(bootdir.iterdir()) and
-                   any(gen_kernel_images(state))))
+                  (state.config.bootable == ConfigFeature.auto and bootloader.exists()))
 
             if add:
                 (definitions / "00-esp.conf").write_text(
