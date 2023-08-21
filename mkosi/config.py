@@ -674,6 +674,7 @@ class MkosiConfig:
     build_packages: list[str]
     with_docs: bool
 
+    overlay_as_copy: bool
     base_trees: list[Path]
     skeleton_trees: list[tuple[Path, Optional[Path]]]
     package_manager_trees: list[tuple[Path, Optional[Path]]]
@@ -1052,6 +1053,14 @@ class MkosiConfigParser:
             section="Content",
             parse=config_parse_boolean,
             help="Install documentation",
+        ),
+        MkosiConfigSetting(
+            dest="overlay_as_copy",
+            metavar="BOOL",
+            nargs="?",
+            section="Content",
+            parse=config_parse_boolean,
+            help="Use overlay mounts instead of copying files",
         ),
         MkosiConfigSetting(
             dest="base_trees",
@@ -2120,6 +2129,9 @@ def load_config(args: argparse.Namespace) -> MkosiConfig:
     ):
         die("Sorry, the --repositories option is only supported on pacman, dnf and apt based distributions")
 
+    # Enable overlay_as_copy when overlay is enabled
+    args.overlay_as_copy |= args.overlay
+
     if args.overlay and not args.base_trees:
         die("--overlay can only be used with --base-tree")
 
@@ -2129,6 +2141,12 @@ def load_config(args: argparse.Namespace) -> MkosiConfig:
     # For unprivileged builds we need the userxattr OverlayFS mount option, which is only available in Linux v5.11 and later.
     if (args.build_script is not None or args.base_trees) and GenericVersion(platform.release()) < GenericVersion("5.11") and os.geteuid() != 0:
         die("This unprivileged build configuration requires at least Linux v5.11")
+
+    if args.use_subvolumes == ConfigFeature.enabled and not shutil.which("btrfs"):
+        die("Subvolumes requested but the btrfs command was not found")
+
+    if args.overlay_as_copy and args.use_subvolumes == ConfigFeature.enabled:
+        die("Cannot use --overlay-as-copy with --use-subvolumes=enabled")
 
     return MkosiConfig.from_namespace(args)
 
@@ -2222,7 +2240,8 @@ def summary(args: MkosiArgs, config: MkosiConfig) -> str:
                       Packages: {line_join_list(config.packages)}
                 Build Packages: {line_join_list(config.build_packages)}
             With Documentation: {yes_no(config.with_docs)}
-
+               Overlay as Copy: {yes_no(config.overlay_as_copy)}
+            
                     Base Trees: {line_join_list(config.base_trees)}
                 Skeleton Trees: {line_join_source_target_list(config.skeleton_trees)}
          Package Manager Trees: {line_join_source_target_list(config.package_manager_trees)}

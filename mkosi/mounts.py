@@ -79,9 +79,11 @@ def mount_overlay(
     upperdir: Path,
     where: Path,
     read_only: bool = True,
+    cleanup: bool = True,
 ) -> Iterator[Path]:
     with tempfile.TemporaryDirectory(dir=upperdir.parent, prefix=f"{upperdir.name}-workdir") as workdir:
-        options = [f"lowerdir={lower}" for lower in lowerdirs] + [f"upperdir={upperdir}", f"workdir={workdir}"]
+        lowerdirs_as_str = [str(lowerdir) for lowerdir in lowerdirs]
+        options = ["lowerdir=%s" % ":".join(lowerdirs_as_str)] + [f"upperdir={upperdir}", f"workdir={workdir}"]
 
         # userxattr is only supported on overlayfs since kernel 5.11
         if GenericVersion(platform.release()) >= GenericVersion("5.11"):
@@ -91,8 +93,9 @@ def mount_overlay(
             with mount("overlay", where, options=options, type="overlay", read_only=read_only):
                 yield where
         finally:
-            with complete_step("Cleaning up overlayfs"):
-                delete_whiteout_files(upperdir)
+            if cleanup:
+                with complete_step("Cleaning up overlayfs"):
+                    delete_whiteout_files(upperdir)
 
 
 @contextlib.contextmanager

@@ -21,7 +21,7 @@ from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import Any, ContextManager, Mapping, Optional, TextIO, Union
 
-from mkosi.archive import extract_tar, make_cpio, make_tar
+from mkosi.archive import make_cpio, make_tar
 from mkosi.config import (
     Bootloader,
     Compression,
@@ -77,35 +77,6 @@ class Partition:
             split_path=Path(p) if ((p := dict.get("split_path")) and p != "-") else None,
             roothash=dict.get("roothash"),
         )
-
-
-@contextlib.contextmanager
-def mount_image(state: MkosiState) -> Iterator[None]:
-    with complete_step("Mounting image…", "Unmounting image…"), contextlib.ExitStack() as stack:
-
-        if state.config.base_trees and state.config.overlay:
-            bases = []
-            (state.workspace / "bases").mkdir(exist_ok=True)
-
-            for path in state.config.base_trees:
-                d = Path(stack.enter_context(tempfile.TemporaryDirectory(dir=state.workspace / "bases", prefix=path.name)))
-                d.rmdir() # We need the random name, but we want to create the directory ourselves
-
-                if path.is_dir():
-                    bases += [path]
-                elif path.suffix == ".tar":
-                    extract_tar(path, d)
-                    bases += [d]
-                elif path.suffix == ".raw":
-                    run(["systemd-dissect", "-M", path, d])
-                    stack.callback(lambda: run(["systemd-dissect", "-U", d]))
-                    bases += [d]
-                else:
-                    die(f"Unsupported base tree source {path}")
-
-            stack.enter_context(mount_overlay(bases, state.root, state.root, read_only=False))
-
-        yield
 
 
 def remove_files(state: MkosiState) -> None:
@@ -187,18 +158,40 @@ def configure_autologin(state: MkosiState) -> None:
                                         "mkosi.resources", "getty_autologin.conf")
 
 
-
 @contextlib.contextmanager
-def mount_cache_overlay(state: MkosiState) -> Iterator[None]:
-    if not state.config.incremental or not any(state.root.iterdir()):
+def mount_copy_overlay(
+    state: MkosiState,
+    upperdir: Optional[Path] = None,
+) -> Iterator[None]:
+
+
+    if not state.config.overlay_as_copy and not upperdir:
         yield
         return
 
-    d = state.workspace / "cache-overlay"
-    with umask(~0o755):
-        d.mkdir(exist_ok=True)
+    lowerdirs : list[Path] = state.overlay_as_copy_dirs + [state.root]
 
-    with mount_overlay([state.root], d, state.root, read_only=False):
+    if upperdir:
+        d = upperdir
+    else:
+        d = state.workspace / "copy-overlay"
+        with umask(~0o755):
+            d.mkdir(exist_ok=True)
+
+    with complete_step("Overlaying directories…"):
+        with mount_overlay(lowerdirs, d, state.root, read_only=False, cleanup=upperdir is not None):
+            yield
+
+
+@contextlib.contextmanager
+def mount_cache_overlay(state: MkosiState) -> Iterator[None]:
+    d : Optional[Path] = None
+    if state.config.incremental:
+        d = state.workspace / "cache-overlay"
+        with umask(~0o755):
+            d.mkdir(exist_ok=True)
+
+    with mount_copy_overlay(state, d):
         yield
 
 
@@ -544,12 +537,12 @@ def install_systemd_boot(state: MkosiState) -> None:
 
 
 def install_base_trees(state: MkosiState) -> None:
-    if not state.config.base_trees or state.config.overlay:
+    if not state.config.base_trees:
         return
 
     with complete_step("Copying in base trees…"):
         for path in state.config.base_trees:
-            install_tree(state.config, path, state.root)
+            install_tree(state, path, state.root)
 
 
 def install_skeleton_trees(state: MkosiState) -> None:
@@ -558,7 +551,7 @@ def install_skeleton_trees(state: MkosiState) -> None:
 
     with complete_step("Copying in skeleton file trees…"):
         for source, target in state.config.skeleton_trees:
-            install_tree(state.config, source, state.root, target)
+            install_tree(state, source, state.root, target)
 
 
 def install_package_manager_trees(state: MkosiState) -> None:
@@ -567,7 +560,7 @@ def install_package_manager_trees(state: MkosiState) -> None:
 
     with complete_step("Copying in package manager file trees…"):
         for source, target in state.config.package_manager_trees:
-            install_tree(state.config, source, state.workspace / "pkgmngr", target)
+            install_tree(state, source, state.workspace / "pkgmngr", target)
 
 
 def install_extra_trees(state: MkosiState) -> None:
@@ -576,7 +569,7 @@ def install_extra_trees(state: MkosiState) -> None:
 
     with complete_step("Copying in extra file trees…"):
         for source, target in state.config.extra_trees:
-            install_tree(state.config, source, state.root, target)
+            install_tree(state, source, state.root, target)
 
 
 def install_build_dest(state: MkosiState) -> None:
@@ -584,7 +577,7 @@ def install_build_dest(state: MkosiState) -> None:
         return
 
     with complete_step("Copying in build tree…"):
-        copy_tree(state.config, state.install_dir, state.root)
+        copy_tree(state, state.install_dir, state.root)
 
 
 def gzip_binary() -> str:
@@ -686,7 +679,7 @@ def build_kernel_modules_initrd(state: MkosiState, kver: str) -> Path:
     # this is not ideal since the compressed kernel modules will all be decompressed on boot which
     # requires significant memory.
     if state.config.distribution.is_apt_distribution():
-        maybe_compress(state.config, Compression.zst, kmods, kmods)
+        maybe_compress(state, Compression.zst, kmods, kmods)
 
     return kmods
 
@@ -886,10 +879,10 @@ def compressor_command(compression: Compression) -> list[PathString]:
         die(f"Unknown compression {compression}")
 
 
-def maybe_compress(config: MkosiConfig, compression: Compression, src: Path, dst: Optional[Path] = None) -> None:
+def maybe_compress(state: MkosiState, compression: Compression, src: Path, dst: Optional[Path] = None) -> None:
     if not compression or src.is_dir():
         if dst:
-            move_tree(config, src, dst)
+            move_tree(state, src, dst)
         return
 
     if not dst:
@@ -1289,13 +1282,13 @@ def save_cache(state: MkosiState) -> None:
         # We only use the cache-overlay directory for caching if we have a base tree, otherwise we just
         # cache the root directory.
         if (state.workspace / "cache-overlay").exists():
-            move_tree(state.config, state.workspace / "cache-overlay", final)
+            move_tree(state, state.workspace / "cache-overlay", final)
         else:
-            move_tree(state.config, state.root, final)
+            move_tree(state, state.root, final)
 
         if need_build_packages(state.config) and (state.workspace / "build-overlay").exists():
             rmtree(build)
-            move_tree(state.config, state.workspace / "build-overlay", build)
+            move_tree(state, state.workspace / "build-overlay", build)
 
         manifest.write_text(json.dumps(state.config.cache_manifest()))
 
@@ -1316,7 +1309,7 @@ def reuse_cache(state: MkosiState) -> bool:
         return False
 
     with complete_step("Copying cached trees"):
-        copy_tree(state.config, final, state.root)
+        copy_tree(state, final, state.root)
         if need_build_packages(state.config):
             (state.workspace / "build-overlay").symlink_to(build)
 
@@ -1421,7 +1414,7 @@ def make_image(state: MkosiState, skip: Sequence[str] = [], split: bool = False)
     if split:
         for p in partitions:
             if p.split_path:
-                maybe_compress(state.config, state.config.compress_output, p.split_path)
+                maybe_compress(state, state.config.compress_output, p.split_path)
 
     return partitions
 
@@ -1437,7 +1430,7 @@ def finalize_staging(state: MkosiState) -> None:
             f.rename(state.staging / name)
 
     for f in state.staging.iterdir():
-        move_tree(state.config, f, state.config.output_dir)
+        move_tree(state, f, state.config.output_dir)
 
 
 def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
@@ -1448,33 +1441,36 @@ def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
         state = MkosiState(args, config, Path(workspace.name))
         install_package_manager_trees(state)
 
-        with mount_image(state):
-            install_base_trees(state)
-            install_skeleton_trees(state)
-            cached = reuse_cache(state)
+        install_base_trees(state)
+        install_skeleton_trees(state)
+        cached = reuse_cache(state)
 
+        with mount_copy_overlay(state):
             state.config.distribution.setup(state)
 
-            if not cached:
-                with mount_cache_overlay(state):
-                    install_distribution(state)
-                    run_prepare_script(state, build=False)
-                    install_build_packages(state)
-                    run_prepare_script(state, build=True)
+        if not cached:
+            with mount_cache_overlay(state):
+                install_distribution(state)
+                run_prepare_script(state, build=False)
+                install_build_packages(state)
+                run_prepare_script(state, build=True)
 
-                save_cache(state)
-                reuse_cache(state)
+            # Copied artifacts are kept out of the cache if using overlay_as_copy
+            save_cache(state)
+            reuse_cache(state)
 
+        with mount_copy_overlay(state):
             run_build_script(state)
 
-            if state.config.output_format == OutputFormat.none:
-                # Touch an empty file to indicate the image was built.
-                (state.staging / state.config.output).touch()
-                finalize_staging(state)
-                return
+        if state.config.output_format == OutputFormat.none:
+            # Touch an empty file to indicate the image was built.
+            (state.staging / state.config.output).touch()
+            finalize_staging(state)
+            return
 
-            install_build_dest(state)
-            install_extra_trees(state)
+        install_build_dest(state)
+        install_extra_trees(state)
+        with mount_copy_overlay(state):
             run_postinst_script(state)
 
             configure_autologin(state)
@@ -1499,18 +1495,30 @@ def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
             run_selinux_relabel(state)
             run_finalize_script(state)
 
-        partitions = make_image(state, skip=("esp", "xbootldr"))
-        install_unified_kernel(state, partitions)
-        make_image(state, split=True)
+        # Base trees should not be in the final image so remove them here
+        if state.config.overlay:
+            for dir in state.config.base_trees:
+                state.overlay_as_copy_dirs.remove(dir)
 
-        if state.config.output_format == OutputFormat.tar:
-            make_tar(state.root, state.staging / state.config.output_with_format)
-        elif state.config.output_format == OutputFormat.cpio:
-            make_cpio(state.root, state.staging / state.config.output_with_format)
-        elif state.config.output_format == OutputFormat.directory:
-            state.root.rename(state.staging / state.config.output_with_format)
+        with mount_copy_overlay(state):
+            partitions = make_image(state, skip=("esp", "xbootldr"))
+            install_unified_kernel(state, partitions)
+            make_image(state, split=True)
 
-        maybe_compress(state.config, state.config.compress_output,
+            if state.config.output_format == OutputFormat.tar:
+                make_tar(state.root, state.staging / state.config.output_with_format)
+            elif state.config.output_format == OutputFormat.cpio:
+                make_cpio(state.root, state.staging / state.config.output_with_format)
+            elif state.config.output_format == OutputFormat.directory:
+                if state.config.overlay_as_copy:
+                    copy_tree(state, state.root, state.staging / state.config.output_with_format)
+                else:
+                    state.root.rename(state.staging / state.config.output_with_format)
+
+        if state.config.overlay_as_copy and state.config.output_format == OutputFormat.directory:
+            state.root.rmdir()
+
+        maybe_compress(state, state.config.compress_output,
                        state.staging / state.config.output_with_format,
                        state.staging / state.config.output_with_compression)
 

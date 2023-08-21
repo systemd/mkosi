@@ -19,6 +19,7 @@ from mkosi.architecture import Architecture
 from mkosi.config import ConfigFeature, MkosiArgs, MkosiConfig, OutputFormat
 from mkosi.log import die
 from mkosi.run import MkosiAsyncioThread, run, spawn
+from mkosi.state import MkosiBasicState
 from mkosi.tree import copy_tree, rmtree
 from mkosi.types import PathString
 from mkosi.util import format_bytes, qemu_check_kvm_support, qemu_check_vsock_support
@@ -199,7 +200,7 @@ def copy_ephemeral(config: MkosiConfig, src: Path) -> Iterator[Path]:
     tmp = src.parent / f"{src.name}-{uuid.uuid4().hex}"
 
     try:
-        copy_tree(config, src, tmp)
+        copy_tree(MkosiBasicState(config), src, tmp)
         yield tmp
     finally:
         rmtree(tmp)

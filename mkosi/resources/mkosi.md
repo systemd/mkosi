@@ -554,7 +554,8 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
   changes to the specified base trees. Each base tree is attached as a lower
   layer in an overlayfs structure, and the output becomes the upper layer,
   initially empty. Thus files that are not modified compared to the base trees
-  will not be present in the final output.
+  will not be present in the final output. This option enables
+  `--overlay-as-copy` automatically.
 
 : This option may be used to create systemd "system extensions" or
   portable services. See
@@ -626,6 +627,13 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
   not included in the image built. The `$WITH_DOCS` environment
   variable passed to the `mkosi.build` script indicates whether this
   option was used or not.
+
+`OverlayAsCopy=`, `--overlay-as-copy`
+
+: Use an overlay file system instead of copying files. This is useful
+  where the workspace is on a different file system or the workspace file
+  system does not support reflinks. Note that this option is implied when
+  `Overlay=` is used.
 
 `BaseTrees=`, `--base-tree=`
 

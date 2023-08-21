@@ -4,12 +4,13 @@ import errno
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
 from mkosi.archive import extract_tar
 from mkosi.config import ConfigFeature, MkosiConfig
 from mkosi.log import die
 from mkosi.run import run
+from mkosi.state import MkosiBasicState, MkosiState
 from mkosi.types import PathString
 from mkosi.util import umask
 
@@ -23,9 +24,6 @@ def is_subvolume(path: Path) -> bool:
 
 
 def make_tree(config: MkosiConfig, path: Path) -> None:
-    if config.use_subvolumes == ConfigFeature.enabled and not shutil.which("btrfs"):
-        die("Subvolumes requested but the btrfs command was not found")
-
     if statfs(path.parent) != "btrfs":
         if config.use_subvolumes == ConfigFeature.enabled:
             die(f"Subvolumes requested but {path} is not located on a btrfs filesystem")
@@ -43,12 +41,13 @@ def make_tree(config: MkosiConfig, path: Path) -> None:
         path.mkdir()
 
 
-def copy_tree(config: MkosiConfig, src: Path, dst: Path, *, preserve_owner: bool = True) -> None:
-    subvolume = (config.use_subvolumes == ConfigFeature.enabled or
-                 config.use_subvolumes == ConfigFeature.auto and shutil.which("btrfs") is not None)
+def copy_tree(state: Union[MkosiState, MkosiBasicState], src: Path, dst: Path, *, preserve_owner: bool = True) -> None:
+    subvolume = (state.config.use_subvolumes == ConfigFeature.enabled or
+                 state.config.use_subvolumes == ConfigFeature.auto and shutil.which("btrfs") is not None)
 
-    if config.use_subvolumes == ConfigFeature.enabled and not shutil.which("btrfs"):
-        die("Subvolumes requested but the btrfs command was not found")
+    if state.config.overlay_as_copy and dst == state.root:
+        state.overlay_as_copy_dirs.insert(0, src)
+        return
 
     copy: list[PathString] = [
         "cp",
@@ -75,7 +74,7 @@ def copy_tree(config: MkosiConfig, src: Path, dst: Path, *, preserve_owner: bool
 
     if shutil.which("btrfs"):
         result = run(["btrfs", "subvolume", "snapshot", src, dst],
-                     check=config.use_subvolumes == ConfigFeature.enabled).returncode
+                     check=state.config.use_subvolumes == ConfigFeature.enabled).returncode
     else:
         result = 1
 
@@ -87,7 +86,7 @@ def rmtree(path: Path) -> None:
     run(["rm", "-rf", "--", path])
 
 
-def move_tree(config: MkosiConfig, src: Path, dst: Path) -> None:
+def move_tree(state: MkosiState, src: Path, dst: Path) -> None:
     if src == dst:
         return
 
@@ -100,11 +99,11 @@ def move_tree(config: MkosiConfig, src: Path, dst: Path) -> None:
         if e.errno != errno.EXDEV:
             raise e
 
-        copy_tree(config, src, dst)
+        copy_tree(state, src, dst)
         rmtree(src)
 
 
-def install_tree(config: MkosiConfig, src: Path, dst: Path, target: Optional[Path] = None) -> None:
+def install_tree(state: MkosiState, src: Path, dst: Path, target: Optional[Path] = None) -> None:
     t = dst
     if target:
         t = dst / target.relative_to("/")
@@ -113,7 +112,7 @@ def install_tree(config: MkosiConfig, src: Path, dst: Path, target: Optional[Pat
         t.parent.mkdir(parents=True, exist_ok=True)
 
     if src.is_dir() or (src.is_file() and target):
-        copy_tree(config, src, t, preserve_owner=False)
+        copy_tree(state, src, t, preserve_owner=False)
     elif src.suffix == ".tar":
         extract_tar(src, t)
     elif src.suffix == ".raw":
