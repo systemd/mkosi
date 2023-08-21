@@ -4,6 +4,10 @@
 
 - `mkosi.version` is now picked up from preset and dropin directories as
   well following the usual config precedence logic
+- The option `--incremental` is now deprecated. It will be removed in a
+  future version. Use `--cache-mode=prepare` instead.
+- A new option `--cache-mode` is now available which supports more caching
+  between build runs. See the documentation for further details.
 
 ## v15.1
 

@@ -30,6 +30,10 @@ def die(message: str,
     sys.exit(1)
 
 
+def warn(message: str) -> None:
+    logging.warning(f"{message}")
+
+
 def log_step(text: str) -> None:
     prefix = " " * LEVEL
 

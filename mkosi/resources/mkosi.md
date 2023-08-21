@@ -94,8 +94,8 @@ The following command line verbs are known:
 `clean`
 
 : Remove build artifacts generated on a previous build. If combined
-  with `-f`, also removes incremental build cache images. If `-f` is
-  specified twice, also removes any package cache.
+  with `-f`, also removes cached images. If `-f` is specified twice, also
+  removes any package cache.
 
 `serve`
 
@@ -148,7 +148,7 @@ Those settings cannot be configured in the configuration files.
   image. By default when building an image and an output artifact
   already exists `mkosi` will refuse operation. Specify this option
   once to delete all build artifacts from a previous run before
-  re-building the image. If incremental builds are enabled,
+  re-building the image. If caching between builds is enabled,
   specifying this option twice will ensure the intermediary
   cache files are removed, too, before the re-build is initiated. If a
   package cache is used (also see the "Files" section below),
@@ -156,7 +156,7 @@ Those settings cannot be configured in the configuration files.
   removed too, before the re-build is initiated. For the `clean`
   operation this option has a slightly different effect: by default
   the verb will only remove build artifacts from a previous run, when
-  specified once the incremental cache files are deleted too, and when
+  specified once the build and final caches files are deleted too, and when
   specified twice the package cache is also removed.
 
 `--directory=`, `-C`
@@ -479,10 +479,19 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
 
 `CacheDirectory=`, `--cache-dir=`
 
-: Takes a path to a directory to use as package cache for the
-  distribution package manager used. If this option is not used, but a
-  `mkosi.cache/` directory is found in the local directory it is
+: The directory to store the package manager cache and any other caches
+  generated during the image build process. If this option is not used,
+  but a `mkosi.cache/` directory is found in the local directory it is
   automatically used for this purpose.
+
+: The package manager cache is automatically enabled if this option is
+  configured, or if `mkosi.cache/` is found in the local directory. All other
+  caching is controlled by `CacheMode=`.
+
+`CacheMode=`, `--cache-mode=`
+
+: Controls what will be cached in addition to the package manger cache.
+  See the section on caching for more information. Defaults to `none`.
 
 `BuildDirectory=`, `--build-dir=`
 
@@ -497,6 +506,9 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
   this option is not specified, but a directory `mkosi.builddir/` exists
   in the local directory it is automatically used for this purpose (also
   see the "Files" section below).
+
+: When used effectively, this directory allows caching between build runs
+  to drastically reduce build times.
 
 `ImageVersion=`, `--image-version=`
 
@@ -941,16 +953,8 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
 
 `Incremental=`, `--incremental=`, `-i`
 
-: Enable incremental build mode. In this mode, a copy of the OS image is
-  created immediately after all OS packages are installed and the
-  prepare script has executed but before the `mkosi.build` script is
-  invoked (or anything that happens after it). On subsequent invocations
-  of `mkosi` with the `-i` switch this cached image may be used to skip
-  the OS package installation, thus drastically speeding up repetitive
-  build times. Note that while there is some rudimentary cache
-  invalidation, it is definitely not perfect. In order to force
-  rebuilding of the cached image, combine `-i` with `-ff` to ensure the
-  cached image is first removed and then re-created.
+: Deprecated. Alias for `CacheMode=prepare`. See the section on caching for
+  more details.
 
 `NSpawnSettings=`, `--settings=`
 
@@ -1093,9 +1097,9 @@ Currently, *Fedora Linux* packages all relevant tools as of Fedora 28.
 # Execution Flow
 
 Execution flow for `mkosi build`. Default values/calls are shown in parentheses.
-When building with `--incremental` mkosi creates a cache of the distribution
-installation if not already existing and replaces the distribution installation
-in consecutive runs with data from the cached one.
+When building with `--cache-mode=prepare` mkosi creates a cache of the
+distribution installation if not already existing and replaces the distribution
+installation in consecutive runs with data from the cached one.
 
 * Parse CLI options
 * Parse configuration files
@@ -1123,7 +1127,8 @@ Then, for each preset, we execute the following steps:
 * Install build packages in overlay if a build script is configured
 * Run prepare script on overlay with the `build` argument if a build
   script is configured (`mkosi.prepare`)
-* Cache the image if configured (`--incremental`)
+* Cache the image if `--cache-mode=prepare`, one for the final image and one for
+  the build overlay
 * Run build script on image + overlay if a build script is configured (`mkosi.build`)
 * Finalize the build if the output format `none` is configured
 * Copy the build script outputs into the image
@@ -1161,8 +1166,7 @@ supported:
   overlay mounted on top of the image's root directory . This script has
   network access and may be used to install packages from other sources
   than the distro's package manager (e.g. `pip`, `npm`, ...), after all
-  software packages are installed but before the image is cached (if
-  incremental mode is enabled). In contrast to a general purpose
+  software packages are installed. In contrast to a general purpose
   installation, it is safe to install packages to the system
   (`pip install`, `npm install -g`) instead of in `$SRCDIR` itself
   because the build image is only used for a single project and can
@@ -1304,17 +1308,17 @@ local directory:
   additional container runtime settings.
 
 * The **`mkosi.cache/`** directory, if it exists, is automatically used as package download cache, in order
-  to speed repeated runs of the tool.
+  to speed repeated runs of the tool. Caches generated with `--cache-mode` configured are also stored in this
+  directory.
 
 * The **`mkosi.builddir/`** directory, if it exists, is automatically used as out-of-tree build directory, if
   the build commands in the `mkosi.build` script support it. Specifically, this directory will be mounted
   into the build container, and the `$BUILDDIR` environment variable will be set to it when the build script
   is invoked. The build script may then use this directory as build directory, for automake-style or
-  ninja-style out-of-tree builds. This speeds up builds considerably, in particular when `mkosi` is used in
-  incremental mode (`-i`): not only the image and build overlay, but also the build tree is reused between
-  subsequent invocations. Note that if this directory does not exist the `$BUILDDIR` environment variable is
+  ninja-style out-of-tree builds. Note that if this directory does not exist the `$BUILDDIR` environment variable is
   not set, and it is up to build script to decide whether to do in in-tree or an out-of-tree build, and which
-  build directory to use.
+  build directory to use. Also see the section on caching for details on speeding up the preparation of the build
+  environment.
 
 * The **`mkosi.rootpw`** file can be used to provide the password for the root user of the image. If the
   password is prefixed with `hashed:` it is treated as an already hashed root password. The password may
@@ -1351,39 +1355,27 @@ project.
 
 # CACHING
 
-`mkosi` supports three different caches for speeding up repetitive
-re-building of images. Specifically:
+`mkosi` supports different cache modes for speeding up repetitive
+re-building of images. The option `--cache-dir=` must be set to a valid
+directory or the directory `mkosi.cache/` needs to exist in the local
+directory for caching to be enabled. There will be a cache generated for the
+final image and a separate cache for the build overlay if `BuildScript=` is
+configured or `mkosi.build` exists. The following cache modes are supported:
 
-1. The package cache of the distribution package manager may be cached
-   between builds. This is configured with the `--cache-dir=` option or
-   the `mkosi.cache/` directory. This form of caching relies on the
-   distribution's package manager, and caches distribution packages
-   (RPM, DEB, …) after they are downloaded, but before they are
-   unpacked.
+* `none`: No caching is enabled. This is the default.
 
-2. If the incremental build mode is enabled with `--incremental`, cached
-   copies of the final image and build overlay are made immediately
-   before the build sources are copied in (for the build overlay) or the
-   artifacts generated by `mkosi.build` are copied in (in case of the
-   final image). This form of caching allows bypassing the time-consuming
-   package unpacking step of the distribution package managers, but is only
-   effective if the list of packages to use remains stable, but the build
-   sources and its scripts change regularly. Note that this cache requires
-   manual flushing: whenever the package list is modified the cached
-   images need to be explicitly removed before the next re-build,
-   using the `-f` switch.
+* `prepare`: The execution flow is cached after packages are
+  installed and the prepare script has executed. This is true for both the
+  build overlay and the final image.
 
-3. Finally, between multiple builds the build artifact directory may
-   be shared, using the `mkosi.builddir/` directory. This directory
-   allows build systems such as Meson to reuse already compiled
-   sources from a previous built, thus speeding up the build process
-   of the `mkosi.build` build script.
+  If the cache is present then the execution flow is skipped up to this point
+  and the cached contents directly used. This is useful for speeding up
+  the build process by skipping OS package installation. If the prepare script,
+  package list, build package list or configured repositories change then the
+  cache is not used and will be rebuilt.
 
-The package cache and incremental mode are unconditionally useful. The
-final cache only apply to uses of `mkosi` with a source tree and build
-script. When all three are enabled together turn-around times for
-complete image builds are minimal, as only changed source files need to
-be recompiled.
+Caches can be removed with the `-ff` option. The cache invalidation is not
+perfect and may require manual removal of the cache directory in some cases.
 
 # PRESETS
 
@@ -1430,7 +1422,7 @@ repository: https://github.com/systemd/systemd/tree/main/mkosi.presets.
 Create and run a raw *GPT* image with *ext4*, as `image.raw`:
 
 ```console
-# mkosi -p systemd --incremental boot
+# mkosi -p systemd boot
 ```
 
 Create and run a bootable *GPT* image, as `foobar.raw`:
@@ -1484,7 +1476,7 @@ make -j `nproc`
 make install
 EOF
 $ chmod +x mkosi.build
-# mkosi --incremental boot
+# mkosi --cache-mode=prepare boot
 # systemd-nspawn -bi image.raw
 ```
 

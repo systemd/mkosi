@@ -24,7 +24,7 @@ from typing import Any, Callable, Optional, Type, Union, cast
 
 from mkosi.architecture import Architecture
 from mkosi.distributions import Distribution, detect_distribution
-from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, Style, die
+from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, Style, die, warn
 from mkosi.pager import page
 from mkosi.run import run
 from mkosi.types import PathString
@@ -118,6 +118,11 @@ class DocFormat(StrEnum):
 class Bootloader(StrEnum):
     uki          = enum.auto()
     systemd_boot = enum.auto()
+
+
+class CacheMode(StrEnum):
+    none    = enum.auto()
+    prepare = enum.auto()
 
 
 def parse_boolean(s: str) -> bool:
@@ -661,6 +666,7 @@ class MkosiConfig:
     output_dir: Path
     workspace_dir: Path
     cache_dir: Optional[Path]
+    cache_mode: CacheMode
     build_dir: Optional[Path]
     image_id: Optional[str]
     image_version: Optional[str]
@@ -727,7 +733,6 @@ class MkosiConfig:
     sign: bool
     key: Optional[str]
 
-    incremental: bool
     nspawn_settings: Optional[Path]
     extra_search_paths: list[Path]
     ephemeral: bool
@@ -818,6 +823,7 @@ class MkosiConfig:
             "packages": self.packages,
             "build_packages": self.build_packages,
             "repositories": self.repositories,
+            "cache_mode": self.cache_mode.name,
         }
 
         if self.prepare_script:
@@ -963,6 +969,14 @@ class MkosiConfigParser:
             parse=config_make_path_parser(required=False),
             paths=("mkosi.cache",),
             help="Package cache path",
+        ),
+        MkosiConfigSetting(
+            dest="cache_mode",
+            section="Output",
+            parse=config_make_enum_parser(CacheMode),
+            default=CacheMode.none,
+            choices=CacheMode.values(),
+            help="Caching mode",
         ),
         MkosiConfigSetting(
             dest="build_dir",
@@ -1417,7 +1431,7 @@ class MkosiConfigParser:
             nargs="?",
             section="Host",
             parse=config_parse_boolean,
-            help="Make use of and generate intermediary cache images",
+            help="Deprecated. Alias for --cache-mode=prepare",
         ),
         MkosiConfigSetting(
             dest="nspawn_settings",
@@ -2123,8 +2137,12 @@ def load_config(args: argparse.Namespace) -> MkosiConfig:
     if args.overlay and not args.base_trees:
         die("--overlay can only be used with --base-tree")
 
-    if args.incremental and not args.cache_dir:
-        die("A cache directory must be configured in order to use --incremental")
+    if args.incremental:
+        warn("--incremental is deprecated, use --cache-mode=prepare instead")
+        args.cache_mode = CacheMode.prepare
+
+    if args.cache_mode != CacheMode.none and not args.cache_dir:
+        die("A cache directory must be configured in order to use --cache-mode")
 
     # For unprivileged builds we need the userxattr OverlayFS mount option, which is only available in Linux v5.11 and later.
     if (args.build_script is not None or args.base_trees) and GenericVersion(platform.release()) < GenericVersion("5.11") and os.geteuid() != 0:
@@ -2209,6 +2227,7 @@ def summary(args: MkosiArgs, config: MkosiConfig) -> str:
               Output Directory: {none_to_default(config.output_dir)}
            Workspace Directory: {none_to_default(config.workspace_dir)}
                Cache Directory: {none_to_none(config.cache_dir)}
+                    Cache Mode: {none_to_default(config.cache_mode)}
                Build Directory: {none_to_none(config.build_dir)}
                       Image ID: {config.image_id}
                  Image Version: {config.image_version}
@@ -2285,7 +2304,6 @@ Clean Package Manager Metadata: {yes_no_auto(config.clean_package_metadata)}
     summary += f"""\
 
     {bold("HOST CONFIGURATION")}:
-                   Incremental: {yes_no(config.incremental)}
                NSpawn Settings: {none_to_none(config.nspawn_settings)}
             Extra Search Paths: {line_join_list(config.extra_search_paths)}
                      Ephemeral: {config.ephemeral}

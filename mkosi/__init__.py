@@ -24,6 +24,7 @@ from typing import Any, ContextManager, Mapping, Optional, TextIO, Union
 from mkosi.archive import extract_tar, make_cpio, make_tar
 from mkosi.config import (
     Bootloader,
+    CacheMode,
     Compression,
     ConfigFeature,
     DocFormat,
@@ -190,7 +191,7 @@ def configure_autologin(state: MkosiState) -> None:
 
 @contextlib.contextmanager
 def mount_cache_overlay(state: MkosiState) -> Iterator[None]:
-    if not state.config.incremental or not any(state.root.iterdir()):
+    if state.config.cache_mode == CacheMode.none or not any(state.root.iterdir()):
         yield
         return
 
@@ -634,7 +635,7 @@ def build_initrd(state: MkosiState) -> Path:
         "--workspace-dir", str(state.config.workspace_dir),
         "--cache-dir", str(state.cache_dir.parent),
         *(["--local-mirror", str(state.config.local_mirror)] if state.config.local_mirror else []),
-        "--incremental", str(state.config.incremental),
+        "--cache-mode", str(state.config.cache_mode),
         "--acl", str(state.config.acl),
         "--format", "cpio",
         "--package", "systemd",
@@ -1278,7 +1279,7 @@ def need_build_packages(config: MkosiConfig) -> bool:
 
 
 def save_cache(state: MkosiState) -> None:
-    if not state.config.incremental:
+    if state.config.cache_mode == CacheMode.none:
         return
 
     final, build, manifest = cache_tree_paths(state.config)
@@ -1301,7 +1302,7 @@ def save_cache(state: MkosiState) -> None:
 
 
 def reuse_cache(state: MkosiState) -> bool:
-    if not state.config.incremental:
+    if state.config.cache_mode == CacheMode.none:
         return False
 
     final, build, manifest = cache_tree_paths(state.config)
