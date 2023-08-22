@@ -1018,7 +1018,7 @@ def install_unified_kernel(state: MkosiState, partitions: Sequence[Partition]) -
 
     for kver, kimg in gen_kernel_images(state):
         with complete_step(f"Generating unified kernel image for {kimg}"):
-            image_id = state.config.image_id or f"mkosi-{state.config.distribution}"
+            image_id = state.config.image_id or state.config.distribution.name
 
             # See https://systemd.io/AUTOMATIC_BOOT_ASSESSMENT/#boot-counting
             boot_count = ""
