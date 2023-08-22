@@ -2125,12 +2125,14 @@ def load_config(args: argparse.Namespace) -> MkosiConfig:
     args.environment = load_environment(args)
 
     if args.secure_boot and args.verb != Verb.genkey:
+        if args.secure_boot_key is None and args.secure_boot_certificate is None:
+            die("UEFI SecureBoot enabled, but couldn't find the certificate and private key.",
+                hint="Consider generating them with 'mkosi genkey'.")
         if args.secure_boot_key is None:
-            die("UEFI SecureBoot enabled, but couldn't find private key.",
+            die("UEFI SecureBoot enabled, certificate was found, but not the private key.",
                 hint="Consider placing it in mkosi.key")
-
         if args.secure_boot_certificate is None:
-            die("UEFI SecureBoot enabled, but couldn't find certificate.",
+            die("UEFI SecureBoot enabled, private key was found, but not the certificate.",
                 hint="Consider placing it in mkosi.crt")
 
     if args.qemu_kvm == ConfigFeature.enabled and not qemu_check_kvm_support(log=False):
