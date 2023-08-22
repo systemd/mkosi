@@ -1384,6 +1384,47 @@ local directory:
   output to stdout will be used as the credential value. Output to stderr will be ignored.
   Credentials configured with `Credentials=` take precedence over files in `mkosi.credentials`.
 
+* The **`mkosi.repart/`** directory is used as the source for
+  systemd-repart partition definition files which are passed to
+  systemd-repart when building a disk image. If it does not exist and
+  the `RepartDirectories=` setting is not configured, mkosi will default
+  to the following partition definition files:
+
+  `00-esp.conf` (if we're building a bootable image):
+
+  ```
+  [Partition]
+  Type=esp
+  Format=vfat
+  CopyFiles=/efi:/
+  SizeMinBytes=512M
+  SizeMaxBytes=512M
+  ```
+
+  `05-bios.conf` (if we're building a BIOS bootable image):
+
+  ```
+  [Partition]
+  # UUID of the grub BIOS boot partition which grubs needs on GPT to
+  # embed itself into.
+  Type=21686148-6449-6e6f-744e-656564454649
+  SizeMinBytes=1M
+  SizeMaxBytes=1M
+  ```
+
+  `10-root.conf`:
+
+  ```
+  [Partition]
+  Type=root
+  Format=<distribution-default-filesystem>
+  CopyFiles=/
+  Minimize=guess
+  ```
+
+  Note that if either `mkosi.repart/` is found or `RepartDirectories=`
+  is used, we will not use any of the default partition definitions.
+
 All these files are optional.
 
 Note that the location of all these files may also be configured
