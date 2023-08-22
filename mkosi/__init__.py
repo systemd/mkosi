@@ -1654,7 +1654,7 @@ def make_image(state: MkosiState, skip: Sequence[str] = [], split: bool = False)
         definitions = state.workspace / "repart-definitions"
         if not definitions.exists():
             definitions.mkdir()
-            bootloader = state.root / f"efi/EFI/BOOT/BOOT{state.config.architecture.to_efi()}.EFI"
+            bootloader = state.root / f"efi/EFI/BOOT/BOOT{state.config.architecture.to_efi().upper()}.EFI"
 
             # If grub for BIOS is installed, let's add a BIOS boot partition onto which we can install grub.
             bios = (state.config.bootable != ConfigFeature.disabled and want_grub_bios(state))
