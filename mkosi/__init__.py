@@ -85,30 +85,31 @@ class Partition:
 
 
 @contextlib.contextmanager
-def mount_image(state: MkosiState) -> Iterator[None]:
-    with complete_step("Mounting image…", "Unmounting image…"), contextlib.ExitStack() as stack:
+def mount_base_trees(state: MkosiState) -> Iterator[None]:
+    if not state.config.base_trees or not state.config.overlay:
+        yield
+        return
 
-        if state.config.base_trees and state.config.overlay:
-            bases = []
-            (state.workspace / "bases").mkdir(exist_ok=True)
+    with complete_step("Mounting base trees…"), contextlib.ExitStack() as stack:
+        bases = []
+        (state.workspace / "bases").mkdir(exist_ok=True)
 
-            for path in state.config.base_trees:
-                d = Path(stack.enter_context(tempfile.TemporaryDirectory(dir=state.workspace / "bases", prefix=path.name)))
-                d.rmdir() # We need the random name, but we want to create the directory ourselves
+        for path in state.config.base_trees:
+            d = state.workspace / f"bases/{path.name}-{uuid.uuid4().hex}"
 
-                if path.is_dir():
-                    bases += [path]
-                elif path.suffix == ".tar":
-                    extract_tar(path, d)
-                    bases += [d]
-                elif path.suffix == ".raw":
-                    run(["systemd-dissect", "-M", path, d])
-                    stack.callback(lambda: run(["systemd-dissect", "-U", d]))
-                    bases += [d]
-                else:
-                    die(f"Unsupported base tree source {path}")
+            if path.is_dir():
+                bases += [path]
+            elif path.suffix == ".tar":
+                extract_tar(path, d)
+                bases += [d]
+            elif path.suffix == ".raw":
+                run(["systemd-dissect", "-M", path, d])
+                stack.callback(lambda: run(["systemd-dissect", "-U", d]))
+                bases += [d]
+            else:
+                die(f"Unsupported base tree source {path}")
 
-            stack.enter_context(mount_overlay(bases, state.root, state.root, read_only=False))
+        stack.enter_context(mount_overlay(bases, state.root, state.root, read_only=False))
 
         yield
 
@@ -1747,7 +1748,7 @@ def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
         state = MkosiState(args, config, Path(workspace.name))
         install_package_manager_trees(state)
 
-        with mount_image(state):
+        with mount_base_trees(state):
             install_base_trees(state)
             install_skeleton_trees(state)
             cached = reuse_cache(state)
