@@ -298,7 +298,6 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
                  "--offline=yes",
                  fname])
 
-        # Debian images fail to boot with virtio-scsi, see: https://github.com/systemd/mkosi/issues/725
         if config.output_format == OutputFormat.cpio:
             kernel = config.output_dir / config.output_split_kernel
             if not kernel.exists() and "-kernel" not in args.cmdline:
