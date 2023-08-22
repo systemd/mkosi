@@ -157,7 +157,10 @@ def install_distribution(state: MkosiState) -> None:
             if state.config.packages:
                 state.config.distribution.install_packages(state, state.config.packages)
 
-    for f in ("var/lib/systemd/random-seed", "var/lib/systemd/credential.secret", "etc/machine-info"):
+    for f in ("var/lib/systemd/random-seed",
+              "var/lib/systemd/credential.secret",
+              "etc/machine-info",
+              "var/lib/dbus/machine-id"):
         # Using missing_ok=True still causes an OSError if the mount is read-only even if the
         # file doesn't exist so do an explicit exists() check first.
         if (state.root / f).exists():
