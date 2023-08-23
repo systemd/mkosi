@@ -10,7 +10,7 @@ from mkosi.run import apivfs_cmd, bwrap
 from mkosi.state import MkosiState
 from mkosi.tree import rmtree
 from mkosi.types import PathString
-from mkosi.util import flatten, sort_packages
+from mkosi.util import sort_packages
 
 
 class Repo(NamedTuple):
@@ -116,7 +116,6 @@ def dnf_cmd(state: MkosiState) -> list[PathString]:
 def invoke_dnf(state: MkosiState, command: str, packages: Iterable[str], apivfs: bool = True) -> None:
     cmd = apivfs_cmd(state.root) if apivfs else []
     bwrap(cmd + dnf_cmd(state) + [command, *sort_packages(packages)],
-          options=flatten(["--bind", d, d] for d in (state.config.workspace_dir, state.config.cache_dir) if d),
           network=True, env=state.config.environment)
 
     fixup_rpmdb_location(state.root)
