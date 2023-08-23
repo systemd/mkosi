@@ -951,7 +951,7 @@ class MkosiConfigParser:
             section="Output",
             parse=config_make_path_parser(required=False),
             paths=("mkosi.output",),
-            default=Path.cwd(),
+            default_factory=lambda _: Path.cwd(),
             help="Output directory",
         ),
         MkosiConfigSetting(
@@ -961,7 +961,7 @@ class MkosiConfigParser:
             section="Output",
             parse=config_make_path_parser(required=False),
             paths=("mkosi.workspace",),
-            default=Path.cwd(),
+            default_factory=lambda _: Path.cwd(),
             help="Workspace directory",
         ),
         MkosiConfigSetting(

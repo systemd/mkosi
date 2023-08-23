@@ -6,7 +6,7 @@ from mkosi.installer.dnf import Repo, fixup_rpmdb_location
 from mkosi.run import apivfs_cmd, bwrap
 from mkosi.state import MkosiState
 from mkosi.types import PathString
-from mkosi.util import flatten, sort_packages
+from mkosi.util import sort_packages
 
 
 def setup_zypper(state: MkosiState, repos: Sequence[Repo]) -> None:
@@ -70,7 +70,6 @@ def invoke_zypper(
 ) -> None:
     cmd = apivfs_cmd(state.root) if apivfs else []
     bwrap(cmd + zypper_cmd(state) + [verb, *sort_packages(packages), *options],
-          options=flatten(["--bind", d, d] for d in (state.config.workspace_dir, state.config.cache_dir) if d),
           network=True, env=state.config.environment)
 
     fixup_rpmdb_location(state.root)

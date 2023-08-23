@@ -272,6 +272,7 @@ def bwrap(
     cmd: Sequence[PathString],
     *,
     network: bool = False,
+    readonly: bool = False,
     options: Sequence[PathString] = (),
     log: bool = True,
     scripts: Mapping[str, Sequence[PathString]] = {},
@@ -282,12 +283,19 @@ def bwrap(
     cmdline: list[PathString] = [
         "bwrap",
         "--dev-bind", "/", "/",
-        "--remount-ro", "/",
-        "--ro-bind", "/root", "/root",
-        "--ro-bind", "/home", "/home",
-        "--ro-bind", "/var", "/var",
-        "--ro-bind", "/run", "/run",
-        "--bind", "/var/tmp", "/var/tmp",
+    ]
+
+    if readonly:
+        cmdline += [
+            "--remount-ro", "/",
+            "--ro-bind", "/root", "/root",
+            "--ro-bind", "/home", "/home",
+            "--ro-bind", "/var", "/var",
+            "--ro-bind", "/run", "/run",
+            "--bind", "/var/tmp", "/var/tmp",
+        ]
+
+    cmdline += [
         "--tmpfs", "/tmp",
         "--bind", Path.cwd(), Path.cwd(),
         "--chdir", Path.cwd(),

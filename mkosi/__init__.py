@@ -267,6 +267,7 @@ def run_prepare_script(state: MkosiState, build: bool) -> None:
             bwrap(
                 [state.config.prepare_script, "build"],
                 network=True,
+                readonly=True,
                 options=finalize_mounts(state.config),
                 scripts={"mkosi-chroot": chroot} | package_manager_scripts(state),
                 env=env | state.config.environment,
@@ -277,6 +278,7 @@ def run_prepare_script(state: MkosiState, build: bool) -> None:
             bwrap(
                 [state.config.prepare_script, "final"],
                 network=True,
+                readonly=True,
                 options=finalize_mounts(state.config),
                 scripts={"mkosi-chroot": chroot} | package_manager_scripts(state),
                 env=env | state.config.environment,
@@ -330,6 +332,7 @@ def run_build_script(state: MkosiState) -> None:
         bwrap(
             [state.config.build_script],
             network=state.config.with_network,
+            readonly=True,
             options=finalize_mounts(state.config),
             scripts={"mkosi-chroot": chroot} | package_manager_scripts(state),
             env=env | state.config.environment,
@@ -367,6 +370,7 @@ def run_postinst_script(state: MkosiState) -> None:
         bwrap(
             [state.config.postinst_script, "final"],
             network=state.config.with_network,
+            readonly=True,
             options=finalize_mounts(state.config),
             scripts={"mkosi-chroot": chroot} | package_manager_scripts(state),
             env=env | state.config.environment,
@@ -404,6 +408,7 @@ def run_finalize_script(state: MkosiState) -> None:
         bwrap(
             [state.config.finalize_script],
             network=state.config.with_network,
+            readonly=True,
             options=finalize_mounts(state.config),
             scripts={"mkosi-chroot": chroot} | package_manager_scripts(state),
             env=env | state.config.environment,

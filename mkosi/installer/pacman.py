@@ -8,7 +8,7 @@ from mkosi.config import ConfigFeature
 from mkosi.run import apivfs_cmd, bwrap
 from mkosi.state import MkosiState
 from mkosi.types import PathString
-from mkosi.util import flatten, sort_packages, umask
+from mkosi.util import sort_packages, umask
 
 
 def setup_pacman(state: MkosiState) -> None:
@@ -113,5 +113,4 @@ def pacman_cmd(state: MkosiState) -> list[PathString]:
 def invoke_pacman(state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
     cmd = apivfs_cmd(state.root) if apivfs else []
     bwrap(cmd + pacman_cmd(state) + ["-Sy", *sort_packages(packages)],
-          options=flatten(["--bind", d, d] for d in (state.config.workspace_dir, state.config.cache_dir) if d),
           network=True, env=state.config.environment)
