@@ -8,6 +8,8 @@
   parsing. Settings parsed later will now override earlier values and
   the `!` exclusion logic for lists was removed. Assigning the empty
   string to a list can be used to clear previously assigned values.
+- Configuration files now accept a `DefaultSetting=value` that can override
+  the default value specified in the documentation.
 
 ## v15.1
 

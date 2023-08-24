@@ -253,6 +253,9 @@ single-letter shortcut is also allowed. In the configuration files,
 the setting must be in the appropriate section, so the settings are
 grouped by section below.
 
+Settings also support `DefaultSetting=default-value` to override the default
+that is specified in the documentation below.
+
 Configuration is parsed in the following order:
 
 * The command line arguments are parsed

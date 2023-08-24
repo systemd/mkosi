@@ -1535,7 +1535,22 @@ class MkosiConfigParser:
         self.settings_lookup = {s.name: s for s in self.SETTINGS}
         self.match_lookup = {m.name: m for m in self.MATCHES}
 
-    def parse_config(self, path: Path, namespace: argparse.Namespace) -> bool:
+    def add_defaults(self, args: argparse.Namespace, def_args: argparse.Namespace) -> argparse.Namespace:
+        '''Return a namespace with default values for all settings'''
+
+        ns = copy.deepcopy(def_args)
+        for s in self.SETTINGS:
+            if not s.dest in vars(ns):
+                if s.default_factory:
+                    setattr(ns, s.dest, s.default_factory(args))
+                elif s.default is None:
+                    setattr(ns, s.dest, s.parse(None, None))
+                else:
+                    setattr(ns, s.dest, s.default)
+
+        return ns
+
+    def parse_config(self, path: Path, namespace: argparse.Namespace, default_ns: argparse.Namespace) -> bool:
         extras = path.is_dir()
 
         if path.is_dir():
@@ -1575,20 +1590,8 @@ class MkosiConfigParser:
                         if not (match := s.match):
                             die(f"{k} cannot be used in [Match]")
 
-                        # If we encounter a setting in [Match] that has not been explicitly configured yet,
-                        # we assign the default value first so that we can [Match] on default values for
-                        # settings.
-                        if s.dest not in namespace:
-                            if s.default_factory:
-                                default = s.default_factory(namespace)
-                            elif s.default is None:
-                                default = s.parse(None, None)
-                            else:
-                                default = s.default
-
-                            setattr(namespace, s.dest, default)
-
-                        result = match(v, getattr(namespace, s.dest))
+                        match_v = getattr(namespace, s.dest, getattr(default_ns, s.dest, None))
+                        result = match(v, match_v)
 
                     elif (m := self.match_lookup.get(k)):
                         result = m.match(v)
@@ -1609,10 +1612,12 @@ class MkosiConfigParser:
 
         for section in parser.sections():
             for k, v in parser.items(section):
-                if not (s := self.settings_lookup.get(k)):
+                ns = default_ns if k.startswith("Default") else namespace
+
+                if not (s := self.settings_lookup.get(k.removeprefix("Default"))):
                     die(f"Unknown setting {k}")
 
-                setattr(namespace, s.dest, s.parse(v, getattr(namespace, s.dest, None)))
+                setattr(ns, s.dest, s.parse(v, getattr(ns, s.dest, None)))
 
         if extras:
             # Dropin configuration has priority over any default paths.
@@ -1621,9 +1626,11 @@ class MkosiConfigParser:
                 for p in sorted((path.parent / "mkosi.conf.d").iterdir()):
                     if p.is_dir() or p.suffix == ".conf":
                         with chdir(p if p.is_dir() else Path.cwd()):
-                            self.parse_config(p if p.is_file() else Path("."), namespace)
+                            self.parse_config(p if p.is_file() else Path("."), namespace, default_ns)
 
             for s in self.SETTINGS:
+                # This prevents a default from being overridden and should be reviewed
+                # as part of this PR before merging.
                 if s.dest in namespace:
                     continue
 
@@ -1850,6 +1857,7 @@ class MkosiConfigParser:
     def parse(self, argv: Optional[Sequence[str]] = None) -> tuple[MkosiArgs, tuple[MkosiConfig, ...]]:
         presets = []
         namespace = argparse.Namespace()
+        default_ns = argparse.Namespace()
 
         if argv is None:
             argv = sys.argv[1:]
@@ -1885,7 +1893,7 @@ class MkosiConfigParser:
             os.chdir(args.directory)
 
         if args.directory != "":
-            self.parse_config(Path("."), namespace)
+            self.parse_config(Path("."), namespace, default_ns)
 
             if Path("mkosi.presets").exists():
                 for p in Path("mkosi.presets").iterdir():
@@ -1897,41 +1905,28 @@ class MkosiConfigParser:
                         die(f"{p} is not a valid preset name")
 
                     cp = copy.deepcopy(namespace)
+                    d_cp = copy.deepcopy(default_ns)
 
                     with chdir(p if p.is_dir() else Path.cwd()):
-                        if not self.parse_config(p if p.is_file() else Path("."), cp):
+                        if not self.parse_config(p if p.is_file() else Path("."), cp, d_cp):
                             continue
 
                     setattr(cp, "preset", name)
 
-                    presets += [cp]
+                    presets += [(cp, self.add_defaults(cp, d_cp))]
 
         if not presets:
             setattr(namespace, "preset", None)
-            presets = [namespace]
+            presets = [(namespace, self.add_defaults(namespace, default_ns))]
 
         if not presets:
             die("No presets defined in mkosi.presets/")
-
-        for ns in presets:
-            for s in self.SETTINGS:
-                if s.dest in ns:
-                    continue
-
-                if s.default_factory:
-                    default = s.default_factory(ns)
-                elif s.default is None:
-                    default = s.parse(None, None)
-                else:
-                    default = s.default
-
-                setattr(ns, s.dest, default)
 
         # Manipulate some old settings to make them work with the new settings, for those typically used in
         # infrastructure scripts rather than image-specific configuration.
         self.backward_compat_stubs(namespace)
 
-        presets = [load_config(ns) for ns in presets]
+        presets = [load_config(*ns) for ns in presets]
         presets = self.resolve_deps(args, presets)
 
         return args, tuple(presets)
@@ -2047,7 +2042,16 @@ def load_args(args: argparse.Namespace) -> MkosiArgs:
     return MkosiArgs.from_namespace(args)
 
 
-def load_config(args: argparse.Namespace) -> MkosiConfig:
+def load_config(set_args: argparse.Namespace, def_args: argparse.Namespace) -> MkosiConfig:
+
+    # Set provided values, defaults and everything else to None
+    args = argparse.Namespace()
+    for k,v in vars(set_args).items():
+        setattr(args, k, v)
+    for k in inspect.signature(MkosiConfig).parameters:
+        if k not in vars(args):
+            setattr(args, k, getattr(def_args, k, None))
+
     if args.cmdline and not args.verb.supports_cmdline():
         die(f"Arguments after verb are not supported for {args.verb}.")
 
