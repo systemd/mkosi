@@ -929,7 +929,7 @@ class MkosiConfigParser:
         MkosiConfigSetting(
             dest="output",
             short="-o",
-            metavar="PATH",
+            metavar="NAME",
             section="Output",
             parse=config_parse_filename,
             help="Output name",
