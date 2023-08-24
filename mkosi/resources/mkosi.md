@@ -442,15 +442,16 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
 
 `Output=`, `--output=`, `-o`
 
-: Filename to use for the generated output image file or directory. If
-  neither this option nor `OutputDirectory=` is used, the image is
-  generated under the name `image`, but its name suffixed with an
-  appropriate file suffix (e.g. `image.raw.xz` in case `disk` is used in
-  combination with `xz` compression). If the `ImageId=` option is
-  configured it is used instead of `image` in the default output name.
-  If an image version is specified via `ImageVersion=`, it is included
-  in the default name, e.g. a specified image version of `7.8` might
-  result in an image file name of `image_7.8.raw.xz`.
+: Name to use for the generated output image file or directory. All
+  outputs will be prefixed with the given name. Defaults to `image` or,
+  if `ImageId=` is specified, it is used as the default output name,
+  optionally suffixed with the version set with `ImageVersion=`. Note
+  that this option does not allow configuring the output directory, use
+  `OutputDirectory=` for that.
+
+: Note that this only specifies the output prefix, depending on the
+  specific output format, compression and image version used, the full
+  output name might be `image_7.8.raw.xz`.
 
 `CompressOutput=`, `--compress-output=`
 
