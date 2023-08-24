@@ -1721,6 +1721,8 @@ def make_image(state: MkosiState, skip: Sequence[str] = [], split: bool = False)
     for option, value in state.config.environment.items():
         if option.startswith("SYSTEMD_REPART_MKFS_OPTIONS_"):
             env[option] = value
+        if option == "SOURCE_DATE_EPOCH":
+            env[option] = value
 
     with complete_step("Generating disk image"):
         output = json.loads(run(cmdline, stdout=subprocess.PIPE, env=env).stdout)
