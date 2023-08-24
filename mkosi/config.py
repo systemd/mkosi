@@ -10,6 +10,7 @@ import fnmatch
 import functools
 import graphlib
 import inspect
+import logging
 import operator
 import os.path
 import platform
@@ -1852,15 +1853,15 @@ class MkosiConfigParser:
         # is no longer needed in build infrastructure (e.g.: OBS).
         if getattr(namespace, "nspawn_keep_unit", None):
             delattr(namespace, "nspawn_keep_unit")
-            print("Warning: --nspawn-keep-unit is no longer supported")
+            logging.warning("--nspawn-keep-unit is no longer supported")
 
         if getattr(namespace, "default", None):
             delattr(namespace, "default")
-            print("Warning: --default is no longer supported")
+            logging.warning("--default is no longer supported")
 
         if getattr(namespace, "cache", None):
             delattr(namespace, "cache")
-            print("Warning: --cache is no longer supported")
+            logging.warning("--cache is no longer supported")
 
     def resolve_deps(self, args: MkosiArgs, presets: Sequence[MkosiConfig]) -> list[MkosiConfig]:
         graph = {p.preset: p.dependencies for p in presets}
