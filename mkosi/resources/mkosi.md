@@ -253,6 +253,10 @@ single-letter shortcut is also allowed. In the configuration files,
 the setting must be in the appropriate section, so the settings are
 grouped by section below.
 
+All configuration settings additionally support `OverrideSomeSetting=new-value`
+when used in drop-in files or presets. This allows settings to be overridden
+from the default when using presets.
+
 Configuration is parsed in the following order:
 
 * The command line arguments are parsed

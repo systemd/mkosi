@@ -4,6 +4,9 @@
 
 - `mkosi.version` is now picked up from preset and dropin directories as
   well following the usual config precedence logic
+- Options specified in configuration files can now be overridden using
+  `OverrideOption=`. For example, `OverrideFormat=disk` can be used in a preset
+  with `Format=directory` set in the main configuration file.
 
 ## v15.1
 

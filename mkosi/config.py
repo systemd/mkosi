@@ -1654,8 +1654,11 @@ class MkosiConfigParser:
 
         for section in parser.sections():
             for k, v in parser.items(section):
-                if not (s := self.settings_lookup.get(k)):
+                if not (s := self.settings_lookup.get(k.removeprefix("Override"))):
                     die(f"Unknown setting {k}")
+
+                if k.startswith("Override") and s.dest in namespace:
+                    delattr(namespace, s.dest)
 
                 setattr(namespace, s.dest, s.parse(s.dest, v, namespace))
 

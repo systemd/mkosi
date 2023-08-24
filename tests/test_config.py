@@ -1,6 +1,10 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
-from mkosi.config import Compression
+import argparse
+import tempfile
+from pathlib import Path
+
+from mkosi.config import Compression, MkosiConfigParser
 
 
 def test_compression_enum_creation() -> None:
@@ -31,3 +35,16 @@ def test_compression_enum_str() -> None:
     assert str(Compression.gz)   == "gz"
     assert str(Compression.lz4)  == "lz4"
     assert str(Compression.lzma) == "lzma"
+
+
+def test_config_override() -> None:
+    with tempfile.NamedTemporaryFile('w') as f:
+        f.write("[Contents]\n")
+        f.write("Packages = foo\n")
+        f.write("OverridePackages = bar\n")
+        f.flush()
+        f.seek(0)
+
+        ns = argparse.Namespace()
+        assert MkosiConfigParser().parse_config(Path(f.name), ns)
+        assert getattr(ns, "packages") == ["bar"]
