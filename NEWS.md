@@ -4,6 +4,10 @@
 
 - `mkosi.version` is now picked up from preset and dropin directories as
   well following the usual config precedence logic
+- The "first assignment wins" logic was dropped from configuration
+  parsing. Settings parsed later will now override earlier values and
+  the `!` exclusion logic for lists was removed. Assigning the empty
+  string to a list can be used to clear previously assigned values.
 
 ## v15.1
 

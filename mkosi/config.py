@@ -10,6 +10,7 @@ import fnmatch
 import functools
 import graphlib
 import inspect
+import logging
 import operator
 import os.path
 import platform
@@ -40,8 +41,8 @@ from mkosi.versioncomp import GenericVersion
 
 __version__ = "15.1"
 
-ConfigParseCallback = Callable[[str, Optional[str], argparse.Namespace], Any]
-ConfigMatchCallback = Callable[[str, str, argparse.Namespace], bool]
+ConfigParseCallback = Callable[[Optional[str], Optional[Any]], Any]
+ConfigMatchCallback = Callable[[str, Optional[Any]], bool]
 ConfigDefaultCallback = Callable[[argparse.Namespace], Any]
 
 
@@ -192,30 +193,24 @@ def make_source_target_paths_parser(absolute: bool = True) -> Callable[[str], tu
     return parse_source_target_paths
 
 
-def config_parse_string(dest: str, value: Optional[str], namespace: argparse.Namespace) -> Optional[str]:
-    if dest in namespace:
-        return getattr(namespace, dest) # type: ignore
-
+def config_parse_string(value: Optional[str], old: Optional[str]) -> Optional[str]:
     return value if value else None
 
 
 def config_make_string_matcher(allow_globs: bool = False) -> ConfigMatchCallback:
-    def config_match_string(dest: str, value: str, namespace: argparse.Namespace) -> bool:
-        if getattr(namespace, dest, None) is None:
+    def config_match_string(match: str, value: Optional[str]) -> bool:
+        if value is None:
             return False
 
         if allow_globs:
-            return fnmatch.fnmatchcase(getattr(namespace, dest), value)
+            return fnmatch.fnmatchcase(value, match)
         else:
-            return cast(bool, value == getattr(namespace, dest))
+            return match == value
 
     return config_match_string
 
 
-def config_parse_script(dest: str, value: Optional[str], namespace: argparse.Namespace) -> Optional[Path]:
-    if dest in namespace:
-        return getattr(namespace, dest) # type: ignore
-
+def config_parse_script(value: Optional[str], old: Optional[Path]) -> Optional[Path]:
     if value:
         path = parse_path(value)
         if not os.access(path, os.X_OK):
@@ -225,15 +220,8 @@ def config_parse_script(dest: str, value: Optional[str], namespace: argparse.Nam
     return None
 
 
-def config_parse_boolean(dest: str, value: Optional[str], namespace: argparse.Namespace) -> bool:
-    if dest in namespace:
-        return getattr(namespace, dest) # type: ignore
-
+def config_parse_boolean(value: Optional[str], old: Optional[bool]) -> bool:
     return parse_boolean(value) if value else False
-
-
-def config_match_boolean(dest: str, value: str, namespace: argparse.Namespace) -> bool:
-    return cast(bool, getattr(namespace, dest) == parse_boolean(value))
 
 
 def parse_feature(value: Optional[str]) -> ConfigFeature:
@@ -243,21 +231,15 @@ def parse_feature(value: Optional[str]) -> ConfigFeature:
     return ConfigFeature.enabled if parse_boolean(value) else ConfigFeature.disabled
 
 
-def config_parse_feature(dest: str, value: Optional[str], namespace: argparse.Namespace) -> ConfigFeature:
-    if dest in namespace:
-        return getattr(namespace, dest) # type: ignore
-
+def config_parse_feature(value: Optional[str], old: Optional[ConfigFeature]) -> ConfigFeature:
     return parse_feature(value)
 
 
-def config_match_feature(dest: str, value: Optional[str], namespace: argparse.Namespace) -> bool:
-    return cast(bool, getattr(namespace, dest) == parse_feature(value))
+def config_match_feature(match: Optional[str], value: Optional[ConfigFeature]) -> bool:
+    return value == parse_feature(match)
 
 
-def config_parse_compression(dest: str, value: Optional[str], namespace: argparse.Namespace) -> Optional[Compression]:
-    if dest in namespace:
-        return getattr(namespace, dest) # type: ignore
-
+def config_parse_compression(value: Optional[str], old: Optional[Compression]) -> Optional[Compression]:
     if not value:
         return None
 
@@ -341,18 +323,15 @@ def make_enum_parser(type: Type[enum.Enum]) -> Callable[[str], enum.Enum]:
 
 
 def config_make_enum_parser(type: Type[enum.Enum]) -> ConfigParseCallback:
-    def config_parse_enum(dest: str, value: Optional[str], namespace: argparse.Namespace) -> Optional[enum.Enum]:
-        if dest in namespace:
-            return getattr(namespace, dest) # type: ignore
-
+    def config_parse_enum(value: Optional[str], old: Optional[enum.Enum]) -> Optional[enum.Enum]:
         return make_enum_parser(type)(value) if value else None
 
     return config_parse_enum
 
 
 def config_make_enum_matcher(type: Type[enum.Enum]) -> ConfigMatchCallback:
-    def config_match_enum(dest: str, value: str, namespace: argparse.Namespace) -> bool:
-        return cast(bool, make_enum_parser(type)(value) == getattr(namespace, dest))
+    def config_match_enum(match: str, value: Optional[enum.Enum]) -> bool:
+        return make_enum_parser(type)(match) == value
 
     return config_match_enum
 
@@ -361,17 +340,12 @@ def config_make_list_parser(delimiter: str,
                             *,
                             parse: Callable[[str], Any] = str,
                             unescape: bool = False) -> ConfigParseCallback:
-    ignore: set[str] = set()
+    def config_parse_list(value: Optional[str], old: Optional[list[Any]]) -> list[Any]:
+        new = old.copy() if old else []
 
-    def config_parse_list(dest: str, value: Optional[str], namespace: argparse.Namespace) -> list[Any]:
-        if dest not in namespace:
-            ignore.clear()
-            l = []
-        else:
-            l = getattr(namespace, dest).copy()
-
+        # Empty strings reset the list.
         if not value:
-            return l # type: ignore
+            return []
 
         if unescape:
             lex = shlex.shlex(value, posix=True)
@@ -382,33 +356,24 @@ def config_make_list_parser(delimiter: str,
         else:
             values = value.replace(delimiter, "\n").split("\n")
 
-        new = []
-
         for v in values:
             if not v:
+                new = []
                 continue
 
-            if v.startswith("!"):
-                ignore.add(v[1:])
-                continue
+            new.append(parse(v))
 
-            for i in ignore:
-                if fnmatch.fnmatchcase(v, i):
-                    break
-            else:
-                new.append(parse(v))
-
-        return new + l
+        return new
 
     return config_parse_list
 
 
-def config_match_image_version(dest: str, value: str, namespace: argparse.Namespace) -> bool:
-    image_version = getattr(namespace, dest)
+def config_match_image_version(match: str, value: Optional[str]) -> bool:
     # If the version is not set it cannot positively compare to anything
-    if image_version is None:
+    if value is None:
         return False
-    image_version = GenericVersion(image_version)
+
+    image_version = GenericVersion(value)
 
     for sigil, opfunc in {
         "==": operator.eq,
@@ -418,14 +383,14 @@ def config_match_image_version(dest: str, value: str, namespace: argparse.Namesp
         ">": operator.gt,
         "<": operator.lt,
     }.items():
-        if value.startswith(sigil):
+        if match.startswith(sigil):
             op = opfunc
-            comp_version = GenericVersion(value[len(sigil):])
+            comp_version = GenericVersion(match[len(sigil):])
             break
     else:
         # default to equality if no operation is specified
         op = operator.eq
-        comp_version = GenericVersion(value)
+        comp_version = GenericVersion(match)
 
     # all constraints must be fulfilled
     if not op(image_version, comp_version):
@@ -457,10 +422,7 @@ def config_make_path_parser(*,
                             expanduser: bool = True,
                             expandvars: bool = True,
                             secret: bool = False) -> ConfigParseCallback:
-    def config_parse_path(dest: str, value: Optional[str], namespace: argparse.Namespace) -> Optional[Path]:
-        if dest in namespace:
-            return getattr(namespace, dest) # type: ignore
-
+    def config_parse_path(value: Optional[str], old: Optional[Path]) -> Optional[Path]:
         if value:
             return parse_path(
                 value,
@@ -477,10 +439,7 @@ def config_make_path_parser(*,
     return config_parse_path
 
 
-def config_parse_filename(dest: str, value: Optional[str], namespace: argparse.Namespace) -> Optional[str]:
-    if dest in namespace:
-        return getattr(namespace, dest) # type: ignore
-
+def config_parse_filename(value: Optional[str], old: Optional[str]) -> Optional[str]:
     if not value:
         return None
 
@@ -500,10 +459,7 @@ def match_path_exists(value: str) -> bool:
     return Path(value).exists()
 
 
-def config_parse_root_password(dest: str, value: Optional[str], namespace: argparse.Namespace) -> Optional[tuple[str, bool]]:
-    if dest in namespace:
-        return getattr(namespace, dest) # type: ignore
-
+def config_parse_root_password(value: Optional[str], old: Optional[tuple[str, bool]]) -> Optional[tuple[str, bool]]:
     if not value:
         return None
 
@@ -597,11 +553,11 @@ def config_make_action(settings: Sequence[MkosiConfigSetting]) -> Type[argparse.
                 die(f"Unknown setting {option_string}")
 
             if values is None or isinstance(values, str):
-                setattr(namespace, s.dest, s.parse(self.dest, values, namespace))
+                setattr(namespace, s.dest, s.parse(values, getattr(namespace, self.dest, None)))
             else:
                 for v in values:
                     assert isinstance(v, str)
-                    setattr(namespace, s.dest, s.parse(self.dest, v, namespace))
+                    setattr(namespace, s.dest, s.parse(v, getattr(namespace, self.dest, None)))
 
     return MkosiAction
 
@@ -1626,13 +1582,13 @@ class MkosiConfigParser:
                             if s.default_factory:
                                 default = s.default_factory(namespace)
                             elif s.default is None:
-                                default = s.parse(s.dest, None, namespace)
+                                default = s.parse(None, None)
                             else:
                                 default = s.default
 
                             setattr(namespace, s.dest, default)
 
-                        result = match(s.dest, v, namespace)
+                        result = match(v, getattr(namespace, s.dest))
 
                     elif (m := self.match_lookup.get(k)):
                         result = m.match(v)
@@ -1656,7 +1612,7 @@ class MkosiConfigParser:
                 if not (s := self.settings_lookup.get(k)):
                     die(f"Unknown setting {k}")
 
-                setattr(namespace, s.dest, s.parse(s.dest, v, namespace))
+                setattr(namespace, s.dest, s.parse(v, getattr(namespace, s.dest, None)))
 
         if extras:
             # Dropin configuration has priority over any default paths.
@@ -1668,6 +1624,9 @@ class MkosiConfigParser:
                             self.parse_config(p if p.is_file() else Path("."), namespace)
 
             for s in self.SETTINGS:
+                if s.dest in namespace:
+                    continue
+
                 for f in s.paths:
                     p = parse_path(
                         f,
@@ -1680,7 +1639,7 @@ class MkosiConfigParser:
                     )
                     if p.exists():
                         setattr(namespace, s.dest,
-                                s.parse(s.dest, p.read_text() if s.path_read_text else f, namespace))
+                                s.parse(p.read_text() if s.path_read_text else f, None))
 
         return True
 
@@ -1852,15 +1811,15 @@ class MkosiConfigParser:
         # is no longer needed in build infrastructure (e.g.: OBS).
         if getattr(namespace, "nspawn_keep_unit", None):
             delattr(namespace, "nspawn_keep_unit")
-            print("Warning: --nspawn-keep-unit is no longer supported")
+            logging.warning("--nspawn-keep-unit is no longer supported")
 
         if getattr(namespace, "default", None):
             delattr(namespace, "default")
-            print("Warning: --default is no longer supported")
+            logging.warning("--default is no longer supported")
 
         if getattr(namespace, "cache", None):
             delattr(namespace, "cache")
-            print("Warning: --cache is no longer supported")
+            logging.warning("--cache is no longer supported")
 
     def resolve_deps(self, args: MkosiArgs, presets: Sequence[MkosiConfig]) -> list[MkosiConfig]:
         graph = {p.preset: p.dependencies for p in presets}
@@ -1962,7 +1921,7 @@ class MkosiConfigParser:
                 if s.default_factory:
                     default = s.default_factory(ns)
                 elif s.default is None:
-                    default = s.parse(s.dest, None, ns)
+                    default = s.parse(None, None)
                 else:
                     default = s.default
 
