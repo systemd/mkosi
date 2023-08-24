@@ -266,28 +266,28 @@ Configuration is parsed in the following order:
 * Any default paths (depending on the option) are configured if the
   corresponding path exists.
 
-If a setting is specified multiple times across the different sources
-of configuration, the first assignment that is found is used. For example,
-a setting specified on the command line will always take precedence over
-the same setting configured in a config file. To override settings in a
-dropin file, make sure your dropin file is alphanumerically ordered
-before the config file that you're trying to override.
+Settings that take a list of values are merged by appending the new
+values to the previously configured values. If a list setting is set to
+the empty list, all previously assigned values are cleared.
 
-Settings that take a list of values are merged by prepending each value
-to the previously configured values. If a value of a list setting is
-prefixed with `!`, if any later assignment of that setting tries to add
-the same value, that value is ignored. Values prefixed with `!` can be
-globs to ignore more than one value.
+To conditionally include configuration files, the `[Match]` section can
+be used. Matches can use a pipe symbol ("|") after the equals sign
+("…=|…"), which causes the match to become a triggering match. The
+config file will be included if the logical AND of all non-triggering
+matches and the logical OR of all triggering matches is satisfied. To
+negate the result of a match, prefix the argument with an exclamation
+mark. If an argument is prefixed with the pipe symbol and an exclamation
+mark, the pipe symbol must be passed first, and the exclamation second.
 
-To conditionally include configuration files, the `[Match]` section can be used. Matches can use a pipe
-symbol ("|") after the equals sign ("…=|…"), which causes the match to become a triggering match. The config
-file will be included if the logical AND of all non-triggering matches and the logical OR of all triggering
-matches is satisfied. To negate the result of a match, prefix the argument with an exclamation mark. If an
-argument is prefixed with the pipe symbol and an exclamation mark, the pipe symbol must be passed first, and
-the exclamation second.
+Note that `[Match]` settings match against the current values of
+specific settings, and do not take into account changes made to the
+setting in configuration files that have not been parsed yet. Also note
+that matching against a setting and then changing its value afterwards
+in a different config file may lead to unexpected results.
 
-Command line options that take no argument are shown without "=" in their long version. In the config files,
-they should be specified with a boolean argument: either "1", "yes", or "true" to enable, or "0", "no",
+Command line options that take no argument are shown without "=" in
+their long version. In the config files, they should be specified with a
+boolean argument: either "1", "yes", or "true" to enable, or "0", "no",
 "false" to disable.
 
 ### [Match] Section.
@@ -543,12 +543,13 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
 
 `RepartDirectories=`, `--repart-dir=`
 
-: Paths to directories containing systemd-repart partition definition files that
-  are used when mkosi invokes systemd-repart when building a disk image. If not
-  specified and `mkosi.repart/` exists in the local directory, it will be used
-  instead. Note that mkosi invokes repart with `--root=` set to the root of the
-  image root, so any `CopyFiles=` source paths in partition definition files will
-  be relative to the image root directory.
+: Paths to directories containing systemd-repart partition definition
+  files that are used when mkosi invokes systemd-repart when building a
+  disk image. If `mkosi.repart/` exists in the local directory, it will
+  be used for this purpose as well. Note that mkosi invokes repart with
+  `--root=` set to the root of the image root, so any `CopyFiles=`
+  source paths in partition definition files will be relative to the
+  image root directory.
 
 `SectorSize=`, `--sector-size=`
 
@@ -658,10 +659,9 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
   image. If the second path is not provided, the directory is copied
   on top of the root directory of the image. Use this to insert files
   and directories into the OS tree before the package manager installs
-  any packages. If this option is not used, but the `mkosi.skeleton/`
-  directory is found in the local directory it is automatically used
-  for this purpose with the root directory as target (also see the
-  "Files" section below).
+  any packages. If the `mkosi.skeleton/` directory is found in the local
+  directory it is also used for this purpose with the root directory as
+  target (also see the "Files" section below).
 
 : As with the base tree logic above, instead of a directory, a tar
   file may be provided too. `mkosi.skeleton.tar` will be automatically
@@ -687,10 +687,9 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
   to the target directory inside the image. If the second path is not
   provided, the directory is copied on top of the root directory of the
   image. Use this to override any default configuration files shipped
-  with the distribution. If this option is not used, but the
-  `mkosi.extra/` directory is found in the local directory it is
-  automatically used for this purpose with the root directory as target.
-  (also see the "Files" section below).
+  with the distribution. If the `mkosi.extra/` directory is found in the
+  local directory it is also used for this purpose with the root
+  directory as target. (also see the "Files" section below).
 
 : As with the base tree logic above, instead of a directory, a tar
   file may be provided too. `mkosi.extra.tar` will be automatically
