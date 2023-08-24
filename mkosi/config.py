@@ -924,7 +924,6 @@ class MkosiConfigParser:
             metavar="FORMAT",
             section="Output",
             parse=config_make_list_parser(delimiter=",", parse=make_enum_parser(ManifestFormat)),
-            default=[ManifestFormat.json],
             help="Manifest Format",
         ),
         MkosiConfigSetting(

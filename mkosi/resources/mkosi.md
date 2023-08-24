@@ -438,7 +438,8 @@ they should be specified with a boolean argument: either "1", "yes", or "true" t
 : The manifest format type or types to generate. A comma-delimited
   list consisting of `json` (the standard JSON output format that
   describes the packages installed), `changelog` (a human-readable
-  text format designed for diffing). Defaults to `json`.
+  text format designed for diffing). By default no manifest is
+  generated.
 
 `Output=`, `--output=`, `-o`
 
