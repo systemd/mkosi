@@ -358,8 +358,11 @@ def config_make_list_parser(delimiter: str,
 
         for v in values:
             if not v:
-                new = []
                 continue
+
+            if v.startswith("!"):
+                v = v[1:]
+                new = [n for n in new if not fnmatch.fnmatchcase(v, n)]
 
             new.append(parse(v))
 

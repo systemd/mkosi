@@ -272,8 +272,10 @@ setting. Also note that before v16, we used to do the opposite, where
 the earlier assignment would be used instead of later assignments.
 
 Settings that take a list of values are merged by appending the new
-values to the previously configured values. If a list setting is set to
-the empty list, all previously assigned values are cleared.
+values to the previously configured values. If a value of a list setting
+is prefixed with `!`, all existing instances of that value in the list
+are removed. Values prefixed with `!` can be globs to remove more than
+one value.
 
 To conditionally include configuration files, the `[Match]` section can
 be used. Matches can use a pipe symbol ("|") after the equals sign
