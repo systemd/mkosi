@@ -1270,7 +1270,10 @@ def dir_size(path: Union[Path, os.DirEntry[str]]) -> int:
     return dir_sum
 
 
-def save_manifest(state: MkosiState, manifest: Manifest) -> None:
+def save_manifest(state: MkosiState, manifest: Optional[Manifest]) -> None:
+    if not manifest:
+        return
+
     if manifest.has_data():
         if ManifestFormat.json in state.config.manifest_format:
             with complete_step(f"Saving manifest {state.config.output_manifest}"):
@@ -1749,7 +1752,7 @@ def finalize_staging(state: MkosiState) -> None:
 
 
 def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
-    manifest = Manifest(config)
+    manifest = Manifest(config) if config.manifest_format else None
     workspace = tempfile.TemporaryDirectory(dir=config.workspace_dir, prefix=".mkosi-tmp")
 
     with workspace, scopedenv({"TMPDIR" : workspace.name}):
