@@ -266,6 +266,11 @@ Configuration is parsed in the following order:
 * Any default paths (depending on the option) are configured if the
   corresponding path exists.
 
+Note that if the same setting is configured twice, the later assignment
+overrides the earlier assignment unless the setting is a list based
+setting. Also note that before v16, we used to do the opposite, where
+the earlier assignment would be used instead of later assignments.
+
 Settings that take a list of values are merged by appending the new
 values to the previously configured values. If a list setting is set to
 the empty list, all previously assigned values are cleared.
