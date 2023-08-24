@@ -239,6 +239,11 @@ produce another output in the build script (e.g. build an rpm).
 When a *GPT* disk image is created, repart partition definition files
 may be placed in `mkosi.repart/` to configure the generated disk image.
 
+It is highly recommended to run `mkosi` on a file system that supports reflinks
+such as XFS and btrfs and to keep all related directories on the same file
+system. This allows mkosi to create images very quickly by using reflinks to
+perform copying via copy-on-write operations.
+
 ## Configuration Settings
 
 The following settings can be set through configuration files (the
