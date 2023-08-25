@@ -47,7 +47,7 @@ The following command line verbs are known:
 : Outputs a human-readable summary of all options used for building an
   image. This will parse the command line and `mkosi.conf` file as it
   would do on `build`, but only output what it is configured for and not
-  actually build anything.`
+  actually build anything.
 
 `build`
 
@@ -69,7 +69,7 @@ The following command line verbs are known:
 : Similar to `shell`, but boots the image using `systemd-nspawn`. An
   optional command line may be specified after the `boot` verb, which
   can contain extra nspawn options as well as arguments which are passed
-  as the "kernel command line" to the init system in the image.
+  as the *kernel command line* to the init system in the image.
 
 `qemu`
 
@@ -151,7 +151,7 @@ Those settings cannot be configured in the configuration files.
   re-building the image. If incremental builds are enabled,
   specifying this option twice will ensure the intermediary
   cache files are removed, too, before the re-build is initiated. If a
-  package cache is used (also see the "Files" section below),
+  package cache is used (also see the **Files** section below),
   specifying this option thrice will ensure the package cache is
   removed too, before the re-build is initiated. For the `clean`
   operation this option has a slightly different effect: by default
@@ -206,7 +206,7 @@ Those settings cannot be configured in the configuration files.
 : If specified, only build the given presets. Can be specified multiple
   times to build multiple presets. All the given presets and their
   dependencies are built. If not specified, all presets are built. See
-  the `Presets` section for more information.
+  the **Presets** section for more information.
 
 `--doc-format`
 
@@ -225,11 +225,8 @@ Those settings cannot be configured in the configuration files.
 The following output formats are supported:
 
 * Raw *GPT* disk image, created using systemd-repart (*disk*)
-
 * Plain directory, containing the OS tree (*directory*)
-
 * Tar archive (*tar*)
-
 * CPIO archive (*cpio*)
 
 The output format may also be set to *none* to have mkosi produce no
@@ -278,8 +275,8 @@ are removed. Values prefixed with `!` can be globs to remove more than
 one value.
 
 To conditionally include configuration files, the `[Match]` section can
-be used. Matches can use a pipe symbol ("|") after the equals sign
-("…=|…"), which causes the match to become a triggering match. The
+be used. Matches can use a pipe symbol (`|`) after the equals sign
+(`…=|…`), which causes the match to become a triggering match. The
 config file will be included if the logical AND of all non-triggering
 matches and the logical OR of all triggering matches is satisfied. To
 negate the result of a match, prefix the argument with an exclamation
@@ -292,10 +289,10 @@ setting in configuration files that have not been parsed yet. Also note
 that matching against a setting and then changing its value afterwards
 in a different config file may lead to unexpected results.
 
-Command line options that take no argument are shown without "=" in
+Command line options that take no argument are shown without `=` in
 their long version. In the config files, they should be specified with a
-boolean argument: either "1", "yes", or "true" to enable, or "0", "no",
-"false" to disable.
+boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
+`false` to disable.
 
 ### [Match] Section.
 
@@ -374,27 +371,9 @@ boolean argument: either "1", "yes", or "true" to enable, or "0", "no",
   When building for a foreign architecture, you'll also need to install
   and register a user mode emulator for that architecture.
 
-  The following architectures can be specified:
-
-  - alpha
-  - arc
-  - arm
-  - arm64
-  - ia64
-  - loongarch64
-  - mips64-le
-  - mips-le
-  - parisc
-  - ppc
-  - ppc64
-  - ppc64-le
-  - riscv32
-  - riscv64
-  - s390
-  - s390x
-  - tilegx
-  - x86
-  - x86-64
+: The following architectures can be specified: `alpha`, `arc`, `arm`, `arm64`,
+  `ia64`, `loongarch64`, `mips64-le`, `mips-le`, `parisc`, `ppc`, `ppc64`,
+  `ppc64-le`, `riscv32`, `riscv64`, `s390`, `s390x`, `tilegx`, `x86`, `x86-64`.
 
 `Mirror=`, `--mirror=`, `-m`
 
@@ -510,7 +489,7 @@ boolean argument: either "1", "yes", or "true" to enable, or "0", "no",
   `mkosi-chroot` is invoked during execution of the build script. If
   this option is not specified, but a directory `mkosi.builddir/` exists
   in the local directory it is automatically used for this purpose (also
-  see the "Files" section below).
+  see the **Files** section below).
 
 `ImageVersion=`, `--image-version=`
 
@@ -571,10 +550,8 @@ boolean argument: either "1", "yes", or "true" to enable, or "0", "no",
   initially empty. Thus files that are not modified compared to the base trees
   will not be present in the final output.
 
-: This option may be used to create systemd "system extensions" or
-  portable services. See
-  https://uapi-group.org/specifications/specs/extension_image for more
-  information.
+: This option may be used to create [systemd *system extensions* or
+  *portable services*](https://uapi-group.org/specifications/specs/extension_image).
 
 `UseSubvolumes=`, `--use-subvolumes=`
 
@@ -598,14 +575,19 @@ boolean argument: either "1", "yes", or "true" to enable, or "0", "no",
   script is executed with the `build` argument and when the build script
   is executed.
 
-: The types and syntax of "package specifications" that are allowed
+: The types and syntax of *package specifications* that are allowed
   depend on the package installer (e.g. `dnf` for `rpm`-based distros or
   `apt` for `deb`-based distros), but may include package names, package
   names with version and/or architecture, package name globs, paths to
   packages in the file system, package groups, and virtual provides,
   including file paths.
 
-: Example: when using a distro that uses `dnf`,
+: Example: when using a distro that uses `dnf`, the following configuration
+  would install the `meson` package (in the latest version), the 32-bit version
+  of the `libfdisk-devel` package, all available packages that start with the
+  `git-` prefix, a `systemd` rpm from the local file system, one of the
+  packages that provides `/usr/bin/ld`, the packages in the *Development Tools*
+  group, and the package that contains the `mypy` python module.
 
   ```
   Packages=meson
@@ -617,12 +599,6 @@ boolean argument: either "1", "yes", or "true" to enable, or "0", "no",
            python3dist(mypy)
   ```
 
-  would install the `meson` package (in the latest version), the 32-bit
-  version of the `libfdisk-devel` package, all available packages that
-  start with the `git-` prefix, a `systemd` rpm from the local file
-  system, one of the packages that provides `/usr/bin/ld`, the packages
-  in the "Development Tools" group, and the package that contains the
-  `mypy` python module.
 
 `BuildPackages=`, `--build-package=`
 
@@ -668,7 +644,7 @@ boolean argument: either "1", "yes", or "true" to enable, or "0", "no",
   and directories into the OS tree before the package manager installs
   any packages. If the `mkosi.skeleton/` directory is found in the local
   directory it is also used for this purpose with the root directory as
-  target (also see the "Files" section below).
+  target (also see the **Files** section below).
 
 : As with the base tree logic above, instead of a directory, a tar
   file may be provided too. `mkosi.skeleton.tar` will be automatically
@@ -696,7 +672,7 @@ boolean argument: either "1", "yes", or "true" to enable, or "0", "no",
   image. Use this to override any default configuration files shipped
   with the distribution. If the `mkosi.extra/` directory is found in the
   local directory it is also used for this purpose with the root
-  directory as target. (also see the "Files" section below).
+  directory as target. (also see the **Files** section below).
 
 : As with the base tree logic above, instead of a directory, a tar
   file may be provided too. `mkosi.extra.tar` will be automatically
@@ -717,30 +693,30 @@ boolean argument: either "1", "yes", or "true" to enable, or "0", "no",
 `CleanPackageMetadata=`, `--clean-package-metadata=`
 
 : Enable/disable removal of package manager databases at the end of
-  installation. Can be specified as true, false, or "`auto`" (the
-  default). With "`auto`", files will be removed if the respective
+  installation. Can be specified as `true`, `false`, or `auto` (the
+  default). With `auto`, files will be removed if the respective
   package manager executable is *not* present at the end of the
   installation.
 
 `PrepareScript=`, `--prepare-script=`
 
 : Takes a path to an executable that is used as the prepare script for
-  this image. See the `SCRIPTS` section for more information.
+  this image. See the **Scripts** section for more information.
 
 `BuildScript=`, `--build-script=`
 
 : Takes a path to an executable that is used as build script for this
-  image. See the `SCRIPTS` section for more information.
+  image. See the **Scripts** section for more information.
 
 `PostInstallationScript=`, `--postinst-script=`
 
 : Takes a path to an executable that is used as the post-installation
-  script for this image. See the `SCRIPTS` section for more information.
+  script for this image. See the **Scripts** section for more information.
 
 `FinalizeScript=`, `--finalize-script=`
 
 : Takes a path to an executable that is used as the finalize script for
-  this image. See the `SCRIPTS` section for more information.
+  this image. See the **Scripts** section for more information.
 
 `BuildSources=`, `--build-sources=`
 
@@ -749,7 +725,7 @@ boolean argument: either "1", "yes", or "true" to enable, or "0", "no",
   prefixed with the current working directory and all build sources are
   sorted lexicographically by mount target before mounting so that top
   level paths are mounted first. When using the `mkosi-chroot` script (
-  see the `SCRIPTS` section), the current working directory with all
+  see the **Scripts** section), the current working directory with all
   build sources mounted in it is mounted to `/work/src` inside the
   image's root directory.
 
@@ -853,7 +829,7 @@ boolean argument: either "1", "yes", or "true" to enable, or "0", "no",
 
 : Takes a list of regex patterns that specify kernel modules to include in the image. Patterns should be
   relative to the `/usr/lib/modules/<kver>/kernel` directory. mkosi checks for a match anywhere in the module
-  path (e.g. "i915" will match against "drivers/gpu/drm/i915.ko"). All modules that match any of the
+  path (e.g. `i915` will match against `drivers/gpu/drm/i915.ko`). All modules that match any of the
   specified patterns are included in the image. All module and firmware dependencies of the matched modules
   are included in the image as well. This setting takes priority over `KernelModulesExclude=` and only makes
   sense when used in combination with it because all kernel modules are included in the image by default.
@@ -880,17 +856,14 @@ boolean argument: either "1", "yes", or "true" to enable, or "0", "no",
 
 : Like `KernelModulesExclude=`, but applies to the kernel modules included in the kernel modules initrd.
 
-`Locale=`, `--locale=`,
-`LocaleMessages=`, `--locale-messages=`,
-`Keymap=`, `--keymap=`,
-`Timezone=`, `--timezone=`,
-`Hostname=`, `--hostname=`,
-`RootShell=`, `--root-shell=`
-
-: These settings correspond to the identically named systemd-firstboot options. See the systemd firstboot
-  [manpage](https://www.freedesktop.org/software/systemd/man/systemd-firstboot.html) for more information.
-  Additionally, where applicable, the corresponding systemd credentials for these settings are written to
-  `/usr/lib/credstore`, so that they apply even if only `/usr` is shipped in the image.
+: The settings `Locale=`, `--locale=`, `LocaleMessages=`, `--locale-messages=`,
+  `Keymap=`, `--keymap=`, `Timezone=`, `--timezone=`, `Hostname=`,
+  `--hostname=`, `RootShell=`, `--root-shell=` correspond to the identically
+  named systemd-firstboot options. See the systemd firstboot
+  [manpage](https://www.freedesktop.org/software/systemd/man/systemd-firstboot.html)
+  for more information.  Additionally, where applicable, the corresponding
+  systemd credentials for these settings are written to `/usr/lib/credstore`,
+  so that they apply even if only `/usr` is shipped in the image.
 
 `RootPassword=`, `--root-password=`,
 
@@ -1067,8 +1040,8 @@ boolean argument: either "1", "yes", or "true" to enable, or "0", "no",
 
 : When used with the `shell`, `boot`, or `qemu` verbs, this option runs the specified verb on a temporary
   snapshot of the output image that is removed immediately when the container terminates. Taking the
-  temporary snapshot is more efficient on file systems that support reflinks natively ("btrfs" or new "xfs")
-  than on more traditional file systems that do not ("ext4").
+  temporary snapshot is more efficient on file systems that support reflinks natively (btrfs or xfs)
+  than on more traditional file systems that do not (ext4).
 
 `Credentials=`, `--credential=`
 
@@ -1152,50 +1125,50 @@ When building with `--incremental` mkosi creates a cache of the distribution
 installation if not already existing and replaces the distribution installation
 in consecutive runs with data from the cached one.
 
-* Parse CLI options
-* Parse configuration files
-* If we're not running as root, unshare the user namespace and map the
+1. Parse CLI options
+2. Parse configuration files
+3. If we're not running as root, unshare the user namespace and map the
   subuid range configured in /etc/subuid and /etc/subgid into it.
-* Unshare the mount namespace
-* Remount the following directories read-only if they exist:
-  - /usr
-  - /etc
-  - /opt
-  - /srv
-  - /boot
-  - /efi
-  - /media
-  - /mnt
+4. Unshare the mount namespace
+5. Remount the following directories read-only if they exist:
+   - `/usr`
+   - `/etc`
+   - `/opt`
+   - `/srv`
+   - `/boot`
+   - `/efi`
+   - `/media`
+   - `/mnt`
 
 Then, for each preset, we execute the following steps:
 
-* Copy package manager trees into the workspace
-* Copy base trees (`--base-tree=`) into the image
-* Copy skeleton trees (`mkosi.skeleton`) into image
-* Install distribution and packages into image or use cache tree if
-  available
-* Run prepare script on image with the `final` argument (`mkosi.prepare`)
-* Install build packages in overlay if a build script is configured
-* Run prepare script on overlay with the `build` argument if a build
-  script is configured (`mkosi.prepare`)
-* Cache the image if configured (`--incremental`)
-* Run build script on image + overlay if a build script is configured (`mkosi.build`)
-* Finalize the build if the output format `none` is configured
-* Copy the build script outputs into the image
-* Copy the extra trees into the image (`mkosi.extra`)
-* Run post-install script (`mkosi.postinst`)
-* Write config files required for `Ssh=`, `Autologin=` and `MakeInitrd=`
-* Install systemd-boot and configure secure boot if configured (`--secure-boot`)
-* Run `systemd-sysusers`
-* Run `systemctl preset-all`
-* Run `depmod`
-* Run `systemd-firstboot`
-* Run `systemd-hwdb`
-* Remove packages and files (`RemovePackages=`, `RemoveFiles=`)
-* Run SELinux relabel is a SELinux policy is installed
-* Run finalize script (`mkosi.finalize`)
-* Generate unified kernel image if configured to do so
-* Generate final output format
+6. Copy package manager trees into the workspace
+7. Copy base trees (`--base-tree=`) into the image
+8. Copy skeleton trees (`mkosi.skeleton`) into image
+9. Install distribution and packages into image or use cache tree if
+   available
+10. Run prepare script on image with the `final` argument (`mkosi.prepare`)
+11. Install build packages in overlay if a build script is configured
+12. Run prepare script on overlay with the `build` argument if a build
+    script is configured (`mkosi.prepare`)
+13. Cache the image if configured (`--incremental`)
+14. Run build script on image + overlay if a build script is configured (`mkosi.build`)
+15. Finalize the build if the output format `none` is configured
+16. Copy the build script outputs into the image
+17. Copy the extra trees into the image (`mkosi.extra`)
+18. Run post-install script (`mkosi.postinst`)
+19. Write config files required for `Ssh=`, `Autologin=` and `MakeInitrd=`
+20. Install systemd-boot and configure secure boot if configured (`--secure-boot`)
+21. Run `systemd-sysusers`
+22. Run `systemctl preset-all`
+23. Run `depmod`
+24. Run `systemd-firstboot`
+25. Run `systemd-hwdb`
+26. Remove packages and files (`RemovePackages=`, `RemoveFiles=`)
+27. Run SELinux relabel is a SELinux policy is installed
+28. Run finalize script (`mkosi.finalize`)
+29. Generate unified kernel image if configured to do so
+30. Generate final output format
 
 # Scripts
 
@@ -1320,7 +1293,7 @@ available via `$PATH` to simplify common usecases.
   `dnf install vim` to install vim into the image.
 
 When scripts are executed, any directories that are still writable are
-also made read-only (/home, /var, /root, ...) and only the minimal set
+also made read-only (`/home`, `/var`, `/root`, ...) and only the minimal set
 of directories that need to be writable remain writable. This is to
 ensure that scripts can't mess with the host system when mkosi is
 running as root.
@@ -1513,8 +1486,8 @@ To refer to outputs of a preset's dependencies, simply configure any of
 these options with a relative path to the output to use in the output
 directory of the dependency.
 
-A good example on how to use presets can be found in the systemd
-repository: https://github.com/systemd/systemd/tree/main/mkosi.presets.
+A good example on how to use presets can be found in the [systemd
+repository](https://github.com/systemd/systemd/tree/main/mkosi.presets).
 
 # ENVIRONMENT VARIABLES
 
@@ -1633,7 +1606,7 @@ $ mkosi qemu -kernel mkosi.output/fedora~38/image.efi
 When booting using an external kernel, we don't need the kernel *in* the image,
 but we would still want the kernel modules to be installed.
 
-It is also possible to do a "direct kernel boot" into a boot loader,
+It is also possible to do a *direct kernel boot* into a boot loader,
 taking advantage of the fact that `systemd-boot(7)` is a valid UEFI binary:
 ```console
 $ mkosi qemu -kernel /usr/lib/systemd/boot/efi/systemd-bootx64.efi
@@ -1666,7 +1639,7 @@ Note that the minimum required Python version is 3.9.
 
 # REFERENCES
 * [Primary mkosi git repository on GitHub](https://github.com/systemd/mkosi/)
-* [mkosi — A Tool for Generating OS Images](http://0pointer.net/blog/mkosi-a-tool-for-generating-os-images.html) introductory blog post by Lennart Poettering
+* [mkosi — A Tool for Generating OS Images](https://0pointer.net/blog/mkosi-a-tool-for-generating-os-images.html) introductory blog post by Lennart Poettering
 * [The mkosi OS generation tool](https://lwn.net/Articles/726655/) story on LWN
 
 # SEE ALSO
