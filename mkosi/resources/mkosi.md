@@ -277,6 +277,12 @@ is prefixed with `!`, all existing instances of that value in the list
 are removed. Values prefixed with `!` can be globs to remove more than
 one value.
 
+If a setting's name in the configuration file is prefixed with `@`, it
+configures the default value used for that setting if no explicit
+default value is set. This can be used to set custom default values in
+configuration files that can still be overridden by specifying the
+setting explicitly via the CLI.
+
 To conditionally include configuration files, the `[Match]` section can
 be used. Matches can use a pipe symbol ("|") after the equals sign
 ("…=|…"), which causes the match to become a triggering match. The

@@ -250,16 +250,9 @@ def config_parse_compression(value: Optional[str], old: Optional[Compression]) -
 
 
 def config_default_release(namespace: argparse.Namespace) -> str:
-    # If we encounter Release in [Match] and no distribution has been set yet, configure the default
-    # distribution as well since the default release depends on the selected distribution.
-    if "distribution" not in namespace:
-        setattr(namespace, "distribution", detect_distribution()[0])
-
-    d = getattr(namespace, "distribution")
-
     # If the configured distribution matches the host distribution, use the same release as the host.
     hd, hr = detect_distribution()
-    if d == hd and hr is not None:
+    if namespace.distribution == hd and hr is not None:
         return hr
 
     return {
@@ -273,43 +266,30 @@ def config_default_release(namespace: argparse.Namespace) -> str:
         Distribution.opensuse: "tumbleweed",
         Distribution.openmandriva: "cooker",
         Distribution.gentoo: "17.1",
-    }.get(d, "rolling")
+    }.get(namespace.distribution, "rolling")
 
 
 def config_default_mirror(namespace: argparse.Namespace) -> Optional[str]:
-    if "distribution" not in namespace:
-        setattr(namespace, "distribution", detect_distribution()[0])
-    if "architecture" not in namespace:
-        setattr(namespace, "architecture", Architecture.native())
-
-    d = getattr(namespace, "distribution")
-    r = getattr(namespace, "release", None)
-    a = getattr(namespace, "architecture")
-
-    if d == Distribution.debian:
+    if namespace.distribution == Distribution.debian:
         return "http://deb.debian.org/debian"
-    elif d == Distribution.ubuntu:
-        if a == Architecture.x86 or a == Architecture.x86_64:
+    elif namespace.distribution == Distribution.ubuntu:
+        if namespace.architecture in (Architecture.x86, Architecture.x86_64):
             return "http://archive.ubuntu.com/ubuntu"
         else:
             return "http://ports.ubuntu.com"
-    elif d == Distribution.arch:
-        if a == Architecture.arm64:
+    elif namespace.distribution == Distribution.arch:
+        if namespace.architecture == Architecture.arm64:
             return "http://mirror.archlinuxarm.org"
         else:
             return "https://geo.mirror.pkgbuild.com"
-    elif d == Distribution.opensuse:
+    elif namespace.distribution == Distribution.opensuse:
         return "http://download.opensuse.org"
-    elif d == Distribution.fedora and r == "eln":
+    elif namespace.distribution == Distribution.fedora and namespace.release == "eln":
         return "https://odcs.fedoraproject.org/composes/production/latest-Fedora-ELN/compose"
-    elif d == Distribution.gentoo:
+    elif namespace.distribution == Distribution.gentoo:
         return "https://distfiles.gentoo.org"
 
     return None
-
-
-def config_default_package_manager_tree(namespace: argparse.Namespace) -> list[tuple[Path, Optional[Path]]]:
-    return getattr(namespace, "skeleton_trees", [])
 
 
 def make_enum_parser(type: Type[enum.Enum]) -> Callable[[str], enum.Enum]:
@@ -490,9 +470,11 @@ class MkosiConfigSetting:
     name: str = ""
     default: Any = None
     default_factory: Optional[ConfigDefaultCallback] = None
+    default_factory_depends: tuple[str, ...] = tuple()
     paths: tuple[str, ...] = ()
     path_read_text: bool = False
     path_secret: bool = False
+    path_default: bool = True
 
     # settings for argparse
     short: Optional[str] = None
@@ -820,6 +802,7 @@ class MkosiConfigParser:
             parse=config_parse_string,
             match=config_make_string_matcher(),
             default_factory=config_default_release,
+            default_factory_depends=("distribution",),
             help="Distribution release to install",
         ),
         MkosiConfigSetting(
@@ -835,6 +818,7 @@ class MkosiConfigParser:
             short="-m",
             section="Distribution",
             default_factory=config_default_mirror,
+            default_factory_depends=("distribution", "release", "architecture"),
             help="Distribution mirror to use",
         ),
         MkosiConfigSetting(
@@ -970,6 +954,7 @@ class MkosiConfigParser:
             section="Output",
             parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
             paths=("mkosi.repart",),
+            path_default=False,
             help="Directory containing systemd-repart partition definitions",
         ),
         MkosiConfigSetting(
@@ -1035,6 +1020,7 @@ class MkosiConfigParser:
             section="Content",
             parse=config_make_list_parser(delimiter=",", parse=make_source_target_paths_parser()),
             paths=("mkosi.skeleton", "mkosi.skeleton.tar"),
+            path_default=False,
             help="Use a skeleton tree to bootstrap the image before installing anything",
         ),
         MkosiConfigSetting(
@@ -1043,7 +1029,8 @@ class MkosiConfigParser:
             metavar="PATH",
             section="Content",
             parse=config_make_list_parser(delimiter=",", parse=make_source_target_paths_parser()),
-            default_factory=config_default_package_manager_tree,
+            default_factory=lambda ns: ns.skeleton_trees,
+            default_factory_depends=("skeleton_trees",),
             help="Use a package manager tree to configure the package manager",
         ),
         MkosiConfigSetting(
@@ -1053,6 +1040,7 @@ class MkosiConfigParser:
             section="Content",
             parse=config_make_list_parser(delimiter=",", parse=make_source_target_paths_parser()),
             paths=("mkosi.extra", "mkosi.extra.tar"),
+            path_default=False,
             help="Copy an extra tree on top of image",
         ),
         MkosiConfigSetting(
@@ -1535,10 +1523,11 @@ class MkosiConfigParser:
     )
 
     def __init__(self) -> None:
-        self.settings_lookup = {s.name: s for s in self.SETTINGS}
+        self.settings_lookup_by_name = {s.name: s for s in self.SETTINGS}
+        self.settings_lookup_by_dest = {s.dest: s for s in self.SETTINGS}
         self.match_lookup = {m.name: m for m in self.MATCHES}
 
-    def parse_config(self, path: Path, namespace: argparse.Namespace) -> bool:
+    def parse_config(self, path: Path, namespace: argparse.Namespace, defaults: argparse.Namespace) -> bool:
         extras = path.is_dir()
 
         if path.is_dir():
@@ -1574,22 +1563,14 @@ class MkosiConfigParser:
                     if not v:
                         die("Match value cannot be empty")
 
-                    if (s := self.settings_lookup.get(k)):
+                    if (s := self.settings_lookup_by_name.get(k)):
                         if not (match := s.match):
                             die(f"{k} cannot be used in [Match]")
 
                         # If we encounter a setting in [Match] that has not been explicitly configured yet,
                         # we assign the default value first so that we can [Match] on default values for
                         # settings.
-                        if s.dest not in namespace:
-                            if s.default_factory:
-                                default = s.default_factory(namespace)
-                            elif s.default is None:
-                                default = s.parse(None, None)
-                            else:
-                                default = s.default
-
-                            setattr(namespace, s.dest, default)
+                        self.finalize_default(s, namespace, defaults)
 
                         result = match(v, getattr(namespace, s.dest))
 
@@ -1610,26 +1591,9 @@ class MkosiConfigParser:
 
         parser.remove_section("Match")
 
-        for section in parser.sections():
-            for k, v in parser.items(section):
-                if not (s := self.settings_lookup.get(k)):
-                    die(f"Unknown setting {k}")
-
-                setattr(namespace, s.dest, s.parse(v, getattr(namespace, s.dest, None)))
-
         if extras:
-            # Dropin configuration has priority over any default paths.
-
-            if (path.parent / "mkosi.conf.d").exists():
-                for p in sorted((path.parent / "mkosi.conf.d").iterdir()):
-                    if p.is_dir() or p.suffix == ".conf":
-                        with chdir(p if p.is_dir() else Path.cwd()):
-                            self.parse_config(p if p.is_file() else Path("."), namespace)
-
             for s in self.SETTINGS:
-                if s.dest in namespace:
-                    continue
-
+                ns = defaults if s.path_default else namespace
                 for f in s.paths:
                     p = parse_path(
                         f,
@@ -1641,8 +1605,23 @@ class MkosiConfigParser:
                         expandvars=False,
                     )
                     if p.exists():
-                        setattr(namespace, s.dest,
-                                s.parse(p.read_text() if s.path_read_text else f, None))
+                        setattr(ns, s.dest,
+                                s.parse(p.read_text() if s.path_read_text else f, getattr(ns, s.dest, None)))
+
+        for section in parser.sections():
+            for k, v in parser.items(section):
+                ns = defaults if k.startswith("@") else namespace
+
+                if not (s := self.settings_lookup_by_name.get(k.removeprefix("@"))):
+                    die(f"Unknown setting {k}")
+
+                setattr(ns, s.dest, s.parse(v, getattr(ns, s.dest, None)))
+
+        if extras and (path.parent / "mkosi.conf.d").exists():
+            for p in sorted((path.parent / "mkosi.conf.d").iterdir()):
+                if p.is_dir() or p.suffix == ".conf":
+                    with chdir(p if p.is_dir() else Path.cwd()):
+                        self.parse_config(p if p.is_file() else Path("."), namespace, defaults)
 
         return True
 
@@ -1850,9 +1829,37 @@ class MkosiConfigParser:
 
         return sorted(presets, key=lambda p: order.index(p.preset))
 
+    def finalize_default(
+        self,
+        setting: MkosiConfigSetting,
+        namespace: argparse.Namespace,
+        defaults: argparse.Namespace
+    ) -> None:
+        if setting.dest in namespace:
+            return
+
+        for d in setting.default_factory_depends:
+            self.finalize_default(self.settings_lookup_by_dest[d], namespace, defaults)
+
+        if setting.dest in defaults:
+            default = getattr(defaults, setting.dest)
+        elif setting.default_factory:
+            default = setting.default_factory(namespace)
+        elif setting.default is None:
+            default = setting.parse(None, None)
+        else:
+            default = setting.default
+
+        setattr(namespace, setting.dest, default)
+
+    def finalize_defaults(self, namespace: argparse.Namespace, defaults: argparse.Namespace) -> None:
+        for s in self.SETTINGS:
+            self.finalize_default(s, namespace, defaults)
+
     def parse(self, argv: Optional[Sequence[str]] = None) -> tuple[MkosiArgs, tuple[MkosiConfig, ...]]:
         presets = []
         namespace = argparse.Namespace()
+        defaults = argparse.Namespace()
 
         if argv is None:
             argv = sys.argv[1:]
@@ -1888,7 +1895,7 @@ class MkosiConfigParser:
             os.chdir(args.directory)
 
         if args.directory != "":
-            self.parse_config(Path("."), namespace)
+            self.parse_config(Path("."), namespace, defaults)
 
             if Path("mkosi.presets").exists():
                 for p in Path("mkosi.presets").iterdir():
@@ -1899,36 +1906,24 @@ class MkosiConfigParser:
                     if not name:
                         die(f"{p} is not a valid preset name")
 
-                    cp = copy.deepcopy(namespace)
+                    ns_copy = copy.deepcopy(namespace)
+                    defaults_copy = copy.deepcopy(defaults)
 
                     with chdir(p if p.is_dir() else Path.cwd()):
-                        if not self.parse_config(p if p.is_file() else Path("."), cp):
+                        if not self.parse_config(p if p.is_file() else Path("."), ns_copy, defaults_copy):
                             continue
 
-                    setattr(cp, "preset", name)
-
-                    presets += [cp]
+                    setattr(ns_copy, "preset", name)
+                    self.finalize_defaults(ns_copy, defaults_copy)
+                    presets += [ns_copy]
 
         if not presets:
             setattr(namespace, "preset", None)
+            self.finalize_defaults(namespace, defaults)
             presets = [namespace]
 
         if not presets:
             die("No presets defined in mkosi.presets/")
-
-        for ns in presets:
-            for s in self.SETTINGS:
-                if s.dest in ns:
-                    continue
-
-                if s.default_factory:
-                    default = s.default_factory(ns)
-                elif s.default is None:
-                    default = s.parse(None, None)
-                else:
-                    default = s.default
-
-                setattr(ns, s.dest, default)
 
         # Manipulate some old settings to make them work with the new settings, for those typically used in
         # infrastructure scripts rather than image-specific configuration.
