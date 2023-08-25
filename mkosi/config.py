@@ -2032,8 +2032,12 @@ def load_environment(args: argparse.Namespace) -> dict[str, str]:
     if (proxy := os.environ.get("https_proxy")):
         env["https_proxy"] = proxy
 
-    # Mypy doesn't like | here.
-    return {**env, **args.environment}
+    for s in args.environment:
+        key, sep, value = s.partition("=")
+        value = value if sep else os.getenv(key, "")
+        env[key] = value
+
+    return env
 
 
 def load_args(args: argparse.Namespace) -> MkosiArgs:
@@ -2065,16 +2069,6 @@ def load_config(args: argparse.Namespace) -> MkosiConfig:
 
     if args.output is None:
         args.output = args.image_id or args.preset or "image"
-
-    if args.environment:
-        env = {}
-        for s in args.environment:
-            key, sep, value = s.partition("=")
-            value = value if sep else os.getenv(key, "")
-            env[key] = value
-        args.environment = env
-    else:
-        args.environment = {}
 
     args.credentials = load_credentials(args)
     args.kernel_command_line_extra = load_kernel_command_line_extra(args)
