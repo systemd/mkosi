@@ -19,6 +19,7 @@ import shutil
 import subprocess
 import sys
 import textwrap
+import uuid
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import Any, Callable, Optional, Type, Union, cast
@@ -247,6 +248,16 @@ def config_parse_compression(value: Optional[str], old: Optional[Compression]) -
         return Compression[value]
     except KeyError:
         return Compression.zst if parse_boolean(value) else Compression.none
+
+def config_parse_seed(value: Optional[str], old: Optional[str]) -> Optional[uuid.UUID]:
+    if not value or value == "random":
+        return None
+
+    try:
+        return uuid.UUID(value)
+    except ValueError:
+        die(f"{value} is not a valid UUID")
+
 
 
 def config_default_release(namespace: argparse.Namespace) -> str:
@@ -635,6 +646,7 @@ class MkosiConfig:
     sector_size: Optional[str]
     overlay: bool
     use_subvolumes: ConfigFeature
+    seed: Optional[uuid.UUID]
 
     packages: list[str]
     build_packages: list[str]
@@ -993,6 +1005,13 @@ class MkosiConfigParser:
             section="Output",
             parse=config_parse_feature,
             help="Use btrfs subvolumes for faster directory operations where possible",
+        ),
+         MkosiConfigSetting(
+            dest="seed",
+            metavar="UUID",
+            section="Output",
+            parse=config_parse_seed,
+            help="Set the seed for systemd-repart",
         ),
 
         MkosiConfigSetting(
@@ -2134,6 +2153,10 @@ def none_to_na(s: Optional[object]) -> str:
     return "n/a" if s is None else str(s)
 
 
+def none_to_random(s: Optional[object]) -> str:
+    return "random" if s is None else str(s)
+
+
 def none_to_none(s: Optional[object]) -> str:
     return "none" if s is None else str(s)
 
@@ -2206,6 +2229,7 @@ def summary(args: MkosiArgs, config: MkosiConfig) -> str:
                    Sector Size: {none_to_default(config.sector_size)}
                        Overlay: {yes_no(config.overlay)}
                 Use Subvolumes: {yes_no_auto(config.use_subvolumes)}
+                          Seed: {none_to_random(config.seed)}
 
     {bold("CONTENT")}:
                       Packages: {line_join_list(config.packages)}
