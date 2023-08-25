@@ -249,6 +249,13 @@ def config_parse_compression(value: Optional[str], old: Optional[Compression]) -
         return Compression.zst if parse_boolean(value) else Compression.none
 
 
+def config_default_compression(namespace: argparse.Namespace) -> Compression:
+    if namespace.output_format == OutputFormat.cpio:
+        return Compression.xz if namespace.distribution.is_centos_variant() and int(namespace.release) <= 8 else Compression.zst
+    else:
+        return Compression.none
+
+
 def config_default_release(namespace: argparse.Namespace) -> str:
     # If the configured distribution matches the host distribution, use the same release as the host.
     hd, hr = detect_distribution()
@@ -883,6 +890,8 @@ class MkosiConfigParser:
             nargs="?",
             section="Output",
             parse=config_parse_compression,
+            default_factory=config_default_compression,
+            default_factory_depends=("distribution", "release", "output_format"),
             help="Enable whole-output compression (with images or archives)",
         ),
         MkosiConfigSetting(
@@ -2060,12 +2069,6 @@ def load_config(args: argparse.Namespace) -> MkosiConfig:
 
     if args.sign:
         args.checksum = True
-
-    if args.compress_output is None:
-        if args.output_format == OutputFormat.cpio:
-            args.compress_output = Compression.xz if args.distribution.is_centos_variant() and int(args.release) <= 8 else Compression.zst
-        else:
-            args.compress_output = Compression.none
 
     if args.output is None:
         args.output = args.image_id or args.preset or "image"
