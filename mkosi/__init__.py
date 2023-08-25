@@ -1633,6 +1633,7 @@ def make_image(state: MkosiState, skip: Sequence[str] = [], split: bool = False)
         "--no-pager",
         "--offline=yes",
         "--root", state.root,
+        "--seed", str(state.config.seed) if state.config.seed else "random",
         state.staging / state.config.output_with_format,
     ]
 
