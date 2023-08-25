@@ -249,6 +249,7 @@ def config_parse_compression(value: Optional[str], old: Optional[Compression]) -
     except KeyError:
         return Compression.zst if parse_boolean(value) else Compression.none
 
+
 def config_parse_seed(value: Optional[str], old: Optional[str]) -> Optional[uuid.UUID]:
     if not value or value == "random":
         return None
@@ -258,6 +259,18 @@ def config_parse_seed(value: Optional[str], old: Optional[str]) -> Optional[uuid
     except ValueError:
         die(f"{value} is not a valid UUID")
 
+
+def config_parse_source_date_epoch(value: Optional[str], old: Optional[int]) -> Optional[int]:
+    if value is None:
+        return None
+
+    try:
+        timestamp = int(value)
+    except ValueError:
+        raise ValueError(f"{value} is not a valid timestamp")
+    if timestamp < 0:
+        raise ValueError(f"{value} is negative")
+    return timestamp
 
 
 def config_default_compression(namespace: argparse.Namespace) -> Compression:
@@ -308,6 +321,13 @@ def config_default_mirror(namespace: argparse.Namespace) -> Optional[str]:
         return "https://distfiles.gentoo.org"
 
     return None
+
+
+def config_default_source_date_epoch(namespace: argparse.Namespace) -> Optional[int]:
+    for env in namespace.environment:
+        if env.startswith("SOURCE_DATE_EPOCH="):
+            return config_parse_source_date_epoch(env.removeprefix("SOURCE_DATE_EPOCH="), None)
+    return config_parse_source_date_epoch(os.environ.get("SOURCE_DATE_EPOCH"), None)
 
 
 def make_enum_parser(type: Type[enum.Enum]) -> Callable[[str], enum.Enum]:
@@ -649,6 +669,7 @@ class MkosiConfig:
     remove_packages: list[str]
     remove_files: list[str]
     clean_package_metadata: ConfigFeature
+    source_date_epoch: Optional[int]
 
     prepare_script: Optional[Path]
     build_script: Optional[Path]
@@ -1000,7 +1021,7 @@ class MkosiConfigParser:
             parse=config_parse_feature,
             help="Use btrfs subvolumes for faster directory operations where possible",
         ),
-         MkosiConfigSetting(
+        MkosiConfigSetting(
             dest="seed",
             metavar="UUID",
             section="Output",
@@ -1092,6 +1113,15 @@ class MkosiConfigParser:
             section="Content",
             parse=config_parse_feature,
             help="Remove package manager database and other files",
+        ),
+        MkosiConfigSetting(
+            dest="source_date_epoch",
+            metavar="TIMESTAMP",
+            section="Content",
+            parse=config_parse_source_date_epoch,
+            default_factory=config_default_source_date_epoch,
+            default_factory_depends=("environment",),
+            help="Set the $SOURCE_DATE_EPOCH timestamp",
         ),
         MkosiConfigSetting(
             dest="prepare_script",
@@ -2055,6 +2085,8 @@ def load_environment(args: argparse.Namespace) -> dict[str, str]:
         env["IMAGE_ID"] = args.image_id
     if args.image_version is not None:
         env["IMAGE_VERSION"] = args.image_version
+    if args.source_date_epoch is not None:
+        env["SOURCE_DATE_EPOCH"] = str(args.source_date_epoch)
     if (proxy := os.environ.get("http_proxy")):
         env["http_proxy"] = proxy
     if (proxy := os.environ.get("https_proxy")):
@@ -2236,6 +2268,7 @@ def summary(args: MkosiArgs, config: MkosiConfig) -> str:
                Remove Packages: {line_join_list(config.remove_packages)}
                   Remove Files: {line_join_list(config.remove_files)}
 Clean Package Manager Metadata: {yes_no_auto(config.clean_package_metadata)}
+             Source Date Epoch: {none_to_none(config.source_date_epoch)}
 
                 Prepare Script: {none_to_none(config.prepare_script)}
                   Build Script: {none_to_none(config.build_script)}

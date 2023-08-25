@@ -934,6 +934,8 @@ def build_initrd(state: MkosiState) -> Path:
         "--make-initrd", "yes",
         "--bootable", "no",
         "--manifest-format", "",
+        *(["--source-date-epoch", str(state.config.source_date_epoch)]
+                if state.config.source_date_epoch is not None else []),
         *(["--locale", state.config.locale] if state.config.locale else []),
         *(["--locale-messages", state.config.locale_messages] if state.config.locale_messages else []),
         *(["--keymap", state.config.keymap] if state.config.keymap else []),
@@ -1813,10 +1815,13 @@ def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
             run_selinux_relabel(state)
             run_finalize_script(state)
 
+        normalize_mtime(state.root, state.config.source_date_epoch)
         partitions = make_image(state, skip=("esp", "xbootldr"))
         install_unified_kernel(state, partitions)
         prepare_grub_efi(state)
         prepare_grub_bios(state, partitions)
+        normalize_mtime(state.root, state.config.source_date_epoch, directory=Path("boot"))
+        normalize_mtime(state.root, state.config.source_date_epoch, directory=Path("efi"))
         partitions = make_image(state)
         install_grub_bios(state, partitions)
         make_image(state, split=True)
@@ -2255,3 +2260,14 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
 
             if args.verb == Verb.serve:
                 run_serve(last)
+
+
+def normalize_mtime(root: Path, mtime: Optional[int], directory: Optional[Path] = None) -> None:
+    directory = directory or Path("")
+    if mtime is None:
+        return
+
+    with complete_step(f"Normalizing modification times of /{directory}"):
+        os.utime(root / directory, (mtime, mtime), follow_symlinks=False)
+        for p in (root / directory).rglob("*"):
+            os.utime(p, (mtime, mtime), follow_symlinks=False)

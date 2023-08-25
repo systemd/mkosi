@@ -577,6 +577,16 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   builds, where deterministic UUIDs and other partition metadata should be
   derived on each build.
 
+`SourceDateEpoch=`, `--source-date-epoch=`
+
+: Takes a timestamp as argument. Resets file modification times of all files to
+  this timestamp. The variable is also propagated to systemd-repart and
+  scripts executed by mkosi. If not set explicitly, `SOURCE_DATE_EPOCH` from
+  `--environment` and from the host environment are tried in that order.
+  This is useful to make builds reproducible. See
+  [SOURCE_DATE_EPOCH](https://reproducible-builds.org/specs/source-date-epoch/)
+  for more information.
+
 ### [Content] Section
 
 `Packages=`, `--package=`, `-p`
@@ -1275,6 +1285,12 @@ Scripts executed by mkosi receive the following environment variables:
   without or with networking is being executed (`WithNetwork=no`).
   The build script should avoid any network communication in case
   `$WITH_NETWORK` is `0`.
+
+* `$SOURCE_DATE_EPOCH` is defined if requested (`SourceDateEpoch=TIMESTAMP`,
+  `Environment=SOURCE_DATE_EPOCH=TIMESTAMP` or the host environment variable
+  `$SOURCE_DATE_EPOCH`). This is useful to make builds reproducible. See
+  [SOURCE_DATE_EPOCH](https://reproducible-builds.org/specs/source-date-epoch/)
+  for more information.
 
 Additionally, when a script is executed, a few scripts are made
 available via `$PATH` to simplify common usecases.
