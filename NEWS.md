@@ -8,6 +8,8 @@
   parsing. Settings parsed later will now override earlier values and
   the `!` operator for lists will now remove values already in the list
   instead of preventing specific values from being added.
+- Add support for configuring custom default values for settings by
+  prefixing their name in the configuration file with `@`.
 
 ## v15.1
 
