@@ -1649,6 +1649,15 @@ class MkosiConfigParser:
 
         parser.remove_section("Match")
 
+        for section in parser.sections():
+            for k, v in parser.items(section):
+                ns = defaults if k.startswith("@") else namespace
+
+                if not (s := self.settings_lookup_by_name.get(k.removeprefix("@"))):
+                    die(f"Unknown setting {k}")
+
+                setattr(ns, s.dest, s.parse(v, getattr(ns, s.dest, None)))
+
         if extras:
             for s in self.SETTINGS:
                 ns = defaults if s.path_default else namespace
@@ -1666,20 +1675,11 @@ class MkosiConfigParser:
                         setattr(ns, s.dest,
                                 s.parse(p.read_text() if s.path_read_text else f, getattr(ns, s.dest, None)))
 
-        for section in parser.sections():
-            for k, v in parser.items(section):
-                ns = defaults if k.startswith("@") else namespace
-
-                if not (s := self.settings_lookup_by_name.get(k.removeprefix("@"))):
-                    die(f"Unknown setting {k}")
-
-                setattr(ns, s.dest, s.parse(v, getattr(ns, s.dest, None)))
-
-        if extras and (path.parent / "mkosi.conf.d").exists():
-            for p in sorted((path.parent / "mkosi.conf.d").iterdir()):
-                if p.is_dir() or p.suffix == ".conf":
-                    with chdir(p if p.is_dir() else Path.cwd()):
-                        self.parse_config(p if p.is_file() else Path("."), namespace, defaults)
+            if (path.parent / "mkosi.conf.d").exists():
+                for p in sorted((path.parent / "mkosi.conf.d").iterdir()):
+                    if p.is_dir() or p.suffix == ".conf":
+                        with chdir(p if p.is_dir() else Path.cwd()):
+                            self.parse_config(p if p.is_file() else Path("."), namespace, defaults)
 
         return True
 
