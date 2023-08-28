@@ -2,7 +2,6 @@
 
 import argparse
 import base64
-import configparser
 import copy
 import dataclasses
 import enum
@@ -22,7 +21,7 @@ import textwrap
 import uuid
 from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import Any, Callable, Optional, Type, Union, cast
+from typing import Any, Callable, Iterator, Optional, Type, Union, cast
 
 from mkosi.architecture import Architecture
 from mkosi.distributions import Distribution, detect_distribution
@@ -226,7 +225,7 @@ def config_parse_boolean(value: Optional[str], old: Optional[bool]) -> bool:
 
 
 def parse_feature(value: Optional[str]) -> ConfigFeature:
-    if not value or value == ConfigFeature.auto.name:
+    if value is None or value == ConfigFeature.auto.name:
         return ConfigFeature.auto
 
     return ConfigFeature.enabled if parse_boolean(value) else ConfigFeature.disabled
@@ -241,7 +240,7 @@ def config_match_feature(match: Optional[str], value: Optional[ConfigFeature]) -
 
 
 def config_parse_compression(value: Optional[str], old: Optional[Compression]) -> Optional[Compression]:
-    if not value:
+    if value is None:
         return None
 
     try:
@@ -251,7 +250,7 @@ def config_parse_compression(value: Optional[str], old: Optional[Compression]) -
 
 
 def config_parse_seed(value: Optional[str], old: Optional[str]) -> Optional[uuid.UUID]:
-    if not value or value == "random":
+    if value is None or value == "random":
         return None
 
     try:
@@ -362,7 +361,7 @@ def config_make_list_parser(delimiter: str,
         new = old.copy() if old else []
 
         # Empty strings reset the list.
-        if not value:
+        if value is None:
             return []
 
         if unescape:
@@ -461,7 +460,7 @@ def config_make_path_parser(*,
 
 
 def config_parse_filename(value: Optional[str], old: Optional[str]) -> Optional[str]:
-    if not value:
+    if value is None:
         return None
 
     if value == "." or value == "..":
@@ -481,7 +480,7 @@ def match_path_exists(value: str) -> bool:
 
 
 def config_parse_root_password(value: Optional[str], old: Optional[tuple[str, bool]]) -> Optional[tuple[str, bool]]:
-    if not value:
+    if value is None:
         return None
 
     value = value.strip()
@@ -814,6 +813,69 @@ class MkosiConfig:
             manifest["prepare_script"] = base64.b64encode(self.prepare_script.read_bytes()).decode()
 
         return manifest
+
+
+def parse_ini(path: Path, only_sections: Sequence[str] = ()) -> Iterator[tuple[str, str, str]]:
+    """
+    We have our own parser instead of using configparser as the latter does not support specifying the same
+    setting multiple times in the same configuration file.
+    """
+    section: Optional[str] = None
+    setting: Optional[str] = None
+    value: Optional[str] = None
+
+    for l in textwrap.dedent(path.read_text()).splitlines():
+        # Systemd unit files allow both '#' and ';' to indicate comments so we do the same.
+        for c in ("#", ";"):
+            comment = l.find(c)
+            if comment >= 0:
+                l = l[:comment]
+
+        if not l.strip():
+            continue
+
+        # If we have a section, setting and value, any line that's indented is considered part of the
+        # setting's value.
+        if section and setting and value is not None and l[0].isspace():
+            value = f"{value}\n{l.strip()}"
+            continue
+
+        # So the line is not indented, that means we either found a new section or a new setting. Either way,
+        # let's yield the previous setting and its value before parsing the new section/setting.
+        if section and setting and value is not None:
+            yield section, setting, value
+            setting = value = None
+
+        l = l.strip()
+
+        if l[0] == '[':
+            if l[-1] != ']':
+                die(f"{l} is not a valid section")
+
+            section = l[1:-1].strip()
+            if not section:
+                die("Section name cannot be empty or whitespace")
+
+            continue
+
+        if not section:
+            die(f"Setting {l} is located outside of section")
+
+        if only_sections and section not in only_sections:
+            continue
+
+        setting, delimiter, value = l.partition("=")
+        if not delimiter:
+            die(f"Setting {setting} must be followed by '='")
+        if not setting:
+            die(f"Missing setting name before '=' in {l}")
+
+        setting = setting.strip()
+        value = value.strip()
+
+    # Make sure we yield any final setting and its value.
+    if section and setting and value is not None:
+        yield section, setting, value
 
 
 class MkosiConfigParser:
@@ -1585,72 +1647,62 @@ class MkosiConfigParser:
         self.settings_lookup_by_dest = {s.dest: s for s in self.SETTINGS}
         self.match_lookup = {m.name: m for m in self.MATCHES}
 
+    def match_config(self, path: Path, namespace: argparse.Namespace, defaults: argparse.Namespace) -> bool:
+        triggered = None
+
+        # If the config file does not exist, we assume it matches so that we look at the other files in the
+        # directory as well (mkosi.conf.d/ and extra files).
+        if not path.exists():
+            return True
+
+        for _, k, v in parse_ini(path, only_sections=["Match"]):
+            trigger = v.startswith("|")
+            v = v.removeprefix("|")
+            negate = v.startswith("!")
+            v = v.removeprefix("!")
+
+            if not v:
+                die("Match value cannot be empty")
+
+            if (s := self.settings_lookup_by_name.get(k)):
+                if not s.match:
+                    die(f"{k} cannot be used in [Match]")
+
+                # If we encounter a setting in [Match] that has not been explicitly configured yet,
+                # we assign the default value first so that we can [Match] on default values for
+                # settings.
+                self.finalize_default(s, namespace, defaults)
+
+                result = s.match(v, getattr(namespace, s.dest))
+
+            elif (m := self.match_lookup.get(k)):
+                result = m.match(v)
+            else:
+                die(f"{k} cannot be used in [Match]")
+
+            if negate:
+                result = not result
+            if not trigger and not result:
+                return False
+            if trigger:
+                triggered = bool(triggered) or result
+
+        return triggered is not False
+
+
     def parse_config(self, path: Path, namespace: argparse.Namespace, defaults: argparse.Namespace) -> bool:
         extras = path.is_dir()
 
         if path.is_dir():
             path = path / "mkosi.conf"
 
-        parser = configparser.ConfigParser(
-            delimiters="=",
-            comment_prefixes="#",
-            inline_comment_prefixes="#",
-            empty_lines_in_values=True,
-            interpolation=None,
-            strict=False,
-            dict_type=ConfigParserMultipleValues,
-        )
-
-        parser.optionxform = lambda optionstr: optionstr # type: ignore
+        if not self.match_config(path, namespace, defaults):
+            return False
 
         if path.exists():
-            parser.read(path)
+            logging.debug(f"Including configuration file {Path.cwd() / path}")
 
-        if "Match" in parser.sections():
-            triggered = None
-
-            for k, values in parser.items("Match"):
-                # If a match is specified multiple times, the values are returned concatenated by newlines
-                # for some reason.
-                for v in values.split("\n"):
-                    trigger = v.startswith("|")
-                    v = v.removeprefix("|")
-                    negate = v.startswith("!")
-                    v = v.removeprefix("!")
-
-                    if not v:
-                        die("Match value cannot be empty")
-
-                    if (s := self.settings_lookup_by_name.get(k)):
-                        if not (match := s.match):
-                            die(f"{k} cannot be used in [Match]")
-
-                        # If we encounter a setting in [Match] that has not been explicitly configured yet,
-                        # we assign the default value first so that we can [Match] on default values for
-                        # settings.
-                        self.finalize_default(s, namespace, defaults)
-
-                        result = match(v, getattr(namespace, s.dest))
-
-                    elif (m := self.match_lookup.get(k)):
-                        result = m.match(v)
-                    else:
-                        die(f"{k} cannot be used in [Match]")
-
-                    if negate:
-                        result = not result
-                    if not trigger and not result:
-                        return False
-                    if trigger:
-                        triggered = bool(triggered) or result
-
-                if triggered is False:
-                    return False
-
-        parser.remove_section("Match")
-
-        for section in parser.sections():
-            for k, v in parser.items(section):
+            for _, k, v in parse_ini(path, only_sections=["Distribution", "Output", "Content", "Validation", "Host"]):
                 ns = defaults if k.startswith("@") else namespace
 
                 if not (s := self.settings_lookup_by_name.get(k.removeprefix("@"))):
@@ -1942,6 +1994,9 @@ class MkosiConfigParser:
         argparser.parse_args(argv, namespace)
 
         args = load_args(namespace)
+
+        if ARG_DEBUG.get():
+            logging.getLogger().setLevel(logging.DEBUG)
 
         if args.verb == Verb.help:
             PagerHelpAction.__call__(None, argparser, namespace)  # type: ignore
