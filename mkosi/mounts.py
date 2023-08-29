@@ -81,16 +81,19 @@ def mount_overlay(
     read_only: bool = True,
 ) -> Iterator[Path]:
     with tempfile.TemporaryDirectory(dir=upperdir.parent, prefix=f"{upperdir.name}-workdir") as workdir:
-        options = [f"lowerdir={lower}" for lower in lowerdirs] + [f"upperdir={upperdir}", f"workdir={workdir}"]
-
-        # Disable the inodes index and metacopy (only copy metadata upwards if possible)
-        # options. If these are enabled (e.g., if the kernel enables them by default),
-        # the mount will fail if the upper directory has been earlier used with a different
-        # lower directory, such as with a build overlay that was generated on top of a
-        # different temporary root.
-        # See https://www.kernel.org/doc/html/latest/filesystems/overlayfs.html#sharing-and-copying-layers
-        # and https://github.com/systemd/mkosi/issues/1841.
-        options.extend(["index=off", "metacopy=off"])
+        options = [f"lowerdir={lower}" for lower in lowerdirs] + [
+            f"upperdir={upperdir}",
+            f"workdir={workdir}",
+            # Disable the inodes index and metacopy (only copy metadata upwards if possible)
+            # options. If these are enabled (e.g., if the kernel enables them by default),
+            # the mount will fail if the upper directory has been earlier used with a different
+            # lower directory, such as with a build overlay that was generated on top of a
+            # different temporary root.
+            # See https://www.kernel.org/doc/html/latest/filesystems/overlayfs.html#sharing-and-copying-layers
+            # and https://github.com/systemd/mkosi/issues/1841.
+            "index=off",
+            "metacopy=off"
+        ]
 
         # userxattr is only supported on overlayfs since kernel 5.11
         if GenericVersion(platform.release()) >= GenericVersion("5.11"):
