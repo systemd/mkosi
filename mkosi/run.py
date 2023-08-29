@@ -355,7 +355,7 @@ def finalize_passwd_mounts(root: Path) -> list[PathString]:
     options: list[PathString] = []
 
     for f in ("passwd", "group", "shadow", "gshadow"):
-        if not (Path("etc") / f).exists():
+        if not (Path("/etc") / f).exists():
             continue
         p = root / "etc" / f
         if p.exists():
