@@ -51,8 +51,8 @@ def main() -> None:
         run_verb(args, presets)
     finally:
         if sys.stderr.isatty() and shutil.which("tput"):
-            run(["tput", "cnorm"])
-            run(["tput", "smam"])
+            run(["tput", "cnorm"], check=False)
+            run(["tput", "smam"], check=False)
 
 
 if __name__ == "__main__":
