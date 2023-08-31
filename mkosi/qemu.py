@@ -336,6 +336,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
 def run_ssh(args: MkosiArgs, config: MkosiConfig) -> None:
     cmd = [
         "ssh",
+        "-F", "none",
         # Silence known hosts file errors/warnings.
         "-o", "UserKnownHostsFile=/dev/null",
         "-o", "StrictHostKeyChecking=no",
