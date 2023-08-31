@@ -163,10 +163,10 @@ def run(
     cwd: Optional[Path] = None,
     log: bool = True,
 ) -> CompletedProcess:
-    if ARG_DEBUG.get():
-        logging.info(f"+ {' '.join(str(s) for s in cmdline)}")
-
     cmdline = [os.fspath(x) for x in cmdline]
+
+    if ARG_DEBUG.get():
+        logging.info(f"+ {shlex.join(cmdline)}")
 
     if not stdout and not stderr:
         # Unless explicit redirection is done, print all subprocess
@@ -210,7 +210,7 @@ def run(
         die(f"{cmdline[0]} not found in PATH.")
     except subprocess.CalledProcessError as e:
         if log:
-            logging.error(f"\"{' '.join(str(s) for s in cmdline)}\" returned non-zero exit code {e.returncode}.")
+            logging.error(f"\"{shlex.join(cmdline)}\" returned non-zero exit code {e.returncode}.")
         raise e
     finally:
         foreground(new_process_group=False)
@@ -225,7 +225,7 @@ def spawn(
     group: Optional[int] = None,
 ) -> Popen:
     if ARG_DEBUG.get():
-        logging.info(f"+ {' '.join(str(s) for s in cmdline)}")
+        logging.info(f"+ {shlex.join(os.fspath(s) for s in cmdline)}")
 
     if not stdout and not stderr:
         # Unless explicit redirection is done, print all subprocess
@@ -247,7 +247,7 @@ def spawn(
     except FileNotFoundError:
         die(f"{cmdline[0]} not found in PATH.")
     except subprocess.CalledProcessError as e:
-        logging.error(f"\"{' '.join(str(s) for s in cmdline)}\" returned non-zero exit code {e.returncode}.")
+        logging.error(f"\"{shlex.join(os.fspath(s) for s in cmdline)}\" returned non-zero exit code {e.returncode}.")
         raise e
 
 
@@ -338,7 +338,7 @@ def bwrap(
             result = run([*cmdline, *cmd], env=env, log=False, stdin=stdin, input=input)
         except subprocess.CalledProcessError as e:
             if log:
-                logging.error(f"\"{' '.join(str(s) for s in cmd)}\" returned non-zero exit code {e.returncode}.")
+                logging.error(f"\"{shlex.join(os.fspath(s) for s in cmd)}\" returned non-zero exit code {e.returncode}.")
             if ARG_DEBUG_SHELL.get():
                 run([*cmdline, "sh"], stdin=sys.stdin, check=False, env=env, log=False)
             raise e
