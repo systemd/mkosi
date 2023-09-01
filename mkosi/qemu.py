@@ -305,11 +305,16 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
                  fname])
 
         if config.qemu_firmware == QemuFirmware.direct or config.output_format == OutputFormat.cpio:
-            if "-kernel" not in args.cmdline:
+            if config.qemu_kernel:
+                kernel = config.qemu_kernel
+            elif "-kernel" not in args.cmdline:
                 kernel = config.output_dir / config.output_split_kernel
                 if not kernel.exists():
                     die("No kernel found, please install a kernel in the image or provide a -kernel argument to mkosi qemu")
+            else:
+                kernel = None
 
+            if kernel:
                 cmdline += ["-kernel", kernel]
 
             cmdline += ["-append", " ".join(config.kernel_command_line + config.kernel_command_line_extra)]

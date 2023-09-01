@@ -1053,10 +1053,15 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   Takes one of `uefi`, `bios` or `direct`. Defaults to `uefi`. When set
   to `uefi`, the OVMF firmware is used. When set to `bios`, the default
   SeaBIOS firmware is used. When set to `direct`, direct kernel boot is
-  used. The kernel used for direct kernel boot can either be provided by
-  passing qemu's `-kernel` option on the mkosi command line or by
-  installing a kernel into the image, in which case it will be picked up
-  automatically.
+  used. See the `QemuKernel=` option for more details on which kernel
+  image is used with direct kernel boot.
+
+`QemuKernel=`, `--qemu-kernel=`
+
+: Set the kernel image to use for qemu direct kernel boot. If not
+  specified, mkosi will use the kernel provided via the command line
+  (`-kernel` option) or latest the kernel that was installed into
+  the image (or fail if no kernel was installed into the image).
 
 : Note that when the `cpio` output format is used, direct kernel boot is
   used regardless of the configured firmware. Depending on the

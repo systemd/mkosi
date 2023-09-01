@@ -731,6 +731,7 @@ class MkosiConfig:
     qemu_swtpm: ConfigFeature
     qemu_cdrom: bool
     qemu_firmware: QemuFirmware
+    qemu_kernel: Optional[Path]
     qemu_args: Sequence[str]
 
     preset: Optional[str]
@@ -1580,6 +1581,13 @@ SETTINGS = (
         default=QemuFirmware.uefi,
         help="Set qemu firmware to use",
         choices=QemuFirmware.values(),
+    ),
+    MkosiConfigSetting(
+        dest="qemu_kernel",
+        metavar="PATH",
+        section="Host",
+        parse=config_make_path_parser(),
+        help="Specify the kernel to use for qemu direct kernel boot",
     ),
     MkosiConfigSetting(
         dest="qemu_args",
