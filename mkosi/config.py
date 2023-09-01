@@ -360,7 +360,6 @@ def config_make_list_parser(delimiter: str,
     def config_parse_list(value: Optional[str], old: Optional[list[Any]]) -> list[Any]:
         new = old.copy() if old else []
 
-        # Empty strings reset the list.
         if value is None:
             return []
 
@@ -373,17 +372,11 @@ def config_make_list_parser(delimiter: str,
         else:
             values = value.replace(delimiter, "\n").split("\n")
 
-        for v in values:
-            if not v:
-                continue
+        # Empty strings reset the list.
+        if len(values) == 1 and values[0] == "":
+            return []
 
-            if v.startswith("!"):
-                v = v[1:]
-                new = [n for n in new if not fnmatch.fnmatchcase(str(n), v)]
-            else:
-                new.append(parse(v))
-
-        return new
+        return new + [parse(v) for v in values if v]
 
     return config_parse_list
 

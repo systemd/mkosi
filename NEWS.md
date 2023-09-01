@@ -4,11 +4,11 @@
 
 - `mkosi.version` is now picked up from preset and dropin directories as
   well following the usual config precedence logic
-- The "first assignment wins" logic was dropped from configuration
-  parsing. Settings parsed later will now override earlier values and
-  the `!` operator for lists will now remove values already in the list
-  instead of preventing specific values from being added.
-- Add support for configuring custom default values for settings by
+- Removed the "first assignment wins" logic from configuration parsing.
+  Settings parsed later will now override earlier values
+- Removed the `!` operator for lists. Instead, assign the empty string
+  to the list to remove all previous values.
+- Added support for configuring custom default values for settings by
   prefixing their name in the configuration file with `@`.
 
 ## v15.1
