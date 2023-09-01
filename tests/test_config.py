@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
-import tempfile
 from pathlib import Path
 
 from mkosi.config import Compression, parse_ini
@@ -36,32 +35,31 @@ def test_compression_enum_str() -> None:
     assert str(Compression.lzma) == "lzma"
 
 
-def test_parse_ini() -> None:
-    with tempfile.TemporaryDirectory() as d:
-        p = Path(d) / "ini"
-        p.write_text(
-            """\
-            [MySection]
-            Value=abc
-            Other=def
-            ALLCAPS=txt
+def test_parse_ini(tmp_path: Path) -> None:
+    p = tmp_path / "ini"
+    p.write_text(
+        """\
+        [MySection]
+        Value=abc
+        Other=def
+        ALLCAPS=txt
 
-            # Comment
-            ; Another comment
-            [EmptySection]
-            [AnotherSection]
-            EmptyValue=
-            Multiline=abc
-                      def
-                      qed
-                      ord
-            """
-        )
+        # Comment
+        ; Another comment
+        [EmptySection]
+        [AnotherSection]
+        EmptyValue=
+        Multiline=abc
+                    def
+                    qed
+                    ord
+        """
+    )
 
-        g = parse_ini(p)
+    g = parse_ini(p)
 
-        assert next(g) == ("MySection", "Value", "abc")
-        assert next(g) == ("MySection", "Other", "def")
-        assert next(g) == ("MySection", "ALLCAPS", "txt")
-        assert next(g) == ("AnotherSection", "EmptyValue", "")
-        assert next(g) == ("AnotherSection", "Multiline", "abc\ndef\nqed\nord")
+    assert next(g) == ("MySection", "Value", "abc")
+    assert next(g) == ("MySection", "Other", "def")
+    assert next(g) == ("MySection", "ALLCAPS", "txt")
+    assert next(g) == ("AnotherSection", "EmptyValue", "")
+    assert next(g) == ("AnotherSection", "Multiline", "abc\ndef\nqed\nord")
