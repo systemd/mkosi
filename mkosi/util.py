@@ -21,6 +21,8 @@ from collections.abc import Iterable, Iterator, Mapping, Sequence
 from pathlib import Path
 from typing import Any, Callable, Optional, TypeVar
 
+from mkosi.types import PathString
+
 T = TypeVar("T")
 V = TypeVar("V")
 
@@ -106,7 +108,7 @@ class InvokingUser:
 
 
 @contextlib.contextmanager
-def chdir(directory: Path) -> Iterator[None]:
+def chdir(directory: PathString) -> Iterator[None]:
     old = Path.cwd()
 
     if old == directory:

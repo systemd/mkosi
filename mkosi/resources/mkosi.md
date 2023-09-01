@@ -269,10 +269,8 @@ setting. Also note that before v16, we used to do the opposite, where
 the earlier assignment would be used instead of later assignments.
 
 Settings that take a list of values are merged by appending the new
-values to the previously configured values. If a value of a list setting
-is prefixed with `!`, all existing instances of that value in the list
-are removed. Values prefixed with `!` can be globs to remove more than
-one value.
+values to the previously configured values. Assigning the empty string
+to such a setting removes all previously assigned values.
 
 If a setting's name in the configuration file is prefixed with `@`, it
 configures the default value used for that setting if no explicit

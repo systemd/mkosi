@@ -1,73 +1,17 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
-import contextlib
-import tempfile
-from argparse import Namespace
-from os import chdir
+import argparse
+import itertools
+import operator
 from pathlib import Path
-from typing import Iterator
+from typing import Optional
 
 import pytest
 
 from mkosi.architecture import Architecture
-from mkosi.config import Compression, MkosiConfig, MkosiConfigParser, OutputFormat, parse_ini
-
-CONF_DIR = Path(__file__).parent.absolute() / "test-config"
-
-
-def parse_paths(paths: list[Path]) -> MkosiConfig:
-    """Process these paths stacked together"""
-
-    parser = MkosiConfigParser()
-    namespace = Namespace()
-    defaults = Namespace()
-    setattr(namespace, "preset", None)
-
-    for path in paths:
-        parser.parse_config(path, namespace, defaults)
-
-    parser.finalize_defaults(namespace, defaults)
-    return MkosiConfig.from_namespace(namespace)
-
-
-def parse_dropins() -> list[MkosiConfig]:
-    """Return the configuration for the base config and each processed drop-in"""
-
-    # The configuration is processed this way so that each drop-in can be tested
-    # individually to confirm what occurs at each step. This emulates normal
-    # drop-in processing but can separate out the steps for testing.
-
-    paths = [CONF_DIR / "mkosi.conf"] + sorted((CONF_DIR / "mkosi.conf.d").iterdir())
-
-    configs = list()
-    for i in range(len(paths)):
-        configs.append(parse_paths(paths[:i+1]))
-
-    return configs
-
-
-#TODO: Can be removed once we drop Python <3.11 support
-@contextlib.contextmanager
-def cd_new_dir(path: Path) -> Iterator[None]:
-    cwd = Path().cwd()
-    chdir(str(path))
-    yield
-    chdir(str(cwd))
-
-
-@pytest.fixture(scope="module")
-def get_config() -> dict[str, list[MkosiConfig]]:
-    dropins = parse_dropins()
-    configs = {
-        'drop-ins': dropins[1:],
-        'presets': [dropins[0]]
-    }
-
-    with cd_new_dir(CONF_DIR):
-        args, presets = MkosiConfigParser().parse("")
-        configs['presets'].extend(presets)
-
-    return configs
+from mkosi.config import Compression, OutputFormat, Verb, parse_config, parse_ini
+from mkosi.distributions import Distribution
+from mkosi.util import chdir
 
 
 def test_compression_enum_creation() -> None:
@@ -100,124 +44,446 @@ def test_compression_enum_str() -> None:
     assert str(Compression.lzma) == "lzma"
 
 
-def test_get_config(get_config : dict[str, list[MkosiConfig]]) -> None:
-    assert get_config['drop-ins'][0].image_id == "00-dropin"
-    assert get_config['drop-ins'][1].image_id == "01-dropin"
-    assert get_config['drop-ins'][2].image_id == "02-dropin"
-    assert get_config['presets'][0].image_id == "base"
-    assert get_config['presets'][1].image_id == "test-preset"
+def test_parse_ini(tmp_path: Path) -> None:
+    p = tmp_path / "ini"
+    p.write_text(
+        """\
+        [MySection]
+        Value=abc
+        Other=def
+        ALLCAPS=txt
+
+        # Comment
+        ; Another comment
+        [EmptySection]
+        [AnotherSection]
+        EmptyValue=
+        Multiline=abc
+                    def
+                    qed
+                    ord
+        """
+    )
+
+    g = parse_ini(p)
+
+    assert next(g) == ("MySection", "Value", "abc")
+    assert next(g) == ("MySection", "Other", "def")
+    assert next(g) == ("MySection", "ALLCAPS", "txt")
+    assert next(g) == ("AnotherSection", "EmptyValue", "")
+    assert next(g) == ("AnotherSection", "Multiline", "abc\ndef\nqed\nord")
 
 
-def test_dropin_default(get_config : dict[str, list[MkosiConfig]]) -> None:
-    # Default set
-    assert get_config['drop-ins'][0].repository_key_check == True
-    # Default changed
-    assert get_config['drop-ins'][1].repository_key_check == False
+def test_parse_config(tmp_path: Path) -> None:
+    d = tmp_path
+
+    (d / "mkosi.conf").write_text(
+        """\
+        [Distribution]
+
+        @Distribution = ubuntu
+        Architecture  = arm64
+
+        [Content]
+        Packages=abc
+
+        [Output]
+        @Format = cpio
+        ImageId = base
+        """
+    )
+
+    with chdir(tmp_path):
+        _, [config] = parse_config()
+
+    assert config.distribution == Distribution.ubuntu
+    assert config.architecture == Architecture.arm64
+    assert config.packages == ["abc"]
+    assert config.output_format == OutputFormat.cpio
+    assert config.image_id == "base"
+
+    with chdir(tmp_path):
+        _, [config] = parse_config(["--distribution", "fedora", "--architecture", "x86-64"])
+
+    # mkosi.conf sets a default distribution, so the CLI should take priority.
+    assert config.distribution == Distribution.fedora
+    # mkosi.conf sets overrides the architecture, so whatever is specified on the CLI should be ignored.
+    assert config.architecture == Architecture.arm64
+
+    d = d / "mkosi.conf.d"
+    d.mkdir()
+
+    (d / "d1.conf").write_text(
+        """\
+        [Distribution]
+        Distribution = debian
+        @Architecture = x86-64
+
+        [Content]
+        Packages = qed
+                   def
+
+        [Output]
+        ImageId = 00-dropin
+        ImageVersion = 0
+        """
+    )
+
+    with chdir(tmp_path):
+        _, [config] = parse_config()
+
+    # Setting a value explicitly in a dropin should override the default from mkosi.conf.
+    assert config.distribution == Distribution.debian
+    # Setting a default in a dropin should be ignored since mkosi.conf sets the architecture explicitly.
+    assert config.architecture == Architecture.arm64
+    # Lists should be merged by appending the new values to the existing values.
+    assert config.packages == ["abc", "qed", "def"]
+    assert config.output_format == OutputFormat.cpio
+    assert config.image_id == "00-dropin"
+    assert config.image_version == "0"
+
+    (tmp_path / "mkosi.version").write_text("1.2.3")
+
+    (d / "d2.conf").write_text(
+        """\
+        [Content]
+        Packages=
+        """
+    )
+
+    with chdir(tmp_path):
+        _, [config] = parse_config()
+
+    # Test that empty string resets the list.
+    assert config.packages == []
+    # mkosi.version should only be used if no version is set explicitly.
+    assert config.image_version == "0"
+
+    (d / "d1.conf").unlink()
+
+    with chdir(tmp_path):
+        _, [config] = parse_config()
+
+    # ImageVersion= is not set explicitly anymore, so now the version from mkosi.version should be used.
+    assert config.image_version == "1.2.3"
 
 
-def test_default_overridden(get_config : dict[str, list[MkosiConfig]]) -> None:
-    assert get_config['drop-ins'][0].architecture == Architecture.arm64
-    assert get_config['drop-ins'][1].architecture == Architecture.x86_64
-    assert get_config['drop-ins'][2].architecture == Architecture.x86_64
+def test_parse_load_verb(tmp_path: Path) -> None:
+    with chdir(tmp_path):
+        assert parse_config(["build"])[0].verb == Verb.build
+        assert parse_config(["clean"])[0].verb == Verb.clean
+        with pytest.raises(SystemExit):
+            parse_config(["help"])
+        assert parse_config(["genkey"])[0].verb == Verb.genkey
+        assert parse_config(["bump"])[0].verb == Verb.bump
+        assert parse_config(["serve"])[0].verb == Verb.serve
+        assert parse_config(["build"])[0].verb == Verb.build
+        assert parse_config(["shell"])[0].verb == Verb.shell
+        assert parse_config(["boot"])[0].verb == Verb.boot
+        assert parse_config(["qemu"])[0].verb == Verb.qemu
+        with pytest.raises(SystemExit):
+            parse_config(["invalid"])
 
 
-def test_def_nondef_def(get_config : dict[str, list[MkosiConfig]]) -> None:
-    assert get_config['drop-ins'][0].output_format == OutputFormat.cpio
-    assert get_config['drop-ins'][1].output_format == OutputFormat.disk
-    assert get_config['drop-ins'][2].output_format == OutputFormat.disk
+def test_os_distribution(tmp_path: Path) -> None:
+    with chdir(tmp_path):
+        for dist in Distribution:
+            assert parse_config(["-d", dist.name])[1][0].distribution == dist
+
+        with pytest.raises(tuple((argparse.ArgumentError, SystemExit))):
+            parse_config(["-d", "invalidDistro"])
+        with pytest.raises(tuple((argparse.ArgumentError, SystemExit))):
+            parse_config(["-d"])
+
+        for dist in Distribution:
+            config = Path("mkosi.conf")
+            config.write_text(f"[Distribution]\nDistribution={dist}")
+            assert parse_config([])[1][0].distribution == dist
 
 
-def test_default_generation(get_config : dict[str, list[MkosiConfig]]) -> None:
-    assert get_config['drop-ins'][0].mirror == "http://ports.ubuntu.com"
-    assert get_config['drop-ins'][1].mirror == "http://archive.ubuntu.com/ubuntu"
-    assert get_config['drop-ins'][2].mirror == "http://deb.debian.org/debian"
+def test_parse_config_files_filter(tmp_path: Path) -> None:
+    with chdir(tmp_path):
+        confd = Path("mkosi.conf.d")
+        confd.mkdir()
+
+        (confd / "10-file.conf").write_text("[Content]\nPackages=yes")
+        (confd / "20-file.noconf").write_text("[Content]\nPackages=nope")
+
+        assert parse_config([])[1][0].packages == ["yes"]
 
 
-def write_config(dir: Path) -> None:
-    with open(dir / "mkosi.conf", "w") as f:
-        # We need something in the file to parse
-        f.write("[Output]\n")
-        f.write("ImageId=base\n")
+def test_compression(tmp_path: Path) -> None:
+    with chdir(tmp_path):
+        assert parse_config(["--format", "disk", "--compress-output", "False"])[1][0].compress_output == Compression.none
 
 
-def test_sorted_dropins() -> None:
-    def write_dropin(dir: Path, name: str, version: int) -> None:
-        with open(dir / name, "w") as f:
-            f.write("[Output]\n")
-            f.write(f"ImageVersion={version}\n")
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tmp_path = Path(tmpdir)
-        write_config(tmp_path)
-
-        (tmp_path / "mkosi.conf.d").mkdir()
-        # A roughly random order to save files in
-        dropin_ids = [0,5,1,4,2,3]
-        for i in dropin_ids:
-            write_dropin(tmp_path / "mkosi.conf.d", f"0{i}-dropin.conf", i)
-
-        with cd_new_dir(tmp_path):
-            args, presets = MkosiConfigParser().parse("")
-
-        assert presets[0].image_version == str(max(dropin_ids))
-
-
-def test_path_inheritence() -> None:
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tmp_path = Path(tmpdir)
-        write_config(tmp_path)
-        (tmp_path / "mkosi.output").mkdir()
-        with cd_new_dir(tmp_path):
-            args, presets = MkosiConfigParser().parse("")
-
-        # Confirm output directory is processed
-        assert presets[0].output_dir == Path(tmpdir) / "mkosi.output"
-
-        # Add a preset
-        (tmp_path / "mkosi.presets" / "00-test-preset").mkdir(parents=True)
-        write_config(tmp_path / "mkosi.presets" / "00-test-preset")
-        with cd_new_dir(tmp_path):
-            args, presets = MkosiConfigParser().parse("")
-
-        # Confirm output directory remains the same
-        assert presets[0].preset == "00-test-preset"
-        assert presets[0].output_dir == Path(tmpdir) / "mkosi.output"
-
-        (tmp_path / "mkosi.presets" / "00-test-preset" / "mkosi.output").mkdir()
-        with cd_new_dir(tmp_path):
-            args, presets = MkosiConfigParser().parse("")
-
-        # Confirm output directory changes
-        assert presets[0].preset == "00-test-preset"
-        assert presets[0].output_dir == Path(tmpdir) / "mkosi.presets" / "00-test-preset" / "mkosi.output"
-
-
-def test_parse_ini() -> None:
-    with tempfile.TemporaryDirectory() as d:
-        p = Path(d) / "ini"
-        p.write_text(
-            """\
-            [MySection]
-            Value=abc
-            Other=def
-            ALLCAPS=txt
-
-            # Comment
-            ; Another comment
-            [EmptySection]
-            [AnotherSection]
-            EmptyValue=
-            Multiline=abc
-                      def
-                      qed
-                      ord
+@pytest.mark.parametrize("dist1,dist2", itertools.combinations_with_replacement(Distribution, 2))
+def test_match_distribution(tmp_path: Path, dist1: Distribution, dist2: Distribution) -> None:
+    with chdir(tmp_path):
+        parent = Path("mkosi.conf")
+        parent.write_text(
+            f"""\
+            [Distribution]
+            Distribution={dist1}
             """
         )
 
-        g = parse_ini(p)
+        Path("mkosi.conf.d").mkdir()
 
-        assert next(g) == ("MySection", "Value", "abc")
-        assert next(g) == ("MySection", "Other", "def")
-        assert next(g) == ("MySection", "ALLCAPS", "txt")
-        assert next(g) == ("AnotherSection", "EmptyValue", "")
-        assert next(g) == ("AnotherSection", "Multiline", "abc\ndef\nqed\nord")
+        child1 = Path("mkosi.conf.d/child1.conf")
+        child1.write_text(
+            f"""\
+            [Match]
+            Distribution={dist1}
+
+            [Content]
+            Packages=testpkg1
+            """
+        )
+        child2 = Path("mkosi.conf.d/child2.conf")
+        child2.write_text(
+            f"""\
+            [Match]
+            Distribution={dist2}
+
+            [Content]
+            Packages=testpkg2
+            """
+        )
+        child3 = Path("mkosi.conf.d/child3.conf")
+        child3.write_text(
+            f"""\
+            [Match]
+            Distribution=|{dist1}
+            Distribution=|{dist2}
+
+            [Content]
+            Packages=testpkg3
+            """
+        )
+
+        conf = parse_config([])[1][0]
+        assert "testpkg1" in conf.packages
+        if dist1 == dist2:
+            assert "testpkg2" in conf.packages
+        else:
+            assert "testpkg2" not in conf.packages
+        assert "testpkg3" in conf.packages
+
+
+@pytest.mark.parametrize(
+    "release1,release2", itertools.combinations_with_replacement([36, 37, 38], 2)
+)
+def test_match_release(tmp_path: Path, release1: int, release2: int) -> None:
+    with chdir(tmp_path):
+        parent = Path("mkosi.conf")
+        parent.write_text(
+            f"""\
+            [Distribution]
+            Distribution=fedora
+            Release={release1}
+            """
+        )
+
+        Path("mkosi.conf.d").mkdir()
+
+        child1 = Path("mkosi.conf.d/child1.conf")
+        child1.write_text(
+            f"""\
+            [Match]
+            Release={release1}
+
+            [Content]
+            Packages=testpkg1
+            """
+        )
+        child2 = Path("mkosi.conf.d/child2.conf")
+        child2.write_text(
+            f"""\
+            [Match]
+            Release={release2}
+
+            [Content]
+            Packages=testpkg2
+            """
+        )
+        child3 = Path("mkosi.conf.d/child3.conf")
+        child3.write_text(
+            f"""\
+            [Match]
+            Release=|{release1}
+            Release=|{release2}
+
+            [Content]
+            Packages=testpkg3
+            """
+        )
+
+        conf = parse_config([])[1][0]
+        assert "testpkg1" in conf.packages
+        if release1 == release2:
+            assert "testpkg2" in conf.packages
+        else:
+            assert "testpkg2" not in conf.packages
+        assert "testpkg3" in conf.packages
+
+
+@pytest.mark.parametrize(
+    "image1,image2", itertools.combinations_with_replacement(
+        ["image_a", "image_b", "image_c"], 2
+    )
+)
+def test_match_imageid(tmp_path: Path, image1: str, image2: str) -> None:
+    with chdir(tmp_path):
+        parent = Path("mkosi.conf")
+        parent.write_text(
+            f"""\
+            [Distribution]
+            Distribution=fedora
+            ImageId={image1}
+            """
+        )
+
+        Path("mkosi.conf.d").mkdir()
+
+        child1 = Path("mkosi.conf.d/child1.conf")
+        child1.write_text(
+            f"""\
+            [Match]
+            ImageId={image1}
+
+            [Content]
+            Packages=testpkg1
+            """
+        )
+        child2 = Path("mkosi.conf.d/child2.conf")
+        child2.write_text(
+            f"""\
+            [Match]
+            ImageId={image2}
+
+            [Content]
+            Packages=testpkg2
+            """
+        )
+        child3 = Path("mkosi.conf.d/child3.conf")
+        child3.write_text(
+            f"""\
+            [Match]
+            ImageId=|{image1}
+            ImageId=|{image2}
+
+            [Content]
+            Packages=testpkg3
+            """
+        )
+        child4 = Path("mkosi.conf.d/child4.conf")
+        child4.write_text(
+            """\
+            [Match]
+            ImageId=image*
+
+            [Content]
+            Packages=testpkg4
+            """
+        )
+
+        conf = parse_config([])[1][0]
+        assert "testpkg1" in conf.packages
+        if image1 == image2:
+            assert "testpkg2" in conf.packages
+        else:
+            assert "testpkg2" not in conf.packages
+        assert "testpkg3" in conf.packages
+        assert "testpkg4" in conf.packages
+
+
+@pytest.mark.parametrize(
+    "op,version", itertools.product(
+        ["", "==", "<", ">", "<=", ">="],
+        [122, 123, 124],
+    )
+)
+def test_match_imageversion(tmp_path: Path, op: str, version: str) -> None:
+    opfunc = {
+        "==": operator.eq,
+        "!=": operator.ne,
+        "<": operator.lt,
+        "<=": operator.le,
+        ">": operator.gt,
+        ">=": operator.ge,
+    }.get(op, operator.eq,)
+
+    with chdir(tmp_path):
+        parent = Path("mkosi.conf")
+        parent.write_text(
+            """\
+            [Distribution]
+            ImageId=testimage
+            ImageVersion=123
+            """
+        )
+
+        Path("mkosi.conf.d").mkdir()
+        child1 = Path("mkosi.conf.d/child1.conf")
+        child1.write_text(
+            f"""\
+            [Match]
+            ImageVersion={op}{version}
+
+            [Content]
+            Packages=testpkg1
+            """
+        )
+        child2 = Path("mkosi.conf.d/child2.conf")
+        child2.write_text(
+            f"""\
+            [Match]
+            ImageVersion=<200
+            ImageVersion={op}{version}
+
+            [Content]
+            Packages=testpkg2
+            """
+        )
+        child3 = Path("mkosi.conf.d/child3.conf")
+        child3.write_text(
+            f"""\
+            [Match]
+            ImageVersion=>9000
+            ImageVersion={op}{version}
+
+            [Content]
+            Packages=testpkg3
+            """
+        )
+
+        conf = parse_config([])[1][0]
+        assert ("testpkg1" in conf.packages) == opfunc(123, version)
+        assert ("testpkg2" in conf.packages) == opfunc(123, version)
+        assert "testpkg3" not in conf.packages
+
+
+@pytest.mark.parametrize(
+    "skel,pkgmngr", itertools.product(
+        [None, Path("/foo"), Path("/bar")],
+        [None, Path("/foo"), Path("/bar")],
+    )
+)
+def test_package_manager_tree(tmp_path: Path, skel: Optional[Path], pkgmngr: Optional[Path]) -> None:
+    with chdir(tmp_path):
+        config = Path("mkosi.conf")
+        with config.open("w") as f:
+            f.write("[Content]\n")
+            if skel is not None:
+                f.write(f"SkeletonTrees={skel}\n")
+            if pkgmngr is not None:
+                f.write(f"PackageManagerTrees={pkgmngr}\n")
+
+        conf = parse_config([])[1][0]
+
+        skel_expected = [(skel, None)] if skel is not None else []
+        pkgmngr_expected = [(pkgmngr, None)] if pkgmngr is not None else skel_expected
+
+        assert conf.skeleton_trees == skel_expected
+        assert conf.package_manager_trees == pkgmngr_expected

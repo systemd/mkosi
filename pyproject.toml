@@ -41,9 +41,6 @@ py_version = "39"
 [tool.pyright]
 pythonVersion = "3.9"
 
-[tool.pytest.ini_options]
-asyncio_mode = "auto"
-
 [tool.mypy]
 python_version = 3.9
 # belonging to --strict
