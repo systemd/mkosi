@@ -31,11 +31,11 @@ from mkosi.config import (
     ManifestFormat,
     MkosiArgs,
     MkosiConfig,
-    MkosiConfigParser,
     OutputFormat,
     SecureBootSignTool,
     Verb,
     format_source_target,
+    parse_config,
     summary,
 )
 from mkosi.install import add_dropin_config_from_resource
@@ -946,7 +946,7 @@ def build_initrd(state: MkosiState) -> Path:
     ]
 
     with complete_step("Building initrd"):
-        args, presets = MkosiConfigParser().parse(cmdline)
+        args, presets = parse_config(cmdline)
         config = presets[0]
         unlink_output(args, config)
         build_image(args, config)

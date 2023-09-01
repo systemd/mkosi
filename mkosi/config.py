@@ -871,776 +871,1005 @@ def parse_ini(path: Path, only_sections: Sequence[str] = ()) -> Iterator[tuple[s
         yield section, setting, value
 
 
-class MkosiConfigParser:
-    SETTINGS = (
-        MkosiConfigSetting(
-            dest="dependencies",
-            long="--dependency",
-            section="Preset",
-            parse=config_make_list_parser(delimiter=","),
-            help="Specify other presets that this preset depends on",
-        ),
-        MkosiConfigSetting(
-            dest="distribution",
-            short="-d",
-            section="Distribution",
-            parse=config_make_enum_parser(Distribution),
-            match=config_make_enum_matcher(Distribution),
-            default=detect_distribution()[0],
-            choices=Distribution.values(),
-            help="Distribution to install",
-        ),
-        MkosiConfigSetting(
-            dest="release",
-            short="-r",
-            section="Distribution",
-            parse=config_parse_string,
-            match=config_make_string_matcher(),
-            default_factory=config_default_release,
-            default_factory_depends=("distribution",),
-            help="Distribution release to install",
-        ),
-        MkosiConfigSetting(
-            dest="architecture",
-            section="Distribution",
-            parse=config_make_enum_parser(Architecture),
-            default=Architecture.native(),
-            choices=Architecture.values(),
-            help="Override the architecture of installation",
-        ),
-        MkosiConfigSetting(
-            dest="mirror",
-            short="-m",
-            section="Distribution",
-            default_factory=config_default_mirror,
-            default_factory_depends=("distribution", "release", "architecture"),
-            help="Distribution mirror to use",
-        ),
-        MkosiConfigSetting(
-            dest="local_mirror",
-            section="Distribution",
-            help="Use a single local, flat and plain mirror to build the image",
-        ),
-        MkosiConfigSetting(
-            dest="repository_key_check",
-            metavar="BOOL",
-            nargs="?",
-            section="Distribution",
-            default=True,
-            parse=config_parse_boolean,
-            help="Controls signature and key checks on repositories",
-        ),
-        MkosiConfigSetting(
-            dest="repositories",
-            metavar="REPOS",
-            section="Distribution",
-            parse=config_make_list_parser(delimiter=","),
-            help="Repositories to use",
-        ),
-        MkosiConfigSetting(
-            dest="cache_only",
-            metavar="BOOL",
-            section="Distribution",
-            parse=config_parse_boolean,
-            help="Only use the package cache when installing packages",
-        ),
+SETTINGS = (
+    MkosiConfigSetting(
+        dest="dependencies",
+        long="--dependency",
+        section="Preset",
+        parse=config_make_list_parser(delimiter=","),
+        help="Specify other presets that this preset depends on",
+    ),
+    MkosiConfigSetting(
+        dest="distribution",
+        short="-d",
+        section="Distribution",
+        parse=config_make_enum_parser(Distribution),
+        match=config_make_enum_matcher(Distribution),
+        default=detect_distribution()[0],
+        choices=Distribution.values(),
+        help="Distribution to install",
+    ),
+    MkosiConfigSetting(
+        dest="release",
+        short="-r",
+        section="Distribution",
+        parse=config_parse_string,
+        match=config_make_string_matcher(),
+        default_factory=config_default_release,
+        default_factory_depends=("distribution",),
+        help="Distribution release to install",
+    ),
+    MkosiConfigSetting(
+        dest="architecture",
+        section="Distribution",
+        parse=config_make_enum_parser(Architecture),
+        default=Architecture.native(),
+        choices=Architecture.values(),
+        help="Override the architecture of installation",
+    ),
+    MkosiConfigSetting(
+        dest="mirror",
+        short="-m",
+        section="Distribution",
+        default_factory=config_default_mirror,
+        default_factory_depends=("distribution", "release", "architecture"),
+        help="Distribution mirror to use",
+    ),
+    MkosiConfigSetting(
+        dest="local_mirror",
+        section="Distribution",
+        help="Use a single local, flat and plain mirror to build the image",
+    ),
+    MkosiConfigSetting(
+        dest="repository_key_check",
+        metavar="BOOL",
+        nargs="?",
+        section="Distribution",
+        default=True,
+        parse=config_parse_boolean,
+        help="Controls signature and key checks on repositories",
+    ),
+    MkosiConfigSetting(
+        dest="repositories",
+        metavar="REPOS",
+        section="Distribution",
+        parse=config_make_list_parser(delimiter=","),
+        help="Repositories to use",
+    ),
+    MkosiConfigSetting(
+        dest="cache_only",
+        metavar="BOOL",
+        section="Distribution",
+        parse=config_parse_boolean,
+        help="Only use the package cache when installing packages",
+    ),
 
-        MkosiConfigSetting(
-            dest="output_format",
-            short="-t",
-            long="--format",
-            metavar="FORMAT",
-            name="Format",
-            section="Output",
-            parse=config_make_enum_parser(OutputFormat),
-            default=OutputFormat.disk,
-            choices=OutputFormat.values(),
-            help="Output Format",
-        ),
-        MkosiConfigSetting(
-            dest="manifest_format",
-            metavar="FORMAT",
-            section="Output",
-            parse=config_make_list_parser(delimiter=",", parse=make_enum_parser(ManifestFormat)),
-            help="Manifest Format",
-        ),
-        MkosiConfigSetting(
-            dest="output",
-            short="-o",
-            metavar="NAME",
-            section="Output",
-            parse=config_parse_filename,
-            help="Output name",
-        ),
-        MkosiConfigSetting(
-            dest="compress_output",
-            metavar="ALG",
-            nargs="?",
-            section="Output",
-            parse=config_parse_compression,
-            default_factory=config_default_compression,
-            default_factory_depends=("distribution", "release", "output_format"),
-            help="Enable whole-output compression (with images or archives)",
-        ),
-        MkosiConfigSetting(
-            dest="output_dir",
-            short="-O",
-            metavar="DIR",
-            name="OutputDirectory",
-            section="Output",
-            parse=config_make_path_parser(required=False),
-            paths=("mkosi.output",),
-            default_factory=lambda _: Path.cwd(),
-            help="Output directory",
-        ),
-        MkosiConfigSetting(
-            dest="workspace_dir",
-            metavar="DIR",
-            name="WorkspaceDirectory",
-            section="Output",
-            parse=config_make_path_parser(required=False),
-            paths=("mkosi.workspace",),
-            default_factory=lambda _: Path.cwd(),
-            help="Workspace directory",
-        ),
-        MkosiConfigSetting(
-            dest="cache_dir",
-            metavar="PATH",
-            name="CacheDirectory",
-            section="Output",
-            parse=config_make_path_parser(required=False),
-            paths=("mkosi.cache",),
-            help="Package cache path",
-        ),
-        MkosiConfigSetting(
-            dest="build_dir",
-            metavar="PATH",
-            name="BuildDirectory",
-            section="Output",
-            parse=config_make_path_parser(required=False),
-            paths=("mkosi.builddir",),
-            help="Path to use as persistent build directory",
-        ),
-        MkosiConfigSetting(
-            dest="image_version",
-            match=config_match_image_version,
-            section="Output",
-            help="Set version for image",
-            paths=("mkosi.version",),
-            path_read_text=True,
-        ),
-        MkosiConfigSetting(
-            dest="image_id",
-            match=config_make_string_matcher(allow_globs=True),
-            section="Output",
-            help="Set ID for image",
-        ),
-        MkosiConfigSetting(
-            dest="split_artifacts",
-            metavar="BOOL",
-            nargs="?",
-            section="Output",
-            parse=config_parse_boolean,
-            help="Generate split partitions",
-        ),
-        MkosiConfigSetting(
-            dest="repart_dirs",
-            long="--repart-dir",
-            metavar="PATH",
-            name="RepartDirectories",
-            section="Output",
-            parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
-            paths=("mkosi.repart",),
-            path_default=False,
-            help="Directory containing systemd-repart partition definitions",
-        ),
-        MkosiConfigSetting(
-            dest="sector_size",
-            section="Output",
-            parse=config_parse_string,
-            help="Set the disk image sector size",
-        ),
-        MkosiConfigSetting(
-            dest="overlay",
-            metavar="BOOL",
-            nargs="?",
-            section="Output",
-            parse=config_parse_boolean,
-            help="Only output the additions on top of the given base trees",
-        ),
-        MkosiConfigSetting(
-            dest="use_subvolumes",
-            metavar="FEATURE",
-            nargs="?",
-            section="Output",
-            parse=config_parse_feature,
-            help="Use btrfs subvolumes for faster directory operations where possible",
-        ),
-        MkosiConfigSetting(
-            dest="seed",
-            metavar="UUID",
-            section="Output",
-            parse=config_parse_seed,
-            help="Set the seed for systemd-repart",
-        ),
+    MkosiConfigSetting(
+        dest="output_format",
+        short="-t",
+        long="--format",
+        metavar="FORMAT",
+        name="Format",
+        section="Output",
+        parse=config_make_enum_parser(OutputFormat),
+        default=OutputFormat.disk,
+        choices=OutputFormat.values(),
+        help="Output Format",
+    ),
+    MkosiConfigSetting(
+        dest="manifest_format",
+        metavar="FORMAT",
+        section="Output",
+        parse=config_make_list_parser(delimiter=",", parse=make_enum_parser(ManifestFormat)),
+        help="Manifest Format",
+    ),
+    MkosiConfigSetting(
+        dest="output",
+        short="-o",
+        metavar="NAME",
+        section="Output",
+        parse=config_parse_filename,
+        help="Output name",
+    ),
+    MkosiConfigSetting(
+        dest="compress_output",
+        metavar="ALG",
+        nargs="?",
+        section="Output",
+        parse=config_parse_compression,
+        default_factory=config_default_compression,
+        default_factory_depends=("distribution", "release", "output_format"),
+        help="Enable whole-output compression (with images or archives)",
+    ),
+    MkosiConfigSetting(
+        dest="output_dir",
+        short="-O",
+        metavar="DIR",
+        name="OutputDirectory",
+        section="Output",
+        parse=config_make_path_parser(required=False),
+        paths=("mkosi.output",),
+        default_factory=lambda _: Path.cwd(),
+        help="Output directory",
+    ),
+    MkosiConfigSetting(
+        dest="workspace_dir",
+        metavar="DIR",
+        name="WorkspaceDirectory",
+        section="Output",
+        parse=config_make_path_parser(required=False),
+        paths=("mkosi.workspace",),
+        default_factory=lambda _: Path.cwd(),
+        help="Workspace directory",
+    ),
+    MkosiConfigSetting(
+        dest="cache_dir",
+        metavar="PATH",
+        name="CacheDirectory",
+        section="Output",
+        parse=config_make_path_parser(required=False),
+        paths=("mkosi.cache",),
+        help="Package cache path",
+    ),
+    MkosiConfigSetting(
+        dest="build_dir",
+        metavar="PATH",
+        name="BuildDirectory",
+        section="Output",
+        parse=config_make_path_parser(required=False),
+        paths=("mkosi.builddir",),
+        help="Path to use as persistent build directory",
+    ),
+    MkosiConfigSetting(
+        dest="image_version",
+        match=config_match_image_version,
+        section="Output",
+        help="Set version for image",
+        paths=("mkosi.version",),
+        path_read_text=True,
+    ),
+    MkosiConfigSetting(
+        dest="image_id",
+        match=config_make_string_matcher(allow_globs=True),
+        section="Output",
+        help="Set ID for image",
+    ),
+    MkosiConfigSetting(
+        dest="split_artifacts",
+        metavar="BOOL",
+        nargs="?",
+        section="Output",
+        parse=config_parse_boolean,
+        help="Generate split partitions",
+    ),
+    MkosiConfigSetting(
+        dest="repart_dirs",
+        long="--repart-dir",
+        metavar="PATH",
+        name="RepartDirectories",
+        section="Output",
+        parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
+        paths=("mkosi.repart",),
+        path_default=False,
+        help="Directory containing systemd-repart partition definitions",
+    ),
+    MkosiConfigSetting(
+        dest="sector_size",
+        section="Output",
+        parse=config_parse_string,
+        help="Set the disk image sector size",
+    ),
+    MkosiConfigSetting(
+        dest="overlay",
+        metavar="BOOL",
+        nargs="?",
+        section="Output",
+        parse=config_parse_boolean,
+        help="Only output the additions on top of the given base trees",
+    ),
+    MkosiConfigSetting(
+        dest="use_subvolumes",
+        metavar="FEATURE",
+        nargs="?",
+        section="Output",
+        parse=config_parse_feature,
+        help="Use btrfs subvolumes for faster directory operations where possible",
+    ),
+    MkosiConfigSetting(
+        dest="seed",
+        metavar="UUID",
+        section="Output",
+        parse=config_parse_seed,
+        help="Set the seed for systemd-repart",
+    ),
 
-        MkosiConfigSetting(
-            dest="packages",
-            short="-p",
-            long="--package",
-            metavar="PACKAGE",
-            section="Content",
-            parse=config_make_list_parser(delimiter=","),
-            help="Add an additional package to the OS image",
-        ),
-        MkosiConfigSetting(
-            dest="build_packages",
-            long="--build-package",
-            metavar="PACKAGE",
-            section="Content",
-            parse=config_make_list_parser(delimiter=","),
-            help="Additional packages needed for build script",
-        ),
-        MkosiConfigSetting(
-            dest="with_docs",
-            metavar="BOOL",
-            nargs="?",
-            section="Content",
-            parse=config_parse_boolean,
-            help="Install documentation",
-        ),
-        MkosiConfigSetting(
-            dest="base_trees",
-            long='--base-tree',
-            metavar='PATH',
-            section="Content",
-            parse=config_make_list_parser(delimiter=",", parse=make_path_parser(required=False)),
-            help='Use the given tree as base tree (e.g. lower sysext layer)',
-        ),
-        MkosiConfigSetting(
-            dest="skeleton_trees",
-            long="--skeleton-tree",
-            metavar="PATH",
-            section="Content",
-            parse=config_make_list_parser(delimiter=",", parse=make_source_target_paths_parser()),
-            paths=("mkosi.skeleton", "mkosi.skeleton.tar"),
-            path_default=False,
-            help="Use a skeleton tree to bootstrap the image before installing anything",
-        ),
-        MkosiConfigSetting(
-            dest="package_manager_trees",
-            long="--package-manager-tree",
-            metavar="PATH",
-            section="Content",
-            parse=config_make_list_parser(delimiter=",", parse=make_source_target_paths_parser()),
-            default_factory=lambda ns: ns.skeleton_trees,
-            default_factory_depends=("skeleton_trees",),
-            help="Use a package manager tree to configure the package manager",
-        ),
-        MkosiConfigSetting(
-            dest="extra_trees",
-            long="--extra-tree",
-            metavar="PATH",
-            section="Content",
-            parse=config_make_list_parser(delimiter=",", parse=make_source_target_paths_parser()),
-            paths=("mkosi.extra", "mkosi.extra.tar"),
-            path_default=False,
-            help="Copy an extra tree on top of image",
-        ),
-        MkosiConfigSetting(
-            dest="remove_packages",
-            long="--remove-package",
-            metavar="PACKAGE",
-            section="Content",
-            parse=config_make_list_parser(delimiter=","),
-            help="Remove package from the image OS image after installation",
-        ),
-        MkosiConfigSetting(
-            dest="remove_files",
-            metavar="GLOB",
-            section="Content",
-            parse=config_make_list_parser(delimiter=","),
-            help="Remove files from built image",
-        ),
-        MkosiConfigSetting(
-            dest="clean_package_metadata",
-            metavar="FEATURE",
-            section="Content",
-            parse=config_parse_feature,
-            help="Remove package manager database and other files",
-        ),
-        MkosiConfigSetting(
-            dest="source_date_epoch",
-            metavar="TIMESTAMP",
-            section="Content",
-            parse=config_parse_source_date_epoch,
-            default_factory=config_default_source_date_epoch,
-            default_factory_depends=("environment",),
-            help="Set the $SOURCE_DATE_EPOCH timestamp",
-        ),
-        MkosiConfigSetting(
-            dest="prepare_script",
-            metavar="PATH",
-            section="Content",
-            parse=config_parse_script,
-            paths=("mkosi.prepare",),
-            help="Prepare script to run inside the image before it is cached",
-        ),
-        MkosiConfigSetting(
-            dest="build_script",
-            metavar="PATH",
-            section="Content",
-            parse=config_parse_script,
-            paths=("mkosi.build",),
-            help="Build script to run inside image",
-        ),
-        MkosiConfigSetting(
-            dest="postinst_script",
-            metavar="PATH",
-            name="PostInstallationScript",
-            section="Content",
-            parse=config_parse_script,
-            paths=("mkosi.postinst",),
-            help="Postinstall script to run inside image",
-        ),
-        MkosiConfigSetting(
-            dest="finalize_script",
-            metavar="PATH",
-            section="Content",
-            parse=config_parse_script,
-            paths=("mkosi.finalize",),
-            help="Postinstall script to run outside image",
-        ),
-        MkosiConfigSetting(
-            dest="build_sources",
-            metavar="PATH",
-            section="Content",
-            parse=config_make_list_parser(delimiter=",", parse=make_source_target_paths_parser(absolute=False)),
-            help="Path for sources to build",
-        ),
-        MkosiConfigSetting(
-            dest="environment",
-            short="-E",
-            metavar="NAME[=VALUE]",
-            section="Content",
-            parse=config_make_list_parser(delimiter=" ", unescape=True),
-            help="Set an environment variable when running scripts",
-        ),
-        MkosiConfigSetting(
-            dest="with_tests",
-            short="-T",
-            long="--without-tests",
-            nargs="?",
-            const="no",
-            section="Content",
-            parse=config_parse_boolean,
-            default=True,
-            help="Do not run tests as part of build script, if supported",
-        ),
-        MkosiConfigSetting(
-            dest="with_network",
-            metavar="BOOL",
-            nargs="?",
-            section="Content",
-            parse=config_parse_boolean,
-            help="Run build and postinst scripts with network access (instead of private network)",
-        ),
-        MkosiConfigSetting(
-            dest="bootable",
-            metavar="FEATURE",
-            nargs="?",
-            section="Content",
-            parse=config_parse_feature,
-            match=config_match_feature,
-            help="Generate ESP partition with systemd-boot and UKIs for installed kernels",
-        ),
-        MkosiConfigSetting(
-            dest="bootloader",
-            metavar="BOOTLOADER",
-            section="Content",
-            parse=config_make_enum_parser(Bootloader),
-            choices=Bootloader.values(),
-            default=Bootloader.systemd_boot,
-            help="Specify which UEFI bootloader to use",
-        ),
-        MkosiConfigSetting(
-            dest="bios_bootloader",
-            metavar="BOOTLOADER",
-            section="Content",
-            parse=config_make_enum_parser(BiosBootloader),
-            choices=BiosBootloader.values(),
-            default=BiosBootloader.none,
-            help="Specify which BIOS bootloader to use",
-        ),
-        MkosiConfigSetting(
-            dest="initrds",
-            long="--initrd",
-            metavar="PATH",
-            section="Content",
-            parse=config_make_list_parser(delimiter=",", parse=make_path_parser(required=False)),
-            help="Add a user-provided initrd to image",
-        ),
-        MkosiConfigSetting(
-            dest="kernel_command_line",
-            metavar="OPTIONS",
-            section="Content",
-            parse=config_make_list_parser(delimiter=" "),
-            default=["console=ttyS0"],
-            help="Set the kernel command line (only bootable images)",
-        ),
-        MkosiConfigSetting(
-            dest="kernel_modules_include",
-            metavar="REGEX",
-            section="Content",
-            parse=config_make_list_parser(delimiter=","),
-            help="Only include the specified kernel modules in the image",
-        ),
-        MkosiConfigSetting(
-            dest="kernel_modules_exclude",
-            metavar="REGEX",
-            section="Content",
-            parse=config_make_list_parser(delimiter=","),
-            help="Exclude the specified kernel modules from the image",
-        ),
-        MkosiConfigSetting(
-            dest="kernel_modules_initrd",
-            metavar="BOOL",
-            nargs="?",
-            section="Content",
-            parse=config_parse_boolean,
-            default=True,
-            help="When building a bootable image, add an extra initrd containing the kernel modules",
-        ),
-        MkosiConfigSetting(
-            dest="kernel_modules_initrd_include",
-            metavar="REGEX",
-            section="Content",
-            parse=config_make_list_parser(delimiter=","),
-            help="When building a kernel modules initrd, only include the specified kernel modules",
-        ),
-        MkosiConfigSetting(
-            dest="kernel_modules_initrd_exclude",
-            metavar="REGEX",
-            section="Content",
-            parse=config_make_list_parser(delimiter=","),
-            help="When building a kernel modules initrd, exclude the specified kernel modules",
-        ),
-        MkosiConfigSetting(
-            dest="locale",
-            section="Content",
-            parse=config_parse_string,
-            help="Set the system locale",
-        ),
-        MkosiConfigSetting(
-            dest="locale_messages",
-            metavar="LOCALE",
-            section="Content",
-            parse=config_parse_string,
-            help="Set the messages locale",
-        ),
-        MkosiConfigSetting(
-            dest="keymap",
-            metavar="KEYMAP",
-            section="Content",
-            parse=config_parse_string,
-            help="Set the system keymap",
-        ),
-        MkosiConfigSetting(
-            dest="timezone",
-            metavar="TIMEZONE",
-            section="Content",
-            parse=config_parse_string,
-            help="Set the system timezone",
-        ),
-        MkosiConfigSetting(
-            dest="hostname",
-            metavar="HOSTNAME",
-            section="Content",
-            parse=config_parse_string,
-            help="Set the system hostname",
-        ),
-        MkosiConfigSetting(
-            dest="root_password",
-            metavar="PASSWORD",
-            section="Content",
-            parse=config_parse_root_password,
-            paths=("mkosi.rootpw",),
-            path_read_text=True,
-            path_secret=True,
-            help="Set the password for root",
-        ),
-        MkosiConfigSetting(
-            dest="root_shell",
-            metavar="SHELL",
-            section="Content",
-            parse=config_parse_string,
-            help="Set the shell for root",
-        ),
-        MkosiConfigSetting(
-            dest="autologin",
-            metavar="BOOL",
-            nargs="?",
-            section="Content",
-            parse=config_parse_boolean,
-            help="Enable root autologin",
-        ),
-        MkosiConfigSetting(
-            dest="make_initrd",
-            metavar="BOOL",
-            nargs="?",
-            section="Content",
-            parse=config_parse_boolean,
-            help="Make sure the image can be used as an initramfs",
-        ),
-        MkosiConfigSetting(
-            dest="ssh",
-            metavar="BOOL",
-            nargs="?",
-            section="Content",
-            parse=config_parse_boolean,
-            help="Set up SSH access from the host to the final image via 'mkosi ssh'",
-        ),
+    MkosiConfigSetting(
+        dest="packages",
+        short="-p",
+        long="--package",
+        metavar="PACKAGE",
+        section="Content",
+        parse=config_make_list_parser(delimiter=","),
+        help="Add an additional package to the OS image",
+    ),
+    MkosiConfigSetting(
+        dest="build_packages",
+        long="--build-package",
+        metavar="PACKAGE",
+        section="Content",
+        parse=config_make_list_parser(delimiter=","),
+        help="Additional packages needed for build script",
+    ),
+    MkosiConfigSetting(
+        dest="with_docs",
+        metavar="BOOL",
+        nargs="?",
+        section="Content",
+        parse=config_parse_boolean,
+        help="Install documentation",
+    ),
+    MkosiConfigSetting(
+        dest="base_trees",
+        long='--base-tree',
+        metavar='PATH',
+        section="Content",
+        parse=config_make_list_parser(delimiter=",", parse=make_path_parser(required=False)),
+        help='Use the given tree as base tree (e.g. lower sysext layer)',
+    ),
+    MkosiConfigSetting(
+        dest="skeleton_trees",
+        long="--skeleton-tree",
+        metavar="PATH",
+        section="Content",
+        parse=config_make_list_parser(delimiter=",", parse=make_source_target_paths_parser()),
+        paths=("mkosi.skeleton", "mkosi.skeleton.tar"),
+        path_default=False,
+        help="Use a skeleton tree to bootstrap the image before installing anything",
+    ),
+    MkosiConfigSetting(
+        dest="package_manager_trees",
+        long="--package-manager-tree",
+        metavar="PATH",
+        section="Content",
+        parse=config_make_list_parser(delimiter=",", parse=make_source_target_paths_parser()),
+        default_factory=lambda ns: ns.skeleton_trees,
+        default_factory_depends=("skeleton_trees",),
+        help="Use a package manager tree to configure the package manager",
+    ),
+    MkosiConfigSetting(
+        dest="extra_trees",
+        long="--extra-tree",
+        metavar="PATH",
+        section="Content",
+        parse=config_make_list_parser(delimiter=",", parse=make_source_target_paths_parser()),
+        paths=("mkosi.extra", "mkosi.extra.tar"),
+        path_default=False,
+        help="Copy an extra tree on top of image",
+    ),
+    MkosiConfigSetting(
+        dest="remove_packages",
+        long="--remove-package",
+        metavar="PACKAGE",
+        section="Content",
+        parse=config_make_list_parser(delimiter=","),
+        help="Remove package from the image OS image after installation",
+    ),
+    MkosiConfigSetting(
+        dest="remove_files",
+        metavar="GLOB",
+        section="Content",
+        parse=config_make_list_parser(delimiter=","),
+        help="Remove files from built image",
+    ),
+    MkosiConfigSetting(
+        dest="clean_package_metadata",
+        metavar="FEATURE",
+        section="Content",
+        parse=config_parse_feature,
+        help="Remove package manager database and other files",
+    ),
+    MkosiConfigSetting(
+        dest="source_date_epoch",
+        metavar="TIMESTAMP",
+        section="Content",
+        parse=config_parse_source_date_epoch,
+        default_factory=config_default_source_date_epoch,
+        default_factory_depends=("environment",),
+        help="Set the $SOURCE_DATE_EPOCH timestamp",
+    ),
+    MkosiConfigSetting(
+        dest="prepare_script",
+        metavar="PATH",
+        section="Content",
+        parse=config_parse_script,
+        paths=("mkosi.prepare",),
+        help="Prepare script to run inside the image before it is cached",
+    ),
+    MkosiConfigSetting(
+        dest="build_script",
+        metavar="PATH",
+        section="Content",
+        parse=config_parse_script,
+        paths=("mkosi.build",),
+        help="Build script to run inside image",
+    ),
+    MkosiConfigSetting(
+        dest="postinst_script",
+        metavar="PATH",
+        name="PostInstallationScript",
+        section="Content",
+        parse=config_parse_script,
+        paths=("mkosi.postinst",),
+        help="Postinstall script to run inside image",
+    ),
+    MkosiConfigSetting(
+        dest="finalize_script",
+        metavar="PATH",
+        section="Content",
+        parse=config_parse_script,
+        paths=("mkosi.finalize",),
+        help="Postinstall script to run outside image",
+    ),
+    MkosiConfigSetting(
+        dest="build_sources",
+        metavar="PATH",
+        section="Content",
+        parse=config_make_list_parser(delimiter=",", parse=make_source_target_paths_parser(absolute=False)),
+        help="Path for sources to build",
+    ),
+    MkosiConfigSetting(
+        dest="environment",
+        short="-E",
+        metavar="NAME[=VALUE]",
+        section="Content",
+        parse=config_make_list_parser(delimiter=" ", unescape=True),
+        help="Set an environment variable when running scripts",
+    ),
+    MkosiConfigSetting(
+        dest="with_tests",
+        short="-T",
+        long="--without-tests",
+        nargs="?",
+        const="no",
+        section="Content",
+        parse=config_parse_boolean,
+        default=True,
+        help="Do not run tests as part of build script, if supported",
+    ),
+    MkosiConfigSetting(
+        dest="with_network",
+        metavar="BOOL",
+        nargs="?",
+        section="Content",
+        parse=config_parse_boolean,
+        help="Run build and postinst scripts with network access (instead of private network)",
+    ),
+    MkosiConfigSetting(
+        dest="bootable",
+        metavar="FEATURE",
+        nargs="?",
+        section="Content",
+        parse=config_parse_feature,
+        match=config_match_feature,
+        help="Generate ESP partition with systemd-boot and UKIs for installed kernels",
+    ),
+    MkosiConfigSetting(
+        dest="bootloader",
+        metavar="BOOTLOADER",
+        section="Content",
+        parse=config_make_enum_parser(Bootloader),
+        choices=Bootloader.values(),
+        default=Bootloader.systemd_boot,
+        help="Specify which UEFI bootloader to use",
+    ),
+    MkosiConfigSetting(
+        dest="bios_bootloader",
+        metavar="BOOTLOADER",
+        section="Content",
+        parse=config_make_enum_parser(BiosBootloader),
+        choices=BiosBootloader.values(),
+        default=BiosBootloader.none,
+        help="Specify which BIOS bootloader to use",
+    ),
+    MkosiConfigSetting(
+        dest="initrds",
+        long="--initrd",
+        metavar="PATH",
+        section="Content",
+        parse=config_make_list_parser(delimiter=",", parse=make_path_parser(required=False)),
+        help="Add a user-provided initrd to image",
+    ),
+    MkosiConfigSetting(
+        dest="kernel_command_line",
+        metavar="OPTIONS",
+        section="Content",
+        parse=config_make_list_parser(delimiter=" "),
+        default=["console=ttyS0"],
+        help="Set the kernel command line (only bootable images)",
+    ),
+    MkosiConfigSetting(
+        dest="kernel_modules_include",
+        metavar="REGEX",
+        section="Content",
+        parse=config_make_list_parser(delimiter=","),
+        help="Only include the specified kernel modules in the image",
+    ),
+    MkosiConfigSetting(
+        dest="kernel_modules_exclude",
+        metavar="REGEX",
+        section="Content",
+        parse=config_make_list_parser(delimiter=","),
+        help="Exclude the specified kernel modules from the image",
+    ),
+    MkosiConfigSetting(
+        dest="kernel_modules_initrd",
+        metavar="BOOL",
+        nargs="?",
+        section="Content",
+        parse=config_parse_boolean,
+        default=True,
+        help="When building a bootable image, add an extra initrd containing the kernel modules",
+    ),
+    MkosiConfigSetting(
+        dest="kernel_modules_initrd_include",
+        metavar="REGEX",
+        section="Content",
+        parse=config_make_list_parser(delimiter=","),
+        help="When building a kernel modules initrd, only include the specified kernel modules",
+    ),
+    MkosiConfigSetting(
+        dest="kernel_modules_initrd_exclude",
+        metavar="REGEX",
+        section="Content",
+        parse=config_make_list_parser(delimiter=","),
+        help="When building a kernel modules initrd, exclude the specified kernel modules",
+    ),
+    MkosiConfigSetting(
+        dest="locale",
+        section="Content",
+        parse=config_parse_string,
+        help="Set the system locale",
+    ),
+    MkosiConfigSetting(
+        dest="locale_messages",
+        metavar="LOCALE",
+        section="Content",
+        parse=config_parse_string,
+        help="Set the messages locale",
+    ),
+    MkosiConfigSetting(
+        dest="keymap",
+        metavar="KEYMAP",
+        section="Content",
+        parse=config_parse_string,
+        help="Set the system keymap",
+    ),
+    MkosiConfigSetting(
+        dest="timezone",
+        metavar="TIMEZONE",
+        section="Content",
+        parse=config_parse_string,
+        help="Set the system timezone",
+    ),
+    MkosiConfigSetting(
+        dest="hostname",
+        metavar="HOSTNAME",
+        section="Content",
+        parse=config_parse_string,
+        help="Set the system hostname",
+    ),
+    MkosiConfigSetting(
+        dest="root_password",
+        metavar="PASSWORD",
+        section="Content",
+        parse=config_parse_root_password,
+        paths=("mkosi.rootpw",),
+        path_read_text=True,
+        path_secret=True,
+        help="Set the password for root",
+    ),
+    MkosiConfigSetting(
+        dest="root_shell",
+        metavar="SHELL",
+        section="Content",
+        parse=config_parse_string,
+        help="Set the shell for root",
+    ),
+    MkosiConfigSetting(
+        dest="autologin",
+        metavar="BOOL",
+        nargs="?",
+        section="Content",
+        parse=config_parse_boolean,
+        help="Enable root autologin",
+    ),
+    MkosiConfigSetting(
+        dest="make_initrd",
+        metavar="BOOL",
+        nargs="?",
+        section="Content",
+        parse=config_parse_boolean,
+        help="Make sure the image can be used as an initramfs",
+    ),
+    MkosiConfigSetting(
+        dest="ssh",
+        metavar="BOOL",
+        nargs="?",
+        section="Content",
+        parse=config_parse_boolean,
+        help="Set up SSH access from the host to the final image via 'mkosi ssh'",
+    ),
 
-        MkosiConfigSetting(
-            dest="secure_boot",
-            metavar="BOOL",
-            nargs="?",
-            section="Validation",
-            parse=config_parse_boolean,
-            help="Sign the resulting kernel/initrd image for UEFI SecureBoot",
-        ),
-        MkosiConfigSetting(
-            dest="secure_boot_key",
-            metavar="PATH",
-            section="Validation",
-            parse=config_make_path_parser(),
-            paths=("mkosi.key",),
-            help="UEFI SecureBoot private key in PEM format",
-        ),
-        MkosiConfigSetting(
-            dest="secure_boot_certificate",
-            metavar="PATH",
-            section="Validation",
-            parse=config_make_path_parser(),
-            paths=("mkosi.crt",),
-            help="UEFI SecureBoot certificate in X509 format",
-        ),
-        MkosiConfigSetting(
-            dest="secure_boot_sign_tool",
-            metavar="TOOL",
-            section="Validation",
-            parse=config_make_enum_parser(SecureBootSignTool),
-            default=SecureBootSignTool.auto,
-            choices=SecureBootSignTool.values(),
-            help="Tool to use for signing PE binaries for secure boot",
-        ),
-        MkosiConfigSetting(
-            dest="verity_key",
-            metavar="PATH",
-            section="Validation",
-            parse=config_make_path_parser(),
-            paths=("mkosi.key",),
-            help="Private key for signing verity signature in PEM format",
-        ),
-        MkosiConfigSetting(
-            dest="verity_certificate",
-            metavar="PATH",
-            section="Validation",
-            parse=config_make_path_parser(),
-            paths=("mkosi.crt",),
-            help="Certificate for signing verity signature in X509 format",
-        ),
-        MkosiConfigSetting(
-            dest="sign_expected_pcr",
-            metavar="FEATURE",
-            section="Validation",
-            parse=config_parse_feature,
-            help="Measure the components of the unified kernel image (UKI) and embed the PCR signature into the UKI",
-        ),
-        MkosiConfigSetting(
-            dest="passphrase",
-            metavar="PATH",
-            section="Validation",
-            parse=config_make_path_parser(required=False),
-            paths=("mkosi.passphrase",),
-            help="Path to a file containing the passphrase to use when LUKS encryption is selected",
-        ),
-        MkosiConfigSetting(
-            dest="checksum",
-            metavar="BOOL",
-            nargs="?",
-            section="Validation",
-            parse=config_parse_boolean,
-            help="Write SHA256SUMS file",
-        ),
-        MkosiConfigSetting(
-            dest="sign",
-            metavar="BOOL",
-            nargs="?",
-            section="Validation",
-            parse=config_parse_boolean,
-            help="Write and sign SHA256SUMS file",
-        ),
-        MkosiConfigSetting(
-            dest="key",
-            section="Validation",
-            help="GPG key to use for signing",
-        ),
+    MkosiConfigSetting(
+        dest="secure_boot",
+        metavar="BOOL",
+        nargs="?",
+        section="Validation",
+        parse=config_parse_boolean,
+        help="Sign the resulting kernel/initrd image for UEFI SecureBoot",
+    ),
+    MkosiConfigSetting(
+        dest="secure_boot_key",
+        metavar="PATH",
+        section="Validation",
+        parse=config_make_path_parser(),
+        paths=("mkosi.key",),
+        help="UEFI SecureBoot private key in PEM format",
+    ),
+    MkosiConfigSetting(
+        dest="secure_boot_certificate",
+        metavar="PATH",
+        section="Validation",
+        parse=config_make_path_parser(),
+        paths=("mkosi.crt",),
+        help="UEFI SecureBoot certificate in X509 format",
+    ),
+    MkosiConfigSetting(
+        dest="secure_boot_sign_tool",
+        metavar="TOOL",
+        section="Validation",
+        parse=config_make_enum_parser(SecureBootSignTool),
+        default=SecureBootSignTool.auto,
+        choices=SecureBootSignTool.values(),
+        help="Tool to use for signing PE binaries for secure boot",
+    ),
+    MkosiConfigSetting(
+        dest="verity_key",
+        metavar="PATH",
+        section="Validation",
+        parse=config_make_path_parser(),
+        paths=("mkosi.key",),
+        help="Private key for signing verity signature in PEM format",
+    ),
+    MkosiConfigSetting(
+        dest="verity_certificate",
+        metavar="PATH",
+        section="Validation",
+        parse=config_make_path_parser(),
+        paths=("mkosi.crt",),
+        help="Certificate for signing verity signature in X509 format",
+    ),
+    MkosiConfigSetting(
+        dest="sign_expected_pcr",
+        metavar="FEATURE",
+        section="Validation",
+        parse=config_parse_feature,
+        help="Measure the components of the unified kernel image (UKI) and embed the PCR signature into the UKI",
+    ),
+    MkosiConfigSetting(
+        dest="passphrase",
+        metavar="PATH",
+        section="Validation",
+        parse=config_make_path_parser(required=False),
+        paths=("mkosi.passphrase",),
+        help="Path to a file containing the passphrase to use when LUKS encryption is selected",
+    ),
+    MkosiConfigSetting(
+        dest="checksum",
+        metavar="BOOL",
+        nargs="?",
+        section="Validation",
+        parse=config_parse_boolean,
+        help="Write SHA256SUMS file",
+    ),
+    MkosiConfigSetting(
+        dest="sign",
+        metavar="BOOL",
+        nargs="?",
+        section="Validation",
+        parse=config_parse_boolean,
+        help="Write and sign SHA256SUMS file",
+    ),
+    MkosiConfigSetting(
+        dest="key",
+        section="Validation",
+        help="GPG key to use for signing",
+    ),
 
-        MkosiConfigSetting(
-            dest="incremental",
-            short="-i",
-            metavar="BOOL",
-            nargs="?",
-            section="Host",
-            parse=config_parse_boolean,
-            help="Make use of and generate intermediary cache images",
-        ),
-        MkosiConfigSetting(
-            dest="nspawn_settings",
-            name="NSpawnSettings",
-            long="--settings",
-            metavar="PATH",
-            section="Host",
-            parse=config_make_path_parser(),
-            paths=("mkosi.nspawn",),
-            help="Add in .nspawn settings file",
-        ),
-        MkosiConfigSetting(
-            dest="extra_search_paths",
-            long="--extra-search-path",
-            metavar="PATH",
-            section="Host",
-            parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
-            help="List of comma-separated paths to look for programs before looking in PATH",
-        ),
-        MkosiConfigSetting(
-            dest="qemu_gui",
-            metavar="BOOL",
-            nargs="?",
-            section="Host",
-            parse=config_parse_boolean,
-            help="Start QEMU in graphical mode",
-        ),
-        MkosiConfigSetting(
-            dest="qemu_smp",
-            metavar="SMP",
-            section="Host",
-            default="1",
-            help="Configure guest's SMP settings",
-        ),
-        MkosiConfigSetting(
-            dest="qemu_mem",
-            metavar="MEM",
-            section="Host",
-            default="2G",
-            help="Configure guest's RAM size",
-        ),
-        MkosiConfigSetting(
-            dest="qemu_kvm",
-            metavar="FEATURE",
-            nargs="?",
-            section="Host",
-            parse=config_parse_feature,
-            help="Configure whether to use KVM or not",
-        ),
-        MkosiConfigSetting(
-            dest="qemu_vsock",
-            metavar="FEATURE",
-            nargs="?",
-            section="Host",
-            parse=config_parse_feature,
-            help="Configure whether to use qemu with a vsock or not",
-        ),
-        MkosiConfigSetting(
-            dest="qemu_swtpm",
-            metavar="FEATURE",
-            nargs="?",
-            section="Host",
-            parse=config_parse_feature,
-            help="Configure whether to use qemu with swtpm or not",
-        ),
-        MkosiConfigSetting(
-            dest="qemu_cdrom",
-            metavar="BOOLEAN",
-            nargs="?",
-            section="Host",
-            parse=config_parse_boolean,
-            help="Attach the image as a CD-ROM to the virtual machine",
-        ),
-        MkosiConfigSetting(
-            dest="qemu_bios",
-            metavar="BOOLEAN",
-            nargs="?",
-            section="Host",
-            parse=config_parse_boolean,
-            help="Boot QEMU with SeaBIOS instead of EDK2",
-        ),
-        MkosiConfigSetting(
-            dest="qemu_args",
-            metavar="ARGS",
-            section="Host",
-            parse=config_make_list_parser(delimiter=" "),
-            # Suppress the command line option because it's already possible to pass qemu args as normal
-            # arguments.
-            help=argparse.SUPPRESS,
-        ),
-        MkosiConfigSetting(
-            dest="ephemeral",
-            metavar="BOOL",
-            section="Host",
-            parse=config_parse_boolean,
-            help=('If specified, the container/VM is run with a temporary snapshot of the output '
-                  'image that is removed immediately when the container/VM terminates'),
-            nargs="?",
-        ),
-        MkosiConfigSetting(
-            dest="credentials",
-            long="--credential",
-            metavar="NAME=VALUE",
-            section="Host",
-            parse=config_make_list_parser(delimiter=" "),
-            help="Pass a systemd credential to systemd-nspawn or qemu",
-        ),
-        MkosiConfigSetting(
-            dest="kernel_command_line_extra",
-            metavar="OPTIONS",
-            section="Host",
-            parse=config_make_list_parser(delimiter=" "),
-            help="Append extra entries to the kernel command line when booting the image",
-        ),
-        MkosiConfigSetting(
-            dest="acl",
-            metavar="BOOL",
-            nargs="?",
-            section="Host",
-            parse=config_parse_boolean,
-            help="Set ACLs on generated directories to permit the user running mkosi to remove them",
-        ),
-        MkosiConfigSetting(
-            dest="tools_tree",
-            long="--tools-tree",
-            metavar="PATH",
-            section="Host",
-            parse=config_make_path_parser(required=False, absolute=False),
-            paths=("mkosi.tools",),
-            help="Look up programs to execute inside the given tree",
-        ),
+    MkosiConfigSetting(
+        dest="incremental",
+        short="-i",
+        metavar="BOOL",
+        nargs="?",
+        section="Host",
+        parse=config_parse_boolean,
+        help="Make use of and generate intermediary cache images",
+    ),
+    MkosiConfigSetting(
+        dest="nspawn_settings",
+        name="NSpawnSettings",
+        long="--settings",
+        metavar="PATH",
+        section="Host",
+        parse=config_make_path_parser(),
+        paths=("mkosi.nspawn",),
+        help="Add in .nspawn settings file",
+    ),
+    MkosiConfigSetting(
+        dest="extra_search_paths",
+        long="--extra-search-path",
+        metavar="PATH",
+        section="Host",
+        parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
+        help="List of comma-separated paths to look for programs before looking in PATH",
+    ),
+    MkosiConfigSetting(
+        dest="qemu_gui",
+        metavar="BOOL",
+        nargs="?",
+        section="Host",
+        parse=config_parse_boolean,
+        help="Start QEMU in graphical mode",
+    ),
+    MkosiConfigSetting(
+        dest="qemu_smp",
+        metavar="SMP",
+        section="Host",
+        default="1",
+        help="Configure guest's SMP settings",
+    ),
+    MkosiConfigSetting(
+        dest="qemu_mem",
+        metavar="MEM",
+        section="Host",
+        default="2G",
+        help="Configure guest's RAM size",
+    ),
+    MkosiConfigSetting(
+        dest="qemu_kvm",
+        metavar="FEATURE",
+        nargs="?",
+        section="Host",
+        parse=config_parse_feature,
+        help="Configure whether to use KVM or not",
+    ),
+    MkosiConfigSetting(
+        dest="qemu_vsock",
+        metavar="FEATURE",
+        nargs="?",
+        section="Host",
+        parse=config_parse_feature,
+        help="Configure whether to use qemu with a vsock or not",
+    ),
+    MkosiConfigSetting(
+        dest="qemu_swtpm",
+        metavar="FEATURE",
+        nargs="?",
+        section="Host",
+        parse=config_parse_feature,
+        help="Configure whether to use qemu with swtpm or not",
+    ),
+    MkosiConfigSetting(
+        dest="qemu_cdrom",
+        metavar="BOOLEAN",
+        nargs="?",
+        section="Host",
+        parse=config_parse_boolean,
+        help="Attach the image as a CD-ROM to the virtual machine",
+    ),
+    MkosiConfigSetting(
+        dest="qemu_bios",
+        metavar="BOOLEAN",
+        nargs="?",
+        section="Host",
+        parse=config_parse_boolean,
+        help="Boot QEMU with SeaBIOS instead of EDK2",
+    ),
+    MkosiConfigSetting(
+        dest="qemu_args",
+        metavar="ARGS",
+        section="Host",
+        parse=config_make_list_parser(delimiter=" "),
+        # Suppress the command line option because it's already possible to pass qemu args as normal
+        # arguments.
+        help=argparse.SUPPRESS,
+    ),
+    MkosiConfigSetting(
+        dest="ephemeral",
+        metavar="BOOL",
+        section="Host",
+        parse=config_parse_boolean,
+        help=('If specified, the container/VM is run with a temporary snapshot of the output '
+                'image that is removed immediately when the container/VM terminates'),
+        nargs="?",
+    ),
+    MkosiConfigSetting(
+        dest="credentials",
+        long="--credential",
+        metavar="NAME=VALUE",
+        section="Host",
+        parse=config_make_list_parser(delimiter=" "),
+        help="Pass a systemd credential to systemd-nspawn or qemu",
+    ),
+    MkosiConfigSetting(
+        dest="kernel_command_line_extra",
+        metavar="OPTIONS",
+        section="Host",
+        parse=config_make_list_parser(delimiter=" "),
+        help="Append extra entries to the kernel command line when booting the image",
+    ),
+    MkosiConfigSetting(
+        dest="acl",
+        metavar="BOOL",
+        nargs="?",
+        section="Host",
+        parse=config_parse_boolean,
+        help="Set ACLs on generated directories to permit the user running mkosi to remove them",
+    ),
+    MkosiConfigSetting(
+        dest="tools_tree",
+        long="--tools-tree",
+        metavar="PATH",
+        section="Host",
+        parse=config_make_path_parser(required=False, absolute=False),
+        paths=("mkosi.tools",),
+        help="Look up programs to execute inside the given tree",
+    ),
+)
+
+MATCHES = (
+    MkosiMatch(
+        name="PathExists",
+        match=match_path_exists,
+    ),
+)
+
+
+def create_argument_parser() -> argparse.ArgumentParser:
+    action = config_make_action(SETTINGS)
+
+    parser = argparse.ArgumentParser(
+        prog="mkosi",
+        description="Build Bespoke OS Images",
+        usage="\n  " + textwrap.dedent("""\
+                mkosi [options...] {b}summary{e}
+                mkosi [options...] {b}build{e} [script parameters...]
+                mkosi [options...] {b}shell{e} [command line...]
+                mkosi [options...] {b}boot{e}  [nspawn settings...]
+                mkosi [options...] {b}qemu{e}  [qemu parameters...]
+                mkosi [options...] {b}ssh{e}   [command line...]
+                mkosi [options...] {b}clean{e}
+                mkosi [options...] {b}serve{e}
+                mkosi [options...] {b}bump{e}
+                mkosi [options...] {b}genkey{e}
+                mkosi [options...] {b}documentation{e}
+                mkosi [options...] {b}help{e}
+                mkosi -h | --help
+                mkosi --version
+        """).format(b=Style.bold, e=Style.reset),
+        add_help=False,
+        allow_abbrev=False,
+        argument_default=argparse.SUPPRESS,
+        formatter_class=CustomHelpFormatter,
     )
 
-    MATCHES = (
-        MkosiMatch(
-            name="PathExists",
-            match=match_path_exists,
-        ),
+    parser.add_argument(
+        "verb",
+        type=Verb,
+        choices=list(Verb),
+        default=Verb.build,
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "cmdline",
+        nargs=argparse.REMAINDER,
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "-h", "--help",
+        action=PagerHelpAction,
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version="%(prog)s " + __version__,
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "-f", "--force",
+        action="count",
+        dest="force",
+        default=0,
+        help="Remove existing image file before operation",
+    )
+    parser.add_argument(
+        "-C", "--directory",
+        help="Change to specified directory before doing anything",
+        metavar="PATH",
+        default=None,
+    )
+    parser.add_argument(
+        "--debug",
+        help="Turn on debugging output",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
+        "--debug-shell",
+        help="Spawn an interactive shell in the image if a chroot command fails",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
+        "--no-pager",
+        action="store_false",
+        dest="pager",
+        default=True,
+        help="Enable paging for long output",
+    )
+    parser.add_argument(
+        "--genkey-valid-days",
+        metavar="DAYS",
+        help="Number of days keys should be valid when generating keys",
+        action=action,
+        default="730",
+    )
+    parser.add_argument(
+        "--genkey-common-name",
+        metavar="CN",
+        help="Template for the CN when generating keys",
+        action=action,
+        default="mkosi of %u",
+    )
+    parser.add_argument(
+        "-B", "--auto-bump",
+        help="Automatically bump image version after building",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
+        "--preset",
+        action="append",
+        dest="presets",
+        metavar="PRESET",
+        default=[],
+        help="Build the specified presets and their dependencies",
+    )
+    parser.add_argument(
+        "--doc-format",
+        help="The format to show documentation in",
+        default=DocFormat.auto,
+        type=DocFormat,
+    )
+    parser.add_argument(
+        "--nspawn-keep-unit",
+        action="store_true",
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--default",
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--cache",
+        metavar="PATH",
+        help=argparse.SUPPRESS,
     )
 
-    def __init__(self) -> None:
-        self.settings_lookup_by_name = {s.name: s for s in self.SETTINGS}
-        self.settings_lookup_by_dest = {s.dest: s for s in self.SETTINGS}
-        self.match_lookup = {m.name: m for m in self.MATCHES}
+    last_section = None
 
-    def match_config(self, path: Path, namespace: argparse.Namespace, defaults: argparse.Namespace) -> bool:
+    for s in SETTINGS:
+        if s.section != last_section:
+            group = parser.add_argument_group(f"{s.section} configuration options")
+            last_section = s.section
+
+        long = s.long if s.long else f"--{s.dest.replace('_', '-')}"
+        opts = [s.short, long] if s.short else [long]
+
+        group.add_argument(    # type: ignore
+            *opts,
+            dest=s.dest,
+            choices=s.choices,
+            metavar=s.metavar,
+            nargs=s.nargs,     # type: ignore
+            const=s.const,
+            help=s.help,
+            action=action,
+        )
+
+
+    try:
+        import argcomplete
+
+        argcomplete.autocomplete(parser)
+    except ImportError:
+        pass
+
+    return parser
+
+
+def backward_compat_stubs(namespace: argparse.Namespace) -> None:
+    # These can be removed once mkosi v15 is available in LTS distros and compatibility with <= v14
+    # is no longer needed in build infrastructure (e.g.: OBS).
+    if getattr(namespace, "nspawn_keep_unit", None):
+        delattr(namespace, "nspawn_keep_unit")
+        logging.warning("--nspawn-keep-unit is no longer supported")
+
+    if getattr(namespace, "default", None):
+        delattr(namespace, "default")
+        logging.warning("--default is no longer supported")
+
+    if getattr(namespace, "cache", None):
+        delattr(namespace, "cache")
+        logging.warning("--cache is no longer supported")
+
+
+def resolve_deps(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> list[MkosiConfig]:
+    graph = {p.preset: p.dependencies for p in presets}
+
+    if args.presets:
+        if any((missing := p) not in graph for p in args.presets):
+            die(f"No preset found with name {missing}")
+
+        deps = set()
+        queue = [*args.presets]
+
+        while queue:
+            if (preset := queue.pop(0)) not in deps:
+                deps.add(preset)
+                queue.extend(graph[preset])
+
+        presets = [p for p in presets if p.preset in deps]
+
+    graph = {p.preset: p.dependencies for p in presets}
+
+    try:
+        order = list(graphlib.TopologicalSorter(graph).static_order())
+    except graphlib.CycleError as e:
+        die(f"Preset dependency cycle detected: {' => '.join(e.args[1])}")
+
+    return sorted(presets, key=lambda p: order.index(p.preset))
+
+
+def parse_config(argv: Optional[Sequence[str]] = None) -> tuple[MkosiArgs, tuple[MkosiConfig, ...]]:
+    settings_lookup_by_name = {s.name: s for s in SETTINGS}
+    settings_lookup_by_dest = {s.dest: s for s in SETTINGS}
+    match_lookup = {m.name: m for m in MATCHES}
+
+    def finalize_default(
+        setting: MkosiConfigSetting,
+        namespace: argparse.Namespace,
+        defaults: argparse.Namespace
+    ) -> None:
+        if setting.dest in namespace:
+            return
+
+        for d in setting.default_factory_depends:
+            finalize_default(settings_lookup_by_dest[d], namespace, defaults)
+
+        if setting.dest in defaults:
+            default = getattr(defaults, setting.dest)
+        elif setting.default_factory:
+            default = setting.default_factory(namespace)
+        elif setting.default is None:
+            default = setting.parse(None, None)
+        else:
+            default = setting.default
+
+        setattr(namespace, setting.dest, default)
+
+    def match_config(path: Path, namespace: argparse.Namespace, defaults: argparse.Namespace) -> bool:
         triggered = None
 
         # If the config file does not exist, we assume it matches so that we look at the other files in the
@@ -1657,18 +1886,18 @@ class MkosiConfigParser:
             if not v:
                 die("Match value cannot be empty")
 
-            if (s := self.settings_lookup_by_name.get(k)):
+            if (s := settings_lookup_by_name.get(k)):
                 if not s.match:
                     die(f"{k} cannot be used in [Match]")
 
                 # If we encounter a setting in [Match] that has not been explicitly configured yet,
                 # we assign the default value first so that we can [Match] on default values for
                 # settings.
-                self.finalize_default(s, namespace, defaults)
+                finalize_default(s, namespace, defaults)
 
                 result = s.match(v, getattr(namespace, s.dest))
 
-            elif (m := self.match_lookup.get(k)):
+            elif (m := match_lookup.get(k)):
                 result = m.match(v)
             else:
                 die(f"{k} cannot be used in [Match]")
@@ -1682,14 +1911,13 @@ class MkosiConfigParser:
 
         return triggered is not False
 
-
-    def parse_config(self, path: Path, namespace: argparse.Namespace, defaults: argparse.Namespace) -> bool:
+    def parse_config( path: Path, namespace: argparse.Namespace, defaults: argparse.Namespace) -> bool:
         extras = path.is_dir()
 
         if path.is_dir():
             path = path / "mkosi.conf"
 
-        if not self.match_config(path, namespace, defaults):
+        if not match_config(path, namespace, defaults):
             return False
 
         if path.exists():
@@ -1698,13 +1926,13 @@ class MkosiConfigParser:
             for _, k, v in parse_ini(path, only_sections=["Distribution", "Output", "Content", "Validation", "Host"]):
                 ns = defaults if k.startswith("@") else namespace
 
-                if not (s := self.settings_lookup_by_name.get(k.removeprefix("@"))):
+                if not (s := settings_lookup_by_name.get(k.removeprefix("@"))):
                     die(f"Unknown setting {k}")
 
                 setattr(ns, s.dest, s.parse(v, getattr(ns, s.dest, None)))
 
         if extras:
-            for s in self.SETTINGS:
+            for s in SETTINGS:
                 ns = defaults if s.path_default else namespace
                 for f in s.paths:
                     p = parse_path(
@@ -1724,321 +1952,93 @@ class MkosiConfigParser:
                 for p in sorted((path.parent / "mkosi.conf.d").iterdir()):
                     if p.is_dir() or p.suffix == ".conf":
                         with chdir(p if p.is_dir() else Path.cwd()):
-                            self.parse_config(p if p.is_file() else Path("."), namespace, defaults)
+                            parse_config(p if p.is_file() else Path("."), namespace, defaults)
 
         return True
 
-    def create_argument_parser(self) -> argparse.ArgumentParser:
-        action = config_make_action(self.SETTINGS)
+    def finalize_defaults(namespace: argparse.Namespace, defaults: argparse.Namespace) -> None:
+        for s in SETTINGS:
+            finalize_default(s, namespace, defaults)
 
-        parser = argparse.ArgumentParser(
-            prog="mkosi",
-            description="Build Bespoke OS Images",
-            usage="\n  " + textwrap.dedent("""\
-                  mkosi [options...] {b}summary{e}
-                    mkosi [options...] {b}build{e} [script parameters...]
-                    mkosi [options...] {b}shell{e} [command line...]
-                    mkosi [options...] {b}boot{e}  [nspawn settings...]
-                    mkosi [options...] {b}qemu{e}  [qemu parameters...]
-                    mkosi [options...] {b}ssh{e}   [command line...]
-                    mkosi [options...] {b}clean{e}
-                    mkosi [options...] {b}serve{e}
-                    mkosi [options...] {b}bump{e}
-                    mkosi [options...] {b}genkey{e}
-                    mkosi [options...] {b}documentation{e}
-                    mkosi [options...] {b}help{e}
-                    mkosi -h | --help
-                    mkosi --version
-            """).format(b=Style.bold, e=Style.reset),
-            add_help=False,
-            allow_abbrev=False,
-            argument_default=argparse.SUPPRESS,
-            formatter_class=CustomHelpFormatter,
-        )
+    presets = []
+    namespace = argparse.Namespace()
+    defaults = argparse.Namespace()
 
-        parser.add_argument(
-            "verb",
-            type=Verb,
-            choices=list(Verb),
-            default=Verb.build,
-            help=argparse.SUPPRESS,
-        )
-        parser.add_argument(
-            "cmdline",
-            nargs=argparse.REMAINDER,
-            help=argparse.SUPPRESS,
-        )
-        parser.add_argument(
-            "-h", "--help",
-            action=PagerHelpAction,
-            help=argparse.SUPPRESS,
-        )
-        parser.add_argument(
-            "--version",
-            action="version",
-            version="%(prog)s " + __version__,
-            help=argparse.SUPPRESS,
-        )
-        parser.add_argument(
-            "-f", "--force",
-            action="count",
-            dest="force",
-            default=0,
-            help="Remove existing image file before operation",
-        )
-        parser.add_argument(
-            "-C", "--directory",
-            help="Change to specified directory before doing anything",
-            metavar="PATH",
-            default=None,
-        )
-        parser.add_argument(
-            "--debug",
-            help="Turn on debugging output",
-            action="store_true",
-            default=False,
-        )
-        parser.add_argument(
-            "--debug-shell",
-            help="Spawn an interactive shell in the image if a chroot command fails",
-            action="store_true",
-            default=False,
-        )
-        parser.add_argument(
-            "--no-pager",
-            action="store_false",
-            dest="pager",
-            default=True,
-            help="Enable paging for long output",
-        )
-        parser.add_argument(
-            "--genkey-valid-days",
-            metavar="DAYS",
-            help="Number of days keys should be valid when generating keys",
-            action=action,
-            default="730",
-        )
-        parser.add_argument(
-            "--genkey-common-name",
-            metavar="CN",
-            help="Template for the CN when generating keys",
-            action=action,
-            default="mkosi of %u",
-        )
-        parser.add_argument(
-            "-B", "--auto-bump",
-            help="Automatically bump image version after building",
-            action="store_true",
-            default=False,
-        )
-        parser.add_argument(
-            "--preset",
-            action="append",
-            dest="presets",
-            metavar="PRESET",
-            default=[],
-            help="Build the specified presets and their dependencies",
-        )
-        parser.add_argument(
-            "--doc-format",
-            help="The format to show documentation in",
-            default=DocFormat.auto,
-            type=DocFormat,
-        )
-        parser.add_argument(
-            "--nspawn-keep-unit",
-            action="store_true",
-            help=argparse.SUPPRESS,
-        )
-        parser.add_argument(
-            "--default",
-            help=argparse.SUPPRESS,
-        )
-        parser.add_argument(
-            "--cache",
-            metavar="PATH",
-            help=argparse.SUPPRESS,
-        )
+    if argv is None:
+        argv = sys.argv[1:]
+    argv = list(argv)
 
-        last_section = None
-
-        for s in self.SETTINGS:
-            if s.section != last_section:
-                group = parser.add_argument_group(f"{s.section} configuration options")
-                last_section = s.section
-
-            long = s.long if s.long else f"--{s.dest.replace('_', '-')}"
-            opts = [s.short, long] if s.short else [long]
-
-            group.add_argument(    # type: ignore
-                *opts,
-                dest=s.dest,
-                choices=s.choices,
-                metavar=s.metavar,
-                nargs=s.nargs,     # type: ignore
-                const=s.const,
-                help=s.help,
-                action=action,
-            )
-
-
+    # Make sure the verb command gets explicitly passed. Insert a -- before the positional verb argument
+    # otherwise it might be considered as an argument of a parameter with nargs='?'. For example mkosi -i
+    # summary would be treated as -i=summary.
+    for verb in Verb:
         try:
-            import argcomplete
+            v_i = argv.index(verb.name)
+        except ValueError:
+            continue
 
-            argcomplete.autocomplete(parser)
-        except ImportError:
-            pass
+        if v_i > 0 and argv[v_i - 1] != "--":
+            argv.insert(v_i, "--")
+        break
+    else:
+        argv += ["--", "build"]
 
-        return parser
+    argparser = create_argument_parser()
+    argparser.parse_args(argv, namespace)
 
-    def backward_compat_stubs(self, namespace: argparse.Namespace) -> None:
-        # These can be removed once mkosi v15 is available in LTS distros and compatibility with <= v14
-        # is no longer needed in build infrastructure (e.g.: OBS).
-        if getattr(namespace, "nspawn_keep_unit", None):
-            delattr(namespace, "nspawn_keep_unit")
-            logging.warning("--nspawn-keep-unit is no longer supported")
+    args = load_args(namespace)
 
-        if getattr(namespace, "default", None):
-            delattr(namespace, "default")
-            logging.warning("--default is no longer supported")
+    if ARG_DEBUG.get():
+        logging.getLogger().setLevel(logging.DEBUG)
 
-        if getattr(namespace, "cache", None):
-            delattr(namespace, "cache")
-            logging.warning("--cache is no longer supported")
+    if args.verb == Verb.help:
+        PagerHelpAction.__call__(None, argparser, namespace)  # type: ignore
 
-    def resolve_deps(self, args: MkosiArgs, presets: Sequence[MkosiConfig]) -> list[MkosiConfig]:
-        graph = {p.preset: p.dependencies for p in presets}
+    if args.directory and not Path(args.directory).is_dir():
+        die(f"{args.directory} is not a directory!")
 
-        if args.presets:
-            if any((missing := p) not in graph for p in args.presets):
-                die(f"No preset found with name {missing}")
+    if args.directory:
+        os.chdir(args.directory)
 
-            deps = set()
-            queue = [*args.presets]
+    if args.directory != "":
+        parse_config(Path("."), namespace, defaults)
 
-            while queue:
-                if (preset := queue.pop(0)) not in deps:
-                    deps.add(preset)
-                    queue.extend(graph[preset])
+        if Path("mkosi.presets").exists():
+            for p in Path("mkosi.presets").iterdir():
+                if not p.is_dir() and not p.suffix == ".conf":
+                    continue
 
-            presets = [p for p in presets if p.preset in deps]
+                name = p.name.removesuffix(".conf")
+                if not name:
+                    die(f"{p} is not a valid preset name")
 
-        graph = {p.preset: p.dependencies for p in presets}
+                ns_copy = copy.deepcopy(namespace)
+                defaults_copy = copy.deepcopy(defaults)
 
-        try:
-            order = list(graphlib.TopologicalSorter(graph).static_order())
-        except graphlib.CycleError as e:
-            die(f"Preset dependency cycle detected: {' => '.join(e.args[1])}")
-
-        return sorted(presets, key=lambda p: order.index(p.preset))
-
-    def finalize_default(
-        self,
-        setting: MkosiConfigSetting,
-        namespace: argparse.Namespace,
-        defaults: argparse.Namespace
-    ) -> None:
-        if setting.dest in namespace:
-            return
-
-        for d in setting.default_factory_depends:
-            self.finalize_default(self.settings_lookup_by_dest[d], namespace, defaults)
-
-        if setting.dest in defaults:
-            default = getattr(defaults, setting.dest)
-        elif setting.default_factory:
-            default = setting.default_factory(namespace)
-        elif setting.default is None:
-            default = setting.parse(None, None)
-        else:
-            default = setting.default
-
-        setattr(namespace, setting.dest, default)
-
-    def finalize_defaults(self, namespace: argparse.Namespace, defaults: argparse.Namespace) -> None:
-        for s in self.SETTINGS:
-            self.finalize_default(s, namespace, defaults)
-
-    def parse(self, argv: Optional[Sequence[str]] = None) -> tuple[MkosiArgs, tuple[MkosiConfig, ...]]:
-        presets = []
-        namespace = argparse.Namespace()
-        defaults = argparse.Namespace()
-
-        if argv is None:
-            argv = sys.argv[1:]
-        argv = list(argv)
-
-        # Make sure the verb command gets explicitly passed. Insert a -- before the positional verb argument
-        # otherwise it might be considered as an argument of a parameter with nargs='?'. For example mkosi -i
-        # summary would be treated as -i=summary.
-        for verb in Verb:
-            try:
-                v_i = argv.index(verb.name)
-            except ValueError:
-                continue
-
-            if v_i > 0 and argv[v_i - 1] != "--":
-                argv.insert(v_i, "--")
-            break
-        else:
-            argv += ["--", "build"]
-
-        argparser = self.create_argument_parser()
-        argparser.parse_args(argv, namespace)
-
-        args = load_args(namespace)
-
-        if ARG_DEBUG.get():
-            logging.getLogger().setLevel(logging.DEBUG)
-
-        if args.verb == Verb.help:
-            PagerHelpAction.__call__(None, argparser, namespace)  # type: ignore
-
-        if args.directory and not Path(args.directory).is_dir():
-            die(f"{args.directory} is not a directory!")
-
-        if args.directory:
-            os.chdir(args.directory)
-
-        if args.directory != "":
-            self.parse_config(Path("."), namespace, defaults)
-
-            if Path("mkosi.presets").exists():
-                for p in Path("mkosi.presets").iterdir():
-                    if not p.is_dir() and not p.suffix == ".conf":
+                with chdir(p if p.is_dir() else Path.cwd()):
+                    if not parse_config(p if p.is_file() else Path("."), ns_copy, defaults_copy):
                         continue
 
-                    name = p.name.removesuffix(".conf")
-                    if not name:
-                        die(f"{p} is not a valid preset name")
+                setattr(ns_copy, "preset", name)
+                finalize_defaults(ns_copy, defaults_copy)
+                presets += [ns_copy]
 
-                    ns_copy = copy.deepcopy(namespace)
-                    defaults_copy = copy.deepcopy(defaults)
+    if not presets:
+        setattr(namespace, "preset", None)
+        finalize_defaults(namespace, defaults)
+        presets = [namespace]
 
-                    with chdir(p if p.is_dir() else Path.cwd()):
-                        if not self.parse_config(p if p.is_file() else Path("."), ns_copy, defaults_copy):
-                            continue
+    if not presets:
+        die("No presets defined in mkosi.presets/")
 
-                    setattr(ns_copy, "preset", name)
-                    self.finalize_defaults(ns_copy, defaults_copy)
-                    presets += [ns_copy]
+    # Manipulate some old settings to make them work with the new settings, for those typically used in
+    # infrastructure scripts rather than image-specific configuration.
+    backward_compat_stubs(namespace)
 
-        if not presets:
-            setattr(namespace, "preset", None)
-            self.finalize_defaults(namespace, defaults)
-            presets = [namespace]
+    presets = [load_config(ns) for ns in presets]
+    presets = resolve_deps(args, presets)
 
-        if not presets:
-            die("No presets defined in mkosi.presets/")
-
-        # Manipulate some old settings to make them work with the new settings, for those typically used in
-        # infrastructure scripts rather than image-specific configuration.
-        self.backward_compat_stubs(namespace)
-
-        presets = [load_config(ns) for ns in presets]
-        presets = self.resolve_deps(args, presets)
-
-        return args, tuple(presets)
+    return args, tuple(presets)
 
 
 def load_credentials(args: argparse.Namespace) -> dict[str, str]:

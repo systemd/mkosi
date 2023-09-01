@@ -9,7 +9,7 @@ import sys
 from collections.abc import Iterator
 
 from mkosi import run_verb
-from mkosi.config import MkosiConfigParser
+from mkosi.config import parse_config
 from mkosi.log import ARG_DEBUG, log_setup
 from mkosi.run import ensure_exc_info, run
 
@@ -42,7 +42,7 @@ def propagate_failed_return() -> Iterator[None]:
 @propagate_failed_return()
 def main() -> None:
     log_setup()
-    args, presets = MkosiConfigParser().parse()
+    args, presets = parse_config()
 
     try:
         run_verb(args, presets)

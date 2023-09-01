@@ -6,50 +6,46 @@ import operator
 import tempfile
 from pathlib import Path
 import textwrap
-from typing import List, Optional
+from typing import Optional
 
 import pytest
 
-from mkosi.config import Compression, MkosiArgs, MkosiConfig, MkosiConfigParser, Verb
+from mkosi.config import Compression, Verb, parse_config
 from mkosi.distributions import Distribution
 from mkosi.util import chdir
 
 
-def parse(argv: Optional[List[str]] = None) -> tuple[MkosiArgs, tuple[MkosiConfig, ...]]:
-    return MkosiConfigParser().parse(argv)
-
-
 def test_parse_load_verb() -> None:
     with tempfile.TemporaryDirectory() as d, chdir(d):
-        assert parse(["build"])[0].verb == Verb.build
-        assert parse(["clean"])[0].verb == Verb.clean
+        assert parse_config(["build"])[0].verb == Verb.build
+        assert parse_config(["clean"])[0].verb == Verb.clean
         with pytest.raises(SystemExit):
-            parse(["help"])
-        assert parse(["genkey"])[0].verb == Verb.genkey
-        assert parse(["bump"])[0].verb == Verb.bump
-        assert parse(["serve"])[0].verb == Verb.serve
-        assert parse(["build"])[0].verb == Verb.build
-        assert parse(["shell"])[0].verb == Verb.shell
-        assert parse(["boot"])[0].verb == Verb.boot
-        assert parse(["qemu"])[0].verb == Verb.qemu
+            parse_config(["help"])
+        assert parse_config(["genkey"])[0].verb == Verb.genkey
+        assert parse_config(["bump"])[0].verb == Verb.bump
+        assert parse_config(["serve"])[0].verb == Verb.serve
+        assert parse_config(["build"])[0].verb == Verb.build
+        assert parse_config(["shell"])[0].verb == Verb.shell
+        assert parse_config(["boot"])[0].verb == Verb.boot
+        assert parse_config(["qemu"])[0].verb == Verb.qemu
         with pytest.raises(SystemExit):
-            parse(["invalid"])
+            parse_config(["invalid"])
 
 
 def test_os_distribution() -> None:
     with tempfile.TemporaryDirectory() as d, chdir(d):
         for dist in Distribution:
-            assert parse(["-d", dist.name])[1][0].distribution == dist
+            assert parse_config(["-d", dist.name])[1][0].distribution == dist
 
         with pytest.raises(tuple((argparse.ArgumentError, SystemExit))):
-            parse(["-d", "invalidDistro"])
+            parse_config(["-d", "invalidDistro"])
         with pytest.raises(tuple((argparse.ArgumentError, SystemExit))):
-            parse(["-d"])
+            parse_config(["-d"])
 
         for dist in Distribution:
             config = Path("mkosi.conf")
             config.write_text(f"[Distribution]\nDistribution={dist}")
-            assert parse([])[1][0].distribution == dist
+            assert parse_config([])[1][0].distribution == dist
 
 
 def test_parse_config_files_filter() -> None:
@@ -60,12 +56,12 @@ def test_parse_config_files_filter() -> None:
         (confd / "10-file.conf").write_text("[Content]\nPackages=yes")
         (confd / "20-file.noconf").write_text("[Content]\nPackages=nope")
 
-        assert parse([])[1][0].packages == ["yes"]
+        assert parse_config([])[1][0].packages == ["yes"]
 
 
 def test_compression() -> None:
     with tempfile.TemporaryDirectory() as d, chdir(d):
-        assert parse(["--format", "disk", "--compress-output", "False"])[1][0].compress_output == Compression.none
+        assert parse_config(["--format", "disk", "--compress-output", "False"])[1][0].compress_output == Compression.none
 
 
 @pytest.mark.parametrize("dist1,dist2", itertools.combinations_with_replacement(Distribution, 2))
@@ -121,7 +117,7 @@ def test_match_distribution(dist1: Distribution, dist2: Distribution) -> None:
             )
         )
 
-        conf = parse([])[1][0]
+        conf = parse_config([])[1][0]
         assert "testpkg1" in conf.packages
         if dist1 == dist2:
             assert "testpkg2" in conf.packages
@@ -186,7 +182,7 @@ def test_match_release(release1: int, release2: int) -> None:
             )
         )
 
-        conf = parse([])[1][0]
+        conf = parse_config([])[1][0]
         assert "testpkg1" in conf.packages
         if release1 == release2:
             assert "testpkg2" in conf.packages
@@ -265,7 +261,7 @@ def test_match_imageid(image1: str, image2: str) -> None:
             )
         )
 
-        conf = parse([])[1][0]
+        conf = parse_config([])[1][0]
         assert "testpkg1" in conf.packages
         if image1 == image2:
             assert "testpkg2" in conf.packages
@@ -343,7 +339,7 @@ def test_match_imageversion(op: str, version: str) -> None:
             )
         )
 
-        conf = parse([])[1][0]
+        conf = parse_config([])[1][0]
         assert ("testpkg1" in conf.packages) == opfunc(123, version)
         assert ("testpkg2" in conf.packages) == opfunc(123, version)
         assert "testpkg3" not in conf.packages
@@ -365,7 +361,7 @@ def test_package_manager_tree(skel: Optional[Path], pkgmngr: Optional[Path]) -> 
             if pkgmngr is not None:
                 f.write(f"PackageManagerTrees={pkgmngr}\n")
 
-        conf = parse([])[1][0]
+        conf = parse_config([])[1][0]
 
         skel_expected = [(skel, None)] if skel is not None else []
         pkgmngr_expected = [(pkgmngr, None)] if pkgmngr is not None else skel_expected
