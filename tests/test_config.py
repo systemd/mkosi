@@ -10,7 +10,7 @@ from typing import Iterator
 import pytest
 
 from mkosi.architecture import Architecture
-from mkosi.config import Compression, MkosiConfig, MkosiConfigParser, OutputFormat
+from mkosi.config import Compression, MkosiConfig, MkosiConfigParser, OutputFormat, parse_ini
 
 CONF_DIR = Path(__file__).parent.absolute() / "test-config"
 
@@ -190,3 +190,34 @@ def test_path_inheritence() -> None:
         # Confirm output directory changes
         assert presets[0].preset == "00-test-preset"
         assert presets[0].output_dir == Path(tmpdir) / "mkosi.presets" / "00-test-preset" / "mkosi.output"
+
+
+def test_parse_ini() -> None:
+    with tempfile.TemporaryDirectory() as d:
+        p = Path(d) / "ini"
+        p.write_text(
+            """\
+            [MySection]
+            Value=abc
+            Other=def
+            ALLCAPS=txt
+
+            # Comment
+            ; Another comment
+            [EmptySection]
+            [AnotherSection]
+            EmptyValue=
+            Multiline=abc
+                      def
+                      qed
+                      ord
+            """
+        )
+
+        g = parse_ini(p)
+
+        assert next(g) == ("MySection", "Value", "abc")
+        assert next(g) == ("MySection", "Other", "def")
+        assert next(g) == ("MySection", "ALLCAPS", "txt")
+        assert next(g) == ("AnotherSection", "EmptyValue", "")
+        assert next(g) == ("AnotherSection", "Multiline", "abc\ndef\nqed\nord")

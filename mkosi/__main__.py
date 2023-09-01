@@ -44,9 +44,6 @@ def main() -> None:
     log_setup()
     args, presets = MkosiConfigParser().parse()
 
-    if ARG_DEBUG.get():
-        logging.getLogger().setLevel(logging.DEBUG)
-
     try:
         run_verb(args, presets)
     finally:
