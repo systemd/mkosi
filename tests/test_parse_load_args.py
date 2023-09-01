@@ -4,7 +4,6 @@ import argparse
 import itertools
 import operator
 from pathlib import Path
-import textwrap
 from typing import Optional
 
 import pytest
@@ -68,52 +67,44 @@ def test_match_distribution(tmp_path: Path, dist1: Distribution, dist2: Distribu
     with chdir(tmp_path):
         parent = Path("mkosi.conf")
         parent.write_text(
-            textwrap.dedent(
-                f"""\
-                [Distribution]
-                Distribution={dist1}
-                """
-            )
+            f"""\
+            [Distribution]
+            Distribution={dist1}
+            """
         )
 
         Path("mkosi.conf.d").mkdir()
 
         child1 = Path("mkosi.conf.d/child1.conf")
         child1.write_text(
-            textwrap.dedent(
-                f"""\
-                [Match]
-                Distribution={dist1}
+            f"""\
+            [Match]
+            Distribution={dist1}
 
-                [Content]
-                Packages=testpkg1
-                """
-            )
+            [Content]
+            Packages=testpkg1
+            """
         )
         child2 = Path("mkosi.conf.d/child2.conf")
         child2.write_text(
-            textwrap.dedent(
-                f"""\
-                [Match]
-                Distribution={dist2}
+            f"""\
+            [Match]
+            Distribution={dist2}
 
-                [Content]
-                Packages=testpkg2
-                """
-            )
+            [Content]
+            Packages=testpkg2
+            """
         )
         child3 = Path("mkosi.conf.d/child3.conf")
         child3.write_text(
-            textwrap.dedent(
-                f"""\
-                [Match]
-                Distribution=|{dist1}
-                Distribution=|{dist2}
+            f"""\
+            [Match]
+            Distribution=|{dist1}
+            Distribution=|{dist2}
 
-                [Content]
-                Packages=testpkg3
-                """
-            )
+            [Content]
+            Packages=testpkg3
+            """
         )
 
         conf = parse_config([])[1][0]
@@ -132,53 +123,45 @@ def test_match_release(tmp_path: Path, release1: int, release2: int) -> None:
     with chdir(tmp_path):
         parent = Path("mkosi.conf")
         parent.write_text(
-            textwrap.dedent(
-                f"""\
-                [Distribution]
-                Distribution=fedora
-                Release={release1}
-                """
-            )
+            f"""\
+            [Distribution]
+            Distribution=fedora
+            Release={release1}
+            """
         )
 
         Path("mkosi.conf.d").mkdir()
 
         child1 = Path("mkosi.conf.d/child1.conf")
         child1.write_text(
-            textwrap.dedent(
-                f"""\
-                [Match]
-                Release={release1}
+            f"""\
+            [Match]
+            Release={release1}
 
-                [Content]
-                Packages=testpkg1
-                """
-            )
+            [Content]
+            Packages=testpkg1
+            """
         )
         child2 = Path("mkosi.conf.d/child2.conf")
         child2.write_text(
-            textwrap.dedent(
-                f"""\
-                [Match]
-                Release={release2}
+            f"""\
+            [Match]
+            Release={release2}
 
-                [Content]
-                Packages=testpkg2
-                """
-            )
+            [Content]
+            Packages=testpkg2
+            """
         )
         child3 = Path("mkosi.conf.d/child3.conf")
         child3.write_text(
-            textwrap.dedent(
-                f"""\
-                [Match]
-                Release=|{release1}
-                Release=|{release2}
+            f"""\
+            [Match]
+            Release=|{release1}
+            Release=|{release2}
 
-                [Content]
-                Packages=testpkg3
-                """
-            )
+            [Content]
+            Packages=testpkg3
+            """
         )
 
         conf = parse_config([])[1][0]
@@ -199,65 +182,55 @@ def test_match_imageid(tmp_path: Path, image1: str, image2: str) -> None:
     with chdir(tmp_path):
         parent = Path("mkosi.conf")
         parent.write_text(
-            textwrap.dedent(
-                f"""\
-                [Distribution]
-                Distribution=fedora
-                ImageId={image1}
-                """
-            )
+            f"""\
+            [Distribution]
+            Distribution=fedora
+            ImageId={image1}
+            """
         )
 
         Path("mkosi.conf.d").mkdir()
 
         child1 = Path("mkosi.conf.d/child1.conf")
         child1.write_text(
-            textwrap.dedent(
-                f"""\
-                [Match]
-                ImageId={image1}
+            f"""\
+            [Match]
+            ImageId={image1}
 
-                [Content]
-                Packages=testpkg1
-                """
-            )
+            [Content]
+            Packages=testpkg1
+            """
         )
         child2 = Path("mkosi.conf.d/child2.conf")
         child2.write_text(
-            textwrap.dedent(
-                f"""\
-                [Match]
-                ImageId={image2}
+            f"""\
+            [Match]
+            ImageId={image2}
 
-                [Content]
-                Packages=testpkg2
-                """
-            )
+            [Content]
+            Packages=testpkg2
+            """
         )
         child3 = Path("mkosi.conf.d/child3.conf")
         child3.write_text(
-            textwrap.dedent(
-                f"""\
-                [Match]
-                ImageId=|{image1}
-                ImageId=|{image2}
+            f"""\
+            [Match]
+            ImageId=|{image1}
+            ImageId=|{image2}
 
-                [Content]
-                Packages=testpkg3
-                """
-            )
+            [Content]
+            Packages=testpkg3
+            """
         )
         child4 = Path("mkosi.conf.d/child4.conf")
         child4.write_text(
-            textwrap.dedent(
-                """\
-                [Match]
-                ImageId=image*
+            """\
+            [Match]
+            ImageId=image*
 
-                [Content]
-                Packages=testpkg4
-                """
-            )
+            [Content]
+            Packages=testpkg4
+            """
         )
 
         conf = parse_config([])[1][0]
@@ -289,53 +262,45 @@ def test_match_imageversion(tmp_path: Path, op: str, version: str) -> None:
     with chdir(tmp_path):
         parent = Path("mkosi.conf")
         parent.write_text(
-            textwrap.dedent(
-                """\
-                [Distribution]
-                ImageId=testimage
-                ImageVersion=123
-                """
-            )
+            """\
+            [Distribution]
+            ImageId=testimage
+            ImageVersion=123
+            """
         )
 
         Path("mkosi.conf.d").mkdir()
         child1 = Path("mkosi.conf.d/child1.conf")
         child1.write_text(
-            textwrap.dedent(
-                f"""\
-                [Match]
-                ImageVersion={op}{version}
+            f"""\
+            [Match]
+            ImageVersion={op}{version}
 
-                [Content]
-                Packages=testpkg1
-                """
-            )
+            [Content]
+            Packages=testpkg1
+            """
         )
         child2 = Path("mkosi.conf.d/child2.conf")
         child2.write_text(
-            textwrap.dedent(
-                f"""\
-                [Match]
-                ImageVersion=<200
-                ImageVersion={op}{version}
+            f"""\
+            [Match]
+            ImageVersion=<200
+            ImageVersion={op}{version}
 
-                [Content]
-                Packages=testpkg2
-                """
-            )
+            [Content]
+            Packages=testpkg2
+            """
         )
         child3 = Path("mkosi.conf.d/child3.conf")
         child3.write_text(
-            textwrap.dedent(
-                f"""\
-                [Match]
-                ImageVersion=>9000
-                ImageVersion={op}{version}
+            f"""\
+            [Match]
+            ImageVersion=>9000
+            ImageVersion={op}{version}
 
-                [Content]
-                Packages=testpkg3
-                """
-            )
+            [Content]
+            Packages=testpkg3
+            """
         )
 
         conf = parse_config([])[1][0]
