@@ -42,7 +42,7 @@ def propagate_failed_return() -> Iterator[None]:
 @propagate_failed_return()
 def main() -> None:
     log_setup()
-    args, presets = parse_config()
+    args, presets = parse_config(sys.argv[1:])
 
     try:
         run_verb(args, presets)

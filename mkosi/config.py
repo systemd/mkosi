@@ -16,7 +16,6 @@ import platform
 import shlex
 import shutil
 import subprocess
-import sys
 import textwrap
 import uuid
 from collections.abc import Iterable, Sequence
@@ -1842,7 +1841,7 @@ def resolve_deps(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> list[MkosiC
     return sorted(presets, key=lambda p: order.index(p.preset))
 
 
-def parse_config(argv: Optional[Sequence[str]] = None) -> tuple[MkosiArgs, tuple[MkosiConfig, ...]]:
+def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig, ...]]:
     settings_lookup_by_name = {s.name: s for s in SETTINGS}
     settings_lookup_by_dest = {s.dest: s for s in SETTINGS}
     match_lookup = {m.name: m for m in MATCHES}
@@ -1964,8 +1963,6 @@ def parse_config(argv: Optional[Sequence[str]] = None) -> tuple[MkosiArgs, tuple
     namespace = argparse.Namespace()
     defaults = argparse.Namespace()
 
-    if argv is None:
-        argv = sys.argv[1:]
     argv = list(argv)
 
     # Make sure the verb command gets explicitly passed. Insert a -- before the positional verb argument
