@@ -144,4 +144,4 @@ jobs:
 
     - name: Boot ${{ matrix.distro }}/${{ matrix.format }} BIOS
       if: matrix.format == 'disk'
-      run: timeout -k 30 10m mkosi --debug --qemu-bios qemu
+      run: timeout -k 30 10m mkosi --debug --qemu-firmware bios qemu

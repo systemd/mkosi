@@ -127,6 +127,12 @@ class BiosBootloader(StrEnum):
     grub = enum.auto()
 
 
+class QemuFirmware(StrEnum):
+    direct = enum.auto()
+    uefi   = enum.auto()
+    bios   = enum.auto()
+
+
 def parse_boolean(s: str) -> bool:
     "Parse 1/true/yes/y/t/on as true and 0/false/no/n/f/off/None as false"
     s_l = s.lower()
@@ -724,7 +730,7 @@ class MkosiConfig:
     qemu_vsock: ConfigFeature
     qemu_swtpm: ConfigFeature
     qemu_cdrom: bool
-    qemu_bios: bool
+    qemu_firmware: QemuFirmware
     qemu_args: Sequence[str]
 
     preset: Optional[str]
@@ -1567,12 +1573,13 @@ SETTINGS = (
         help="Attach the image as a CD-ROM to the virtual machine",
     ),
     MkosiConfigSetting(
-        dest="qemu_bios",
-        metavar="BOOLEAN",
-        nargs="?",
+        dest="qemu_firmware",
+        metavar="FIRMWARE",
         section="Host",
-        parse=config_parse_boolean,
-        help="Boot QEMU with SeaBIOS instead of EDK2",
+        parse=config_make_enum_parser(QemuFirmware),
+        default=QemuFirmware.uefi,
+        help="Set qemu firmware to use",
+        choices=QemuFirmware.values(),
     ),
     MkosiConfigSetting(
         dest="qemu_args",
@@ -2385,7 +2392,7 @@ Clean Package Manager Metadata: {yes_no_auto(config.clean_package_metadata)}
                 QEMU Use VSock: {config.qemu_vsock}
                 QEMU Use Swtpm: {config.qemu_swtpm}
                QEMU Use CD-ROM: {yes_no(config.qemu_cdrom)}
-                     QEMU BIOS: {yes_no(config.qemu_bios)}
+                 QEMU Firmware: {config.qemu_firmware}
           QEMU Extra Arguments: {line_join_list(config.qemu_args)}
 """
 

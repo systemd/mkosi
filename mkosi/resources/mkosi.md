@@ -1047,11 +1047,21 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   attach the image to the virtual machine as a CD-ROM device. Takes a
   boolean. Defaults to `no`.
 
-`QemuBios=`, `--qemu-bios=`
+`QemuFirmware=`, `--qemu-firmware=`
 
-: When used with the `qemu` verb, this option specifies whether to use
-  the BIOS firmware instead of the UEFI firmware. Takes a boolean.
-  Defaults to `no`.
+: When used with the `qemu` verb, this option which firmware to use.
+  Takes one of `uefi`, `bios` or `direct`. Defaults to `uefi`. When set
+  to `uefi`, the OVMF firmware is used. When set to `bios`, the default
+  SeaBIOS firmware is used. When set to `direct`, direct kernel boot is
+  used. The kernel used for direct kernel boot can either be provided by
+  passing qemu's `-kernel` option on the mkosi command line or by
+  installing a kernel into the image, in which case it will be picked up
+  automatically.
+
+: Note that when the `cpio` output format is used, direct kernel boot is
+  used regardless of the configured firmware. Depending on the
+  configured firmware, qemu might boot the kernel itself or using the
+  configured firmware.
 
 `QemuArgs=`
 
