@@ -278,6 +278,7 @@ def bwrap(
     scripts: Mapping[str, Sequence[PathString]] = {},
     env: Mapping[str, str] = {},
     stdin: _FILE = None,
+    stdout: _FILE = None,
     input: Optional[str] = None,
 ) -> CompletedProcess:
     cmdline: list[PathString] = [
@@ -335,7 +336,7 @@ def bwrap(
         ]
 
         try:
-            result = run([*cmdline, *cmd], env=env, log=False, stdin=stdin, input=input)
+            result = run([*cmdline, *cmd], env=env, log=False, stdin=stdin, stdout=stdout, input=input)
         except subprocess.CalledProcessError as e:
             if log:
                 logging.error(f"\"{shlex.join(os.fspath(s) for s in cmd)}\" returned non-zero exit code {e.returncode}.")
