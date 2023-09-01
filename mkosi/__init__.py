@@ -1462,7 +1462,19 @@ def run_depmod(state: MkosiState) -> None:
     if state.config.bootable == ConfigFeature.disabled:
         return
 
+    outputs = (
+        "modules.dep",
+        "modules.dep.bin",
+        "modules.symbols",
+        "modules.symbols.bin",
+    )
+
+    filters = state.config.kernel_modules_include or state.config.kernel_modules_exclude
+
     for kver, _ in gen_kernel_images(state):
+        if not filters and all((state.root / "usr/lib/modules" / kver / o).exists() for o in outputs):
+            continue
+
         process_kernel_modules(
             state.root, kver,
             state.config.kernel_modules_include,
@@ -1470,7 +1482,7 @@ def run_depmod(state: MkosiState) -> None:
         )
 
         with complete_step(f"Running depmod for {kver}"):
-            run(["depmod", "--all", "--basedir", state.root, kver])
+            bwrap(chroot_cmd(state.root) + ["depmod", "--all", kver])
 
 
 def run_sysusers(state: MkosiState) -> None:

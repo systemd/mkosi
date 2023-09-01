@@ -8,7 +8,7 @@ from collections.abc import Iterator, Sequence
 from pathlib import Path
 
 from mkosi.log import complete_step, log_step
-from mkosi.run import run
+from mkosi.run import bwrap, chroot_cmd
 
 
 def filter_kernel_modules(root: Path, kver: str, include: Sequence[str], exclude: Sequence[str]) -> list[Path]:
@@ -58,8 +58,8 @@ def resolve_module_dependencies(root: Path, kver: str, modules: Sequence[str]) -
     # We could run modinfo once for each module but that's slow. Luckily we can pass multiple modules to
     # modinfo and it'll process them all in a single go. We get the modinfo for all modules to build two maps
     # that map the path of the module to its module dependencies and its firmware dependencies respectively.
-    info = run(["modinfo", "--basedir", root, "--set-version", kver, "--null", *nametofile.keys(), *builtin],
-               stdout=subprocess.PIPE).stdout
+    info = bwrap(chroot_cmd(root) + ["modinfo", "--set-version", kver, "--null", *nametofile.keys(), *builtin],
+                 stdout=subprocess.PIPE).stdout
 
     log_step("Calculating required kernel modules and firmware")
 
