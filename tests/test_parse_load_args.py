@@ -3,7 +3,6 @@
 import argparse
 import itertools
 import operator
-import tempfile
 from pathlib import Path
 import textwrap
 from typing import Optional
@@ -15,8 +14,8 @@ from mkosi.distributions import Distribution
 from mkosi.util import chdir
 
 
-def test_parse_load_verb() -> None:
-    with tempfile.TemporaryDirectory() as d, chdir(d):
+def test_parse_load_verb(tmp_path: Path) -> None:
+    with chdir(tmp_path):
         assert parse_config(["build"])[0].verb == Verb.build
         assert parse_config(["clean"])[0].verb == Verb.clean
         with pytest.raises(SystemExit):
@@ -32,8 +31,8 @@ def test_parse_load_verb() -> None:
             parse_config(["invalid"])
 
 
-def test_os_distribution() -> None:
-    with tempfile.TemporaryDirectory() as d, chdir(d):
+def test_os_distribution(tmp_path: Path) -> None:
+    with chdir(tmp_path):
         for dist in Distribution:
             assert parse_config(["-d", dist.name])[1][0].distribution == dist
 
@@ -48,8 +47,8 @@ def test_os_distribution() -> None:
             assert parse_config([])[1][0].distribution == dist
 
 
-def test_parse_config_files_filter() -> None:
-    with tempfile.TemporaryDirectory() as d, chdir(d):
+def test_parse_config_files_filter(tmp_path: Path) -> None:
+    with chdir(tmp_path):
         confd = Path("mkosi.conf.d")
         confd.mkdir()
 
@@ -59,14 +58,14 @@ def test_parse_config_files_filter() -> None:
         assert parse_config([])[1][0].packages == ["yes"]
 
 
-def test_compression() -> None:
-    with tempfile.TemporaryDirectory() as d, chdir(d):
+def test_compression(tmp_path: Path) -> None:
+    with chdir(tmp_path):
         assert parse_config(["--format", "disk", "--compress-output", "False"])[1][0].compress_output == Compression.none
 
 
 @pytest.mark.parametrize("dist1,dist2", itertools.combinations_with_replacement(Distribution, 2))
-def test_match_distribution(dist1: Distribution, dist2: Distribution) -> None:
-    with tempfile.TemporaryDirectory() as d, chdir(d):
+def test_match_distribution(tmp_path: Path, dist1: Distribution, dist2: Distribution) -> None:
+    with chdir(tmp_path):
         parent = Path("mkosi.conf")
         parent.write_text(
             textwrap.dedent(
@@ -129,8 +128,8 @@ def test_match_distribution(dist1: Distribution, dist2: Distribution) -> None:
 @pytest.mark.parametrize(
     "release1,release2", itertools.combinations_with_replacement([36, 37, 38], 2)
 )
-def test_match_release(release1: int, release2: int) -> None:
-    with tempfile.TemporaryDirectory() as d, chdir(d):
+def test_match_release(tmp_path: Path, release1: int, release2: int) -> None:
+    with chdir(tmp_path):
         parent = Path("mkosi.conf")
         parent.write_text(
             textwrap.dedent(
@@ -196,8 +195,8 @@ def test_match_release(release1: int, release2: int) -> None:
         ["image_a", "image_b", "image_c"], 2
     )
 )
-def test_match_imageid(image1: str, image2: str) -> None:
-    with tempfile.TemporaryDirectory() as d, chdir(d):
+def test_match_imageid(tmp_path: Path, image1: str, image2: str) -> None:
+    with chdir(tmp_path):
         parent = Path("mkosi.conf")
         parent.write_text(
             textwrap.dedent(
@@ -277,7 +276,7 @@ def test_match_imageid(image1: str, image2: str) -> None:
         [122, 123, 124],
     )
 )
-def test_match_imageversion(op: str, version: str) -> None:
+def test_match_imageversion(tmp_path: Path, op: str, version: str) -> None:
     opfunc = {
         "==": operator.eq,
         "!=": operator.ne,
@@ -287,7 +286,7 @@ def test_match_imageversion(op: str, version: str) -> None:
         ">=": operator.ge,
     }.get(op, operator.eq,)
 
-    with tempfile.TemporaryDirectory() as d, chdir(d):
+    with chdir(tmp_path):
         parent = Path("mkosi.conf")
         parent.write_text(
             textwrap.dedent(
@@ -351,8 +350,8 @@ def test_match_imageversion(op: str, version: str) -> None:
         [None, Path("/foo"), Path("/bar")],
     )
 )
-def test_package_manager_tree(skel: Optional[Path], pkgmngr: Optional[Path]) -> None:
-    with tempfile.TemporaryDirectory() as d, chdir(d):
+def test_package_manager_tree(tmp_path: Path, skel: Optional[Path], pkgmngr: Optional[Path]) -> None:
+    with chdir(tmp_path):
         config = Path("mkosi.conf")
         with config.open("w") as f:
             f.write("[Content]\n")
