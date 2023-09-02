@@ -50,6 +50,10 @@ class DistributionInstaller:
     def package_type(cls) -> PackageType:
         raise NotImplementedError()
 
+    @classmethod
+    def default_release(cls) -> str:
+        raise NotImplementedError()
+
 
 class Distribution(StrEnum):
     fedora       = enum.auto()
@@ -100,6 +104,9 @@ class Distribution(StrEnum):
 
     def package_type(self) -> PackageType:
         return self.installer().package_type()
+
+    def default_release(self) -> str:
+        return self.installer().default_release()
 
     def installer(self) -> Type[DistributionInstaller]:
         try:

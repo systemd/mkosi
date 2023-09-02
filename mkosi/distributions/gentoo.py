@@ -67,6 +67,10 @@ class GentooInstaller(DistributionInstaller):
         return PackageType.ebuild
 
     @classmethod
+    def default_release(cls) -> str:
+        return "17.1"
+
+    @classmethod
     def setup(cls, state: MkosiState) -> None:
         pass
 

@@ -290,18 +290,7 @@ def config_default_release(namespace: argparse.Namespace) -> str:
     if namespace.distribution == hd and hr is not None:
         return hr
 
-    return {
-        Distribution.fedora: "38",
-        Distribution.centos: "9",
-        Distribution.rocky: "9",
-        Distribution.alma: "9",
-        Distribution.mageia: "cauldron",
-        Distribution.debian: "testing",
-        Distribution.ubuntu: "lunar",
-        Distribution.opensuse: "tumbleweed",
-        Distribution.openmandriva: "cooker",
-        Distribution.gentoo: "17.1",
-    }.get(namespace.distribution, "rolling")
+    return cast(str, namespace.distribution.default_release())
 
 
 def config_default_mirror(namespace: argparse.Namespace) -> Optional[str]:

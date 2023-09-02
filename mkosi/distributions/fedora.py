@@ -20,6 +20,10 @@ class FedoraInstaller(DistributionInstaller):
         return PackageType.rpm
 
     @classmethod
+    def default_release(cls) -> str:
+        return "38"
+
+    @classmethod
     def setup(cls, state: MkosiState) -> None:
         # See: https://fedoraproject.org/security/
         gpgurls = ("https://fedoraproject.org/fedora.gpg",)

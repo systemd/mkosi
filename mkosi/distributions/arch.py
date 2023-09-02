@@ -19,6 +19,10 @@ class ArchInstaller(DistributionInstaller):
         return PackageType.pkg
 
     @classmethod
+    def default_release(cls) -> str:
+        return "rolling"
+
+    @classmethod
     def setup(cls, state: MkosiState) -> None:
         setup_pacman(state)
 

@@ -19,6 +19,10 @@ class OpenmandrivaInstaller(DistributionInstaller):
         return PackageType.rpm
 
     @classmethod
+    def default_release(cls) -> str:
+        return "cooker"
+
+    @classmethod
     def setup(cls, state: MkosiState) -> None:
         release = state.config.release.strip("'")
         arch = state.config.distribution.architecture(state.config.architecture)

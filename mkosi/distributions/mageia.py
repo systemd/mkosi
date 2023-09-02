@@ -19,6 +19,10 @@ class MageiaInstaller(DistributionInstaller):
         return PackageType.rpm
 
     @classmethod
+    def default_release(cls) -> str:
+        return "cauldron"
+
+    @classmethod
     def setup(cls, state: MkosiState) -> None:
         release = state.config.release.strip("'")
         arch = state.config.distribution.architecture(state.config.architecture)

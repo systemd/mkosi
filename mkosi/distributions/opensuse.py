@@ -23,6 +23,10 @@ class OpensuseInstaller(DistributionInstaller):
         return PackageType.rpm
 
     @classmethod
+    def default_release(cls) -> str:
+        return "tumbleweed"
+
+    @classmethod
     def setup(cls, state: MkosiState) -> None:
         release = state.config.release
         if release == "leap":

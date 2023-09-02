@@ -24,6 +24,10 @@ class DebianInstaller(DistributionInstaller):
     def package_type(cls) -> PackageType:
         return PackageType.deb
 
+    @classmethod
+    def default_release(cls) -> str:
+        return "testing"
+
     @staticmethod
     def repositories(state: MkosiState, local: bool = True) -> list[str]:
         assert state.config.mirror

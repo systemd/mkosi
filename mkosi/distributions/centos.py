@@ -39,6 +39,10 @@ class CentosInstaller(DistributionInstaller):
         return PackageType.rpm
 
     @classmethod
+    def default_release(cls) -> str:
+        return "9"
+
+    @classmethod
     def setup(cls, state: MkosiState) -> None:
         release = int(state.config.release)
 
