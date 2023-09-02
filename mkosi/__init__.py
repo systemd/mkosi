@@ -913,7 +913,6 @@ def build_initrd(state: MkosiState) -> Path:
         "--repository-key-check", str(state.config.repository_key_check),
         "--repositories", ",".join(state.config.repositories),
         "--package-manager-tree", ",".join(format_source_target(s, t) for s, t in state.config.package_manager_trees),
-        *(["--tools-tree", str(state.config.tools_tree)] if state.config.tools_tree else []),
         *(["--compress-output", str(state.config.compress_output)] if state.config.compress_output else []),
         "--with-network", str(state.config.with_network),
         "--cache-only", str(state.config.cache_only),
