@@ -21,7 +21,7 @@ class FedoraInstaller(DistributionInstaller):
 
     @classmethod
     def default_release(cls) -> str:
-        return "38"
+        return "39"
 
     @classmethod
     def setup(cls, state: MkosiState) -> None:
