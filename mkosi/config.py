@@ -58,9 +58,10 @@ class Verb(StrEnum):
     help          = enum.auto()
     genkey        = enum.auto()
     documentation = enum.auto()
+    download      = enum.auto()
 
     def supports_cmdline(self) -> bool:
-        return self in (Verb.shell, Verb.boot, Verb.qemu, Verb.ssh)
+        return self in (Verb.shell, Verb.boot, Verb.qemu, Verb.ssh, Verb.download)
 
     def needs_build(self) -> bool:
         return self in (Verb.build, Verb.shell, Verb.boot, Verb.qemu, Verb.serve)
@@ -1666,7 +1667,8 @@ def create_argument_parser() -> argparse.ArgumentParser:
                 mkosi [options...] {b}serve{e}
                 mkosi [options...] {b}bump{e}
                 mkosi [options...] {b}genkey{e}
-                mkosi [options...] {b}documentation{e}
+                mkosi [options...] {b}documentation
+                mkosi [options...] {b}download{e}
                 mkosi [options...] {b}help{e}
                 mkosi -h | --help
                 mkosi --version

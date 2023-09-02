@@ -30,6 +30,8 @@ mkosi — Build Bespoke OS Images
 
 `mkosi [options…] documentation`
 
+`mkosi [options…] download`
+
 `mkosi [options…] help`
 
 # DESCRIPTION
@@ -132,6 +134,11 @@ The following command line verbs are known:
   search path for man pages. The man page can be generated from the
   markdown file `mkosi/resources/mkosi.md` e.g via
   `pandoc -t man -s -o mkosi.1 mkosi.md`.
+
+`download`
+
+: This downloads all necessary packages and software for building a given
+ `distribution` and populates the mkosi cache at `mkosi/mkosi.cache` with it.
 
 `help`
 

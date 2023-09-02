@@ -2116,6 +2116,10 @@ def show_docs(args: MkosiArgs) -> None:
                 raise e
 
 
+def download_packages(args: MkosiArgs, config: MkosiConfig) -> None:
+    pass # TODO: implement this.
+
+
 def expand_specifier(s: str) -> str:
     return s.replace("%u", InvokingUser.name())
 
@@ -2152,6 +2156,11 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
 
     if args.verb == Verb.documentation:
         return show_docs(args)
+
+    if args.verb == Verb.download:
+        for config in presets:
+            download_packages(args, config)
+        return
 
     if args.verb == Verb.genkey:
         return generate_key_cert_pair(args)
