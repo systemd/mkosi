@@ -946,8 +946,7 @@ def build_initrd(state: MkosiState) -> Path:
     ]
 
     with complete_step("Building initrd"):
-        args, presets = parse_config(cmdline)
-        config = presets[0]
+        args, [config] = parse_config(cmdline)
         unlink_output(args, config)
         build_image(args, config)
 
