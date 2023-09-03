@@ -1075,8 +1075,9 @@ def install_unified_kernel(state: MkosiState, partitions: Sequence[Partition]) -
                 "--efi-arch", state.config.architecture.to_efi(),
             ]
 
-            for p in state.config.extra_search_paths:
-                cmd += ["--tools", p]
+            if not state.config.tools_tree:
+                for p in state.config.extra_search_paths:
+                    cmd += ["--tools", p]
 
             uki_config = state.pkgmngr / "etc/kernel/uki.conf"
             if uki_config.exists():
