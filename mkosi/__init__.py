@@ -49,7 +49,7 @@ from mkosi.qemu import copy_ephemeral, run_qemu, run_ssh
 from mkosi.run import become_root, bwrap, chroot_cmd, init_mount_namespace, run
 from mkosi.state import MkosiState
 from mkosi.tree import copy_tree, install_tree, move_tree, rmtree
-from mkosi.types import PathString
+from mkosi.types import _FILE, CompletedProcess, PathString
 from mkosi.util import (
     InvokingUser,
     flatten,
@@ -416,9 +416,13 @@ def run_finalize_script(state: MkosiState) -> None:
         )
 
 
+def run_openssl(args: Sequence[PathString], stdout: _FILE = None) -> CompletedProcess:
+    with tempfile.NamedTemporaryFile(prefix="mkosi-openssl.cnf") as config:
+        return run(["openssl", *args], stdout=stdout, env=dict(OPENSSL_CONF=config.name))
+
+
 def certificate_common_name(certificate: Path) -> str:
-    output = run([
-        "openssl",
+    output = run_openssl([
         "x509",
         "-noout",
         "-subject",
@@ -539,11 +543,10 @@ def install_systemd_boot(state: MkosiState) -> None:
                 keys.mkdir(parents=True, exist_ok=True)
 
             # sbsiglist expects a DER certificate.
-            run(["openssl",
-                 "x509",
-                 "-outform", "DER",
-                 "-in", state.config.secure_boot_certificate,
-                 "-out", state.workspace / "mkosi.der"])
+            run_openssl(["x509",
+                         "-outform", "DER",
+                         "-in", state.config.secure_boot_certificate,
+                         "-out", state.workspace / "mkosi.der"])
             run(["sbsiglist",
                  "--owner", str(uuid.uuid4()),
                  "--type", "x509",
@@ -2042,18 +2045,15 @@ def generate_key_cert_pair(args: MkosiArgs) -> None:
         )
     )
 
-    cmd: list[PathString] = [
-        "openssl", "req",
-        "-new",
-        "-x509",
-        "-newkey", f"rsa:{keylength}",
-        "-keyout", "mkosi.key",
-        "-out", "mkosi.crt",
-        "-days", str(args.genkey_valid_days),
-        "-subj", f"/CN={cn}/",
-        "-nodes",
-    ]
-    run(cmd)
+    run_openssl(["req",
+                 "-new",
+                 "-x509",
+                 "-newkey", f"rsa:{keylength}",
+                 "-keyout", "mkosi.key",
+                 "-out", "mkosi.crt",
+                 "-days", str(args.genkey_valid_days),
+                 "-subj", f"/CN={cn}/",
+                 "-nodes"])
 
 
 def bump_image_version(uid: int = -1, gid: int = -1) -> None:
