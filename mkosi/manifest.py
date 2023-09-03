@@ -3,6 +3,7 @@
 import dataclasses
 import datetime
 import json
+import logging
 import subprocess
 import textwrap
 from pathlib import Path
@@ -279,9 +280,9 @@ class Manifest:
         packages, and includes the changelogs. A diff between two such
         reports shows what changed *in* the packages quite nicely.
         """
-        print(f"Packages: {len(self.packages)}", file=out)
-        print(f"Size:     {sum(p.size for p in self.packages)}", file=out)
+        logging.info(f"Packages: {len(self.packages)}")
+        logging.info(f"Size:     {sum(p.size for p in self.packages)}")
 
         for package in self.source_packages.values():
-            print(f"\n{80*'-'}\n", file=out)
+            logging.info(f"\n{80*'-'}\n")
             out.write(package.report())

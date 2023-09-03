@@ -2020,7 +2020,7 @@ def run_serve(config: MkosiConfig) -> None:
         os.chdir(config.output_dir)
 
     with http.server.HTTPServer(("", port), http.server.SimpleHTTPRequestHandler) as httpd:
-        print(f"Serving HTTP on port {port}: http://localhost:{port}/")
+        logging.info(f"Serving HTTP on port {port}: http://localhost:{port}/")
         httpd.serve_forever()
 
 
