@@ -3,7 +3,7 @@
 from collections.abc import Sequence
 
 from mkosi.architecture import Architecture
-from mkosi.distributions import DistributionInstaller, PackageType
+from mkosi.distributions import Distribution, DistributionInstaller, PackageType
 from mkosi.installer.dnf import Repo, invoke_dnf, setup_dnf
 from mkosi.log import die
 from mkosi.state import MkosiState
@@ -21,6 +21,10 @@ class OpenmandrivaInstaller(DistributionInstaller):
     @classmethod
     def default_release(cls) -> str:
         return "cooker"
+
+    @classmethod
+    def default_tools_tree_distribution(cls) -> Distribution:
+        return Distribution.openmandriva
 
     @classmethod
     def setup(cls, state: MkosiState) -> None:

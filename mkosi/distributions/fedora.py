@@ -4,7 +4,7 @@ import urllib.parse
 from collections.abc import Sequence
 
 from mkosi.architecture import Architecture
-from mkosi.distributions import DistributionInstaller, PackageType
+from mkosi.distributions import Distribution, DistributionInstaller, PackageType
 from mkosi.installer.dnf import Repo, invoke_dnf, setup_dnf
 from mkosi.log import die
 from mkosi.state import MkosiState
@@ -22,6 +22,48 @@ class FedoraInstaller(DistributionInstaller):
     @classmethod
     def default_release(cls) -> str:
         return "39"
+
+    @classmethod
+    def default_tools_tree_distribution(cls) -> Distribution:
+        return Distribution.fedora
+
+    @classmethod
+    def tools_tree_packages(cls) -> list[str]:
+        return [
+            "apt",
+            "archlinux-keyring",
+            "bash",
+            "btrfs-progs",
+            "bubblewrap",
+            "coreutils",
+            "cpio",
+            "debian-keyring",
+            "dnf5",
+            "dosfstools",
+            "e2fsprogs",
+            "edk2-ovmf",
+            "erofs-utils",
+            "mtools",
+            "openssh-clients",
+            "openssl",
+            "pacman",
+            "python3-cryptography",
+            "qemu-kvm-core",
+            "sbsigntools",
+            "socat",
+            "squashfs-tools",
+            "strace",
+            "swtpm",
+            "systemd-container",
+            "systemd-udev",
+            "systemd-ukify",
+            "systemd",
+            "tar",
+            "xfsprogs",
+            "xz",
+            "zstd",
+            "zypper",
+        ]
 
     @classmethod
     def setup(cls, state: MkosiState) -> None:

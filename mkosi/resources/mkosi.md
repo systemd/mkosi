@@ -1114,6 +1114,22 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   `--extra-search-path=` are ignored when looking up binaries in the
   given tools tree.
 
+: If set to `default`, mkosi will automatically add an extra tools tree
+  preset and use it as the tools tree.
+
+`ToolsTreeDistribution=`, `--tools-tree-distribution=`
+
+: Set the distribution to use for the default tools tree. By default,
+  the same distribution as the image that's being built is used, except
+  for CentOS and Ubuntu images, in which case Fedora and Debian are used
+  respectively.
+
+`ToolsTreeRelease=`, `--tools-tree-release=`
+
+: Set the distribution release to use for the default tools tree. By
+  default, the hardcoded default release in mkosi for the distribution
+  is used.
+
 ## Supported distributions
 
 Images may be created containing installations of the following

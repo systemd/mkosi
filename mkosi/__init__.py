@@ -2145,6 +2145,49 @@ def prepend_to_environ_path(config: MkosiConfig) -> Iterator[None]:
             os.environ["PATH"] = ":".join(olds)
 
 
+def finalize_tools(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> Sequence[MkosiConfig]:
+    new = []
+
+    for p in presets:
+        if not p.tools_tree or p.tools_tree.name != "default":
+            new.append(p)
+            continue
+
+        distribution = p.tools_tree_distribution or p.distribution.default_tools_tree_distribution()
+        release = p.tools_tree_release or distribution.default_release()
+
+        cmdline = [
+            "--directory", "",
+            "--distribution", str(distribution),
+            "--release", release,
+            "--repository-key-check", str(p.repository_key_check),
+            "--cache-only", str(p.cache_only),
+            "--output-dir", str(p.output_dir),
+            "--workspace-dir", str(p.workspace_dir),
+            *(["--cache-dir", str(p.cache_dir.parent)] if p.cache_dir else []),
+            "--incremental", str(p.incremental),
+            "--acl", str(p.acl),
+            "--format", "directory",
+            *flatten(["--package", package] for package in distribution.tools_tree_packages()),
+            "--output", f"{distribution}-tools",
+            "--bootable", "no",
+            "--manifest-format", "",
+            *(["--source-date-epoch", str(p.source_date_epoch)] if p.source_date_epoch is not None else []),
+            *(["-f"] * args.force),
+            "build",
+        ]
+
+        _, [config] = parse_config(cmdline)
+        config = dataclasses.replace(config, preset=f"{distribution}-tools")
+
+        if config not in new:
+            new.append(config)
+
+        new.append(dataclasses.replace(p, tools_tree=config.output_dir / config.output))
+
+    return new
+
+
 def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
     if args.verb.needs_root() and os.getuid() != 0:
         die(f"Must be root to run the {args.verb} command")
@@ -2157,6 +2200,8 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
 
     if args.verb == Verb.bump:
         return bump_image_version()
+
+    presets = finalize_tools(args, presets)
 
     if args.verb == Verb.summary:
         text = ""

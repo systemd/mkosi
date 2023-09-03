@@ -704,6 +704,8 @@ class MkosiConfig:
     kernel_command_line_extra: list[str]
     acl: bool
     tools_tree: Optional[Path]
+    tools_tree_distribution: Optional[Distribution]
+    tools_tree_release: Optional[str]
 
     # QEMU-specific options
     qemu_gui: bool
@@ -1617,9 +1619,23 @@ SETTINGS = (
         dest="tools_tree",
         metavar="PATH",
         section="Host",
-        parse=config_make_path_parser(required=False, resolve=False),
+        parse=config_make_path_parser(required=False),
         paths=("mkosi.tools",),
         help="Look up programs to execute inside the given tree",
+    ),
+    MkosiConfigSetting(
+        dest="tools_tree_distribution",
+        metavar="DISTRIBUTION",
+        section="Host",
+        parse=config_make_enum_parser(Distribution),
+        help="Set the distribution to use for the default tools tree",
+    ),
+    MkosiConfigSetting(
+        dest="tools_tree_release",
+        metavar="RELEASE",
+        section="Host",
+        parse=config_parse_string,
+        help="Set the release to use for the default tools tree",
     ),
 )
 
@@ -2373,6 +2389,8 @@ Clean Package Manager Metadata: {yes_no_auto(config.clean_package_metadata)}
      Extra Kernel Command Line: {line_join_list(config.kernel_command_line_extra)}
                       Use ACLs: {config.acl}
                     Tools Tree: {config.tools_tree}
+       Tools Tree Distribution: {none_to_none(config.tools_tree_distribution)}
+            Tools Tree Release: {none_to_none(config.tools_tree_release)}
 
                       QEMU GUI: {yes_no(config.qemu_gui)}
                 QEMU CPU Cores: {config.qemu_smp}

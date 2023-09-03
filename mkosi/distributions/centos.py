@@ -8,7 +8,7 @@ from pathlib import Path
 
 from mkosi.architecture import Architecture
 from mkosi.config import MkosiConfig
-from mkosi.distributions import DistributionInstaller, PackageType
+from mkosi.distributions import Distribution, DistributionInstaller, PackageType
 from mkosi.installer.dnf import Repo, invoke_dnf, setup_dnf
 from mkosi.log import complete_step, die
 from mkosi.state import MkosiState
@@ -41,6 +41,40 @@ class CentosInstaller(DistributionInstaller):
     @classmethod
     def default_release(cls) -> str:
         return "9"
+
+    @classmethod
+    def default_tools_tree_distribution(cls) -> Distribution:
+        return Distribution.fedora
+
+    @classmethod
+    def tools_tree_packages(cls) -> list[str]:
+        return [
+            "bash",
+            "bubblewrap",
+            "coreutils",
+            "cpio",
+            "dnf",
+            "dosfstools",
+            "e2fsprogs",
+            "edk2-ovmf",
+            "mtools",
+            "openssh-clients",
+            "openssl",
+            "python3-cryptography",
+            "qemu-kvm-core",
+            "pesign",
+            "socat",
+            "squashfs-tools",
+            "strace",
+            "swtpm",
+            "systemd-container",
+            "systemd-udev",
+            "systemd",
+            "tar",
+            "xfsprogs",
+            "xz",
+            "zstd",
+        ]
 
     @classmethod
     def setup(cls, state: MkosiState) -> None:

@@ -6,7 +6,7 @@ import xml.etree.ElementTree as ElementTree
 from collections.abc import Sequence
 
 from mkosi.architecture import Architecture
-from mkosi.distributions import DistributionInstaller, PackageType
+from mkosi.distributions import Distribution, DistributionInstaller, PackageType
 from mkosi.installer.dnf import Repo, invoke_dnf, setup_dnf
 from mkosi.installer.zypper import invoke_zypper, setup_zypper
 from mkosi.log import die
@@ -25,6 +25,44 @@ class OpensuseInstaller(DistributionInstaller):
     @classmethod
     def default_release(cls) -> str:
         return "tumbleweed"
+
+    @classmethod
+    def default_tools_tree_distribution(cls) -> Distribution:
+        return Distribution.opensuse
+
+    @classmethod
+    def tools_tree_packages(cls) -> list[str]:
+        return [
+            "bash",
+            "btrfs-progs",
+            "bubblewrap",
+            "coreutils",
+            "cpio",
+            "dnf",
+            "dosfstools",
+            "e2fsprogs",
+            "erofs-utils",
+            "grep",
+            "mtools",
+            "openssh-clients",
+            "openssl",
+            "ovmf",
+            "qemu-headless",
+            "sbsigntools",
+            "socat",
+            "squashfs",
+            "strace",
+            "swtpm",
+            "systemd-boot",
+            "systemd-container",
+            "systemd-experimental",
+            "systemd",
+            "tar",
+            "xfsprogs",
+            "xz",
+            "zstd",
+            "zypper",
+        ]
 
     @classmethod
     def setup(cls, state: MkosiState) -> None:
