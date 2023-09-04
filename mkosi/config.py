@@ -1621,7 +1621,6 @@ SETTINGS = (
     ),
     MkosiConfigSetting(
         dest="tools_tree",
-        long="--tools-tree",
         metavar="PATH",
         section="Host",
         parse=config_make_path_parser(required=False, absolute=False),
