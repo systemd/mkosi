@@ -6,6 +6,10 @@ from mkosi.state import MkosiState
 
 
 class UbuntuInstaller(DebianInstaller):
+    @classmethod
+    def default_release(cls) -> str:
+        return "lunar"
+
     @staticmethod
     def repositories(state: MkosiState, local: bool = True) -> list[str]:
         if state.config.local_mirror and local:

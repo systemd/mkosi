@@ -49,7 +49,7 @@ from mkosi.qemu import copy_ephemeral, run_qemu, run_ssh
 from mkosi.run import become_root, bwrap, chroot_cmd, init_mount_namespace, run
 from mkosi.state import MkosiState
 from mkosi.tree import copy_tree, install_tree, move_tree, rmtree
-from mkosi.types import PathString
+from mkosi.types import _FILE, CompletedProcess, PathString
 from mkosi.util import (
     InvokingUser,
     flatten,
@@ -416,9 +416,13 @@ def run_finalize_script(state: MkosiState) -> None:
         )
 
 
+def run_openssl(args: Sequence[PathString], stdout: _FILE = None) -> CompletedProcess:
+    with tempfile.NamedTemporaryFile(prefix="mkosi-openssl.cnf") as config:
+        return run(["openssl", *args], stdout=stdout, env=dict(OPENSSL_CONF=config.name))
+
+
 def certificate_common_name(certificate: Path) -> str:
-    output = run([
-        "openssl",
+    output = run_openssl([
         "x509",
         "-noout",
         "-subject",
@@ -539,11 +543,10 @@ def install_systemd_boot(state: MkosiState) -> None:
                 keys.mkdir(parents=True, exist_ok=True)
 
             # sbsiglist expects a DER certificate.
-            run(["openssl",
-                 "x509",
-                 "-outform", "DER",
-                 "-in", state.config.secure_boot_certificate,
-                 "-out", state.workspace / "mkosi.der"])
+            run_openssl(["x509",
+                         "-outform", "DER",
+                         "-in", state.config.secure_boot_certificate,
+                         "-out", state.workspace / "mkosi.der"])
             run(["sbsiglist",
                  "--owner", str(uuid.uuid4()),
                  "--type", "x509",
@@ -913,7 +916,6 @@ def build_initrd(state: MkosiState) -> Path:
         "--repository-key-check", str(state.config.repository_key_check),
         "--repositories", ",".join(state.config.repositories),
         "--package-manager-tree", ",".join(format_source_target(s, t) for s, t in state.config.package_manager_trees),
-        *(["--tools-tree", str(state.config.tools_tree)] if state.config.tools_tree else []),
         *(["--compress-output", str(state.config.compress_output)] if state.config.compress_output else []),
         "--with-network", str(state.config.with_network),
         "--cache-only", str(state.config.cache_only),
@@ -946,8 +948,7 @@ def build_initrd(state: MkosiState) -> Path:
     ]
 
     with complete_step("Building initrd"):
-        args, presets = parse_config(cmdline)
-        config = presets[0]
+        args, [config] = parse_config(cmdline)
         unlink_output(args, config)
         build_image(args, config)
 
@@ -1074,8 +1075,9 @@ def install_unified_kernel(state: MkosiState, partitions: Sequence[Partition]) -
                 "--efi-arch", state.config.architecture.to_efi(),
             ]
 
-            for p in state.config.extra_search_paths:
-                cmd += ["--tools", p]
+            if not state.config.tools_tree:
+                for p in state.config.extra_search_paths:
+                    cmd += ["--tools", p]
 
             uki_config = state.pkgmngr / "etc/kernel/uki.conf"
             if uki_config.exists():
@@ -2018,7 +2020,7 @@ def run_serve(config: MkosiConfig) -> None:
         os.chdir(config.output_dir)
 
     with http.server.HTTPServer(("", port), http.server.SimpleHTTPRequestHandler) as httpd:
-        print(f"Serving HTTP on port {port}: http://localhost:{port}/")
+        logging.info(f"Serving HTTP on port {port}: http://localhost:{port}/")
         httpd.serve_forever()
 
 
@@ -2044,18 +2046,15 @@ def generate_key_cert_pair(args: MkosiArgs) -> None:
         )
     )
 
-    cmd: list[PathString] = [
-        "openssl", "req",
-        "-new",
-        "-x509",
-        "-newkey", f"rsa:{keylength}",
-        "-keyout", "mkosi.key",
-        "-out", "mkosi.crt",
-        "-days", str(args.genkey_valid_days),
-        "-subj", f"/CN={cn}/",
-        "-nodes",
-    ]
-    run(cmd)
+    run_openssl(["req",
+                 "-new",
+                 "-x509",
+                 "-newkey", f"rsa:{keylength}",
+                 "-keyout", "mkosi.key",
+                 "-out", "mkosi.crt",
+                 "-days", str(args.genkey_valid_days),
+                 "-subj", f"/CN={cn}/",
+                 "-nodes"])
 
 
 def bump_image_version(uid: int = -1, gid: int = -1) -> None:
@@ -2146,6 +2145,49 @@ def prepend_to_environ_path(config: MkosiConfig) -> Iterator[None]:
             os.environ["PATH"] = ":".join(olds)
 
 
+def finalize_tools(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> Sequence[MkosiConfig]:
+    new = []
+
+    for p in presets:
+        if not p.tools_tree or p.tools_tree.name != "default":
+            new.append(p)
+            continue
+
+        distribution = p.tools_tree_distribution or p.distribution.default_tools_tree_distribution()
+        release = p.tools_tree_release or distribution.default_release()
+
+        cmdline = [
+            "--directory", "",
+            "--distribution", str(distribution),
+            "--release", release,
+            "--repository-key-check", str(p.repository_key_check),
+            "--cache-only", str(p.cache_only),
+            "--output-dir", str(p.output_dir),
+            "--workspace-dir", str(p.workspace_dir),
+            *(["--cache-dir", str(p.cache_dir.parent)] if p.cache_dir else []),
+            "--incremental", str(p.incremental),
+            "--acl", str(p.acl),
+            "--format", "directory",
+            *flatten(["--package", package] for package in distribution.tools_tree_packages()),
+            "--output", f"{distribution}-tools",
+            "--bootable", "no",
+            "--manifest-format", "",
+            *(["--source-date-epoch", str(p.source_date_epoch)] if p.source_date_epoch is not None else []),
+            *(["-f"] * args.force),
+            "build",
+        ]
+
+        _, [config] = parse_config(cmdline)
+        config = dataclasses.replace(config, preset=f"{distribution}-tools")
+
+        if config not in new:
+            new.append(config)
+
+        new.append(dataclasses.replace(p, tools_tree=config.output_dir / config.output))
+
+    return new
+
+
 def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
     if args.verb.needs_root() and os.getuid() != 0:
         die(f"Must be root to run the {args.verb} command")
@@ -2158,6 +2200,8 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
 
     if args.verb == Verb.bump:
         return bump_image_version()
+
+    presets = finalize_tools(args, presets)
 
     if args.verb == Verb.summary:
         text = ""

@@ -15,7 +15,6 @@ import pwd
 import re
 import resource
 import stat
-import sys
 import tempfile
 from collections.abc import Iterable, Iterator, Mapping, Sequence
 from pathlib import Path
@@ -54,7 +53,7 @@ def read_os_release() -> Iterator[tuple[str, str]]:
                     val = ast.literal_eval(val)
                 yield name, val
             else:
-                print(f"{filename}:{line_number}: bad line {line!r}", file=sys.stderr)
+                logging.info(f"{filename}:{line_number}: bad line {line!r}")
 
 
 def format_rlimit(rlimit: int) -> str:

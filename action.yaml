@@ -35,7 +35,6 @@ runs:
         dnf \
         e2fsprogs \
         erofs-utils \
-        makepkg \
         mtools \
         ovmf \
         pacman-package-manager \

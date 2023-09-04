@@ -9,7 +9,7 @@ from pathlib import Path
 
 from mkosi.architecture import Architecture
 from mkosi.archive import extract_tar
-from mkosi.distributions import DistributionInstaller, PackageType
+from mkosi.distributions import Distribution, DistributionInstaller, PackageType
 from mkosi.log import ARG_DEBUG, complete_step, die
 from mkosi.run import apivfs_cmd, bwrap, chroot_cmd, run
 from mkosi.state import MkosiState
@@ -65,6 +65,14 @@ class GentooInstaller(DistributionInstaller):
     @classmethod
     def package_type(cls) -> PackageType:
         return PackageType.ebuild
+
+    @classmethod
+    def default_release(cls) -> str:
+        return "17.1"
+
+    @classmethod
+    def default_tools_tree_distribution(cls) -> Distribution:
+        return Distribution.gentoo
 
     @classmethod
     def setup(cls, state: MkosiState) -> None:

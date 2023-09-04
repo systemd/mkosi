@@ -7,7 +7,7 @@ from pathlib import Path
 
 from mkosi.architecture import Architecture
 from mkosi.archive import extract_tar
-from mkosi.distributions import DistributionInstaller, PackageType
+from mkosi.distributions import Distribution, DistributionInstaller, PackageType
 from mkosi.installer.apt import invoke_apt, setup_apt
 from mkosi.log import die
 from mkosi.run import run
@@ -23,6 +23,52 @@ class DebianInstaller(DistributionInstaller):
     @classmethod
     def package_type(cls) -> PackageType:
         return PackageType.deb
+
+    @classmethod
+    def default_release(cls) -> str:
+        return "testing"
+
+    @classmethod
+    def default_tools_tree_distribution(cls) -> Distribution:
+        return Distribution.debian
+
+    @classmethod
+    def tools_tree_packages(cls) -> list[str]:
+        return [
+            "apt",
+            "bash",
+            "btrfs-progs",
+            "bubblewrap",
+            "coreutils",
+            "cpio",
+            "debian-archive-keyring",
+            "dnf",
+            "dosfstools",
+            "e2fsprogs",
+            "erofs-utils",
+            "libtss2-dev",
+            "mtools",
+            "openssh-client",
+            "openssl",
+            "ovmf",
+            "pacman-package-manager",
+            "python3-cryptography",
+            "python3-pefile",
+            "qemu-system",
+            "sbsigntool",
+            "socat",
+            "squashfs-tools",
+            "strace",
+            "swtpm",
+            "systemd-boot",
+            "systemd-container",
+            "systemd",
+            "tar",
+            "xfsprogs",
+            "xz-utils",
+            "zstd",
+            "zypper",
+        ]
 
     @staticmethod
     def repositories(state: MkosiState, local: bool = True) -> list[str]:

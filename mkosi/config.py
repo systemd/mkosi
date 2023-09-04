@@ -148,7 +148,6 @@ def parse_boolean(s: str) -> bool:
 def parse_path(value: str,
                *,
                required: bool = True,
-               absolute: bool = True,
                resolve: bool = True,
                expanduser: bool = True,
                expandvars: bool = True,
@@ -165,9 +164,6 @@ def parse_path(value: str,
 
     if required and not path.exists():
         die(f"{value} does not exist")
-
-    if absolute:
-        path = path.absolute()
 
     if resolve:
         path = path.resolve()
@@ -188,7 +184,7 @@ def make_source_target_paths_parser(absolute: bool = True) -> Callable[[str], tu
         src, sep, target = value.partition(':')
         src_path = parse_path(src, required=False)
         if sep:
-            target_path = parse_path(target, required=False, absolute=False, resolve=False, expanduser=False)
+            target_path = parse_path(target, required=False, resolve=False, expanduser=False)
             if absolute and not target_path.is_absolute():
                 die("Target path must be absolute")
         else:
@@ -290,18 +286,7 @@ def config_default_release(namespace: argparse.Namespace) -> str:
     if namespace.distribution == hd and hr is not None:
         return hr
 
-    return {
-        Distribution.fedora: "38",
-        Distribution.centos: "9",
-        Distribution.rocky: "9",
-        Distribution.alma: "9",
-        Distribution.mageia: "cauldron",
-        Distribution.debian: "testing",
-        Distribution.ubuntu: "lunar",
-        Distribution.opensuse: "tumbleweed",
-        Distribution.openmandriva: "cooker",
-        Distribution.gentoo: "17.1",
-    }.get(namespace.distribution, "rolling")
+    return cast(str, namespace.distribution.default_release())
 
 
 def config_default_mirror(namespace: argparse.Namespace) -> Optional[str]:
@@ -419,14 +404,14 @@ def config_match_image_version(match: str, value: Optional[str]) -> bool:
 
 def make_path_parser(*,
                      required: bool = True,
-                     absolute: bool = True,
+                     resolve: bool = True,
                      expanduser: bool = True,
                      expandvars: bool = True,
                      secret: bool = False) -> Callable[[str], Path]:
     return functools.partial(
         parse_path,
         required=required,
-        absolute=absolute,
+        resolve=resolve,
         expanduser=expanduser,
         expandvars=expandvars,
         secret=secret,
@@ -435,7 +420,6 @@ def make_path_parser(*,
 
 def config_make_path_parser(*,
                             required: bool = True,
-                            absolute: bool = True,
                             resolve: bool = True,
                             expanduser: bool = True,
                             expandvars: bool = True,
@@ -445,7 +429,6 @@ def config_make_path_parser(*,
             return parse_path(
                 value,
                 required=required,
-                absolute=absolute,
                 resolve=resolve,
                 expanduser=expanduser,
                 expandvars=expandvars,
@@ -721,6 +704,8 @@ class MkosiConfig:
     kernel_command_line_extra: list[str]
     acl: bool
     tools_tree: Optional[Path]
+    tools_tree_distribution: Optional[Distribution]
+    tools_tree_release: Optional[str]
 
     # QEMU-specific options
     qemu_gui: bool
@@ -1632,12 +1617,25 @@ SETTINGS = (
     ),
     MkosiConfigSetting(
         dest="tools_tree",
-        long="--tools-tree",
         metavar="PATH",
         section="Host",
-        parse=config_make_path_parser(required=False, absolute=False),
+        parse=config_make_path_parser(required=False),
         paths=("mkosi.tools",),
         help="Look up programs to execute inside the given tree",
+    ),
+    MkosiConfigSetting(
+        dest="tools_tree_distribution",
+        metavar="DISTRIBUTION",
+        section="Host",
+        parse=config_make_enum_parser(Distribution),
+        help="Set the distribution to use for the default tools tree",
+    ),
+    MkosiConfigSetting(
+        dest="tools_tree_release",
+        metavar="RELEASE",
+        section="Host",
+        parse=config_parse_string,
+        help="Set the release to use for the default tools tree",
     ),
 )
 
@@ -1953,7 +1951,6 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
                         f,
                         secret=s.path_secret,
                         required=False,
-                        absolute=False,
                         resolve=False,
                         expanduser=False,
                         expandvars=False,
@@ -2392,6 +2389,8 @@ Clean Package Manager Metadata: {yes_no_auto(config.clean_package_metadata)}
      Extra Kernel Command Line: {line_join_list(config.kernel_command_line_extra)}
                       Use ACLs: {config.acl}
                     Tools Tree: {config.tools_tree}
+       Tools Tree Distribution: {none_to_none(config.tools_tree_distribution)}
+            Tools Tree Release: {none_to_none(config.tools_tree_release)}
 
                       QEMU GUI: {yes_no(config.qemu_gui)}
                 QEMU CPU Cores: {config.qemu_smp}
