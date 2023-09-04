@@ -148,7 +148,6 @@ def parse_boolean(s: str) -> bool:
 def parse_path(value: str,
                *,
                required: bool = True,
-               absolute: bool = True,
                resolve: bool = True,
                expanduser: bool = True,
                expandvars: bool = True,
@@ -165,9 +164,6 @@ def parse_path(value: str,
 
     if required and not path.exists():
         die(f"{value} does not exist")
-
-    if absolute:
-        path = path.absolute()
 
     if resolve:
         path = path.resolve()
@@ -188,7 +184,7 @@ def make_source_target_paths_parser(absolute: bool = True) -> Callable[[str], tu
         src, sep, target = value.partition(':')
         src_path = parse_path(src, required=False)
         if sep:
-            target_path = parse_path(target, required=False, absolute=False, resolve=False, expanduser=False)
+            target_path = parse_path(target, required=False, resolve=False, expanduser=False)
             if absolute and not target_path.is_absolute():
                 die("Target path must be absolute")
         else:
@@ -408,14 +404,14 @@ def config_match_image_version(match: str, value: Optional[str]) -> bool:
 
 def make_path_parser(*,
                      required: bool = True,
-                     absolute: bool = True,
+                     resolve: bool = True,
                      expanduser: bool = True,
                      expandvars: bool = True,
                      secret: bool = False) -> Callable[[str], Path]:
     return functools.partial(
         parse_path,
         required=required,
-        absolute=absolute,
+        resolve=resolve,
         expanduser=expanduser,
         expandvars=expandvars,
         secret=secret,
@@ -424,7 +420,6 @@ def make_path_parser(*,
 
 def config_make_path_parser(*,
                             required: bool = True,
-                            absolute: bool = True,
                             resolve: bool = True,
                             expanduser: bool = True,
                             expandvars: bool = True,
@@ -434,7 +429,6 @@ def config_make_path_parser(*,
             return parse_path(
                 value,
                 required=required,
-                absolute=absolute,
                 resolve=resolve,
                 expanduser=expanduser,
                 expandvars=expandvars,
@@ -1623,7 +1617,7 @@ SETTINGS = (
         dest="tools_tree",
         metavar="PATH",
         section="Host",
-        parse=config_make_path_parser(required=False, absolute=False),
+        parse=config_make_path_parser(required=False, resolve=False),
         paths=("mkosi.tools",),
         help="Look up programs to execute inside the given tree",
     ),
@@ -1941,7 +1935,6 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
                         f,
                         secret=s.path_secret,
                         required=False,
-                        absolute=False,
                         resolve=False,
                         expanduser=False,
                         expandvars=False,
