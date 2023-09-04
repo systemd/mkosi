@@ -2387,7 +2387,7 @@ Clean Package Manager Metadata: {yes_no_auto(config.clean_package_metadata)}
                      Ephemeral: {config.ephemeral}
                    Credentials: {line_join_list(config.credentials.keys())}
      Extra Kernel Command Line: {line_join_list(config.kernel_command_line_extra)}
-                      Use ACLs: {config.acl}
+                      Use ACLs: {yes_no(config.acl)}
                     Tools Tree: {config.tools_tree}
        Tools Tree Distribution: {none_to_none(config.tools_tree_distribution)}
             Tools Tree Release: {none_to_none(config.tools_tree_release)}
