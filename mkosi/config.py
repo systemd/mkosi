@@ -1937,7 +1937,7 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
         if path.exists():
             logging.debug(f"Including configuration file {Path.cwd() / path}")
 
-            for _, k, v in parse_ini(path, only_sections=["Distribution", "Output", "Content", "Validation", "Host"]):
+            for _, k, v in parse_ini(path, only_sections=["Distribution", "Output", "Content", "Validation", "Host", "Preset"]):
                 ns = defaults if k.startswith("@") else namespace
 
                 if not (s := settings_lookup_by_name.get(k.removeprefix("@"))):
