@@ -195,7 +195,7 @@ def make_source_target_paths_parser(absolute: bool = True) -> Callable[[str], tu
 
 
 def config_parse_string(value: Optional[str], old: Optional[str]) -> Optional[str]:
-    return value if value else None
+    return value if value is not None else None
 
 
 def config_make_string_matcher(allow_globs: bool = False) -> ConfigMatchCallback:
@@ -212,7 +212,7 @@ def config_make_string_matcher(allow_globs: bool = False) -> ConfigMatchCallback
 
 
 def config_parse_script(value: Optional[str], old: Optional[Path]) -> Optional[Path]:
-    if value:
+    if value is not None:
         path = parse_path(value)
         if not os.access(path, os.X_OK):
             die(f"{value} is not executable")
@@ -222,7 +222,7 @@ def config_parse_script(value: Optional[str], old: Optional[Path]) -> Optional[P
 
 
 def config_parse_boolean(value: Optional[str], old: Optional[bool]) -> bool:
-    return parse_boolean(value) if value else False
+    return parse_boolean(value) if value is not None else False
 
 
 def parse_feature(value: Optional[str]) -> ConfigFeature:
@@ -331,7 +331,7 @@ def make_enum_parser(type: Type[enum.Enum]) -> Callable[[str], enum.Enum]:
 
 def config_make_enum_parser(type: Type[enum.Enum]) -> ConfigParseCallback:
     def config_parse_enum(value: Optional[str], old: Optional[enum.Enum]) -> Optional[enum.Enum]:
-        return make_enum_parser(type)(value) if value else None
+        return make_enum_parser(type)(value) if value is not None else None
 
     return config_parse_enum
 
@@ -425,7 +425,7 @@ def config_make_path_parser(*,
                             expandvars: bool = True,
                             secret: bool = False) -> ConfigParseCallback:
     def config_parse_path(value: Optional[str], old: Optional[Path]) -> Optional[Path]:
-        if value:
+        if value is not None:
             return parse_path(
                 value,
                 required=required,
