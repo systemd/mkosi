@@ -66,16 +66,23 @@ class OpensuseInstaller(DistributionInstaller):
     @classmethod
     def install_packages(cls, state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
         if shutil.which("zypper"):
-            invoke_zypper(state, "install", packages, apivfs=apivfs)
+            invoke_zypper(state, ["install"], packages, apivfs=apivfs)
         else:
-            invoke_dnf(state, "install", packages, apivfs=apivfs)
+            invoke_dnf(state, ["install"], packages, apivfs=apivfs)
+
+    @classmethod
+    def download_packages(cls, state: MkosiState) -> None:
+        if shutil.which("zypper"):
+            invoke_zypper(state, ["install", "--download-only"], ["filesystem"], apivfs=False)
+        else:
+            invoke_dnf(state, ["install", "--downloadonly"], ["filesystem"], apivfs=False)
 
     @classmethod
     def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
         if shutil.which("zypper"):
-            invoke_zypper(state, "remove", packages, ["--clean-deps"])
+            invoke_zypper(state, ["remove"], packages, ["--clean-deps"])
         else:
-            invoke_dnf(state, "remove", packages)
+            invoke_dnf(state, ["remove"], packages)
 
     @staticmethod
     def architecture(arch: Architecture) -> str:

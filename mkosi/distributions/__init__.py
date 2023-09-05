@@ -35,6 +35,10 @@ class DistributionInstaller:
         raise NotImplementedError()
 
     @classmethod
+    def download_packages(cls, state: "MkosiState") -> None:
+        raise NotImplementedError()
+
+    @classmethod
     def remove_packages(cls, state: "MkosiState", packages: Sequence[str]) -> None:
         raise NotImplementedError()
 
@@ -88,6 +92,9 @@ class Distribution(StrEnum):
 
     def install_packages(self, state: "MkosiState", packages: Sequence[str]) -> None:
         return self.installer().install_packages(state, packages)
+
+    def download_packages(self, state: "MkosiState") -> None:
+        return self.installer().download_packages(state)
 
     def remove_packages(self, state: "MkosiState", packages: Sequence[str]) -> None:
         return self.installer().remove_packages(state, packages)

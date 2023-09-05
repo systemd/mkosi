@@ -113,9 +113,9 @@ def dnf_cmd(state: MkosiState) -> list[PathString]:
     return cmdline
 
 
-def invoke_dnf(state: MkosiState, command: str, packages: Iterable[str], apivfs: bool = True) -> None:
+def invoke_dnf(state: MkosiState, commands: Sequence[str], packages: Iterable[str], apivfs: bool = True) -> None:
     cmd = apivfs_cmd(state.root) if apivfs else []
-    bwrap(cmd + dnf_cmd(state) + [command, *sort_packages(packages)],
+    bwrap(cmd + dnf_cmd(state) + [*commands, *sort_packages(packages)],
           network=True, env=state.config.environment)
 
     fixup_rpmdb_location(state.root)

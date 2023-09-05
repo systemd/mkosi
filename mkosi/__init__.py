@@ -2117,7 +2117,13 @@ def show_docs(args: MkosiArgs) -> None:
 
 
 def download_packages(args: MkosiArgs, config: MkosiConfig) -> None:
-    pass # TODO: implement this.
+    # TODO: See the best way of implementing this.
+    # For now I'll leave it like this for testing purposes.
+    workspace = tempfile.TemporaryDirectory(dir=config.workspace_dir, prefix=".mkosi-tmp")
+    state = MkosiState(args, config, Path(workspace.name))
+    with workspace, scopedenv({"TMPDIR" : workspace.name}), mount_base_trees(state):
+            state.config.distribution.setup(state)
+            state.config.distribution.download_packages(state)
 
 
 def expand_specifier(s: str) -> str:

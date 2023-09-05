@@ -1667,7 +1667,7 @@ def create_argument_parser() -> argparse.ArgumentParser:
                 mkosi [options...] {b}serve{e}
                 mkosi [options...] {b}bump{e}
                 mkosi [options...] {b}genkey{e}
-                mkosi [options...] {b}documentation
+                mkosi [options...] {b}documentation{e}
                 mkosi [options...] {b}download{e}
                 mkosi [options...] {b}help{e}
                 mkosi -h | --help

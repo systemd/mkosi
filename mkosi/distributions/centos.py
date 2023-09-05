@@ -59,11 +59,15 @@ class CentosInstaller(DistributionInstaller):
 
     @classmethod
     def install_packages(cls, state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
-        invoke_dnf(state, "install", packages, apivfs=apivfs)
+        invoke_dnf(state, ["install"], packages, apivfs=apivfs)
+
+    @classmethod
+    def download_packages(cls, state: MkosiState) -> None:
+        invoke_dnf(state, ["install", "--downloadonly"], ["filesystem"], apivfs=False)
 
     @classmethod
     def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
-        invoke_dnf(state, "remove", packages)
+        invoke_dnf(state, ["remove"], packages)
 
     @staticmethod
     def architecture(arch: Architecture) -> str:

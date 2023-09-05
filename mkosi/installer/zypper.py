@@ -63,13 +63,13 @@ def zypper_cmd(state: MkosiState) -> list[PathString]:
 
 def invoke_zypper(
     state: MkosiState,
-    verb: str,
+    verb: Sequence[str],
     packages: Sequence[str],
     options: Sequence[str] = (),
     apivfs: bool = True,
 ) -> None:
     cmd = apivfs_cmd(state.root) if apivfs else []
-    bwrap(cmd + zypper_cmd(state) + [verb, *sort_packages(packages), *options],
+    bwrap(cmd + zypper_cmd(state) + [*verb, *sort_packages(packages), *options],
           network=True, env=state.config.environment)
 
     fixup_rpmdb_location(state.root)
