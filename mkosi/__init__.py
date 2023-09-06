@@ -1513,6 +1513,9 @@ def run_hwdb(state: MkosiState) -> None:
     with complete_step("Generating hardware database"):
         run(["systemd-hwdb", "--root", state.root, "--usr", "--strict", "update"])
 
+    # Remove any existing hwdb in /etc in favor of the one we just put in /usr.
+    (state.root / "etc/udev/hwdb.bin").unlink(missing_ok=True)
+
 
 def run_firstboot(state: MkosiState) -> None:
     password, hashed = state.config.root_password or (None, False)
