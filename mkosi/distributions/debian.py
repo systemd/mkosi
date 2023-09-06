@@ -39,6 +39,7 @@ class DebianInstaller(DistributionInstaller):
             "bash",
             "btrfs-progs",
             "bubblewrap",
+            "ca-certificates",
             "coreutils",
             "cpio",
             "debian-archive-keyring",

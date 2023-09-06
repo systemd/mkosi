@@ -36,6 +36,7 @@ class OpensuseInstaller(DistributionInstaller):
             "bash",
             "btrfs-progs",
             "bubblewrap",
+            "ca-certificates",
             "coreutils",
             "cpio",
             "dnf",
