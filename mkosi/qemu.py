@@ -180,8 +180,11 @@ def vsock_notify_handler() -> Iterator[tuple[str, dict[str, str]]]:
 
                 with s:
                     data = []
-                    while (buf := await loop.sock_recv(s, 4096)):
-                        data.append(buf)
+                    try:
+                        while (buf := await loop.sock_recv(s, 4096)):
+                            data.append(buf)
+                    except ConnectionResetError:
+                        logging.debug("vsock notify listener connection reset by peer")
 
                 for msg in b"".join(data).decode().split("\n"):
                     if not msg:
