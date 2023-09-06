@@ -51,6 +51,7 @@ class CentosInstaller(DistributionInstaller):
         return [
             "bash",
             "bubblewrap",
+            "ca-certificates",
             "coreutils",
             "cpio",
             "dnf",
@@ -60,9 +61,9 @@ class CentosInstaller(DistributionInstaller):
             "mtools",
             "openssh-clients",
             "openssl",
+            "pesign",
             "python3-cryptography",
             "qemu-kvm-core",
-            "pesign",
             "socat",
             "squashfs-tools",
             "strace",

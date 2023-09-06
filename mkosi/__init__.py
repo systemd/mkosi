@@ -43,7 +43,7 @@ from mkosi.installer import clean_package_manager_metadata, package_manager_scri
 from mkosi.kmod import gen_required_kernel_modules, process_kernel_modules
 from mkosi.log import ARG_DEBUG, complete_step, die, log_step
 from mkosi.manifest import Manifest
-from mkosi.mounts import mount_overlay, mount_passwd, mount_usr
+from mkosi.mounts import mount, mount_overlay, mount_passwd, mount_usr
 from mkosi.pager import page
 from mkosi.qemu import copy_ephemeral, run_qemu, run_ssh
 from mkosi.run import become_root, bwrap, chroot_cmd, init_mount_namespace, run
@@ -943,6 +943,7 @@ def build_initrd(state: MkosiState) -> Path:
         *(["--timezone", state.config.timezone] if state.config.timezone else []),
         *(["--hostname", state.config.hostname] if state.config.hostname else []),
         *(["--root-password", rootpwopt] if rootpwopt else []),
+        *([f"--environment={k}='{v}'" for k, v in state.config.environment.items()]),
         *(["-f"] * state.args.force),
         "build",
     ]
@@ -2176,6 +2177,7 @@ def finalize_tools(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> Sequence[
             "--bootable", "no",
             "--manifest-format", "",
             *(["--source-date-epoch", str(p.source_date_epoch)] if p.source_date_epoch is not None else []),
+            *([f"--environment={k}='{v}'" for k, v in p.environment.items()]),
             *(["-f"] * args.force),
             "build",
         ]
@@ -2189,6 +2191,34 @@ def finalize_tools(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> Sequence[
         new.append(dataclasses.replace(p, tools_tree=config.output_dir / config.output))
 
     return new
+
+
+@contextlib.contextmanager
+def mount_tools(tree: Optional[Path]) -> Iterator[None]:
+    if not tree:
+        yield
+        return
+
+    with contextlib.ExitStack() as stack:
+        stack.enter_context(mount_usr(tree))
+
+        # On recent Fedora versions, rpm has started doing very strict checks on GPG certificate validity. To
+        # make these checks pass, we need to make sure a few directories from /etc in the tools tree are
+        # mounted into the host as well. Because the directories might not exist on the host, we mount a
+        # writable directory on top of /etc in an overlay so we can create these mountpoints without running
+        # into permission errors.
+
+        tmp = stack.enter_context(tempfile.TemporaryDirectory(dir="/var/tmp"))
+        stack.enter_context(mount_overlay([Path("/etc")], Path(tmp), Path("/etc"), read_only=False))
+
+        for subdir in ("etc/pki", "etc/ssl", "etc/crypto-policies", "etc/ca-certificates"):
+            if not (tree / subdir).exists():
+                continue
+
+            (Path("/") / subdir).mkdir(parents=True, exist_ok=True)
+            stack.enter_context(mount(what=tree / subdir, where=Path("/") / subdir, operation="--bind", read_only=True))
+
+        yield
 
 
 def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
@@ -2275,7 +2305,7 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
             continue
 
         with complete_step(f"Building {config.preset or 'default'} image"),\
-            mount_usr(config.tools_tree),\
+            mount_tools(config.tools_tree),\
             prepend_to_environ_path(config):
 
             # Create these as the invoking user to make sure they're owned by the user running mkosi.
