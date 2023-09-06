@@ -943,6 +943,7 @@ def build_initrd(state: MkosiState) -> Path:
         *(["--timezone", state.config.timezone] if state.config.timezone else []),
         *(["--hostname", state.config.hostname] if state.config.hostname else []),
         *(["--root-password", rootpwopt] if rootpwopt else []),
+        *([f"--environment={k}='{v}'" for k, v in state.config.environment.items()]),
         *(["-f"] * state.args.force),
         "build",
     ]
@@ -2176,6 +2177,7 @@ def finalize_tools(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> Sequence[
             "--bootable", "no",
             "--manifest-format", "",
             *(["--source-date-epoch", str(p.source_date_epoch)] if p.source_date_epoch is not None else []),
+            *([f"--environment={k}='{v}'" for k, v in p.environment.items()]),
             *(["-f"] * args.force),
             "build",
         ]
