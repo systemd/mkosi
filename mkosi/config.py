@@ -41,7 +41,7 @@ from mkosi.versioncomp import GenericVersion
 __version__ = "15.1"
 
 ConfigParseCallback = Callable[[Optional[str], Optional[Any]], Any]
-ConfigMatchCallback = Callable[[str, Optional[Any]], bool]
+ConfigMatchCallback = Callable[[str, Any], bool]
 ConfigDefaultCallback = Callable[[argparse.Namespace], Any]
 
 
@@ -195,14 +195,11 @@ def make_source_target_paths_parser(absolute: bool = True) -> Callable[[str], tu
 
 
 def config_parse_string(value: Optional[str], old: Optional[str]) -> Optional[str]:
-    return value if value is not None else None
+    return value or None
 
 
 def config_make_string_matcher(allow_globs: bool = False) -> ConfigMatchCallback:
-    def config_match_string(match: str, value: Optional[str]) -> bool:
-        if value is None:
-            return False
-
+    def config_match_string(match: str, value: str) -> bool:
         if allow_globs:
             return fnmatch.fnmatchcase(value, match)
         else:
@@ -212,36 +209,52 @@ def config_make_string_matcher(allow_globs: bool = False) -> ConfigMatchCallback
 
 
 def config_parse_script(value: Optional[str], old: Optional[Path]) -> Optional[Path]:
-    if value is not None:
-        path = parse_path(value)
-        if not os.access(path, os.X_OK):
-            die(f"{value} is not executable")
-        return path
+    if not value:
+        return None
 
-    return None
+    path = parse_path(value)
+    if not os.access(path, os.X_OK):
+        die(f"{value} is not executable")
 
-
-def config_parse_boolean(value: Optional[str], old: Optional[bool]) -> bool:
-    return parse_boolean(value) if value is not None else False
+    return path
 
 
-def parse_feature(value: Optional[str]) -> ConfigFeature:
-    if value is None or value == ConfigFeature.auto.name:
+def config_parse_boolean(value: Optional[str], old: Optional[bool]) -> Optional[bool]:
+    if value is None:
+        return False
+
+    if not value:
+        return None
+
+    return parse_boolean(value)
+
+
+def parse_feature(value: str) -> ConfigFeature:
+    if value == ConfigFeature.auto.name:
         return ConfigFeature.auto
 
     return ConfigFeature.enabled if parse_boolean(value) else ConfigFeature.disabled
 
 
-def config_parse_feature(value: Optional[str], old: Optional[ConfigFeature]) -> ConfigFeature:
+def config_parse_feature(value: Optional[str], old: Optional[ConfigFeature]) -> Optional[ConfigFeature]:
+    if value is None:
+        return ConfigFeature.auto
+
+    if not value:
+        return None
+
     return parse_feature(value)
 
 
-def config_match_feature(match: Optional[str], value: Optional[ConfigFeature]) -> bool:
+def config_match_feature(match: str, value: ConfigFeature) -> bool:
+    if not value:
+        return False
+
     return value == parse_feature(match)
 
 
 def config_parse_compression(value: Optional[str], old: Optional[Compression]) -> Optional[Compression]:
-    if value is None:
+    if not value:
         return None
 
     try:
@@ -251,7 +264,7 @@ def config_parse_compression(value: Optional[str], old: Optional[Compression]) -
 
 
 def config_parse_seed(value: Optional[str], old: Optional[str]) -> Optional[uuid.UUID]:
-    if value is None or value == "random":
+    if not value or value == "random":
         return None
 
     try:
@@ -261,7 +274,7 @@ def config_parse_seed(value: Optional[str], old: Optional[str]) -> Optional[uuid
 
 
 def config_parse_source_date_epoch(value: Optional[str], old: Optional[int]) -> Optional[int]:
-    if value is None:
+    if not value:
         return None
 
     try:
@@ -331,13 +344,13 @@ def make_enum_parser(type: Type[enum.Enum]) -> Callable[[str], enum.Enum]:
 
 def config_make_enum_parser(type: Type[enum.Enum]) -> ConfigParseCallback:
     def config_parse_enum(value: Optional[str], old: Optional[enum.Enum]) -> Optional[enum.Enum]:
-        return make_enum_parser(type)(value) if value is not None else None
+        return make_enum_parser(type)(value) if value else None
 
     return config_parse_enum
 
 
 def config_make_enum_matcher(type: Type[enum.Enum]) -> ConfigMatchCallback:
-    def config_match_enum(match: str, value: Optional[enum.Enum]) -> bool:
+    def config_match_enum(match: str, value: enum.Enum) -> bool:
         return make_enum_parser(type)(match) == value
 
     return config_match_enum
@@ -347,7 +360,7 @@ def config_make_list_parser(delimiter: str,
                             *,
                             parse: Callable[[str], Any] = str,
                             unescape: bool = False) -> ConfigParseCallback:
-    def config_parse_list(value: Optional[str], old: Optional[list[Any]]) -> list[Any]:
+    def config_parse_list(value: Optional[str], old: Optional[list[Any]]) -> Optional[list[Any]]:
         new = old.copy() if old else []
 
         if value is None:
@@ -364,18 +377,14 @@ def config_make_list_parser(delimiter: str,
 
         # Empty strings reset the list.
         if len(values) == 1 and values[0] == "":
-            return []
+            return None
 
         return new + [parse(v) for v in values if v]
 
     return config_parse_list
 
 
-def config_match_image_version(match: str, value: Optional[str]) -> bool:
-    # If the version is not set it cannot positively compare to anything
-    if value is None:
-        return False
-
+def config_match_image_version(match: str, value: str) -> bool:
     image_version = GenericVersion(value)
 
     for sigil, opfunc in {
@@ -425,23 +434,23 @@ def config_make_path_parser(*,
                             expandvars: bool = True,
                             secret: bool = False) -> ConfigParseCallback:
     def config_parse_path(value: Optional[str], old: Optional[Path]) -> Optional[Path]:
-        if value is not None:
-            return parse_path(
-                value,
-                required=required,
-                resolve=resolve,
-                expanduser=expanduser,
-                expandvars=expandvars,
-                secret=secret,
-            )
+        if not value:
+            return None
 
-        return None
+        return parse_path(
+            value,
+            required=required,
+            resolve=resolve,
+            expanduser=expanduser,
+            expandvars=expandvars,
+            secret=secret,
+        )
 
     return config_parse_path
 
 
 def config_parse_filename(value: Optional[str], old: Optional[str]) -> Optional[str]:
-    if value is None:
+    if not value:
         return None
 
     if value == "." or value == "..":
@@ -461,7 +470,7 @@ def match_path_exists(value: str) -> bool:
 
 
 def config_parse_root_password(value: Optional[str], old: Optional[tuple[str, bool]]) -> Optional[tuple[str, bool]]:
-    if value is None:
+    if not value:
         return None
 
     value = value.strip()
@@ -1863,9 +1872,9 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
         setting: MkosiConfigSetting,
         namespace: argparse.Namespace,
         defaults: argparse.Namespace
-    ) -> None:
-        if setting.dest in namespace:
-            return
+    ) -> Optional[Any]:
+        if (v := getattr(namespace, setting.dest, None)) is not None:
+            return v
 
         for d in setting.default_factory_depends:
             finalize_default(settings_lookup_by_dest[d], namespace, defaults)
@@ -1880,6 +1889,7 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
             default = setting.default
 
         setattr(namespace, setting.dest, default)
+        return default
 
     def match_config(path: Path, namespace: argparse.Namespace, defaults: argparse.Namespace) -> bool:
         triggered = None
@@ -1905,9 +1915,10 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
                 # If we encounter a setting in [Match] that has not been explicitly configured yet,
                 # we assign the default value first so that we can [Match] on default values for
                 # settings.
-                finalize_default(s, namespace, defaults)
-
-                result = s.match(v, getattr(namespace, s.dest))
+                if finalize_default(s, namespace, defaults) is None:
+                    result = False
+                else:
+                    result = s.match(v, getattr(namespace, s.dest))
 
             elif (m := match_lookup.get(k)):
                 result = m.match(v)
