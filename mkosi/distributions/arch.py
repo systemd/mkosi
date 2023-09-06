@@ -28,7 +28,11 @@ class ArchInstaller(DistributionInstaller):
 
     @classmethod
     def install_packages(cls, state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
-        invoke_pacman(state, packages, apivfs=apivfs)
+        invoke_pacman(state, "-Sy", packages, apivfs=apivfs)
+
+    @classmethod
+    def download_packages(cls, state: MkosiState) -> None:
+        invoke_pacman(state, "-Syw", ["filesystem"], apivfs=False)
 
     @staticmethod
     def architecture(arch: Architecture) -> str:

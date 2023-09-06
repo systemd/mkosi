@@ -110,7 +110,7 @@ def pacman_cmd(state: MkosiState) -> list[PathString]:
     return cmdline
 
 
-def invoke_pacman(state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
+def invoke_pacman(state: MkosiState, commands: str, packages: Sequence[str], apivfs: bool = True) -> None:
     cmd = apivfs_cmd(state.root) if apivfs else []
-    bwrap(cmd + pacman_cmd(state) + ["-Sy", *sort_packages(packages)],
+    bwrap(cmd + pacman_cmd(state) + [commands, *sort_packages(packages)],
           network=True, env=state.config.environment)
