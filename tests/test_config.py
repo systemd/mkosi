@@ -148,14 +148,16 @@ def test_parse_config(tmp_path: Path) -> None:
         """\
         [Content]
         Packages=
+        ImageId=
         """
     )
 
     with chdir(tmp_path):
         _, [config] = parse_config()
 
-    # Test that empty string resets the list.
+    # Test that empty assignment resets settings.
     assert config.packages == []
+    assert config.image_id is None
     # mkosi.version should only be used if no version is set explicitly.
     assert config.image_version == "0"
 
