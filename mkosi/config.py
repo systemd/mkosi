@@ -247,9 +247,6 @@ def config_parse_feature(value: Optional[str], old: Optional[ConfigFeature]) -> 
 
 
 def config_match_feature(match: str, value: ConfigFeature) -> bool:
-    if not value:
-        return False
-
     return value == parse_feature(match)
 
 
