@@ -130,7 +130,7 @@ class BiosBootloader(StrEnum):
 
 class QemuFirmware(StrEnum):
     auto   = enum.auto()
-    direct = enum.auto()
+    linux  = enum.auto()
     uefi   = enum.auto()
     bios   = enum.auto()
 

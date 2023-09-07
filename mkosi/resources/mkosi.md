@@ -1050,12 +1050,12 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `QemuFirmware=`, `--qemu-firmware=`
 
 : When used with the `qemu` verb, this option which firmware to use.
-  Takes one of `uefi`, `bios`, `direct`, or `auto`. Defaults to `auto`.
+  Takes one of `uefi`, `bios`, `linux`, or `auto`. Defaults to `auto`.
   When set to `uefi`, the OVMF firmware is used. When set to `bios`, the
-  default SeaBIOS firmware is used. When set to `direct`, direct kernel
+  default SeaBIOS firmware is used. When set to `linux`, direct kernel
   boot is used. See the `QemuKernel=` option for more details on which
   kernel image is used with direct kernel boot. When set to `auto`,
-  `direct` is used if a cpio image is being booted, `uefi` otherwise.
+  `linux` is used if a cpio image is being booted, `uefi` otherwise.
 
 `QemuKernel=`, `--qemu-kernel=`
 
