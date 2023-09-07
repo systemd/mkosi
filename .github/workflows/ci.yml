@@ -104,6 +104,7 @@ jobs:
           - tar
           - cpio
           - disk
+          - uki
 
     steps:
     - uses: actions/checkout@v3
@@ -142,8 +143,8 @@ jobs:
       if: matrix.format == 'disk' || matrix.format == 'directory'
       run: sudo mkosi --debug boot
 
-    - name: Boot ${{ matrix.distro }}/${{ matrix.format }} UEFI
-      if: matrix.format == 'disk'
+    - name: Boot ${{ matrix.distro }}/${{ matrix.format }} QEMU
+      if: matrix.format == 'disk' || matrix.format == 'uki' || matrix.format == 'cpio'
       run: timeout -k 30 10m mkosi --debug qemu
 
     - name: Boot ${{ matrix.distro }}/${{ matrix.format }} BIOS

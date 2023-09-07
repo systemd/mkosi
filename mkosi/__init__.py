@@ -979,7 +979,89 @@ def extract_pe_section(state: MkosiState, binary: Path, section: str, output: Pa
     run([python], input=pefile)
 
 
-def install_unified_kernel(state: MkosiState, partitions: Sequence[Partition]) -> None:
+def build_uki(
+    state: MkosiState,
+    kimg: Path,
+    initrds: Sequence[Path],
+    output: Path,
+    roothash: Optional[str] = None,
+) -> None:
+    if (state.root / "etc/kernel/cmdline").exists():
+        cmdline = [(state.root / "etc/kernel/cmdline").read_text().strip()]
+    elif (state.root / "usr/lib/kernel/cmdline").exists():
+        cmdline = [(state.root / "usr/lib/kernel/cmdline").read_text().strip()]
+    else:
+        cmdline = []
+
+    if roothash:
+        cmdline += [roothash]
+
+    cmdline += state.config.kernel_command_line
+
+    # Older versions of systemd-stub expect the cmdline section to be null terminated. We can't embed
+    # nul terminators in argv so let's communicate the cmdline via a file instead.
+    (state.workspace / "cmdline").write_text(f"{' '.join(cmdline).strip()}\x00")
+
+    stub = state.root / f"usr/lib/systemd/boot/efi/linux{state.config.architecture.to_efi()}.efi.stub"
+    if not stub.exists():
+        die(f"sd-stub not found at /{stub.relative_to(state.root)} in the image")
+
+    cmd: list[PathString] = [
+        shutil.which("ukify") or "/usr/lib/systemd/ukify",
+        "--cmdline", f"@{state.workspace / 'cmdline'}",
+        "--os-release", f"@{state.root / 'usr/lib/os-release'}",
+        "--stub", stub,
+        "--output", output,
+        "--efi-arch", state.config.architecture.to_efi(),
+    ]
+
+    if not state.config.tools_tree:
+        for p in state.config.extra_search_paths:
+            cmd += ["--tools", p]
+
+    uki_config = state.pkgmngr / "etc/kernel/uki.conf"
+    if uki_config.exists():
+        cmd += ["--config", uki_config]
+
+    if state.config.secure_boot:
+        assert state.config.secure_boot_key
+        assert state.config.secure_boot_certificate
+
+        cmd += ["--sign-kernel"]
+
+        if state.config.secure_boot_sign_tool != SecureBootSignTool.pesign:
+            cmd += [
+                "--signtool", "sbsign",
+                "--secureboot-private-key", state.config.secure_boot_key,
+                "--secureboot-certificate", state.config.secure_boot_certificate,
+            ]
+        else:
+            pesign_prepare(state)
+            cmd += [
+                "--signtool", "pesign",
+                "--secureboot-certificate-dir", state.workspace / "pesign",
+                "--secureboot-certificate-name", certificate_common_name(state.config.secure_boot_certificate),
+            ]
+
+        sign_expected_pcr = (state.config.sign_expected_pcr == ConfigFeature.enabled or
+                            (state.config.sign_expected_pcr == ConfigFeature.auto and
+                                shutil.which("systemd-measure") is not None))
+
+        if sign_expected_pcr:
+            cmd += [
+                "--pcr-private-key", state.config.secure_boot_key,
+                "--pcr-banks", "sha1,sha256",
+            ]
+
+    cmd += ["build", "--linux", state.root / kimg]
+
+    for initrd in initrds:
+        cmd += ["--initrd", initrd]
+
+    run(cmd)
+
+
+def install_uki(state: MkosiState, partitions: Sequence[Partition]) -> None:
     # Iterates through all kernel versions included in the image and generates a combined
     # kernel+initrd+cmdline+osrelease EFI file from it and places it in the /EFI/Linux directory of the ESP.
     # sd-boot iterates through them and shows them in the menu. These "unified" single-file images have the
@@ -996,7 +1078,7 @@ def install_unified_kernel(state: MkosiState, partitions: Sequence[Partition]) -
         shutil.copy(state.root / kimg, state.staging / state.config.output_split_kernel)
         break
 
-    if state.config.output_format == OutputFormat.cpio and state.config.bootable == ConfigFeature.auto:
+    if state.config.output_format in (OutputFormat.cpio, OutputFormat.uki) and state.config.bootable == ConfigFeature.auto:
         return
 
     roothash = finalize_roothash(partitions)
@@ -1026,86 +1108,14 @@ def install_unified_kernel(state: MkosiState, partitions: Sequence[Partition]) -
             else:
                 boot_binary = state.root / f"efi/EFI/Linux/{image_id}-{kver}{boot_count}.efi"
 
-            if (state.root / "etc/kernel/cmdline").exists():
-                cmdline = [(state.root / "etc/kernel/cmdline").read_text().strip()]
-            elif (state.root / "usr/lib/kernel/cmdline").exists():
-                cmdline = [(state.root / "usr/lib/kernel/cmdline").read_text().strip()]
-            else:
-                cmdline = []
-
-            if roothash:
-                cmdline += [roothash]
-
-            cmdline += state.config.kernel_command_line
-
-            # Older versions of systemd-stub expect the cmdline section to be null terminated. We can't embed
-            # nul terminators in argv so let's communicate the cmdline via a file instead.
-            (state.workspace / "cmdline").write_text(f"{' '.join(cmdline).strip()}\x00")
-
-            stub = state.root / f"usr/lib/systemd/boot/efi/linux{state.config.architecture.to_efi()}.efi.stub"
-            if not stub.exists():
-                die(f"sd-stub not found at /{stub.relative_to(state.root)} in the image")
-
-            cmd: list[PathString] = [
-                shutil.which("ukify") or "/usr/lib/systemd/ukify",
-                "--cmdline", f"@{state.workspace / 'cmdline'}",
-                "--os-release", f"@{state.root / 'usr/lib/os-release'}",
-                "--stub", stub,
-                "--output", boot_binary,
-                "--efi-arch", state.config.architecture.to_efi(),
-            ]
-
-            if not state.config.tools_tree:
-                for p in state.config.extra_search_paths:
-                    cmd += ["--tools", p]
-
-            uki_config = state.pkgmngr / "etc/kernel/uki.conf"
-            if uki_config.exists():
-                cmd += ["--config", uki_config]
-
-            if state.config.secure_boot:
-                assert state.config.secure_boot_key
-                assert state.config.secure_boot_certificate
-
-                cmd += ["--sign-kernel"]
-
-                if state.config.secure_boot_sign_tool != SecureBootSignTool.pesign:
-                    cmd += [
-                        "--signtool", "sbsign",
-                        "--secureboot-private-key", state.config.secure_boot_key,
-                        "--secureboot-certificate", state.config.secure_boot_certificate,
-                    ]
-                else:
-                    pesign_prepare(state)
-                    cmd += [
-                        "--signtool", "pesign",
-                        "--secureboot-certificate-dir", state.workspace / "pesign",
-                        "--secureboot-certificate-name", certificate_common_name(state.config.secure_boot_certificate),
-                    ]
-
-                sign_expected_pcr = (state.config.sign_expected_pcr == ConfigFeature.enabled or
-                                    (state.config.sign_expected_pcr == ConfigFeature.auto and
-                                     shutil.which("systemd-measure") is not None))
-
-                if sign_expected_pcr:
-                    cmd += [
-                        "--pcr-private-key", state.config.secure_boot_key,
-                        "--pcr-banks", "sha1,sha256",
-                    ]
-
-            cmd += ["build", "--linux", state.root / kimg]
-
-            for initrd in initrds:
-                cmd += ["--initrd", initrd]
-
             if state.config.kernel_modules_initrd:
-                cmd += ["--initrd", build_kernel_modules_initrd(state, kver)]
+                initrds += [build_kernel_modules_initrd(state, kver)]
 
             # Make sure the parent directory where we'll be writing the UKI exists.
             with umask(~0o700):
                 boot_binary.parent.mkdir(parents=True, exist_ok=True)
 
-            run(cmd)
+            build_uki(state, kimg, initrds, boot_binary, roothash=roothash)
 
             if not (state.staging / state.config.output_split_initrd).exists():
                 # Extract the combined initrds from the UKI so we can use it to direct kernel boot with qemu
@@ -1126,6 +1136,21 @@ def install_unified_kernel(state: MkosiState, partitions: Sequence[Partition]) -
 
     if state.config.bootable == ConfigFeature.enabled and not (state.staging / state.config.output_split_uki).exists():
         die("A bootable image was requested but no kernel was found")
+
+
+def make_uki(state: MkosiState, output: Path) -> None:
+    make_cpio(state.root, state.staging / state.config.output_split_initrd)
+    maybe_compress(state.config, state.config.compress_output,
+                   state.staging / state.config.output_split_initrd,
+                   state.staging / state.config.output_split_initrd)
+
+    try:
+        _, kimg = next(gen_kernel_images(state))
+    except StopIteration:
+        die("A kernel must be installed in the image to build a UKI")
+
+    build_uki(state, kimg, [state.staging / state.config.output_split_initrd], output)
+    extract_pe_section(state, output, ".linux", state.staging / state.config.output_split_kernel)
 
 
 def compressor_command(compression: Compression) -> list[PathString]:
@@ -1810,7 +1835,7 @@ def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
 
         normalize_mtime(state.root, state.config.source_date_epoch)
         partitions = make_image(state, skip=("esp", "xbootldr"))
-        install_unified_kernel(state, partitions)
+        install_uki(state, partitions)
         prepare_grub_efi(state)
         prepare_grub_bios(state, partitions)
         normalize_mtime(state.root, state.config.source_date_epoch, directory=Path("boot"))
@@ -1823,12 +1848,15 @@ def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
             make_tar(state.root, state.staging / state.config.output_with_format)
         elif state.config.output_format == OutputFormat.cpio:
             make_cpio(state.root, state.staging / state.config.output_with_format)
+        elif state.config.output_format == OutputFormat.uki:
+            make_uki(state, state.staging / state.config.output_with_format)
         elif state.config.output_format == OutputFormat.directory:
             state.root.rename(state.staging / state.config.output_with_format)
 
-        maybe_compress(state.config, state.config.compress_output,
-                       state.staging / state.config.output_with_format,
-                       state.staging / state.config.output_with_compression)
+        if config.output_format != OutputFormat.uki:
+            maybe_compress(state.config, state.config.compress_output,
+                           state.staging / state.config.output_with_format,
+                           state.staging / state.config.output_with_compression)
 
         copy_nspawn_settings(state)
         calculate_sha256sum(state)
