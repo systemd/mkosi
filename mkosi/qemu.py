@@ -216,6 +216,15 @@ def copy_ephemeral(config: MkosiConfig, src: Path) -> Iterator[Path]:
 
 
 def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
+    if config.output_format not in (OutputFormat.disk, OutputFormat.cpio, OutputFormat.uki):
+        die(f"{config.output_format} images cannot be booted in qemu")
+
+    if config.output_format == OutputFormat.uki and config.qemu_firmware not in (QemuFirmware.auto, QemuFirmware.uefi):
+        die(f"uki images cannot be booted with the '{config.qemu_firmware}' firmware")
+
+    if config.output_format == OutputFormat.cpio and config.qemu_firmware not in (QemuFirmware.auto, QemuFirmware.direct, QemuFirmware.uefi):
+        die(f"cpio images cannot be booted with the '{config.qemu_firmware}' firmware")
+
     accel = "tcg"
     auto = config.qemu_kvm == ConfigFeature.auto and config.architecture.is_native() and qemu_check_kvm_support(log=True)
     if config.qemu_kvm == ConfigFeature.enabled or auto:
