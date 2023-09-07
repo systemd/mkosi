@@ -341,7 +341,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
                 # kernel argument instead.
                 root = finalize_root(find_partitions(fname))
                 if not root:
-                    die("Cannot direct kernel boot image without root or usr partition")
+                    die("Cannot perform a direct kernel boot without a root or usr partition")
             else:
                 root = ""
 
