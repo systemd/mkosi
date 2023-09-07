@@ -220,8 +220,8 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
     if config.qemu_kvm == ConfigFeature.enabled or auto:
         accel = "kvm"
 
-    firmware, fw_supports_sb = find_ovmf_firmware(config)
-    smm = "on" if config.qemu_firmware == QemuFirmware.uefi and fw_supports_sb else "off"
+    ovmf, ovmf_supports_sb = find_ovmf_firmware(config)
+    smm = "on" if config.qemu_firmware == QemuFirmware.uefi and ovmf_supports_sb else "off"
 
     if config.architecture == Architecture.arm64:
         machine = f"type=virt,accel={accel}"
@@ -264,12 +264,12 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
 
     # QEMU has built-in logic to look for the BIOS firmware so we don't need to do anything special for that.
     if config.qemu_firmware == QemuFirmware.uefi:
-        cmdline += ["-drive", f"if=pflash,format=raw,readonly=on,file={firmware}"]
+        cmdline += ["-drive", f"if=pflash,format=raw,readonly=on,file={ovmf}"]
 
     notifications: dict[str, str] = {}
 
     with contextlib.ExitStack() as stack:
-        if config.qemu_firmware == QemuFirmware.uefi and fw_supports_sb:
+        if config.qemu_firmware == QemuFirmware.uefi and ovmf_supports_sb:
             ovmf_vars = stack.enter_context(tempfile.NamedTemporaryFile(prefix=".mkosi-"))
             shutil.copy2(find_ovmf_vars(config), Path(ovmf_vars.name))
             cmdline += [
