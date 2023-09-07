@@ -24,6 +24,7 @@ from mkosi.config import (
     QemuFirmware,
 )
 from mkosi.log import die
+from mkosi.partition import finalize_root, find_partitions
 from mkosi.run import MkosiAsyncioThread, run, spawn
 from mkosi.tree import copy_tree, rmtree
 from mkosi.types import PathString
@@ -324,11 +325,23 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
             if kernel:
                 cmdline += ["-kernel", kernel]
 
-            cmdline += ["-append", " ".join(config.kernel_command_line + config.kernel_command_line_extra)]
+            if config.output_format == OutputFormat.disk:
+                # We can't rely on gpt-auto-generator when direct kernel booting so synthesize a root=
+                # kernel argument instead.
+                root = finalize_root(find_partitions(fname))
+                if not root:
+                    die("Cannot direct kernel boot image without root or usr partition")
+            else:
+                root = ""
+
+            cmdline += ["-append", " ".join([root] + config.kernel_command_line + config.kernel_command_line_extra)]
 
         if config.output_format == OutputFormat.cpio:
             cmdline += ["-initrd", fname]
         else:
+            if firmware == QemuFirmware.direct:
+                cmdline += ["-initrd", config.output_dir / config.output_split_initrd]
+
             cmdline += ["-drive", f"if=none,id=mkosi,file={fname},format=raw",
                         "-device", "virtio-scsi-pci,id=scsi",
                         "-device", f"scsi-{'cd' if config.qemu_cdrom else 'hd'},drive=mkosi,bootindex=1"]
