@@ -1145,7 +1145,7 @@ def install_unified_kernel(state: MkosiState, partitions: Sequence[Partition]) -
                     from pathlib import Path
                     pe = pefile.PE("{boot_binary}", fast_load=True)
                     linux = {{s.Name.decode().strip("\\0"): s for s in pe.sections}}[".linux"]
-                    (Path("{state.root}") / "{state.config.output_split_kernel}").write_bytes(linux.get_data(length=linux.Misc_VirtualSize))
+                    (Path("{state.staging}") / "{state.config.output_split_kernel}").write_bytes(linux.get_data(length=linux.Misc_VirtualSize))
                     """
                 )
 
