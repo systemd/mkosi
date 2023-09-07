@@ -222,7 +222,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
     if config.output_format == OutputFormat.uki and config.qemu_firmware not in (QemuFirmware.auto, QemuFirmware.uefi):
         die(f"uki images cannot be booted with the '{config.qemu_firmware}' firmware")
 
-    if config.output_format == OutputFormat.cpio and config.qemu_firmware not in (QemuFirmware.auto, QemuFirmware.direct, QemuFirmware.uefi):
+    if config.output_format == OutputFormat.cpio and config.qemu_firmware not in (QemuFirmware.auto, QemuFirmware.linux, QemuFirmware.uefi):
         die(f"cpio images cannot be booted with the '{config.qemu_firmware}' firmware")
 
     accel = "tcg"
@@ -231,7 +231,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
         accel = "kvm"
 
     if config.qemu_firmware == QemuFirmware.auto:
-        firmware = QemuFirmware.direct if config.output_format == OutputFormat.cpio else QemuFirmware.uefi
+        firmware = QemuFirmware.linux if config.output_format == OutputFormat.cpio else QemuFirmware.uefi
     else:
         firmware = config.qemu_firmware
 
@@ -321,7 +321,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
                  "--offline=yes",
                  fname])
 
-        if firmware == QemuFirmware.direct or config.output_format in (OutputFormat.cpio, OutputFormat.uki):
+        if firmware == QemuFirmware.linux or config.output_format in (OutputFormat.cpio, OutputFormat.uki):
             if config.output_format == OutputFormat.uki:
                 kernel = fname
             elif config.qemu_kernel:
@@ -350,7 +350,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
         if config.output_format == OutputFormat.cpio:
             cmdline += ["-initrd", fname]
         elif config.output_format == OutputFormat.disk:
-            if firmware == QemuFirmware.direct:
+            if firmware == QemuFirmware.linux:
                 cmdline += ["-initrd", config.output_dir / config.output_split_initrd]
 
             cmdline += ["-drive", f"if=none,id=mkosi,file={fname},format=raw",
