@@ -1658,7 +1658,7 @@ MATCHES = (
 )
 
 
-def create_argument_parser() -> argparse.ArgumentParser:
+def create_argument_parser(*, settings: bool) -> argparse.ArgumentParser:
     action = config_make_action(SETTINGS)
 
     parser = argparse.ArgumentParser(
@@ -1686,18 +1686,6 @@ def create_argument_parser() -> argparse.ArgumentParser:
         formatter_class=CustomHelpFormatter,
     )
 
-    parser.add_argument(
-        "verb",
-        type=Verb,
-        choices=list(Verb),
-        default=Verb.build,
-        help=argparse.SUPPRESS,
-    )
-    parser.add_argument(
-        "cmdline",
-        nargs=argparse.REMAINDER,
-        help=argparse.SUPPRESS,
-    )
     parser.add_argument(
         "-h", "--help",
         action=PagerHelpAction,
@@ -1787,6 +1775,22 @@ def create_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--cache",
         metavar="PATH",
+        help=argparse.SUPPRESS,
+    )
+
+    if not settings:
+        return parser
+
+    parser.add_argument(
+        "verb",
+        type=Verb,
+        choices=list(Verb),
+        default=Verb.build,
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "cmdline",
+        nargs=argparse.REMAINDER,
         help=argparse.SUPPRESS,
     )
 
@@ -2005,7 +2009,19 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
     else:
         argv += ["--", "build"]
 
-    argparser = create_argument_parser()
+    # Don't parse the settings just yet so we can take --directory into account when parsing settings that
+    # take relative paths.
+    argparser = create_argument_parser(settings=False)
+    argparser.parse_known_args(argv, namespace)
+
+    if namespace.directory and not Path(namespace.directory).is_dir():
+        die(f"{namespace.directory} is not a directory!")
+
+    if namespace.directory:
+        os.chdir(namespace.directory)
+
+    namespace = argparse.Namespace()
+    argparser = create_argument_parser(settings=True)
     argparser.parse_args(argv, namespace)
 
     args = load_args(namespace)
@@ -2015,12 +2031,6 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
 
     if args.verb == Verb.help:
         PagerHelpAction.__call__(None, argparser, namespace)  # type: ignore
-
-    if args.directory and not Path(args.directory).is_dir():
-        die(f"{args.directory} is not a directory!")
-
-    if args.directory:
-        os.chdir(args.directory)
 
     if args.directory != "":
         parse_config(Path("."), namespace, defaults)
