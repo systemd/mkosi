@@ -774,6 +774,10 @@ class MkosiConfig:
         return f"{self.output_with_version}.vmlinuz"
 
     @property
+    def output_split_initrd(self) -> str:
+        return f"{self.output_with_version}.initrd"
+
+    @property
     def output_nspawn_settings(self) -> str:
         return f"{self.output_with_version}.nspawn"
 

@@ -19,7 +19,7 @@ import textwrap
 import uuid
 from collections.abc import Iterator, Sequence
 from pathlib import Path
-from typing import Any, ContextManager, Mapping, Optional, TextIO, Union
+from typing import ContextManager, Optional, TextIO, Union
 
 from mkosi.archive import extract_tar, make_cpio, make_tar
 from mkosi.config import (
@@ -45,6 +45,7 @@ from mkosi.log import ARG_DEBUG, complete_step, die, log_step
 from mkosi.manifest import Manifest
 from mkosi.mounts import mount, mount_overlay, mount_passwd, mount_usr
 from mkosi.pager import page
+from mkosi.partition import Partition, finalize_root, finalize_roothash
 from mkosi.qemu import copy_ephemeral, run_qemu, run_ssh
 from mkosi.run import become_root, bwrap, chroot_cmd, init_mount_namespace, run
 from mkosi.state import MkosiState
@@ -61,27 +62,6 @@ from mkosi.util import (
     umask,
 )
 from mkosi.versioncomp import GenericVersion
-
-
-@dataclasses.dataclass(frozen=True)
-class Partition:
-    type: str
-    uuid: str
-    partno: Optional[int]
-    split_path: Optional[Path]
-    roothash: Optional[str]
-
-    @classmethod
-    def from_dict(cls, dict: Mapping[str, Any]) -> "Partition":
-        return cls(
-            type=dict["type"],
-            uuid=dict["uuid"],
-            partno=int(partno) if (partno := dict.get("partno")) else None,
-            split_path=Path(p) if ((p := dict.get("split_path")) and p != "-") else None,
-            roothash=dict.get("roothash"),
-        )
-
-    GRUB_BOOT_PARTITION_UUID = "21686148-6449-6e6f-744e-656564454649"
 
 
 @contextlib.contextmanager
@@ -708,12 +688,7 @@ def prepare_grub_bios(state: MkosiState, partitions: Sequence[Partition]) -> Non
     config = prepare_grub_config(state)
     assert config
 
-    root = finalize_roothash(partitions)
-    if not root:
-        root = next((f"root=PARTUUID={p.uuid}" for p in partitions if p.type.startswith("root")), None)
-    if not root:
-        root = next((f"mount.usr=PARTUUID={p.uuid}" for p in partitions if p.type.startswith("usr")), None)
-
+    root = finalize_root(partitions)
     assert root
 
     initrd = build_initrd(state)
@@ -981,23 +956,27 @@ def build_kernel_modules_initrd(state: MkosiState, kver: str) -> Path:
     return kmods
 
 
-def finalize_roothash(partitions: Sequence[Partition]) -> Optional[str]:
-    roothash = usrhash = None
+def extract_pe_section(state: MkosiState, binary: Path, section: str, output: Path) -> None:
+    # If there's no tools tree, prefer the interpreter from MKOSI_INTERPRETER. If there is a tools
+    # tree, just use the default python3 interpreter.
+    python = "python3" if state.config.tools_tree else os.getenv("MKOSI_INTERPRETER", "python3")
 
-    for p in partitions:
-        if (h := p.roothash) is None:
-            continue
+    # When using a tools tree, we want to use the pefile module from the tools tree instead of requiring that
+    # python-pefile is installed on the host. So we execute python as a subprocess to make sure we load
+    # pefile from the tools tree if one is used.
 
-        if not (p.type.startswith("usr") or p.type.startswith("root")):
-            die(f"Found roothash property on unexpected partition type {p.type}")
+    # TODO: Use ignore_padding=True instead of length once we can depend on a newer pefile.
+    pefile = textwrap.dedent(
+        f"""\
+        import pefile
+        from pathlib import Path
+        pe = pefile.PE("{binary}", fast_load=True)
+        section = {{s.Name.decode().strip("\\0"): s for s in pe.sections}}["{section}"]
+        Path("{output}").write_bytes(section.get_data(length=section.Misc_VirtualSize))
+        """
+    )
 
-        # When there's multiple verity enabled root or usr partitions, the first one wins.
-        if p.type.startswith("usr"):
-            usrhash = usrhash or h
-        else:
-            roothash = roothash or h
-
-    return f"roothash={roothash}" if roothash else f"usrhash={usrhash}" if usrhash else None
+    run([python], input=pefile)
 
 
 def install_unified_kernel(state: MkosiState, partitions: Sequence[Partition]) -> None:
@@ -1128,32 +1107,17 @@ def install_unified_kernel(state: MkosiState, partitions: Sequence[Partition]) -
 
             run(cmd)
 
+            if not (state.staging / state.config.output_split_initrd).exists():
+                # Extract the combined initrds from the UKI so we can use it to direct kernel boot with qemu
+                # if needed.
+                extract_pe_section(state, boot_binary, ".initrd", state.staging / state.config.output_split_initrd)
+
             if not (state.staging / state.config.output_split_uki).exists():
                 shutil.copy(boot_binary, state.staging / state.config.output_split_uki)
 
                 # ukify will have signed the kernel image as well. Let's make sure we put the signed kernel
                 # image in the output directory instead of the unsigned one by reading it from the UKI.
-
-                # When using a tools tree, we want to use the pefile module from the tools tree instead of
-                # requiring that python-pefile is installed on the host. So we execute python as a subprocess
-                # to make sure we load pefile from the tools tree if one is used.
-
-                # TODO: Use ignore_padding=True instead of length once we can depend on a newer pefile.
-                pefile = textwrap.dedent(
-                    f"""\
-                    import pefile
-                    from pathlib import Path
-                    pe = pefile.PE("{boot_binary}", fast_load=True)
-                    linux = {{s.Name.decode().strip("\\0"): s for s in pe.sections}}[".linux"]
-                    (Path("{state.root}") / "{state.config.output_split_kernel}").write_bytes(linux.get_data(length=linux.Misc_VirtualSize))
-                    """
-                )
-
-                # If there's no tools tree, prefer the interpreter from MKOSI_INTERPRETER. If there is a
-                # tools tree, just use the default python3 interpreter.
-                python = "python3" if state.config.tools_tree else os.getenv("MKOSI_INTERPRETER", "python3")
-
-                run([python], input=pefile)
+                extract_pe_section(state, boot_binary, ".linux", state.staging / state.config.output_split_kernel)
 
             print_output_size(boot_binary)
 
