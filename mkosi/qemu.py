@@ -312,8 +312,10 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
                  "--offline=yes",
                  fname])
 
-        if firmware == QemuFirmware.direct or config.output_format == OutputFormat.cpio:
-            if config.qemu_kernel:
+        if firmware == QemuFirmware.direct or config.output_format in (OutputFormat.cpio, OutputFormat.uki):
+            if config.output_format == OutputFormat.uki:
+                kernel = fname
+            elif config.qemu_kernel:
                 kernel = config.qemu_kernel
             elif "-kernel" not in args.cmdline:
                 kernel = config.output_dir / config.output_split_kernel
@@ -338,7 +340,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
 
         if config.output_format == OutputFormat.cpio:
             cmdline += ["-initrd", fname]
-        else:
+        elif config.output_format == OutputFormat.disk:
             if firmware == QemuFirmware.direct:
                 cmdline += ["-initrd", config.output_dir / config.output_split_initrd]
 
