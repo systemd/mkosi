@@ -38,6 +38,9 @@
   distribution and release to use can be configured with
   `ToolsTreeDistribution=` and `ToolsTreeRelease=` or are determined
   automatically based on the image being built.
+- Added `uki` output format. This is similar to `cpio`, except the cpio
+  is packaged up as a UKI with a kernel image and stub picked up from
+  the rootfs.
 
 ## v15.1
 
