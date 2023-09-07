@@ -220,13 +220,17 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
     if config.qemu_kvm == ConfigFeature.enabled or auto:
         accel = "kvm"
 
-    ovmf, ovmf_supports_sb = find_ovmf_firmware(config)
-    smm = "on" if config.qemu_firmware == QemuFirmware.uefi and ovmf_supports_sb else "off"
+    if config.qemu_firmware == QemuFirmware.auto:
+        firmware = QemuFirmware.direct if config.output_format == OutputFormat.cpio else QemuFirmware.uefi
+    else:
+        firmware = config.qemu_firmware
+
+    ovmf, ovmf_supports_sb = find_ovmf_firmware(config) if firmware == QemuFirmware.uefi else (None, False)
 
     if config.architecture == Architecture.arm64:
         machine = f"type=virt,accel={accel}"
     else:
-        machine = f"type=q35,accel={accel},smm={smm}"
+        machine = f"type=q35,accel={accel},smm={'on' if ovmf_supports_sb else 'off'}"
 
     cmdline: list[PathString] = [
         find_qemu_binary(config),
@@ -263,13 +267,13 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
     cmdline += ["-smbios", f"type=11,value=io.systemd.stub.kernel-cmdline-extra={' '.join(config.kernel_command_line_extra)}"]
 
     # QEMU has built-in logic to look for the BIOS firmware so we don't need to do anything special for that.
-    if config.qemu_firmware == QemuFirmware.uefi:
+    if firmware == QemuFirmware.uefi:
         cmdline += ["-drive", f"if=pflash,format=raw,readonly=on,file={ovmf}"]
 
     notifications: dict[str, str] = {}
 
     with contextlib.ExitStack() as stack:
-        if config.qemu_firmware == QemuFirmware.uefi and ovmf_supports_sb:
+        if firmware == QemuFirmware.uefi and ovmf_supports_sb:
             ovmf_vars = stack.enter_context(tempfile.NamedTemporaryFile(prefix=".mkosi-"))
             shutil.copy2(find_ovmf_vars(config), Path(ovmf_vars.name))
             cmdline += [
@@ -307,7 +311,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
                  "--offline=yes",
                  fname])
 
-        if config.qemu_firmware == QemuFirmware.direct or config.output_format == OutputFormat.cpio:
+        if firmware == QemuFirmware.direct or config.output_format == OutputFormat.cpio:
             if config.qemu_kernel:
                 kernel = config.qemu_kernel
             elif "-kernel" not in args.cmdline:
@@ -329,7 +333,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
                         "-device", "virtio-scsi-pci,id=scsi",
                         "-device", f"scsi-{'cd' if config.qemu_cdrom else 'hd'},drive=mkosi,bootindex=1"]
 
-        if config.qemu_firmware == QemuFirmware.uefi and config.qemu_swtpm != ConfigFeature.disabled and shutil.which("swtpm") is not None:
+        if firmware == QemuFirmware.uefi and config.qemu_swtpm != ConfigFeature.disabled and shutil.which("swtpm") is not None:
             sock = stack.enter_context(start_swtpm())
             cmdline += ["-chardev", f"socket,id=chrtpm,path={sock}",
                         "-tpmdev", "emulator,id=tpm0,chardev=chrtpm"]

@@ -128,6 +128,7 @@ class BiosBootloader(StrEnum):
 
 
 class QemuFirmware(StrEnum):
+    auto   = enum.auto()
     direct = enum.auto()
     uefi   = enum.auto()
     bios   = enum.auto()
@@ -1569,7 +1570,7 @@ SETTINGS = (
         metavar="FIRMWARE",
         section="Host",
         parse=config_make_enum_parser(QemuFirmware),
-        default=QemuFirmware.uefi,
+        default=QemuFirmware.auto,
         help="Set qemu firmware to use",
         choices=QemuFirmware.values(),
     ),
