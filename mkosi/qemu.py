@@ -220,11 +220,11 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
     if config.output_format not in (OutputFormat.disk, OutputFormat.cpio, OutputFormat.uki):
         die(f"{config.output_format} images cannot be booted in qemu")
 
-    if config.output_format == OutputFormat.uki and config.qemu_firmware not in (QemuFirmware.auto, QemuFirmware.uefi):
-        die(f"uki images cannot be booted with the '{config.qemu_firmware}' firmware")
-
-    if config.output_format == OutputFormat.cpio and config.qemu_firmware not in (QemuFirmware.auto, QemuFirmware.linux, QemuFirmware.uefi):
-        die(f"cpio images cannot be booted with the '{config.qemu_firmware}' firmware")
+    if (
+        config.output_format in (OutputFormat.cpio, OutputFormat.uki) and
+        config.qemu_firmware not in (QemuFirmware.auto, QemuFirmware.linux, QemuFirmware.uefi)
+    ):
+        die(f"{config.output_format} images cannot be booted with the '{config.qemu_firmware}' firmware")
 
     accel = "tcg"
     auto = config.qemu_kvm == ConfigFeature.auto and config.architecture.is_native() and qemu_check_kvm_support(log=True)
@@ -328,7 +328,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
 
         if firmware == QemuFirmware.linux or config.output_format in (OutputFormat.cpio, OutputFormat.uki):
             if config.output_format == OutputFormat.uki:
-                kernel = fname
+                kernel = fname if firmware == QemuFirmware.uefi else config.output_dir / config.output_split_kernel
             elif config.qemu_kernel:
                 kernel = config.qemu_kernel
             elif "-kernel" not in args.cmdline:
@@ -354,6 +354,8 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
 
         if config.output_format == OutputFormat.cpio:
             cmdline += ["-initrd", fname]
+        elif config.output_format == OutputFormat.uki and firmware == QemuFirmware.linux:
+            cmdline += ["-initrd", config.output_dir / config.output_split_initrd]
         elif config.output_format == OutputFormat.disk:
             if firmware == QemuFirmware.linux:
                 cmdline += ["-initrd", config.output_dir / config.output_split_initrd]
