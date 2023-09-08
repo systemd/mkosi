@@ -323,6 +323,11 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 : Matches against the configured value for the `Bootable=` feature. Takes a boolean value or `auto`.
 
+`Format=`
+
+: Matches against the configured value for the `Format=` option. Takes
+  an output format (see the `Format=` option).
+
 | Matcher         | Globs | Rich Comparisons | Default                 |
 |-----------------|-------|------------------|-------------------------|
 | `Distribution=` | no    | no               | match host distribution |
@@ -331,6 +336,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 | `ImageId=`      | yes   | no               | match fails             |
 | `ImageVersion=` | no    | yes              | match fails             |
 | `Bootable=`     | no    | no               | match auto feature      |
+| `Format=`       | no    | no               | match default format    |
 
 ### [Preset] Section
 

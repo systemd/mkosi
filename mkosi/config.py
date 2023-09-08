@@ -963,6 +963,7 @@ SETTINGS = (
         name="Format",
         section="Output",
         parse=config_make_enum_parser(OutputFormat),
+        match=config_make_enum_matcher(OutputFormat),
         default=OutputFormat.disk,
         choices=OutputFormat.values(),
         help="Output Format",
