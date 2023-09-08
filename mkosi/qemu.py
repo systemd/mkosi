@@ -38,7 +38,8 @@ def machine_cid(config: MkosiConfig) -> int:
 
 
 def find_qemu_binary(config: MkosiConfig) -> str:
-    binaries = ["qemu", "qemu-kvm", f"qemu-system-{config.architecture.to_qemu()}"]
+    binaries = ["qemu", "qemu-kvm"] if config.architecture.is_native() else []
+    binaries += [f"qemu-system-{config.architecture.to_qemu()}"]
     for binary in binaries:
         if shutil.which(binary) is not None:
             return binary
@@ -231,7 +232,10 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
         accel = "kvm"
 
     if config.qemu_firmware == QemuFirmware.auto:
-        firmware = QemuFirmware.linux if config.output_format == OutputFormat.cpio else QemuFirmware.uefi
+        if config.output_format == OutputFormat.cpio or config.architecture.to_efi() is None:
+            firmware = QemuFirmware.linux
+        else:
+            firmware = QemuFirmware.uefi
     else:
         firmware = config.qemu_firmware
 
@@ -272,9 +276,10 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
             "-mon", "console",
         ]
 
-    for k, v in config.credentials.items():
-        cmdline += ["-smbios", f"type=11,value=io.systemd.credential.binary:{k}={base64.b64encode(v.encode()).decode()}"]
-    cmdline += ["-smbios", f"type=11,value=io.systemd.stub.kernel-cmdline-extra={' '.join(config.kernel_command_line_extra)}"]
+    if config.architecture.supports_smbios():
+        for k, v in config.credentials.items():
+            cmdline += ["-smbios", f"type=11,value=io.systemd.credential.binary:{k}={base64.b64encode(v.encode()).decode()}"]
+        cmdline += ["-smbios", f"type=11,value=io.systemd.stub.kernel-cmdline-extra={' '.join(config.kernel_command_line_extra)}"]
 
     # QEMU has built-in logic to look for the BIOS firmware so we don't need to do anything special for that.
     if firmware == QemuFirmware.uefi:
@@ -367,7 +372,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
             elif config.architecture == Architecture.arm64:
                 cmdline += ["-device", "tpm-tis-device,tpmdev=tpm0"]
 
-        if use_vsock:
+        if use_vsock and config.architecture.supports_smbios():
             addr, notifications = stack.enter_context(vsock_notify_handler())
             cmdline += ["-smbios", f"type=11,value=io.systemd.credential:vmm.notify_socket={addr}"]
 

@@ -2,6 +2,7 @@
 
 import enum
 import platform
+from typing import Optional
 
 from mkosi.log import die
 from mkosi.util import StrEnum
@@ -81,8 +82,8 @@ class Architecture(StrEnum):
 
         return a
 
-    def to_efi(self) -> str:
-        a = {
+    def to_efi(self) -> Optional[str]:
+        return {
             Architecture.x86_64      : "x64",
             Architecture.x86         : "ia32",
             Architecture.arm64       : "aa64",
@@ -91,10 +92,6 @@ class Architecture(StrEnum):
             Architecture.loongarch64 : "loongarch64",
         }.get(self)
 
-        if not a:
-            die(f"Architecture {self} does not support UEFI")
-
-        return a
 
     def to_qemu(self) -> str:
         a = {
@@ -119,6 +116,9 @@ class Architecture(StrEnum):
             die(f"Architecture {self} not supported by QEMU")
 
         return a
+
+    def supports_smbios(self) -> bool:
+        return self in (Architecture.x86, Architecture.x86_64, Architecture.arm, Architecture.arm64)
 
     def is_native(self) -> bool:
         return self == self.native()
