@@ -201,13 +201,6 @@ Those settings cannot be configured in the configuration files.
   each build in a series will have a version number one higher then
   the previous one.
 
-`--preset=`
-
-: If specified, only build the given presets. Can be specified multiple
-  times to build multiple presets. All the given presets and their
-  dependencies are built. If not specified, all presets are built. See
-  the **Presets** section for more information.
-
 `--doc-format`
 
 : The format to show the documentation in. Supports the values `markdown`,
@@ -341,12 +334,23 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 ### [Preset] Section
 
+`Presets=`, `--preset=`
+
+: If specified, only build the given presets. Can be specified multiple
+  times to build multiple presets. All the given presets and their
+  dependencies are built. If not specified, all presets are built. See
+  the **Presets** section for more information.
+
+: Note that this section only takes effect when specified in the global
+  configuration files. It has no effect if specified as a preset
+  specific setting.
+
 `Dependencies=`, `--dependency=`
 
 : The presets that this preset depends on specified as a comma-separated
   list. All presets configured in this option will be built before this
   preset and will be pulled in as dependencies of this preset when
-  `--preset` is used.
+  `Presets=` is used.
 
 ### [Distribution] Section
 
@@ -1523,7 +1527,7 @@ the `.conf` extension.
 
 When presets are found in `mkosi.presets/`, mkosi will build the
 configured preset and its dependencies (or all of them if no presets
-were explicitly configured using `--preset=`). To add dependencies
+were explicitly configured using `Presets=`). To add dependencies
 between presets, the `Dependencies=` setting can be used.
 
 When presets are defined, mkosi will first read the global configuration

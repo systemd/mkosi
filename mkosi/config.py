@@ -597,7 +597,6 @@ class MkosiArgs:
     genkey_valid_days: str
     genkey_common_name: str
     auto_bump: bool
-    presets: list[str]
     doc_format: DocFormat
 
     @classmethod
@@ -617,6 +616,7 @@ class MkosiConfig:
     access the value from state.
     """
 
+    presets: tuple[str]
     dependencies: tuple[str]
 
     distribution: Distribution
@@ -876,6 +876,13 @@ def parse_ini(path: Path, only_sections: Sequence[str] = ()) -> Iterator[tuple[s
 
 
 SETTINGS = (
+    MkosiConfigSetting(
+        dest="presets",
+        long="--preset",
+        section="Preset",
+        parse=config_make_list_parser(delimiter=","),
+        help="Specify which presets to build",
+    ),
     MkosiConfigSetting(
         dest="dependencies",
         long="--dependency",
@@ -1747,14 +1754,6 @@ def create_argument_parser(*, settings: bool) -> argparse.ArgumentParser:
         default=False,
     )
     parser.add_argument(
-        "--preset",
-        action="append",
-        dest="presets",
-        metavar="PRESET",
-        default=[],
-        help="Build the specified presets and their dependencies",
-    )
-    parser.add_argument(
         "--doc-format",
         help="The format to show documentation in",
         default=DocFormat.auto,
@@ -1844,15 +1843,15 @@ def backward_compat_stubs(namespace: argparse.Namespace) -> None:
         logging.warning("--cache is no longer supported")
 
 
-def resolve_deps(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> list[MkosiConfig]:
+def resolve_deps(presets: Sequence[MkosiConfig], include: Sequence[str]) -> list[MkosiConfig]:
     graph = {p.preset: p.dependencies for p in presets}
 
-    if args.presets:
-        if any((missing := p) not in graph for p in args.presets):
+    if include:
+        if any((missing := p) not in graph for p in include):
             die(f"No preset found with name {missing}")
 
         deps = set()
-        queue = [*args.presets]
+        queue = [*include]
 
         while queue:
             if (preset := queue.pop(0)) not in deps:
@@ -2034,8 +2033,12 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
     if args.verb == Verb.help:
         PagerHelpAction.__call__(None, argparser, namespace)  # type: ignore
 
+    include = ()
+
     if args.directory != "":
         parse_config(Path("."), namespace, defaults)
+
+        include = getattr(namespace, "presets", ())
 
         if Path("mkosi.presets").exists():
             for p in Path("mkosi.presets").iterdir():
@@ -2070,7 +2073,7 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
     backward_compat_stubs(namespace)
 
     presets = [load_config(ns) for ns in presets]
-    presets = resolve_deps(args, presets)
+    presets = resolve_deps(presets, include)
 
     return args, tuple(presets)
 
