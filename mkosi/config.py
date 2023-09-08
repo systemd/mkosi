@@ -1689,11 +1689,6 @@ def create_argument_parser(*, settings: bool) -> argparse.ArgumentParser:
     )
 
     parser.add_argument(
-        "-h", "--help",
-        action=PagerHelpAction,
-        help=argparse.SUPPRESS,
-    )
-    parser.add_argument(
         "--version",
         action="version",
         version="%(prog)s " + __version__,
@@ -1793,6 +1788,11 @@ def create_argument_parser(*, settings: bool) -> argparse.ArgumentParser:
     parser.add_argument(
         "cmdline",
         nargs=argparse.REMAINDER,
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "-h", "--help",
+        action=PagerHelpAction,
         help=argparse.SUPPRESS,
     )
 
