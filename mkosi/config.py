@@ -383,8 +383,8 @@ def config_make_list_parser(delimiter: str,
     return config_parse_list
 
 
-def config_match_image_version(match: str, value: str) -> bool:
-    image_version = GenericVersion(value)
+def config_match_version(match: str, value: str) -> bool:
+    version = GenericVersion(value)
 
     for sigil, opfunc in {
         "==": operator.eq,
@@ -404,7 +404,7 @@ def config_match_image_version(match: str, value: str) -> bool:
         comp_version = GenericVersion(match)
 
     # all constraints must be fulfilled
-    if not op(image_version, comp_version):
+    if not op(version, comp_version):
         return False
 
     return True
@@ -479,12 +479,12 @@ def config_parse_root_password(value: Optional[str], old: Optional[tuple[str, bo
     return (value, hashed)
 
 
-class ConfigParserMultipleValues(dict[str, Any]):
-    def __setitem__(self, key: str, value: Any) -> None:
-        if key in self and isinstance(value, list):
-            self[key].extend(value)
-        else:
-            super().__setitem__(key, value)
+def match_systemd_version(value: str) -> bool:
+    if not value:
+        return False
+
+    version = run(["systemctl", "--version"], stdout=subprocess.PIPE).stdout.strip().split()[1]
+    return config_match_version(value, version)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -597,7 +597,6 @@ class MkosiArgs:
     genkey_valid_days: str
     genkey_common_name: str
     auto_bump: bool
-    presets: list[str]
     doc_format: DocFormat
 
     @classmethod
@@ -617,6 +616,7 @@ class MkosiConfig:
     access the value from state.
     """
 
+    presets: tuple[str]
     dependencies: tuple[str]
 
     distribution: Distribution
@@ -877,6 +877,13 @@ def parse_ini(path: Path, only_sections: Sequence[str] = ()) -> Iterator[tuple[s
 
 SETTINGS = (
     MkosiConfigSetting(
+        dest="presets",
+        long="--preset",
+        section="Preset",
+        parse=config_make_list_parser(delimiter=","),
+        help="Specify which presets to build",
+    ),
+    MkosiConfigSetting(
         dest="dependencies",
         long="--dependency",
         section="Preset",
@@ -956,6 +963,7 @@ SETTINGS = (
         name="Format",
         section="Output",
         parse=config_make_enum_parser(OutputFormat),
+        match=config_make_enum_matcher(OutputFormat),
         default=OutputFormat.disk,
         choices=OutputFormat.values(),
         help="Output Format",
@@ -1026,7 +1034,7 @@ SETTINGS = (
     ),
     MkosiConfigSetting(
         dest="image_version",
-        match=config_match_image_version,
+        match=config_match_version,
         section="Output",
         help="Set version for image",
         paths=("mkosi.version",),
@@ -1657,6 +1665,10 @@ MATCHES = (
         name="PathExists",
         match=match_path_exists,
     ),
+    MkosiMatch(
+        name="SystemdVersion",
+        match=match_systemd_version,
+    ),
 )
 
 
@@ -1745,14 +1757,6 @@ def create_argument_parser(*, settings: bool) -> argparse.ArgumentParser:
         help="Automatically bump image version after building",
         action="store_true",
         default=False,
-    )
-    parser.add_argument(
-        "--preset",
-        action="append",
-        dest="presets",
-        metavar="PRESET",
-        default=[],
-        help="Build the specified presets and their dependencies",
     )
     parser.add_argument(
         "--doc-format",
@@ -1844,15 +1848,15 @@ def backward_compat_stubs(namespace: argparse.Namespace) -> None:
         logging.warning("--cache is no longer supported")
 
 
-def resolve_deps(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> list[MkosiConfig]:
+def resolve_deps(presets: Sequence[MkosiConfig], include: Sequence[str]) -> list[MkosiConfig]:
     graph = {p.preset: p.dependencies for p in presets}
 
-    if args.presets:
-        if any((missing := p) not in graph for p in args.presets):
+    if include:
+        if any((missing := p) not in graph for p in include):
             die(f"No preset found with name {missing}")
 
         deps = set()
-        queue = [*args.presets]
+        queue = [*include]
 
         while queue:
             if (preset := queue.pop(0)) not in deps:
@@ -2034,8 +2038,12 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
     if args.verb == Verb.help:
         PagerHelpAction.__call__(None, argparser, namespace)  # type: ignore
 
+    include = ()
+
     if args.directory != "":
         parse_config(Path("."), namespace, defaults)
+
+        include = getattr(namespace, "presets", ())
 
         if Path("mkosi.presets").exists():
             for p in Path("mkosi.presets").iterdir():
@@ -2070,7 +2078,7 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
     backward_compat_stubs(namespace)
 
     presets = [load_config(ns) for ns in presets]
-    presets = resolve_deps(args, presets)
+    presets = resolve_deps(presets, include)
 
     return args, tuple(presets)
 

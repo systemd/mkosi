@@ -464,6 +464,9 @@ def install_systemd_boot(state: MkosiState) -> None:
     if state.config.output_format == OutputFormat.cpio and state.config.bootable == ConfigFeature.auto:
         return
 
+    if state.config.architecture.to_efi() is None and state.config.bootable == ConfigFeature.auto:
+        return
+
     if not any(gen_kernel_images(state)) and state.config.bootable == ConfigFeature.auto:
         return
 
@@ -1002,7 +1005,10 @@ def build_uki(
     # nul terminators in argv so let's communicate the cmdline via a file instead.
     (state.workspace / "cmdline").write_text(f"{' '.join(cmdline).strip()}\x00")
 
-    stub = state.root / f"usr/lib/systemd/boot/efi/linux{state.config.architecture.to_efi()}.efi.stub"
+    if not (arch := state.config.architecture.to_efi()):
+        die(f"Architecture {state.config.architecture} does not support UEFI")
+
+    stub = state.root / f"usr/lib/systemd/boot/efi/linux{arch}.efi.stub"
     if not stub.exists():
         die(f"sd-stub not found at /{stub.relative_to(state.root)} in the image")
 
@@ -1012,7 +1018,7 @@ def build_uki(
         "--os-release", f"@{state.root / 'usr/lib/os-release'}",
         "--stub", stub,
         "--output", output,
-        "--efi-arch", state.config.architecture.to_efi(),
+        "--efi-arch", arch,
     ]
 
     if not state.config.tools_tree:
@@ -1079,6 +1085,9 @@ def install_uki(state: MkosiState, partitions: Sequence[Partition]) -> None:
         break
 
     if state.config.output_format in (OutputFormat.cpio, OutputFormat.uki) and state.config.bootable == ConfigFeature.auto:
+        return
+
+    if state.config.architecture.to_efi() is None and state.config.bootable == ConfigFeature.auto:
         return
 
     roothash = finalize_roothash(partitions)
@@ -1675,7 +1684,10 @@ def make_image(state: MkosiState, skip: Sequence[str] = [], split: bool = False)
         definitions = state.workspace / "repart-definitions"
         if not definitions.exists():
             definitions.mkdir()
-            bootloader = state.root / f"efi/EFI/BOOT/BOOT{state.config.architecture.to_efi().upper()}.EFI"
+            if (arch := state.config.architecture.to_efi()):
+                bootloader = state.root / f"efi/EFI/BOOT/BOOT{arch.upper()}.EFI"
+            else:
+                bootloader = None
 
             # If grub for BIOS is installed, let's add a BIOS boot partition onto which we can install grub.
             bios = (state.config.bootable != ConfigFeature.disabled and want_grub_bios(state))
@@ -1692,8 +1704,10 @@ def make_image(state: MkosiState, skip: Sequence[str] = [], split: bool = False)
                     )
                 )
 
-            esp = (state.config.bootable == ConfigFeature.enabled or
-                  (state.config.bootable == ConfigFeature.auto and bootloader.exists()))
+            esp = (
+                state.config.bootable == ConfigFeature.enabled or
+                (state.config.bootable == ConfigFeature.auto and bootloader and bootloader.exists())
+            )
 
             if esp or bios:
                 # Even if we're doing BIOS, let's still use the ESP to store the kernels, initrds and grub
