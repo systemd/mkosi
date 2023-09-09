@@ -316,7 +316,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 : Matches against the configured image version. Image versions can be prepended by the operators `==`, `!=`,
   `>=`, `<=`, `<`, `>` for rich version comparisons according to the UAPI group version format specification.
-  If no operator is prepended, the equality operator is assumed by default If this condition is used and no
+  If no operator is prepended, the equality operator is assumed by default. If this condition is used and no
   image version has been explicitly configured yet, this condition fails.
 
 `Bootable=`
@@ -328,15 +328,24 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 : Matches against the configured value for the `Format=` option. Takes
   an output format (see the `Format=` option).
 
-| Matcher         | Globs | Rich Comparisons | Default                 |
-|-----------------|-------|------------------|-------------------------|
-| `Distribution=` | no    | no               | match host distribution |
-| `Release=`      | no    | no               | match host release      |
-| `PathExists=`   | no    | no               | match fails             |
-| `ImageId=`      | yes   | no               | match fails             |
-| `ImageVersion=` | no    | yes              | match fails             |
-| `Bootable=`     | no    | no               | match auto feature      |
-| `Format=`       | no    | no               | match default format    |
+`SystemdVersion=`
+
+: Matches against the systemd version on the host (as reported by
+  `systemctl --version`). Values can be prepended by the operators `==`,
+  `!=`, `>=`, `<=`, `<`, `>` for rich version comparisons according to
+  the UAPI group version format specification. If no operator is
+  prepended, the equality operator is assumed by default.
+
+| Matcher           | Globs | Rich Comparisons | Default                 |
+|-------------------|-------|------------------|-------------------------|
+| `Distribution=`   | no    | no               | match host distribution |
+| `Release=`        | no    | no               | match host release      |
+| `PathExists=`     | no    | no               | match fails             |
+| `ImageId=`        | yes   | no               | match fails             |
+| `ImageVersion=`   | no    | yes              | match fails             |
+| `Bootable=`       | no    | no               | match auto feature      |
+| `Format=`         | no    | no               | match default format    |
+| `SystemdVersion=` | no    | yes              | match fails             |
 
 ### [Preset] Section
 

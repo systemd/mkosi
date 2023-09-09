@@ -383,8 +383,8 @@ def config_make_list_parser(delimiter: str,
     return config_parse_list
 
 
-def config_match_image_version(match: str, value: str) -> bool:
-    image_version = GenericVersion(value)
+def config_match_version(match: str, value: str) -> bool:
+    version = GenericVersion(value)
 
     for sigil, opfunc in {
         "==": operator.eq,
@@ -404,7 +404,7 @@ def config_match_image_version(match: str, value: str) -> bool:
         comp_version = GenericVersion(match)
 
     # all constraints must be fulfilled
-    if not op(image_version, comp_version):
+    if not op(version, comp_version):
         return False
 
     return True
@@ -477,6 +477,14 @@ def config_parse_root_password(value: Optional[str], old: Optional[tuple[str, bo
     value = value.removeprefix("hashed:")
 
     return (value, hashed)
+
+
+def match_systemd_version(value: str) -> bool:
+    if not value:
+        return False
+
+    version = run(["systemctl", "--version"], stdout=subprocess.PIPE).stdout.strip().split()[1]
+    return config_match_version(value, version)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -1026,7 +1034,7 @@ SETTINGS = (
     ),
     MkosiConfigSetting(
         dest="image_version",
-        match=config_match_image_version,
+        match=config_match_version,
         section="Output",
         help="Set version for image",
         paths=("mkosi.version",),
@@ -1656,6 +1664,10 @@ MATCHES = (
     MkosiMatch(
         name="PathExists",
         match=match_path_exists,
+    ),
+    MkosiMatch(
+        name="SystemdVersion",
+        match=match_systemd_version,
     ),
 )
 
