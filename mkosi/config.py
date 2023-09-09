@@ -2315,6 +2315,7 @@ def summary(args: MkosiArgs, config: MkosiConfig) -> str:
                        Cmdline: {bold(" ".join(args.cmdline))}
 
     {bold("PRESET")}:
+                       Presets: {line_join_list(config.presets)}
                   Dependencies: {line_join_list(config.dependencies)}
 
     {bold("DISTRIBUTION")}:
