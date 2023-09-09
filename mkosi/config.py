@@ -479,14 +479,6 @@ def config_parse_root_password(value: Optional[str], old: Optional[tuple[str, bo
     return (value, hashed)
 
 
-class ConfigParserMultipleValues(dict[str, Any]):
-    def __setitem__(self, key: str, value: Any) -> None:
-        if key in self and isinstance(value, list):
-            self[key].extend(value)
-        else:
-            super().__setitem__(key, value)
-
-
 @dataclasses.dataclass(frozen=True)
 class MkosiConfigSetting:
     dest: str
