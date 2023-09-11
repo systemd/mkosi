@@ -714,6 +714,7 @@ class MkosiConfig:
     tools_tree: Optional[Path]
     tools_tree_distribution: Optional[Distribution]
     tools_tree_release: Optional[str]
+    tools_tree_packages: list[str]
 
     # QEMU-specific options
     qemu_gui: bool
@@ -1657,6 +1658,13 @@ SETTINGS = (
         section="Host",
         parse=config_parse_string,
         help="Set the release to use for the default tools tree",
+    ),
+    MkosiConfigSetting(
+        dest="tools_tree_packages",
+        metavar="PACKAGE",
+        section="Host",
+        parse=config_make_list_parser(delimiter=","),
+        help="Add additional packages to the tools tree",
     ),
 )
 

@@ -43,7 +43,6 @@ class DebianInstaller(DistributionInstaller):
             "coreutils",
             "cpio",
             "debian-archive-keyring",
-            "dnf",
             "dosfstools",
             "e2fsprogs",
             "erofs-utils",

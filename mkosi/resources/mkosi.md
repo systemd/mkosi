@@ -1150,6 +1150,12 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   default, the hardcoded default release in mkosi for the distribution
   is used.
 
+`ToolsTreePackages=`, `--tools-tree-packages=`
+
+: Extra packages to install into the tools tree. Takes a comma separated list
+  of package specifications. This option may be used multiple times in which
+  case the specified package lists are combined.
+
 ## Supported distributions
 
 Images may be created containing installations of the following
