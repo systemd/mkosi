@@ -388,15 +388,16 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `Architecture=`, `--architecture=`
 
-: The architecture to build the image for. A number of architectures can
-  be specified, but which ones are actually supported depends on the
-  distribution used and whether a bootable image is requested or not.
-  When building for a foreign architecture, you'll also need to install
-  and register a user mode emulator for that architecture.
+: The architecture to build the image for. The architectures that are
+  actually supported depends on the distribution used and whether a
+  bootable image is requested or not. When building for a foreign
+  architecture, you'll also need to install and register a user mode
+  emulator for that architecture.
 
-: The following architectures can be specified: `alpha`, `arc`, `arm`, `arm64`,
-  `ia64`, `loongarch64`, `mips64-le`, `mips-le`, `parisc`, `ppc`, `ppc64`,
-  `ppc64-le`, `riscv32`, `riscv64`, `s390`, `s390x`, `tilegx`, `x86`, `x86-64`.
+: One of the following architectures can be specified per image built:
+  `alpha`, `arc`, `arm`, `arm64`, `ia64`, `loongarch64`, `mips64-le`,
+  `mips-le`, `parisc`, `ppc`, `ppc64`, `ppc64-le`, `riscv32`, `riscv64`,
+  `s390`, `s390x`, `tilegx`, `x86`, `x86-64`.
 
 `Mirror=`, `--mirror=`, `-m`
 
