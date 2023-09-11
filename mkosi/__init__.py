@@ -2170,6 +2170,7 @@ def finalize_tools(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> Sequence[
             "--directory", "",
             "--distribution", str(distribution),
             "--release", release,
+            *(["--mirror", p.mirror] if p.mirror and p.distribution == distribution else []),
             "--repository-key-check", str(p.repository_key_check),
             "--cache-only", str(p.cache_only),
             "--output-dir", str(p.output_dir),
