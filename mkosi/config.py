@@ -1686,9 +1686,10 @@ def create_argument_parser(*, settings: bool) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="mkosi",
         description="Build Bespoke OS Images",
+        # the synopsis below is supposed to be indented by two spaces
         usage="\n  " + textwrap.dedent("""\
-                mkosi [options...] {b}summary{e}
-                mkosi [options...] {b}build{e} [script parameters...]
+              mkosi [options...] {b}summary{e}
+                mkosi [options...] {b}build{e}
                 mkosi [options...] {b}shell{e} [command line...]
                 mkosi [options...] {b}boot{e}  [nspawn settings...]
                 mkosi [options...] {b}qemu{e}  [qemu parameters...]
