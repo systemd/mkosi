@@ -2179,7 +2179,7 @@ def finalize_tools(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> Sequence[
             "--incremental", str(p.incremental),
             "--acl", str(p.acl),
             "--format", "directory",
-            *flatten(["--package", package] for package in distribution.tools_tree_packages()),
+            *flatten(["--package", package] for package in itertools.chain(distribution.tools_tree_packages(), p.tools_tree_packages)),
             "--output", f"{distribution}-tools",
             "--bootable", "no",
             "--manifest-format", "",
