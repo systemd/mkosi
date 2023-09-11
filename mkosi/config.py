@@ -456,7 +456,7 @@ def config_parse_filename(value: Optional[str], old: Optional[str]) -> Optional[
         die(". and .. are not valid filenames")
 
     if "/" in value:
-        die(f"{value} is not a valid filename")
+        die(f"{value!r} is not a valid filename. (Output= requires a filename with no path components, relative to output directory.)")
 
     return value
 
