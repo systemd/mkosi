@@ -151,6 +151,7 @@ def parse_path(value: str,
                *,
                required: bool = True,
                resolve: bool = True,
+               executable: bool = False,
                expanduser: bool = True,
                expandvars: bool = True,
                secret: bool = False) -> Path:
@@ -169,6 +170,9 @@ def parse_path(value: str,
 
     if resolve:
         path = path.resolve()
+
+    if executable and not os.access(path, os.X_OK):
+        die(f"{value} is not executable")
 
     if secret and path.exists():
         mode = path.stat().st_mode & 0o777
@@ -208,17 +212,6 @@ def config_make_string_matcher(allow_globs: bool = False) -> ConfigMatchCallback
             return match == value
 
     return config_match_string
-
-
-def config_parse_script(value: Optional[str], old: Optional[Path]) -> Optional[Path]:
-    if not value:
-        return None
-
-    path = parse_path(value)
-    if not os.access(path, os.X_OK):
-        die(f"{value} is not executable")
-
-    return path
 
 
 def config_parse_boolean(value: Optional[str], old: Optional[bool]) -> Optional[bool]:
@@ -425,6 +418,7 @@ def config_match_version(match: str, value: str) -> bool:
 def make_path_parser(*,
                      required: bool = True,
                      resolve: bool = True,
+                     executable: bool = False,
                      expanduser: bool = True,
                      expandvars: bool = True,
                      secret: bool = False) -> Callable[[str], Path]:
@@ -432,6 +426,7 @@ def make_path_parser(*,
         parse_path,
         required=required,
         resolve=resolve,
+        executable=executable,
         expanduser=expanduser,
         expandvars=expandvars,
         secret=secret,
@@ -441,6 +436,7 @@ def make_path_parser(*,
 def config_make_path_parser(*,
                             required: bool = True,
                             resolve: bool = True,
+                            executable: bool = False,
                             expanduser: bool = True,
                             expandvars: bool = True,
                             secret: bool = False) -> ConfigParseCallback:
@@ -452,6 +448,7 @@ def config_make_path_parser(*,
             value,
             required=required,
             resolve=resolve,
+            executable=executable,
             expanduser=expanduser,
             expandvars=expandvars,
             secret=secret,
@@ -716,10 +713,10 @@ class MkosiConfig:
     clean_package_metadata: ConfigFeature
     source_date_epoch: Optional[int]
 
-    prepare_script: Optional[Path]
-    build_script: Optional[Path]
-    postinst_script: Optional[Path]
-    finalize_script: Optional[Path]
+    prepare_scripts: list[Path]
+    build_scripts: list[Path]
+    postinst_scripts: list[Path]
+    finalize_scripts: list[Path]
     build_sources: list[tuple[Path, Optional[Path]]]
     environment: dict[str, str]
     with_tests: bool
@@ -859,16 +856,15 @@ class MkosiConfig:
         return f"{self.output_with_version}.changelog"
 
     def cache_manifest(self) -> dict[str, Any]:
-        manifest: dict[str, Any] = {
+        return {
             "packages": self.packages,
             "build_packages": self.build_packages,
             "repositories": self.repositories,
+            "prepare_scripts": [
+                base64.b64encode(script.read_bytes()).decode()
+                for script in self.prepare_scripts
+            ]
         }
-
-        if self.prepare_script:
-            manifest["prepare_script"] = base64.b64encode(self.prepare_script.read_bytes()).decode()
-
-        return manifest
 
 
 def parse_ini(path: Path, only_sections: Sequence[str] = ()) -> Iterator[tuple[str, str, str]]:
@@ -1169,7 +1165,7 @@ SETTINGS = (
         metavar="PACKAGE",
         section="Content",
         parse=config_make_list_parser(delimiter=","),
-        help="Additional packages needed for build script",
+        help="Additional packages needed for build scripts",
     ),
     MkosiConfigSetting(
         dest="with_docs",
@@ -1249,37 +1245,49 @@ SETTINGS = (
         help="Set the $SOURCE_DATE_EPOCH timestamp",
     ),
     MkosiConfigSetting(
-        dest="prepare_script",
+        dest="prepare_scripts",
+        long="--prepare-script",
         metavar="PATH",
         section="Content",
-        parse=config_parse_script,
+        parse=config_make_list_parser(delimiter=",", parse=make_path_parser(executable=True)),
         paths=("mkosi.prepare",),
+        path_default=False,
         help="Prepare script to run inside the image before it is cached",
+        compat_names=("PrepareScript",),
     ),
     MkosiConfigSetting(
-        dest="build_script",
+        dest="build_scripts",
+        long="--build-script",
         metavar="PATH",
         section="Content",
-        parse=config_parse_script,
+        parse=config_make_list_parser(delimiter=",", parse=make_path_parser(executable=True)),
         paths=("mkosi.build",),
+        path_default=False,
         help="Build script to run inside image",
+        compat_names=("BuildScript",),
     ),
     MkosiConfigSetting(
-        dest="postinst_script",
+        dest="postinst_scripts",
+        long="--postinst-script",
         metavar="PATH",
-        name="PostInstallationScript",
+        name="PostInstallationScripts",
         section="Content",
-        parse=config_parse_script,
+        parse=config_make_list_parser(delimiter=",", parse=make_path_parser(executable=True)),
         paths=("mkosi.postinst",),
+        path_default=False,
         help="Postinstall script to run inside image",
+        compat_names=("PostInstallationScript",),
     ),
     MkosiConfigSetting(
-        dest="finalize_script",
+        dest="finalize_scripts",
+        long="--finalize-script",
         metavar="PATH",
         section="Content",
-        parse=config_parse_script,
+        parse=config_make_list_parser(delimiter=",", parse=make_path_parser(executable=True)),
         paths=("mkosi.finalize",),
+        path_default=False,
         help="Postinstall script to run outside image",
+        compat_names=("FinalizeScript",),
     ),
     MkosiConfigSetting(
         dest="build_sources",
@@ -1305,7 +1313,7 @@ SETTINGS = (
         section="Content",
         parse=config_parse_boolean,
         default=True,
-        help="Do not run tests as part of build script, if supported",
+        help="Do not run tests as part of build scripts, if supported",
     ),
     MkosiConfigSetting(
         dest="with_network",
@@ -2310,7 +2318,7 @@ def load_config(args: argparse.Namespace) -> MkosiConfig:
     # For unprivileged builds we need the userxattr OverlayFS mount option, which is only available
     # in Linux v5.11 and later.
     if (
-        (args.build_script is not None or args.base_trees) and
+        (args.build_scripts or args.base_trees) and
         GenericVersion(platform.release()) < GenericVersion("5.11") and
         os.geteuid() != 0
     ):
@@ -2424,13 +2432,13 @@ def summary(args: MkosiArgs, config: MkosiConfig) -> str:
 Clean Package Manager Metadata: {yes_no_auto(config.clean_package_metadata)}
              Source Date Epoch: {none_to_none(config.source_date_epoch)}
 
-                Prepare Script: {none_to_none(config.prepare_script)}
-                  Build Script: {none_to_none(config.build_script)}
-            Postinstall Script: {none_to_none(config.postinst_script)}
-               Finalize Script: {none_to_none(config.finalize_script)}
+               Prepare Scripts: {line_join_list(config.prepare_scripts)}
+                 Build Scripts: {line_join_list(config.build_scripts)}
+           Postinstall Scripts: {line_join_list(config.postinst_scripts)}
+              Finalize Scripts: {line_join_list(config.finalize_scripts)}
                  Build Sources: {line_join_source_target_list(config.build_sources)}
             Script Environment: {line_join_list(env)}
-     Run Tests in Build Script: {yes_no(config.with_tests)}
+    Run Tests in Build Scripts: {yes_no(config.with_tests)}
           Scripts With Network: {yes_no(config.with_network)}
 
                       Bootable: {yes_no_auto(config.bootable)}
