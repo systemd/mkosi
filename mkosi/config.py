@@ -504,7 +504,7 @@ class MkosiConfigSetting:
 
     # settings for argparse
     short: Optional[str] = None
-    long: Optional[str] = None
+    long: str = ""
     choices: Optional[Any] = None
     metavar: Optional[str] = None
     nargs: Optional[str] = None
@@ -514,6 +514,8 @@ class MkosiConfigSetting:
     def __post_init__(self) -> None:
         if not self.name:
             object.__setattr__(self, 'name', ''.join(x.capitalize() for x in self.dest.split('_') if x))
+        if not self.long:
+            object.__setattr__(self, "long", f"--{self.dest.replace('_', '-')}")
 
 
 @dataclasses.dataclass(frozen=True)
@@ -1815,8 +1817,7 @@ def create_argument_parser(*, settings: bool) -> argparse.ArgumentParser:
             group = parser.add_argument_group(f"{s.section} configuration options")
             last_section = s.section
 
-        long = s.long if s.long else f"--{s.dest.replace('_', '-')}"
-        opts = [s.short, long] if s.short else [long]
+        opts = [s.short, s.long] if s.short else [s.long]
 
         group.add_argument(    # type: ignore
             *opts,
