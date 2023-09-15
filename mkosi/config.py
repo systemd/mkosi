@@ -1976,11 +1976,14 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
         if path.exists():
             logging.debug(f"Including configuration file {Path.cwd() / path}")
 
-            for _, k, v in parse_ini(path, only_sections=["Distribution", "Output", "Content", "Validation", "Host", "Preset"]):
+            for section, k, v in parse_ini(path, only_sections=["Distribution", "Output", "Content", "Validation", "Host", "Preset"]):
                 ns = defaults if k.startswith("@") else namespace
 
                 if not (s := settings_lookup_by_name.get(k.removeprefix("@"))):
                     die(f"Unknown setting {k}")
+
+                if section != s.section:
+                    logging.warning(f"Setting {k} should be configured in [{s.section}], not [{section}].")
 
                 setattr(ns, s.dest, s.parse(v, getattr(ns, s.dest, None)))
 
