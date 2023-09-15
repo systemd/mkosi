@@ -2,6 +2,7 @@
 
 import argparse
 import itertools
+import logging
 import operator
 from pathlib import Path
 from typing import Optional
@@ -148,6 +149,8 @@ def test_parse_config(tmp_path: Path) -> None:
         """\
         [Content]
         Packages=
+
+        [Output]
         ImageId=
         """
     )
@@ -362,6 +365,8 @@ def test_match_imageid(tmp_path: Path, image1: str, image2: str) -> None:
             f"""\
             [Distribution]
             Distribution=fedora
+
+            [Output]
             ImageId={image1}
             """
         )
@@ -442,6 +447,8 @@ def test_match_imageversion(tmp_path: Path, op: str, version: str) -> None:
             """\
             [Distribution]
             Distribution=fedora
+
+            [Output]
             ImageId=testimage
             ImageVersion=123
             """
@@ -523,3 +530,41 @@ def test_package_manager_tree(tmp_path: Path, skel: Optional[Path], pkgmngr: Opt
 
         assert conf.skeleton_trees == skel_expected
         assert conf.package_manager_trees == pkgmngr_expected
+
+
+@pytest.mark.parametrize(
+    "sections,args,warning_count",
+    [
+        (["Output"], [], 0),
+        (["Content"], [], 1),
+        (["Content", "Output"], [], 1),
+        (["Output", "Content"], [], 1),
+        (["Output", "Content", "Distribution"], [], 2),
+        (["Content"], ["--image-id=testimage"], 1),
+    ],
+)
+def test_wrong_section_warning(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    sections: list[str],
+    args: list[str],
+    warning_count: int,
+) -> None:
+    with chdir(tmp_path):
+        # Create a config with ImageId in the wrong section,
+        # and sometimes in the correct section
+        Path("mkosi.conf").write_text(
+            "\n".join(
+                f"""\
+                [{section}]
+                ImageId=testimage
+                """
+                for section in sections
+            )
+        )
+
+        with caplog.at_level(logging.WARNING):
+            # Parse the config, with --image-id sometimes given on the command line
+            parse_config(args)
+
+        assert len(caplog.records) == warning_count
