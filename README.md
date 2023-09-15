@@ -81,8 +81,9 @@ binary and is not to be considered a public API.
 # References
 
 * [Primary mkosi git repository on GitHub](https://github.com/systemd/mkosi/)
-* [mkosi — A Tool for Generating OS Images](http://0pointer.net/blog/mkosi-a-tool-for-generating-os-images.html) introductory blog post by Lennart Poettering
-* [The mkosi OS generation tool](https://lwn.net/Articles/726655/) story on LWN
+* [mkosi — A Tool for Generating OS Images](http://0pointer.net/blog/mkosi-a-tool-for-generating-os-images.html) introductory blog post by Lennart Poettering (2017)
+* [The mkosi OS generation tool](https://lwn.net/Articles/726655/) story on LWN (2017)
+* [mkosi: Building Bespoke Operating System Images](https://media.ccc.de/v/all-systems-go-2023-190-mkosi-building-bespoke-operating-system-images) talk at All Systems Go! 2023
 
 ## Community
 
