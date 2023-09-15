@@ -10,6 +10,7 @@ import fnmatch
 import functools
 import graphlib
 import inspect
+import json
 import logging
 import math
 import operator
@@ -668,6 +669,8 @@ class MkosiArgs:
             if k in inspect.signature(cls).parameters
         })
 
+    def to_json(self, *, indent: Optional[int] = 4, sort_keys: bool = True) -> str:
+        return json.dumps(dataclasses.asdict(self), cls=MkosiJsonEncoder, indent=indent, sort_keys=sort_keys)
 
 @dataclasses.dataclass(frozen=True)
 class MkosiConfig:
@@ -876,6 +879,9 @@ class MkosiConfig:
                 for script in self.prepare_scripts
             ]
         }
+
+    def to_json(self, *, indent: Optional[int] = 4, sort_keys: bool = True) -> str:
+        return json.dumps(dataclasses.asdict(self), cls=MkosiJsonEncoder, indent=indent, sort_keys=sort_keys)
 
 
 def parse_ini(path: Path, only_sections: Collection[str] = ()) -> Iterator[tuple[str, str, str]]:
@@ -2617,3 +2623,14 @@ Clean Package Manager Metadata: {yes_no_auto(config.clean_package_metadata)}
 """
 
     return summary
+
+
+class MkosiJsonEncoder(json.JSONEncoder):
+    def default(self, obj: Any) -> Any:
+        if isinstance(obj, StrEnum):
+            return str(obj)
+        elif isinstance(obj, os.PathLike):
+            return os.fspath(obj)
+        elif isinstance(obj, uuid.UUID):
+            return str(obj)
+        return json.JSONEncoder.default(self, obj)
