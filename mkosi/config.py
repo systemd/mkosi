@@ -792,7 +792,7 @@ class MkosiConfig:
     qemu_cdrom: bool
     qemu_firmware: QemuFirmware
     qemu_kernel: Optional[Path]
-    qemu_args: Sequence[str]
+    qemu_args: list[str]
 
     preset: Optional[str]
 
