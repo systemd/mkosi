@@ -672,6 +672,14 @@ class MkosiArgs:
     def to_json(self, *, indent: Optional[int] = 4, sort_keys: bool = True) -> str:
         return json.dumps(dataclasses.asdict(self), cls=MkosiJsonEncoder, indent=indent, sort_keys=sort_keys)
 
+    @classmethod
+    def from_json(cls, s: str) -> "MkosiArgs":
+        j = json.loads(s)
+        transformer = json_type_transformer(cls)
+        tj = {k: transformer(k, v) for k, v in j.items()}
+        return cls(**tj)
+
+
 @dataclasses.dataclass(frozen=True)
 class MkosiConfig:
     """Type-hinted storage for command line arguments.
@@ -882,6 +890,13 @@ class MkosiConfig:
 
     def to_json(self, *, indent: Optional[int] = 4, sort_keys: bool = True) -> str:
         return json.dumps(dataclasses.asdict(self), cls=MkosiJsonEncoder, indent=indent, sort_keys=sort_keys)
+
+    @classmethod
+    def from_json(cls, s: str) -> "MkosiConfig":
+        j = json.loads(s)
+        transformer = json_type_transformer(cls)
+        tj = {k: transformer(k, v) for k, v in j.items()}
+        return cls(**tj)
 
 
 def parse_ini(path: Path, only_sections: Collection[str] = ()) -> Iterator[tuple[str, str, str]]:
@@ -2634,3 +2649,94 @@ class MkosiJsonEncoder(json.JSONEncoder):
         elif isinstance(obj, uuid.UUID):
             return str(obj)
         return json.JSONEncoder.default(self, obj)
+
+
+E = TypeVar("E", bound=StrEnum)
+
+
+def json_type_transformer(refcls: Union[type[MkosiArgs], type[MkosiConfig]]) -> Callable[[str, Any], Any]:
+    fields_by_name = {field.name: field for field in dataclasses.fields(refcls)}
+
+    def path_transformer(path: str, fieldtype: type[Path]) -> Path:
+        return Path(path)
+
+    def optional_path_transformer(path: Optional[str], fieldtype: type[Optional[Path]]) -> Optional[Path]:
+        return Path(path) if path is not None else None
+
+    def path_list_transformer(pathlist: list[str], fieldtype: type[list[Path]]) -> list[Path]:
+        return [Path(p) for p in pathlist]
+
+    def optional_uuid_transformer(optuuid: Optional[str], fieldtype: type[Optional[uuid.UUID]]) -> Optional[uuid.UUID]:
+        return uuid.UUID(optuuid) if optuuid is not None else None
+
+    def root_password_transformer(
+        rootpw: Optional[list[Union[str, bool]]], fieldtype: type[Optional[tuple[str, bool]]]
+    ) -> Optional[tuple[str, bool]]:
+        if rootpw is None:
+            return None
+        return (cast(str, rootpw[0]), cast(bool, rootpw[1]))
+
+    def source_target_transformer(
+        trees: list[list[Optional[str]]], fieldtype: type[list[tuple[Path, Optional[Path]]]]
+    ) -> list[tuple[Path, Optional[Path]]]:
+        # TODO: exchange for TypeGuard and list comprehension once on 3.10
+        ret = []
+        for src, tgt in trees:
+            assert src is not None
+            source = Path(src)
+            target = Path(tgt) if tgt is not None else None
+            ret.append((source, target))
+        return ret
+
+    def enum_transformer(enumval: str, fieldtype: type[E]) -> E:
+        return fieldtype(enumval)
+
+    def optional_enum_transformer(enumval: Optional[str], fieldtype: type[Optional[E]]) -> Optional[E]:
+        return fieldtype(enumval) if enumval is not None else None  # type: ignore
+
+    def enum_list_transformer(enumlist: list[str], fieldtype: type[list[E]]) -> list[E]:
+        enumtype = fieldtype.__args__[0]  # type: ignore
+        return [enumtype[e] for e in enumlist]
+
+    def str_tuple_transformer(strtup: list[str], fieldtype: list[tuple[str, ...]]) -> tuple[str, ...]:
+        return tuple(strtup)
+
+    transformers = {
+        Path: path_transformer,
+        Optional[Path]: optional_path_transformer,
+        list[Path]: path_list_transformer,
+        Optional[uuid.UUID]: optional_uuid_transformer,
+        Optional[tuple[str, bool]]: root_password_transformer,
+        list[tuple[Path, Optional[Path]]]: source_target_transformer,
+        tuple[str, ...]: str_tuple_transformer,
+        Architecture: enum_transformer,
+        BiosBootloader: enum_transformer,
+        Bootloader: enum_transformer,
+        Compression: enum_transformer,
+        ConfigFeature: enum_transformer,
+        Distribution: enum_transformer,
+        OutputFormat: enum_transformer,
+        QemuFirmware: enum_transformer,
+        SecureBootSignTool: enum_transformer,
+        Optional[Distribution]: optional_enum_transformer,
+        list[ManifestFormat]: enum_list_transformer,
+        Verb: enum_transformer,
+        DocFormat: enum_transformer,
+    }
+
+    def json_transformer(key: str, val: Any) -> Any:
+        fieldtype: Optional[dataclasses.Field[Any]] = fields_by_name.get(key)
+        # It is unlikely that the type of a field will be None only, so let's not bother with a different sentinel
+        # value
+        if fieldtype is None:
+            ValueError(f"{refcls} has no field {key}")
+
+        # TODO: exchange for TypeGuard once on 3.10
+        assert fieldtype is not None
+        transformer = cast(Optional[Callable[[str, type], Any]], transformers.get(fieldtype.type))
+        if transformer is not None:
+            return transformer(val, fieldtype.type)
+
+        return val
+
+    return json_transformer
