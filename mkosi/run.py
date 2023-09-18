@@ -294,11 +294,11 @@ def bwrap(
             "--ro-bind", "/var", "/var",
             "--ro-bind", "/run", "/run",
             "--bind", "/var/tmp", "/var/tmp",
+            "--bind", "/tmp", "/tmp",
+            "--bind", Path.cwd(), Path.cwd(),
         ]
 
     cmdline += [
-        "--tmpfs", "/tmp",
-        "--bind", Path.cwd(), Path.cwd(),
         "--chdir", Path.cwd(),
         "--unshare-pid",
         "--unshare-ipc",
@@ -332,7 +332,7 @@ def bwrap(
         cmdline += [
             "--setenv", "PATH", f"{d}:{os.environ['PATH']}",
             *options,
-            "sh", "-c", "chmod 1777 /tmp /dev/shm && exec $0 \"$@\"",
+            "sh", "-c", "chmod 1777 /dev/shm && exec $0 \"$@\"",
         ]
 
         try:
