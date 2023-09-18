@@ -16,7 +16,13 @@ class MkosiState:
         self.workspace = workspace
 
         with umask(~0o755):
-            make_tree(self.config, self.root)
+            # Using a btrfs subvolume as the upperdir in an overlayfs results in EXDEV so make sure we create
+            # the root directory as a regular directory if the Overlay= option is enabled.
+            if config.overlay:
+                self.root.mkdir()
+            else:
+                make_tree(self.config, self.root)
+
         self.staging.mkdir()
         self.pkgmngr.mkdir()
         self.install_dir.mkdir(exist_ok=True)
