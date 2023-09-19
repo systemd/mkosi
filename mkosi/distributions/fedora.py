@@ -110,7 +110,12 @@ class FedoraInstaller(DistributionInstaller):
             if state.config.release != "rawhide":
                 repos += [
                     Repo("updates", f"{url}&repo=updates-released-f$releasever", gpgurls),
-                    Repo("updates-debuginfo", f"{url}&repo=updates-released-debug-f$releasever", gpgurls, enabled=False),
+                    Repo(
+                        "updates-debuginfo",
+                        f"{url}&repo=updates-released-debug-f$releasever",
+                        gpgurls,
+                        enabled=False,
+                    ),
                     Repo("updates-source", f"{url}&repo=updates-released-source-f$releasever", gpgurls, enabled=False),
                 ]
 

@@ -28,8 +28,12 @@ def move_rpm_db(root: Path) -> None:
             newdb.symlink_to(os.path.relpath(olddb, start=newdb.parent))
 
 
-class CentosInstaller(DistributionInstaller):
+def join_mirror(config: MkosiConfig, link: str) -> str:
+    assert config.mirror is not None
+    return urllib.parse.urljoin(config.mirror, link)
 
+
+class CentosInstaller(DistributionInstaller):
     @classmethod
     def filesystem(cls) -> str:
         return "xfs"
@@ -133,43 +137,113 @@ class CentosInstaller(DistributionInstaller):
         if config.mirror:
             if int(config.release) <= 8:
                 return [
-                    Repo(repo.lower(), f"baseurl={urllib.parse.urljoin(config.mirror, f'centos/$stream/{repo}/$basearch/os')}", cls.gpgurls()),
-                    Repo(f"{repo.lower()}-debuginfo", f"baseurl={urllib.parse.urljoin(config.mirror, 'centos-debuginfo/$stream/$basearch')}", cls.gpgurls(), enabled=False),
-                    Repo(f"{repo.lower()}-source", f"baseurl={urllib.parse.urljoin(config.mirror, f'centos/$stream/{repo}/Source')}", cls.gpgurls(), enabled=False),
+                    Repo(
+                        repo.lower(),
+                        f"baseurl={join_mirror(config, f'centos/$stream/{repo}/$basearch/os')}",
+                        cls.gpgurls()
+                    ),
+                    Repo(
+                        f"{repo.lower()}-debuginfo",
+                        f"baseurl={join_mirror(config, 'centos-debuginfo/$stream/$basearch')}",
+                        cls.gpgurls(),
+                        enabled=False,
+                    ),
+                    Repo(
+                        f"{repo.lower()}-source",
+                        f"baseurl={join_mirror(config, f'centos/$stream/{repo}/Source')}",
+                        cls.gpgurls(),
+                        enabled=False,
+                    ),
                 ]
             else:
                 if repo == "extras":
                     return [
-                        Repo(repo.lower(), f"baseurl={urllib.parse.urljoin(config.mirror, f'SIGs/$stream/{repo}/$basearch/extras-common')}", cls.gpgurls()),
-                        Repo(f"{repo.lower()}-source", f"baseurl={urllib.parse.urljoin(config.mirror, f'SIGs/$stream/{repo}/source/extras-common')}", cls.gpgurls(), enabled=False),
+                        Repo(
+                            repo.lower(),
+                            f"baseurl={join_mirror(config, f'SIGs/$stream/{repo}/$basearch/extras-common')}",
+                            cls.gpgurls(),
+                        ),
+                        Repo(
+                            f"{repo.lower()}-source",
+                            f"baseurl={join_mirror(config, f'SIGs/$stream/{repo}/source/extras-common')}",
+                            cls.gpgurls(),
+                            enabled=False,
+                        ),
                     ]
 
                 return [
-                    Repo(repo.lower(), f"baseurl={urllib.parse.urljoin(config.mirror, f'$stream/{repo}/$basearch/os')}", cls.gpgurls()),
-                    Repo(f"{repo.lower()}-debuginfo", f"baseurl={urllib.parse.urljoin(config.mirror, f'$stream/{repo}/$basearch/debug/tree')}", cls.gpgurls(), enabled=False),
-                    Repo(f"{repo.lower()}-source", f"baseurl={urllib.parse.urljoin(config.mirror, f'$stream/{repo}/source/tree')}", cls.gpgurls(), enabled=False),
+                    Repo(
+                        repo.lower(),
+                        f"baseurl={join_mirror(config, f'$stream/{repo}/$basearch/os')}",
+                        cls.gpgurls(),
+                    ),
+                    Repo(
+                        f"{repo.lower()}-debuginfo",
+                        f"baseurl={join_mirror(config, f'$stream/{repo}/$basearch/debug/tree')}",
+                        cls.gpgurls(),
+                        enabled=False,
+                    ),
+                    Repo(
+                        f"{repo.lower()}-source",
+                        f"baseurl={join_mirror(config, f'$stream/{repo}/source/tree')}",
+                        cls.gpgurls(),
+                        enabled=False,
+                    ),
                 ]
         else:
             if int(config.release) <= 8:
                 return [
-                    Repo(repo.lower(), f"mirrorlist=http://mirrorlist.centos.org/?release=$stream&arch=$basearch&repo={repo}", cls.gpgurls()),
+                    Repo(
+                        repo.lower(),
+                        f"mirrorlist=http://mirrorlist.centos.org/?release=$stream&arch=$basearch&repo={repo}",
+                        cls.gpgurls(),
+                    ),
                     # These can't be retrieved from the mirrorlist.
-                    Repo(f"{repo.lower()}-debuginfo", "baseurl=http://debuginfo.centos.org/$stream/$basearch", cls.gpgurls(), enabled=False),
-                    Repo(f"{repo.lower()}-source", f"baseurl=https://vault.centos.org/centos/$stream/{repo}/Source", cls.gpgurls(), enabled=False),
+                    Repo(
+                        f"{repo.lower()}-debuginfo",
+                        "baseurl=http://debuginfo.centos.org/$stream/$basearch",
+                        cls.gpgurls(),
+                        enabled=False,
+                    ),
+                    Repo(
+                        f"{repo.lower()}-source",
+                        f"baseurl=https://vault.centos.org/centos/$stream/{repo}/Source",
+                        cls.gpgurls(),
+                        enabled=False,
+                    ),
                 ]
             else:
                 url = "metalink=https://mirrors.centos.org/metalink"
 
                 if repo == "extras":
                     return [
-                        Repo(repo.lower(), f"{url}?arch=$basearch&repo=centos-extras-sig-extras-common-$stream", cls.gpgurls()),
-                        Repo(f"{repo.lower()}-source", f"{url}?arch=source&repo=centos-extras-sig-extras-common-source-$stream", cls.gpgurls(), enabled=False),
+                        Repo(
+                            repo.lower(),
+                            f"{url}?arch=$basearch&repo=centos-extras-sig-extras-common-$stream",
+                            cls.gpgurls(),
+                        ),
+                        Repo(
+                            f"{repo.lower()}-source",
+                            f"{url}?arch=source&repo=centos-extras-sig-extras-common-source-$stream",
+                            cls.gpgurls(),
+                            enabled=False,
+                        ),
                     ]
 
                 return [
                     Repo(repo.lower(), f"{url}?arch=$basearch&repo=centos-{repo.lower()}-$stream", cls.gpgurls()),
-                    Repo(f"{repo.lower()}-debuginfo", f"{url}?arch=$basearch&repo=centos-{repo.lower()}-debug-$stream", cls.gpgurls(), enabled=False),
-                    Repo(f"{repo.lower()}-source", f"{url}?arch=source&repo=centos-{repo.lower()}-source-$stream", cls.gpgurls(), enabled=False),
+                    Repo(
+                        f"{repo.lower()}-debuginfo",
+                        f"{url}?arch=$basearch&repo=centos-{repo.lower()}-debug-$stream",
+                        cls.gpgurls(),
+                        enabled=False,
+                    ),
+                    Repo(
+                        f"{repo.lower()}-source",
+                        f"{url}?arch=source&repo=centos-{repo.lower()}-source-$stream",
+                        cls.gpgurls(),
+                        enabled=False,
+                    ),
                 ]
 
     @classmethod
@@ -200,11 +274,31 @@ class CentosInstaller(DistributionInstaller):
         repos = []
 
         if config.mirror:
-            for repo, dir in (("epel", "epel"), ("epel-next", "epel/next"), ("epel-testing", "epel/testing"), ("epel-next-testing", "epel/testing/next")):
+            for repo, dir in (
+                ("epel", "epel"),
+                ("epel-next", "epel/next"),
+                ("epel-testing", "epel/testing"),
+                ("epel-next-testing", "epel/testing/next")
+            ):
                 repos += [
-                    Repo(repo, f"baseurl={urllib.parse.urljoin(config.mirror, f'{dir}/$releasever/Everything/$basearch')}", gpgurls, enabled=False),
-                    Repo(f"{repo}-debuginfo", f"baseurl={urllib.parse.urljoin(config.mirror, f'{dir}/$releasever/Everything/$basearch/debug')}", gpgurls, enabled=False),
-                    Repo(f"{repo}-source", f"baseurl={urllib.parse.urljoin(config.mirror, f'{dir}/$releasever/Everything/source/tree')}", gpgurls, enabled=False),
+                    Repo(
+                        repo,
+                        f"baseurl={join_mirror(config, f'{dir}/$releasever/Everything/$basearch')}",
+                        gpgurls,
+                        enabled=False,
+                    ),
+                    Repo(
+                        f"{repo}-debuginfo",
+                        f"baseurl={join_mirror(config, f'{dir}/$releasever/Everything/$basearch/debug')}",
+                        gpgurls,
+                        enabled=False,
+                    ),
+                    Repo(
+                        f"{repo}-source",
+                        f"baseurl={join_mirror(config, f'{dir}/$releasever/Everything/source/tree')}",
+                        gpgurls,
+                        enabled=False,
+                    ),
                 ]
         else:
             url = "metalink=https://mirrors.fedoraproject.org/metalink?arch=$basearch"
@@ -220,8 +314,18 @@ class CentosInstaller(DistributionInstaller):
                 Repo("epel-testing-debuginfo", f"{url}&repo=testing-debug-epel$releasever", gpgurls, enabled=False),
                 Repo("epel-testing-source", f"{url}&repo=testing-source-epel$releasever", gpgurls, enabled=False),
                 Repo("epel-next-testing", f"{url}&repo=epel-testing-next-$releasever", gpgurls, enabled=False),
-                Repo("epel-next-testing-debuginfo", f"{url}&repo=epel-testing-next-debug-$releasever", gpgurls, enabled=False),
-                Repo("epel-next-testing-source", f"{url}&repo=epel-testing-next-source-$releasever", gpgurls, enabled=False),
+                Repo(
+                    "epel-next-testing-debuginfo",
+                    f"{url}&repo=epel-testing-next-debug-$releasever",
+                    gpgurls,
+                    enabled=False,
+                ),
+                Repo(
+                    "epel-next-testing-source",
+                    f"{url}&repo=epel-testing-next-source-$releasever",
+                    gpgurls,
+                    enabled=False,
+                ),
             ]
 
         return repos
@@ -246,30 +350,90 @@ class CentosInstaller(DistributionInstaller):
                 if config.mirror:
                     if int(config.release) <= 8:
                         repos += [
-                            Repo(f"{sig}-{c}", f"baseurl={urllib.parse.urljoin(config.mirror, f'centos/$stream/{sig}/$basearch/{c}')}", gpgurls, enabled=False),
-                            Repo(f"{sig}-{c}-debuginfo", f"baseurl={urllib.parse.urljoin(config.mirror, f'$stream/{sig}/$basearch')}", gpgurls, enabled=False),
-                            Repo(f"{sig}-{c}-source", f"baseurl={urllib.parse.urljoin(config.mirror, f'centos/$stream/{sig}/Source')}", gpgurls, enabled=False),
+                            Repo(
+                                f"{sig}-{c}",
+                                f"baseurl={join_mirror(config, f'centos/$stream/{sig}/$basearch/{c}')}",
+                                gpgurls,
+                                enabled=False,
+                            ),
+                            Repo(
+                                f"{sig}-{c}-debuginfo",
+                                f"baseurl={join_mirror(config, f'$stream/{sig}/$basearch')}",
+                                gpgurls,
+                                enabled=False,
+                            ),
+                            Repo(
+                                f"{sig}-{c}-source",
+                                f"baseurl={join_mirror(config, f'centos/$stream/{sig}/Source')}",
+                                gpgurls,
+                                enabled=False,
+                            ),
                         ]
                     else:
                         repos += [
-                            Repo(f"{sig}-{c}", f"baseurl={urllib.parse.urljoin(config.mirror, f'SIGs/$stream/{sig}/$basearch/{c}')}", gpgurls, enabled=False),
-                            Repo(f"{sig}-{c}-debuginfo", f"baseurl={urllib.parse.urljoin(config.mirror, f'SIGs/$stream/{sig}/$basearch/{c}/debug')}", gpgurls, enabled=False),
-                            Repo(f"{sig}-{c}-source", f"baseurl={urllib.parse.urljoin(config.mirror, f'SIGs/$stream/{sig}/source/{c}')}", gpgurls, enabled=False),
+                            Repo(
+                                f"{sig}-{c}",
+                                f"baseurl={join_mirror(config, f'SIGs/$stream/{sig}/$basearch/{c}')}",
+                                gpgurls,
+                                enabled=False,
+                            ),
+                            Repo(
+                                f"{sig}-{c}-debuginfo",
+                                f"baseurl={join_mirror(config, f'SIGs/$stream/{sig}/$basearch/{c}/debug')}",
+                                gpgurls,
+                                enabled=False,
+                            ),
+                            Repo(
+                                f"{sig}-{c}-source",
+                                f"baseurl={join_mirror(config, f'SIGs/$stream/{sig}/source/{c}')}",
+                                gpgurls,
+                                enabled=False,
+                            ),
                         ]
                 else:
                     if int(config.release) <= 8:
                         repos += [
-                            Repo(f"{sig}-{c}", f"mirrorlist=http://mirrorlist.centos.org/?release=$stream&arch=$basearch&repo={sig}-{c}", gpgurls, enabled=False),
+                            Repo(
+                                f"{sig}-{c}",
+                                f"mirrorlist=http://mirrorlist.centos.org/?release=$stream&arch=$basearch&repo={sig}-{c}",
+                                gpgurls,
+                                enabled=False,
+                            ),
                             # These can't be retrieved from the mirrorlist.
-                            Repo(f"{sig}-{c}-debuginfo", f"baseurl=http://debuginfo.centos.org/centos/$stream/{sig}/$basearch", gpgurls, enabled=False),
-                            Repo(f"{sig}-{c}-source", f"baseurl=https://vault.centos.org/$stream/{sig}/Source/{c}", gpgurls, enabled=False),
+                            Repo(
+                                f"{sig}-{c}-debuginfo",
+                                f"baseurl=http://debuginfo.centos.org/centos/$stream/{sig}/$basearch",
+                                gpgurls,
+                                enabled=False,
+                            ),
+                            Repo(
+                                f"{sig}-{c}-source",
+                                f"baseurl=https://vault.centos.org/$stream/{sig}/Source/{c}",
+                                gpgurls,
+                                enabled=False,
+                            ),
                         ]
                     else:
                         url = "metalink=https://mirrors.centos.org/metalink"
                         repos += [
-                            Repo(f"{sig}-{c}", f"{url}?arch=$basearch&repo=centos-{sig}-sig-{c}-$stream", gpgurls, enabled=False),
-                            Repo(f"{sig}-{c}-debuginfo", f"{url}?arch=$basearch&repo=centos-{sig}-sig-{c}-debug-$stream", gpgurls, enabled=False),
-                            Repo(f"{sig}-{c}-source", f"{url}?arch=source&repo=centos-{sig}-sig-{c}-source-$stream", gpgurls, enabled=False),
+                            Repo(
+                                f"{sig}-{c}",
+                                f"{url}?arch=$basearch&repo=centos-{sig}-sig-{c}-$stream",
+                                gpgurls,
+                                enabled=False,
+                            ),
+                            Repo(
+                                f"{sig}-{c}-debuginfo",
+                                f"{url}?arch=$basearch&repo=centos-{sig}-sig-{c}-debug-$stream",
+                                gpgurls,
+                                enabled=False,
+                            ),
+                            Repo(
+                                f"{sig}-{c}-source",
+                                f"{url}?arch=source&repo=centos-{sig}-sig-{c}-source-$stream",
+                                gpgurls,
+                                enabled=False,
+                            ),
                         ]
 
                     repos += [

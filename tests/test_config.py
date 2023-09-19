@@ -26,13 +26,13 @@ def test_compression_enum_creation() -> None:
 
 
 def test_compression_enum_bool() -> None:
-    assert bool(Compression.none) == False
-    assert bool(Compression.zst)  == True
-    assert bool(Compression.xz)   == True
-    assert bool(Compression.bz2)  == True
-    assert bool(Compression.gz)   == True
-    assert bool(Compression.lz4)  == True
-    assert bool(Compression.lzma) == True
+    assert not bool(Compression.none)
+    assert bool(Compression.zst)
+    assert bool(Compression.xz)
+    assert bool(Compression.bz2)
+    assert bool(Compression.gz)
+    assert bool(Compression.lz4)
+    assert bool(Compression.lzma)
 
 
 def test_compression_enum_str() -> None:

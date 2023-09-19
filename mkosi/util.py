@@ -67,8 +67,7 @@ def sort_packages(packages: Iterable[str]) -> list[str]:
     """Sorts packages: normal first, paths second, conditional third"""
 
     m = {"(": 2, "/": 1}
-    sort = lambda name: (m.get(name[0], 0), name)
-    return sorted(packages, key=sort)
+    return sorted(packages, key=lambda name: (m.get(name[0], 0), name))
 
 
 def flatten(lists: Iterable[Iterable[T]]) -> list[T]:
@@ -150,7 +149,10 @@ def qemu_check_vsock_support(log: bool) -> bool:
             return False
         elif e.errno in (errno.EPERM, errno.EACCES):
             if log:
-                logging.warning("Permission denied to access /dev/vhost-vsock. Not adding a vsock device to the virtual machine.")
+                logging.warning(
+                    "Permission denied to access /dev/vhost-vsock. "
+                    "Not adding a vsock device to the virtual machine."
+                )
             return False
 
         raise e

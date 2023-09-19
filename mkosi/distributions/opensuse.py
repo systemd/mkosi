@@ -95,7 +95,9 @@ class OpensuseInstaller(DistributionInstaller):
         else:
             repos = [Repo("repo-oss", f"baseurl={release_url}", fetch_gpgurls(release_url) if not zypper else ())]
             if updates_url is not None:
-                repos += [Repo("repo-update", f"baseurl={updates_url}", fetch_gpgurls(updates_url) if not zypper else ())]
+                repos += [
+                    Repo("repo-update", f"baseurl={updates_url}", fetch_gpgurls(updates_url) if not zypper else ())
+                ]
 
         if zypper:
             setup_zypper(state, repos)

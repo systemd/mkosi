@@ -18,9 +18,9 @@ import shutil
 import subprocess
 import textwrap
 import uuid
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Iterator, Sequence
 from pathlib import Path
-from typing import Any, Callable, Iterator, Optional, Type, Union, cast
+from typing import Any, Callable, Optional, Union, cast
 
 from mkosi.architecture import Architecture
 from mkosi.distributions import Distribution, detect_distribution
@@ -287,7 +287,10 @@ def config_parse_source_date_epoch(value: Optional[str], old: Optional[int]) -> 
 
 def config_default_compression(namespace: argparse.Namespace) -> Compression:
     if namespace.output_format in (OutputFormat.cpio, OutputFormat.uki):
-        return Compression.xz if namespace.distribution.is_centos_variant() and int(namespace.release) <= 8 else Compression.zst
+        if namespace.distribution.is_centos_variant() and int(namespace.release) <= 8:
+            return Compression.xz
+        else:
+            return Compression.zst
     else:
         return Compression.none
 
@@ -340,7 +343,7 @@ def config_default_source_date_epoch(namespace: argparse.Namespace) -> Optional[
     return config_parse_source_date_epoch(os.environ.get("SOURCE_DATE_EPOCH"), None)
 
 
-def make_enum_parser(type: Type[enum.Enum]) -> Callable[[str], enum.Enum]:
+def make_enum_parser(type: type[enum.Enum]) -> Callable[[str], enum.Enum]:
     def parse_enum(value: str) -> enum.Enum:
         try:
             return type(value)
@@ -350,14 +353,14 @@ def make_enum_parser(type: Type[enum.Enum]) -> Callable[[str], enum.Enum]:
     return parse_enum
 
 
-def config_make_enum_parser(type: Type[enum.Enum]) -> ConfigParseCallback:
+def config_make_enum_parser(type: type[enum.Enum]) -> ConfigParseCallback:
     def config_parse_enum(value: Optional[str], old: Optional[enum.Enum]) -> Optional[enum.Enum]:
         return make_enum_parser(type)(value) if value else None
 
     return config_parse_enum
 
 
-def config_make_enum_matcher(type: Type[enum.Enum]) -> ConfigMatchCallback:
+def config_make_enum_matcher(type: type[enum.Enum]) -> ConfigMatchCallback:
     def config_match_enum(match: str, value: enum.Enum) -> bool:
         return make_enum_parser(type)(match) == value
 
@@ -553,7 +556,7 @@ class CustomHelpFormatter(argparse.HelpFormatter):
                                      subsequent_indent=subindent) for line in lines)
 
 
-def config_make_action(settings: Sequence[MkosiConfigSetting]) -> Type[argparse.Action]:
+def config_make_action(settings: Sequence[MkosiConfigSetting]) -> type[argparse.Action]:
     lookup = {s.dest: s for s in settings}
 
     class MkosiAction(argparse.Action):
@@ -833,20 +836,20 @@ def parse_ini(path: Path, only_sections: Sequence[str] = ()) -> Iterator[tuple[s
     setting: Optional[str] = None
     value: Optional[str] = None
 
-    for l in textwrap.dedent(path.read_text()).splitlines():
+    for line in textwrap.dedent(path.read_text()).splitlines():
         # Systemd unit files allow both '#' and ';' to indicate comments so we do the same.
         for c in ("#", ";"):
-            comment = l.find(c)
+            comment = line.find(c)
             if comment >= 0:
-                l = l[:comment]
+                line = line[:comment]
 
-        if not l.strip():
+        if not line.strip():
             continue
 
         # If we have a section, setting and value, any line that's indented is considered part of the
         # setting's value.
-        if section and setting and value is not None and l[0].isspace():
-            value = f"{value}\n{l.strip()}"
+        if section and setting and value is not None and line[0].isspace():
+            value = f"{value}\n{line.strip()}"
             continue
 
         # So the line is not indented, that means we either found a new section or a new setting. Either way,
@@ -855,29 +858,29 @@ def parse_ini(path: Path, only_sections: Sequence[str] = ()) -> Iterator[tuple[s
             yield section, setting, value
             setting = value = None
 
-        l = l.strip()
+        line = line.strip()
 
-        if l[0] == '[':
-            if l[-1] != ']':
-                die(f"{l} is not a valid section")
+        if line[0] == '[':
+            if line[-1] != ']':
+                die(f"{line} is not a valid section")
 
-            section = l[1:-1].strip()
+            section = line[1:-1].strip()
             if not section:
                 die("Section name cannot be empty or whitespace")
 
             continue
 
         if not section:
-            die(f"Setting {l} is located outside of section")
+            die(f"Setting {line} is located outside of section")
 
         if only_sections and section not in only_sections:
             continue
 
-        setting, delimiter, value = l.partition("=")
+        setting, delimiter, value = line.partition("=")
         if not delimiter:
             die(f"Setting {setting} must be followed by '='")
         if not setting:
-            die(f"Missing setting name before '=' in {l}")
+            die(f"Missing setting name before '=' in {line}")
 
         setting = setting.strip()
         value = value.strip()
@@ -1976,7 +1979,9 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
         if path.exists():
             logging.debug(f"Including configuration file {Path.cwd() / path}")
 
-            for section, k, v in parse_ini(path, only_sections=["Distribution", "Output", "Content", "Validation", "Host", "Preset"]):
+            for section, k, v in parse_ini(
+                path, only_sections=["Distribution", "Output", "Content", "Validation", "Host", "Preset"]
+            ):
                 ns = defaults if k.startswith("@") else namespace
 
                 if not (s := settings_lookup_by_name.get(k.removeprefix("@"))):
@@ -2134,7 +2139,11 @@ def load_credentials(args: argparse.Namespace) -> dict[str, str]:
     if "firstboot.locale" not in creds:
         creds["firstboot.locale"] = "C.UTF-8"
 
-    if args.ssh and "ssh.authorized_keys.root" not in creds and "SSH_AUTH_SOCK" in os.environ and shutil.which("ssh-add"):
+    if (
+        args.ssh and
+        "ssh.authorized_keys.root" not in creds and
+        "SSH_AUTH_SOCK" in os.environ and shutil.which("ssh-add")
+    ):
         key = run(
             ["ssh-add", "-L"],
             stdout=subprocess.PIPE,
@@ -2269,8 +2278,13 @@ def load_config(args: argparse.Namespace) -> MkosiConfig:
     if args.incremental and not args.cache_dir:
         die("A cache directory must be configured in order to use --incremental")
 
-    # For unprivileged builds we need the userxattr OverlayFS mount option, which is only available in Linux v5.11 and later.
-    if (args.build_script is not None or args.base_trees) and GenericVersion(platform.release()) < GenericVersion("5.11") and os.geteuid() != 0:
+    # For unprivileged builds we need the userxattr OverlayFS mount option, which is only available
+    # in Linux v5.11 and later.
+    if (
+        (args.build_script is not None or args.base_trees) and
+        GenericVersion(platform.release()) < GenericVersion("5.11") and
+        os.geteuid() != 0
+    ):
         die("This unprivileged build configuration requires at least Linux v5.11")
 
     return MkosiConfig.from_namespace(args)
@@ -2321,9 +2335,8 @@ def line_join_source_target_list(array: Sequence[tuple[Path, Optional[Path]]]) -
 
 
 def summary(args: MkosiArgs, config: MkosiConfig) -> str:
-    b = Style.bold
-    e = Style.reset
-    bold: Callable[..., str] = lambda s: f"{b}{s}{e}"
+    def bold(s: Any) -> str:
+        return f"{Style.bold}{s}{Style.reset}"
 
     maniformats = (" ".join(i.name for i in config.manifest_format)) or "(none)"
     env = [f"{k}={v}" for k, v in config.environment.items()]

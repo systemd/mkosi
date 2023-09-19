@@ -12,8 +12,9 @@ import subprocess
 import sys
 import tempfile
 import uuid
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator, Optional
+from typing import Optional
 
 from mkosi.architecture import Architecture
 from mkosi.config import (
@@ -227,7 +228,11 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
         die(f"{config.output_format} images cannot be booted with the '{config.qemu_firmware}' firmware")
 
     accel = "tcg"
-    auto = config.qemu_kvm == ConfigFeature.auto and config.architecture.is_native() and qemu_check_kvm_support(log=True)
+    auto = (
+        config.qemu_kvm == ConfigFeature.auto and
+        config.architecture.is_native() and
+        qemu_check_kvm_support(log=True)
+    )
     if config.qemu_kvm == ConfigFeature.enabled or auto:
         accel = "kvm"
 
@@ -278,8 +283,13 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
 
     if config.architecture.supports_smbios():
         for k, v in config.credentials.items():
-            cmdline += ["-smbios", f"type=11,value=io.systemd.credential.binary:{k}={base64.b64encode(v.encode()).decode()}"]
-        cmdline += ["-smbios", f"type=11,value=io.systemd.stub.kernel-cmdline-extra={' '.join(config.kernel_command_line_extra)}"]
+            cmdline += [
+                "-smbios", f"type=11,value=io.systemd.credential.binary:{k}={base64.b64encode(v.encode()).decode()}"
+            ]
+        cmdline += [
+            "-smbios",
+            f"type=11,value=io.systemd.stub.kernel-cmdline-extra={' '.join(config.kernel_command_line_extra)}"
+        ]
 
     # QEMU has built-in logic to look for the BIOS firmware so we don't need to do anything special for that.
     if firmware == QemuFirmware.uefi:
@@ -334,7 +344,10 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
             elif "-kernel" not in args.cmdline:
                 kernel = config.output_dir / config.output_split_kernel
                 if not kernel.exists():
-                    die("No kernel found, please install a kernel in the image or provide a -kernel argument to mkosi qemu")
+                    die(
+                        "No kernel found, please install a kernel in the image "
+                        "or provide a -kernel argument to mkosi qemu"
+                    )
             else:
                 kernel = None
 
@@ -364,7 +377,11 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
                         "-device", "virtio-scsi-pci,id=scsi",
                         "-device", f"scsi-{'cd' if config.qemu_cdrom else 'hd'},drive=mkosi,bootindex=1"]
 
-        if firmware == QemuFirmware.uefi and config.qemu_swtpm != ConfigFeature.disabled and shutil.which("swtpm") is not None:
+        if (
+            firmware == QemuFirmware.uefi and
+            config.qemu_swtpm != ConfigFeature.disabled and
+            shutil.which("swtpm") is not None
+        ):
             sock = stack.enter_context(start_swtpm())
             cmdline += ["-chardev", f"socket,id=chrtpm,path={sock}",
                         "-tpmdev", "emulator,id=tpm0,chardev=chrtpm"]

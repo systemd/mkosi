@@ -4,7 +4,7 @@ import enum
 import importlib
 import re
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Optional, Type, cast
+from typing import TYPE_CHECKING, Optional, cast
 
 from mkosi.architecture import Architecture
 from mkosi.log import die
@@ -122,13 +122,13 @@ class Distribution(StrEnum):
     def tools_tree_packages(self) -> list[str]:
         return self.installer().tools_tree_packages()
 
-    def installer(self) -> Type[DistributionInstaller]:
+    def installer(self) -> type[DistributionInstaller]:
         try:
             mod = importlib.import_module(f"mkosi.distributions.{self}")
             installer = getattr(mod, f"{str(self).title().replace('_','')}Installer")
             if not issubclass(installer, DistributionInstaller):
                 die(f"Distribution installer for {self} is not a subclass of DistributionInstaller")
-            return cast(Type[DistributionInstaller], installer)
+            return cast(type[DistributionInstaller], installer)
         except (ImportError, AttributeError):
             die("No installer for this distribution.")
 

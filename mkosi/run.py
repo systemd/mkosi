@@ -17,9 +17,10 @@ import sys
 import tempfile
 import textwrap
 import threading
+from collections.abc import Awaitable, Mapping, Sequence
 from pathlib import Path
 from types import TracebackType
-from typing import Any, Awaitable, Mapping, Optional, Sequence, Tuple, Type
+from typing import Any, Optional
 
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, die
 from mkosi.types import _FILE, CompletedProcess, PathString, Popen
@@ -58,7 +59,10 @@ def read_subrange(path: Path) -> int:
         die(f"No mapping found for {user or uid} in {path}")
 
     if int(count) < SUBRANGE:
-        die(f"subuid/subgid range length must be at least {SUBRANGE}, got {count} for {user or uid} from line '{line}'")
+        die(
+            f"subuid/subgid range length must be at least {SUBRANGE}, "
+            f"got {count} for {user or uid} from line '{line}'"
+        )
 
     return int(start)
 
@@ -142,7 +146,7 @@ def foreground(*, new_process_group: bool = True) -> None:
         signal.signal(signal.SIGTTOU, old)
 
 
-def ensure_exc_info() -> Tuple[Type[BaseException], BaseException, TracebackType]:
+def ensure_exc_info() -> tuple[type[BaseException], BaseException, TracebackType]:
     exctype, exc, tb = sys.exc_info()
     assert exctype
     assert exc
@@ -339,7 +343,8 @@ def bwrap(
             result = run([*cmdline, *cmd], env=env, log=False, stdin=stdin, stdout=stdout, input=input)
         except subprocess.CalledProcessError as e:
             if log:
-                logging.error(f"\"{shlex.join(os.fspath(s) for s in cmd)}\" returned non-zero exit code {e.returncode}.")
+                c = shlex.join(os.fspath(s) for s in cmd)
+                logging.error(f"\"{c}\" returned non-zero exit code {e.returncode}.")
             if ARG_DEBUG_SHELL.get():
                 run([*cmdline, "sh"], stdin=sys.stdin, check=False, env=env, log=False)
             raise e
@@ -465,7 +470,7 @@ class MkosiAsyncioThread(threading.Thread):
 
     def __exit__(
         self,
-        type: Optional[Type[BaseException]],
+        type: Optional[type[BaseException]],
         value: Optional[BaseException],
         traceback: Optional[TracebackType],
     ) -> None:
