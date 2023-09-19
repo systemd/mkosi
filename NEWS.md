@@ -1,5 +1,10 @@
 # mkosi Changelog
 
+## v17.1
+
+- Fixed bug where `--autologin` was broken when used in combination with
+  a tools tree when using a packaged version of mkosi.
+
 ## v17
 
 - Added `ToolsTreePackages=` to add extra packages to the default tools
