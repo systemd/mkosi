@@ -465,7 +465,7 @@ def config_parse_filename(value: Optional[str], old: Optional[str]) -> Optional[
         die(". and .. are not valid filenames")
 
     if "/" in value:
-        die(f"{value} is not a valid filename")
+        die(f"{value!r} is not a valid filename. (Output= requires a filename with no path components, relative to output directory.)")
 
     return value
 
@@ -1697,9 +1697,10 @@ def create_argument_parser(*, settings: bool) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="mkosi",
         description="Build Bespoke OS Images",
+        # the synopsis below is supposed to be indented by two spaces
         usage="\n  " + textwrap.dedent("""\
-                mkosi [options...] {b}summary{e}
-                mkosi [options...] {b}build{e} [script parameters...]
+              mkosi [options...] {b}summary{e}
+                mkosi [options...] {b}build{e}
                 mkosi [options...] {b}shell{e} [command line...]
                 mkosi [options...] {b}boot{e}  [nspawn settings...]
                 mkosi [options...] {b}qemu{e}  [qemu parameters...]
