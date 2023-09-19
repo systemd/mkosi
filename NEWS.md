@@ -1,5 +1,19 @@
 # mkosi Changelog
 
+## v17
+
+- Added `ToolsTreePackages=` to add extra packages to the default tools
+  tree.
+- Added `SystemdVersion=` match to match on the host's systemd version
+- Added `Format=` match to match on the configured output format
+- `Presets=` can now be configured in global configuration files to select
+  which presets to build
+- UKIs can now be booted using direct linux boot.
+- We don't try to make images UEFI bootable anymore on architectures
+  that do not support UEFI
+- Fixed `--help` to show all options again
+- We now warn when settings are configured in the wrong section
+
 ## v16
 
 - `mkosi.version` is now picked up from preset and dropin directories as
