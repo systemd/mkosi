@@ -523,6 +523,9 @@ class MkosiConfigSetting:
     const: Optional[Any] = None
     help: Optional[str] = None
 
+    # backward compatibility
+    compat_names: tuple[str, ...] = ()
+
     def __post_init__(self) -> None:
         if not self.name:
             object.__setattr__(self, 'name', ''.join(x.capitalize() for x in self.dest.split('_') if x))
@@ -1930,7 +1933,7 @@ def resolve_deps(presets: Sequence[MkosiConfig], include: Sequence[str]) -> list
 
 
 def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig, ...]]:
-    settings_lookup_by_name = {s.name: s for s in SETTINGS}
+    settings_lookup_by_name = {name: s for s in SETTINGS for name in [s.name, *s.compat_names]}
     settings_lookup_by_dest = {s.dest: s for s in SETTINGS}
     match_lookup = {m.name: m for m in MATCHES}
 
@@ -1978,6 +1981,9 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
                 if not s.match:
                     die(f"{k} cannot be used in [Match]")
 
+                if k != s.name:
+                    logging.warning(f"Setting {k} is deprecated, please use {s.name} instead.")
+
                 # If we encounter a setting in [Match] that has not been explicitly configured yet,
                 # we assign the default value first so that we can [Match] on default values for
                 # settings.
@@ -2015,13 +2021,18 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
             for section, k, v in parse_ini(
                 path, only_sections=["Distribution", "Output", "Content", "Validation", "Host", "Preset"]
             ):
-                ns = defaults if k.startswith("@") else namespace
+                name = k.removeprefix("@")
+                ns = namespace if k == name else defaults
 
-                if not (s := settings_lookup_by_name.get(k.removeprefix("@"))):
+                if not (s := settings_lookup_by_name.get(name)):
                     die(f"Unknown setting {k}")
 
                 if section != s.section:
                     logging.warning(f"Setting {k} should be configured in [{s.section}], not [{section}].")
+
+                if name != s.name:
+                    canonical = s.name if k == name else f"@{s.name}"
+                    logging.warning(f"Setting {k} is deprecated, please use {canonical} instead.")
 
                 setattr(ns, s.dest, s.parse(v, getattr(ns, s.dest, None)))
 
