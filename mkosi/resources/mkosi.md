@@ -1157,6 +1157,21 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   of package specifications. This option may be used multiple times in which
   case the specified package lists are combined.
 
+`RuntimeTrees=`, `--runtime-tree=`
+
+: Takes a colon separated pair of paths. The first path refers to a
+  directory to mount into any machine (container or VM) started by
+  mkosi. The second path refers to the target directory inside the
+  machine. If the second path is not provided, the directory is mounted
+  below `/root/src` in the machine.
+
+: For each mounted directory, the uid and gid of the user running mkosi
+  are mapped to the root user in the machine. This means that all the
+  files and directories will appear as if they're owned by root in the
+  machine, and all new files and directories created by root in the
+  machine in these directories will be owned by the user running mkosi
+  on the host.
+
 ## Supported distributions
 
 Images may be created containing installations of the following

@@ -178,11 +178,12 @@ def run(
         # output.
         stdout = sys.stderr
 
-    env = dict(
-        PATH=os.environ["PATH"],
-        TERM=os.getenv("TERM", "vt220"),
-        LANG="C.UTF-8",
-    ) | env
+    env = {
+        "PATH": os.environ["PATH"],
+        "TERM": os.getenv("TERM", "vt220"),
+        "LANG": "C.UTF-8",
+        **env,
+    }
 
     if "TMPDIR" in os.environ:
         env["TMPDIR"] = os.environ["TMPDIR"]

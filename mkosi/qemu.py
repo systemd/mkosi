@@ -14,7 +14,6 @@ import tempfile
 import uuid
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Optional
 
 from mkosi.architecture import Architecture
 from mkosi.config import (
@@ -29,7 +28,12 @@ from mkosi.partition import finalize_root, find_partitions
 from mkosi.run import MkosiAsyncioThread, run, spawn
 from mkosi.tree import copy_tree, rmtree
 from mkosi.types import PathString
-from mkosi.util import format_bytes, qemu_check_kvm_support, qemu_check_vsock_support
+from mkosi.util import (
+    InvokingUser,
+    format_bytes,
+    qemu_check_kvm_support,
+    qemu_check_vsock_support,
+)
 
 
 def machine_cid(config: MkosiConfig) -> int:
@@ -138,7 +142,7 @@ def find_ovmf_vars(config: MkosiConfig) -> Path:
 
 
 @contextlib.contextmanager
-def start_swtpm() -> Iterator[Optional[Path]]:
+def start_swtpm() -> Iterator[Path]:
     with tempfile.TemporaryDirectory() as state:
         sock = Path(state) / Path("sock")
         proc = spawn([
@@ -153,6 +157,45 @@ def start_swtpm() -> Iterator[Optional[Path]]:
             yield sock
         finally:
             proc.terminate()
+            proc.wait()
+
+
+@contextlib.contextmanager
+def start_virtiofsd(directory: Path) -> Iterator[Path]:
+    uid, gid = InvokingUser.uid_gid()
+
+    with tempfile.TemporaryDirectory() as state:
+        # Make sure virtiofsd is allowed to create its socket in this temporary directory.
+        os.chown(state, uid, gid)
+
+        sock = Path(state) / Path("sock")
+
+        virtiofsd = shutil.which("virtiofsd")
+        if virtiofsd is None:
+            if Path("/usr/libexec/virtiofsd").exists():
+                virtiofsd = "/usr/libexec/virtiofsd"
+            elif Path("/usr/lib/virtiofsd").exists():
+                virtiofsd = "/usr/lib/virtiofsd"
+            else:
+                die("virtiofsd must be installed to use RuntimeMounts= with mkosi qemu")
+
+        # virtiofsd has to run unprivileged to use the --uid-map and --gid-map options, so we always run it as the user
+        # running mkosi.
+        proc = spawn([
+            virtiofsd,
+            "--socket-path", sock,
+            "--shared-dir", directory,
+            "--xattr",
+            "--posix-acl",
+            # Map the user running mkosi to root in the virtual machine for the virtiofs instance to make sure all
+            # files created by root in the VM are owned by the user running mkosi on the host.
+            "--uid-map", f":0:{uid}:1:",
+            "--gid-map", f":0:{gid}:1:",
+        ], user=uid, group=gid)
+
+        try:
+            yield sock
+        finally:
             proc.wait()
 
 
@@ -227,6 +270,9 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
     ):
         die(f"{config.output_format} images cannot be booted with the '{config.qemu_firmware}' firmware")
 
+    if (config.runtime_trees and config.qemu_firmware == QemuFirmware.bios):
+        die("RuntimeTrees= cannot be used when booting in BIOS firmware")
+
     accel = "tcg"
     auto = (
         config.qemu_kvm == ConfigFeature.auto and
@@ -246,10 +292,17 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
 
     ovmf, ovmf_supports_sb = find_ovmf_firmware(config) if firmware == QemuFirmware.uefi else (None, False)
 
+    shm = []
+    if config.runtime_trees:
+        shm = ["-object", "memory-backend-memfd,id=mem,size=2G,share=on"]
+
     if config.architecture == Architecture.arm64:
         machine = f"type=virt,accel={accel}"
     else:
         machine = f"type=q35,accel={accel},smm={'on' if ovmf_supports_sb else 'off'}"
+
+    if shm:
+        machine += ",memory-backend=mem"
 
     cmdline: list[PathString] = [
         find_qemu_binary(config),
@@ -259,6 +312,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
         "-object", "rng-random,filename=/dev/urandom,id=rng0",
         "-device", "virtio-rng-pci,rng=rng0,id=rng-device0",
         "-nic", "user,model=virtio-net-pci",
+        *shm,
     ]
 
     use_vsock = (config.qemu_vsock == ConfigFeature.enabled or
@@ -281,23 +335,39 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
             "-mon", "console",
         ]
 
-    if config.architecture.supports_smbios():
-        for k, v in config.credentials.items():
-            cmdline += [
-                "-smbios", f"type=11,value=io.systemd.credential.binary:{k}={base64.b64encode(v.encode()).decode()}"
-            ]
-        cmdline += [
-            "-smbios",
-            f"type=11,value=io.systemd.stub.kernel-cmdline-extra={' '.join(config.kernel_command_line_extra)}"
-        ]
-
     # QEMU has built-in logic to look for the BIOS firmware so we don't need to do anything special for that.
     if firmware == QemuFirmware.uefi:
         cmdline += ["-drive", f"if=pflash,format=raw,readonly=on,file={ovmf}"]
 
+    if firmware == QemuFirmware.linux or config.output_format in (OutputFormat.cpio, OutputFormat.uki):
+        kcl = config.kernel_command_line + config.kernel_command_line_extra
+    elif config.architecture.supports_smbios():
+        kcl = config.kernel_command_line_extra
+    else:
+        kcl = []
+
     notifications: dict[str, str] = {}
 
     with contextlib.ExitStack() as stack:
+        for src, target in config.runtime_trees:
+            sock = stack.enter_context(start_virtiofsd(src))
+            cmdline += [
+                "-chardev", f"socket,id={sock.name},path={sock}",
+                "-device", f"vhost-user-fs-pci,queue-size=1024,chardev={sock.name},tag={sock.name}",
+            ]
+            kcl += [f"systemd.mount-extra={sock.name}:{target or f'/root/src/{src.name}'}:virtiofs"]
+
+        if config.architecture.supports_smbios():
+            for k, v in config.credentials.items():
+                cmdline += [
+                    "-smbios", f"type=11,value=io.systemd.credential.binary:{k}={base64.b64encode(v.encode()).decode()}"
+                ]
+
+            cmdline += [
+                "-smbios",
+                f"type=11,value=io.systemd.stub.kernel-cmdline-extra={' '.join(kcl)}"
+            ]
+
         if firmware == QemuFirmware.uefi and ovmf_supports_sb:
             ovmf_vars = stack.enter_context(tempfile.NamedTemporaryFile(prefix=".mkosi-"))
             shutil.copy2(find_ovmf_vars(config), Path(ovmf_vars.name))
@@ -363,7 +433,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
             else:
                 root = ""
 
-            cmdline += ["-append", " ".join([root] + config.kernel_command_line + config.kernel_command_line_extra)]
+            cmdline += ["-append", " ".join([root] + kcl)]
 
         if config.output_format == OutputFormat.cpio:
             cmdline += ["-initrd", fname]
