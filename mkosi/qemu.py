@@ -168,7 +168,9 @@ def start_virtiofsd(directory: Path) -> Iterator[Path]:
         # Make sure virtiofsd is allowed to create its socket in this temporary directory.
         os.chown(state, uid, gid)
 
-        sock = Path(state) / Path("sock")
+        # Make sure we can use the socket name as a unique identifier for the fs as well but make sure it's not too
+        # long as virtiofs tag names are limited to 36 bytes.
+        sock = Path(state) / f"sock-{uuid.uuid4().hex}"[:35]
 
         virtiofsd = shutil.which("virtiofsd")
         if virtiofsd is None:
