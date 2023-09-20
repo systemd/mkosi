@@ -2178,13 +2178,13 @@ def load_kernel_command_line_extra(args: argparse.Namespace) -> list[str]:
         f"systemd.tty.rows.ttyS0={lines}",
         "console=ttyS0",
         # Make sure we set up networking in the VM/container.
-        "systemd.wants=network-online.target",
+        "systemd.wants=network.target",
         # Make sure we don't load vmw_vmci which messes with virtio vsock.
         "module_blacklist=vmw_vmci",
     ]
 
     if not any(s.startswith("ip=") for s in args.kernel_command_line_extra):
-        cmdline += ["ip=enp0s1:any", "ip=enp0s2:any", "ip=host0:any"]
+        cmdline += ["ip=enp0s1:any", "ip=enp0s2:any", "ip=host0:any", "ip=none"]
 
     if not any(s.startswith("loglevel=") for s in args.kernel_command_line_extra):
         cmdline += ["loglevel=4"]
