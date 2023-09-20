@@ -124,7 +124,13 @@ def mount_usr(tree: Optional[Path], umount: bool = True) -> Iterator[None]:
         # If we mounted over /usr, trying to use umount will fail with "target is busy", because umount is
         # being called from /usr, which we're trying to unmount. To work around this issue, we do a lazy
         # unmount.
-        with mount(what=tree / "usr", where=Path("/usr"), operation="--bind", read_only=True, umount=umount, lazy=True):
+        with mount(
+            what=tree / "usr",
+            where=Path("/usr"),
+            operation="--bind",
+            read_only=True,
+            umount=umount, lazy=True
+        ):
             yield
     finally:
         os.environ["PATH"] = old

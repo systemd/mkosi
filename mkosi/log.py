@@ -5,7 +5,8 @@ import contextvars
 import logging
 import os
 import sys
-from typing import Any, Iterator, NoReturn, Optional
+from collections.abc import Iterator
+from typing import Any, NoReturn, Optional
 
 # This global should be initialized after parsing arguments
 ARG_DEBUG = contextvars.ContextVar("debug", default=False)

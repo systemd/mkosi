@@ -1,9 +1,9 @@
 import dataclasses
 import json
 import subprocess
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, Mapping, Optional
+from typing import Any, Optional
 
 from mkosi.log import die
 from mkosi.run import run

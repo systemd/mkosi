@@ -19,7 +19,7 @@ import textwrap
 import uuid
 from collections.abc import Iterator, Sequence
 from pathlib import Path
-from typing import ContextManager, Optional, TextIO, Union
+from typing import Optional, TextIO, Union
 
 from mkosi.archive import extract_tar, make_cpio, make_tar
 from mkosi.config import (
@@ -150,7 +150,9 @@ def install_build_packages(state: MkosiState) -> None:
     if not need_build_packages(state.config):
         return
 
-    with complete_step(f"Installing build packages for {str(state.config.distribution).capitalize()}"), mount_build_overlay(state):
+    # TODO: move to parenthesised context managers once on 3.10
+    pd = str(state.config.distribution).capitalize()
+    with complete_step(f"Installing build packages for {pd}"), mount_build_overlay(state):
         state.config.distribution.install_packages(state, state.config.build_packages)
 
 
@@ -229,7 +231,7 @@ def mount_cache_overlay(state: MkosiState) -> Iterator[None]:
         yield
 
 
-def mount_build_overlay(state: MkosiState, read_only: bool = False) -> ContextManager[Path]:
+def mount_build_overlay(state: MkosiState, read_only: bool = False) -> contextlib.AbstractContextManager[Path]:
     d = state.workspace / "build-overlay"
     if not d.is_symlink():
         with umask(~0o755):
@@ -592,7 +594,7 @@ def find_grub_bios_directory(state: MkosiState) -> Optional[Path]:
 def find_grub_binary(state: MkosiState, binary: str) -> Optional[Path]:
     path = ":".join(os.fspath(p) for p in [state.root / "usr/bin", state.root / "usr/sbin"])
 
-    assert "grub" in binary and not "grub2" in binary
+    assert "grub" in binary and "grub2" not in binary
 
     path = shutil.which(binary, path=path) or shutil.which(binary.replace("grub", "grub2"), path=path)
     if not path:
@@ -749,12 +751,18 @@ def prepare_grub_bios(state: MkosiState, partitions: Sequence[Partition]) -> Non
                 kimg = Path(shutil.copy2(state.root / kimg, kdst / "vmlinuz"))
                 kmods = Path(shutil.copy2(kmods, kdst / "kmods"))
 
+                distribution = state.config.distribution
+                image = kimg.relative_to(state.root / "efi")
+                cmdline = " ".join(state.config.kernel_command_line)
+                initrd = initrd.relative_to(state.root / "efi")
+                kmods = kmods.relative_to(state.root / "efi")
+
                 f.write(
                     textwrap.dedent(
                         f"""\
-                        menuentry "{state.config.distribution}-{kver}" {{
-                            linux /{kimg.relative_to(state.root / "efi")} {root} {" ".join(state.config.kernel_command_line)}
-                            initrd /{initrd.relative_to(state.root / "efi")} /{kmods.relative_to(state.root / "efi")}
+                        menuentry "{distribution}-{kver}" {{
+                            linux /{image} {root} {cmdline}
+                            initrd /{initrd} /{kmods}
                         }}
                         """
                     )
@@ -947,7 +955,11 @@ def build_initrd(state: MkosiState) -> Path:
         "--make-initrd", "yes",
         "--bootable", "no",
         "--manifest-format", "",
-        *(["--source-date-epoch", str(state.config.source_date_epoch)] if state.config.source_date_epoch is not None else []),
+        *(
+            ["--source-date-epoch", str(state.config.source_date_epoch)]
+            if state.config.source_date_epoch is not None else
+            []
+        ),
         *(["--locale", state.config.locale] if state.config.locale else []),
         *(["--locale-messages", state.config.locale_messages] if state.config.locale_messages else []),
         *(["--keymap", state.config.keymap] if state.config.keymap else []),
@@ -1117,7 +1129,10 @@ def install_uki(state: MkosiState, partitions: Sequence[Partition]) -> None:
         shutil.copy(state.root / kimg, state.staging / state.config.output_split_kernel)
         break
 
-    if state.config.output_format in (OutputFormat.cpio, OutputFormat.uki) and state.config.bootable == ConfigFeature.auto:
+    if (
+        state.config.output_format in (OutputFormat.cpio, OutputFormat.uki) and
+        state.config.bootable == ConfigFeature.auto
+    ):
         return
 
     if state.config.architecture.to_efi() is None and state.config.bootable == ConfigFeature.auto:
@@ -1143,7 +1158,9 @@ def install_uki(state: MkosiState, partitions: Sequence[Partition]) -> None:
             if state.config.bootloader == Bootloader.uki:
                 boot_binary = state.root / "efi/EFI/BOOT/BOOTX64.EFI"
             elif state.config.image_version:
-                boot_binary = state.root / f"efi/EFI/Linux/{image_id}_{state.config.image_version}-{kver}{boot_count}.efi"
+                boot_binary = (
+                    state.root / f"efi/EFI/Linux/{image_id}_{state.config.image_version}-{kver}{boot_count}.efi"
+                )
             elif roothash:
                 _, _, h = roothash.partition("=")
                 boot_binary = state.root / f"efi/EFI/Linux/{image_id}-{kver}-{h}{boot_count}.efi"
@@ -1278,7 +1295,7 @@ def calculate_signature(state: MkosiState) -> None:
         # Set the path of the keyring to use based on the environment if possible and fallback to the default
         # path. Without this the keyring for the root user will instead be used which will fail for a
         # non-root build.
-        env = dict(GNUPGHOME=os.environ.get("GNUPGHOME", os.fspath(((Path(os.environ["HOME"]) / ".gnupg")))))
+        env = dict(GNUPGHOME=os.environ.get("GNUPGHOME", os.fspath(Path(os.environ["HOME"]) / ".gnupg")))
         if sys.stderr.isatty():
             env |= dict(GPGTTY=os.ttyname(sys.stderr.fileno()))
 
@@ -2112,7 +2129,8 @@ def bump_image_version(uid: int = -1, gid: int = -1) -> None:
     except ValueError:
         new_version = version + ".2"
         logging.info(
-            f"Last component of current version is not a decimal integer, appending '.2', bumping '{version}' → '{new_version}'."
+            "Last component of current version is not a decimal integer, "
+            f"appending '.2', bumping '{version}' → '{new_version}'."
         )
     else:
         new_version = ".".join(v[:-1] + [str(m + 1)])
@@ -2163,7 +2181,10 @@ def expand_specifier(s: str) -> str:
 
 
 def needs_build(args: MkosiArgs, config: MkosiConfig) -> bool:
-    return args.verb.needs_build() and (args.force > 0 or not (config.output_dir / config.output_with_compression).exists())
+    return (
+        args.verb.needs_build() and
+        (args.force > 0 or not (config.output_dir / config.output_with_compression).exists())
+    )
 
 
 @contextlib.contextmanager
@@ -2212,7 +2233,10 @@ def finalize_tools(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> Sequence[
             "--incremental", str(p.incremental),
             "--acl", str(p.acl),
             "--format", "directory",
-            *flatten(["--package", package] for package in itertools.chain(distribution.tools_tree_packages(), p.tools_tree_packages)),
+            *flatten(
+                ["--package", package]
+                for package in itertools.chain(distribution.tools_tree_packages(), p.tools_tree_packages))
+            ,
             "--output", f"{distribution}-tools",
             "--bootable", "no",
             "--manifest-format", "",
@@ -2256,7 +2280,9 @@ def mount_tools(tree: Optional[Path]) -> Iterator[None]:
                 continue
 
             (Path("/") / subdir).mkdir(parents=True, exist_ok=True)
-            stack.enter_context(mount(what=tree / subdir, where=Path("/") / subdir, operation="--bind", read_only=True))
+            stack.enter_context(
+                mount(what=tree / subdir, where=Path("/") / subdir, operation="--bind", read_only=True)
+            )
 
         yield
 

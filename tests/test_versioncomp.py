@@ -67,8 +67,14 @@ def test_generic_version_spec() -> None:
         2
     )
 )
-def test_generic_version_strverscmp_improved_doc(s1: tuple[int, GenericVersion], s2: tuple[int, GenericVersion]) -> None:
-    """Example from the doc string of strverscmp_improved in systemd/src/fundamental/string-util-fundamental.c"""
+def test_generic_version_strverscmp_improved_doc(
+    s1: tuple[int, GenericVersion],
+    s2: tuple[int, GenericVersion],
+) -> None:
+    """Example from the doc string of strverscmp_improved.
+
+    strverscmp_improved can be found in systemd/src/fundamental/string-util-fundamental.c
+    """
     i1, v1 = s1
     i2, v2 = s2
     assert (v1 == v2) == (i1 == i2)
