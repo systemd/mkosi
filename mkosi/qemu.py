@@ -14,6 +14,7 @@ import tempfile
 import uuid
 from collections.abc import Iterator
 from pathlib import Path
+from typing import Optional
 
 from mkosi.architecture import Architecture
 from mkosi.config import (
@@ -28,12 +29,7 @@ from mkosi.partition import finalize_root, find_partitions
 from mkosi.run import MkosiAsyncioThread, run, spawn
 from mkosi.tree import copy_tree, rmtree
 from mkosi.types import PathString
-from mkosi.util import (
-    InvokingUser,
-    format_bytes,
-    qemu_check_kvm_support,
-    qemu_check_vsock_support,
-)
+from mkosi.util import format_bytes, qemu_check_kvm_support, qemu_check_vsock_support
 
 
 def machine_cid(config: MkosiConfig) -> int:
@@ -161,12 +157,10 @@ def start_swtpm() -> Iterator[Path]:
 
 
 @contextlib.contextmanager
-def start_virtiofsd(directory: Path) -> Iterator[Path]:
-    uid, gid = InvokingUser.uid_gid()
-
+def start_virtiofsd(directory: Path, uid: Optional[int] = None, gid: Optional[int] = None) -> Iterator[Path]:
     with tempfile.TemporaryDirectory() as state:
         # Make sure virtiofsd is allowed to create its socket in this temporary directory.
-        os.chown(state, uid, gid)
+        os.chown(state, uid if uid is not None else os.getuid(), gid if gid is not None else os.getgid())
 
         # Make sure we can use the socket name as a unique identifier for the fs as well but make sure it's not too
         # long as virtiofs tag names are limited to 36 bytes.
@@ -181,19 +175,24 @@ def start_virtiofsd(directory: Path) -> Iterator[Path]:
             else:
                 die("virtiofsd must be installed to use RuntimeMounts= with mkosi qemu")
 
-        # virtiofsd has to run unprivileged to use the --uid-map and --gid-map options, so we always run it as the user
-        # running mkosi.
-        proc = spawn([
+        cmdline: list[PathString] = [
             virtiofsd,
             "--socket-path", sock,
             "--shared-dir", directory,
             "--xattr",
             "--posix-acl",
-            # Map the user running mkosi to root in the virtual machine for the virtiofs instance to make sure all
-            # files created by root in the VM are owned by the user running mkosi on the host.
-            "--uid-map", f":0:{uid}:1:",
-            "--gid-map", f":0:{gid}:1:",
-        ], user=uid, group=gid)
+        ]
+
+        # Map the given user/group to root in the virtual machine for the virtiofs instance to make sure all files
+        # created by root in the VM are owned by the user running mkosi on the host.
+        if uid is not None:
+            cmdline += ["--uid-map", f":0:{uid}:1:"]
+        if gid is not None:
+            cmdline += ["--gid-map", f":0:{gid}:1:"]
+
+        # virtiofsd has to run unprivileged to use the --uid-map and --gid-map options, so run it as the given
+        # user/group if those are provided.
+        proc = spawn(cmdline, user=uid, group=gid)
 
         try:
             yield sock
@@ -262,8 +261,8 @@ def copy_ephemeral(config: MkosiConfig, src: Path) -> Iterator[Path]:
         rmtree(tmp)
 
 
-def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
-    if config.output_format not in (OutputFormat.disk, OutputFormat.cpio, OutputFormat.uki):
+def run_qemu(args: MkosiArgs, config: MkosiConfig, uid: int, gid: int) -> None:
+    if config.output_format not in (OutputFormat.disk, OutputFormat.cpio, OutputFormat.uki, OutputFormat.directory):
         die(f"{config.output_format} images cannot be booted in qemu")
 
     if (
@@ -285,7 +284,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
         accel = "kvm"
 
     if config.qemu_firmware == QemuFirmware.auto:
-        if config.output_format == OutputFormat.cpio or config.architecture.to_efi() is None:
+        if config.output_format in (OutputFormat.cpio, OutputFormat.directory) or config.architecture.to_efi() is None:
             firmware = QemuFirmware.linux
         else:
             firmware = QemuFirmware.uefi
@@ -353,7 +352,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
 
     with contextlib.ExitStack() as stack:
         for src, target in config.runtime_trees:
-            sock = stack.enter_context(start_virtiofsd(src))
+            sock = stack.enter_context(start_virtiofsd(src, uid, gid))
             cmdline += [
                 "-chardev", f"socket,id={sock.name},path={sock}",
                 "-device", f"vhost-user-fs-pci,queue-size=1024,chardev={sock.name},tag={sock.name}",
@@ -409,7 +408,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
                  "--offline=yes",
                  fname])
 
-        if firmware == QemuFirmware.linux or config.output_format in (OutputFormat.cpio, OutputFormat.uki):
+        if firmware == QemuFirmware.linux or config.output_format in (OutputFormat.cpio, OutputFormat.uki, OutputFormat.directory):
             if config.output_format == OutputFormat.uki:
                 kernel = fname if firmware == QemuFirmware.uefi else config.output_dir / config.output_split_kernel
             elif config.qemu_kernel:
@@ -433,6 +432,14 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
                 root = finalize_root(find_partitions(fname))
                 if not root:
                     die("Cannot perform a direct kernel boot without a root or usr partition")
+            elif config.output_format == OutputFormat.directory:
+                # This virtiofsd has to run as root so that it can write files owned by any uid:gid created by the VM.
+                sock = stack.enter_context(start_virtiofsd(fname))
+                cmdline += [
+                    "-chardev", f"socket,id={sock.name},path={sock}",
+                    "-device", f"vhost-user-fs-pci,queue-size=1024,chardev={sock.name},tag=/dev/root",
+                ]
+                root = "root=/dev/root rootfstype=virtiofs rw"
             else:
                 root = ""
 
