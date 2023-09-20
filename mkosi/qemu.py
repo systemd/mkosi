@@ -292,9 +292,10 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
 
     ovmf, ovmf_supports_sb = find_ovmf_firmware(config) if firmware == QemuFirmware.uefi else (None, False)
 
+    # A shared memory backend might increase ram usage so only add one if actually necessary for virtiofsd.
     shm = []
-    if config.runtime_trees:
-        shm = ["-object", "memory-backend-memfd,id=mem,size=2G,share=on"]
+    if config.runtime_trees or config.output_format == OutputFormat.directory:
+        shm = ["-object", f"memory-backend-memfd,id=mem,size={config.qemu_mem},share=on"]
 
     if config.architecture == Architecture.arm64:
         machine = f"type=virt,accel={accel}"
