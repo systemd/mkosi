@@ -57,6 +57,7 @@ class ArchInstaller(DistributionInstaller):
             "systemd-ukify",
             "systemd",
             "tar",
+            "virtiofsd",
             "xfsprogs",
             "xz",
             "zstd",
