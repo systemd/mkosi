@@ -2057,6 +2057,14 @@ def run_shell(args: MkosiArgs, config: MkosiConfig) -> None:
         else:
             cmdline += ["--image", fname]
 
+        for src, tgt in config.runtime_trees:
+            # We add norbind because very often RuntimeTrees= will be used to mount the source directory into the
+            # container and the output directory from which we're running will very likely be a subdirectory of the
+            # source directory which would mean we'd be mounting the container root directory as a subdirectory in
+            # itself which tends to lead to all kinds of weird issues, which we avoid by not doing a recursive mount
+            # which means the container root directory mounts will be skipped.
+            cmdline += ["--bind", f"{src}:{tgt or f'/root/src/{src.name}'}:norbind,rootidmap"]
+
         if args.verb == Verb.boot:
             # Add nspawn options first since systemd-nspawn ignores all options after the first argument.
             cmdline += args.cmdline

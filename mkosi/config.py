@@ -729,6 +729,7 @@ class MkosiConfig:
     tools_tree_distribution: Optional[Distribution]
     tools_tree_release: Optional[str]
     tools_tree_packages: list[str]
+    runtime_trees: list[tuple[Path, Optional[Path]]]
 
     # QEMU-specific options
     qemu_gui: bool
@@ -1680,6 +1681,14 @@ SETTINGS = (
         parse=config_make_list_parser(delimiter=","),
         help="Add additional packages to the tools tree",
     ),
+    MkosiConfigSetting(
+        dest="runtime_trees",
+        long="--runtime-tree",
+        metavar="SOURCE:[TARGET]",
+        section="Host",
+        parse=config_make_list_parser(delimiter=",", parse=make_source_target_paths_parser()),
+        help="Additional mounts to add when booting the image",
+    ),
 )
 
 MATCHES = (
@@ -2460,6 +2469,7 @@ Clean Package Manager Metadata: {yes_no_auto(config.clean_package_metadata)}
                     Tools Tree: {config.tools_tree}
        Tools Tree Distribution: {none_to_none(config.tools_tree_distribution)}
             Tools Tree Release: {none_to_none(config.tools_tree_release)}
+                 Runtime Trees: {line_join_source_target_list(config.runtime_trees)}
 
                       QEMU GUI: {yes_no(config.qemu_gui)}
                 QEMU CPU Cores: {config.qemu_smp}
