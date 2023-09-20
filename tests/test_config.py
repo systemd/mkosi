@@ -194,7 +194,7 @@ def test_parse_load_verb(tmp_path: Path) -> None:
 def test_os_distribution(tmp_path: Path) -> None:
     with chdir(tmp_path):
         for dist in Distribution:
-            _, [config] = parse_config(["-d", dist.name])
+            _, [config] = parse_config(["-d", dist.value])
             assert config.distribution == dist
 
         with pytest.raises(tuple((argparse.ArgumentError, SystemExit))):

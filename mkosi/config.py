@@ -325,6 +325,8 @@ def config_default_mirror(namespace: argparse.Namespace) -> Optional[str]:
         return "https://odcs.fedoraproject.org/composes/production/latest-Fedora-ELN/compose"
     elif namespace.distribution == Distribution.gentoo:
         return "https://distfiles.gentoo.org"
+    elif namespace.distribution == Distribution.rhel_ubi:
+        return "https://cdn-ubi.redhat.com/content/public/ubi/dist/"
 
     return None
 

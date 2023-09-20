@@ -93,7 +93,7 @@ class Installer(DistributionInstaller):
         release = int(state.config.release)
 
         if release <= 7:
-            die("CentOS 7 or earlier variants are not supported")
+            die(f"{cls.pretty_name()} 7 or earlier variants are not supported")
 
         setup_dnf(state, cls.repositories(state.config, release))
         (state.pkgmngr / "etc/dnf/vars/stream").write_text(f"{state.config.release}-stream\n")
@@ -103,8 +103,8 @@ class Installer(DistributionInstaller):
         # Make sure glibc-minimal-langpack is installed instead of glibc-all-langpacks.
         cls.install_packages(state, ["filesystem", "glibc-minimal-langpack"], apivfs=False)
 
-        # On Fedora, the default rpmdb has moved to /usr/lib/sysimage/rpm so if that's the case we need to
-        # move it back to /var/lib/rpm on CentOS.
+        # On Fedora, the default rpmdb has moved to /usr/lib/sysimage/rpm so if that's the case we
+        # need to move it back to /var/lib/rpm on CentOS.
         move_rpm_db(state.root)
 
     @classmethod
@@ -115,8 +115,8 @@ class Installer(DistributionInstaller):
     def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
         invoke_dnf(state, "remove", packages)
 
-    @staticmethod
-    def architecture(arch: Architecture) -> str:
+    @classmethod
+    def architecture(cls, arch: Architecture) -> str:
         a = {
             Architecture.x86_64   : "x86_64",
             Architecture.ppc64_le : "ppc64le",
@@ -125,7 +125,7 @@ class Installer(DistributionInstaller):
         }.get(arch)
 
         if not a:
-            die(f"Architecture {a} is not supported by CentOS")
+            die(f"Architecture {a} is not supported by {cls.pretty_name()}")
 
         return a
 
