@@ -60,6 +60,7 @@ class FedoraInstaller(DistributionInstaller):
             "systemd-ukify",
             "systemd",
             "tar",
+            "virtiofsd",
             "xfsprogs",
             "xz",
             "zstd",

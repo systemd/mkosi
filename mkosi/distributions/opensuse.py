@@ -61,6 +61,7 @@ class OpensuseInstaller(DistributionInstaller):
             "tar",
             "xfsprogs",
             "xz",
+            "virtiofsd",
             "zstd",
             "zypper",
         ]
