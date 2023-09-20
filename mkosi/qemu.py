@@ -14,7 +14,6 @@ import tempfile
 import uuid
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Optional
 
 from mkosi.architecture import Architecture
 from mkosi.config import (
@@ -138,7 +137,7 @@ def find_ovmf_vars(config: MkosiConfig) -> Path:
 
 
 @contextlib.contextmanager
-def start_swtpm() -> Iterator[Optional[Path]]:
+def start_swtpm() -> Iterator[Path]:
     with tempfile.TemporaryDirectory() as state:
         sock = Path(state) / Path("sock")
         proc = spawn([
