@@ -22,7 +22,7 @@ import textwrap
 import uuid
 from collections.abc import Collection, Iterable, Iterator, Sequence
 from pathlib import Path
-from typing import Any, Callable, Optional, Type, Union, cast
+from typing import Any, Callable, Optional, TypeVar, Union, cast
 
 from mkosi.architecture import Architecture
 from mkosi.distributions import Distribution, detect_distribution
@@ -294,7 +294,10 @@ def config_default_distribution(namespace: argparse.Namespace) -> Distribution:
     detected = detect_distribution()[0]
 
     if not detected:
-        logging.info("Distribution of your host can't be detected or isn't a supported target. Defaulting to Distribution=none.")
+        logging.info(
+            "Distribution of your host can't be detected or isn't a supported target. "
+            "Defaulting to Distribution=none."
+        )
         return Distribution.none
 
     return detected
@@ -471,7 +474,10 @@ def config_parse_filename(value: Optional[str], old: Optional[str]) -> Optional[
         die(". and .. are not valid filenames")
 
     if "/" in value:
-        die(f"{value!r} is not a valid filename. (Output= requires a filename with no path components, relative to output directory.)")
+        die(
+            f"{value!r} is not a valid filename. "
+            "(Output= requires a filename with no path components, relative to output directory.)"
+        )
 
     return value
 
@@ -1782,7 +1788,7 @@ MATCHES = (
 )
 
 
-def create_argument_parser(action: Type[argparse.Action]) -> argparse.ArgumentParser:
+def create_argument_parser(action: type[argparse.Action]) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="mkosi",
         description="Build Bespoke OS Images",
@@ -1978,13 +1984,13 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
         namespace: argparse.Namespace,
         defaults: argparse.Namespace,
     ) -> Iterator[None]:
-        l = len(getattr(namespace, "include", []))
+        current_num_of_includes = len(getattr(namespace, "include", []))
 
         try:
             yield
         finally:
             # Parse any includes that were added after yielding.
-            for p in getattr(namespace, "include", [])[l:]:
+            for p in getattr(namespace, "include", [])[current_num_of_includes:]:
                 st = p.stat()
 
                 if (st.st_dev, st.st_ino) in parsed_includes:

@@ -182,8 +182,13 @@ def check_root_populated(state: MkosiState) -> None:
     """Check that the root was populated by looking for a os-release file."""
     osrelease = state.root / "usr/lib/os-release"
     if not osrelease.exists():
-        die(f"{osrelease} not found.",
-            hint="The root must be populated by the distribution, or from base trees, skeleton trees, and prepare scripts.")
+        die(
+            f"{osrelease} not found.",
+            hint=(
+                "The root must be populated by the distribution, or from base trees, "
+                "skeleton trees, and prepare scripts."
+            )
+        )
 
 
 def configure_os_release(state: MkosiState) -> None:
@@ -237,7 +242,7 @@ def configure_autologin(state: MkosiState) -> None:
                 ExecStart=-/sbin/agetty -o '-f -p -- \\\\u' --autologin root --noclear --keep-baud console 115200,38400,9600 $TERM
                 StandardInput=tty
                 StandardOutput=tty
-                """
+                """  # noqa: E501
             )
 
         dropin = state.root / "usr/lib/systemd/system/getty@tty1.service.d/autologin.conf"
@@ -265,7 +270,7 @@ def configure_autologin(state: MkosiState) -> None:
                 ExecStart=-/sbin/agetty -o '-f -p -- \\\\u' --autologin root --keep-baud 115200,57600,38400,9600 - $TERM
                 StandardInput=tty
                 StandardOutput=tty
-                """
+                """  # noqa: E501
             )
 
 
@@ -816,7 +821,9 @@ def prepare_grub_bios(state: MkosiState, partitions: Sequence[Partition]) -> Non
                 distribution = state.config.distribution
                 image = Path("/") / kimg.relative_to(state.root / "efi")
                 cmdline = " ".join(state.config.kernel_command_line)
-                initrds = " ".join([os.fspath(Path("/") / initrd.relative_to(state.root / "efi")) for initrd in initrds])
+                initrds = " ".join(
+                    [os.fspath(Path("/") / initrd.relative_to(state.root / "efi")) for initrd in initrds]
+                )
                 kmods = Path("/") / kmods.relative_to(state.root / "efi")
 
                 f.write(
@@ -1582,7 +1589,11 @@ def configure_ssh(state: MkosiState) -> None:
 
 
 def configure_initrd(state: MkosiState) -> None:
-    if not (state.root / "init").exists() and not (state.root / "init").is_symlink() and (state.root / "usr/lib/systemd/systemd").exists():
+    if (
+        not (state.root / "init").exists() and
+        not (state.root / "init").is_symlink() and
+        (state.root / "usr/lib/systemd/systemd").exists()
+    ):
         (state.root / "init").symlink_to("/usr/lib/systemd/systemd")
 
     if not state.config.make_initrd:

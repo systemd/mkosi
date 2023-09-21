@@ -200,19 +200,19 @@ def test_parse_config(tmp_path: Path) -> None:
     with chdir(tmp_path):
         _, [config] = parse_config()
         assert config.bootable == ConfigFeature.auto
-        assert config.split_artifacts == False
+        assert config.split_artifacts is False
 
         # Passing the directory should include both the main config file and the dropin.
         _, [config] = parse_config(["--include", os.fspath(tmp_path / "abc")] * 2)
         assert config.bootable == ConfigFeature.enabled
-        assert config.split_artifacts == True
+        assert config.split_artifacts is True
         # The same extra config should not be parsed more than once.
         assert config.build_packages == ["abc"]
 
         # Passing the main config file should not include the dropin.
         _, [config] = parse_config(["--include", os.fspath(tmp_path / "abc/mkosi.conf")])
         assert config.bootable == ConfigFeature.enabled
-        assert config.split_artifacts == False
+        assert config.split_artifacts is False
 
 
 def test_parse_load_verb(tmp_path: Path) -> None:

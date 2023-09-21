@@ -362,8 +362,9 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, uid: int, gid: int) -> None:
 
         if config.architecture.supports_smbios():
             for k, v in config.credentials.items():
+                payload = base64.b64encode(v.encode()).decode()
                 cmdline += [
-                    "-smbios", f"type=11,value=io.systemd.credential.binary:{k}={base64.b64encode(v.encode()).decode()}"
+                    "-smbios", f"type=11,value=io.systemd.credential.binary:{k}={payload}"
                 ]
 
             cmdline += [
@@ -409,7 +410,10 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, uid: int, gid: int) -> None:
                  "--offline=yes",
                  fname])
 
-        if firmware == QemuFirmware.linux or config.output_format in (OutputFormat.cpio, OutputFormat.uki, OutputFormat.directory):
+        if (
+            firmware == QemuFirmware.linux or
+            config.output_format in (OutputFormat.cpio, OutputFormat.uki, OutputFormat.directory)
+        ):
             if config.output_format == OutputFormat.uki:
                 kernel = fname if firmware == QemuFirmware.uefi else config.output_dir / config.output_split_kernel
             elif config.qemu_kernel:
