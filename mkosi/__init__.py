@@ -1130,7 +1130,7 @@ def install_uki(state: MkosiState, partitions: Sequence[Partition]) -> None:
         break
 
     if (
-        state.config.output_format in (OutputFormat.cpio, OutputFormat.uki) and
+        state.config.output_format in (OutputFormat.cpio, OutputFormat.uki, OutputFormat.directory) and
         state.config.bootable == ConfigFeature.auto
     ):
         return
@@ -2321,12 +2321,6 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
 
     last = presets[-1]
 
-    if args.verb == Verb.qemu and last.output_format in (
-        OutputFormat.directory,
-        OutputFormat.tar,
-    ):
-        die(f"{last.output_format} images cannot be booted in qemu.")
-
     if args.verb in (Verb.shell, Verb.boot):
         opname = "acquire shell in" if args.verb == Verb.shell else "boot"
         if last.output_format in (OutputFormat.tar, OutputFormat.cpio):
@@ -2346,7 +2340,6 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
     for config in presets:
         try_import(f"mkosi.distributions.{config.distribution}")
 
-    invoked_as_root = os.getuid() == 0
     name = InvokingUser.name()
 
     # Get the user UID/GID either on the host or in the user namespace running the build
@@ -2413,11 +2406,9 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
     # right after (and we're in a mount namespace so the /usr mount disappears when we exit)
     with mount_usr(last.tools_tree, umount=False), mount_passwd(name, uid, gid, umount=False):
 
-        # After mounting the last tools tree, if we're not going to execute systemd-nspawn, we don't need to
-        # be (fake) root anymore, so switch user to the invoking user. If we're going to invoke qemu and
-        # mkosi was executed as root, we also don't drop privileges as depending on the environment and
-        # options passed, running qemu might need root privileges as well.
-        if not args.verb.needs_root() and (args.verb != Verb.qemu or not invoked_as_root):
+        # After mounting the last tools tree, if we're not going to execute systemd-nspawn or qemu, we don't need to
+        # be (fake) root anymore, so switch user to the invoking user.
+        if not args.verb.needs_root() and args.verb != Verb.qemu:
             os.setresgid(gid, gid, gid)
             os.setresuid(uid, uid, uid)
 
@@ -2427,7 +2418,7 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
                     run_shell(args, last)
 
             if args.verb == Verb.qemu:
-                run_qemu(args, last)
+                run_qemu(args, last, uid, gid)
 
             if args.verb == Verb.ssh:
                 run_ssh(args, last)
