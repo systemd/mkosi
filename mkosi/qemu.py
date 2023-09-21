@@ -450,12 +450,14 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, uid: int, gid: int) -> None:
 
         if config.output_format == OutputFormat.cpio:
             cmdline += ["-initrd", fname]
-        elif config.output_format == OutputFormat.uki and firmware == QemuFirmware.linux:
+        elif (
+            firmware == QemuFirmware.linux and
+            config.output_format in (OutputFormat.uki, OutputFormat.directory, OutputFormat.disk) and
+            (config.output_dir / config.output_split_initrd).exists()
+        ):
             cmdline += ["-initrd", config.output_dir / config.output_split_initrd]
-        elif config.output_format == OutputFormat.disk:
-            if firmware == QemuFirmware.linux:
-                cmdline += ["-initrd", config.output_dir / config.output_split_initrd]
 
+        if config.output_format == OutputFormat.disk:
             cmdline += ["-drive", f"if=none,id=mkosi,file={fname},format=raw",
                         "-device", "virtio-scsi-pci,id=scsi",
                         "-device", f"scsi-{'cd' if config.qemu_cdrom else 'hd'},drive=mkosi,bootindex=1"]
