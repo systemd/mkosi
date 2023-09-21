@@ -414,10 +414,13 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, uid: int, gid: int) -> None:
             elif config.qemu_kernel:
                 kernel = config.qemu_kernel
             elif "-kernel" not in args.cmdline:
-                kernel = config.output_dir / config.output_split_kernel
+                if firmware == QemuFirmware.uefi:
+                    kernel = config.output_dir / config.output_split_uki
+                else:
+                    kernel = config.output_dir / config.output_split_kernel
                 if not kernel.exists():
                     die(
-                        "No kernel found, please install a kernel in the image "
+                        f"Kernel or UKI not found at {kernel}, please install a kernel in the image "
                         "or provide a -kernel argument to mkosi qemu"
                     )
             else:
