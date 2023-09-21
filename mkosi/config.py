@@ -679,8 +679,8 @@ class MkosiConfig:
     """
 
     include: tuple[str, ...]
-    presets: tuple[str]
-    dependencies: tuple[str]
+    presets: tuple[str, ...]
+    dependencies: tuple[str, ...]
 
     distribution: Distribution
     release: str
