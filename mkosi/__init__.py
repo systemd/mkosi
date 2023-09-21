@@ -182,7 +182,7 @@ def configure_autologin(state: MkosiState) -> None:
                 """\
                 [Service]
                 ExecStart=
-                ExecStart=-/sbin/agetty -o '-f -p -- \\u' --autologin root --noclear --keep-baud console 115200,38400,9600 $TERM
+                ExecStart=-/sbin/agetty -o '-f -p -- \\\\u' --autologin root --noclear --keep-baud console 115200,38400,9600 $TERM
                 StandardInput=tty
                 StandardOutput=tty
                 """
@@ -196,7 +196,7 @@ def configure_autologin(state: MkosiState) -> None:
                 """\
                 [Service]
                 ExecStart=
-                ExecStart=-/sbin/agetty -o '-f -p -- \\u' --autologin root --noclear - $TERM
+                ExecStart=-/sbin/agetty -o '-f -p -- \\\\u' --autologin root --noclear - $TERM
                 StandardInput=tty
                 StandardOutput=tty
                 """
@@ -210,7 +210,7 @@ def configure_autologin(state: MkosiState) -> None:
                 """\
                 [Service]
                 ExecStart=
-                ExecStart=-/sbin/agetty -o '-f -p -- \\u' --autologin root --keep-baud 115200,57600,38400,9600 - $TERM
+                ExecStart=-/sbin/agetty -o '-f -p -- \\\\u' --autologin root --keep-baud 115200,57600,38400,9600 - $TERM
                 StandardInput=tty
                 StandardOutput=tty
                 """
