@@ -437,9 +437,9 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, uid: int, gid: int) -> None:
                 sock = stack.enter_context(start_virtiofsd(fname))
                 cmdline += [
                     "-chardev", f"socket,id={sock.name},path={sock}",
-                    "-device", f"vhost-user-fs-pci,queue-size=1024,chardev={sock.name},tag=/dev/root",
+                    "-device", f"vhost-user-fs-pci,queue-size=1024,chardev={sock.name},tag=root",
                 ]
-                root = "root=/dev/root rootfstype=virtiofs rw"
+                root = "root=root rootfstype=virtiofs rw"
             else:
                 root = ""
 
