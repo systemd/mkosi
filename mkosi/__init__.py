@@ -1130,7 +1130,7 @@ def install_uki(state: MkosiState, partitions: Sequence[Partition]) -> None:
         break
 
     if (
-        state.config.output_format in (OutputFormat.cpio, OutputFormat.uki, OutputFormat.directory) and
+        state.config.output_format in (OutputFormat.cpio, OutputFormat.uki) and
         state.config.bootable == ConfigFeature.auto
     ):
         return
