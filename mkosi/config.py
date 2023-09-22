@@ -573,6 +573,29 @@ def parse_chdir(path: str) -> Optional[Path]:
     return Path.cwd()
 
 
+class IgnoreAction(argparse.Action):
+    """Argparse action for deprecated options that can be ignored."""
+
+    def __init__(
+        self,
+        option_strings: Sequence[str],
+        dest: str,
+        nargs: Union[int, str, None] = None,
+        default: Any = argparse.SUPPRESS,
+        help: Optional[str] = argparse.SUPPRESS,
+    ) -> None:
+        super().__init__(option_strings, dest, nargs=nargs, default=default, help=help)
+
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: Union[str, Sequence[Any], None],
+        option_string: Optional[str] = None
+    ) -> None:
+        logging.warning(f"{option_string} is no longer supported")
+
+
 def config_make_action(settings: Sequence[MkosiConfigSetting]) -> type[argparse.Action]:
     lookup = {s.dest: s for s in settings}
 
@@ -1814,19 +1837,20 @@ def create_argument_parser() -> argparse.ArgumentParser:
         default=DocFormat.auto,
         type=DocFormat,
     )
+    # These can be removed once mkosi v15 is available in LTS distros and compatibility with <= v14
+    # is no longer needed in build infrastructure (e.g.: OBS).
     parser.add_argument(
         "--nspawn-keep-unit",
-        action="store_true",
-        help=argparse.SUPPRESS,
+        nargs=0,
+        action=IgnoreAction,
     )
     parser.add_argument(
         "--default",
-        help=argparse.SUPPRESS,
+        action=IgnoreAction,
     )
     parser.add_argument(
         "--cache",
-        metavar="PATH",
-        help=argparse.SUPPRESS,
+        action=IgnoreAction,
     )
 
     parser.add_argument(
@@ -1876,22 +1900,6 @@ def create_argument_parser() -> argparse.ArgumentParser:
         pass
 
     return parser
-
-
-def backward_compat_stubs(namespace: argparse.Namespace) -> None:
-    # These can be removed once mkosi v15 is available in LTS distros and compatibility with <= v14
-    # is no longer needed in build infrastructure (e.g.: OBS).
-    if getattr(namespace, "nspawn_keep_unit", None):
-        delattr(namespace, "nspawn_keep_unit")
-        logging.warning("--nspawn-keep-unit is no longer supported")
-
-    if getattr(namespace, "default", None):
-        delattr(namespace, "default")
-        logging.warning("--default is no longer supported")
-
-    if getattr(namespace, "cache", None):
-        delattr(namespace, "cache")
-        logging.warning("--cache is no longer supported")
 
 
 def resolve_deps(presets: Sequence[MkosiConfig], include: Sequence[str]) -> list[MkosiConfig]:
@@ -2112,10 +2120,6 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
 
     if not presets:
         die("No presets defined in mkosi.presets/")
-
-    # Manipulate some old settings to make them work with the new settings, for those typically used in
-    # infrastructure scripts rather than image-specific configuration.
-    backward_compat_stubs(namespace)
 
     presets = [load_config(ns) for ns in presets]
     presets = resolve_deps(presets, include)
