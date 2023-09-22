@@ -556,6 +556,23 @@ class CustomHelpFormatter(argparse.HelpFormatter):
                                      subsequent_indent=subindent) for line in lines)
 
 
+def parse_chdir(path: str) -> Optional[Path]:
+    if not path:
+        # The current directory should be ignored
+        return None
+
+    # Immediately change the current directory so that it's taken into
+    # account when parsing the following options that take a relative path
+    try:
+        os.chdir(path)
+    except (FileNotFoundError, NotADirectoryError):
+        die(f"{path} is not a directory!")
+    except OSError as e:
+        die(f"Cannot change the directory to {path}: {e}")
+    # Keep track of the current directory
+    return Path.cwd()
+
+
 def config_make_action(settings: Sequence[MkosiConfigSetting]) -> type[argparse.Action]:
     lookup = {s.dest: s for s in settings}
 
@@ -1703,7 +1720,7 @@ MATCHES = (
 )
 
 
-def create_argument_parser(*, settings: bool) -> argparse.ArgumentParser:
+def create_argument_parser() -> argparse.ArgumentParser:
     action = config_make_action(SETTINGS)
 
     parser = argparse.ArgumentParser(
@@ -1747,9 +1764,10 @@ def create_argument_parser(*, settings: bool) -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "-C", "--directory",
+        type=parse_chdir,
+        default=Path.cwd(),
         help="Change to specified directory before doing anything",
         metavar="PATH",
-        default=None,
     )
     parser.add_argument(
         "--debug",
@@ -1810,9 +1828,6 @@ def create_argument_parser(*, settings: bool) -> argparse.ArgumentParser:
         metavar="PATH",
         help=argparse.SUPPRESS,
     )
-
-    if not settings:
-        return parser
 
     parser.add_argument(
         "verb",
@@ -2051,19 +2066,8 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
     else:
         argv += ["--", "build"]
 
-    # Don't parse the settings just yet so we can take --directory into account when parsing settings that
-    # take relative paths.
-    argparser = create_argument_parser(settings=False)
-    argparser.parse_known_args(argv, namespace)
-
-    if namespace.directory and not Path(namespace.directory).is_dir():
-        die(f"{namespace.directory} is not a directory!")
-
-    if namespace.directory:
-        os.chdir(namespace.directory)
-
     namespace = argparse.Namespace()
-    argparser = create_argument_parser(settings=True)
+    argparser = create_argument_parser()
     argparser.parse_args(argv, namespace)
 
     args = load_args(namespace)
@@ -2076,7 +2080,7 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
 
     include = ()
 
-    if args.directory != "":
+    if args.directory is not None:
         parse_config(Path("."), namespace, defaults)
 
         include = getattr(namespace, "presets", ())
@@ -2126,7 +2130,7 @@ def load_credentials(args: argparse.Namespace) -> dict[str, str]:
     }
 
     d = Path("mkosi.credentials")
-    if args.directory != "" and d.is_dir():
+    if args.directory is not None and d.is_dir():
         for e in d.iterdir():
             if os.access(e, os.X_OK):
                 creds[e.name] = run([e], stdout=subprocess.PIPE, env=os.environ).stdout
