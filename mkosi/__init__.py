@@ -1130,12 +1130,16 @@ def install_uki(state: MkosiState, partitions: Sequence[Partition]) -> None:
         break
 
     if (
-        state.config.output_format in (OutputFormat.cpio, OutputFormat.uki, OutputFormat.directory) and
+        state.config.output_format in (OutputFormat.cpio, OutputFormat.uki) and
         state.config.bootable == ConfigFeature.auto
     ):
         return
 
-    if state.config.architecture.to_efi() is None and state.config.bootable == ConfigFeature.auto:
+    if (arch := state.config.architecture.to_efi()) is None and state.config.bootable == ConfigFeature.auto:
+        return
+
+    stub = state.root / f"usr/lib/systemd/boot/efi/linux{arch}.efi.stub"
+    if not stub.exists() and state.config.bootable == ConfigFeature.auto:
         return
 
     roothash = finalize_roothash(partitions)
