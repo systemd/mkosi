@@ -261,6 +261,7 @@ def run_prepare_script(state: MkosiState, build: bool) -> None:
 
     env = dict(
         SCRIPT="/work/prepare",
+        CHROOT_SCRIPT="/work/prepare",
         SRCDIR=str(Path.cwd()),
         CHROOT_SRCDIR="/work/src",
         BUILDROOT=str(state.root),
@@ -310,6 +311,7 @@ def run_build_script(state: MkosiState) -> None:
         WITH_TESTS=one_zero(state.config.with_tests),
         WITH_NETWORK=one_zero(state.config.with_network),
         SCRIPT="/work/build-script",
+        CHROOT_SCRIPT="/work/build-script",
         SRCDIR=str(Path.cwd()),
         CHROOT_SRCDIR="/work/src",
         DESTDIR=str(state.install_dir),
@@ -361,6 +363,7 @@ def run_postinst_script(state: MkosiState) -> None:
 
     env = dict(
         SCRIPT="/work/postinst",
+        CHROOT_SCRIPT="/work/postinst",
         SRCDIR=str(Path.cwd()),
         CHROOT_SRCDIR="/work/src",
         OUTPUTDIR=str(state.staging),
@@ -399,6 +402,7 @@ def run_finalize_script(state: MkosiState) -> None:
 
     env = dict(
         SCRIPT="/work/finalize",
+        CHROOT_SCRIPT="/work/finalize",
         SRCDIR=str(Path.cwd()),
         CHROOT_SRCDIR="/work/src",
         OUTPUTDIR=str(state.staging),

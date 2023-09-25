@@ -1,5 +1,10 @@
 # mkosi Changelog
 
+## v18
+
+- `$SCRIPT` was renamed in favor of `$CHROOT_SCRIPT`. `$SCRIPT` can
+  still be used but is considered deprecated.
+
 ## v17.1
 
 - Fixed bug where `--autologin` was broken when used in combination with
