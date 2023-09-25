@@ -1270,12 +1270,13 @@ Then, for each preset, we execute the following steps:
 To allow for image customization that cannot be implemented using
 mkosi's builtin features, mkosi supports running scripts at various
 points during the image build process that can customize the image as
-needed. Scripts are executed on the host system with a customized
-environment to simplify modifying the image. For each script, the
-configured build sources (`BuildSources=`) are mounted into the current
-working directory before running the script and `$SRCDIR` is set to
-point to the current working directory. The following scripts are
-supported:
+needed. Scripts are executed on the host system as root (either real
+root or root within the user namespace that mkosi created when running
+unprivileged) with a customized environment to simplify modifying the
+image. For each script, the configured build sources (`BuildSources=`)
+are mounted into the current working directory before running the script
+and `$SRCDIR` is set to point to the current working directory. The
+following scripts are supported:
 
 * If **`mkosi.prepare`** (`PrepareScript=`) exists, it is first called
   with the `final` argument, right after the software packages are
@@ -1312,8 +1313,8 @@ supported:
 
 Scripts executed by mkosi receive the following environment variables:
 
-* `$SCRIPT` contains the path to the running script relative to the
-  image root directory. The primary usecase for this variable is in
+* `$CHROOT_SCRIPT` contains the path to the running script relative to
+  the image root directory. The primary usecase for this variable is in
   combination with the `mkosi-chroot` script. See the description of
   `mkosi-chroot` below for more information.
 
@@ -1363,26 +1364,33 @@ Scripts executed by mkosi receive the following environment variables:
   [SOURCE_DATE_EPOCH](https://reproducible-builds.org/specs/source-date-epoch/)
   for more information.
 
+* `$MKOSI_UID` and `$MKOSI_GID` are the respectively the uid, gid of the
+  user that invoked mkosi, potentially translated to a uid in the user
+  namespace that mkosi is running in. These can be used in combination
+  with `setpriv` to run commands as the user that invoked mkosi (e.g.
+  `setpriv --reuid=$MKOSI_UID --regid=$MKOSI_GID --clear-groups <command>`)
+
 Additionally, when a script is executed, a few scripts are made
 available via `$PATH` to simplify common usecases.
 
 * `mkosi-chroot`: This script will chroot into the image and execute the
   given command. On top of chrooting into the image, it will also mount
   various files and directories (`$SRCDIR`, `$DESTDIR`, `$BUILDDIR`,
-  `$OUTPUTDIR`, `$SCRIPT`) into the image and modify the corresponding
-  environment variables to point to the locations inside the image. It
-  will also mount APIVFS filesystems (`/proc`, `/dev`, ...) to make sure
-  scripts and tools executed inside the chroot work properly. It also
-  propagates `/etc/resolv.conf` from the host into the chroot if
-  requested so that DNS resolution works inside the chroot. After the
-  mkosi-chroot command exits, various mount points are cleaned up.
+  `$OUTPUTDIR`, `$CHROOT_SCRIPT`) into the image and modify the
+  corresponding environment variables to point to the locations inside
+  the image. It will also mount APIVFS filesystems (`/proc`, `/dev`,
+  ...) to make sure scripts and tools executed inside the chroot work
+  properly. It also propagates `/etc/resolv.conf` from the host into the
+  chroot if requested so that DNS resolution works inside the chroot.
+  After the mkosi-chroot command exits, various mount points are cleaned
+  up.
 
   To execute the entire script inside the image, put the following
   snippet at the start of the script:
 
   ```sh
   if [ "$container" != "mkosi" ]; then
-      exec mkosi-chroot "$SCRIPT" "$@"
+      exec mkosi-chroot "$CHROOT_SCRIPT" "$@"
   fi
   ```
 
@@ -1644,7 +1652,7 @@ $ cat >mkosi.build <<EOF
 #!/bin/sh
 
 if [ "$container" != "mkosi" ]; then
-    exec mkosi-chroot "$SCRIPT" "$@"
+    exec mkosi-chroot "$CHROOT_SCRIPT" "$@"
 fi
 
 cd $SRCDIR

@@ -406,6 +406,8 @@ def apivfs_cmd(root: Path) -> list[PathString]:
 
 def chroot_cmd(root: Path, *, options: Sequence[PathString] = ()) -> list[PathString]:
     cmdline: list[PathString] = [
+        # No exec here because we need to clean up the /work directory afterwards.
+        "sh", "-c", f"mkdir --mode=777 {root / 'work'} && $0 \"$@\" && rm -rf {root / 'work'}",
         "bwrap",
         "--dev-bind", root, "/",
         "--setenv", "container", "mkosi",
@@ -425,8 +427,6 @@ def chroot_cmd(root: Path, *, options: Sequence[PathString] = ()) -> list[PathSt
     cmdline += [
         "--ro-bind", "/etc/resolv.conf", Path("/") / resolve,
         *options,
-        # No exec here because we need to clean up the /work directory afterwards.
-        "sh", "-c", f"$0 \"$@\" && rm -rf {root / 'work'}",
     ]
 
     return apivfs_cmd(root) + cmdline

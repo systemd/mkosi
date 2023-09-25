@@ -88,7 +88,7 @@ def mount_base_trees(state: MkosiState) -> Iterator[None]:
             else:
                 die(f"Unsupported base tree source {path}")
 
-        stack.enter_context(mount_overlay(bases, state.root, state.root, read_only=False))
+        stack.enter_context(mount_overlay(bases, state.root, state.root))
 
         yield
 
@@ -227,16 +227,16 @@ def mount_cache_overlay(state: MkosiState) -> Iterator[None]:
     with umask(~0o755):
         d.mkdir(exist_ok=True)
 
-    with mount_overlay([state.root], d, state.root, read_only=False):
+    with mount_overlay([state.root], d, state.root):
         yield
 
 
-def mount_build_overlay(state: MkosiState, read_only: bool = False) -> contextlib.AbstractContextManager[Path]:
+def mount_build_overlay(state: MkosiState) -> contextlib.AbstractContextManager[Path]:
     d = state.workspace / "build-overlay"
     if not d.is_symlink():
         with umask(~0o755):
             d.mkdir(exist_ok=True)
-    return mount_overlay([state.root], state.workspace / "build-overlay", state.root, read_only)
+    return mount_overlay([state.root], state.workspace / "build-overlay", state.root)
 
 
 def finalize_mounts(config: MkosiConfig) -> list[PathString]:
@@ -261,9 +261,12 @@ def run_prepare_script(state: MkosiState, build: bool) -> None:
 
     env = dict(
         SCRIPT="/work/prepare",
+        CHROOT_SCRIPT="/work/prepare",
         SRCDIR=str(Path.cwd()),
         CHROOT_SRCDIR="/work/src",
         BUILDROOT=str(state.root),
+        MKOSI_UID=str(state.uid),
+        MKOSI_GID=str(state.gid),
     )
 
     chroot: list[PathString] = chroot_cmd(
@@ -310,6 +313,7 @@ def run_build_script(state: MkosiState) -> None:
         WITH_TESTS=one_zero(state.config.with_tests),
         WITH_NETWORK=one_zero(state.config.with_network),
         SCRIPT="/work/build-script",
+        CHROOT_SCRIPT="/work/build-script",
         SRCDIR=str(Path.cwd()),
         CHROOT_SRCDIR="/work/src",
         DESTDIR=str(state.install_dir),
@@ -317,6 +321,8 @@ def run_build_script(state: MkosiState) -> None:
         OUTPUTDIR=str(state.staging),
         CHROOT_OUTPUTDIR="/work/out",
         BUILDROOT=str(state.root),
+        MKOSI_UID=str(state.uid),
+        MKOSI_GID=str(state.gid),
     )
 
     if state.config.build_dir is not None:
@@ -361,11 +367,14 @@ def run_postinst_script(state: MkosiState) -> None:
 
     env = dict(
         SCRIPT="/work/postinst",
+        CHROOT_SCRIPT="/work/postinst",
         SRCDIR=str(Path.cwd()),
         CHROOT_SRCDIR="/work/src",
         OUTPUTDIR=str(state.staging),
         CHROOT_OUTPUTDIR="/work/out",
         BUILDROOT=str(state.root),
+        MKOSI_UID=str(state.uid),
+        MKOSI_GID=str(state.gid),
     )
 
     chroot = chroot_cmd(
@@ -399,11 +408,14 @@ def run_finalize_script(state: MkosiState) -> None:
 
     env = dict(
         SCRIPT="/work/finalize",
+        CHROOT_SCRIPT="/work/finalize",
         SRCDIR=str(Path.cwd()),
         CHROOT_SRCDIR="/work/src",
         OUTPUTDIR=str(state.staging),
         CHROOT_OUTPUTDIR="/work/out",
         BUILDROOT=str(state.root),
+        MKOSI_UID=str(state.uid),
+        MKOSI_GID=str(state.gid),
     )
 
     chroot = chroot_cmd(
@@ -974,7 +986,7 @@ def build_initrd(state: MkosiState) -> Path:
     with complete_step("Building initrd"):
         args, [config] = parse_config(cmdline)
         unlink_output(args, config)
-        build_image(args, config)
+        build_image(args, config, state.uid, state.gid)
 
     symlink.symlink_to(config.output_dir / config.output)
 
@@ -1842,12 +1854,12 @@ def normalize_mtime(root: Path, mtime: Optional[int], directory: Optional[Path] 
             os.utime(p, (mtime, mtime), follow_symlinks=False)
 
 
-def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
+def build_image(args: MkosiArgs, config: MkosiConfig, uid: int, gid: int) -> None:
     manifest = Manifest(config) if config.manifest_format else None
     workspace = tempfile.TemporaryDirectory(dir=config.workspace_dir, prefix=".mkosi-tmp")
 
     with workspace, scopedenv({"TMPDIR" : workspace.name}):
-        state = MkosiState(args, config, Path(workspace.name))
+        state = MkosiState(args, config, Path(workspace.name), uid, gid)
         install_package_manager_trees(state)
 
         with mount_base_trees(state):
@@ -2285,7 +2297,7 @@ def mount_tools(tree: Optional[Path]) -> Iterator[None]:
         # into permission errors.
 
         tmp = stack.enter_context(tempfile.TemporaryDirectory(dir="/var/tmp"))
-        stack.enter_context(mount_overlay([Path("/etc")], Path(tmp), Path("/etc"), read_only=False))
+        stack.enter_context(mount_overlay([Path("/etc")], Path(tmp), Path("/etc")))
 
         for subdir in ("etc/pki", "etc/ssl", "etc/crypto-policies", "etc/ca-certificates"):
             if not (tree / subdir).exists():
@@ -2390,7 +2402,7 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
                     run(["mkdir", "--parents", p], user=uid, group=gid)
 
             with acl_toggle_build(config, uid):
-                build_image(args, config)
+                build_image(args, config, uid, gid)
 
             # Make sure all build outputs that are not directories are owned by the user running mkosi.
             for p in config.output_dir.iterdir():

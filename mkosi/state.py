@@ -10,10 +10,12 @@ from mkosi.util import umask
 class MkosiState:
     """State related properties."""
 
-    def __init__(self, args: MkosiArgs, config: MkosiConfig, workspace: Path) -> None:
+    def __init__(self, args: MkosiArgs, config: MkosiConfig, workspace: Path, uid: int, gid: int) -> None:
         self.args = args
         self.config = config
         self.workspace = workspace
+        self.uid = uid
+        self.gid = gid
 
         with umask(~0o755):
             # Using a btrfs subvolume as the upperdir in an overlayfs results in EXDEV so make sure we create

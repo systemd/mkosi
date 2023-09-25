@@ -74,12 +74,7 @@ def mount(
 
 
 @contextlib.contextmanager
-def mount_overlay(
-    lowerdirs: Sequence[Path],
-    upperdir: Path,
-    where: Path,
-    read_only: bool = True,
-) -> Iterator[Path]:
+def mount_overlay(lowerdirs: Sequence[Path], upperdir: Path, where: Path) -> Iterator[Path]:
     with tempfile.TemporaryDirectory(dir=upperdir.parent, prefix=f"{upperdir.name}-workdir") as workdir:
         options = [f"lowerdir={lower}" for lower in lowerdirs] + [
             f"upperdir={upperdir}",
@@ -100,7 +95,7 @@ def mount_overlay(
             options.append("userxattr")
 
         try:
-            with mount("overlay", where, options=options, type="overlay", read_only=read_only):
+            with mount("overlay", where, options=options, type="overlay"):
                 yield where
         finally:
             with complete_step("Cleaning up overlayfs"):
