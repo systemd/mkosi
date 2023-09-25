@@ -46,7 +46,14 @@ from mkosi.mounts import mount, mount_overlay, mount_passwd, mount_usr
 from mkosi.pager import page
 from mkosi.partition import Partition, finalize_root, finalize_roothash
 from mkosi.qemu import copy_ephemeral, run_qemu, run_ssh
-from mkosi.run import become_root, bwrap, chroot_cmd, init_mount_namespace, run
+from mkosi.run import (
+    become_root,
+    bwrap,
+    chroot_cmd,
+    find_binary,
+    init_mount_namespace,
+    run,
+)
 from mkosi.state import MkosiState
 from mkosi.tree import copy_tree, install_tree, move_tree, rmtree
 from mkosi.types import _FILE, CompletedProcess, PathString
@@ -604,15 +611,8 @@ def find_grub_bios_directory(state: MkosiState) -> Optional[Path]:
 
 
 def find_grub_binary(state: MkosiState, binary: str) -> Optional[Path]:
-    path = ":".join(os.fspath(p) for p in [state.root / "usr/bin", state.root / "usr/sbin"])
-
     assert "grub" in binary and "grub2" not in binary
-
-    path = shutil.which(binary, path=path) or shutil.which(binary.replace("grub", "grub2"), path=path)
-    if not path:
-        return None
-
-    return Path("/") / Path(path).relative_to(state.root)
+    return find_binary(binary, state.root) or find_binary(binary.replace("grub", "grub2"), state.root)
 
 
 def find_grub_prefix(state: MkosiState) -> Optional[str]:
