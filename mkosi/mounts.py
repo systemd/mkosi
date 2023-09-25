@@ -132,15 +132,17 @@ def mount_usr(tree: Optional[Path], umount: bool = True) -> Iterator[None]:
 
 
 @contextlib.contextmanager
-def mount_passwd(name: str, uid: int, gid: int, umount: bool = True) -> Iterator[None]:
+def mount_passwd(name: str, uid: int, gid: int, root: Path = Path("/"), umount: bool = True) -> Iterator[None]:
     """
     ssh looks up the running user in /etc/passwd and fails if it can't find the running user. To trick it, we
     mount over /etc/passwd with our own file containing our user in the user namespace.
     """
     with tempfile.NamedTemporaryFile(prefix="mkosi.passwd", mode="w") as passwd:
-        passwd.write(f"{name}:x:{uid}:{gid}:{name}:/bin/sh\n")
+        passwd.write("root:x:0:0:root:/root:/bin/sh\n")
+        if uid != 0:
+            passwd.write(f"{name}:x:{uid}:{gid}:{name}:/home/{name}:/bin/sh\n")
+        passwd.flush()
         os.fchown(passwd.file.fileno(), uid, gid)
 
-        with mount(passwd.name, Path("/etc/passwd"), operation="--bind", umount=umount):
-            passwd.close() # Don't need the file anymore after it's mounted.
+        with mount(passwd.name, root / "etc/passwd", operation="--bind", umount=umount):
             yield

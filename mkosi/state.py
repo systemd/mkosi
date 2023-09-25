@@ -10,10 +10,11 @@ from mkosi.util import umask
 class MkosiState:
     """State related properties."""
 
-    def __init__(self, args: MkosiArgs, config: MkosiConfig, workspace: Path, uid: int, gid: int) -> None:
+    def __init__(self, args: MkosiArgs, config: MkosiConfig, workspace: Path, name: str, uid: int, gid: int) -> None:
         self.args = args
         self.config = config
         self.workspace = workspace
+        self.name = name
         self.uid = uid
         self.gid = gid
 

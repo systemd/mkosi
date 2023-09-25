@@ -418,8 +418,9 @@ def apivfs_cmd(root: Path) -> list[PathString]:
 
 def chroot_cmd(root: Path, *, options: Sequence[PathString] = ()) -> list[PathString]:
     cmdline: list[PathString] = [
+        "sh", "-c",
         # No exec here because we need to clean up the /work directory afterwards.
-        "sh", "-c", f"mkdir --mode=777 {root / 'work'} && $0 \"$@\" && rm -rf {root / 'work'}",
+        f"trap 'rm -rf {root / 'work'}' EXIT && mkdir -p {root / 'work'} && chown 777 {root / 'work'} && $0 \"$@\"",
         "bwrap",
         "--dev-bind", root, "/",
         "--setenv", "container", "mkosi",

@@ -356,7 +356,9 @@ def run_build_script(state: MkosiState) -> None:
         ],
     )
 
-    with complete_step("Running build script…"), mount_build_overlay(state):
+    with complete_step("Running build script…"),\
+         mount_build_overlay(state),\
+         mount_passwd(state.name, state.uid, state.gid, state.root):
         bwrap(
             [state.config.build_script],
             network=state.config.with_network,
@@ -986,7 +988,7 @@ def build_initrd(state: MkosiState) -> Path:
     with complete_step("Building initrd"):
         args, [config] = parse_config(cmdline)
         unlink_output(args, config)
-        build_image(args, config, state.uid, state.gid)
+        build_image(args, config, state.name, state.uid, state.gid)
 
     symlink.symlink_to(config.output_dir / config.output)
 
@@ -1854,12 +1856,12 @@ def normalize_mtime(root: Path, mtime: Optional[int], directory: Optional[Path] 
             os.utime(p, (mtime, mtime), follow_symlinks=False)
 
 
-def build_image(args: MkosiArgs, config: MkosiConfig, uid: int, gid: int) -> None:
+def build_image(args: MkosiArgs, config: MkosiConfig, name: str, uid: int, gid: int) -> None:
     manifest = Manifest(config) if config.manifest_format else None
     workspace = tempfile.TemporaryDirectory(dir=config.workspace_dir, prefix=".mkosi-tmp")
 
     with workspace, scopedenv({"TMPDIR" : workspace.name}):
-        state = MkosiState(args, config, Path(workspace.name), uid, gid)
+        state = MkosiState(args, config, Path(workspace.name), name, uid, gid)
         install_package_manager_trees(state)
 
         with mount_base_trees(state):
@@ -2389,6 +2391,7 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
 
         with complete_step(f"Building {config.preset or 'default'} image"),\
             mount_tools(config.tools_tree),\
+            mount_passwd(name, uid, gid),\
             prepend_to_environ_path(config):
 
             # Create these as the invoking user to make sure they're owned by the user running mkosi.
@@ -2402,7 +2405,7 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
                     run(["mkdir", "--parents", p], user=uid, group=gid)
 
             with acl_toggle_build(config, uid):
-                build_image(args, config, uid, gid)
+                build_image(args, config, name, uid, gid)
 
             # Make sure all build outputs that are not directories are owned by the user running mkosi.
             for p in config.output_dir.iterdir():
