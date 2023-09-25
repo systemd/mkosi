@@ -88,7 +88,7 @@ def mount_base_trees(state: MkosiState) -> Iterator[None]:
             else:
                 die(f"Unsupported base tree source {path}")
 
-        stack.enter_context(mount_overlay(bases, state.root, state.root, read_only=False))
+        stack.enter_context(mount_overlay(bases, state.root, state.root))
 
         yield
 
@@ -227,16 +227,16 @@ def mount_cache_overlay(state: MkosiState) -> Iterator[None]:
     with umask(~0o755):
         d.mkdir(exist_ok=True)
 
-    with mount_overlay([state.root], d, state.root, read_only=False):
+    with mount_overlay([state.root], d, state.root):
         yield
 
 
-def mount_build_overlay(state: MkosiState, read_only: bool = False) -> contextlib.AbstractContextManager[Path]:
+def mount_build_overlay(state: MkosiState) -> contextlib.AbstractContextManager[Path]:
     d = state.workspace / "build-overlay"
     if not d.is_symlink():
         with umask(~0o755):
             d.mkdir(exist_ok=True)
-    return mount_overlay([state.root], state.workspace / "build-overlay", state.root, read_only)
+    return mount_overlay([state.root], state.workspace / "build-overlay", state.root)
 
 
 def finalize_mounts(config: MkosiConfig) -> list[PathString]:
@@ -2285,7 +2285,7 @@ def mount_tools(tree: Optional[Path]) -> Iterator[None]:
         # into permission errors.
 
         tmp = stack.enter_context(tempfile.TemporaryDirectory(dir="/var/tmp"))
-        stack.enter_context(mount_overlay([Path("/etc")], Path(tmp), Path("/etc"), read_only=False))
+        stack.enter_context(mount_overlay([Path("/etc")], Path(tmp), Path("/etc")))
 
         for subdir in ("etc/pki", "etc/ssl", "etc/crypto-policies", "etc/ca-certificates"):
             if not (tree / subdir).exists():
