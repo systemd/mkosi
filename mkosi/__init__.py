@@ -265,6 +265,8 @@ def run_prepare_script(state: MkosiState, build: bool) -> None:
         SRCDIR=str(Path.cwd()),
         CHROOT_SRCDIR="/work/src",
         BUILDROOT=str(state.root),
+        MKOSI_UID=str(state.uid),
+        MKOSI_GID=str(state.gid),
     )
 
     chroot: list[PathString] = chroot_cmd(
@@ -319,6 +321,8 @@ def run_build_script(state: MkosiState) -> None:
         OUTPUTDIR=str(state.staging),
         CHROOT_OUTPUTDIR="/work/out",
         BUILDROOT=str(state.root),
+        MKOSI_UID=str(state.uid),
+        MKOSI_GID=str(state.gid),
     )
 
     if state.config.build_dir is not None:
@@ -369,6 +373,8 @@ def run_postinst_script(state: MkosiState) -> None:
         OUTPUTDIR=str(state.staging),
         CHROOT_OUTPUTDIR="/work/out",
         BUILDROOT=str(state.root),
+        MKOSI_UID=str(state.uid),
+        MKOSI_GID=str(state.gid),
     )
 
     chroot = chroot_cmd(
@@ -408,6 +414,8 @@ def run_finalize_script(state: MkosiState) -> None:
         OUTPUTDIR=str(state.staging),
         CHROOT_OUTPUTDIR="/work/out",
         BUILDROOT=str(state.root),
+        MKOSI_UID=str(state.uid),
+        MKOSI_GID=str(state.gid),
     )
 
     chroot = chroot_cmd(
@@ -978,7 +986,7 @@ def build_initrd(state: MkosiState) -> Path:
     with complete_step("Building initrd"):
         args, [config] = parse_config(cmdline)
         unlink_output(args, config)
-        build_image(args, config)
+        build_image(args, config, state.uid, state.gid)
 
     symlink.symlink_to(config.output_dir / config.output)
 
@@ -1842,12 +1850,12 @@ def normalize_mtime(root: Path, mtime: Optional[int], directory: Optional[Path] 
             os.utime(p, (mtime, mtime), follow_symlinks=False)
 
 
-def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
+def build_image(args: MkosiArgs, config: MkosiConfig, uid: int, gid: int) -> None:
     manifest = Manifest(config) if config.manifest_format else None
     workspace = tempfile.TemporaryDirectory(dir=config.workspace_dir, prefix=".mkosi-tmp")
 
     with workspace, scopedenv({"TMPDIR" : workspace.name}):
-        state = MkosiState(args, config, Path(workspace.name))
+        state = MkosiState(args, config, Path(workspace.name), uid, gid)
         install_package_manager_trees(state)
 
         with mount_base_trees(state):
@@ -2390,7 +2398,7 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
                     run(["mkdir", "--parents", p], user=uid, group=gid)
 
             with acl_toggle_build(config, uid):
-                build_image(args, config)
+                build_image(args, config, uid, gid)
 
             # Make sure all build outputs that are not directories are owned by the user running mkosi.
             for p in config.output_dir.iterdir():

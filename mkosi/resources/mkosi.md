@@ -1270,12 +1270,13 @@ Then, for each preset, we execute the following steps:
 To allow for image customization that cannot be implemented using
 mkosi's builtin features, mkosi supports running scripts at various
 points during the image build process that can customize the image as
-needed. Scripts are executed on the host system with a customized
-environment to simplify modifying the image. For each script, the
-configured build sources (`BuildSources=`) are mounted into the current
-working directory before running the script and `$SRCDIR` is set to
-point to the current working directory. The following scripts are
-supported:
+needed. Scripts are executed on the host system as root (either real
+root or root within the user namespace that mkosi created when running
+unprivileged) with a customized environment to simplify modifying the
+image. For each script, the configured build sources (`BuildSources=`)
+are mounted into the current working directory before running the script
+and `$SRCDIR` is set to point to the current working directory. The
+following scripts are supported:
 
 * If **`mkosi.prepare`** (`PrepareScript=`) exists, it is first called
   with the `final` argument, right after the software packages are
@@ -1362,6 +1363,12 @@ Scripts executed by mkosi receive the following environment variables:
   `$SOURCE_DATE_EPOCH`). This is useful to make builds reproducible. See
   [SOURCE_DATE_EPOCH](https://reproducible-builds.org/specs/source-date-epoch/)
   for more information.
+
+* `$MKOSI_UID` and `$MKOSI_GID` are the respectively the uid, gid of the
+  user that invoked mkosi, potentially translated to a uid in the user
+  namespace that mkosi is running in. These can be used in combination
+  with `setpriv` to run commands as the user that invoked mkosi (e.g.
+  `setpriv --reuid=$MKOSI_UID --regid=$MKOSI_GID --clear-groups <command>`)
 
 Additionally, when a script is executed, a few scripts are made
 available via `$PATH` to simplify common usecases.
