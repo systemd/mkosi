@@ -556,6 +556,9 @@ def test_wrong_section_warning(
         Path("mkosi.conf").write_text(
             "\n".join(
                 f"""\
+                [Distribution]
+                Distribution=fedora
+                
                 [{section}]
                 ImageId=testimage
                 """
