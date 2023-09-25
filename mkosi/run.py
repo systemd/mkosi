@@ -11,6 +11,7 @@ import os
 import pwd
 import queue
 import shlex
+import shutil
 import signal
 import subprocess
 import sys
@@ -273,6 +274,11 @@ def have_effective_cap(capability: Capability) -> bool:
     return (int(hexcap, 16) & (1 << capability.value)) != 0
 
 
+def find_binary(name: str, root: Optional[Path] = None) -> Optional[Path]:
+    path = ":".join(os.fspath(p) for p in [root / "usr/bin", root / "usr/sbin"]) if root else os.environ["PATH"]
+    return Path("/") / Path(binary).relative_to(root or "/") if (binary := shutil.which(name, path=path)) else None
+
+
 def bwrap(
     cmd: Sequence[PathString],
     *,
@@ -340,6 +346,9 @@ def bwrap(
             "sh", "-c", "chmod 1777 /dev/shm && exec $0 \"$@\"",
         ]
 
+        if setpgid := find_binary("setpgid"):
+            cmdline += [setpgid, "--foreground"]
+
         try:
             result = run([*cmdline, *cmd], env=env, log=False, stdin=stdin, stdout=stdout, input=input)
         except subprocess.CalledProcessError as e:
@@ -388,6 +397,9 @@ def apivfs_cmd(root: Path) -> list[PathString]:
         "--unsetenv", "TMPDIR",
     ]
 
+    if setpgid := find_binary("setpgid"):
+        cmdline += [setpgid, "--foreground"]
+
     if (root / "etc/machine-id").exists():
         # Make sure /etc/machine-id is not overwritten by any package manager post install scripts.
         cmdline += ["--ro-bind", root / "etc/machine-id", root / "etc/machine-id"]
@@ -428,6 +440,9 @@ def chroot_cmd(root: Path, *, options: Sequence[PathString] = ()) -> list[PathSt
         "--ro-bind", "/etc/resolv.conf", Path("/") / resolve,
         *options,
     ]
+
+    if setpgid := find_binary("setpgid", root):
+        cmdline += [setpgid, "--foreground"]
 
     return apivfs_cmd(root) + cmdline
 
