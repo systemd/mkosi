@@ -346,6 +346,9 @@ def bwrap(
             "sh", "-c", "chmod 1777 /dev/shm && exec $0 \"$@\"",
         ]
 
+        if setpgid := find_binary("setpgid"):
+            cmdline += [setpgid, "--foreground"]
+
         try:
             result = run([*cmdline, *cmd], env=env, log=False, stdin=stdin, stdout=stdout, input=input)
         except subprocess.CalledProcessError as e:
@@ -394,6 +397,9 @@ def apivfs_cmd(root: Path) -> list[PathString]:
         "--unsetenv", "TMPDIR",
     ]
 
+    if setpgid := find_binary("setpgid"):
+        cmdline += [setpgid, "--foreground"]
+
     if (root / "etc/machine-id").exists():
         # Make sure /etc/machine-id is not overwritten by any package manager post install scripts.
         cmdline += ["--ro-bind", root / "etc/machine-id", root / "etc/machine-id"]
@@ -434,6 +440,9 @@ def chroot_cmd(root: Path, *, options: Sequence[PathString] = ()) -> list[PathSt
         "--ro-bind", "/etc/resolv.conf", Path("/") / resolve,
         *options,
     ]
+
+    if setpgid := find_binary("setpgid", root):
+        cmdline += [setpgid, "--foreground"]
 
     return apivfs_cmd(root) + cmdline
 
