@@ -76,6 +76,7 @@ class CentosInstaller(DistributionInstaller):
             "systemd-udev",
             "systemd",
             "tar",
+            "util-linux",
             "virtiofsd",
             "xfsprogs",
             "xz",
