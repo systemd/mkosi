@@ -59,9 +59,10 @@ class OpensuseInstaller(DistributionInstaller):
             "systemd-experimental",
             "systemd",
             "tar",
+            "util-linux",
+            "virtiofsd",
             "xfsprogs",
             "xz",
-            "virtiofsd",
             "zstd",
             "zypper",
         ]

@@ -60,7 +60,7 @@ class Verb(StrEnum):
     documentation = enum.auto()
 
     def supports_cmdline(self) -> bool:
-        return self in (Verb.shell, Verb.boot, Verb.qemu, Verb.ssh)
+        return self in (Verb.build, Verb.shell, Verb.boot, Verb.qemu, Verb.ssh)
 
     def needs_build(self) -> bool:
         return self in (Verb.build, Verb.shell, Verb.boot, Verb.qemu, Verb.serve)
@@ -1752,7 +1752,7 @@ def create_argument_parser() -> argparse.ArgumentParser:
         # the synopsis below is supposed to be indented by two spaces
         usage="\n  " + textwrap.dedent("""\
               mkosi [options...] {b}summary{e}
-                mkosi [options...] {b}build{e}
+                mkosi [options...] {b}build{e} [command line...]
                 mkosi [options...] {b}shell{e} [command line...]
                 mkosi [options...] {b}boot{e}  [nspawn settings...]
                 mkosi [options...] {b}qemu{e}  [qemu parameters...]

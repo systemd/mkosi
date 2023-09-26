@@ -65,6 +65,7 @@ class DebianInstaller(DistributionInstaller):
             "systemd-container",
             "systemd",
             "tar",
+            "util-linux",
             "xfsprogs",
             "xz-utils",
             "zstd",
