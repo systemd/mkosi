@@ -1139,10 +1139,6 @@ def install_uki(state: MkosiState, partitions: Sequence[Partition]) -> None:
     if state.config.bootloader == Bootloader.none:
         return
 
-    for kver, kimg in gen_kernel_images(state):
-        shutil.copy(state.root / kimg, state.staging / state.config.output_split_kernel)
-        break
-
     if (
         state.config.output_format in (OutputFormat.cpio, OutputFormat.uki) and
         state.config.bootable == ConfigFeature.auto
@@ -1266,6 +1262,15 @@ def copy_nspawn_settings(state: MkosiState) -> None:
 
     with complete_step("Copying nspawn settings file…"):
         shutil.copy2(state.config.nspawn_settings, state.staging / state.config.output_nspawn_settings)
+
+
+def copy_vmlinuz(state: MkosiState) -> None:
+    if (state.staging / state.config.output_split_kernel).exists():
+        return
+
+    for _, kimg in gen_kernel_images(state):
+        shutil.copy(state.root / kimg, state.staging / state.config.output_split_kernel)
+        break
 
 
 def hash_file(of: TextIO, path: Path) -> None:
@@ -1925,6 +1930,7 @@ def build_image(args: MkosiArgs, config: MkosiConfig, name: str, uid: int, gid: 
         partitions = make_image(state)
         install_grub_bios(state, partitions)
         make_image(state, split=True)
+        copy_vmlinuz(state)
 
         if state.config.output_format == OutputFormat.tar:
             make_tar(state.root, state.staging / state.config.output_with_format)
