@@ -10,7 +10,7 @@ mkosi — Build Bespoke OS Images
 
 `mkosi [options…] summary`
 
-`mkosi [options…] build`
+`mkosi [options…] build [command line…]`
 
 `mkosi [options…] shell [command line…]`
 
@@ -51,9 +51,11 @@ The following command line verbs are known:
 
 `build`
 
-: This builds the image based on the settings passed in on the command line or
-  read from configuration files. This command is the default if no verb is
-  explicitly specified.
+: This builds the image based on the settings passed in on the command
+  line or read from configuration files. This command is the default if
+  no verb is explicitly specified. If any command line arguments are
+  specified, these are passed directly to the build script if one is
+  defined.
 
 `shell`
 

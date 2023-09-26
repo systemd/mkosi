@@ -360,7 +360,7 @@ def run_build_script(state: MkosiState) -> None:
          mount_build_overlay(state),\
          mount_passwd(state.name, state.uid, state.gid, state.root):
         bwrap(
-            [state.config.build_script],
+            [state.config.build_script, *(state.args.cmdline if state.args.verb == Verb.build else [])],
             network=state.config.with_network,
             readonly=True,
             options=finalize_mounts(state.config),
