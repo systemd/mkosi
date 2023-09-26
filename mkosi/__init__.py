@@ -176,6 +176,41 @@ def remove_packages(state: MkosiState) -> None:
             die(f"Removing packages is not supported for {state.config.distribution}")
 
 
+def configure_os_release(state: MkosiState) -> None:
+    """Write IMAGE_ID and IMAGE_VERSION to /usr/lib/os-release in the image."""
+    if not state.config.image_id and not state.config.image_version:
+        return
+
+    for candidate in ["usr/lib/os-release", "etc/os-release", "usr/lib/initrd-release", "etc/initrd-release"]:
+        osrelease = state.root / candidate
+        # at this point we know we will either change or add to the file
+        newosrelease = osrelease.with_suffix(".new")
+
+        if not osrelease.is_file() or osrelease.is_symlink():
+            continue
+
+        image_id_written = image_version_written = False
+        with osrelease.open("r") as old, newosrelease.open("w") as new:
+            # fix existing values
+            for line in old.readlines():
+                if state.config.image_id and line.startswith("IMAGE_ID="):
+                    new.write(f'IMAGE_ID="{state.config.image_id}"\n')
+                    image_id_written = True
+                elif state.config.image_version and line.startswith("IMAGE_VERSION="):
+                    new.write(f'IMAGE_VERSION="{state.config.image_version}"\n')
+                    image_version_written = True
+                else:
+                    new.write(line)
+
+            # append if they were missing
+            if state.config.image_id and not image_id_written:
+                new.write(f'IMAGE_ID="{state.config.image_id}"\n')
+            if state.config.image_version and not image_version_written:
+                new.write(f'IMAGE_VERSION="{state.config.image_version}"\n')
+
+        newosrelease.rename(osrelease)
+
+
 def configure_autologin(state: MkosiState) -> None:
     if not state.config.autologin:
         return
@@ -1899,6 +1934,7 @@ def build_image(args: MkosiArgs, config: MkosiConfig, name: str, uid: int, gid: 
             run_postinst_scripts(state)
 
             configure_autologin(state)
+            configure_os_release(state)
             configure_initrd(state)
             configure_ssh(state)
             configure_clock(state)
