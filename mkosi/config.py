@@ -30,7 +30,7 @@ from mkosi.distributions import Distribution, detect_distribution
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, Style, die
 from mkosi.pager import page
 from mkosi.run import run
-from mkosi.types import PathString
+from mkosi.types import PathString, SupportsRead
 from mkosi.util import (
     InvokingUser,
     StrEnum,
@@ -673,8 +673,16 @@ class MkosiArgs:
         return json.dumps(dataclasses.asdict(self), cls=MkosiJsonEncoder, indent=indent, sort_keys=sort_keys)
 
     @classmethod
-    def from_json(cls, s: str) -> "MkosiArgs":
-        j = json.loads(s)
+    def from_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> "MkosiArgs":
+        if isinstance(s, str):
+            j = json.loads(s)
+        elif isinstance(s, dict):
+            j = s
+        elif hasattr(s, "read"):
+            j = json.load(s)
+        else:
+            raise ValueError(f"{cls.__name__} can only be constructed from JSON from strings, dictionaries and files.")
+
         transformer = json_type_transformer(cls)
         tj = {k: transformer(k, v) for k, v in j.items()}
         return cls(**tj)
@@ -892,8 +900,16 @@ class MkosiConfig:
         return json.dumps(dataclasses.asdict(self), cls=MkosiJsonEncoder, indent=indent, sort_keys=sort_keys)
 
     @classmethod
-    def from_json(cls, s: str) -> "MkosiConfig":
-        j = json.loads(s)
+    def from_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> "MkosiConfig":
+        if isinstance(s, str):
+            j = json.loads(s)
+        elif isinstance(s, dict):
+            j = s
+        elif hasattr(s, "read"):
+            j = json.load(s)
+        else:
+            raise ValueError(f"{cls.__name__} can only be constructed from JSON from strings, dictionaries and files.")
+
         transformer = json_type_transformer(cls)
         tj = {k: transformer(k, v) for k, v in j.items()}
         return cls(**tj)
