@@ -39,6 +39,7 @@ from mkosi.config import (
     parse_config,
     summary,
 )
+from mkosi.distributions import Distribution
 from mkosi.installer import clean_package_manager_metadata, package_manager_scripts
 from mkosi.kmod import gen_required_kernel_modules, process_kernel_modules
 from mkosi.log import ARG_DEBUG, complete_step, die, log_step
@@ -138,6 +139,7 @@ def install_distribution(state: MkosiState) -> None:
             # Some distributions install EFI binaries directly to /boot/efi. Let's redirect them to /efi
             # instead.
             rmtree(state.root / "boot/efi")
+            (state.root / "boot").mkdir(exist_ok=True)
             (state.root / "boot/efi").symlink_to("../efi")
 
             if state.config.packages:
@@ -174,6 +176,14 @@ def remove_packages(state: MkosiState) -> None:
             state.config.distribution.remove_packages(state, state.config.remove_packages)
         except NotImplementedError:
             die(f"Removing packages is not supported for {state.config.distribution}")
+
+
+def check_root_populated(state: MkosiState) -> None:
+    """Check that the root was populated by looking for a os-release file."""
+    osrelease = state.root / "usr/lib/os-release"
+    if not osrelease.exists():
+        die(f"{osrelease} not found.",
+            hint="The root must be populated by the distribution, or from base trees, skeleton trees, and prepare scripts.")
 
 
 def configure_os_release(state: MkosiState) -> None:
@@ -968,6 +978,9 @@ def build_initrd(state: MkosiState) -> Path:
     symlink = state.workspace / "initrd"
     if symlink.exists():
         return symlink.resolve()
+
+    if state.config.distribution == Distribution.none:
+        die(f"Building a default initrd is not supported with distribution {state.config.distribution}")
 
     # Default values are assigned via the parser so we go via the argument parser to construct
     # the config for the initrd.
@@ -1945,6 +1958,7 @@ def build_image(args: MkosiArgs, config: MkosiConfig, name: str, uid: int, gid: 
                 save_cache(state)
                 reuse_cache(state)
 
+            check_root_populated(state)
             run_build_scripts(state)
 
             if state.config.output_format == OutputFormat.none:

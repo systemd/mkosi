@@ -72,6 +72,7 @@ class DistributionInstaller:
 
 
 class Distribution(StrEnum):
+    none         = enum.auto()
     fedora       = enum.auto()
     debian       = enum.auto()
     ubuntu       = enum.auto()
