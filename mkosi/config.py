@@ -19,6 +19,7 @@ import platform
 import shlex
 import shutil
 import subprocess
+import tempfile
 import textwrap
 import uuid
 from collections.abc import Collection, Iterable, Iterator, Sequence
@@ -663,6 +664,18 @@ class MkosiArgs:
     doc_format: DocFormat
 
     @classmethod
+    def default(cls) -> "MkosiArgs":
+        """Alternative constructor to generate an all-default MkosiArgs.
+
+        This prevents MkosiArgs being generated with defaults values implicitly.
+        """
+        with tempfile.TemporaryDirectory() as tempdir:
+            with chdir(tempdir):
+                args, _ = parse_config([])
+
+        return args
+
+    @classmethod
     def from_namespace(cls, ns: argparse.Namespace) -> "MkosiArgs":
         return cls(**{
             k: v for k, v in vars(ns).items()
@@ -814,6 +827,18 @@ class MkosiConfig:
     qemu_args: list[str]
 
     preset: Optional[str]
+
+    @classmethod
+    def default(cls) -> "MkosiConfig":
+        """Alternative constructor to generate an all-default MkosiArgs.
+
+        This prevents MkosiArgs being generated with defaults values implicitly.
+        """
+        with tempfile.TemporaryDirectory() as tempdir:
+            with chdir(tempdir):
+                _, [config] = parse_config([])
+
+        return config
 
     @classmethod
     def from_namespace(cls, ns: argparse.Namespace) -> "MkosiConfig":
