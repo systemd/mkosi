@@ -226,7 +226,7 @@ The following output formats are supported:
 
 The output format may also be set to *none* to have mkosi produce no
 image at all. This can be useful if you only want to use the image to
-produce another output in the build script (e.g. build an rpm).
+produce another output in the build scripts (e.g. build an rpm).
 
 When a *GPT* disk image is created, repart partition definition files
 may be placed in `mkosi.repart/` to configure the generated disk image.
@@ -509,10 +509,10 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   systems that support out-of-tree builds (such as Meson). The directory
   used this way is shared between repeated builds, and allows the build
   system to reuse artifacts (such as object files, executable, …)
-  generated on previous invocations. The build script can find the path
+  generated on previous invocations. The build scripts can find the path
   to this directory in the `$BUILDDIR` environment variable. This
   directory is mounted into the image's root directory when
-  `mkosi-chroot` is invoked during execution of the build script. If
+  `mkosi-chroot` is invoked during execution of the build scripts. If
   this option is not specified, but a directory `mkosi.builddir/` exists
   in the local directory it is automatically used for this purpose (also
   see the **Files** section below).
@@ -616,8 +616,8 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   option may be used multiple times in which case the specified package
   lists are combined. Use `BuildPackages=` to specify packages that
   shall only be installed in an overlay that is mounted when the prepare
-  script is executed with the `build` argument and when the build script
-  is executed.
+  scripts are executed with the `build` argument and when the build scripts
+  are executed.
 
 : The types and syntax of *package specifications* that are allowed
   depend on the package installer (e.g. `dnf` for `rpm`-based distros or
@@ -648,10 +648,10 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 : Similar to `Packages=`, but configures packages to install only in an
   overlay that is made available on top of the image to the prepare
-  script when executed with the `build` argument and the build script.
+  scripts when executed with the `build` argument and the build scripts.
   This option should be used to list packages containing header files,
   compilers, build systems, linkers and other build tools the
-  `mkosi.build` script requires to operate. Note that packages listed
+  `mkosi.build` scripts require to operate. Note that packages listed
   here will be absent in the final image.
 
 `WithDocs=`, `--with-docs`
@@ -659,7 +659,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 : Include documentation in the image built. By default if the
   underlying distribution package manager supports it documentation is
   not included in the image built. The `$WITH_DOCS` environment
-  variable passed to the `mkosi.build` script indicates whether this
+  variable passed to the `mkosi.build` scripts indicates whether this
   option was used or not.
 
 `BaseTrees=`, `--base-tree=`
@@ -742,25 +742,29 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   package manager executable is *not* present at the end of the
   installation.
 
-`PrepareScript=`, `--prepare-script=`
+`PrepareScripts=`, `--prepare-script=`
 
-: Takes a path to an executable that is used as the prepare script for
-  this image. See the **Scripts** section for more information.
+: Takes a comma-separated list of paths to executables that are used as
+  the prepare scripts for this image. See the **Scripts** section for
+  more information.
 
-`BuildScript=`, `--build-script=`
+`BuildScripts=`, `--build-script=`
 
-: Takes a path to an executable that is used as build script for this
-  image. See the **Scripts** section for more information.
+: Takes a comma-separated list of paths to executables that are used as
+  the build scripts for this image. See the **Scripts** section for more
+  information.
 
-`PostInstallationScript=`, `--postinst-script=`
+`PostInstallationScripts=`, `--postinst-script=`
 
-: Takes a path to an executable that is used as the post-installation
-  script for this image. See the **Scripts** section for more information.
+: Takes a comma-separated list of paths to executables that are used as
+  the post-installation scripts for this image. See the **Scripts** section
+  for more information.
 
-`FinalizeScript=`, `--finalize-script=`
+`FinalizeScripts=`, `--finalize-script=`
 
-: Takes a path to an executable that is used as the finalize script for
-  this image. See the **Scripts** section for more information.
+: Takes a comma-separated list of paths to executables that are used as
+  the finalize scripts for this image. See the **Scripts** section for more
+  information.
 
 `BuildSources=`, `--build-sources=`
 
@@ -788,17 +792,17 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 : If set to false (or when the command-line option is used), the
   `$WITH_TESTS` environment variable is set to `0` when the
-  `mkosi.build` script is invoked. This is supposed to be used by the
-  build script to bypass any unit or integration tests that are
+  `mkosi.build` scripts are invoked. This is supposed to be used by the
+  build scripts to bypass any unit or integration tests that are
   normally run during the source build process. Note that this option
-  has no effect unless the `mkosi.build` build script honors it.
+  has no effect unless the `mkosi.build` build scripts honor it.
 
 `WithNetwork=`, `--with-network=`
 
-: When true, enables network connectivity while the build script
-  `mkosi.build` is invoked. By default, the build script runs with
+: When true, enables network connectivity while the build scripts
+  `mkosi.build` are invoked. By default, the build scripts run with
   networking turned off. The `$WITH_NETWORK` environment variable is
-  passed to the `mkosi.build` build script indicating whether the
+  passed to the `mkosi.build` build scripts indicating whether the
   build is done with or without network.
 
 `Bootable=`, `--bootable=`
@@ -1009,7 +1013,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 : Enable incremental build mode. In this mode, a copy of the OS image is
   created immediately after all OS packages are installed and the
-  prepare script has executed but before the `mkosi.build` script is
+  prepare scripts have executed but before the `mkosi.build` scripts are
   invoked (or anything that happens after it). On subsequent invocations
   of `mkosi` with the `-i` switch this cached image may be used to skip
   the OS package installation, thus drastically speeding up repetitive
@@ -1244,16 +1248,16 @@ Then, for each preset, we execute the following steps:
 8. Copy skeleton trees (`mkosi.skeleton`) into image
 9. Install distribution and packages into image or use cache tree if
    available
-10. Run prepare script on image with the `final` argument (`mkosi.prepare`)
-11. Install build packages in overlay if a build script is configured
-12. Run prepare script on overlay with the `build` argument if a build
-    script is configured (`mkosi.prepare`)
+10. Run prepare scripts on image with the `final` argument (`mkosi.prepare`)
+11. Install build packages in overlay if any build scripts are configured
+12. Run prepare scripts on overlay with the `build` argument if any build
+    scripts are configured (`mkosi.prepare`)
 13. Cache the image if configured (`--incremental`)
-14. Run build script on image + overlay if a build script is configured (`mkosi.build`)
+14. Run build scripts on image + overlay if any build scripts are configured (`mkosi.build`)
 15. Finalize the build if the output format `none` is configured
-16. Copy the build script outputs into the image
+16. Copy the build scripts outputs into the image
 17. Copy the extra trees into the image (`mkosi.extra`)
-18. Run post-install script (`mkosi.postinst`)
+18. Run post-install scripts (`mkosi.postinst`)
 19. Write config files required for `Ssh=`, `Autologin=` and `MakeInitrd=`
 20. Install systemd-boot and configure secure boot if configured (`--secure-boot`)
 21. Run `systemd-sysusers`
@@ -1263,7 +1267,7 @@ Then, for each preset, we execute the following steps:
 25. Run `systemd-hwdb`
 26. Remove packages and files (`RemovePackages=`, `RemoveFiles=`)
 27. Run SELinux relabel is a SELinux policy is installed
-28. Run finalize script (`mkosi.finalize`)
+28. Run finalize scripts (`mkosi.finalize`)
 29. Generate unified kernel image if configured to do so
 30. Generate final output format
 
@@ -1280,7 +1284,7 @@ are mounted into the current working directory before running the script
 and `$SRCDIR` is set to point to the current working directory. The
 following scripts are supported:
 
-* If **`mkosi.prepare`** (`PrepareScript=`) exists, it is first called
+* If **`mkosi.prepare`** (`PrepareScripts=`) exists, it is first called
   with the `final` argument, right after the software packages are
   installed. It is called a second time with the `build` command line
   parameter, right after the build packages are installed and the build
@@ -1295,7 +1299,7 @@ following scripts are supported:
   easily be thrown away and rebuilt so there's no risk of conflicting
   dependencies and no risk of polluting the host system.
 
-* If **`mkosi.build`** (`BuildScript=`) exists, it is executed with the
+* If **`mkosi.build`** (`BuildScripts=`) exists, it is executed with the
   build overlay mounted on top of the image's root directory. When
   running the build script, `$DESTDIR` points to a directory where the
   script should place any files generated it would like to end up in the
@@ -1304,13 +1308,13 @@ following scripts are supported:
   *source* trees from the build script. After running the build script,
   the contents of `$DESTDIR` are copied into the image.
 
-* If **`mkosi.postinst`** (`PostInstallationScript=`) exists, it is
+* If **`mkosi.postinst`** (`PostInstallationScripts=`) exists, it is
   executed after the (optional) build tree and extra trees have been
   installed. This script may be used to alter the images without any
   restrictions, after all software packages and built sources have been
   installed.
 
-* If **`mkosi.finalize`** (`FinalizeScript=`) exists, it is executed as
+* If **`mkosi.finalize`** (`FinalizeScripts=`) exists, it is executed as
   the last step of preparing an image.
 
 Scripts executed by mkosi receive the following environment variables:
@@ -1332,8 +1336,8 @@ Scripts executed by mkosi receive the following environment variables:
   will have after invoking `mkosi-chroot`.
 
 * `$DESTDIR` is a directory into which any installed software generated
-  by the build script may be placed. This variable is only set when
-  executing the build script. `$CHROOT_DESTDIR` contains the value that
+  by a build script may be placed. This variable is only set when
+  executing a build script. `$CHROOT_DESTDIR` contains the value that
   `$DESTDIR` will have after invoking `mkosi-chroot`.
 
 * `$OUTPUTDIR` points to the staging directory used to store build
@@ -1346,18 +1350,18 @@ Scripts executed by mkosi receive the following environment variables:
 
 * `$WITH_DOCS` is either `0` or `1` depending on whether a build
   without or with installed documentation was requested
-  (`WithDocs=yes`). The build script should suppress installation of
+  (`WithDocs=yes`). A build script should suppress installation of
   any package documentation to `$DESTDIR` in case `$WITH_DOCS` is set
   to `0`.
 
 * `$WITH_TESTS` is either `0`or `1` depending on whether a build
   without or with running the test suite was requested
-  (`WithTests=no`). The build script should avoid running any unit or
+  (`WithTests=no`). A build script should avoid running any unit or
   integration tests in case `$WITH_TESTS` is `0`.
 
 * `$WITH_NETWORK` is either `0`or `1` depending on whether a build
   without or with networking is being executed (`WithNetwork=no`).
-  The build script should avoid any network communication in case
+  A build script should avoid any network communication in case
   `$WITH_NETWORK` is `0`.
 
 * `$SOURCE_DATE_EPOCH` is defined if requested (`SourceDateEpoch=TIMESTAMP`,
@@ -1446,14 +1450,14 @@ local directory:
   to speed repeated runs of the tool.
 
 * The **`mkosi.builddir/`** directory, if it exists, is automatically used as out-of-tree build directory, if
-  the build commands in the `mkosi.build` script support it. Specifically, this directory will be mounted
-  into the build container, and the `$BUILDDIR` environment variable will be set to it when the build script
-  is invoked. The build script may then use this directory as build directory, for automake-style or
+  the build commands in the `mkosi.build` scripts support it. Specifically, this directory will be mounted
+  into the build container, and the `$BUILDDIR` environment variable will be set to it when the build scripts
+  are invoked. A build script may then use this directory as build directory, for automake-style or
   ninja-style out-of-tree builds. This speeds up builds considerably, in particular when `mkosi` is used in
   incremental mode (`-i`): not only the image and build overlay, but also the build tree is reused between
   subsequent invocations. Note that if this directory does not exist the `$BUILDDIR` environment variable is
-  not set, and it is up to build script to decide whether to do in in-tree or an out-of-tree build, and which
-  build directory to use.
+  not set, and it is up to the build scripts to decide whether to do in in-tree or an out-of-tree build, and
+  which build directory to use.
 
 * The **`mkosi.rootpw`** file can be used to provide the password for the root user of the image. If the
   password is prefixed with `hashed:` it is treated as an already hashed root password. The password may
@@ -1557,7 +1561,7 @@ re-building of images. Specifically:
    be shared, using the `mkosi.builddir/` directory. This directory
    allows build systems such as Meson to reuse already compiled
    sources from a previous built, thus speeding up the build process
-   of the `mkosi.build` build script.
+   of a `mkosi.build` build script.
 
 The package cache and incremental mode are unconditionally useful. The
 final cache only apply to uses of `mkosi` with a source tree and build
