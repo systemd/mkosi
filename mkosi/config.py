@@ -683,10 +683,12 @@ class MkosiArgs:
         })
 
     def to_json(self, *, indent: Optional[int] = 4, sort_keys: bool = True) -> str:
+        """Dump MKosiArgs as JSON string."""
         return json.dumps(dataclasses.asdict(self), cls=MkosiJsonEncoder, indent=indent, sort_keys=sort_keys)
 
     @classmethod
-    def from_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> "MkosiArgs":
+    def _load_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> dict[str, Any]:
+        """Load JSON and transform it into a dictionary suitable compatible with instantiating a MkosiArgs object."""
         if isinstance(s, str):
             j = json.loads(s)
         elif isinstance(s, dict):
@@ -697,8 +699,19 @@ class MkosiArgs:
             raise ValueError(f"{cls.__name__} can only be constructed from JSON from strings, dictionaries and files.")
 
         transformer = json_type_transformer(cls)
-        tj = {k: transformer(k, v) for k, v in j.items()}
-        return cls(**tj)
+        return {k: transformer(k, v) for k, v in j.items()}
+
+    @classmethod
+    def from_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> "MkosiArgs":
+        """Instantiate a MkosiArgs object from a full JSON dump."""
+        j = cls._load_json(s)
+        return cls(**j)
+
+    @classmethod
+    def from_partial_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> "MkosiArgs":
+        """Return a new MkosiArgs with defaults overwritten by the attributes from passed in JSON."""
+        j = cls._load_json(s)
+        return dataclasses.replace(cls.default(), **j)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -922,10 +935,12 @@ class MkosiConfig:
         }
 
     def to_json(self, *, indent: Optional[int] = 4, sort_keys: bool = True) -> str:
+        """Dump MKosiConfig as JSON string."""
         return json.dumps(dataclasses.asdict(self), cls=MkosiJsonEncoder, indent=indent, sort_keys=sort_keys)
 
     @classmethod
-    def from_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> "MkosiConfig":
+    def _load_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> dict[str, Any]:
+        """Load JSON and transform it into a dictionary suitable compatible with instantiating a MkosiConfig object."""
         if isinstance(s, str):
             j = json.loads(s)
         elif isinstance(s, dict):
@@ -936,8 +951,19 @@ class MkosiConfig:
             raise ValueError(f"{cls.__name__} can only be constructed from JSON from strings, dictionaries and files.")
 
         transformer = json_type_transformer(cls)
-        tj = {k: transformer(k, v) for k, v in j.items()}
-        return cls(**tj)
+        return {k: transformer(k, v) for k, v in j.items()}
+
+    @classmethod
+    def from_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> "MkosiConfig":
+        """Instantiate a MkosiConfig object from a full JSON dump."""
+        j = cls._load_json(s)
+        return cls(**j)
+
+    @classmethod
+    def from_partial_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> "MkosiConfig":
+        """Return a new MkosiConfig with defaults overwritten by the attributes from passed in JSON."""
+        j = cls._load_json(s)
+        return dataclasses.replace(cls.default(), **j)
 
 
 def parse_ini(path: Path, only_sections: Collection[str] = ()) -> Iterator[tuple[str, str, str]]:
