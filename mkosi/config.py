@@ -2802,7 +2802,10 @@ def json_type_transformer(refcls: Union[type[MkosiArgs], type[MkosiConfig]]) -> 
         assert fieldtype is not None
         transformer = cast(Optional[Callable[[str, type], Any]], transformers.get(fieldtype.type))
         if transformer is not None:
-            return transformer(val, fieldtype.type)
+            try:
+                return transformer(val, fieldtype.type)
+            except (ValueError, IndexError, AssertionError) as e:
+                raise ValueError(f"Unable to parse {val:r} for attribute {key:r} for {refcls.__name__}") from e
 
         return val
 
