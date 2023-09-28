@@ -1354,12 +1354,12 @@ Scripts executed by mkosi receive the following environment variables:
   any package documentation to `$DESTDIR` in case `$WITH_DOCS` is set
   to `0`.
 
-* `$WITH_TESTS` is either `0`or `1` depending on whether a build
+* `$WITH_TESTS` is either `0` or `1` depending on whether a build
   without or with running the test suite was requested
   (`WithTests=no`). A build script should avoid running any unit or
   integration tests in case `$WITH_TESTS` is `0`.
 
-* `$WITH_NETWORK` is either `0`or `1` depending on whether a build
+* `$WITH_NETWORK` is either `0` or `1` depending on whether a build
   without or with networking is being executed (`WithNetwork=no`).
   A build script should avoid any network communication in case
   `$WITH_NETWORK` is `0`.
