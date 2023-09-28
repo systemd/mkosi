@@ -58,6 +58,7 @@ class CentosInstaller(DistributionInstaller):
             "ca-certificates",
             "coreutils",
             "cpio",
+            "curl",
             "dnf",
             "dosfstools",
             "e2fsprogs",

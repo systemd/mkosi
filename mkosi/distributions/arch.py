@@ -37,6 +37,7 @@ class ArchInstaller(DistributionInstaller):
             "ca-certificates",
             "coreutils",
             "cpio",
+            "curl",
             "debian-archive-keyring",
             "dnf",
             "dosfstools",

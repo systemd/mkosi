@@ -42,6 +42,7 @@ class DebianInstaller(DistributionInstaller):
             "ca-certificates",
             "coreutils",
             "cpio",
+            "curl",
             "debian-archive-keyring",
             "dnf",
             "dosfstools",
