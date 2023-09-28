@@ -2250,12 +2250,16 @@ def finalize_tools(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> Sequence[
             continue
 
         distribution = p.tools_tree_distribution or p.distribution.default_tools_tree_distribution()
+        if not distribution:
+            die(f"{p.distribution} does not have a default tools tree distribution",
+                hint="use ToolsTreeDistribution= to set one explicitly")
+
         release = p.tools_tree_release or distribution.default_release()
 
         cmdline = [
             "--directory", "",
             "--distribution", str(distribution),
-            "--release", release,
+            *(["--release", release] if release else []),
             *(["--mirror", p.mirror] if p.mirror and p.distribution == distribution else []),
             "--repository-key-check", str(p.repository_key_check),
             "--cache-only", str(p.cache_only),

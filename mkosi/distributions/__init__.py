@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 
 
 class PackageType(StrEnum):
+    none   = enum.auto()
     rpm    = enum.auto()
     deb    = enum.auto()
     pkg    = enum.auto()
@@ -40,27 +41,27 @@ class DistributionInstaller:
 
     @classmethod
     def filesystem(cls) -> str:
-        raise NotImplementedError()
+        return "ext4"
 
     @staticmethod
     def architecture(arch: Architecture) -> str:
-        raise NotImplementedError()
+        return str(arch)
 
     @classmethod
     def package_type(cls) -> PackageType:
-        raise NotImplementedError()
+        return PackageType.none
 
     @classmethod
     def default_release(cls) -> str:
-        raise NotImplementedError()
+        return ""
 
     @classmethod
-    def default_tools_tree_distribution(cls) -> "Distribution":
-        raise NotImplementedError()
+    def default_tools_tree_distribution(cls) -> Optional["Distribution"]:
+        return None
 
     @classmethod
     def tools_tree_packages(cls) -> list[str]:
-        raise NotImplementedError()
+        return []
 
 
 class Distribution(StrEnum):
@@ -116,7 +117,7 @@ class Distribution(StrEnum):
     def default_release(self) -> str:
         return self.installer().default_release()
 
-    def default_tools_tree_distribution(self) -> "Distribution":
+    def default_tools_tree_distribution(self) -> Optional["Distribution"]:
         return self.installer().default_tools_tree_distribution()
 
     def tools_tree_packages(self) -> list[str]:
