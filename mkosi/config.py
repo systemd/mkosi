@@ -969,6 +969,7 @@ SETTINGS = (
         dest="architecture",
         section="Distribution",
         parse=config_make_enum_parser(Architecture),
+        match=config_make_enum_matcher(Architecture),
         default=Architecture.native(),
         choices=Architecture.values(),
         help="Override the architecture of installation",
