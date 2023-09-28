@@ -1164,6 +1164,28 @@ def build_uki(
     run(cmd)
 
 
+def want_uki(config: MkosiConfig) -> bool:
+    # Do we want to build an UKI according to config?
+    # Note that this returns True also in the case where autodetection might later
+    # cause the UKI not to be installed after the file system has been populated.
+
+    if config.bootable == ConfigFeature.disabled:
+        return False
+
+    if config.bootloader == Bootloader.none:
+        return False
+
+    if (config.output_format in (OutputFormat.cpio, OutputFormat.uki) and
+        config.bootable == ConfigFeature.auto):
+        return False
+
+    if (config.architecture.to_efi() is None and
+        config.bootable == ConfigFeature.auto):
+        return False
+
+    return True
+
+
 def install_uki(state: MkosiState, partitions: Sequence[Partition]) -> None:
     # Iterates through all kernel versions included in the image and generates a combined
     # kernel+initrd+cmdline+osrelease EFI file from it and places it in the /EFI/Linux directory of the ESP.
@@ -1171,21 +1193,10 @@ def install_uki(state: MkosiState, partitions: Sequence[Partition]) -> None:
     # benefit that they can be signed like normal EFI binaries, and can encode everything necessary to boot a
     # specific root device, including the root hash.
 
-    if state.config.bootable == ConfigFeature.disabled:
+    if not want_uki(state.config):
         return
 
-    if state.config.bootloader == Bootloader.none:
-        return
-
-    if (
-        state.config.output_format in (OutputFormat.cpio, OutputFormat.uki) and
-        state.config.bootable == ConfigFeature.auto
-    ):
-        return
-
-    if (arch := state.config.architecture.to_efi()) is None and state.config.bootable == ConfigFeature.auto:
-        return
-
+    arch = state.config.architecture.to_efi()
     stub = state.root / f"usr/lib/systemd/boot/efi/linux{arch}.efi.stub"
     if not stub.exists() and state.config.bootable == ConfigFeature.auto:
         return
@@ -1494,6 +1505,12 @@ def check_outputs(config: MkosiConfig) -> None:
     ):
         if f and (config.output_dir / f).exists():
             die(f"Output path {f} exists already. (Consider invocation with --force.)")
+
+
+def check_tools(config: MkosiConfig) -> None:
+    if want_uki(config) and not (shutil.which("ukify") or Path("/usr/lib/systemd/ukify").exists()):
+        die("'ukify' not found.",
+            hint="Bootable=no can be used to create a non-bootable image.")
 
 
 def configure_ssh(state: MkosiState) -> None:
@@ -2438,6 +2455,9 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
             mount_tools(config.tools_tree),\
             mount_passwd(name, uid, gid),\
             prepend_to_environ_path(config):
+
+            # After tools have been mounted, check if we have what we need
+            check_tools(config)
 
             # Create these as the invoking user to make sure they're owned by the user running mkosi.
             for p in (
