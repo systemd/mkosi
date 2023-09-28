@@ -2,7 +2,7 @@
 import os
 import shutil
 import textwrap
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable
 from pathlib import Path
 from typing import NamedTuple
 
@@ -27,7 +27,7 @@ def dnf_executable(state: MkosiState) -> str:
     return dnf
 
 
-def setup_dnf(state: MkosiState, repos: Sequence[Repo], filelists: bool = True) -> None:
+def setup_dnf(state: MkosiState, repos: Iterable[Repo], filelists: bool = True) -> None:
     (state.pkgmngr / "etc/dnf/vars").mkdir(exist_ok=True, parents=True)
     (state.pkgmngr / "etc/yum.repos.d").mkdir(exist_ok=True, parents=True)
     (state.pkgmngr / "var/lib/dnf").mkdir(exist_ok=True, parents=True)
