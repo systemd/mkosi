@@ -347,7 +347,7 @@ def bwrap(
         ]
 
         if setpgid := find_binary("setpgid"):
-            cmdline += [setpgid, "--foreground"]
+            cmdline += [setpgid, "--foreground", "--"]
 
         try:
             result = run([*cmdline, *cmd], env=env, log=False, stdin=stdin, stdout=stdout, input=input)
@@ -397,14 +397,14 @@ def apivfs_cmd(root: Path) -> list[PathString]:
         "--unsetenv", "TMPDIR",
     ]
 
-    if setpgid := find_binary("setpgid"):
-        cmdline += [setpgid, "--foreground"]
-
     if (root / "etc/machine-id").exists():
         # Make sure /etc/machine-id is not overwritten by any package manager post install scripts.
         cmdline += ["--ro-bind", root / "etc/machine-id", root / "etc/machine-id"]
 
     cmdline += finalize_passwd_mounts(root)
+
+    if setpgid := find_binary("setpgid"):
+        cmdline += [setpgid, "--foreground", "--"]
 
     chmod = f"chmod 1777 {root / 'tmp'} {root / 'var/tmp'} {root / 'dev/shm'}"
     # Make sure anything running in the root directory thinks it's in a container. $container can't always be
@@ -443,7 +443,7 @@ def chroot_cmd(root: Path, *, options: Sequence[PathString] = ()) -> list[PathSt
     ]
 
     if setpgid := find_binary("setpgid", root):
-        cmdline += [setpgid, "--foreground"]
+        cmdline += [setpgid, "--foreground", "--"]
 
     return apivfs_cmd(root) + cmdline
 
