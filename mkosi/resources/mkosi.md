@@ -304,6 +304,12 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 : Matches against the configured distribution release. If this condition is used and no distribution has been
   explicitly configured yet, the host distribution and release are used.
 
+`Architecture=`
+
+: Matches against the configured architecture. If this condition is used
+  and no architecture has been explicitly configured yet, the host
+  architecture is used.
+
 `PathExists=`
 
 : This condition is satisfied if the given path exists. Relative paths are interpreted relative to the parent
@@ -342,6 +348,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 |-------------------|-------|------------------|-------------------------|
 | `Distribution=`   | no    | no               | match host distribution |
 | `Release=`        | no    | no               | match host release      |
+| `Architecture=`   | no    | no               | match host architecture |
 | `PathExists=`     | no    | no               | match fails             |
 | `ImageId=`        | yes   | no               | match fails             |
 | `ImageVersion=`   | no    | yes              | match fails             |
