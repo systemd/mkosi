@@ -93,6 +93,7 @@ jobs:
         distro:
           - arch
           - centos
+          - rhel-ubi
           - debian
           - ubuntu
           - fedora
@@ -105,6 +106,9 @@ jobs:
           - cpio
           - disk
           - uki
+        exclude:
+          - distro: rhel-ubi
+            format: uki
 
     steps:
     - uses: actions/checkout@v3
@@ -140,9 +144,9 @@ jobs:
       run: sudo mkosi --debug boot
 
     - name: Boot ${{ matrix.distro }}/${{ matrix.format }} QEMU
-      if: matrix.format == 'disk' || matrix.format == 'uki' || matrix.format == 'cpio'
+      if: matrix.distro != 'rhel-ubi' && (matrix.format == 'disk' || matrix.format == 'uki' || matrix.format == 'cpio')
       run: timeout -k 30 10m mkosi --debug qemu
 
     - name: Boot ${{ matrix.distro }}/${{ matrix.format }} BIOS
-      if: matrix.format == 'disk'
+      if: matrix.distro != 'rhel-ubi' && matrix.format == 'disk'
       run: timeout -k 30 10m mkosi --debug --qemu-firmware bios qemu
