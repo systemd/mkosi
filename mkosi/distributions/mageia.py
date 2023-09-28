@@ -9,7 +9,7 @@ from mkosi.log import die
 from mkosi.state import MkosiState
 
 
-class MageiaInstaller(DistributionInstaller):
+class Installer(DistributionInstaller):
     @classmethod
     def filesystem(cls) -> str:
         return "ext4"

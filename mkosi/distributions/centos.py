@@ -33,7 +33,7 @@ def join_mirror(config: MkosiConfig, link: str) -> str:
     return urllib.parse.urljoin(config.mirror, link)
 
 
-class CentosInstaller(DistributionInstaller):
+class Installer(DistributionInstaller):
     @classmethod
     def filesystem(cls) -> str:
         return "xfs"

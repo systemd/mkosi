@@ -7,7 +7,6 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Optional, cast
 
 from mkosi.architecture import Architecture
-from mkosi.log import die
 from mkosi.util import StrEnum, read_os_release
 
 if TYPE_CHECKING:
@@ -124,14 +123,11 @@ class Distribution(StrEnum):
         return self.installer().tools_tree_packages()
 
     def installer(self) -> type[DistributionInstaller]:
-        try:
-            mod = importlib.import_module(f"mkosi.distributions.{self}")
-            installer = getattr(mod, f"{str(self).title().replace('_','')}Installer")
-            if not issubclass(installer, DistributionInstaller):
-                die(f"Distribution installer for {self} is not a subclass of DistributionInstaller")
-            return cast(type[DistributionInstaller], installer)
-        except (ImportError, AttributeError):
-            die("No installer for this distribution.")
+        modname = str(self).replace('-', '_')
+        mod = importlib.import_module(f"mkosi.distributions.{modname}")
+        installer = getattr(mod, "Installer")
+        assert issubclass(installer, DistributionInstaller)
+        return cast(type[DistributionInstaller], installer)
 
 
 def detect_distribution() -> tuple[Optional[Distribution], Optional[str]]:

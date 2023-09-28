@@ -15,7 +15,7 @@ from mkosi.state import MkosiState
 from mkosi.util import umask
 
 
-class DebianInstaller(DistributionInstaller):
+class Installer(DistributionInstaller):
     @classmethod
     def filesystem(cls) -> str:
         return "ext4"

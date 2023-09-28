@@ -57,7 +57,7 @@ def invoke_emerge(state: MkosiState, packages: Sequence[str] = (), apivfs: bool 
     )
 
 
-class GentooInstaller(DistributionInstaller):
+class Installer(DistributionInstaller):
     @classmethod
     def filesystem(cls) -> str:
         return "btrfs"
