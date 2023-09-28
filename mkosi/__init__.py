@@ -309,6 +309,9 @@ def run_prepare_scripts(state: MkosiState, build: bool) -> None:
         MKOSI_UID=str(state.uid),
         SCRIPT="/work/prepare",
         SRCDIR=str(Path.cwd()),
+        WITH_DOCS=one_zero(state.config.with_docs),
+        WITH_NETWORK=one_zero(state.config.with_network),
+        WITH_TESTS=one_zero(state.config.with_tests),
     )
 
     with contextlib.ExitStack() as stack:
