@@ -39,6 +39,7 @@ class OpensuseInstaller(DistributionInstaller):
             "ca-certificates",
             "coreutils",
             "cpio",
+            "curl",
             "dnf",
             "dosfstools",
             "e2fsprogs",

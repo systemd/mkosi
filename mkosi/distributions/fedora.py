@@ -38,6 +38,7 @@ class FedoraInstaller(DistributionInstaller):
             "ca-certificates",
             "coreutils",
             "cpio",
+            "curl-minimal",
             "debian-keyring",
             "dnf5",
             "dosfstools",
