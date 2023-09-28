@@ -743,13 +743,9 @@ def prepare_grub_bios(state: MkosiState, partitions: Sequence[Partition]) -> Non
     root = finalize_root(partitions)
     assert root
 
-    initrd = build_initrd(state)
-
     dst = state.root / "efi" / state.config.distribution.name
     with umask(~0o700):
         dst.mkdir(exist_ok=True)
-
-    initrd = Path(shutil.copy2(initrd, dst / "initrd"))
 
     with config.open("a") as f:
         f.write('if [ "${grub_platform}" == "pc" ]; then\n')
@@ -763,20 +759,24 @@ def prepare_grub_bios(state: MkosiState, partitions: Sequence[Partition]) -> Non
 
             with umask(~0o600):
                 kimg = Path(shutil.copy2(state.root / kimg, kdst / "vmlinuz"))
+                initrds = [
+                    Path(shutil.copy2(initrd, dst / initrd.name))
+                    for initrd in (state.config.initrds or [build_initrd(state)])
+                ]
                 kmods = Path(shutil.copy2(kmods, kdst / "kmods"))
 
                 distribution = state.config.distribution
-                image = kimg.relative_to(state.root / "efi")
+                image = Path("/") / kimg.relative_to(state.root / "efi")
                 cmdline = " ".join(state.config.kernel_command_line)
-                initrd = initrd.relative_to(state.root / "efi")
-                kmods = kmods.relative_to(state.root / "efi")
+                initrds = " ".join([os.fspath(Path("/") / initrd.relative_to(state.root / "efi")) for initrd in initrds])
+                kmods = Path("/") / kmods.relative_to(state.root / "efi")
 
                 f.write(
                     textwrap.dedent(
                         f"""\
                         menuentry "{distribution}-{kver}" {{
-                            linux /{image} {root} {cmdline}
-                            initrd /{initrd} /{kmods}
+                            linux {image} {root} {cmdline}
+                            initrd {initrds} {kmods}
                         }}
                         """
                     )
@@ -1153,12 +1153,6 @@ def install_uki(state: MkosiState, partitions: Sequence[Partition]) -> None:
         return
 
     roothash = finalize_roothash(partitions)
-    initrds = []
-
-    if state.config.initrds:
-        initrds = state.config.initrds
-    elif any(gen_kernel_images(state)):
-        initrds = [build_initrd(state)]
 
     for kver, kimg in gen_kernel_images(state):
         with complete_step(f"Generating unified kernel image for {kimg}"):
@@ -1180,6 +1174,8 @@ def install_uki(state: MkosiState, partitions: Sequence[Partition]) -> None:
                 boot_binary = state.root / f"efi/EFI/Linux/{image_id}-{kver}-{h}{boot_count}.efi"
             else:
                 boot_binary = state.root / f"efi/EFI/Linux/{image_id}-{kver}{boot_count}.efi"
+
+            initrds = state.config.initrds.copy() or [build_initrd(state)]
 
             if state.config.kernel_modules_initrd:
                 initrds += [build_kernel_modules_initrd(state, kver)]
