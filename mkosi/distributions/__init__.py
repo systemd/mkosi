@@ -24,19 +24,19 @@ class PackageType(StrEnum):
 class DistributionInstaller:
     @classmethod
     def setup(cls, state: "MkosiState") -> None:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @classmethod
     def install(cls, state: "MkosiState") -> None:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @classmethod
     def install_packages(cls, state: "MkosiState", packages: Sequence[str]) -> None:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @classmethod
     def remove_packages(cls, state: "MkosiState", packages: Sequence[str]) -> None:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @classmethod
     def filesystem(cls) -> str:
