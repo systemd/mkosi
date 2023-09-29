@@ -1383,6 +1383,28 @@ Scripts executed by mkosi receive the following environment variables:
   with `setpriv` to run commands as the user that invoked mkosi (e.g.
   `setpriv --reuid=$MKOSI_UID --regid=$MKOSI_GID --clear-groups <command>`)
 
+Consult this table for which script receives which environment variables:
+
+| Variable            | `mkosi.prepare` | `mkosi.build` | `mkosi.postinst` | `mkosi.finalize` |
+|---------------------|-----------------|---------------|------------------|------------------|
+| `$CHROOT_SCRIPT`    | X               | X             | X                | X                |
+| `$SRCDIR`           | X               | X             | X                | X                |
+| `CHROOT_SRCDIR`     | X               | X             | X                | X                |
+| `$BUILDDIR`         |                 | X             |                  |                  |
+| `CHROOT_BUILDDIR`   |                 | X             |                  |                  |
+| `DESTDIR`           |                 | X             |                  |                  |
+| `CHROOT_DESTDIR`    |                 | X             |                  |                  |
+| `$OUTPUTDIR`        |                 | X             | X                | X                |
+| `CHROOT_OUTPUTDIR`  |                 | X             | X                | X                |
+| `$BUILDROOT`        | X               | X             | X                | X                |
+| `WITH_DOCS`         | X               | X             |                  |                  |
+| `WITH_TESTS`        | X               | X             |                  |                  |
+| `WITH_NETWORK`      | X               | X             |                  |                  |
+| `SOURCE_DATE_EPOCH` | X               | X             | X                | X                |
+| `MKOSI_UID`         | X               | X             | X                | X                |
+| `MKOSI_GID`         | X               | X             | X                | X                |
+
+
 Additionally, when a script is executed, a few scripts are made
 available via `$PATH` to simplify common usecases.
 

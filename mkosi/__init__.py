@@ -302,13 +302,16 @@ def run_prepare_scripts(state: MkosiState, build: bool) -> None:
         return
 
     env = dict(
-        SCRIPT="/work/prepare",
-        CHROOT_SCRIPT="/work/prepare",
-        SRCDIR=str(Path.cwd()),
-        CHROOT_SRCDIR="/work/src",
         BUILDROOT=str(state.root),
-        MKOSI_UID=str(state.uid),
+        CHROOT_SCRIPT="/work/prepare",
+        CHROOT_SRCDIR="/work/src",
         MKOSI_GID=str(state.gid),
+        MKOSI_UID=str(state.uid),
+        SCRIPT="/work/prepare",
+        SRCDIR=str(Path.cwd()),
+        WITH_DOCS=one_zero(state.config.with_docs),
+        WITH_NETWORK=one_zero(state.config.with_network),
+        WITH_TESTS=one_zero(state.config.with_tests),
     )
 
     with contextlib.ExitStack() as stack:
@@ -349,20 +352,20 @@ def run_build_scripts(state: MkosiState) -> None:
         return
 
     env = dict(
-        WITH_DOCS=one_zero(state.config.with_docs),
-        WITH_TESTS=one_zero(state.config.with_tests),
-        WITH_NETWORK=one_zero(state.config.with_network),
-        SCRIPT="/work/build-script",
+        BUILDROOT=str(state.root),
+        CHROOT_DESTDIR="/work/dest",
+        CHROOT_OUTPUTDIR="/work/out",
         CHROOT_SCRIPT="/work/build-script",
-        SRCDIR=str(Path.cwd()),
         CHROOT_SRCDIR="/work/src",
         DESTDIR=str(state.install_dir),
-        CHROOT_DESTDIR="/work/dest",
-        OUTPUTDIR=str(state.staging),
-        CHROOT_OUTPUTDIR="/work/out",
-        BUILDROOT=str(state.root),
-        MKOSI_UID=str(state.uid),
         MKOSI_GID=str(state.gid),
+        MKOSI_UID=str(state.uid),
+        OUTPUTDIR=str(state.staging),
+        SCRIPT="/work/build-script",
+        SRCDIR=str(Path.cwd()),
+        WITH_DOCS=one_zero(state.config.with_docs),
+        WITH_NETWORK=one_zero(state.config.with_network),
+        WITH_TESTS=one_zero(state.config.with_tests),
     )
 
     if state.config.build_dir is not None:
@@ -408,15 +411,15 @@ def run_postinst_scripts(state: MkosiState) -> None:
         return
 
     env = dict(
-        SCRIPT="/work/postinst",
-        CHROOT_SCRIPT="/work/postinst",
-        SRCDIR=str(Path.cwd()),
-        CHROOT_SRCDIR="/work/src",
-        OUTPUTDIR=str(state.staging),
-        CHROOT_OUTPUTDIR="/work/out",
         BUILDROOT=str(state.root),
-        MKOSI_UID=str(state.uid),
+        CHROOT_OUTPUTDIR="/work/out",
+        CHROOT_SCRIPT="/work/postinst",
+        CHROOT_SRCDIR="/work/src",
         MKOSI_GID=str(state.gid),
+        MKOSI_UID=str(state.uid),
+        OUTPUTDIR=str(state.staging),
+        SCRIPT="/work/postinst",
+        SRCDIR=str(Path.cwd()),
     )
 
     for script in state.config.postinst_scripts:
@@ -450,15 +453,15 @@ def run_finalize_scripts(state: MkosiState) -> None:
         return
 
     env = dict(
-        SCRIPT="/work/finalize",
-        CHROOT_SCRIPT="/work/finalize",
-        SRCDIR=str(Path.cwd()),
-        CHROOT_SRCDIR="/work/src",
-        OUTPUTDIR=str(state.staging),
-        CHROOT_OUTPUTDIR="/work/out",
         BUILDROOT=str(state.root),
-        MKOSI_UID=str(state.uid),
+        CHROOT_OUTPUTDIR="/work/out",
+        CHROOT_SCRIPT="/work/finalize",
+        CHROOT_SRCDIR="/work/src",
         MKOSI_GID=str(state.gid),
+        MKOSI_UID=str(state.uid),
+        OUTPUTDIR=str(state.staging),
+        SCRIPT="/work/finalize",
+        SRCDIR=str(Path.cwd()),
     )
 
     for script in state.config.finalize_scripts:
