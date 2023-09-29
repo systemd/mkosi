@@ -11,6 +11,10 @@ from mkosi.state import MkosiState
 
 class Installer(DistributionInstaller):
     @classmethod
+    def pretty_name(cls) -> str:
+        return "OpenMandriva"
+
+    @classmethod
     def filesystem(cls) -> str:
         return "ext4"
 

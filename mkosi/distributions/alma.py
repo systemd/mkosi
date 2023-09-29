@@ -6,6 +6,10 @@ from mkosi.installer.dnf import Repo
 
 
 class Installer(centos.Installer):
+    @classmethod
+    def pretty_name(cls) -> str:
+        return "AlmaLinux"
+
     @staticmethod
     def gpgurls() -> tuple[str, ...]:
         return ("https://repo.almalinux.org/almalinux/RPM-GPG-KEY-AlmaLinux-$releasever",)

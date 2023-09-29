@@ -15,6 +15,10 @@ from mkosi.state import MkosiState
 
 class Installer(DistributionInstaller):
     @classmethod
+    def pretty_name(cls) -> str:
+        return "openSUSE"
+
+    @classmethod
     def filesystem(cls) -> str:
         return "btrfs"
 

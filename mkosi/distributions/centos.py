@@ -36,6 +36,10 @@ def join_mirror(config: MkosiConfig, link: str) -> str:
 
 class Installer(DistributionInstaller):
     @classmethod
+    def pretty_name(cls) -> str:
+        return "CentOS"
+
+    @classmethod
     def filesystem(cls) -> str:
         return "xfs"
 

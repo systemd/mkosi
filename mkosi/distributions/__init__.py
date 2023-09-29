@@ -23,6 +23,10 @@ class PackageType(StrEnum):
 
 class DistributionInstaller:
     @classmethod
+    def pretty_name(cls) -> str:
+        raise NotImplementedError
+
+    @classmethod
     def setup(cls, state: "MkosiState") -> None:
         raise NotImplementedError
 

@@ -12,6 +12,10 @@ from mkosi.state import MkosiState
 
 class Installer(DistributionInstaller):
     @classmethod
+    def pretty_name(cls) -> str:
+        return "Fedora Linux"
+
+    @classmethod
     def filesystem(cls) -> str:
         return "btrfs"
 

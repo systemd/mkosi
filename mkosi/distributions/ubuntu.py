@@ -7,6 +7,10 @@ from mkosi.state import MkosiState
 
 class Installer(debian.Installer):
     @classmethod
+    def pretty_name(cls) -> str:
+        return "Ubuntu"
+
+    @classmethod
     def default_release(cls) -> str:
         return "lunar"
 
