@@ -1730,6 +1730,7 @@ SETTINGS = (
     ),
     MkosiConfigSetting(
         dest="tools_tree_packages",
+        long="--tools-tree-package",
         metavar="PACKAGE",
         section="Host",
         parse=config_make_list_parser(delimiter=","),
