@@ -1002,6 +1002,7 @@ def build_initrd(state: MkosiState) -> Path:
         "--package", "util-linux",
         "--package", "kmod",
         *(["--package", "dmsetup"] if state.config.distribution.is_apt_distribution() else []),
+        *flatten(["--package", package] for package in state.config.initrd_packages),
         "--output", f"{state.config.output}-initrd",
         *(["--image-version", state.config.image_version] if state.config.image_version else []),
         "--make-initrd", "yes",

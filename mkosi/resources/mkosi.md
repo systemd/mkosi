@@ -874,7 +874,14 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 : Use user-provided initrd(s). Takes a comma separated list of paths to
   initrd files. This option may be used multiple times in which case the
-  initrd lists are combined.
+  initrd lists are combined. If no initrds are specified and a bootable
+  image is requested, mkosi will automatically build a default initrd.
+
+`InitrdPackages=`, `--initrd-package=`
+
+: Extra packages to install into the default initrd. Takes a comma
+  separated list of package specifications. This option may be used
+  multiple times in which case the specified package lists are combined.
 
 `KernelCommandLine=`, `--kernel-command-line=`
 

@@ -728,6 +728,7 @@ class MkosiConfig:
     bootloader: Bootloader
     bios_bootloader: BiosBootloader
     initrds: list[Path]
+    initrd_packages: list[str]
     kernel_command_line: list[str]
     kernel_modules_include: list[str]
     kernel_modules_exclude: list[str]
@@ -1360,6 +1361,14 @@ SETTINGS = (
         section="Content",
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser(required=False)),
         help="Add a user-provided initrd to image",
+    ),
+    MkosiConfigSetting(
+        dest="initrd_packages",
+        long="--initrd-package",
+        metavar="PACKAGE",
+        section="Content",
+        parse=config_make_list_parser(delimiter=","),
+        help="Add additional packages to the default initrd",
     ),
     MkosiConfigSetting(
         dest="kernel_command_line",
@@ -2449,6 +2458,7 @@ Clean Package Manager Metadata: {yes_no_auto(config.clean_package_metadata)}
                     Bootloader: {config.bootloader}
                BIOS Bootloader: {config.bios_bootloader}
                        Initrds: {line_join_list(config.initrds)}
+               Initrd Packages: {line_join_list(config.initrd_packages)}
            Kernel Command Line: {line_join_list(config.kernel_command_line)}
         Kernel Modules Include: {line_join_list(config.kernel_modules_include)}
         Kernel Modules Exclude: {line_join_list(config.kernel_modules_exclude)}
