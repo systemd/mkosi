@@ -1,11 +1,15 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 from mkosi.config import MkosiConfig
-from mkosi.distributions.centos import CentosInstaller
+from mkosi.distributions import centos
 from mkosi.installer.dnf import Repo
 
 
-class RockyInstaller(CentosInstaller):
+class Installer(centos.Installer):
+    @classmethod
+    def pretty_name(cls) -> str:
+        return "Rocky Linux"
+
     @staticmethod
     def gpgurls() -> tuple[str, ...]:
         return ("https://download.rockylinux.org/pub/rocky/RPM-GPG-KEY-Rocky-$releasever",)

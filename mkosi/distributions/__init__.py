@@ -7,7 +7,6 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Optional, cast
 
 from mkosi.architecture import Architecture
-from mkosi.log import die
 from mkosi.util import StrEnum, read_os_release
 
 if TYPE_CHECKING:
@@ -24,20 +23,24 @@ class PackageType(StrEnum):
 
 class DistributionInstaller:
     @classmethod
+    def pretty_name(cls) -> str:
+        raise NotImplementedError
+
+    @classmethod
     def setup(cls, state: "MkosiState") -> None:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @classmethod
     def install(cls, state: "MkosiState") -> None:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @classmethod
     def install_packages(cls, state: "MkosiState", packages: Sequence[str]) -> None:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @classmethod
     def remove_packages(cls, state: "MkosiState", packages: Sequence[str]) -> None:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @classmethod
     def filesystem(cls) -> str:
@@ -72,6 +75,7 @@ class Distribution(StrEnum):
     opensuse     = enum.auto()
     mageia       = enum.auto()
     centos       = enum.auto()
+    rhel_ubi     = enum.auto()
     openmandriva = enum.auto()
     rocky        = enum.auto()
     alma         = enum.auto()
@@ -85,6 +89,7 @@ class Distribution(StrEnum):
             Distribution.fedora,
             Distribution.mageia,
             Distribution.centos,
+            Distribution.rhel_ubi,
             Distribution.openmandriva,
             Distribution.rocky,
             Distribution.alma,
@@ -124,14 +129,11 @@ class Distribution(StrEnum):
         return self.installer().tools_tree_packages()
 
     def installer(self) -> type[DistributionInstaller]:
-        try:
-            mod = importlib.import_module(f"mkosi.distributions.{self}")
-            installer = getattr(mod, f"{str(self).title().replace('_','')}Installer")
-            if not issubclass(installer, DistributionInstaller):
-                die(f"Distribution installer for {self} is not a subclass of DistributionInstaller")
-            return cast(type[DistributionInstaller], installer)
-        except (ImportError, AttributeError):
-            die("No installer for this distribution.")
+        modname = str(self).replace('-', '_')
+        mod = importlib.import_module(f"mkosi.distributions.{modname}")
+        installer = getattr(mod, "Installer")
+        assert issubclass(installer, DistributionInstaller)
+        return cast(type[DistributionInstaller], installer)
 
 
 def detect_distribution() -> tuple[Optional[Distribution], Optional[str]]:

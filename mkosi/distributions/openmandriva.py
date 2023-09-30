@@ -9,7 +9,11 @@ from mkosi.log import die
 from mkosi.state import MkosiState
 
 
-class OpenmandrivaInstaller(DistributionInstaller):
+class Installer(DistributionInstaller):
+    @classmethod
+    def pretty_name(cls) -> str:
+        return "OpenMandriva"
+
     @classmethod
     def filesystem(cls) -> str:
         return "ext4"

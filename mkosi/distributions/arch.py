@@ -9,7 +9,11 @@ from mkosi.log import die
 from mkosi.state import MkosiState
 
 
-class ArchInstaller(DistributionInstaller):
+class Installer(DistributionInstaller):
+    @classmethod
+    def pretty_name(cls) -> str:
+        return "Arch Linux"
+
     @classmethod
     def filesystem(cls) -> str:
         return "ext4"

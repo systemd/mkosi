@@ -15,7 +15,11 @@ from mkosi.state import MkosiState
 from mkosi.util import umask
 
 
-class DebianInstaller(DistributionInstaller):
+class Installer(DistributionInstaller):
+    @classmethod
+    def pretty_name(cls) -> str:
+        return "Debian"
+
     @classmethod
     def filesystem(cls) -> str:
         return "ext4"

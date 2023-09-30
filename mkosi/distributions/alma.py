@@ -1,11 +1,15 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 from mkosi.config import MkosiConfig
-from mkosi.distributions.centos import CentosInstaller
+from mkosi.distributions import centos
 from mkosi.installer.dnf import Repo
 
 
-class AlmaInstaller(CentosInstaller):
+class Installer(centos.Installer):
+    @classmethod
+    def pretty_name(cls) -> str:
+        return "AlmaLinux"
+
     @staticmethod
     def gpgurls() -> tuple[str, ...]:
         return ("https://repo.almalinux.org/almalinux/RPM-GPG-KEY-AlmaLinux-$releasever",)

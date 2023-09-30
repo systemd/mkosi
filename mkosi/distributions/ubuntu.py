@@ -1,11 +1,15 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 from mkosi.architecture import Architecture
-from mkosi.distributions.debian import DebianInstaller
+from mkosi.distributions import debian
 from mkosi.state import MkosiState
 
 
-class UbuntuInstaller(DebianInstaller):
+class Installer(debian.Installer):
+    @classmethod
+    def pretty_name(cls) -> str:
+        return "Ubuntu"
+
     @classmethod
     def default_release(cls) -> str:
         return "lunar"
