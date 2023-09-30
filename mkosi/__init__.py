@@ -2389,8 +2389,6 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
     if args.verb == Verb.bump:
         return bump_image_version()
 
-    presets = finalize_tools(args, presets)
-
     if args.verb == Verb.summary:
         text = ""
 
@@ -2400,6 +2398,7 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
         page(text, args.pager)
         return
 
+    presets = finalize_tools(args, presets)
     last = presets[-1]
 
     if args.verb in (Verb.shell, Verb.boot):
