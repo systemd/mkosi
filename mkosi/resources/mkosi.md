@@ -1166,9 +1166,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `ToolsTreePackages=`, `--tools-tree-packages=`
 
-: Extra packages to install into the tools tree. Takes a comma separated list
-  of package specifications. This option may be used multiple times in which
-  case the specified package lists are combined.
+: Extra packages to install into the default tools tree. Takes a comma
+  separated list of package specifications. This option may be used
+  multiple times in which case the specified package lists are combined.
 
 `RuntimeTrees=`, `--runtime-tree=`
 

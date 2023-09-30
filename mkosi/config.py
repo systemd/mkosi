@@ -1733,7 +1733,7 @@ SETTINGS = (
         metavar="PACKAGE",
         section="Host",
         parse=config_make_list_parser(delimiter=","),
-        help="Add additional packages to the tools tree",
+        help="Add additional packages to the default tools tree",
     ),
     MkosiConfigSetting(
         dest="runtime_trees",
