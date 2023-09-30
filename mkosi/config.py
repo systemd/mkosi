@@ -18,9 +18,9 @@ import shutil
 import subprocess
 import textwrap
 import uuid
-from collections.abc import Iterable, Iterator, Sequence
+from collections.abc import Collection, Iterable, Iterator, Sequence
 from pathlib import Path
-from typing import Any, Callable, Optional, Union, cast
+from typing import Any, Callable, Collection, Optional, Union, cast
 
 from mkosi.architecture import Architecture
 from mkosi.distributions import Distribution, detect_distribution
@@ -870,7 +870,7 @@ class MkosiConfig:
         }
 
 
-def parse_ini(path: Path, only_sections: Sequence[str] = ()) -> Iterator[tuple[str, str, str]]:
+def parse_ini(path: Path, only_sections: Collection[str] = ()) -> Iterator[tuple[str, str, str]]:
     """
     We have our own parser instead of using configparser as the latter does not support specifying the same
     setting multiple times in the same configuration file.
@@ -2039,9 +2039,7 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
         if path.exists():
             logging.debug(f"Including configuration file {Path.cwd() / path}")
 
-            for section, k, v in parse_ini(
-                path, only_sections=["Distribution", "Output", "Content", "Validation", "Host", "Preset"]
-            ):
+            for section, k, v in parse_ini(path, only_sections={s.section for s in SETTINGS}):
                 name = k.removeprefix("@")
                 ns = namespace if k == name else defaults
 
