@@ -2027,7 +2027,7 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
 
         return triggered is not False
 
-    def parse_config( path: Path, namespace: argparse.Namespace, defaults: argparse.Namespace) -> bool:
+    def parse_config(path: Path, namespace: argparse.Namespace, defaults: argparse.Namespace) -> bool:
         extras = path.is_dir()
 
         if path.is_dir():
