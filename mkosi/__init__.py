@@ -2330,6 +2330,7 @@ def finalize_tools(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> Sequence[
             "--manifest-format", "",
             *(["--source-date-epoch", str(p.source_date_epoch)] if p.source_date_epoch is not None else []),
             *([f"--environment={k}='{v}'" for k, v in p.environment.items()]),
+            *flatten(["--repositories", repo] for repo in distribution.tools_tree_repositories()),
             *(["-f"] * args.force),
             "build",
         ]
