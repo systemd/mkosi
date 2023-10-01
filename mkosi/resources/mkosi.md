@@ -874,7 +874,14 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 : Use user-provided initrd(s). Takes a comma separated list of paths to
   initrd files. This option may be used multiple times in which case the
-  initrd lists are combined.
+  initrd lists are combined. If no initrds are specified and a bootable
+  image is requested, mkosi will automatically build a default initrd.
+
+`InitrdPackages=`, `--initrd-package=`
+
+: Extra packages to install into the default initrd. Takes a comma
+  separated list of package specifications. This option may be used
+  multiple times in which case the specified package lists are combined.
 
 `KernelCommandLine=`, `--kernel-command-line=`
 
@@ -1149,7 +1156,47 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   given tools tree.
 
 : If set to `default`, mkosi will automatically add an extra tools tree
-  preset and use it as the tools tree.
+  preset and use it as the tools tree. The following table shows for
+  which distributions default tools tree packages are defined and which
+  packages are included in those default tools trees:
+
+  |                     | Fedora | CentOS | Debian |  Arch  | openSUSE |
+  |---------------------|--------|--------|--------|--------|----------|
+  | `apt`               | X      | X      | X      |        |          |
+  | `archlinux-keyring` | X      |        | X      | X      |          |
+  | `bash`              | X      | X      | X      | X      | X        |
+  | `btrfs-progs`       | X      |        | X      | X      | X        |
+  | `bubblewrap`        | X      | X      | X      | X      | X        |
+  | `ca-certificates`   | X      | X      | X      | X      | X        |
+  | `coreutils`         | X      | X      | X      | X      | X        |
+  | `cpio`              | X      | X      | X      | X      | X        |
+  | `curl`              | X      | X      | X      | X      | X        |
+  | `debian-keyring`    | X      | X      | X      | X      |          |
+  | `dnf`               | X      | X      | X      | X      | X        |
+  | `dosfstools`        | X      | X      | X      | X      | X        |
+  | `e2fsprogs`         | X      | X      | X      | X      | X        |
+  | `edk2-ovmf`         | X      | X      | X      | X      | X        |
+  | `erofs-utils`       | X      |        | X      | X      | X        |
+  | `mtools`            | X      | X      | X      | X      | X        |
+  | `openssh`           | X      | X      | X      | X      | X        |
+  | `openssl`           | X      | X      | X      | X      | X        |
+  | `pacman`            | X      |        | X      | X      |          |
+  | `pesign`            |        | X      |        |        |          |
+  | `qemu`              | X      | X      | X      | X      | X        |
+  | `sbsigntools`       | X      |        | X      | X      | X        |
+  | `socat`             | X      | X      | X      | X      | X        |
+  | `squashfs-tools`    | X      | X      | X      | X      | X        |
+  | `strace`            | X      | X      | X      | X      | X        |
+  | `swtpm`             | X      | X      | X      | X      | X        |
+  | `systemd`           | X      | X      | X      | X      | X        |
+  | `ukify`             | X      |        | X      | X      | X        |
+  | `tar`               | X      | X      | X      | X      | X        |
+  | `util-linux`        | X      | X      | X      | X      | X        |
+  | `virtiofsd`         | X      | X      |        | X      | X        |
+  | `xfsprogs`          | X      | X      | X      | X      | X        |
+  | `xz`                | X      | X      | X      | X      | X        |
+  | `zstd`              | X      | X      | X      | X      | X        |
+  | `zypper`            | X      |        | X      | X      |          |
 
 `ToolsTreeDistribution=`, `--tools-tree-distribution=`
 
@@ -1166,9 +1213,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `ToolsTreePackages=`, `--tools-tree-packages=`
 
-: Extra packages to install into the tools tree. Takes a comma separated list
-  of package specifications. This option may be used multiple times in which
-  case the specified package lists are combined.
+: Extra packages to install into the default tools tree. Takes a comma
+  separated list of package specifications. This option may be used
+  multiple times in which case the specified package lists are combined.
 
 `RuntimeTrees=`, `--runtime-tree=`
 

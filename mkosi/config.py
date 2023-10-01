@@ -728,6 +728,7 @@ class MkosiConfig:
     bootloader: Bootloader
     bios_bootloader: BiosBootloader
     initrds: list[Path]
+    initrd_packages: list[str]
     kernel_command_line: list[str]
     kernel_modules_include: list[str]
     kernel_modules_exclude: list[str]
@@ -1362,6 +1363,14 @@ SETTINGS = (
         help="Add a user-provided initrd to image",
     ),
     MkosiConfigSetting(
+        dest="initrd_packages",
+        long="--initrd-package",
+        metavar="PACKAGE",
+        section="Content",
+        parse=config_make_list_parser(delimiter=","),
+        help="Add additional packages to the default initrd",
+    ),
+    MkosiConfigSetting(
         dest="kernel_command_line",
         metavar="OPTIONS",
         section="Content",
@@ -1730,10 +1739,11 @@ SETTINGS = (
     ),
     MkosiConfigSetting(
         dest="tools_tree_packages",
+        long="--tools-tree-package",
         metavar="PACKAGE",
         section="Host",
         parse=config_make_list_parser(delimiter=","),
-        help="Add additional packages to the tools tree",
+        help="Add additional packages to the default tools tree",
     ),
     MkosiConfigSetting(
         dest="runtime_trees",
@@ -2448,6 +2458,7 @@ Clean Package Manager Metadata: {yes_no_auto(config.clean_package_metadata)}
                     Bootloader: {config.bootloader}
                BIOS Bootloader: {config.bios_bootloader}
                        Initrds: {line_join_list(config.initrds)}
+               Initrd Packages: {line_join_list(config.initrd_packages)}
            Kernel Command Line: {line_join_list(config.kernel_command_line)}
         Kernel Modules Include: {line_join_list(config.kernel_modules_include)}
         Kernel Modules Exclude: {line_join_list(config.kernel_modules_exclude)}
@@ -2499,6 +2510,7 @@ Clean Package Manager Metadata: {yes_no_auto(config.clean_package_metadata)}
                     Tools Tree: {config.tools_tree}
        Tools Tree Distribution: {none_to_none(config.tools_tree_distribution)}
             Tools Tree Release: {none_to_none(config.tools_tree_release)}
+           Tools Tree Packages: {line_join_list(config.tools_tree_packages)}
                  Runtime Trees: {line_join_source_target_list(config.runtime_trees)}
 
                       QEMU GUI: {yes_no(config.qemu_gui)}

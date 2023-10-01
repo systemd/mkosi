@@ -56,14 +56,20 @@ class Installer(DistributionInstaller):
         return Distribution.fedora
 
     @classmethod
+    def tools_tree_repositories(cls) -> list[str]:
+        return ["epel", "epel-next"]
+
+    @classmethod
     def tools_tree_packages(cls) -> list[str]:
         return [
+            "apt",
             "bash",
             "bubblewrap",
             "ca-certificates",
             "coreutils",
             "cpio",
             "curl",
+            "debian-keyring",
             "dnf",
             "dosfstools",
             "e2fsprogs",

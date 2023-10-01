@@ -1002,6 +1002,7 @@ def build_initrd(state: MkosiState) -> Path:
         "--package", "util-linux",
         "--package", "kmod",
         *(["--package", "dmsetup"] if state.config.distribution.is_apt_distribution() else []),
+        *flatten(["--package", package] for package in state.config.initrd_packages),
         "--output", f"{state.config.output}-initrd",
         *(["--image-version", state.config.image_version] if state.config.image_version else []),
         "--make-initrd", "yes",
@@ -2330,13 +2331,14 @@ def finalize_tools(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> Sequence[
             "--format", "directory",
             *flatten(
                 ["--package", package]
-                for package in itertools.chain(distribution.tools_tree_packages(), p.tools_tree_packages))
-            ,
+                for package in itertools.chain(distribution.tools_tree_packages(), p.tools_tree_packages)
+            ),
             "--output", f"{distribution}-tools",
             "--bootable", "no",
             "--manifest-format", "",
             *(["--source-date-epoch", str(p.source_date_epoch)] if p.source_date_epoch is not None else []),
             *([f"--environment={k}='{v}'" for k, v in p.environment.items()]),
+            *flatten(["--repositories", repo] for repo in distribution.tools_tree_repositories()),
             *(["-f"] * args.force),
             "build",
         ]
@@ -2395,8 +2397,6 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
     if args.verb == Verb.bump:
         return bump_image_version()
 
-    presets = finalize_tools(args, presets)
-
     if args.verb == Verb.summary:
         text = ""
 
@@ -2406,6 +2406,7 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
         page(text, args.pager)
         return
 
+    presets = finalize_tools(args, presets)
     last = presets[-1]
 
     if args.verb in (Verb.shell, Verb.boot):

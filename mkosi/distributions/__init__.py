@@ -63,6 +63,10 @@ class DistributionInstaller:
         return None
 
     @classmethod
+    def tools_tree_repositories(cls) -> list[str]:
+        return []
+
+    @classmethod
     def tools_tree_packages(cls) -> list[str]:
         return []
 
@@ -124,6 +128,9 @@ class Distribution(StrEnum):
 
     def default_tools_tree_distribution(self) -> Optional["Distribution"]:
         return self.installer().default_tools_tree_distribution()
+
+    def tools_tree_repositories(self) -> list[str]:
+        return self.installer().tools_tree_repositories()
 
     def tools_tree_packages(self) -> list[str]:
         return self.installer().tools_tree_packages()
