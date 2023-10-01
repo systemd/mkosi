@@ -16,6 +16,7 @@ from mkosi.config import (
     ConfigFeature,
     OutputFormat,
     Verb,
+    config_parse_bytes,
     parse_config,
     parse_ini,
 )
@@ -609,3 +610,24 @@ def test_wrong_section_warning(
             parse_config(args)
 
         assert len(caplog.records) == warning_count
+
+
+def test_config_parse_bytes() -> None:
+    assert config_parse_bytes(None) is None
+    assert config_parse_bytes("1") == 4096
+    assert config_parse_bytes("8000") == 8192
+    assert config_parse_bytes("8K") == 8192
+    assert config_parse_bytes("4097") == 8192
+    assert config_parse_bytes("1M") == 1024**2
+    assert config_parse_bytes("1.9M") == 1994752
+    assert config_parse_bytes("1G") == 1024**3
+    assert config_parse_bytes("7.3G") == 7838318592
+
+    with pytest.raises(SystemExit):
+        config_parse_bytes("-1")
+    with pytest.raises(SystemExit):
+        config_parse_bytes("-2K")
+    with pytest.raises(SystemExit):
+        config_parse_bytes("-3M")
+    with pytest.raises(SystemExit):
+        config_parse_bytes("-4G")

@@ -11,6 +11,7 @@ import functools
 import graphlib
 import inspect
 import logging
+import math
 import operator
 import os.path
 import platform
@@ -498,6 +499,33 @@ def match_systemd_version(value: str) -> bool:
 
     version = run(["systemctl", "--version"], stdout=subprocess.PIPE).stdout.strip().split()[1]
     return config_match_version(value, version)
+
+
+def config_parse_bytes(value: Optional[str], old: Optional[int] = None) -> Optional[int]:
+    if not value:
+        return None
+
+    if value.endswith("G"):
+        factor = 1024**3
+    elif value.endswith("M"):
+        factor = 1024**2
+    elif value.endswith("K"):
+        factor = 1024
+    else:
+        factor = 1
+
+    if factor > 1:
+        value = value[:-1]
+
+    result = math.ceil(float(value) * factor)
+    if result <= 0:
+        die("Size out of range")
+
+    rem = result % 4096
+    if rem != 0:
+        result += 4096 - rem
+
+    return result
 
 
 @dataclasses.dataclass(frozen=True)
