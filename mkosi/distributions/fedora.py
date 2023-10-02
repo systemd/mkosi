@@ -53,6 +53,7 @@ class Installer(DistributionInstaller):
             "openssh-clients",
             "openssl",
             "pacman",
+            "pesign",
             "python3-cryptography",
             "qemu-kvm-core",
             "sbsigntools",
