@@ -366,6 +366,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   configuration is included after parsing all the other configuration
   files.
 
+: Note that each path containing extra configuration is only parsed
+  once, even if included more than once with `Include=`.
+
 ### [Preset] Section
 
 `Presets=`, `--preset=`
