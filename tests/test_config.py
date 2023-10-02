@@ -4,13 +4,21 @@ import argparse
 import itertools
 import logging
 import operator
+import os
 from pathlib import Path
 from typing import Optional
 
 import pytest
 
 from mkosi.architecture import Architecture
-from mkosi.config import Compression, OutputFormat, Verb, parse_config, parse_ini
+from mkosi.config import (
+    Compression,
+    ConfigFeature,
+    OutputFormat,
+    Verb,
+    parse_config,
+    parse_ini,
+)
 from mkosi.distributions import Distribution
 from mkosi.util import chdir
 
@@ -171,6 +179,36 @@ def test_parse_config(tmp_path: Path) -> None:
 
     # ImageVersion= is not set explicitly anymore, so now the version from mkosi.version should be used.
     assert config.image_version == "1.2.3"
+
+    (tmp_path / "abc").mkdir()
+    (tmp_path / "abc/mkosi.conf").write_text(
+        """\
+        [Content]
+        Bootable=yes
+        """
+    )
+    (tmp_path / "abc/mkosi.conf.d").mkdir()
+    (tmp_path / "abc/mkosi.conf.d/abc.conf").write_text(
+        """\
+        [Output]
+        SplitArtifacts=yes
+        """
+    )
+
+    with chdir(tmp_path):
+        _, [config] = parse_config()
+        assert config.bootable == ConfigFeature.auto
+        assert config.split_artifacts == False
+
+        # Passing the directory should include both the main config file and the dropin.
+        _, [config] = parse_config(["--include", os.fspath(tmp_path / "abc")])
+        assert config.bootable == ConfigFeature.enabled
+        assert config.split_artifacts == True
+
+        # Passing the main config file should not include the dropin.
+        _, [config] = parse_config(["--include", os.fspath(tmp_path / "abc/mkosi.conf")])
+        assert config.bootable == ConfigFeature.enabled
+        assert config.split_artifacts == False
 
 
 def test_parse_load_verb(tmp_path: Path) -> None:
@@ -558,7 +596,7 @@ def test_wrong_section_warning(
                 f"""\
                 [Distribution]
                 Distribution=fedora
-                
+
                 [{section}]
                 ImageId=testimage
                 """

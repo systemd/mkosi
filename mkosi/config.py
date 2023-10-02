@@ -2,6 +2,7 @@
 
 import argparse
 import base64
+import contextlib
 import copy
 import dataclasses
 import enum
@@ -18,9 +19,9 @@ import shutil
 import subprocess
 import textwrap
 import uuid
-from collections.abc import Iterable, Iterator, Sequence
+from collections.abc import Collection, Iterable, Iterator, Sequence
 from pathlib import Path
-from typing import Any, Callable, Optional, Union, cast
+from typing import Any, Callable, Optional, Type, Union, cast
 
 from mkosi.architecture import Architecture
 from mkosi.distributions import Distribution, detect_distribution
@@ -365,7 +366,8 @@ def config_make_enum_matcher(type: type[enum.Enum]) -> ConfigMatchCallback:
 def config_make_list_parser(delimiter: str,
                             *,
                             parse: Callable[[str], Any] = str,
-                            unescape: bool = False) -> ConfigParseCallback:
+                            unescape: bool = False,
+                            reset: bool = True) -> ConfigParseCallback:
     def config_parse_list(value: Optional[str], old: Optional[list[Any]]) -> Optional[list[Any]]:
         new = old.copy() if old else []
 
@@ -382,7 +384,7 @@ def config_make_list_parser(delimiter: str,
             values = value.replace(delimiter, "\n").split("\n")
 
         # Empty strings reset the list.
-        if len(values) == 1 and values[0] == "":
+        if reset and len(values) == 1 and values[0] == "":
             return None
 
         return new + [parse(v) for v in values if v]
@@ -598,37 +600,6 @@ class IgnoreAction(argparse.Action):
         logging.warning(f"{option_string} is no longer supported")
 
 
-def config_make_action(settings: Sequence[MkosiConfigSetting]) -> type[argparse.Action]:
-    lookup = {s.dest: s for s in settings}
-
-    class MkosiAction(argparse.Action):
-        def __call__(
-            self,
-            parser: argparse.ArgumentParser,
-            namespace: argparse.Namespace,
-            values: Union[str, Sequence[Any], None],
-            option_string: Optional[str] = None
-        ) -> None:
-            assert option_string is not None
-
-            if values is None and self.nargs == "?":
-                values = self.const or "yes"
-
-            try:
-                s = lookup[self.dest]
-            except KeyError:
-                die(f"Unknown setting {option_string}")
-
-            if values is None or isinstance(values, str):
-                setattr(namespace, s.dest, s.parse(values, getattr(namespace, self.dest, None)))
-            else:
-                for v in values:
-                    assert isinstance(v, str)
-                    setattr(namespace, s.dest, s.parse(v, getattr(namespace, self.dest, None)))
-
-    return MkosiAction
-
-
 class PagerHelpAction(argparse._HelpAction):
     def __call__(
         self,
@@ -672,6 +643,7 @@ class MkosiConfig:
     access the value from state.
     """
 
+    include: tuple[str, ...]
     presets: tuple[str]
     dependencies: tuple[str]
 
@@ -870,7 +842,7 @@ class MkosiConfig:
         }
 
 
-def parse_ini(path: Path, only_sections: Sequence[str] = ()) -> Iterator[tuple[str, str, str]]:
+def parse_ini(path: Path, only_sections: Collection[str] = ()) -> Iterator[tuple[str, str, str]]:
     """
     We have our own parser instead of using configparser as the latter does not support specifying the same
     setting multiple times in the same configuration file.
@@ -934,6 +906,12 @@ def parse_ini(path: Path, only_sections: Sequence[str] = ()) -> Iterator[tuple[s
 
 
 SETTINGS = (
+    MkosiConfigSetting(
+        dest="include",
+        section="Config",
+        parse=config_make_list_parser(delimiter=",", reset=False, parse=make_path_parser()),
+        help="Include configuration from the specified file or directory",
+    ),
     MkosiConfigSetting(
         dest="presets",
         long="--preset",
@@ -1767,9 +1745,7 @@ MATCHES = (
 )
 
 
-def create_argument_parser() -> argparse.ArgumentParser:
-    action = config_make_action(SETTINGS)
-
+def create_argument_parser(action: Type[argparse.Action]) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="mkosi",
         description="Build Bespoke OS Images",
@@ -1958,6 +1934,46 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
     settings_lookup_by_dest = {s.dest: s for s in SETTINGS}
     match_lookup = {m.name: m for m in MATCHES}
 
+    @contextlib.contextmanager
+    def parse_new_includes(
+        namespace: argparse.Namespace,
+        defaults: argparse.Namespace,
+    ) -> Iterator[None]:
+        l = len(getattr(namespace, "include", []))
+
+        try:
+            yield
+        finally:
+            # Parse any includes that were added after yielding.
+            for p in getattr(namespace, "include", [])[l:]:
+                parse_config(p, namespace, defaults)
+
+    class MkosiAction(argparse.Action):
+        def __call__(
+            self,
+            parser: argparse.ArgumentParser,
+            namespace: argparse.Namespace,
+            values: Union[str, Sequence[Any], None],
+            option_string: Optional[str] = None
+        ) -> None:
+            assert option_string is not None
+
+            if values is None and self.nargs == "?":
+                values = self.const or "yes"
+
+            try:
+                s = settings_lookup_by_dest[self.dest]
+            except KeyError:
+                die(f"Unknown setting {option_string}")
+
+            with parse_new_includes(namespace, defaults):
+                if values is None or isinstance(values, str):
+                    setattr(namespace, s.dest, s.parse(values, getattr(namespace, self.dest, None)))
+                else:
+                    for v in values:
+                        assert isinstance(v, str)
+                        setattr(namespace, s.dest, s.parse(v, getattr(namespace, self.dest, None)))
+
     def finalize_default(
         setting: MkosiConfigSetting,
         namespace: argparse.Namespace,
@@ -1978,7 +1994,9 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
         else:
             default = setting.default
 
-        setattr(namespace, setting.dest, default)
+        with parse_new_includes(namespace, defaults):
+            setattr(namespace, setting.dest, default)
+
         return default
 
     def match_config(path: Path, namespace: argparse.Namespace, defaults: argparse.Namespace) -> bool:
@@ -2027,7 +2045,7 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
 
         return triggered is not False
 
-    def parse_config( path: Path, namespace: argparse.Namespace, defaults: argparse.Namespace) -> bool:
+    def parse_config(path: Path, namespace: argparse.Namespace, defaults: argparse.Namespace) -> bool:
         extras = path.is_dir()
 
         if path.is_dir():
@@ -2039,9 +2057,7 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
         if path.exists():
             logging.debug(f"Including configuration file {Path.cwd() / path}")
 
-            for section, k, v in parse_ini(
-                path, only_sections=["Distribution", "Output", "Content", "Validation", "Host", "Preset"]
-            ):
+            for section, k, v in parse_ini(path, only_sections={s.section for s in SETTINGS}):
                 name = k.removeprefix("@")
                 ns = namespace if k == name else defaults
 
@@ -2055,7 +2071,8 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
                     canonical = s.name if k == name else f"@{s.name}"
                     logging.warning(f"Setting {k} is deprecated, please use {canonical} instead.")
 
-                setattr(ns, s.dest, s.parse(v, getattr(ns, s.dest, None)))
+                with parse_new_includes(namespace, defaults):
+                    setattr(ns, s.dest, s.parse(v, getattr(ns, s.dest, None)))
 
         if extras:
             for s in SETTINGS:
@@ -2107,7 +2124,7 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
         argv += ["--", "build"]
 
     namespace = argparse.Namespace()
-    argparser = create_argument_parser()
+    argparser = create_argument_parser(MkosiAction)
     argparser.parse_args(argv, namespace)
 
     args = load_args(namespace)
@@ -2397,6 +2414,9 @@ def summary(args: MkosiArgs, config: MkosiConfig) -> str:
     {bold("COMMANDS")}:
                           Verb: {bold(args.verb)}
                        Cmdline: {bold(" ".join(args.cmdline))}
+
+    {bold("CONFIG")}:
+                       Include: {line_join_list(config.include)}
 
     {bold("PRESET")}:
                        Presets: {line_join_list(config.presets)}

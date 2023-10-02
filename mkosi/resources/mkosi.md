@@ -356,6 +356,16 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 | `Format=`         | no    | no               | match default format    |
 | `SystemdVersion=` | no    | yes              | match fails             |
 
+### [Config] Section
+
+`Include=`, `--include=`
+
+: Include extra configuration from the given file or directory. The
+  extra configuration is included immediately after parsing the setting,
+  except when a default is set using `@Include=`, in which case the
+  configuration is included after parsing all the other configuration
+  files.
+
 ### [Preset] Section
 
 `Presets=`, `--preset=`
