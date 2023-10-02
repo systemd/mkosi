@@ -186,6 +186,7 @@ def test_parse_config(tmp_path: Path) -> None:
         """\
         [Content]
         Bootable=yes
+        BuildPackages=abc
         """
     )
     (tmp_path / "abc/mkosi.conf.d").mkdir()
@@ -202,9 +203,11 @@ def test_parse_config(tmp_path: Path) -> None:
         assert config.split_artifacts == False
 
         # Passing the directory should include both the main config file and the dropin.
-        _, [config] = parse_config(["--include", os.fspath(tmp_path / "abc")])
+        _, [config] = parse_config(["--include", os.fspath(tmp_path / "abc")] * 2)
         assert config.bootable == ConfigFeature.enabled
         assert config.split_artifacts == True
+        # The same extra config should not be parsed more than once.
+        assert config.build_packages == ["abc"]
 
         # Passing the main config file should not include the dropin.
         _, [config] = parse_config(["--include", os.fspath(tmp_path / "abc/mkosi.conf")])

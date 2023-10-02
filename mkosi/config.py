@@ -1969,6 +1969,8 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
     settings_lookup_by_name = {name: s for s in SETTINGS for name in [s.name, *s.compat_names]}
     settings_lookup_by_dest = {s.dest: s for s in SETTINGS}
     match_lookup = {m.name: m for m in MATCHES}
+    # Compare inodes instead of paths so we can't get tricked by bind mounts and such.
+    parsed_includes: set[tuple[int, int]] = set()
 
     @contextlib.contextmanager
     def parse_new_includes(
@@ -1982,7 +1984,13 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
         finally:
             # Parse any includes that were added after yielding.
             for p in getattr(namespace, "include", [])[l:]:
+                st = p.stat()
+
+                if (st.st_dev, st.st_ino) in parsed_includes:
+                    continue
+
                 parse_config(p, namespace, defaults)
+                parsed_includes.add((st.st_dev, st.st_ino))
 
     class MkosiAction(argparse.Action):
         def __call__(
