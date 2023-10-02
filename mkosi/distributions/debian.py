@@ -58,6 +58,7 @@ class Installer(DistributionInstaller):
             "openssl",
             "ovmf",
             "pacman-package-manager",
+            "pesign",
             "python3-cryptography",
             "python3-pefile",
             "qemu-system",

@@ -53,6 +53,7 @@ class Installer(DistributionInstaller):
             "openssh-clients",
             "openssl",
             "ovmf",
+            "pesign",
             "qemu-headless",
             "sbsigntools",
             "socat",

@@ -33,6 +33,7 @@ class Installer(DistributionInstaller):
     @classmethod
     def tools_tree_packages(cls) -> list[str]:
         return [
+            "apt",
             "archlinux-keyring",
             "base",
             "bash",
@@ -52,6 +53,7 @@ class Installer(DistributionInstaller):
             "openssh",
             "openssl",
             "pacman",
+            "pesign",
             "python-cryptography",
             "qemu-base",
             "sbsigntools",
