@@ -2260,16 +2260,7 @@ def load_credentials(args: argparse.Namespace) -> dict[str, str]:
 
 
 def load_kernel_command_line_extra(args: argparse.Namespace) -> list[str]:
-    columns, lines = shutil.get_terminal_size()
-
     cmdline = [
-        f"systemd.tty.term.console={os.getenv('TERM', 'vt220')}",
-        f"systemd.tty.columns.console={columns}",
-        f"systemd.tty.rows.console={lines}",
-        f"systemd.tty.term.ttyS0={os.getenv('TERM', 'vt220')}",
-        f"systemd.tty.columns.ttyS0={columns}",
-        f"systemd.tty.rows.ttyS0={lines}",
-        "console=ttyS0",
         # Make sure we set up networking in the VM/container.
         "systemd.wants=network.target",
         # Make sure we don't load vmw_vmci which messes with virtio vsock.
@@ -2288,6 +2279,18 @@ def load_kernel_command_line_extra(args: argparse.Namespace) -> list[str]:
     if args.qemu_cdrom:
         # CD-ROMs are read-only so tell systemd to boot in volatile mode.
         cmdline += ["systemd.volatile=yes"]
+
+    if not args.qemu_gui:
+        columns, lines = shutil.get_terminal_size()
+        cmdline += [
+            f"systemd.tty.term.console={os.getenv('TERM', 'vt220')}",
+            f"systemd.tty.columns.console={columns}",
+            f"systemd.tty.rows.console={lines}",
+            f"systemd.tty.term.ttyS0={os.getenv('TERM', 'vt220')}",
+            f"systemd.tty.columns.ttyS0={columns}",
+            f"systemd.tty.rows.ttyS0={lines}",
+            "console=ttyS0",
+        ]
 
     for s in args.kernel_command_line_extra:
         key, sep, value = s.partition("=")
