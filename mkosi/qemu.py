@@ -23,13 +23,14 @@ from mkosi.config import (
     MkosiConfig,
     OutputFormat,
     QemuFirmware,
+    format_bytes,
 )
 from mkosi.log import die
 from mkosi.partition import finalize_root, find_partitions
 from mkosi.run import MkosiAsyncioThread, run, spawn
 from mkosi.tree import copy_tree, rmtree
 from mkosi.types import PathString
-from mkosi.util import format_bytes, qemu_check_kvm_support, qemu_check_vsock_support
+from mkosi.util import qemu_check_kvm_support, qemu_check_vsock_support
 
 
 def machine_cid(config: MkosiConfig) -> int:
@@ -399,11 +400,11 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, uid: int, gid: int) -> None:
         else:
             fname = config.output_dir / config.output
 
-        if config.output_format == OutputFormat.disk and not config.qemu_cdrom:
+        if config.output_format == OutputFormat.disk and config.runtime_size:
             run(["systemd-repart",
                  "--definitions", "",
                  "--no-pager",
-                 "--size=8G",
+                 f"--size={config.runtime_size}",
                  "--pretty=no",
                  "--offline=yes",
                  fname])

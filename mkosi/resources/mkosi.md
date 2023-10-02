@@ -1242,6 +1242,13 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   machine in these directories will be owned by the user running mkosi
   on the host.
 
+`RuntimeSize=`, `--runtime-size`
+
+: If specified, disk images are grown to the specified size before
+  they're booted with systemd-nspawn or qemu. Takes a size in bytes.
+  Additionally, the suffixes `K`, `M` and `G` can be used to specify a
+  size in kilobytes, megabytes and gigabytes respectively.
+
 ## Supported distributions
 
 Images may be created containing installations of the following

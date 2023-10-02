@@ -11,6 +11,7 @@ import functools
 import graphlib
 import inspect
 import logging
+import math
 import operator
 import os.path
 import platform
@@ -500,6 +501,33 @@ def match_systemd_version(value: str) -> bool:
     return config_match_version(value, version)
 
 
+def config_parse_bytes(value: Optional[str], old: Optional[int] = None) -> Optional[int]:
+    if not value:
+        return None
+
+    if value.endswith("G"):
+        factor = 1024**3
+    elif value.endswith("M"):
+        factor = 1024**2
+    elif value.endswith("K"):
+        factor = 1024
+    else:
+        factor = 1
+
+    if factor > 1:
+        value = value[:-1]
+
+    result = math.ceil(float(value) * factor)
+    if result <= 0:
+        die("Size out of range")
+
+    rem = result % 4096
+    if rem != 0:
+        result += 4096 - rem
+
+    return result
+
+
 @dataclasses.dataclass(frozen=True)
 class MkosiConfigSetting:
     dest: str
@@ -745,6 +773,7 @@ class MkosiConfig:
     tools_tree_release: Optional[str]
     tools_tree_packages: list[str]
     runtime_trees: list[tuple[Path, Optional[Path]]]
+    runtime_size: Optional[int]
 
     # QEMU-specific options
     qemu_gui: bool
@@ -1731,6 +1760,13 @@ SETTINGS = (
         parse=config_make_list_parser(delimiter=",", parse=make_source_target_paths_parser()),
         help="Additional mounts to add when booting the image",
     ),
+    MkosiConfigSetting(
+        dest="runtime_size",
+        metavar="SIZE",
+        section="Host",
+        parse=config_parse_bytes,
+        help="Grow disk images to the specified size before booting them",
+    ),
 )
 
 MATCHES = (
@@ -2401,6 +2437,21 @@ def line_join_source_target_list(array: Sequence[tuple[Path, Optional[Path]]]) -
     return "\n                                ".join(items)
 
 
+def format_bytes(num_bytes: int) -> str:
+    if num_bytes >= 1024**3:
+        return f"{num_bytes/1024**3 :0.1f}G"
+    if num_bytes >= 1024**2:
+        return f"{num_bytes/1024**2 :0.1f}M"
+    if num_bytes >= 1024:
+        return f"{num_bytes/1024 :0.1f}K"
+
+    return f"{num_bytes}B"
+
+
+def format_bytes_or_none(num_bytes: Optional[int]) -> str:
+    return format_bytes(num_bytes) if num_bytes is not None else "none"
+
+
 def summary(args: MkosiArgs, config: MkosiConfig) -> str:
     def bold(s: Any) -> str:
         return f"{Style.bold}{s}{Style.reset}"
@@ -2532,6 +2583,7 @@ Clean Package Manager Metadata: {yes_no_auto(config.clean_package_metadata)}
             Tools Tree Release: {none_to_none(config.tools_tree_release)}
            Tools Tree Packages: {line_join_list(config.tools_tree_packages)}
                  Runtime Trees: {line_join_source_target_list(config.runtime_trees)}
+                  Runtime Size: {format_bytes_or_none(config.runtime_size)}
 
                       QEMU GUI: {yes_no(config.qemu_gui)}
                 QEMU CPU Cores: {config.qemu_smp}

@@ -34,6 +34,7 @@ from mkosi.config import (
     OutputFormat,
     SecureBootSignTool,
     Verb,
+    format_bytes,
     format_source_target,
     parse_config,
     summary,
@@ -60,7 +61,6 @@ from mkosi.types import _FILE, CompletedProcess, PathString
 from mkosi.util import (
     InvokingUser,
     flatten,
-    format_bytes,
     format_rlimit,
     one_zero,
     scopedenv,
@@ -2125,7 +2125,7 @@ def run_shell(args: MkosiArgs, config: MkosiConfig) -> None:
         if config.output_format == OutputFormat.disk and args.verb == Verb.boot:
             run(["systemd-repart",
                  "--image", fname,
-                 "--size", "8G",
+                 *([f"--size={config.runtime_size}"] if config.runtime_size else []),
                  "--no-pager",
                  "--dry-run=no",
                  "--offline=no",
