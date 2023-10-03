@@ -2268,11 +2268,15 @@ def load_credentials(args: argparse.Namespace) -> dict[str, str]:
 
 
 def load_kernel_command_line_extra(args: argparse.Namespace) -> list[str]:
+    columns, lines = shutil.get_terminal_size()
     cmdline = [
         # Make sure we set up networking in the VM/container.
         "systemd.wants=network.target",
         # Make sure we don't load vmw_vmci which messes with virtio vsock.
         "module_blacklist=vmw_vmci",
+        f"systemd.tty.term.ttyS0={os.getenv('TERM', 'vt220')}",
+        f"systemd.tty.columns.ttyS0={columns}",
+        f"systemd.tty.rows.ttyS0={lines}",
     ]
 
     if not any(s.startswith("ip=") for s in args.kernel_command_line_extra):
@@ -2294,9 +2298,6 @@ def load_kernel_command_line_extra(args: argparse.Namespace) -> list[str]:
             f"systemd.tty.term.console={os.getenv('TERM', 'vt220')}",
             f"systemd.tty.columns.console={columns}",
             f"systemd.tty.rows.console={lines}",
-            f"systemd.tty.term.ttyS0={os.getenv('TERM', 'vt220')}",
-            f"systemd.tty.columns.ttyS0={columns}",
-            f"systemd.tty.rows.ttyS0={lines}",
             "console=ttyS0",
         ]
 
