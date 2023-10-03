@@ -70,6 +70,7 @@ class Installer(DistributionInstaller):
             "cpio",
             "curl",
             "debian-keyring",
+            "distribution-gpg-keys",
             "dnf",
             "dosfstools",
             "e2fsprogs",
@@ -137,34 +138,40 @@ class Installer(DistributionInstaller):
         return a
 
     @staticmethod
-    def gpgurls() -> tuple[str, ...]:
-        return (
-            "https://www.centos.org/keys/RPM-GPG-KEY-CentOS-Official",
-            "https://www.centos.org/keys/RPM-GPG-KEY-CentOS-SIG-Extras",
-        )
+    def gpgurls(config: MkosiConfig) -> tuple[str, ...]:
+        gpgurls = []
+
+        for key in ("CentOS-Official", "CentOS-SIG-Extras"):
+            gpgpath = Path(f"/usr/share/distribution-gpg-keys/centos/RPM-GPG-KEY-{key}")
+            if gpgpath.exists():
+                gpgurls += [f"file://{gpgpath}"]
+            else:
+                gpgurls += [f"https://www.centos.org/keys/RPM-GPG-KEY-{key}"]
+
+        return tuple(gpgurls)
 
     @classmethod
     def repository_variants(cls, config: MkosiConfig, repo: str) -> Iterable[Repo]:
         if config.local_mirror:
-            yield Repo(repo, f"baseurl={config.local_mirror}", cls.gpgurls())
+            yield Repo(repo, f"baseurl={config.local_mirror}", cls.gpgurls(config))
 
         elif config.mirror:
             if int(config.release) <= 8:
                 yield Repo(
                     repo.lower(),
                     f"baseurl={join_mirror(config, f'centos/$stream/{repo}/$basearch/os')}",
-                    cls.gpgurls(),
+                    cls.gpgurls(config),
                 )
                 yield Repo(
                     f"{repo.lower()}-debuginfo",
                     f"baseurl={join_mirror(config, 'centos-debuginfo/$stream/$basearch')}",
-                    cls.gpgurls(),
+                    cls.gpgurls(config),
                     enabled=False,
                 )
                 yield Repo(
                     f"{repo.lower()}-source",
                     f"baseurl={join_mirror(config, f'centos/$stream/{repo}/Source')}",
-                    cls.gpgurls(),
+                    cls.gpgurls(config),
                     enabled=False,
                 )
             else:
@@ -172,12 +179,12 @@ class Installer(DistributionInstaller):
                     yield Repo(
                         repo.lower(),
                         f"baseurl={join_mirror(config, f'SIGs/$stream/{repo}/$basearch/extras-common')}",
-                        cls.gpgurls(),
+                        cls.gpgurls(config),
                     )
                     yield Repo(
                         f"{repo.lower()}-source",
                         f"baseurl={join_mirror(config, f'SIGs/$stream/{repo}/source/extras-common')}",
-                        cls.gpgurls(),
+                        cls.gpgurls(config),
                         enabled=False,
                     )
 
@@ -185,18 +192,18 @@ class Installer(DistributionInstaller):
                     yield Repo(
                         repo.lower(),
                         f"baseurl={join_mirror(config, f'$stream/{repo}/$basearch/os')}",
-                        cls.gpgurls(),
+                        cls.gpgurls(config),
                     )
                     yield Repo(
                         f"{repo.lower()}-debuginfo",
                         f"baseurl={join_mirror(config, f'$stream/{repo}/$basearch/debug/tree')}",
-                        cls.gpgurls(),
+                        cls.gpgurls(config),
                         enabled=False,
                     )
                     yield Repo(
                         f"{repo.lower()}-source",
                         f"baseurl={join_mirror(config, f'$stream/{repo}/source/tree')}",
-                        cls.gpgurls(),
+                        cls.gpgurls(config),
                         enabled=False,
                     )
 
@@ -205,19 +212,19 @@ class Installer(DistributionInstaller):
                 yield Repo(
                     repo.lower(),
                     f"mirrorlist=http://mirrorlist.centos.org/?release=$stream&arch=$basearch&repo={repo}",
-                    cls.gpgurls(),
+                    cls.gpgurls(config),
                 )
                 # These can't be retrieved from the mirrorlist.
                 yield Repo(
                     f"{repo.lower()}-debuginfo",
                     "baseurl=http://debuginfo.centos.org/$stream/$basearch",
-                    cls.gpgurls(),
+                    cls.gpgurls(config),
                     enabled=False,
                 )
                 yield Repo(
                     f"{repo.lower()}-source",
                     f"baseurl=https://vault.centos.org/centos/$stream/{repo}/Source",
-                    cls.gpgurls(),
+                    cls.gpgurls(config),
                     enabled=False,
                 )
             else:
@@ -227,30 +234,30 @@ class Installer(DistributionInstaller):
                     yield Repo(
                         repo.lower(),
                         f"{url}?arch=$basearch&repo=centos-extras-sig-extras-common-$stream",
-                        cls.gpgurls(),
+                        cls.gpgurls(config),
                     )
                     yield Repo(
                         f"{repo.lower()}-source",
                         f"{url}?arch=source&repo=centos-extras-sig-extras-common-source-$stream",
-                        cls.gpgurls(),
+                        cls.gpgurls(config),
                         enabled=False,
                     )
                 else:
                     yield Repo(
                         repo.lower(),
                         f"{url}?arch=$basearch&repo=centos-{repo.lower()}-$stream",
-                        cls.gpgurls(),
+                        cls.gpgurls(config),
                     )
                     yield Repo(
                         f"{repo.lower()}-debuginfo",
                         f"{url}?arch=$basearch&repo=centos-{repo.lower()}-debug-$stream",
-                        cls.gpgurls(),
+                        cls.gpgurls(config),
                         enabled=False,
                     )
                     yield Repo(
                         f"{repo.lower()}-source",
                         f"{url}?arch=source&repo=centos-{repo.lower()}-source-$stream",
-                        cls.gpgurls(),
+                        cls.gpgurls(config),
                         enabled=False,
                     )
 
@@ -273,7 +280,11 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def epel_repositories(cls, config: MkosiConfig) -> Iterable[Repo]:
-        gpgurls = ("https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-$releasever",)
+        gpgpath = Path(f"/usr/share/distribution-gpg-keys/centos/RPM-GPG-KEY-EPEL-{config.release}")
+        if gpgpath.exists():
+            gpgurls = (f"file://{gpgpath}",)
+        else:
+            gpgurls = (f"https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-{config.release}",)
 
         if config.local_mirror:
             return
@@ -336,11 +347,17 @@ class Installer(DistributionInstaller):
             (
                 "hyperscale",
                 (f"packages-{c}" for c in ("main", "experimental", "facebook", "hotfixes", "spin", "intel")),
-                ("https://www.centos.org/keys/RPM-GPG-KEY-CentOS-SIG-HyperScale",),
+                ("CentOS-SIG-HyperScale",),
             ),
         )
 
-        for sig, components, gpgurls in sigs:
+        for sig, components, key in sigs:
+            gpgpath = Path(f"/usr/share/distribution-gpg-keys/centos/RPM-GPG-KEY-{key}")
+            if gpgpath.exists():
+                gpgurls = (f"file://{gpgpath}",)
+            else:
+                gpgurls = (f"https://www.centos.org/keys/RPM-GPG-KEY-{key}",)
+
             for c in components:
                 if config.mirror:
                     if int(config.release) <= 8:

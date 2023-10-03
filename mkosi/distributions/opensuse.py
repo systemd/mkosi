@@ -44,6 +44,7 @@ class Installer(DistributionInstaller):
             "coreutils",
             "cpio",
             "curl",
+            "distribution-gpg-keys",
             "dnf",
             "dosfstools",
             "e2fsprogs",
