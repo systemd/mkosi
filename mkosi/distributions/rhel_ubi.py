@@ -13,37 +13,37 @@ class Installer(centos.Installer):
         return "RHEL UBI"
 
     @staticmethod
-    def gpgurls() -> tuple[str, ...]:
+    def gpgurls(config: MkosiConfig) -> tuple[str, ...]:
         return ("https://access.redhat.com/security/data/fd431d51.txt",)
 
     @classmethod
     def repository_variants(cls, config: MkosiConfig, repo: str) -> Iterable[Repo]:
         if config.local_mirror:
-            yield Repo(repo, f"baseurl={config.local_mirror}", cls.gpgurls())
+            yield Repo(repo, f"baseurl={config.local_mirror}", cls.gpgurls(config))
         else:
             v = config.release
             yield Repo(
                 f"ubi-{v}-{repo}-rpms",
                 f"baseurl={centos.join_mirror(config, f'ubi{v}/{v}/$basearch/{repo}/os')}",
-                cls.gpgurls(),
+                cls.gpgurls(config),
             )
             yield Repo(
                 f"ubi-{v}-{repo}-debug-rpms",
                 f"baseurl={centos.join_mirror(config, f'ubi{v}/{v}/$basearch/{repo}/debug')}",
-                cls.gpgurls(),
+                cls.gpgurls(config),
                 enabled=False,
             )
             yield Repo(
                 f"ubi-{v}-{repo}-source",
                 f"baseurl={centos.join_mirror(config, f'ubi{v}/{v}/$basearch/{repo}/source')}",
-                cls.gpgurls(),
+                cls.gpgurls(config),
                 enabled=False,
             )
             if repo == "codeready-builder":
                 yield Repo(
                     f"ubi-{v}-{repo}",
                     f"baseurl={centos.join_mirror(config, f'ubi{v}/{v}/$basearch/{repo}/os')}",
-                    cls.gpgurls(),
+                    cls.gpgurls(config),
                     enabled=False,
                 )
 

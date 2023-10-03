@@ -2,6 +2,7 @@
 
 import urllib.parse
 from collections.abc import Sequence
+from pathlib import Path
 
 from mkosi.architecture import Architecture
 from mkosi.distributions import Distribution, DistributionInstaller, PackageType
@@ -44,6 +45,7 @@ class Installer(DistributionInstaller):
             "cpio",
             "curl-minimal",
             "debian-keyring",
+            "distribution-gpg-keys",
             "dnf5",
             "dosfstools",
             "e2fsprogs",
@@ -76,8 +78,12 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def setup(cls, state: MkosiState) -> None:
-        # See: https://fedoraproject.org/security/
-        gpgurls = ("https://fedoraproject.org/fedora.gpg",)
+        gpgpath = Path(f"/usr/share/distribution-gpg-keys/fedora/RPM-GPG-KEY-fedora-{state.config.release}-primary")
+        if gpgpath.exists():
+            gpgurls = (f"file://{gpgpath}",)
+        else:
+            # See: https://fedoraproject.org/security/
+            gpgurls = ("https://fedoraproject.org/fedora.gpg",)
         repos = []
 
         if state.config.local_mirror:
