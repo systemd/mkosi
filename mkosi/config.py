@@ -1989,7 +1989,8 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
                 if (st.st_dev, st.st_ino) in parsed_includes:
                     continue
 
-                parse_config(p, namespace, defaults)
+                with chdir(p if p.is_dir() else Path.cwd()):
+                    parse_config(p, namespace, defaults)
                 parsed_includes.add((st.st_dev, st.st_ino))
 
     class MkosiAction(argparse.Action):
