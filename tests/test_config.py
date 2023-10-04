@@ -216,7 +216,6 @@ def test_parse_config(tmp_path: Path) -> None:
 
 
 def test_parse_load_verb(tmp_path: Path) -> None:
-    (tmp_path / "mkosi.conf").write_text("[Distribution]\nDistribution=fedora")
     with chdir(tmp_path):
         assert parse_config(["build"])[0].verb == Verb.build
         assert parse_config(["clean"])[0].verb == Verb.clean
@@ -255,24 +254,8 @@ def test_parse_config_files_filter(tmp_path: Path) -> None:
         confd = Path("mkosi.conf.d")
         confd.mkdir()
 
-        (confd / "10-file.conf").write_text(
-            """\
-            [Distribution]
-            Distribution=fedora
-
-            [Content]
-            Packages=yes
-            """
-        )
-        (confd / "20-file.noconf").write_text(
-            """\
-            [Distribution]
-            Distribution=fedora
-
-            [Content]
-            Packages=yes
-            """
-        )
+        (confd / "10-file.conf").write_text("[Content]\nPackages=yes")
+        (confd / "20-file.noconf").write_text("[Content]\nPackages=nope")
 
         _, [config] = parse_config()
         assert config.packages == ["yes"]
@@ -280,7 +263,7 @@ def test_parse_config_files_filter(tmp_path: Path) -> None:
 
 def test_compression(tmp_path: Path) -> None:
     with chdir(tmp_path):
-        _, [config] = parse_config(["--format", "disk", "--compress-output", "False", "--distribution", "fedora"])
+        _, [config] = parse_config(["--format", "disk", "--compress-output", "False"])
         assert config.compress_output == Compression.none
 
 
@@ -487,9 +470,6 @@ def test_match_imageversion(tmp_path: Path, op: str, version: str) -> None:
         parent = Path("mkosi.conf")
         parent.write_text(
             """\
-            [Distribution]
-            Distribution=fedora
-
             [Output]
             ImageId=testimage
             ImageVersion=123
@@ -546,24 +526,11 @@ def test_package_manager_tree(tmp_path: Path, skel: Optional[Path], pkgmngr: Opt
     with chdir(tmp_path):
         config = Path("mkosi.conf")
         with config.open("w") as f:
-            f.write(
-                """
-                [Distribution]
-                Distribution=fedora
-
-                [Content]
-                """
-            )
+            f.write("[Content]\n")
             if skel is not None:
-                f.write(f"""
-                SkeletonTrees={skel}
-                """
-            )
+                f.write(f"SkeletonTrees={skel}\n")
             if pkgmngr is not None:
-                f.write(f"""
-                PackageManagerTrees={pkgmngr}
-                """
-            )
+                f.write(f"PackageManagerTrees={pkgmngr}\n")
 
         _, [conf] = parse_config()
 
@@ -598,9 +565,6 @@ def test_wrong_section_warning(
         Path("mkosi.conf").write_text(
             "\n".join(
                 f"""\
-                [Distribution]
-                Distribution=fedora
-
                 [{section}]
                 ImageId=testimage
                 """
