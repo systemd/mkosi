@@ -1204,6 +1204,7 @@ SETTINGS = (
         dest="image_version",
         match=config_match_version,
         section="Output",
+        specifier="v",
         help="Set version for image",
         paths=("mkosi.version",),
         path_read_text=True,
@@ -1212,6 +1213,7 @@ SETTINGS = (
         dest="image_id",
         match=config_make_string_matcher(allow_globs=True),
         section="Output",
+        specifier="i",
         help="Set ID for image",
     ),
     MkosiConfigSetting(

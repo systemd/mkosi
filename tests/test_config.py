@@ -611,19 +611,33 @@ def test_specifiers(tmp_path: Path) -> None:
         Architecture=arm64
 
         [Output]
+        ImageId=my-image-id
+        ImageVersion=1.2.3
         OutputDirectory=abcde
         Output=test
 
-        [Distribution]
-        ImageId=%d~%r~%a
-
-        [Output]
-        CacheDirectory=%O/%o
+        [Content]
+        Environment=Distribution=%d
+                    Release=%r
+                    Architecture=%a
+                    ImageId=%i
+                    ImageVersion=%v
+                    OutputDirectory=%O
+                    Output=%o
         """
     )
 
     with chdir(d):
         _, [config] = parse_config()
-        assert config.distribution == Distribution.ubuntu
-        assert config.image_id == "ubuntu~lunar~arm64"
-        assert config.cache_dir == Path.cwd() / "abcde/test" / config.image_id
+
+        expected = {
+            "Distribution": "ubuntu",
+            "Release": "lunar",
+            "Architecture": "arm64",
+            "ImageId": "my-image-id",
+            "ImageVersion": "1.2.3",
+            "OutputDirectory": str(Path.cwd() / "abcde"),
+            "Output": "test",
+        }
+
+        assert {k: v for k, v in config.environment.items() if k in expected} == expected
