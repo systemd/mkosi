@@ -1863,6 +1863,8 @@ SETTINGS = (
         help="Grow disk images to the specified size before booting them",
     ),
 )
+SETTINGS_LOOKUP_BY_NAME = {name: s for s in SETTINGS for name in [s.name, *s.compat_names]}
+SETTINGS_LOOKUP_BY_DEST = {s.dest: s for s in SETTINGS}
 
 MATCHES = (
     MkosiMatch(
@@ -1874,6 +1876,8 @@ MATCHES = (
         match=match_systemd_version,
     ),
 )
+
+MATCH_LOOKUP = {m.name: m for m in MATCHES}
 
 
 def create_argument_parser(action: type[argparse.Action]) -> argparse.ArgumentParser:
@@ -2061,9 +2065,6 @@ def resolve_deps(presets: Sequence[MkosiConfig], include: Sequence[str]) -> list
 
 
 def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig, ...]]:
-    settings_lookup_by_name = {name: s for s in SETTINGS for name in [s.name, *s.compat_names]}
-    settings_lookup_by_dest = {s.dest: s for s in SETTINGS}
-    match_lookup = {m.name: m for m in MATCHES}
     # Compare inodes instead of paths so we can't get tricked by bind mounts and such.
     parsed_includes: set[tuple[int, int]] = set()
 
@@ -2102,7 +2103,7 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
                 values = self.const or "yes"
 
             try:
-                s = settings_lookup_by_dest[self.dest]
+                s = SETTINGS_LOOKUP_BY_DEST[self.dest]
             except KeyError:
                 die(f"Unknown setting {option_string}")
 
@@ -2123,7 +2124,7 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
             return v
 
         for d in setting.default_factory_depends:
-            finalize_default(settings_lookup_by_dest[d], namespace, defaults)
+            finalize_default(SETTINGS_LOOKUP_BY_DEST[d], namespace, defaults)
 
         if setting.dest in defaults:
             default = getattr(defaults, setting.dest)
@@ -2156,7 +2157,7 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
             if not v:
                 die("Match value cannot be empty")
 
-            if (s := settings_lookup_by_name.get(k)):
+            if (s := SETTINGS_LOOKUP_BY_NAME.get(k)):
                 if not s.match:
                     die(f"{k} cannot be used in [Match]")
 
@@ -2171,7 +2172,7 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
                 else:
                     result = s.match(v, getattr(namespace, s.dest))
 
-            elif (m := match_lookup.get(k)):
+            elif (m := MATCH_LOOKUP.get(k)):
                 result = m.match(v)
             else:
                 die(f"{k} cannot be used in [Match]")
@@ -2201,7 +2202,7 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
                 name = k.removeprefix("@")
                 ns = namespace if k == name else defaults
 
-                if not (s := settings_lookup_by_name.get(name)):
+                if not (s := SETTINGS_LOOKUP_BY_NAME.get(name)):
                     die(f"Unknown setting {k}")
 
                 if section != s.section:
