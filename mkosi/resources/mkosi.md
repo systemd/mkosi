@@ -395,8 +395,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 : The distribution to install in the image. Takes one of the following
   arguments: `fedora`, `debian`, `ubuntu`, `arch`, `opensuse`, `mageia`,
-  `centos`, `rhel-ubi`, `openmandriva`, `rocky`, `alma`, `none`.
-  If not specified, defaults to the distribution of the host.
+  `centos`, `rhel-ubi`, `openmandriva`, `rocky`, `alma`, `custom`.
+  If not specified, defaults to the distribution of the host or `custom`
+  if the distribution of the host is not a supported distribution.
 
 `Release=`, `--release=`, `-r`
 
@@ -1294,7 +1295,10 @@ any distribution that packages `apt` may be used to build *Debian* or *Ubuntu* i
 Any distribution that packages `dnf` may be used to build images for any of the rpm-based distributions.
 Any distro that packages `pacman` may be used to build *Arch Linux* images.
 Any distribution that packages `zypper` may be used to build *openSUSE* images.
-Other distributions and build automation tools for embedded Linux systems such as Buildroot, OpenEmbedded and Yocto Project may be used by selecting the `none` distribution, and populating the rootfs via a combination of base trees, skeleton trees, and prepare scripts.
+Other distributions and build automation tools for embedded Linux
+systems such as Buildroot, OpenEmbedded and Yocto Project may be used by
+selecting the `custom` distribution, and populating the rootfs via a
+combination of base trees, skeleton trees, and prepare scripts.
 
 Currently, *Fedora Linux* packages all relevant tools as of Fedora 28.
 
