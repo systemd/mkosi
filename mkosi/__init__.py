@@ -2418,6 +2418,10 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
     if args.verb == Verb.genkey:
         return generate_key_cert_pair(args)
 
+    if all(p == MkosiConfig.default() for p in presets):
+        die("No configuration found",
+            hint="Make sure you're running mkosi from a directory with configuration files")
+
     if args.verb == Verb.bump:
         return bump_image_version()
 
