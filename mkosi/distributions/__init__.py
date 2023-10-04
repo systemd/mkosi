@@ -72,6 +72,8 @@ class DistributionInstaller:
 
 
 class Distribution(StrEnum):
+    # Please consult docs/distribution-policy.md and contact one
+    # of the mkosi maintainers before implementing a new distribution.
     fedora       = enum.auto()
     debian       = enum.auto()
     ubuntu       = enum.auto()
