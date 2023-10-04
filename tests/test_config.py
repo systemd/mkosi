@@ -598,3 +598,32 @@ def test_config_parse_bytes() -> None:
         config_parse_bytes("-3M")
     with pytest.raises(SystemExit):
         config_parse_bytes("-4G")
+
+
+def test_specifiers(tmp_path: Path) -> None:
+    d = tmp_path
+
+    (d / "mkosi.conf").write_text(
+        """\
+        [Distribution]
+        Distribution=ubuntu
+        Release=lunar
+        Architecture=arm64
+
+        [Output]
+        OutputDirectory=abcde
+        Output=test
+
+        [Distribution]
+        ImageId=%d~%r~%a
+
+        [Output]
+        CacheDirectory=%O/%o
+        """
+    )
+
+    with chdir(d):
+        _, [config] = parse_config()
+        assert config.distribution == Distribution.ubuntu
+        assert config.image_id == "ubuntu~lunar~arm64"
+        assert config.cache_dir == Path.cwd() / "abcde/test" / config.image_id

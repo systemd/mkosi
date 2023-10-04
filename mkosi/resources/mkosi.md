@@ -1254,6 +1254,22 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   Additionally, the suffixes `K`, `M` and `G` can be used to specify a
   size in kilobytes, megabytes and gigabytes respectively.
 
+## Specifiers
+
+The current value of various settings can be accessed when parsing
+configuration files by using specifiers. To write a literal `%`
+character in a configuration file without treating it as a specifier,
+use `%%`. The following specifiers are understood:
+
+| Setting            | Specifier |
+|--------------------|-----------|
+| `Distribution=`    | `%d`      |
+| `Release=`         | `%r`      |
+| `Architecture=`    | `%a`      |
+| `Format=`          | `%t`      |
+| `Output=`          | `%o`      |
+| `OutputDirectory=` | `%O`      |
+
 ## Supported distributions
 
 Images may be created containing installations of the following

@@ -551,6 +551,7 @@ class MkosiConfigSetting:
     path_read_text: bool = False
     path_secret: bool = False
     path_default: bool = True
+    specifier: str = ""
 
     # settings for argparse
     short: Optional[str] = None
@@ -1054,6 +1055,7 @@ SETTINGS = (
         dest="distribution",
         short="-d",
         section="Distribution",
+        specifier="d",
         parse=config_make_enum_parser(Distribution),
         match=config_make_enum_matcher(Distribution),
         default_factory=config_default_distribution,
@@ -1064,6 +1066,7 @@ SETTINGS = (
         dest="release",
         short="-r",
         section="Distribution",
+        specifier="r",
         parse=config_parse_string,
         match=config_make_string_matcher(),
         default_factory=config_default_release,
@@ -1073,6 +1076,7 @@ SETTINGS = (
     MkosiConfigSetting(
         dest="architecture",
         section="Distribution",
+        specifier="a",
         parse=config_make_enum_parser(Architecture),
         match=config_make_enum_matcher(Architecture),
         default=Architecture.native(),
@@ -1123,6 +1127,7 @@ SETTINGS = (
         metavar="FORMAT",
         name="Format",
         section="Output",
+        specifier="t",
         parse=config_make_enum_parser(OutputFormat),
         match=config_make_enum_matcher(OutputFormat),
         default=OutputFormat.disk,
@@ -1141,6 +1146,7 @@ SETTINGS = (
         short="-o",
         metavar="NAME",
         section="Output",
+        specifier="o",
         parse=config_parse_filename,
         help="Output name",
     ),
@@ -1160,6 +1166,7 @@ SETTINGS = (
         metavar="DIR",
         name="OutputDirectory",
         section="Output",
+        specifier="O",
         parse=config_make_path_parser(required=False),
         paths=("mkosi.output",),
         default_factory=lambda _: Path.cwd(),
@@ -1865,6 +1872,7 @@ SETTINGS = (
 )
 SETTINGS_LOOKUP_BY_NAME = {name: s for s in SETTINGS for name in [s.name, *s.compat_names]}
 SETTINGS_LOOKUP_BY_DEST = {s.dest: s for s in SETTINGS}
+SETTINGS_LOOKUP_BY_SPECIFIER = {s.specifier: s for s in SETTINGS if s.specifier}
 
 MATCHES = (
     MkosiMatch(
@@ -2068,6 +2076,37 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
     # Compare inodes instead of paths so we can't get tricked by bind mounts and such.
     parsed_includes: set[tuple[int, int]] = set()
 
+    def expand_specifiers(text: str, namespace: argparse.Namespace, defaults: argparse.Namespace) -> str:
+        percent = False
+        result: list[str] = []
+
+        for c in text:
+            if percent:
+                percent = False
+
+                if c == "%":
+                    result += "%"
+                else:
+                    s = SETTINGS_LOOKUP_BY_SPECIFIER.get(c)
+                    if not s:
+                        logging.warning(f"Unknown specifier '%{c}' found in {text}, ignoring")
+                        continue
+
+                    if (v := finalize_default(s, namespace, defaults)) is None:
+                        logging.warning(f"Setting {s.name} specified by specifier '%{c}' in {text} is not yet set, ignoring")
+                        continue
+
+                    result += str(v)
+            elif c == "%":
+                percent = True
+            else:
+                result += c
+
+        if percent:
+            result += "%"
+
+        return "".join(result)
+
     @contextlib.contextmanager
     def parse_new_includes(
         namespace: argparse.Namespace,
@@ -2187,6 +2226,7 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
         return triggered is not False
 
     def parse_config(path: Path, namespace: argparse.Namespace, defaults: argparse.Namespace) -> bool:
+        s: Optional[MkosiConfigSetting] # Make mypy happy
         extras = path.is_dir()
 
         if path.is_dir():
@@ -2194,6 +2234,22 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
 
         if not match_config(path, namespace, defaults):
             return False
+
+        if extras:
+            for s in SETTINGS:
+                ns = defaults if s.path_default else namespace
+                for f in s.paths:
+                    p = parse_path(
+                        f,
+                        secret=s.path_secret,
+                        required=False,
+                        resolve=False,
+                        expanduser=False,
+                        expandvars=False,
+                    )
+                    if p.exists():
+                        setattr(ns, s.dest,
+                                s.parse(p.read_text() if s.path_read_text else f, getattr(ns, s.dest, None)))
 
         if path.exists():
             logging.debug(f"Including configuration file {Path.cwd() / path}")
@@ -2212,30 +2268,16 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
                     canonical = s.name if k == name else f"@{s.name}"
                     logging.warning(f"Setting {k} is deprecated, please use {canonical} instead.")
 
+                v = expand_specifiers(v, namespace, defaults)
+
                 with parse_new_includes(namespace, defaults):
                     setattr(ns, s.dest, s.parse(v, getattr(ns, s.dest, None)))
 
-        if extras:
-            for s in SETTINGS:
-                ns = defaults if s.path_default else namespace
-                for f in s.paths:
-                    p = parse_path(
-                        f,
-                        secret=s.path_secret,
-                        required=False,
-                        resolve=False,
-                        expanduser=False,
-                        expandvars=False,
-                    )
-                    if p.exists():
-                        setattr(ns, s.dest,
-                                s.parse(p.read_text() if s.path_read_text else f, getattr(ns, s.dest, None)))
-
-            if (path.parent / "mkosi.conf.d").exists():
-                for p in sorted((path.parent / "mkosi.conf.d").iterdir()):
-                    if p.is_dir() or p.suffix == ".conf":
-                        with chdir(p if p.is_dir() else Path.cwd()):
-                            parse_config(p if p.is_file() else Path("."), namespace, defaults)
+        if extras and (path.parent / "mkosi.conf.d").exists():
+            for p in sorted((path.parent / "mkosi.conf.d").iterdir()):
+                if p.is_dir() or p.suffix == ".conf":
+                    with chdir(p if p.is_dir() else Path.cwd()):
+                        parse_config(p if p.is_file() else Path("."), namespace, defaults)
 
         return True
 
