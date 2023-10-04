@@ -16,6 +16,7 @@ import math
 import operator
 import os.path
 import platform
+import re
 import shlex
 import shutil
 import subprocess
@@ -684,7 +685,11 @@ class MkosiArgs:
 
     def to_json(self, *, indent: Optional[int] = 4, sort_keys: bool = True) -> str:
         """Dump MKosiArgs as JSON string."""
-        return json.dumps(dataclasses.asdict(self), cls=MkosiJsonEncoder, indent=indent, sort_keys=sort_keys)
+        def key_transformer(k: str) -> str:
+            return "".join(p.capitalize() for p in k.split("_"))
+
+        d = {key_transformer(k): v for k, v in dataclasses.asdict(self).items()}
+        return json.dumps(d, cls=MkosiJsonEncoder, indent=indent, sort_keys=sort_keys)
 
     @classmethod
     def _load_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> dict[str, Any]:
@@ -698,8 +703,11 @@ class MkosiArgs:
         else:
             raise ValueError(f"{cls.__name__} can only be constructed from JSON from strings, dictionaries and files.")
 
-        transformer = json_type_transformer(cls)
-        return {k: transformer(k, v) for k, v in j.items()}
+        value_transformer = json_type_transformer(cls)
+        def key_transformer(k: str) -> str:
+            return "_".join(part.lower() for part in FALLBACK_NAME_TO_DEST_SPLITTER.split(k))
+
+        return {(tk := key_transformer(k)): value_transformer(tk, v) for k, v in j.items()}
 
     @classmethod
     def from_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> "MkosiArgs":
@@ -936,7 +944,13 @@ class MkosiConfig:
 
     def to_json(self, *, indent: Optional[int] = 4, sort_keys: bool = True) -> str:
         """Dump MKosiConfig as JSON string."""
-        return json.dumps(dataclasses.asdict(self), cls=MkosiJsonEncoder, indent=indent, sort_keys=sort_keys)
+        def key_transformer(k: str) -> str:
+            if (s := SETTINGS_LOOKUP_BY_DEST.get(k)) is not None:
+                return s.name
+            return "".join(p.capitalize() for p in k.split("_"))
+
+        d = {key_transformer(k): v for k, v in dataclasses.asdict(self).items()}
+        return json.dumps(d, cls=MkosiJsonEncoder, indent=indent, sort_keys=sort_keys)
 
     @classmethod
     def _load_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> dict[str, Any]:
@@ -950,8 +964,13 @@ class MkosiConfig:
         else:
             raise ValueError(f"{cls.__name__} can only be constructed from JSON from strings, dictionaries and files.")
 
-        transformer = json_type_transformer(cls)
-        return {k: transformer(k, v) for k, v in j.items()}
+        value_transformer = json_type_transformer(cls)
+        def key_transformer(k: str) -> str:
+            if (s := SETTINGS_LOOKUP_BY_NAME.get(k)) is not None:
+                return s.dest
+            return "_".join(part.lower() for part in FALLBACK_NAME_TO_DEST_SPLITTER.split(k))
+
+        return {(tk := key_transformer(k)): value_transformer(tk, v) for k, v in j.items()}
 
     @classmethod
     def from_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> "MkosiConfig":
@@ -1878,6 +1897,13 @@ MATCHES = (
 )
 
 MATCH_LOOKUP = {m.name: m for m in MATCHES}
+
+# This regular expression can be used to split "AutoBump" -> ["Auto", "Bump"]
+# and "NSpawnSettings" -> ["NSpawn", "Settings"]
+# The first part (?<=[a-z]) is a positive look behind for a lower case letter
+# and (?=[A-Z]) is a lookahead assertion matching an upper case letter but not
+# consuming it
+FALLBACK_NAME_TO_DEST_SPLITTER = re.compile("(?<=[a-z])(?=[A-Z])")
 
 
 def create_argument_parser(action: type[argparse.Action]) -> argparse.ArgumentParser:
