@@ -10,6 +10,7 @@ import fnmatch
 import functools
 import graphlib
 import inspect
+import json
 import logging
 import math
 import operator
@@ -18,18 +19,19 @@ import platform
 import shlex
 import shutil
 import subprocess
+import tempfile
 import textwrap
 import uuid
 from collections.abc import Collection, Iterable, Iterator, Sequence
 from pathlib import Path
-from typing import Any, Callable, Optional, Type, Union, cast
+from typing import Any, Callable, Optional, TypeVar, Union, cast
 
 from mkosi.architecture import Architecture
 from mkosi.distributions import Distribution, detect_distribution
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, Style, die
 from mkosi.pager import page
 from mkosi.run import run
-from mkosi.types import PathString
+from mkosi.types import PathString, SupportsRead
 from mkosi.util import (
     InvokingUser,
     StrEnum,
@@ -294,7 +296,10 @@ def config_default_distribution(namespace: argparse.Namespace) -> Distribution:
     detected = detect_distribution()[0]
 
     if not detected:
-        logging.info("Distribution of your host can't be detected or isn't a supported target. Defaulting to Distribution=none.")
+        logging.info(
+            "Distribution of your host can't be detected or isn't a supported target. "
+            "Defaulting to Distribution=none."
+        )
         return Distribution.none
 
     return detected
@@ -471,7 +476,10 @@ def config_parse_filename(value: Optional[str], old: Optional[str]) -> Optional[
         die(". and .. are not valid filenames")
 
     if "/" in value:
-        die(f"{value!r} is not a valid filename. (Output= requires a filename with no path components, relative to output directory.)")
+        die(
+            f"{value!r} is not a valid filename. "
+            "(Output= requires a filename with no path components, relative to output directory.)"
+        )
 
     return value
 
@@ -656,11 +664,54 @@ class MkosiArgs:
     doc_format: DocFormat
 
     @classmethod
+    def default(cls) -> "MkosiArgs":
+        """Alternative constructor to generate an all-default MkosiArgs.
+
+        This prevents MkosiArgs being generated with defaults values implicitly.
+        """
+        with tempfile.TemporaryDirectory() as tempdir:
+            with chdir(tempdir):
+                args, _ = parse_config([])
+
+        return args
+
+    @classmethod
     def from_namespace(cls, ns: argparse.Namespace) -> "MkosiArgs":
         return cls(**{
             k: v for k, v in vars(ns).items()
             if k in inspect.signature(cls).parameters
         })
+
+    def to_json(self, *, indent: Optional[int] = 4, sort_keys: bool = True) -> str:
+        """Dump MKosiArgs as JSON string."""
+        return json.dumps(dataclasses.asdict(self), cls=MkosiJsonEncoder, indent=indent, sort_keys=sort_keys)
+
+    @classmethod
+    def _load_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> dict[str, Any]:
+        """Load JSON and transform it into a dictionary suitable compatible with instantiating a MkosiArgs object."""
+        if isinstance(s, str):
+            j = json.loads(s)
+        elif isinstance(s, dict):
+            j = s
+        elif hasattr(s, "read"):
+            j = json.load(s)
+        else:
+            raise ValueError(f"{cls.__name__} can only be constructed from JSON from strings, dictionaries and files.")
+
+        transformer = json_type_transformer(cls)
+        return {k: transformer(k, v) for k, v in j.items()}
+
+    @classmethod
+    def from_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> "MkosiArgs":
+        """Instantiate a MkosiArgs object from a full JSON dump."""
+        j = cls._load_json(s)
+        return cls(**j)
+
+    @classmethod
+    def from_partial_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> "MkosiArgs":
+        """Return a new MkosiArgs with defaults overwritten by the attributes from passed in JSON."""
+        j = cls._load_json(s)
+        return dataclasses.replace(cls.default(), **j)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -673,8 +724,8 @@ class MkosiConfig:
     """
 
     include: tuple[str, ...]
-    presets: tuple[str]
-    dependencies: tuple[str]
+    presets: tuple[str, ...]
+    dependencies: tuple[str, ...]
 
     distribution: Distribution
     release: str
@@ -786,9 +837,21 @@ class MkosiConfig:
     qemu_cdrom: bool
     qemu_firmware: QemuFirmware
     qemu_kernel: Optional[Path]
-    qemu_args: Sequence[str]
+    qemu_args: list[str]
 
     preset: Optional[str]
+
+    @classmethod
+    def default(cls) -> "MkosiConfig":
+        """Alternative constructor to generate an all-default MkosiArgs.
+
+        This prevents MkosiArgs being generated with defaults values implicitly.
+        """
+        with tempfile.TemporaryDirectory() as tempdir:
+            with chdir(tempdir):
+                _, [config] = parse_config([])
+
+        return config
 
     @classmethod
     def from_namespace(cls, ns: argparse.Namespace) -> "MkosiConfig":
@@ -870,6 +933,37 @@ class MkosiConfig:
                 for script in self.prepare_scripts
             ]
         }
+
+    def to_json(self, *, indent: Optional[int] = 4, sort_keys: bool = True) -> str:
+        """Dump MKosiConfig as JSON string."""
+        return json.dumps(dataclasses.asdict(self), cls=MkosiJsonEncoder, indent=indent, sort_keys=sort_keys)
+
+    @classmethod
+    def _load_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> dict[str, Any]:
+        """Load JSON and transform it into a dictionary suitable compatible with instantiating a MkosiConfig object."""
+        if isinstance(s, str):
+            j = json.loads(s)
+        elif isinstance(s, dict):
+            j = s
+        elif hasattr(s, "read"):
+            j = json.load(s)
+        else:
+            raise ValueError(f"{cls.__name__} can only be constructed from JSON from strings, dictionaries and files.")
+
+        transformer = json_type_transformer(cls)
+        return {k: transformer(k, v) for k, v in j.items()}
+
+    @classmethod
+    def from_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> "MkosiConfig":
+        """Instantiate a MkosiConfig object from a full JSON dump."""
+        j = cls._load_json(s)
+        return cls(**j)
+
+    @classmethod
+    def from_partial_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> "MkosiConfig":
+        """Return a new MkosiConfig with defaults overwritten by the attributes from passed in JSON."""
+        j = cls._load_json(s)
+        return dataclasses.replace(cls.default(), **j)
 
 
 def parse_ini(path: Path, only_sections: Collection[str] = ()) -> Iterator[tuple[str, str, str]]:
@@ -1769,6 +1863,8 @@ SETTINGS = (
         help="Grow disk images to the specified size before booting them",
     ),
 )
+SETTINGS_LOOKUP_BY_NAME = {name: s for s in SETTINGS for name in [s.name, *s.compat_names]}
+SETTINGS_LOOKUP_BY_DEST = {s.dest: s for s in SETTINGS}
 
 MATCHES = (
     MkosiMatch(
@@ -1781,8 +1877,10 @@ MATCHES = (
     ),
 )
 
+MATCH_LOOKUP = {m.name: m for m in MATCHES}
 
-def create_argument_parser(action: Type[argparse.Action]) -> argparse.ArgumentParser:
+
+def create_argument_parser(action: type[argparse.Action]) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="mkosi",
         description="Build Bespoke OS Images",
@@ -1967,9 +2065,6 @@ def resolve_deps(presets: Sequence[MkosiConfig], include: Sequence[str]) -> list
 
 
 def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig, ...]]:
-    settings_lookup_by_name = {name: s for s in SETTINGS for name in [s.name, *s.compat_names]}
-    settings_lookup_by_dest = {s.dest: s for s in SETTINGS}
-    match_lookup = {m.name: m for m in MATCHES}
     # Compare inodes instead of paths so we can't get tricked by bind mounts and such.
     parsed_includes: set[tuple[int, int]] = set()
 
@@ -1978,13 +2073,13 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
         namespace: argparse.Namespace,
         defaults: argparse.Namespace,
     ) -> Iterator[None]:
-        l = len(getattr(namespace, "include", []))
+        current_num_of_includes = len(getattr(namespace, "include", []))
 
         try:
             yield
         finally:
             # Parse any includes that were added after yielding.
-            for p in getattr(namespace, "include", [])[l:]:
+            for p in getattr(namespace, "include", [])[current_num_of_includes:]:
                 st = p.stat()
 
                 if (st.st_dev, st.st_ino) in parsed_includes:
@@ -2008,7 +2103,7 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
                 values = self.const or "yes"
 
             try:
-                s = settings_lookup_by_dest[self.dest]
+                s = SETTINGS_LOOKUP_BY_DEST[self.dest]
             except KeyError:
                 die(f"Unknown setting {option_string}")
 
@@ -2029,7 +2124,7 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
             return v
 
         for d in setting.default_factory_depends:
-            finalize_default(settings_lookup_by_dest[d], namespace, defaults)
+            finalize_default(SETTINGS_LOOKUP_BY_DEST[d], namespace, defaults)
 
         if setting.dest in defaults:
             default = getattr(defaults, setting.dest)
@@ -2062,7 +2157,7 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
             if not v:
                 die("Match value cannot be empty")
 
-            if (s := settings_lookup_by_name.get(k)):
+            if (s := SETTINGS_LOOKUP_BY_NAME.get(k)):
                 if not s.match:
                     die(f"{k} cannot be used in [Match]")
 
@@ -2077,7 +2172,7 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
                 else:
                     result = s.match(v, getattr(namespace, s.dest))
 
-            elif (m := match_lookup.get(k)):
+            elif (m := MATCH_LOOKUP.get(k)):
                 result = m.match(v)
             else:
                 die(f"{k} cannot be used in [Match]")
@@ -2107,7 +2202,7 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
                 name = k.removeprefix("@")
                 ns = namespace if k == name else defaults
 
-                if not (s := settings_lookup_by_name.get(name)):
+                if not (s := SETTINGS_LOOKUP_BY_NAME.get(name)):
                     die(f"Unknown setting {k}")
 
                 if section != s.section:
@@ -2611,3 +2706,108 @@ Clean Package Manager Metadata: {yes_no_auto(config.clean_package_metadata)}
 """
 
     return summary
+
+
+class MkosiJsonEncoder(json.JSONEncoder):
+    def default(self, obj: Any) -> Any:
+        if isinstance(obj, StrEnum):
+            return str(obj)
+        elif isinstance(obj, os.PathLike):
+            return os.fspath(obj)
+        elif isinstance(obj, uuid.UUID):
+            return str(obj)
+        return json.JSONEncoder.default(self, obj)
+
+
+E = TypeVar("E", bound=StrEnum)
+
+
+def json_type_transformer(refcls: Union[type[MkosiArgs], type[MkosiConfig]]) -> Callable[[str, Any], Any]:
+    fields_by_name = {field.name: field for field in dataclasses.fields(refcls)}
+
+    def path_transformer(path: str, fieldtype: type[Path]) -> Path:
+        return Path(path)
+
+    def optional_path_transformer(path: Optional[str], fieldtype: type[Optional[Path]]) -> Optional[Path]:
+        return Path(path) if path is not None else None
+
+    def path_list_transformer(pathlist: list[str], fieldtype: type[list[Path]]) -> list[Path]:
+        return [Path(p) for p in pathlist]
+
+    def optional_uuid_transformer(optuuid: Optional[str], fieldtype: type[Optional[uuid.UUID]]) -> Optional[uuid.UUID]:
+        return uuid.UUID(optuuid) if optuuid is not None else None
+
+    def root_password_transformer(
+        rootpw: Optional[list[Union[str, bool]]], fieldtype: type[Optional[tuple[str, bool]]]
+    ) -> Optional[tuple[str, bool]]:
+        if rootpw is None:
+            return None
+        return (cast(str, rootpw[0]), cast(bool, rootpw[1]))
+
+    def source_target_transformer(
+        trees: list[list[Optional[str]]], fieldtype: type[list[tuple[Path, Optional[Path]]]]
+    ) -> list[tuple[Path, Optional[Path]]]:
+        # TODO: exchange for TypeGuard and list comprehension once on 3.10
+        ret = []
+        for src, tgt in trees:
+            assert src is not None
+            source = Path(src)
+            target = Path(tgt) if tgt is not None else None
+            ret.append((source, target))
+        return ret
+
+    def enum_transformer(enumval: str, fieldtype: type[E]) -> E:
+        return fieldtype(enumval)
+
+    def optional_enum_transformer(enumval: Optional[str], fieldtype: type[Optional[E]]) -> Optional[E]:
+        return fieldtype(enumval) if enumval is not None else None  # type: ignore
+
+    def enum_list_transformer(enumlist: list[str], fieldtype: type[list[E]]) -> list[E]:
+        enumtype = fieldtype.__args__[0]  # type: ignore
+        return [enumtype[e] for e in enumlist]
+
+    def str_tuple_transformer(strtup: list[str], fieldtype: list[tuple[str, ...]]) -> tuple[str, ...]:
+        return tuple(strtup)
+
+    transformers = {
+        Path: path_transformer,
+        Optional[Path]: optional_path_transformer,
+        list[Path]: path_list_transformer,
+        Optional[uuid.UUID]: optional_uuid_transformer,
+        Optional[tuple[str, bool]]: root_password_transformer,
+        list[tuple[Path, Optional[Path]]]: source_target_transformer,
+        tuple[str, ...]: str_tuple_transformer,
+        Architecture: enum_transformer,
+        BiosBootloader: enum_transformer,
+        Bootloader: enum_transformer,
+        Compression: enum_transformer,
+        ConfigFeature: enum_transformer,
+        Distribution: enum_transformer,
+        OutputFormat: enum_transformer,
+        QemuFirmware: enum_transformer,
+        SecureBootSignTool: enum_transformer,
+        Optional[Distribution]: optional_enum_transformer,
+        list[ManifestFormat]: enum_list_transformer,
+        Verb: enum_transformer,
+        DocFormat: enum_transformer,
+    }
+
+    def json_transformer(key: str, val: Any) -> Any:
+        fieldtype: Optional[dataclasses.Field[Any]] = fields_by_name.get(key)
+        # It is unlikely that the type of a field will be None only, so let's not bother with a different sentinel
+        # value
+        if fieldtype is None:
+            ValueError(f"{refcls} has no field {key}")
+
+        # TODO: exchange for TypeGuard once on 3.10
+        assert fieldtype is not None
+        transformer = cast(Optional[Callable[[str, type], Any]], transformers.get(fieldtype.type))
+        if transformer is not None:
+            try:
+                return transformer(val, fieldtype.type)
+            except (ValueError, IndexError, AssertionError) as e:
+                raise ValueError(f"Unable to parse {val:r} for attribute {key:r} for {refcls.__name__}") from e
+
+        return val
+
+    return json_transformer

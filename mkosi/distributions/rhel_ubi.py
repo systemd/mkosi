@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
-from typing import Iterable
+from collections.abc import Iterable
 
 from mkosi.config import MkosiConfig
 from mkosi.distributions import centos

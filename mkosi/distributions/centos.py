@@ -3,9 +3,8 @@
 import os
 import shutil
 import urllib.parse
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import Iterable
 
 from mkosi.architecture import Architecture
 from mkosi.config import MkosiConfig
