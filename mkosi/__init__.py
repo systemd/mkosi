@@ -1010,8 +1010,8 @@ def build_initrd(state: MkosiState) -> Path:
         *(["--compress-output", str(state.config.compress_output)] if state.config.compress_output else []),
         "--with-network", str(state.config.with_network),
         "--cache-only", str(state.config.cache_only),
-        "--output-dir", str(state.config.output_dir),
-        "--workspace-dir", str(state.config.workspace_dir),
+        *(["--output-dir", str(state.config.output_dir)] if state.config.output_dir else []),
+        *(["--workspace-dir", str(state.config.workspace_dir)] if state.config.workspace_dir else []),
         "--cache-dir", str(state.cache_dir.parent),
         *(["--local-mirror", str(state.config.local_mirror)] if state.config.local_mirror else []),
         "--incremental", str(state.config.incremental),
@@ -1049,7 +1049,7 @@ def build_initrd(state: MkosiState) -> Path:
         unlink_output(args, config)
         build_image(args, config, state.name, state.uid, state.gid)
 
-    symlink.symlink_to(config.output_dir / config.output)
+    symlink.symlink_to(config.output_dir_or_cwd() / config.output)
 
     return symlink
 
@@ -1459,8 +1459,8 @@ def unlink_output(args: MkosiArgs, config: MkosiConfig) -> None:
         prefix = config.output if args.force > 2 else config.output_with_version
 
     with complete_step("Removing output files…"):
-        if config.output_dir.exists():
-            for p in config.output_dir.iterdir():
+        if config.output_dir_or_cwd().exists():
+            for p in config.output_dir_or_cwd().iterdir():
                 if p.name.startswith(prefix):
                     rmtree(p)
 
@@ -1524,7 +1524,7 @@ def check_outputs(config: MkosiConfig) -> None:
         config.output_signature if config.sign else None,
         config.output_nspawn_settings if config.nspawn_settings is not None else None,
     ):
-        if f and (config.output_dir / f).exists():
+        if f and (config.output_dir_or_cwd() / f).exists():
             die(f"Output path {f} exists already. (Consider invocation with --force.)")
 
 
@@ -1929,7 +1929,7 @@ def finalize_staging(state: MkosiState) -> None:
             f.rename(state.staging / name)
 
     for f in state.staging.iterdir():
-        move_tree(state.config, f, state.config.output_dir)
+        move_tree(state.config, f, state.config.output_dir_or_cwd())
 
 
 def normalize_mtime(root: Path, mtime: Optional[int], directory: Optional[Path] = None) -> None:
@@ -1946,7 +1946,7 @@ def normalize_mtime(root: Path, mtime: Optional[int], directory: Optional[Path] 
 
 def build_image(args: MkosiArgs, config: MkosiConfig, name: str, uid: int, gid: int) -> None:
     manifest = Manifest(config) if config.manifest_format else None
-    workspace = tempfile.TemporaryDirectory(dir=config.workspace_dir, prefix=".mkosi-tmp")
+    workspace = tempfile.TemporaryDirectory(dir=config.workspace_dir_or_cwd(), prefix=".mkosi-tmp")
 
     with workspace, scopedenv({"TMPDIR" : workspace.name}):
         state = MkosiState(args, config, Path(workspace.name), name, uid, gid)
@@ -2038,12 +2038,12 @@ def build_image(args: MkosiArgs, config: MkosiConfig, name: str, uid: int, gid: 
 
         finalize_staging(state)
 
-        output_base = state.config.output_dir / state.config.output
+        output_base = state.config.output_dir_or_cwd() / state.config.output
         if not output_base.exists() or output_base.is_symlink():
             output_base.unlink(missing_ok=True)
             output_base.symlink_to(state.config.output_with_compression)
 
-    print_output_size(config.output_dir / config.output)
+    print_output_size(config.output_dir_or_cwd() / config.output)
 
 
 def setfacl(root: Path, uid: int, allow: bool) -> None:
@@ -2105,7 +2105,7 @@ def acl_toggle_build(config: MkosiConfig, uid: int) -> Iterator[None]:
                 stack.enter_context(acl_maybe_toggle(config, p, uid, always=True))
 
         if config.output_format == OutputFormat.directory:
-            stack.enter_context(acl_maybe_toggle(config, config.output_dir / config.output, uid, always=True))
+            stack.enter_context(acl_maybe_toggle(config, config.output_dir_or_cwd() / config.output, uid, always=True))
 
         yield
 
@@ -2116,7 +2116,7 @@ def acl_toggle_boot(config: MkosiConfig, uid: int) -> Iterator[None]:
         yield
         return
 
-    with acl_maybe_toggle(config, config.output_dir / config.output, uid, always=False):
+    with acl_maybe_toggle(config, config.output_dir_or_cwd() / config.output, uid, always=False):
         yield
 
 
@@ -2143,9 +2143,9 @@ def run_shell(args: MkosiArgs, config: MkosiConfig) -> None:
 
     with contextlib.ExitStack() as stack:
         if config.ephemeral:
-            fname = stack.enter_context(copy_ephemeral(config, config.output_dir / config.output))
+            fname = stack.enter_context(copy_ephemeral(config, config.output_dir_or_cwd() / config.output))
         else:
-            fname = config.output_dir / config.output
+            fname = config.output_dir_or_cwd() / config.output
 
         if config.output_format == OutputFormat.disk and args.verb == Verb.boot:
             run(["systemd-repart",
@@ -2193,8 +2193,7 @@ def run_serve(config: MkosiConfig) -> None:
 
     port = 8081
 
-    if config.output_dir is not None:
-        os.chdir(config.output_dir)
+    os.chdir(config.output_dir_or_cwd())
 
     with http.server.HTTPServer(("", port), http.server.SimpleHTTPRequestHandler) as httpd:
         logging.info(f"Serving HTTP on port {port}: http://localhost:{port}/")
@@ -2300,7 +2299,7 @@ def expand_specifier(s: str) -> str:
 def needs_build(args: MkosiArgs, config: MkosiConfig) -> bool:
     return (
         args.verb.needs_build() and
-        (args.force > 0 or not (config.output_dir / config.output_with_compression).exists())
+        (args.force > 0 or not (config.output_dir_or_cwd() / config.output_with_compression).exists())
     )
 
 
@@ -2348,8 +2347,8 @@ def finalize_tools(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> Sequence[
             *(["--mirror", p.mirror] if p.mirror and p.distribution == distribution else []),
             "--repository-key-check", str(p.repository_key_check),
             "--cache-only", str(p.cache_only),
-            "--output-dir", str(p.output_dir),
-            "--workspace-dir", str(p.workspace_dir),
+            *(["--output-dir", str(p.output_dir)] if p.output_dir else []),
+            *(["--workspace-dir", str(p.workspace_dir)] if p.workspace_dir else []),
             *(["--cache-dir", str(p.cache_dir.parent)] if p.cache_dir else []),
             "--incremental", str(p.incremental),
             "--acl", str(p.acl),
@@ -2374,7 +2373,7 @@ def finalize_tools(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> Sequence[
         if config not in new:
             new.append(config)
 
-        new.append(dataclasses.replace(p, tools_tree=config.output_dir / config.output))
+        new.append(dataclasses.replace(p, tools_tree=config.output_dir_or_cwd() / config.output))
 
     return new
 
@@ -2418,6 +2417,10 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
 
     if args.verb == Verb.genkey:
         return generate_key_cert_pair(args)
+
+    if all(p == MkosiConfig.default() for p in presets):
+        die("No configuration found",
+            hint="Make sure you're running mkosi from a directory with configuration files")
 
     if args.verb == Verb.bump:
         return bump_image_version()
@@ -2506,7 +2509,7 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
                 build_image(args, config, name, uid, gid)
 
             # Make sure all build outputs that are not directories are owned by the user running mkosi.
-            for p in config.output_dir.iterdir():
+            for p in config.output_dir_or_cwd().iterdir():
                 if not p.is_dir():
                     os.chown(p, uid, gid, follow_symlinks=False)
 

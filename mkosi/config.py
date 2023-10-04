@@ -741,8 +741,8 @@ class MkosiConfig:
     manifest_format: list[ManifestFormat]
     output: str
     compress_output: Compression
-    output_dir: Path
-    workspace_dir: Path
+    output_dir: Optional[Path]
+    workspace_dir: Optional[Path]
     cache_dir: Optional[Path]
     build_dir: Optional[Path]
     image_id: Optional[str]
@@ -841,6 +841,12 @@ class MkosiConfig:
     qemu_args: list[str]
 
     preset: Optional[str]
+
+    def output_dir_or_cwd(self) -> Path:
+        return self.output_dir or Path.cwd()
+
+    def workspace_dir_or_cwd(self) -> Path:
+        return self.workspace_dir or Path.cwd()
 
     @classmethod
     def default(cls) -> "MkosiConfig":
@@ -1169,7 +1175,6 @@ SETTINGS = (
         specifier="O",
         parse=config_make_path_parser(required=False),
         paths=("mkosi.output",),
-        default_factory=lambda _: Path.cwd(),
         help="Output directory",
     ),
     MkosiConfigSetting(
@@ -1179,7 +1184,6 @@ SETTINGS = (
         section="Output",
         parse=config_make_path_parser(required=False),
         paths=("mkosi.workspace",),
-        default_factory=lambda _: Path.cwd(),
         help="Workspace directory",
     ),
     MkosiConfigSetting(

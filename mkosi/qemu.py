@@ -383,7 +383,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, uid: int, gid: int) -> None:
 
         if config.qemu_cdrom and config.output_format == OutputFormat.disk:
             # CD-ROM devices have sector size 2048 so we transform the disk image into one with sector size 2048.
-            src = (config.output_dir / config.output).resolve()
+            src = (config.output_dir_or_cwd() / config.output).resolve()
             fname = src.parent / f"{src.name}-{uuid.uuid4().hex}"
             run(["systemd-repart",
                  "--definitions", "",
@@ -397,9 +397,9 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, uid: int, gid: int) -> None:
                  fname])
             stack.callback(lambda: fname.unlink())
         elif config.ephemeral:
-            fname = stack.enter_context(copy_ephemeral(config, config.output_dir / config.output))
+            fname = stack.enter_context(copy_ephemeral(config, config.output_dir_or_cwd() / config.output))
         else:
-            fname = config.output_dir / config.output
+            fname = config.output_dir_or_cwd() / config.output
 
         if config.output_format == OutputFormat.disk and config.runtime_size:
             run(["systemd-repart",
@@ -415,14 +415,14 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, uid: int, gid: int) -> None:
             config.output_format in (OutputFormat.cpio, OutputFormat.uki, OutputFormat.directory)
         ):
             if config.output_format == OutputFormat.uki:
-                kernel = fname if firmware == QemuFirmware.uefi else config.output_dir / config.output_split_kernel
+                kernel = fname if firmware == QemuFirmware.uefi else config.output_dir_or_cwd() / config.output_split_kernel
             elif config.qemu_kernel:
                 kernel = config.qemu_kernel
             elif "-kernel" not in args.cmdline:
                 if firmware == QemuFirmware.uefi:
-                    kernel = config.output_dir / config.output_split_uki
+                    kernel = config.output_dir_or_cwd() / config.output_split_uki
                 else:
-                    kernel = config.output_dir / config.output_split_kernel
+                    kernel = config.output_dir_or_cwd() / config.output_split_kernel
                 if not kernel.exists():
                     die(
                         f"Kernel or UKI not found at {kernel}, please install a kernel in the image "
@@ -458,9 +458,9 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, uid: int, gid: int) -> None:
         elif (
             firmware == QemuFirmware.linux and
             config.output_format in (OutputFormat.uki, OutputFormat.directory, OutputFormat.disk) and
-            (config.output_dir / config.output_split_initrd).exists()
+            (config.output_dir_or_cwd() / config.output_split_initrd).exists()
         ):
-            cmdline += ["-initrd", config.output_dir / config.output_split_initrd]
+            cmdline += ["-initrd", config.output_dir_or_cwd() / config.output_split_initrd]
 
         if config.output_format == OutputFormat.disk:
             cmdline += ["-drive", f"if=none,id=mkosi,file={fname},format=raw",
