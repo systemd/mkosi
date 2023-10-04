@@ -19,9 +19,9 @@ class Installer(DistributionInstaller):
     @classmethod
     def install_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
         if packages:
-            die("Installing packages is not supported with distribution 'none'")
+            die("Installing packages is not supported for custom distributions'")
 
     @classmethod
     def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
         if packages:
-            die("Removing packages is not supported with distribution 'none'")
+            die("Removing packages is not supported for custom distributions")

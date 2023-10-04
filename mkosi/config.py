@@ -298,9 +298,9 @@ def config_default_distribution(namespace: argparse.Namespace) -> Distribution:
     if not detected:
         logging.info(
             "Distribution of your host can't be detected or isn't a supported target. "
-            "Defaulting to Distribution=none."
+            "Defaulting to Distribution=custom."
         )
-        return Distribution.none
+        return Distribution.custom
 
     return detected
 

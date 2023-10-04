@@ -986,8 +986,8 @@ def build_initrd(state: MkosiState) -> Path:
     if symlink.exists():
         return symlink.resolve()
 
-    if state.config.distribution == Distribution.none:
-        die(f"Building a default initrd is not supported with distribution {state.config.distribution}")
+    if state.config.distribution == Distribution.custom:
+        die("Building a default initrd is not supported for custom distributions")
 
     # Default values are assigned via the parser so we go via the argument parser to construct
     # the config for the initrd.
