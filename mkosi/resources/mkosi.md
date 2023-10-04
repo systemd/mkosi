@@ -1269,6 +1269,8 @@ use `%%`. The following specifiers are understood:
 | `Format=`          | `%t`      |
 | `Output=`          | `%o`      |
 | `OutputDirectory=` | `%O`      |
+| `ImageId=`         | `%i`      |
+| `ImageVersion=`    | `%v`      |
 
 ## Supported distributions
 
