@@ -1247,6 +1247,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   machine in these directories will be owned by the user running mkosi
   on the host.
 
+: Note that when using `mkosi qemu` with this feature systemd v254 or
+  newer has to be installed in the image.
+
 `RuntimeSize=`, `--runtime-size`
 
 : If specified, disk images are grown to the specified size before
