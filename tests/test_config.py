@@ -14,6 +14,7 @@ from mkosi.architecture import Architecture
 from mkosi.config import (
     Compression,
     ConfigFeature,
+    MkosiConfig,
     OutputFormat,
     Verb,
     config_parse_bytes,
@@ -641,3 +642,7 @@ def test_specifiers(tmp_path: Path) -> None:
         }
 
         assert {k: v for k, v in config.environment.items() if k in expected} == expected
+
+
+def test_deterministic() -> None:
+    assert MkosiConfig.default() == MkosiConfig.default()
