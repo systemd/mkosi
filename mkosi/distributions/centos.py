@@ -350,12 +350,16 @@ class Installer(DistributionInstaller):
             ),
         )
 
-        for sig, components, key in sigs:
-            gpgpath = Path(f"/usr/share/distribution-gpg-keys/centos/RPM-GPG-KEY-{key}")
-            if gpgpath.exists():
-                gpgurls = (f"file://{gpgpath}",)
-            else:
-                gpgurls = (f"https://www.centos.org/keys/RPM-GPG-KEY-{key}",)
+        for sig, components, keys in sigs:
+            gpgurls = []
+            for key in keys:
+                gpgpath = Path(f"/usr/share/distribution-gpg-keys/centos/RPM-GPG-KEY-{key}")
+                if gpgpath.exists():
+                    gpgurls += [f"file://{gpgpath}"]
+                else:
+                    gpgurls += [f"https://www.centos.org/keys/RPM-GPG-KEY-{key}"]
+
+            gpgurls = tuple(gpgurls)
 
             for c in components:
                 if config.mirror:
