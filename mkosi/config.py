@@ -684,7 +684,7 @@ class MkosiArgs:
         })
 
     def to_json(self, *, indent: Optional[int] = 4, sort_keys: bool = True) -> str:
-        """Dump MKosiArgs as JSON string."""
+        """Dump MkosiArgs as JSON string."""
         def key_transformer(k: str) -> str:
             return "".join(p.capitalize() for p in k.split("_"))
 
@@ -943,7 +943,7 @@ class MkosiConfig:
         }
 
     def to_json(self, *, indent: Optional[int] = 4, sort_keys: bool = True) -> str:
-        """Dump MKosiConfig as JSON string."""
+        """Dump MkosiConfig as JSON string."""
         def key_transformer(k: str) -> str:
             if (s := SETTINGS_LOOKUP_BY_DEST.get(k)) is not None:
                 return s.name
@@ -2823,10 +2823,8 @@ def json_type_transformer(refcls: Union[type[MkosiArgs], type[MkosiConfig]]) -> 
         # It is unlikely that the type of a field will be None only, so let's not bother with a different sentinel
         # value
         if fieldtype is None:
-            ValueError(f"{refcls} has no field {key}")
+            raise ValueError(f"{refcls} has no field {key}")
 
-        # TODO: exchange for TypeGuard once on 3.10
-        assert fieldtype is not None
         transformer = cast(Optional[Callable[[str, type], Any]], transformers.get(fieldtype.type))
         if transformer is not None:
             try:
