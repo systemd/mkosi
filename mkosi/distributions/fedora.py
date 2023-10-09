@@ -113,6 +113,13 @@ class Installer(DistributionInstaller):
                     Repo("updates-debuginfo", f"{url}/$basearch/debug", gpgurls, enabled=False),
                     Repo("updates-source", f"{url}/SRPMS", gpgurls, enabled=False),
                 ]
+
+                url = f"baseurl={urllib.parse.urljoin(state.config.mirror, 'updates/testing/$releasever/Everything')}"
+                repos += [
+                    Repo("updates-testing", f"{url}/$basearch", gpgurls, enabled=False),
+                    Repo("updates-testing-debuginfo", f"{url}/$basearch/debug", gpgurls, enabled=False),
+                    Repo("updates-testing-source", f"{url}/source/tree", gpgurls, enabled=False)
+                ]
         else:
             url = "metalink=https://mirrors.fedoraproject.org/metalink?arch=$basearch"
             repos += [
@@ -131,6 +138,19 @@ class Installer(DistributionInstaller):
                         enabled=False,
                     ),
                     Repo("updates-source", f"{url}&repo=updates-released-source-f$releasever", gpgurls, enabled=False),
+                    Repo("updates-testing", f"{url}&repo=updates-testing-f$releasever", gpgurls, enabled=False),
+                    Repo(
+                        "updates-testing-debuginfo",
+                        f"{url}&repo=updates-testing-debug-f$releasever",
+                        gpgurls,
+                        enabled=False,
+                    ),
+                    Repo(
+                        "updates-testing-source",
+                        f"{url}&repo=updates-testing-source-f$releasever",
+                        gpgurls,
+                        enabled=False,
+                    ),
                 ]
 
         # TODO: Use `filelists=True` when F37 goes EOL.
