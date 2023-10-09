@@ -167,3 +167,6 @@ class GenericVersion:
         if not isinstance(other, GenericVersion):
             return False
         return self.compare_versions(self._version, other._version) in (self._EQUAL, self._RIGHT_SMALLER)
+
+    def __str__(self) -> str:
+        return self._version
