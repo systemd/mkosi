@@ -70,6 +70,8 @@ from mkosi.util import (
 )
 from mkosi.versioncomp import GenericVersion
 
+MINIMUM_SYSTEMD_VERSION = GenericVersion("254")
+
 
 @contextlib.contextmanager
 def mount_base_trees(state: MkosiState) -> Iterator[None]:
@@ -1528,10 +1530,29 @@ def check_outputs(config: MkosiConfig) -> None:
             die(f"Output path {f} exists already. (Consider invocation with --force.)")
 
 
-def check_tools(config: MkosiConfig) -> None:
-    if want_uki(config) and not (shutil.which("ukify") or Path("/usr/lib/systemd/ukify").exists()):
-        die("'ukify' not found.",
-            hint="Bootable=no can be used to create a non-bootable image.")
+def check_systemd_tool(tool: PathString, *, reason: str, hint: Optional[str] = None) -> None:
+    if not shutil.which(tool):
+        die(f"Could not find '{tool}' which is required to {reason}.", hint=hint)
+
+    v = GenericVersion(run([tool, "--version"], stdout=subprocess.PIPE).stdout.split()[1])
+    if v < MINIMUM_SYSTEMD_VERSION:
+        die(f"Found '{tool}' version {v} but version {MINIMUM_SYSTEMD_VERSION} or newer is required to {reason}.",
+            hint=f"Use ToolsTree=default to get a newer version of '{tool}'.")
+
+
+def check_tools(args: MkosiArgs, config: MkosiConfig) -> None:
+    if want_uki(config):
+        check_systemd_tool(
+            shutil.which("ukify") or "/usr/lib/systemd/ukify",
+            reason="build bootable images",
+            hint="Bootable=no can be used to create a non-bootable image",
+        )
+
+    if config.output_format == OutputFormat.disk:
+        check_systemd_tool("systemd-repart", reason="build disk images")
+
+    if args.verb == Verb.boot:
+        check_systemd_tool("systemd-nspawn", reason="boot images")
 
 
 def configure_ssh(state: MkosiState) -> None:
@@ -2493,7 +2514,7 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
             prepend_to_environ_path(config):
 
             # After tools have been mounted, check if we have what we need
-            check_tools(config)
+            check_tools(args, config)
 
             # Create these as the invoking user to make sure they're owned by the user running mkosi.
             for p in (
@@ -2525,6 +2546,8 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
     # privileges. To avoid a permission error, let's not unmount the final tools tree, since we'll exit
     # right after (and we're in a mount namespace so the /usr mount disappears when we exit)
     with mount_usr(last.tools_tree, umount=False), mount_passwd(name, uid, gid, umount=False):
+
+        check_tools(args, last)
 
         # After mounting the last tools tree, if we're not going to execute systemd-nspawn or qemu, we don't need to
         # be (fake) root anymore, so switch user to the invoking user.
