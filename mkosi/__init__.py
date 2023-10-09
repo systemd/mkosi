@@ -2545,7 +2545,9 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
     # We want to drop privileges after mounting the last tools tree, but to unmount it we still need
     # privileges. To avoid a permission error, let's not unmount the final tools tree, since we'll exit
     # right after (and we're in a mount namespace so the /usr mount disappears when we exit)
-    with mount_usr(last.tools_tree, umount=False), mount_passwd(name, uid, gid, umount=False):
+    with mount_usr(last.tools_tree, umount=False),\
+        mount_passwd(name, uid, gid, umount=False),\
+        prepend_to_environ_path(last):
 
         check_tools(args, last)
 
