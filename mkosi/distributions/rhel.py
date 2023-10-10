@@ -100,7 +100,7 @@ class Installer(centos.Installer):
             )
 
     @classmethod
-    def repositories(cls, state: MkosiState, release: int) -> Iterable[Repo]:
+    def repositories(cls, state: MkosiState) -> Iterable[Repo]:
         yield from cls.repository_variants(state, "baseos")
         yield from cls.repository_variants(state, "appstream")
         yield from cls.repository_variants(state, "codeready-builder")

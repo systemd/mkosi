@@ -12,6 +12,7 @@ from mkosi.installer.dnf import Repo, invoke_dnf, setup_dnf
 from mkosi.log import complete_step, die
 from mkosi.state import MkosiState
 from mkosi.tree import rmtree
+from mkosi.versioncomp import GenericVersion
 
 
 def move_rpm_db(root: Path) -> None:
@@ -95,12 +96,10 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def setup(cls, state: MkosiState) -> None:
-        release = int(state.config.release)
-
-        if release <= 7:
+        if GenericVersion(state.config.release) <= 7:
             die(f"{cls.pretty_name()} 7 or earlier variants are not supported")
 
-        setup_dnf(state, cls.repositories(state, release))
+        setup_dnf(state, cls.repositories(state))
         (state.pkgmngr / "etc/dnf/vars/stream").write_text(f"{state.config.release}-stream\n")
 
     @classmethod
@@ -153,7 +152,7 @@ class Installer(DistributionInstaller):
             yield Repo(repo, f"baseurl={state.config.local_mirror}", cls.gpgurls(state))
 
         elif state.config.mirror:
-            if int(state.config.release) <= 8:
+            if GenericVersion(state.config.release) <= 8:
                 yield Repo(
                     repo.lower(),
                     f"baseurl={join_mirror(state.config.mirror, f'centos/$stream/{repo}/$basearch/os')}",
@@ -205,7 +204,7 @@ class Installer(DistributionInstaller):
                     )
 
         else:
-            if int(state.config.release) <= 8:
+            if GenericVersion(state.config.release) <= 8:
                 yield Repo(
                     repo.lower(),
                     f"mirrorlist=http://mirrorlist.centos.org/?release=$stream&arch=$basearch&repo={repo}",
@@ -259,7 +258,7 @@ class Installer(DistributionInstaller):
                     )
 
     @classmethod
-    def repositories(cls, state: MkosiState, release: int) -> Iterable[Repo]:
+    def repositories(cls, state: MkosiState) -> Iterable[Repo]:
         if state.config.local_mirror:
             yield from cls.repository_variants(state, "AppStream")
         else:
@@ -267,7 +266,7 @@ class Installer(DistributionInstaller):
             yield from cls.repository_variants(state, "AppStream")
             yield from cls.repository_variants(state, "extras")
 
-        if release >= 9:
+        if GenericVersion(state.config.release) >= 9:
             yield from cls.repository_variants(state, "CRB")
         else:
             yield from cls.repository_variants(state, "PowerTools")
@@ -361,7 +360,7 @@ class Installer(DistributionInstaller):
 
             for c in components:
                 if state.config.mirror:
-                    if int(state.config.release) <= 8:
+                    if GenericVersion(state.config.release) <= 8:
                         yield Repo(
                             f"{sig}-{c}",
                             f"baseurl={join_mirror(state.config.mirror, f'centos/$stream/{sig}/$basearch/{c}')}",
@@ -400,7 +399,7 @@ class Installer(DistributionInstaller):
                             enabled=False,
                         )
                 else:
-                    if int(state.config.release) <= 8:
+                    if GenericVersion(state.config.release) <= 8:
                         yield Repo(
                             f"{sig}-{c}",
                             f"mirrorlist=http://mirrorlist.centos.org/?release=$stream&arch=$basearch&repo={sig}-{c}",
@@ -448,7 +447,7 @@ class Installer(DistributionInstaller):
                         enabled=False,
                     )
 
-                    if int(state.config.release) >= 9:
+                    if GenericVersion(state.config.release) >= 9:
                         yield Repo(
                             f"{sig}-{c}-testing-debuginfo",
                             f"baseurl=https://buildlogs.centos.org/centos/$stream/{sig}/$basearch/{c}",
