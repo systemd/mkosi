@@ -41,13 +41,6 @@ class Installer(centos.Installer):
                 cls.gpgurls(state),
                 enabled=False,
             )
-            if repo == "codeready-builder":
-                yield Repo(
-                    f"ubi-{v}-{repo}",
-                    f"baseurl={centos.join_mirror(mirror, f'ubi{v}/{v}/$basearch/{repo}/os')}",
-                    cls.gpgurls(state),
-                    enabled=False,
-                )
 
     @classmethod
     def repositories(cls, state: MkosiState, release: int) -> Iterable[Repo]:
