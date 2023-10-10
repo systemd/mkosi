@@ -315,31 +315,6 @@ def config_default_release(namespace: argparse.Namespace) -> str:
     return cast(str, namespace.distribution.default_release())
 
 
-def config_default_mirror(namespace: argparse.Namespace) -> Optional[str]:
-    if namespace.distribution == Distribution.debian:
-        return "http://deb.debian.org/debian"
-    elif namespace.distribution == Distribution.ubuntu:
-        if namespace.architecture in (Architecture.x86, Architecture.x86_64):
-            return "http://archive.ubuntu.com/ubuntu"
-        else:
-            return "http://ports.ubuntu.com"
-    elif namespace.distribution == Distribution.arch:
-        if namespace.architecture == Architecture.arm64:
-            return "http://mirror.archlinuxarm.org"
-        else:
-            return "https://geo.mirror.pkgbuild.com"
-    elif namespace.distribution == Distribution.opensuse:
-        return "http://download.opensuse.org"
-    elif namespace.distribution == Distribution.fedora and namespace.release == "eln":
-        return "https://odcs.fedoraproject.org/composes/production/latest-Fedora-ELN/compose"
-    elif namespace.distribution == Distribution.gentoo:
-        return "https://distfiles.gentoo.org"
-    elif namespace.distribution == Distribution.rhel_ubi:
-        return "https://cdn-ubi.redhat.com/content/public/ubi/dist/"
-
-    return None
-
-
 def config_default_source_date_epoch(namespace: argparse.Namespace) -> Optional[int]:
     for env in namespace.environment:
         if env.startswith("SOURCE_DATE_EPOCH="):
@@ -1108,8 +1083,6 @@ SETTINGS = (
         dest="mirror",
         short="-m",
         section="Distribution",
-        default_factory=config_default_mirror,
-        default_factory_depends=("distribution", "release", "architecture"),
         help="Distribution mirror to use",
     ),
     MkosiConfigSetting(

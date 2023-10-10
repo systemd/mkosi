@@ -21,30 +21,30 @@ class Installer(centos.Installer):
         if state.config.local_mirror:
             yield Repo(repo, f"baseurl={state.config.local_mirror}", cls.gpgurls(state))
         else:
-            assert state.config.mirror
+            mirror = state.config.mirror or "https://cdn-ubi.redhat.com/content/public/ubi/dist/"
 
             v = state.config.release
             yield Repo(
                 f"ubi-{v}-{repo}-rpms",
-                f"baseurl={centos.join_mirror(state.config.mirror, f'ubi{v}/{v}/$basearch/{repo}/os')}",
+                f"baseurl={centos.join_mirror(mirror, f'ubi{v}/{v}/$basearch/{repo}/os')}",
                 cls.gpgurls(state),
             )
             yield Repo(
                 f"ubi-{v}-{repo}-debug-rpms",
-                f"baseurl={centos.join_mirror(state.config.mirror, f'ubi{v}/{v}/$basearch/{repo}/debug')}",
+                f"baseurl={centos.join_mirror(mirror, f'ubi{v}/{v}/$basearch/{repo}/debug')}",
                 cls.gpgurls(state),
                 enabled=False,
             )
             yield Repo(
                 f"ubi-{v}-{repo}-source",
-                f"baseurl={centos.join_mirror(state.config.mirror, f'ubi{v}/{v}/$basearch/{repo}/source')}",
+                f"baseurl={centos.join_mirror(mirror, f'ubi{v}/{v}/$basearch/{repo}/source')}",
                 cls.gpgurls(state),
                 enabled=False,
             )
             if repo == "codeready-builder":
                 yield Repo(
                     f"ubi-{v}-{repo}",
-                    f"baseurl={centos.join_mirror(state.config.mirror, f'ubi{v}/{v}/$basearch/{repo}/os')}",
+                    f"baseurl={centos.join_mirror(mirror, f'ubi{v}/{v}/$basearch/{repo}/os')}",
                     cls.gpgurls(state),
                     enabled=False,
                 )

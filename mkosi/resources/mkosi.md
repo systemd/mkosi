@@ -425,7 +425,25 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `Mirror=`, `--mirror=`, `-m`
 
 : The mirror to use for downloading the distribution packages. Expects
-  a mirror URL as argument.
+  a mirror URL as argument. If not provided, the default mirror for the
+  distribution is used.
+
+: The default mirrors for each distribution are as follows (unless
+  specified, the same mirror is used for all architectures):
+
+  |                | x86-64                            | aarch64                        |
+  |----------------|--------------------------------------------------------------------|
+  | `debian`       | http://deb.debian.org/debian      |                                |
+  | `arch`         | https://geo.mirror.pkgbuild.com   | http://mirror.archlinuxarm.org |
+  | `opensuse`     | http://download.opensuse.org      |                                |
+  | `ubuntu`       | http://archive.ubuntu.com         | http://ports.ubuntu.com        |
+  | `centos`       | https://mirrors.centos.org        |                                |
+  | `rocky`        | https://mirrors.rockylinux.org    |                                |
+  | `alma`         | https://mirrors.almalinux.org     |                                |
+  | `fedora`       | https://mirrors.fedoraproject.org |                                |
+  | `rhel-ubi`     | https://cdn-ubi.redhat.com        |                                |
+  | `mageia`       | https://www.mageia.org            |                                |
+  | `openmandriva` | http://mirrors.openmandriva.org   |                                |
 
 `LocalMirror=`, `--local-mirror=`
 
