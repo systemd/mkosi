@@ -6,6 +6,14 @@ import pytest
 from mkosi.versioncomp import GenericVersion
 
 
+def test_conversion() -> None:
+    assert GenericVersion("1") < 2
+    assert GenericVersion("1") < "2"
+    assert GenericVersion("2") > 1
+    assert GenericVersion("2") > "1"
+    assert GenericVersion("1") == "1"
+
+
 def test_generic_version_systemd() -> None:
     """Same as the first block of systemd/test/test-compare-versions.sh"""
     assert GenericVersion("1") < GenericVersion("2")
