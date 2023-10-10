@@ -72,6 +72,8 @@ def setup_dnf(state: MkosiState, repos: Iterable[Repo], filelists: bool = True) 
                     f.write("gpgkey=" if i == 0 else len("gpgkey=") * " ")
                     f.write(f"{url}\n")
 
+                f.write("\n")
+
 
 def dnf_cmd(state: MkosiState) -> list[PathString]:
     dnf = dnf_executable(state)
