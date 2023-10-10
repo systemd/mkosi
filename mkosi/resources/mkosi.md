@@ -395,9 +395,10 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 : The distribution to install in the image. Takes one of the following
   arguments: `fedora`, `debian`, `ubuntu`, `arch`, `opensuse`, `mageia`,
-  `centos`, `rhel-ubi`, `openmandriva`, `rocky`, `alma`, `custom`.
-  If not specified, defaults to the distribution of the host or `custom`
-  if the distribution of the host is not a supported distribution.
+  `centos`, `rhel`, `rhel-ubi`, `openmandriva`, `rocky`, `alma`,
+  `custom`. If not specified, defaults to the distribution of the host
+  or `custom` if the distribution of the host is not a supported
+  distribution.
 
 `Release=`, `--release=`, `-r`
 
@@ -1321,6 +1322,8 @@ distributions:
 
 * *CentOS*
 
+* *RHEL*
+
 * *RHEL UBI*
 
 * *OpenMandriva*
@@ -1349,6 +1352,10 @@ selecting the `custom` distribution, and populating the rootfs via a
 combination of base trees, skeleton trees, and prepare scripts.
 
 Currently, *Fedora Linux* packages all relevant tools as of Fedora 28.
+
+Note that when not using a custom mirror, `RHEL` images can only be
+built from a host system with a `RHEL` subscription (established using
+e.g. `subscription-manager`).
 
 # Execution Flow
 

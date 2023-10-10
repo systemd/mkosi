@@ -47,3 +47,4 @@ class Installer(centos.Installer):
         yield from cls.repository_variants(state, "baseos")
         yield from cls.repository_variants(state, "appstream")
         yield from cls.repository_variants(state, "codeready-builder")
+        yield from cls.epel_repositories(state)

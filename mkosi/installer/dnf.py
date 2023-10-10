@@ -4,7 +4,7 @@ import shutil
 import textwrap
 from collections.abc import Iterable
 from pathlib import Path
-from typing import NamedTuple
+from typing import NamedTuple, Optional
 
 from mkosi.run import apivfs_cmd, bwrap
 from mkosi.state import MkosiState
@@ -18,6 +18,9 @@ class Repo(NamedTuple):
     url: str
     gpgurls: tuple[str, ...]
     enabled: bool = True
+    sslcacert: Optional[Path] = None
+    sslclientkey: Optional[Path] = None
+    sslclientcert: Optional[Path] = None
 
 
 def dnf_executable(state: MkosiState) -> str:
@@ -67,6 +70,13 @@ def setup_dnf(state: MkosiState, repos: Iterable[Repo], filelists: bool = True) 
                         """
                     )
                 )
+
+                if repo.sslcacert:
+                    f.write(f"sslcacert={repo.sslcacert}\n")
+                if repo.sslclientcert:
+                    f.write(f"sslclientcert={repo.sslclientcert}\n")
+                if repo.sslclientkey:
+                    f.write(f"sslclientkey={repo.sslclientkey}\n")
 
                 for i, url in enumerate(repo.gpgurls):
                     f.write("gpgkey=" if i == 0 else len("gpgkey=") * " ")
