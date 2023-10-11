@@ -312,6 +312,10 @@ def finalize_mounts(config: MkosiConfig) -> list[PathString]:
     return flatten(["--bind", src, target] for src, target in sorted(set(sources), key=lambda s: s[1]))
 
 
+def script_maybe_chroot(script: Path, mountpoint: str) -> list[str]:
+    return ["mkosi-chroot", mountpoint] if script.suffix == ".chroot" else [os.fspath(script)]
+
+
 def run_prepare_scripts(state: MkosiState, build: bool) -> None:
     if not state.config.prepare_scripts:
         return
@@ -354,7 +358,7 @@ def run_prepare_scripts(state: MkosiState, build: bool) -> None:
 
             with complete_step(step_msg.format(script)):
                 bwrap(
-                    [script, arg],
+                    script_maybe_chroot(script, "/work/prepare") + [arg],
                     network=True,
                     readonly=True,
                     options=finalize_mounts(state.config),
@@ -411,9 +415,11 @@ def run_build_scripts(state: MkosiState) -> None:
                 ],
             )
 
+            cmdline = state.args.cmdline if state.args.verb == Verb.build else []
+
             with complete_step(f"Running build script {script}…"):
                 bwrap(
-                    [script, *(state.args.cmdline if state.args.verb == Verb.build else [])],
+                    script_maybe_chroot(script, "/work/build-script") + cmdline,
                     network=state.config.with_network,
                     readonly=True,
                     options=finalize_mounts(state.config),
@@ -455,7 +461,7 @@ def run_postinst_scripts(state: MkosiState) -> None:
 
         with complete_step(f"Running postinstall script {script}…"):
             bwrap(
-                [script, "final"],
+                script_maybe_chroot(script, "/work/postinst") + ["final"],
                 network=state.config.with_network,
                 readonly=True,
                 options=finalize_mounts(state.config),
@@ -497,7 +503,7 @@ def run_finalize_scripts(state: MkosiState) -> None:
 
         with complete_step(f"Running finalize script {script}…"):
             bwrap(
-                [script],
+                script_maybe_chroot(script, "/work/finalize"),
                 network=state.config.with_network,
                 readonly=True,
                 options=finalize_mounts(state.config),
