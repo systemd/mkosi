@@ -1430,6 +1430,11 @@ following scripts are supported:
 * If **`mkosi.finalize`** (`FinalizeScripts=`) exists, it is executed as
   the last step of preparing an image.
 
+If a script uses the `.chroot` extension, mkosi will chroot into the
+image using `mkosi-chroot` (see below) before executing the script. For
+example, if `mkosi.postinst.chroot` exists, mkosi will chroot into the
+image and execute it as the post-installation script.
+
 Scripts executed by mkosi receive the following environment variables:
 
 * `$CHROOT_SCRIPT` contains the path to the running script relative to
