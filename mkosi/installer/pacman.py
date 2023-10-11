@@ -12,15 +12,13 @@ from mkosi.util import sort_packages, umask
 
 
 def setup_pacman(state: MkosiState) -> None:
-    assert state.config.mirror
-
     if state.config.local_mirror:
         server = f"Server = {state.config.local_mirror}"
     else:
         if state.config.architecture == Architecture.arm64:
-            server = f"Server = {state.config.mirror}/$arch/$repo"
+            server = f"Server = {state.config.mirror or 'http://mirror.archlinuxarm.org'}/$arch/$repo"
         else:
-            server = f"Server = {state.config.mirror}/$repo/os/$arch"
+            server = f"Server = {state.config.mirror or 'https://geo.mirror.pkgbuild.com'}/$repo/os/$arch"
 
     if state.config.repository_key_check:
         sig_level = "Required DatabaseOptional"

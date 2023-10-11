@@ -139,32 +139,44 @@ class GenericVersion:
             v2 = v2.removeprefix(v2_letter_prefix)
 
     def __eq__(self, other: object) -> bool:
-        if not isinstance(other, GenericVersion):
+        if isinstance(other, (str, int)):
+            other = GenericVersion(str(other))
+        elif not isinstance(other, GenericVersion):
             return False
         return self.compare_versions(self._version, other._version) == self._EQUAL
 
     def __ne__(self, other: object) -> bool:
-        if not isinstance(other, GenericVersion):
+        if isinstance(other, (str, int)):
+            other = GenericVersion(str(other))
+        elif not isinstance(other, GenericVersion):
             return False
         return self.compare_versions(self._version, other._version) != self._EQUAL
 
     def __lt__(self, other: object) -> bool:
-        if not isinstance(other, GenericVersion):
+        if isinstance(other, (str, int)):
+            other = GenericVersion(str(other))
+        elif not isinstance(other, GenericVersion):
             return False
         return self.compare_versions(self._version, other._version) == self._LEFT_SMALLER
 
     def __le__(self, other: object) -> bool:
-        if not isinstance(other, GenericVersion):
+        if isinstance(other, (str, int)):
+            other = GenericVersion(str(other))
+        elif not isinstance(other, GenericVersion):
             return False
         return self.compare_versions(self._version, other._version) in (self._EQUAL, self._LEFT_SMALLER)
 
     def __gt__(self, other: object) -> bool:
-        if not isinstance(other, GenericVersion):
+        if isinstance(other, (str, int)):
+            other = GenericVersion(str(other))
+        elif not isinstance(other, GenericVersion):
             return False
         return self.compare_versions(self._version, other._version) == self._RIGHT_SMALLER
 
     def __ge__(self, other: object) -> bool:
-        if not isinstance(other, GenericVersion):
+        if isinstance(other, (str, int)):
+            other = GenericVersion(str(other))
+        elif not isinstance(other, GenericVersion):
             return False
         return self.compare_versions(self._version, other._version) in (self._EQUAL, self._RIGHT_SMALLER)
 

@@ -86,10 +86,10 @@ class Installer(DistributionInstaller):
     def install(cls, state: MkosiState) -> None:
         arch = state.config.distribution.architecture(state.config.architecture)
 
-        assert state.config.mirror
+        mirror = state.config.mirror or "https://distfiles.gentoo.org"
         # http://distfiles.gentoo.org/releases/amd64/autobuilds/latest-stage3.txt
         stage3tsf_path_url = urllib.parse.urljoin(
-            state.config.mirror.partition(" ")[0],
+            mirror.partition(" ")[0],
             f"releases/{arch}/autobuilds/latest-stage3.txt",
         )
 
@@ -104,7 +104,7 @@ class Installer(DistributionInstaller):
             else:
                 die("profile names changed upstream?")
 
-        stage3_url = urllib.parse.urljoin(state.config.mirror, f"releases/{arch}/autobuilds/{stage3_latest}")
+        stage3_url = urllib.parse.urljoin(mirror, f"releases/{arch}/autobuilds/{stage3_latest}")
         stage3_tar = state.cache_dir / "stage3.tar"
         stage3 = state.cache_dir / "stage3"
 

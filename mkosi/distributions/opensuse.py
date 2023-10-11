@@ -80,20 +80,22 @@ class Installer(DistributionInstaller):
         if release == "leap":
             release = "stable"
 
+        mirror = state.config.mirror or "http://download.opensuse.org"
+
         # If the release looks like a timestamp, it's Tumbleweed. 13.x is legacy
         # (14.x won't ever appear). For anything else, let's default to Leap.
         if state.config.local_mirror:
             release_url = f"{state.config.local_mirror}"
             updates_url = None
         if release.isdigit() or release == "tumbleweed":
-            release_url = f"{state.config.mirror}/tumbleweed/repo/oss/"
-            updates_url = f"{state.config.mirror}/update/tumbleweed/"
+            release_url = f"{mirror}/tumbleweed/repo/oss/"
+            updates_url = f"{mirror}/update/tumbleweed/"
         elif release in ("current", "stable"):
-            release_url = f"{state.config.mirror}/distribution/openSUSE-{release}/repo/oss/"
-            updates_url = f"{state.config.mirror}/update/openSUSE-{release}/"
+            release_url = f"{mirror}/distribution/openSUSE-{release}/repo/oss/"
+            updates_url = f"{mirror}/update/openSUSE-{release}/"
         else:
-            release_url = f"{state.config.mirror}/distribution/leap/{release}/repo/oss/"
-            updates_url = f"{state.config.mirror}/update/leap/{release}/oss/"
+            release_url = f"{mirror}/distribution/leap/{release}/repo/oss/"
+            updates_url = f"{mirror}/update/leap/{release}/oss/"
 
         zypper = shutil.which("zypper")
 

@@ -80,16 +80,16 @@ class Installer(DistributionInstaller):
 
     @staticmethod
     def repositories(state: MkosiState, local: bool = True) -> list[str]:
-        assert state.config.mirror
-
         archives = ("deb", "deb-src")
         components = ' '.join(("main", *state.config.repositories))
 
         if state.config.local_mirror and local:
             return [f"deb [trusted=yes] {state.config.local_mirror} {state.config.release} {components}"]
 
+        mirror = state.config.mirror or "http://deb.debian.org/debian"
+
         repos = [
-            f"{archive} {state.config.mirror} {state.config.release} {components}"
+            f"{archive} {mirror} {state.config.release} {components}"
             for archive in archives
         ]
 
@@ -100,7 +100,7 @@ class Installer(DistributionInstaller):
             return repos
 
         repos += [
-            f"{archive} {state.config.mirror} {state.config.release}-updates {components}"
+            f"{archive} {mirror} {state.config.release}-updates {components}"
             for archive in archives
         ]
 

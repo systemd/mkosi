@@ -395,9 +395,10 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 : The distribution to install in the image. Takes one of the following
   arguments: `fedora`, `debian`, `ubuntu`, `arch`, `opensuse`, `mageia`,
-  `centos`, `rhel-ubi`, `openmandriva`, `rocky`, `alma`, `custom`.
-  If not specified, defaults to the distribution of the host or `custom`
-  if the distribution of the host is not a supported distribution.
+  `centos`, `rhel`, `rhel-ubi`, `openmandriva`, `rocky`, `alma`,
+  `custom`. If not specified, defaults to the distribution of the host
+  or `custom` if the distribution of the host is not a supported
+  distribution.
 
 `Release=`, `--release=`, `-r`
 
@@ -425,7 +426,25 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `Mirror=`, `--mirror=`, `-m`
 
 : The mirror to use for downloading the distribution packages. Expects
-  a mirror URL as argument.
+  a mirror URL as argument. If not provided, the default mirror for the
+  distribution is used.
+
+: The default mirrors for each distribution are as follows (unless
+  specified, the same mirror is used for all architectures):
+
+  |                | x86-64                            | aarch64                        |
+  |----------------|--------------------------------------------------------------------|
+  | `debian`       | http://deb.debian.org/debian      |                                |
+  | `arch`         | https://geo.mirror.pkgbuild.com   | http://mirror.archlinuxarm.org |
+  | `opensuse`     | http://download.opensuse.org      |                                |
+  | `ubuntu`       | http://archive.ubuntu.com         | http://ports.ubuntu.com        |
+  | `centos`       | https://mirrors.centos.org        |                                |
+  | `rocky`        | https://mirrors.rockylinux.org    |                                |
+  | `alma`         | https://mirrors.almalinux.org     |                                |
+  | `fedora`       | https://mirrors.fedoraproject.org |                                |
+  | `rhel-ubi`     | https://cdn-ubi.redhat.com        |                                |
+  | `mageia`       | https://www.mageia.org            |                                |
+  | `openmandriva` | http://mirrors.openmandriva.org   |                                |
 
 `LocalMirror=`, `--local-mirror=`
 
@@ -1303,6 +1322,8 @@ distributions:
 
 * *CentOS*
 
+* *RHEL*
+
 * *RHEL UBI*
 
 * *OpenMandriva*
@@ -1331,6 +1352,10 @@ selecting the `custom` distribution, and populating the rootfs via a
 combination of base trees, skeleton trees, and prepare scripts.
 
 Currently, *Fedora Linux* packages all relevant tools as of Fedora 28.
+
+Note that when not using a custom mirror, `RHEL` images can only be
+built from a host system with a `RHEL` subscription (established using
+e.g. `subscription-manager`).
 
 # Execution Flow
 

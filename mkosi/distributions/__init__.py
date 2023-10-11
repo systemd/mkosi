@@ -81,6 +81,7 @@ class Distribution(StrEnum):
     opensuse     = enum.auto()
     mageia       = enum.auto()
     centos       = enum.auto()
+    rhel         = enum.auto()
     rhel_ubi     = enum.auto()
     openmandriva = enum.auto()
     rocky        = enum.auto()
@@ -96,6 +97,7 @@ class Distribution(StrEnum):
             Distribution.fedora,
             Distribution.mageia,
             Distribution.centos,
+            Distribution.rhel,
             Distribution.rhel_ubi,
             Distribution.openmandriva,
             Distribution.rocky,

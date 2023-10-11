@@ -2,9 +2,9 @@
 
 from collections.abc import Iterable
 
-from mkosi.config import MkosiConfig
 from mkosi.distributions import centos
 from mkosi.installer.dnf import Repo
+from mkosi.state import MkosiState
 
 
 class Installer(centos.Installer):
@@ -13,42 +13,38 @@ class Installer(centos.Installer):
         return "RHEL UBI"
 
     @staticmethod
-    def gpgurls(config: MkosiConfig) -> tuple[str, ...]:
+    def gpgurls(state: MkosiState) -> tuple[str, ...]:
         return ("https://access.redhat.com/security/data/fd431d51.txt",)
 
     @classmethod
-    def repository_variants(cls, config: MkosiConfig, repo: str) -> Iterable[Repo]:
-        if config.local_mirror:
-            yield Repo(repo, f"baseurl={config.local_mirror}", cls.gpgurls(config))
+    def repository_variants(cls, state: MkosiState, repo: str) -> Iterable[Repo]:
+        if state.config.local_mirror:
+            yield Repo(repo, f"baseurl={state.config.local_mirror}", cls.gpgurls(state))
         else:
-            v = config.release
+            mirror = state.config.mirror or "https://cdn-ubi.redhat.com/content/public/ubi/dist/"
+
+            v = state.config.release
             yield Repo(
                 f"ubi-{v}-{repo}-rpms",
-                f"baseurl={centos.join_mirror(config, f'ubi{v}/{v}/$basearch/{repo}/os')}",
-                cls.gpgurls(config),
+                f"baseurl={centos.join_mirror(mirror, f'ubi{v}/{v}/$basearch/{repo}/os')}",
+                cls.gpgurls(state),
             )
             yield Repo(
                 f"ubi-{v}-{repo}-debug-rpms",
-                f"baseurl={centos.join_mirror(config, f'ubi{v}/{v}/$basearch/{repo}/debug')}",
-                cls.gpgurls(config),
+                f"baseurl={centos.join_mirror(mirror, f'ubi{v}/{v}/$basearch/{repo}/debug')}",
+                cls.gpgurls(state),
                 enabled=False,
             )
             yield Repo(
                 f"ubi-{v}-{repo}-source",
-                f"baseurl={centos.join_mirror(config, f'ubi{v}/{v}/$basearch/{repo}/source')}",
-                cls.gpgurls(config),
+                f"baseurl={centos.join_mirror(mirror, f'ubi{v}/{v}/$basearch/{repo}/source')}",
+                cls.gpgurls(state),
                 enabled=False,
             )
-            if repo == "codeready-builder":
-                yield Repo(
-                    f"ubi-{v}-{repo}",
-                    f"baseurl={centos.join_mirror(config, f'ubi{v}/{v}/$basearch/{repo}/os')}",
-                    cls.gpgurls(config),
-                    enabled=False,
-                )
 
     @classmethod
-    def repositories(cls, config: MkosiConfig, release: int) -> Iterable[Repo]:
-        yield from cls.repository_variants(config, "baseos")
-        yield from cls.repository_variants(config, "appstream")
-        yield from cls.repository_variants(config, "codeready-builder")
+    def repositories(cls, state: MkosiState) -> Iterable[Repo]:
+        yield from cls.repository_variants(state, "baseos")
+        yield from cls.repository_variants(state, "appstream")
+        yield from cls.repository_variants(state, "codeready-builder")
+        yield from cls.epel_repositories(state)

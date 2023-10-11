@@ -2,9 +2,9 @@
 
 from pathlib import Path
 
-from mkosi.config import MkosiConfig
 from mkosi.distributions import centos
 from mkosi.installer.dnf import Repo
+from mkosi.state import MkosiState
 
 
 class Installer(centos.Installer):
@@ -13,22 +13,22 @@ class Installer(centos.Installer):
         return "AlmaLinux"
 
     @staticmethod
-    def gpgurls(config: MkosiConfig) -> tuple[str, ...]:
-        gpgpath = Path(f"/usr/share/distribution-gpg-keys/alma/RPM-GPG-KEY-AlmaLinux-{config.release}")
+    def gpgurls(state: MkosiState) -> tuple[str, ...]:
+        gpgpath = Path(f"/usr/share/distribution-gpg-keys/alma/RPM-GPG-KEY-AlmaLinux-{state.config.release}")
         if gpgpath.exists():
             return (f"file://{gpgpath}",)
         else:
             return ("https://repo.almalinux.org/almalinux/RPM-GPG-KEY-AlmaLinux-$releasever",)
 
     @classmethod
-    def repository_variants(cls, config: MkosiConfig, repo: str) -> list[Repo]:
-        if config.mirror:
-            url = f"baseurl={config.mirror}/almalinux/$releasever/{repo}/$basearch/os"
+    def repository_variants(cls, state: MkosiState, repo: str) -> list[Repo]:
+        if state.config.mirror:
+            url = f"baseurl={state.config.mirror}/almalinux/$releasever/{repo}/$basearch/os"
         else:
             url = f"mirrorlist=https://mirrors.almalinux.org/mirrorlist/$releasever/{repo.lower()}"
 
-        return [Repo(repo, url, cls.gpgurls(config))]
+        return [Repo(repo, url, cls.gpgurls(state))]
 
     @classmethod
-    def sig_repositories(cls, config: MkosiConfig) -> list[Repo]:
+    def sig_repositories(cls, state: MkosiState) -> list[Repo]:
         return []

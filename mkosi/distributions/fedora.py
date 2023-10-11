@@ -89,9 +89,9 @@ class Installer(DistributionInstaller):
         if state.config.local_mirror:
             repos += [Repo("fedora", f"baseurl={state.config.mirror}", gpgurls)]
         elif state.config.release == "eln":
-            assert state.config.mirror
+            mirror = state.config.mirror or "https://odcs.fedoraproject.org/composes/production/latest-Fedora-ELN/compose"
             for repo in ("Appstream", "BaseOS", "Extras", "CRB"):
-                url = f"baseurl={urllib.parse.urljoin(state.config.mirror, repo)}"
+                url = f"baseurl={urllib.parse.urljoin(mirror, repo)}"
                 repos += [
                     Repo(repo.lower(), f"{url}/$basearch/os", gpgurls),
                     Repo(repo.lower(), f"{url}/$basearch/debug/tree", gpgurls, enabled=False),
