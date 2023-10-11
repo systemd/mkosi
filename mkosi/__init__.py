@@ -298,6 +298,15 @@ def mount_build_overlay(state: MkosiState) -> contextlib.AbstractContextManager[
     return mount_overlay([state.root], state.workspace / "build-overlay", state.root)
 
 
+@contextlib.contextmanager
+def mount_volatile_overlay(state: MkosiState) -> Iterator[Path]:
+    with tempfile.TemporaryDirectory() as d:
+        Path(d).chmod(0o755)
+
+        with mount_overlay([state.root], Path(d), state.root) as p:
+            yield p
+
+
 def finalize_mounts(config: MkosiConfig) -> list[PathString]:
     sources = [
         (src, Path.cwd() / (str(target).lstrip("/") if target else "."))
@@ -395,7 +404,11 @@ def run_build_scripts(state: MkosiState) -> None:
             CHROOT_BUILDDIR="/work/build",
         )
 
-    with mount_build_overlay(state), mount_passwd(state.name, state.uid, state.gid, state.root):
+    with (
+        mount_build_overlay(state),\
+        mount_passwd(state.name, state.uid, state.gid, state.root),\
+        mount_volatile_overlay(state)\
+    ):
         for script in state.config.build_scripts:
             chroot = chroot_cmd(
                 state.root,
