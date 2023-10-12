@@ -8,7 +8,7 @@ from pathlib import Path
 
 from mkosi.architecture import Architecture
 from mkosi.distributions import Distribution, DistributionInstaller, PackageType
-from mkosi.installer.dnf import Repo, invoke_dnf, setup_dnf
+from mkosi.installer.dnf import Repo, find_rpm_gpgkey, invoke_dnf, setup_dnf
 from mkosi.log import complete_step, die
 from mkosi.state import MkosiState
 from mkosi.tree import rmtree
@@ -135,16 +135,8 @@ class Installer(DistributionInstaller):
 
     @staticmethod
     def gpgurls(state: MkosiState) -> tuple[str, ...]:
-        gpgurls = []
-
-        for key in ("CentOS-Official", "CentOS-SIG-Extras"):
-            gpgpath = Path(f"/usr/share/distribution-gpg-keys/centos/RPM-GPG-KEY-{key}")
-            if gpgpath.exists():
-                gpgurls += [f"file://{gpgpath}"]
-            else:
-                gpgurls += [f"https://www.centos.org/keys/RPM-GPG-KEY-{key}"]
-
-        return tuple(gpgurls)
+        keys = ("RPM-GPG-KEY-CentOS-Official", "RPM-GPG-KEY-CentOS-SIG-Extras")
+        return tuple(find_rpm_gpgkey(state, key, f"https://www.centos.org/keys/{key}") for key in keys)
 
     @classmethod
     def repository_variants(cls, state: MkosiState, repo: str) -> Iterable[Repo]:
@@ -276,11 +268,13 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def epel_repositories(cls, state: MkosiState) -> Iterable[Repo]:
-        gpgpath = Path(f"/usr/share/distribution-gpg-keys/centos/RPM-GPG-KEY-EPEL-{state.config.release}")
-        if gpgpath.exists():
-            gpgurls = (f"file://{gpgpath}",)
-        else:
-            gpgurls = (f"https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-{state.config.release}",)
+        gpgurls = (
+            find_rpm_gpgkey(
+                state,
+                f"RPM-GPG-KEY-EPEL-{state.config.release}",
+                f"https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-{state.config.release}",
+            ),
+        )
 
         if state.config.local_mirror:
             return
@@ -343,20 +337,12 @@ class Installer(DistributionInstaller):
             (
                 "hyperscale",
                 (f"packages-{c}" for c in ("main", "experimental", "facebook", "hotfixes", "spin", "intel")),
-                ("CentOS-SIG-HyperScale",),
+                ("RPM-GPG-KEY-CentOS-SIG-HyperScale",),
             ),
         )
 
         for sig, components, keys in sigs:
-            gpgurls = []
-            for key in keys:
-                gpgpath = Path(f"/usr/share/distribution-gpg-keys/centos/RPM-GPG-KEY-{key}")
-                if gpgpath.exists():
-                    gpgurls += [f"file://{gpgpath}"]
-                else:
-                    gpgurls += [f"https://www.centos.org/keys/RPM-GPG-KEY-{key}"]
-
-            gpgurls = tuple(gpgurls)
+            gpgurls = tuple(find_rpm_gpgkey(state, key, f"https://www.centos.org/keys/{key}") for key in keys)
 
             for c in components:
                 if state.config.mirror:

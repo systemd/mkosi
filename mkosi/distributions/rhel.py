@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from mkosi.distributions import centos
-from mkosi.installer.dnf import Repo
+from mkosi.installer.dnf import Repo, find_rpm_gpgkey
 from mkosi.log import die
 from mkosi.state import MkosiState
 
@@ -17,7 +17,15 @@ class Installer(centos.Installer):
 
     @staticmethod
     def gpgurls(state: MkosiState) -> tuple[str, ...]:
-        return ("https://access.redhat.com/security/data/fd431d51.txt",)
+        major = int(float(state.config.release))
+
+        return (
+            find_rpm_gpgkey(
+                state,
+                f"RPM-GPG-KEY-redhat{major}-release",
+                "https://access.redhat.com/security/data/fd431d51.txt",
+            ),
+        )
 
     @staticmethod
     def sslcacert(state: MkosiState) -> Optional[Path]:

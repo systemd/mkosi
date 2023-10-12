@@ -1,9 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
-from pathlib import Path
-
 from mkosi.distributions import centos
-from mkosi.installer.dnf import Repo
+from mkosi.installer.dnf import Repo, find_rpm_gpgkey
 from mkosi.state import MkosiState
 
 
@@ -14,11 +12,13 @@ class Installer(centos.Installer):
 
     @staticmethod
     def gpgurls(state: MkosiState) -> tuple[str, ...]:
-        gpgpath = Path(f"/usr/share/distribution-gpg-keys/alma/RPM-GPG-KEY-AlmaLinux-{state.config.release}")
-        if gpgpath.exists():
-            return (f"file://{gpgpath}",)
-        else:
-            return ("https://repo.almalinux.org/almalinux/RPM-GPG-KEY-AlmaLinux-$releasever",)
+        return (
+            find_rpm_gpgkey(
+                state,
+                f"RPM-GPG-KEY-AlmaLinux-{state.config.release}",
+                f"https://repo.almalinux.org/almalinux/RPM-GPG-KEY-AlmaLinux-{state.config.release}",
+            ),
+        )
 
     @classmethod
     def repository_variants(cls, state: MkosiState, repo: str) -> list[Repo]:
