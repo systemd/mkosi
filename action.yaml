@@ -8,7 +8,6 @@ runs:
   - name: Permit unprivileged access to kvm, vhost-vsock and vhost-net devices
     shell: bash
     run: |
-      sudo adduser $(id -un) kvm
       sudo sed -i '/kvm/s/0660/0666/g'   /usr/lib/tmpfiles.d/static-nodes-permissions.conf
       sudo sed -i '/vhost/s/0660/0666/g' /usr/lib/tmpfiles.d/static-nodes-permissions.conf
       sudo modprobe kvm
