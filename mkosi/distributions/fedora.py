@@ -2,11 +2,10 @@
 
 import urllib.parse
 from collections.abc import Sequence
-from pathlib import Path
 
 from mkosi.architecture import Architecture
 from mkosi.distributions import Distribution, DistributionInstaller, PackageType
-from mkosi.installer.dnf import Repo, invoke_dnf, setup_dnf
+from mkosi.installer.dnf import Repo, find_rpm_gpgkey, invoke_dnf, setup_dnf
 from mkosi.log import die
 from mkosi.state import MkosiState
 
@@ -78,12 +77,14 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def setup(cls, state: MkosiState) -> None:
-        gpgpath = Path(f"/usr/share/distribution-gpg-keys/fedora/RPM-GPG-KEY-fedora-{state.config.release}-primary")
-        if gpgpath.exists():
-            gpgurls = (f"file://{gpgpath}",)
-        else:
-            # See: https://fedoraproject.org/security/
-            gpgurls = ("https://fedoraproject.org/fedora.gpg",)
+        gpgurls = (
+            find_rpm_gpgkey(
+                state,
+                key=f"RPM-GPG-KEY-fedora-{state.config.release}-primary",
+                url="https://fedoraproject.org/fedora.gpg",
+            ),
+        )
+
         repos = []
 
         if state.config.local_mirror:

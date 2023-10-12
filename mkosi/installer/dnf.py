@@ -23,6 +23,16 @@ class Repo(NamedTuple):
     sslclientcert: Optional[Path] = None
 
 
+def find_rpm_gpgkey(state: MkosiState, key: str, url: str) -> str:
+    for gpgdir in ("usr/share/distribution-gpg-keys", "etc/pki/rpm-gpg"):
+        for root in (state.pkgmngr, state.root, Path("/")):
+            gpgpath = next((root / Path(gpgdir)).rglob(key), None)
+            if gpgpath:
+                return f"file://{gpgpath}"
+
+    return url
+
+
 def dnf_executable(state: MkosiState) -> str:
     # dnf5 does not support building for foreign architectures yet (missing --forcearch)
     dnf = shutil.which("dnf5") if state.config.architecture.is_native() else None
