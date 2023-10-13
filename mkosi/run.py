@@ -25,7 +25,7 @@ from typing import Any, Optional
 
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, die
 from mkosi.types import _FILE, CompletedProcess, PathString, Popen
-from mkosi.util import InvokingUser, flock, make_executable, one_zero
+from mkosi.util import INVOKING_USER, flock, make_executable, one_zero
 
 CLONE_NEWNS = 0x00020000
 CLONE_NEWUSER = 0x10000000
@@ -75,7 +75,7 @@ def become_root() -> None:
     The current user will be mapped to root and 65436 will be mapped to the UID/GID of the invoking user.
     The other IDs will be mapped through.
 
-    The function modifies the uid, gid of the InvokingUser object to the uid, gid of the invoking user in the user
+    The function modifies the uid, gid of the INVOKING_USER object to the uid, gid of the invoking user in the user
     namespace.
     """
     if os.getuid() == 0:
@@ -126,8 +126,8 @@ def become_root() -> None:
     os.setresgid(0, 0, 0)
     os.setgroups([0])
 
-    InvokingUser.uid = SUBRANGE - 100
-    InvokingUser.gid = SUBRANGE - 100
+    INVOKING_USER.uid = SUBRANGE - 100
+    INVOKING_USER.gid = SUBRANGE - 100
 
 
 def init_mount_namespace() -> None:

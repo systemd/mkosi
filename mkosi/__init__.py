@@ -59,7 +59,7 @@ from mkosi.state import MkosiState
 from mkosi.tree import copy_tree, install_tree, move_tree, rmtree
 from mkosi.types import _FILE, CompletedProcess, PathString
 from mkosi.util import (
-    InvokingUser,
+    INVOKING_USER,
     chdir,
     flatten,
     format_rlimit,
@@ -335,8 +335,8 @@ def run_prepare_scripts(state: MkosiState, build: bool) -> None:
         BUILDROOT=str(state.root),
         CHROOT_SCRIPT="/work/prepare",
         CHROOT_SRCDIR="/work/src",
-        MKOSI_GID=str(InvokingUser.gid),
-        MKOSI_UID=str(InvokingUser.uid),
+        MKOSI_GID=str(INVOKING_USER.gid),
+        MKOSI_UID=str(INVOKING_USER.uid),
         SCRIPT="/work/prepare",
         SRCDIR=str(Path.cwd()),
         WITH_DOCS=one_zero(state.config.with_docs),
@@ -388,8 +388,8 @@ def run_build_scripts(state: MkosiState) -> None:
         CHROOT_SCRIPT="/work/build-script",
         CHROOT_SRCDIR="/work/src",
         DESTDIR=str(state.install_dir),
-        MKOSI_GID=str(InvokingUser.gid),
-        MKOSI_UID=str(InvokingUser.uid),
+        MKOSI_GID=str(INVOKING_USER.gid),
+        MKOSI_UID=str(INVOKING_USER.uid),
         OUTPUTDIR=str(state.staging),
         SCRIPT="/work/build-script",
         SRCDIR=str(Path.cwd()),
@@ -450,8 +450,8 @@ def run_postinst_scripts(state: MkosiState) -> None:
         CHROOT_OUTPUTDIR="/work/out",
         CHROOT_SCRIPT="/work/postinst",
         CHROOT_SRCDIR="/work/src",
-        MKOSI_GID=str(InvokingUser.gid),
-        MKOSI_UID=str(InvokingUser.uid),
+        MKOSI_GID=str(INVOKING_USER.gid),
+        MKOSI_UID=str(INVOKING_USER.uid),
         OUTPUTDIR=str(state.staging),
         SCRIPT="/work/postinst",
         SRCDIR=str(Path.cwd()),
@@ -492,8 +492,8 @@ def run_finalize_scripts(state: MkosiState) -> None:
         CHROOT_OUTPUTDIR="/work/out",
         CHROOT_SCRIPT="/work/finalize",
         CHROOT_SRCDIR="/work/src",
-        MKOSI_GID=str(InvokingUser.gid),
-        MKOSI_UID=str(InvokingUser.uid),
+        MKOSI_GID=str(INVOKING_USER.gid),
+        MKOSI_UID=str(INVOKING_USER.uid),
         OUTPUTDIR=str(state.staging),
         SCRIPT="/work/finalize",
         SRCDIR=str(Path.cwd()),
@@ -2236,7 +2236,7 @@ def run_serve(config: MkosiConfig) -> None:
 
     with chdir(config.output_dir_or_cwd()):
         run([python_binary(config), "-m", "http.server", port],
-            user=InvokingUser.uid, group=InvokingUser.gid, stdin=sys.stdin, stdout=sys.stdout)
+            user=INVOKING_USER.uid, group=INVOKING_USER.gid, stdin=sys.stdin, stdout=sys.stdout)
 
 
 def generate_key_cert_pair(args: MkosiArgs) -> None:
@@ -2290,7 +2290,7 @@ def bump_image_version() -> None:
         logging.info(f"Increasing last component of version by one, bumping '{version}' → '{new_version}'.")
 
     Path("mkosi.version").write_text(f"{new_version}\n")
-    os.chown("mkosi.version", InvokingUser.uid, InvokingUser.gid)
+    os.chown("mkosi.version", INVOKING_USER.uid, INVOKING_USER.gid)
 
 
 def show_docs(args: MkosiArgs) -> None:
@@ -2330,7 +2330,7 @@ def show_docs(args: MkosiArgs) -> None:
 
 
 def expand_specifier(s: str) -> str:
-    return s.replace("%u", InvokingUser.name)
+    return s.replace("%u", INVOKING_USER.name)
 
 
 def needs_build(args: MkosiArgs, config: MkosiConfig) -> bool:
@@ -2550,15 +2550,15 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
                 config.workspace_dir,
             ):
                 if p:
-                    run(["mkdir", "--parents", p], user=InvokingUser.uid, group=InvokingUser.gid)
+                    run(["mkdir", "--parents", p], user=INVOKING_USER.uid, group=INVOKING_USER.gid)
 
-            with acl_toggle_build(config, InvokingUser.uid):
+            with acl_toggle_build(config, INVOKING_USER.uid):
                 build_image(args, config)
 
             # Make sure all build outputs that are not directories are owned by the user running mkosi.
             for p in config.output_dir_or_cwd().iterdir():
                 if not p.is_dir():
-                    os.chown(p, InvokingUser.uid, InvokingUser.gid, follow_symlinks=False)
+                    os.chown(p, INVOKING_USER.uid, INVOKING_USER.gid, follow_symlinks=False)
 
             build = True
 
@@ -2577,7 +2577,7 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
 
         with prepend_to_environ_path(last):
             if args.verb in (Verb.shell, Verb.boot):
-                with acl_toggle_boot(last, InvokingUser.uid):
+                with acl_toggle_boot(last, INVOKING_USER.uid):
                     run_shell(args, last)
 
             if args.verb == Verb.qemu:

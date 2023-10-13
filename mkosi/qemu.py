@@ -31,7 +31,7 @@ from mkosi.run import MkosiAsyncioThread, run, spawn
 from mkosi.tree import copy_tree, rmtree
 from mkosi.types import PathString
 from mkosi.util import (
-    InvokingUser,
+    INVOKING_USER,
     StrEnum,
     qemu_check_kvm_support,
     qemu_check_vsock_support,
@@ -151,7 +151,7 @@ def find_ovmf_vars(config: MkosiConfig) -> Path:
 def start_swtpm() -> Iterator[Path]:
     with tempfile.TemporaryDirectory(prefix="mkosi-swtpm") as state:
         # Make sure qemu can access the swtpm socket in this directory.
-        os.chown(state, InvokingUser.uid, InvokingUser.gid)
+        os.chown(state, INVOKING_USER.uid, INVOKING_USER.gid)
 
         cmdline = [
             "swtpm",
@@ -168,11 +168,11 @@ def start_swtpm() -> Iterator[Path]:
             sock.listen()
 
             # Make sure qemu can connect to the swtpm socket.
-            os.chown(path, InvokingUser.uid, InvokingUser.gid)
+            os.chown(path, INVOKING_USER.uid, INVOKING_USER.gid)
 
             cmdline += ["--ctrl", f"type=unixio,fd={sock.fileno()}"]
 
-            proc = spawn(cmdline, user=InvokingUser.uid, group=InvokingUser.gid, pass_fds=(sock.fileno(),))
+            proc = spawn(cmdline, user=INVOKING_USER.uid, group=INVOKING_USER.gid, pass_fds=(sock.fileno(),))
 
             try:
                 yield path
@@ -203,8 +203,8 @@ def start_virtiofsd(directory: Path, *, uidmap: bool) -> Iterator[Path]:
     # created by root in the VM are owned by the user running mkosi on the host.
     if uidmap:
         cmdline += [
-            "--uid-map", f":0:{InvokingUser.uid}:1:",
-            "--gid-map", f":0:{InvokingUser.gid}:1:"
+            "--uid-map", f":0:{INVOKING_USER.uid}:1:",
+            "--gid-map", f":0:{INVOKING_USER.gid}:1:"
         ]
 
     # We create the socket ourselves and pass the fd to virtiofsd to avoid race conditions where we start qemu
@@ -214,7 +214,7 @@ def start_virtiofsd(directory: Path, *, uidmap: bool) -> Iterator[Path]:
         socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock\
     ):
         # Make sure qemu can access the virtiofsd socket in this directory.
-        os.chown(state, InvokingUser.uid, InvokingUser.gid)
+        os.chown(state, INVOKING_USER.uid, INVOKING_USER.gid)
 
         # Make sure we can use the socket name as a unique identifier for the fs as well but make sure it's not too
         # long as virtiofs tag names are limited to 36 bytes.
@@ -223,7 +223,7 @@ def start_virtiofsd(directory: Path, *, uidmap: bool) -> Iterator[Path]:
         sock.listen()
 
         # Make sure qemu can connect to the virtiofsd socket.
-        os.chown(path, InvokingUser.uid, InvokingUser.gid)
+        os.chown(path, INVOKING_USER.uid, INVOKING_USER.gid)
 
         cmdline += ["--fd", str(sock.fileno())]
 
@@ -231,8 +231,8 @@ def start_virtiofsd(directory: Path, *, uidmap: bool) -> Iterator[Path]:
         # user/group if those are provided.
         proc = spawn(
             cmdline,
-            user=InvokingUser.uid if uidmap else None,
-            group=InvokingUser.gid if uidmap else None,
+            user=INVOKING_USER.uid if uidmap else None,
+            group=INVOKING_USER.gid if uidmap else None,
             pass_fds=(sock.fileno(),)
         )
 
@@ -420,7 +420,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
             ovmf_vars = stack.enter_context(tempfile.NamedTemporaryFile(prefix="mkosi-ovmf-vars"))
             shutil.copy2(find_ovmf_vars(config), Path(ovmf_vars.name))
             # Make sure qemu can access the ephemeral vars.
-            os.chown(ovmf_vars.name, InvokingUser.uid, InvokingUser.gid)
+            os.chown(ovmf_vars.name, INVOKING_USER.uid, INVOKING_USER.gid)
             cmdline += [
                 "-global", "ICH9-LPC.disable_s3=1",
                 "-global", "driver=cfi.pflash01,property=secure,value=on",
@@ -450,7 +450,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
         # Make sure qemu can access the ephemeral copy. Not required for directory output because we don't pass that
         # directly to qemu, but indirectly via virtiofsd.
         if config.output_format != OutputFormat.directory:
-            os.chown(fname, InvokingUser.uid, InvokingUser.gid)
+            os.chown(fname, INVOKING_USER.uid, INVOKING_USER.gid)
 
         if config.output_format == OutputFormat.disk and config.runtime_size:
             run(["systemd-repart",
@@ -544,8 +544,8 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
             # kvm group, but the user namespace fake root user will definitely not be. Thus, we have to run qemu as the
             # invoking user to make sure we can access /dev/kvm. Of course, if we were invoked as root, none of this
             # matters as the root user will always be able to access /dev/kvm.
-            user=InvokingUser.uid if not InvokingUser.invoked_as_root else None,
-            group=InvokingUser.gid if not InvokingUser.invoked_as_root else None,
+            user=INVOKING_USER.uid if not INVOKING_USER.invoked_as_root else None,
+            group=INVOKING_USER.gid if not INVOKING_USER.invoked_as_root else None,
             stdin=sys.stdin,
             stdout=sys.stdout,
             pass_fds=qemu_device_fds.values(),
@@ -578,8 +578,8 @@ def run_ssh(args: MkosiArgs, config: MkosiConfig) -> None:
 
     run(
         cmd,
-        user=InvokingUser.uid,
-        group=InvokingUser.gid,
+        user=INVOKING_USER.uid,
+        group=INVOKING_USER.gid,
         stdin=sys.stdin,
         stdout=sys.stdout,
         env=os.environ,

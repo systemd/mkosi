@@ -74,7 +74,7 @@ def flatten(lists: Iterable[Iterable[T]]) -> list[T]:
     return list(itertools.chain.from_iterable(lists))
 
 
-class InvokingUser:
+class INVOKING_USER:
     uid = int(os.getenv("SUDO_UID") or os.getenv("PKEXEC_UID") or os.getuid())
     gid = int(os.getenv("SUDO_GID") or os.getgid())
     name = pwd.getpwuid(uid).pw_name
