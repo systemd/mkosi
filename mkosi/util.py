@@ -4,7 +4,6 @@ import ast
 import contextlib
 import copy
 import enum
-import errno
 import fcntl
 import functools
 import importlib
@@ -75,7 +74,7 @@ def flatten(lists: Iterable[Iterable[T]]) -> list[T]:
     return list(itertools.chain.from_iterable(lists))
 
 
-class InvokingUser:
+class INVOKING_USER:
     uid = int(os.getenv("SUDO_UID") or os.getenv("PKEXEC_UID") or os.getuid())
     gid = int(os.getenv("SUDO_GID") or os.getgid())
     name = pwd.getpwuid(uid).pw_name
@@ -104,40 +103,33 @@ def chdir(directory: PathString) -> Iterator[None]:
 
 def qemu_check_kvm_support(log: bool) -> bool:
     # some CI runners may present a non-working KVM device
-    try:
-        os.close(os.open("/dev/kvm", os.O_RDWR|os.O_CLOEXEC))
-    except OSError as e:
-        if e.errno == errno.ENOENT:
-            if log:
-                logging.warning("/dev/kvm not found. Not using KVM acceleration.")
-            return False
-        elif e.errno in (errno.EPERM, errno.EACCES):
-            if log:
-                logging.warning("Permission denied to access /dev/kvm. Not using KVM acceleration")
-            return False
 
-        raise e
+    if not os.access("/dev/kvm", os.F_OK):
+        if log:
+            logging.warning("/dev/kvm not found. Not using KVM acceleration.")
+        return False
+
+    if not os.access("/dev/kvm", os.R_OK|os.W_OK):
+        if log:
+            logging.warning("Permission denied to access /dev/kvm. Not using KVM acceleration")
+        return False
 
     return True
 
 
 def qemu_check_vsock_support(log: bool) -> bool:
-    try:
-        os.close(os.open("/dev/vhost-vsock", os.O_RDWR|os.O_CLOEXEC))
-    except OSError as e:
-        if e.errno == errno.ENOENT:
-            if log:
-                logging.warning("/dev/vhost-vsock not found. Not adding a vsock device to the virtual machine.")
-            return False
-        elif e.errno in (errno.EPERM, errno.EACCES):
-            if log:
-                logging.warning(
-                    "Permission denied to access /dev/vhost-vsock. "
-                    "Not adding a vsock device to the virtual machine."
-                )
-            return False
+    if not os.access("/dev/vhost-vsock", os.F_OK):
+        if log:
+            logging.warning("/dev/vhost-vsock not found. Not adding a vsock device to the virtual machine.")
+        return False
 
-        raise e
+    if not os.access("/dev/vhost-vsock", os.R_OK|os.W_OK):
+        if log:
+            logging.warning(
+                "Permission denied to access /dev/vhost-vsock. "
+                "Not adding a vsock device to the virtual machine."
+            )
+        return False
 
     return True
 

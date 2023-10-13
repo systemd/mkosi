@@ -18,14 +18,14 @@ import sys
 import tempfile
 import textwrap
 import threading
-from collections.abc import Awaitable, Mapping, Sequence
+from collections.abc import Awaitable, Collection, Mapping, Sequence
 from pathlib import Path
 from types import TracebackType
 from typing import Any, Optional
 
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, die
 from mkosi.types import _FILE, CompletedProcess, PathString, Popen
-from mkosi.util import InvokingUser, flock, make_executable, one_zero
+from mkosi.util import INVOKING_USER, flock, make_executable, one_zero
 
 CLONE_NEWNS = 0x00020000
 CLONE_NEWUSER = 0x10000000
@@ -75,7 +75,7 @@ def become_root() -> None:
     The current user will be mapped to root and 65436 will be mapped to the UID/GID of the invoking user.
     The other IDs will be mapped through.
 
-    The function modifies the uid, gid of the InvokingUser object to the uid, gid of the invoking user in the user
+    The function modifies the uid, gid of the INVOKING_USER object to the uid, gid of the invoking user in the user
     namespace.
     """
     if os.getuid() == 0:
@@ -126,8 +126,8 @@ def become_root() -> None:
     os.setresgid(0, 0, 0)
     os.setgroups([0])
 
-    InvokingUser.uid = SUBRANGE - 100
-    InvokingUser.gid = SUBRANGE - 100
+    INVOKING_USER.uid = SUBRANGE - 100
+    INVOKING_USER.gid = SUBRANGE - 100
 
 
 def init_mount_namespace() -> None:
@@ -231,10 +231,14 @@ def spawn(
     stderr: _FILE = None,
     user: Optional[int] = None,
     group: Optional[int] = None,
-    pass_fds: Sequence[int] = (),
+    pass_fds: Collection[int] = (),
+    env: Mapping[str, str] = {},
+    log: bool = True,
 ) -> Popen:
+    cmdline = [os.fspath(x) for x in cmdline]
+
     if ARG_DEBUG.get():
-        logging.info(f"+ {shlex.join(os.fspath(s) for s in cmdline)}")
+        logging.info(f"+ {shlex.join(cmdline)}")
 
     if not stdout and not stderr:
         # Unless explicit redirection is done, print all subprocess
@@ -252,13 +256,17 @@ def spawn(
             user=user,
             group=group,
             pass_fds=pass_fds,
+            env=env,
             preexec_fn=foreground,
         )
     except FileNotFoundError:
         die(f"{cmdline[0]} not found in PATH.")
     except subprocess.CalledProcessError as e:
-        logging.error(f"\"{shlex.join(os.fspath(s) for s in cmdline)}\" returned non-zero exit code {e.returncode}.")
+        if log:
+            logging.error(f"\"{shlex.join(cmdline)}\" returned non-zero exit code {e.returncode}.")
         raise e
+    finally:
+        foreground(new_process_group=False)
 
 
 # https://github.com/torvalds/linux/blob/master/include/uapi/linux/capability.h

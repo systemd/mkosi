@@ -12,7 +12,7 @@ from typing import Optional
 from mkosi.log import complete_step
 from mkosi.run import run
 from mkosi.types import PathString
-from mkosi.util import InvokingUser, umask
+from mkosi.util import INVOKING_USER, umask
 from mkosi.versioncomp import GenericVersion
 
 
@@ -137,11 +137,11 @@ def mount_passwd(root: Path = Path("/")) -> Iterator[None]:
     """
     with tempfile.NamedTemporaryFile(prefix="mkosi.passwd", mode="w") as passwd:
         passwd.write("root:x:0:0:root:/root:/bin/sh\n")
-        if InvokingUser.uid != 0:
-            name = InvokingUser.name
-            passwd.write(f"{name}:x:{InvokingUser.uid}:{InvokingUser.gid}:{name}:/home/{name}:/bin/sh\n")
+        if INVOKING_USER.uid != 0:
+            name = INVOKING_USER.name
+            passwd.write(f"{name}:x:{INVOKING_USER.uid}:{INVOKING_USER.gid}:{name}:/home/{name}:/bin/sh\n")
         passwd.flush()
-        os.fchown(passwd.file.fileno(), InvokingUser.uid, InvokingUser.gid)
+        os.fchown(passwd.file.fileno(), INVOKING_USER.uid, INVOKING_USER.gid)
 
         with mount(passwd.name, root / "etc/passwd", operation="--bind"):
             yield

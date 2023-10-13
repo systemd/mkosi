@@ -34,7 +34,7 @@ from mkosi.pager import page
 from mkosi.run import run
 from mkosi.types import PathString, SupportsRead
 from mkosi.util import (
-    InvokingUser,
+    INVOKING_USER,
     StrEnum,
     chdir,
     flatten,
@@ -166,8 +166,8 @@ def parse_path(value: str,
     path = Path(value)
 
     if expanduser:
-        if path.is_relative_to("~") and not InvokingUser.is_running_user():
-            path = InvokingUser.home / path.relative_to("~")
+        if path.is_relative_to("~") and not INVOKING_USER.is_running_user():
+            path = INVOKING_USER.home / path.relative_to("~")
         path = path.expanduser()
 
     if required and not path.exists():
