@@ -1353,6 +1353,9 @@ def copy_nspawn_settings(state: MkosiState) -> None:
 
 
 def copy_vmlinuz(state: MkosiState) -> None:
+    if state.config.bootable == ConfigFeature.disabled:
+        return
+
     if (state.staging / state.config.output_split_kernel).exists():
         return
 
