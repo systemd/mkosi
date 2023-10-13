@@ -58,6 +58,7 @@ class Installer(DistributionInstaller):
             "python3-cryptography",
             "qemu-kvm-core",
             "sbsigntools",
+            "shadow-utils",
             "socat",
             "squashfs-tools",
             "strace",

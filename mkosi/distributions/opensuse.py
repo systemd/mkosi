@@ -57,6 +57,7 @@ class Installer(DistributionInstaller):
             "pesign",
             "qemu-headless",
             "sbsigntools",
+            "shadow",
             "socat",
             "squashfs",
             "strace",

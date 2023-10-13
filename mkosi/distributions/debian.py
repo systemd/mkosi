@@ -71,6 +71,7 @@ class Installer(DistributionInstaller):
             "systemd-container",
             "systemd",
             "tar",
+            "uidmap",
             "util-linux",
             "xfsprogs",
             "xz-utils",

@@ -57,6 +57,7 @@ class Installer(DistributionInstaller):
             "python-cryptography",
             "qemu-base",
             "sbsigntools",
+            "shadow",
             "socat",
             "squashfs-tools",
             "strace",
