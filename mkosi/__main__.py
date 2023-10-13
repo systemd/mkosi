@@ -2,6 +2,7 @@
 # PYTHON_ARGCOMPLETE_OK
 
 import contextlib
+import faulthandler
 import logging
 import shutil
 import subprocess
@@ -43,6 +44,9 @@ def propagate_failed_return() -> Iterator[None]:
 def main() -> None:
     log_setup()
     args, presets = parse_config(sys.argv[1:])
+
+    if args.debug:
+        faulthandler.enable()
 
     try:
         run_verb(args, presets)
