@@ -694,6 +694,14 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   `mkosi.build` scripts require to operate. Note that packages listed
   here will be absent in the final image.
 
+`WithRecommends=`, `--with-recommends=`
+
+: Configures whether to install recommended or weak dependencies,
+  depending on how they are named by the used package manager, or not.
+  By default, recommended packages are not installed. This is only used
+  for package managers that support the concept, which are currently
+  apt, dnf and zypper.
+
 `WithDocs=`, `--with-docs`
 
 : Include documentation in the image built. By default if the

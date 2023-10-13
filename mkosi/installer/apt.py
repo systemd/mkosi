@@ -43,8 +43,8 @@ def setup_apt(state: MkosiState, repos: Sequence[str]) -> None:
         # Anything that users can override with dropins is written into the config file.
         config.write_text(
             textwrap.dedent(
-                """\
-                APT::Install-Recommends "false";
+                f"""\
+                APT::Install-Recommends "{str(state.config.with_recommends).lower()}";
                 """
             )
         )

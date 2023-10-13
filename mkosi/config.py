@@ -735,6 +735,7 @@ class MkosiConfig:
 
     packages: list[str]
     build_packages: list[str]
+    with_recommends: bool
     with_docs: bool
 
     base_trees: list[Path]
@@ -1273,6 +1274,14 @@ SETTINGS = (
         section="Content",
         parse=config_make_list_parser(delimiter=","),
         help="Additional packages needed for build scripts",
+    ),
+    MkosiConfigSetting(
+        dest="with_recommends",
+        metavar="BOOL",
+        nargs="?",
+        section="Content",
+        parse=config_parse_boolean,
+        help="Install recommended packages",
     ),
     MkosiConfigSetting(
         dest="with_docs",

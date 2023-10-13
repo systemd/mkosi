@@ -242,6 +242,7 @@ def test_config() -> None:
             "VerityKey": null,
             "WithDocs": true,
             "WithNetwork": false,
+            "WithRecommends": true,
             "WithTests": true,
             "WorkspaceDirectory": "/cwd"
         }
@@ -349,6 +350,7 @@ def test_config() -> None:
         verity_key = None,
         with_docs = True,
         with_network = False,
+        with_recommends = True,
         with_tests =  True,
         workspace_dir = Path("/cwd"),
     )

@@ -2,6 +2,7 @@
 import textwrap
 from collections.abc import Sequence
 
+from mkosi.config import yes_no
 from mkosi.installer.dnf import Repo, fixup_rpmdb_location
 from mkosi.run import apivfs_cmd, bwrap
 from mkosi.state import MkosiState
@@ -18,8 +19,8 @@ def setup_zypper(state: MkosiState, repos: Sequence[Repo]) -> None:
                 textwrap.dedent(
                     f"""\
                     [main]
-                    rpm.install.excludedocs = {"no" if state.config.with_docs else "yes"}
-                    solver.onlyRequires = yes
+                    rpm.install.excludedocs = {yes_no(not state.config.with_docs)}
+                    solver.onlyRequires = {yes_no(not state.config.with_recommends)}
                     """
                 )
             )
