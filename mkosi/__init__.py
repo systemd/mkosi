@@ -424,7 +424,6 @@ def run_build_scripts(state: MkosiState) -> None:
                     "--setenv", "OUTPUTDIR", "/work/out",
                     "--setenv", "BUILDROOT", "/",
                     *(["--setenv", "BUILDDIR", "/work/build"] if state.config.build_dir else []),
-                    "--remount-ro", "/",
                 ],
             )
 
