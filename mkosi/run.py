@@ -18,7 +18,7 @@ import sys
 import tempfile
 import textwrap
 import threading
-from collections.abc import Awaitable, Mapping, Sequence
+from collections.abc import Awaitable, Collection, Mapping, Sequence
 from pathlib import Path
 from types import TracebackType
 from typing import Any, Optional
@@ -231,10 +231,14 @@ def spawn(
     stderr: _FILE = None,
     user: Optional[int] = None,
     group: Optional[int] = None,
-    pass_fds: Sequence[int] = (),
+    pass_fds: Collection[int] = (),
+    env: Mapping[str, str] = {},
+    log: bool = True,
 ) -> Popen:
+    cmdline = [os.fspath(x) for x in cmdline]
+
     if ARG_DEBUG.get():
-        logging.info(f"+ {shlex.join(os.fspath(s) for s in cmdline)}")
+        logging.info(f"+ {shlex.join(cmdline)}")
 
     if not stdout and not stderr:
         # Unless explicit redirection is done, print all subprocess
@@ -252,13 +256,17 @@ def spawn(
             user=user,
             group=group,
             pass_fds=pass_fds,
+            env=env,
             preexec_fn=foreground,
         )
     except FileNotFoundError:
         die(f"{cmdline[0]} not found in PATH.")
     except subprocess.CalledProcessError as e:
-        logging.error(f"\"{shlex.join(os.fspath(s) for s in cmdline)}\" returned non-zero exit code {e.returncode}.")
+        if log:
+            logging.error(f"\"{shlex.join(cmdline)}\" returned non-zero exit code {e.returncode}.")
         raise e
+    finally:
+        foreground(new_process_group=False)
 
 
 # https://github.com/torvalds/linux/blob/master/include/uapi/linux/capability.h
