@@ -79,6 +79,7 @@ class Installer(DistributionInstaller):
             "pesign",
             "python3-cryptography",
             "qemu-kvm-core",
+            "shadow-utils",
             "socat",
             "squashfs-tools",
             "strace",
