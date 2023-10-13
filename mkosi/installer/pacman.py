@@ -55,6 +55,7 @@ def setup_pacman(state: MkosiState) -> None:
                 f"""\
                 [options]
                 SigLevel = {sig_level}
+                LocalFileSigLevel = Optional
                 ParallelDownloads = 5
                 """
             )
