@@ -18,7 +18,7 @@ import stat
 import tempfile
 from collections.abc import Iterable, Iterator, Mapping, Sequence
 from pathlib import Path
-from typing import Any, Callable, Optional, TypeVar
+from typing import Any, Callable, TypeVar
 
 from mkosi.types import PathString
 
@@ -76,33 +76,15 @@ def flatten(lists: Iterable[Iterable[T]]) -> list[T]:
 
 
 class InvokingUser:
-    @staticmethod
-    def _uid_from_env() -> Optional[int]:
-        uid = os.getenv("SUDO_UID") or os.getenv("PKEXEC_UID")
-        return int(uid) if uid is not None else None
-
-    @classmethod
-    def uid(cls) -> int:
-        return cls._uid_from_env() or os.getuid()
-
-    @classmethod
-    def uid_gid(cls) -> tuple[int, int]:
-        if (uid := cls._uid_from_env()) is not None:
-            gid = int(os.getenv("SUDO_GID", pwd.getpwuid(uid).pw_gid))
-            return uid, gid
-        return os.getuid(), os.getgid()
-
-    @classmethod
-    def name(cls) -> str:
-        return pwd.getpwuid(cls.uid()).pw_name
-
-    @classmethod
-    def home(cls) -> Path:
-        return Path(f"~{cls.name()}").expanduser()
+    uid = int(os.getenv("SUDO_UID") or os.getenv("PKEXEC_UID") or os.getuid())
+    gid = int(os.getenv("SUDO_GID") or os.getgid())
+    name = pwd.getpwuid(uid).pw_name
+    home = Path(f"~{name}").expanduser()
+    invoked_as_root = (uid == 0)
 
     @classmethod
     def is_running_user(cls) -> bool:
-        return cls.uid() == os.getuid()
+        return cls.uid == os.getuid()
 
 
 @contextlib.contextmanager

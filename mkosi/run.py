@@ -68,17 +68,18 @@ def read_subrange(path: Path) -> int:
     return int(start)
 
 
-def become_root() -> tuple[int, int]:
+def become_root() -> None:
     """
     Set up a new user namespace mapping using /etc/subuid and /etc/subgid.
 
     The current user will be mapped to root and 65436 will be mapped to the UID/GID of the invoking user.
     The other IDs will be mapped through.
 
-    The function returns the UID-GID pair of the invoking user in the namespace (65436, 65436).
+    The function modifies the uid, gid of the InvokingUser object to the uid, gid of the invoking user in the user
+    namespace.
     """
     if os.getuid() == 0:
-        return InvokingUser.uid_gid()
+        return
 
     subuid = read_subrange(Path("/etc/subuid"))
     subgid = read_subrange(Path("/etc/subgid"))
@@ -125,7 +126,8 @@ def become_root() -> tuple[int, int]:
     os.setresgid(0, 0, 0)
     os.setgroups([0])
 
-    return SUBRANGE - 100, SUBRANGE - 100
+    InvokingUser.uid = SUBRANGE - 100
+    InvokingUser.gid = SUBRANGE - 100
 
 
 def init_mount_namespace() -> None:
@@ -229,6 +231,7 @@ def spawn(
     stderr: _FILE = None,
     user: Optional[int] = None,
     group: Optional[int] = None,
+    pass_fds: Sequence[int] = (),
 ) -> Popen:
     if ARG_DEBUG.get():
         logging.info(f"+ {shlex.join(os.fspath(s) for s in cmdline)}")
@@ -248,6 +251,7 @@ def spawn(
             text=True,
             user=user,
             group=group,
+            pass_fds=pass_fds,
             preexec_fn=foreground,
         )
     except FileNotFoundError:

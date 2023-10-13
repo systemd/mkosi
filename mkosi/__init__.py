@@ -4,7 +4,6 @@ import contextlib
 import dataclasses
 import datetime
 import hashlib
-import http.server
 import importlib.resources
 import itertools
 import json
@@ -61,6 +60,7 @@ from mkosi.tree import copy_tree, install_tree, move_tree, rmtree
 from mkosi.types import _FILE, CompletedProcess, PathString
 from mkosi.util import (
     InvokingUser,
+    chdir,
     flatten,
     format_rlimit,
     one_zero,
@@ -335,8 +335,8 @@ def run_prepare_scripts(state: MkosiState, build: bool) -> None:
         BUILDROOT=str(state.root),
         CHROOT_SCRIPT="/work/prepare",
         CHROOT_SRCDIR="/work/src",
-        MKOSI_GID=str(state.gid),
-        MKOSI_UID=str(state.uid),
+        MKOSI_GID=str(InvokingUser.gid),
+        MKOSI_UID=str(InvokingUser.uid),
         SCRIPT="/work/prepare",
         SRCDIR=str(Path.cwd()),
         WITH_DOCS=one_zero(state.config.with_docs),
@@ -388,8 +388,8 @@ def run_build_scripts(state: MkosiState) -> None:
         CHROOT_SCRIPT="/work/build-script",
         CHROOT_SRCDIR="/work/src",
         DESTDIR=str(state.install_dir),
-        MKOSI_GID=str(state.gid),
-        MKOSI_UID=str(state.uid),
+        MKOSI_GID=str(InvokingUser.gid),
+        MKOSI_UID=str(InvokingUser.uid),
         OUTPUTDIR=str(state.staging),
         SCRIPT="/work/build-script",
         SRCDIR=str(Path.cwd()),
@@ -406,7 +406,7 @@ def run_build_scripts(state: MkosiState) -> None:
 
     with (
         mount_build_overlay(state),\
-        mount_passwd(state.name, state.uid, state.gid, state.root),\
+        mount_passwd(state.root),\
         mount_volatile_overlay(state)\
     ):
         for script in state.config.build_scripts:
@@ -450,8 +450,8 @@ def run_postinst_scripts(state: MkosiState) -> None:
         CHROOT_OUTPUTDIR="/work/out",
         CHROOT_SCRIPT="/work/postinst",
         CHROOT_SRCDIR="/work/src",
-        MKOSI_GID=str(state.gid),
-        MKOSI_UID=str(state.uid),
+        MKOSI_GID=str(InvokingUser.gid),
+        MKOSI_UID=str(InvokingUser.uid),
         OUTPUTDIR=str(state.staging),
         SCRIPT="/work/postinst",
         SRCDIR=str(Path.cwd()),
@@ -492,8 +492,8 @@ def run_finalize_scripts(state: MkosiState) -> None:
         CHROOT_OUTPUTDIR="/work/out",
         CHROOT_SCRIPT="/work/finalize",
         CHROOT_SRCDIR="/work/src",
-        MKOSI_GID=str(state.gid),
-        MKOSI_UID=str(state.uid),
+        MKOSI_GID=str(InvokingUser.gid),
+        MKOSI_UID=str(InvokingUser.uid),
         OUTPUTDIR=str(state.staging),
         SCRIPT="/work/finalize",
         SRCDIR=str(Path.cwd()),
@@ -1067,7 +1067,7 @@ def build_initrd(state: MkosiState) -> Path:
     with complete_step("Building initrd"):
         args, [config] = parse_config(cmdline)
         unlink_output(args, config)
-        build_image(args, config, state.name, state.uid, state.gid)
+        build_image(args, config)
 
     symlink.symlink_to(config.output_dir_or_cwd() / config.output)
 
@@ -1097,11 +1097,13 @@ def build_kernel_modules_initrd(state: MkosiState, kver: str) -> Path:
     return kmods
 
 
-def extract_pe_section(state: MkosiState, binary: Path, section: str, output: Path) -> None:
+def python_binary(config: MkosiConfig) -> str:
     # If there's no tools tree, prefer the interpreter from MKOSI_INTERPRETER. If there is a tools
     # tree, just use the default python3 interpreter.
-    python = "python3" if state.config.tools_tree else os.getenv("MKOSI_INTERPRETER", "python3")
+    return "python3" if config.tools_tree else os.getenv("MKOSI_INTERPRETER", "python3")
 
+
+def extract_pe_section(state: MkosiState, binary: Path, section: str, output: Path) -> None:
     # When using a tools tree, we want to use the pefile module from the tools tree instead of requiring that
     # python-pefile is installed on the host. So we execute python as a subprocess to make sure we load
     # pefile from the tools tree if one is used.
@@ -1117,7 +1119,7 @@ def extract_pe_section(state: MkosiState, binary: Path, section: str, output: Pa
         """
     )
 
-    run([python], input=pefile)
+    run([python_binary(state.config)], input=pefile)
 
 
 def build_uki(
@@ -1983,12 +1985,12 @@ def normalize_mtime(root: Path, mtime: Optional[int], directory: Optional[Path] 
             os.utime(p, (mtime, mtime), follow_symlinks=False)
 
 
-def build_image(args: MkosiArgs, config: MkosiConfig, name: str, uid: int, gid: int) -> None:
+def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
     manifest = Manifest(config) if config.manifest_format else None
     workspace = tempfile.TemporaryDirectory(dir=config.workspace_dir_or_cwd(), prefix=".mkosi-tmp")
 
     with workspace, scopedenv({"TMPDIR" : workspace.name}):
-        state = MkosiState(args, config, Path(workspace.name), name, uid, gid)
+        state = MkosiState(args, config, Path(workspace.name))
         install_package_manager_trees(state)
 
         with mount_base_trees(state):
@@ -2228,15 +2230,13 @@ def run_shell(args: MkosiArgs, config: MkosiConfig) -> None:
 
 
 def run_serve(config: MkosiConfig) -> None:
-    """Serve the output directory via a tiny embedded HTTP server"""
+    """Serve the output directory via a tiny HTTP server"""
 
-    port = 8081
+    port = "8081"
 
-    os.chdir(config.output_dir_or_cwd())
-
-    with http.server.HTTPServer(("", port), http.server.SimpleHTTPRequestHandler) as httpd:
-        logging.info(f"Serving HTTP on port {port}: http://localhost:{port}/")
-        httpd.serve_forever()
+    with chdir(config.output_dir_or_cwd()):
+        run([python_binary(config), "-m", "http.server", port],
+            user=InvokingUser.uid, group=InvokingUser.gid, stdin=sys.stdin, stdout=sys.stdout)
 
 
 def generate_key_cert_pair(args: MkosiArgs) -> None:
@@ -2272,10 +2272,8 @@ def generate_key_cert_pair(args: MkosiArgs) -> None:
                  "-nodes"])
 
 
-def bump_image_version(uid: int = -1, gid: int = -1) -> None:
+def bump_image_version() -> None:
     """Write current image version plus one to mkosi.version"""
-    assert bool(uid) == bool(gid)
-
     version = Path("mkosi.version").read_text().strip()
     v = version.split(".")
 
@@ -2292,7 +2290,7 @@ def bump_image_version(uid: int = -1, gid: int = -1) -> None:
         logging.info(f"Increasing last component of version by one, bumping '{version}' → '{new_version}'.")
 
     Path("mkosi.version").write_text(f"{new_version}\n")
-    os.chown("mkosi.version", uid, gid)
+    os.chown("mkosi.version", InvokingUser.uid, InvokingUser.gid)
 
 
 def show_docs(args: MkosiArgs) -> None:
@@ -2332,7 +2330,7 @@ def show_docs(args: MkosiArgs) -> None:
 
 
 def expand_specifier(s: str) -> str:
-    return s.replace("%u", InvokingUser.name())
+    return s.replace("%u", InvokingUser.name)
 
 
 def needs_build(args: MkosiArgs, config: MkosiConfig) -> bool:
@@ -2495,10 +2493,8 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
     for config in presets:
         try_import(f"mkosi.distributions.{config.distribution}")
 
-    name = InvokingUser.name()
-
     # Get the user UID/GID either on the host or in the user namespace running the build
-    uid, gid = become_root()
+    become_root()
     init_mount_namespace()
 
     # For extra safety when running as root, remount a bunch of stuff read-only.
@@ -2526,11 +2522,12 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
         if not needs_build(args, config):
             continue
 
-        with complete_step(f"Building {config.preset or 'default'} image"),\
+        with (
+            complete_step(f"Building {config.preset or 'default'} image"),\
             mount_tools(config.tools_tree),\
-            mount_passwd(name, uid, gid),\
-            prepend_to_environ_path(config):
-
+            mount_passwd(),\
+            prepend_to_environ_path(config)\
+        ):
             # After tools have been mounted, check if we have what we need
             check_tools(args, config)
 
@@ -2542,46 +2539,38 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
                 config.workspace_dir,
             ):
                 if p:
-                    run(["mkdir", "--parents", p], user=uid, group=gid)
+                    run(["mkdir", "--parents", p], user=InvokingUser.uid, group=InvokingUser.gid)
 
-            with acl_toggle_build(config, uid):
-                build_image(args, config, name, uid, gid)
+            with acl_toggle_build(config, InvokingUser.uid):
+                build_image(args, config)
 
             # Make sure all build outputs that are not directories are owned by the user running mkosi.
             for p in config.output_dir_or_cwd().iterdir():
                 if not p.is_dir():
-                    os.chown(p, uid, gid, follow_symlinks=False)
+                    os.chown(p, InvokingUser.uid, InvokingUser.gid, follow_symlinks=False)
 
             build = True
 
     if build and args.auto_bump:
-        bump_image_version(uid, gid)
+        bump_image_version()
 
     if args.verb == Verb.build:
         return
 
-    # We want to drop privileges after mounting the last tools tree, but to unmount it we still need
-    # privileges. To avoid a permission error, let's not unmount the final tools tree, since we'll exit
-    # right after (and we're in a mount namespace so the /usr mount disappears when we exit)
-    with mount_usr(last.tools_tree, umount=False),\
-        mount_passwd(name, uid, gid, umount=False),\
-        prepend_to_environ_path(last):
-
+    with (
+        mount_usr(last.tools_tree),\
+        mount_passwd(),\
+        prepend_to_environ_path(last)\
+    ):
         check_tools(args, last)
-
-        # After mounting the last tools tree, if we're not going to execute systemd-nspawn or qemu, we don't need to
-        # be (fake) root anymore, so switch user to the invoking user.
-        if not args.verb.needs_root() and args.verb != Verb.qemu:
-            os.setresgid(gid, gid, gid)
-            os.setresuid(uid, uid, uid)
 
         with prepend_to_environ_path(last):
             if args.verb in (Verb.shell, Verb.boot):
-                with acl_toggle_boot(last, uid):
+                with acl_toggle_boot(last, InvokingUser.uid):
                     run_shell(args, last)
 
             if args.verb == Verb.qemu:
-                run_qemu(args, last, uid, gid)
+                run_qemu(args, last)
 
             if args.verb == Verb.ssh:
                 run_ssh(args, last)

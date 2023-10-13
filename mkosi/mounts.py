@@ -12,7 +12,7 @@ from typing import Optional
 from mkosi.log import complete_step
 from mkosi.run import run
 from mkosi.types import PathString
-from mkosi.util import umask
+from mkosi.util import InvokingUser, umask
 from mkosi.versioncomp import GenericVersion
 
 
@@ -42,7 +42,6 @@ def mount(
     options: Sequence[str] = (),
     type: Optional[str] = None,
     read_only: bool = False,
-    umount: bool = True,
     lazy: bool = False,
 ) -> Iterator[Path]:
     if not where.exists():
@@ -69,8 +68,7 @@ def mount(
         run(cmd)
         yield where
     finally:
-        if umount:
-            run(["umount", "--no-mtab", *(["--lazy"] if lazy else []), where])
+        run(["umount", "--no-mtab", *(["--lazy"] if lazy else []), where])
 
 
 @contextlib.contextmanager
@@ -103,7 +101,7 @@ def mount_overlay(lowerdirs: Sequence[Path], upperdir: Path, where: Path) -> Ite
 
 
 @contextlib.contextmanager
-def mount_usr(tree: Optional[Path], umount: bool = True) -> Iterator[None]:
+def mount_usr(tree: Optional[Path]) -> Iterator[None]:
     if not tree:
         yield
         return
@@ -124,7 +122,7 @@ def mount_usr(tree: Optional[Path], umount: bool = True) -> Iterator[None]:
             where=Path("/usr"),
             operation="--bind",
             read_only=True,
-            umount=umount, lazy=True
+            lazy=True,
         ):
             yield
     finally:
@@ -132,17 +130,18 @@ def mount_usr(tree: Optional[Path], umount: bool = True) -> Iterator[None]:
 
 
 @contextlib.contextmanager
-def mount_passwd(name: str, uid: int, gid: int, root: Path = Path("/"), umount: bool = True) -> Iterator[None]:
+def mount_passwd(root: Path = Path("/")) -> Iterator[None]:
     """
     ssh looks up the running user in /etc/passwd and fails if it can't find the running user. To trick it, we
     mount over /etc/passwd with our own file containing our user in the user namespace.
     """
     with tempfile.NamedTemporaryFile(prefix="mkosi.passwd", mode="w") as passwd:
         passwd.write("root:x:0:0:root:/root:/bin/sh\n")
-        if uid != 0:
-            passwd.write(f"{name}:x:{uid}:{gid}:{name}:/home/{name}:/bin/sh\n")
+        if InvokingUser.uid != 0:
+            name = InvokingUser.name
+            passwd.write(f"{name}:x:{InvokingUser.uid}:{InvokingUser.gid}:{name}:/home/{name}:/bin/sh\n")
         passwd.flush()
-        os.fchown(passwd.file.fileno(), uid, gid)
+        os.fchown(passwd.file.fileno(), InvokingUser.uid, InvokingUser.gid)
 
-        with mount(passwd.name, root / "etc/passwd", operation="--bind", umount=umount):
+        with mount(passwd.name, root / "etc/passwd", operation="--bind"):
             yield

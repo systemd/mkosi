@@ -167,7 +167,7 @@ def parse_path(value: str,
 
     if expanduser:
         if path.is_relative_to("~") and not InvokingUser.is_running_user():
-            path = InvokingUser.home() / path.relative_to("~")
+            path = InvokingUser.home / path.relative_to("~")
         path = path.expanduser()
 
     if required and not path.exists():

@@ -14,7 +14,6 @@ import tempfile
 import uuid
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Optional
 
 from mkosi.architecture import Architecture
 from mkosi.config import (
@@ -30,7 +29,7 @@ from mkosi.partition import finalize_root, find_partitions
 from mkosi.run import MkosiAsyncioThread, run, spawn
 from mkosi.tree import copy_tree, rmtree
 from mkosi.types import PathString
-from mkosi.util import qemu_check_kvm_support, qemu_check_vsock_support
+from mkosi.util import InvokingUser, qemu_check_kvm_support, qemu_check_vsock_support
 
 
 def machine_cid(config: MkosiConfig) -> int:
@@ -140,63 +139,95 @@ def find_ovmf_vars(config: MkosiConfig) -> Path:
 
 @contextlib.contextmanager
 def start_swtpm() -> Iterator[Path]:
-    with tempfile.TemporaryDirectory() as state:
-        sock = Path(state) / Path("sock")
-        proc = spawn([
+    with tempfile.TemporaryDirectory(prefix="mkosi-swtpm") as state:
+        # Make sure qemu can access the swtpm socket in this directory.
+        os.chown(state, InvokingUser.uid, InvokingUser.gid)
+
+        cmdline = [
             "swtpm",
             "socket",
             "--tpm2",
             "--tpmstate", f"dir={state}",
-            "--ctrl", f"type=unixio,path={sock}"
-        ])
+        ]
 
-        try:
-            yield sock
-        finally:
-            proc.terminate()
-            proc.wait()
+        # We create the socket ourselves and pass the fd to swtpm to avoid race conditions where we start qemu before
+        # swtpm has had the chance to create the socket (or where we try to chown it first).
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
+            path = Path(state) / Path("sock")
+            sock.bind(os.fspath(path))
+            sock.listen()
+
+            # Make sure qemu can connect to the swtpm socket.
+            os.chown(path, InvokingUser.uid, InvokingUser.gid)
+
+            cmdline += ["--ctrl", f"type=unixio,fd={sock.fileno()}"]
+
+            proc = spawn(cmdline, user=InvokingUser.uid, group=InvokingUser.gid, pass_fds=(sock.fileno(),))
+
+            try:
+                yield path
+            finally:
+                proc.terminate()
+                proc.wait()
 
 
 @contextlib.contextmanager
-def start_virtiofsd(directory: Path, uid: Optional[int] = None, gid: Optional[int] = None) -> Iterator[Path]:
-    with tempfile.TemporaryDirectory() as state:
-        # Make sure virtiofsd is allowed to create its socket in this temporary directory.
-        os.chown(state, uid if uid is not None else os.getuid(), gid if gid is not None else os.getgid())
+def start_virtiofsd(directory: Path, *, uidmap: bool) -> Iterator[Path]:
+    virtiofsd = shutil.which("virtiofsd")
+    if virtiofsd is None:
+        if Path("/usr/libexec/virtiofsd").exists():
+            virtiofsd = "/usr/libexec/virtiofsd"
+        elif Path("/usr/lib/virtiofsd").exists():
+            virtiofsd = "/usr/lib/virtiofsd"
+        else:
+            die("virtiofsd must be installed to use RuntimeMounts= with mkosi qemu")
+
+    cmdline: list[PathString] = [
+        virtiofsd,
+        "--shared-dir", directory,
+        "--xattr",
+        "--posix-acl",
+    ]
+
+    # Map the given user/group to root in the virtual machine for the virtiofs instance to make sure all files
+    # created by root in the VM are owned by the user running mkosi on the host.
+    if uidmap:
+        cmdline += [
+            "--uid-map", f":0:{InvokingUser.uid}:1:",
+            "--gid-map", f":0:{InvokingUser.gid}:1:"
+        ]
+
+    # We create the socket ourselves and pass the fd to virtiofsd to avoid race conditions where we start qemu
+    # before virtiofsd has had the chance to create the socket (or where we try to chown it first).
+    with (
+        tempfile.TemporaryDirectory(prefix="mkosi-virtiofsd") as state,\
+        socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock\
+    ):
+        # Make sure qemu can access the virtiofsd socket in this directory.
+        os.chown(state, InvokingUser.uid, InvokingUser.gid)
 
         # Make sure we can use the socket name as a unique identifier for the fs as well but make sure it's not too
         # long as virtiofs tag names are limited to 36 bytes.
-        sock = Path(state) / f"sock-{uuid.uuid4().hex}"[:35]
+        path = Path(state) / f"sock-{uuid.uuid4().hex}"[:35]
+        sock.bind(os.fspath(path))
+        sock.listen()
 
-        virtiofsd = shutil.which("virtiofsd")
-        if virtiofsd is None:
-            if Path("/usr/libexec/virtiofsd").exists():
-                virtiofsd = "/usr/libexec/virtiofsd"
-            elif Path("/usr/lib/virtiofsd").exists():
-                virtiofsd = "/usr/lib/virtiofsd"
-            else:
-                die("virtiofsd must be installed to use RuntimeMounts= with mkosi qemu")
+        # Make sure qemu can connect to the virtiofsd socket.
+        os.chown(path, InvokingUser.uid, InvokingUser.gid)
 
-        cmdline: list[PathString] = [
-            virtiofsd,
-            "--socket-path", sock,
-            "--shared-dir", directory,
-            "--xattr",
-            "--posix-acl",
-        ]
-
-        # Map the given user/group to root in the virtual machine for the virtiofs instance to make sure all files
-        # created by root in the VM are owned by the user running mkosi on the host.
-        if uid is not None:
-            cmdline += ["--uid-map", f":0:{uid}:1:"]
-        if gid is not None:
-            cmdline += ["--gid-map", f":0:{gid}:1:"]
+        cmdline += ["--fd", str(sock.fileno())]
 
         # virtiofsd has to run unprivileged to use the --uid-map and --gid-map options, so run it as the given
         # user/group if those are provided.
-        proc = spawn(cmdline, user=uid, group=gid)
+        proc = spawn(
+            cmdline,
+            user=InvokingUser.uid if uidmap else None,
+            group=InvokingUser.gid if uidmap else None,
+            pass_fds=(sock.fileno(),)
+        )
 
         try:
-            yield sock
+            yield path
         finally:
             proc.wait()
 
@@ -262,7 +293,7 @@ def copy_ephemeral(config: MkosiConfig, src: Path) -> Iterator[Path]:
         rmtree(tmp)
 
 
-def run_qemu(args: MkosiArgs, config: MkosiConfig, uid: int, gid: int) -> None:
+def run_qemu(args: MkosiArgs, config: MkosiConfig) -> None:
     if config.output_format not in (OutputFormat.disk, OutputFormat.cpio, OutputFormat.uki, OutputFormat.directory):
         die(f"{config.output_format} images cannot be booted in qemu")
 
@@ -353,7 +384,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, uid: int, gid: int) -> None:
 
     with contextlib.ExitStack() as stack:
         for src, target in config.runtime_trees:
-            sock = stack.enter_context(start_virtiofsd(src, uid, gid))
+            sock = stack.enter_context(start_virtiofsd(src, uidmap=True))
             cmdline += [
                 "-chardev", f"socket,id={sock.name},path={sock}",
                 "-device", f"vhost-user-fs-pci,queue-size=1024,chardev={sock.name},tag={sock.name}",
@@ -373,8 +404,10 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, uid: int, gid: int) -> None:
             ]
 
         if firmware == QemuFirmware.uefi and ovmf_supports_sb:
-            ovmf_vars = stack.enter_context(tempfile.NamedTemporaryFile(prefix=".mkosi-"))
+            ovmf_vars = stack.enter_context(tempfile.NamedTemporaryFile(prefix="mkosi-ovmf-vars"))
             shutil.copy2(find_ovmf_vars(config), Path(ovmf_vars.name))
+            # Make sure qemu can access the ephemeral vars.
+            os.chown(ovmf_vars.name, InvokingUser.uid, InvokingUser.gid)
             cmdline += [
                 "-global", "ICH9-LPC.disable_s3=1",
                 "-global", "driver=cfi.pflash01,property=secure,value=on",
@@ -400,6 +433,11 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, uid: int, gid: int) -> None:
             fname = stack.enter_context(copy_ephemeral(config, config.output_dir_or_cwd() / config.output))
         else:
             fname = config.output_dir_or_cwd() / config.output
+
+        # Make sure qemu can access the ephemeral copy. Not required for directory output because we don't pass that
+        # directly to qemu, but indirectly via virtiofsd.
+        if config.output_format != OutputFormat.directory:
+            os.chown(fname, InvokingUser.uid, InvokingUser.gid)
 
         if config.output_format == OutputFormat.disk and config.runtime_size:
             run(["systemd-repart",
@@ -441,8 +479,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, uid: int, gid: int) -> None:
                 if not root:
                     die("Cannot perform a direct kernel boot without a root or usr partition")
             elif config.output_format == OutputFormat.directory:
-                # This virtiofsd has to run as root so that it can write files owned by any uid:gid created by the VM.
-                sock = stack.enter_context(start_virtiofsd(fname))
+                sock = stack.enter_context(start_virtiofsd(fname, uidmap=False))
                 cmdline += [
                     "-chardev", f"socket,id={sock.name},path={sock}",
                     "-device", f"vhost-user-fs-pci,queue-size=1024,chardev={sock.name},tag=root",
@@ -488,7 +525,19 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, uid: int, gid: int) -> None:
         cmdline += config.qemu_args
         cmdline += args.cmdline
 
-        run(cmdline, stdin=sys.stdin, stdout=sys.stdout, env=os.environ, log=False)
+        run(
+            cmdline,
+            # On Debian/Ubuntu, only users in the kvm group can access /dev/kvm. The invoking user might be part of the
+            # kvm group, but the user namespace fake root user will definitely not be. Thus, we have to run qemu as the
+            # invoking user to make sure we can access /dev/kvm. Of course, if we were invoked as root, none of this
+            # matters as the root user will always be able to access /dev/kvm.
+            user=InvokingUser.uid if not InvokingUser.invoked_as_root else None,
+            group=InvokingUser.gid if not InvokingUser.invoked_as_root else None,
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            env=os.environ,
+            log=False,
+        )
 
     if status := int(notifications.get("EXIT_STATUS", 0)):
         raise subprocess.CalledProcessError(status, cmdline)
@@ -508,4 +557,12 @@ def run_ssh(args: MkosiArgs, config: MkosiConfig) -> None:
 
     cmd += args.cmdline
 
-    run(cmd, stdin=sys.stdin, stdout=sys.stdout, env=os.environ, log=False)
+    run(
+        cmd,
+        user=InvokingUser.uid,
+        group=InvokingUser.gid,
+        stdin=sys.stdin,
+        stdout=sys.stdout,
+        env=os.environ,
+        log=False,
+    )
