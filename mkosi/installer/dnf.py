@@ -42,9 +42,9 @@ def setup_dnf(state: MkosiState, repos: Iterable[Repo], filelists: bool = True) 
         with config.open("w") as f:
             f.write(
                 textwrap.dedent(
-                    """\
+                    f"""\
                     [main]
-                    install_weak_deps=0
+                    install_weak_deps={int(state.config.with_recommends)}
                     """
                 )
             )
