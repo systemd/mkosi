@@ -46,7 +46,7 @@ from mkosi.manifest import Manifest
 from mkosi.mounts import mount, mount_overlay, mount_passwd, mount_usr
 from mkosi.pager import page
 from mkosi.partition import Partition, finalize_root, finalize_roothash
-from mkosi.qemu import copy_ephemeral, run_qemu, run_ssh
+from mkosi.qemu import QemuDeviceNode, copy_ephemeral, run_qemu, run_ssh
 from mkosi.run import (
     become_root,
     bwrap,
@@ -2493,6 +2493,17 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
     for config in presets:
         try_import(f"mkosi.distributions.{config.distribution}")
 
+    # After we unshare the user namespace, we might not have access to /dev/kvm or related device nodes anymore as
+    # access to these might be gated behind the kvm group and we won't be part of the kvm group anymore after unsharing
+    # the user namespace. To get around this, open all those device nodes now while we still can so we can pass them as
+    # file descriptors to qemu later. Note that we can't pass the kvm file descriptor to qemu until
+    # https://gitlab.com/qemu-project/qemu/-/issues/1936 is resolved.
+    qemu_device_fds = {
+        d: os.open(f"/dev/{d}", os.O_RDWR|os.O_CLOEXEC|os.O_NONBLOCK)
+        for d in QemuDeviceNode
+        if os.access(f"/dev/{d}", os.F_OK|os.R_OK|os.W_OK)
+    }
+
     # Get the user UID/GID either on the host or in the user namespace running the build
     become_root()
     init_mount_namespace()
@@ -2570,7 +2581,7 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
                     run_shell(args, last)
 
             if args.verb == Verb.qemu:
-                run_qemu(args, last)
+                run_qemu(args, last, qemu_device_fds)
 
             if args.verb == Verb.ssh:
                 run_ssh(args, last)
