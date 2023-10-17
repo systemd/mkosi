@@ -46,7 +46,11 @@ def make_tar(src: Path, dst: Path) -> None:
             "--directory", src,
             "--acls",
             "--selinux",
+            # --xattrs implies --format=pax
             "--xattrs",
+            # PAX format emits additional headers for atime, ctime and mtime
+            # that would make the archive non-reproducible.
+            "--pax-option=delete=atime,delete=ctime,delete=mtime",
             "--sparse",
             "--force-local",
             *tar_exclude_apivfs_tmp(),
