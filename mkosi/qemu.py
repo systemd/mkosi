@@ -30,16 +30,37 @@ from mkosi.partition import finalize_root, find_partitions
 from mkosi.run import MkosiAsyncioThread, run, spawn
 from mkosi.tree import copy_tree, rmtree
 from mkosi.types import PathString
-from mkosi.util import (
-    INVOKING_USER,
-    StrEnum,
-    qemu_check_kvm_support,
-    qemu_check_vsock_support,
-)
+from mkosi.util import INVOKING_USER, StrEnum
 
 
 class QemuDeviceNode(StrEnum):
+    kvm = enum.auto()
     vhost_vsock = enum.auto()
+
+    def device(self) -> Path:
+        return Path("/dev") / str(self)
+
+    def description(self) -> str:
+        return {
+            QemuDeviceNode.kvm: "KVM acceleration",
+            QemuDeviceNode.vhost_vsock: "a VSock device",
+        }[self]
+
+    def available(self, log: bool = False) -> bool:
+        if not os.access(self.device(), os.F_OK):
+            if log:
+                logging.warning(f"{self.device()} not found. Not adding {self.description()} to the virtual machine.")
+            return False
+
+        if not os.access(self.device(), os.R_OK|os.W_OK):
+            if log:
+                logging.warning(
+                    f"Permission denied to access {self.device()}. "
+                    f"Not adding {self.description()} to the virtual machine."
+                )
+            return False
+
+        return True
 
 
 def machine_cid(config: MkosiConfig) -> int:
@@ -316,11 +337,17 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
     if (config.runtime_trees and config.qemu_firmware == QemuFirmware.bios):
         die("RuntimeTrees= cannot be used when booting in BIOS firmware")
 
+    if config.qemu_kvm == ConfigFeature.enabled and not QemuDeviceNode.kvm.available():
+        die("KVM acceleration requested but cannot access /dev/kvm")
+
+    if config.qemu_vsock == ConfigFeature.enabled and QemuDeviceNode.vhost_vsock not in qemu_device_fds:
+        die("VSock requested but cannot access /dev/vhost-vsock")
+
     accel = "tcg"
     auto = (
         config.qemu_kvm == ConfigFeature.auto and
         config.architecture.is_native() and
-        qemu_check_kvm_support(log=True)
+        QemuDeviceNode.kvm.available()
     )
     if config.qemu_kvm == ConfigFeature.enabled or auto:
         accel = "kvm"
@@ -359,9 +386,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
         *shm,
     ]
 
-    use_vsock = (config.qemu_vsock == ConfigFeature.enabled or
-                (config.qemu_vsock == ConfigFeature.auto and qemu_check_vsock_support(log=True)))
-    if use_vsock:
+    if QemuDeviceNode.vhost_vsock in qemu_device_fds:
         cmdline += [
             "-device",
             f"vhost-vsock-pci,guest-cid={machine_cid(config)},vhostfd={qemu_device_fds[QemuDeviceNode.vhost_vsock]}"
@@ -531,7 +556,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
             elif config.architecture == Architecture.arm64:
                 cmdline += ["-device", "tpm-tis-device,tpmdev=tpm0"]
 
-        if use_vsock and config.architecture.supports_smbios():
+        if QemuDeviceNode.vhost_vsock in qemu_device_fds and config.architecture.supports_smbios():
             addr, notifications = stack.enter_context(vsock_notify_handler())
             cmdline += ["-smbios", f"type=11,value=io.systemd.credential:vmm.notify_socket={addr}"]
 

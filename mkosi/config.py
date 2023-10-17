@@ -33,14 +33,7 @@ from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, Style, die
 from mkosi.pager import page
 from mkosi.run import run
 from mkosi.types import PathString, SupportsRead
-from mkosi.util import (
-    INVOKING_USER,
-    StrEnum,
-    chdir,
-    flatten,
-    qemu_check_kvm_support,
-    qemu_check_vsock_support,
-)
+from mkosi.util import INVOKING_USER, StrEnum, chdir, flatten
 from mkosi.versioncomp import GenericVersion
 
 __version__ = "18"
@@ -2522,12 +2515,6 @@ def load_config(args: argparse.Namespace) -> MkosiConfig:
         if args.secure_boot_certificate is None:
             die("UEFI SecureBoot enabled, private key was found, but not the certificate.",
                 hint="Consider placing it in mkosi.crt")
-
-    if args.qemu_kvm == ConfigFeature.enabled and not qemu_check_kvm_support(log=False):
-        die("Sorry, the host machine does not support KVM acceleration.")
-
-    if args.qemu_vsock == ConfigFeature.enabled and not qemu_check_vsock_support(log=False):
-        die("Sorry, the host machine does not support vsock")
 
     if args.repositories and not (
         args.distribution.is_dnf_distribution() or

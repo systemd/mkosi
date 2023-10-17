@@ -101,39 +101,6 @@ def chdir(directory: PathString) -> Iterator[None]:
         os.chdir(old)
 
 
-def qemu_check_kvm_support(log: bool) -> bool:
-    # some CI runners may present a non-working KVM device
-
-    if not os.access("/dev/kvm", os.F_OK):
-        if log:
-            logging.warning("/dev/kvm not found. Not using KVM acceleration.")
-        return False
-
-    if not os.access("/dev/kvm", os.R_OK|os.W_OK):
-        if log:
-            logging.warning("Permission denied to access /dev/kvm. Not using KVM acceleration")
-        return False
-
-    return True
-
-
-def qemu_check_vsock_support(log: bool) -> bool:
-    if not os.access("/dev/vhost-vsock", os.F_OK):
-        if log:
-            logging.warning("/dev/vhost-vsock not found. Not adding a vsock device to the virtual machine.")
-        return False
-
-    if not os.access("/dev/vhost-vsock", os.R_OK|os.W_OK):
-        if log:
-            logging.warning(
-                "Permission denied to access /dev/vhost-vsock. "
-                "Not adding a vsock device to the virtual machine."
-            )
-        return False
-
-    return True
-
-
 def make_executable(path: Path) -> None:
     st = path.stat()
     os.chmod(path, st.st_mode | stat.S_IEXEC)
