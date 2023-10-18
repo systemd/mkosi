@@ -123,7 +123,7 @@ class Installer(DistributionInstaller):
     @classmethod
     def install_packages(cls, state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
         if shutil.which("zypper"):
-            invoke_zypper(state, "install", packages, apivfs=apivfs)
+            invoke_zypper(state, "install", packages, ["--download", "in-advance"], apivfs=apivfs)
         else:
             invoke_dnf(state, "install", packages, apivfs=apivfs)
 
