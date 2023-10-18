@@ -13,70 +13,67 @@ For a longer description and available features and options, see the
 
 # Installation
 
-You can install mkosi from your distribution with its package manager or the
-development version from git. The distribution packages are the preferred way to
-install mkosi.
+You can install mkosi from your distribution using its package manager
+or install the development version from git. If you install mkosi using
+your distribution's package manager, make sure it installs at least
+mkosi v16 or newer (Use `mkosi --version` to check). If your
+distribution only packages an older version of mkosi, it is recommended
+to install mkosi using one of the alternative installation methods
+listed below instead.
 
-The development version of mkosi might require tools from the systemd main
-branch, see the [`action.yaml`](action.yaml) for what we currently use in CI.
+## Running mkosi from the repository
 
-## Alternative Installation methods
+To run mkosi straight from its git repository, you can invoke the shim
+`bin/mkosi`. The `MKOSI_INTERPRETER` environment variable can be set
+when using the `bin/mkosi` shim to configure the python interpreter used
+to execute mkosi. The shim can be symlinked to e.g. `/usr/local/bin` to
+make it accessible from the `PATH`.
 
-If you just want to give the development version of mkosi a quick spin you can run
+## Python installation methods
+
+mkosi can also be installed straight from the git repository url using
+`pipx`:
+
 ```shell
 pipx install git+https://github.com/systemd/mkosi.git
 ```
-which will transparently install mkosi into a Python virtual environment and a mkosi
-binary to `~/.local/bin`. This is, up to the path of the virtual environment and
-the mkosi binary, equivalent to
+
+which will transparently install mkosi into a Python virtual environment
+and a mkosi binary to `~/.local/bin`. This is, up to the path of the
+virtual environment and the mkosi binary, equivalent to
 ```shell
 python -m venv mkosivenv
 mkosivenv/bin/pip install git+https://github.com/systemd/mkosi.git
 # the mkosi binary is installed to mkosivenv/bin/mkosi
 ```
 
-If you want to help develop mkosi you can run it from your clone of this
-repository by calling the module
-```shell
-python3 -m mkosi
-```
-when you are in the repository top level.
-
-To use your local mkosi checkout without being in the top level of the
-repository you can either call the shim `bin/mkosi` or make an editable install
-into a virtual environment. The `MKOSI_INTERPRETER` environment variable can be
-set when using the `bin/mkosi` shim to configure the python interpreter used to
-execute mkosi.
-
-The shim can be symlinked somewhere into your `PATH`. To make an editable
-install add `--editable` to either of the above examples using pip or pipx and
-exchange the URL of the repository for the path to your local checkout, e.g
-```shell
-pipx install --editable path/to/yout/local/checkout
-```
-
-For development you will also need [mypy](https://github.com/python/mypy), for
-type checking, and [pytest](https://github.com/pytest-dev/pytest), to run tests.
-We check tests and typing in CI (see `.github/workflows`), but you can run the
-tests locally as well.
-
 You can also package mkosi as a
-[zipapp](https://docs.python.org/3/library/zipapp.html) that you can deploy
-anywhere in your `PATH`. Running this will leave a `mkosi` binary in `builddir/`
+[zipapp](https://docs.python.org/3/library/zipapp.html) that you can
+deploy anywhere in your `PATH`. Running this will leave a `mkosi` binary
+in `builddir/`
+
 ```shell
 tools/generate-zipapp.sh
 ```
 
-## Python module
-
 Besides the mkosi binary, you can also call mkosi via
+
 ```shell
 python -m mkosi
 ```
+
 when not installed as a zipapp.
 
-Please note, that the python module exists solely for the usage of the mkosi
-binary and is not to be considered a public API.
+Please note, that the python module exists solely for the usage of the
+mkosi binary and is not to be considered a public API.
+
+# Hacking on mkosi
+
+To hack on mkosi itself you will also need
+[mypy](https://github.com/python/mypy), for type checking, and
+[pytest](https://github.com/pytest-dev/pytest), to run tests. We check
+tests and typing in CI (see `.github/workflows`), but you can run the
+tests locally as well.
 
 # References
 
