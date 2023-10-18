@@ -1573,6 +1573,7 @@ SETTINGS = (
     ),
     MkosiConfigSetting(
         dest="autologin",
+        short="-a",
         metavar="BOOL",
         nargs="?",
         section="Content",
