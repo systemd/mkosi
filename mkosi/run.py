@@ -2,6 +2,7 @@
 
 import asyncio
 import asyncio.tasks
+import contextlib
 import ctypes
 import ctypes.util
 import enum
@@ -18,7 +19,7 @@ import sys
 import tempfile
 import textwrap
 import threading
-from collections.abc import Awaitable, Collection, Mapping, Sequence
+from collections.abc import Awaitable, Collection, Iterator, Mapping, Sequence
 from pathlib import Path
 from types import TracebackType
 from typing import Any, Optional
@@ -135,7 +136,7 @@ def init_mount_namespace() -> None:
     run(["mount", "--make-rslave", "/"])
 
 
-def foreground(*, new_process_group: bool = True) -> None:
+def make_foreground_process(*, new_process_group: bool = True) -> None:
     """
     If we're connected to a terminal, put the process in a new process group and make that the foreground
     process group so that only this process receives SIGINT.
@@ -212,7 +213,7 @@ def run(
             group=group,
             env=env,
             cwd=cwd,
-            preexec_fn=foreground,
+            preexec_fn=make_foreground_process,
         )
     except FileNotFoundError:
         die(f"{cmdline[0]} not found in PATH.")
@@ -221,9 +222,10 @@ def run(
             logging.error(f"\"{shlex.join(cmdline)}\" returned non-zero exit code {e.returncode}.")
         raise e
     finally:
-        foreground(new_process_group=False)
+        make_foreground_process(new_process_group=False)
 
 
+@contextlib.contextmanager
 def spawn(
     cmdline: Sequence[PathString],
     stdin: _FILE = None,
@@ -234,7 +236,8 @@ def spawn(
     pass_fds: Collection[int] = (),
     env: Mapping[str, str] = {},
     log: bool = True,
-) -> Popen:
+    foreground: bool = False,
+) -> Iterator[Popen]:
     cmdline = [os.fspath(x) for x in cmdline]
 
     if ARG_DEBUG.get():
@@ -247,7 +250,7 @@ def spawn(
         stdout = sys.stderr
 
     try:
-        return subprocess.Popen(
+        yield subprocess.Popen(
             cmdline,
             stdin=stdin,
             stdout=stdout,
@@ -257,7 +260,7 @@ def spawn(
             group=group,
             pass_fds=pass_fds,
             env=env,
-            preexec_fn=foreground,
+            preexec_fn=make_foreground_process if foreground else None,
         )
     except FileNotFoundError:
         die(f"{cmdline[0]} not found in PATH.")
@@ -266,7 +269,8 @@ def spawn(
             logging.error(f"\"{shlex.join(cmdline)}\" returned non-zero exit code {e.returncode}.")
         raise e
     finally:
-        foreground(new_process_group=False)
+        if foreground:
+            make_foreground_process(new_process_group=False)
 
 
 # https://github.com/torvalds/linux/blob/master/include/uapi/linux/capability.h
