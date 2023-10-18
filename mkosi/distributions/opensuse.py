@@ -81,7 +81,7 @@ class Installer(DistributionInstaller):
         if release == "leap":
             release = "stable"
 
-        mirror = state.config.mirror or "http://download.opensuse.org"
+        mirror = state.config.mirror or "https://download.opensuse.org"
 
         # If the release looks like a timestamp, it's Tumbleweed. 13.x is legacy
         # (14.x won't ever appear). For anything else, let's default to Leap.
