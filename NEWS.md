@@ -1,5 +1,10 @@
 # mkosi Changelog
 
+## v19
+
+- The mkosi repository itself now ships configuration to build basic
+  bootable images that can be used to test mkosi.
+
 ## v18
 
 - `$SCRIPT` was renamed to `$CHROOT_SCRIPT`. `$SCRIPT` can still be used

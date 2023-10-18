@@ -84,9 +84,6 @@ jobs:
     concurrency:
       group: ${{ github.workflow }}-${{ matrix.distro }}-${{ matrix.format }}-${{ github.ref }}
       cancel-in-progress: true
-    defaults:
-      run:
-        working-directory: ./.github
     strategy:
       fail-fast: false
       matrix:
@@ -121,7 +118,7 @@ jobs:
 
     - name: Configure ${{ matrix.distro }}/${{ matrix.format }}
       run: |
-        tee mkosi.conf.d/00-ci.conf <<- EOF
+        tee mkosi.conf <<- EOF
         [Distribution]
         Distribution=${{ matrix.distro }}
 
@@ -137,7 +134,7 @@ jobs:
     # FIXME: Remove when Arch/Debian/Ubuntu ship systemd v253
     - name: Mask systemd-resolved
       if: matrix.format == 'directory'
-      run: sudo systemctl --root image mask systemd-resolved
+      run: sudo systemctl --root mkosi.output/image mask systemd-resolved
 
     - name: Boot ${{ matrix.distro }}/${{ matrix.format }} systemd-nspawn
       if: matrix.format == 'disk' || matrix.format == 'directory'

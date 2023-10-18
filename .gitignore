@@ -14,6 +14,8 @@
 /mkosi.build
 /mkosi.egg-info
 /mkosi.extra
+!mkosi.extra/usr/lib/systemd/mkosi-check-and-shutdown.sh
+!mkosi.extra/usr/lib/systemd/system/mkosi-check-and-shutdown.service
 /mkosi.nspawn
 /mkosi.rootpw
 /mkosi.conf
