@@ -193,13 +193,17 @@ def start_swtpm() -> Iterator[Path]:
 
             cmdline += ["--ctrl", f"type=unixio,fd={sock.fileno()}"]
 
-            proc = spawn(cmdline, user=INVOKING_USER.uid, group=INVOKING_USER.gid, pass_fds=(sock.fileno(),))
-
-            try:
-                yield path
-            finally:
-                proc.terminate()
-                proc.wait()
+            with spawn(\
+                cmdline,\
+                user=INVOKING_USER.uid,\
+                group=INVOKING_USER.gid,\
+                pass_fds=(sock.fileno(),)\
+            ) as proc:
+                try:
+                    yield path
+                finally:
+                    proc.terminate()
+                    proc.wait()
 
 
 @contextlib.contextmanager
@@ -250,17 +254,16 @@ def start_virtiofsd(directory: Path, *, uidmap: bool) -> Iterator[Path]:
 
         # virtiofsd has to run unprivileged to use the --uid-map and --gid-map options, so run it as the given
         # user/group if those are provided.
-        proc = spawn(
-            cmdline,
-            user=INVOKING_USER.uid if uidmap else None,
-            group=INVOKING_USER.gid if uidmap else None,
-            pass_fds=(sock.fileno(),)
-        )
-
-        try:
-            yield path
-        finally:
-            proc.wait()
+        with spawn(\
+            cmdline,\
+            user=INVOKING_USER.uid if uidmap else None,\
+            group=INVOKING_USER.gid if uidmap else None,\
+            pass_fds=(sock.fileno(),)\
+        ) as proc:
+            try:
+                yield path
+            finally:
+                proc.wait()
 
 
 @contextlib.contextmanager
@@ -576,6 +579,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
             pass_fds=qemu_device_fds.values(),
             env=os.environ,
             log=False,
+            foreground=True,
         ) as qemu:
             # We have to close these before we wait for qemu otherwise we'll deadlock as qemu will never exit.
             for fd in qemu_device_fds.values():
