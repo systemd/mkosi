@@ -1973,6 +1973,9 @@ def finalize_staging(state: MkosiState) -> None:
             f.rename(state.staging / name)
 
     for f in state.staging.iterdir():
+        # Make sure all build outputs that are not directories are owned by the user running mkosi.
+        if not f.is_dir():
+            os.chown(f, INVOKING_USER.uid, INVOKING_USER.gid, follow_symlinks=False)
         move_tree(state.config, f, state.config.output_dir_or_cwd())
 
 
@@ -2557,11 +2560,6 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
 
             with acl_toggle_build(config, INVOKING_USER.uid):
                 build_image(args, config)
-
-            # Make sure all build outputs that are not directories are owned by the user running mkosi.
-            for p in config.output_dir_or_cwd().iterdir():
-                if not p.is_dir():
-                    os.chown(p, INVOKING_USER.uid, INVOKING_USER.gid, follow_symlinks=False)
 
             build = True
 
