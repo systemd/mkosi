@@ -2083,12 +2083,12 @@ def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
         calculate_signature(state)
         save_manifest(state, manifest)
 
-        finalize_staging(state)
-
-        output_base = state.config.output_dir_or_cwd() / state.config.output
+        output_base = state.staging / state.config.output
         if not output_base.exists() or output_base.is_symlink():
             output_base.unlink(missing_ok=True)
             output_base.symlink_to(state.config.output_with_compression)
+
+        finalize_staging(state)
 
     print_output_size(config.output_dir_or_cwd() / config.output)
 
