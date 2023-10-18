@@ -1262,6 +1262,11 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   default, the hardcoded default release in mkosi for the distribution
   is used.
 
+`ToolsTreeMirror=`, `--tools-tree-mirror=`
+
+: Set the mirror to use for the default tools tree. By default, the
+  default mirror for the tools tree distribution is used.
+
 `ToolsTreePackages=`, `--tools-tree-packages=`
 
 : Extra packages to install into the default tools tree. Takes a comma
