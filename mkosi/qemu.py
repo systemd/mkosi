@@ -193,11 +193,11 @@ def start_swtpm() -> Iterator[Path]:
 
             cmdline += ["--ctrl", f"type=unixio,fd={sock.fileno()}"]
 
-            with spawn(\
-                cmdline,\
-                user=INVOKING_USER.uid,\
-                group=INVOKING_USER.gid,\
-                pass_fds=(sock.fileno(),)\
+            with spawn(
+                cmdline,
+                user=INVOKING_USER.uid,
+                group=INVOKING_USER.gid,
+                pass_fds=(sock.fileno(),)
             ) as proc:
                 try:
                     yield path
@@ -254,11 +254,11 @@ def start_virtiofsd(directory: Path, *, uidmap: bool) -> Iterator[Path]:
 
         # virtiofsd has to run unprivileged to use the --uid-map and --gid-map options, so run it as the given
         # user/group if those are provided.
-        with spawn(\
-            cmdline,\
-            user=INVOKING_USER.uid if uidmap else None,\
-            group=INVOKING_USER.gid if uidmap else None,\
-            pass_fds=(sock.fileno(),)\
+        with spawn(
+            cmdline,
+            user=INVOKING_USER.uid if uidmap else None,
+            group=INVOKING_USER.gid if uidmap else None,
+            pass_fds=(sock.fileno(),)
         ) as proc:
             try:
                 yield path

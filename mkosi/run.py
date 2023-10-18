@@ -250,7 +250,7 @@ def spawn(
         stdout = sys.stderr
 
     try:
-        yield subprocess.Popen(
+        with subprocess.Popen(
             cmdline,
             stdin=stdin,
             stdout=stdout,
@@ -261,7 +261,8 @@ def spawn(
             pass_fds=pass_fds,
             env=env,
             preexec_fn=make_foreground_process if foreground else None,
-        )
+        ) as proc:
+            yield proc
     except FileNotFoundError:
         die(f"{cmdline[0]} not found in PATH.")
     except subprocess.CalledProcessError as e:
