@@ -124,6 +124,16 @@ jobs:
 
         [Output]
         Format=${{ matrix.format }}
+
+        [Content]
+        KernelCommandLine=console=ttyS0
+                          systemd.unit=mkosi-check-and-shutdown.service
+                          systemd.log_target=console
+                          systemd.default_standard_output=journal+console
+
+        [Host]
+        QemuVsock=yes
+        QemuMem=4G
         EOF
 
     - name: Build ${{ matrix.distro }}/${{ matrix.format }}
