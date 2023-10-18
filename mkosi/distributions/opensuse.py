@@ -81,7 +81,7 @@ class Installer(DistributionInstaller):
         if release == "leap":
             release = "stable"
 
-        mirror = state.config.mirror or "http://download.opensuse.org"
+        mirror = state.config.mirror or "https://download.opensuse.org"
 
         # If the release looks like a timestamp, it's Tumbleweed. 13.x is legacy
         # (14.x won't ever appear). For anything else, let's default to Leap.
@@ -123,7 +123,7 @@ class Installer(DistributionInstaller):
     @classmethod
     def install_packages(cls, state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
         if shutil.which("zypper"):
-            invoke_zypper(state, "install", packages, apivfs=apivfs)
+            invoke_zypper(state, "install", packages, ["--download", "in-advance"], apivfs=apivfs)
         else:
             invoke_dnf(state, "install", packages, apivfs=apivfs)
 

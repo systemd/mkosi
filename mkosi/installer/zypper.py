@@ -70,7 +70,7 @@ def invoke_zypper(
     apivfs: bool = True,
 ) -> None:
     cmd = apivfs_cmd(state.root) if apivfs else []
-    bwrap(cmd + zypper_cmd(state) + [verb, *sort_packages(packages), *options],
+    bwrap(cmd + zypper_cmd(state) + [verb, *options, *sort_packages(packages)],
           network=True, env=state.config.environment)
 
     fixup_rpmdb_location(state.root)

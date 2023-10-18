@@ -87,6 +87,31 @@ runs:
         $BINARY --version
       done
 
+  # Make sure we have mkfs.xfs that can handle spaces in protofiles.
+  # TODO: Drop when we move to the next Ubuntu LTS.
+  - name: Update xfsprogs
+    shell: bash
+    working-directory: ${{ github.action_path }}
+    run: |
+      sudo apt-get install --assume-yes --no-install-recommends \
+        make \
+        gcc \
+        autoconf \
+        automake \
+        libtool \
+        libdevmapper-dev \
+        libblkid-dev \
+        libicu-dev \
+        libedit-dev \
+        libinih-dev \
+        liburcu-dev \
+        uuid-dev
+
+      git clone --single-branch --branch v6.4.0 https://git.kernel.org/pub/scm/fs/xfs/xfsprogs-dev.git
+      cd xfsprogs-dev
+      make
+      sudo make install
+
   - name: Install
     shell: bash
     run: sudo ln -svf ${{ github.action_path }}/bin/mkosi /usr/bin/mkosi
