@@ -109,7 +109,7 @@ runs:
 
       git clone --single-branch --branch v6.4.0 https://git.kernel.org/pub/scm/fs/xfs/xfsprogs-dev.git
       cd xfsprogs-dev
-      make
+      make -j $(nproc)
       sudo make install
 
   - name: Install
