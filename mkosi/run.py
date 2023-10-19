@@ -215,8 +215,8 @@ def run(
             cwd=cwd,
             preexec_fn=make_foreground_process,
         )
-    except FileNotFoundError:
-        die(f"{cmdline[0]} not found in PATH.")
+    except FileNotFoundError as e:
+        die(f"{e.filename} not found.")
     except subprocess.CalledProcessError as e:
         if log:
             logging.error(f"\"{shlex.join(cmdline)}\" returned non-zero exit code {e.returncode}.")
@@ -263,8 +263,8 @@ def spawn(
             preexec_fn=make_foreground_process if foreground else None,
         ) as proc:
             yield proc
-    except FileNotFoundError:
-        die(f"{cmdline[0]} not found in PATH.")
+    except FileNotFoundError as e:
+        die(f"{e.filename} not found.")
     except subprocess.CalledProcessError as e:
         if log:
             logging.error(f"\"{shlex.join(cmdline)}\" returned non-zero exit code {e.returncode}.")
