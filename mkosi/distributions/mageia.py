@@ -5,7 +5,7 @@ from collections.abc import Sequence
 
 from mkosi.architecture import Architecture
 from mkosi.distributions import Distribution, DistributionInstaller, PackageType
-from mkosi.installer.dnf import Repo, invoke_dnf, setup_dnf
+from mkosi.installer.dnf import Repo, find_rpm_gpgkey, invoke_dnf, setup_dnf
 from mkosi.log import die
 from mkosi.state import MkosiState
 
@@ -54,7 +54,11 @@ class Installer(DistributionInstaller):
             else:
                 updates_url = f"mirrorlist={baseurl}&repo=updates"
 
-        gpgurl = f"https://mirrors.kernel.org/mageia/distrib/{release}/{arch}/media/core/release/media_info/pubkey"
+        gpgurl = find_rpm_gpgkey(
+            state,
+            "RPM-GPG-KEY-Mageia",
+            f"https://mirrors.kernel.org/mageia/distrib/{release}/{arch}/media/core/release/media_info/pubkey",
+        )
 
         repos = [Repo(f"mageia-{release}", release_url, (gpgurl,))]
         if updates_url is not None:

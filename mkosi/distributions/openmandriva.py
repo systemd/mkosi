@@ -5,7 +5,7 @@ from collections.abc import Sequence
 
 from mkosi.architecture import Architecture
 from mkosi.distributions import Distribution, DistributionInstaller, PackageType
-from mkosi.installer.dnf import Repo, invoke_dnf, setup_dnf
+from mkosi.installer.dnf import Repo, find_rpm_gpgkey, invoke_dnf, setup_dnf
 from mkosi.log import die
 from mkosi.state import MkosiState
 
@@ -52,7 +52,11 @@ class Installer(DistributionInstaller):
             release_url = f"baseurl={baseurl}/release/"
             updates_url = f"baseurl={baseurl}/updates/"
 
-        gpgurl = "https://raw.githubusercontent.com/OpenMandrivaAssociation/openmandriva-repos/master/RPM-GPG-KEY-OpenMandriva"
+        gpgurl = find_rpm_gpgkey(
+            state,
+            "RPM-GPG-KEY-OpenMandriva",
+            "https://raw.githubusercontent.com/OpenMandrivaAssociation/openmandriva-repos/master/RPM-GPG-KEY-OpenMandriva",
+        )
 
         repos = [Repo("openmandriva", release_url, (gpgurl,))]
         if updates_url is not None:
