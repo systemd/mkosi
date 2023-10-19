@@ -16,8 +16,6 @@ import shutil
 import signal
 import subprocess
 import sys
-import tempfile
-import textwrap
 import threading
 from collections.abc import Awaitable, Collection, Iterator, Mapping, Sequence
 from pathlib import Path
@@ -26,7 +24,7 @@ from typing import Any, Optional
 
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, die
 from mkosi.types import _FILE, CompletedProcess, PathString, Popen
-from mkosi.util import INVOKING_USER, flock, make_executable, one_zero
+from mkosi.util import INVOKING_USER, flock, one_zero
 
 CLONE_NEWNS = 0x00020000
 CLONE_NEWUSER = 0x10000000
@@ -303,7 +301,7 @@ def bwrap(
     readonly: bool = False,
     options: Sequence[PathString] = (),
     log: bool = True,
-    scripts: Mapping[str, Sequence[PathString]] = {},
+    scripts: Optional[Path] = None,
     env: Mapping[str, str] = {},
     stdin: _FILE = None,
     stdout: _FILE = None,
@@ -339,44 +337,26 @@ def bwrap(
         "--setenv", "SYSTEMD_OFFLINE", one_zero(network),
     ]
 
-    with tempfile.TemporaryDirectory(prefix="mkosi-scripts") as d:
+    cmdline += [
+        "--setenv", "PATH", f"{scripts or ''}:{os.environ['PATH']}",
+        *options,
+        "sh", "-c", "chmod 1777 /dev/shm && exec $0 \"$@\"",
+    ]
 
-        for name, script in scripts.items():
-            # Make sure we don't end up in a recursive loop when we name a script after the binary it execs
-            # by removing the scripts directory from the PATH when we execute a script.
-            (Path(d) / name).write_text(
-                textwrap.dedent(
-                    f"""\
-                    #!/bin/sh
-                    PATH="$(echo $PATH | tr ':' '\\n' | grep -v {Path(d)} | tr '\\n' ':')"
-                    export PATH
-                    exec {shlex.join(str(s) for s in script)} "$@"
-                    """
-                )
-            )
+    if setpgid := find_binary("setpgid"):
+        cmdline += [setpgid, "--foreground", "--"]
 
-            make_executable(Path(d) / name)
+    try:
+        result = run([*cmdline, *cmd], env=env, log=False, stdin=stdin, stdout=stdout, input=input)
+    except subprocess.CalledProcessError as e:
+        if log:
+            c = shlex.join(os.fspath(s) for s in cmd)
+            logging.error(f"\"{c}\" returned non-zero exit code {e.returncode}.")
+        if ARG_DEBUG_SHELL.get():
+            run([*cmdline, "sh"], stdin=sys.stdin, check=False, env=env, log=False)
+        raise e
 
-        cmdline += [
-            "--setenv", "PATH", f"{d}:{os.environ['PATH']}",
-            *options,
-            "sh", "-c", "chmod 1777 /dev/shm && exec $0 \"$@\"",
-        ]
-
-        if setpgid := find_binary("setpgid"):
-            cmdline += [setpgid, "--foreground", "--"]
-
-        try:
-            result = run([*cmdline, *cmd], env=env, log=False, stdin=stdin, stdout=stdout, input=input)
-        except subprocess.CalledProcessError as e:
-            if log:
-                c = shlex.join(os.fspath(s) for s in cmd)
-                logging.error(f"\"{c}\" returned non-zero exit code {e.returncode}.")
-            if ARG_DEBUG_SHELL.get():
-                run([*cmdline, "sh"], stdin=sys.stdin, check=False, env=env, log=False)
-            raise e
-
-        return result
+    return result
 
 
 def finalize_passwd_mounts(root: Path) -> list[PathString]:
@@ -442,7 +422,7 @@ def chroot_cmd(root: Path, *, options: Sequence[PathString] = ()) -> list[PathSt
         "--dev-bind", root, "/",
         "--setenv", "container", "mkosi",
         "--setenv", "HOME", "/",
-        "--setenv", "PATH", "/usr/bin:/usr/sbin",
+        "--setenv", "PATH", "/work/scripts:/usr/bin:/usr/sbin",
     ]
 
     resolve = Path("etc/resolv.conf")

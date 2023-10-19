@@ -10,15 +10,16 @@ import json
 import logging
 import os
 import resource
+import shlex
 import shutil
 import subprocess
 import sys
 import tempfile
 import textwrap
 import uuid
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
-from typing import Optional, TextIO, Union
+from typing import ContextManager, Optional, TextIO, Union
 
 from mkosi.archive import extract_tar, make_cpio, make_tar
 from mkosi.config import (
@@ -63,6 +64,7 @@ from mkosi.util import (
     chdir,
     flatten,
     format_rlimit,
+    make_executable,
     one_zero,
     scopedenv,
     try_import,
@@ -325,6 +327,39 @@ def script_maybe_chroot(script: Path, mountpoint: str) -> list[str]:
     return ["mkosi-chroot", mountpoint] if script.suffix == ".chroot" else [os.fspath(script)]
 
 
+@contextlib.contextmanager
+def finalize_scripts(scripts: Mapping[str, Sequence[PathString]] = {}) -> Iterator[Path]:
+    with tempfile.TemporaryDirectory(prefix="mkosi-scripts") as d:
+        for name, script in scripts.items():
+            # Make sure we don't end up in a recursive loop when we name a script after the binary it execs
+            # by removing the scripts directory from the PATH when we execute a script.
+            (Path(d) / name).write_text(
+                textwrap.dedent(
+                    f"""\
+                    #!/bin/sh
+                    DIR="$(cd "$(dirname "$0")" && pwd)"
+                    PATH="$(echo "$PATH" | tr ':' '\\n' | grep -v "$DIR" | tr '\\n' ':')"
+                    export PATH
+                    exec {shlex.join(str(s) for s in script)} "$@"
+                    """
+                )
+            )
+
+            make_executable(Path(d) / name)
+
+        yield Path(d)
+
+
+def finalize_host_scripts(state: MkosiState, chroot: Sequence[PathString]) -> ContextManager[Path]:
+    git = {"git": ("git", "-c", "safe.directory=*")} if find_binary("git") else {}
+    return finalize_scripts(git | {"mkosi-chroot": chroot} | package_manager_scripts(state))
+
+
+def finalize_chroot_scripts(state: MkosiState) -> ContextManager[Path]:
+    git = {"git": ("git", "-c", "safe.directory=*")} if find_binary("git", state.root) else {}
+    return finalize_scripts(git)
+
+
 def run_prepare_scripts(state: MkosiState, build: bool) -> None:
     if not state.config.prepare_scripts:
         return
@@ -353,17 +388,22 @@ def run_prepare_scripts(state: MkosiState, build: bool) -> None:
             step_msg = "Running prepare script {}…"
             arg = "final"
 
+        d = stack.enter_context(finalize_chroot_scripts(state))
+
         for script in state.config.prepare_scripts:
             chroot: list[PathString] = chroot_cmd(
                 state.root,
                 options=[
                     "--bind", script, "/work/prepare",
                     "--bind", Path.cwd(), "/work/src",
+                    "--bind", d, "/work/scripts",
                     "--chdir", "/work/src",
                     "--setenv", "SRCDIR", "/work/src",
                     "--setenv", "BUILDROOT", "/",
                 ],
             )
+
+            d = stack.enter_context(finalize_host_scripts(state, chroot))
 
             with complete_step(step_msg.format(script)):
                 bwrap(
@@ -371,7 +411,7 @@ def run_prepare_scripts(state: MkosiState, build: bool) -> None:
                     network=True,
                     readonly=True,
                     options=finalize_mounts(state.config),
-                    scripts={"mkosi-chroot": chroot} | package_manager_scripts(state),
+                    scripts=d,
                     env=env | state.config.environment,
                     stdin=sys.stdin,
                 )
@@ -407,7 +447,8 @@ def run_build_scripts(state: MkosiState) -> None:
     with (
         mount_build_overlay(state),\
         mount_passwd(state.root),\
-        mount_volatile_overlay(state)\
+        mount_volatile_overlay(state),\
+        finalize_chroot_scripts(state) as d\
     ):
         for script in state.config.build_scripts:
             chroot = chroot_cmd(
@@ -417,6 +458,7 @@ def run_build_scripts(state: MkosiState) -> None:
                     "--bind", state.install_dir, "/work/dest",
                     "--bind", state.staging, "/work/out",
                     "--bind", Path.cwd(), "/work/src",
+                    "--bind", d, "/work/scripts",
                     *(["--bind", str(state.config.build_dir), "/work/build"] if state.config.build_dir else []),
                     "--chdir", "/work/src",
                     "--setenv", "SRCDIR", "/work/src",
@@ -429,13 +471,16 @@ def run_build_scripts(state: MkosiState) -> None:
 
             cmdline = state.args.cmdline if state.args.verb == Verb.build else []
 
-            with complete_step(f"Running build script {script}…"):
+            with (
+                finalize_host_scripts(state, chroot) as d,\
+                complete_step(f"Running build script {script}…")\
+            ):
                 bwrap(
                     script_maybe_chroot(script, "/work/build-script") + cmdline,
                     network=state.config.with_network,
                     readonly=True,
                     options=finalize_mounts(state.config),
-                    scripts={"mkosi-chroot": chroot} | package_manager_scripts(state),
+                    scripts=d,
                     env=env | state.config.environment,
                     stdin=sys.stdin,
                 )
@@ -458,29 +503,34 @@ def run_postinst_scripts(state: MkosiState) -> None:
     )
 
     for script in state.config.postinst_scripts:
-        chroot = chroot_cmd(
-            state.root,
-            options=[
-                "--bind", script, "/work/postinst",
-                "--bind", state.staging, "/work/out",
-                "--bind", Path.cwd(), "/work/src",
-                "--chdir", "/work/src",
-                "--setenv", "SRCDIR", "/work/src",
-                "--setenv", "OUTPUTDIR", "/work/out",
-                "--setenv", "BUILDROOT", "/",
-            ],
-        )
-
-        with complete_step(f"Running postinstall script {script}…"):
-            bwrap(
-                script_maybe_chroot(script, "/work/postinst") + ["final"],
-                network=state.config.with_network,
-                readonly=True,
-                options=finalize_mounts(state.config),
-                scripts={"mkosi-chroot": chroot} | package_manager_scripts(state),
-                env=env | state.config.environment,
-                stdin=sys.stdin,
+        with finalize_chroot_scripts(state) as d:
+            chroot = chroot_cmd(
+                state.root,
+                options=[
+                    "--bind", script, "/work/postinst",
+                    "--bind", state.staging, "/work/out",
+                    "--bind", Path.cwd(), "/work/src",
+                    "--bind", d, "/work/scripts",
+                    "--chdir", "/work/src",
+                    "--setenv", "SRCDIR", "/work/src",
+                    "--setenv", "OUTPUTDIR", "/work/out",
+                    "--setenv", "BUILDROOT", "/",
+                ],
             )
+
+            with (
+                finalize_host_scripts(state, chroot) as d,\
+                complete_step(f"Running postinstall script {script}…")\
+            ):
+                bwrap(
+                    script_maybe_chroot(script, "/work/postinst") + ["final"],
+                    network=state.config.with_network,
+                    readonly=True,
+                    options=finalize_mounts(state.config),
+                    scripts=d,
+                    env=env | state.config.environment,
+                    stdin=sys.stdin,
+                )
 
 
 def run_finalize_scripts(state: MkosiState) -> None:
@@ -500,29 +550,34 @@ def run_finalize_scripts(state: MkosiState) -> None:
     )
 
     for script in state.config.finalize_scripts:
-        chroot = chroot_cmd(
-            state.root,
-            options=[
-                "--bind", script, "/work/finalize",
-                "--bind", state.staging, "/work/out",
-                "--bind", Path.cwd(), "/work/src",
-                "--chdir", "/work/src",
-                "--setenv", "SRCDIR", "/work/src",
-                "--setenv", "OUTPUTDIR", "/work/out",
-                "--setenv", "BUILDROOT", "/",
-            ],
-        )
-
-        with complete_step(f"Running finalize script {script}…"):
-            bwrap(
-                script_maybe_chroot(script, "/work/finalize"),
-                network=state.config.with_network,
-                readonly=True,
-                options=finalize_mounts(state.config),
-                scripts={"mkosi-chroot": chroot} | package_manager_scripts(state),
-                env=env | state.config.environment,
-                stdin=sys.stdin,
+        with finalize_chroot_scripts(state) as d:
+            chroot = chroot_cmd(
+                state.root,
+                options=[
+                    "--bind", script, "/work/finalize",
+                    "--bind", state.staging, "/work/out",
+                    "--bind", Path.cwd(), "/work/src",
+                    "--bind", d, "/work/scripts",
+                    "--chdir", "/work/src",
+                    "--setenv", "SRCDIR", "/work/src",
+                    "--setenv", "OUTPUTDIR", "/work/out",
+                    "--setenv", "BUILDROOT", "/",
+                ],
             )
+
+            with (
+                finalize_host_scripts(state, chroot) as d,\
+                complete_step(f"Running finalize script {script}…")\
+            ):
+                bwrap(
+                    script_maybe_chroot(script, "/work/finalize"),
+                    network=state.config.with_network,
+                    readonly=True,
+                    options=finalize_mounts(state.config),
+                    scripts=d,
+                    env=env | state.config.environment,
+                    stdin=sys.stdin,
+                )
 
 
 def run_openssl(args: Sequence[PathString], stdout: _FILE = None) -> CompletedProcess:
