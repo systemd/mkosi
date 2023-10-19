@@ -34,6 +34,7 @@ class Installer(DistributionInstaller):
     def setup(cls, state: MkosiState) -> None:
         release = state.config.release.strip("'")
         arch = state.config.distribution.architecture(state.config.architecture)
+        mirror = state.config.mirror or "http://mirror.openmandriva.org"
 
         if release[0].isdigit():
             release_model = "rock"
@@ -45,14 +46,10 @@ class Installer(DistributionInstaller):
         if state.config.local_mirror:
             release_url = f"baseurl={state.config.local_mirror}"
             updates_url = None
-        elif state.config.mirror:
-            baseurl = f"{state.config.mirror}/{release_model}/repository/{arch}/main"
+        else:
+            baseurl = f"{mirror}/{release_model}/repository/{arch}/main"
             release_url = f"baseurl={baseurl}/release/"
             updates_url = f"baseurl={baseurl}/updates/"
-        else:
-            baseurl = f"http://mirrors.openmandriva.org/mirrors.php?platform={release_model}&arch={arch}&repo=main"
-            release_url = f"mirrorlist={baseurl}&release=release"
-            updates_url = f"mirrorlist={baseurl}&release=updates"
 
         gpgurl = "https://raw.githubusercontent.com/OpenMandrivaAssociation/openmandriva-repos/master/RPM-GPG-KEY-OpenMandriva"
 
