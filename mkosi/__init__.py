@@ -1002,10 +1002,6 @@ def gen_kernel_images(state: MkosiState) -> Iterator[tuple[str, Path]]:
 
 
 def build_initrd(state: MkosiState) -> Path:
-    symlink = state.workspace / "initrd"
-    if symlink.exists():
-        return symlink.resolve()
-
     if state.config.distribution == Distribution.custom:
         die("Building a default initrd is not supported for custom distributions")
 
@@ -1030,7 +1026,7 @@ def build_initrd(state: MkosiState) -> Path:
         *(["--compress-output", str(state.config.compress_output)] if state.config.compress_output else []),
         "--with-network", str(state.config.with_network),
         "--cache-only", str(state.config.cache_only),
-        *(["--output-dir", str(state.config.output_dir)] if state.config.output_dir else []),
+        "--output-dir", str(state.workspace / "initrd"),
         *(["--workspace-dir", str(state.config.workspace_dir)] if state.config.workspace_dir else []),
         "--cache-dir", str(state.cache_dir.parent),
         *(["--local-mirror", str(state.config.local_mirror)] if state.config.local_mirror else []),
@@ -1064,14 +1060,18 @@ def build_initrd(state: MkosiState) -> Path:
         "build",
     ]
 
+    args, [config] = parse_config(cmdline)
+    assert config.output_dir
+
+    config.output_dir.mkdir(exist_ok=True)
+
+    if (config.output_dir / config.output).exists():
+        return config.output_dir / config.output
+
     with complete_step("Building initrd"):
-        args, [config] = parse_config(cmdline)
-        unlink_output(args, config)
         build_image(args, config)
 
-    symlink.symlink_to(config.output_dir_or_cwd() / config.output)
-
-    return symlink
+    return config.output_dir / config.output
 
 
 def build_kernel_modules_initrd(state: MkosiState, kver: str) -> Path:
