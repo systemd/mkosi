@@ -4,6 +4,25 @@
 
 - The mkosi repository itself now ships configuration to build basic
   bootable images that can be used to test mkosi.
+- Added RHEL support
+- Added support for enabling `updates-testing` repositories for Fedora
+- Scripts with the `.chroot` extension are now executed in the image
+  automatically.
+- The rootfs can now be modified when running build scripts (with all
+  changes thrown away after the last build script has been executed)
+- GPG keys for CentOS, Fedora, Alma and Rocky are now looked up locally
+  first before fetching them remotely.
+- Added `WithRecommends=` to configure whether to install recommended
+  packages by default or not where this is supported.
+- Signatures are not required for local packages on Arch anymore
+- The tar output is now reproducible
+- Packages on opensuse are now always downloaded in advance before
+  installation when using zypper
+- Added shorthand `-a` for `--autologin`
+- Added `ToolsTreeMirror=` setting for confuring the mirror to use for
+  the default tools tree
+- We now make sure git can be executed from mkosi scripts without
+  running into permission errors
 
 ## v18
 
