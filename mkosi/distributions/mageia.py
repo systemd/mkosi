@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 import shutil
+import urllib.parse
 from collections.abc import Sequence
 
 from mkosi.architecture import Architecture
@@ -33,36 +34,30 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def setup(cls, state: MkosiState) -> None:
-        release = state.config.release.strip("'")
-        arch = state.config.distribution.architecture(state.config.architecture)
-
-        if state.config.local_mirror:
-            release_url = f"baseurl={state.config.local_mirror}"
-            updates_url = None
-        elif state.config.mirror:
-            baseurl = f"{state.config.mirror}/distrib/{release}/{arch}/media/core/"
-            release_url = f"baseurl={baseurl}/release/"
-            if release == "cauldron":
-                updates_url = None
-            else:
-                updates_url = f"baseurl={baseurl}/updates/"
-        else:
-            baseurl = f"https://www.mageia.org/mirrorlist/?release={release}&arch={arch}&section=core"
-            release_url = f"mirrorlist={baseurl}&repo=release"
-            if release == "cauldron":
-                updates_url = None
-            else:
-                updates_url = f"mirrorlist={baseurl}&repo=updates"
-
-        gpgurl = find_rpm_gpgkey(
-            state,
-            "RPM-GPG-KEY-Mageia",
-            f"https://mirrors.kernel.org/mageia/distrib/{release}/{arch}/media/core/release/media_info/pubkey",
+        gpgurls = (
+            find_rpm_gpgkey(
+                state,
+                "RPM-GPG-KEY-Mageia",
+                "https://mirrors.kernel.org/mageia/distrib/$releasever/$basearch/media/core/release/media_info/pubkey",
+            ),
         )
 
-        repos = [Repo(f"mageia-{release}", release_url, (gpgurl,))]
-        if updates_url is not None:
-            repos += [Repo(f"mageia-{release}-updates", updates_url, (gpgurl,))]
+        repos = []
+
+        if state.config.local_mirror:
+            repos += [Repo("core-release", f"baseurl={state.config.local_mirror}", gpgurls)]
+        elif state.config.mirror:
+            url = f"baseurl={urllib.parse.urljoin(state.config.mirror, 'distrib/$releasever/$basearch/media/core/')}"
+            repos += [
+                Repo("core-release", f"{url}/release", gpgurls),
+                Repo("core-updates", f"{url}/updates/", gpgurls)
+            ]
+        else:
+            url = "mirrorlist=https://www.mageia.org/mirrorlist/?release=$releasever&arch=$basearch&section=core"
+            repos += [
+                Repo("core-release", f"{url}&repo=release", gpgurls),
+                Repo("core-updates", f"{url}&repo=updates", gpgurls)
+            ]
 
         setup_dnf(state, repos)
 
@@ -88,6 +83,7 @@ class Installer(DistributionInstaller):
     def architecture(arch: Architecture) -> str:
         a = {
             Architecture.x86_64 : "x86_64",
+            Architecture.arm64  : "aarch64",
         }.get(arch)
 
         if not a:
