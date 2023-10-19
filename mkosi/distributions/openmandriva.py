@@ -64,7 +64,7 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def install(cls, state: MkosiState) -> None:
-        cls.install_packages(state, ["filesystem"])
+        cls.install_packages(state, ["filesystem"], apivfs=False)
 
     @classmethod
     def install_packages(cls, state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:

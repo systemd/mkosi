@@ -797,6 +797,7 @@ class MkosiConfig:
     tools_tree: Optional[Path]
     tools_tree_distribution: Optional[Distribution]
     tools_tree_release: Optional[str]
+    tools_tree_mirror: Optional[str]
     tools_tree_packages: list[str]
     runtime_trees: list[tuple[Path, Optional[Path]]]
     runtime_size: Optional[int]
@@ -1573,6 +1574,7 @@ SETTINGS = (
     ),
     MkosiConfigSetting(
         dest="autologin",
+        short="-a",
         metavar="BOOL",
         nargs="?",
         section="Content",
@@ -1841,6 +1843,12 @@ SETTINGS = (
         section="Host",
         parse=config_parse_string,
         help="Set the release to use for the default tools tree",
+    ),
+    MkosiConfigSetting(
+        dest="tools_tree_mirror",
+        metavar="MIRROR",
+        section="Host",
+        help="Set the mirror to use for the default tools tree",
     ),
     MkosiConfigSetting(
         dest="tools_tree_packages",
@@ -2729,6 +2737,7 @@ Clean Package Manager Metadata: {yes_no_auto(config.clean_package_metadata)}
                     Tools Tree: {config.tools_tree}
        Tools Tree Distribution: {none_to_none(config.tools_tree_distribution)}
             Tools Tree Release: {none_to_none(config.tools_tree_release)}
+             Tools Tree Mirror: {none_to_default(config.tools_tree_mirror)}
            Tools Tree Packages: {line_join_list(config.tools_tree_packages)}
                  Runtime Trees: {line_join_source_target_list(config.runtime_trees)}
                   Runtime Size: {format_bytes_or_none(config.runtime_size)}

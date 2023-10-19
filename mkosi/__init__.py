@@ -1973,6 +1973,9 @@ def finalize_staging(state: MkosiState) -> None:
             f.rename(state.staging / name)
 
     for f in state.staging.iterdir():
+        # Make sure all build outputs that are not directories are owned by the user running mkosi.
+        if not f.is_dir():
+            os.chown(f, INVOKING_USER.uid, INVOKING_USER.gid, follow_symlinks=False)
         move_tree(state.config, f, state.config.output_dir_or_cwd())
 
 
@@ -2080,12 +2083,12 @@ def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
         calculate_signature(state)
         save_manifest(state, manifest)
 
-        finalize_staging(state)
-
-        output_base = state.config.output_dir_or_cwd() / state.config.output
+        output_base = state.staging / state.config.output
         if not output_base.exists() or output_base.is_symlink():
             output_base.unlink(missing_ok=True)
             output_base.symlink_to(state.config.output_with_compression)
+
+        finalize_staging(state)
 
     print_output_size(config.output_dir_or_cwd() / config.output)
 
@@ -2379,12 +2382,13 @@ def finalize_tools(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> Sequence[
                 hint="use ToolsTreeDistribution= to set one explicitly")
 
         release = p.tools_tree_release or distribution.default_release()
+        mirror = p.tools_tree_mirror or (p.mirror if p.mirror and p.distribution == distribution else None)
 
         cmdline = [
             "--directory", "",
             "--distribution", str(distribution),
             *(["--release", release] if release else []),
-            *(["--mirror", p.mirror] if p.mirror and p.distribution == distribution else []),
+            *(["--mirror", mirror] if mirror else []),
             "--repository-key-check", str(p.repository_key_check),
             "--cache-only", str(p.cache_only),
             *(["--output-dir", str(p.output_dir)] if p.output_dir else []),
@@ -2557,11 +2561,6 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
 
             with acl_toggle_build(config, INVOKING_USER.uid):
                 build_image(args, config)
-
-            # Make sure all build outputs that are not directories are owned by the user running mkosi.
-            for p in config.output_dir_or_cwd().iterdir():
-                if not p.is_dir():
-                    os.chown(p, INVOKING_USER.uid, INVOKING_USER.gid, follow_symlinks=False)
 
             build = True
 
