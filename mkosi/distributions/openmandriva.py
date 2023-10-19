@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
+import shutil
 from collections.abc import Sequence
 
 from mkosi.architecture import Architecture
@@ -66,6 +67,16 @@ class Installer(DistributionInstaller):
     @classmethod
     def install_packages(cls, state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
         invoke_dnf(state, "install", packages, apivfs=apivfs)
+
+        for d in state.root.glob("boot/vmlinuz-*"):
+            kver = d.name.removeprefix("vmlinuz-")
+            vmlinuz = state.root / "usr/lib/modules" / kver / "vmlinuz"
+            # Openmandriva symlinks /usr/lib/modules/<kver>/vmlinuz to /boot/vmlinuz-<kver>, so get rid of the symlink
+            # and put the actual vmlinuz in /usr/lib/modules/<kver>.
+            if vmlinuz.is_symlink():
+                vmlinuz.unlink()
+            if not vmlinuz.exists():
+                shutil.copy2(d, vmlinuz)
 
     @classmethod
     def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
