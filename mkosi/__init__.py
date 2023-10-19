@@ -41,7 +41,7 @@ from mkosi.config import (
 from mkosi.distributions import Distribution
 from mkosi.installer import clean_package_manager_metadata, package_manager_scripts
 from mkosi.kmod import gen_required_kernel_modules, process_kernel_modules
-from mkosi.log import ARG_DEBUG, complete_step, die, log_step
+from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, complete_step, die, log_step
 from mkosi.manifest import Manifest
 from mkosi.mounts import mount, mount_overlay, mount_passwd, mount_usr
 from mkosi.pager import page
@@ -1061,6 +1061,7 @@ def build_initrd(state: MkosiState) -> Path:
         *(["--root-password", rootpwopt] if rootpwopt else []),
         *([f"--environment={k}='{v}'" for k, v in state.config.environment.items()]),
         *(["-f"] * state.args.force),
+        *(["--debug-shell"] if ARG_DEBUG_SHELL.get() else []),
         "build",
     ]
 
@@ -2404,6 +2405,7 @@ def finalize_tools(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> Sequence[
             *([f"--environment={k}='{v}'" for k, v in p.environment.items()]),
             *flatten(["--repositories", repo] for repo in distribution.tools_tree_repositories()),
             *(["-f"] * args.force),
+            *(["--debug-shell"] if ARG_DEBUG_SHELL.get() else []),
             "build",
         ]
 
