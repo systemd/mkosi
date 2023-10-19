@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
-from mkosi.distributions import centos
+from mkosi.distributions import centos, join_mirror
 from mkosi.installer.dnf import Repo, find_rpm_gpgkey
 from mkosi.state import MkosiState
 
@@ -23,7 +23,7 @@ class Installer(centos.Installer):
     @classmethod
     def repository_variants(cls, state: MkosiState, repo: str) -> list[Repo]:
         if state.config.mirror:
-            url = f"baseurl={state.config.mirror}/rocky/$releasever/{repo}/$basearch/os"
+            url = f"baseurl={join_mirror(state.config.mirror, f'rocky/$releasever/{repo}/$basearch/os')}"
         else:
             url = f"mirrorlist=https://mirrors.rockylinux.org/mirrorlist?arch=$basearch&repo={repo}-$releasever"
 

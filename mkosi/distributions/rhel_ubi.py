@@ -2,7 +2,7 @@
 
 from collections.abc import Iterable
 
-from mkosi.distributions import centos
+from mkosi.distributions import centos, join_mirror
 from mkosi.installer.dnf import Repo, find_rpm_gpgkey
 from mkosi.state import MkosiState
 
@@ -34,18 +34,18 @@ class Installer(centos.Installer):
             v = state.config.release
             yield Repo(
                 f"ubi-{v}-{repo}-rpms",
-                f"baseurl={centos.join_mirror(mirror, f'ubi{v}/{v}/$basearch/{repo}/os')}",
+                f"baseurl={join_mirror(mirror, f'ubi{v}/{v}/$basearch/{repo}/os')}",
                 cls.gpgurls(state),
             )
             yield Repo(
                 f"ubi-{v}-{repo}-debug-rpms",
-                f"baseurl={centos.join_mirror(mirror, f'ubi{v}/{v}/$basearch/{repo}/debug')}",
+                f"baseurl={join_mirror(mirror, f'ubi{v}/{v}/$basearch/{repo}/debug')}",
                 cls.gpgurls(state),
                 enabled=False,
             )
             yield Repo(
                 f"ubi-{v}-{repo}-source",
-                f"baseurl={centos.join_mirror(mirror, f'ubi{v}/{v}/$basearch/{repo}/source')}",
+                f"baseurl={join_mirror(mirror, f'ubi{v}/{v}/$basearch/{repo}/source')}",
                 cls.gpgurls(state),
                 enabled=False,
             )

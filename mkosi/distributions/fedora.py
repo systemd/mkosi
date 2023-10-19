@@ -1,10 +1,14 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
-import urllib.parse
 from collections.abc import Sequence
 
 from mkosi.architecture import Architecture
-from mkosi.distributions import Distribution, DistributionInstaller, PackageType
+from mkosi.distributions import (
+    Distribution,
+    DistributionInstaller,
+    PackageType,
+    join_mirror,
+)
 from mkosi.installer.dnf import Repo, find_rpm_gpgkey, invoke_dnf, setup_dnf
 from mkosi.log import die
 from mkosi.state import MkosiState
@@ -93,7 +97,7 @@ class Installer(DistributionInstaller):
         elif state.config.release == "eln":
             mirror = state.config.mirror or "https://odcs.fedoraproject.org/composes/production/latest-Fedora-ELN/compose"
             for repo in ("Appstream", "BaseOS", "Extras", "CRB"):
-                url = f"baseurl={urllib.parse.urljoin(mirror, repo)}"
+                url = f"baseurl={join_mirror(mirror, repo)}"
                 repos += [
                     Repo(repo.lower(), f"{url}/$basearch/os", gpgurls),
                     Repo(repo.lower(), f"{url}/$basearch/debug/tree", gpgurls, enabled=False),
@@ -101,7 +105,7 @@ class Installer(DistributionInstaller):
                 ]
         elif state.config.mirror:
             directory = "development" if state.config.release == "rawhide" else "releases"
-            url = f"baseurl={urllib.parse.urljoin(state.config.mirror, f'{directory}/$releasever/Everything')}"
+            url = f"baseurl={join_mirror(state.config.mirror, f'{directory}/$releasever/Everything')}"
             repos += [
                 Repo("fedora", f"{url}/$basearch/os", gpgurls),
                 Repo("fedora-debuginfo", f"{url}/$basearch/debug/tree", gpgurls, enabled=False),
@@ -109,14 +113,14 @@ class Installer(DistributionInstaller):
             ]
 
             if state.config.release != "rawhide":
-                url = f"baseurl={urllib.parse.urljoin(state.config.mirror, 'updates/$releasever/Everything')}"
+                url = f"baseurl={join_mirror(state.config.mirror, 'updates/$releasever/Everything')}"
                 repos += [
                     Repo("updates", f"{url}/$basearch", gpgurls),
                     Repo("updates-debuginfo", f"{url}/$basearch/debug", gpgurls, enabled=False),
                     Repo("updates-source", f"{url}/SRPMS", gpgurls, enabled=False),
                 ]
 
-                url = f"baseurl={urllib.parse.urljoin(state.config.mirror, 'updates/testing/$releasever/Everything')}"
+                url = f"baseurl={join_mirror(state.config.mirror, 'updates/testing/$releasever/Everything')}"
                 repos += [
                     Repo("updates-testing", f"{url}/$basearch", gpgurls, enabled=False),
                     Repo("updates-testing-debuginfo", f"{url}/$basearch/debug", gpgurls, enabled=False),

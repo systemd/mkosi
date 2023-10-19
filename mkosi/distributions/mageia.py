@@ -1,11 +1,15 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 import shutil
-import urllib.parse
 from collections.abc import Sequence
 
 from mkosi.architecture import Architecture
-from mkosi.distributions import Distribution, DistributionInstaller, PackageType
+from mkosi.distributions import (
+    Distribution,
+    DistributionInstaller,
+    PackageType,
+    join_mirror,
+)
 from mkosi.installer.dnf import Repo, find_rpm_gpgkey, invoke_dnf, setup_dnf
 from mkosi.log import die
 from mkosi.state import MkosiState
@@ -47,7 +51,7 @@ class Installer(DistributionInstaller):
         if state.config.local_mirror:
             repos += [Repo("core-release", f"baseurl={state.config.local_mirror}", gpgurls)]
         elif state.config.mirror:
-            url = f"baseurl={urllib.parse.urljoin(state.config.mirror, 'distrib/$releasever/$basearch/media/core/')}"
+            url = f"baseurl={join_mirror(state.config.mirror, 'distrib/$releasever/$basearch/media/core/')}"
             repos += [
                 Repo("core-release", f"{url}/release", gpgurls),
                 Repo("core-updates", f"{url}/updates/", gpgurls)

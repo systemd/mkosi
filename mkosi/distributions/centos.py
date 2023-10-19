@@ -2,12 +2,16 @@
 
 import os
 import shutil
-import urllib.parse
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 
 from mkosi.architecture import Architecture
-from mkosi.distributions import Distribution, DistributionInstaller, PackageType
+from mkosi.distributions import (
+    Distribution,
+    DistributionInstaller,
+    PackageType,
+    join_mirror,
+)
 from mkosi.installer.dnf import Repo, find_rpm_gpgkey, invoke_dnf, setup_dnf
 from mkosi.log import complete_step, die
 from mkosi.state import MkosiState
@@ -27,9 +31,6 @@ def move_rpm_db(root: Path) -> None:
 
             newdb.symlink_to(os.path.relpath(olddb, start=newdb.parent))
 
-
-def join_mirror(mirror: str, link: str) -> str:
-    return urllib.parse.urljoin(mirror, link)
 
 
 class Installer(DistributionInstaller):
