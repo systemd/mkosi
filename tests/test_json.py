@@ -43,6 +43,7 @@ def test_args(path: Optional[Path]) -> None:
             "Force": 9001,
             "GenkeyCommonName": "test",
             "GenkeyValidDays": "100",
+            "Json": false,
             "Pager": true,
             "Verb": "build"
         }}
@@ -59,6 +60,7 @@ def test_args(path: Optional[Path]) -> None:
         force = 9001,
         genkey_common_name = "test",
         genkey_valid_days = "100",
+        json = False,
         pager = True,
         verb = Verb.build,
     )

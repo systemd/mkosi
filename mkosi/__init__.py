@@ -31,6 +31,7 @@ from mkosi.config import (
     ManifestFormat,
     MkosiArgs,
     MkosiConfig,
+    MkosiJsonEncoder,
     OutputFormat,
     SecureBootSignTool,
     Verb,
@@ -2525,10 +2526,15 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
         return bump_image_version()
 
     if args.verb == Verb.summary:
-        text = ""
-
-        for config in presets:
-            text += f"{summary(config)}\n"
+        if args.json:
+            text = json.dumps(
+                {"Presets": [p.to_dict() for p in presets]},
+                cls=MkosiJsonEncoder,
+                indent=4,
+                sort_keys=True
+            )
+        else:
+            text = "\n".join(summary(p) for p in presets)
 
         page(text, args.pager)
         return

@@ -628,6 +628,7 @@ class MkosiArgs:
     genkey_common_name: str
     auto_bump: bool
     doc_format: DocFormat
+    json: bool
 
     @classmethod
     def default(cls) -> "MkosiArgs":
@@ -1994,6 +1995,12 @@ def create_argument_parser(action: type[argparse.Action]) -> argparse.ArgumentPa
         help="The format to show documentation in",
         default=DocFormat.auto,
         type=DocFormat,
+    )
+    parser.add_argument(
+        "--json",
+        help="Show summary as JSON",
+        action="store_true",
+        default=False,
     )
     # These can be removed once mkosi v15 is available in LTS distros and compatibility with <= v14
     # is no longer needed in build infrastructure (e.g.: OBS).

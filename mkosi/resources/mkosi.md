@@ -215,6 +215,10 @@ Those settings cannot be configured in the configuration files.
   the default, will try all methods in the order `man`, `pandoc`, `markdown`,
   `system`.
 
+`--json`
+
+: Show the summary output as JSON-SEQ.
+
 ## Supported output formats
 
 The following output formats are supported:
