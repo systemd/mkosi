@@ -2614,7 +2614,7 @@ def format_bytes_or_none(num_bytes: Optional[int]) -> str:
     return format_bytes(num_bytes) if num_bytes is not None else "none"
 
 
-def summary(args: MkosiArgs, config: MkosiConfig) -> str:
+def summary(config: MkosiConfig) -> str:
     def bold(s: Any) -> str:
         return f"{Style.bold}{s}{Style.reset}"
 
@@ -2623,10 +2623,6 @@ def summary(args: MkosiArgs, config: MkosiConfig) -> str:
 
     summary = f"""\
 {bold(f"PRESET: {config.preset or 'default'}")}
-
-    {bold("COMMANDS")}:
-                          Verb: {bold(args.verb)}
-                       Cmdline: {bold(" ".join(args.cmdline))}
 
     {bold("CONFIG")}:
                        Include: {line_join_list(config.include)}

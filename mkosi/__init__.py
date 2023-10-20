@@ -2528,7 +2528,7 @@ def run_verb(args: MkosiArgs, presets: Sequence[MkosiConfig]) -> None:
         text = ""
 
         for config in presets:
-            text += f"{summary(args, config)}\n"
+            text += f"{summary(config)}\n"
 
         page(text, args.pager)
         return
