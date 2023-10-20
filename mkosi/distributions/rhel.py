@@ -4,7 +4,7 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any, Optional
 
-from mkosi.distributions import centos
+from mkosi.distributions import centos, join_mirror
 from mkosi.installer.dnf import Repo, find_rpm_gpgkey
 from mkosi.log import die
 from mkosi.state import MkosiState
@@ -90,19 +90,19 @@ class Installer(centos.Installer):
             major = int(float(v))
             yield Repo(
                 f"rhel-{v}-{repo}-rpms",
-                f"baseurl={centos.join_mirror(mirror, f'rhel{major}/{v}/$basearch/{repo}/os')}",
+                f"baseurl={join_mirror(mirror, f'rhel{major}/{v}/$basearch/{repo}/os')}",
                 enabled=True,
                 **common,
             )
             yield Repo(
                 f"rhel-{v}-{repo}-debug-rpms",
-                f"baseurl={centos.join_mirror(mirror, f'rhel{major}/{v}/$basearch/{repo}/debug')}",
+                f"baseurl={join_mirror(mirror, f'rhel{major}/{v}/$basearch/{repo}/debug')}",
                 enabled=False,
                 **common,
             )
             yield Repo(
                 f"rhel-{v}-{repo}-source",
-                f"baseurl={centos.join_mirror(mirror, f'rhel{major}/{v}/$basearch/{repo}/source')}",
+                f"baseurl={join_mirror(mirror, f'rhel{major}/{v}/$basearch/{repo}/source')}",
                 enabled=False,
                 **common,
             )

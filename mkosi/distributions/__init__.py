@@ -3,6 +3,7 @@
 import enum
 import importlib
 import re
+import urllib.parse
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Optional, cast
 
@@ -177,3 +178,12 @@ def detect_distribution() -> tuple[Optional[Distribution], Optional[str]]:
         version_id = version_codename or extracted_codename
 
     return d, version_id
+
+
+def join_mirror(mirror: str, link: str) -> str:
+    # urljoin() behaves weirdly if the base does not end with a / or the path starts with a / so fix them up as needed.
+    if not mirror.endswith("/"):
+        mirror = f"{mirror}/"
+    link = link.removeprefix("/")
+
+    return urllib.parse.urljoin(mirror, link)

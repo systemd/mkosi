@@ -9,7 +9,12 @@ from pathlib import Path
 
 from mkosi.architecture import Architecture
 from mkosi.archive import extract_tar
-from mkosi.distributions import Distribution, DistributionInstaller, PackageType
+from mkosi.distributions import (
+    Distribution,
+    DistributionInstaller,
+    PackageType,
+    join_mirror,
+)
 from mkosi.log import ARG_DEBUG, complete_step, die
 from mkosi.run import apivfs_cmd, bwrap, chroot_cmd, run
 from mkosi.state import MkosiState
@@ -88,7 +93,7 @@ class Installer(DistributionInstaller):
 
         mirror = state.config.mirror or "https://distfiles.gentoo.org"
         # http://distfiles.gentoo.org/releases/amd64/autobuilds/latest-stage3.txt
-        stage3tsf_path_url = urllib.parse.urljoin(
+        stage3tsf_path_url = join_mirror(
             mirror.partition(" ")[0],
             f"releases/{arch}/autobuilds/latest-stage3.txt",
         )
@@ -104,7 +109,7 @@ class Installer(DistributionInstaller):
             else:
                 die("profile names changed upstream?")
 
-        stage3_url = urllib.parse.urljoin(mirror, f"releases/{arch}/autobuilds/{stage3_latest}")
+        stage3_url = join_mirror(mirror, f"releases/{arch}/autobuilds/{stage3_latest}")
         stage3_tar = state.cache_dir / "stage3.tar"
         stage3 = state.cache_dir / "stage3"
 

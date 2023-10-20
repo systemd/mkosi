@@ -4,8 +4,13 @@ import shutil
 from collections.abc import Sequence
 
 from mkosi.architecture import Architecture
-from mkosi.distributions import Distribution, DistributionInstaller, PackageType
-from mkosi.installer.dnf import Repo, invoke_dnf, setup_dnf
+from mkosi.distributions import (
+    Distribution,
+    DistributionInstaller,
+    PackageType,
+    join_mirror,
+)
+from mkosi.installer.dnf import Repo, find_rpm_gpgkey, invoke_dnf, setup_dnf
 from mkosi.log import die
 from mkosi.state import MkosiState
 
@@ -33,30 +38,26 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def setup(cls, state: MkosiState) -> None:
-        release = state.config.release.strip("'")
-        arch = state.config.distribution.architecture(state.config.architecture)
         mirror = state.config.mirror or "http://mirror.openmandriva.org"
 
-        if release[0].isdigit():
-            release_model = "rock"
-        elif release == "cooker":
-            release_model = "cooker"
-        else:
-            release_model = release
+        gpgurls = (
+            find_rpm_gpgkey(
+                state,
+                "RPM-GPG-KEY-OpenMandriva",
+                "https://raw.githubusercontent.com/OpenMandrivaAssociation/openmandriva-repos/master/RPM-GPG-KEY-OpenMandriva",
+            ),
+        )
+
+        repos = []
 
         if state.config.local_mirror:
-            release_url = f"baseurl={state.config.local_mirror}"
-            updates_url = None
+            repos += [Repo("main-release", f"baseurl={state.config.local_mirror}", gpgurls)]
         else:
-            baseurl = f"{mirror}/{release_model}/repository/{arch}/main"
-            release_url = f"baseurl={baseurl}/release/"
-            updates_url = f"baseurl={baseurl}/updates/"
-
-        gpgurl = "https://raw.githubusercontent.com/OpenMandrivaAssociation/openmandriva-repos/master/RPM-GPG-KEY-OpenMandriva"
-
-        repos = [Repo("openmandriva", release_url, (gpgurl,))]
-        if updates_url is not None:
-            repos += [Repo("updates", updates_url, (gpgurl,))]
+            url = f"baseurl={join_mirror(mirror, '$releasever/repository/$basearch/main')}"
+            repos += [
+                Repo("main-release", f"{url}/release", gpgurls),
+                Repo("main-updates", f"{url}/updates", gpgurls),
+            ]
 
         setup_dnf(state, repos)
 
@@ -85,7 +86,9 @@ class Installer(DistributionInstaller):
     @staticmethod
     def architecture(arch: Architecture) -> str:
         a = {
-            Architecture.x86_64 : "x86_64",
+            Architecture.x86_64  : "x86_64",
+            Architecture.arm64   : "aarch64",
+            Architecture.riscv64 : "riscv64",
         }.get(arch)
 
         if not a:
