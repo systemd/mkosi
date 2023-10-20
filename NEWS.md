@@ -36,6 +36,14 @@
 - We now automatically configure the qemu firmware, kernel cmdline and
   initrd based on what type of kernel is passed by the user via
   `-kernel` or `QemuKernel=`
+- We don't create subdirectories beneath the configured cache or build
+  directories anymore. To get back the previous behavior, configure the
+  cache and build directories as follows:
+
+  ```conf
+  CacheDirectory=mkosi.cache/%d~%r~%a
+  BuildDirectory=mkosi.builddir/%d~%r~%a
+  ```
 
 ## v18
 
