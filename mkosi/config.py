@@ -2574,11 +2574,6 @@ def load_config(args: argparse.Namespace) -> MkosiConfig:
     if args.cmdline and not args.verb.supports_cmdline():
         die(f"Arguments after verb are not supported for {args.verb}.")
 
-    if args.cache_dir:
-        args.cache_dir = args.cache_dir / f"{args.distribution}~{args.release}~{args.architecture}"
-    if args.build_dir:
-        args.build_dir = args.build_dir / f"{args.distribution}~{args.release}~{args.architecture}"
-
     if args.sign:
         args.checksum = True
 

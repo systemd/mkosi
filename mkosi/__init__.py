@@ -21,6 +21,7 @@ from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
 from typing import Optional, TextIO, Union
 
+from mkosi.architecture import Architecture
 from mkosi.archive import extract_tar, make_cpio, make_tar
 from mkosi.config import (
     BiosBootloader,
@@ -1087,7 +1088,7 @@ def build_initrd(state: MkosiState) -> Path:
         "--cache-only", str(state.config.cache_only),
         "--output-dir", str(state.workspace / "initrd"),
         *(["--workspace-dir", str(state.config.workspace_dir)] if state.config.workspace_dir else []),
-        "--cache-dir", str(state.cache_dir.parent),
+        "--cache-dir", str(state.cache_dir),
         *(["--local-mirror", str(state.config.local_mirror)] if state.config.local_mirror else []),
         "--incremental", str(state.config.incremental),
         "--acl", str(state.config.acl),
@@ -2440,6 +2441,14 @@ def finalize_tools(args: MkosiArgs, images: Sequence[MkosiConfig]) -> Sequence[M
         release = p.tools_tree_release or distribution.default_release()
         mirror = p.tools_tree_mirror or (p.mirror if p.mirror and p.distribution == distribution else None)
 
+        if p.cache_dir:
+            if p.distribution == distribution and p.release == release and p.architecture == Architecture.native():
+                cache = p.cache_dir
+            else:
+                cache = p.cache_dir / "tools"
+        else:
+            cache = None
+
         cmdline = [
             "--directory", "",
             "--distribution", str(distribution),
@@ -2449,7 +2458,7 @@ def finalize_tools(args: MkosiArgs, images: Sequence[MkosiConfig]) -> Sequence[M
             "--cache-only", str(p.cache_only),
             *(["--output-dir", str(p.output_dir)] if p.output_dir else []),
             *(["--workspace-dir", str(p.workspace_dir)] if p.workspace_dir else []),
-            *(["--cache-dir", str(p.cache_dir.parent)] if p.cache_dir else []),
+            *(["--cache-dir", str(cache)] if cache else []),
             "--incremental", str(p.incremental),
             "--acl", str(p.acl),
             "--format", "directory",
