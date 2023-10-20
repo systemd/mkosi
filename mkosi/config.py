@@ -648,13 +648,15 @@ class MkosiArgs:
             if k in inspect.signature(cls).parameters
         })
 
-    def to_json(self, *, indent: Optional[int] = 4, sort_keys: bool = True) -> str:
-        """Dump MkosiArgs as JSON string."""
+    def to_dict(self) -> dict[str, Any]:
         def key_transformer(k: str) -> str:
             return "".join(p.capitalize() for p in k.split("_"))
 
-        d = {key_transformer(k): v for k, v in dataclasses.asdict(self).items()}
-        return json.dumps(d, cls=MkosiJsonEncoder, indent=indent, sort_keys=sort_keys)
+        return {key_transformer(k): v for k, v in dataclasses.asdict(self).items()}
+
+    def to_json(self, *, indent: Optional[int] = 4, sort_keys: bool = True) -> str:
+        """Dump MkosiArgs as JSON string."""
+        return json.dumps(self.to_dict(), cls=MkosiJsonEncoder, indent=indent, sort_keys=sort_keys)
 
     @classmethod
     def _load_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> dict[str, Any]:
@@ -915,15 +917,17 @@ class MkosiConfig:
             ]
         }
 
-    def to_json(self, *, indent: Optional[int] = 4, sort_keys: bool = True) -> str:
-        """Dump MkosiConfig as JSON string."""
+    def to_dict(self) -> dict[str, Any]:
         def key_transformer(k: str) -> str:
             if (s := SETTINGS_LOOKUP_BY_DEST.get(k)) is not None:
                 return s.name
             return "".join(p.capitalize() for p in k.split("_"))
 
-        d = {key_transformer(k): v for k, v in dataclasses.asdict(self).items()}
-        return json.dumps(d, cls=MkosiJsonEncoder, indent=indent, sort_keys=sort_keys)
+        return {key_transformer(k): v for k, v in dataclasses.asdict(self).items()}
+
+    def to_json(self, *, indent: Optional[int] = 4, sort_keys: bool = True) -> str:
+        """Dump MkosiConfig as JSON string."""
+        return json.dumps(self.to_dict(), cls=MkosiJsonEncoder, indent=indent, sort_keys=sort_keys)
 
     @classmethod
     def _load_json(cls, s: Union[str, dict[str, Any], SupportsRead[str], SupportsRead[bytes]]) -> dict[str, Any]:
@@ -2104,7 +2108,9 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
                         continue
 
                     if (v := finalize_default(s, namespace, defaults)) is None:
-                        logging.warning(f"Setting {s.name} specified by specifier '%{c}' in {text} is not yet set, ignoring")
+                        logging.warning(
+                            f"Setting {s.name} specified by specifier '%{c}' in {text} is not yet set, ignoring"
+                        )
                         continue
 
                     result += str(v)
@@ -2764,6 +2770,8 @@ class MkosiJsonEncoder(json.JSONEncoder):
             return os.fspath(obj)
         elif isinstance(obj, uuid.UUID):
             return str(obj)
+        elif isinstance(obj, (MkosiArgs, MkosiConfig)):
+            return obj.to_dict()
         return json.JSONEncoder.default(self, obj)
 
 

@@ -379,7 +379,9 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
         kernel = None
 
     if config.output_format == OutputFormat.uki and kernel:
-        logging.warning(f"Booting UKI output, kernel {kernel} configured with QemuKernel= or passed with -kernel will not be used")
+        logging.warning(
+            f"Booting UKI output, kernel {kernel} configured with QemuKernel= or passed with -kernel will not be used"
+        )
         kernel = None
 
     if kernel and not kernel.exists():
@@ -388,7 +390,10 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
     if config.qemu_firmware == QemuFirmware.auto:
         if kernel:
             firmware = QemuFirmware.uefi if KernelType.identify(kernel) != KernelType.unknown else QemuFirmware.linux
-        elif config.output_format in (OutputFormat.cpio, OutputFormat.directory) or config.architecture.to_efi() is None:
+        elif (
+            config.output_format in (OutputFormat.cpio, OutputFormat.directory) or
+            config.architecture.to_efi() is None
+        ):
             firmware = QemuFirmware.linux
         else:
             firmware = QemuFirmware.uefi
