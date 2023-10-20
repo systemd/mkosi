@@ -628,6 +628,7 @@ class MkosiArgs:
     genkey_common_name: str
     auto_bump: bool
     doc_format: DocFormat
+    json: bool
 
     @classmethod
     def default(cls) -> "MkosiArgs":
@@ -1995,6 +1996,12 @@ def create_argument_parser(action: type[argparse.Action]) -> argparse.ArgumentPa
         default=DocFormat.auto,
         type=DocFormat,
     )
+    parser.add_argument(
+        "--json",
+        help="Show summary as JSON",
+        action="store_true",
+        default=False,
+    )
     # These can be removed once mkosi v15 is available in LTS distros and compatibility with <= v14
     # is no longer needed in build infrastructure (e.g.: OBS).
     parser.add_argument(
@@ -2614,7 +2621,7 @@ def format_bytes_or_none(num_bytes: Optional[int]) -> str:
     return format_bytes(num_bytes) if num_bytes is not None else "none"
 
 
-def summary(args: MkosiArgs, config: MkosiConfig) -> str:
+def summary(config: MkosiConfig) -> str:
     def bold(s: Any) -> str:
         return f"{Style.bold}{s}{Style.reset}"
 
@@ -2623,10 +2630,6 @@ def summary(args: MkosiArgs, config: MkosiConfig) -> str:
 
     summary = f"""\
 {bold(f"PRESET: {config.preset or 'default'}")}
-
-    {bold("COMMANDS")}:
-                          Verb: {bold(args.verb)}
-                       Cmdline: {bold(" ".join(args.cmdline))}
 
     {bold("CONFIG")}:
                        Include: {line_join_list(config.include)}

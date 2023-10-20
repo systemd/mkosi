@@ -43,6 +43,7 @@ def test_args(path: Optional[Path]) -> None:
             "Force": 9001,
             "GenkeyCommonName": "test",
             "GenkeyValidDays": "100",
+            "Json": false,
             "Pager": true,
             "Verb": "build"
         }}
@@ -50,17 +51,18 @@ def test_args(path: Optional[Path]) -> None:
     )
 
     args = MkosiArgs(
-        verb = Verb.build,
+        auto_bump = False,
         cmdline = ["foo", "bar"],
-        force = 9001,
-        directory = Path(path) if path is not None else None,
         debug = False,
         debug_shell = False,
-        pager = True,
-        genkey_valid_days = "100",
-        genkey_common_name = "test",
-        auto_bump = False,
+        directory = Path(path) if path is not None else None,
         doc_format = DocFormat.auto,
+        force = 9001,
+        genkey_common_name = "test",
+        genkey_valid_days = "100",
+        json = False,
+        pager = True,
+        verb = Verb.build,
     )
 
     assert args.to_json(indent=4, sort_keys=True) == dump.rstrip()
