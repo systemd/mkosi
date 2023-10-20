@@ -69,6 +69,22 @@ def machine_cid(config: MkosiConfig) -> int:
     return max(3, min(cid, 0xFFFFFFFF - 1))
 
 
+class KernelType(StrEnum):
+    pe      = enum.auto()
+    uki     = enum.auto()
+    unknown = enum.auto()
+
+    @classmethod
+    def identify(cls, path: PathString) -> "KernelType":
+        type = run(["bootctl", "kernel-identify", path], stdout=subprocess.PIPE).stdout.strip()
+
+        try:
+            return cls(type)
+        except ValueError:
+            logging.warning(f"Unknown kernel type '{type}', assuming 'unknown'")
+            return KernelType.unknown
+
+
 def find_qemu_binary(config: MkosiConfig) -> str:
     binaries = ["qemu", "qemu-kvm"] if config.architecture.is_native() else []
     binaries += [f"qemu-system-{config.architecture.to_qemu()}"]
@@ -355,13 +371,44 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
     if config.qemu_kvm == ConfigFeature.enabled or auto:
         accel = "kvm"
 
+    if config.qemu_kernel:
+        kernel = config.qemu_kernel
+    elif "-kernel" in args.cmdline:
+        kernel = Path(args.cmdline[args.cmdline.index("-kernel") + 1])
+    else:
+        kernel = None
+
+    if config.output_format == OutputFormat.uki and kernel:
+        logging.warning(f"Booting UKI output, kernel {kernel} configured with QemuKernel= or passed with -kernel will not be used")
+        kernel = None
+
+    if kernel and not kernel.exists():
+        die(f"Kernel not found at {kernel}")
+
     if config.qemu_firmware == QemuFirmware.auto:
-        if config.output_format in (OutputFormat.cpio, OutputFormat.directory) or config.architecture.to_efi() is None:
+        if kernel:
+            firmware = QemuFirmware.uefi if KernelType.identify(kernel) != KernelType.unknown else QemuFirmware.linux
+        elif config.output_format in (OutputFormat.cpio, OutputFormat.directory) or config.architecture.to_efi() is None:
             firmware = QemuFirmware.linux
         else:
             firmware = QemuFirmware.uefi
     else:
         firmware = config.qemu_firmware
+
+    if (
+        firmware == QemuFirmware.linux or
+        config.output_format in (OutputFormat.cpio, OutputFormat.directory, OutputFormat.uki)
+    ):
+        if firmware == QemuFirmware.uefi:
+            name = config.output if config.output_format == OutputFormat.uki else config.output_split_uki
+            kernel = config.output_dir_or_cwd() / name
+        else:
+            kernel = config.output_dir_or_cwd() / config.output_split_kernel
+        if not kernel.exists():
+            die(
+                f"Kernel or UKI not found at {kernel}, please install a kernel in the image "
+                "or provide a -kernel argument to mkosi qemu"
+            )
 
     ovmf, ovmf_supports_sb = find_ovmf_firmware(config) if firmware == QemuFirmware.uefi else (None, False)
 
@@ -410,40 +457,19 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
             "-mon", "console",
         ]
 
+    if config.architecture.supports_smbios():
+        for k, v in config.credentials.items():
+            payload = base64.b64encode(v.encode()).decode()
+            cmdline += [
+                "-smbios", f"type=11,value=io.systemd.credential.binary:{k}={payload}"
+            ]
+
     # QEMU has built-in logic to look for the BIOS firmware so we don't need to do anything special for that.
     if firmware == QemuFirmware.uefi:
         cmdline += ["-drive", f"if=pflash,format=raw,readonly=on,file={ovmf}"]
-
-    if firmware == QemuFirmware.linux or config.output_format in (OutputFormat.cpio, OutputFormat.uki):
-        kcl = config.kernel_command_line + config.kernel_command_line_extra
-    elif config.architecture.supports_smbios():
-        kcl = config.kernel_command_line_extra
-    else:
-        kcl = []
-
     notifications: dict[str, str] = {}
 
     with contextlib.ExitStack() as stack:
-        for src, target in config.runtime_trees:
-            sock = stack.enter_context(start_virtiofsd(src, uidmap=True))
-            cmdline += [
-                "-chardev", f"socket,id={sock.name},path={sock}",
-                "-device", f"vhost-user-fs-pci,queue-size=1024,chardev={sock.name},tag={sock.name}",
-            ]
-            kcl += [f"systemd.mount-extra={sock.name}:{target or f'/root/src/{src.name}'}:virtiofs"]
-
-        if config.architecture.supports_smbios():
-            for k, v in config.credentials.items():
-                payload = base64.b64encode(v.encode()).decode()
-                cmdline += [
-                    "-smbios", f"type=11,value=io.systemd.credential.binary:{k}={payload}"
-                ]
-
-            cmdline += [
-                "-smbios",
-                f"type=11,value=io.systemd.stub.kernel-cmdline-extra={' '.join(kcl)}"
-            ]
-
         if firmware == QemuFirmware.uefi and ovmf_supports_sb:
             ovmf_vars = stack.enter_context(tempfile.NamedTemporaryFile(prefix="mkosi-ovmf-vars"))
             shutil.copy2(find_ovmf_vars(config), Path(ovmf_vars.name))
@@ -470,7 +496,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
                  "--copy-from", src,
                  fname])
             stack.callback(lambda: fname.unlink())
-        elif config.ephemeral:
+        elif config.ephemeral and config.output_format not in (OutputFormat.cpio, OutputFormat.uki):
             fname = stack.enter_context(copy_ephemeral(config, config.output_dir_or_cwd() / config.output))
         else:
             fname = config.output_dir_or_cwd() / config.output
@@ -489,29 +515,9 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
                  "--offline=yes",
                  fname])
 
-        if (
-            firmware == QemuFirmware.linux or
-            config.output_format in (OutputFormat.cpio, OutputFormat.uki, OutputFormat.directory)
-        ):
-            if config.output_format == OutputFormat.uki:
-                kernel = fname if firmware == QemuFirmware.uefi else config.output_dir_or_cwd() / config.output_split_kernel
-            elif config.qemu_kernel:
-                kernel = config.qemu_kernel
-            elif "-kernel" not in args.cmdline:
-                if firmware == QemuFirmware.uefi:
-                    kernel = config.output_dir_or_cwd() / config.output_split_uki
-                else:
-                    kernel = config.output_dir_or_cwd() / config.output_split_kernel
-                if not kernel.exists():
-                    die(
-                        f"Kernel or UKI not found at {kernel}, please install a kernel in the image "
-                        "or provide a -kernel argument to mkosi qemu"
-                    )
-            else:
-                kernel = None
-
-            if kernel:
-                cmdline += ["-kernel", kernel]
+        root = None
+        if kernel:
+            cmdline += ["-kernel", kernel]
 
             if config.output_format == OutputFormat.disk:
                 # We can't rely on gpt-auto-generator when direct kernel booting so synthesize a root=
@@ -526,16 +532,36 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
                     "-device", f"vhost-user-fs-pci,queue-size=1024,chardev={sock.name},tag=root",
                 ]
                 root = "root=root rootfstype=virtiofs rw"
-            else:
-                root = ""
 
-            cmdline += ["-append", " ".join([root] + kcl)]
+        if kernel and (KernelType.identify(kernel) != KernelType.uki or not config.architecture.supports_smbios()):
+            kcl = config.kernel_command_line + config.kernel_command_line_extra
+        else:
+            kcl = config.kernel_command_line_extra
+
+        if root:
+            kcl += [root]
+
+        for src, target in config.runtime_trees:
+            sock = stack.enter_context(start_virtiofsd(src, uidmap=True))
+            cmdline += [
+                "-chardev", f"socket,id={sock.name},path={sock}",
+                "-device", f"vhost-user-fs-pci,queue-size=1024,chardev={sock.name},tag={sock.name}",
+            ]
+            kcl += [f"systemd.mount-extra={sock.name}:{target or f'/root/src/{src.name}'}:virtiofs"]
+
+        if kernel and (KernelType.identify(kernel) != KernelType.uki or not config.architecture.supports_smbios()):
+            cmdline += ["-append", " ".join(kcl)]
+        elif config.architecture.supports_smbios():
+            cmdline += [
+                "-smbios",
+                f"type=11,value=io.systemd.stub.kernel-cmdline-extra={' '.join(kcl)}"
+            ]
 
         if config.output_format == OutputFormat.cpio:
             cmdline += ["-initrd", fname]
         elif (
-            firmware == QemuFirmware.linux and
-            config.output_format in (OutputFormat.uki, OutputFormat.directory, OutputFormat.disk) and
+            kernel and KernelType.identify(kernel) != KernelType.uki and
+            "-initrd" not in args.cmdline and
             (config.output_dir_or_cwd() / config.output_split_initrd).exists()
         ):
             cmdline += ["-initrd", config.output_dir_or_cwd() / config.output_split_initrd]
