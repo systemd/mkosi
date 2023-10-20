@@ -2108,7 +2108,9 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
                         continue
 
                     if (v := finalize_default(s, namespace, defaults)) is None:
-                        logging.warning(f"Setting {s.name} specified by specifier '%{c}' in {text} is not yet set, ignoring")
+                        logging.warning(
+                            f"Setting {s.name} specified by specifier '%{c}' in {text} is not yet set, ignoring"
+                        )
                         continue
 
                     result += str(v)

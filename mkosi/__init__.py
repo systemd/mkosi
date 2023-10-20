@@ -19,7 +19,7 @@ import textwrap
 import uuid
 from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
-from typing import ContextManager, Optional, TextIO, Union
+from typing import Optional, TextIO, Union
 
 from mkosi.archive import extract_tar, make_cpio, make_tar
 from mkosi.config import (
@@ -350,12 +350,12 @@ def finalize_scripts(scripts: Mapping[str, Sequence[PathString]] = {}) -> Iterat
         yield Path(d)
 
 
-def finalize_host_scripts(state: MkosiState, chroot: Sequence[PathString]) -> ContextManager[Path]:
+def finalize_host_scripts(state: MkosiState, chroot: Sequence[PathString]) -> contextlib.AbstractContextManager[Path]:
     git = {"git": ("git", "-c", "safe.directory=*")} if find_binary("git") else {}
     return finalize_scripts(git | {"mkosi-chroot": chroot} | package_manager_scripts(state))
 
 
-def finalize_chroot_scripts(state: MkosiState) -> ContextManager[Path]:
+def finalize_chroot_scripts(state: MkosiState) -> contextlib.AbstractContextManager[Path]:
     git = {"git": ("git", "-c", "safe.directory=*")} if find_binary("git", state.root) else {}
     return finalize_scripts(git)
 
