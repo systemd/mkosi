@@ -4,6 +4,7 @@ import asyncio
 import base64
 import contextlib
 import enum
+import errno
 import hashlib
 import logging
 import os
@@ -31,6 +32,9 @@ from mkosi.run import MkosiAsyncioThread, run, spawn
 from mkosi.tree import copy_tree, rmtree
 from mkosi.types import PathString
 from mkosi.util import INVOKING_USER, StrEnum
+from mkosi.versioncomp import GenericVersion
+
+QEMU_KVM_DEVICE_VERSION = GenericVersion("8.3")
 
 
 class QemuDeviceNode(StrEnum):
@@ -46,21 +50,32 @@ class QemuDeviceNode(StrEnum):
             QemuDeviceNode.vhost_vsock: "a VSock device",
         }[self]
 
-    def available(self, *, log: bool = False, flags: int = (os.R_OK | os.W_OK)) -> bool:
-        if not os.access(self.device(), os.F_OK):
-            if log:
-                logging.warning(f"{self.device()} not found. Not adding {self.description()} to the virtual machine.")
-            return False
+    def feature(self, config: MkosiConfig) -> ConfigFeature:
+        return {
+            QemuDeviceNode.kvm: config.qemu_kvm,
+            QemuDeviceNode.vhost_vsock: config.qemu_vsock,
+        }[self]
 
+    def open(self) -> int:
+        return os.open(self.device(), os.O_RDWR|os.O_CLOEXEC|os.O_NONBLOCK)
+
+    def available(self, log: bool = False) -> bool:
         try:
-            os.close(os.open(self.device(), flags))
-        except OSError:
-            if log:
+            os.close(self.open())
+        except OSError as e:
+            if e.errno not in (errno.ENOENT, errno.EPERM, errno.EACCES):
+                raise e
+
+            if log and e.errno == errno.ENOENT:
+                logging.warning(f"{self.device()} not found. Not adding {self.description()} to the virtual machine.")
+
+            if log and e.errno in (errno.EPERM, errno.EACCES):
                 logging.warning(
                     f"Permission denied to access {self.device()}. "
                     f"Not adding {self.description()} to the virtual machine. "
                     "(Maybe a kernel module could not be loaded?)"
                 )
+
             return False
 
         return True
@@ -346,6 +361,10 @@ def copy_ephemeral(config: MkosiConfig, src: Path) -> Iterator[Path]:
         rmtree(tmp)
 
 
+def qemu_version(config: MkosiConfig) -> GenericVersion:
+    return GenericVersion(run([find_qemu_binary(config), "--version"], stdout=subprocess.PIPE).stdout.split()[3])
+
+
 def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[QemuDeviceNode, int]) -> None:
     if config.output_format not in (OutputFormat.disk, OutputFormat.cpio, OutputFormat.uki, OutputFormat.directory):
         die(f"{config.output_format} images cannot be booted in qemu")
@@ -359,20 +378,16 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
     if (config.runtime_trees and config.qemu_firmware == QemuFirmware.bios):
         die("RuntimeTrees= cannot be used when booting in BIOS firmware")
 
-    if config.qemu_kvm == ConfigFeature.enabled and not QemuDeviceNode.kvm.available():
+    if config.qemu_kvm == ConfigFeature.enabled and not config.architecture.is_native():
+        die(f"KVM acceleration requested but {config.architecture} does not match the native host architecture")
+
+    have_kvm = ((qemu_version(config) < QEMU_KVM_DEVICE_VERSION and QemuDeviceNode.kvm.available()) or
+                (qemu_version(config) >= QEMU_KVM_DEVICE_VERSION and QemuDeviceNode.kvm in qemu_device_fds))
+    if (config.qemu_kvm == ConfigFeature.enabled and not have_kvm):
         die("KVM acceleration requested but cannot access /dev/kvm")
 
     if config.qemu_vsock == ConfigFeature.enabled and QemuDeviceNode.vhost_vsock not in qemu_device_fds:
         die("VSock requested but cannot access /dev/vhost-vsock")
-
-    accel = "tcg"
-    auto = (
-        config.qemu_kvm == ConfigFeature.auto and
-        config.architecture.is_native() and
-        QemuDeviceNode.kvm.available()
-    )
-    if config.qemu_kvm == ConfigFeature.enabled or auto:
-        accel = "kvm"
 
     if config.qemu_kernel:
         kernel = config.qemu_kernel
@@ -426,9 +441,9 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
         shm = ["-object", f"memory-backend-memfd,id=mem,size={config.qemu_mem},share=on"]
 
     if config.architecture == Architecture.arm64:
-        machine = f"type=virt,accel={accel}"
+        machine = "type=virt"
     else:
-        machine = f"type=q35,accel={accel},smm={'on' if ovmf_supports_sb else 'off'}"
+        machine = f"type=q35,smm={'on' if ovmf_supports_sb else 'off'}"
 
     if shm:
         machine += ",memory-backend=mem"
@@ -443,6 +458,16 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
         "-nic", "user,model=virtio-net-pci",
         *shm,
     ]
+
+    if config.qemu_kvm != ConfigFeature.disabled and have_kvm and config.architecture.is_native():
+        accel = "kvm"
+        if qemu_version(config) >= QEMU_KVM_DEVICE_VERSION:
+            cmdline += ["--add-fd", f"fd={qemu_device_fds[QemuDeviceNode.kvm]},set=1,opaque=/dev/kvm"]
+            accel += ",device=/dev/fdset/1"
+    else:
+        accel = "tcg"
+
+    cmdline += ["-accel", accel]
 
     if QemuDeviceNode.vhost_vsock in qemu_device_fds:
         cmdline += [
