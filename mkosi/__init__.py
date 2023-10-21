@@ -2713,9 +2713,9 @@ def run_verb(args: MkosiArgs, images: Sequence[MkosiConfig]) -> None:
     # file descriptors to qemu later. Note that we can't pass the kvm file descriptor to qemu until
     # https://gitlab.com/qemu-project/qemu/-/issues/1936 is resolved.
     qemu_device_fds = {
-        d: os.open(d.device(), os.O_RDWR|os.O_CLOEXEC|os.O_NONBLOCK)
+        d: d.open()
         for d in QemuDeviceNode
-        if d.available(log=True, flags=os.O_RDWR|os.O_CLOEXEC|os.O_NONBLOCK)
+        if args.verb == Verb.qemu and d.feature(last) != ConfigFeature.disabled and d.available(log=True)
     }
 
     # Get the user UID/GID either on the host or in the user namespace running the build
