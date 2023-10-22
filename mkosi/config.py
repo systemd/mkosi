@@ -2353,7 +2353,8 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
     if args.directory is not None:
         parse_config(Path("."), namespace, defaults)
 
-        include = getattr(namespace, "presets", ())
+        finalize_default(SETTINGS_LOOKUP_BY_DEST["presets"], namespace, defaults)
+        include = getattr(namespace, "presets")
 
         if Path("mkosi.presets").exists():
             for p in Path("mkosi.presets").iterdir():
