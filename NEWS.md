@@ -23,6 +23,7 @@
   the default tools tree
 - We now make sure git can be executed from mkosi scripts without
   running into permission errors
+- `WithDocs=` is now enabled by default.
 
 ## v18
 

@@ -708,11 +708,11 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `WithDocs=`, `--with-docs`
 
-: Include documentation in the image built. By default if the
-  underlying distribution package manager supports it documentation is
-  not included in the image built. The `$WITH_DOCS` environment
-  variable passed to the `mkosi.build` scripts indicates whether this
-  option was used or not.
+: Include documentation in the image. Enabled by default. When disabled,
+  if the underlying distribution package manager supports it
+  documentation is not included in the image. The `$WITH_DOCS`
+  environment variable passed to the `mkosi.build` scripts is set to `0`
+  or `1` depending on whether this option is enabled or disabled.
 
 `BaseTrees=`, `--base-tree=`
 

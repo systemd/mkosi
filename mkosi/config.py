@@ -1288,6 +1288,7 @@ SETTINGS = (
         nargs="?",
         section="Content",
         parse=config_parse_boolean,
+        default=True,
         help="Install documentation",
     ),
     MkosiConfigSetting(
