@@ -507,6 +507,17 @@ def config_parse_bytes(value: Optional[str], old: Optional[int] = None) -> Optio
     return result
 
 
+def config_parse_profile(value: Optional[str], old: Optional[int] = None) -> Optional[str]:
+    if not value:
+        return None
+
+    if not is_valid_filename(value):
+        die(f"{value!r} is not a valid profile",
+            hint="Profile= or --profile= requires a name with no path components.")
+
+    return value
+
+
 @dataclasses.dataclass(frozen=True)
 class MkosiConfigSetting:
     dest: str
@@ -704,6 +715,7 @@ class MkosiConfig:
     access the value from state.
     """
 
+    profile: Optional[str]
     include: tuple[str, ...]
     presets: tuple[str, ...]
     dependencies: tuple[str, ...]
@@ -1037,6 +1049,13 @@ SETTINGS = (
         section="Config",
         parse=config_make_list_parser(delimiter=",", reset=False, parse=make_path_parser()),
         help="Include configuration from the specified file or directory",
+    ),
+    MkosiConfigSetting(
+        dest="profile",
+        section="Config",
+        help="Build the specified profile",
+        parse=config_parse_profile,
+        match=config_make_string_matcher(),
     ),
     MkosiConfigSetting(
         dest="presets",
@@ -2256,7 +2275,12 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
 
         return triggered is not False
 
-    def parse_config(path: Path, namespace: argparse.Namespace, defaults: argparse.Namespace) -> bool:
+    def parse_config(
+        path: Path,
+        namespace: argparse.Namespace,
+        defaults: argparse.Namespace,
+        profiles: bool = False,
+    ) -> bool:
         s: Optional[MkosiConfigSetting] # Make mypy happy
         extras = path.is_dir()
 
@@ -2306,6 +2330,24 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
                 with parse_new_includes(namespace, defaults):
                     setattr(ns, s.dest, s.parse(v, getattr(ns, s.dest, None)))
 
+        if profiles:
+            finalize_default(SETTINGS_LOOKUP_BY_DEST["profile"], namespace, defaults)
+            profile = getattr(namespace, "profile")
+            immutable_settings.add("Profile")
+
+            if profile:
+                for p in (profile, f"{profile}.conf"):
+                    p = Path("mkosi.profiles") / p
+                    if p.exists():
+                        break
+                else:
+                    die(f"Profile '{profile}' not found in mkosi.profiles/")
+
+                setattr(namespace, "profile", profile)
+
+                with chdir(p if p.is_dir() else Path.cwd()):
+                    parse_config(p if p.is_file() else Path("."), namespace, defaults)
+
         if extras and (path.parent / "mkosi.conf.d").exists():
             for p in sorted((path.parent / "mkosi.conf.d").iterdir()):
                 if p.is_dir() or p.suffix == ".conf":
@@ -2354,7 +2396,7 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
     include = ()
 
     if args.directory is not None:
-        parse_config(Path("."), namespace, defaults)
+        parse_config(Path("."), namespace, defaults, profiles=True)
 
         finalize_default(SETTINGS_LOOKUP_BY_DEST["presets"], namespace, defaults)
         include = getattr(namespace, "presets")
@@ -2644,6 +2686,7 @@ def summary(config: MkosiConfig) -> str:
 {bold(f"PRESET: {config.preset or 'default'}")}
 
     {bold("CONFIG")}:
+                       Profile: {none_to_none(config.profile)}
                        Include: {line_join_list(config.include)}
 
     {bold("PRESET")}:

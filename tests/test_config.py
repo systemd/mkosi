@@ -214,6 +214,44 @@ def test_parse_config(tmp_path: Path) -> None:
         assert config.split_artifacts is False
 
 
+def test_profiles(tmp_path: Path) -> None:
+    d = tmp_path
+
+    (d / "mkosi.profiles").mkdir()
+    (d / "mkosi.profiles/profile.conf").write_text(
+        """\
+        [Distribution]
+        Distribution=fedora
+
+        [Host]
+        QemuKvm=yes
+        """
+    )
+
+    (d / "mkosi.conf").write_text(
+        """\
+        [Config]
+        Profile=profile
+        """
+    )
+
+    (d / "mkosi.conf.d").mkdir()
+    (d / "mkosi.conf.d/abc.conf").write_text(
+        """\
+        [Distribution]
+        Distribution=debian
+        """
+    )
+
+    with chdir(d):
+        _, [config] = parse_config()
+
+    assert config.profile == "profile"
+    # mkosi.conf.d/ should override the profile
+    assert config.distribution == Distribution.debian
+    assert config.qemu_kvm == ConfigFeature.enabled
+
+
 def test_parse_load_verb(tmp_path: Path) -> None:
     with chdir(tmp_path):
         assert parse_config(["build"])[0].verb == Verb.build

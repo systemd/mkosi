@@ -299,6 +299,10 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 ### [Match] Section.
 
+`Profile=`
+
+: Matches against the configured profile.
+
 `Distribution=`
 
 : Matches against the configured distribution.
@@ -350,6 +354,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 | Matcher           | Globs | Rich Comparisons | Default                 |
 |-------------------|-------|------------------|-------------------------|
+| `Profile=`        | no    | no               | match fails             |
 | `Distribution=`   | no    | no               | match host distribution |
 | `Release=`        | no    | no               | match host release      |
 | `Architecture=`   | no    | no               | match host architecture |
@@ -361,6 +366,14 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 | `SystemdVersion=` | no    | yes              | match fails             |
 
 ### [Config] Section
+
+`Profile=`, `--profile=`
+
+: Select the given profile. A profile is a configuration file or
+  directory in the `mkosi.profiles/` directory. When selected, this
+  configuration file or directory is included after parsing the
+  `mkosi.conf` file, but before any `mkosi.conf.d/*.conf` drop in
+  configuration.
 
 `Include=`, `--include=`
 

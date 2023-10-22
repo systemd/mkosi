@@ -179,6 +179,7 @@ def test_config() -> None:
                 "default",
                 "initrd"
             ],
+            "Profile": "profile",
             "QemuArgs": [],
             "QemuCdrom": false,
             "QemuFirmware": "linux",
@@ -311,6 +312,7 @@ def test_config() -> None:
         prepare_scripts = [Path("/run/foo")],
         preset = "default",
         presets = ("default", "initrd"),
+        profile = "profile",
         qemu_args = [],
         qemu_cdrom = False,
         qemu_firmware = QemuFirmware.linux,
