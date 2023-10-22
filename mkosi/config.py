@@ -2368,11 +2368,12 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
                 ns_copy = copy.deepcopy(namespace)
                 defaults_copy = copy.deepcopy(defaults)
 
+                setattr(ns_copy, "preset", name)
+
                 with chdir(p if p.is_dir() else Path.cwd()):
                     if not parse_config(p if p.is_file() else Path("."), ns_copy, defaults_copy):
                         continue
 
-                setattr(ns_copy, "preset", name)
                 finalize_defaults(ns_copy, defaults_copy)
                 presets += [ns_copy]
 
