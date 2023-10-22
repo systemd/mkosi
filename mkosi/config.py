@@ -437,11 +437,16 @@ def config_make_path_parser(*,
     return config_parse_path
 
 
+def is_valid_filename(s: str) -> bool:
+    s = s.strip()
+    return not (s == "." or s == ".." or "/" in s)
+
+
 def config_parse_output(value: Optional[str], old: Optional[str]) -> Optional[str]:
     if not value:
         return None
 
-    if value == "." or value == ".." or "/" in value:
+    if not is_valid_filename(value):
         die(f"{value!r} is not a valid filename.",
             hint="Output= or --output= requires a filename with no path components. "
                  "Use OutputDirectory= or --output-dir= to configure the output directory.")
