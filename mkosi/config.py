@@ -2156,7 +2156,7 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
                     continue
 
                 with chdir(p if p.is_dir() else Path.cwd()):
-                    parse_config(p, namespace, defaults)
+                    parse_config(p if p.is_file() else Path("."), namespace, defaults)
                 parsed_includes.add((st.st_dev, st.st_ino))
 
     class MkosiAction(argparse.Action):
