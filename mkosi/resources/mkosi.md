@@ -386,25 +386,23 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 : Note that each path containing extra configuration is only parsed
   once, even if included more than once with `Include=`.
 
-### [Preset] Section
+`Images=`, `--image=`
 
-`Presets=`, `--preset=`
-
-: If specified, only build the given presets. Can be specified multiple
-  times to build multiple presets. All the given presets and their
-  dependencies are built. If not specified, all presets are built. See
-  the **Presets** section for more information.
+: If specified, only build the given image. Can be specified multiple
+  times to build multiple images. All the given images and their
+  dependencies are built. If not specified, all images are built. See
+  the **Building multiple images** section for more information.
 
 : Note that this section only takes effect when specified in the global
-  configuration files. It has no effect if specified as a preset
+  configuration files. It has no effect if specified as an image
   specific setting.
 
 `Dependencies=`, `--dependency=`
 
-: The presets that this preset depends on specified as a comma-separated
-  list. All presets configured in this option will be built before this
-  preset and will be pulled in as dependencies of this preset when
-  `Presets=` is used.
+: The images that this image depends on specified as a comma-separated
+  list. All images configured in this option will be built before this
+  image and will be pulled in as dependencies of this image when
+  `Images=` is used.
 
 ### [Distribution] Section
 
@@ -1223,7 +1221,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   given tools tree.
 
 : If set to `default`, mkosi will automatically add an extra tools tree
-  preset and use it as the tools tree. The following table shows for
+  image and use it as the tools tree. The following table shows for
   which distributions default tools tree packages are defined and which
   packages are included in those default tools trees:
 
@@ -1409,7 +1407,7 @@ in consecutive runs with data from the cached one.
    - `/media`
    - `/mnt`
 
-Then, for each preset, we execute the following steps:
+Then, for each image, we execute the following steps:
 
 6. Copy package manager trees into the workspace
 7. Copy base trees (`--base-tree=`) into the image
@@ -1764,26 +1762,26 @@ script. When all three are enabled together turn-around times for
 complete image builds are minimal, as only changed source files need to
 be recompiled.
 
-# PRESETS
+# Building multiple images
 
-Presets allow building more than one image with mkosi. Presets are
-loaded from the `mkosi.presets/` directory. Presets can be either
-directories containing mkosi configuration files or regular files with
-the `.conf` extension.
+If the `mkosi.images/` directory exists, mkosi will load individual
+image configurations from it and build each of them. Image
+configurations can be either directories containing mkosi configuration
+files or regular files with the `.conf` extension.
 
-When presets are found in `mkosi.presets/`, mkosi will build the
-configured preset and its dependencies (or all of them if no presets
-were explicitly configured using `Presets=`). To add dependencies
-between presets, the `Dependencies=` setting can be used.
+When image configurations are found in `mkosi.images/`, mkosi will build
+the configured images and all of their dependencies (or all of them if
+no images were explicitly configured using `Images=`). To add
+dependencies between images, the `Dependencies=` setting can be used.
 
-When presets are defined, mkosi will first read the global configuration
-(configuration outside of the `mkosi.presets/` directory), followed by
-the preset specific configuration. This means that global configuration
-takes precedence over preset specific configuration.
+When images are defined, mkosi will first read the global configuration
+(configuration outside of the `mkosi.images/` directory), followed by
+the image specific configuration. This means that global configuration
+takes precedence over image specific configuration.
 
-Presets can refer to outputs of presets they depend on. Specifically,
+Images can refer to outputs of images they depend on. Specifically,
 for the following options, mkosi will only check whether the inputs
-exist just before building the preset:
+exist just before building the image:
 
 - `BaseTrees=`
 - `PackageManagerTrees=`
@@ -1792,12 +1790,14 @@ exist just before building the preset:
 - `ToolsTree=`
 - `Initrds=`
 
-To refer to outputs of a preset's dependencies, simply configure any of
+To refer to outputs of a image's dependencies, simply configure any of
 these options with a relative path to the output to use in the output
-directory of the dependency.
+directory of the dependency. Or use the `%O` specifier to refer to the
+output directory.
 
-A good example on how to use presets can be found in the [systemd
-repository](https://github.com/systemd/systemd/tree/main/mkosi.presets).
+A good example on how to build multiple images can be found in the
+[systemd](https://github.com/systemd/systemd/tree/main/mkosi.presets)
+repository.
 
 # ENVIRONMENT VARIABLES
 
