@@ -166,3 +166,7 @@ def umask(mask: int) -> Iterator[None]:
         yield
     finally:
         os.umask(old)
+
+
+def identity(s: Any) -> Any:
+    return s

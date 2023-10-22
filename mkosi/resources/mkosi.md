@@ -219,6 +219,13 @@ Those settings cannot be configured in the configuration files.
 
 : Show the summary output as JSON-SEQ.
 
+`--extra-config-options=`
+
+: Extra CLI config options to parse. This option is useful when
+  integrate with mkosi and want to allow users to specify extra config
+  options as CLI arguments. `--config-options=` will fail if any options
+  are passed that do not modify configuration.
+
 ## Supported output formats
 
 The following output formats are supported:

@@ -33,7 +33,7 @@ from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, Style, die
 from mkosi.pager import page
 from mkosi.run import run
 from mkosi.types import PathString, SupportsRead
-from mkosi.util import INVOKING_USER, StrEnum, chdir, flatten
+from mkosi.util import INVOKING_USER, StrEnum, chdir, flatten, identity
 from mkosi.versioncomp import GenericVersion
 
 __version__ = "18"
@@ -601,6 +601,27 @@ class IgnoreAction(argparse.Action):
         option_string: Optional[str] = None
     ) -> None:
         logging.warning(f"{option_string} is no longer supported")
+
+
+class PermissionDeniedAction(argparse.Action):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        kwargs.pop("nargs", None)
+        kwargs.pop("help", None)
+        kwargs.pop("version", None)
+        # https://github.com/python/mypy/issues/6799
+        super().__init__(*args, nargs=0, help=argparse.SUPPRESS, **kwargs) # type: ignore
+
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: Union[str, Sequence[Any], None],
+        option_string: Optional[str] = None
+    ) -> None:
+        if not option_string and not values:
+            return
+
+        die(f"'{option_string or values}' is not allowed in this context")
 
 
 class PagerHelpAction(argparse._HelpAction):
@@ -1904,7 +1925,7 @@ MATCH_LOOKUP = {m.name: m for m in MATCHES}
 FALLBACK_NAME_TO_DEST_SPLITTER = re.compile("(?<=[a-z])(?=[A-Z])")
 
 
-def create_argument_parser(action: type[argparse.Action]) -> argparse.ArgumentParser:
+def create_argument_parser(action: type[argparse.Action], arguments: bool = True) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="mkosi",
         description="Build Bespoke OS Images",
@@ -1933,20 +1954,21 @@ def create_argument_parser(action: type[argparse.Action]) -> argparse.ArgumentPa
 
     parser.add_argument(
         "--version",
-        action="version",
+        action="version" if arguments else PermissionDeniedAction,
         version="%(prog)s " + __version__,
         help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "-f", "--force",
-        action="count",
+        action="count" if arguments else PermissionDeniedAction,
         dest="force",
         default=0,
         help="Remove existing image file before operation",
     )
     parser.add_argument(
         "-C", "--directory",
-        type=parse_chdir,
+        type=parse_chdir if arguments else identity,
+        action="store" if arguments else PermissionDeniedAction,
         default=Path.cwd(),
         help="Change to specified directory before doing anything",
         metavar="PATH",
@@ -1954,18 +1976,18 @@ def create_argument_parser(action: type[argparse.Action]) -> argparse.ArgumentPa
     parser.add_argument(
         "--debug",
         help="Turn on debugging output",
-        action="store_true",
+        action="store_true" if arguments else PermissionDeniedAction,
         default=False,
     )
     parser.add_argument(
         "--debug-shell",
         help="Spawn an interactive shell in the image if a chroot command fails",
-        action="store_true",
+        action="store_true" if arguments else PermissionDeniedAction,
         default=False,
     )
     parser.add_argument(
         "--no-pager",
-        action="store_false",
+        action="store_false" if arguments else PermissionDeniedAction,
         dest="pager",
         default=True,
         help="Enable paging for long output",
@@ -1974,27 +1996,28 @@ def create_argument_parser(action: type[argparse.Action]) -> argparse.ArgumentPa
         "--genkey-valid-days",
         metavar="DAYS",
         help="Number of days keys should be valid when generating keys",
-        action=action,
+        action="store" if arguments else PermissionDeniedAction,
         default="730",
     )
     parser.add_argument(
         "--genkey-common-name",
         metavar="CN",
         help="Template for the CN when generating keys",
-        action=action,
+        action="store" if arguments else PermissionDeniedAction,
         default="mkosi of %u",
     )
     parser.add_argument(
         "-B", "--auto-bump",
         help="Automatically bump image version after building",
-        action="store_true",
+        action="store_true" if arguments else PermissionDeniedAction,
         default=False,
     )
     parser.add_argument(
         "--doc-format",
         help="The format to show documentation in",
+        action="store" if arguments else PermissionDeniedAction,
         default=DocFormat.auto,
-        type=DocFormat,
+        type=DocFormat if arguments else identity,
     )
     parser.add_argument(
         "--json",
@@ -2002,6 +2025,28 @@ def create_argument_parser(action: type[argparse.Action]) -> argparse.ArgumentPa
         action="store_true",
         default=False,
     )
+
+    class ExtraConfigOptionsAction(argparse.Action):
+        def __call__(
+            self,
+            parser: argparse.ArgumentParser,
+            namespace: argparse.Namespace,
+            values: Union[str, Sequence[Any], None],
+            option_string: Optional[str] = None
+        ) -> None:
+            if not values:
+                return
+
+            assert isinstance(values, str)
+            configparser = create_argument_parser(action, arguments=False)
+            configparser.parse_args(shlex.split(values), namespace)
+
+    parser.add_argument(
+        "--extra-config-options",
+        help="A string containing extra configuration command line options",
+        action=ExtraConfigOptionsAction if arguments else PermissionDeniedAction,
+    )
+
     # These can be removed once mkosi v15 is available in LTS distros and compatibility with <= v14
     # is no longer needed in build infrastructure (e.g.: OBS).
     parser.add_argument(
@@ -2020,19 +2065,21 @@ def create_argument_parser(action: type[argparse.Action]) -> argparse.ArgumentPa
 
     parser.add_argument(
         "verb",
-        type=Verb,
-        choices=list(Verb),
+        type=Verb if arguments else identity,
+        choices=list(Verb) if arguments else None,
         default=Verb.build,
         help=argparse.SUPPRESS,
+        action="store" if arguments else PermissionDeniedAction,
     )
     parser.add_argument(
         "cmdline",
         nargs=argparse.REMAINDER,
         help=argparse.SUPPRESS,
+        action="store" if arguments else PermissionDeniedAction,
     )
     parser.add_argument(
         "-h", "--help",
-        action=PagerHelpAction,
+        action=PagerHelpAction if arguments else PermissionDeniedAction,
         help=argparse.SUPPRESS,
     )
 
