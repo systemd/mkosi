@@ -2103,6 +2103,7 @@ def resolve_deps(presets: Sequence[MkosiConfig], include: Sequence[str]) -> list
 def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig, ...]]:
     # Compare inodes instead of paths so we can't get tricked by bind mounts and such.
     parsed_includes: set[tuple[int, int]] = set()
+    immutable_settings: set[str] = set()
 
     def expand_specifiers(text: str, namespace: argparse.Namespace, defaults: argparse.Namespace) -> str:
         percent = False
@@ -2290,6 +2291,8 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
 
                 if not (s := SETTINGS_LOOKUP_BY_NAME.get(name)):
                     die(f"Unknown setting {k}")
+                if name in immutable_settings:
+                    die(f"Setting {name} cannot be modified anymore at this point")
 
                 if section != s.section:
                     logging.warning(f"Setting {k} should be configured in [{s.section}], not [{section}].")
@@ -2355,6 +2358,7 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
 
         finalize_default(SETTINGS_LOOKUP_BY_DEST["presets"], namespace, defaults)
         include = getattr(namespace, "presets")
+        immutable_settings.add("Presets")
 
         if Path("mkosi.presets").exists():
             for p in Path("mkosi.presets").iterdir():
