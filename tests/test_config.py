@@ -104,7 +104,7 @@ def test_parse_config(tmp_path: Path) -> None:
         """
     )
 
-    with chdir(tmp_path):
+    with chdir(d):
         _, [config] = parse_config()
 
     assert config.distribution == Distribution.ubuntu
@@ -113,7 +113,7 @@ def test_parse_config(tmp_path: Path) -> None:
     assert config.output_format == OutputFormat.cpio
     assert config.image_id == "base"
 
-    with chdir(tmp_path):
+    with chdir(d):
         _, [config] = parse_config(["--distribution", "fedora", "--architecture", "x86-64"])
 
     # mkosi.conf sets a default distribution, so the CLI should take priority.
@@ -121,10 +121,8 @@ def test_parse_config(tmp_path: Path) -> None:
     # mkosi.conf sets overrides the architecture, so whatever is specified on the CLI should be ignored.
     assert config.architecture == Architecture.arm64
 
-    d = d / "mkosi.conf.d"
-    d.mkdir()
-
-    (d / "d1.conf").write_text(
+    (d / "mkosi.conf.d").mkdir()
+    (d / "mkosi.conf.d/d1.conf").write_text(
         """\
         [Distribution]
         Distribution = debian
@@ -140,7 +138,7 @@ def test_parse_config(tmp_path: Path) -> None:
         """
     )
 
-    with chdir(tmp_path):
+    with chdir(d):
         _, [config] = parse_config()
 
     # Setting a value explicitly in a dropin should override the default from mkosi.conf.
@@ -153,9 +151,9 @@ def test_parse_config(tmp_path: Path) -> None:
     assert config.image_id == "00-dropin"
     assert config.image_version == "0"
 
-    (tmp_path / "mkosi.version").write_text("1.2.3")
+    (d / "mkosi.version").write_text("1.2.3")
 
-    (d / "d2.conf").write_text(
+    (d / "mkosi.conf.d/d2.conf").write_text(
         """\
         [Content]
         Packages=
@@ -165,7 +163,7 @@ def test_parse_config(tmp_path: Path) -> None:
         """
     )
 
-    with chdir(tmp_path):
+    with chdir(d):
         _, [config] = parse_config()
 
     # Test that empty assignment resets settings.
@@ -174,44 +172,44 @@ def test_parse_config(tmp_path: Path) -> None:
     # mkosi.version should only be used if no version is set explicitly.
     assert config.image_version == "0"
 
-    (d / "d1.conf").unlink()
+    (d / "mkosi.conf.d/d1.conf").unlink()
 
-    with chdir(tmp_path):
+    with chdir(d):
         _, [config] = parse_config()
 
     # ImageVersion= is not set explicitly anymore, so now the version from mkosi.version should be used.
     assert config.image_version == "1.2.3"
 
-    (tmp_path / "abc").mkdir()
-    (tmp_path / "abc/mkosi.conf").write_text(
+    (d / "abc").mkdir()
+    (d / "abc/mkosi.conf").write_text(
         """\
         [Content]
         Bootable=yes
         BuildPackages=abc
         """
     )
-    (tmp_path / "abc/mkosi.conf.d").mkdir()
-    (tmp_path / "abc/mkosi.conf.d/abc.conf").write_text(
+    (d / "abc/mkosi.conf.d").mkdir()
+    (d / "abc/mkosi.conf.d/abc.conf").write_text(
         """\
         [Output]
         SplitArtifacts=yes
         """
     )
 
-    with chdir(tmp_path):
+    with chdir(d):
         _, [config] = parse_config()
         assert config.bootable == ConfigFeature.auto
         assert config.split_artifacts is False
 
         # Passing the directory should include both the main config file and the dropin.
-        _, [config] = parse_config(["--include", os.fspath(tmp_path / "abc")] * 2)
+        _, [config] = parse_config(["--include", os.fspath(d / "abc")] * 2)
         assert config.bootable == ConfigFeature.enabled
         assert config.split_artifacts is True
         # The same extra config should not be parsed more than once.
         assert config.build_packages == ["abc"]
 
         # Passing the main config file should not include the dropin.
-        _, [config] = parse_config(["--include", os.fspath(tmp_path / "abc/mkosi.conf")])
+        _, [config] = parse_config(["--include", os.fspath(d / "abc/mkosi.conf")])
         assert config.bootable == ConfigFeature.enabled
         assert config.split_artifacts is False
 
