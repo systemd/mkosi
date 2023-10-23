@@ -29,6 +29,13 @@
   to `Images=` and the `Presets` section was merged into the `Config`
   section. The old names can still be used for backwards
   compatibility.
+- Added profiles to support building variants of the same image in one
+  repository. Profiles can be defined in `mkosi.profiles/` and one can
+  be selected using the new `Profile=` setting.
+- Added a `--json` option to get the output of `mkosi summary` as JSON.
+- We now automatically configure the qemu firmware, kernel cmdline and
+  initrd based on what type of kernel is passed by the user via
+  `-kernel` or `QemuKernel=`
 
 ## v18
 
