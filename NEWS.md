@@ -24,6 +24,11 @@
 - We now make sure git can be executed from mkosi scripts without
   running into permission errors
 - `WithDocs=` is now enabled by default.
+- `Presets` were renamed to `Images`. `mkosi.images/` is now used
+  instead of `mkosi.presets/`,  the `Presets=` setting was renamed
+  to `Images=` and the `Presets` section was merged into the `Config`
+  section. The old names can still be used for backwards
+  compatibility.
 
 ## v18
 

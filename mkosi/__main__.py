@@ -43,13 +43,13 @@ def propagate_failed_return() -> Iterator[None]:
 @propagate_failed_return()
 def main() -> None:
     log_setup()
-    args, presets = parse_config(sys.argv[1:])
+    args, images = parse_config(sys.argv[1:])
 
     if args.debug:
         faulthandler.enable()
 
     try:
-        run_verb(args, presets)
+        run_verb(args, images)
     finally:
         if sys.stderr.isatty() and shutil.which("tput"):
             run(["tput", "cnorm"], check=False)

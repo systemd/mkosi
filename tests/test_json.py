@@ -115,8 +115,13 @@ def test_config() -> None:
             "FinalizeScripts": [],
             "Format": "uki",
             "Hostname": null,
+            "Image": "default",
             "ImageId": "myimage",
             "ImageVersion": "5",
+            "Images": [
+                "default",
+                "initrd"
+            ],
             "Include": [],
             "Incremental": false,
             "InitrdPackages": [
@@ -174,11 +179,7 @@ def test_config() -> None:
             "PrepareScripts": [
                 "/run/foo"
             ],
-            "Preset": "default",
-            "Presets": [
-                "default",
-                "initrd"
-            ],
+            "Profile": "profile",
             "QemuArgs": [],
             "QemuCdrom": false,
             "QemuFirmware": "linux",
@@ -278,8 +279,10 @@ def test_config() -> None:
         extra_trees = [],
         finalize_scripts = [],
         hostname = None,
+        image = "default",
         image_id = "myimage",
         image_version = "5",
+        images = ("default", "initrd"),
         include = tuple(),
         incremental = False,
         initrd_packages = ["clevis"],
@@ -309,8 +312,7 @@ def test_config() -> None:
         passphrase = None,
         postinst_scripts = [Path("/bar/qux")],
         prepare_scripts = [Path("/run/foo")],
-        preset = "default",
-        presets = ("default", "initrd"),
+        profile = "profile",
         qemu_args = [],
         qemu_cdrom = False,
         qemu_firmware = QemuFirmware.linux,

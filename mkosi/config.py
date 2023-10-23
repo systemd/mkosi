@@ -437,11 +437,16 @@ def config_make_path_parser(*,
     return config_parse_path
 
 
+def is_valid_filename(s: str) -> bool:
+    s = s.strip()
+    return not (s == "." or s == ".." or "/" in s)
+
+
 def config_parse_output(value: Optional[str], old: Optional[str]) -> Optional[str]:
     if not value:
         return None
 
-    if value == "." or value == ".." or "/" in value:
+    if not is_valid_filename(value):
         die(f"{value!r} is not a valid filename.",
             hint="Output= or --output= requires a filename with no path components. "
                  "Use OutputDirectory= or --output-dir= to configure the output directory.")
@@ -500,6 +505,17 @@ def config_parse_bytes(value: Optional[str], old: Optional[int] = None) -> Optio
         result += 4096 - rem
 
     return result
+
+
+def config_parse_profile(value: Optional[str], old: Optional[int] = None) -> Optional[str]:
+    if not value:
+        return None
+
+    if not is_valid_filename(value):
+        die(f"{value!r} is not a valid profile",
+            hint="Profile= or --profile= requires a name with no path components.")
+
+    return value
 
 
 @dataclasses.dataclass(frozen=True)
@@ -699,8 +715,9 @@ class MkosiConfig:
     access the value from state.
     """
 
+    profile: Optional[str]
     include: tuple[str, ...]
-    presets: tuple[str, ...]
+    images: tuple[str, ...]
     dependencies: tuple[str, ...]
 
     distribution: Distribution
@@ -817,7 +834,7 @@ class MkosiConfig:
     qemu_kernel: Optional[Path]
     qemu_args: list[str]
 
-    preset: Optional[str]
+    image: Optional[str]
 
     def output_dir_or_cwd(self) -> Path:
         return self.output_dir or Path.cwd()
@@ -1034,18 +1051,26 @@ SETTINGS = (
         help="Include configuration from the specified file or directory",
     ),
     MkosiConfigSetting(
-        dest="presets",
-        long="--preset",
-        section="Preset",
+        dest="profile",
+        section="Config",
+        help="Build the specified profile",
+        parse=config_parse_profile,
+        match=config_make_string_matcher(),
+    ),
+    MkosiConfigSetting(
+        dest="images",
+        compat_names=("Presets",),
+        long="--image",
+        section="Config",
         parse=config_make_list_parser(delimiter=","),
-        help="Specify which presets to build",
+        help="Specify which images to build",
     ),
     MkosiConfigSetting(
         dest="dependencies",
         long="--dependency",
-        section="Preset",
+        section="Config",
         parse=config_make_list_parser(delimiter=","),
-        help="Specify other presets that this preset depends on",
+        help="Specify other images that this image depends on",
     ),
     MkosiConfigSetting(
         dest="distribution",
@@ -2068,36 +2093,37 @@ def create_argument_parser(action: type[argparse.Action]) -> argparse.ArgumentPa
     return parser
 
 
-def resolve_deps(presets: Sequence[MkosiConfig], include: Sequence[str]) -> list[MkosiConfig]:
-    graph = {p.preset: p.dependencies for p in presets}
+def resolve_deps(images: Sequence[MkosiConfig], include: Sequence[str]) -> list[MkosiConfig]:
+    graph = {config.image: config.dependencies for config in images}
 
     if include:
-        if any((missing := p) not in graph for p in include):
-            die(f"No preset found with name {missing}")
+        if any((missing := i) not in graph for i in include):
+            die(f"No image found with name {missing}")
 
         deps = set()
         queue = [*include]
 
         while queue:
-            if (preset := queue.pop(0)) not in deps:
-                deps.add(preset)
-                queue.extend(graph[preset])
+            if (image := queue.pop(0)) not in deps:
+                deps.add(image)
+                queue.extend(graph[image])
 
-        presets = [p for p in presets if p.preset in deps]
+        images = [config for config in images if config.image in deps]
 
-    graph = {p.preset: p.dependencies for p in presets}
+    graph = {config.image: config.dependencies for config in images}
 
     try:
         order = list(graphlib.TopologicalSorter(graph).static_order())
     except graphlib.CycleError as e:
-        die(f"Preset dependency cycle detected: {' => '.join(e.args[1])}")
+        die(f"Image dependency cycle detected: {' => '.join(e.args[1])}")
 
-    return sorted(presets, key=lambda p: order.index(p.preset))
+    return sorted(images, key=lambda i: order.index(i.image))
 
 
 def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig, ...]]:
     # Compare inodes instead of paths so we can't get tricked by bind mounts and such.
     parsed_includes: set[tuple[int, int]] = set()
+    immutable_settings: set[str] = set()
 
     def expand_specifiers(text: str, namespace: argparse.Namespace, defaults: argparse.Namespace) -> str:
         percent = False
@@ -2150,7 +2176,7 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
                     continue
 
                 with chdir(p if p.is_dir() else Path.cwd()):
-                    parse_config(p, namespace, defaults)
+                    parse_config(p if p.is_file() else Path("."), namespace, defaults)
                 parsed_includes.add((st.st_dev, st.st_ino))
 
     class MkosiAction(argparse.Action):
@@ -2250,7 +2276,12 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
 
         return triggered is not False
 
-    def parse_config(path: Path, namespace: argparse.Namespace, defaults: argparse.Namespace) -> bool:
+    def parse_config(
+        path: Path,
+        namespace: argparse.Namespace,
+        defaults: argparse.Namespace,
+        profiles: bool = False,
+    ) -> bool:
         s: Optional[MkosiConfigSetting] # Make mypy happy
         extras = path.is_dir()
 
@@ -2279,12 +2310,14 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
         if path.exists():
             logging.debug(f"Including configuration file {Path.cwd() / path}")
 
-            for section, k, v in parse_ini(path, only_sections={s.section for s in SETTINGS}):
+            for section, k, v in parse_ini(path, only_sections={s.section for s in SETTINGS} | {"Preset"}):
                 name = k.removeprefix("@")
                 ns = namespace if k == name else defaults
 
                 if not (s := SETTINGS_LOOKUP_BY_NAME.get(name)):
                     die(f"Unknown setting {k}")
+                if name in immutable_settings:
+                    die(f"Setting {name} cannot be modified anymore at this point")
 
                 if section != s.section:
                     logging.warning(f"Setting {k} should be configured in [{s.section}], not [{section}].")
@@ -2298,6 +2331,24 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
                 with parse_new_includes(namespace, defaults):
                     setattr(ns, s.dest, s.parse(v, getattr(ns, s.dest, None)))
 
+        if profiles:
+            finalize_default(SETTINGS_LOOKUP_BY_DEST["profile"], namespace, defaults)
+            profile = getattr(namespace, "profile")
+            immutable_settings.add("Profile")
+
+            if profile:
+                for p in (profile, f"{profile}.conf"):
+                    p = Path("mkosi.profiles") / p
+                    if p.exists():
+                        break
+                else:
+                    die(f"Profile '{profile}' not found in mkosi.profiles/")
+
+                setattr(namespace, "profile", profile)
+
+                with chdir(p if p.is_dir() else Path.cwd()):
+                    parse_config(p if p.is_file() else Path("."), namespace, defaults)
+
         if extras and (path.parent / "mkosi.conf.d").exists():
             for p in sorted((path.parent / "mkosi.conf.d").iterdir()):
                 if p.is_dir() or p.suffix == ".conf":
@@ -2310,7 +2361,7 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
         for s in SETTINGS:
             finalize_default(s, namespace, defaults)
 
-    presets = []
+    images = []
     namespace = argparse.Namespace()
     defaults = argparse.Namespace()
 
@@ -2346,42 +2397,52 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
     include = ()
 
     if args.directory is not None:
-        parse_config(Path("."), namespace, defaults)
+        parse_config(Path("."), namespace, defaults, profiles=True)
 
-        include = getattr(namespace, "presets", ())
+        finalize_default(SETTINGS_LOOKUP_BY_DEST["images"], namespace, defaults)
+        include = getattr(namespace, "images")
+        immutable_settings.add("Images")
 
-        if Path("mkosi.presets").exists():
-            for p in Path("mkosi.presets").iterdir():
+        d: Optional[Path]
+        for d in (Path("mkosi.images"), Path("mkosi.presets")):
+            if Path(d).exists():
+                break
+        else:
+            d = None
+
+        if d:
+            for p in d.iterdir():
                 if not p.is_dir() and not p.suffix == ".conf":
                     continue
 
                 name = p.name.removesuffix(".conf")
                 if not name:
-                    die(f"{p} is not a valid preset name")
+                    die(f"{p} is not a valid image name")
 
                 ns_copy = copy.deepcopy(namespace)
                 defaults_copy = copy.deepcopy(defaults)
+
+                setattr(ns_copy, "image", name)
 
                 with chdir(p if p.is_dir() else Path.cwd()):
                     if not parse_config(p if p.is_file() else Path("."), ns_copy, defaults_copy):
                         continue
 
-                setattr(ns_copy, "preset", name)
                 finalize_defaults(ns_copy, defaults_copy)
-                presets += [ns_copy]
+                images += [ns_copy]
 
-    if not presets:
-        setattr(namespace, "preset", None)
+    if not images:
+        setattr(namespace, "image", None)
         finalize_defaults(namespace, defaults)
-        presets = [namespace]
+        images = [namespace]
 
-    if not presets:
-        die("No presets defined in mkosi.presets/")
+    if not images:
+        die("No images defined in mkosi.images/")
 
-    presets = [load_config(ns) for ns in presets]
-    presets = resolve_deps(presets, include)
+    images = [load_config(ns) for ns in images]
+    images = resolve_deps(images, include)
 
-    return args, tuple(presets)
+    return args, tuple(images)
 
 
 def load_credentials(args: argparse.Namespace) -> dict[str, str]:
@@ -2521,7 +2582,7 @@ def load_config(args: argparse.Namespace) -> MkosiConfig:
         args.checksum = True
 
     if args.output is None:
-        args.output = args.image_id or args.preset or "image"
+        args.output = args.image_id or args.image or "image"
 
     args.credentials = load_credentials(args)
     args.kernel_command_line_extra = load_kernel_command_line_extra(args)
@@ -2630,13 +2691,12 @@ def summary(config: MkosiConfig) -> str:
     env = [f"{k}={v}" for k, v in config.environment.items()]
 
     summary = f"""\
-{bold(f"PRESET: {config.preset or 'default'}")}
+{bold(f"IMAGE: {config.image or 'default'}")}
 
     {bold("CONFIG")}:
+                       Profile: {none_to_none(config.profile)}
                        Include: {line_join_list(config.include)}
-
-    {bold("PRESET")}:
-                       Presets: {line_join_list(config.presets)}
+                        Images: {line_join_list(config.images)}
                   Dependencies: {line_join_list(config.dependencies)}
 
     {bold("DISTRIBUTION")}:
