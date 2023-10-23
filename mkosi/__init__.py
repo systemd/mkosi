@@ -161,7 +161,7 @@ def install_distribution(state: MkosiState) -> None:
 
 
 def install_build_packages(state: MkosiState) -> None:
-    if not need_build_packages(state.config):
+    if not state.config.build_scripts or not state.config.build_packages:
         return
 
     # TODO: move to parenthesised context managers once on 3.10
@@ -1836,8 +1836,8 @@ def run_selinux_relabel(state: MkosiState) -> None:
         run(["setfiles", "-mFr", state.root, "-c", binpolicy, fc, state.root])
 
 
-def need_build_packages(config: MkosiConfig) -> bool:
-    return bool(config.build_scripts and config.build_packages)
+def need_build_overlay(config: MkosiConfig) -> bool:
+    return bool(config.build_scripts and (config.build_packages or config.prepare_scripts))
 
 
 def save_cache(state: MkosiState) -> None:
@@ -1856,7 +1856,7 @@ def save_cache(state: MkosiState) -> None:
         else:
             move_tree(state.config, state.root, final)
 
-        if need_build_packages(state.config) and (state.workspace / "build-overlay").exists():
+        if need_build_overlay(state.config) and (state.workspace / "build-overlay").exists():
             rmtree(build)
             move_tree(state.config, state.workspace / "build-overlay", build)
 
@@ -1868,7 +1868,7 @@ def reuse_cache(state: MkosiState) -> bool:
         return False
 
     final, build, manifest = cache_tree_paths(state.config)
-    if not final.exists() or (need_build_packages(state.config) and not build.exists()):
+    if not final.exists() or (need_build_overlay(state.config) and not build.exists()):
         return False
 
     if manifest.exists():
@@ -1887,7 +1887,7 @@ def reuse_cache(state: MkosiState) -> bool:
 
     with complete_step("Copying cached trees"):
         copy_tree(state.config, final, state.root)
-        if need_build_packages(state.config):
+        if need_build_overlay(state.config):
             (state.workspace / "build-overlay").symlink_to(build)
 
     return True
