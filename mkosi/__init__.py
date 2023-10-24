@@ -1054,6 +1054,9 @@ def gen_kernel_images(state: MkosiState) -> Iterator[tuple[str, Path]]:
         key=lambda k: GenericVersion(k.name),
         reverse=True
     ):
+        if not (kver / "vmlinuz").exists():
+            continue
+
         yield kver.name, Path("usr/lib/modules") / kver.name / "vmlinuz"
 
 
@@ -1409,9 +1412,6 @@ def copy_nspawn_settings(state: MkosiState) -> None:
 
 
 def copy_vmlinuz(state: MkosiState) -> None:
-    if state.config.bootable == ConfigFeature.disabled:
-        return
-
     if (state.staging / state.config.output_split_kernel).exists():
         return
 
