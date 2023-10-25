@@ -2463,6 +2463,7 @@ def finalize_tools(args: MkosiArgs, images: Sequence[MkosiConfig]) -> Sequence[M
             *(["--source-date-epoch", str(p.source_date_epoch)] if p.source_date_epoch is not None else []),
             *([f"--environment={k}='{v}'" for k, v in p.environment.items()]),
             *flatten(["--repositories", repo] for repo in distribution.tools_tree_repositories()),
+            *([f"--extra-search-path={p}" for p in p.extra_search_paths]),
             *(["-f"] * args.force),
             "build",
         ]
