@@ -60,7 +60,7 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def tools_tree_packages(cls) -> list[str]:
-        return [
+        packages = [
             "apt",
             "bash",
             "bubblewrap",
@@ -73,11 +73,9 @@ class Installer(DistributionInstaller):
             "dnf",
             "dosfstools",
             "e2fsprogs",
-            "edk2-ovmf",
             "mtools",
             "openssh-clients",
             "openssl",
-            "pesign",
             "python3-cryptography",
             "qemu-kvm-core",
             "shadow-utils",
@@ -95,6 +93,14 @@ class Installer(DistributionInstaller):
             "xz",
             "zstd",
         ]
+
+        if Architecture.native() in (Architecture.x86_64, Architecture.arm64):
+            packages += [
+                "edk2-ovmf",
+                "pesign",
+            ]
+
+        return packages
 
     @classmethod
     def setup(cls, state: MkosiState) -> None:
