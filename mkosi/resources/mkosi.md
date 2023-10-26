@@ -489,6 +489,19 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   reproducibility, as long as the package cache is already fully
   populated.
 
+`PackageManagerTrees=`, `--package-manager-tree=`
+
+: This option mirrors the above `SkeletonTrees=` option and defaults to the
+  same value if not configured otherwise, but installs the files to a
+  subdirectory of the workspace directory instead of the OS tree. This
+  subdirectory of the workspace is used to configure the package manager.
+
+: `SkeletonTrees=` and `PackageManagerTrees=` fulfill similar roles. Use
+  `SkeletonTrees=` if you want the files to be present in the final image. Use
+  `PackageManagerTrees=` if you don't want the files to be present in the final
+  image, e.g. when building an initrd or if you want to refer to paths outside
+  of the image in your repository configuration.
+
 ### [Output] Section
 
 `Format=`, `--format=`, `-t`
@@ -756,19 +769,6 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 : As with the base tree logic above, instead of a directory, a tar
   file may be provided too. `mkosi.skeleton.tar` will be automatically
   used if found in the local directory.
-
-`PackageManagerTrees=`, `--package-manager-tree=`
-
-: This option mirrors the above `SkeletonTrees=` option and defaults to the
-  same value if not configured otherwise, but installs the files to a
-  subdirectory of the workspace directory instead of the OS tree. This
-  subdirectory of the workspace is used to configure the package manager.
-
-: `SkeletonTrees=` and `PackageManagerTrees=` fulfill similar roles. Use
-  `SkeletonTrees=` if you want the files to be present in the final image. Use
-  `PackageManagerTrees=` if you don't want the files to be present in the final
-  image, e.g. when building an initrd or if you want to refer to paths outside
-  of the image in your repository configuration.
 
 `ExtraTrees=`, `--extra-tree=`
 
