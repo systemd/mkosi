@@ -34,10 +34,7 @@ def find_rpm_gpgkey(state: MkosiState, key: str, url: str) -> str:
 
 
 def dnf_executable(state: MkosiState) -> str:
-    # dnf5 does not support building for foreign architectures yet (missing --forcearch)
-    dnf = shutil.which("dnf5") if state.config.architecture.is_native() else None
-    dnf = dnf or shutil.which("dnf") or "yum"
-    return dnf
+    return shutil.which("dnf5") or shutil.which("dnf") or "yum"
 
 
 def setup_dnf(state: MkosiState, repos: Iterable[Repo], filelists: bool = True) -> None:
