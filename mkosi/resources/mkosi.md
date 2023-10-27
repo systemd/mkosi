@@ -252,6 +252,10 @@ grouped by section below.
 Configuration is parsed in the following order:
 
 * The command line arguments are parsed
+* `mkosi.local.conf` is parsed if it exists. This file should be in the
+  gitignore (or equivalent) and is intended for local configuration.
+* Any default paths (depending on the option) are configured if the
+  corresponding path exists.
 * `mkosi.conf` is parsed if it exists in the directory configured with
   `--directory=` or the current working directory if `--directory=` is
   not used.
@@ -259,8 +263,6 @@ Configuration is parsed in the following order:
   directory and each file with the `.conf` extension in `mkosi.conf.d/`
   is parsed. Any directory in `mkosi.conf.d` is parsed as if it were
   a regular top level directory.
-* Any default paths (depending on the option) are configured if the
-  corresponding path exists.
 
 Note that if the same setting is configured twice, the later assignment
 overrides the earlier assignment unless the setting is a list based
@@ -291,6 +293,11 @@ specific settings, and do not take into account changes made to the
 setting in configuration files that have not been parsed yet. Also note
 that matching against a setting and then changing its value afterwards
 in a different config file may lead to unexpected results.
+
+The `[Match]` section of a `mkosi.conf` file in a directory applies to
+the entire directory. If the conditions are not satisfied, the entire
+directory is skipped. The `[Match]` sections of files in `mkosi.conf.d/`
+and `mkosi.local.conf` only apply to the file itself.
 
 Command line options that take no argument are shown without `=` in
 their long version. In the config files, they should be specified with a
