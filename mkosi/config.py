@@ -2386,6 +2386,7 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
     namespace = argparse.Namespace()
     argparser = create_argument_parser(MkosiAction)
     argparser.parse_args(argv, namespace)
+    cli_ns = copy.deepcopy(namespace)
 
     args = load_args(namespace)
 
@@ -2436,6 +2437,24 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
         setattr(namespace, "image", None)
         finalize_defaults(namespace, defaults)
         images = [namespace]
+
+    for s in vars(cli_ns):
+        if s not in SETTINGS_LOOKUP_BY_DEST:
+            continue
+
+        if getattr(cli_ns, s) is None:
+            continue
+
+        if isinstance(getattr(cli_ns, s), (list, tuple)):
+            continue
+
+        if any(getattr(config, s) == getattr(cli_ns, s) for config in images):
+            continue
+
+        setting = SETTINGS_LOOKUP_BY_DEST[s]
+
+        die(f"{setting.long}={getattr(cli_ns, s)} was specified on the command line but is not allowed to be configured by any images.",
+            hint="Prefix the setting with '@' in the image configuration file to allow overriding it from the command line.")
 
     if not images:
         die("No images defined in mkosi.images/")

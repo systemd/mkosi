@@ -114,12 +114,14 @@ def test_parse_config(tmp_path: Path) -> None:
     assert config.image_id == "base"
 
     with chdir(d):
-        _, [config] = parse_config(["--distribution", "fedora", "--architecture", "x86-64"])
+        _, [config] = parse_config(["--distribution", "fedora"])
 
     # mkosi.conf sets a default distribution, so the CLI should take priority.
     assert config.distribution == Distribution.fedora
-    # mkosi.conf sets overrides the architecture, so whatever is specified on the CLI should be ignored.
-    assert config.architecture == Architecture.arm64
+
+    # Any architecture set on the CLI is overridden by the config file, and we should complain loudly about that.
+    with chdir(d), pytest.raises(SystemExit):
+        _, [config] = parse_config(["--architecture", "x86-64"])
 
     (d / "mkosi.conf.d").mkdir()
     (d / "mkosi.conf.d/d1.conf").write_text(
