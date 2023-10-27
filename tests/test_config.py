@@ -270,6 +270,34 @@ def test_override_default(tmp_path: Path) -> None:
     assert config.tools_tree is None
 
 
+def test_local_config(tmp_path: Path) -> None:
+    d = tmp_path
+
+    (d / "mkosi.local.conf").write_text(
+        """\
+        [Distribution]
+        Distribution=debian
+        """
+    )
+
+    with chdir(d):
+        _, [config] = parse_config()
+
+    assert config.distribution == Distribution.debian
+
+    (d / "mkosi.conf").write_text(
+        """\
+        [Distribution]
+        Distribution=fedora
+        """
+    )
+
+    with chdir(d):
+        _, [config] = parse_config()
+
+    assert config.distribution == Distribution.fedora
+
+
 def test_parse_load_verb(tmp_path: Path) -> None:
     with chdir(tmp_path):
         assert parse_config(["build"])[0].verb == Verb.build

@@ -2292,6 +2292,9 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
             return False
 
         if extras:
+            if (path.parent / "mkosi.local.conf").exists():
+                parse_config(path.parent / "mkosi.local.conf", namespace, defaults)
+
             for s in SETTINGS:
                 ns = defaults if s.path_default else namespace
                 for f in s.paths:
