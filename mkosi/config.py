@@ -2216,7 +2216,8 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
         for d in setting.default_factory_depends:
             finalize_default(SETTINGS_LOOKUP_BY_DEST[d], namespace, defaults)
 
-        if setting.dest in defaults:
+        # If the setting was assigned the empty string, we don't use any configured default value.
+        if not hasattr(namespace, setting.dest) and setting.dest in defaults:
             default = getattr(defaults, setting.dest)
         elif setting.default_factory:
             default = setting.default_factory(namespace)
