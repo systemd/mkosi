@@ -1259,7 +1259,6 @@ SETTINGS = (
         section="Output",
         parse=config_make_list_parser(delimiter=",", parse=make_path_parser()),
         paths=("mkosi.repart",),
-        path_default=False,
         help="Directory containing systemd-repart partition definitions",
     ),
     MkosiConfigSetting(
