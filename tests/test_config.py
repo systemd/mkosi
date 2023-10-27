@@ -252,6 +252,22 @@ def test_profiles(tmp_path: Path) -> None:
     assert config.qemu_kvm == ConfigFeature.enabled
 
 
+def test_override_default(tmp_path: Path) -> None:
+    d = tmp_path
+
+    (d / "mkosi.conf").write_text(
+        """\
+        [Host]
+        @ToolsTree=default
+        """
+    )
+
+    with chdir(d):
+        _, [config] = parse_config(["--tools-tree", ""])
+
+    assert config.tools_tree is None
+
+
 def test_parse_load_verb(tmp_path: Path) -> None:
     with chdir(tmp_path):
         assert parse_config(["build"])[0].verb == Verb.build
