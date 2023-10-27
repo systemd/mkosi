@@ -2576,10 +2576,12 @@ def load_environment(args: argparse.Namespace) -> dict[str, str]:
         env["IMAGE_VERSION"] = args.image_version
     if args.source_date_epoch is not None:
         env["SOURCE_DATE_EPOCH"] = str(args.source_date_epoch)
-    if (proxy := os.environ.get("http_proxy")):
+    if proxy := os.getenv("http_proxy"):
         env["http_proxy"] = proxy
-    if (proxy := os.environ.get("https_proxy")):
+    if proxy := os.getenv("https_proxy"):
         env["https_proxy"] = proxy
+    if dnf := os.getenv("MKOSI_DNF"):
+        env["MKOSI_DNF"] = dnf
 
     for s in args.environment:
         key, sep, value = s.partition("=")
