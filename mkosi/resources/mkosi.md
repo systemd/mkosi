@@ -1842,6 +1842,9 @@ repository.
 * `$MKOSI_LESS` overrides options for `less` when it is invoked by
   `mkosi` to page output.
 
+* `$MKOSI_DNF` can be used to override the executable used as `dnf`.
+  This is particularly useful to select between `dnf` and `dnf5`.
+
 # EXAMPLES
 
 Create and run a raw *GPT* image with *ext4*, as `image.raw`:

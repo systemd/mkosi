@@ -34,7 +34,10 @@ def find_rpm_gpgkey(state: MkosiState, key: str, url: str) -> str:
 
 
 def dnf_executable(state: MkosiState) -> str:
-    return shutil.which("dnf5") or shutil.which("dnf") or "yum"
+    # Allow the user to override autodetection with an environment variable
+    dnf = state.config.environment.get("MKOSI_DNF")
+
+    return dnf or shutil.which("dnf5") or shutil.which("dnf") or "yum"
 
 
 def setup_dnf(state: MkosiState, repos: Iterable[Repo], filelists: bool = True) -> None:
