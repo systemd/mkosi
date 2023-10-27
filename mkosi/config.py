@@ -728,6 +728,7 @@ class MkosiConfig:
     repository_key_check: bool
     repositories: list[str]
     cache_only: bool
+    package_manager_trees: list[tuple[Path, Optional[Path]]]
 
     output_format: OutputFormat
     manifest_format: list[ManifestFormat]
@@ -753,7 +754,6 @@ class MkosiConfig:
 
     base_trees: list[Path]
     skeleton_trees: list[tuple[Path, Optional[Path]]]
-    package_manager_trees: list[tuple[Path, Optional[Path]]]
     extra_trees: list[tuple[Path, Optional[Path]]]
 
     remove_packages: list[str]
@@ -1138,6 +1138,16 @@ SETTINGS = (
         parse=config_parse_boolean,
         help="Only use the package cache when installing packages",
     ),
+    MkosiConfigSetting(
+        dest="package_manager_trees",
+        long="--package-manager-tree",
+        metavar="PATH",
+        section="Distribution",
+        parse=config_make_list_parser(delimiter=",", parse=make_source_target_paths_parser()),
+        default_factory=lambda ns: ns.skeleton_trees,
+        default_factory_depends=("skeleton_trees",),
+        help="Use a package manager tree to configure the package manager",
+    ),
 
     MkosiConfigSetting(
         dest="output_format",
@@ -1333,16 +1343,6 @@ SETTINGS = (
         paths=("mkosi.skeleton", "mkosi.skeleton.tar"),
         path_default=False,
         help="Use a skeleton tree to bootstrap the image before installing anything",
-    ),
-    MkosiConfigSetting(
-        dest="package_manager_trees",
-        long="--package-manager-tree",
-        metavar="PATH",
-        section="Content",
-        parse=config_make_list_parser(delimiter=",", parse=make_source_target_paths_parser()),
-        default_factory=lambda ns: ns.skeleton_trees,
-        default_factory_depends=("skeleton_trees",),
-        help="Use a package manager tree to configure the package manager",
     ),
     MkosiConfigSetting(
         dest="extra_trees",
@@ -2708,6 +2708,7 @@ def summary(config: MkosiConfig) -> str:
       Repo Signature/Key check: {yes_no(config.repository_key_check)}
                   Repositories: {line_join_list(config.repositories)}
         Use Only Package Cache: {yes_no(config.cache_only)}
+         Package Manager Trees: {line_join_source_target_list(config.package_manager_trees)}
 
     {bold("OUTPUT")}:
                  Output Format: {config.output_format}
@@ -2734,7 +2735,6 @@ def summary(config: MkosiConfig) -> str:
 
                     Base Trees: {line_join_list(config.base_trees)}
                 Skeleton Trees: {line_join_source_target_list(config.skeleton_trees)}
-         Package Manager Trees: {line_join_source_target_list(config.package_manager_trees)}
                    Extra Trees: {line_join_source_target_list(config.extra_trees)}
 
                Remove Packages: {line_join_list(config.remove_packages)}
