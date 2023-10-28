@@ -390,7 +390,7 @@ def run_prepare_scripts(state: MkosiState, build: bool) -> None:
             step_msg = "Running prepare script {}…"
             arg = "final"
 
-        d = stack.enter_context(finalize_chroot_scripts(state))
+        cd = stack.enter_context(finalize_chroot_scripts(state))
 
         for script in state.config.prepare_scripts:
             chroot: list[PathString] = chroot_cmd(
@@ -398,14 +398,14 @@ def run_prepare_scripts(state: MkosiState, build: bool) -> None:
                 options=[
                     "--bind", script, "/work/prepare",
                     "--bind", Path.cwd(), "/work/src",
-                    "--bind", d, "/work/scripts",
+                    "--bind", cd, "/work/scripts",
                     "--chdir", "/work/src",
                     "--setenv", "SRCDIR", "/work/src",
                     "--setenv", "BUILDROOT", "/",
                 ],
             )
 
-            d = stack.enter_context(finalize_host_scripts(state, chroot))
+            hd = stack.enter_context(finalize_host_scripts(state, chroot))
 
             with complete_step(step_msg.format(script)):
                 bwrap(
@@ -413,7 +413,7 @@ def run_prepare_scripts(state: MkosiState, build: bool) -> None:
                     network=True,
                     readonly=True,
                     options=finalize_mounts(state.config),
-                    scripts=d,
+                    scripts=hd,
                     env=env | state.config.environment,
                     stdin=sys.stdin,
                 )
@@ -450,7 +450,7 @@ def run_build_scripts(state: MkosiState) -> None:
         mount_build_overlay(state),\
         mount_passwd(state.root),\
         mount_volatile_overlay(state),\
-        finalize_chroot_scripts(state) as d\
+        finalize_chroot_scripts(state) as cd\
     ):
         for script in state.config.build_scripts:
             chroot = chroot_cmd(
@@ -460,7 +460,7 @@ def run_build_scripts(state: MkosiState) -> None:
                     "--bind", state.install_dir, "/work/dest",
                     "--bind", state.staging, "/work/out",
                     "--bind", Path.cwd(), "/work/src",
-                    "--bind", d, "/work/scripts",
+                    "--bind", cd, "/work/scripts",
                     *(["--bind", str(state.config.build_dir), "/work/build"] if state.config.build_dir else []),
                     "--chdir", "/work/src",
                     "--setenv", "SRCDIR", "/work/src",
@@ -474,7 +474,7 @@ def run_build_scripts(state: MkosiState) -> None:
             cmdline = state.args.cmdline if state.args.verb == Verb.build else []
 
             with (
-                finalize_host_scripts(state, chroot) as d,\
+                finalize_host_scripts(state, chroot) as hd,\
                 complete_step(f"Running build script {script}…")\
             ):
                 bwrap(
@@ -482,7 +482,7 @@ def run_build_scripts(state: MkosiState) -> None:
                     network=state.config.with_network,
                     readonly=True,
                     options=finalize_mounts(state.config),
-                    scripts=d,
+                    scripts=hd,
                     env=env | state.config.environment,
                     stdin=sys.stdin,
                 )
@@ -505,14 +505,14 @@ def run_postinst_scripts(state: MkosiState) -> None:
     )
 
     for script in state.config.postinst_scripts:
-        with finalize_chroot_scripts(state) as d:
+        with finalize_chroot_scripts(state) as cd:
             chroot = chroot_cmd(
                 state.root,
                 options=[
                     "--bind", script, "/work/postinst",
                     "--bind", state.staging, "/work/out",
                     "--bind", Path.cwd(), "/work/src",
-                    "--bind", d, "/work/scripts",
+                    "--bind", cd, "/work/scripts",
                     "--chdir", "/work/src",
                     "--setenv", "SRCDIR", "/work/src",
                     "--setenv", "OUTPUTDIR", "/work/out",
@@ -521,7 +521,7 @@ def run_postinst_scripts(state: MkosiState) -> None:
             )
 
             with (
-                finalize_host_scripts(state, chroot) as d,\
+                finalize_host_scripts(state, chroot) as hd,\
                 complete_step(f"Running postinstall script {script}…")\
             ):
                 bwrap(
@@ -529,7 +529,7 @@ def run_postinst_scripts(state: MkosiState) -> None:
                     network=state.config.with_network,
                     readonly=True,
                     options=finalize_mounts(state.config),
-                    scripts=d,
+                    scripts=hd,
                     env=env | state.config.environment,
                     stdin=sys.stdin,
                 )
@@ -552,14 +552,14 @@ def run_finalize_scripts(state: MkosiState) -> None:
     )
 
     for script in state.config.finalize_scripts:
-        with finalize_chroot_scripts(state) as d:
+        with finalize_chroot_scripts(state) as cd:
             chroot = chroot_cmd(
                 state.root,
                 options=[
                     "--bind", script, "/work/finalize",
                     "--bind", state.staging, "/work/out",
                     "--bind", Path.cwd(), "/work/src",
-                    "--bind", d, "/work/scripts",
+                    "--bind", cd, "/work/scripts",
                     "--chdir", "/work/src",
                     "--setenv", "SRCDIR", "/work/src",
                     "--setenv", "OUTPUTDIR", "/work/out",
@@ -568,7 +568,7 @@ def run_finalize_scripts(state: MkosiState) -> None:
             )
 
             with (
-                finalize_host_scripts(state, chroot) as d,\
+                finalize_host_scripts(state, chroot) as hd,\
                 complete_step(f"Running finalize script {script}…")\
             ):
                 bwrap(
@@ -576,7 +576,7 @@ def run_finalize_scripts(state: MkosiState) -> None:
                     network=state.config.with_network,
                     readonly=True,
                     options=finalize_mounts(state.config),
-                    scripts=d,
+                    scripts=hd,
                     env=env | state.config.environment,
                     stdin=sys.stdin,
                 )
