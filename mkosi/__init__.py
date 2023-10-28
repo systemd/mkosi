@@ -448,7 +448,6 @@ def run_build_scripts(state: MkosiState) -> None:
 
     with (
         mount_build_overlay(state),\
-        mount_passwd(state.root),\
         mount_volatile_overlay(state),\
         finalize_chroot_scripts(state) as cd\
     ):
@@ -2614,7 +2613,6 @@ def run_verb(args: MkosiArgs, images: Sequence[MkosiConfig]) -> None:
         with (
             complete_step(f"Building {config.image or 'default'} image"),\
             mount_tools(config.tools_tree),\
-            mount_passwd(),\
             prepend_to_environ_path(config)\
         ):
             # After tools have been mounted, check if we have what we need
