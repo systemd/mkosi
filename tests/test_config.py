@@ -461,6 +461,26 @@ def test_match_release(tmp_path: Path, release1: int, release2: int) -> None:
         assert "testpkg3" in conf.packages
 
 
+def test_match_build_sources(tmp_path: Path) -> None:
+    d = tmp_path
+
+    (d / "mkosi.conf").write_text(
+        """\
+        [Match]
+        BuildSources=kernel
+        BuildSources=/kernel
+
+        [Output]
+        Output=abc
+        """
+    )
+
+    with chdir(d):
+        _, [config] = parse_config(["--build-sources", ".:kernel"])
+
+    assert config.output == "abc"
+
+
 @pytest.mark.parametrize(
     "image1,image2", itertools.combinations_with_replacement(
         ["image_a", "image_b", "image_c"], 2
@@ -617,8 +637,8 @@ def test_package_manager_tree(tmp_path: Path, skel: Optional[Path], pkgmngr: Opt
 
         _, [conf] = parse_config()
 
-        skel_expected = [(skel, None)] if skel is not None else []
-        pkgmngr_expected = [(pkgmngr, None)] if pkgmngr is not None else skel_expected
+        skel_expected = [(skel, Path("/"))] if skel is not None else []
+        pkgmngr_expected = [(pkgmngr, Path("/"))] if pkgmngr is not None else skel_expected
 
         assert conf.skeleton_trees == skel_expected
         assert conf.package_manager_trees == pkgmngr_expected

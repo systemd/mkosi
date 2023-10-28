@@ -359,6 +359,29 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   the UAPI group version format specification. If no operator is
   prepended, the equality operator is assumed by default.
 
+`BuildSources=`
+
+: Takes a build source target path (see `BuildSources=`). This match is
+  satisfied if any of the configured build sources uses this target
+  path. For example, if we have a `mkosi.conf` file containing:
+
+  ```conf
+  [Content]
+  BuildSources=../abc/qed:kernel
+  ```
+
+  and a drop-in containing:
+
+  ```conf
+  [Match]
+  BuildSources=kernel
+  ```
+
+  The drop-in will be included.
+
+: Any absolute paths passed to this setting are interpreted relative to
+  the current working directory.
+
 | Matcher           | Globs | Rich Comparisons | Default                 |
 |-------------------|-------|------------------|-------------------------|
 | `Profile=`        | no    | no               | match fails             |
@@ -371,6 +394,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 | `Bootable=`       | no    | no               | match auto feature      |
 | `Format=`         | no    | no               | match default format    |
 | `SystemdVersion=` | no    | yes              | match fails             |
+| `BuildSources=`   | no    | no               | match fails             |
 
 ### [Config] Section
 
@@ -747,31 +771,34 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `BaseTrees=`, `--base-tree=`
 
-: Takes a colon separated pair of directories to use as base images. When
-  used, these base images are each copied into the OS tree and form the
-  base distribution instead of installing the distribution from scratch.
-  Only extra packages are installed on top of the ones already installed
-  in the base images. Note that for this to work properly, the base image
+: Takes a comma separated list of paths to use as base trees. When used,
+  these base trees are each copied into the OS tree and form the base
+  distribution instead of installing the distribution from scratch. Only
+  extra packages are installed on top of the ones already installed in
+  the base trees. Note that for this to work properly, the base image
   still needs to contain the package manager metadata (see
   `CleanPackageMetadata=`).
 
 : Instead of a directory, a tar file or a disk image may be provided. In
-  this case it is unpacked into the OS tree. This mode of operation allows
-  setting permissions and file ownership explicitly, in particular for projects
-  stored in a version control system such as `git` which retain full file
-  ownership and access mode metadata for committed files.
+  this case it is unpacked into the OS tree. This mode of operation
+  allows setting permissions and file ownership explicitly, in
+  particular for projects stored in a version control system such as
+  `git` which retain full file ownership and access mode metadata for
+  committed files.
 
 `SkeletonTrees=`, `--skeleton-tree=`
 
-: Takes a colon separated pair of paths. The first path refers to a
-  directory to copy into the OS tree before invoking the package
-  manager. The second path refers to the target directory inside the
-  image. If the second path is not provided, the directory is copied
-  on top of the root directory of the image. Use this to insert files
-  and directories into the OS tree before the package manager installs
-  any packages. If the `mkosi.skeleton/` directory is found in the local
-  directory it is also used for this purpose with the root directory as
-  target (also see the **Files** section below).
+: Takes a comma separated list of colon separated path pairs. The first
+  path of each pair refers to a directory to copy into the OS tree
+  before invoking the package manager. The second path of each pair
+  refers to the target directory inside the image. If the second path is
+  not provided, the directory is copied on top of the root directory of
+  the image. The second path is always interpreted as an absolute path.
+  Use this to insert files and directories into the OS tree before the
+  package manager installs any packages. If the `mkosi.skeleton/`
+  directory is found in the local directory it is also used for this
+  purpose with the root directory as target (also see the **Files**
+  section below).
 
 : As with the base tree logic above, instead of a directory, a tar
   file may be provided too. `mkosi.skeleton.tar` will be automatically
@@ -779,14 +806,16 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `ExtraTrees=`, `--extra-tree=`
 
-: Takes a colon separated pair of paths. The first path refers to a
-  directory to copy from the host into the image. The second path refers
-  to the target directory inside the image. If the second path is not
-  provided, the directory is copied on top of the root directory of the
-  image. Use this to override any default configuration files shipped
-  with the distribution. If the `mkosi.extra/` directory is found in the
-  local directory it is also used for this purpose with the root
-  directory as target. (also see the **Files** section below).
+: Takes a comma separated list of colon separated path pairs. The first
+  path of each pair refers to a directory to copy from the host into the
+  image. The second path of each pair refers to the target directory
+  inside the image. If the second path is not provided, the directory is
+  copied on top of the root directory of the image. The second path is
+  always interpreted as an absolute path. Use this to override any
+  default configuration files shipped with the distribution. If the
+  `mkosi.extra/` directory is found in the local directory it is also
+  used for this purpose with the root directory as target. (also see the
+  **Files** section below).
 
 : As with the base tree logic above, instead of a directory, a tar
   file may be provided too. `mkosi.extra.tar` will be automatically
@@ -838,14 +867,16 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `BuildSources=`, `--build-sources=`
 
-: Takes a list of colon-separated pairs of paths to source trees and
-  where to mount them when running scripts. Every target path is
-  prefixed with the current working directory and all build sources are
-  sorted lexicographically by mount target before mounting so that top
-  level paths are mounted first. When using the `mkosi-chroot` script (
-  see the **Scripts** section), the current working directory with all
-  build sources mounted in it is mounted to `/work/src` inside the
-  image's root directory.
+: Takes a comma separated list of colon separated path pairs. The first
+  path of each pair refers to a directory to mount from the host. The
+  second path of each pair refers to the directory where the source
+  directory should be mounted when running scripts. Every target path
+  is prefixed with the current working directory and all build sources
+  are sorted lexicographically by their target before mounting so that
+  top level paths are mounted first. When using the `mkosi-chroot`
+  script ( see the **Scripts** section), the current working directory
+  with all build sources mounted in it is mounted to `/work/src` inside
+  the image's root directory.
 
 `Environment=`, `--environment=`
 

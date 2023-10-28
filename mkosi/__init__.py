@@ -313,9 +313,9 @@ def mount_volatile_overlay(state: MkosiState) -> Iterator[Path]:
 
 def finalize_mounts(config: MkosiConfig) -> list[PathString]:
     sources = [
-        (src, Path.cwd() / (str(target).lstrip("/") if target else "."))
+        (src, Path.cwd() / target)
         for src, target
-        in ((Path.cwd(), None), *config.build_sources)
+        in ((Path.cwd(), Path(".")), *config.build_sources)
     ]
 
     # bwrap() mounts /home and /var read-only during execution. So let's add the bind mount options for the
