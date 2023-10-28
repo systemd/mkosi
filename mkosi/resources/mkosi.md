@@ -479,7 +479,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   specified, the same mirror is used for all architectures):
 
   |                | x86-64                            | aarch64                        |
-  |----------------|--------------------------------------------------------------------|
+  |----------------|-----------------------------------|--------------------------------|
   | `debian`       | http://deb.debian.org/debian      |                                |
   | `arch`         | https://geo.mirror.pkgbuild.com   | http://mirror.archlinuxarm.org |
   | `opensuse`     | http://download.opensuse.org      |                                |
