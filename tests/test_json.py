@@ -168,7 +168,7 @@ def test_config() -> None:
             "PackageManagerTrees": [
                 [
                     "/foo/bar",
-                    null
+                    "/"
                 ]
             ],
             "Packages": [],
@@ -225,7 +225,7 @@ def test_config() -> None:
             "SkeletonTrees": [
                 [
                     "/foo/bar",
-                    null
+                    "/"
                 ],
                 [
                     "/bar/baz",
@@ -307,7 +307,7 @@ def test_config() -> None:
         output_dir = Path("/your/output/here"),
         output_format = OutputFormat.uki,
         overlay = True,
-        package_manager_trees = [(Path("/foo/bar"), None)],
+        package_manager_trees = [(Path("/foo/bar"), Path("/"))],
         packages = [],
         passphrase = None,
         postinst_scripts = [Path("/bar/qux")],
@@ -341,7 +341,7 @@ def test_config() -> None:
         seed = uuid.UUID("7496d7d8-7f08-4a2b-96c6-ec8c43791b60"),
         sign = False,
         sign_expected_pcr = ConfigFeature.disabled,
-        skeleton_trees = [(Path("/foo/bar"), None), (Path("/bar/baz"), Path("/qux"))],
+        skeleton_trees = [(Path("/foo/bar"), Path("/")), (Path("/bar/baz"), Path("/qux"))],
         source_date_epoch = 12345,
         split_artifacts = True,
         ssh = False,

@@ -183,19 +183,22 @@ def parse_path(value: str,
     return path
 
 
-def make_source_target_paths_parser(absolute: bool = True) -> Callable[[str], tuple[Path, Optional[Path]]]:
-    def parse_source_target_paths(value: str) -> tuple[Path, Optional[Path]]:
+def make_source_target_paths_parser(absolute: bool = True) -> Callable[[str], tuple[Path, Path]]:
+    def parse_source_target_paths(value: str) -> tuple[Path, Path]:
         src, sep, target = value.partition(':')
         src_path = parse_path(src, required=False)
         if sep:
             target_path = parse_path(target, required=False, resolve=False, expanduser=False)
-            if absolute and not target_path.is_absolute():
-                die("Target path must be absolute")
+            target_path = Path("/") / target_path if absolute else Path(str(target_path).lstrip("/"))
         else:
-            target_path = None
+            target_path = Path("/") if absolute else Path(".")
         return src_path, target_path
 
     return parse_source_target_paths
+
+
+def config_match_build_sources(match: str, value: list[tuple[Path, Path]]) -> bool:
+    return Path(match.lstrip("/")) in [t for _, t in value]
 
 
 def config_parse_string(value: Optional[str], old: Optional[str]) -> Optional[str]:
@@ -728,7 +731,7 @@ class MkosiConfig:
     repository_key_check: bool
     repositories: list[str]
     cache_only: bool
-    package_manager_trees: list[tuple[Path, Optional[Path]]]
+    package_manager_trees: list[tuple[Path, Path]]
 
     output_format: OutputFormat
     manifest_format: list[ManifestFormat]
@@ -753,8 +756,8 @@ class MkosiConfig:
     with_docs: bool
 
     base_trees: list[Path]
-    skeleton_trees: list[tuple[Path, Optional[Path]]]
-    extra_trees: list[tuple[Path, Optional[Path]]]
+    skeleton_trees: list[tuple[Path, Path]]
+    extra_trees: list[tuple[Path, Path]]
 
     remove_packages: list[str]
     remove_files: list[str]
@@ -765,7 +768,7 @@ class MkosiConfig:
     build_scripts: list[Path]
     postinst_scripts: list[Path]
     finalize_scripts: list[Path]
-    build_sources: list[tuple[Path, Optional[Path]]]
+    build_sources: list[tuple[Path, Path]]
     environment: dict[str, str]
     with_tests: bool
     with_network: bool
@@ -819,7 +822,7 @@ class MkosiConfig:
     tools_tree_release: Optional[str]
     tools_tree_mirror: Optional[str]
     tools_tree_packages: list[str]
-    runtime_trees: list[tuple[Path, Optional[Path]]]
+    runtime_trees: list[tuple[Path, Path]]
     runtime_size: Optional[int]
 
     # QEMU-specific options
@@ -1434,6 +1437,7 @@ SETTINGS = (
         metavar="PATH",
         section="Content",
         parse=config_make_list_parser(delimiter=",", parse=make_source_target_paths_parser(absolute=False)),
+        match=config_match_build_sources,
         help="Path for sources to build",
     ),
     MkosiConfigSetting(
@@ -2882,14 +2886,15 @@ def json_type_transformer(refcls: Union[type[MkosiArgs], type[MkosiConfig]]) -> 
         return (cast(str, rootpw[0]), cast(bool, rootpw[1]))
 
     def source_target_transformer(
-        trees: list[list[Optional[str]]], fieldtype: type[list[tuple[Path, Optional[Path]]]]
-    ) -> list[tuple[Path, Optional[Path]]]:
+        trees: list[list[Optional[str]]], fieldtype: type[list[tuple[Path, Path]]]
+    ) -> list[tuple[Path, Path]]:
         # TODO: exchange for TypeGuard and list comprehension once on 3.10
         ret = []
         for src, tgt in trees:
             assert src is not None
+            assert tgt is not None
             source = Path(src)
-            target = Path(tgt) if tgt is not None else None
+            target = Path(tgt)
             ret.append((source, target))
         return ret
 
@@ -2912,7 +2917,7 @@ def json_type_transformer(refcls: Union[type[MkosiArgs], type[MkosiConfig]]) -> 
         list[Path]: path_list_transformer,
         Optional[uuid.UUID]: optional_uuid_transformer,
         Optional[tuple[str, bool]]: root_password_transformer,
-        list[tuple[Path, Optional[Path]]]: source_target_transformer,
+        list[tuple[Path, Path]]: source_target_transformer,
         tuple[str, ...]: str_tuple_transformer,
         Architecture: enum_transformer,
         BiosBootloader: enum_transformer,
