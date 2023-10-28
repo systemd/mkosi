@@ -29,6 +29,12 @@ when using the `bin/mkosi` shim to configure the python interpreter used
 to execute mkosi. The shim can be symlinked to e.g. `/usr/local/bin` to
 make it accessible from the `PATH`.
 
+```shell
+git clone https://github.com/systemd/mkosi
+ln -s $PWD/mkosi/bin/mkosi /usr/local/bin/mkosi
+mkosi --version
+```
+
 ## Python installation methods
 
 mkosi can also be installed straight from the git repository url using
@@ -36,15 +42,17 @@ mkosi can also be installed straight from the git repository url using
 
 ```shell
 pipx install git+https://github.com/systemd/mkosi.git
+mkosi --version
 ```
 
 which will transparently install mkosi into a Python virtual environment
 and a mkosi binary to `~/.local/bin`. This is, up to the path of the
 virtual environment and the mkosi binary, equivalent to
+
 ```shell
-python -m venv mkosivenv
+python3 -m venv mkosivenv
 mkosivenv/bin/pip install git+https://github.com/systemd/mkosi.git
-# the mkosi binary is installed to mkosivenv/bin/mkosi
+mkosivenv/bin/mkosi --version
 ```
 
 You can also package mkosi as a
@@ -53,13 +61,16 @@ deploy anywhere in your `PATH`. Running this will leave a `mkosi` binary
 in `builddir/`
 
 ```shell
+git clone https://github.com/systemd/mkosi
+cd mkosi
 tools/generate-zipapp.sh
+builddir/mkosi --version
 ```
 
 Besides the mkosi binary, you can also call mkosi via
 
 ```shell
-python -m mkosi
+python3 -m mkosi
 ```
 
 when not installed as a zipapp.
