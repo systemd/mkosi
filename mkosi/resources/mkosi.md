@@ -1622,14 +1622,14 @@ available via `$PATH` to simplify common usecases.
   After the mkosi-chroot command exits, various mount points are cleaned
   up.
 
-  To execute the entire script inside the image, put the following
-  snippet at the start of the script:
+  For example, to invoke `ls` inside of the image, use the following
 
   ```sh
-  if [ "$container" != "mkosi" ]; then
-      exec mkosi-chroot "$CHROOT_SCRIPT" "$@"
-  fi
+  mkosi-chroot ls ...
   ```
+
+  To execute the entire script inside the image, add a ".chroot" suffix
+  to the name (`mkosi.build.chroot` instead of `mkosi.build`, etc.).
 
 * For all of the supported package managers except portage (`dnf`,
   `apt`, `pacman`, `zypper`), scripts of the same name are put into
