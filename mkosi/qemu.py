@@ -251,8 +251,8 @@ def start_virtiofsd(directory: Path, *, uidmap: bool) -> Iterator[Path]:
     # We create the socket ourselves and pass the fd to virtiofsd to avoid race conditions where we start qemu
     # before virtiofsd has had the chance to create the socket (or where we try to chown it first).
     with (
-        tempfile.TemporaryDirectory(prefix="mkosi-virtiofsd") as state,\
-        socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock\
+        tempfile.TemporaryDirectory(prefix="mkosi-virtiofsd") as state,
+        socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock,
     ):
         # Make sure qemu can access the virtiofsd socket in this directory.
         os.chown(state, INVOKING_USER.uid, INVOKING_USER.gid)

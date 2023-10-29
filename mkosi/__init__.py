@@ -451,9 +451,9 @@ def run_build_scripts(state: MkosiState) -> None:
         )
 
     with (
-        mount_build_overlay(state),\
-        mount_volatile_overlay(state),\
-        finalize_chroot_scripts(state) as cd\
+        mount_build_overlay(state),
+        mount_volatile_overlay(state),
+        finalize_chroot_scripts(state) as cd,
     ):
         for script in state.config.build_scripts:
             chroot = chroot_cmd(
@@ -477,8 +477,8 @@ def run_build_scripts(state: MkosiState) -> None:
             cmdline = state.args.cmdline if state.args.verb == Verb.build else []
 
             with (
-                finalize_host_scripts(state, chroot) as hd,\
-                complete_step(f"Running build script {script}…")\
+                finalize_host_scripts(state, chroot) as hd,
+                complete_step(f"Running build script {script}…"),
             ):
                 bwrap(
                     script_maybe_chroot(script, "/work/build-script") + cmdline,
@@ -524,8 +524,8 @@ def run_postinst_scripts(state: MkosiState) -> None:
             )
 
             with (
-                finalize_host_scripts(state, chroot) as hd,\
-                complete_step(f"Running postinstall script {script}…")\
+                finalize_host_scripts(state, chroot) as hd,
+                complete_step(f"Running postinstall script {script}…"),
             ):
                 bwrap(
                     script_maybe_chroot(script, "/work/postinst") + ["final"],
@@ -571,8 +571,8 @@ def run_finalize_scripts(state: MkosiState) -> None:
             )
 
             with (
-                finalize_host_scripts(state, chroot) as hd,\
-                complete_step(f"Running finalize script {script}…")\
+                finalize_host_scripts(state, chroot) as hd,
+                complete_step(f"Running finalize script {script}…"),
             ):
                 bwrap(
                     script_maybe_chroot(script, "/work/finalize"),
@@ -2615,9 +2615,9 @@ def run_verb(args: MkosiArgs, images: Sequence[MkosiConfig]) -> None:
             continue
 
         with (
-            complete_step(f"Building {config.image or 'default'} image"),\
-            mount_tools(config.tools_tree),\
-            prepend_to_environ_path(config)\
+            complete_step(f"Building {config.image or 'default'} image"),
+            mount_tools(config.tools_tree),
+            prepend_to_environ_path(config),
         ):
             # After tools have been mounted, check if we have what we need
             check_tools(args, config)
@@ -2644,9 +2644,9 @@ def run_verb(args: MkosiArgs, images: Sequence[MkosiConfig]) -> None:
         return
 
     with (
-        mount_usr(last.tools_tree),\
-        mount_passwd(),\
-        prepend_to_environ_path(last)\
+        mount_usr(last.tools_tree),
+        mount_passwd(),
+        prepend_to_environ_path(last),
     ):
         check_tools(args, last)
 
