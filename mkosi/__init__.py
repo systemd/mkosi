@@ -76,6 +76,12 @@ from mkosi.versioncomp import GenericVersion
 
 MINIMUM_SYSTEMD_VERSION = GenericVersion("254")
 
+MKOSI_AS_CALLER = (
+    "setpriv",
+    f"--reuid={INVOKING_USER.uid}",
+    f"--regid={INVOKING_USER.gid}",
+    "--clear-groups",
+)
 
 @contextlib.contextmanager
 def mount_base_trees(state: MkosiState) -> Iterator[None]:
@@ -412,6 +418,7 @@ def run_prepare_scripts(state: MkosiState, build: bool) -> None:
                         "--setenv", "BUILDROOT", "/",
                     ],
                 ),
+                "mkosi-as-caller" : MKOSI_AS_CALLER,
             }
 
             hd = stack.enter_context(finalize_host_scripts(state, helpers))
@@ -479,6 +486,7 @@ def run_build_scripts(state: MkosiState) -> None:
                         *(["--setenv", "BUILDDIR", "/work/build"] if state.config.build_dir else []),
                     ],
                 ),
+                "mkosi-as-caller" : MKOSI_AS_CALLER,
             }
 
             cmdline = state.args.cmdline if state.args.verb == Verb.build else []
@@ -530,6 +538,7 @@ def run_postinst_scripts(state: MkosiState) -> None:
                         "--setenv", "BUILDROOT", "/",
                     ],
                 ),
+                "mkosi-as-caller" : MKOSI_AS_CALLER,
             }
 
             with (
@@ -579,6 +588,7 @@ def run_finalize_scripts(state: MkosiState) -> None:
                         "--setenv", "BUILDROOT", "/",
                     ],
                 ),
+                "mkosi-as-caller" : MKOSI_AS_CALLER,
             }
 
             with (
