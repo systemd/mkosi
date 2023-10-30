@@ -20,6 +20,10 @@ mkosi — Build Bespoke OS Images
 
 `mkosi [options…] ssh [command line…]`
 
+`mkosi [options…] journalctl [command line…]`
+
+`mkosi [options…] coredumpctl [command line…]`
+
 `mkosi [options…] clean`
 
 `mkosi [options…] serve`
@@ -92,6 +96,18 @@ The following command line verbs are known:
   running virtual machine via SSH. Any arguments passed after the `ssh`
   verb are passed as arguments to the `ssh` invocation. To connect to a
   container, use `machinectl login` or `machinectl shell`.
+
+`journalctl`
+
+: Uses `journalctl` to inspect the journal inside the image.
+  Any arguments specified after the `journalctl` verb are appended to the
+  `journalctl` invocation.
+
+`coredumpctl`
+
+: Uses `coredumpctl` to look for coredumps inside the image.
+  Any arguments specified after the `coredumpctl` verb are appended to the
+  `coredumpctl` invocation.
 
 `clean`
 

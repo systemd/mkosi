@@ -2292,6 +2292,35 @@ def run_shell(args: MkosiArgs, config: MkosiConfig) -> None:
         run(cmdline, stdin=sys.stdin, stdout=sys.stdout, env=os.environ, log=False)
 
 
+def run_systemd_tool(tool: str, args: MkosiArgs, config: MkosiConfig) -> None:
+    if config.output_format not in (OutputFormat.disk, OutputFormat.directory):
+        die(f"{config.output_format} images cannot be inspected with {tool}")
+
+    if (tool_path := find_binary(tool)) is None:
+        die(f"Failed to find {tool}")
+
+    image_arg_name = "root" if config.output_format == OutputFormat.directory else "image"
+    run(
+        [
+            tool_path,
+            f"--{image_arg_name}={config.output_dir_or_cwd() / config.output}",
+            *args.cmdline
+        ],
+        stdin=sys.stdin,
+        stdout=sys.stdout,
+        env=os.environ,
+        log=False
+    )
+
+
+def run_journalctl(args: MkosiArgs, config: MkosiConfig) -> None:
+    run_systemd_tool("journalctl", args, config)
+
+
+def run_coredumpctl(args: MkosiArgs, config: MkosiConfig) -> None:
+    run_systemd_tool("coredumpctl", args, config)
+
+
 def run_serve(config: MkosiConfig) -> None:
     """Serve the output directory via a tiny HTTP server"""
 
@@ -2559,6 +2588,13 @@ def run_verb(args: MkosiArgs, images: Sequence[MkosiConfig]) -> None:
         if last.compress_output:
             die(f"Sorry, can't {opname} a compressed image.")
 
+    if (
+        args.verb in (Verb.journalctl, Verb.coredumpctl)
+        and last.output_format == OutputFormat.disk
+        and os.getuid() != 0
+    ):
+        die(f"Must be root to run the {args.verb} command")
+
     for config in images:
         if args.verb == Verb.build and not args.force:
             check_outputs(config)
@@ -2660,3 +2696,9 @@ def run_verb(args: MkosiArgs, images: Sequence[MkosiConfig]) -> None:
 
             if args.verb == Verb.serve:
                 run_serve(last)
+
+            if args.verb == Verb.journalctl:
+                run_journalctl(args, last)
+
+            if args.verb == Verb.coredumpctl:
+                run_coredumpctl(args, last)
