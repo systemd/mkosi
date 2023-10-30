@@ -1674,6 +1674,7 @@ def configure_ssh(state: MkosiState) -> None:
                 ExecStart=sshd -i -o UsePAM=no
                 StandardInput=socket
                 RuntimeDirectoryPreserve=yes
+                RuntimeDirectory=sshd
                 # ssh always exits with 255 even on normal disconnect, so let's mark that as success so we
                 # don't get noisy logs about SSH service failures.
                 SuccessExitStatus=255
