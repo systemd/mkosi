@@ -247,6 +247,13 @@ def spawn(
         # output.
         stdout = sys.stderr
 
+    env = {
+        "PATH": os.environ["PATH"],
+        "TERM": os.getenv("TERM", "vt220"),
+        "LANG": "C.UTF-8",
+        **env,
+    }
+
     try:
         with subprocess.Popen(
             cmdline,
