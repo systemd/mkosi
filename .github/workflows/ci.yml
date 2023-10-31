@@ -55,7 +55,7 @@ jobs:
         testvenv/bin/python3 -m pip install --upgrade setuptools wheel pip
         testvenv/bin/python3 -m pip install .
         testvenv/bin/mkosi -h
-        rm -rf testenv
+        rm -rf testvenv
 
     - name: Test editable venv installation
       run: |
@@ -63,7 +63,7 @@ jobs:
         testvenv/bin/python3 -m pip install --upgrade setuptools wheel pip
         testvenv/bin/python3 -m pip install --editable .
         testvenv/bin/mkosi -h
-        rm -rf testenv
+        rm -rf testvenv
 
     - name: Test zipapp creation
       run: |
