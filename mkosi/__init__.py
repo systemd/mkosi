@@ -80,6 +80,7 @@ from mkosi.util import (
     umask,
 )
 from mkosi.versioncomp import GenericVersion
+from mkosi.vmspawn import run_vmspawn
 
 MKOSI_AS_CALLER = (
     "setpriv",
@@ -2281,6 +2282,9 @@ def check_tools(config: Config, verb: Verb) -> None:
     if verb == Verb.boot:
         check_systemd_tool(config, "systemd-nspawn", version="254", reason="boot images")
 
+    if verb == Verb.vmspawn:
+        check_systemd_tool(config, "systemd-vmspawn", version="256", reason="boot images with vmspawn")
+
 
 def configure_ssh(context: Context) -> None:
     if not context.config.ssh:
@@ -3796,4 +3800,5 @@ def run_verb(args: Args, images: Sequence[Config], *, resources: Path) -> None:
                 Verb.qemu: run_qemu,
                 Verb.serve: run_serve,
                 Verb.burn: run_burn,
+                Verb.vmspawn: run_vmspawn,
             }[args.verb](args, last)

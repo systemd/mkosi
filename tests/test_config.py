@@ -318,6 +318,7 @@ def test_parse_load_verb(tmp_path: Path) -> None:
         assert parse_config(["qemu"])[0].verb == Verb.qemu
         assert parse_config(["journalctl"])[0].verb == Verb.journalctl
         assert parse_config(["coredumpctl"])[0].verb == Verb.coredumpctl
+        assert parse_config(["vmspawn"])[0].verb == Verb.vmspawn
         with pytest.raises(SystemExit):
             parse_config(["invalid"])
 
