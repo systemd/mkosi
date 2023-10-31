@@ -124,6 +124,22 @@ class Image:
 
         return result
 
+    def vmspawn(self, options: Sequence[str] = (), args: Sequence[str] = ()) -> CompletedProcess:
+        result = self.mkosi(
+            "vmspawn",
+            [*options, "--debug"],
+            args,
+            stdin=sys.stdin if sys.stdin.isatty() else None,
+            check=False,
+        )
+
+        rc = 0 if self.config.distribution.is_centos_variant() else 123
+
+        if result.returncode != rc:
+            raise subprocess.CalledProcessError(result.returncode, result.args, result.stdout, result.stderr)
+
+        return result
+
     def summary(self, options: Sequence[str] = ()) -> CompletedProcess:
         return self.mkosi("summary", options, user=INVOKING_USER.uid, group=INVOKING_USER.gid)
 

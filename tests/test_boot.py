@@ -1,16 +1,27 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 import os
+import subprocess
 
 import pytest
 
 from mkosi.config import OutputFormat
 from mkosi.distributions import Distribution
 from mkosi.qemu import find_virtiofsd
+from mkosi.run import find_binary, run
+from mkosi.versioncomp import GenericVersion
 
 from . import Image
 
 pytestmark = pytest.mark.integration
+
+
+def have_vmspawn() -> bool:
+    return (
+        find_binary("systemd-vmspawn") is not None
+        and GenericVersion(run(["systemd-vmspawn", "--version"],
+                               stdout=subprocess.PIPE).stdout.strip()) >= 256
+    )
 
 
 @pytest.mark.parametrize("format", OutputFormat)
@@ -57,6 +68,9 @@ def test_boot(config: Image.Config, format: OutputFormat) -> None:
             return
 
         image.qemu(options=options)
+
+        if have_vmspawn() and format in (OutputFormat.disk, OutputFormat.directory):
+            image.vmspawn(options=options)
 
         if format != OutputFormat.disk:
             return

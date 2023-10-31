@@ -478,6 +478,25 @@ def want_scratch(config: Config) -> bool:
     )
 
 
+def finalize_qemu_firmware(config: Config, kernel: Optional[Path]) -> QemuFirmware:
+    if config.qemu_firmware == QemuFirmware.auto:
+        if kernel:
+            return (
+                QemuFirmware.uefi
+                if KernelType.identify(config, kernel) != KernelType.unknown
+                else QemuFirmware.linux
+            )
+        elif (
+            config.output_format in (OutputFormat.cpio, OutputFormat.directory) or
+            config.architecture.to_efi() is None
+        ):
+            return QemuFirmware.linux
+        else:
+            return QemuFirmware.uefi
+    else:
+        return config.qemu_firmware
+
+
 def run_qemu(args: Args, config: Config) -> None:
     if config.output_format not in (
         OutputFormat.disk,
@@ -534,22 +553,7 @@ def run_qemu(args: Args, config: Config) -> None:
     if kernel and not kernel.exists():
         die(f"Kernel not found at {kernel}")
 
-    if config.qemu_firmware == QemuFirmware.auto:
-        if kernel:
-            firmware = (
-                QemuFirmware.uefi
-                if KernelType.identify(config, kernel) != KernelType.unknown
-                else QemuFirmware.linux
-            )
-        elif (
-            config.output_format in (OutputFormat.cpio, OutputFormat.directory) or
-            config.architecture.to_efi() is None
-        ):
-            firmware = QemuFirmware.linux
-        else:
-            firmware = QemuFirmware.uefi
-    else:
-        firmware = config.qemu_firmware
+    firmware = finalize_qemu_firmware(config, kernel)
 
     if (
         not kernel and

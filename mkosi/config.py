@@ -70,6 +70,7 @@ class Verb(StrEnum):
     journalctl    = enum.auto()
     coredumpctl   = enum.auto()
     burn          = enum.auto()
+    vmspawn       = enum.auto()
 
     def supports_cmdline(self) -> bool:
         return self in (
@@ -81,6 +82,7 @@ class Verb(StrEnum):
             Verb.journalctl,
             Verb.coredumpctl,
             Verb.burn,
+            Verb.vmspawn,
         )
 
     def needs_build(self) -> bool:
@@ -91,6 +93,7 @@ class Verb(StrEnum):
             Verb.qemu,
             Verb.serve,
             Verb.burn,
+            Verb.vmspawn,
         )
 
     def needs_root(self) -> bool:
@@ -104,6 +107,13 @@ class ConfigFeature(StrEnum):
     auto     = enum.auto()
     enabled  = enum.auto()
     disabled = enum.auto()
+
+    def to_tristate(self) -> str:
+        if self == ConfigFeature.enabled:
+            return "yes"
+        if self == ConfigFeature.disabled:
+            return "no"
+        return ""
 
 
 @dataclasses.dataclass(frozen=True)
@@ -2637,6 +2647,7 @@ def create_argument_parser(action: type[argparse.Action]) -> argparse.ArgumentPa
                 mkosi [options...] {b}shell{e}       [command line...]
                 mkosi [options...] {b}boot{e}        [nspawn settings...]
                 mkosi [options...] {b}qemu{e}        [qemu parameters...]
+                mkosi [options...] {b}vmspawn{e}     [vmspawn parameters...]
                 mkosi [options...] {b}ssh{e}         [command line...]
                 mkosi [options...] {b}journalctl{e}  [command line...]
                 mkosi [options...] {b}coredumpctl{e} [command line...]
