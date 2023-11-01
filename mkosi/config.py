@@ -929,6 +929,9 @@ class MkosiConfig:
 
     def cache_manifest(self) -> dict[str, Any]:
         return {
+            "distribution": self.distribution,
+            "release": self.release,
+            "architecture": self.architecture,
             "packages": self.packages,
             "build_packages": self.build_packages,
             "repositories": self.repositories,
