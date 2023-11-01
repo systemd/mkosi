@@ -46,17 +46,21 @@ class QemuDeviceNode(StrEnum):
             QemuDeviceNode.vhost_vsock: "a VSock device",
         }[self]
 
-    def available(self, log: bool = False) -> bool:
+    def available(self, *, log: bool = False, flags: int = (os.R_OK | os.W_OK)) -> bool:
         if not os.access(self.device(), os.F_OK):
             if log:
                 logging.warning(f"{self.device()} not found. Not adding {self.description()} to the virtual machine.")
             return False
 
-        if not os.access(self.device(), os.R_OK|os.W_OK):
+        try:
+            fd = os.open(self.device(), flags)
+            os.close(fd)
+        except OSError:
             if log:
                 logging.warning(
                     f"Permission denied to access {self.device()}. "
-                    f"Not adding {self.description()} to the virtual machine."
+                    f"Not adding {self.description()} to the virtual machine. "
+                    "(Maybe a kernel module could not be loaded?)"
                 )
             return False
 

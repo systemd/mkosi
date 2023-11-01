@@ -2579,7 +2579,7 @@ def run_verb(args: MkosiArgs, images: Sequence[MkosiConfig]) -> None:
     qemu_device_fds = {
         d: os.open(d.device(), os.O_RDWR|os.O_CLOEXEC|os.O_NONBLOCK)
         for d in QemuDeviceNode
-        if d.available(log=True)
+        if d.available(log=True, flags=os.O_RDWR|os.O_CLOEXEC|os.O_NONBLOCK)
     }
 
     # Get the user UID/GID either on the host or in the user namespace running the build
