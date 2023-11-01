@@ -1120,6 +1120,8 @@ def build_initrd(state: MkosiState) -> Path:
     ]
 
     args, [config] = parse_config(cmdline)
+
+    config = dataclasses.replace(config, image="default-initrd")
     assert config.output_dir
 
     config.output_dir.mkdir(exist_ok=True)
@@ -1563,11 +1565,18 @@ def unlink_output(args: MkosiArgs, config: MkosiConfig) -> None:
 
 
 def cache_tree_paths(config: MkosiConfig) -> tuple[Path, Path, Path]:
+    fragments = [config.distribution, config.release, config.architecture]
+
+    if config.image:
+        fragments += [config.image]
+
+    key = '~'.join(str(s) for s in fragments)
+
     assert config.cache_dir
     return (
-        config.cache_dir / f"{config.output}.cache",
-        config.cache_dir / f"{config.output}.build.cache",
-        config.cache_dir / f"{config.output}.manifest",
+        config.cache_dir / f"{key}.cache",
+        config.cache_dir / f"{key}.build.cache",
+        config.cache_dir / f"{key}.manifest",
     )
 
 
@@ -1861,7 +1870,14 @@ def save_cache(state: MkosiState) -> None:
             rmtree(build)
             move_tree(state.config, state.workspace / "build-overlay", build)
 
-        manifest.write_text(json.dumps(state.config.cache_manifest()))
+        manifest.write_text(
+            json.dumps(
+                state.config.cache_manifest(),
+                cls=MkosiJsonEncoder,
+                indent=4,
+                sort_keys=True,
+            )
+        )
 
 
 def reuse_cache(state: MkosiState) -> bool:
@@ -1874,7 +1890,7 @@ def reuse_cache(state: MkosiState) -> bool:
 
     if manifest.exists():
         prev = json.loads(manifest.read_text())
-        if prev != state.config.cache_manifest():
+        if prev != json.loads(json.dumps(state.config.cache_manifest(), cls=MkosiJsonEncoder)):
             return False
     else:
         return False
