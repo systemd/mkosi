@@ -1622,14 +1622,14 @@ available via `$PATH` to simplify common usecases.
   After the mkosi-chroot command exits, various mount points are cleaned
   up.
 
-  To execute the entire script inside the image, put the following
-  snippet at the start of the script:
+  For example, to invoke `ls` inside of the image, use the following
 
   ```sh
-  if [ "$container" != "mkosi" ]; then
-      exec mkosi-chroot "$CHROOT_SCRIPT" "$@"
-  fi
+  mkosi-chroot ls ...
   ```
+
+  To execute the entire script inside the image, add a ".chroot" suffix
+  to the name (`mkosi.build.chroot` instead of `mkosi.build`, etc.).
 
 * For all of the supported package managers except portage (`dnf`,
   `apt`, `pacman`, `zypper`), scripts of the same name are put into
@@ -1637,6 +1637,23 @@ available via `$PATH` to simplify common usecases.
   directory with the configuration supplied by the user instead of on
   the host system. This means that from a script, you can do e.g.
   `dnf install vim` to install vim into the image.
+
+* `mkosi-as-caller`: This script uses `setpriv` to switch from
+  the user `root` in the user namespace used for various build steps
+  back to the original user that called mkosi. This is useful when
+  we want to invoke build steps which will write to $BUILDDIR and
+  we want to have the files owned by the calling user.
+
+  For example, a complete `mkosi.build` script might be the following:
+
+  ```sh
+  set -ex
+
+  rm -rf "$BUILDDIR/build"
+  mkosi-as-caller meson setup "$BUILDDIR/build" "$SRCDIR"
+  mkosi-as-caller meson compile -C "$BUILDDIR/build"
+  meson install -C "$BUILDDIR/build" --no-rebuild
+  ```
 
 When scripts are executed, any directories that are still writable are
 also made read-only (`/home`, `/var`, `/root`, ...) and only the minimal set
