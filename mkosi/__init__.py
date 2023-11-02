@@ -186,7 +186,7 @@ def remove_packages(state: MkosiState) -> None:
 
 def check_root_populated(state: MkosiState) -> None:
     """Check that the root was populated by looking for a os-release file."""
-    osrelease = state.root / "usr/lib/os-release"
+    osrelease = state.root / "etc/os-release"
     if not osrelease.exists():
         die(
             f"{osrelease} not found.",

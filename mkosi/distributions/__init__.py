@@ -20,6 +20,7 @@ class PackageType(StrEnum):
     deb    = enum.auto()
     pkg    = enum.auto()
     ebuild = enum.auto()
+    nix    = enum.auto()
 
 
 class DistributionInstaller:
@@ -88,6 +89,7 @@ class Distribution(StrEnum):
     rocky        = enum.auto()
     alma         = enum.auto()
     gentoo       = enum.auto()
+    nixos        = enum.auto()
     custom       = enum.auto()
 
     def is_centos_variant(self) -> bool:
