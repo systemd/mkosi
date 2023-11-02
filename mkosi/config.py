@@ -2318,8 +2318,11 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
                         expandvars=False,
                     )
                     if p.exists():
-                        setattr(ns, s.dest,
-                                s.parse(p.read_text() if s.path_read_text else f, getattr(ns, s.dest, None)))
+                        setattr(
+                            ns,
+                            s.dest,
+                            s.parse(p.read_text().rstrip("\n") if s.path_read_text else f, getattr(ns, s.dest, None)),
+                        )
 
         if path.exists():
             logging.debug(f"Including configuration file {Path.cwd() / path}")
