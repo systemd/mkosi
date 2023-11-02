@@ -53,8 +53,7 @@ class QemuDeviceNode(StrEnum):
             return False
 
         try:
-            fd = os.open(self.device(), flags)
-            os.close(fd)
+            os.close(os.open(self.device(), flags))
         except OSError:
             if log:
                 logging.warning(
