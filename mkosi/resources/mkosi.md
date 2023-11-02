@@ -1641,7 +1641,7 @@ available via `$PATH` to simplify common usecases.
 * `mkosi-as-caller`: This script uses `setpriv` to switch from
   the user `root` in the user namespace used for various build steps
   back to the original user that called mkosi. This is useful when
-  we want to invoke build steps which will write to $BUILDDIR and
+  we want to invoke build steps which will write to `$BUILDDIR` and
   we want to have the files owned by the calling user.
 
   For example, a complete `mkosi.build` script might be the following:
@@ -1649,7 +1649,6 @@ available via `$PATH` to simplify common usecases.
   ```sh
   set -ex
 
-  rm -rf "$BUILDDIR/build"
   mkosi-as-caller meson setup "$BUILDDIR/build" "$SRCDIR"
   mkosi-as-caller meson compile -C "$BUILDDIR/build"
   meson install -C "$BUILDDIR/build" --no-rebuild

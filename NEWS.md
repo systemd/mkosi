@@ -37,12 +37,7 @@
   initrd based on what type of kernel is passed by the user via
   `-kernel` or `QemuKernel=`
 - We don't create subdirectories beneath the configured cache directory
-  anymore. To get back the previous behavior, configure the cache directory
-  with subdirectories:
-
-  ```conf
-  CacheDirectory=mkosi.cache/%d~%r~%a
-  ```
+  anymore.
 
 ## v18
 
