@@ -2064,6 +2064,10 @@ def finalize_staging(state: MkosiState) -> None:
     # Our output unlinking logic removes everything prefixed with the name of the image, so let's make
     # sure that everything we put into the output directory is prefixed with the name of the output.
     for f in state.staging.iterdir():
+        # Skip the symlink we create without the version that points to the output with the version.
+        if f.name.startswith(state.config.output) and f.is_symlink():
+            continue
+
         name = f.name
         if not name.startswith(state.config.output_with_version):
             name = f"{state.config.output_with_version}-{name}"
