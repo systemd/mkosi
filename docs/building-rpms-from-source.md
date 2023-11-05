@@ -152,8 +152,5 @@ post-installation script:
 #!/bin/sh
 set -e
 
-dnf --cacheonly install "$OUTPUTDIR"/*mkosi*.rpm
+rpm --install "$OUTPUTDIR"/*mkosi*.rpm
 ```
-
-We make sure `dnf` never tries to sync the repositories when installing
-these local rpms by specifying `--cacheonly`.
