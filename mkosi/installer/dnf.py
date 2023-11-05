@@ -164,3 +164,7 @@ def fixup_rpmdb_location(root: Path) -> None:
     rmtree(rpmdb)
     shutil.move(rpmdb_home, rpmdb)
     rpmdb_home.symlink_to(os.path.relpath(rpmdb, start=rpmdb_home.parent))
+
+
+def rpm_cmd(state: MkosiState) -> list[PathString]:
+    return ["rpm", "--root", state.root]
