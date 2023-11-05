@@ -78,6 +78,37 @@ jobs:
     - name: Test man page generation
       run: pandoc -s mkosi.md -o mkosi.1
 
+  mkosi-initrd:
+    runs-on: ubuntu-22.04
+    needs: unit-test
+    concurrency:
+      group: ${{ github.workflow }}-${{ matrix.distro }}-${{ github.ref }}
+      cancel-in-progress: true
+    strategy:
+      fail-fast: false
+      matrix:
+        distro:
+          - arch
+          - centos
+          - debian
+          - ubuntu
+          - fedora
+          - rocky
+          - alma
+          - opensuse
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./
+
+      # Make sure the latest changes from the pull request are used.
+      - name: Install
+        run: sudo ln -svf $PWD/bin/mkosi /usr/bin/mkosi
+        working-directory: ./
+
+      - name: Build ${{ matrix.distro }}
+        run: mkosi --directory "" -d ${{ matrix.distro }} --include mkosi-initrd build
+
   integration-test:
     runs-on: ubuntu-22.04
     needs: unit-test

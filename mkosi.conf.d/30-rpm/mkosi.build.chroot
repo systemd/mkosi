@@ -1,0 +1,13 @@
+#!/bin/sh
+# SPDX-License-Identifier: LGPL-2.1-or-later
+set -ex
+
+rpmbuild \
+    -bb \
+    --build-in-place \
+    $([ "$WITH_TESTS" = "0" ] && echo --nocheck) \
+    --define "_topdir $PWD" \
+    --define "_sourcedir rpm" \
+    --define "_rpmdir $OUTPUTDIR" \
+    --define "_build_name_fmt %%{NAME}-%%{VERSION}-%%{RELEASE}.%%{ARCH}.rpm" \
+    rpm/mkosi.spec

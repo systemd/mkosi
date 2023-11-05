@@ -1,0 +1,44 @@
+#!/usr/bin/bash
+# SPDX-License-Identifier: LGPL-2.1-or-later
+set -e
+export LANG=C.UTF-8
+
+COMMAND="$1"
+KERNEL_VERSION="$2"
+BOOT_DIR_ABS="$3"
+KERNEL_IMAGE="$4"
+INITRD_OPTIONS_SHIFT=4
+
+# Skip this plugin if we're using a different generator.
+[ "${KERNEL_INSTALL_INITRD_GENERATOR}" != "mkosi-initrd" ] && exit 0
+
+: "${KERNEL_INSTALL_STAGING_AREA:?}"
+
+case "$COMMAND" in
+    add)
+        # If the initrd was provided on the kernel command line, we shouldn't generate our own.
+        [ "$#" -gt "$INITRD_OPTIONS_SHIFT" ] && exit 0
+
+        (
+            [ "$KERNEL_INSTALL_VERBOSE" -gt 0 ] && set -x
+
+            mkosi --directory "" \
+                  $([ -e /usr/lib/mkosi-initrd ] && echo --include=/usr/lib/mkosi-initrd) \
+                  $([ -e /etc/mkosi-initrd ] && echo --include=/etc/mkosi-initrd) \
+                  --image-version="$KERNEL_VERSION" \
+                  --environment="KERNEL_VERSION=$KERNEL_VERSION" \
+                  --workspace-dir=/var/tmp \
+                  --cache-dir=/var/cache \
+                  --output-dir="$KERNEL_INSTALL_STAGING_AREA" \
+                  --extra-tree="/usr/lib/modules/${KERNEL_VERSION}:/usr/lib/modules/${KERNEL_VERSION}"
+
+            rm "${KERNEL_INSTALL_STAGING_AREA}/initrd"
+            mv -v "${KERNEL_INSTALL_STAGING_AREA}"/initrd_*.cpio.zst "${KERNEL_INSTALL_STAGING_AREA}/initrd"
+        )
+        ;;
+
+    remove)
+        ;;
+esac
+
+exit 0
