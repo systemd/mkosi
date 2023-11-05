@@ -62,9 +62,9 @@ mkosi-chroot \
     "$DEPS" \
     --define "_topdir $CHROOT_SRCDIR/mkosi" \
     --define "_sourcedir $CHROOT_SRCDIR/mkosi/rpm" \
-    "$CHROOT_SRCDIR/mkosi/rpm/mkosi.spec" \
-    | grep -E -v "mkosi" \
-    | xargs -d '\n' dnf install --best
+    "$CHROOT_SRCDIR/mkosi/rpm/mkosi.spec" |
+        grep -E -v "mkosi" |
+        xargs -d '\n' dnf install --best
 
 if [ "$1" = "build" ]; then
     until mkosi-chroot \
@@ -128,12 +128,12 @@ cd "$SRCDIR/mkosi"
 rpmbuild \
     -bb \
     --build-in-place \
-    "$([ "$WITH_TESTS" = "0" ] && echo --nocheck)" \
+    $([ "$WITH_TESTS" = "0" ] && echo --nocheck) \
     --define "_topdir $SRCDIR/mkosi" \
     --define "_sourcedir $SRCDIR/mkosi/rpm" \
     --define "_rpmdir $OUTPUTDIR" \
-    "$([ -n "$BUILDDIR" ] && echo --define)" \
-    "$([ -n "$BUILDDIR" ] && echo "_vpath_builddir $BUILDDIR")" \
+    ${BUILDDIR:+--define} \
+    ${BUILDDIR:+"_vpath_builddir $BUILDDIR"} \
     --define "_build_name_fmt %%{NAME}-%%{VERSION}-%%{RELEASE}.%%{ARCH}.rpm" \
     "$SRCDIR/mkosi/rpm/mkosi.spec"
 ```
