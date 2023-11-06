@@ -14,6 +14,7 @@ from mkosi.config import (
     Bootloader,
     Compression,
     ConfigFeature,
+    ConfigTree,
     DocFormat,
     ManifestFormat,
     MkosiArgs,
@@ -91,10 +92,10 @@ def test_config() -> None:
                 "/path/to/buildscript"
             ],
             "BuildSources": [
-                [
-                    "/qux",
-                    "/frob"
-                ]
+                {
+                    "source": "/qux",
+                    "target": "/frob"
+                }
             ],
             "CacheDirectory": "/is/this/the/cachedir",
             "CacheOnly": true,
@@ -166,10 +167,10 @@ def test_config() -> None:
             "OutputDirectory": "/your/output/here",
             "Overlay": true,
             "PackageManagerTrees": [
-                [
-                    "/foo/bar",
-                    "/"
-                ]
+                {
+                    "source": "/foo/bar",
+                    "target": null
+                }
             ],
             "Packages": [],
             "Passphrase": null,
@@ -205,14 +206,14 @@ def test_config() -> None:
             "RootShell": "/bin/tcsh",
             "RuntimeSize": 8589934592,
             "RuntimeTrees": [
-                [
-                    "/foo/bar",
-                    "/baz"
-                ],
-                [
-                    "/bar/baz",
-                    "/qux"
-                ]
+                {
+                    "source": "/foo/bar",
+                    "target": "/baz"
+                },
+                {
+                    "source": "/bar/baz",
+                    "target": "/qux"
+                }
             ],
             "SectorSize": null,
             "SecureBoot": true,
@@ -223,14 +224,14 @@ def test_config() -> None:
             "Sign": false,
             "SignExpectedPcr": "disabled",
             "SkeletonTrees": [
-                [
-                    "/foo/bar",
-                    "/"
-                ],
-                [
-                    "/bar/baz",
-                    "/qux"
-                ]
+                {
+                    "source": "/foo/bar",
+                    "target": "/"
+                },
+                {
+                    "source": "/bar/baz",
+                    "target": "/qux"
+                }
             ],
             "SourceDateEpoch": 12345,
             "SplitArtifacts": true,
@@ -264,7 +265,7 @@ def test_config() -> None:
         build_dir = None,
         build_packages =  ["pkg1", "pkg2"],
         build_scripts =  [Path("/path/to/buildscript")],
-        build_sources = [(Path("/qux"), Path("/frob"))],
+        build_sources = [ConfigTree(Path("/qux"), Path("/frob"))],
         cache_dir = Path("/is/this/the/cachedir"),
         cache_only =  True,
         checksum =  False,
@@ -307,7 +308,7 @@ def test_config() -> None:
         output_dir = Path("/your/output/here"),
         output_format = OutputFormat.uki,
         overlay = True,
-        package_manager_trees = [(Path("/foo/bar"), Path("/"))],
+        package_manager_trees = [ConfigTree(Path("/foo/bar"), None)],
         packages = [],
         passphrase = None,
         postinst_scripts = [Path("/bar/qux")],
@@ -332,7 +333,7 @@ def test_config() -> None:
         root_password = ("test1234", False),
         root_shell = "/bin/tcsh",
         runtime_size = 8589934592,
-        runtime_trees = [(Path("/foo/bar"), Path("/baz")), (Path("/bar/baz"), Path("/qux"))],
+        runtime_trees = [ConfigTree(Path("/foo/bar"), Path("/baz")), ConfigTree(Path("/bar/baz"), Path("/qux"))],
         sector_size = None,
         secure_boot = True,
         secure_boot_certificate = None,
@@ -341,7 +342,7 @@ def test_config() -> None:
         seed = uuid.UUID("7496d7d8-7f08-4a2b-96c6-ec8c43791b60"),
         sign = False,
         sign_expected_pcr = ConfigFeature.disabled,
-        skeleton_trees = [(Path("/foo/bar"), Path("/")), (Path("/bar/baz"), Path("/qux"))],
+        skeleton_trees = [ConfigTree(Path("/foo/bar"), Path("/")), ConfigTree(Path("/bar/baz"), Path("/qux"))],
         source_date_epoch = 12345,
         split_artifacts = True,
         ssh = False,

@@ -111,8 +111,8 @@ def dnf_cmd(state: MkosiState) -> list[PathString]:
         f"--setopt=varsdir={state.pkgmngr / 'etc/dnf/vars'}",
         f"--setopt=persistdir={state.pkgmngr / 'var/lib/dnf'}",
         "--setopt=check_config_file_age=0",
-        "--disableplugin=*",
-        "--enableplugin=builddep",
+        "--disable-plugin=*" if dnf.endswith("dnf5") else "--disableplugin=*",
+        "--enable-plugin=builddep" if dnf.endswith("dnf5") else "--enableplugin=builddep",
     ]
 
     if not state.config.repository_key_check:
@@ -164,3 +164,7 @@ def fixup_rpmdb_location(root: Path) -> None:
     rmtree(rpmdb)
     shutil.move(rpmdb_home, rpmdb)
     rpmdb_home.symlink_to(os.path.relpath(rpmdb, start=rpmdb_home.parent))
+
+
+def rpm_cmd(state: MkosiState) -> list[PathString]:
+    return ["rpm", "--root", state.root]

@@ -602,9 +602,8 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 : Path to a directory where to store data required temporarily while
   building the image. This directory should have enough space to store
   the full OS image, though in most modes the actually used disk space
-  is smaller. If not specified, and `mkosi.workspace/` exists in the
-  local directory, it is used for this purpose. Otherwise, hidden
-  subdirectories of the current working directory are used.
+  is smaller. If not specified, a subdirectory of `$XDG_CACHE_HOME` (if
+  set), `$HOME/.cache` (if set) or `/var/tmp` is used.
 
 : The data in this directory is removed automatically after each
   build. It's safe to manually remove the contents of this directory
@@ -1348,7 +1347,8 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   directory to mount into any machine (container or VM) started by
   mkosi. The second path refers to the target directory inside the
   machine. If the second path is not provided, the directory is mounted
-  below `/root/src` in the machine.
+  below `/root/src` in the machine. If the second path is relative, it
+  is interpreted relative to `/root/src` in the machine.
 
 : For each mounted directory, the uid and gid of the user running mkosi
   are mapped to the root user in the machine. This means that all the
@@ -1671,10 +1671,16 @@ available via `$PATH` to simplify common usecases.
   ```
 
 When scripts are executed, any directories that are still writable are
-also made read-only (`/home`, `/var`, `/root`, ...) and only the minimal set
-of directories that need to be writable remain writable. This is to
+also made read-only (`/home`, `/var`, `/root`, ...) and only the minimal
+set of directories that need to be writable remain writable. This is to
 ensure that scripts can't mess with the host system when mkosi is
 running as root.
+
+Note that when executing scripts, all source directories are made
+ephemeral which means all changes made to source directories while
+running scripts are thrown away after the scripts finish executing. Use
+the output, build or cache directories if you need to persist data
+between builds.
 
 # Files
 

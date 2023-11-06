@@ -4,7 +4,7 @@ import os
 
 from mkosi.config import ConfigFeature
 from mkosi.installer.apt import apt_cmd
-from mkosi.installer.dnf import dnf_cmd
+from mkosi.installer.dnf import dnf_cmd, rpm_cmd
 from mkosi.installer.pacman import pacman_cmd
 from mkosi.installer.zypper import zypper_cmd
 from mkosi.run import apivfs_cmd
@@ -42,6 +42,7 @@ def package_manager_scripts(state: MkosiState) -> dict[str, list[PathString]]:
         "pacman": apivfs_cmd(state.root) + pacman_cmd(state),
         "zypper": apivfs_cmd(state.root) + zypper_cmd(state),
         "dnf"   : apivfs_cmd(state.root) + dnf_cmd(state),
+        "rpm"   : apivfs_cmd(state.root) + rpm_cmd(state),
     } | {
         command: apivfs_cmd(state.root) + apt_cmd(state, command) for command in (
             "apt",

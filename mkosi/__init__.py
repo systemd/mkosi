@@ -37,7 +37,7 @@ from mkosi.config import (
     SecureBootSignTool,
     Verb,
     format_bytes,
-    format_source_target,
+    format_tree,
     parse_config,
     summary,
 )
@@ -300,35 +300,45 @@ def mount_cache_overlay(state: MkosiState) -> Iterator[None]:
         yield
 
 
-def mount_build_overlay(state: MkosiState) -> contextlib.AbstractContextManager[Path]:
+@contextlib.contextmanager
+def mount_build_overlay(state: MkosiState, volatile: bool = False) -> Iterator[Path]:
     d = state.workspace / "build-overlay"
     if not d.is_symlink():
         with umask(~0o755):
             d.mkdir(exist_ok=True)
-    return mount_overlay([state.root], state.workspace / "build-overlay", state.root)
+
+    with contextlib.ExitStack() as stack:
+        lower = [state.root]
+
+        if volatile:
+            lower += [d]
+            upper = None
+        else:
+            upper = d
+
+        stack.enter_context(mount_overlay(lower, upper, state.root))
+
+        yield state.root
 
 
 @contextlib.contextmanager
-def mount_volatile_overlay(state: MkosiState) -> Iterator[Path]:
-    with tempfile.TemporaryDirectory() as d:
-        Path(d).chmod(0o755)
+def finalize_mounts(config: MkosiConfig) -> Iterator[list[PathString]]:
+    with contextlib.ExitStack() as stack:
+        sources = [
+            (stack.enter_context(mount_overlay([source])), target)
+            for source, target
+            in [(Path.cwd(), Path.cwd())] + [t.with_prefix(Path.cwd()) for t in config.build_sources]
+        ]
 
-        with mount_overlay([state.root], Path(d), state.root) as p:
-            yield p
+        # bwrap() mounts /home and /var read-only during execution. So let's add the bind mount options for the
+        # directories that could be in /home or /var that we do need to be writable.
+        sources += [
+            (d, d)
+            for d in (config.workspace_dir_or_default(), config.cache_dir, config.output_dir, config.build_dir)
+            if d
+        ]
 
-
-def finalize_mounts(config: MkosiConfig) -> list[PathString]:
-    sources = [
-        (src, Path.cwd() / target)
-        for src, target
-        in ((Path.cwd(), Path(".")), *config.build_sources)
-    ]
-
-    # bwrap() mounts /home and /var read-only during execution. So let's add the bind mount options for the
-    # directories that could be in /home or /var that we do need to be writable.
-    sources += [(d, d) for d in (config.workspace_dir, config.cache_dir, config.output_dir, config.build_dir) if d]
-
-    return flatten(["--bind", src, target] for src, target in sorted(set(sources), key=lambda s: s[1]))
+        yield flatten(["--bind", src, target] for src, target in sorted(set(sources), key=lambda s: s[1]))
 
 
 def script_maybe_chroot(script: Path, mountpoint: str) -> list[str]:
@@ -403,6 +413,7 @@ def run_prepare_scripts(state: MkosiState, build: bool) -> None:
             step_msg = "Running prepare script {}…"
             arg = "final"
 
+        mounts = stack.enter_context(finalize_mounts(state.config))
         cd = stack.enter_context(finalize_chroot_scripts(state))
 
         for script in state.config.prepare_scripts:
@@ -428,7 +439,7 @@ def run_prepare_scripts(state: MkosiState, build: bool) -> None:
                     script_maybe_chroot(script, "/work/prepare") + [arg],
                     network=True,
                     readonly=True,
-                    options=finalize_mounts(state.config),
+                    options=mounts,
                     scripts=hd,
                     env=env | state.config.environment,
                     stdin=sys.stdin,
@@ -463,9 +474,9 @@ def run_build_scripts(state: MkosiState) -> None:
         )
 
     with (
-        mount_build_overlay(state),
-        mount_volatile_overlay(state),
+        mount_build_overlay(state, volatile=True),
         finalize_chroot_scripts(state) as cd,
+        finalize_mounts(state.config) as mounts,
     ):
         for script in state.config.build_scripts:
             helpers = {
@@ -499,7 +510,7 @@ def run_build_scripts(state: MkosiState) -> None:
                     script_maybe_chroot(script, "/work/build-script") + cmdline,
                     network=state.config.with_network,
                     readonly=True,
-                    options=finalize_mounts(state.config),
+                    options=mounts,
                     scripts=hd,
                     env=env | state.config.environment,
                     stdin=sys.stdin,
@@ -522,8 +533,11 @@ def run_postinst_scripts(state: MkosiState) -> None:
         SRCDIR=str(Path.cwd()),
     )
 
-    for script in state.config.postinst_scripts:
-        with finalize_chroot_scripts(state) as cd:
+    with (
+        finalize_chroot_scripts(state) as cd,
+        finalize_mounts(state.config) as mounts,
+    ):
+        for script in state.config.postinst_scripts:
             helpers = {
                 "mkosi-chroot": chroot_cmd(
                     state.root,
@@ -549,7 +563,7 @@ def run_postinst_scripts(state: MkosiState) -> None:
                     script_maybe_chroot(script, "/work/postinst") + ["final"],
                     network=state.config.with_network,
                     readonly=True,
-                    options=finalize_mounts(state.config),
+                    options=mounts,
                     scripts=hd,
                     env=env | state.config.environment,
                     stdin=sys.stdin,
@@ -572,8 +586,11 @@ def run_finalize_scripts(state: MkosiState) -> None:
         SRCDIR=str(Path.cwd()),
     )
 
-    for script in state.config.finalize_scripts:
-        with finalize_chroot_scripts(state) as cd:
+    with (
+        finalize_chroot_scripts(state) as cd,
+        finalize_mounts(state.config) as mounts,
+    ):
+        for script in state.config.finalize_scripts:
             helpers = {
                 "mkosi-chroot": chroot_cmd(
                     state.root,
@@ -599,7 +616,7 @@ def run_finalize_scripts(state: MkosiState) -> None:
                     script_maybe_chroot(script, "/work/finalize"),
                     network=state.config.with_network,
                     readonly=True,
-                    options=finalize_mounts(state.config),
+                    options=mounts,
                     scripts=hd,
                     env=env | state.config.environment,
                     stdin=sys.stdin,
@@ -1036,7 +1053,8 @@ def install_skeleton_trees(state: MkosiState) -> None:
         return
 
     with complete_step("Copying in skeleton file trees…"):
-        for source, target in state.config.skeleton_trees:
+        for tree in state.config.skeleton_trees:
+            source, target = tree.with_prefix()
             install_tree(state.config, source, state.root, target)
 
 
@@ -1045,7 +1063,8 @@ def install_package_manager_trees(state: MkosiState) -> None:
         return
 
     with complete_step("Copying in package manager file trees…"):
-        for source, target in state.config.package_manager_trees:
+        for tree in state.config.package_manager_trees:
+            source, target = tree.with_prefix()
             install_tree(state.config, source, state.workspace / "pkgmngr", target)
 
 
@@ -1054,7 +1073,8 @@ def install_extra_trees(state: MkosiState) -> None:
         return
 
     with complete_step("Copying in extra file trees…"):
-        for source, target in state.config.extra_trees:
+        for tree in state.config.extra_trees:
+            source, target = tree.with_prefix()
             install_tree(state.config, source, state.root, target)
 
 
@@ -1106,7 +1126,7 @@ def build_initrd(state: MkosiState) -> Path:
         *(["--mirror", state.config.mirror] if state.config.mirror else []),
         "--repository-key-check", str(state.config.repository_key_check),
         "--repositories", ",".join(state.config.repositories),
-        "--package-manager-tree", ",".join(format_source_target(s, t) for s, t in state.config.package_manager_trees),
+        "--package-manager-tree", ",".join(format_tree(t) for t in state.config.package_manager_trees),
         *(["--compress-output", str(state.config.compress_output)] if state.config.compress_output else []),
         "--with-network", str(state.config.with_network),
         "--cache-only", str(state.config.cache_only),
@@ -1620,9 +1640,9 @@ def check_inputs(config: MkosiConfig) -> None:
     for name, trees in (("Skeleton", config.skeleton_trees),
                         ("Package manager", config.package_manager_trees),
                         ("Extra", config.extra_trees)):
-        for src, _ in trees:
-            if not src.exists():
-                die(f"{name} tree {src} not found")
+        for tree in trees:
+            if not tree.source.exists():
+                die(f"{name} tree {tree.source} not found")
 
     if config.bootable != ConfigFeature.disabled:
         for p in config.initrds:
@@ -2095,7 +2115,7 @@ def normalize_mtime(root: Path, mtime: Optional[int], directory: Optional[Path] 
 
 def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
     manifest = Manifest(config) if config.manifest_format else None
-    workspace = tempfile.TemporaryDirectory(dir=config.workspace_dir_or_cwd(), prefix=".mkosi-tmp")
+    workspace = tempfile.TemporaryDirectory(dir=config.workspace_dir_or_default(), prefix=".mkosi-tmp")
 
     with workspace, scopedenv({"TMPDIR" : workspace.name}):
         state = MkosiState(args, config, Path(workspace.name))
@@ -2241,8 +2261,8 @@ def acl_toggle_build(config: MkosiConfig, uid: int) -> Iterator[None]:
         yield
         return
 
-    extras = [e[0] for e in config.extra_trees]
-    skeletons = [s[0] for s in config.skeleton_trees]
+    extras = [t.source for t in config.extra_trees]
+    skeletons = [t.source for t in config.skeleton_trees]
 
     with contextlib.ExitStack() as stack:
         for p in (*config.base_trees, *extras, *skeletons):
@@ -2315,13 +2335,14 @@ def run_shell(args: MkosiArgs, config: MkosiConfig) -> None:
         else:
             cmdline += ["--image", fname]
 
-        for src, tgt in config.runtime_trees:
+        for tree in config.runtime_trees:
+            target = Path("/root/src") / (tree.target or tree.source.name)
             # We add norbind because very often RuntimeTrees= will be used to mount the source directory into the
             # container and the output directory from which we're running will very likely be a subdirectory of the
             # source directory which would mean we'd be mounting the container root directory as a subdirectory in
             # itself which tends to lead to all kinds of weird issues, which we avoid by not doing a recursive mount
             # which means the container root directory mounts will be skipped.
-            cmdline += ["--bind", f"{src}:{tgt or f'/root/src/{src.name}'}:norbind,rootidmap"]
+            cmdline += ["--bind", f"{tree.source}:{target}:norbind,rootidmap"]
 
         if args.verb == Verb.boot:
             # Add nspawn options first since systemd-nspawn ignores all options after the first argument.
@@ -2592,6 +2613,19 @@ def mount_tools(tree: Optional[Path]) -> Iterator[None]:
         yield
 
 
+def check_workspace_directory(config: MkosiConfig) -> None:
+    wd = config.workspace_dir_or_default()
+
+    if wd.is_relative_to(Path.cwd()):
+        die(f"The workspace directory ({wd}) cannot be located in the current working directory ({Path.cwd()})",
+            hint="Use WorkspaceDirectory= to configure a different workspace directory")
+
+    for tree in config.build_sources:
+        if wd.is_relative_to(tree.source):
+            die(f"The workspace directory ({wd}) cannot be a subdirectory of any source directory ({tree.source})",
+                hint="Use WorkspaceDirectory= to configure a different workspace directory")
+
+
 def run_verb(args: MkosiArgs, images: Sequence[MkosiConfig]) -> None:
     if args.verb.needs_root() and os.getuid() != 0:
         die(f"Must be root to run the {args.verb} command")
@@ -2622,6 +2656,9 @@ def run_verb(args: MkosiArgs, images: Sequence[MkosiConfig]) -> None:
 
         page(text, args.pager)
         return
+
+    for config in images:
+        check_workspace_directory(config)
 
     images = finalize_tools(args, images)
     last = images[-1]

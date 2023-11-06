@@ -38,6 +38,9 @@
   `-kernel` or `QemuKernel=`
 - We don't create subdirectories beneath the configured cache directory
   anymore.
+- Source directories are now made ephemeral when running scripts. This
+  means any changes made to source directories while running scripts
+  will be undone after the scripts have finished executing.
 
 ## v18
 

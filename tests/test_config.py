@@ -14,6 +14,7 @@ from mkosi.architecture import Architecture
 from mkosi.config import (
     Compression,
     ConfigFeature,
+    ConfigTree,
     MkosiConfig,
     OutputFormat,
     Verb,
@@ -639,8 +640,8 @@ def test_package_manager_tree(tmp_path: Path, skel: Optional[Path], pkgmngr: Opt
 
         _, [conf] = parse_config()
 
-        skel_expected = [(skel, Path("/"))] if skel is not None else []
-        pkgmngr_expected = [(pkgmngr, Path("/"))] if pkgmngr is not None else skel_expected
+        skel_expected = [ConfigTree(skel, None)] if skel is not None else []
+        pkgmngr_expected = [ConfigTree(pkgmngr, None)] if pkgmngr is not None else skel_expected
 
         assert conf.skeleton_trees == skel_expected
         assert conf.package_manager_trees == pkgmngr_expected
