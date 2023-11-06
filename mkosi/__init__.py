@@ -321,18 +321,24 @@ def mount_build_overlay(state: MkosiState, volatile: bool = False) -> Iterator[P
         yield state.root
 
 
-def finalize_mounts(config: MkosiConfig) -> list[PathString]:
-    sources = [
-        (source, target)
-        for source, target
-        in [(Path.cwd(), Path.cwd())] + [t.with_prefix(Path.cwd()) for t in config.build_sources]
-    ]
+@contextlib.contextmanager
+def finalize_mounts(config: MkosiConfig) -> Iterator[list[PathString]]:
+    with contextlib.ExitStack() as stack:
+        sources = [
+            (stack.enter_context(mount_overlay([source])), target)
+            for source, target
+            in [(Path.cwd(), Path.cwd())] + [t.with_prefix(Path.cwd()) for t in config.build_sources]
+        ]
 
-    # bwrap() mounts /home and /var read-only during execution. So let's add the bind mount options for the
-    # directories that could be in /home or /var that we do need to be writable.
-    sources += [(d, d) for d in (config.workspace_dir, config.cache_dir, config.output_dir, config.build_dir) if d]
+        # bwrap() mounts /home and /var read-only during execution. So let's add the bind mount options for the
+        # directories that could be in /home or /var that we do need to be writable.
+        sources += [
+            (d, d)
+            for d in (config.workspace_dir_or_default(), config.cache_dir, config.output_dir, config.build_dir)
+            if d
+        ]
 
-    return flatten(["--bind", src, target] for src, target in sorted(set(sources), key=lambda s: s[1]))
+        yield flatten(["--bind", src, target] for src, target in sorted(set(sources), key=lambda s: s[1]))
 
 
 def script_maybe_chroot(script: Path, mountpoint: str) -> list[str]:
@@ -407,6 +413,7 @@ def run_prepare_scripts(state: MkosiState, build: bool) -> None:
             step_msg = "Running prepare script {}…"
             arg = "final"
 
+        mounts = stack.enter_context(finalize_mounts(state.config))
         cd = stack.enter_context(finalize_chroot_scripts(state))
 
         for script in state.config.prepare_scripts:
@@ -432,7 +439,7 @@ def run_prepare_scripts(state: MkosiState, build: bool) -> None:
                     script_maybe_chroot(script, "/work/prepare") + [arg],
                     network=True,
                     readonly=True,
-                    options=finalize_mounts(state.config),
+                    options=mounts,
                     scripts=hd,
                     env=env | state.config.environment,
                     stdin=sys.stdin,
@@ -469,6 +476,7 @@ def run_build_scripts(state: MkosiState) -> None:
     with (
         mount_build_overlay(state, volatile=True),
         finalize_chroot_scripts(state) as cd,
+        finalize_mounts(state.config) as mounts,
     ):
         for script in state.config.build_scripts:
             helpers = {
@@ -502,7 +510,7 @@ def run_build_scripts(state: MkosiState) -> None:
                     script_maybe_chroot(script, "/work/build-script") + cmdline,
                     network=state.config.with_network,
                     readonly=True,
-                    options=finalize_mounts(state.config),
+                    options=mounts,
                     scripts=hd,
                     env=env | state.config.environment,
                     stdin=sys.stdin,
@@ -525,7 +533,10 @@ def run_postinst_scripts(state: MkosiState) -> None:
         SRCDIR=str(Path.cwd()),
     )
 
-    with finalize_chroot_scripts(state) as cd:
+    with (
+        finalize_chroot_scripts(state) as cd,
+        finalize_mounts(state.config) as mounts,
+    ):
         for script in state.config.postinst_scripts:
             helpers = {
                 "mkosi-chroot": chroot_cmd(
@@ -552,7 +563,7 @@ def run_postinst_scripts(state: MkosiState) -> None:
                     script_maybe_chroot(script, "/work/postinst") + ["final"],
                     network=state.config.with_network,
                     readonly=True,
-                    options=finalize_mounts(state.config),
+                    options=mounts,
                     scripts=hd,
                     env=env | state.config.environment,
                     stdin=sys.stdin,
@@ -575,7 +586,10 @@ def run_finalize_scripts(state: MkosiState) -> None:
         SRCDIR=str(Path.cwd()),
     )
 
-    with finalize_chroot_scripts(state) as cd:
+    with (
+        finalize_chroot_scripts(state) as cd,
+        finalize_mounts(state.config) as mounts,
+    ):
         for script in state.config.finalize_scripts:
             helpers = {
                 "mkosi-chroot": chroot_cmd(
@@ -602,7 +616,7 @@ def run_finalize_scripts(state: MkosiState) -> None:
                     script_maybe_chroot(script, "/work/finalize"),
                     network=state.config.with_network,
                     readonly=True,
-                    options=finalize_mounts(state.config),
+                    options=mounts,
                     scripts=hd,
                     env=env | state.config.environment,
                     stdin=sys.stdin,
@@ -2606,9 +2620,9 @@ def check_workspace_directory(config: MkosiConfig) -> None:
         die(f"The workspace directory ({wd}) cannot be located in the current working directory ({Path.cwd()})",
             hint="Use WorkspaceDirectory= to configure a different workspace directory")
 
-    for src, _ in config.build_sources:
-        if wd.is_relative_to(src):
-            die(f"The workspace directory ({wd}) cannot be a subdirectory of any source directory ({src})",
+    for tree in config.build_sources:
+        if wd.is_relative_to(tree.source):
+            die(f"The workspace directory ({wd}) cannot be a subdirectory of any source directory ({tree.source})",
                 hint="Use WorkspaceDirectory= to configure a different workspace directory")
 
 

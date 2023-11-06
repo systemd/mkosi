@@ -1671,10 +1671,16 @@ available via `$PATH` to simplify common usecases.
   ```
 
 When scripts are executed, any directories that are still writable are
-also made read-only (`/home`, `/var`, `/root`, ...) and only the minimal set
-of directories that need to be writable remain writable. This is to
+also made read-only (`/home`, `/var`, `/root`, ...) and only the minimal
+set of directories that need to be writable remain writable. This is to
 ensure that scripts can't mess with the host system when mkosi is
 running as root.
+
+Note that when executing scripts, all source directories are made
+ephemeral which means all changes made to source directories while
+running scripts are thrown away after the scripts finish executing. Use
+the output, build or cache directories if you need to persist data
+between builds.
 
 # Files
 
