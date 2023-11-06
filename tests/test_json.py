@@ -99,6 +99,7 @@ def test_config() -> None:
                     "target": "/frob"
                 }
             ],
+            "BuildSourcesEphemeral": true,
             "CacheDirectory": "/is/this/the/cachedir",
             "CacheOnly": true,
             "Checksum": false,
@@ -268,6 +269,7 @@ def test_config() -> None:
         build_packages =  ["pkg1", "pkg2"],
         build_scripts =  [Path("/path/to/buildscript")],
         build_sources = [ConfigTree(Path("/qux"), Path("/frob"))],
+        build_sources_ephemeral = True,
         cache_dir = Path("/is/this/the/cachedir"),
         cache_only =  True,
         checksum =  False,

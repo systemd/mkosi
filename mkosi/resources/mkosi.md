@@ -906,6 +906,13 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   with all build sources mounted in it is mounted to `/work/src` inside
   the image's root directory.
 
+`BuildSourcesEphemeral=`, `--build-sources-ephemeral=`
+
+: Takes a boolean. Disabled by default. Configures whether changes to
+  source directories (The working directory and configured using
+  `BuildSources=`) are persisted. If enabled, all source directories
+  will be reset to their original state after scripts finish executing.
+
 `Environment=`, `--environment=`
 
 : Adds variables to the environment that package managers and the

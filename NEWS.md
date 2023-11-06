@@ -38,9 +38,10 @@
   `-kernel` or `QemuKernel=`
 - We don't create subdirectories beneath the configured cache directory
   anymore.
-- Source directories are now made ephemeral when running scripts. This
-  means any changes made to source directories while running scripts
-  will be undone after the scripts have finished executing.
+- Added `BuildSourcesEphemeral=` to make source directories ephemeral
+  when running scripts. This means any changes made to source
+  directories while running scripts will be undone after the scripts
+  have finished executing.
 - Workspace directories are now created outside of any source
   directories. mkosi will either use `XDG_CACHE_HOME`, `$HOME/.cache` or
   `/var/tmp` depending on the situation.

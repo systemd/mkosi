@@ -325,7 +325,7 @@ def mount_build_overlay(state: MkosiState, volatile: bool = False) -> Iterator[P
 def finalize_mounts(config: MkosiConfig) -> Iterator[list[PathString]]:
     with contextlib.ExitStack() as stack:
         sources = [
-            (stack.enter_context(mount_overlay([source])), target)
+            (stack.enter_context(mount_overlay([source])) if config.build_sources_ephemeral else source, target)
             for source, target
             in [(Path.cwd(), Path.cwd())] + [t.with_prefix(Path.cwd()) for t in config.build_sources]
         ]
