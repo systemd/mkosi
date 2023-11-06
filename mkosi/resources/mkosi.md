@@ -602,9 +602,8 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 : Path to a directory where to store data required temporarily while
   building the image. This directory should have enough space to store
   the full OS image, though in most modes the actually used disk space
-  is smaller. If not specified, and `mkosi.workspace/` exists in the
-  local directory, it is used for this purpose. Otherwise, hidden
-  subdirectories of the current working directory are used.
+  is smaller. If not specified, a subdirectory of `$XDG_CACHE_HOME` (if
+  set), `$HOME/.cache` (if set) or `/var/tmp` is used.
 
 : The data in this directory is removed automatically after each
   build. It's safe to manually remove the contents of this directory

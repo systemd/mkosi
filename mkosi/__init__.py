@@ -2101,7 +2101,7 @@ def normalize_mtime(root: Path, mtime: Optional[int], directory: Optional[Path] 
 
 def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
     manifest = Manifest(config) if config.manifest_format else None
-    workspace = tempfile.TemporaryDirectory(dir=config.workspace_dir_or_cwd(), prefix=".mkosi-tmp")
+    workspace = tempfile.TemporaryDirectory(dir=config.workspace_dir_or_default(), prefix=".mkosi-tmp")
 
     with workspace, scopedenv({"TMPDIR" : workspace.name}):
         state = MkosiState(args, config, Path(workspace.name))
@@ -2599,6 +2599,19 @@ def mount_tools(tree: Optional[Path]) -> Iterator[None]:
         yield
 
 
+def check_workspace_directory(config: MkosiConfig) -> None:
+    wd = config.workspace_dir_or_default()
+
+    if wd.is_relative_to(Path.cwd()):
+        die(f"The workspace directory ({wd}) cannot be located in the current working directory ({Path.cwd()})",
+            hint="Use WorkspaceDirectory= to configure a different workspace directory")
+
+    for src, _ in config.build_sources:
+        if wd.is_relative_to(src):
+            die(f"The workspace directory ({wd}) cannot be a subdirectory of any source directory ({src})",
+                hint="Use WorkspaceDirectory= to configure a different workspace directory")
+
+
 def run_verb(args: MkosiArgs, images: Sequence[MkosiConfig]) -> None:
     if args.verb.needs_root() and os.getuid() != 0:
         die(f"Must be root to run the {args.verb} command")
@@ -2629,6 +2642,9 @@ def run_verb(args: MkosiArgs, images: Sequence[MkosiConfig]) -> None:
 
         page(text, args.pager)
         return
+
+    for config in images:
+        check_workspace_directory(config)
 
     images = finalize_tools(args, images)
     last = images[-1]
