@@ -193,6 +193,10 @@ Those settings cannot be configured in the configuration files.
 : When executing a command in the image fails, mkosi will start an interactive
   shell in the image allowing further debugging.
 
+`--debug-workspace=`
+
+: When an error occurs, the workspace directory will not be deleted.
+
 `--version`
 
 : Show package version.

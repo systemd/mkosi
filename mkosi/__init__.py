@@ -44,7 +44,7 @@ from mkosi.config import (
 from mkosi.distributions import Distribution
 from mkosi.installer import clean_package_manager_metadata, package_manager_scripts
 from mkosi.kmod import gen_required_kernel_modules, process_kernel_modules
-from mkosi.log import ARG_DEBUG, complete_step, die, log_step
+from mkosi.log import ARG_DEBUG, complete_step, die, log_notice, log_step
 from mkosi.manifest import Manifest
 from mkosi.mounts import mount, mount_overlay, mount_passwd, mount_usr
 from mkosi.pager import page
@@ -2113,12 +2113,27 @@ def normalize_mtime(root: Path, mtime: Optional[int], directory: Optional[Path] 
             os.utime(p, (mtime, mtime), follow_symlinks=False)
 
 
+@contextlib.contextmanager
+def setup_workspace(args: MkosiArgs, config: MkosiConfig) -> Iterator[Path]:
+    with contextlib.ExitStack() as stack:
+        workspace = Path(tempfile.mkdtemp(dir=config.workspace_dir_or_default(), prefix="mkosi-workspace"))
+        stack.callback(lambda: rmtree(workspace))
+
+        with scopedenv({"TMPDIR" : os.fspath(workspace)}):
+            try:
+                yield Path(workspace)
+            except BaseException:
+                if args.debug_workspace:
+                    stack.pop_all()
+                    log_notice(f"Workspace: {workspace}")
+                    workspace.chmod(0o755)
+
+
 def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
     manifest = Manifest(config) if config.manifest_format else None
-    workspace = tempfile.TemporaryDirectory(dir=config.workspace_dir_or_default(), prefix=".mkosi-tmp")
 
-    with workspace, scopedenv({"TMPDIR" : workspace.name}):
-        state = MkosiState(args, config, Path(workspace.name))
+    with setup_workspace(args, config) as workspace:
+        state = MkosiState(args, config, workspace)
         install_package_manager_trees(state)
 
         with mount_base_trees(state):
