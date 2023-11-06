@@ -2798,7 +2798,7 @@ Clean Package Manager Metadata: {yes_no_auto(config.clean_package_metadata)}
 
          Kernel Modules Initrd: {yes_no(config.kernel_modules_initrd)}
  Kernel Modules Initrd Include: {line_join_list(config.kernel_modules_initrd_include)}
- Kernel Modules Initrd Exclude: {line_join_list(config.kernel_modules_initrd_include)}
+ Kernel Modules Initrd Exclude: {line_join_list(config.kernel_modules_initrd_exclude)}
 
                         Locale: {none_to_default(config.locale)}
                Locale Messages: {none_to_default(config.locale_messages)}
