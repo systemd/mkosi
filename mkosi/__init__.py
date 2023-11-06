@@ -528,8 +528,8 @@ def run_postinst_scripts(state: MkosiState) -> None:
         SRCDIR=str(Path.cwd()),
     )
 
-    for script in state.config.postinst_scripts:
-        with finalize_chroot_scripts(state) as cd:
+    with finalize_chroot_scripts(state) as cd:
+        for script in state.config.postinst_scripts:
             helpers = {
                 "mkosi-chroot": chroot_cmd(
                     state.root,
@@ -578,8 +578,8 @@ def run_finalize_scripts(state: MkosiState) -> None:
         SRCDIR=str(Path.cwd()),
     )
 
-    for script in state.config.finalize_scripts:
-        with finalize_chroot_scripts(state) as cd:
+    with finalize_chroot_scripts(state) as cd:
+        for script in state.config.finalize_scripts:
             helpers = {
                 "mkosi-chroot": chroot_cmd(
                     state.root,
