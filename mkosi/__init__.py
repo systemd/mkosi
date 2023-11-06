@@ -300,21 +300,28 @@ def mount_cache_overlay(state: MkosiState) -> Iterator[None]:
         yield
 
 
-def mount_build_overlay(state: MkosiState) -> contextlib.AbstractContextManager[Path]:
+@contextlib.contextmanager
+def mount_build_overlay(state: MkosiState, volatile: bool = False) -> Iterator[Path]:
     d = state.workspace / "build-overlay"
     if not d.is_symlink():
         with umask(~0o755):
             d.mkdir(exist_ok=True)
-    return mount_overlay([state.root], state.workspace / "build-overlay", state.root)
 
+    with contextlib.ExitStack() as stack:
+        lower = [state.root]
 
-@contextlib.contextmanager
-def mount_volatile_overlay(state: MkosiState) -> Iterator[Path]:
-    with tempfile.TemporaryDirectory() as d:
-        Path(d).chmod(0o755)
+        if volatile:
+            lower += [d]
+            upper = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix="build-overlay-volatile")))
+            st = d.stat()
+            os.chmod(upper, st.st_mode)
+            os.chown(upper, st.st_uid, st.st_gid)
+        else:
+            upper = d
 
-        with mount_overlay([state.root], Path(d), state.root) as p:
-            yield p
+        stack.enter_context(mount_overlay(lower, upper, state.root))
+
+        yield state.root
 
 
 def finalize_mounts(config: MkosiConfig) -> list[PathString]:
@@ -463,8 +470,7 @@ def run_build_scripts(state: MkosiState) -> None:
         )
 
     with (
-        mount_build_overlay(state),
-        mount_volatile_overlay(state),
+        mount_build_overlay(state, volatile=True),
         finalize_chroot_scripts(state) as cd,
     ):
         for script in state.config.build_scripts:
