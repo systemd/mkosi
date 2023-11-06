@@ -72,8 +72,25 @@ def mount(
 
 
 @contextlib.contextmanager
-def mount_overlay(lowerdirs: Sequence[Path], upperdir: Path, where: Path) -> Iterator[Path]:
-    with tempfile.TemporaryDirectory(dir=upperdir.parent, prefix=f"{upperdir.name}-workdir") as workdir:
+def mount_overlay(lowerdirs: Sequence[Path], upperdir: Optional[Path] = None, where: Optional[Path] = None) -> Iterator[Path]:
+    with contextlib.ExitStack() as stack:
+        if upperdir is None:
+            upperdir = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix="volatile-overlay")))
+            st = lowerdirs[-1].stat()
+            os.chmod(upperdir, st.st_mode)
+            os.chown(upperdir, st.st_uid, st.st_gid)
+
+        workdir = Path(
+            stack.enter_context(tempfile.TemporaryDirectory(dir=upperdir.parent, prefix=f"{upperdir.name}-workdir"))
+        )
+
+        if where is None:
+            where = Path(
+                stack.enter_context(
+                    tempfile.TemporaryDirectory(dir=upperdir.parent, prefix=f"{upperdir.name}-mountpoint")
+                )
+            )
+
         options = [
             f"lowerdir={':'.join(os.fspath(p) for p in reversed(lowerdirs))}",
             f"upperdir={upperdir}",

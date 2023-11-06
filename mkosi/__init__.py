@@ -312,10 +312,7 @@ def mount_build_overlay(state: MkosiState, volatile: bool = False) -> Iterator[P
 
         if volatile:
             lower += [d]
-            upper = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix="build-overlay-volatile")))
-            st = d.stat()
-            os.chmod(upper, st.st_mode)
-            os.chown(upper, st.st_uid, st.st_gid)
+            upper = None
         else:
             upper = d
 
