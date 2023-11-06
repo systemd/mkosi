@@ -74,7 +74,8 @@ def mount(
 @contextlib.contextmanager
 def mount_overlay(lowerdirs: Sequence[Path], upperdir: Path, where: Path) -> Iterator[Path]:
     with tempfile.TemporaryDirectory(dir=upperdir.parent, prefix=f"{upperdir.name}-workdir") as workdir:
-        options = [f"lowerdir={lower}" for lower in lowerdirs] + [
+        options = [
+            f"lowerdir={':'.join(os.fspath(p) for p in reversed(lowerdirs))}",
             f"upperdir={upperdir}",
             f"workdir={workdir}",
             # Disable the inodes index and metacopy (only copy metadata upwards if possible)
