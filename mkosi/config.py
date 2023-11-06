@@ -648,6 +648,7 @@ class MkosiArgs:
     directory: Optional[Path]
     debug: bool
     debug_shell: bool
+    debug_workspace: bool
     pager: bool
     genkey_valid_days: str
     genkey_common_name: str
@@ -2021,6 +2022,12 @@ def create_argument_parser(action: type[argparse.Action]) -> argparse.ArgumentPa
         default=False,
     )
     parser.add_argument(
+        "--debug-workspace",
+        help="When an error occurs, the workspace directory will not be deleted",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
         "--no-pager",
         action="store_false",
         dest="pager",
@@ -2772,8 +2779,8 @@ def summary(config: MkosiConfig) -> str:
               Manifest Formats: {maniformats}
                         Output: {bold(config.output_with_compression)}
                    Compression: {config.compress_output}
-              Output Directory: {none_to_default(config.output_dir)}
-           Workspace Directory: {none_to_default(config.workspace_dir)}
+              Output Directory: {config.output_dir_or_cwd()}
+           Workspace Directory: {config.workspace_dir_or_default()}
                Cache Directory: {none_to_none(config.cache_dir)}
                Build Directory: {none_to_none(config.build_dir)}
                       Image ID: {config.image_id}

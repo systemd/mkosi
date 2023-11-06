@@ -44,6 +44,10 @@ def log_step(text: str) -> None:
         logging.info(f"{prefix}{Style.bold}{text}{Style.reset}")
 
 
+def log_notice(text: str) -> None:
+    logging.info(f"{Style.bold}{text}{Style.reset}")
+
+
 @contextlib.contextmanager
 def complete_step(text: str, text2: Optional[str] = None) -> Iterator[list[Any]]:
     global LEVEL
