@@ -22,7 +22,7 @@ def filter_kernel_modules(root: Path, kver: str, include: Sequence[str], exclude
             rel = os.fspath(m.relative_to(modulesd / "kernel"))
             if regex.search(rel):
                 logging.debug(f"Including module {rel}")
-                keep.add(m)
+                keep.add(rel)
 
     for pattern in exclude:
         regex = re.compile(pattern)
