@@ -560,6 +560,15 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   kernel image with the OS image in the `.initrd` PE section) or `none` (the OS
   image is solely intended as a build image to produce another artifact).
 
+: If the `disk` output format is used, the disk image is generated using
+  `systemd-repart`. The repart partition definition files to use can be
+  configured using the `RepartDirectories=` setting or via
+  `mkosi.repart/`. When verity partitions are configured using
+  systemd-repart's `Verity=` setting, mkosi will automatically parse the
+  verity hash partition's roothash from systemd-repart's JSON output and
+  include it in the kernel command line of every unified kernel image
+  built by mkosi.
+
 `ManifestFormat=`, `--manifest-format=`
 
 : The manifest format type or types to generate. A comma-delimited
