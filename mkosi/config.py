@@ -75,6 +75,15 @@ class ConfigFeature(StrEnum):
     disabled = enum.auto()
 
 
+@dataclasses.dataclass(frozen=True)
+class ConfigTree:
+    source: Path
+    target: Optional[Path]
+
+    def with_prefix(self, prefix: Path = Path("/")) -> tuple[Path, Path]:
+        return (self.source, prefix / os.fspath(self.target).lstrip("/") if self.target else prefix)
+
+
 class SecureBootSignTool(StrEnum):
     auto   = enum.auto()
     sbsign = enum.auto()
@@ -185,22 +194,17 @@ def parse_path(value: str,
     return path
 
 
-def make_source_target_paths_parser(absolute: bool = True) -> Callable[[str], tuple[Path, Path]]:
-    def parse_source_target_paths(value: str) -> tuple[Path, Path]:
-        src, sep, target = value.partition(':')
-        src_path = parse_path(src, required=False)
-        if sep:
-            target_path = parse_path(target, required=False, resolve=False, expanduser=False)
-            target_path = Path("/") / target_path if absolute else Path(str(target_path).lstrip("/"))
-        else:
-            target_path = Path("/") if absolute else Path(".")
-        return src_path, target_path
+def parse_tree(value: str) -> ConfigTree:
+    src, sep, tgt = value.partition(':')
 
-    return parse_source_target_paths
+    return ConfigTree(
+        source=parse_path(src, required=False),
+        target=parse_path(tgt, required=False, resolve=False, expanduser=False) if sep else None,
+    )
 
 
-def config_match_build_sources(match: str, value: list[tuple[Path, Path]]) -> bool:
-    return Path(match.lstrip("/")) in [t for _, t in value]
+def config_match_build_sources(match: str, value: list[ConfigTree]) -> bool:
+    return Path(match.lstrip("/")) in [tree.target for tree in value if tree.target]
 
 
 def config_parse_string(value: Optional[str], old: Optional[str]) -> Optional[str]:
@@ -733,7 +737,7 @@ class MkosiConfig:
     repository_key_check: bool
     repositories: list[str]
     cache_only: bool
-    package_manager_trees: list[tuple[Path, Path]]
+    package_manager_trees: list[ConfigTree]
 
     output_format: OutputFormat
     manifest_format: list[ManifestFormat]
@@ -758,8 +762,8 @@ class MkosiConfig:
     with_docs: bool
 
     base_trees: list[Path]
-    skeleton_trees: list[tuple[Path, Path]]
-    extra_trees: list[tuple[Path, Path]]
+    skeleton_trees: list[ConfigTree]
+    extra_trees: list[ConfigTree]
 
     remove_packages: list[str]
     remove_files: list[str]
@@ -770,7 +774,7 @@ class MkosiConfig:
     build_scripts: list[Path]
     postinst_scripts: list[Path]
     finalize_scripts: list[Path]
-    build_sources: list[tuple[Path, Path]]
+    build_sources: list[ConfigTree]
     environment: dict[str, str]
     with_tests: bool
     with_network: bool
@@ -824,7 +828,7 @@ class MkosiConfig:
     tools_tree_release: Optional[str]
     tools_tree_mirror: Optional[str]
     tools_tree_packages: list[str]
-    runtime_trees: list[tuple[Path, Path]]
+    runtime_trees: list[ConfigTree]
     runtime_size: Optional[int]
 
     # QEMU-specific options
@@ -1151,7 +1155,7 @@ SETTINGS = (
         long="--package-manager-tree",
         metavar="PATH",
         section="Distribution",
-        parse=config_make_list_parser(delimiter=",", parse=make_source_target_paths_parser()),
+        parse=config_make_list_parser(delimiter=",", parse=parse_tree),
         default_factory=lambda ns: ns.skeleton_trees,
         default_factory_depends=("skeleton_trees",),
         help="Use a package manager tree to configure the package manager",
@@ -1346,7 +1350,7 @@ SETTINGS = (
         long="--skeleton-tree",
         metavar="PATH",
         section="Content",
-        parse=config_make_list_parser(delimiter=",", parse=make_source_target_paths_parser()),
+        parse=config_make_list_parser(delimiter=",", parse=parse_tree),
         paths=("mkosi.skeleton", "mkosi.skeleton.tar"),
         path_default=False,
         help="Use a skeleton tree to bootstrap the image before installing anything",
@@ -1356,7 +1360,7 @@ SETTINGS = (
         long="--extra-tree",
         metavar="PATH",
         section="Content",
-        parse=config_make_list_parser(delimiter=",", parse=make_source_target_paths_parser()),
+        parse=config_make_list_parser(delimiter=",", parse=parse_tree),
         paths=("mkosi.extra", "mkosi.extra.tar"),
         path_default=False,
         help="Copy an extra tree on top of image",
@@ -1441,7 +1445,7 @@ SETTINGS = (
         dest="build_sources",
         metavar="PATH",
         section="Content",
-        parse=config_make_list_parser(delimiter=",", parse=make_source_target_paths_parser(absolute=False)),
+        parse=config_make_list_parser(delimiter=",", parse=parse_tree),
         match=config_match_build_sources,
         help="Path for sources to build",
     ),
@@ -1902,7 +1906,7 @@ SETTINGS = (
         long="--runtime-tree",
         metavar="SOURCE:[TARGET]",
         section="Host",
-        parse=config_make_list_parser(delimiter=",", parse=make_source_target_paths_parser()),
+        parse=config_make_list_parser(delimiter=",", parse=parse_tree),
         help="Additional mounts to add when booting the image",
     ),
     MkosiConfigSetting(
@@ -2692,15 +2696,15 @@ def line_join_list(array: Iterable[PathString]) -> str:
     return "\n                                ".join(items)
 
 
-def format_source_target(source: Path, target: Optional[Path]) -> str:
-    return f"{source}:{target}" if target else f"{source}"
+def format_tree(tree: ConfigTree) -> str:
+    return f"{tree.source}:{tree.target}" if tree.target else f"{tree.source}"
 
 
-def line_join_source_target_list(array: Sequence[tuple[Path, Optional[Path]]]) -> str:
+def line_join_tree_list(array: Sequence[ConfigTree]) -> str:
     if not array:
         return "none"
 
-    items = [format_source_target(source, target) for source, target in array]
+    items = [format_tree(tree) for tree in array]
     return "\n                                ".join(items)
 
 
@@ -2744,7 +2748,7 @@ def summary(config: MkosiConfig) -> str:
       Repo Signature/Key check: {yes_no(config.repository_key_check)}
                   Repositories: {line_join_list(config.repositories)}
         Use Only Package Cache: {yes_no(config.cache_only)}
-         Package Manager Trees: {line_join_source_target_list(config.package_manager_trees)}
+         Package Manager Trees: {line_join_tree_list(config.package_manager_trees)}
 
     {bold("OUTPUT")}:
                  Output Format: {config.output_format}
@@ -2770,8 +2774,8 @@ def summary(config: MkosiConfig) -> str:
             With Documentation: {yes_no(config.with_docs)}
 
                     Base Trees: {line_join_list(config.base_trees)}
-                Skeleton Trees: {line_join_source_target_list(config.skeleton_trees)}
-                   Extra Trees: {line_join_source_target_list(config.extra_trees)}
+                Skeleton Trees: {line_join_tree_list(config.skeleton_trees)}
+                   Extra Trees: {line_join_tree_list(config.extra_trees)}
 
                Remove Packages: {line_join_list(config.remove_packages)}
                   Remove Files: {line_join_list(config.remove_files)}
@@ -2782,7 +2786,7 @@ Clean Package Manager Metadata: {yes_no_auto(config.clean_package_metadata)}
                  Build Scripts: {line_join_list(config.build_scripts)}
            Postinstall Scripts: {line_join_list(config.postinst_scripts)}
               Finalize Scripts: {line_join_list(config.finalize_scripts)}
-                 Build Sources: {line_join_source_target_list(config.build_sources)}
+                 Build Sources: {line_join_tree_list(config.build_sources)}
             Script Environment: {line_join_list(env)}
     Run Tests in Build Scripts: {yes_no(config.with_tests)}
           Scripts With Network: {yes_no(config.with_network)}
@@ -2845,7 +2849,7 @@ Clean Package Manager Metadata: {yes_no_auto(config.clean_package_metadata)}
             Tools Tree Release: {none_to_none(config.tools_tree_release)}
              Tools Tree Mirror: {none_to_default(config.tools_tree_mirror)}
            Tools Tree Packages: {line_join_list(config.tools_tree_packages)}
-                 Runtime Trees: {line_join_source_target_list(config.runtime_trees)}
+                 Runtime Trees: {line_join_tree_list(config.runtime_trees)}
                   Runtime Size: {format_bytes_or_none(config.runtime_size)}
 
                       QEMU GUI: {yes_no(config.qemu_gui)}
@@ -2900,17 +2904,18 @@ def json_type_transformer(refcls: Union[type[MkosiArgs], type[MkosiConfig]]) -> 
             return None
         return (cast(str, rootpw[0]), cast(bool, rootpw[1]))
 
-    def source_target_transformer(
-        trees: list[list[Optional[str]]], fieldtype: type[list[tuple[Path, Path]]]
-    ) -> list[tuple[Path, Path]]:
+    def config_tree_transformer(trees: list[dict[str, Any]], fieldtype: type[ConfigTree]) -> list[ConfigTree]:
         # TODO: exchange for TypeGuard and list comprehension once on 3.10
         ret = []
-        for src, tgt in trees:
-            assert src is not None
-            assert tgt is not None
-            source = Path(src)
-            target = Path(tgt)
-            ret.append((source, target))
+        for d in trees:
+            assert "source" in d
+            assert "target" in d
+            ret.append(
+                ConfigTree(
+                    source=Path(d["source"]),
+                    target=Path(d["target"]) if d["target"] is not None else None,
+                )
+            )
         return ret
 
     def enum_transformer(enumval: str, fieldtype: type[E]) -> E:
@@ -2932,7 +2937,7 @@ def json_type_transformer(refcls: Union[type[MkosiArgs], type[MkosiConfig]]) -> 
         list[Path]: path_list_transformer,
         Optional[uuid.UUID]: optional_uuid_transformer,
         Optional[tuple[str, bool]]: root_password_transformer,
-        list[tuple[Path, Path]]: source_target_transformer,
+        list[ConfigTree]: config_tree_transformer,
         tuple[str, ...]: str_tuple_transformer,
         Architecture: enum_transformer,
         BiosBootloader: enum_transformer,

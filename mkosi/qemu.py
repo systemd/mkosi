@@ -549,13 +549,14 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
         if root:
             kcl += [root]
 
-        for src, target in config.runtime_trees:
-            sock = stack.enter_context(start_virtiofsd(src, uidmap=True))
+        for tree in config.runtime_trees:
+            sock = stack.enter_context(start_virtiofsd(tree.source, uidmap=True))
             cmdline += [
                 "-chardev", f"socket,id={sock.name},path={sock}",
                 "-device", f"vhost-user-fs-pci,queue-size=1024,chardev={sock.name},tag={sock.name}",
             ]
-            kcl += [f"systemd.mount-extra={sock.name}:{target or f'/root/src/{src.name}'}:virtiofs"]
+            target = Path("/root/src") / (tree.target or tree.source.name)
+            kcl += [f"systemd.mount-extra={sock.name}:{target}:virtiofs"]
 
         if kernel and (KernelType.identify(kernel) != KernelType.uki or not config.architecture.supports_smbios()):
             cmdline += ["-append", " ".join(kcl)]
