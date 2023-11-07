@@ -13,6 +13,7 @@ from mkosi.config import (
     BiosBootloader,
     Bootloader,
     Compression,
+    QemuDrive,
     ConfigFeature,
     ConfigTree,
     DocFormat,
@@ -186,6 +187,20 @@ def test_config() -> None:
             "Profile": "profile",
             "QemuArgs": [],
             "QemuCdrom": false,
+            "QemuDrives": [
+                {
+                    "directory": "/foo/bar",
+                    "id": "abc",
+                    "options": "abc,qed",
+                    "size": 200
+                },
+                {
+                    "directory": null,
+                    "id": "abc",
+                    "options": "",
+                    "size": 200
+                }
+            ],
             "QemuFirmware": "linux",
             "QemuGui": true,
             "QemuKernel": null,
@@ -320,6 +335,7 @@ def test_config() -> None:
         profile = "profile",
         qemu_args = [],
         qemu_cdrom = False,
+        qemu_drives = [QemuDrive("abc", 200, Path("/foo/bar"), "abc,qed"), QemuDrive("abc", 200, None, "")],
         qemu_firmware = QemuFirmware.linux,
         qemu_gui = True,
         qemu_kernel = None,
