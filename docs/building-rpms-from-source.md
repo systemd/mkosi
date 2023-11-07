@@ -26,11 +26,16 @@ example, in `mkosi.local.conf`, we could have the following settings:
 [Content]
 BuildSources=../mkosi:mkosi
              ../fedora/mkosi:mkosi/rpm
+BuildSourcesEphemeral=yes
 ```
 
 Which instructs mkosi to mount the local version of the mkosi upstream
 repository at `../mkosi` to `mkosi` in the current working directory
 when running mkosi. The Fedora RPM spec is mounted at `mkosi/rpm`.
+
+We enable the `BuildSourcesEphemeral=` option as `rpmbuild` will write
+quite a few files to the source directory as part of building the rpm
+which we don't want to remain there after the build finishes.
 
 We use `rpmspec` and `rpmbuild`, but these do not really support running
 from outside of the image that the RPM is being built in, so we have to
