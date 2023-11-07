@@ -1247,6 +1247,19 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   configured firmware, qemu might boot the kernel itself or using the
   configured firmware.
 
+`QemuDrives=`, `--qemu-drive=`
+
+: Add a qemu drive. Takes a colon-delimited string of format
+  `<id>:<size>[:<directory>[:<options>]]`. `id` specifies the qemu id we
+  assign to the drive. This can be used as the `drive=` property in
+  various qemu devices. `size` specifies the size of the drive. This
+  takes a size in bytes. Additionally, the suffixes `K`, `M` and `G` can
+  be used to specify a size in kilobytes, megabytes and gigabytes
+  respectively. `directory` optionally specifies the directory in which
+  to create the file backing the drive. `options` optionally specifies
+  extra comma-delimited properties which are passed verbatime to qemu's
+  `-drive` option.
+
 `QemuArgs=`
 
 : Space-delimited list of additional arguments to pass when invoking

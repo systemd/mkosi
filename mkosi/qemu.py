@@ -623,6 +623,19 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
             addr, notifications = stack.enter_context(vsock_notify_handler())
             cmdline += ["-smbios", f"type=11,value=io.systemd.credential:vmm.notify_socket={addr}"]
 
+        for drive in config.qemu_drives:
+            file = stack.enter_context(
+                tempfile.NamedTemporaryFile(dir=drive.directory or "/var/tmp", prefix=f"mkosi-drive-{drive.id}")
+            )
+            file.truncate(drive.size)
+            os.chown(file.name, INVOKING_USER.uid, INVOKING_USER.gid)
+
+            arg = f"if=none,id={drive.id},file={file.name},format=raw"
+            if drive.options:
+                arg += f",{drive.options}"
+
+            cmdline += ["-drive", arg]
+
         cmdline += config.qemu_args
         cmdline += args.cmdline
 

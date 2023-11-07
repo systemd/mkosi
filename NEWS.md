@@ -63,6 +63,8 @@
 - mkosi now fails if configuration specified via the CLI does not apply
   to any image (because it is overridden).
 - `PackageManagerTrees=` was moved to the `Distribution` section.
+- Added `QemuDrives=` to have mkosi create extra qemu drives and pass
+  them to qemu when using the `qemu` verb.
 
 ## v18
 

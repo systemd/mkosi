@@ -84,6 +84,14 @@ class ConfigTree:
         return (self.source, prefix / os.fspath(self.target).lstrip("/") if self.target else prefix)
 
 
+@dataclasses.dataclass(frozen=True)
+class QemuDrive:
+    id: str
+    size: int
+    directory: Optional[Path]
+    options: Optional[str]
+
+
 class SecureBootSignTool(StrEnum):
     auto   = enum.auto()
     sbsign = enum.auto()
@@ -489,10 +497,7 @@ def match_systemd_version(value: str) -> bool:
     return config_match_version(value, version)
 
 
-def config_parse_bytes(value: Optional[str], old: Optional[int] = None) -> Optional[int]:
-    if not value:
-        return None
-
+def parse_bytes(value: str) -> int:
     if value.endswith("G"):
         factor = 1024**3
     elif value.endswith("M"):
@@ -516,6 +521,13 @@ def config_parse_bytes(value: Optional[str], old: Optional[int] = None) -> Optio
     return result
 
 
+def config_parse_bytes(value: Optional[str], old: Optional[int] = None) -> Optional[int]:
+    if not value:
+        return None
+
+    return parse_bytes(value)
+
+
 def config_parse_profile(value: Optional[str], old: Optional[int] = None) -> Optional[str]:
     if not value:
         return None
@@ -525,6 +537,29 @@ def config_parse_profile(value: Optional[str], old: Optional[int] = None) -> Opt
             hint="Profile= or --profile= requires a name with no path components.")
 
     return value
+
+
+def parse_drive(value: str) -> QemuDrive:
+    parts = value.split(":", maxsplit=3)
+    if not parts or not parts[0]:
+        die(f"No ID specified for drive '{value}'")
+
+    if len(parts) < 2:
+        die(f"Missing size in drive '{value}")
+
+    if len(parts) > 4:
+        die(f"Too many components in drive '{value}")
+
+    id = parts[0]
+    if not is_valid_filename(id):
+        die(f"Unsupported path character in drive id '{id}'")
+
+    size = parse_bytes(parts[1])
+
+    directory = parse_path(parts[2]) if len(parts) > 2 and parts[2] else None
+    options = parts[3] if len(parts) > 3 and parts[3] else None
+
+    return QemuDrive(id=id, size=size, directory=directory, options=options)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -843,6 +878,7 @@ class MkosiConfig:
     qemu_cdrom: bool
     qemu_firmware: QemuFirmware
     qemu_kernel: Optional[Path]
+    qemu_drives: list[QemuDrive]
     qemu_args: list[str]
 
     image: Optional[str]
@@ -1849,6 +1885,14 @@ SETTINGS = (
         section="Host",
         parse=config_make_path_parser(),
         help="Specify the kernel to use for qemu direct kernel boot",
+    ),
+    MkosiConfigSetting(
+        dest="qemu_drives",
+        long="--qemu-drive",
+        metavar="DRIVE",
+        section="Host",
+        parse=config_make_list_parser(delimiter=" ", parse=parse_drive),
+        help="Specify a qemu drive that mkosi should create and pass to qemu",
     ),
     MkosiConfigSetting(
         dest="qemu_args",
@@ -2964,6 +3008,24 @@ def json_type_transformer(refcls: Union[type[MkosiArgs], type[MkosiConfig]]) -> 
     def str_tuple_transformer(strtup: list[str], fieldtype: list[tuple[str, ...]]) -> tuple[str, ...]:
         return tuple(strtup)
 
+    def config_drive_transformer(drives: list[dict[str, Any]], fieldtype: type[QemuDrive]) -> list[QemuDrive]:
+        # TODO: exchange for TypeGuard and list comprehension once on 3.10
+        ret = []
+        for d in drives:
+            assert "id" in d
+            assert "size" in d
+            assert "directory" in d
+            assert "options" in d
+            ret.append(
+                QemuDrive(
+                    id=d["id"],
+                    size=int(d["size"]),
+                    directory=Path(d["directory"]) if d["directory"] else None,
+                    options=d["options"],
+                )
+            )
+        return ret
+
     transformers = {
         Path: path_transformer,
         Optional[Path]: optional_path_transformer,
@@ -2985,6 +3047,7 @@ def json_type_transformer(refcls: Union[type[MkosiArgs], type[MkosiConfig]]) -> 
         list[ManifestFormat]: enum_list_transformer,
         Verb: enum_transformer,
         DocFormat: enum_transformer,
+        list[QemuDrive]: config_drive_transformer,
     }
 
     def json_transformer(key: str, val: Any) -> Any:
