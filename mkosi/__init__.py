@@ -1955,7 +1955,7 @@ def reuse_cache(state: MkosiState) -> bool:
     return True
 
 
-def make_image(state: MkosiState, skip: Sequence[str] = [], split: bool = False) -> list[Partition]:
+def make_image(state: MkosiState, msg: str, skip: Sequence[str] = [], split: bool = False) -> list[Partition]:
     if not state.config.output_format == OutputFormat.disk:
         return []
 
@@ -1984,7 +1984,7 @@ def make_image(state: MkosiState, skip: Sequence[str] = [], split: bool = False)
         cmdline += ["--certificate", state.config.verity_certificate]
     if skip:
         cmdline += ["--defer-partitions", ",".join(skip)]
-    if split and state.config.split_artifacts:
+    if split:
         cmdline += ["--split=yes"]
     if state.config.sector_size:
         cmdline += ["--sector-size", state.config.sector_size]
@@ -2065,7 +2065,7 @@ def make_image(state: MkosiState, skip: Sequence[str] = [], split: bool = False)
         if option == "SOURCE_DATE_EPOCH":
             env[option] = value
 
-    with complete_step("Generating disk image"):
+    with complete_step(msg):
         output = json.loads(run(cmdline, stdout=subprocess.PIPE, env=env).stdout)
 
     logging.debug(json.dumps(output, indent=4))
@@ -2190,15 +2190,18 @@ def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
             run_finalize_scripts(state)
 
         normalize_mtime(state.root, state.config.source_date_epoch)
-        partitions = make_image(state, skip=("esp", "xbootldr"))
+        partitions = make_image(state, skip=("esp", "xbootldr"), msg="Generating disk image")
         install_uki(state, partitions)
         prepare_grub_efi(state)
         prepare_grub_bios(state, partitions)
         normalize_mtime(state.root, state.config.source_date_epoch, directory=Path("boot"))
         normalize_mtime(state.root, state.config.source_date_epoch, directory=Path("efi"))
-        partitions = make_image(state)
+        partitions = make_image(state, msg="Formatting ESP/XBOOTLDR partitions")
         install_grub_bios(state, partitions)
-        make_image(state, split=True)
+
+        if state.config.split_artifacts:
+            make_image(state, split=True, msg="Extracting partitions")
+
         copy_vmlinuz(state)
 
         if state.config.output_format == OutputFormat.tar:
