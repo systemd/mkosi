@@ -41,6 +41,27 @@
 - Source directories are now made ephemeral when running scripts. This
   means any changes made to source directories while running scripts
   will be undone after the scripts have finished executing.
+- Workspace directories are now created outside of any source
+  directories. mkosi will either use `XDG_CACHE_HOME`, `$HOME/.cache` or
+  `/var/tmp` depending on the situation.
+- Added a new doc on building rpms from source with mkosi
+  (`docs/building-rpms-from-source.md`)
+- Added `rpm` script to have `rpm` automatically operate on the image
+  when running scripts
+- Added `journalctl` and `coredumpctl` verbs for running the respective
+  tools on built directory or disk images
+- Added environment variable `MKOSI_DNF` to override which dnf to use
+  for building images (`dnf` or `dnf5`).
+- Added `mkosi-as-caller` helper script that can be used in scripts to
+  run commands as the user invoking mkosi
+- `mkosi-chroot` will now start a shell if no arguments are specified
+- Added `BuildSources=` match to match against configured build source
+  targets
+- mkosi will now parse `mkosi.local.conf` before any other config files
+  if it exists.
+- mkosi now fails if configuration specified via the CLI does not apply
+  to any image (because it is overridden).
+- `PackageManagerTrees=` was moved to the `Distribution` section.
 
 ## v18
 
