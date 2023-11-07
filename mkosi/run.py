@@ -6,6 +6,7 @@ import contextlib
 import ctypes
 import ctypes.util
 import enum
+import errno
 import fcntl
 import logging
 import os
@@ -144,7 +145,11 @@ def make_foreground_process(*, new_process_group: bool = True) -> None:
         if new_process_group:
             os.setpgrp()
         old = signal.signal(signal.SIGTTOU, signal.SIG_IGN)
-        os.tcsetpgrp(STDERR_FILENO, os.getpgrp())
+        try:
+            os.tcsetpgrp(STDERR_FILENO, os.getpgrp())
+        except OSError as e:
+            if e.errno != errno.ENOTTY:
+                raise e
         signal.signal(signal.SIGTTOU, old)
 
 
