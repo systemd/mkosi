@@ -9,7 +9,6 @@ from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import Optional
 
-from mkosi.log import complete_step
 from mkosi.run import run
 from mkosi.types import PathString
 from mkosi.util import INVOKING_USER, umask
@@ -26,12 +25,10 @@ def delete_whiteout_files(path: Path) -> None:
     Overlayfs uses such files to mark "whiteouts" (files present in
     the lower layers, but removed in the upper one).
     """
-
-    with complete_step("Removing overlay whiteout files…"):
-        for entry in path.rglob("*"):
-            # TODO: Use Path.stat() once we depend on Python 3.10+.
-            if stat_is_whiteout(os.stat(entry, follow_symlinks=False)):
-                entry.unlink()
+    for entry in path.rglob("*"):
+        # TODO: Use Path.stat() once we depend on Python 3.10+.
+        if stat_is_whiteout(os.stat(entry, follow_symlinks=False)):
+            entry.unlink()
 
 
 @contextlib.contextmanager
@@ -114,8 +111,7 @@ def mount_overlay(lowerdirs: Sequence[Path], upperdir: Optional[Path] = None, wh
             with mount("overlay", where, options=options, type="overlay"):
                 yield where
         finally:
-            with complete_step("Cleaning up overlayfs"):
-                delete_whiteout_files(upperdir)
+            delete_whiteout_files(upperdir)
 
 
 @contextlib.contextmanager
