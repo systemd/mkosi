@@ -776,6 +776,7 @@ class MkosiConfig:
     postinst_scripts: list[Path]
     finalize_scripts: list[Path]
     build_sources: list[ConfigTree]
+    build_sources_ephemeral: bool
     environment: dict[str, str]
     with_tests: bool
     with_network: bool
@@ -1466,6 +1467,13 @@ SETTINGS = (
         parse=config_make_list_parser(delimiter=",", parse=parse_tree),
         match=config_match_build_sources,
         help="Path for sources to build",
+    ),
+    MkosiConfigSetting(
+        dest="build_sources_ephemeral",
+        metavar="BOOL",
+        section="Content",
+        parse=config_parse_boolean,
+        help="Make build sources ephemeral when running scripts",
     ),
     MkosiConfigSetting(
         dest="environment",
@@ -2811,6 +2819,7 @@ Clean Package Manager Metadata: {yes_no_auto(config.clean_package_metadata)}
            Postinstall Scripts: {line_join_list(config.postinst_scripts)}
               Finalize Scripts: {line_join_list(config.finalize_scripts)}
                  Build Sources: {line_join_tree_list(config.build_sources)}
+       Build Sources Ephemeral: {yes_no(config.build_sources_ephemeral)}
             Script Environment: {line_join_list(env)}
     Run Tests in Build Scripts: {yes_no(config.with_tests)}
           Scripts With Network: {yes_no(config.with_network)}
