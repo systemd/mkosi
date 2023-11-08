@@ -65,30 +65,30 @@ mkosi-chroot \
     rpmspec \
     --query \
     "$DEPS" \
-    --define "_topdir $CHROOT_SRCDIR/mkosi" \
-    --define "_sourcedir $CHROOT_SRCDIR/mkosi/rpm" \
-    "$CHROOT_SRCDIR/mkosi/rpm/mkosi.spec" |
+    --define "_topdir mkosi" \
+    --define "_sourcedir mkosi/rpm" \
+    mkosi/rpm/mkosi.spec |
         grep -E -v "mkosi" |
         xargs -d '\n' dnf install --best
 
 if [ "$1" = "build" ]; then
     until mkosi-chroot \
-        sh -c 'cd $CHROOT_SRCDIR/mkosi && exec $0 "$@"' \
+        env --chdir=mkosi \
         rpmbuild \
         -bd \
         --build-in-place \
-        --define "_topdir $CHROOT_SRCDIR/mkosi" \
-        --define "_sourcedir $CHROOT_SRCDIR/mkosi/rpm" \
+        --define "_topdir ." \
+        --define "_sourcedir rpm" \
         --define "_build_name_fmt %%{NAME}-%%{VERSION}-%%{RELEASE}.%%{ARCH}.rpm" \
-        "$CHROOT_SRCDIR/mkosi/rpm/mkosi.spec"
+        rpm/mkosi.spec
     do
         EXIT_STATUS=$?
         if [ $EXIT_STATUS -ne 11 ]; then
             exit $EXIT_STATUS
         fi
 
-        dnf builddep "$SRCDIR"/mkosi/SRPMS/mkosi-*.buildreqs.nosrc.rpm
-        rm "$SRCDIR"/mkosi/SRPMS/mkosi-*.buildreqs.nosrc.rpm
+        dnf builddep mkosi/SRPMS/mkosi-*.buildreqs.nosrc.rpm
+        rm mkosi/SRPMS/mkosi-*.buildreqs.nosrc.rpm
     done
 fi
 ```
@@ -128,19 +128,18 @@ output directory (stored in `$OUTPUTDIR`). The build script
 #!/bin/sh
 set -e
 
-cd "$SRCDIR/mkosi"
-
-rpmbuild \
+env --chdir=mkosi \
+    rpmbuild \
     -bb \
     --build-in-place \
     $([ "$WITH_TESTS" = "0" ] && echo --nocheck) \
-    --define "_topdir $SRCDIR/mkosi" \
-    --define "_sourcedir $SRCDIR/mkosi/rpm" \
+    --define "_topdir $PWD" \
+    --define "_sourcedir rpm" \
     --define "_rpmdir $OUTPUTDIR" \
     ${BUILDDIR:+--define} \
     ${BUILDDIR:+"_vpath_builddir $BUILDDIR"} \
     --define "_build_name_fmt %%{NAME}-%%{VERSION}-%%{RELEASE}.%%{ARCH}.rpm" \
-    "$SRCDIR/mkosi/rpm/mkosi.spec"
+    rpm/mkosi.spec
 ```
 
 The `_vpath_builddir` directory will be used to store out-of-tree build
