@@ -1,0 +1,40 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
+import os
+import pathlib
+import subprocess
+
+def buildroot():
+    return pathlib.Path(os.getenv('BUILDROOT'))
+
+def mask_units(root):
+    units = [
+        # Dracut installs a rule which sets OPTIONS+="db_persist" on all dm devices [1]
+        # (According to codesearch.debian.net, it is the only user of db_persist.)
+        # Without this, all dm units end up with SYSTEMD_READY=0 and systemd thinks the
+        # device units are missing. The system boots fine, but an attempt to call
+        # daemon-reexec or daemon-reload ends with anything that can be stopped or unmounted
+        # being purged.
+        #
+        # In systemd, we always have cleaned the database on switch-root, since the initial
+        # addition of the initrd-* units in cf843477946451fabf9b5d17eec8ec81515057b6. But
+        # that seems pointless, since initrds need to match the kernel version and are
+        # generally used with the main system in the same version or slightly newer. And
+        # for important devices, db_persist is set. So we end up destroying some of the
+        # state, but not all. Let's just skip the cleanup altogether, and rely on the rules
+        # being idempotent so that we end up in the correct state.
+        #
+        # [1] https://raw.githubusercontent.com/dracutdevs/dracut/2d83bce21bfc874b29c1fb99e8fabb843f038725/modules.d/90dm/11-dm.rules
+        'initrd-udevadm-cleanup-db.service',
+    ]
+
+    subprocess.run(['systemctl', f'--root={root}', 'mask', *units], check=True)
+
+def main():
+    root = buildroot()
+
+    mask_units(root)
+
+if __name__ == '__main__':
+    main()
