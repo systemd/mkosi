@@ -81,7 +81,7 @@ def apt_cmd(state: MkosiState, command: str) -> list[PathString]:
         "-o", "APT::Get::Allow-Change-Held-Packages=true",
         "-o", "APT::Get::Allow-Remove-Essential=true",
         "-o", "APT::Sandbox::User=root",
-        "-o", f"Dir::Cache={state.cache_dir}",
+        "-o", f"Dir::Cache={state.cache_dir / 'apt'}",
         "-o", f"Dir::State={state.pkgmngr / 'var/lib/apt'}",
         "-o", f"Dir::State::status={state.root / 'var/lib/dpkg/status'}",
         "-o", f"Dir::Etc::trusted={trustedkeys}",

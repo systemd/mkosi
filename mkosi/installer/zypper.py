@@ -55,7 +55,7 @@ def zypper_cmd(state: MkosiState) -> list[PathString]:
         f"ZYPP_CONF={state.pkgmngr / 'etc/zypp/zypp.conf'}",
         "zypper",
         f"--root={state.root}",
-        f"--cache-dir={state.cache_dir}",
+        f"--cache-dir={state.cache_dir / 'zypp'}",
         f"--reposd-dir={state.pkgmngr / 'etc/zypp/repos.d'}",
         "--gpg-auto-import-keys" if state.config.repository_key_check else "--no-gpg-checks",
         "--non-interactive",

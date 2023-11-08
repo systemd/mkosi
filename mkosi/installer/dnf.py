@@ -106,7 +106,7 @@ def dnf_cmd(state: MkosiState) -> list[PathString]:
         f"--releasever={state.config.release}",
         f"--installroot={state.root}",
         "--setopt=keepcache=1",
-        f"--setopt=cachedir={state.cache_dir}",
+        f"--setopt=cachedir={state.cache_dir / ('libdnf5' if dnf.endswith('dnf5') else 'dnf')}",
         f"--setopt=reposdir={state.pkgmngr / 'etc/yum.repos.d'}",
         f"--setopt=varsdir={state.pkgmngr / 'etc/dnf/vars'}",
         f"--setopt=persistdir={state.pkgmngr / 'var/lib/dnf'}",

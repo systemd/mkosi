@@ -87,12 +87,15 @@ def pacman_cmd(state: MkosiState) -> list[PathString]:
     gpgdir = state.pkgmngr / "etc/pacman.d/gnupg/"
     gpgdir = gpgdir if gpgdir.exists() else Path("/etc/pacman.d/gnupg/")
 
+    with umask(~0o755):
+        (state.cache_dir / "pacman/pkg").mkdir(parents=True, exist_ok=True)
+
     cmdline: list[PathString] = [
         "pacman",
         "--config", state.pkgmngr / "etc/pacman.conf",
         "--root", state.root,
         "--logfile=/dev/null",
-        "--cachedir", state.cache_dir,
+        "--cachedir", state.cache_dir / "pacman/pkg",
         "--gpgdir", gpgdir,
         "--hookdir", state.root / "etc/pacman.d/hooks",
         "--arch", state.config.distribution.architecture(state.config.architecture),
