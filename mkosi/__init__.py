@@ -2128,6 +2128,8 @@ def setup_workspace(args: MkosiArgs, config: MkosiConfig) -> Iterator[Path]:
                     log_notice(f"Workspace: {workspace}")
                     workspace.chmod(0o755)
 
+                raise
+
 
 def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
     manifest = Manifest(config) if config.manifest_format else None
