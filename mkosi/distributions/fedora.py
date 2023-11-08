@@ -99,7 +99,7 @@ class Installer(DistributionInstaller):
         repos = []
 
         if state.config.local_mirror:
-            repos += [Repo("fedora", f"baseurl={state.config.mirror}", gpgurls)]
+            repos += [Repo("fedora", f"baseurl={state.config.local_mirror}", gpgurls)]
         elif state.config.release == "eln":
             mirror = state.config.mirror or "https://odcs.fedoraproject.org/composes/production/latest-Fedora-ELN/compose"
             for repo in ("Appstream", "BaseOS", "Extras", "CRB"):
