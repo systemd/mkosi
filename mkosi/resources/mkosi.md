@@ -1534,8 +1534,8 @@ root or root within the user namespace that mkosi created when running
 unprivileged) with a customized environment to simplify modifying the
 image. For each script, the configured build sources (`BuildSources=`)
 are mounted into the current working directory before running the script
-and `$SRCDIR` is set to point to the current working directory. The
-following scripts are supported:
+in the current working directory. `$SRCDIR` is set to point to the
+current working directory. The following scripts are supported:
 
 * If **`mkosi.prepare`** (`PrepareScripts=`) exists, it is first called
   with the `final` argument, right after the software packages are
