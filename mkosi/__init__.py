@@ -1310,7 +1310,8 @@ def build_uki(
     for initrd in initrds:
         cmd += ["--initrd", initrd]
 
-    run(cmd)
+    with complete_step(f"Generating unified kernel image for {kimg}"):
+        run(cmd)
 
 
 def want_uki(config: MkosiConfig) -> bool:
@@ -1318,18 +1319,19 @@ def want_uki(config: MkosiConfig) -> bool:
     # Note that this returns True also in the case where autodetection might later
     # cause the UKI not to be installed after the file system has been populated.
 
+    if config.output_format in (OutputFormat.uki, OutputFormat.esp):
+        return True
+
     if config.bootable == ConfigFeature.disabled:
         return False
 
     if config.bootloader == Bootloader.none:
         return False
 
-    if (config.output_format in (OutputFormat.cpio, OutputFormat.uki) and
-        config.bootable == ConfigFeature.auto):
+    if config.output_format == OutputFormat.cpio and config.bootable == ConfigFeature.auto:
         return False
 
-    if (config.architecture.to_efi() is None and
-        config.bootable == ConfigFeature.auto):
+    if config.architecture.to_efi() is None and config.bootable == ConfigFeature.auto:
         return False
 
     return True
@@ -1342,7 +1344,7 @@ def install_uki(state: MkosiState, partitions: Sequence[Partition]) -> None:
     # benefit that they can be signed like normal EFI binaries, and can encode everything necessary to boot a
     # specific root device, including the root hash.
 
-    if not want_uki(state.config):
+    if not want_uki(state.config) or state.config.output_format in (OutputFormat.uki, OutputFormat.esp):
         return
 
     arch = state.config.architecture.to_efi()
@@ -1353,53 +1355,52 @@ def install_uki(state: MkosiState, partitions: Sequence[Partition]) -> None:
     roothash = finalize_roothash(partitions)
 
     for kver, kimg in gen_kernel_images(state):
-        with complete_step(f"Generating unified kernel image for {kimg}"):
-            image_id = state.config.image_id or state.config.distribution.name
+        image_id = state.config.image_id or state.config.distribution.name
 
-            # See https://systemd.io/AUTOMATIC_BOOT_ASSESSMENT/#boot-counting
-            boot_count = ""
-            if (state.root / "etc/kernel/tries").exists():
-                boot_count = f'+{(state.root / "etc/kernel/tries").read_text().strip()}'
+        # See https://systemd.io/AUTOMATIC_BOOT_ASSESSMENT/#boot-counting
+        boot_count = ""
+        if (state.root / "etc/kernel/tries").exists():
+            boot_count = f'+{(state.root / "etc/kernel/tries").read_text().strip()}'
 
-            if state.config.bootloader == Bootloader.uki:
-                boot_binary = state.root / "efi/EFI/BOOT/BOOTX64.EFI"
-            elif state.config.image_version:
-                boot_binary = (
-                    state.root / f"efi/EFI/Linux/{image_id}_{state.config.image_version}-{kver}{boot_count}.efi"
-                )
-            elif roothash:
-                _, _, h = roothash.partition("=")
-                boot_binary = state.root / f"efi/EFI/Linux/{image_id}-{kver}-{h}{boot_count}.efi"
-            else:
-                boot_binary = state.root / f"efi/EFI/Linux/{image_id}-{kver}{boot_count}.efi"
+        if state.config.bootloader == Bootloader.uki:
+            boot_binary = state.root / "efi/EFI/BOOT/BOOTX64.EFI"
+        elif state.config.image_version:
+            boot_binary = (
+                state.root / f"efi/EFI/Linux/{image_id}_{state.config.image_version}-{kver}{boot_count}.efi"
+            )
+        elif roothash:
+            _, _, h = roothash.partition("=")
+            boot_binary = state.root / f"efi/EFI/Linux/{image_id}-{kver}-{h}{boot_count}.efi"
+        else:
+            boot_binary = state.root / f"efi/EFI/Linux/{image_id}-{kver}{boot_count}.efi"
 
-            initrds = state.config.initrds.copy() or [build_initrd(state)]
+        initrds = state.config.initrds.copy() or [build_initrd(state)]
 
-            if state.config.kernel_modules_initrd:
-                initrds += [build_kernel_modules_initrd(state, kver)]
+        if state.config.kernel_modules_initrd:
+            initrds += [build_kernel_modules_initrd(state, kver)]
 
-            # Make sure the parent directory where we'll be writing the UKI exists.
-            with umask(~0o700):
-                boot_binary.parent.mkdir(parents=True, exist_ok=True)
+        # Make sure the parent directory where we'll be writing the UKI exists.
+        with umask(~0o700):
+            boot_binary.parent.mkdir(parents=True, exist_ok=True)
 
-            build_uki(state, kimg, initrds, boot_binary, roothash=roothash)
+        build_uki(state, kimg, initrds, boot_binary, roothash=roothash)
 
-            if not (state.staging / state.config.output_split_initrd).exists():
-                # Extract the combined initrds from the UKI so we can use it to direct kernel boot with qemu
-                # if needed.
-                extract_pe_section(state, boot_binary, ".initrd", state.staging / state.config.output_split_initrd)
+        if not (state.staging / state.config.output_split_initrd).exists():
+            # Extract the combined initrds from the UKI so we can use it to direct kernel boot with qemu
+            # if needed.
+            extract_pe_section(state, boot_binary, ".initrd", state.staging / state.config.output_split_initrd)
 
-            if not (state.staging / state.config.output_split_uki).exists():
-                shutil.copy(boot_binary, state.staging / state.config.output_split_uki)
+        if not (state.staging / state.config.output_split_uki).exists():
+            shutil.copy(boot_binary, state.staging / state.config.output_split_uki)
 
-                # ukify will have signed the kernel image as well. Let's make sure we put the signed kernel
-                # image in the output directory instead of the unsigned one by reading it from the UKI.
-                extract_pe_section(state, boot_binary, ".linux", state.staging / state.config.output_split_kernel)
+            # ukify will have signed the kernel image as well. Let's make sure we put the signed kernel
+            # image in the output directory instead of the unsigned one by reading it from the UKI.
+            extract_pe_section(state, boot_binary, ".linux", state.staging / state.config.output_split_kernel)
 
-            print_output_size(boot_binary)
+        print_output_size(boot_binary)
 
-            if state.config.bootloader == Bootloader.uki:
-                break
+        if state.config.bootloader == Bootloader.uki:
+            break
 
     if state.config.bootable == ConfigFeature.enabled and not (state.staging / state.config.output_split_uki).exists():
         die("A bootable image was requested but no kernel was found")
@@ -1681,7 +1682,7 @@ def check_tools(args: MkosiArgs, config: MkosiConfig) -> None:
             hint="Bootable=no can be used to create a non-bootable image",
         )
 
-    if config.output_format == OutputFormat.disk:
+    if config.output_format in (OutputFormat.disk, OutputFormat.esp):
         check_systemd_tool("systemd-repart", reason="build disk images")
 
     if args.verb == Verb.boot:
@@ -1955,10 +1956,14 @@ def reuse_cache(state: MkosiState) -> bool:
     return True
 
 
-def make_image(state: MkosiState, msg: str, skip: Sequence[str] = [], split: bool = False) -> list[Partition]:
-    if not state.config.output_format == OutputFormat.disk:
-        return []
-
+def make_image(
+    state: MkosiState,
+    msg: str,
+    skip: Sequence[str] = [],
+    split: bool = False,
+    root: Optional[Path] = None,
+    definitions: Sequence[Path] = [],
+) -> list[Partition]:
     cmdline: list[PathString] = [
         "systemd-repart",
         "--empty=allow",
@@ -1967,11 +1972,12 @@ def make_image(state: MkosiState, msg: str, skip: Sequence[str] = [], split: boo
         "--json=pretty",
         "--no-pager",
         "--offline=yes",
-        "--root", state.root,
         "--seed", str(state.config.seed) if state.config.seed else "random",
         state.staging / state.config.output_with_format,
     ]
 
+    if root:
+        cmdline += ["--root", root]
     if not state.config.architecture.is_native():
         cmdline += ["--architecture", str(state.config.architecture)]
     if not (state.staging / state.config.output_with_format).exists():
@@ -1989,19 +1995,52 @@ def make_image(state: MkosiState, msg: str, skip: Sequence[str] = [], split: boo
     if state.config.sector_size:
         cmdline += ["--sector-size", state.config.sector_size]
 
-    if state.config.repart_dirs:
-        for d in state.config.repart_dirs:
+    if definitions:
+        for d in definitions:
             cmdline += ["--definitions", d]
 
         # Subvolumes= only works with --offline=no.
-        grep = run(["grep", "--recursive", "--include=*.conf", "Subvolumes=", *state.config.repart_dirs],
+        grep = run(["grep", "--recursive", "--include=*.conf", "Subvolumes=", *definitions],
                    stdout=subprocess.DEVNULL, check=False)
         if grep.returncode == 0:
             cmdline += ["--offline=no"]
+
+    env = {
+        option: value
+        for option, value in state.config.environment.items()
+        if option.startswith("SYSTEMD_REPART_MKFS_OPTIONS_") or option == "SOURCE_DATE_EPOCH"
+    }
+
+    with complete_step(msg):
+        output = json.loads(run(cmdline, stdout=subprocess.PIPE, env=env).stdout)
+
+    logging.debug(json.dumps(output, indent=4))
+
+    partitions = [Partition.from_dict(d) for d in output]
+
+    if split:
+        for p in partitions:
+            if p.split_path:
+                maybe_compress(state.config, state.config.compress_output, p.split_path)
+
+    return partitions
+
+
+def make_disk(
+    state: MkosiState,
+    msg: str,
+    skip: Sequence[str] = [],
+    split: bool = False,
+) -> list[Partition]:
+    if state.config.output_format != OutputFormat.disk:
+        return []
+
+    if state.config.repart_dirs:
+        definitions = state.config.repart_dirs
     else:
-        definitions = state.workspace / "repart-definitions"
-        if not definitions.exists():
-            definitions.mkdir()
+        defaults = state.workspace / "repart-definitions"
+        if not defaults.exists():
+            defaults.mkdir()
             if (arch := state.config.architecture.to_efi()):
                 bootloader = state.root / f"efi/EFI/BOOT/BOOT{arch.upper()}.EFI"
             else:
@@ -2011,7 +2050,7 @@ def make_image(state: MkosiState, msg: str, skip: Sequence[str] = [], split: boo
             bios = (state.config.bootable != ConfigFeature.disabled and want_grub_bios(state))
 
             if bios:
-                (definitions / "05-bios.conf").write_text(
+                (defaults / "05-bios.conf").write_text(
                     textwrap.dedent(
                         f"""\
                         [Partition]
@@ -2031,7 +2070,7 @@ def make_image(state: MkosiState, msg: str, skip: Sequence[str] = [], split: boo
                 # Even if we're doing BIOS, let's still use the ESP to store the kernels, initrds and grub
                 # modules. We cant use UKIs so we have to put each kernel and initrd on the ESP twice, so
                 # let's make the ESP twice as big in that case.
-                (definitions / "00-esp.conf").write_text(
+                (defaults / "00-esp.conf").write_text(
                     textwrap.dedent(
                         f"""\
                         [Partition]
@@ -2044,7 +2083,7 @@ def make_image(state: MkosiState, msg: str, skip: Sequence[str] = [], split: boo
                     )
                 )
 
-            (definitions / "10-root.conf").write_text(
+            (defaults / "10-root.conf").write_text(
                 textwrap.dedent(
                     f"""\
                     [Partition]
@@ -2056,28 +2095,38 @@ def make_image(state: MkosiState, msg: str, skip: Sequence[str] = [], split: boo
                 )
             )
 
-        cmdline += ["--definitions", definitions]
+        definitions = [defaults]
 
-    env = dict()
-    for option, value in state.config.environment.items():
-        if option.startswith("SYSTEMD_REPART_MKFS_OPTIONS_"):
-            env[option] = value
-        if option == "SOURCE_DATE_EPOCH":
-            env[option] = value
+    return make_image(state, msg=msg, skip=skip, split=split, root=state.root, definitions=definitions)
 
-    with complete_step(msg):
-        output = json.loads(run(cmdline, stdout=subprocess.PIPE, env=env).stdout)
 
-    logging.debug(json.dumps(output, indent=4))
+def make_esp(state: MkosiState, uki: Path) -> list[Partition]:
+    if not (arch := state.config.architecture.to_efi()):
+        die(f"Architecture {state.config.architecture} does not support UEFI")
 
-    partitions = [Partition.from_dict(d) for d in output]
+    definitions = state.workspace / "esp-definitions"
+    definitions.mkdir(exist_ok=True)
 
-    if split:
-        for p in partitions:
-            if p.split_path:
-                maybe_compress(state.config, state.config.compress_output, p.split_path)
+    # Use a minimum of 512MB because otherwise the generated FAT filesystem will have too few clusters to be considered
+    # a FAT32 filesystem by OVMF which will refuse to boot from it. Always reserve 10MB for filesystem metadata.
+    size = max(uki.stat().st_size, 502 * 1024**2) + 10 * 1024**2
 
-    return partitions
+    # TODO: Remove the extra 4096 for the max size once https://github.com/systemd/systemd/pull/29954 is in a stable
+    # release.
+    (definitions / "00-esp.conf").write_text(
+        textwrap.dedent(
+            f"""\
+            [Partition]
+            Type=esp
+            Format=vfat
+            CopyFiles={uki}:/EFI/BOOT/BOOT{arch.upper()}.EFI
+            SizeMinBytes={size}
+            SizeMaxBytes={size + 4096}
+            """
+        )
+    )
+
+    return make_image(state, msg="Generating ESP image", definitions=[definitions])
 
 
 def finalize_staging(state: MkosiState) -> None:
@@ -2192,17 +2241,17 @@ def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
             run_finalize_scripts(state)
 
         normalize_mtime(state.root, state.config.source_date_epoch)
-        partitions = make_image(state, skip=("esp", "xbootldr"), msg="Generating disk image")
+        partitions = make_disk(state, skip=("esp", "xbootldr"), msg="Generating disk image")
         install_uki(state, partitions)
         prepare_grub_efi(state)
         prepare_grub_bios(state, partitions)
         normalize_mtime(state.root, state.config.source_date_epoch, directory=Path("boot"))
         normalize_mtime(state.root, state.config.source_date_epoch, directory=Path("efi"))
-        partitions = make_image(state, msg="Formatting ESP/XBOOTLDR partitions")
+        partitions = make_disk(state, msg="Formatting ESP/XBOOTLDR partitions")
         install_grub_bios(state, partitions)
 
         if state.config.split_artifacts:
-            make_image(state, split=True, msg="Extracting partitions")
+            make_disk(state, split=True, msg="Extracting partitions")
 
         copy_vmlinuz(state)
 
@@ -2212,10 +2261,13 @@ def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
             make_cpio(state.root, state.staging / state.config.output_with_format)
         elif state.config.output_format == OutputFormat.uki:
             make_uki(state, state.staging / state.config.output_with_format)
+        elif state.config.output_format == OutputFormat.esp:
+            make_uki(state, state.staging / state.config.output_split_uki)
+            make_esp(state, state.staging / state.config.output_split_uki)
         elif state.config.output_format == OutputFormat.directory:
             state.root.rename(state.staging / state.config.output_with_format)
 
-        if config.output_format != OutputFormat.uki:
+        if config.output_format not in (OutputFormat.uki, OutputFormat.esp):
             maybe_compress(state.config, state.config.compress_output,
                            state.staging / state.config.output_with_format,
                            state.staging / state.config.output_with_compression)
