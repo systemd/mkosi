@@ -893,17 +893,18 @@ class MkosiConfig:
         if (cache := os.getenv("XDG_CACHE_HOME")) and Path(cache).exists():
             return Path(cache)
 
-        # If there's a cache directory and we're running from /home, we want to use a workspace directory in /home as
-        # well as /home might be on a separate partition or subvolume which means that to take advantage of reflinks
-        # and such, the workspace directory has to be on the same partition/subvolume.
-        if (
-            (home := os.getenv("HOME")) and
-            "/home" in home and
-            self.cache_dir and
-            self.cache_dir.is_relative_to(home) and
-            (Path(home) / ".cache").exists()
-        ):
-            return Path(home) / ".cache"
+        # If we're running from /home and there's a cache or output directory in /home, we want to use a workspace
+        # directory in /home as well as /home might be on a separate partition or subvolume which means that to take
+        # advantage of reflinks and such, the workspace directory has to be on the same partition/subvolume.
+        if Path.cwd().is_relative_to("/home") and len(Path.cwd().parents) >= 3:
+            home = Path.cwd().parents[-3]
+
+            if (
+                (self.cache_dir and self.cache_dir.is_relative_to(home) or
+                self.output_dir and self.output_dir.is_relative_to(home)) and
+                (home / ".cache").exists()
+            ):
+                return home / ".cache"
 
         return Path("/var/tmp")
 
