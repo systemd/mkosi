@@ -557,12 +557,14 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `Format=`, `--format=`, `-t`
 
-: The image format type to generate. One of `directory` (for generating an OS
-  image directly in a local directory), `tar` (similar, but a tarball of the OS
-  image is generated), `cpio` (similar, but a cpio archive is generated),
-  `disk` (a block device OS image with a GPT partition table), `uki` (a unified
-  kernel image with the OS image in the `.initrd` PE section) or `none` (the OS
-  image is solely intended as a build image to produce another artifact).
+: The image format type to generate. One of `directory` (for generating
+  an OS image directly in a local directory), `tar` (similar, but a
+  tarball of the OS image is generated), `cpio` (similar, but a cpio
+  archive is generated), `disk` (a block device OS image with a GPT
+  partition table), `uki` (a unified kernel image with the OS image in
+  the `.initrd` PE section), `esp` (`uki` but wrapped in a disk image
+  with only an ESP partition) or `none` (the OS image is solely intended
+  as a build image to produce another artifact).
 
 : If the `disk` output format is used, the disk image is generated using
   `systemd-repart`. The repart partition definition files to use can be

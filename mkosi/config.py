@@ -104,11 +104,13 @@ class OutputFormat(StrEnum):
     cpio      = enum.auto()
     disk      = enum.auto()
     uki       = enum.auto()
+    esp       = enum.auto()
     none      = enum.auto()
 
     def extension(self) -> str:
         return {
             OutputFormat.disk: ".raw",
+            OutputFormat.esp:  ".raw",
             OutputFormat.cpio: ".cpio",
             OutputFormat.tar:  ".tar",
             OutputFormat.uki:  ".efi",
@@ -302,7 +304,7 @@ def config_parse_source_date_epoch(value: Optional[str], old: Optional[int]) -> 
 
 
 def config_default_compression(namespace: argparse.Namespace) -> Compression:
-    if namespace.output_format in (OutputFormat.cpio, OutputFormat.uki):
+    if namespace.output_format in (OutputFormat.cpio, OutputFormat.uki, OutputFormat.esp):
         if namespace.distribution.is_centos_variant() and int(namespace.release) <= 8:
             return Compression.xz
         else:
@@ -952,7 +954,7 @@ class MkosiConfig:
     def output_with_compression(self) -> str:
         output = self.output_with_format
 
-        if self.compress_output and self.output_format != OutputFormat.uki:
+        if self.compress_output and self.output_format not in (OutputFormat.uki, OutputFormat.esp):
             output += f".{self.compress_output}"
 
         return output
@@ -2894,7 +2896,7 @@ Clean Package Manager Metadata: {yes_no_auto(config.clean_package_metadata)}
                            SSH: {yes_no(config.ssh)}
 """
 
-    if config.output_format == OutputFormat.disk:
+    if config.output_format in (OutputFormat.disk, OutputFormat.uki, OutputFormat.esp):
         summary += f"""\
 
     {bold("VALIDATION")}:

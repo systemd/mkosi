@@ -134,9 +134,12 @@ jobs:
           - cpio
           - disk
           - uki
+          - esp
         exclude:
           - distro: rhel-ubi
             format: uki
+          - distro: rhel-ubi
+            format: esp
 
     steps:
     - uses: actions/checkout@v3
@@ -182,7 +185,7 @@ jobs:
       run: sudo mkosi --debug boot
 
     - name: Boot ${{ matrix.distro }}/${{ matrix.format }} QEMU
-      if: matrix.distro != 'rhel-ubi' && (matrix.format == 'disk' || matrix.format == 'uki' || matrix.format == 'cpio')
+      if: matrix.distro != 'rhel-ubi' && matrix.format != 'directory' && matrix.format != 'tar'
       run: timeout -k 30 10m mkosi --debug qemu
 
     - name: Boot ${{ matrix.distro }}/${{ matrix.format }} BIOS

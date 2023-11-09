@@ -366,11 +366,17 @@ def qemu_version(config: MkosiConfig) -> GenericVersion:
 
 
 def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[QemuDeviceNode, int]) -> None:
-    if config.output_format not in (OutputFormat.disk, OutputFormat.cpio, OutputFormat.uki, OutputFormat.directory):
+    if config.output_format not in (
+        OutputFormat.disk,
+        OutputFormat.cpio,
+        OutputFormat.uki,
+        OutputFormat.esp,
+        OutputFormat.directory,
+    ):
         die(f"{config.output_format} images cannot be booted in qemu")
 
     if (
-        config.output_format in (OutputFormat.cpio, OutputFormat.uki) and
+        config.output_format in (OutputFormat.cpio, OutputFormat.uki, OutputFormat.esp) and
         config.qemu_firmware not in (QemuFirmware.auto, QemuFirmware.linux, QemuFirmware.uefi)
     ):
         die(f"{config.output_format} images cannot be booted with the '{config.qemu_firmware}' firmware")
@@ -396,7 +402,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
     else:
         kernel = None
 
-    if config.output_format == OutputFormat.uki and kernel:
+    if config.output_format in (OutputFormat.uki, OutputFormat.esp) and kernel:
         logging.warning(
             f"Booting UKI output, kernel {kernel} configured with QemuKernel= or passed with -kernel will not be used"
         )
@@ -514,8 +520,8 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
                 "-drive", f"file={ovmf_vars.name},if=pflash,format=raw",
             ]
 
-        if config.qemu_cdrom and config.output_format == OutputFormat.disk:
-            # CD-ROM devices have sector size 2048 so we transform the disk image into one with sector size 2048.
+        if config.qemu_cdrom and config.output_format in (OutputFormat.disk, OutputFormat.esp):
+            # CD-ROM devices have sector size 2048 so we transform disk images into ones with sector size 2048.
             src = (config.output_dir_or_cwd() / config.output).resolve()
             fname = src.parent / f"{src.name}-{uuid.uuid4().hex}"
             run(["systemd-repart",
@@ -600,7 +606,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
         ):
             cmdline += ["-initrd", config.output_dir_or_cwd() / config.output_split_initrd]
 
-        if config.output_format == OutputFormat.disk:
+        if config.output_format in (OutputFormat.disk, OutputFormat.esp):
             cmdline += ["-drive", f"if=none,id=mkosi,file={fname},format=raw",
                         "-device", "virtio-scsi-pci,id=scsi",
                         "-device", f"scsi-{'cd' if config.qemu_cdrom else 'hd'},drive=mkosi,bootindex=1"]
