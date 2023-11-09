@@ -106,6 +106,14 @@ class OutputFormat(StrEnum):
     uki       = enum.auto()
     none      = enum.auto()
 
+    def extension(self) -> str:
+        return {
+            OutputFormat.disk: ".raw",
+            OutputFormat.cpio: ".cpio",
+            OutputFormat.tar:  ".tar",
+            OutputFormat.uki:  ".efi",
+        }.get(self, "")
+
 
 class ManifestFormat(StrEnum):
     json      = enum.auto()  # the standard manifest in json format
@@ -938,16 +946,7 @@ class MkosiConfig:
 
     @property
     def output_with_format(self) -> str:
-        output = self.output_with_version
-
-        output += {
-            OutputFormat.disk: ".raw",
-            OutputFormat.cpio: ".cpio",
-            OutputFormat.tar:  ".tar",
-            OutputFormat.uki:  ".efi",
-        }.get(self.output_format, "")
-
-        return output
+        return self.output_with_version + self.output_format.extension()
 
     @property
     def output_with_compression(self) -> str:
