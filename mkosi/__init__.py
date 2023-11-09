@@ -2107,9 +2107,17 @@ def make_esp(state: MkosiState, uki: Path) -> list[Partition]:
     definitions = state.workspace / "esp-definitions"
     definitions.mkdir(exist_ok=True)
 
-    # Use a minimum of 512MB because otherwise the generated FAT filesystem will have too few clusters to be considered
-    # a FAT32 filesystem by OVMF which will refuse to boot from it. Always reserve 10MB for filesystem metadata.
-    size = max(uki.stat().st_size, 502 * 1024**2) + 10 * 1024**2
+    # Use a minimum of 36MB or 260MB depending on sector size because otherwise the generated FAT filesystem will have
+    # too few clusters to be considered a FAT32 filesystem by OVMF which will refuse to boot from it.
+    # See https://superuser.com/questions/1702331/what-is-the-minimum-size-of-a-4k-native-partition-when-formatted-with-fat32/1717643#1717643
+    if state.config.sector_size == 512:
+        m = 36
+    # TODO: Figure out minimum size for 2K sector size
+    else:
+        m = 260
+
+    # Always reserve 10MB for filesystem metadata.
+    size = max(uki.stat().st_size, (m - 10) * 1024**2) + 10 * 1024**2
 
     # TODO: Remove the extra 4096 for the max size once https://github.com/systemd/systemd/pull/29954 is in a stable
     # release.
