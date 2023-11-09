@@ -1310,7 +1310,8 @@ def build_uki(
     for initrd in initrds:
         cmd += ["--initrd", initrd]
 
-    run(cmd)
+    with complete_step(f"Generating unified kernel image for {kimg}"):
+        run(cmd)
 
 
 def want_uki(config: MkosiConfig) -> bool:
@@ -1354,53 +1355,52 @@ def install_uki(state: MkosiState, partitions: Sequence[Partition]) -> None:
     roothash = finalize_roothash(partitions)
 
     for kver, kimg in gen_kernel_images(state):
-        with complete_step(f"Generating unified kernel image for {kimg}"):
-            image_id = state.config.image_id or state.config.distribution.name
+        image_id = state.config.image_id or state.config.distribution.name
 
-            # See https://systemd.io/AUTOMATIC_BOOT_ASSESSMENT/#boot-counting
-            boot_count = ""
-            if (state.root / "etc/kernel/tries").exists():
-                boot_count = f'+{(state.root / "etc/kernel/tries").read_text().strip()}'
+        # See https://systemd.io/AUTOMATIC_BOOT_ASSESSMENT/#boot-counting
+        boot_count = ""
+        if (state.root / "etc/kernel/tries").exists():
+            boot_count = f'+{(state.root / "etc/kernel/tries").read_text().strip()}'
 
-            if state.config.bootloader == Bootloader.uki:
-                boot_binary = state.root / "efi/EFI/BOOT/BOOTX64.EFI"
-            elif state.config.image_version:
-                boot_binary = (
-                    state.root / f"efi/EFI/Linux/{image_id}_{state.config.image_version}-{kver}{boot_count}.efi"
-                )
-            elif roothash:
-                _, _, h = roothash.partition("=")
-                boot_binary = state.root / f"efi/EFI/Linux/{image_id}-{kver}-{h}{boot_count}.efi"
-            else:
-                boot_binary = state.root / f"efi/EFI/Linux/{image_id}-{kver}{boot_count}.efi"
+        if state.config.bootloader == Bootloader.uki:
+            boot_binary = state.root / "efi/EFI/BOOT/BOOTX64.EFI"
+        elif state.config.image_version:
+            boot_binary = (
+                state.root / f"efi/EFI/Linux/{image_id}_{state.config.image_version}-{kver}{boot_count}.efi"
+            )
+        elif roothash:
+            _, _, h = roothash.partition("=")
+            boot_binary = state.root / f"efi/EFI/Linux/{image_id}-{kver}-{h}{boot_count}.efi"
+        else:
+            boot_binary = state.root / f"efi/EFI/Linux/{image_id}-{kver}{boot_count}.efi"
 
-            initrds = state.config.initrds.copy() or [build_initrd(state)]
+        initrds = state.config.initrds.copy() or [build_initrd(state)]
 
-            if state.config.kernel_modules_initrd:
-                initrds += [build_kernel_modules_initrd(state, kver)]
+        if state.config.kernel_modules_initrd:
+            initrds += [build_kernel_modules_initrd(state, kver)]
 
-            # Make sure the parent directory where we'll be writing the UKI exists.
-            with umask(~0o700):
-                boot_binary.parent.mkdir(parents=True, exist_ok=True)
+        # Make sure the parent directory where we'll be writing the UKI exists.
+        with umask(~0o700):
+            boot_binary.parent.mkdir(parents=True, exist_ok=True)
 
-            build_uki(state, kimg, initrds, boot_binary, roothash=roothash)
+        build_uki(state, kimg, initrds, boot_binary, roothash=roothash)
 
-            if not (state.staging / state.config.output_split_initrd).exists():
-                # Extract the combined initrds from the UKI so we can use it to direct kernel boot with qemu
-                # if needed.
-                extract_pe_section(state, boot_binary, ".initrd", state.staging / state.config.output_split_initrd)
+        if not (state.staging / state.config.output_split_initrd).exists():
+            # Extract the combined initrds from the UKI so we can use it to direct kernel boot with qemu
+            # if needed.
+            extract_pe_section(state, boot_binary, ".initrd", state.staging / state.config.output_split_initrd)
 
-            if not (state.staging / state.config.output_split_uki).exists():
-                shutil.copy(boot_binary, state.staging / state.config.output_split_uki)
+        if not (state.staging / state.config.output_split_uki).exists():
+            shutil.copy(boot_binary, state.staging / state.config.output_split_uki)
 
-                # ukify will have signed the kernel image as well. Let's make sure we put the signed kernel
-                # image in the output directory instead of the unsigned one by reading it from the UKI.
-                extract_pe_section(state, boot_binary, ".linux", state.staging / state.config.output_split_kernel)
+            # ukify will have signed the kernel image as well. Let's make sure we put the signed kernel
+            # image in the output directory instead of the unsigned one by reading it from the UKI.
+            extract_pe_section(state, boot_binary, ".linux", state.staging / state.config.output_split_kernel)
 
-            print_output_size(boot_binary)
+        print_output_size(boot_binary)
 
-            if state.config.bootloader == Bootloader.uki:
-                break
+        if state.config.bootloader == Bootloader.uki:
+            break
 
     if state.config.bootable == ConfigFeature.enabled and not (state.staging / state.config.output_split_uki).exists():
         die("A bootable image was requested but no kernel was found")
