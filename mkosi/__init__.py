@@ -1318,18 +1318,19 @@ def want_uki(config: MkosiConfig) -> bool:
     # Note that this returns True also in the case where autodetection might later
     # cause the UKI not to be installed after the file system has been populated.
 
+    if config.output_format == OutputFormat.uki:
+        return True
+
     if config.bootable == ConfigFeature.disabled:
         return False
 
     if config.bootloader == Bootloader.none:
         return False
 
-    if (config.output_format in (OutputFormat.cpio, OutputFormat.uki) and
-        config.bootable == ConfigFeature.auto):
+    if config.output_format == OutputFormat.cpio and config.bootable == ConfigFeature.auto:
         return False
 
-    if (config.architecture.to_efi() is None and
-        config.bootable == ConfigFeature.auto):
+    if config.architecture.to_efi() is None and config.bootable == ConfigFeature.auto:
         return False
 
     return True
@@ -1342,7 +1343,7 @@ def install_uki(state: MkosiState, partitions: Sequence[Partition]) -> None:
     # benefit that they can be signed like normal EFI binaries, and can encode everything necessary to boot a
     # specific root device, including the root hash.
 
-    if not want_uki(state.config):
+    if not want_uki(state.config) or state.config.output_format == OutputFormat.uki:
         return
 
     arch = state.config.architecture.to_efi()
