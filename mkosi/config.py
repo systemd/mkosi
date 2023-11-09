@@ -33,7 +33,7 @@ from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, Style, die
 from mkosi.pager import page
 from mkosi.run import run
 from mkosi.types import PathString, SupportsRead
-from mkosi.util import INVOKING_USER, StrEnum, chdir, flatten
+from mkosi.util import INVOKING_USER, StrEnum, chdir, flatten, is_power_of_2
 from mkosi.versioncomp import GenericVersion
 
 __version__ = "18"
@@ -572,6 +572,24 @@ def parse_drive(value: str) -> QemuDrive:
     return QemuDrive(id=id, size=size, directory=directory, options=options)
 
 
+def config_parse_sector_size(value: Optional[str], old: Optional[int]) -> Optional[int]:
+    if not value:
+        return None
+
+    try:
+        size = int(value)
+    except ValueError:
+        die(f"'{value}' is not a valid number")
+
+    if size < 512 or size > 4096:
+        die(f"Sector size not between 512 and 4096: {size}")
+
+    if not is_power_of_2(size):
+        die(f"Sector size not power of 2: {size}")
+
+    return size
+
+
 @dataclasses.dataclass(frozen=True)
 class MkosiConfigSetting:
     dest: str
@@ -797,7 +815,7 @@ class MkosiConfig:
     image_version: Optional[str]
     split_artifacts: bool
     repart_dirs: list[Path]
-    sector_size: Optional[str]
+    sector_size: Optional[int]
     overlay: bool
     use_subvolumes: ConfigFeature
     seed: Optional[uuid.UUID]
@@ -1333,7 +1351,7 @@ SETTINGS = (
     MkosiConfigSetting(
         dest="sector_size",
         section="Output",
-        parse=config_parse_string,
+        parse=config_parse_sector_size,
         help="Set the disk image sector size",
     ),
     MkosiConfigSetting(
