@@ -2059,12 +2059,11 @@ def make_image(state: MkosiState, msg: str, skip: Sequence[str] = [], split: boo
 
         cmdline += ["--definitions", definitions]
 
-    env = dict()
-    for option, value in state.config.environment.items():
-        if option.startswith("SYSTEMD_REPART_MKFS_OPTIONS_"):
-            env[option] = value
-        if option == "SOURCE_DATE_EPOCH":
-            env[option] = value
+    env = {
+        option: value
+        for option, value in state.config.environment.items()
+        if option.startswith("SYSTEMD_REPART_MKFS_OPTIONS_") or option == "SOURCE_DATE_EPOCH"
+    }
 
     with complete_step(msg):
         output = json.loads(run(cmdline, stdout=subprocess.PIPE, env=env).stdout)
