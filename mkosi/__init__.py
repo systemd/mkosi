@@ -1993,7 +1993,7 @@ def make_image(
     if split:
         cmdline += ["--split=yes"]
     if state.config.sector_size:
-        cmdline += ["--sector-size", state.config.sector_size]
+        cmdline += ["--sector-size", str(state.config.sector_size)]
 
     if definitions:
         for d in definitions:

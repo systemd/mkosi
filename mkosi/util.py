@@ -166,3 +166,7 @@ def umask(mask: int) -> Iterator[None]:
         yield
     finally:
         os.umask(old)
+
+
+def is_power_of_2(x: int) -> bool:
+    return x > 0 and (x & x - 1 == 0)
