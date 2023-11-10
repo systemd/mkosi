@@ -28,6 +28,8 @@ mkosi — Build Bespoke OS Images
 
 `mkosi [options…] serve`
 
+`mkosi [options…] burn <device>`
+
 `mkosi [options…] bump`
 
 `mkosi [options…] genkey`
@@ -124,6 +126,13 @@ The following command line verbs are known:
   it. This command is useful for testing network based acquisition of
   OS images, for example via `machinectl pull-raw …` and `machinectl
   pull-tar …`.
+
+`burn <device>`
+
+: This builds the image if it is not built yet, and then writes it to the
+  specified block device. The partition contents are written as-is, but the GPT
+  partition table is corrected to match sector and disk size of the specified
+  medium.
 
 `bump`
 
