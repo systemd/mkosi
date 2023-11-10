@@ -23,6 +23,7 @@ from typing import Optional, TextIO, Union
 
 from mkosi.architecture import Architecture
 from mkosi.archive import extract_tar, make_cpio, make_tar
+from mkosi.burn import run_burn
 from mkosi.config import (
     BiosBootloader,
     Bootloader,
@@ -2868,3 +2869,6 @@ def run_verb(args: MkosiArgs, images: Sequence[MkosiConfig]) -> None:
 
             if args.verb == Verb.coredumpctl:
                 run_coredumpctl(args, last)
+
+            if args.verb == Verb.burn:
+                run_burn(args, last)

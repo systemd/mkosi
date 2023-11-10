@@ -58,15 +58,16 @@ class Verb(StrEnum):
     documentation = enum.auto()
     journalctl    = enum.auto()
     coredumpctl   = enum.auto()
+    burn          = enum.auto()
 
     def supports_cmdline(self) -> bool:
-        return self in (Verb.build, Verb.shell, Verb.boot, Verb.qemu, Verb.ssh, Verb.journalctl, Verb.coredumpctl)
+        return self in (Verb.build, Verb.shell, Verb.boot, Verb.qemu, Verb.ssh, Verb.journalctl, Verb.coredumpctl, Verb.burn)
 
     def needs_build(self) -> bool:
-        return self in (Verb.build, Verb.shell, Verb.boot, Verb.qemu, Verb.serve, Verb.journalctl, Verb.coredumpctl)
+        return self in (Verb.build, Verb.shell, Verb.boot, Verb.qemu, Verb.serve, Verb.journalctl, Verb.coredumpctl, Verb.burn)
 
     def needs_root(self) -> bool:
-        return self in (Verb.shell, Verb.boot)
+        return self in (Verb.shell, Verb.boot, Verb.burn)
 
 
 class ConfigFeature(StrEnum):
