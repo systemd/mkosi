@@ -77,7 +77,11 @@ def resolve_module_dependencies(root: Path, kver: str, modules: Sequence[str]) -
             depends += [d for d in value.strip().split(",") if d]
 
         elif key == "firmware":
-            firmware += [f for f in (root / "usr/lib/firmware").glob(f"{value.strip()}*")]
+            fw = [f for f in (root / "usr/lib/firmware").glob(f"{value.strip()}*")]
+            if not fw:
+                logging.debug(f"Not including missing firmware /usr/lib/firmware/{value} in the initrd")
+
+            firmware += fw
 
         elif key == "name":
             name = value.strip()
