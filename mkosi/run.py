@@ -425,7 +425,7 @@ def apivfs_cmd(root: Path) -> list[PathString]:
     return cmdline
 
 
-def chroot_cmd(root: Path, *, options: Sequence[PathString] = ()) -> list[PathString]:
+def chroot_cmd(root: Path, *, resolve: bool = False, options: Sequence[PathString] = ()) -> list[PathString]:
     cmdline: list[PathString] = [
         "sh", "-c",
         # No exec here because we need to clean up the /work directory afterwards.
@@ -437,19 +437,19 @@ def chroot_cmd(root: Path, *, options: Sequence[PathString] = ()) -> list[PathSt
         "--setenv", "PATH", "/work/scripts:/usr/bin:/usr/sbin",
     ]
 
-    resolve = Path("etc/resolv.conf")
-    if (root / resolve).is_symlink():
-        # For each component in the target path, bubblewrap will try to create it if it doesn't exist
-        # yet. If a component in the path is a dangling symlink, bubblewrap will end up calling
-        # mkdir(symlink) which obviously fails if multiple components of the dangling symlink path don't
-        # exist yet. As a workaround, we resolve the symlink ourselves so that bubblewrap will correctly
-        # create all missing components in the target path.
-        resolve = resolve.parent / (root / resolve).readlink()
+    if resolve:
+        p = Path("etc/resolv.conf")
+        if (root / p).is_symlink():
+            # For each component in the target path, bubblewrap will try to create it if it doesn't exist
+            # yet. If a component in the path is a dangling symlink, bubblewrap will end up calling
+            # mkdir(symlink) which obviously fails if multiple components of the dangling symlink path don't
+            # exist yet. As a workaround, we resolve the symlink ourselves so that bubblewrap will correctly
+            # create all missing components in the target path.
+            p = p.parent / (root / p).readlink()
 
-    cmdline += [
-        "--ro-bind", "/etc/resolv.conf", Path("/") / resolve,
-        *options,
-    ]
+        cmdline += ["--ro-bind", "/etc/resolv.conf", Path("/") / p]
+
+    cmdline += [*options]
 
     if setpgid := find_binary("setpgid", root):
         cmdline += [setpgid, "--foreground", "--"]

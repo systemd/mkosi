@@ -420,6 +420,7 @@ def run_prepare_scripts(state: MkosiState, build: bool) -> None:
             helpers = {
                 "mkosi-chroot": chroot_cmd(
                     state.root,
+                    resolve=True,
                     options=[
                         "--bind", script, "/work/prepare",
                         "--bind", Path.cwd(), "/work/src",
@@ -482,6 +483,7 @@ def run_build_scripts(state: MkosiState) -> None:
             helpers = {
                 "mkosi-chroot": chroot_cmd(
                     state.root,
+                    resolve=state.config.with_network,
                     options=[
                         "--bind", script, "/work/build-script",
                         "--bind", state.install_dir, "/work/dest",
@@ -541,6 +543,7 @@ def run_postinst_scripts(state: MkosiState) -> None:
             helpers = {
                 "mkosi-chroot": chroot_cmd(
                     state.root,
+                    resolve=state.config.with_network,
                     options=[
                         "--bind", script, "/work/postinst",
                         "--bind", state.staging, "/work/out",
@@ -594,6 +597,7 @@ def run_finalize_scripts(state: MkosiState) -> None:
             helpers = {
                 "mkosi-chroot": chroot_cmd(
                     state.root,
+                    resolve=state.config.with_network,
                     options=[
                         "--bind", script, "/work/finalize",
                         "--bind", state.staging, "/work/out",
