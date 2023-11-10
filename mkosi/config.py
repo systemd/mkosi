@@ -116,6 +116,11 @@ class OutputFormat(StrEnum):
             OutputFormat.uki:  ".efi",
         }.get(self, "")
 
+    def use_outer_compression(self) -> bool:
+        return self in (OutputFormat.tar,
+                        OutputFormat.cpio,
+                        OutputFormat.disk)
+
 
 class ManifestFormat(StrEnum):
     json      = enum.auto()  # the standard manifest in json format
@@ -972,7 +977,7 @@ class MkosiConfig:
     def output_with_compression(self) -> str:
         output = self.output_with_format
 
-        if self.compress_output and self.output_format not in (OutputFormat.uki, OutputFormat.esp):
+        if self.compress_output and self.output_format.use_outer_compression():
             output += f".{self.compress_output}"
 
         return output
