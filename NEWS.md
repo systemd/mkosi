@@ -6,15 +6,8 @@
 - Added `journalctl` and `coredumpctl` verbs for running the respective
   tools on built directory or disk images.
 - Added a `burn` verb to write the output image to a block device.
-- Added a `--json` option to get the output of `mkosi summary` as JSON.
-- Added shorthand `-a` for `--autologin`.
-- Scripts with the `.chroot` extension are now executed in the image
-  automatically.
-- Added `rpm` helper script to have `rpm` automatically operate on the
-  image when running scripts.
-- Added `mkosi-as-caller` helper script that can be used in scripts to
-  run commands as the user invoking mkosi.
-- `mkosi-chroot` will now start a shell if no arguments are specified.
+- Added a new `esp` output format, which is large similar to the existing `uki`
+  output format but wraps it in a disk image with only an ESP.
 - `Presets` were renamed to `Images`. `mkosi.images/` is now used
   instead of `mkosi.presets/`,  the `Presets=` setting was renamed
   to `Images=` and the `Presets` section was merged into the `Config`
@@ -24,10 +17,21 @@
   be selected using the new `Profile=` setting.
 - mkosi will now parse `mkosi.local.conf` before any other config files
   if that exists.
-- Added `WithRecommends=` to configure whether to install recommended
-  packages by default or not where this is supported.
-- Added `ToolsTreeMirror=` setting for confuring the mirror to use for
-  the default tools tree.
+- Added a kernel-install plugin. This is only shipped in source tree and not
+  included in the Python module.
+- Added a `--json` option to get the output of `mkosi summary` as JSON.
+- Added shorthand `-a` for `--autologin`.
+- Scripts with the `.chroot` extension are now executed in the image
+  automatically.
+- Added `rpm` helper script to have `rpm` automatically operate on the
+  image when running scripts.
+- Added `mkosi-as-caller` helper script that can be used in scripts to
+  run commands as the user invoking mkosi.
+- `mkosi-chroot` will now start a shell if no arguments are specified.
+- Added `WithRecommends=` to configure whether to install recommended packages
+  by default or not where this is supported. It is disabled by default.
+- Added `ToolsTreeMirror=` setting for configuring the mirror to use for the
+  default tools tree.
 - `WithDocs=` is now enabled by default.
 - Added `BuildSourcesEphemeral=` to make source directories ephemeral
   when running scripts. This means any changes made to source
@@ -65,7 +69,8 @@
   to any image (because it is overridden).
 - Added a new doc on building rpms from source with mkosi
   (`docs/building-rpms-from-source.md`).
-
+- `/etc/resolv.conf` will now only be mounted for scripts when they are run
+  with network access.
 ## v18
 
 - `$SCRIPT` was renamed to `$CHROOT_SCRIPT`. `$SCRIPT` can still be used
