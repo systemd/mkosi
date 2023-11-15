@@ -5,6 +5,7 @@
 - Support for RHEL was added!
 - Added `journalctl` and `coredumpctl` verbs for running the respective
   tools on built directory or disk images.
+- Added a `burn` verb to write the output image to a block device.
 - Added a `--json` option to get the output of `mkosi summary` as JSON.
 - Added shorthand `-a` for `--autologin`.
 - Scripts with the `.chroot` extension are now executed in the image
