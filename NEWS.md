@@ -6,8 +6,8 @@
 - Added `journalctl` and `coredumpctl` verbs for running the respective
   tools on built directory or disk images.
 - Added a `burn` verb to write the output image to a block device.
-- Added a new `esp` output format, which is large similar to the existing `uki`
-  output format but wraps it in a disk image with only an ESP.
+- Added a new `esp` output format, which is largely similar to the existing
+  `uki` output format but wraps it in a disk image with only an ESP.
 - `Presets` were renamed to `Images`. `mkosi.images/` is now used
   instead of `mkosi.presets/`,  the `Presets=` setting was renamed
   to `Images=` and the `Presets` section was merged into the `Config`
@@ -21,6 +21,10 @@
   included in the Python module.
 - Added a `--json` option to get the output of `mkosi summary` as JSON.
 - Added shorthand `-a` for `--autologin`.
+- Added a `--debug-workspace` option to not remove the workspace directory
+  after a build. This is useful to inspect the workspace after failing
+  builds. As a consequence the prefix for the default workspace directory
+  prefix has been changed from `.mkosi-tmp` to `mkosi-workspace`.
 - Scripts with the `.chroot` extension are now executed in the image
   automatically.
 - Added `rpm` helper script to have `rpm` automatically operate on the
