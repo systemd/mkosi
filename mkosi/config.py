@@ -311,7 +311,7 @@ def config_parse_source_date_epoch(value: Optional[str], old: Optional[int]) -> 
 
 
 def config_default_compression(namespace: argparse.Namespace) -> Compression:
-    if namespace.output_format in (OutputFormat.cpio, OutputFormat.uki, OutputFormat.esp):
+    if namespace.output_format in (OutputFormat.tar, OutputFormat.cpio, OutputFormat.uki, OutputFormat.esp):
         if namespace.distribution.is_centos_variant() and int(namespace.release) <= 8:
             return Compression.xz
         else:
