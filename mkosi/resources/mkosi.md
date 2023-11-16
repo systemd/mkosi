@@ -607,13 +607,14 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `CompressOutput=`, `--compress-output=`
 
-: Configure compression for the resulting image or archive. The
-  argument can be either a boolean or a compression algorithm (`xz`,
-  `zstd`). `xz` compression is used by default. Note that when applied
-  to block device image types this means the image cannot be started
-  directly but needs to be decompressed first. This also means that
-  the `shell`, `boot`, `qemu` verbs are not available when this option
-  is used. Implied for `tar` and `cpio`.
+: Configure compression for the resulting image or archive. The argument can be
+  either a boolean or a compression algorithm (`xz`, `zstd`). `zstd`
+  compression is used by default, except CentOS and derivatives up to version
+  8, which default to `xz`. Note that when applied to block device image types,
+  compression means the image cannot be started directly but needs to be
+  decompressed first. This also means that the `shell`, `boot`, `qemu` verbs
+  are not available when this option is used. Implied for `tar`, `cpio`, `uki`,
+  and `esp`.
 
 `OutputDirectory=`, `--output-dir=`, `-O`
 
