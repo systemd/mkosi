@@ -1203,7 +1203,7 @@ def build_kernel_modules_initrd(state: MkosiState, kver: str) -> Path:
     # this is not ideal since the compressed kernel modules will all be decompressed on boot which
     # requires significant memory.
     if state.config.distribution.is_apt_distribution():
-        maybe_compress(state.config, Compression.zst, kmods, kmods)
+        maybe_compress(state.config, Compression.zstd, kmods, kmods)
 
     return kmods
 
@@ -1433,7 +1433,7 @@ def compressor_command(compression: Compression) -> list[PathString]:
         return [gzip_binary(), "--fast", "--stdout", "-"]
     elif compression == Compression.xz:
         return ["xz", "--check=crc32", "--fast", "-T0", "--stdout", "-"]
-    elif compression == Compression.zst:
+    elif compression == Compression.zstd:
         return ["zstd", "-q", "-T0", "--stdout", "-"]
     else:
         die(f"Unknown compression {compression}")

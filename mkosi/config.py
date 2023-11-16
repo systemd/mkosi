@@ -130,7 +130,8 @@ class ManifestFormat(StrEnum):
 
 class Compression(StrEnum):
     none = enum.auto()
-    zst  = enum.auto()
+    zstd = enum.auto()
+    zst  = "zstd"
     xz   = enum.auto()
     bz2  = enum.auto()
     gz   = enum.auto()
@@ -283,7 +284,7 @@ def config_parse_compression(value: Optional[str], old: Optional[Compression]) -
     try:
         return Compression[value]
     except KeyError:
-        return Compression.zst if parse_boolean(value) else Compression.none
+        return Compression.zstd if parse_boolean(value) else Compression.none
 
 
 def config_parse_seed(value: Optional[str], old: Optional[str]) -> Optional[uuid.UUID]:
@@ -314,7 +315,7 @@ def config_default_compression(namespace: argparse.Namespace) -> Compression:
         if namespace.distribution.is_centos_variant() and int(namespace.release) <= 8:
             return Compression.xz
         else:
-            return Compression.zst
+            return Compression.zstd
     else:
         return Compression.none
 
