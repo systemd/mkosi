@@ -61,10 +61,28 @@ class Verb(StrEnum):
     burn          = enum.auto()
 
     def supports_cmdline(self) -> bool:
-        return self in (Verb.build, Verb.shell, Verb.boot, Verb.qemu, Verb.ssh, Verb.journalctl, Verb.coredumpctl, Verb.burn)
+        return self in (
+            Verb.build,
+            Verb.shell,
+            Verb.boot,
+            Verb.qemu,
+            Verb.ssh,
+            Verb.journalctl,
+            Verb.coredumpctl,
+            Verb.burn,
+        )
 
     def needs_build(self) -> bool:
-        return self in (Verb.build, Verb.shell, Verb.boot, Verb.qemu, Verb.serve, Verb.journalctl, Verb.coredumpctl, Verb.burn)
+        return self in (
+            Verb.build,
+            Verb.shell,
+            Verb.boot,
+            Verb.qemu,
+            Verb.serve,
+            Verb.journalctl,
+            Verb.coredumpctl,
+            Verb.burn,
+        )
 
     def needs_root(self) -> bool:
         return self in (Verb.shell, Verb.boot, Verb.burn)
@@ -2573,10 +2591,12 @@ def parse_config(argv: Sequence[str] = ()) -> tuple[MkosiArgs, tuple[MkosiConfig
         if any(getattr(config, s) == getattr(cli_ns, s) for config in images):
             continue
 
-        setting = SETTINGS_LOOKUP_BY_DEST[s]
-
-        die(f"{setting.long}={getattr(cli_ns, s)} was specified on the command line but is not allowed to be configured by any images.",
-            hint="Prefix the setting with '@' in the image configuration file to allow overriding it from the command line.")
+        setting = SETTINGS_LOOKUP_BY_DEST[s].long
+        a = getattr(cli_ns, s)
+        die(
+            f"{setting}={a} was specified on the command line but is not allowed to be configured by any images.",
+            hint="Prefix the setting with '@' in the image configuration file to allow overriding it from the command line.", # noqa: E501
+        )
 
     if not images:
         die("No images defined in mkosi.images/")

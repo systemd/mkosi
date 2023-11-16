@@ -69,7 +69,11 @@ def mount(
 
 
 @contextlib.contextmanager
-def mount_overlay(lowerdirs: Sequence[Path], upperdir: Optional[Path] = None, where: Optional[Path] = None) -> Iterator[Path]:
+def mount_overlay(
+    lowerdirs: Sequence[Path],
+    upperdir: Optional[Path] = None,
+    where: Optional[Path] = None,
+) -> Iterator[Path]:
     with contextlib.ExitStack() as stack:
         if upperdir is None:
             upperdir = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix="volatile-overlay")))
