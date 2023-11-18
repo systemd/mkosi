@@ -13,7 +13,7 @@ from mkosi.run import bwrap, chroot_cmd
 
 def filter_kernel_modules(root: Path, kver: str, include: Sequence[str], exclude: Sequence[str]) -> list[Path]:
     modulesd = root / "usr/lib/modules" / kver
-    modules = set(m for m in (root / modulesd).rglob("*.ko*"))
+    modules = {m for m in modulesd.rglob("*.ko*")}
 
     keep = set()
     for pattern in include:
