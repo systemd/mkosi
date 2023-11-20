@@ -1213,7 +1213,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `QemuMem=`, `--qemu-mem=`
 
 : When used with the `qemu` verb, this options sets `qemu`'s `-m`
-  argument which controls the amount of guest's RAM. Defaults to `1G`.
+  argument which controls the amount of guest's RAM. Defaults to `2G`.
 
 `QemuKvm=`, `--qemu-kvm=`
 
