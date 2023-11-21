@@ -77,13 +77,27 @@ def flatten(lists: Iterable[Iterable[T]]) -> list[T]:
 class INVOKING_USER:
     uid = int(os.getenv("SUDO_UID") or os.getenv("PKEXEC_UID") or os.getuid())
     gid = int(os.getenv("SUDO_GID") or os.getgid())
-    name = pwd.getpwuid(uid).pw_name
-    home = Path(f"~{name}").expanduser()
     invoked_as_root = (uid == 0)
+
+    @classmethod
+    def init(cls) -> None:
+        name = cls.name()
+        home = cls.home()
+        logging.debug(f"Running as user '{name}' ({cls.uid}:{cls.gid}) with home {home}.")
 
     @classmethod
     def is_running_user(cls) -> bool:
         return cls.uid == os.getuid()
+
+    @classmethod
+    @functools.lru_cache(maxsize=1)
+    def name(cls) -> str:
+        return pwd.getpwuid(cls.uid).pw_name
+
+    @classmethod
+    @functools.lru_cache(maxsize=1)
+    def home(cls) -> Path:
+        return Path(f"~{cls.name()}").expanduser()
 
 
 @contextlib.contextmanager

@@ -2604,7 +2604,7 @@ def show_docs(args: MkosiArgs) -> None:
 
 
 def expand_specifier(s: str) -> str:
-    return s.replace("%u", INVOKING_USER.name)
+    return s.replace("%u", INVOKING_USER.name())
 
 
 def needs_build(args: MkosiArgs, config: MkosiConfig) -> bool:
