@@ -1141,7 +1141,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 : Path to the X.509 file containing the certificate for signing the verity signature, if a verity signature
   partition is added with systemd-repart.
 
-`SignExpectedPCR=`, `--sign-expected-pcr`
+`SignExpectedPcr=`, `--sign-expected-pcr`
 
 : Measure the components of the unified kernel image (UKI) using
   `systemd-measure` and embed the PCR signature into the unified kernel
