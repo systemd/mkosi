@@ -84,7 +84,10 @@ def resolve_module_dependencies(root: Path, kver: str, modules: Sequence[str]) -
             firmware += fw
 
         elif key == "name":
-            name = value.strip()
+            # The file names use dashes, but the module names use underscores. We track the names
+            # in terms of the file names, since the depends use dashes and therefore filenames as
+            # well.
+            name = value.strip().replace("_", "-")
 
             moddep[name] = depends
             firmwaredep[name] = firmware
