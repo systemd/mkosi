@@ -1132,8 +1132,8 @@ def build_initrd(state: MkosiState) -> Path:
     # Default values are assigned via the parser so we go via the argument parser to construct
     # the config for the initrd.
 
-    password, hashed = state.config.root_password or (None, False)
-    if password:
+    if state.config.root_password:
+        password, hashed = state.config.root_password
         rootpwopt = f"hashed:{password}" if hashed else password
     else:
         rootpwopt = None
@@ -1860,7 +1860,8 @@ def run_firstboot(state: MkosiState) -> None:
     creds = []
 
     for option, cred, value in settings:
-        if not value:
+        # Check for None as password might be the empty string
+        if value is None:
             continue
 
         options += [option, value]

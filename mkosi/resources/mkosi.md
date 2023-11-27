@@ -1073,7 +1073,8 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 : Set the system root password. If this option is not used, but a `mkosi.rootpw` file is found in the local
   directory, the password is automatically read from it. If the password starts with `hashed:`, it is treated
   as an already hashed root password. The root password is also stored in `/usr/lib/credstore` under the
-  appropriate systemd credential so that it applies even if only `/usr` is shipped in the image.
+  appropriate systemd credential so that it applies even if only `/usr` is shipped in the image. To create
+  an unlocked account without any password use `hashed:` without a hash.
 
 `Autologin=`, `--autologin`
 
