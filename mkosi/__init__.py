@@ -239,67 +239,39 @@ def configure_os_release(state: MkosiState) -> None:
         newosrelease.rename(osrelease)
 
 
+def configure_autologin_service(state: MkosiState, service: str, extra: str) -> None:
+    dropin = state.root / f"usr/lib/systemd/system/{service}.d/autologin.conf"
+    with umask(~0o755):
+        dropin.parent.mkdir(parents=True, exist_ok=True)
+    with umask(~0o644):
+        dropin.write_text(
+            textwrap.dedent(
+                f"""\
+                [Service]
+                ExecStart=
+                ExecStart=-agetty -o '-f -p -- \\\\u' --autologin root {extra} $TERM
+                StandardInput=tty
+                StandardOutput=tty
+                """
+            )
+        )
+
+
 def configure_autologin(state: MkosiState) -> None:
     if not state.config.autologin:
         return
 
     with complete_step("Setting up autologin…"):
-        dropin = state.root / "usr/lib/systemd/system/console-getty.service.d/autologin.conf"
-        with umask(~0o755):
-            dropin.parent.mkdir(parents=True, exist_ok=True)
-        with umask(~0o644):
-            dropin.write_text(
-                """\
-                [Service]
-                ExecStart=
-                ExecStart=-/sbin/agetty -o '-f -p -- \\\\u' --autologin root --noclear --keep-baud console 115200,38400,9600 $TERM
-                StandardInput=tty
-                StandardOutput=tty
-                """  # noqa: E501
-            )
-
-        dropin = state.root / "usr/lib/systemd/system/getty@tty1.service.d/autologin.conf"
-        with umask(~0o755):
-            dropin.parent.mkdir(parents=True, exist_ok=True)
-        with umask(~0o644):
-            dropin.write_text(
-                """\
-                [Service]
-                ExecStart=
-                ExecStart=-/sbin/agetty -o '-f -p -- \\\\u' --autologin root --noclear - $TERM
-                StandardInput=tty
-                StandardOutput=tty
-                """
-            )
-
-        dropin = state.root / "usr/lib/systemd/system/serial-getty@ttyS0.service.d/autologin.conf"
-        with umask(~0o755):
-            dropin.parent.mkdir(parents=True, exist_ok=True)
-        with umask(~0o644):
-            dropin.write_text(
-                """\
-                [Service]
-                ExecStart=
-                ExecStart=-/sbin/agetty -o '-f -p -- \\\\u' --autologin root --keep-baud 115200,57600,38400,9600 - $TERM
-                StandardInput=tty
-                StandardOutput=tty
-                """  # noqa: E501
-            )
+        configure_autologin_service(state, "console-getty.service",
+                                    "--noclear --keep-baud console 115200,38400,9600")
+        configure_autologin_service(state, "getty@tty1.service",
+                                    "--noclear -")
+        configure_autologin_service(state, "serial-getty@ttyS0.service",
+                                    "--keep-baud 115200,57600,38400,9600 -")
 
         if state.config.architecture == Architecture.arm64:
-            dropin = state.root / "usr/lib/systemd/system/serial-getty@ttyAMA0.service.d/autologin.conf"
-            with umask(~0o755):
-                dropin.parent.mkdir(parents=True, exist_ok=True)
-            with umask(~0o644):
-                dropin.write_text(
-                    """\
-                    [Service]
-                    ExecStart=
-                    ExecStart=-/sbin/agetty -o '-f -p -- \\\\u' --autologin root --keep-baud 115200,57600,38400,9600 - $TERM
-                    StandardInput=tty
-                    StandardOutput=tty
-                    """  # noqa: E501
-                )
+            configure_autologin_service(state, "serial-getty@ttyAMA0.service",
+                                        "--keep-baud 115200,57600,38400,9600 -")
 
 
 @contextlib.contextmanager
