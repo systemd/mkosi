@@ -15,7 +15,7 @@ def run_burn(args: MkosiArgs, config: MkosiConfig) -> None:
     fname = config.output_dir_or_cwd() / config.output
 
     if len(args.cmdline) != 1:
-        die("Expected device argument.");
+        die("Expected device argument.")
 
     device = args.cmdline[0]
 

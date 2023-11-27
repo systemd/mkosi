@@ -286,6 +286,21 @@ def configure_autologin(state: MkosiState) -> None:
                 """  # noqa: E501
             )
 
+        if state.config.architecture == Architecture.arm64:
+            dropin = state.root / "usr/lib/systemd/system/serial-getty@ttyAMA0.service.d/autologin.conf"
+            with umask(~0o755):
+                dropin.parent.mkdir(parents=True, exist_ok=True)
+            with umask(~0o644):
+                dropin.write_text(
+                    """\
+                    [Service]
+                    ExecStart=
+                    ExecStart=-/sbin/agetty -o '-f -p -- \\\\u' --autologin root --keep-baud 115200,57600,38400,9600 - $TERM
+                    StandardInput=tty
+                    StandardOutput=tty
+                    """  # noqa: E501
+                )
+
 
 @contextlib.contextmanager
 def mount_cache_overlay(state: MkosiState) -> Iterator[None]:
