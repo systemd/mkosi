@@ -1694,11 +1694,11 @@ available via `$PATH` to simplify common usecases.
   to the name (`mkosi.build.chroot` instead of `mkosi.build`, etc.).
 
 * For all of the supported package managers except portage (`dnf`,
-  `apt`, `pacman`, `zypper`), scripts of the same name are put into
-  `$PATH` that make sure these commands operate on the image's root
+  `rpm`, `apt`, `pacman`, `zypper`), scripts of the same name are put
+  into `$PATH` that make sure these commands operate on the image's root
   directory with the configuration supplied by the user instead of on
-  the host system. This means that from a script, you can do e.g.
-  `dnf install vim` to install vim into the image.
+  the host system. This means that from a script, you can do e.g. `dnf
+  install vim` to install vim into the image.
 
 * `mkosi-as-caller`: This script uses `setpriv` to switch from
   the user `root` in the user namespace used for various build steps
@@ -1715,6 +1715,12 @@ available via `$PATH` to simplify common usecases.
   mkosi-as-caller meson compile -C "$BUILDDIR/build"
   meson install -C "$BUILDDIR/build" --no-rebuild
   ```
+
+* `git` is automatically invoked with `safe.directory=*` to avoid
+  permissions errors when running as the root user in a user namespace.
+
+* `useradd` is automatically invoked with `--root=$BUILDROOT` when
+  executed outside of the image.
 
 When scripts are executed, any directories that are still writable are
 also made read-only (`/home`, `/var`, `/root`, ...) and only the minimal
