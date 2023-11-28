@@ -1757,9 +1757,6 @@ def configure_clock(state: MkosiState) -> None:
 
 
 def run_depmod(state: MkosiState) -> None:
-    if state.config.bootable == ConfigFeature.disabled:
-        return
-
     outputs = (
         "modules.dep",
         "modules.dep.bin",
