@@ -58,8 +58,13 @@ def resolve_module_dependencies(root: Path, kver: str, modules: Sequence[str]) -
     # We could run modinfo once for each module but that's slow. Luckily we can pass multiple modules to
     # modinfo and it'll process them all in a single go. We get the modinfo for all modules to build two maps
     # that map the path of the module to its module dependencies and its firmware dependencies respectively.
-    info = bwrap(chroot_cmd(root) + ["modinfo", "--set-version", kver, "--null", *nametofile.keys()],
-                 stdout=subprocess.PIPE).stdout
+    # Because there's more kernel modules than the max number of accepted CLI arguments for bwrap, we split the modules
+    # list up into chunks.
+    info = ""
+    for i in range(0, len(nametofile.keys()), 8500):
+        chunk = list(nametofile.keys())[i:i+8500]
+        info += bwrap(chroot_cmd(root) + ["modinfo", "--set-version", kver, "--null", *chunk],
+                      stdout=subprocess.PIPE).stdout.strip()
 
     log_step("Calculating required kernel modules and firmware")
 
