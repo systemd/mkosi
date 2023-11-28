@@ -2135,14 +2135,12 @@ def create_argument_parser(action: type[argparse.Action]) -> argparse.ArgumentPa
         "--genkey-valid-days",
         metavar="DAYS",
         help="Number of days keys should be valid when generating keys",
-        action=action,
         default="730",
     )
     parser.add_argument(
         "--genkey-common-name",
         metavar="CN",
         help="Template for the CN when generating keys",
-        action=action,
         default="mkosi of %u",
     )
     parser.add_argument(
