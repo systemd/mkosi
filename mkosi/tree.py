@@ -83,8 +83,8 @@ def copy_tree(config: MkosiConfig, src: Path, dst: Path, *, preserve_owner: bool
         run(copy)
 
 
-def rmtree(path: Path) -> None:
-    run(["rm", "-rf", "--", path])
+def rmtree(*paths: Path) -> None:
+    run(["rm", "-rf", "--", *paths])
 
 
 def move_tree(config: MkosiConfig, src: Path, dst: Path) -> None:
