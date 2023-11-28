@@ -159,6 +159,11 @@ class Compression(StrEnum):
     def __bool__(self) -> bool:
         return self != Compression.none
 
+    def extension(self) -> str:
+        return {
+            Compression.zstd: ".zst"
+        }.get(self, f".{self}")
+
 
 class DocFormat(StrEnum):
     auto     = enum.auto()
@@ -998,7 +1003,7 @@ class MkosiConfig:
         output = self.output_with_format
 
         if self.compress_output and self.output_format.use_outer_compression():
-            output += f".{self.compress_output}"
+            output += self.compress_output.extension()
 
         return output
 
