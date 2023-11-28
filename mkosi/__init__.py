@@ -1603,8 +1603,7 @@ def print_output_size(path: Path) -> None:
 
 def empty_directory(path: Path) -> None:
     try:
-        for f in os.listdir(path):
-            rmtree(path / f)
+        rmtree(*path.iterdir())
     except FileNotFoundError:
         pass
 
