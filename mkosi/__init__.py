@@ -356,6 +356,7 @@ def finalize_scripts(scripts: Mapping[str, Sequence[PathString]] = {}) -> Iterat
             )
 
             make_executable(Path(d) / name)
+            os.utime(Path(d) / name, (0, 0))
 
         yield Path(d)
 
