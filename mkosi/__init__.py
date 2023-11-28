@@ -1656,9 +1656,12 @@ def check_outputs(config: MkosiConfig) -> None:
             die(f"Output path {f} exists already. (Consider invocation with --force.)")
 
 
-def check_systemd_tool(tool: PathString, *, reason: str, hint: Optional[str] = None) -> None:
-    if not shutil.which(tool):
-        die(f"Could not find '{tool}' which is required to {reason}.", hint=hint)
+def check_systemd_tool(*tools: PathString, reason: str, hint: Optional[str] = None) -> None:
+    for tool in tools:
+        if shutil.which(tool):
+            break
+    else:
+        die(f"Could not find '{tools[0]}' which is required to {reason}.", hint=hint)
 
     v = GenericVersion(run([tool, "--version"], stdout=subprocess.PIPE).stdout.split()[1])
     if v < MINIMUM_SYSTEMD_VERSION:
@@ -1669,7 +1672,7 @@ def check_systemd_tool(tool: PathString, *, reason: str, hint: Optional[str] = N
 def check_tools(args: MkosiArgs, config: MkosiConfig) -> None:
     if want_uki(config):
         check_systemd_tool(
-            shutil.which("ukify") or "/usr/lib/systemd/ukify",
+            "ukify", "/usr/lib/systemd/ukify",
             reason="build bootable images",
             hint="Bootable=no can be used to create a non-bootable image",
         )
