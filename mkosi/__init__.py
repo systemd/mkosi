@@ -364,8 +364,12 @@ def finalize_host_scripts(
     state: MkosiState,
     helpers: dict[str, Sequence[PathString]],  # FIXME: change dict to Mapping when PyRight is fixed
 ) -> contextlib.AbstractContextManager[Path]:
-    git = {"git": ("git", "-c", "safe.directory=*")} if find_binary("git") else {}
-    return finalize_scripts(git | helpers | package_manager_scripts(state))
+    scripts: dict[str, Sequence[PathString]] = {}
+    if find_binary("git"):
+        scripts["git"] = ("git", "-c", "safe.directory=*")
+    if find_binary("useradd"):
+        scripts["useradd"] = ("useradd", "--root", state.root)
+    return finalize_scripts(scripts | helpers | package_manager_scripts(state))
 
 
 def finalize_chroot_scripts(state: MkosiState) -> contextlib.AbstractContextManager[Path]:
