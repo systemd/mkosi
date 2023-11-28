@@ -425,8 +425,11 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
         firmware = config.qemu_firmware
 
     if (
-        firmware == QemuFirmware.linux or
-        config.output_format in (OutputFormat.cpio, OutputFormat.directory, OutputFormat.uki)
+        not kernel and
+        (
+            firmware == QemuFirmware.linux or
+            config.output_format in (OutputFormat.cpio, OutputFormat.directory, OutputFormat.uki)
+        )
     ):
         if firmware == QemuFirmware.uefi:
             name = config.output if config.output_format == OutputFormat.uki else config.output_split_uki
