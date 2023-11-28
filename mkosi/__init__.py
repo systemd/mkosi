@@ -918,15 +918,17 @@ def prepare_grub_bios(state: MkosiState, partitions: Sequence[Partition]) -> Non
             with umask(~0o700):
                 kdst.mkdir(exist_ok=True)
 
+            microcode = build_microcode_initrd(state)
             kmods = build_kernel_modules_initrd(state, kver)
 
             with umask(~0o600):
                 kimg = Path(shutil.copy2(state.root / kimg, kdst / "vmlinuz"))
-                initrds = [
+                initrds = [Path(shutil.copy2(microcode, kdst / "microcode"))] if microcode else []
+                initrds += [
                     Path(shutil.copy2(initrd, dst / initrd.name))
                     for initrd in (state.config.initrds or [build_initrd(state)])
                 ]
-                kmods = Path(shutil.copy2(kmods, kdst / "kmods"))
+                initrds += [Path(shutil.copy2(kmods, kdst / "kmods"))]
 
                 distribution = state.config.distribution
                 image = Path("/") / kimg.relative_to(state.root / "efi")
@@ -934,14 +936,13 @@ def prepare_grub_bios(state: MkosiState, partitions: Sequence[Partition]) -> Non
                 initrds = " ".join(
                     [os.fspath(Path("/") / initrd.relative_to(state.root / "efi")) for initrd in initrds]
                 )
-                kmods = Path("/") / kmods.relative_to(state.root / "efi")
 
                 f.write(
                     textwrap.dedent(
                         f"""\
                         menuentry "{distribution}-{kver}" {{
                             linux {image} {root} {cmdline}
-                            initrd {initrds} {kmods}
+                            initrd {initrds}
                         }}
                         """
                     )
@@ -1172,6 +1173,38 @@ def build_initrd(state: MkosiState) -> Path:
     return config.output_dir / config.output
 
 
+def build_microcode_initrd(state: MkosiState) -> Optional[Path]:
+    microcode = state.workspace / "initrd-microcode.img"
+    if microcode.exists():
+        return microcode
+
+    amd = state.root / "usr/lib/firmware/amd-ucode"
+    intel = state.root / "usr/lib/firmware/intel-ucode"
+
+    if not amd.exists() and not intel.exists():
+        return None
+
+    root = state.workspace / "initrd-microcode-root"
+    destdir = root / "kernel/x86/microcode"
+
+    with umask(~0o755):
+        destdir.mkdir(parents=True, exist_ok=True)
+
+    if amd.exists():
+        with (destdir / "AuthenticAMD.bin").open("wb") as f:
+            for p in amd.iterdir():
+                f.write(p.read_bytes())
+
+    if intel.exists():
+        with (destdir / "GenuineIntel.bin").open("wb") as f:
+            for p in intel.iterdir():
+                f.write(p.read_bytes())
+
+    make_cpio(root, microcode)
+
+    return microcode
+
+
 def build_kernel_modules_initrd(state: MkosiState, kver: str) -> Path:
     kmods = state.workspace / f"initrd-kernel-modules-{kver}.img"
     if kmods.exists():
@@ -1366,7 +1399,10 @@ def install_uki(state: MkosiState, partitions: Sequence[Partition]) -> None:
         else:
             boot_binary = state.root / f"efi/EFI/Linux/{image_id}-{kver}{boot_count}.efi"
 
-        initrds = state.config.initrds.copy() or [build_initrd(state)]
+        microcode = build_microcode_initrd(state)
+
+        initrds = [microcode] if microcode else []
+        initrds += state.config.initrds or [build_initrd(state)]
 
         if state.config.kernel_modules_initrd:
             initrds += [build_kernel_modules_initrd(state, kver)]
@@ -1399,18 +1435,21 @@ def install_uki(state: MkosiState, partitions: Sequence[Partition]) -> None:
 
 
 def make_uki(state: MkosiState, output: Path) -> None:
-    make_cpio(state.root, state.staging / state.config.output_split_initrd)
-    maybe_compress(state.config, state.config.compress_output,
-                   state.staging / state.config.output_split_initrd,
-                   state.staging / state.config.output_split_initrd)
+    microcode = build_microcode_initrd(state)
+    make_cpio(state.root, state.workspace / "initrd")
+    maybe_compress(state.config, state.config.compress_output, state.workspace / "initrd", state.workspace / "initrd")
+
+    initrds = [microcode] if microcode else []
+    initrds += [state.workspace / "initrd"]
 
     try:
         _, kimg = next(gen_kernel_images(state))
     except StopIteration:
         die("A kernel must be installed in the image to build a UKI")
 
-    build_uki(state, kimg, [state.staging / state.config.output_split_initrd], output)
+    build_uki(state, kimg, initrds, output)
     extract_pe_section(state, output, ".linux", state.staging / state.config.output_split_kernel)
+    extract_pe_section(state, output, ".initrd", state.staging / state.config.output_split_initrd)
 
 
 def compressor_command(compression: Compression) -> list[PathString]:
