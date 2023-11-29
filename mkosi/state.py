@@ -42,10 +42,7 @@ class MkosiState:
 
     @property
     def cache_dir(self) -> Path:
-        return (
-            self.config.cache_dir or
-            self.workspace / f"cache/{self.config.distribution}~{self.config.release}~{self.config.architecture}"
-        )
+        return self.config.cache_dir or (self.workspace / "cache")
 
     @property
     def install_dir(self) -> Path:
