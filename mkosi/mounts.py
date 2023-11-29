@@ -157,7 +157,8 @@ def mount_passwd(root: Path = Path("/")) -> Iterator[None]:
         passwd.write("root:x:0:0:root:/root:/bin/sh\n")
         if INVOKING_USER.uid != 0:
             name = INVOKING_USER.name()
-            passwd.write(f"{name}:x:{INVOKING_USER.uid}:{INVOKING_USER.gid}:{name}:/home/{name}:/bin/sh\n")
+            home = INVOKING_USER.home()
+            passwd.write(f"{name}:x:{INVOKING_USER.uid}:{INVOKING_USER.gid}:{name}:{home}:/bin/sh\n")
         passwd.flush()
         os.fchown(passwd.file.fileno(), INVOKING_USER.uid, INVOKING_USER.gid)
 
