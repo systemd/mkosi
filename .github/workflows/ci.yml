@@ -99,10 +99,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-      - name: Enable proposed-updates
-        run: |
-          sudo mkdir -p /etc/apt/sources.list.d/
-          echo 'deb http://azure.archive.ubuntu.com/ubuntu jammy-proposed restricted main universe' | sudo tee /etc/apt/sources.list.d/proposed.list
       - uses: ./
 
       # Make sure the latest changes from the pull request are used.
@@ -147,10 +143,6 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - name: Enable proposed-updates
-      run: |
-        sudo mkdir -p /etc/apt/sources.list.d/
-        echo 'deb http://azure.archive.ubuntu.com/ubuntu jammy-proposed restricted main universe' | sudo tee /etc/apt/sources.list.d/proposed.list
     - uses: ./
 
     # Make sure the latest changes from the pull request are used.
