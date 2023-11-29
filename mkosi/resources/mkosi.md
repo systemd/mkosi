@@ -674,13 +674,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 : Configure the image identifier. This accepts a freeform string that
   shall be used to identify the image with. If set the default output
-  file will be named after it (possibly suffixed with the version). If
-  this option is used the root, `/usr/` and Verity partitions in the
-  image will have their labels set to this (possibly suffixed by the
-  image version). The identifier is also passed via the `$IMAGE_ID` to
-  any build scripts invoked (which may be useful to patch it into
-  `/etc/os-release` or similar, in particular the `IMAGE_ID=` field of
-  it).
+  file will be named after it (possibly suffixed with the version). The
+  identifier is also passed via the `$IMAGE_ID` to any build scripts
+  invoked. The image ID is automatically added to /usr/lib/os-release.
 
 `SplitArtifacts=`, `--split-artifacts`
 
