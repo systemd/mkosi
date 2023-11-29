@@ -99,7 +99,7 @@ def become_root() -> None:
     ]
 
     newgidmap = [
-        "flock", "--exclusive", "--no-fork", "/etc/subuid", "newgidmap", pid,
+        "flock", "--exclusive", "--no-fork", "/etc/subgid", "newgidmap", pid,
         0, subgid, SUBRANGE - 100,
         SUBRANGE - 100, os.getgid(), 1,
         SUBRANGE - 100 + 1, subgid + SUBRANGE - 100 + 1, 99
