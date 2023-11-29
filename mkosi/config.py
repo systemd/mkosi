@@ -219,7 +219,7 @@ def parse_path(value: str,
 
     if expanduser:
         if path.is_relative_to("~") and not INVOKING_USER.is_running_user():
-            path = INVOKING_USER.home / path.relative_to("~")
+            path = INVOKING_USER.home() / path.relative_to("~")
         path = path.expanduser()
 
     if required and not path.exists():
@@ -955,14 +955,14 @@ class MkosiConfig:
         # directory in /home as well as /home might be on a separate partition or subvolume which means that to take
         # advantage of reflinks and such, the workspace directory has to be on the same partition/subvolume.
         if (
-            Path.cwd().is_relative_to(INVOKING_USER.home) and
-            (INVOKING_USER.home / ".cache").exists() and
+            Path.cwd().is_relative_to(INVOKING_USER.home()) and
+            (INVOKING_USER.home() / ".cache").exists() and
             (
-                self.cache_dir and self.cache_dir.is_relative_to(INVOKING_USER.home) or
-                self.output_dir and self.output_dir.is_relative_to(INVOKING_USER.home)
+                self.cache_dir and self.cache_dir.is_relative_to(INVOKING_USER.home()) or
+                self.output_dir and self.output_dir.is_relative_to(INVOKING_USER.home())
             )
         ):
-            return INVOKING_USER.home / ".cache"
+            return INVOKING_USER.home() / ".cache"
 
         return Path("/var/tmp")
 
