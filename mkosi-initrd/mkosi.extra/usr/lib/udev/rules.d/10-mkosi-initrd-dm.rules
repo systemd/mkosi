@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: GPL-2.0
+# Copied from https://github.com/dracutdevs/dracut/blob/059/modules.d/90dm/11-dm.rules
+
+SUBSYSTEM!="block", GOTO="dm_end"
+KERNEL!="dm-[0-9]*", GOTO="dm_end"
+ACTION!="add|change", GOTO="dm_end"
+OPTIONS+="db_persist"
+LABEL="dm_end"
