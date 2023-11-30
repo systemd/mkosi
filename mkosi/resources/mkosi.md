@@ -676,7 +676,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   shall be used to identify the image with. If set the default output
   file will be named after it (possibly suffixed with the version). The
   identifier is also passed via the `$IMAGE_ID` to any build scripts
-  invoked. The image ID is automatically added to /usr/lib/os-release.
+  invoked. The image ID is automatically added to `/usr/lib/os-release`.
 
 `SplitArtifacts=`, `--split-artifacts`
 
@@ -1491,7 +1491,7 @@ in consecutive runs with data from the cached one.
 1. Parse CLI options
 2. Parse configuration files
 3. If we're not running as root, unshare the user namespace and map the
-  subuid range configured in /etc/subuid and /etc/subgid into it.
+   subuid range configured in `/etc/subuid` and `/etc/subgid` into it.
 4. Unshare the mount namespace
 5. Remount the following directories read-only if they exist:
    - `/usr`
