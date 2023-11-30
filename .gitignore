@@ -19,7 +19,7 @@
 !mkosi.extra/usr/lib/systemd/system-preset/*-mkosi.preset
 /mkosi.nspawn
 /mkosi.rootpw
-/mkosi.conf
+mkosi.local.conf
 /mkosi.key
 /mkosi.crt
 __pycache__
