@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-2.0
+# SPDX-License-Identifier: GPL-2.0-only
 # Copied from https://github.com/dracutdevs/dracut/blob/059/modules.d/90mdraid/59-persistent-storage-md.rules
 
 SUBSYSTEM!="block", GOTO="md_end"
