@@ -9,8 +9,9 @@ from . import Image
 pytestmark = pytest.mark.integration
 
 
-def test_sysext() -> None:
+def test_sysext(config: Image.Config) -> None:
     with Image(
+        config,
         options=[
             "--incremental",
             "--clean-package-metadata=no",
@@ -20,6 +21,7 @@ def test_sysext() -> None:
         image.build()
 
         with Image(
+            image.config,
             options=[
                 "--directory", "",
                 "--base-tree", Path(image.output_dir.name) / "image",

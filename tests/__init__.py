@@ -6,32 +6,24 @@ import sys
 import tempfile
 from collections.abc import Iterator, Sequence
 from types import TracebackType
-from typing import Any, Optional
+from typing import Any, NamedTuple, Optional
 
 import pytest
 
-from mkosi.distributions import Distribution, detect_distribution
-from mkosi.log import die
+from mkosi.distributions import Distribution
 from mkosi.run import run
 from mkosi.types import _FILE, CompletedProcess, PathString
 from mkosi.util import INVOKING_USER
 
 
 class Image:
-    def __init__(self, options: Sequence[PathString] = []) -> None:
+    class Config(NamedTuple):
+        distribution: Distribution
+        release: str
+
+    def __init__(self, config: Config, options: Sequence[PathString] = []) -> None:
         self.options = options
-
-        if d := os.getenv("MKOSI_TEST_DISTRIBUTION"):
-            self.distribution = Distribution(d)
-        elif detected := detect_distribution()[0]:
-            self.distribution = detected
-        else:
-            die("Cannot detect host distribution, please set $MKOSI_TEST_DISTRIBUTION to be able to run the tests")
-
-        if r := os.getenv("MKOSI_TEST_RELEASE"):
-            self.release = r
-        else:
-            self.release = self.distribution.default_release()
+        self.config = config
 
     def __enter__(self) -> "Image":
         self.output_dir = tempfile.TemporaryDirectory(dir="/var/tmp")
@@ -71,8 +63,8 @@ class Image:
 
         return run([
             "python3", "-m", "mkosi",
-            "--distribution", str(self.distribution),
-            "--release", self.release,
+            "--distribution", str(self.config.distribution),
+            "--release", self.config.release,
             *self.options,
             *options,
             "--output-dir", self.output_dir.name,
@@ -118,7 +110,10 @@ class Image:
             check=False,
         )
 
-        rc = 0 if self.distribution == Distribution.ubuntu or self.distribution.is_centos_variant() else 123
+        if self.config.distribution == Distribution.ubuntu or self.config.distribution.is_centos_variant():
+            rc = 0
+        else:
+            rc = 123
 
         if result.returncode != rc:
             raise subprocess.CalledProcessError(result.returncode, result.args, result.stdout, result.stderr)

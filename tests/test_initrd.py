@@ -35,15 +35,16 @@ def passphrase() -> Iterator[Path]:
 
 
 @pytest.fixture(scope="module")
-def initrd(passphrase: Path) -> Iterator[Image]:
+def initrd(config: Image.Config, passphrase: Path) -> Iterator[Image]:
     with Image(
+        config,
         options=[
             "--directory", "",
             "--include=mkosi-initrd/",
             "--extra-tree", passphrase,
         ],
     ) as initrd:
-        if initrd.distribution == Distribution.rhel_ubi:
+        if initrd.config.distribution == Distribution.rhel_ubi:
             pytest.skip("Cannot build RHEL-UBI initrds")
 
         initrd.build()
@@ -52,6 +53,7 @@ def initrd(passphrase: Path) -> Iterator[Image]:
 
 def test_initrd(initrd: Image) -> None:
     with Image(
+        initrd.config,
         options=[
             "--initrd", Path(initrd.output_dir.name) / "initrd",
             "--kernel-command-line=systemd.unit=mkosi-check-and-shutdown.service",
@@ -67,6 +69,7 @@ def test_initrd(initrd: Image) -> None:
 @pytest.mark.skipif(os.getuid() != 0, reason="mkosi-initrd LVM test can only be executed as root")
 def test_initrd_lvm(initrd: Image) -> None:
     with Image(
+        initrd.config,
         options=[
             "--initrd", Path(initrd.output_dir.name) / "initrd",
             "--kernel-command-line=systemd.unit=mkosi-check-and-shutdown.service",
@@ -95,7 +98,7 @@ def test_initrd_lvm(initrd: Image) -> None:
         run(["lvm", "lvcreate", "-l", "100%FREE", "-n", "lv0", "vg_mkosi"])
         run(["lvm", "lvs"])
         run(["udevadm", "wait", "/dev/vg_mkosi/lv0"])
-        run([f"mkfs.{image.distribution.filesystem()}", "-L", "root", "/dev/vg_mkosi/lv0"])
+        run([f"mkfs.{image.config.distribution.filesystem()}", "-L", "root", "/dev/vg_mkosi/lv0"])
 
         with tempfile.TemporaryDirectory() as mnt, mount(Path("/dev/vg_mkosi/lv0"), Path(mnt)):
             # The image might have been built unprivileged so we need to fix the file ownership. Making all the
@@ -143,7 +146,7 @@ def test_initrd_luks(initrd: Image, passphrase: Path) -> None:
                 f"""\
                 [Partition]
                 Type=root
-                Format={initrd.distribution.filesystem()}
+                Format={initrd.config.distribution.filesystem()}
                 Minimize=guess
                 Encrypt=key-file
                 CopyFiles=/
@@ -152,6 +155,7 @@ def test_initrd_luks(initrd: Image, passphrase: Path) -> None:
         )
 
         with Image(
+            initrd.config,
             options=[
                 "--initrd", Path(initrd.output_dir.name) / "initrd",
                 "--repart-dir", repartd,
@@ -168,8 +172,9 @@ def test_initrd_luks(initrd: Image, passphrase: Path) -> None:
 
 
 @pytest.mark.skipif(os.getuid() != 0, reason="mkosi-initrd LUKS+LVM test can only be executed as root")
-def test_initrd_luks_lvm(initrd: Image, passphrase: Path) -> None:
+def test_initrd_luks_lvm(config: Image.Config, initrd: Image, passphrase: Path) -> None:
     with Image(
+        config,
         options=[
             "--initrd", Path(initrd.output_dir.name) / "initrd",
             "--kernel-command-line=systemd.unit=mkosi-check-and-shutdown.service",
@@ -213,7 +218,7 @@ def test_initrd_luks_lvm(initrd: Image, passphrase: Path) -> None:
         run(["lvm", "lvcreate", "-l", "100%FREE", "-n", "lv0", "vg_mkosi"])
         run(["lvm", "lvs"])
         run(["udevadm", "wait", "/dev/vg_mkosi/lv0"])
-        run([f"mkfs.{image.distribution.filesystem()}", "-L", "root", "/dev/vg_mkosi/lv0"])
+        run([f"mkfs.{image.config.distribution.filesystem()}", "-L", "root", "/dev/vg_mkosi/lv0"])
 
         with tempfile.TemporaryDirectory() as mnt, mount(Path("/dev/vg_mkosi/lv0"), Path(mnt)):
             # The image might have been built unprivileged so we need to fix the file ownership. Making all the
@@ -236,6 +241,6 @@ def test_initrd_size(initrd: Image) -> None:
         Distribution.ubuntu: 32,
         Distribution.arch: 47,
         Distribution.opensuse: 36,
-    }.get(initrd.distribution, 48)
+    }.get(initrd.config.distribution, 48)
 
     assert (Path(initrd.output_dir.name) / "initrd").stat().st_size <= maxsize
