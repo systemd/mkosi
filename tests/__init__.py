@@ -18,7 +18,7 @@ class Image:
         self.options = options
 
         if d := os.getenv("MKOSI_TEST_DISTRIBUTION"):
-            self.distribution = Distribution[d]
+            self.distribution = Distribution(d)
         elif detected := detect_distribution()[0]:
             self.distribution = detected
         else:
