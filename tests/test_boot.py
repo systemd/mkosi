@@ -1,10 +1,12 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 import os
+
 import pytest
 
 from mkosi.config import OutputFormat
 from mkosi.distributions import Distribution
+from mkosi.qemu import find_virtiofsd
 
 from . import Image
 
@@ -44,7 +46,10 @@ def test_boot(format: OutputFormat) -> None:
         if image.distribution == Distribution.rhel_ubi:
             return
 
-        if format in (OutputFormat.directory, OutputFormat.tar):
+        if format == OutputFormat.tar:
+            return
+
+        if format == OutputFormat.directory and not find_virtiofsd():
             return
 
         image.qemu(options=options)

@@ -3,8 +3,8 @@
 import os
 import tempfile
 from collections.abc import Sequence
-from typing import Optional
 from types import TracebackType
+from typing import Optional
 
 from mkosi.distributions import Distribution, detect_distribution
 from mkosi.log import die
