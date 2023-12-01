@@ -1221,6 +1221,7 @@ def build_kernel_modules_initrd(state: MkosiState, kver: str) -> Path:
             state.root, kver,
             state.config.kernel_modules_initrd_include,
             state.config.kernel_modules_initrd_exclude,
+            state.config.kernel_modules_initrd_include_host,
         )
     )
 
@@ -1820,6 +1821,7 @@ def run_depmod(state: MkosiState) -> None:
             state.root, kver,
             state.config.kernel_modules_include,
             state.config.kernel_modules_exclude,
+            state.config.kernel_modules_include_host,
         )
 
         with complete_step(f"Running depmod for {kver}"):

@@ -1039,6 +1039,14 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   `KernelModulesInclude=` except that all modules that match any of the specified patterns are excluded from
   the image.
 
+`KernelModulesIncludeHost=`, `--kernel-modules-include-host=`
+
+: Takes a boolean. Specifies whether to include the currently loaded
+  modules on the host system in the image. This setting takes priority
+  over `KernelModulesExclude=` and only makes sense when used in
+  combination with it because all kernel modules are included in the
+  image by default.
+
 `KernelModulesInitrd=`, `--kernel-modules-initrd=`
 
 : Enable/Disable generation of the kernel modules initrd when building a bootable image. Enabled by default.
@@ -1054,6 +1062,10 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `KernelModulesInitrdExclude=`, `--kernel-modules-initrd-exclude=`
 
 : Like `KernelModulesExclude=`, but applies to the kernel modules included in the kernel modules initrd.
+
+`KernelModulesInitrdIncludeHost=`, `--kernel-modules-initrd-include-host=`
+
+: Like `KernelModulesIncludeHost=`, but applies to the kernel modules included in the kernel modules initrd.
 
 : The settings `Locale=`, `--locale=`, `LocaleMessages=`, `--locale-messages=`,
   `Keymap=`, `--keymap=`, `Timezone=`, `--timezone=`, `Hostname=`,

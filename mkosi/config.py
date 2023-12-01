@@ -882,10 +882,12 @@ class MkosiConfig:
     kernel_command_line: list[str]
     kernel_modules_include: list[str]
     kernel_modules_exclude: list[str]
+    kernel_modules_include_host: bool
 
     kernel_modules_initrd: bool
     kernel_modules_initrd_include: list[str]
     kernel_modules_initrd_exclude: list[str]
+    kernel_modules_initrd_include_host: bool
 
     locale: Optional[str]
     locale_messages: Optional[str]
@@ -1644,7 +1646,14 @@ SETTINGS = (
         metavar="REGEX",
         section="Content",
         parse=config_make_list_parser(delimiter=","),
-        help="Only include the specified kernel modules in the image",
+        help="Include the specified kernel modules in the image",
+    ),
+    MkosiConfigSetting(
+        dest="kernel_modules_include_host",
+        metavar="BOOL",
+        section="Content",
+        parse=config_parse_boolean,
+        help="Include the currently loaded modules on the host in the image",
     ),
     MkosiConfigSetting(
         dest="kernel_modules_exclude",
@@ -1667,7 +1676,14 @@ SETTINGS = (
         metavar="REGEX",
         section="Content",
         parse=config_make_list_parser(delimiter=","),
-        help="When building a kernel modules initrd, only include the specified kernel modules",
+        help="When building a kernel modules initrd, include the specified kernel modules",
+    ),
+    MkosiConfigSetting(
+        dest="kernel_modules_initrd_include_host",
+        metavar="BOOL",
+        section="Content",
+        parse=config_parse_boolean,
+        help="When building a kernel modules initrd, include the currently loaded modules on the host in the image",
     ),
     MkosiConfigSetting(
         dest="kernel_modules_initrd_exclude",
@@ -2860,88 +2876,90 @@ def summary(config: MkosiConfig) -> str:
 {bold(f"IMAGE: {config.image or 'default'}")}
 
     {bold("CONFIG")}:
-                       Profile: {none_to_none(config.profile)}
-                       Include: {line_join_list(config.include)}
-                        Images: {line_join_list(config.images)}
-                  Dependencies: {line_join_list(config.dependencies)}
+                            Profile: {none_to_none(config.profile)}
+                            Include: {line_join_list(config.include)}
+                             Images: {line_join_list(config.images)}
+                       Dependencies: {line_join_list(config.dependencies)}
 
     {bold("DISTRIBUTION")}:
-                  Distribution: {bold(config.distribution)}
-                       Release: {bold(none_to_na(config.release))}
-                  Architecture: {config.architecture}
-                        Mirror: {none_to_default(config.mirror)}
-          Local Mirror (build): {none_to_none(config.local_mirror)}
-      Repo Signature/Key check: {yes_no(config.repository_key_check)}
-                  Repositories: {line_join_list(config.repositories)}
-        Use Only Package Cache: {yes_no(config.cache_only)}
-         Package Manager Trees: {line_join_tree_list(config.package_manager_trees)}
+                       Distribution: {bold(config.distribution)}
+                            Release: {bold(none_to_na(config.release))}
+                       Architecture: {config.architecture}
+                             Mirror: {none_to_default(config.mirror)}
+               Local Mirror (build): {none_to_none(config.local_mirror)}
+           Repo Signature/Key check: {yes_no(config.repository_key_check)}
+                       Repositories: {line_join_list(config.repositories)}
+             Use Only Package Cache: {yes_no(config.cache_only)}
+              Package Manager Trees: {line_join_tree_list(config.package_manager_trees)}
 
     {bold("OUTPUT")}:
-                 Output Format: {config.output_format}
-              Manifest Formats: {maniformats}
-                        Output: {bold(config.output_with_compression)}
-                   Compression: {config.compress_output}
-              Output Directory: {config.output_dir_or_cwd()}
-           Workspace Directory: {config.workspace_dir_or_default()}
-               Cache Directory: {none_to_none(config.cache_dir)}
-               Build Directory: {none_to_none(config.build_dir)}
-                      Image ID: {config.image_id}
-                 Image Version: {config.image_version}
-               Split Artifacts: {yes_no(config.split_artifacts)}
-            Repart Directories: {line_join_list(config.repart_dirs)}
-                   Sector Size: {none_to_default(config.sector_size)}
-                       Overlay: {yes_no(config.overlay)}
-                Use Subvolumes: {yes_no_auto(config.use_subvolumes)}
-                          Seed: {none_to_random(config.seed)}
+                      Output Format: {config.output_format}
+                   Manifest Formats: {maniformats}
+                             Output: {bold(config.output_with_compression)}
+                        Compression: {config.compress_output}
+                   Output Directory: {config.output_dir_or_cwd()}
+                Workspace Directory: {config.workspace_dir_or_default()}
+                    Cache Directory: {none_to_none(config.cache_dir)}
+                    Build Directory: {none_to_none(config.build_dir)}
+                           Image ID: {config.image_id}
+                      Image Version: {config.image_version}
+                    Split Artifacts: {yes_no(config.split_artifacts)}
+                 Repart Directories: {line_join_list(config.repart_dirs)}
+                        Sector Size: {none_to_default(config.sector_size)}
+                            Overlay: {yes_no(config.overlay)}
+                     Use Subvolumes: {yes_no_auto(config.use_subvolumes)}
+                               Seed: {none_to_random(config.seed)}
 
     {bold("CONTENT")}:
-                      Packages: {line_join_list(config.packages)}
-                Build Packages: {line_join_list(config.build_packages)}
-            With Documentation: {yes_no(config.with_docs)}
+                           Packages: {line_join_list(config.packages)}
+                     Build Packages: {line_join_list(config.build_packages)}
+                 With Documentation: {yes_no(config.with_docs)}
 
-                    Base Trees: {line_join_list(config.base_trees)}
-                Skeleton Trees: {line_join_tree_list(config.skeleton_trees)}
-                   Extra Trees: {line_join_tree_list(config.extra_trees)}
+                         Base Trees: {line_join_list(config.base_trees)}
+                     Skeleton Trees: {line_join_tree_list(config.skeleton_trees)}
+                        Extra Trees: {line_join_tree_list(config.extra_trees)}
 
-               Remove Packages: {line_join_list(config.remove_packages)}
-                  Remove Files: {line_join_list(config.remove_files)}
-Clean Package Manager Metadata: {yes_no_auto(config.clean_package_metadata)}
-             Source Date Epoch: {none_to_none(config.source_date_epoch)}
+                    Remove Packages: {line_join_list(config.remove_packages)}
+                       Remove Files: {line_join_list(config.remove_files)}
+     Clean Package Manager Metadata: {yes_no_auto(config.clean_package_metadata)}
+                  Source Date Epoch: {none_to_none(config.source_date_epoch)}
 
-               Prepare Scripts: {line_join_list(config.prepare_scripts)}
-                 Build Scripts: {line_join_list(config.build_scripts)}
-           Postinstall Scripts: {line_join_list(config.postinst_scripts)}
-              Finalize Scripts: {line_join_list(config.finalize_scripts)}
-                 Build Sources: {line_join_tree_list(config.build_sources)}
-       Build Sources Ephemeral: {yes_no(config.build_sources_ephemeral)}
-            Script Environment: {line_join_list(env)}
-    Run Tests in Build Scripts: {yes_no(config.with_tests)}
-          Scripts With Network: {yes_no(config.with_network)}
+                    Prepare Scripts: {line_join_list(config.prepare_scripts)}
+                      Build Scripts: {line_join_list(config.build_scripts)}
+                Postinstall Scripts: {line_join_list(config.postinst_scripts)}
+                   Finalize Scripts: {line_join_list(config.finalize_scripts)}
+                      Build Sources: {line_join_tree_list(config.build_sources)}
+            Build Sources Ephemeral: {yes_no(config.build_sources_ephemeral)}
+                 Script Environment: {line_join_list(env)}
+         Run Tests in Build Scripts: {yes_no(config.with_tests)}
+               Scripts With Network: {yes_no(config.with_network)}
 
-                      Bootable: {yes_no_auto(config.bootable)}
-                    Bootloader: {config.bootloader}
-               BIOS Bootloader: {config.bios_bootloader}
-                       Initrds: {line_join_list(config.initrds)}
-               Initrd Packages: {line_join_list(config.initrd_packages)}
-           Kernel Command Line: {line_join_list(config.kernel_command_line)}
-        Kernel Modules Include: {line_join_list(config.kernel_modules_include)}
-        Kernel Modules Exclude: {line_join_list(config.kernel_modules_exclude)}
+                           Bootable: {yes_no_auto(config.bootable)}
+                         Bootloader: {config.bootloader}
+                    BIOS Bootloader: {config.bios_bootloader}
+                            Initrds: {line_join_list(config.initrds)}
+                    Initrd Packages: {line_join_list(config.initrd_packages)}
+                Kernel Command Line: {line_join_list(config.kernel_command_line)}
+             Kernel Modules Include: {line_join_list(config.kernel_modules_include)}
+             Kernel Modules Exclude: {line_join_list(config.kernel_modules_exclude)}
+        Kernel Modules Include Host: {yes_no(config.kernel_modules_initrd_include_host)}
 
-         Kernel Modules Initrd: {yes_no(config.kernel_modules_initrd)}
- Kernel Modules Initrd Include: {line_join_list(config.kernel_modules_initrd_include)}
- Kernel Modules Initrd Exclude: {line_join_list(config.kernel_modules_initrd_exclude)}
+              Kernel Modules Initrd: {yes_no(config.kernel_modules_initrd)}
+      Kernel Modules Initrd Include: {line_join_list(config.kernel_modules_initrd_include)}
+      Kernel Modules Initrd Exclude: {line_join_list(config.kernel_modules_initrd_exclude)}
+ Kernel Modules Initrd Include Host: {yes_no(config.kernel_modules_initrd_include_host)}
 
-                        Locale: {none_to_default(config.locale)}
-               Locale Messages: {none_to_default(config.locale_messages)}
-                        Keymap: {none_to_default(config.keymap)}
-                      Timezone: {none_to_default(config.timezone)}
-                      Hostname: {none_to_default(config.hostname)}
-                 Root Password: {("(set)" if config.root_password else "(default)")}
-                    Root Shell: {none_to_default(config.root_shell)}
+                             Locale: {none_to_default(config.locale)}
+                    Locale Messages: {none_to_default(config.locale_messages)}
+                             Keymap: {none_to_default(config.keymap)}
+                           Timezone: {none_to_default(config.timezone)}
+                           Hostname: {none_to_default(config.hostname)}
+                      Root Password: {("(set)" if config.root_password else "(default)")}
+                         Root Shell: {none_to_default(config.root_shell)}
 
-                     Autologin: {yes_no(config.autologin)}
-                   Make Initrd: {yes_no(config.make_initrd)}
-                           SSH: {yes_no(config.ssh)}
+                          Autologin: {yes_no(config.autologin)}
+                        Make Initrd: {yes_no(config.make_initrd)}
+                                SSH: {yes_no(config.ssh)}
 """
 
     if config.output_format in (OutputFormat.disk, OutputFormat.uki, OutputFormat.esp):
