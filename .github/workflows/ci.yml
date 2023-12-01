@@ -20,9 +20,9 @@ jobs:
     - name: Install
       run: |
         sudo apt-get update
-        sudo apt-get install pandoc
+        sudo apt-get install pandoc python3-pytest
         python3 -m pip install --upgrade setuptools wheel pip
-        python3 -m pip install pytest mypy types-cryptography isort pyflakes
+        python3 -m pip install mypy isort pyflakes
         npm install -g pyright
 
     - name: Check that imports are sorted
@@ -41,7 +41,7 @@ jobs:
       run: pyright mkosi/ tests/
 
     - name: Unit Tests
-      run: python3 -m pytest -sv tests
+      run: python3 -m pytest -sv tests/
 
     - name: Test execution from current working directory
       run: python3 -m mkosi -h
@@ -128,66 +128,27 @@ jobs:
           - rocky
           - alma
           - opensuse
-        format:
-          - directory
-          - tar
-          - cpio
-          - disk
-          - uki
-          - esp
-        exclude:
-          - distro: rhel-ubi
-            format: uki
-          - distro: rhel-ubi
-            format: esp
 
     steps:
     - uses: actions/checkout@v3
     - uses: ./
 
-    # Make sure the latest changes from the pull request are used.
     - name: Install
-      run: sudo ln -svf $PWD/bin/mkosi /usr/bin/mkosi
+      run: |
+        sudo apt-get update
+        sudo apt-get install python3-pytest
+        # Make sure the latest changes from the pull request are used.
+        sudo ln -svf $PWD/bin/mkosi /usr/bin/mkosi
       working-directory: ./
 
-    - name: Configure ${{ matrix.distro }}/${{ matrix.format }}
+    - name: Configure
       run: |
-        tee mkosi.conf <<- EOF
-        [Distribution]
-        Distribution=${{ matrix.distro }}
-
-        [Output]
-        Format=${{ matrix.format }}
-
-        [Content]
-        KernelCommandLine=console=ttyS0
-                          systemd.unit=mkosi-check-and-shutdown.service
-                          systemd.log_target=console
-                          systemd.default_standard_output=journal+console
-
+        tee mkosi.local.conf <<- EOF
         [Host]
-        QemuVsock=yes
-        QemuMem=4G
+        QemuKvm=no
         EOF
 
-    - name: Build ${{ matrix.distro }}/${{ matrix.format }}
-      run: mkosi --debug build
-
-    # systemd-resolved is enabled by default in Arch/Debian/Ubuntu (systemd default preset) but fails to
-    # start in a systemd-nspawn container with --private-users so we mask it out here to avoid CI failures.
-    # FIXME: Remove when Arch/Debian/Ubuntu ship systemd v253
-    - name: Mask systemd-resolved
-      if: matrix.format == 'directory'
-      run: sudo systemctl --root mkosi.output/image mask systemd-resolved
-
-    - name: Boot ${{ matrix.distro }}/${{ matrix.format }} systemd-nspawn
-      if: matrix.format == 'disk' || matrix.format == 'directory'
-      run: sudo mkosi --debug boot
-
-    - name: Boot ${{ matrix.distro }}/${{ matrix.format }} QEMU
-      if: matrix.distro != 'rhel-ubi' && matrix.format != 'directory' && matrix.format != 'tar'
-      run: timeout -k 30 10m mkosi --debug qemu
-
-    - name: Boot ${{ matrix.distro }}/${{ matrix.format }} BIOS
-      if: matrix.distro != 'rhel-ubi' && matrix.format == 'disk'
-      run: timeout -k 30 10m mkosi --debug --qemu-firmware bios qemu
+    - name: Run integration tests
+      run: sudo timeout -k 30 10m python3 -m pytest --tb=no -sv -m integration tests/
+      env:
+        MKOSI_TEST_DISTRIBUTION: ${{ matrix.distro }}
