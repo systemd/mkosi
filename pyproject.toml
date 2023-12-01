@@ -73,3 +73,9 @@ ignore_missing_imports = true
 target-version = "py39"
 line-length = 119
 select = ["E", "F", "I", "UP"]
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: mark a test as an integration test."
+]
+addopts = "-m \"not integration\""
