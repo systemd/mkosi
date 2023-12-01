@@ -16,6 +16,7 @@ import tempfile
 import uuid
 from collections.abc import Iterator, Mapping
 from pathlib import Path
+from typing import Optional
 
 from mkosi.architecture import Architecture
 from mkosi.config import (
@@ -28,7 +29,7 @@ from mkosi.config import (
 )
 from mkosi.log import die
 from mkosi.partition import finalize_root, find_partitions
-from mkosi.run import MkosiAsyncioThread, run, spawn
+from mkosi.run import MkosiAsyncioThread, find_binary, run, spawn
 from mkosi.tree import copy_tree, rmtree
 from mkosi.types import PathString
 from mkosi.util import INVOKING_USER, StrEnum
@@ -240,16 +241,24 @@ def start_swtpm() -> Iterator[Path]:
                     proc.wait()
 
 
+def find_virtiofsd() -> Optional[Path]:
+    if p := find_binary("virtiofsd"):
+        return p
+
+    if (p := Path("/usr/libexec/virtiofsd")).exists():
+        return p
+
+    if (p := Path("/usr/lib/virtiofsd")).exists():
+        return p
+
+    return None
+
+
 @contextlib.contextmanager
 def start_virtiofsd(directory: Path, *, uidmap: bool) -> Iterator[Path]:
-    virtiofsd = shutil.which("virtiofsd")
+    virtiofsd = find_virtiofsd()
     if virtiofsd is None:
-        if Path("/usr/libexec/virtiofsd").exists():
-            virtiofsd = "/usr/libexec/virtiofsd"
-        elif Path("/usr/lib/virtiofsd").exists():
-            virtiofsd = "/usr/lib/virtiofsd"
-        else:
-            die("virtiofsd must be installed to use RuntimeMounts= with mkosi qemu")
+        die("virtiofsd must be installed to boot directory images or use RuntimeMounts= with mkosi qemu")
 
     cmdline: list[PathString] = [
         virtiofsd,
