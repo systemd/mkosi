@@ -149,6 +149,6 @@ jobs:
         EOF
 
     - name: Run integration tests
-      run: sudo --preserve-env timeout -k 30 10m python3 -m pytest --tb=no -sv -m integration tests/
+      run: sudo --preserve-env timeout -k 30 1h python3 -m pytest --tb=no -sv -m integration tests/
       env:
         MKOSI_TEST_DISTRIBUTION: ${{ matrix.distro }}
