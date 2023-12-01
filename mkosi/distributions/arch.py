@@ -3,6 +3,7 @@
 from collections.abc import Sequence
 
 from mkosi.architecture import Architecture
+from mkosi.config import ConfigFeature
 from mkosi.distributions import Distribution, DistributionInstaller, PackageType
 from mkosi.installer.pacman import invoke_pacman, setup_pacman
 from mkosi.log import die
@@ -82,7 +83,18 @@ class Installer(DistributionInstaller):
 
     @classmethod
     def install_packages(cls, state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
-        invoke_pacman(state, packages, apivfs=apivfs)
+        options = ["--refresh", "--needed"]
+
+        # If we're generating a bootable image, we'll do so with a prebuilt initramfs, so no need for an
+        # initramfs generator.
+        if state.config.bootable != ConfigFeature.disabled:
+            options += ["--assume-installed", "initramfs"]
+
+        invoke_pacman(state, "--sync", options, packages, apivfs=apivfs)
+
+    @classmethod
+    def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
+        invoke_pacman(state, "--remove", ["--nosave", "--recursive"], packages)
 
     @staticmethod
     def architecture(arch: Architecture) -> str:

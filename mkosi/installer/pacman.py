@@ -4,7 +4,6 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from mkosi.architecture import Architecture
-from mkosi.config import ConfigFeature
 from mkosi.run import apivfs_cmd, bwrap
 from mkosi.state import MkosiState
 from mkosi.types import PathString
@@ -90,7 +89,7 @@ def pacman_cmd(state: MkosiState) -> list[PathString]:
     with umask(~0o755):
         (state.cache_dir / "pacman/pkg").mkdir(parents=True, exist_ok=True)
 
-    cmdline: list[PathString] = [
+    return [
         "pacman",
         "--config", state.pkgmngr / "etc/pacman.conf",
         "--root", state.root,
@@ -101,18 +100,16 @@ def pacman_cmd(state: MkosiState) -> list[PathString]:
         "--arch", state.config.distribution.architecture(state.config.architecture),
         "--color", "auto",
         "--noconfirm",
-        "--needed",
     ]
 
-    # If we're generating a bootable image, we'll do so with a prebuilt initramfs, so no need for an
-    # initramfs generator.
-    if state.config.bootable != ConfigFeature.disabled:
-        cmdline += ["--assume-installed", "initramfs"]
 
-    return cmdline
-
-
-def invoke_pacman(state: MkosiState, packages: Sequence[str], apivfs: bool = True) -> None:
+def invoke_pacman(
+    state: MkosiState,
+    operation: str,
+    options: Sequence[str] = (),
+    packages: Sequence[str] = (),
+    apivfs: bool = True,
+) -> None:
     cmd = apivfs_cmd(state.root) if apivfs else []
-    bwrap(cmd + pacman_cmd(state) + ["-Sy", *sort_packages(packages)],
+    bwrap(cmd + pacman_cmd(state) + [operation, *options, *sort_packages(packages)],
           network=True, env=state.config.environment)
