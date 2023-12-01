@@ -29,6 +29,8 @@ def test_boot(format: OutputFormat) -> None:
 
         options = ["--format", str(format)]
 
+        image.summary(options)
+
         image.build(options=options)
 
         if format in (OutputFormat.disk, OutputFormat.directory) and os.getuid() == 0:

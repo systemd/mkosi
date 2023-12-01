@@ -72,3 +72,6 @@ class Image:
 
     def qemu(self, options: Sequence[str] = (), args: Sequence[str] = ()) -> CompletedProcess:
         return self.mkosi("qemu", options, args, user=INVOKING_USER.uid, group=INVOKING_USER.gid)
+
+    def summary(self, options: Sequence[str] = ()) -> CompletedProcess:
+        return self.mkosi("summary", options, user=INVOKING_USER.uid, group=INVOKING_USER.gid)
