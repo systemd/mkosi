@@ -12,6 +12,7 @@ from mkosi.log import die
 from mkosi.run import run
 from mkosi.types import PathString
 from mkosi.util import umask
+from mkosi.versioncomp import GenericVersion
 
 
 def statfs(path: Path) -> str:
@@ -43,7 +44,11 @@ def make_tree(config: MkosiConfig, path: Path) -> None:
         path.mkdir()
 
 
-def copy_tree(config: MkosiConfig, src: Path, dst: Path, *, preserve_owner: bool = True) -> None:
+def cp_version() -> GenericVersion:
+    return GenericVersion(run(["cp", "--version"], stdout=subprocess.PIPE).stdout.strip().splitlines()[0].split()[3])
+
+
+def copy_tree(config: MkosiConfig, src: Path, dst: Path, *, preserve_owner: bool = True, clobber: bool = True) -> None:
     subvolume = (config.use_subvolumes == ConfigFeature.enabled or
                  config.use_subvolumes == ConfigFeature.auto and shutil.which("btrfs") is not None)
 
@@ -57,6 +62,13 @@ def copy_tree(config: MkosiConfig, src: Path, dst: Path, *, preserve_owner: bool
         "--reflink=auto",
         src, dst,
     ]
+
+    # --no-clobber will make cp fail if a file already exists since coreutils v9.2. In coreutils v9.3, --update=none
+    # was introduced to support the previous behavior of --no-clobber again. On coreutils v9.2, --no-clobber will fail
+    # and --update=none is not available so in that case we're out of luck. There don't seem to be any distros
+    # packaging coreutils v9.2 though so let's hope we don't trigger this edge case.
+    if not clobber:
+        copy += ["--update=none"] if cp_version() >= "9.3" else ["--no-clobber"]
 
     # If the source and destination are both directories, we want to merge the source directory with the
     # destination directory. If the source if a file and the destination is a directory, we want to copy
