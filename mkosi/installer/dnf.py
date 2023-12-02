@@ -95,8 +95,12 @@ def setup_dnf(state: MkosiState, repos: Iterable[Repo], filelists: bool = True) 
 
                 f.write("\n")
 
+    macros = state.pkgmngr / "usr/lib/rpm/macros.d"
+    macros.mkdir(parents=True, exist_ok=True)
+    if not (macros / "macros.lang").exists() and state.config.locale:
+        (macros / "macros.lang").write_text(f"%_install_langs {state.config.locale}")
+
     rpmconfigdir = Path(run(["rpm", "--eval", "%{_rpmconfigdir}"], stdout=subprocess.PIPE).stdout.strip())
-    (state.pkgmngr / "usr/lib").mkdir(parents=True, exist_ok=True)
     copy_tree(state.config, rpmconfigdir, state.pkgmngr / "usr/lib/rpm", clobber=False)
 
 
