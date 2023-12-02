@@ -1,14 +1,15 @@
 # SPDX-License-Identifier: LGPL-2.1+
 import os
 import shutil
+import subprocess
 import textwrap
 from collections.abc import Iterable
 from pathlib import Path
 from typing import NamedTuple, Optional
 
-from mkosi.run import apivfs_cmd, bwrap
+from mkosi.run import apivfs_cmd, bwrap, run
 from mkosi.state import MkosiState
-from mkosi.tree import rmtree
+from mkosi.tree import copy_tree, rmtree
 from mkosi.types import PathString
 from mkosi.util import sort_packages
 
@@ -94,11 +95,18 @@ def setup_dnf(state: MkosiState, repos: Iterable[Repo], filelists: bool = True) 
 
                 f.write("\n")
 
+    rpmconfigdir = Path(run(["rpm", "--eval", "%{_rpmconfigdir}"], stdout=subprocess.PIPE).stdout.strip())
+    (state.pkgmngr / "usr/lib").mkdir(parents=True, exist_ok=True)
+    copy_tree(state.config, rpmconfigdir, state.pkgmngr / "usr/lib/rpm", clobber=False)
+
 
 def dnf_cmd(state: MkosiState) -> list[PathString]:
     dnf = dnf_executable(state)
 
     cmdline: list[PathString] = [
+        "env",
+        "HOME=/", # Make sure rpm doesn't pick up ~/.rpmmacros and ~/.rpmrc.
+        f"RPM_CONFIGDIR={state.pkgmngr / 'usr/lib/rpm'}",
         dnf,
         "--assumeyes",
         f"--config={state.pkgmngr / 'etc/dnf/dnf.conf'}",
@@ -167,4 +175,4 @@ def fixup_rpmdb_location(root: Path) -> None:
 
 
 def rpm_cmd(state: MkosiState) -> list[PathString]:
-    return ["rpm", "--root", state.root]
+    return ["env", "HOME=/", f"RPM_CONFIGDIR={state.pkgmngr / 'usr/lib/rpm'}", "rpm", "--root", state.root]

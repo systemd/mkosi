@@ -2731,6 +2731,24 @@ def mount_tools(tree: Optional[Path]) -> Iterator[None]:
         yield
 
 
+@contextlib.contextmanager
+def hide_host_directories() -> Iterator[None]:
+    with contextlib.ExitStack() as stack:
+
+        # We want to limit the effect of host specific admin configuration on image builds, so we hide various config
+        # directories that we can't override using CLI options or environment variables so that they don't affect our
+        # builds.
+
+        for d in ("/etc/rpm",):
+            if not Path(d).exists():
+                continue
+
+            tmp = stack.enter_context(tempfile.TemporaryDirectory())
+            stack.enter_context(mount(what=tmp, where=Path(d), operation="--bind"))
+
+        yield
+
+
 def check_workspace_directory(config: MkosiConfig) -> None:
     wd = config.workspace_dir_or_default()
 
@@ -2850,6 +2868,7 @@ def run_verb(args: MkosiArgs, images: Sequence[MkosiConfig]) -> None:
         with (
             complete_step(f"Building {config.image or 'default'} image"),
             mount_tools(config.tools_tree),
+            hide_host_directories(),
             prepend_to_environ_path(config),
         ):
             # After tools have been mounted, check if we have what we need
