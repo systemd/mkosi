@@ -2785,7 +2785,7 @@ def run_verb(args: MkosiArgs, images: Sequence[MkosiConfig]) -> None:
         opname = "acquire shell in" if args.verb == Verb.shell else "boot"
         if last.output_format in (OutputFormat.tar, OutputFormat.cpio):
             die(f"Sorry, can't {opname} a {last.output_format} archive.")
-        if last.compress_output:
+        if last.output_format.use_outer_compression() and last.compress_output:
             die(f"Sorry, can't {opname} a compressed image.")
 
     if (
