@@ -943,6 +943,9 @@ class MkosiConfig:
 
     image: Optional[str]
 
+    def name(self) -> str:
+        return self.image_id or self.image or "default"
+
     def output_dir_or_cwd(self) -> Path:
         return self.output_dir or Path.cwd()
 

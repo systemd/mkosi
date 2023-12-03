@@ -2866,7 +2866,7 @@ def run_verb(args: MkosiArgs, images: Sequence[MkosiConfig]) -> None:
             continue
 
         with (
-            complete_step(f"Building {config.image or 'default'} image"),
+            complete_step(f"Building {config.name()} image"),
             mount_tools(config.tools_tree),
             hide_host_directories(),
             prepend_to_environ_path(config),
