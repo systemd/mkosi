@@ -534,7 +534,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
 
         if config.qemu_cdrom and config.output_format in (OutputFormat.disk, OutputFormat.esp):
             # CD-ROM devices have sector size 2048 so we transform disk images into ones with sector size 2048.
-            src = (config.output_dir_or_cwd() / config.output).resolve()
+            src = (config.output_dir_or_cwd() / config.output_with_compression).resolve()
             fname = src.parent / f"{src.name}-{uuid.uuid4().hex}"
             run(["systemd-repart",
                  "--definitions", "",
@@ -548,9 +548,9 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
                  fname])
             stack.callback(lambda: fname.unlink())
         elif config.ephemeral and config.output_format not in (OutputFormat.cpio, OutputFormat.uki):
-            fname = stack.enter_context(copy_ephemeral(config, config.output_dir_or_cwd() / config.output))
+            fname = stack.enter_context(copy_ephemeral(config, config.output_dir_or_cwd() / config.output_with_compression))
         else:
-            fname = config.output_dir_or_cwd() / config.output
+            fname = config.output_dir_or_cwd() / config.output_with_compression
 
         # Make sure qemu can access the ephemeral copy. Not required for directory output because we don't pass that
         # directly to qemu, but indirectly via virtiofsd.
