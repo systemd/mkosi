@@ -16,12 +16,7 @@ from . import Image
 def test_boot(format: OutputFormat) -> None:
     with Image(
         options=[
-            "--kernel-command-line=console=ttyS0",
             "--kernel-command-line=systemd.unit=mkosi-check-and-shutdown.service",
-            "--kernel-command-line=systemd.log_target=console",
-            "--kernel-command-line=systemd.default_standard_output=journal+console",
-            "--qemu-vsock=yes",
-            "--qemu-mem=4G",
             "--incremental",
             "--ephemeral",
         ],

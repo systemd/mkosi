@@ -9,12 +9,12 @@ from typing import Optional
 from mkosi.distributions import Distribution, detect_distribution
 from mkosi.log import die
 from mkosi.run import run
-from mkosi.types import CompletedProcess
+from mkosi.types import CompletedProcess, PathString
 from mkosi.util import INVOKING_USER
 
 
 class Image:
-    def __init__(self, options: Sequence[str] = []) -> None:
+    def __init__(self, options: Sequence[PathString] = []) -> None:
         self.options = options
 
         if d := os.getenv("MKOSI_TEST_DISTRIBUTION"):
@@ -46,20 +46,25 @@ class Image:
     def mkosi(
         self,
         verb: str,
-        options: Sequence[str] = (),
+        options: Sequence[PathString] = (),
         args: Sequence[str] = (),
         user: Optional[int] = None,
         group: Optional[int] = None,
     ) -> CompletedProcess:
         return run([
             "python3", "-m", "mkosi",
+            "--distribution", str(self.distribution),
+            "--release", self.release,
             *self.options,
             *options,
             "--output-dir", self.output_dir.name,
             "--cache-dir", "mkosi.cache",
             "--debug",
-            "--distribution", str(self.distribution),
-            "--release", self.release,
+            "--kernel-command-line=console=ttyS0",
+            "--kernel-command-line=systemd.log_target=console",
+            "--kernel-command-line=systemd.default_standard_output=journal+console",
+            "--qemu-vsock=yes",
+            "--qemu-mem=4G",
             verb,
             *args,
         ], user=user, group=group)
