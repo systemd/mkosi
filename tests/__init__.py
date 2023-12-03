@@ -59,7 +59,6 @@ class Image:
             *options,
             "--output-dir", self.output_dir.name,
             "--cache-dir", "mkosi.cache",
-            "--debug",
             "--kernel-command-line=console=ttyS0",
             "--kernel-command-line=systemd.log_target=console",
             "--kernel-command-line=systemd.default_standard_output=journal+console",
@@ -70,13 +69,13 @@ class Image:
         ], user=user, group=group)
 
     def build(self, options: Sequence[str] = (), args: Sequence[str] = ()) -> CompletedProcess:
-        return self.mkosi("build", [*options, "--force"], args, user=INVOKING_USER.uid, group=INVOKING_USER.gid)
+        return self.mkosi("build", [*options, "--debug", "--force"], args, user=INVOKING_USER.uid, group=INVOKING_USER.gid)
 
     def boot(self, options: Sequence[str] = (), args: Sequence[str] = ()) -> CompletedProcess:
-        return self.mkosi("boot", options, args)
+        return self.mkosi("boot", [*options, "--debug"], args)
 
     def qemu(self, options: Sequence[str] = (), args: Sequence[str] = ()) -> CompletedProcess:
-        return self.mkosi("qemu", options, args, user=INVOKING_USER.uid, group=INVOKING_USER.gid)
+        return self.mkosi("qemu", [*options, "--debug"], args, user=INVOKING_USER.uid, group=INVOKING_USER.gid)
 
     def summary(self, options: Sequence[str] = ()) -> CompletedProcess:
         return self.mkosi("summary", options, user=INVOKING_USER.uid, group=INVOKING_USER.gid)
