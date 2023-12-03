@@ -364,7 +364,7 @@ def copy_ephemeral(config: MkosiConfig, src: Path) -> Iterator[Path]:
     tmp = src.parent / f"{src.name}-{uuid.uuid4().hex}"
 
     try:
-        copy_tree(config, src, tmp)
+        copy_tree(src, tmp, use_subvolumes=config.use_subvolumes)
         yield tmp
     finally:
         rmtree(tmp)

@@ -134,7 +134,7 @@ class Installer(DistributionInstaller):
         for d in ("binpkgs", "distfiles", "repos/gentoo"):
             (state.cache_dir / d).mkdir(parents=True, exist_ok=True)
 
-        copy_tree(state.config, state.pkgmngr, stage3, preserve_owner=False)
+        copy_tree(state.pkgmngr, stage3, preserve_owner=False, use_subvolumes=state.config.use_subvolumes)
 
         features = " ".join([
             # Disable sandboxing in emerge because we already do it in mkosi.

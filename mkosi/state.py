@@ -21,7 +21,7 @@ class MkosiState:
             if config.overlay:
                 self.root.mkdir()
             else:
-                make_tree(self.config, self.root)
+                make_tree(self.root, use_subvolumes=self.config.use_subvolumes)
 
         self.staging.mkdir()
         self.pkgmngr.mkdir()

@@ -101,7 +101,7 @@ def setup_dnf(state: MkosiState, repos: Iterable[Repo], filelists: bool = True) 
         (macros / "macros.lang").write_text(f"%_install_langs {state.config.locale}")
 
     rpmconfigdir = Path(run(["rpm", "--eval", "%{_rpmconfigdir}"], stdout=subprocess.PIPE).stdout.strip())
-    copy_tree(state.config, rpmconfigdir, state.pkgmngr / "usr/lib/rpm", clobber=False)
+    copy_tree(rpmconfigdir, state.pkgmngr / "usr/lib/rpm", clobber=False, use_subvolumes=state.config.use_subvolumes)
 
 
 def dnf_cmd(state: MkosiState) -> list[PathString]:

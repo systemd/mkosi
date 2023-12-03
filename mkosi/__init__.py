@@ -1043,7 +1043,7 @@ def install_base_trees(state: MkosiState) -> None:
 
     with complete_step("Copying in base trees…"):
         for path in state.config.base_trees:
-            install_tree(state.config, path, state.root)
+            install_tree(path, state.root, use_subvolumes=state.config.use_subvolumes)
 
 
 def install_skeleton_trees(state: MkosiState) -> None:
@@ -1053,7 +1053,7 @@ def install_skeleton_trees(state: MkosiState) -> None:
     with complete_step("Copying in skeleton file trees…"):
         for tree in state.config.skeleton_trees:
             source, target = tree.with_prefix()
-            install_tree(state.config, source, state.root, target)
+            install_tree(source, state.root, target, use_subvolumes=state.config.use_subvolumes)
 
 
 def install_package_manager_trees(state: MkosiState) -> None:
@@ -1063,7 +1063,7 @@ def install_package_manager_trees(state: MkosiState) -> None:
     with complete_step("Copying in package manager file trees…"):
         for tree in state.config.package_manager_trees:
             source, target = tree.with_prefix()
-            install_tree(state.config, source, state.workspace / "pkgmngr", target)
+            install_tree(source, state.workspace / "pkgmngr", target, use_subvolumes=state.config.use_subvolumes)
 
 
 def install_extra_trees(state: MkosiState) -> None:
@@ -1073,7 +1073,7 @@ def install_extra_trees(state: MkosiState) -> None:
     with complete_step("Copying in extra file trees…"):
         for tree in state.config.extra_trees:
             source, target = tree.with_prefix()
-            install_tree(state.config, source, state.root, target)
+            install_tree(source, state.root, target, use_subvolumes=state.config.use_subvolumes)
 
 
 def install_build_dest(state: MkosiState) -> None:
@@ -1081,7 +1081,7 @@ def install_build_dest(state: MkosiState) -> None:
         return
 
     with complete_step("Copying in build tree…"):
-        copy_tree(state.config, state.install_dir, state.root)
+        copy_tree(state.install_dir, state.root, use_subvolumes=state.config.use_subvolumes)
 
 
 def gzip_binary() -> str:
@@ -1474,7 +1474,7 @@ def compressor_command(compression: Compression) -> list[PathString]:
 def maybe_compress(config: MkosiConfig, compression: Compression, src: Path, dst: Optional[Path] = None) -> None:
     if not compression or src.is_dir():
         if dst:
-            move_tree(config, src, dst)
+            move_tree(src, dst, use_subvolumes=config.use_subvolumes)
         return
 
     if not dst:
@@ -1946,13 +1946,13 @@ def save_cache(state: MkosiState) -> None:
         # We only use the cache-overlay directory for caching if we have a base tree, otherwise we just
         # cache the root directory.
         if (state.workspace / "cache-overlay").exists():
-            move_tree(state.config, state.workspace / "cache-overlay", final)
+            move_tree(state.workspace / "cache-overlay", final, use_subvolumes=state.config.use_subvolumes)
         else:
-            move_tree(state.config, state.root, final)
+            move_tree(state.root, final, use_subvolumes=state.config.use_subvolumes)
 
         if need_build_overlay(state.config) and (state.workspace / "build-overlay").exists():
             rmtree(build)
-            move_tree(state.config, state.workspace / "build-overlay", build)
+            move_tree(state.workspace / "build-overlay", build, use_subvolumes=state.config.use_subvolumes)
 
         manifest.write_text(
             json.dumps(
@@ -1987,7 +1987,7 @@ def reuse_cache(state: MkosiState) -> bool:
             return False
 
     with complete_step("Copying cached trees"):
-        copy_tree(state.config, final, state.root)
+        copy_tree(final, state.root, use_subvolumes=state.config.use_subvolumes)
         if need_build_overlay(state.config):
             (state.workspace / "build-overlay").symlink_to(build)
 
@@ -2193,7 +2193,7 @@ def finalize_staging(state: MkosiState) -> None:
         # Make sure all build outputs that are not directories are owned by the user running mkosi.
         if not f.is_dir():
             os.chown(f, INVOKING_USER.uid, INVOKING_USER.gid, follow_symlinks=False)
-        move_tree(state.config, f, state.config.output_dir_or_cwd())
+        move_tree(f, state.config.output_dir_or_cwd(), use_subvolumes=state.config.use_subvolumes)
 
 
 def normalize_mtime(root: Path, mtime: Optional[int], directory: Optional[Path] = None) -> None:
