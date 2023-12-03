@@ -66,7 +66,7 @@ def apt_cmd(state: MkosiState, command: str) -> list[PathString]:
     trustedkeys_dir = state.pkgmngr / "etc/apt/trusted.gpg.d"
     trustedkeys_dir = trustedkeys_dir if trustedkeys_dir.exists() else "/usr/share/keyrings"
 
-    return [
+    cmdline: list[PathString] = [
         "env",
         f"APT_CONFIG={state.workspace / 'apt.conf'}",
         "DEBIAN_FRONTEND=noninteractive",
@@ -98,6 +98,17 @@ def apt_cmd(state: MkosiState, command: str) -> list[PathString]:
         "-o", "DPkg::Install::Recursive::Minimum=1000",
         "-o", "pkgCacheGen::ForceEssential=,",
     ]
+
+    if not state.config.with_docs:
+        cmdline += [
+            "-o", "DPkg::Options::=--path-exclude=/usr/share/doc/*",
+            "-o", "DPkg::Options::=--path-include=/usr/share/doc/*/copyright",
+            "-o", "DPkg::Options::=--path-exclude=/usr/share/man/*",
+            "-o", "DPkg::Options::=--path-exclude=/usr/share/groff/*",
+            "-o", "DPkg::Options::=--path-exclude=/usr/share/info/*",
+        ]
+
+    return cmdline
 
 
 def invoke_apt(
