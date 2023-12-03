@@ -566,31 +566,31 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
                  "--offline=yes",
                  fname])
 
-        root = None
+        if kernel and (KernelType.identify(kernel) != KernelType.uki or not config.architecture.supports_smbios()):
+            kcl = config.kernel_command_line + config.kernel_command_line_extra
+        else:
+            kcl = config.kernel_command_line_extra
+
         if kernel:
             cmdline += ["-kernel", kernel]
 
-            if config.output_format == OutputFormat.disk:
+            if any(s.startswith("root=") for s in kcl):
+                pass
+            elif config.output_format == OutputFormat.disk:
                 # We can't rely on gpt-auto-generator when direct kernel booting so synthesize a root=
                 # kernel argument instead.
                 root = finalize_root(find_partitions(fname))
                 if not root:
                     die("Cannot perform a direct kernel boot without a root or usr partition")
+
+                kcl += [root]
             elif config.output_format == OutputFormat.directory:
                 sock = stack.enter_context(start_virtiofsd(fname, uidmap=False))
                 cmdline += [
                     "-chardev", f"socket,id={sock.name},path={sock}",
                     "-device", f"vhost-user-fs-pci,queue-size=1024,chardev={sock.name},tag=root",
                 ]
-                root = "root=root rootfstype=virtiofs rw"
-
-        if kernel and (KernelType.identify(kernel) != KernelType.uki or not config.architecture.supports_smbios()):
-            kcl = config.kernel_command_line + config.kernel_command_line_extra
-        else:
-            kcl = config.kernel_command_line_extra
-
-        if root:
-            kcl += [root]
+                kcl += ["root=root", "rootfstype=virtiofs", "rw"]
 
         for tree in config.runtime_trees:
             sock = stack.enter_context(start_virtiofsd(tree.source, uidmap=True))
