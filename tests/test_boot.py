@@ -38,6 +38,10 @@ def test_boot(format: OutputFormat) -> None:
             args = ["systemd.mask=systemd-resolved.service"] if format == OutputFormat.directory else []
             image.boot(options=options, args=args)
 
+        if image.distribution == Distribution.ubuntu and format in (OutputFormat.cpio, OutputFormat.uki, OutputFormat.esp):
+            # https://bugs.launchpad.net/ubuntu/+source/linux-kvm/+bug/2045561
+            pytest.skip("Cannot boot Ubuntu UKI/cpio images in qemu until we switch back to linux-kvm")
+
         if image.distribution == Distribution.rhel_ubi:
             return
 

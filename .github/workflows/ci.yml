@@ -105,16 +105,26 @@ jobs:
     - name: Install
       run: |
         sudo apt-get update
-        sudo apt-get install python3-pytest
+        sudo apt-get install python3-pytest lvm2 cryptsetup-bin
         # Make sure the latest changes from the pull request are used.
         sudo ln -svf $PWD/bin/mkosi /usr/bin/mkosi
       working-directory: ./
 
     - name: Configure
       run: |
-        tee mkosi.local.conf <<- EOF
+        tee mkosi.local.conf <<EOF
+        [Content]
+        KernelCommandLine=systemd.default_device_timeout_sec=180
+
         [Host]
         QemuKvm=no
+        EOF
+
+        # TODO: Remove once all distros have recent enough systemd that knows systemd.default_device_timeout_sec.
+        mkdir -p mkosi-initrd/mkosi.extra/usr/lib/systemd/system.conf.d
+        tee mkosi-initrd/mkosi.extra/usr/lib/systemd/system.conf.d/device-timeout.conf <<EOF
+        [Manager]
+        DefaultDeviceTimeoutSec=180
         EOF
 
     - name: Run integration tests
