@@ -3,9 +3,11 @@
 import os
 import sys
 import tempfile
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from types import TracebackType
-from typing import Optional
+from typing import Any, Optional
+
+import pytest
 
 from mkosi.distributions import Distribution, detect_distribution
 from mkosi.log import die
@@ -95,3 +97,21 @@ class Image:
 
     def summary(self, options: Sequence[str] = ()) -> CompletedProcess:
         return self.mkosi("summary", options, user=INVOKING_USER.uid, group=INVOKING_USER.gid)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def suspend_capture_stdin(pytestconfig: Any) -> Iterator[None]:
+    """
+    When --capture=no (or -s) is specified, pytest will still intercept stdin. Let's explicitly make it not capture
+    stdin when --capture=no is specified so we can debug image boot failures by logging into the emergency shell.
+    """
+
+    capmanager: Any = pytestconfig.pluginmanager.getplugin("capturemanager")
+
+    if pytestconfig.getoption("capture") == "no":
+        capmanager.suspend_global_capture(in_=True)
+
+    yield
+
+    if pytestconfig.getoption("capture") == "no":
+        capmanager.resume_global_capture()
