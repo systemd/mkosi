@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 import os
+import sys
 import tempfile
 from collections.abc import Sequence
 from types import TracebackType
@@ -9,7 +10,7 @@ from typing import Optional
 from mkosi.distributions import Distribution, detect_distribution
 from mkosi.log import die
 from mkosi.run import run
-from mkosi.types import CompletedProcess, PathString
+from mkosi.types import _FILE, CompletedProcess, PathString
 from mkosi.util import INVOKING_USER
 
 
@@ -48,6 +49,7 @@ class Image:
         verb: str,
         options: Sequence[PathString] = (),
         args: Sequence[str] = (),
+        stdin: _FILE = None,
         user: Optional[int] = None,
         group: Optional[int] = None,
     ) -> CompletedProcess:
@@ -66,16 +68,30 @@ class Image:
             "--qemu-mem=4G",
             verb,
             *args,
-        ], user=user, group=group)
+        ], stdin=stdin, stdout=sys.stdout, user=user, group=group)
 
     def build(self, options: Sequence[str] = (), args: Sequence[str] = ()) -> CompletedProcess:
-        return self.mkosi("build", [*options, "--debug", "--force"], args, user=INVOKING_USER.uid, group=INVOKING_USER.gid)
+        return self.mkosi(
+            "build",
+            [*options, "--debug", "--force"],
+            args,
+            stdin=sys.stdin if sys.stdin.isatty() else None,
+            user=INVOKING_USER.uid,
+            group=INVOKING_USER.gid,
+        )
 
     def boot(self, options: Sequence[str] = (), args: Sequence[str] = ()) -> CompletedProcess:
-        return self.mkosi("boot", [*options, "--debug"], args)
+        return self.mkosi("boot", [*options, "--debug"], args, stdin=sys.stdin if sys.stdin.isatty() else None)
 
     def qemu(self, options: Sequence[str] = (), args: Sequence[str] = ()) -> CompletedProcess:
-        return self.mkosi("qemu", [*options, "--debug"], args, user=INVOKING_USER.uid, group=INVOKING_USER.gid)
+        return self.mkosi(
+            "qemu",
+            [*options, "--debug"],
+            args,
+            stdin=sys.stdin if sys.stdin.isatty() else None,
+            user=INVOKING_USER.uid,
+            group=INVOKING_USER.gid,
+        )
 
     def summary(self, options: Sequence[str] = ()) -> CompletedProcess:
         return self.mkosi("summary", options, user=INVOKING_USER.uid, group=INVOKING_USER.gid)
