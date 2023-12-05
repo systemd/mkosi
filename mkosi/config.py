@@ -1025,10 +1025,6 @@ class MkosiConfig:
         return f"{self.output_with_version}.initrd"
 
     @property
-    def output_nspawn_settings(self) -> str:
-        return f"{self.output_with_version}.nspawn"
-
-    @property
     def output_checksum(self) -> str:
         return f"{self.output_with_version}.SHA256SUMS"
 
