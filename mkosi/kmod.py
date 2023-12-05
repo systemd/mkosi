@@ -11,29 +11,41 @@ from mkosi.log import complete_step, log_step
 from mkosi.run import bwrap, chroot_cmd
 
 
-def filter_kernel_modules(root: Path, kver: str, include: Sequence[str], exclude: Sequence[str]) -> list[Path]:
+def loaded_modules() -> list[str]:
+    return [l.split()[0] for l in Path("/proc/modules").read_text().splitlines()]
+
+
+def filter_kernel_modules(
+    root: Path,
+    kver: str,
+    include: Sequence[str],
+    exclude: Sequence[str],
+    host: bool,
+) -> list[Path]:
     modulesd = root / "usr/lib/modules" / kver
     modules = {m for m in modulesd.rglob("*.ko*")}
 
+    if host:
+        include = [*include, *loaded_modules()]
+
     keep = set()
-    for pattern in include:
-        regex = re.compile(pattern)
-        for m in modules:
-            rel = os.fspath(m.relative_to(modulesd / "kernel"))
-            if regex.search(rel):
-                logging.debug(f"Including module {rel}")
-                keep.add(rel)
 
-    for pattern in exclude:
-        regex = re.compile(pattern)
-        remove = set()
-        for m in modules:
-            rel = os.fspath(m.relative_to(modulesd / "kernel"))
-            if rel not in keep and regex.search(rel):
-                logging.debug(f"Excluding module {rel}")
-                remove.add(m)
+    regex = re.compile("|".join(include))
+    for m in modules:
+        rel = os.fspath(m.relative_to(modulesd / "kernel"))
+        if regex.search(rel):
+            logging.debug(f"Including module {rel}")
+            keep.add(rel)
 
-        modules -= remove
+    regex = re.compile("|".join(exclude))
+    remove = set()
+    for m in modules:
+        rel = os.fspath(m.relative_to(modulesd / "kernel"))
+        if rel not in keep and regex.search(rel):
+            logging.debug(f"Excluding module {rel}")
+            remove.add(m)
+
+    modules -= remove
 
     return sorted(modules)
 
@@ -126,9 +138,10 @@ def gen_required_kernel_modules(
     kver: str,
     include: Sequence[str],
     exclude: Sequence[str],
+    host: bool,
 ) -> Iterator[Path]:
     modulesd = root / "usr/lib/modules" / kver
-    modules = filter_kernel_modules(root, kver, include, exclude)
+    modules = filter_kernel_modules(root, kver, include, exclude, host)
 
     names = [module_path_to_name(m) for m in modules]
     mods, firmware = resolve_module_dependencies(root, kver, names)
@@ -161,12 +174,18 @@ def gen_required_kernel_modules(
     return files()
 
 
-def process_kernel_modules(root: Path, kver: str, include: Sequence[str], exclude: Sequence[str]) -> None:
+def process_kernel_modules(
+    root: Path,
+    kver: str,
+    include: Sequence[str],
+    exclude: Sequence[str],
+    host: bool,
+) -> None:
     if not include and not exclude:
         return
 
     with complete_step("Applying kernel module filters"):
-        required = set(gen_required_kernel_modules(root, kver, include, exclude))
+        required = set(gen_required_kernel_modules(root, kver, include, exclude, host))
 
         for m in (root / "usr/lib/modules" / kver).rglob("*.ko*"):
             if m in required:

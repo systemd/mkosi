@@ -7,11 +7,12 @@ from pathlib import Path
 from typing import Optional
 
 from mkosi.archive import extract_tar
-from mkosi.config import ConfigFeature, MkosiConfig
+from mkosi.config import ConfigFeature
 from mkosi.log import die
 from mkosi.run import run
 from mkosi.types import PathString
 from mkosi.util import umask
+from mkosi.versioncomp import GenericVersion
 
 
 def statfs(path: Path) -> str:
@@ -22,20 +23,20 @@ def is_subvolume(path: Path) -> bool:
     return path.is_dir() and statfs(path) == "btrfs" and path.stat().st_ino == 256
 
 
-def make_tree(config: MkosiConfig, path: Path) -> None:
-    if config.use_subvolumes == ConfigFeature.enabled and not shutil.which("btrfs"):
+def make_tree(path: Path, use_subvolumes: ConfigFeature = ConfigFeature.disabled) -> None:
+    if use_subvolumes == ConfigFeature.enabled and not shutil.which("btrfs"):
         die("Subvolumes requested but the btrfs command was not found")
 
     if statfs(path.parent) != "btrfs":
-        if config.use_subvolumes == ConfigFeature.enabled:
+        if use_subvolumes == ConfigFeature.enabled:
             die(f"Subvolumes requested but {path} is not located on a btrfs filesystem")
 
         path.mkdir()
         return
 
-    if config.use_subvolumes != ConfigFeature.disabled and shutil.which("btrfs") is not None:
+    if use_subvolumes != ConfigFeature.disabled and shutil.which("btrfs") is not None:
         result = run(["btrfs", "subvolume", "create", path],
-                     check=config.use_subvolumes == ConfigFeature.enabled).returncode
+                     check=use_subvolumes == ConfigFeature.enabled).returncode
     else:
         result = 1
 
@@ -43,20 +44,39 @@ def make_tree(config: MkosiConfig, path: Path) -> None:
         path.mkdir()
 
 
-def copy_tree(config: MkosiConfig, src: Path, dst: Path, *, preserve_owner: bool = True) -> None:
-    subvolume = (config.use_subvolumes == ConfigFeature.enabled or
-                 config.use_subvolumes == ConfigFeature.auto and shutil.which("btrfs") is not None)
+def cp_version() -> GenericVersion:
+    return GenericVersion(run(["cp", "--version"], stdout=subprocess.PIPE).stdout.strip().splitlines()[0].split()[3])
 
-    if config.use_subvolumes == ConfigFeature.enabled and not shutil.which("btrfs"):
+
+def copy_tree(
+    src: Path,
+    dst: Path,
+    *,
+    preserve_owner: bool = True,
+    clobber: bool = True,
+    use_subvolumes: ConfigFeature = ConfigFeature.disabled,
+) -> None:
+    subvolume = (use_subvolumes == ConfigFeature.enabled or
+                 use_subvolumes == ConfigFeature.auto and shutil.which("btrfs") is not None)
+
+    if use_subvolumes == ConfigFeature.enabled and not shutil.which("btrfs"):
         die("Subvolumes requested but the btrfs command was not found")
 
     copy: list[PathString] = [
         "cp",
         "--recursive",
+        "--no-dereference",
         f"--preserve=mode,timestamps,links,xattr{',ownership' if preserve_owner else ''}",
         "--reflink=auto",
         src, dst,
     ]
+
+    # --no-clobber will make cp fail if a file already exists since coreutils v9.2. In coreutils v9.3, --update=none
+    # was introduced to support the previous behavior of --no-clobber again. On coreutils v9.2, --no-clobber will fail
+    # and --update=none is not available so in that case we're out of luck. There don't seem to be any distros
+    # packaging coreutils v9.2 though so let's hope we don't trigger this edge case.
+    if not clobber:
+        copy += ["--update=none"] if cp_version() >= "9.3" else ["--no-clobber"]
 
     # If the source and destination are both directories, we want to merge the source directory with the
     # destination directory. If the source if a file and the destination is a directory, we want to copy
@@ -75,7 +95,7 @@ def copy_tree(config: MkosiConfig, src: Path, dst: Path, *, preserve_owner: bool
 
     if shutil.which("btrfs"):
         result = run(["btrfs", "subvolume", "snapshot", src, dst],
-                     check=config.use_subvolumes == ConfigFeature.enabled).returncode
+                     check=use_subvolumes == ConfigFeature.enabled).returncode
     else:
         result = 1
 
@@ -87,7 +107,7 @@ def rmtree(*paths: Path) -> None:
     run(["rm", "-rf", "--", *paths])
 
 
-def move_tree(config: MkosiConfig, src: Path, dst: Path) -> None:
+def move_tree(src: Path, dst: Path, use_subvolumes: ConfigFeature = ConfigFeature.disabled) -> None:
     if src == dst:
         return
 
@@ -100,11 +120,16 @@ def move_tree(config: MkosiConfig, src: Path, dst: Path) -> None:
         if e.errno != errno.EXDEV:
             raise e
 
-        copy_tree(config, src, dst)
+        copy_tree(src, dst, use_subvolumes=use_subvolumes)
         rmtree(src)
 
 
-def install_tree(config: MkosiConfig, src: Path, dst: Path, target: Optional[Path] = None) -> None:
+def install_tree(
+    src: Path,
+    dst: Path,
+    target: Optional[Path] = None,
+    use_subvolumes: ConfigFeature = ConfigFeature.disabled,
+) -> None:
     t = dst
     if target:
         t = dst / target.relative_to("/")
@@ -113,7 +138,7 @@ def install_tree(config: MkosiConfig, src: Path, dst: Path, target: Optional[Pat
         t.parent.mkdir(parents=True, exist_ok=True)
 
     if src.is_dir() or (src.is_file() and target):
-        copy_tree(config, src, t, preserve_owner=False)
+        copy_tree(src, t, preserve_owner=False, use_subvolumes=use_subvolumes)
     elif src.suffix == ".tar":
         extract_tar(src, t)
     elif src.suffix == ".raw":

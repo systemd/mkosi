@@ -30,7 +30,10 @@ case "$COMMAND" in
                   --workspace-dir=/var/tmp \
                   --cache-dir=/var/cache \
                   --output-dir="$KERNEL_INSTALL_STAGING_AREA" \
-                  --extra-tree="/usr/lib/modules/${KERNEL_VERSION}:/usr/lib/modules/${KERNEL_VERSION}"
+                  --extra-tree="/usr/lib/modules/${KERNEL_VERSION}:/usr/lib/modules/${KERNEL_VERSION}" \
+                  --extra-tree="/usr/lib/firmware:/usr/lib/firmware" \
+                  --kernel-modules-exclude=".*" \
+                  --kernel-modules-include-host=yes
 
             rm "${KERNEL_INSTALL_STAGING_AREA}/initrd"
             mv -v "${KERNEL_INSTALL_STAGING_AREA}"/initrd_*.cpio.zst "${KERNEL_INSTALL_STAGING_AREA}/initrd"

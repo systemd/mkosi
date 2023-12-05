@@ -556,6 +556,19 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   subdirectory of the workspace directory instead of the OS tree. This
   subdirectory of the workspace is used to configure the package manager.
 
+: `mkosi` will look for the package manager configuration and related
+  files in the configured package manager trees. Unless specified
+  otherwise, it will use the configuration file from its canonical
+  location in the package manager trees. For example, it will look for
+  `etc/dnf/dnf.conf` in the package manager trees if `dnf` is used to
+  install packages.
+
+: Extra rpm configuration should be put in `usr/lib/rpm` in the package
+  manager trees. Any configuration in `etc/rpm` will be ignored. The
+  extra configuration in `usr/lib/rpm` should mimick the layout of
+  `usr/lib/rpm` on the host. For example, extra macro files should go in
+  `usr/lib/rpm/macros.d` in the package manager trees.
+
 : `SkeletonTrees=` and `PackageManagerTrees=` fulfill similar roles. Use
   `SkeletonTrees=` if you want the files to be present in the final image. Use
   `PackageManagerTrees=` if you don't want the files to be present in the final
@@ -1039,6 +1052,14 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   `KernelModulesInclude=` except that all modules that match any of the specified patterns are excluded from
   the image.
 
+`KernelModulesIncludeHost=`, `--kernel-modules-include-host=`
+
+: Takes a boolean. Specifies whether to include the currently loaded
+  modules on the host system in the image. This setting takes priority
+  over `KernelModulesExclude=` and only makes sense when used in
+  combination with it because all kernel modules are included in the
+  image by default.
+
 `KernelModulesInitrd=`, `--kernel-modules-initrd=`
 
 : Enable/Disable generation of the kernel modules initrd when building a bootable image. Enabled by default.
@@ -1054,6 +1075,10 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 `KernelModulesInitrdExclude=`, `--kernel-modules-initrd-exclude=`
 
 : Like `KernelModulesExclude=`, but applies to the kernel modules included in the kernel modules initrd.
+
+`KernelModulesInitrdIncludeHost=`, `--kernel-modules-initrd-include-host=`
+
+: Like `KernelModulesIncludeHost=`, but applies to the kernel modules included in the kernel modules initrd.
 
 : The settings `Locale=`, `--locale=`, `LocaleMessages=`, `--locale-messages=`,
   `Keymap=`, `--keymap=`, `Timezone=`, `--timezone=`, `Hostname=`,

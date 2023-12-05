@@ -152,9 +152,11 @@ def test_config() -> None:
             "KernelModulesInclude": [
                 "loop"
             ],
+            "KernelModulesIncludeHost": true,
             "KernelModulesInitrd": true,
             "KernelModulesInitrdExclude": [],
             "KernelModulesInitrdInclude": [],
+            "KernelModulesInitrdIncludeHost": true,
             "Key": null,
             "Keymap": "wow, so much keymap",
             "LocalMirror": null,
@@ -311,9 +313,11 @@ def test_config() -> None:
         kernel_command_line_extra = ["look", "im", "on", "the", "kernel", "command", "line"],
         kernel_modules_exclude = ["nvidia"],
         kernel_modules_include = ["loop"],
+        kernel_modules_include_host = True,
         kernel_modules_initrd = True,
         kernel_modules_initrd_exclude = [],
         kernel_modules_initrd_include = [],
+        kernel_modules_initrd_include_host = True,
         key = None,
         keymap = "wow, so much keymap",
         local_mirror = None,

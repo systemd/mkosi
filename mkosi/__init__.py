@@ -1043,7 +1043,7 @@ def install_base_trees(state: MkosiState) -> None:
 
     with complete_step("Copying in base trees…"):
         for path in state.config.base_trees:
-            install_tree(state.config, path, state.root)
+            install_tree(path, state.root, use_subvolumes=state.config.use_subvolumes)
 
 
 def install_skeleton_trees(state: MkosiState) -> None:
@@ -1053,7 +1053,7 @@ def install_skeleton_trees(state: MkosiState) -> None:
     with complete_step("Copying in skeleton file trees…"):
         for tree in state.config.skeleton_trees:
             source, target = tree.with_prefix()
-            install_tree(state.config, source, state.root, target)
+            install_tree(source, state.root, target, use_subvolumes=state.config.use_subvolumes)
 
 
 def install_package_manager_trees(state: MkosiState) -> None:
@@ -1063,7 +1063,7 @@ def install_package_manager_trees(state: MkosiState) -> None:
     with complete_step("Copying in package manager file trees…"):
         for tree in state.config.package_manager_trees:
             source, target = tree.with_prefix()
-            install_tree(state.config, source, state.workspace / "pkgmngr", target)
+            install_tree(source, state.workspace / "pkgmngr", target, use_subvolumes=state.config.use_subvolumes)
 
 
 def install_extra_trees(state: MkosiState) -> None:
@@ -1073,7 +1073,7 @@ def install_extra_trees(state: MkosiState) -> None:
     with complete_step("Copying in extra file trees…"):
         for tree in state.config.extra_trees:
             source, target = tree.with_prefix()
-            install_tree(state.config, source, state.root, target)
+            install_tree(source, state.root, target, use_subvolumes=state.config.use_subvolumes)
 
 
 def install_build_dest(state: MkosiState) -> None:
@@ -1081,7 +1081,7 @@ def install_build_dest(state: MkosiState) -> None:
         return
 
     with complete_step("Copying in build tree…"):
-        copy_tree(state.config, state.install_dir, state.root)
+        copy_tree(state.install_dir, state.root, use_subvolumes=state.config.use_subvolumes)
 
 
 def gzip_binary() -> str:
@@ -1221,6 +1221,7 @@ def build_kernel_modules_initrd(state: MkosiState, kver: str) -> Path:
             state.root, kver,
             state.config.kernel_modules_initrd_include,
             state.config.kernel_modules_initrd_exclude,
+            state.config.kernel_modules_initrd_include_host,
         )
     )
 
@@ -1473,7 +1474,7 @@ def compressor_command(compression: Compression) -> list[PathString]:
 def maybe_compress(config: MkosiConfig, compression: Compression, src: Path, dst: Optional[Path] = None) -> None:
     if not compression or src.is_dir():
         if dst:
-            move_tree(config, src, dst)
+            move_tree(src, dst, use_subvolumes=config.use_subvolumes)
         return
 
     if not dst:
@@ -1485,14 +1486,6 @@ def maybe_compress(config: MkosiConfig, compression: Compression, src: Path, dst
 
             with dst.open("wb") as o:
                 run(compressor_command(compression), stdin=i, stdout=o)
-
-
-def copy_nspawn_settings(state: MkosiState) -> None:
-    if state.config.nspawn_settings is None:
-        return None
-
-    with complete_step("Copying nspawn settings file…"):
-        shutil.copy2(state.config.nspawn_settings, state.staging / state.config.output_nspawn_settings)
 
 
 def copy_vmlinuz(state: MkosiState) -> None:
@@ -1693,7 +1686,6 @@ def check_outputs(config: MkosiConfig) -> None:
         config.output_with_compression,
         config.output_checksum if config.checksum else None,
         config.output_signature if config.sign else None,
-        config.output_nspawn_settings if config.nspawn_settings is not None else None,
     ):
         if f and (config.output_dir_or_cwd() / f).exists():
             die(f"Output path {f} exists already. (Consider invocation with --force.)")
@@ -1820,6 +1812,7 @@ def run_depmod(state: MkosiState) -> None:
             state.root, kver,
             state.config.kernel_modules_include,
             state.config.kernel_modules_exclude,
+            state.config.kernel_modules_include_host,
         )
 
         with complete_step(f"Running depmod for {kver}"):
@@ -1944,13 +1937,13 @@ def save_cache(state: MkosiState) -> None:
         # We only use the cache-overlay directory for caching if we have a base tree, otherwise we just
         # cache the root directory.
         if (state.workspace / "cache-overlay").exists():
-            move_tree(state.config, state.workspace / "cache-overlay", final)
+            move_tree(state.workspace / "cache-overlay", final, use_subvolumes=state.config.use_subvolumes)
         else:
-            move_tree(state.config, state.root, final)
+            move_tree(state.root, final, use_subvolumes=state.config.use_subvolumes)
 
         if need_build_overlay(state.config) and (state.workspace / "build-overlay").exists():
             rmtree(build)
-            move_tree(state.config, state.workspace / "build-overlay", build)
+            move_tree(state.workspace / "build-overlay", build, use_subvolumes=state.config.use_subvolumes)
 
         manifest.write_text(
             json.dumps(
@@ -1985,7 +1978,7 @@ def reuse_cache(state: MkosiState) -> bool:
             return False
 
     with complete_step("Copying cached trees"):
-        copy_tree(state.config, final, state.root)
+        copy_tree(final, state.root, use_subvolumes=state.config.use_subvolumes)
         if need_build_overlay(state.config):
             (state.workspace / "build-overlay").symlink_to(build)
 
@@ -2191,7 +2184,7 @@ def finalize_staging(state: MkosiState) -> None:
         # Make sure all build outputs that are not directories are owned by the user running mkosi.
         if not f.is_dir():
             os.chown(f, INVOKING_USER.uid, INVOKING_USER.gid, follow_symlinks=False)
-        move_tree(state.config, f, state.config.output_dir_or_cwd())
+        move_tree(f, state.config.output_dir_or_cwd(), use_subvolumes=state.config.use_subvolumes)
 
 
 def normalize_mtime(root: Path, mtime: Optional[int], directory: Optional[Path] = None) -> None:
@@ -2316,7 +2309,6 @@ def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
                            state.staging / state.config.output_with_format,
                            state.staging / state.config.output_with_compression)
 
-        copy_nspawn_settings(state)
         calculate_sha256sum(state)
         calculate_signature(state)
         save_manifest(state, manifest)
@@ -2409,7 +2401,7 @@ def run_shell(args: MkosiArgs, config: MkosiConfig) -> None:
     cmdline: list[PathString] = ["systemd-nspawn", "--quiet"]
 
     # If we copied in a .nspawn file, make sure it's actually honoured
-    if config.nspawn_settings is not None:
+    if config.nspawn_settings:
         cmdline += ["--settings=trusted"]
 
     if args.verb == Verb.boot:
@@ -2421,12 +2413,17 @@ def run_shell(args: MkosiArgs, config: MkosiConfig) -> None:
         ]
 
     # Underscores are not allowed in machine names so replace them with hyphens.
-    cmdline += ["--machine", (config.image_id or config.image or config.output).replace("_", "-")]
+    name = config.name().replace("_", "-")
+    cmdline += ["--machine", name]
 
     for k, v in config.credentials.items():
         cmdline += [f"--set-credential={k}:{v}"]
 
     with contextlib.ExitStack() as stack:
+        if config.nspawn_settings:
+            copy_tree(config.nspawn_settings, config.output_dir_or_cwd() / f"{name}.nspawn")
+            stack.callback(lambda: rmtree(config.output_dir_or_cwd() / f"{name}.nspawn"))
+
         if config.ephemeral:
             fname = stack.enter_context(copy_ephemeral(config, config.output_dir_or_cwd() / config.output))
         else:
@@ -2729,6 +2726,24 @@ def mount_tools(tree: Optional[Path]) -> Iterator[None]:
         yield
 
 
+@contextlib.contextmanager
+def hide_host_directories() -> Iterator[None]:
+    with contextlib.ExitStack() as stack:
+
+        # We want to limit the effect of host specific admin configuration on image builds, so we hide various config
+        # directories that we can't override using CLI options or environment variables so that they don't affect our
+        # builds.
+
+        for d in ("/etc/rpm",):
+            if not Path(d).exists():
+                continue
+
+            tmp = stack.enter_context(tempfile.TemporaryDirectory())
+            stack.enter_context(mount(what=tmp, where=Path(d), operation="--bind"))
+
+        yield
+
+
 def check_workspace_directory(config: MkosiConfig) -> None:
     wd = config.workspace_dir_or_default()
 
@@ -2783,7 +2798,7 @@ def run_verb(args: MkosiArgs, images: Sequence[MkosiConfig]) -> None:
         opname = "acquire shell in" if args.verb == Verb.shell else "boot"
         if last.output_format in (OutputFormat.tar, OutputFormat.cpio):
             die(f"Sorry, can't {opname} a {last.output_format} archive.")
-        if last.compress_output:
+        if last.output_format.use_outer_compression() and last.compress_output:
             die(f"Sorry, can't {opname} a compressed image.")
 
     if (
@@ -2846,8 +2861,9 @@ def run_verb(args: MkosiArgs, images: Sequence[MkosiConfig]) -> None:
             continue
 
         with (
-            complete_step(f"Building {config.image or 'default'} image"),
+            complete_step(f"Building {config.name()} image"),
             mount_tools(config.tools_tree),
+            hide_host_directories(),
             prepend_to_environ_path(config),
         ):
             # After tools have been mounted, check if we have what we need

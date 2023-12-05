@@ -16,12 +16,7 @@ from . import Image
 def test_boot(format: OutputFormat) -> None:
     with Image(
         options=[
-            "--kernel-command-line=console=ttyS0",
             "--kernel-command-line=systemd.unit=mkosi-check-and-shutdown.service",
-            "--kernel-command-line=systemd.log_target=console",
-            "--kernel-command-line=systemd.default_standard_output=journal+console",
-            "--qemu-vsock=yes",
-            "--qemu-mem=4G",
             "--incremental",
             "--ephemeral",
         ],
@@ -42,6 +37,10 @@ def test_boot(format: OutputFormat) -> None:
             # FIXME: Remove when Arch/Debian/Ubuntu ship systemd v253
             args = ["systemd.mask=systemd-resolved.service"] if format == OutputFormat.directory else []
             image.boot(options=options, args=args)
+
+        if image.distribution == Distribution.ubuntu and format in (OutputFormat.cpio, OutputFormat.uki, OutputFormat.esp):
+            # https://bugs.launchpad.net/ubuntu/+source/linux-kvm/+bug/2045561
+            pytest.skip("Cannot boot Ubuntu UKI/cpio images in qemu until we switch back to linux-kvm")
 
         if image.distribution == Distribution.rhel_ubi:
             return

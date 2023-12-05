@@ -364,7 +364,7 @@ def copy_ephemeral(config: MkosiConfig, src: Path) -> Iterator[Path]:
     tmp = src.parent / f"{src.name}-{uuid.uuid4().hex}"
 
     try:
-        copy_tree(config, src, tmp)
+        copy_tree(src, tmp, use_subvolumes=config.use_subvolumes)
         yield tmp
     finally:
         rmtree(tmp)
@@ -534,7 +534,7 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
 
         if config.qemu_cdrom and config.output_format in (OutputFormat.disk, OutputFormat.esp):
             # CD-ROM devices have sector size 2048 so we transform disk images into ones with sector size 2048.
-            src = (config.output_dir_or_cwd() / config.output).resolve()
+            src = (config.output_dir_or_cwd() / config.output_with_compression).resolve()
             fname = src.parent / f"{src.name}-{uuid.uuid4().hex}"
             run(["systemd-repart",
                  "--definitions", "",
@@ -548,9 +548,9 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
                  fname])
             stack.callback(lambda: fname.unlink())
         elif config.ephemeral and config.output_format not in (OutputFormat.cpio, OutputFormat.uki):
-            fname = stack.enter_context(copy_ephemeral(config, config.output_dir_or_cwd() / config.output))
+            fname = stack.enter_context(copy_ephemeral(config, config.output_dir_or_cwd() / config.output_with_compression))
         else:
-            fname = config.output_dir_or_cwd() / config.output
+            fname = config.output_dir_or_cwd() / config.output_with_compression
 
         # Make sure qemu can access the ephemeral copy. Not required for directory output because we don't pass that
         # directly to qemu, but indirectly via virtiofsd.
@@ -566,31 +566,31 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
                  "--offline=yes",
                  fname])
 
-        root = None
+        if kernel and (KernelType.identify(kernel) != KernelType.uki or not config.architecture.supports_smbios()):
+            kcl = config.kernel_command_line + config.kernel_command_line_extra
+        else:
+            kcl = config.kernel_command_line_extra
+
         if kernel:
             cmdline += ["-kernel", kernel]
 
-            if config.output_format == OutputFormat.disk:
+            if any(s.startswith("root=") for s in kcl):
+                pass
+            elif config.output_format == OutputFormat.disk:
                 # We can't rely on gpt-auto-generator when direct kernel booting so synthesize a root=
                 # kernel argument instead.
                 root = finalize_root(find_partitions(fname))
                 if not root:
                     die("Cannot perform a direct kernel boot without a root or usr partition")
+
+                kcl += [root]
             elif config.output_format == OutputFormat.directory:
                 sock = stack.enter_context(start_virtiofsd(fname, uidmap=False))
                 cmdline += [
                     "-chardev", f"socket,id={sock.name},path={sock}",
                     "-device", f"vhost-user-fs-pci,queue-size=1024,chardev={sock.name},tag=root",
                 ]
-                root = "root=root rootfstype=virtiofs rw"
-
-        if kernel and (KernelType.identify(kernel) != KernelType.uki or not config.architecture.supports_smbios()):
-            kcl = config.kernel_command_line + config.kernel_command_line_extra
-        else:
-            kcl = config.kernel_command_line_extra
-
-        if root:
-            kcl += [root]
+                kcl += ["root=root", "rootfstype=virtiofs", "rw"]
 
         for tree in config.runtime_trees:
             sock = stack.enter_context(start_virtiofsd(tree.source, uidmap=True))

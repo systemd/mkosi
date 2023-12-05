@@ -1,20 +1,23 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 import os
+import sys
 import tempfile
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from types import TracebackType
-from typing import Optional
+from typing import Any, Optional
+
+import pytest
 
 from mkosi.distributions import Distribution, detect_distribution
 from mkosi.log import die
 from mkosi.run import run
-from mkosi.types import CompletedProcess
+from mkosi.types import _FILE, CompletedProcess, PathString
 from mkosi.util import INVOKING_USER
 
 
 class Image:
-    def __init__(self, options: Sequence[str] = []) -> None:
+    def __init__(self, options: Sequence[PathString] = []) -> None:
         self.options = options
 
         if d := os.getenv("MKOSI_TEST_DISTRIBUTION"):
@@ -46,32 +49,69 @@ class Image:
     def mkosi(
         self,
         verb: str,
-        options: Sequence[str] = (),
+        options: Sequence[PathString] = (),
         args: Sequence[str] = (),
+        stdin: _FILE = None,
         user: Optional[int] = None,
         group: Optional[int] = None,
     ) -> CompletedProcess:
         return run([
             "python3", "-m", "mkosi",
+            "--distribution", str(self.distribution),
+            "--release", self.release,
             *self.options,
             *options,
             "--output-dir", self.output_dir.name,
             "--cache-dir", "mkosi.cache",
-            "--debug",
-            "--distribution", str(self.distribution),
-            "--release", self.release,
+            "--kernel-command-line=console=ttyS0",
+            "--kernel-command-line=systemd.log_target=console",
+            "--kernel-command-line=systemd.default_standard_output=journal+console",
+            "--qemu-vsock=yes",
+            "--qemu-mem=4G",
             verb,
             *args,
-        ], user=user, group=group)
+        ], stdin=stdin, stdout=sys.stdout, user=user, group=group)
 
     def build(self, options: Sequence[str] = (), args: Sequence[str] = ()) -> CompletedProcess:
-        return self.mkosi("build", [*options, "--force"], args, user=INVOKING_USER.uid, group=INVOKING_USER.gid)
+        return self.mkosi(
+            "build",
+            [*options, "--debug", "--force"],
+            args,
+            stdin=sys.stdin if sys.stdin.isatty() else None,
+            user=INVOKING_USER.uid,
+            group=INVOKING_USER.gid,
+        )
 
     def boot(self, options: Sequence[str] = (), args: Sequence[str] = ()) -> CompletedProcess:
-        return self.mkosi("boot", options, args)
+        return self.mkosi("boot", [*options, "--debug"], args, stdin=sys.stdin if sys.stdin.isatty() else None)
 
     def qemu(self, options: Sequence[str] = (), args: Sequence[str] = ()) -> CompletedProcess:
-        return self.mkosi("qemu", options, args, user=INVOKING_USER.uid, group=INVOKING_USER.gid)
+        return self.mkosi(
+            "qemu",
+            [*options, "--debug"],
+            args,
+            stdin=sys.stdin if sys.stdin.isatty() else None,
+            user=INVOKING_USER.uid,
+            group=INVOKING_USER.gid,
+        )
 
     def summary(self, options: Sequence[str] = ()) -> CompletedProcess:
         return self.mkosi("summary", options, user=INVOKING_USER.uid, group=INVOKING_USER.gid)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def suspend_capture_stdin(pytestconfig: Any) -> Iterator[None]:
+    """
+    When --capture=no (or -s) is specified, pytest will still intercept stdin. Let's explicitly make it not capture
+    stdin when --capture=no is specified so we can debug image boot failures by logging into the emergency shell.
+    """
+
+    capmanager: Any = pytestconfig.pluginmanager.getplugin("capturemanager")
+
+    if pytestconfig.getoption("capture") == "no":
+        capmanager.suspend_global_capture(in_=True)
+
+    yield
+
+    if pytestconfig.getoption("capture") == "no":
+        capmanager.resume_global_capture()

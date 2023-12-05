@@ -78,37 +78,6 @@ jobs:
     - name: Test man page generation
       run: pandoc -s mkosi.md -o mkosi.1
 
-  mkosi-initrd:
-    runs-on: ubuntu-22.04
-    needs: unit-test
-    concurrency:
-      group: ${{ github.workflow }}-${{ matrix.distro }}-${{ github.ref }}
-      cancel-in-progress: true
-    strategy:
-      fail-fast: false
-      matrix:
-        distro:
-          - arch
-          - centos
-          - debian
-          - ubuntu
-          - fedora
-          - rocky
-          - alma
-          - opensuse
-
-    steps:
-      - uses: actions/checkout@v3
-      - uses: ./
-
-      # Make sure the latest changes from the pull request are used.
-      - name: Install
-        run: sudo ln -svf $PWD/bin/mkosi /usr/bin/mkosi
-        working-directory: ./
-
-      - name: Build ${{ matrix.distro }}
-        run: mkosi --directory "" -d ${{ matrix.distro }} --include mkosi-initrd build
-
   integration-test:
     runs-on: ubuntu-22.04
     needs: unit-test
@@ -136,16 +105,26 @@ jobs:
     - name: Install
       run: |
         sudo apt-get update
-        sudo apt-get install python3-pytest
+        sudo apt-get install python3-pytest lvm2 cryptsetup-bin
         # Make sure the latest changes from the pull request are used.
         sudo ln -svf $PWD/bin/mkosi /usr/bin/mkosi
       working-directory: ./
 
     - name: Configure
       run: |
-        tee mkosi.local.conf <<- EOF
+        tee mkosi.local.conf <<EOF
+        [Content]
+        KernelCommandLine=systemd.default_device_timeout_sec=180
+
         [Host]
         QemuKvm=no
+        EOF
+
+        # TODO: Remove once all distros have recent enough systemd that knows systemd.default_device_timeout_sec.
+        mkdir -p mkosi-initrd/mkosi.extra/usr/lib/systemd/system.conf.d
+        tee mkosi-initrd/mkosi.extra/usr/lib/systemd/system.conf.d/device-timeout.conf <<EOF
+        [Manager]
+        DefaultDeviceTimeoutSec=180
         EOF
 
     - name: Run integration tests
