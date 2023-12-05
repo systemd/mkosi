@@ -1487,14 +1487,6 @@ def maybe_compress(config: MkosiConfig, compression: Compression, src: Path, dst
                 run(compressor_command(compression), stdin=i, stdout=o)
 
 
-def copy_nspawn_settings(state: MkosiState) -> None:
-    if state.config.nspawn_settings is None:
-        return None
-
-    with complete_step("Copying nspawn settings file…"):
-        shutil.copy2(state.config.nspawn_settings, state.staging / state.config.output_nspawn_settings)
-
-
 def copy_vmlinuz(state: MkosiState) -> None:
     if (state.staging / state.config.output_split_kernel).exists():
         return
@@ -1693,7 +1685,6 @@ def check_outputs(config: MkosiConfig) -> None:
         config.output_with_compression,
         config.output_checksum if config.checksum else None,
         config.output_signature if config.sign else None,
-        config.output_nspawn_settings if config.nspawn_settings is not None else None,
     ):
         if f and (config.output_dir_or_cwd() / f).exists():
             die(f"Output path {f} exists already. (Consider invocation with --force.)")
@@ -2316,7 +2307,6 @@ def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
                            state.staging / state.config.output_with_format,
                            state.staging / state.config.output_with_compression)
 
-        copy_nspawn_settings(state)
         calculate_sha256sum(state)
         calculate_signature(state)
         save_manifest(state, manifest)
@@ -2409,7 +2399,7 @@ def run_shell(args: MkosiArgs, config: MkosiConfig) -> None:
     cmdline: list[PathString] = ["systemd-nspawn", "--quiet"]
 
     # If we copied in a .nspawn file, make sure it's actually honoured
-    if config.nspawn_settings is not None:
+    if config.nspawn_settings:
         cmdline += ["--settings=trusted"]
 
     if args.verb == Verb.boot:
@@ -2421,12 +2411,17 @@ def run_shell(args: MkosiArgs, config: MkosiConfig) -> None:
         ]
 
     # Underscores are not allowed in machine names so replace them with hyphens.
-    cmdline += ["--machine", (config.image_id or config.image or config.output).replace("_", "-")]
+    name = config.name().replace("_", "-")
+    cmdline += ["--machine", name]
 
     for k, v in config.credentials.items():
         cmdline += [f"--set-credential={k}:{v}"]
 
     with contextlib.ExitStack() as stack:
+        if config.nspawn_settings:
+            copy_tree(config.nspawn_settings, config.output_dir_or_cwd() / f"{name}.nspawn")
+            stack.callback(lambda: rmtree(config.output_dir_or_cwd() / f"{name}.nspawn"))
+
         if config.ephemeral:
             fname = stack.enter_context(copy_ephemeral(config, config.output_dir_or_cwd() / config.output))
         else:
