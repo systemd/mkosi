@@ -27,6 +27,7 @@ def clean_package_manager_metadata(state: MkosiState) -> None:
     always = state.config.clean_package_metadata == ConfigFeature.enabled
 
     for tool, paths in (("rpm",    ["var/lib/rpm", "usr/lib/sysimage/rpm"]),
+                        ("dnf5",   ["usr/lib/sysimage/libdnf5"]),
                         ("dpkg",   ["var/lib/dpkg"]),
                         ("pacman", ["var/lib/pacman"])):
         for bin in ("bin", "sbin"):
