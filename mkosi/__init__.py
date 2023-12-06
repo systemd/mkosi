@@ -1835,6 +1835,7 @@ def run_preset(state: MkosiState) -> None:
 
     with complete_step("Applying presets…"):
         run(["systemctl", "--root", state.root, "preset-all"])
+        run(["systemctl", "--root", state.root, "--global", "preset-all"])
 
 
 def run_hwdb(state: MkosiState) -> None:
