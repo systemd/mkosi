@@ -33,15 +33,8 @@ def dictify(f: Callable[..., Iterator[tuple[T, V]]]) -> Callable[..., dict[T, V]
 
 
 @dictify
-def read_os_release() -> Iterator[tuple[str, str]]:
-    try:
-        filename = "/etc/os-release"
-        f = open(filename)
-    except FileNotFoundError:
-        filename = "/usr/lib/os-release"
-        f = open(filename)
-
-    with f:
+def read_env_file(path: Path) -> Iterator[tuple[str, str]]:
+    with path.open() as f:
         for line_number, line in enumerate(f, start=1):
             line = line.rstrip()
             if not line or line.startswith("#"):
@@ -52,7 +45,15 @@ def read_os_release() -> Iterator[tuple[str, str]]:
                     val = ast.literal_eval(val)
                 yield name, val
             else:
-                logging.info(f"{filename}:{line_number}: bad line {line!r}")
+                logging.info(f"{path}:{line_number}: bad line {line!r}")
+
+
+def read_os_release(root: Path = Path("/")) -> dict[str, str]:
+    filename = root / "etc/os-release"
+    if not filename.exists():
+        filename = root / "usr/lib/os-release"
+
+    return read_env_file(filename)
 
 
 def format_rlimit(rlimit: int) -> str:
