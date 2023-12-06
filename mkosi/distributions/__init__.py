@@ -47,8 +47,8 @@ class DistributionInstaller:
     def filesystem(cls) -> str:
         return "ext4"
 
-    @staticmethod
-    def architecture(arch: Architecture) -> str:
+    @classmethod
+    def architecture(cls, arch: Architecture) -> str:
         return str(arch)
 
     @classmethod
