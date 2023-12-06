@@ -22,6 +22,7 @@ from mkosi.config import (
     OutputFormat,
     QemuDrive,
     QemuFirmware,
+    QemuVsockCID,
     SecureBootSignTool,
     Verb,
 )
@@ -211,6 +212,7 @@ def test_config() -> None:
             "QemuSmp": "yes",
             "QemuSwtpm": "auto",
             "QemuVsock": "enabled",
+            "QemuVsockConnectionId": -2,
             "Release": "53",
             "RemoveFiles": [],
             "RemovePackages": [
@@ -348,6 +350,7 @@ def test_config() -> None:
         qemu_smp = "yes",
         qemu_swtpm = ConfigFeature.auto,
         qemu_vsock = ConfigFeature.enabled,
+        qemu_vsock_cid = QemuVsockCID.hash,
         release = "53",
         remove_files = [],
         remove_packages = ["all"],

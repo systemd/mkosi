@@ -1247,6 +1247,19 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 : When used with the `qemu` verb, this option specifies whether QEMU should be configured with a vsock. Takes
   a boolean value or `auto`. Defaults to `auto`.
 
+`QemuVsockConnectionId=`, `--qemu-vsock-cid=`
+
+: When used with the `qemu` verb, this option specifies the vsock
+  connection ID to use. Takes a number in the interval `[3, 0xFFFFFFFF)`
+  or `hash` or `auto`. Defaults to `hash`. When set to `hash`, the
+  connection ID will be derived from the full path to the image. When
+  set to `auto`, `mkosi` will try to find a free connection ID
+  automatically. Otherwise, the provided number will be used as is.
+
+: Note that when set to `auto`, `mkosi ssh` cannot be used as we cannot
+  figure out which free connection ID we found when booting the image
+  earlier.
+
 `QemuSwtpm=`, `--qemu-swtpm=`
 
 : When used with the `qemu` verb, this option specifies whether to start an instance of swtpm to be used as a

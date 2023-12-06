@@ -5,11 +5,14 @@ import base64
 import contextlib
 import enum
 import errno
+import fcntl
 import hashlib
 import logging
 import os
+import random
 import shutil
 import socket
+import struct
 import subprocess
 import sys
 import tempfile
@@ -25,6 +28,7 @@ from mkosi.config import (
     MkosiConfig,
     OutputFormat,
     QemuFirmware,
+    QemuVsockCID,
     format_bytes,
 )
 from mkosi.log import die
@@ -36,6 +40,7 @@ from mkosi.util import INVOKING_USER, StrEnum
 from mkosi.versioncomp import GenericVersion
 
 QEMU_KVM_DEVICE_VERSION = GenericVersion("8.3")
+VHOST_VSOCK_SET_GUEST_CID = 0x4008af60
 
 
 class QemuDeviceNode(StrEnum):
@@ -82,10 +87,47 @@ class QemuDeviceNode(StrEnum):
         return True
 
 
-def machine_cid(config: MkosiConfig) -> int:
-    cid = int.from_bytes(hashlib.sha256(config.output_with_version.encode()).digest()[:4], byteorder='little')
+def hash_output(config: MkosiConfig) -> "hashlib._Hash":
+    p = os.fspath(config.output_dir_or_cwd() / config.output_with_compression)
+    return hashlib.sha256(p.encode())
+
+
+def hash_to_vsock_cid(hash: "hashlib._Hash") -> int:
+    cid = int.from_bytes(hash.digest()[:4], byteorder='little')
     # Make sure we don't return any of the well-known CIDs.
     return max(3, min(cid, 0xFFFFFFFF - 1))
+
+
+def vsock_cid_in_use(vfd: int, cid: int) -> bool:
+    try:
+        fcntl.ioctl(vfd, VHOST_VSOCK_SET_GUEST_CID, struct.pack("=Q", cid))
+    except OSError as e:
+        if e.errno != errno.EADDRINUSE:
+            raise
+
+        return True
+
+    return False
+
+
+def find_unused_vsock_cid(config: MkosiConfig, vfd: int) -> int:
+    hash = hash_output(config)
+
+    for i in range(64):
+        cid = hash_to_vsock_cid(hash)
+
+        if not vsock_cid_in_use(vfd, cid):
+            return cid
+
+        hash.update(i.to_bytes(length=4, byteorder='little'))
+
+    for i in range(64):
+        cid = random.randint(0, 0xFFFFFFFF - 1)
+
+        if not vsock_cid_in_use(vfd, cid):
+            return cid
+
+    die("Failed to find an unused VSock connection ID")
 
 
 class KernelType(StrEnum):
@@ -488,9 +530,20 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
     cmdline += ["-accel", accel]
 
     if QemuDeviceNode.vhost_vsock in qemu_device_fds:
+        if config.qemu_vsock_cid == QemuVsockCID.auto:
+            cid = find_unused_vsock_cid(config, qemu_device_fds[QemuDeviceNode.vhost_vsock])
+        elif config.qemu_vsock_cid == QemuVsockCID.hash:
+            cid = hash_to_vsock_cid(hash_output(config))
+        else:
+            cid = config.qemu_vsock_cid
+
+        if vsock_cid_in_use(qemu_device_fds[QemuDeviceNode.vhost_vsock], cid):
+            die(f"VSock connection ID {cid} is already in use by another virtual machine",
+                hint="Use QemuVsockConnectionId=auto to have mkosi automatically find a free vsock connection ID")
+
         cmdline += [
             "-device",
-            f"vhost-vsock-pci,guest-cid={machine_cid(config)},vhostfd={qemu_device_fds[QemuDeviceNode.vhost_vsock]}"
+            f"vhost-vsock-pci,guest-cid={cid},vhostfd={qemu_device_fds[QemuDeviceNode.vhost_vsock]}"
         ]
 
     cmdline += ["-cpu", "max"]
@@ -683,6 +736,11 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
 
 
 def run_ssh(args: MkosiArgs, config: MkosiConfig) -> None:
+    if config.qemu_vsock_cid == QemuVsockCID.auto:
+        die("Can't use ssh verb with QemuVSockCID=auto")
+
+    cid = hash_to_vsock_cid(hash_output(config)) if config.qemu_vsock_cid == QemuVsockCID.hash else config.qemu_vsock_cid
+
     cmd = [
         "ssh",
         "-F", "none",
@@ -690,7 +748,7 @@ def run_ssh(args: MkosiArgs, config: MkosiConfig) -> None:
         "-o", "UserKnownHostsFile=/dev/null",
         "-o", "StrictHostKeyChecking=no",
         "-o", "LogLevel=ERROR",
-        "-o", f"ProxyCommand=socat - VSOCK-CONNECT:{machine_cid(config)}:%p",
+        "-o", f"ProxyCommand=socat - VSOCK-CONNECT:{cid}:%p",
         "root@mkosi",
     ]
 
