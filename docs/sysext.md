@@ -103,9 +103,11 @@ VerityMatchKey=root
 ```
 
 Of course we can't sign anything without a key, so let's generate one
-with `mkosi genkey`. Note that this key will need to be loaded into your
-kernel keyring either at build time or via MOK for systemd to accept the
-system extension at runtime as trusted.
+with `mkosi genkey` (or write your own private key and certificate
+yourself to `mkosi.key` and `mkosi.crt` respectively). Note that this
+key will need to be loaded into your kernel keyring either at build time
+or via MOK for systemd to accept the system extension at runtime as
+trusted.
 
 Finally, you build the base image and the extensions by running
 `mkosi -f`. You'll find `btrfs.raw` in `mkosi.output` which is the
