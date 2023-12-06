@@ -3011,16 +3011,16 @@ def summary(config: MkosiConfig) -> str:
 
 
 class MkosiJsonEncoder(json.JSONEncoder):
-    def default(self, obj: Any) -> Any:
-        if isinstance(obj, StrEnum):
-            return str(obj)
-        elif isinstance(obj, os.PathLike):
-            return os.fspath(obj)
-        elif isinstance(obj, uuid.UUID):
-            return str(obj)
-        elif isinstance(obj, (MkosiArgs, MkosiConfig)):
-            return obj.to_dict()
-        return json.JSONEncoder.default(self, obj)
+    def default(self, o: Any) -> Any:
+        if isinstance(o, StrEnum):
+            return str(o)
+        elif isinstance(o, os.PathLike):
+            return os.fspath(o)
+        elif isinstance(o, uuid.UUID):
+            return str(o)
+        elif isinstance(o, (MkosiArgs, MkosiConfig)):
+            return o.to_dict()
+        return json.JSONEncoder.default(self, o)
 
 
 E = TypeVar("E", bound=StrEnum)
