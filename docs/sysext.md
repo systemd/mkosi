@@ -11,14 +11,17 @@ To keep things manageable, we'll use mkosi's support for building
 multiple images so that we can build our base image and system extension
 in one go.
 
-Let's start by defining a base configuration file `mkosi.conf` with some
-shared settings:
+Start by creating a temporary directory with a base configuration file
+`mkosi.conf` with some shared settings:
 
 ```conf
 [Output]
 OutputDirectory=mkosi.output
 CacheDirectory=mkosi.cache
 ```
+
+From now on we'll assume all steps are executed inside the temporary
+directory.
 
 Now let's continue with the base image definition by writing the
 following to `mkosi.images/base/mkosi.conf`:
