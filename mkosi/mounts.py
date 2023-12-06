@@ -104,7 +104,10 @@ def mount_overlay(
             # See https://www.kernel.org/doc/html/latest/filesystems/overlayfs.html#sharing-and-copying-layers
             # and https://github.com/systemd/mkosi/issues/1841.
             "index=off",
-            "metacopy=off"
+            "metacopy=off",
+            # Causes warning such as:
+            # "overlayfs: fs on '/home/user/.cache/mkosi-workspaceokaypzf5/build-overlay' does not support file handles, falling back to xino=off."
+            "xino=off",
         ]
 
         # userxattr is only supported on overlayfs since kernel 5.11
