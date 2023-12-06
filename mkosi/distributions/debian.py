@@ -204,8 +204,8 @@ class Installer(DistributionInstaller):
     def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
         invoke_apt(state, "apt-get", "purge", packages)
 
-    @staticmethod
-    def architecture(arch: Architecture) -> str:
+    @classmethod
+    def architecture(cls, arch: Architecture) -> str:
         a = {
             Architecture.arm64       : "arm64",
             Architecture.arm         : "armhf",

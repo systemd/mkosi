@@ -134,8 +134,8 @@ class Installer(DistributionInstaller):
         else:
             invoke_dnf(state, "remove", packages)
 
-    @staticmethod
-    def architecture(arch: Architecture) -> str:
+    @classmethod
+    def architecture(cls, arch: Architecture) -> str:
         a = {
             Architecture.x86_64 : "x86_64",
         }.get(arch)

@@ -180,8 +180,8 @@ class Installer(DistributionInstaller):
             if not vmlinuz.exists() and not vmlinuz.is_symlink():
                 vmlinuz.symlink_to(os.path.relpath(kimg, start=vmlinuz.parent))
 
-    @staticmethod
-    def architecture(arch: Architecture) -> str:
+    @classmethod
+    def architecture(cls, arch: Architecture) -> str:
         a = {
             Architecture.x86_64 : "amd64",
             Architecture.arm64  : "arm64",

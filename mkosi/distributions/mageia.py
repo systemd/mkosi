@@ -83,8 +83,8 @@ class Installer(DistributionInstaller):
     def remove_packages(cls, state: MkosiState, packages: Sequence[str]) -> None:
         invoke_dnf(state, "remove", packages)
 
-    @staticmethod
-    def architecture(arch: Architecture) -> str:
+    @classmethod
+    def architecture(cls, arch: Architecture) -> str:
         a = {
             Architecture.x86_64 : "x86_64",
             Architecture.arm64  : "aarch64",
