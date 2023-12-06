@@ -111,6 +111,23 @@ class QemuDrive:
     options: Optional[str]
 
 
+# We use negative numbers for specifying special constants
+# for VSock CIDs since they're not valid CIDs anyway.
+class QemuVsockCID(enum.IntEnum):
+    auto = -1
+    hash = -2
+
+    @classmethod
+    def format(cls, cid: int) -> str:
+        if cid == QemuVsockCID.auto:
+            return "auto"
+
+        if cid == QemuVsockCID.hash:
+            return "hash"
+
+        return str(cid)
+
+
 class SecureBootSignTool(StrEnum):
     auto   = enum.auto()
     sbsign = enum.auto()
@@ -620,6 +637,27 @@ def config_parse_sector_size(value: Optional[str], old: Optional[int]) -> Option
     return size
 
 
+def config_parse_vsock_cid(value: Optional[str], old: Optional[int]) -> Optional[int]:
+    if not value:
+        return None
+
+    if value == "auto":
+        return QemuVsockCID.auto
+
+    if value == "hash":
+        return QemuVsockCID.hash
+
+    try:
+        cid = int(value)
+    except ValueError:
+        die(f"VSock connection ID '{value}' is not a valid number or one of 'auto' or 'hash'")
+
+    if cid not in range(3, 0xFFFFFFFF):
+        die(f"{cid} is not in the valid VSock connection ID range [3, 0xFFFFFFFF)")
+
+    return cid
+
+
 @dataclasses.dataclass(frozen=True)
 class MkosiConfigSetting:
     dest: str
@@ -934,6 +972,7 @@ class MkosiConfig:
     qemu_mem: str
     qemu_kvm: ConfigFeature
     qemu_vsock: ConfigFeature
+    qemu_vsock_cid: int
     qemu_swtpm: ConfigFeature
     qemu_cdrom: bool
     qemu_firmware: QemuFirmware
@@ -1918,6 +1957,16 @@ SETTINGS = (
         section="Host",
         parse=config_parse_feature,
         help="Configure whether to use qemu with a vsock or not",
+    ),
+    MkosiConfigSetting(
+        dest="qemu_vsock_cid",
+        name="QemuVsockConnectionId",
+        long="--qemu-vsock-cid",
+        metavar="NUMBER|auto|hash",
+        section="Host",
+        parse=config_parse_vsock_cid,
+        default=QemuVsockCID.hash,
+        help="Specify the VSock connection ID to use",
     ),
     MkosiConfigSetting(
         dest="qemu_swtpm",
@@ -3001,6 +3050,7 @@ def summary(config: MkosiConfig) -> str:
                    QEMU Memory: {config.qemu_mem}
                   QEMU Use KVM: {config.qemu_kvm}
                 QEMU Use VSock: {config.qemu_vsock}
+      QEMU VSock Connection ID: {QemuVsockCID.format(config.qemu_vsock_cid)}
                 QEMU Use Swtpm: {config.qemu_swtpm}
                QEMU Use CD-ROM: {yes_no(config.qemu_cdrom)}
                  QEMU Firmware: {config.qemu_firmware}
