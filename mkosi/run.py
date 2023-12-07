@@ -228,6 +228,13 @@ def sigkill_to_sigterm() -> Iterator[None]:
         signal.SIGKILL = old
 
 
+def log_process_failure(cmdline: Sequence[str], returncode: int) -> None:
+    if returncode < 0:
+        logging.error(f"Interrupted by {signal.Signals(-returncode).name} signal")
+    else:
+        logging.error(f"\"{shlex.join(cmdline)}\" returned non-zero exit code {returncode}.")
+
+
 def run(
     cmdline: Sequence[PathString],
     check: bool = True,
@@ -294,7 +301,7 @@ def run(
         die(f"{e.filename} not found.")
     except subprocess.CalledProcessError as e:
         if log:
-            logging.error(f"\"{shlex.join(cmdline)}\" returned non-zero exit code {e.returncode}.")
+            log_process_failure(cmdline, e.returncode)
         raise e
     finally:
         make_foreground_process(new_process_group=False)
@@ -356,7 +363,7 @@ def spawn(
         die(f"{e.filename} not found.")
     except subprocess.CalledProcessError as e:
         if log:
-            logging.error(f"\"{shlex.join(cmdline)}\" returned non-zero exit code {e.returncode}.")
+            log_process_failure(cmdline, e.returncode)
         raise e
     finally:
         if foreground:
@@ -441,8 +448,7 @@ def bwrap(
         result = run([*cmdline, *cmd], env=env, log=False, stdin=stdin, stdout=stdout, input=input)
     except subprocess.CalledProcessError as e:
         if log:
-            c = shlex.join(os.fspath(s) for s in cmd)
-            logging.error(f"\"{c}\" returned non-zero exit code {e.returncode}.")
+            log_process_failure([os.fspath(s) for s in cmd], e.returncode)
         if ARG_DEBUG_SHELL.get():
             run([*cmdline, "sh"], stdin=sys.stdin, check=False, env=env, log=False)
         raise e
