@@ -135,27 +135,34 @@ class SecureBootSignTool(StrEnum):
 
 
 class OutputFormat(StrEnum):
-    directory = enum.auto()
-    tar       = enum.auto()
+    confext   = enum.auto()
     cpio      = enum.auto()
+    directory = enum.auto()
     disk      = enum.auto()
-    uki       = enum.auto()
     esp       = enum.auto()
     none      = enum.auto()
+    portable  = enum.auto()
+    sysext    = enum.auto()
+    tar       = enum.auto()
+    uki       = enum.auto()
 
     def extension(self) -> str:
         return {
-            OutputFormat.disk: ".raw",
-            OutputFormat.esp:  ".raw",
-            OutputFormat.cpio: ".cpio",
-            OutputFormat.tar:  ".tar",
-            OutputFormat.uki:  ".efi",
+            OutputFormat.confext:  ".raw",
+            OutputFormat.cpio:     ".cpio",
+            OutputFormat.disk:     ".raw",
+            OutputFormat.esp:      ".raw",
+            OutputFormat.portable: ".raw",
+            OutputFormat.sysext:   ".raw",
+            OutputFormat.tar:      ".tar",
+            OutputFormat.uki:      ".efi",
         }.get(self, "")
 
     def use_outer_compression(self) -> bool:
-        return self in (OutputFormat.tar,
-                        OutputFormat.cpio,
-                        OutputFormat.disk)
+        return self in (OutputFormat.tar, OutputFormat.cpio, OutputFormat.disk) or self.is_extension_image()
+
+    def is_extension_image(self) -> bool:
+        return self in (OutputFormat.sysext, OutputFormat.confext, OutputFormat.portable)
 
 
 class ManifestFormat(StrEnum):
@@ -1087,6 +1094,7 @@ class MkosiConfig:
             "packages": self.packages,
             "build_packages": self.build_packages,
             "repositories": self.repositories,
+            "overlay": self.overlay,
             "prepare_scripts": [
                 base64.b64encode(script.read_bytes()).decode()
                 for script in self.prepare_scripts
@@ -3010,7 +3018,11 @@ def summary(config: MkosiConfig) -> str:
                                 SSH: {yes_no(config.ssh)}
 """
 
-    if config.output_format in (OutputFormat.disk, OutputFormat.uki, OutputFormat.esp):
+    if config.output_format.is_extension_image() or config.output_format in (
+        OutputFormat.disk,
+        OutputFormat.uki,
+        OutputFormat.esp,
+    ):
         summary += f"""\
 
     {bold("VALIDATION")}:

@@ -27,7 +27,7 @@ def test_boot(format: OutputFormat) -> None:
         options = ["--format", str(format)]
 
         image.summary(options)
-
+        image.genkey()
         image.build(options=options)
 
         if format in (OutputFormat.disk, OutputFormat.directory) and os.getuid() == 0:
@@ -45,7 +45,7 @@ def test_boot(format: OutputFormat) -> None:
         if image.distribution == Distribution.rhel_ubi:
             return
 
-        if format == OutputFormat.tar:
+        if format == OutputFormat.tar or format.is_extension_image():
             return
 
         if format == OutputFormat.directory and not find_virtiofsd():

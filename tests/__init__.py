@@ -98,6 +98,9 @@ class Image:
     def summary(self, options: Sequence[str] = ()) -> CompletedProcess:
         return self.mkosi("summary", options, user=INVOKING_USER.uid, group=INVOKING_USER.gid)
 
+    def genkey(self) -> CompletedProcess:
+        return self.mkosi("genkey", ["--force"], user=INVOKING_USER.uid, group=INVOKING_USER.gid)
+
 
 @pytest.fixture(scope="session", autouse=True)
 def suspend_capture_stdin(pytestconfig: Any) -> Iterator[None]:

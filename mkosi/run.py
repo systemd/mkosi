@@ -301,9 +301,13 @@ def have_effective_cap(capability: Capability) -> bool:
     return (int(hexcap, 16) & (1 << capability.value)) != 0
 
 
-def find_binary(name: str, root: Optional[Path] = None) -> Optional[Path]:
-    path = ":".join(os.fspath(p) for p in [root / "usr/bin", root / "usr/sbin"]) if root else os.environ["PATH"]
-    return Path("/") / Path(binary).relative_to(root or "/") if (binary := shutil.which(name, path=path)) else None
+def find_binary(*names: PathString, root: Optional[Path] = None) -> Optional[Path]:
+    for name in names:
+        path = ":".join(os.fspath(p) for p in [root / "usr/bin", root / "usr/sbin"]) if root else os.environ["PATH"]
+        if (binary := shutil.which(name, path=path)):
+            return Path("/") / Path(binary).relative_to(root or "/")
+
+    return None
 
 
 def bwrap(
@@ -451,7 +455,7 @@ def chroot_cmd(root: Path, *, resolve: bool = False, options: Sequence[PathStrin
 
     cmdline += [*options]
 
-    if setpgid := find_binary("setpgid", root):
+    if setpgid := find_binary("setpgid", root=root):
         cmdline += [setpgid, "--foreground", "--"]
 
     return apivfs_cmd(root) + cmdline

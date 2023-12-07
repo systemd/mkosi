@@ -69,13 +69,13 @@ from mkosi.util import (
     format_rlimit,
     make_executable,
     one_zero,
+    read_env_file,
+    read_os_release,
     scopedenv,
     try_import,
     umask,
 )
 from mkosi.versioncomp import GenericVersion
-
-MINIMUM_SYSTEMD_VERSION = GenericVersion("254")
 
 MKOSI_AS_CALLER = (
     "setpriv",
@@ -137,23 +137,24 @@ def install_distribution(state: MkosiState) -> None:
         with complete_step(f"Installing {str(state.config.distribution).capitalize()}"):
             state.config.distribution.install(state)
 
-            if not (state.root / "etc/machine-id").exists():
-                # Uninitialized means we want it to get initialized on first boot.
-                with umask(~0o444):
-                    (state.root / "etc/machine-id").write_text("uninitialized\n")
+            if not state.config.overlay:
+                if not (state.root / "etc/machine-id").exists():
+                    # Uninitialized means we want it to get initialized on first boot.
+                    with umask(~0o444):
+                        (state.root / "etc/machine-id").write_text("uninitialized\n")
 
-            # Ensure /efi exists so that the ESP is mounted there, as recommended by
-            # https://0pointer.net/blog/linux-boot-partitions.html. Use the most restrictive access mode we
-            # can without tripping up mkfs tools since this directory is only meant to be overmounted and
-            # should not be read from or written to.
-            with umask(~0o500):
-                (state.root / "efi").mkdir(exist_ok=True)
+                # Ensure /efi exists so that the ESP is mounted there, as recommended by
+                # https://0pointer.net/blog/linux-boot-partitions.html. Use the most restrictive access mode we
+                # can without tripping up mkfs tools since this directory is only meant to be overmounted and
+                # should not be read from or written to.
+                with umask(~0o500):
+                    (state.root / "efi").mkdir(exist_ok=True)
 
-            # Some distributions install EFI binaries directly to /boot/efi. Let's redirect them to /efi
-            # instead.
-            rmtree(state.root / "boot/efi")
-            (state.root / "boot").mkdir(exist_ok=True)
-            (state.root / "boot/efi").symlink_to("../efi")
+                # Some distributions install EFI binaries directly to /boot/efi. Let's redirect them to /efi
+                # instead.
+                rmtree(state.root / "boot/efi")
+                (state.root / "boot").mkdir(exist_ok=True)
+                (state.root / "boot/efi").symlink_to("../efi")
 
             if state.config.packages:
                 state.config.distribution.install_packages(state, state.config.packages)
@@ -209,6 +210,9 @@ def configure_os_release(state: MkosiState) -> None:
     if not state.config.image_id and not state.config.image_version:
         return
 
+    if state.config.overlay or state.config.output_format in (OutputFormat.sysext, OutputFormat.confext):
+        return
+
     for candidate in ["usr/lib/os-release", "etc/os-release", "usr/lib/initrd-release", "etc/initrd-release"]:
         osrelease = state.root / candidate
         # at this point we know we will either change or add to the file
@@ -237,6 +241,44 @@ def configure_os_release(state: MkosiState) -> None:
                 new.write(f'IMAGE_VERSION="{state.config.image_version}"\n')
 
         newosrelease.rename(osrelease)
+
+
+def configure_extension_release(state: MkosiState) -> None:
+    if state.config.output_format not in (OutputFormat.sysext, OutputFormat.confext):
+        return
+
+    prefix = "SYSEXT" if state.config.output_format == OutputFormat.sysext else "CONFEXT"
+    d = "usr/lib" if state.config.output_format == OutputFormat.sysext else "etc"
+    p = state.root / d / f"extension-release.d/extension-release.{state.config.output}"
+    p.parent.mkdir(parents=True, exist_ok=True)
+
+    osrelease = read_os_release(state.root)
+    extrelease = read_env_file(p) if p.exists() else {}
+    new = p.with_suffix(".new")
+
+    with new.open() as f:
+        for k, v in extrelease.items():
+            f.write(f"{k}={v}\n")
+
+        if "ID" not in extrelease:
+            f.write(f"ID={osrelease.get('ID', '_any')}\n")
+
+        if "VERSION_ID" not in extrelease and (version := osrelease.get("VERSION_ID")):
+            f.write(f"VERSION_ID={version}\n")
+
+        if f"{prefix}_ID" not in extrelease and state.config.image_id:
+            f.write(f"{prefix}_ID={state.config.image_id}\n")
+
+        if f"{prefix}_VERSION_ID" not in extrelease and state.config.image_version:
+            f.write(f"{prefix}_VERSION_ID={state.config.image_version}\n")
+
+        if f"{prefix}_SCOPE" not in extrelease:
+            f.write(f"{prefix}_SCOPE=initrd system portable\n")
+
+        if "ARCHITECTURE" not in extrelease:
+            f.write(f"ARCHITECTURE={state.config.architecture}\n")
+
+    new.rename(p)
 
 
 def configure_autologin_service(state: MkosiState, service: str, extra: str) -> None:
@@ -374,7 +416,7 @@ def finalize_host_scripts(
 
 
 def finalize_chroot_scripts(state: MkosiState) -> contextlib.AbstractContextManager[Path]:
-    git = {"git": ("git", "-c", "safe.directory=*")} if find_binary("git", state.root) else {}
+    git = {"git": ("git", "-c", "safe.directory=*")} if find_binary("git", root=state.root) else {}
     return finalize_scripts(git)
 
 
@@ -685,7 +727,14 @@ def install_systemd_boot(state: MkosiState) -> None:
     if state.config.bootloader != Bootloader.systemd_boot:
         return
 
-    if state.config.output_format == OutputFormat.cpio and state.config.bootable == ConfigFeature.auto:
+    if (
+        (
+            state.config.output_format == OutputFormat.cpio or
+            state.config.output_format.is_extension_image() or
+            state.config.overlay
+        )
+        and state.config.bootable == ConfigFeature.auto
+    ):
         return
 
     if state.config.architecture.to_efi() is None and state.config.bootable == ConfigFeature.auto:
@@ -782,7 +831,7 @@ def find_grub_bios_directory(state: MkosiState) -> Optional[Path]:
 
 def find_grub_binary(state: MkosiState, binary: str) -> Optional[Path]:
     assert "grub" in binary and "grub2" not in binary
-    return find_binary(binary, state.root) or find_binary(binary.replace("grub", "grub2"), state.root)
+    return find_binary(binary, root=state.root) or find_binary(binary.replace("grub", "grub2"), root=state.root)
 
 
 def find_grub_prefix(state: MkosiState) -> Optional[str]:
@@ -798,6 +847,9 @@ def want_grub_efi(state: MkosiState) -> bool:
         return False
 
     if state.config.bootloader != Bootloader.grub:
+        return False
+
+    if state.config.overlay or state.config.output_format.is_extension_image():
         return False
 
     if not any((state.root / "efi").rglob("grub*.efi")):
@@ -817,6 +869,9 @@ def want_grub_bios(state: MkosiState, partitions: Sequence[Partition] = ()) -> b
         return False
 
     if state.config.bios_bootloader != BiosBootloader.grub:
+        return False
+
+    if state.config.overlay:
         return False
 
     have = find_grub_bios_directory(state) is not None
@@ -1359,7 +1414,10 @@ def want_uki(config: MkosiConfig) -> bool:
     if config.bootloader == Bootloader.none:
         return False
 
-    if config.output_format == OutputFormat.cpio and config.bootable == ConfigFeature.auto:
+    if (
+        (config.output_format == OutputFormat.cpio or config.output_format.is_extension_image() or config.overlay)
+        and config.bootable == ConfigFeature.auto
+    ):
         return False
 
     if config.architecture.to_efi() is None and config.bootable == ConfigFeature.auto:
@@ -1691,16 +1749,18 @@ def check_outputs(config: MkosiConfig) -> None:
             die(f"Output path {f} exists already. (Consider invocation with --force.)")
 
 
-def check_systemd_tool(*tools: PathString, reason: str, hint: Optional[str] = None) -> None:
-    for tool in tools:
-        if shutil.which(tool):
-            break
-    else:
+def systemd_tool_version(tool: PathString) -> GenericVersion:
+    return GenericVersion(run([tool, "--version"], stdout=subprocess.PIPE).stdout.split()[1])
+
+
+def check_systemd_tool(*tools: PathString, version: str, reason: str, hint: Optional[str] = None) -> None:
+    tool = find_binary(*tools)
+    if not tool:
         die(f"Could not find '{tools[0]}' which is required to {reason}.", hint=hint)
 
-    v = GenericVersion(run([tool, "--version"], stdout=subprocess.PIPE).stdout.split()[1])
-    if v < MINIMUM_SYSTEMD_VERSION:
-        die(f"Found '{tool}' version {v} but version {MINIMUM_SYSTEMD_VERSION} or newer is required to {reason}.",
+    v = systemd_tool_version(tool)
+    if v < version:
+        die(f"Found '{tool}' version {v} but version {version} or newer is required to {reason}.",
             hint=f"Use ToolsTree=default to get a newer version of '{tool}'.")
 
 
@@ -1708,15 +1768,16 @@ def check_tools(args: MkosiArgs, config: MkosiConfig) -> None:
     if want_uki(config):
         check_systemd_tool(
             "ukify", "/usr/lib/systemd/ukify",
+            version="254",
             reason="build bootable images",
             hint="Bootable=no can be used to create a non-bootable image",
         )
 
     if config.output_format in (OutputFormat.disk, OutputFormat.esp):
-        check_systemd_tool("systemd-repart", reason="build disk images")
+        check_systemd_tool("systemd-repart", version="254", reason="build disk images")
 
     if args.verb == Verb.boot:
-        check_systemd_tool("systemd-nspawn", reason="boot images")
+        check_systemd_tool("systemd-nspawn", version="254", reason="boot images")
 
 
 def configure_ssh(state: MkosiState) -> None:
@@ -1775,6 +1836,9 @@ def configure_ssh(state: MkosiState) -> None:
 
 
 def configure_initrd(state: MkosiState) -> None:
+    if state.config.overlay or state.config.output_format.is_extension_image():
+        return
+
     if (
         not (state.root / "init").exists() and
         not (state.root / "init").is_symlink() and
@@ -1790,11 +1854,17 @@ def configure_initrd(state: MkosiState) -> None:
 
 
 def configure_clock(state: MkosiState) -> None:
+    if state.config.overlay or state.config.output_format.is_extension_image():
+        return
+
     with umask(~0o644):
         (state.root / "usr/lib/clock-epoch").touch()
 
 
 def run_depmod(state: MkosiState) -> None:
+    if state.config.overlay or state.config.output_format.is_extension_image():
+        return
+
     outputs = (
         "modules.dep",
         "modules.dep.bin",
@@ -1839,6 +1909,9 @@ def run_preset(state: MkosiState) -> None:
 
 
 def run_hwdb(state: MkosiState) -> None:
+    if state.config.overlay or state.config.output_format.is_extension_image():
+        return
+
     if not shutil.which("systemd-hwdb"):
         logging.info("systemd-hwdb is not installed, not generating hwdb")
         return
@@ -1851,6 +1924,9 @@ def run_hwdb(state: MkosiState) -> None:
 
 
 def run_firstboot(state: MkosiState) -> None:
+    if state.config.overlay or state.config.output_format.is_extension_image():
+        return
+
     password, hashed = state.config.root_password or (None, False)
     pwopt = "--root-password-hashed" if hashed else "--root-password"
     pwcred = "passwd.hashed-password.root" if hashed else "passwd.plaintext-password.root"
@@ -2167,6 +2243,43 @@ def make_esp(state: MkosiState, uki: Path) -> list[Partition]:
     return make_image(state, msg="Generating ESP image", definitions=[definitions])
 
 
+def make_extension_image(state: MkosiState, output: Path) -> None:
+    cmdline: list[PathString] = [
+        "systemd-repart",
+        "--root", state.root,
+        "--dry-run=no",
+        "--no-pager",
+        "--offline=yes",
+        "--seed", str(state.config.seed) if state.config.seed else "random",
+        "--empty=create",
+        "--size=auto",
+        output,
+    ]
+
+    if not state.config.architecture.is_native():
+        cmdline += ["--architecture", str(state.config.architecture)]
+    if state.config.passphrase:
+        cmdline += ["--key-file", state.config.passphrase]
+    if state.config.verity_key:
+        cmdline += ["--private-key", state.config.verity_key]
+    if state.config.verity_certificate:
+        cmdline += ["--certificate", state.config.verity_certificate]
+    if state.config.sector_size:
+        cmdline += ["--sector-size", str(state.config.sector_size)]
+
+    env = {
+        option: value
+        for option, value in state.config.environment.items()
+        if option.startswith("SYSTEMD_REPART_MKFS_OPTIONS_") or option == "SOURCE_DATE_EPOCH"
+    }
+
+    with (
+        importlib.resources.path("mkosi.resources.repart.definitions", f"{state.config.output_format}.repart.d") as d,
+        complete_step(f"Building {state.config.output_format} extension image")
+    ):
+        run(cmdline + ["--definitions", d], env=env)
+
+
 def finalize_staging(state: MkosiState) -> None:
     # Our output unlinking logic removes everything prefixed with the name of the image, so let's make
     # sure that everything we put into the output directory is prefixed with the name of the output.
@@ -2302,6 +2415,8 @@ def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
         elif state.config.output_format == OutputFormat.esp:
             make_uki(state, state.staging / state.config.output_split_uki)
             make_esp(state, state.staging / state.config.output_split_uki)
+        elif state.config.output_format.is_extension_image():
+            make_extension_image(state, state.staging / state.config.output_with_format)
         elif state.config.output_format == OutputFormat.directory:
             state.root.rename(state.staging / state.config.output_with_format)
 

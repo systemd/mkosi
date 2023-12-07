@@ -585,8 +585,9 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
   archive is generated), `disk` (a block device OS image with a GPT
   partition table), `uki` (a unified kernel image with the OS image in
   the `.initrd` PE section), `esp` (`uki` but wrapped in a disk image
-  with only an ESP partition) or `none` (the OS image is solely intended
-  as a build image to produce another artifact).
+  with only an ESP partition), `sysext`, `confext`, `portable` or `none`
+  (the OS image is solely intended as a build image to produce another
+  artifact).
 
 : If the `disk` output format is used, the disk image is generated using
   `systemd-repart`. The repart partition definition files to use can be

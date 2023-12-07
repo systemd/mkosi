@@ -47,7 +47,7 @@ top of it by writing the following to `mkosi.images/btrfs/mkosi.conf`:
 Dependencies=base
 
 [Output]
-Format=disk
+Format=sysext
 Overlay=yes
 
 [Content]
@@ -58,61 +58,14 @@ Packages=btrfs-progs
 `BaseTrees=` point to our base image and `Overlay=yes` instructs mkosi
 to only package the files added on top of the base tree.
 
-We'll also want to mark our extension as a system extension. We'll
-assume that our extension is intended for an initramfs, so we'll need to
-configure it as such with `SYSEXT_SCOPE=`. To do that, write the
-following to
-`mkosi.images/btrfs/mkosi.extra/usr/lib/extension-release.d/extension-release.btrfs`:
-
-```conf
-ID=<distribution>
-VERSION_ID=<distribution-version>
-ARCHITECTURE=<architecture>
-SYSEXT_SCOPE=initrd
-```
-
-We'll want to package this up as a signed extension, so let's define the
-necessary systemd-repart files to make that possible:
-
-`mkosi.images/btrfs/mkosi.repart/10-root.conf`:
-
-```conf
-[Partition]
-Type=root
-Format=squashfs
-CopyFiles=/usr/
-Verity=data
-VerityMatchKey=root
-Minimize=best
-```
-
-`mkosi.images/btrfs/mkosi.repart/20-root-verity.conf`:
-
-```conf
-[Partition]
-Type=root-verity
-Verity=hash
-VerityMatchKey=root
-Minimize=best
-```
-
-`mkosi.images/btrfs/mkosi.repart/30-root-verity-sig.conf`:
-
-```conf
-[Partition]
-Type=root-verity-sig
-Verity=signature
-VerityMatchKey=root
-```
-
-Of course we can't sign anything without a key, so let's generate one
+We can't sign the extension image without a key, so let's generate one
 with `mkosi genkey` (or write your own private key and certificate
 yourself to `mkosi.key` and `mkosi.crt` respectively). Note that this
 key will need to be loaded into your kernel keyring either at build time
 or via MOK for systemd to accept the system extension at runtime as
 trusted.
 
-Finally, you build the base image and the extensions by running
+Finally, you can build the base image and the extensions by running
 `mkosi -f`. You'll find `btrfs.raw` in `mkosi.output` which is the
 extension image.
 
