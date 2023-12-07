@@ -209,6 +209,12 @@ class BiosBootloader(StrEnum):
     grub = enum.auto()
 
 
+class ShimBootloader(StrEnum):
+    none     = enum.auto()
+    signed   = enum.auto()
+    unsigned = enum.auto()
+
+
 class QemuFirmware(StrEnum):
     auto   = enum.auto()
     linux  = enum.auto()
@@ -922,6 +928,7 @@ class MkosiConfig:
     bootable: ConfigFeature
     bootloader: Bootloader
     bios_bootloader: BiosBootloader
+    shim_bootloader: ShimBootloader
     initrds: list[Path]
     initrd_packages: list[str]
     kernel_command_line: list[str]
@@ -1662,6 +1669,15 @@ SETTINGS = (
         choices=BiosBootloader.values(),
         default=BiosBootloader.none,
         help="Specify which BIOS bootloader to use",
+    ),
+    MkosiConfigSetting(
+        dest="shim_bootloader",
+        metavar="BOOTLOADER",
+        section="Content",
+        parse=config_make_enum_parser(ShimBootloader),
+        choices=ShimBootloader.values(),
+        default=ShimBootloader.none,
+        help="Specify whether to use shim",
     ),
     MkosiConfigSetting(
         dest="initrds",
@@ -2993,6 +3009,7 @@ def summary(config: MkosiConfig) -> str:
                            Bootable: {yes_no_auto(config.bootable)}
                          Bootloader: {config.bootloader}
                     BIOS Bootloader: {config.bios_bootloader}
+                    Shim Bootloader: {config.shim_bootloader}
                             Initrds: {line_join_list(config.initrds)}
                     Initrd Packages: {line_join_list(config.initrd_packages)}
                 Kernel Command Line: {line_join_list(config.kernel_command_line)}
@@ -3165,6 +3182,7 @@ def json_type_transformer(refcls: Union[type[MkosiArgs], type[MkosiConfig]]) -> 
         tuple[str, ...]: str_tuple_transformer,
         Architecture: enum_transformer,
         BiosBootloader: enum_transformer,
+        ShimBootloader: enum_transformer,
         Bootloader: enum_transformer,
         Compression: enum_transformer,
         ConfigFeature: enum_transformer,
