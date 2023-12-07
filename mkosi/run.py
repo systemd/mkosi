@@ -216,6 +216,18 @@ def fork_and_wait(target: Callable[[], None]) -> None:
     if rc != 0:
         raise subprocess.CalledProcessError(rc, ["self"])
 
+
+@contextlib.contextmanager
+def sigkill_to_sigterm() -> Iterator[None]:
+    old = signal.SIGKILL
+    signal.SIGKILL = signal.SIGTERM
+
+    try:
+        yield
+    finally:
+        signal.SIGKILL = old
+
+
 def run(
     cmdline: Sequence[PathString],
     check: bool = True,
@@ -259,20 +271,25 @@ def run(
         stdin = subprocess.DEVNULL
 
     try:
-        return subprocess.run(
-            cmdline,
-            check=check,
-            stdin=stdin,
-            stdout=stdout,
-            stderr=stderr,
-            input=input,
-            text=True,
-            user=user,
-            group=group,
-            env=env,
-            cwd=cwd,
-            preexec_fn=make_foreground_process,
-        )
+        # subprocess.run() will use SIGKILL to kill processes when an exception is raised.
+        # We'd prefer it to use SIGTERM instead but since this we can't configure which signal
+        # should be used, we override the constant in the signal module instead before we call
+        # subprocess.run().
+        with sigkill_to_sigterm():
+            return subprocess.run(
+                cmdline,
+                check=check,
+                stdin=stdin,
+                stdout=stdout,
+                stderr=stderr,
+                input=input,
+                text=True,
+                user=user,
+                group=group,
+                env=env,
+                cwd=cwd,
+                preexec_fn=make_foreground_process,
+            )
     except FileNotFoundError as e:
         die(f"{e.filename} not found.")
     except subprocess.CalledProcessError as e:
