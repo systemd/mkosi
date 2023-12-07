@@ -29,23 +29,24 @@ def filter_kernel_modules(
         include = [*include, *loaded_modules()]
 
     keep = set()
+    if include:
+        regex = re.compile("|".join(include))
+        for m in modules:
+            rel = os.fspath(m.relative_to(modulesd / "kernel"))
+            if regex.search(rel):
+                logging.debug(f"Including module {rel}")
+                keep.add(rel)
 
-    regex = re.compile("|".join(include))
-    for m in modules:
-        rel = os.fspath(m.relative_to(modulesd / "kernel"))
-        if regex.search(rel):
-            logging.debug(f"Including module {rel}")
-            keep.add(rel)
+    if exclude:
+        remove = set()
+        regex = re.compile("|".join(exclude))
+        for m in modules:
+            rel = os.fspath(m.relative_to(modulesd / "kernel"))
+            if rel not in keep and regex.search(rel):
+                logging.debug(f"Excluding module {rel}")
+                remove.add(m)
 
-    regex = re.compile("|".join(exclude))
-    remove = set()
-    for m in modules:
-        rel = os.fspath(m.relative_to(modulesd / "kernel"))
-        if rel not in keep and regex.search(rel):
-            logging.debug(f"Excluding module {rel}")
-            remove.add(m)
-
-    modules -= remove
+        modules -= remove
 
     return sorted(modules)
 
