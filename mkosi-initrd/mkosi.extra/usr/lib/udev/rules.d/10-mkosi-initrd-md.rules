@@ -20,7 +20,7 @@ ATTR{md/array_state}=="|clear|inactive", GOTO="md_end"
 LABEL="md_ignore_state"
 
 IMPORT{program}="/sbin/mdadm --detail --export $tempnode"
-IMPORT BLKID
+IMPORT{builtin}="blkid"
 OPTIONS+="link_priority=100"
 OPTIONS+="watch"
 OPTIONS+="db_persist"
