@@ -33,7 +33,7 @@ from mkosi.config import (
 )
 from mkosi.log import die
 from mkosi.partition import finalize_root, find_partitions
-from mkosi.run import MkosiAsyncioThread, find_binary, run, spawn
+from mkosi.run import MkosiAsyncioThread, become_root, find_binary, run, spawn
 from mkosi.tree import copy_tree, rmtree
 from mkosi.types import PathString
 from mkosi.util import INVOKING_USER, StrEnum
@@ -343,7 +343,8 @@ def start_virtiofsd(directory: Path, *, uidmap: bool) -> Iterator[Path]:
             cmdline,
             user=INVOKING_USER.uid if uidmap else None,
             group=INVOKING_USER.gid if uidmap else None,
-            pass_fds=(sock.fileno(),)
+            pass_fds=(sock.fileno(),),
+            preexec_fn=become_root if not uidmap and os.getuid() != 0 else None,
         ) as proc:
             try:
                 yield path

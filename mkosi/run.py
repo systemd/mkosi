@@ -21,7 +21,7 @@ import threading
 from collections.abc import Awaitable, Collection, Iterator, Mapping, Sequence
 from pathlib import Path
 from types import TracebackType
-from typing import Any, Optional
+from typing import Any, Callable, NoReturn, Optional
 
 from mkosi.log import ARG_DEBUG, ARG_DEBUG_SHELL, die
 from mkosi.types import _FILE, CompletedProcess, PathString, Popen
@@ -161,6 +161,80 @@ def ensure_exc_info() -> tuple[type[BaseException], BaseException, TracebackType
     return (exctype, exc, tb)
 
 
+@contextlib.contextmanager
+def uncaught_exception_handler(exit: Callable[[int], NoReturn]) -> Iterator[None]:
+    rc = 0
+    try:
+        yield
+    except SystemExit as e:
+        if ARG_DEBUG.get():
+            sys.excepthook(*ensure_exc_info())
+
+        rc = e.code if isinstance(e.code, int) else 1
+    except KeyboardInterrupt:
+        if ARG_DEBUG.get():
+            sys.excepthook(*ensure_exc_info())
+        else:
+            logging.error("Interrupted")
+
+        rc = 1
+    except subprocess.CalledProcessError as e:
+        # Failures from qemu, ssh and systemd-nspawn are expected and we won't log stacktraces for those.
+        # Failures from self come from the forks we spawn to build images in a user namespace. We've already done all
+        # the logging for those failures so we don't log stacktraces for those either.
+        if ARG_DEBUG.get() and e.cmd and e.cmd[0] not in ("self", "qemu", "ssh", "systemd-nspawn"):
+            sys.excepthook(*ensure_exc_info())
+
+        # We always log when subprocess.CalledProcessError is raised, so we don't log again here.
+        rc = e.returncode
+    except BaseException:
+        sys.excepthook(*ensure_exc_info())
+        rc = 1
+    finally:
+        sys.stdout.flush()
+        sys.stderr.flush()
+        exit(rc)
+
+
+def fork_and_wait(target: Callable[[], None]) -> None:
+    pid = os.fork()
+    if pid == 0:
+        with uncaught_exception_handler(exit=os._exit):
+            make_foreground_process()
+            target()
+
+    try:
+        _, status = os.waitpid(pid, 0)
+    except BaseException:
+        os.kill(pid, signal.SIGTERM)
+        _, status = os.waitpid(pid, 0)
+    finally:
+        make_foreground_process(new_process_group=False)
+
+    rc = os.waitstatus_to_exitcode(status)
+
+    if rc != 0:
+        raise subprocess.CalledProcessError(rc, ["self"])
+
+
+@contextlib.contextmanager
+def sigkill_to_sigterm() -> Iterator[None]:
+    old = signal.SIGKILL
+    signal.SIGKILL = signal.SIGTERM
+
+    try:
+        yield
+    finally:
+        signal.SIGKILL = old
+
+
+def log_process_failure(cmdline: Sequence[str], returncode: int) -> None:
+    if returncode < 0:
+        logging.error(f"Interrupted by {signal.Signals(-returncode).name} signal")
+    else:
+        logging.error(f"\"{shlex.join(cmdline)}\" returned non-zero exit code {returncode}.")
+
+
 def run(
     cmdline: Sequence[PathString],
     check: bool = True,
@@ -204,25 +278,30 @@ def run(
         stdin = subprocess.DEVNULL
 
     try:
-        return subprocess.run(
-            cmdline,
-            check=check,
-            stdin=stdin,
-            stdout=stdout,
-            stderr=stderr,
-            input=input,
-            text=True,
-            user=user,
-            group=group,
-            env=env,
-            cwd=cwd,
-            preexec_fn=make_foreground_process,
-        )
+        # subprocess.run() will use SIGKILL to kill processes when an exception is raised.
+        # We'd prefer it to use SIGTERM instead but since this we can't configure which signal
+        # should be used, we override the constant in the signal module instead before we call
+        # subprocess.run().
+        with sigkill_to_sigterm():
+            return subprocess.run(
+                cmdline,
+                check=check,
+                stdin=stdin,
+                stdout=stdout,
+                stderr=stderr,
+                input=input,
+                text=True,
+                user=user,
+                group=group,
+                env=env,
+                cwd=cwd,
+                preexec_fn=make_foreground_process,
+            )
     except FileNotFoundError as e:
         die(f"{e.filename} not found.")
     except subprocess.CalledProcessError as e:
         if log:
-            logging.error(f"\"{shlex.join(cmdline)}\" returned non-zero exit code {e.returncode}.")
+            log_process_failure(cmdline, e.returncode)
         raise e
     finally:
         make_foreground_process(new_process_group=False)
@@ -240,6 +319,7 @@ def spawn(
     env: Mapping[str, str] = {},
     log: bool = True,
     foreground: bool = False,
+    preexec_fn: Optional[Callable[[], None]] = None,
 ) -> Iterator[Popen]:
     cmdline = [os.fspath(x) for x in cmdline]
 
@@ -259,6 +339,12 @@ def spawn(
         **env,
     }
 
+    def preexec() -> None:
+        if foreground:
+            make_foreground_process()
+        if preexec_fn:
+            preexec_fn()
+
     try:
         with subprocess.Popen(
             cmdline,
@@ -270,14 +356,14 @@ def spawn(
             group=group,
             pass_fds=pass_fds,
             env=env,
-            preexec_fn=make_foreground_process if foreground else None,
+            preexec_fn=preexec,
         ) as proc:
             yield proc
     except FileNotFoundError as e:
         die(f"{e.filename} not found.")
     except subprocess.CalledProcessError as e:
         if log:
-            logging.error(f"\"{shlex.join(cmdline)}\" returned non-zero exit code {e.returncode}.")
+            log_process_failure(cmdline, e.returncode)
         raise e
     finally:
         if foreground:
@@ -366,8 +452,7 @@ def bwrap(
         result = run([*cmdline, *cmd], env=env, log=False, stdin=stdin, stdout=stdout, input=input)
     except subprocess.CalledProcessError as e:
         if log:
-            c = shlex.join(os.fspath(s) for s in cmd)
-            logging.error(f"\"{c}\" returned non-zero exit code {e.returncode}.")
+            log_process_failure([os.fspath(s) for s in cmd], e.returncode)
         if ARG_DEBUG_SHELL.get():
             run([*cmdline, "sh"], stdin=sys.stdin, check=False, env=env, log=False)
         raise e

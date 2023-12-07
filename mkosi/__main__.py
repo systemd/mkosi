@@ -1,48 +1,28 @@
 # SPDX-License-Identifier: LGPL-2.1+
 # PYTHON_ARGCOMPLETE_OK
 
-import contextlib
 import faulthandler
-import logging
 import shutil
-import subprocess
+import signal
 import sys
-from collections.abc import Iterator
+from types import FrameType
+from typing import Optional
 
 from mkosi import run_verb
 from mkosi.config import parse_config
-from mkosi.log import ARG_DEBUG, log_setup
-from mkosi.run import ensure_exc_info, run
+from mkosi.log import log_setup
+from mkosi.run import run, uncaught_exception_handler
 from mkosi.util import INVOKING_USER
 
 
-@contextlib.contextmanager
-def propagate_failed_return() -> Iterator[None]:
-    try:
-        yield
-    except SystemExit as e:
-        if ARG_DEBUG.get():
-            sys.excepthook(*ensure_exc_info())
-
-        sys.exit(e.code)
-    except KeyboardInterrupt:
-        if ARG_DEBUG.get():
-            sys.excepthook(*ensure_exc_info())
-        else:
-            logging.error("Interrupted")
-
-        sys.exit(1)
-    except subprocess.CalledProcessError as e:
-        # Failures from qemu, ssh and systemd-nspawn are expected and we won't log stacktraces for those.
-        if ARG_DEBUG.get() and e.cmd and e.cmd[0] not in ("qemu", "ssh", "systemd-nspawn"):
-            sys.excepthook(*ensure_exc_info())
-
-        # We always log when subprocess.CalledProcessError is raised, so we don't log again here.
-        sys.exit(e.returncode)
+def onsigterm(signal: int, frame: Optional[FrameType]) -> None:
+    raise KeyboardInterrupt()
 
 
-@propagate_failed_return()
+@uncaught_exception_handler(exit=sys.exit)
 def main() -> None:
+    signal.signal(signal.SIGTERM, onsigterm)
+
     log_setup()
     # Ensure that the name and home of the user we are running as are resolved as early as possible.
     INVOKING_USER.init()
