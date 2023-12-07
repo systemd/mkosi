@@ -7,6 +7,7 @@ import enum
 import fcntl
 import functools
 import importlib
+import importlib.resources
 import itertools
 import logging
 import os
@@ -17,6 +18,7 @@ import stat
 import tempfile
 from collections.abc import Iterable, Iterator, Mapping, Sequence
 from pathlib import Path
+from types import ModuleType
 from typing import Any, Callable, TypeVar
 
 from mkosi.types import PathString
@@ -185,3 +187,10 @@ def umask(mask: int) -> Iterator[None]:
 
 def is_power_of_2(x: int) -> bool:
     return x > 0 and (x & x - 1 == 0)
+
+
+@contextlib.contextmanager
+def resource_path(mod: ModuleType) -> Iterator[Path]:
+    t = importlib.resources.files(mod)
+    with importlib.resources.as_file(t) as p:
+        yield p

@@ -4,7 +4,6 @@ import contextlib
 import dataclasses
 import datetime
 import hashlib
-import importlib.resources
 import itertools
 import json
 import logging
@@ -21,6 +20,7 @@ from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
 from typing import Optional, TextIO, Union
 
+import mkosi.resources
 from mkosi.architecture import Architecture
 from mkosi.archive import extract_tar, make_cpio, make_tar
 from mkosi.burn import run_burn
@@ -72,6 +72,7 @@ from mkosi.util import (
     one_zero,
     read_env_file,
     read_os_release,
+    resource_path,
     scopedenv,
     try_import,
     umask,
@@ -2276,10 +2277,10 @@ def make_extension_image(state: MkosiState, output: Path) -> None:
     }
 
     with (
-        importlib.resources.path("mkosi.resources.repart.definitions", f"{state.config.output_format}.repart.d") as d,
+        resource_path(mkosi.resources) as r,
         complete_step(f"Building {state.config.output_format} extension image")
     ):
-        run(cmdline + ["--definitions", d], env=env)
+        run(cmdline + ["--definitions", r / f"repart/definitions/{state.config.output_format}.repart.d"], env=env)
 
 
 def finalize_staging(state: MkosiState) -> None:
@@ -2691,26 +2692,27 @@ def show_docs(args: MkosiArgs) -> None:
     while formats:
         form = formats.pop(0)
         try:
-            if form == DocFormat.man:
-                with importlib.resources.path("mkosi.resources", "mkosi.1") as man:
+            with resource_path(mkosi.resources) as r:
+                if form == DocFormat.man:
+                    man = r / "mkosi.1"
                     if not man.exists():
                         raise FileNotFoundError()
                     run(["man", "--local-file", man])
                     return
-            elif form == DocFormat.pandoc:
-                if not shutil.which("pandoc"):
-                    logging.debug("pandoc is not available")
-                with importlib.resources.path("mkosi.resources", "mkosi.md") as mdr:
+                elif form == DocFormat.pandoc:
+                    if not shutil.which("pandoc"):
+                        logging.error("pandoc is not available")
+                    mdr = r / "mkosi.md"
                     pandoc = run(["pandoc", "-t", "man", "-s", mdr], stdout=subprocess.PIPE)
                     run(["man", "--local-file", "-"], input=pandoc.stdout)
                     return
-            elif form == DocFormat.markdown:
-                md = importlib.resources.read_text("mkosi.resources", "mkosi.md")
-                page(md, args.pager)
-                return
-            elif form == DocFormat.system:
-                run(["man", "mkosi"])
-                return
+                elif form == DocFormat.markdown:
+                    md = (r / "mkosi.md").read_text()
+                    page(md, args.pager)
+                    return
+                elif form == DocFormat.system:
+                    run(["man", "mkosi"])
+                    return
         except (FileNotFoundError, subprocess.CalledProcessError) as e:
             if not formats:
                 if isinstance(e, FileNotFoundError):
