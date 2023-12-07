@@ -3,7 +3,10 @@
 
 import faulthandler
 import shutil
+import signal
 import sys
+from types import FrameType
+from typing import Optional
 
 from mkosi import run_verb
 from mkosi.config import parse_config
@@ -12,8 +15,14 @@ from mkosi.run import run, uncaught_exception_handler
 from mkosi.util import INVOKING_USER
 
 
+def onsigterm(signal: int, frame: Optional[FrameType]) -> None:
+    raise KeyboardInterrupt()
+
+
 @uncaught_exception_handler(exit=sys.exit)
 def main() -> None:
+    signal.signal(signal.SIGTERM, onsigterm)
+
     log_setup()
     # Ensure that the name and home of the user we are running as are resolved as early as possible.
     INVOKING_USER.init()
