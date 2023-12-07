@@ -33,7 +33,14 @@ from mkosi.config import (
 )
 from mkosi.log import die
 from mkosi.partition import finalize_root, find_partitions
-from mkosi.run import MkosiAsyncioThread, become_root, find_binary, run, spawn
+from mkosi.run import (
+    MkosiAsyncioThread,
+    become_root,
+    find_binary,
+    fork_and_wait,
+    run,
+    spawn,
+)
 from mkosi.tree import copy_tree, rmtree
 from mkosi.types import PathString
 from mkosi.util import INVOKING_USER, StrEnum
@@ -407,10 +414,26 @@ def copy_ephemeral(config: MkosiConfig, src: Path) -> Iterator[Path]:
     tmp = src.parent / f"{src.name}-{uuid.uuid4().hex}"
 
     try:
-        copy_tree(src, tmp, use_subvolumes=config.use_subvolumes)
+        def copy() -> None:
+            if config.output_format == OutputFormat.directory:
+                become_root()
+
+            copy_tree(
+                src, tmp,
+                preserve_owner=config.output_format == OutputFormat.directory,
+                use_subvolumes=config.use_subvolumes
+            )
+
+        fork_and_wait(copy)
         yield tmp
     finally:
-        rmtree(tmp)
+        def rm() -> None:
+            if config.output_format == OutputFormat.directory:
+                become_root()
+
+            rmtree(tmp)
+
+        fork_and_wait(rm)
 
 
 def qemu_version(config: MkosiConfig) -> GenericVersion:
