@@ -41,6 +41,7 @@ class Installer(DistributionInstaller):
             "apt",
             "archlinux-keyring",
             "bash",
+            "binutils",
             "btrfs-progs",
             "bubblewrap",
             "ca-certificates",
