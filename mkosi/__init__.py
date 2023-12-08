@@ -1191,18 +1191,9 @@ def build_initrd(state: MkosiState) -> Path:
         *(["--local-mirror", str(state.config.local_mirror)] if state.config.local_mirror else []),
         "--incremental", str(state.config.incremental),
         "--acl", str(state.config.acl),
-        "--format", "cpio",
-        "--package", "systemd",
-        "--package", "udev",
-        "--package", "util-linux",
-        "--package", "kmod",
-        *(["--package", "dmsetup"] if state.config.distribution.is_apt_distribution() else []),
         *flatten(["--package", package] for package in state.config.initrd_packages),
         "--output", f"{state.config.output}-initrd",
         *(["--image-version", state.config.image_version] if state.config.image_version else []),
-        "--make-initrd", "yes",
-        "--bootable", "no",
-        "--manifest-format", "",
         *(
             ["--source-date-epoch", str(state.config.source_date_epoch)]
             if state.config.source_date_epoch is not None else
@@ -1216,21 +1207,21 @@ def build_initrd(state: MkosiState) -> Path:
         *(["--root-password", rootpwopt] if rootpwopt else []),
         *([f"--environment={k}='{v}'" for k, v in state.config.environment.items()]),
         *(["-f"] * state.args.force),
-        "build",
     ]
 
-    args, [config] = parse_config(cmdline)
+    with resource_path(mkosi.resources) as r:
+        args, [config] = parse_config(cmdline + ["--include", os.fspath(r / "mkosi-initrd"), "build"])
 
-    config = dataclasses.replace(config, image="default-initrd")
-    assert config.output_dir
+        config = dataclasses.replace(config, image="default-initrd")
+        assert config.output_dir
 
-    config.output_dir.mkdir(exist_ok=True)
+        config.output_dir.mkdir(exist_ok=True)
 
-    if (config.output_dir / config.output).exists():
-        return config.output_dir / config.output
+        if (config.output_dir / config.output).exists():
+            return config.output_dir / config.output
 
-    with complete_step("Building initrd"):
-        build_image(args, config)
+        with complete_step("Building default initrd"):
+            build_image(args, config)
 
     return config.output_dir / config.output
 
