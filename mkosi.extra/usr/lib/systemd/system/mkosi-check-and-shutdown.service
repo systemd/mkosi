@@ -5,6 +5,7 @@ After=multi-user.target network-online.target
 Requires=multi-user.target
 SuccessAction=exit
 FailureAction=exit
+SuccessActionExitStatus=123
 
 [Service]
 Type=oneshot

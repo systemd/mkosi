@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1+
 
 import os
+import subprocess
 import sys
 import tempfile
 from collections.abc import Iterator, Sequence
@@ -54,7 +55,20 @@ class Image:
         stdin: _FILE = None,
         user: Optional[int] = None,
         group: Optional[int] = None,
+        check: bool = True,
     ) -> CompletedProcess:
+        kcl = [
+            "console=ttyS0",
+            "systemd.crash_shell",
+            "systemd.log_level=debug",
+            "udev.log_level=info",
+            "systemd.log_ratelimit_kmsg=0",
+            "systemd.journald.forward_to_console",
+            "systemd.journald.max_level_console=debug",
+            "printk.devkmsg=on",
+            "systemd.early_core_pattern=/core",
+        ]
+
         return run([
             "python3", "-m", "mkosi",
             "--distribution", str(self.distribution),
@@ -63,14 +77,12 @@ class Image:
             *options,
             "--output-dir", self.output_dir.name,
             "--cache-dir", "mkosi.cache",
-            "--kernel-command-line=console=ttyS0",
-            "--kernel-command-line=systemd.log_target=console",
-            "--kernel-command-line=systemd.default_standard_output=journal+console",
+            *(f"--kernel-command-line={i}" for i in kcl),
             "--qemu-vsock=yes",
             "--qemu-mem=4G",
             verb,
             *args,
-        ], stdin=stdin, stdout=sys.stdout, user=user, group=group)
+        ], check=check, stdin=stdin, stdout=sys.stdout, user=user, group=group)
 
     def build(self, options: Sequence[str] = (), args: Sequence[str] = ()) -> CompletedProcess:
         return self.mkosi(
@@ -83,17 +95,35 @@ class Image:
         )
 
     def boot(self, options: Sequence[str] = (), args: Sequence[str] = ()) -> CompletedProcess:
-        return self.mkosi("boot", [*options, "--debug"], args, stdin=sys.stdin if sys.stdin.isatty() else None)
+        result = self.mkosi(
+            "boot",
+            [*options, "--debug"],
+            args, stdin=sys.stdin if sys.stdin.isatty() else None,
+            check=False,
+        )
+
+        if result.returncode != 123:
+            raise subprocess.CalledProcessError(result.returncode, result.args, result.stdout, result.stderr)
+
+        return result
 
     def qemu(self, options: Sequence[str] = (), args: Sequence[str] = ()) -> CompletedProcess:
-        return self.mkosi(
+        result = self.mkosi(
             "qemu",
             [*options, "--debug"],
             args,
             stdin=sys.stdin if sys.stdin.isatty() else None,
             user=INVOKING_USER.uid,
             group=INVOKING_USER.gid,
+            check=False,
         )
+
+        rc = 0 if self.distribution == Distribution.ubuntu or self.distribution.is_centos_variant() else 123
+
+        if result.returncode != rc:
+            raise subprocess.CalledProcessError(result.returncode, result.args, result.stdout, result.stderr)
+
+        return result
 
     def summary(self, options: Sequence[str] = ()) -> CompletedProcess:
         return self.mkosi("summary", options, user=INVOKING_USER.uid, group=INVOKING_USER.gid)
