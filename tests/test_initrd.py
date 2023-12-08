@@ -81,7 +81,7 @@ def test_initrd_lvm(initrd: Image) -> None:
 
         drive = Path(image.output_dir.name) / "image.raw"
         drive.touch()
-        os.truncate(drive, 3000 * 1024**2)
+        os.truncate(drive, 5000 * 1024**2)
 
         lodev = run(["losetup", "--show", "--find", "--partscan", drive], stdout=subprocess.PIPE).stdout.strip()
         stack.callback(lambda: run(["losetup", "--detach", lodev]))
@@ -184,7 +184,7 @@ def test_initrd_luks_lvm(initrd: Image, passphrase: Path) -> None:
 
         drive = Path(image.output_dir.name) / "image.raw"
         drive.touch()
-        os.truncate(drive, 3000 * 1024**2)
+        os.truncate(drive, 5000 * 1024**2)
 
         lodev = run(["losetup", "--show", "--find", "--partscan", drive], stdout=subprocess.PIPE).stdout.strip()
         stack.callback(lambda: run(["losetup", "--detach", lodev]))
