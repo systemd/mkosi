@@ -24,6 +24,7 @@ from mkosi.config import (
     QemuFirmware,
     QemuVsockCID,
     SecureBootSignTool,
+    ShimBootloader,
     Verb,
 )
 from mkosi.distributions import Distribution
@@ -243,6 +244,7 @@ def test_config() -> None:
             "SecureBootKey": "/path/to/keyfile",
             "SecureBootSignTool": "pesign",
             "Seed": "7496d7d8-7f08-4a2b-96c6-ec8c43791b60",
+            "ShimBootloader": "none",
             "Sign": false,
             "SignExpectedPcr": "disabled",
             "SkeletonTrees": [
@@ -367,6 +369,7 @@ def test_config() -> None:
         secure_boot_key = Path("/path/to/keyfile"),
         secure_boot_sign_tool = SecureBootSignTool.pesign,
         seed = uuid.UUID("7496d7d8-7f08-4a2b-96c6-ec8c43791b60"),
+        shim_bootloader = ShimBootloader.none,
         sign = False,
         sign_expected_pcr = ConfigFeature.disabled,
         skeleton_trees = [ConfigTree(Path("/foo/bar"), Path("/")), ConfigTree(Path("/bar/baz"), Path("/qux"))],

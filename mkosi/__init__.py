@@ -36,6 +36,7 @@ from mkosi.config import (
     MkosiJsonEncoder,
     OutputFormat,
     SecureBootSignTool,
+    ShimBootloader,
     Verb,
     format_bytes,
     format_tree,
@@ -151,12 +152,6 @@ def install_distribution(state: MkosiState) -> None:
                 # should not be read from or written to.
                 with umask(~0o500):
                     (state.root / "efi").mkdir(exist_ok=True)
-
-                # Some distributions install EFI binaries directly to /boot/efi. Let's redirect them to /efi
-                # instead.
-                rmtree(state.root / "boot/efi")
-                (state.root / "boot").mkdir(exist_ok=True)
-                (state.root / "boot/efi").symlink_to("../efi")
 
             if state.config.packages:
                 state.config.distribution.install_packages(state, state.config.packages)
@@ -722,24 +717,61 @@ def pesign_prepare(state: MkosiState) -> None:
          "-d", state.workspace / "pesign"])
 
 
+def efi_boot_binary(state: MkosiState) -> Path:
+    arch = state.config.architecture.to_efi()
+    assert arch
+    return Path(f"efi/EFI/BOOT/BOOT{arch.upper()}.EFI")
+
+
+def shim_second_stage_binary(state: MkosiState) -> Path:
+    arch = state.config.architecture.to_efi()
+    assert arch
+    if state.config.distribution == Distribution.opensuse:
+        return Path("efi/EFI/BOOT/grub.EFI")
+    else:
+        return Path(f"efi/EFI/BOOT/grub{arch}.EFI")
+
+
+def sign_efi_binary(state: MkosiState, input: Path, output: Path) -> None:
+    assert state.config.secure_boot_key
+    assert state.config.secure_boot_certificate
+
+    if (
+        state.config.secure_boot_sign_tool == SecureBootSignTool.sbsign or
+        state.config.secure_boot_sign_tool == SecureBootSignTool.auto and
+        shutil.which("sbsign") is not None
+    ):
+        run([
+            "sbsign",
+            "--key", state.config.secure_boot_key,
+            "--cert", state.config.secure_boot_certificate,
+            "--output", output,
+            input,
+        ])
+    elif (
+        state.config.secure_boot_sign_tool == SecureBootSignTool.pesign or
+        state.config.secure_boot_sign_tool == SecureBootSignTool.auto and
+        shutil.which("pesign") is not None
+    ):
+        pesign_prepare(state)
+        run([
+            "pesign",
+            "--certdir", state.workspace / "pesign",
+            "--certificate", certificate_common_name(state.config.secure_boot_certificate),
+            "--sign",
+            "--force",
+            "--in", input,
+            "--out", output,
+        ])
+    else:
+        die("One of sbsign or pesign is required to use SecureBoot=")
+
+
 def install_systemd_boot(state: MkosiState) -> None:
-    if state.config.bootable == ConfigFeature.disabled:
+    if not want_efi(state.config):
         return
 
     if state.config.bootloader != Bootloader.systemd_boot:
-        return
-
-    if (
-        (
-            state.config.output_format == OutputFormat.cpio or
-            state.config.output_format.is_extension_image() or
-            state.config.overlay
-        )
-        and state.config.bootable == ConfigFeature.auto
-    ):
-        return
-
-    if state.config.architecture.to_efi() is None and state.config.bootable == ConfigFeature.auto:
         return
 
     if not any(gen_kernel_images(state)) and state.config.bootable == ConfigFeature.auto:
@@ -758,38 +790,20 @@ def install_systemd_boot(state: MkosiState) -> None:
         return
 
     if state.config.secure_boot:
-        assert state.config.secure_boot_key
-        assert state.config.secure_boot_certificate
-
         with complete_step("Signing systemd-boot binaries…"):
             for input in itertools.chain(directory.glob('*.efi'), directory.glob('*.EFI')):
                 output = directory / f"{input}.signed"
+                sign_efi_binary(state, input, output)
 
-                if (state.config.secure_boot_sign_tool == SecureBootSignTool.sbsign or
-                    state.config.secure_boot_sign_tool == SecureBootSignTool.auto and
-                    shutil.which("sbsign") is not None):
-                    run(["sbsign",
-                         "--key", state.config.secure_boot_key,
-                         "--cert", state.config.secure_boot_certificate,
-                         "--output", output,
-                         input])
-                elif (state.config.secure_boot_sign_tool == SecureBootSignTool.pesign or
-                      state.config.secure_boot_sign_tool == SecureBootSignTool.auto and
-                      shutil.which("pesign") is not None):
-                    pesign_prepare(state)
-                    run(["pesign",
-                         "--certdir", state.workspace / "pesign",
-                         "--certificate", certificate_common_name(state.config.secure_boot_certificate),
-                         "--sign",
-                         "--force",
-                         "--in", input,
-                         "--out", output])
-                else:
-                    die("One of sbsign or pesign is required to use SecureBoot=")
-
-    with complete_step("Installing boot loader…"):
+    with complete_step("Installing systemd-boot…"):
         run(["bootctl", "install", "--root", state.root, "--all-architectures", "--no-variables"],
-            env={"SYSTEMD_ESP_PATH": "/efi"})
+            env={"SYSTEMD_ESP_PATH": "/efi", "SYSTEMD_LOG_LEVEL": "debug"})
+
+        if state.config.shim_bootloader != ShimBootloader.none:
+            shutil.copy2(
+                state.root / f"efi/EFI/systemd/systemd-boot{state.config.architecture.to_efi()}.efi",
+                state.root / shim_second_stage_binary(state),
+            )
 
     if state.config.secure_boot:
         assert state.config.secure_boot_key
@@ -821,6 +835,85 @@ def install_systemd_boot(state: MkosiState) -> None:
                      "--output", keys / f"{db}.auth",
                      db,
                      state.workspace / "mkosi.esl"])
+
+
+def find_and_install_shim_binary(
+    state: MkosiState,
+    name: str,
+    signed: Sequence[str],
+    unsigned: Sequence[str],
+    output: Path,
+) -> None:
+    if state.config.shim_bootloader == ShimBootloader.signed:
+        for pattern in signed:
+            for p in state.root.glob(pattern):
+                log_step(f"Installing signed {name} EFI binary from /{p.relative_to(state.root)} to /{output}")
+                shutil.copy2(p, state.root / output)
+                return
+
+        if state.config.bootable == ConfigFeature.enabled:
+            die(f"Couldn't find signed {name} EFI binary installed in the image")
+    else:
+        for pattern in unsigned:
+            for p in state.root.glob(pattern):
+                if state.config.secure_boot:
+                    log_step(f"Signing and installing unsigned {name} EFI binary from /{p.relative_to(state.root)} to /{output}")
+                    sign_efi_binary(state, p, state.root / output)
+                else:
+                    log_step(f"Installing unsigned {name} EFI binary /{p.relative_to(state.root)} to /{output}")
+                    shutil.copy2(p, state.root / output)
+
+                return
+
+        if state.config.bootable == ConfigFeature.enabled:
+            die(f"Couldn't find unsigned {name} EFI binary installed in the image")
+
+
+def install_shim(state: MkosiState) -> None:
+    if not want_efi(state.config):
+        return
+
+    if state.config.shim_bootloader == ShimBootloader.none:
+        return
+
+    if not any(gen_kernel_images(state)) and state.config.bootable == ConfigFeature.auto:
+        return
+
+    dst = efi_boot_binary(state)
+    with umask(~0o700):
+        (state.root / dst).parent.mkdir(parents=True, exist_ok=True)
+
+    arch = state.config.architecture.to_efi()
+
+    signed = [
+        f"usr/lib/shim/shim{arch}.efi.signed", # Debian
+        f"usr/lib/shim/shim{arch}.efi.signed.latest", # Ubuntu
+        f"boot/efi/EFI/*/shim{arch}.efi", # Fedora/CentOS
+        "usr/share/efi/*/shim.efi", # OpenSUSE
+    ]
+
+    unsigned = [
+        f"usr/lib/shim/shim{arch}.efi", # Debian/Ubuntu
+        f"usr/share/shim/*/*/shim{arch}.efi", # Fedora/CentOS
+        f"usr/share/shim/shim{arch}.efi", # Arch
+    ]
+
+    find_and_install_shim_binary(state, "shim", signed, unsigned, dst)
+
+    signed = [
+        f"usr/lib/shim/mm{arch}.efi.signed", # Debian
+        f"usr/lib/shim/mm{arch}.efi", # Ubuntu
+        f"boot/efi/EFI/*/mm{arch}.efi", # Fedora/CentOS
+        "usr/share/efi/*/MokManager.efi", # OpenSUSE
+    ]
+
+    unsigned = [
+        f"usr/lib/shim/mm{arch}.efi", # Debian/Ubuntu
+        f"usr/share/shim/*/*/mm{arch}.efi", # Fedora/CentOS
+        f"usr/share/shim/mm{arch}.efi", # Arch
+    ]
+
+    find_and_install_shim_binary(state, "mok", signed, unsigned, dst.parent)
 
 
 def find_grub_bios_directory(state: MkosiState) -> Optional[Path]:
@@ -1395,10 +1488,11 @@ def build_uki(
         run(cmd)
 
 
-def want_uki(config: MkosiConfig) -> bool:
-    # Do we want to build an UKI according to config?
+def want_efi(config: MkosiConfig) -> bool:
+    # Do we want to make the image bootable on EFI firmware?
     # Note that this returns True also in the case where autodetection might later
-    # cause the UKI not to be installed after the file system has been populated.
+    # cause the system to not be made bootable on EFI firmware after the filesystem
+    # has been populated.
 
     if config.output_format in (OutputFormat.uki, OutputFormat.esp):
         return True
@@ -1415,7 +1509,10 @@ def want_uki(config: MkosiConfig) -> bool:
     ):
         return False
 
-    if config.architecture.to_efi() is None and config.bootable == ConfigFeature.auto:
+    if config.architecture.to_efi() is None:
+        if config.bootable == ConfigFeature.enabled:
+            die(f"Cannot make image bootable on UEFI on {config.architecture} architecture")
+
         return False
 
     return True
@@ -1428,7 +1525,7 @@ def install_uki(state: MkosiState, partitions: Sequence[Partition]) -> None:
     # benefit that they can be signed like normal EFI binaries, and can encode everything necessary to boot a
     # specific root device, including the root hash.
 
-    if not want_uki(state.config) or state.config.output_format in (OutputFormat.uki, OutputFormat.esp):
+    if not want_efi(state.config) or state.config.output_format in (OutputFormat.uki, OutputFormat.esp):
         return
 
     arch = state.config.architecture.to_efi()
@@ -1447,7 +1544,10 @@ def install_uki(state: MkosiState, partitions: Sequence[Partition]) -> None:
             boot_count = f'+{(state.root / "etc/kernel/tries").read_text().strip()}'
 
         if state.config.bootloader == Bootloader.uki:
-            boot_binary = state.root / "efi/EFI/BOOT/BOOTX64.EFI"
+            if state.config.shim_bootloader != ShimBootloader.none:
+                boot_binary = state.root / shim_second_stage_binary(state)
+            else:
+                boot_binary = state.root / efi_boot_binary(state)
         elif state.config.image_version:
             boot_binary = (
                 state.root / f"efi/EFI/Linux/{image_id}_{state.config.image_version}-{kver}{boot_count}.efi"
@@ -1760,7 +1860,7 @@ def check_systemd_tool(*tools: PathString, version: str, reason: str, hint: Opti
 
 
 def check_tools(args: MkosiArgs, config: MkosiConfig) -> None:
-    if want_uki(config):
+    if want_efi(config):
         check_systemd_tool(
             "ukify", "/usr/lib/systemd/ukify",
             version="254",
@@ -2371,6 +2471,7 @@ def build_image(args: MkosiArgs, config: MkosiConfig) -> None:
             configure_clock(state)
 
             install_systemd_boot(state)
+            install_shim(state)
             run_sysusers(state)
             run_preset(state)
             run_depmod(state)

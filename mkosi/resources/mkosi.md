@@ -1021,6 +1021,21 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 : Even if no EFI bootloader is installed, we still need an ESP for BIOS
   boot as that's where we store the kernel, initrd and grub modules.
 
+`ShimBootloader=`, `--shim-bootloader=`
+
+: Takes one of `none`, `unsigned`, or `signed`. Defaults to `none`. If
+  set to `none`, shim and MokManager will not be installed to the ESP.
+  If set to `unsigned`, mkosi will search for unsigned shim and
+  MokManager EFI binaries and install them. If `SecureBoot=` is enabled,
+  mkosi will sign the unsigned EFI binaries before installing thel. If
+  set to `signed`, mkosi will search for signed EFI binaries and install
+  those. Even if `SecureBoot=` is enabled, mkosi won't sign these
+  binaries again.
+
+: Note that this option only takes effect when an image that is bootable
+  on UEFI firmware is requested using other options
+  (`Bootable=`, `Bootloader=`).
+
 `Initrds=`, `--initrd`
 
 : Use user-provided initrd(s). Takes a comma separated list of paths to
