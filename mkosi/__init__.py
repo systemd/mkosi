@@ -1309,6 +1309,7 @@ def extract_pe_section(state: MkosiState, binary: Path, section: str, output: Pa
 
 def build_uki(
     state: MkosiState,
+    kver: str,
     kimg: Path,
     initrds: Sequence[Path],
     output: Path,
@@ -1344,6 +1345,7 @@ def build_uki(
         "--stub", stub,
         "--output", output,
         "--efi-arch", arch,
+        "--uname", kver,
     ]
 
     if not state.config.tools_tree:
@@ -1468,7 +1470,7 @@ def install_uki(state: MkosiState, partitions: Sequence[Partition]) -> None:
         with umask(~0o700):
             boot_binary.parent.mkdir(parents=True, exist_ok=True)
 
-        build_uki(state, kimg, initrds, boot_binary, roothash=roothash)
+        build_uki(state, kver, kimg, initrds, boot_binary, roothash=roothash)
 
         if not (state.staging / state.config.output_split_initrd).exists():
             # Extract the combined initrds from the UKI so we can use it to direct kernel boot with qemu
@@ -1500,11 +1502,11 @@ def make_uki(state: MkosiState, output: Path) -> None:
     initrds += [state.workspace / "initrd"]
 
     try:
-        _, kimg = next(gen_kernel_images(state))
+        kver, kimg = next(gen_kernel_images(state))
     except StopIteration:
         die("A kernel must be installed in the image to build a UKI")
 
-    build_uki(state, kimg, initrds, output)
+    build_uki(state, kver, kimg, initrds, output)
     extract_pe_section(state, output, ".linux", state.staging / state.config.output_split_kernel)
     extract_pe_section(state, output, ".initrd", state.staging / state.config.output_split_initrd)
 
