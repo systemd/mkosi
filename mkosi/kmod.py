@@ -12,7 +12,7 @@ from mkosi.run import bwrap, chroot_cmd
 
 
 def loaded_modules() -> list[str]:
-    return [l.split()[0] for l in Path("/proc/modules").read_text().splitlines()]
+    return [line.split()[0] for line in Path("/proc/modules").read_text().splitlines()]
 
 
 def filter_kernel_modules(

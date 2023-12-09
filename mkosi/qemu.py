@@ -625,7 +625,9 @@ def run_qemu(args: MkosiArgs, config: MkosiConfig, qemu_device_fds: Mapping[Qemu
                  fname])
             stack.callback(lambda: fname.unlink())
         elif config.ephemeral and config.output_format not in (OutputFormat.cpio, OutputFormat.uki):
-            fname = stack.enter_context(copy_ephemeral(config, config.output_dir_or_cwd() / config.output_with_compression))
+            fname = stack.enter_context(
+                copy_ephemeral(config, config.output_dir_or_cwd() / config.output_with_compression)
+            )
         else:
             fname = config.output_dir_or_cwd() / config.output_with_compression
 
@@ -763,7 +765,10 @@ def run_ssh(args: MkosiArgs, config: MkosiConfig) -> None:
     if config.qemu_vsock_cid == QemuVsockCID.auto:
         die("Can't use ssh verb with QemuVSockCID=auto")
 
-    cid = hash_to_vsock_cid(hash_output(config)) if config.qemu_vsock_cid == QemuVsockCID.hash else config.qemu_vsock_cid
+    if config.qemu_vsock_cid == QemuVsockCID.hash:
+        cid = hash_to_vsock_cid(hash_output(config))
+    else:
+        cid = config.qemu_vsock_cid
 
     cmd = [
         "ssh",
