@@ -856,11 +856,12 @@ def find_and_install_shim_binary(
     else:
         for pattern in unsigned:
             for p in state.root.glob(pattern):
+                efibin = p.relative_to(state.root)
                 if state.config.secure_boot:
-                    log_step(f"Signing and installing unsigned {name} EFI binary from /{p.relative_to(state.root)} to /{output}")
+                    log_step(f"Signing and installing unsigned {name} EFI binary from /{efibin} to /{output}")
                     sign_efi_binary(state, p, state.root / output)
                 else:
-                    log_step(f"Installing unsigned {name} EFI binary /{p.relative_to(state.root)} to /{output}")
+                    log_step(f"Installing unsigned {name} EFI binary /{efibin} to /{output}")
                     shutil.copy2(p, state.root / output)
 
                 return
