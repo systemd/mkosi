@@ -847,7 +847,8 @@ def find_and_install_shim_binary(
     if state.config.shim_bootloader == ShimBootloader.signed:
         for pattern in signed:
             for p in state.root.glob(pattern):
-                log_step(f"Installing signed {name} EFI binary from /{p.relative_to(state.root)} to /{output}")
+                rel = p.relative_to(state.root)
+                log_step(f"Installing signed {name} EFI binary from /{rel} to /{output}")
                 shutil.copy2(p, state.root / output)
                 return
 
@@ -856,11 +857,12 @@ def find_and_install_shim_binary(
     else:
         for pattern in unsigned:
             for p in state.root.glob(pattern):
+                rel = p.relative_to(state.root)
                 if state.config.secure_boot:
-                    log_step(f"Signing and installing unsigned {name} EFI binary from /{p.relative_to(state.root)} to /{output}")
+                    log_step(f"Signing and installing unsigned {name} EFI binary from /{rel} to /{output}")
                     sign_efi_binary(state, p, state.root / output)
                 else:
-                    log_step(f"Installing unsigned {name} EFI binary /{p.relative_to(state.root)} to /{output}")
+                    log_step(f"Installing unsigned {name} EFI binary /{rel} to /{output}")
                     shutil.copy2(p, state.root / output)
 
                 return
