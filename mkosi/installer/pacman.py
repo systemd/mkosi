@@ -40,7 +40,14 @@ def setup_pacman(state: MkosiState) -> None:
 
     # Testing repositories have to go before regular ones to to take precedence.
     if not state.config.local_mirror:
-        for repo in ("core-testing", "extra-testing"):
+        for repo in (
+            "core-testing",
+            "core-testing-debug",
+            "extra-testing",
+            "extra-testing-debug",
+            "core-debug",
+            "extra-debug",
+        ):
             if repo in state.config.repositories:
                 repos += [repo]
 
