@@ -189,7 +189,17 @@ def test_initrd_luks_lvm(initrd: Image, passphrase: Path) -> None:
         lodev = run(["losetup", "--show", "--find", "--partscan", drive], stdout=subprocess.PIPE).stdout.strip()
         stack.callback(lambda: run(["losetup", "--detach", lodev]))
         run(["sfdisk", "--label", "gpt", lodev], input="type=E6D6D379-F507-44C2-A23C-238F2A3DF928 bootable")
-        run(["cryptsetup", "--key-file", passphrase, "--use-random", "--pbkdf", "pbkdf2", "--pbkdf-force-iterations", "1000", "luksFormat", f"{lodev}p1"])
+        run(
+            [
+                "cryptsetup",
+                "--key-file", passphrase,
+                "--use-random",
+                "--pbkdf", "pbkdf2",
+                "--pbkdf-force-iterations", "1000",
+                "luksFormat",
+                f"{lodev}p1",
+            ]
+        )
         run(["cryptsetup", "--key-file", passphrase, "luksOpen", f"{lodev}p1", "lvm_root"])
         stack.callback(lambda: run(["cryptsetup", "close", "lvm_root"]))
         luks_uuid = run(["cryptsetup", "luksUUID", f"{lodev}p1"], stdout=subprocess.PIPE).stdout.strip()

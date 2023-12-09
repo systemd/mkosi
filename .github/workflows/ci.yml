@@ -22,26 +22,31 @@ jobs:
         sudo apt-get update
         sudo apt-get install pandoc python3-pytest
         python3 -m pip install --upgrade setuptools wheel pip
-        python3 -m pip install mypy isort pyflakes
+        python3 -m pip install mypy ruff
         npm install -g pyright
 
-    - name: Check that imports are sorted
-      run: python3 -m isort --verbose --check-only mkosi/
-
-    - name: Run pyflakes
-      run: python3 -m pyflakes mkosi/ tests/
+    - name: Run ruff
+      run: |
+        ruff --version
+        ruff mkosi/ tests/
 
     - name: Check that tabs are not used in code
       run: sh -c '! git grep -P "\\t" "*.py"'
 
     - name: Type Checking (mypy)
-      run: python3 -m mypy mkosi/ tests/
+      run: |
+        python3 -m mypy --version
+        python3 -m mypy mkosi/ tests/
 
     - name: Type Checking (pyright)
-      run: pyright mkosi/ tests/
+      run: |
+        pyright --version
+        pyright mkosi/ tests/
 
     - name: Unit Tests
-      run: python3 -m pytest -sv tests/
+      run: |
+        python3 -m pytest --version
+        python3 -m pytest -sv tests/
 
     - name: Test execution from current working directory
       run: python3 -m mkosi -h
