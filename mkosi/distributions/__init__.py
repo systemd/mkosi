@@ -91,7 +91,13 @@ class Distribution(StrEnum):
     custom       = enum.auto()
 
     def is_centos_variant(self) -> bool:
-        return self in (Distribution.centos, Distribution.alma, Distribution.rocky)
+        return self in (
+            Distribution.centos,
+            Distribution.alma,
+            Distribution.rocky,
+            Distribution.rhel,
+            Distribution.rhel_ubi,
+        )
 
     def is_dnf_distribution(self) -> bool:
         return self in (
