@@ -69,7 +69,7 @@ runs:
       sudo apt-get build-dep systemd
       sudo apt-get install --assume-yes --no-install-recommends libfdisk-dev libtss2-dev
 
-      git clone https://github.com/systemd/systemd --depth=1
+      git clone https://github.com/systemd/systemd-stable --single-branch --branch=v255-stable --depth=1 systemd
       meson setup systemd/build systemd \
         -D repart=true \
         -D efi=true \
@@ -82,6 +82,7 @@ runs:
 
       BINARIES=(
         bootctl
+        kernel-install
         systemctl
         systemd-dissect
         systemd-firstboot

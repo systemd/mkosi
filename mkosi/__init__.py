@@ -18,7 +18,7 @@ import textwrap
 import uuid
 from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
-from typing import Optional, TextIO, Union
+from typing import Optional, TextIO, Union, cast
 
 import mkosi.resources
 from mkosi.architecture import Architecture
@@ -1040,12 +1040,12 @@ def prepare_grub_efi(state: MkosiState) -> None:
     with config.open("a") as f:
         f.write('if [ "${grub_platform}" == "efi" ]; then\n')
 
-        for uki in (state.root / "efi/EFI/Linux").glob("*.efi"):
+        for uki in (state.root / "boot/EFI/Linux").glob("*.efi"):
             f.write(
                 textwrap.dedent(
                     f"""\
                     menuentry "{uki.stem}" {{
-                        chainloader /{uki.relative_to(state.root / "efi")}
+                        chainloader /{uki.relative_to(state.root / "boot")}
                     }}
                     """
                 )
@@ -1064,7 +1064,9 @@ def prepare_grub_bios(state: MkosiState, partitions: Sequence[Partition]) -> Non
     root = finalize_root(partitions)
     assert root
 
-    dst = state.root / "efi" / state.config.distribution.name
+    token = find_entry_token(state)
+
+    dst = state.root / "boot" / token
     with umask(~0o700):
         dst.mkdir(exist_ok=True)
 
@@ -1088,17 +1090,16 @@ def prepare_grub_bios(state: MkosiState, partitions: Sequence[Partition]) -> Non
                 ]
                 initrds += [Path(shutil.copy2(kmods, kdst / "kmods"))]
 
-                distribution = state.config.distribution
-                image = Path("/") / kimg.relative_to(state.root / "efi")
+                image = Path("/") / kimg.relative_to(state.root / "boot")
                 cmdline = " ".join(state.config.kernel_command_line)
                 initrds = " ".join(
-                    [os.fspath(Path("/") / initrd.relative_to(state.root / "efi")) for initrd in initrds]
+                    [os.fspath(Path("/") / initrd.relative_to(state.root / "boot")) for initrd in initrds]
                 )
 
                 f.write(
                     textwrap.dedent(
                         f"""\
-                        menuentry "{distribution}-{kver}" {{
+                        menuentry "{token}-{kver}" {{
                             linux {image} {root} {cmdline}
                             initrd {initrds}
                         }}
@@ -1448,9 +1449,10 @@ def build_uki(
         for p in state.config.extra_search_paths:
             cmd += ["--tools", p]
 
-    uki_config = state.pkgmngr / "etc/kernel/uki.conf"
-    if uki_config.exists():
-        cmd += ["--config", uki_config]
+    for d in ("etc/kernel", "usr/lib/kernel"):
+        uki_config = state.pkgmngr / d / "uki.conf"
+        if uki_config.exists():
+            cmd += ["--config", uki_config]
 
     if state.config.secure_boot:
         assert state.config.secure_boot_key
@@ -1521,6 +1523,19 @@ def want_efi(config: MkosiConfig) -> bool:
     return True
 
 
+def find_entry_token(state: MkosiState) -> str:
+    if (
+        "--version" not in run(["kernel-install", "--help"], stdout=subprocess.PIPE).stdout or
+        systemd_tool_version("kernel-install") < "255.1"
+    ):
+        return state.config.image_id or state.config.distribution.name
+
+    output = json.loads(run(["kernel-install", "--root", state.root, "--json=pretty", "inspect"],
+                        stdout=subprocess.PIPE).stdout)
+    logging.debug(json.dumps(output, indent=4))
+    return cast(str, output["EntryToken"])
+
+
 def install_uki(state: MkosiState, partitions: Sequence[Partition]) -> None:
     # Iterates through all kernel versions included in the image and generates a combined
     # kernel+initrd+cmdline+osrelease EFI file from it and places it in the /EFI/Linux directory of the ESP.
@@ -1539,8 +1554,6 @@ def install_uki(state: MkosiState, partitions: Sequence[Partition]) -> None:
     roothash = finalize_roothash(partitions)
 
     for kver, kimg in gen_kernel_images(state):
-        image_id = state.config.image_id or state.config.distribution.name
-
         # See https://systemd.io/AUTOMATIC_BOOT_ASSESSMENT/#boot-counting
         boot_count = ""
         if (state.root / "etc/kernel/tries").exists():
@@ -1551,15 +1564,13 @@ def install_uki(state: MkosiState, partitions: Sequence[Partition]) -> None:
                 boot_binary = state.root / shim_second_stage_binary(state)
             else:
                 boot_binary = state.root / efi_boot_binary(state)
-        elif state.config.image_version:
-            boot_binary = (
-                state.root / f"efi/EFI/Linux/{image_id}_{state.config.image_version}-{kver}{boot_count}.efi"
-            )
-        elif roothash:
-            _, _, h = roothash.partition("=")
-            boot_binary = state.root / f"efi/EFI/Linux/{image_id}-{kver}-{h}{boot_count}.efi"
         else:
-            boot_binary = state.root / f"efi/EFI/Linux/{image_id}-{kver}{boot_count}.efi"
+            token = find_entry_token(state)
+            if roothash:
+                _, _, h = roothash.partition("=")
+                boot_binary = state.root / f"boot/EFI/Linux/{token}-{kver}-{h}{boot_count}.efi"
+            else:
+                boot_binary = state.root / f"boot/EFI/Linux/{token}-{kver}{boot_count}.efi"
 
         microcode = build_microcode_initrd(state)
 
@@ -1848,7 +1859,7 @@ def check_outputs(config: MkosiConfig) -> None:
 
 
 def systemd_tool_version(tool: PathString) -> GenericVersion:
-    return GenericVersion(run([tool, "--version"], stdout=subprocess.PIPE).stdout.split()[1])
+    return GenericVersion(run([tool, "--version"], stdout=subprocess.PIPE).stdout.split()[2].strip("()"))
 
 
 def check_systemd_tool(*tools: PathString, version: str, reason: str, hint: Optional[str] = None) -> None:
@@ -1858,8 +1869,8 @@ def check_systemd_tool(*tools: PathString, version: str, reason: str, hint: Opti
 
     v = systemd_tool_version(tool)
     if v < version:
-        die(f"Found '{tool}' version {v} but version {version} or newer is required to {reason}.",
-            hint=f"Use ToolsTree=default to get a newer version of '{tool}'.")
+        die(f"Found '{tool}' with version {v} but version {version} or newer is required to {reason}.",
+            hint=f"Use ToolsTree=default to get a newer version of '{tools[0]}'.")
 
 
 def check_tools(args: MkosiArgs, config: MkosiConfig) -> None:
@@ -2281,6 +2292,7 @@ def make_disk(
                         [Partition]
                         Type=esp
                         Format=vfat
+                        CopyFiles=/boot:/
                         CopyFiles=/efi:/
                         SizeMinBytes={"1G" if bios else "512M"}
                         SizeMaxBytes={"1G" if bios else "512M"}
